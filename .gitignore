@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# local knowledge DB (never commit a learner's data)
+*.db
+*.db-wal
+*.db-shm
+.eklavya/
+
+.DS_Store
+*.log
+coverage/

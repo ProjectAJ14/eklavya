@@ -8,8 +8,8 @@ The full specification is frozen in **[PRD.md](PRD.md)**. This file is the live 
 
 | Phase | Doc | Status | Gate to proceed |
 |---|---|---|---|
-| 0 — Scaffold | [phase-0-scaffold.md](phase-0-scaffold.md) | 🟡 In progress | DB tables exist; server answers `tools/list`; seeds load |
-| 1 — Manual tutor | [phase-1-manual-tutor.md](phase-1-manual-tutor.md) | ⬜ Not started | Diff-grounded quiz works end to end; no repeat questions |
+| 0 — Scaffold | [phase-0-scaffold.md](phase-0-scaffold.md) | ✅ Done | DB tables exist; server answers `tools/list`; seeds load |
+| 1 — Manual tutor | [phase-1-manual-tutor.md](phase-1-manual-tutor.md) | 🟡 Next | Diff-grounded quiz works end to end; no repeat questions |
 | 2 — Ambient loop | [phase-2-ambient-loop.md](phase-2-ambient-loop.md) | ⬜ Not started | Quiz fires once per task; skip honored; no Stop loop |
 | 3 — Enforced gates | [phase-3-enforced-gates.md](phase-3-enforced-gates.md) | ⬜ Not started | Commit blocked in Claude Code *and* bare terminal |
 | 4 — Parallel tutoring | [phase-4-parallel-tutoring.md](phase-4-parallel-tutoring.md) | ⬜ Not started | Concurrent writers, no corruption |

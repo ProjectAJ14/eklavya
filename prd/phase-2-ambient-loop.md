@@ -9,6 +9,8 @@
 Remove the manual step. The quiz happens on its own after a task, exactly once, and the learner profile is injected at session start.
 
 > ⚠️ **P0 risk:** Stop-hook infinite loop. The loop guard is the highest-severity bug class in this project (PRD §15). Write its tests before the hook itself.
+>
+> Phase 0 verification raised this risk: `stop_hook_active` is no longer documented (deviation D2), so the guard gets **no** help from the harness — a DB-side marker keyed by session is the only thing standing between a bug and an infinite loop.
 
 ## Tasks
 
@@ -26,9 +28,9 @@ Remove the manual step. The quiz happens on its own after a task, exactly once, 
 
 ### 2.3 `Stop` → `hooks/stop-quiz-check.sh`
 - [ ] Reads `session_id` from stdin JSON
-- [ ] Respects `stop_hook_active` — never re-block when already continuing
+- [ ] Honors `stop_hook_active` if present, but depends on nothing from the harness — see deviation D2
 - [ ] Query: unmastered/due concepts in `session_concepts` for this session
-- [ ] Blocks with `{"decision":"block","reason":"..."}` naming slugs + contexts
+- [ ] Blocks by writing the tutor instruction (slugs + contexts) to **stderr** and exiting **2** — see deviation D1 in [`docs/verified-schemas.md`](../docs/verified-schemas.md)
 - [ ] **Loop guard:** marker keyed by session (+ stop count) so it blocks at most once per task completion
 - [ ] Guard clears when new concepts are logged (next task → next quiz)
 - [ ] `min_minutes_between_quizzes` respected
@@ -42,7 +44,7 @@ Remove the manual step. The quiz happens on its own after a task, exactly once, 
 ### 2.5 Tests
 - [ ] Hook-script tests with fixture JSON on stdin; assert exit codes and stdout JSON
 - [ ] **Loop guard: simulated repeated Stop events block exactly once**
-- [ ] `stop_hook_active=true` → never blocks
+- [ ] `stop_hook_active=true` (when present) → never blocks; guard still correct when the field is absent
 - [ ] SessionStart never exits non-zero on a corrupt DB, missing DB, or missing binary
 - [ ] Skip flow → no re-block
 

@@ -1,0 +1,49 @@
+{
+  "domain": "git",
+  "concepts": [
+    { "slug": "git-repository", "name": "Repository and object model", "tier": 1, "description": "Commits, trees and blobs in a content-addressed store — everything else in git is a view over this." },
+    { "slug": "git-commit", "name": "Commits", "tier": 1, "description": "An immutable snapshot plus parent pointers; history is a DAG, not a list." },
+    { "slug": "git-staging-area", "name": "Staging area", "tier": 1, "description": "The index — the explicit space between working tree and commit that makes partial commits possible." },
+    { "slug": "git-branch", "name": "Branches", "tier": 1, "description": "A movable pointer to a commit; branching is cheap because nothing is copied." },
+    { "slug": "git-remote", "name": "Remotes and tracking branches", "tier": 1, "description": "Local mirrors of another repository's refs, updated only by fetch." },
+    { "slug": "gitignore", "name": ".gitignore", "tier": 1, "description": "Patterns excluding files from tracking — and why it does nothing for already-tracked files." },
+
+    { "slug": "git-merge", "name": "Merging", "tier": 2, "description": "Joining histories with a merge commit; fast-forward versus true merge." },
+    { "slug": "git-rebase", "name": "Rebasing", "tier": 2, "description": "Replaying commits onto a new base, producing new commit objects with new hashes." },
+    { "slug": "git-conflict-resolution", "name": "Conflict resolution", "tier": 2, "description": "What a conflict actually is, and why resolving it is a content decision git cannot make." },
+    { "slug": "git-stash", "name": "Stashing", "tier": 2, "description": "Parking uncommitted work on a hidden ref to get a clean tree." },
+    { "slug": "git-detached-head", "name": "Detached HEAD", "tier": 2, "description": "HEAD pointing at a commit rather than a branch, and how commits made there get orphaned." },
+    { "slug": "git-hooks", "name": "Git hooks", "tier": 2, "description": "Local scripts fired at lifecycle points such as pre-commit — the mechanism Eklavya's own gate uses." },
+
+    { "slug": "git-reset-modes", "name": "reset --soft/--mixed/--hard", "tier": 3, "description": "Which of HEAD, index and working tree each mode moves — the difference between recoverable and lost work." },
+    { "slug": "git-reflog", "name": "Reflog", "tier": 3, "description": "The local log of where refs have pointed; the recovery tool for almost every 'I lost it' situation." },
+    { "slug": "git-cherry-pick", "name": "Cherry-picking", "tier": 3, "description": "Applying one commit's change onto another branch, and the duplicate-commit problem it creates." },
+    { "slug": "git-merge-vs-rebase", "name": "Merge vs rebase: tradeoffs", "tier": 3, "description": "Truthful history versus readable history, and why the choice is a team policy, not a technical fact." },
+
+    { "slug": "git-interactive-rebase", "name": "Interactive rebase", "tier": 4, "description": "Reordering, squashing and editing history — and what it does to anyone who already pulled it." },
+    { "slug": "git-force-push-safety", "name": "Force-push safety", "tier": 4, "description": "Why --force-with-lease exists and what plain --force silently destroys." },
+    { "slug": "git-bisect", "name": "Bisect", "tier": 4, "description": "Binary search over history to find the commit that introduced a regression." }
+  ],
+  "edges": [
+    { "from": "git-repository", "to": "git-commit", "relation": "prerequisite_of" },
+    { "from": "git-commit", "to": "git-branch", "relation": "prerequisite_of" },
+    { "from": "git-commit", "to": "git-staging-area", "relation": "prerequisite_of" },
+    { "from": "git-branch", "to": "git-merge", "relation": "prerequisite_of" },
+    { "from": "git-branch", "to": "git-rebase", "relation": "prerequisite_of" },
+    { "from": "git-branch", "to": "git-remote", "relation": "prerequisite_of" },
+    { "from": "git-branch", "to": "git-detached-head", "relation": "prerequisite_of" },
+    { "from": "git-merge", "to": "git-conflict-resolution", "relation": "prerequisite_of" },
+    { "from": "git-merge", "to": "git-merge-vs-rebase", "relation": "prerequisite_of" },
+    { "from": "git-rebase", "to": "git-merge-vs-rebase", "relation": "prerequisite_of" },
+    { "from": "git-rebase", "to": "git-interactive-rebase", "relation": "prerequisite_of" },
+    { "from": "git-interactive-rebase", "to": "git-force-push-safety", "relation": "prerequisite_of" },
+    { "from": "git-remote", "to": "git-force-push-safety", "relation": "prerequisite_of" },
+    { "from": "git-staging-area", "to": "git-reset-modes", "relation": "prerequisite_of" },
+    { "from": "git-detached-head", "to": "git-reflog", "relation": "prerequisite_of" },
+    { "from": "git-reset-modes", "to": "git-reflog", "relation": "prerequisite_of" },
+    { "from": "git-commit", "to": "git-cherry-pick", "relation": "prerequisite_of" },
+    { "from": "git-commit", "to": "git-bisect", "relation": "prerequisite_of" },
+    { "from": "git-staging-area", "to": "git-stash", "relation": "related_to" },
+    { "from": "gitignore", "to": "git-staging-area", "relation": "related_to" }
+  ]
+}

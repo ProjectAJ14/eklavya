@@ -1,0 +1,46 @@
+{
+  "domain": "react",
+  "concepts": [
+    { "slug": "react-component", "name": "Components", "tier": 1, "description": "A function taking props and returning a description of UI — not a template and not an object." },
+    { "slug": "react-jsx", "name": "JSX", "tier": 1, "description": "Syntax sugar over createElement calls; it produces data, not DOM." },
+    { "slug": "react-props", "name": "Props", "tier": 1, "description": "Read-only inputs flowing down; mutating them breaks the model." },
+    { "slug": "react-state", "name": "State", "tier": 1, "description": "Values a component owns, whose change triggers a re-render." },
+    { "slug": "react-lists-keys", "name": "Lists and keys", "tier": 1, "description": "Keys give list children a stable identity across renders; index keys quietly break on reorder." },
+
+    { "slug": "react-hooks-rules", "name": "Rules of hooks", "tier": 2, "description": "Hooks are matched to state by call order, which is why they cannot be conditional." },
+    { "slug": "react-usestate", "name": "useState", "tier": 2, "description": "Declaring state, and why updates are queued rather than applied immediately." },
+    { "slug": "react-useeffect", "name": "useEffect", "tier": 2, "description": "Synchronizing with something outside React — not a lifecycle callback." },
+    { "slug": "react-controlled-inputs", "name": "Controlled inputs", "tier": 2, "description": "Form values driven by state, with React as the single source of truth." },
+    { "slug": "react-lifting-state", "name": "Lifting state up", "tier": 2, "description": "Moving shared state to the nearest common ancestor instead of syncing two copies." },
+
+    { "slug": "react-render-model", "name": "Render and commit model", "tier": 3, "description": "Render is a pure computation; commit applies the diff. Confusing the two explains most surprising bugs." },
+    { "slug": "react-useeffect-deps", "name": "useEffect dependencies", "tier": 3, "description": "The dependency array is a correctness contract, not a performance knob." },
+    { "slug": "react-useeffect-cleanup", "name": "useEffect cleanup", "tier": 3, "description": "Returning a teardown to cancel subscriptions and in-flight work before the next effect run." },
+    { "slug": "react-context", "name": "Context", "tier": 3, "description": "Passing values past intermediate components — and the re-render cost of doing it carelessly." },
+    { "slug": "react-memoization", "name": "useMemo and useCallback", "tier": 3, "description": "Stabilizing values and identities; usually a fix for referential equality, not for slow code." },
+
+    { "slug": "react-stale-closure", "name": "Stale closures", "tier": 4, "description": "A callback capturing an old render's variables — the classic source of 'my state is one step behind'." },
+    { "slug": "react-reconciliation", "name": "Reconciliation", "tier": 4, "description": "How React decides to update, move or remount a node, and how component identity is determined." },
+    { "slug": "react-race-conditions", "name": "Async race conditions", "tier": 4, "description": "Out-of-order responses overwriting newer data, and why cleanup or an abort signal is the fix." }
+  ],
+  "edges": [
+    { "from": "react-component", "to": "react-jsx", "relation": "prerequisite_of" },
+    { "from": "react-component", "to": "react-props", "relation": "prerequisite_of" },
+    { "from": "react-props", "to": "react-state", "relation": "prerequisite_of" },
+    { "from": "react-state", "to": "react-usestate", "relation": "prerequisite_of" },
+    { "from": "react-hooks-rules", "to": "react-usestate", "relation": "prerequisite_of" },
+    { "from": "react-hooks-rules", "to": "react-useeffect", "relation": "prerequisite_of" },
+    { "from": "react-usestate", "to": "react-controlled-inputs", "relation": "prerequisite_of" },
+    { "from": "react-state", "to": "react-lifting-state", "relation": "prerequisite_of" },
+    { "from": "react-lifting-state", "to": "react-context", "relation": "prerequisite_of" },
+    { "from": "react-useeffect", "to": "react-useeffect-deps", "relation": "prerequisite_of" },
+    { "from": "react-useeffect", "to": "react-useeffect-cleanup", "relation": "prerequisite_of" },
+    { "from": "react-useeffect-cleanup", "to": "react-race-conditions", "relation": "prerequisite_of" },
+    { "from": "react-state", "to": "react-render-model", "relation": "prerequisite_of" },
+    { "from": "react-render-model", "to": "react-memoization", "relation": "prerequisite_of" },
+    { "from": "react-render-model", "to": "react-reconciliation", "relation": "prerequisite_of" },
+    { "from": "react-lists-keys", "to": "react-reconciliation", "relation": "prerequisite_of" },
+    { "from": "react-useeffect-deps", "to": "react-stale-closure", "relation": "prerequisite_of" },
+    { "from": "react-memoization", "to": "react-stale-closure", "relation": "related_to" }
+  ]
+}

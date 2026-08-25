@@ -1,0 +1,43 @@
+{
+  "domain": "node-backend",
+  "concepts": [
+    { "slug": "node-event-loop", "name": "The event loop", "tier": 1, "description": "One thread, a queue of callbacks; concurrency comes from not waiting, not from parallelism." },
+    { "slug": "node-modules", "name": "CommonJS vs ESM", "tier": 1, "description": "require versus import, and the resolution and interop rules that differ between them." },
+    { "slug": "node-http-server", "name": "HTTP server basics", "tier": 1, "description": "Request and response streams underneath every framework abstraction." },
+    { "slug": "node-env-vars", "name": "Environment variables and secrets", "tier": 1, "description": "Configuration outside the code, and why secrets never belong in the repository." },
+
+    { "slug": "express-routing", "name": "Routing", "tier": 2, "description": "Matching method and path to a handler, including how route order decides ambiguity." },
+    { "slug": "express-middleware", "name": "Middleware", "tier": 2, "description": "Functions in a chain that may inspect, mutate, short-circuit or pass along a request." },
+    { "slug": "node-async-await", "name": "async/await and promises", "tier": 2, "description": "Sequencing asynchronous work without blocking the loop, and where errors surface." },
+    { "slug": "express-body-parsing", "name": "Request body parsing", "tier": 2, "description": "Turning a request stream into a usable value, and why size limits matter." },
+    { "slug": "node-input-validation", "name": "Input validation", "tier": 2, "description": "Rejecting malformed input at the boundary rather than deep inside a handler." },
+    { "slug": "express-error-handling", "name": "Error-handling middleware", "tier": 2, "description": "The four-argument handler, and why an unawaited rejection never reaches it." },
+
+    { "slug": "express-middleware-order", "name": "Middleware ordering", "tier": 3, "description": "The chain is sequential; a misplaced auth or parser leaves a route unprotected or a body undefined." },
+    { "slug": "node-connection-pooling", "name": "Connection pooling", "tier": 3, "description": "Reusing database connections, and what pool exhaustion looks like from the outside." },
+    { "slug": "node-streams-backpressure", "name": "Streams and backpressure", "tier": 3, "description": "Letting a slow consumer throttle a fast producer instead of buffering into memory." },
+    { "slug": "node-logging-observability", "name": "Structured logging", "tier": 3, "description": "Machine-readable logs with request correlation, so production failures are diagnosable." },
+
+    { "slug": "node-event-loop-blocking", "name": "Blocking the event loop", "tier": 4, "description": "Synchronous CPU work stalling every other request on the process." },
+    { "slug": "node-graceful-shutdown", "name": "Graceful shutdown", "tier": 4, "description": "Draining in-flight requests and closing resources on SIGTERM instead of dropping them." },
+    { "slug": "node-clustering-scaling", "name": "Clustering and horizontal scale", "tier": 4, "description": "Multiple processes behind a balancer, and what that breaks for in-process state." }
+  ],
+  "edges": [
+    { "from": "node-event-loop", "to": "node-async-await", "relation": "prerequisite_of" },
+    { "from": "node-event-loop", "to": "node-event-loop-blocking", "relation": "prerequisite_of" },
+    { "from": "node-http-server", "to": "express-routing", "relation": "prerequisite_of" },
+    { "from": "node-http-server", "to": "node-streams-backpressure", "relation": "prerequisite_of" },
+    { "from": "express-routing", "to": "express-middleware", "relation": "prerequisite_of" },
+    { "from": "express-middleware", "to": "express-middleware-order", "relation": "prerequisite_of" },
+    { "from": "express-middleware", "to": "express-body-parsing", "relation": "prerequisite_of" },
+    { "from": "express-middleware", "to": "express-error-handling", "relation": "prerequisite_of" },
+    { "from": "node-async-await", "to": "express-error-handling", "relation": "prerequisite_of" },
+    { "from": "express-body-parsing", "to": "node-input-validation", "relation": "prerequisite_of" },
+    { "from": "node-async-await", "to": "node-connection-pooling", "relation": "prerequisite_of" },
+    { "from": "node-http-server", "to": "node-graceful-shutdown", "relation": "prerequisite_of" },
+    { "from": "node-env-vars", "to": "node-clustering-scaling", "relation": "related_to" },
+    { "from": "node-connection-pooling", "to": "node-clustering-scaling", "relation": "prerequisite_of" },
+    { "from": "node-modules", "to": "node-http-server", "relation": "related_to" },
+    { "from": "node-logging-observability", "to": "node-graceful-shutdown", "relation": "related_to" }
+  ]
+}

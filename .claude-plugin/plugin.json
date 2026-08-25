@@ -1,0 +1,11 @@
+{
+  "name": "eklavya",
+  "displayName": "Eklavya",
+  "version": "0.1.0",
+  "description": "Learn while your agent works. Turns coding-agent generation time into adaptive, Socratic learning grounded in the code being written.",
+  "author": {
+    "name": "Ajay Kumar"
+  },
+  "license": "MIT",
+  "keywords": ["learning", "spaced-repetition", "tutor", "knowledge-graph", "mentorship"]
+}
