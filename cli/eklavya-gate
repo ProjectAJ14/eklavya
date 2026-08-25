@@ -1,0 +1,67 @@
+#!/bin/sh
+# Exit 0 if committing is allowed, 1 if Eklavya's gate is holding it.
+#
+# This is what makes enforcement editor-agnostic (PRD §9.4): the same check runs
+# from a bare terminal, VS Code, or Cursor via the git pre-commit hook.
+#
+# It fails OPEN. A missing jq, a missing database or an unreadable config lets
+# the commit through with a warning. A learning tool that bricks commits when a
+# dependency is absent gets uninstalled, and an unpassable gate teaches nothing.
+
+set -u
+
+eklavya_home() { printf '%s' "${EKLAVYA_HOME:-$HOME/.eklavya}"; }
+eklavya_db()   { printf '%s' "${EKLAVYA_DB:-$(eklavya_home)/knowledge.db}"; }
+
+REPO=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -n "$REPO" ] || exit 0
+
+# Only repos that explicitly opt in are gated.
+CONFIG="$REPO/.eklavya.json"
+[ -f "$CONFIG" ] || exit 0
+
+if ! command -v jq >/dev/null 2>&1; then
+  printf 'eklavya: jq not found, skipping the commit gate.\n' >&2
+  exit 0
+fi
+if ! command -v sqlite3 >/dev/null 2>&1; then
+  printf 'eklavya: sqlite3 not found, skipping the commit gate.\n' >&2
+  exit 0
+fi
+
+MODE=$(jq -r '.mode // "ambient"' "$CONFIG" 2>/dev/null) || exit 0
+[ "$MODE" = "enforced" ] || exit 0
+
+DB=$(eklavya_db)
+[ -f "$DB" ] || exit 0
+
+ESCAPED=$(printf '%s' "$REPO" | sed "s/'/''/g")
+GATE=$(sqlite3 -noheader -batch -cmd ".timeout 2000" "$DB" "
+  SELECT passed || '|' || required || '|' || answered
+    FROM gates
+   WHERE repo = '$ESCAPED'
+   ORDER BY updated_at DESC
+   LIMIT 1;" 2>/dev/null) || exit 0
+
+# No gate for this repo means Eklavya never taught anything here, so there is
+# nothing to have passed.
+[ -n "$GATE" ] || exit 0
+
+PASSED=$(printf '%s' "$GATE" | cut -d'|' -f1)
+REQUIRED=$(printf '%s' "$GATE" | cut -d'|' -f2)
+ANSWERED=$(printf '%s' "$GATE" | cut -d'|' -f3)
+
+[ "$PASSED" = "1" ] && exit 0
+
+cat >&2 <<EOF
+
+  Eklavya is holding this commit.
+
+  You have answered $ANSWERED of $REQUIRED concepts from this session's work.
+  Open Claude Code in this repo and run /eklavya:quiz to finish, then commit again.
+
+  To see what is outstanding:  /eklavya:gate
+  To turn this off for the repo, set "mode" to "ambient" in .eklavya.json
+
+EOF
+exit 1

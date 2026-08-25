@@ -100,8 +100,16 @@ describe('writeConfigFile', () => {
 });
 
 describe('findRepoConfig', () => {
+  it('resolves symlinks, so it matches what git rev-parse reports', () => {
+    // macOS /tmp -> /private/tmp: the gate would never match without this.
+    const viaSymlink = repo.replace('/private/var/', '/var/');
+    if (viaSymlink !== repo && fs.existsSync(viaSymlink)) {
+      expect(findRepoConfig(viaSymlink).repoRoot).toBe(fs.realpathSync(repo));
+    }
+  });
+
   it('reports the git root even with no repo config present', () => {
-    expect(findRepoConfig(repo).repoRoot).toBe(path.resolve(repo));
+    expect(findRepoConfig(repo).repoRoot).toBe(fs.realpathSync(repo));
   });
 });
 

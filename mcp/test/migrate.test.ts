@@ -1,11 +1,15 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import Database from 'better-sqlite3';
 import { runMigrations, schemaVersion } from '../src/migrate.js';
 import { openDb } from '../src/db.js';
+import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 2;
+const LATEST_SCHEMA_VERSION = 3;
 
 const EXPECTED_TABLES = [
   'attempts',
@@ -52,13 +56,31 @@ describe('migrations', () => {
     db.close();
   });
 
-  it('applies only the new migration to an already-migrated database', () => {
-    const db = new Database(':memory:');
-    runMigrations(db);
-    // Rewind the recorded version as if this install predated the last migration.
-    db.prepare("UPDATE meta SET value = '1' WHERE key = 'schema_version'").run();
-    expect(runMigrations(db)).toEqual(['002_stop_markers.sql']);
-    db.close();
+  it('upgrades an older install by applying only the migrations it is missing', () => {
+    // Build a genuine v1 database: a directory holding nothing but 001.
+    const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-mig-'));
+    try {
+      fs.copyFileSync(
+        path.join(migrationsDir(), '001_init.sql'),
+        path.join(oldDir, '001_init.sql'),
+      );
+
+      const db = new Database(':memory:');
+      expect(runMigrations(db, oldDir)).toEqual(['001_init.sql']);
+      expect(schemaVersion(db)).toBe(1);
+
+      // Now hand it the full set: only the newer files should run.
+      expect(runMigrations(db)).toEqual(['002_stop_markers.sql', '003_gate_repo.sql']);
+      expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
+      expect(tableNames(db)).toEqual(EXPECTED_TABLES);
+
+      // And the upgraded table really has the new column.
+      const cols = (db.prepare('PRAGMA table_info(gates)').all() as { name: string }[]).map((c) => c.name);
+      expect(cols).toContain('repo');
+      db.close();
+    } finally {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+    }
   });
 
   it('is idempotent — a second run applies nothing', () => {

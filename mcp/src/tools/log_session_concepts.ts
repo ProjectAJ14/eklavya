@@ -47,7 +47,7 @@ export const logSessionConcepts: ToolDef = {
     { db },
   ) => {
     const now = new Date();
-    const { config } = loadConfig(args.cwd);
+    const { config, repoRoot } = loadConfig(args.cwd);
     const sessionId = resolveSessionId(db, args.session_id);
 
     const created: string[] = [];
@@ -101,7 +101,10 @@ export const logSessionConcepts: ToolDef = {
       return !isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps });
     }).length;
 
-    const gate = syncGate(db, sessionId, config, Math.min(unmastered, config.max_questions_per_task));
+    const gate = syncGate(db, sessionId, config, {
+      requiredHint: Math.min(unmastered, config.max_questions_per_task),
+      repo: repoRoot,
+    });
 
     return { session_id: sessionId, logged, created, matched, capped, gate };
   },

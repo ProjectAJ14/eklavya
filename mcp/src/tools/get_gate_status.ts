@@ -14,8 +14,8 @@ export const getGateStatus: ToolDef = {
     cwd: z.string().optional().describe(CWD_HINT),
   },
   handler: (args: { session_id?: string; cwd?: string }, { db }) => {
-    const { config } = loadConfig(args.cwd);
+    const { config, repoRoot } = loadConfig(args.cwd);
     const sessionId = resolveSessionId(db, args.session_id);
-    return { session_id: sessionId, ...syncGate(db, sessionId, config) };
+    return { session_id: sessionId, ...syncGate(db, sessionId, config, { repo: repoRoot }) };
   },
 };

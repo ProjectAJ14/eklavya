@@ -182,6 +182,7 @@ export interface GateRow {
   answered: number;
   passed: number;
   updated_at: string;
+  repo: string | null;
 }
 
 export const PASSING_GRADE = 3;
@@ -211,6 +212,7 @@ export interface GateStatus {
   answered: number;
   passed: boolean;
   pass_threshold: number;
+  repo?: string | null;
 }
 
 /**
@@ -221,23 +223,26 @@ export function syncGate(
   db: DB,
   sessionId: string,
   config: EklavyaConfig,
-  requiredHint?: number,
+  opts: { requiredHint?: number; repo?: string | null } = {},
 ): GateStatus {
   const existing = gateRow(db, sessionId);
   const { answered, passedCount } = countAnswered(db, sessionId);
 
-  const required = Math.max(existing?.required ?? 0, requiredHint ?? 0);
+  const required = Math.max(existing?.required ?? 0, opts.requiredHint ?? 0);
+  // Keep a repo once known: a later call from a different cwd must not blank it,
+  // or the git pre-commit hook loses the row it enforces against.
+  const repo = opts.repo ?? existing?.repo ?? null;
   const needed = Math.ceil(required * config.pass_threshold);
   const passed = required === 0 ? true : passedCount >= needed;
 
   db.prepare(
-    `INSERT INTO gates (session_id, mode, required, answered, passed, updated_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `INSERT INTO gates (session_id, mode, required, answered, passed, updated_at, repo)
+     VALUES (?, ?, ?, ?, ?, datetime('now'), ?)
      ON CONFLICT(session_id) DO UPDATE SET
        mode = excluded.mode, required = excluded.required,
        answered = excluded.answered, passed = excluded.passed,
-       updated_at = excluded.updated_at`,
-  ).run(sessionId, config.mode, required, answered, passed ? 1 : 0);
+       updated_at = excluded.updated_at, repo = excluded.repo`,
+  ).run(sessionId, config.mode, required, answered, passed ? 1 : 0, repo);
 
-  return { mode: config.mode, required, answered, passed, pass_threshold: config.pass_threshold };
+  return { mode: config.mode, required, answered, passed, pass_threshold: config.pass_threshold, repo };
 }

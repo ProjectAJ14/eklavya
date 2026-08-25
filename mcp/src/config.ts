@@ -37,6 +37,14 @@ export interface ResolvedConfig {
   repoRoot: string | null;
 }
 
+function realPath(p: string): string {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+
 function readJson(file: string): Record<string, unknown> | null {
   try {
     const text = fs.readFileSync(file, 'utf8');
@@ -59,7 +67,10 @@ export function findRepoConfig(cwd: string = process.cwd()): {
   repoPath: string | null;
   repoRoot: string | null;
 } {
-  let dir = path.resolve(cwd);
+  // Resolve symlinks: `git rev-parse --show-toplevel` reports the real path, and
+  // the git pre-commit hook matches gate rows on it. On macOS /tmp is a symlink
+  // to /private/tmp, so without this the two sides silently never match.
+  let dir = realPath(path.resolve(cwd));
   let repoPath: string | null = null;
   let repoRoot: string | null = null;
 

@@ -40,7 +40,7 @@ export const recordAttempt: ToolDef = {
     { db },
   ) => {
     const now = new Date();
-    const { config } = loadConfig(args.cwd);
+    const { config, repoRoot } = loadConfig(args.cwd);
     const sessionId = resolveSessionId(db, args.session_id);
 
     const slug = normalizeSlug(args.slug);
@@ -69,7 +69,7 @@ export const recordAttempt: ToolDef = {
       });
     })();
 
-    const gate = syncGate(db, sessionId, config);
+    const gate = syncGate(db, sessionId, config, { repo: repoRoot });
     const score = decayedScore(state.score, state.next_review, now);
 
     return {

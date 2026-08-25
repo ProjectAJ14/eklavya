@@ -26,6 +26,14 @@ The server creates and seeds it on first start, so this should already show `web
 
 Then `set_config` with their choice. Use `scope: "repo"` if they want it to apply to this project only — that writes `.eklavya.json` at the repo root, which is how a lead pins enforced mode for one codebase. Otherwise global.
 
-**4. Say what happens next.** In ambient mode: build something, and questions will follow. Point at `/eklavya:progress` and `/eklavya:quiz`.
+**4. If they chose enforced, install the git hook.** The `PreToolUse` hook only covers commits made inside Claude Code. The git `pre-commit` hook covers every other path — a bare terminal, VS Code, Cursor:
 
-> The git `pre-commit` hook that enforces the gate outside Claude Code is not installed yet — that ships in Phase 3. Say so if they picked `enforced`, so they know commits from a bare terminal are not gated yet.
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/scripts/install-git-hook.sh
+```
+
+It chains to any existing `pre-commit` hook rather than replacing it, and only acts on repos whose `.eklavya.json` sets `"mode": "enforced"` — so installing it is safe even if they later switch to ambient. Mention `--uninstall` restores the previous hook.
+
+Skip this step for ambient or off.
+
+**5. Say what happens next.** In ambient mode: build something, and questions will follow. Point at `/eklavya:progress` and `/eklavya:quiz`. In enforced mode, add that commits are held until the session quiz passes, and `/eklavya:gate` shows what is outstanding.
