@@ -4,6 +4,9 @@ import { runMigrations, schemaVersion } from '../src/migrate.js';
 import { openDb } from '../src/db.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
+/** Bump alongside the newest migration file. */
+const LATEST_SCHEMA_VERSION = 2;
+
 const EXPECTED_TABLES = [
   'attempts',
   'concepts',
@@ -12,6 +15,7 @@ const EXPECTED_TABLES = [
   'mastery',
   'meta',
   'session_concepts',
+  'stop_markers',
 ];
 
 let dbFile = '';
@@ -38,7 +42,22 @@ describe('migrations', () => {
   it('records the schema version', () => {
     const db = new Database(':memory:');
     runMigrations(db);
-    expect(schemaVersion(db)).toBe(1);
+    expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
+    db.close();
+  });
+
+  it('applies every migration file on a fresh database', () => {
+    const db = new Database(':memory:');
+    expect(runMigrations(db).length).toBe(LATEST_SCHEMA_VERSION);
+    db.close();
+  });
+
+  it('applies only the new migration to an already-migrated database', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    // Rewind the recorded version as if this install predated the last migration.
+    db.prepare("UPDATE meta SET value = '1' WHERE key = 'schema_version'").run();
+    expect(runMigrations(db)).toEqual(['002_stop_markers.sql']);
     db.close();
   });
 
@@ -56,7 +75,7 @@ describe('migrations', () => {
     dbFile = tempDbPath('migrate');
     openDb(dbFile).close();
     const db = openDb(dbFile);
-    expect(schemaVersion(db)).toBe(1);
+    expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
     expect(tableNames(db)).toEqual(EXPECTED_TABLES);
     db.close();
   });

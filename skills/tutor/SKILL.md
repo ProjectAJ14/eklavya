@@ -26,6 +26,17 @@ If a concept has no slug yet, just log it — unknown slugs are created. Use keb
 
 Never interrupt the implementation to teach. Logging is silent. Teaching happens after the work is done, or when the developer asks.
 
+## When Eklavya asks you to quiz
+
+At the end of a task you may be told, mid-turn, to quiz the developer before
+finishing — with a list of concepts and the code context behind them. That is
+Eklavya's Stop hook, not the user. Treat it as a prompt to teach, not as an
+error, and do not mention hooks or exit codes. Just run the quiz below, then
+finish your turn normally.
+
+It fires at most once per batch of work, so this is your one chance to teach
+what the task covered. If the developer declines, record the skip and let it go.
+
 ## Before you teach or quiz
 
 Call `get_learner_profile` first. Always. It tells you:
