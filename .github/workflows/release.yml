@@ -25,10 +25,16 @@ jobs:
           fetch-depth: 0            # semantic-release reads the whole tag history
           persist-credentials: false
 
+      # Deliberately NO `registry-url` here, however natural it looks.
+      # It makes setup-node write an .npmrc containing a literal
+      # `_authToken=${NODE_AUTH_TOKEN}`, and semantic-release, finding an auth
+      # entry already present, copies that config and never writes NPM_TOKEN.
+      # NODE_AUTH_TOKEN is unset, so npm authenticates with an empty string and
+      # every release dies on `401 Unauthorized - GET /-/whoami` that looks
+      # exactly like a bad token. semantic-release configures its own auth.
       - uses: actions/setup-node@v5
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
 
       # Provenance needs npm >= 11.5.1, newer than the npm bundled with Node 20.
       # Pin the 11.x major: npm@latest moved to 12.x, which needs Node 22+.
