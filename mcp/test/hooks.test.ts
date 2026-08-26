@@ -288,6 +288,17 @@ describe('Stop hook — when not to fire', () => {
     expect(res.status).toBe(0);
   });
 
+  it('lets EKLAVYA_SESSION_ID override the harness id, for two-pane workflows', () => {
+    logConcepts(['csrf'], 'shared-pane-session');
+    const res = runHook(
+      STOP_CHECK,
+      { session_id: 'this-panes-own-id', cwd, hook_event_name: 'Stop' },
+      { EKLAVYA_SESSION_ID: 'shared-pane-session' },
+    );
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/csrf/);
+  });
+
   it('falls back to the stamped session when the input has no session_id', () => {
     logConcepts(['csrf'], 'stamped-session');
     db.prepare("INSERT INTO meta (key, value) VALUES ('current_session', 'stamped-session')").run();

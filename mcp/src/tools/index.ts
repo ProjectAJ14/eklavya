@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { DB } from '../db.js';
 import type { ToolDef } from './types.js';
+import { retryOnBusy } from '../concurrency.js';
 
 import { getLearnerProfile } from './get_learner_profile.js';
 import { logSessionConcepts } from './log_session_concepts.js';
@@ -37,7 +38,8 @@ export function registerTools(server: McpServer, db: DB): void {
       { title: tool.title, description: tool.description, inputSchema: tool.inputSchema },
       async (args: unknown) => {
         try {
-          return toResult(tool.handler(args, { db }));
+          // Safe to retry: a busy transaction has already rolled back.
+          return toResult(retryOnBusy(() => tool.handler(args, { db })));
         } catch (err) {
           // A tool throwing must not take the server down mid-session.
           return toResult({

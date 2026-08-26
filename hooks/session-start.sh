@@ -9,7 +9,10 @@
 INPUT=$(cat 2>/dev/null) || exit 0
 eklavya_have_deps || exit 0
 
-SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || exit 0
+SESSION_ID=${EKLAVYA_SESSION_ID:-}
+if [ -z "$SESSION_ID" ]; then
+  SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || exit 0
+fi
 CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 [ -z "$CWD" ] && CWD=$PWD
 

@@ -34,7 +34,13 @@ CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 
 eklavya_have_deps || exit 0
 
-SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+# EKLAVYA_SESSION_ID wins when set, so two panes sharing one task (see
+# docs/parallel-tutoring.md) agree on a session id even though Claude Code gives
+# each pane its own. Unset in normal use, where the harness id is authoritative.
+SESSION_ID=${EKLAVYA_SESSION_ID:-}
+if [ -z "$SESSION_ID" ]; then
+  SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+fi
 if [ -z "$SESSION_ID" ]; then
   SESSION_ID=$(eklavya_sql "SELECT value FROM meta WHERE key = 'current_session';")
 fi
