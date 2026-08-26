@@ -331,6 +331,19 @@ Four constraints this must respect:
 3. **An unresolvable topic is reported, not papered over.** `reason: "no_topic"` (focus is learn, nothing set) and `reason: "topic_unknown"` (nothing in the graph matches) are answers; inventing questions about concepts that do not exist is not.
 4. **Repo-over-global stays, but stops being silent.** A repo pinning `focus` overrides a contributor's personal `learn` topic. The SessionStart banner names any setting the repo is overriding, and `get_config` returns `overridden_by_repo`.
 
+## 10b. Question format
+
+Questions are asked as **multiple choice** via Claude Code's `AskUserQuestion` tool: four options, one correct and three plausible, with the tool's automatic "Other" as the escape hatch for "I don't know" (a teaching request, §10) or for typing a real answer instead.
+
+This is an interface requirement, not a stylistic one. Observed in use: four tier-2 mechanism questions asked as blank prompts, mid-task, in an unrelated project, all unanswered. A free-form prompt asks the learner to spend more than the question is worth right then, and the resulting silence records identically to not knowing. The quiz was well-targeted and unanswerable.
+
+- `format_to_use` is returned per plan item, server-side, for the same reason `tier_to_ask` is: a shape chosen ad hoc per question is a shape that drifts. Always `mcq` today.
+- `record_attempt` takes `format` and `options`, and **caps `mcq` at grade 4** (`MAX_MCQ_GRADE`). Grade 5 means "explained why", which choosing among four cannot demonstrate, and one in four is a coin. Enforced in the server, reported as `grade_capped`. Grade 4 still reaches `known`, so this slows the claim rather than blocking it.
+- **Options never go in `question`.** That text is the fingerprint behind goal 2; options baked into it would make every reshuffle read as a new question. Migration 006 stores them separately.
+- `agents/tutor.md` has no `AskUserQuestion` and renders the same four options as lettered text, under the same rules.
+
+Phase 2 adds `fill_blank` and `open` and rotates between the three — bounded by tier and mastery, because format is a difficulty dial (recognition → cued recall → free recall) and a tier-5 design question cannot honestly be multiple choice. See `prd/phase-7-question-formats.md`.
+
 ## 11. Configuration
 
 `~/.eklavya/config.json` (global) merged with `.eklavya.json` (repo root; repo wins):

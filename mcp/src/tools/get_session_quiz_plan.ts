@@ -18,6 +18,7 @@ import {
   wasEverTaught,
   type AskedQuestion,
   type ConceptRow,
+  type QuestionFormat,
 } from '../store.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
@@ -41,6 +42,20 @@ interface PlanItem {
   already_taught: boolean;
   /** Prerequisites they have not mastered — ask about these first, or drop a tier. */
   prereqs_unmet: string[];
+  /**
+   * How to put the question. Server-side rather than left to the tutor, for the
+   * same reason `tier_to_ask` is: a shape chosen per question by whoever is
+   * writing it is a shape that drifts.
+   *
+   * Always `mcq` today. A blank prompt mid-task is a bad interface for a quiz
+   * nobody asked for -- the honest answer to a free-form question is often
+   * silence, not because the learner does not know but because typing a
+   * paragraph costs more than the question is worth. Recognition is cheap to
+   * answer and still teaches. The next phase adds cued recall and free recall
+   * and picks between the three by tier and mastery, which is why this is a
+   * field and not a constant the tutor is told once.
+   */
+  format_to_use: QuestionFormat;
   /**
    * `learn` focus only: this topic concept also turned up in the session's work,
    * and this is the code where. The topic is still the subject -- the diff is
@@ -84,7 +99,7 @@ export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
   description:
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Each item carries format_to_use, currently always "mcq": ask it with AskUserQuestion as four options, never as a blank prompt. Returns questions_needed: 0 when there is nothing worth asking.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -246,6 +261,7 @@ export const getSessionQuizPlan: ToolDef = {
         asked_before: asked,
         already_taught: wasEverTaught(db, concept.id),
         prereqs_unmet: unmetPrereqs(db, concept.id, now),
+        format_to_use: 'mcq',
         reason,
       });
     };

@@ -100,11 +100,14 @@ export function recordAttemptRow(
     difficulty: number;
     feedback: string | null;
     outcome: AttemptOutcome | null;
+    format: QuestionFormat | null;
+    options: string[] | null;
   },
 ): void {
   db.prepare(
-    `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, feedback, outcome)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO attempts
+       (concept_id, session_id, question, answer, grade, difficulty, feedback, outcome, format, options)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     a.conceptId,
     a.sessionId,
@@ -114,6 +117,10 @@ export function recordAttemptRow(
     a.difficulty,
     a.feedback,
     a.outcome,
+    a.format,
+    // Stored beside the stem, never inside it: `question` is what gets
+    // fingerprinted, and options that move would defeat the repeat check.
+    a.options ? JSON.stringify(a.options) : null,
   );
 }
 
@@ -129,6 +136,8 @@ export function gradeConcept(
     difficulty: number;
     feedback: string | null;
     outcome: AttemptOutcome | null;
+    format: QuestionFormat | null;
+    options: string[] | null;
     now: Date;
   },
 ): MasteryState {
@@ -316,11 +325,30 @@ export function syncGate(
  */
 export type AttemptOutcome = 'answered' | 'dont_know' | 'declined';
 
+/** How the question was put. See migration 006. */
+export type QuestionFormat = 'mcq' | 'fill_blank' | 'open';
+
+/**
+ * The best grade a multiple-choice answer can earn.
+ *
+ * Grade 5 on the SM-2 scale means "correct, and explained why". Picking the
+ * right option out of four cannot demonstrate that -- and one in four is a coin,
+ * so even a clean 4 is generous. Capping here rather than trusting the tutor to
+ * remember keeps recognition from inflating mastery, which is the one thing that
+ * would make the whole record untrustworthy.
+ *
+ * 4 still reaches `known` (0.8 >= MASTERY_THRESHOLD), so this limits how fast
+ * mastery is claimed, not whether it can be.
+ */
+export const MAX_MCQ_GRADE = 4;
+
 export interface AskedQuestion {
   question: string;
   tier: number;
   grade: number;
   outcome: AttemptOutcome | null;
+  /** How it was put. NULL for attempts recorded before formats existed. */
+  format: QuestionFormat | null;
   /**
    * True when the learner blanked and was taught the answer there and then. The
    * next question about this concept must build on that explanation instead of
@@ -333,7 +361,7 @@ export interface AskedQuestion {
 export function recentQuestions(db: DB, conceptId: number, limit = 3): AskedQuestion[] {
   const rows = db
     .prepare(
-      `SELECT question, difficulty AS tier, grade, outcome FROM attempts
+      `SELECT question, difficulty AS tier, grade, outcome, format FROM attempts
         WHERE concept_id = ? AND question <> ''
         ORDER BY id DESC LIMIT ?`,
     )

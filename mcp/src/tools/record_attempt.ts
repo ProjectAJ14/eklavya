@@ -9,7 +9,9 @@ import {
   hasAskedQuestion,
   logSessionConcept,
   syncGate,
+  MAX_MCQ_GRADE,
   type AttemptOutcome,
+  type QuestionFormat,
 } from '../store.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
@@ -17,13 +19,22 @@ export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date and the session gate. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined).',
+    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date and the session gate. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format and, for multiple choice, the options you offered — put only the stem in question, never the options, or the repeat check breaks. Multiple choice is capped at grade 4: picking one of four cannot show you know why.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
     slug: z.string().describe('The concept that was asked about.'),
-    question: z.string().describe('The question exactly as asked.'),
-    answer: z.string().optional().describe('The learner\'s answer verbatim. Omit for a skip.'),
+    question: z
+      .string()
+      .describe(
+        'The question stem exactly as asked — WITHOUT the options. This text is what stops the same question coming back later, so options baked in here would make every reshuffle look like a new question.',
+      ),
+    answer: z
+      .string()
+      .optional()
+      .describe(
+        'The learner\'s answer verbatim — for multiple choice, the option they picked (or what they typed under "Other"). Omit for a skip.',
+      ),
     grade: z
       .number()
       .int()
@@ -32,6 +43,16 @@ export const recordAttempt: ToolDef = {
       .describe('0 no answer/skip, 1-2 wrong, 3 correct but laboured, 4 correct, 5 correct and explained the why.'),
     difficulty: z.number().int().min(1).max(5).describe('The tier you actually asked at — use tier_to_ask from the plan.'),
     feedback: z.string().optional().describe('The short explanation you gave back.'),
+    format: z
+      .enum(['mcq', 'fill_blank', 'open'])
+      .optional()
+      .describe(
+        'How you put the question. "mcq" is the default shape — four options via AskUserQuestion. Say so, because a correct multiple-choice answer is weaker evidence than a correct free one and is graded accordingly.',
+      ),
+    options: z
+      .array(z.string())
+      .optional()
+      .describe('For mcq: the option labels you offered, in the order shown. Not the stem.'),
     outcome: z
       .enum(['answered', 'dont_know', 'declined'])
       .optional()
@@ -50,6 +71,8 @@ export const recordAttempt: ToolDef = {
       difficulty: number;
       feedback?: string;
       outcome?: AttemptOutcome;
+      format?: QuestionFormat;
+      options?: string[];
     },
     { db },
   ) => {
@@ -70,6 +93,13 @@ export const recordAttempt: ToolDef = {
     // Checked before the write, or the question we are recording matches itself.
     const repeatQuestion = hasAskedQuestion(db, concept.id, args.question);
 
+    // Enforced here rather than trusted to the tutor. Grade 5 means "explained
+    // why", which choosing among four options cannot demonstrate; one in four is
+    // a coin. Capping is visible in the response so a tutor that keeps awarding
+    // 5s for multiple choice finds out.
+    const capped = args.format === 'mcq' && args.grade > MAX_MCQ_GRADE;
+    const grade = capped ? MAX_MCQ_GRADE : args.grade;
+
     const state = db.transaction(() => {
       // An attempt on a concept the session never logged still counts toward
       // `answered`, so quizzing on review debt is not free -- but it lands as
@@ -82,9 +112,11 @@ export const recordAttempt: ToolDef = {
         sessionId,
         question: args.question,
         answer: args.answer ?? null,
-        grade: args.grade,
+        grade,
         difficulty: args.difficulty,
         feedback: args.feedback ?? null,
+        format: args.format ?? null,
+        options: args.options ?? null,
         // Left NULL rather than guessed when the tutor does not say. An absent
         // answer is a fair hint that nothing was attempted, but it cannot tell
         // "teach me" from "leave it" -- and inventing the difference here would
@@ -99,6 +131,15 @@ export const recordAttempt: ToolDef = {
 
     return {
       slug: concept.slug,
+      recorded_grade: grade,
+      // Silence here would let the tutor keep miscalibrating; say what was
+      // changed and why.
+      ...(capped
+        ? {
+            grade_capped: true,
+            detail: `Multiple choice is capped at ${MAX_MCQ_GRADE}: recognising the right option does not show you can explain it. Recorded ${grade} instead of ${args.grade}.`,
+          }
+        : {}),
       new_score: Number(state.score.toFixed(3)),
       next_review: state.next_review,
       interval_days: state.interval_d,

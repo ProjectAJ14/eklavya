@@ -61,6 +61,7 @@ Then call `get_session_quiz_plan`. It returns the concepts worth asking about *a
 | `prereqs_unmet` | Prerequisites they have not mastered yet. |
 | `last_grade` | How the last attempt went. |
 | `framing` | What this focus requires of the question. Authoritative — see *Focus*. |
+| `format_to_use` | How to put it. Always `mcq` today — four options via `AskUserQuestion`, never a blank prompt. |
 | `bridge_context` | `learn` focus: the session's work touched this topic concept, and here is the code. |
 
 If `questions_needed` is 0, say nothing and move on. `reason: "cooldown"` means they were quizzed recently; `reason: "already_covered"` means every candidate was already asked about in this session; `reason: "mode_off"` means Eklavya is dormant.
@@ -92,6 +93,8 @@ The `known` list in the profile is the other half: **never ask about a slug in `
 
 **One question at a time.** Ask, wait for the answer, grade it, give a tight explanation, then the next. Never post a numbered list of five questions — that is a test, not teaching.
 
+**Ask it as multiple choice, using `AskUserQuestion`.** Every plan item carries `format_to_use`, and today it is always `mcq`. This is not decoration — it is the difference between a question that gets answered and one that gets skipped. Someone mid-task will not type a paragraph for a quiz they did not ask for, and their silence is not evidence they did not know. See *Multiple choice* below for how to build one that is worth answering.
+
 **Ground every question in the diff you just wrote.** Reference the file, the line, the decision. The concept is abstract; the code in front of them is not.
 
 - Grounded: *"I set `httpOnly: true` on the refresh cookie in `auth.ts` but left the access token in memory. What attack is that split defending against, and what does it cost us?"*
@@ -111,6 +114,45 @@ The `known` list in the profile is the other half: **never ask about a slug in `
 
 Definitions are tier 1 **only**. If you find yourself asking "what is X" at tier 3, you have written a bad question.
 
+## Multiple choice
+
+Use the **`AskUserQuestion`** tool. One question per call — the tool accepts up to four, but four at once is a test, not teaching.
+
+**Shape:**
+
+- **Exactly four options.** One correct, three plausible.
+- **`header`**: set it to `unsure→Other` (12 chars, fits). The tool appends an "Other" choice automatically, and that is the escape hatch for *"I don't know"* — but only if they notice it. The chip is on every question and costs no words.
+- **`question`**: the stem, grounded per the plan's `framing`. Do not number the options in the text; the tool renders them.
+- **`description`** on each option: one clause. This is where a near-miss gets to be genuinely tempting.
+- **`preview`**: use it when the options are *code*. Four snippets side by side is a far better question than four sentences describing snippets.
+
+**Distractors are the whole question.** Three obviously-wrong options is a free point that teaches nothing and insults them. Each wrong option should be something a competent person could believe:
+
+- the right answer to the *adjacent* concept (`SameSite` vs `httpOnly` vs `Secure`)
+- true, but not what was asked
+- the common misconception — the one you would have to correct in a code review
+- right mechanism, wrong direction or wrong actor
+
+If you cannot write three that pass that bar, your stem is too vague. Fix the stem, not the options.
+
+**Never restate the answer in the stem.** *"What does httpOnly do — does it block JavaScript access?"* is not a question.
+
+**Recording it.** `record_attempt` with `format: "mcq"`, `options` as the labels you offered, `answer` as the one they picked, and `question` as the **stem only**. Options belong in `options`, never in `question` — the stem is what gets fingerprinted, so options baked in there would make every reshuffle look like a brand-new question and quietly undo *never the same question twice*.
+
+**Grading multiple choice is different, and the server enforces it.** `mcq` caps at **grade 4**. Grade 5 means *correct, and explained why*, and picking an option cannot show that — one in four is a coin. `record_attempt` clamps it and returns `grade_capped: true`; if you see that, you were grading recognition like recall.
+
+Within the cap, still grade honestly:
+
+| Grade | Means |
+|---|---|
+| 4 | picked the right option |
+| 3 | right option, but their "Other" text or follow-up showed it was a guess |
+| 2 | picked a distractor that is the shape of the idea |
+| 1 | picked a distractor built on a misconception |
+| 0 | "Other" with *I don't know* (`outcome: dont_know` — **teach it**), or a decline (`outcome: declined`) |
+
+**If they want to explain, let them, and say so.** Someone who picks "Other" and types a real answer has just given you better evidence than the multiple choice could. Grade that as the free answer it is — `format: "open"`, and the cap does not apply.
+
 ## Grading
 
 Call `record_attempt` for **every** answer, including blanks and skips — pass `question` verbatim, because that text is what stops the same question coming back later. Pass `outcome` as well: `answered`, `dont_know`, or `declined`. Grade honestly on SM-2's 0–5:
@@ -124,7 +166,7 @@ Call `record_attempt` for **every** answer, including blanks and skips — pass 
 | 4 | correct and clean |
 | 5 | correct, and explained *why*, or caught a nuance you didn't ask for |
 
-Before you pick a number, state to yourself what in their answer justifies it. A gate built on inflated grades teaches nothing and the developer knows it. Being generous here is not kindness — it is the one failure mode that makes this whole tool pointless.
+For multiple choice the ceiling is 4, and the server enforces it — see *Multiple choice*. Before you pick a number, state to yourself what in their answer justifies it. A gate built on inflated grades teaches nothing and the developer knows it. Being generous here is not kindness — it is the one failure mode that makes this whole tool pointless.
 
 Then give feedback. **Four sentences or fewer for a grade of 2 or better** — correct the specific thing they got wrong and stop; don't re-teach a topic they mostly have. A blank is a different job, and has its own section below.
 

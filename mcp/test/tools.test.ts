@@ -512,6 +512,123 @@ describe('record_attempt', () => {
     expect(csrf.already_taught).toBe(true);
   });
 
+  // Recognition is not recall. Grade 5 means "explained why", which picking one
+  // of four cannot show — and one in four is a coin.
+  it('caps a multiple-choice answer at 4, and says it did', () => {
+    logAuthWork();
+    const res = call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'What does SameSite=Lax actually withhold?',
+      answer: 'The cookie on cross-site POSTs',
+      grade: 5,
+      difficulty: 2,
+      format: 'mcq',
+      options: ['a', 'b', 'c', 'd'],
+      outcome: 'answered',
+    });
+    expect(res.recorded_grade).toBe(4);
+    expect(res.grade_capped).toBe(true);
+    expect(
+      (db.prepare('SELECT grade FROM attempts WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?)').get('csrf') as any)
+        .grade,
+    ).toBe(4);
+  });
+
+  it('does not cap a free answer', () => {
+    logAuthWork();
+    const res = call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'Why SameSite=Lax rather than Strict here?',
+      answer: 'a full explanation',
+      grade: 5,
+      difficulty: 2,
+      format: 'open',
+      outcome: 'answered',
+    });
+    expect(res.recorded_grade).toBe(5);
+    expect(res.grade_capped).toBeUndefined();
+  });
+
+  it('leaves a capped grade able to reach mastery — it slows the claim, not blocks it', () => {
+    logAuthWork();
+    for (const q of ['q1', 'q2']) {
+      call(recordAttempt, {
+        session_id: SESSION,
+        slug: 'csrf',
+        question: q,
+        answer: 'right option',
+        grade: 5,
+        difficulty: 2,
+        format: 'mcq',
+        options: ['a', 'b', 'c', 'd'],
+        outcome: 'answered',
+      });
+    }
+    const profile = call<any>(getLearnerProfile, {});
+    expect(profile.known).toContain('csrf');
+  });
+
+  // The stem is what gets fingerprinted. Options baked into it would make every
+  // reshuffle look like a brand-new question and quietly undo PRD goal 2.
+  it('keeps options out of the question text so reshuffling cannot defeat the repeat check', () => {
+    logAuthWork();
+    const stem = 'What does SameSite=Lax actually withhold?';
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: stem,
+      answer: 'b',
+      grade: 4,
+      difficulty: 2,
+      format: 'mcq',
+      options: ['first', 'second', 'third', 'fourth'],
+      outcome: 'answered',
+    });
+
+    // Same stem, options in a different order: still the same question.
+    const again = call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: stem,
+      answer: 'b',
+      grade: 4,
+      difficulty: 2,
+      format: 'mcq',
+      options: ['fourth', 'first', 'third', 'second'],
+      outcome: 'answered',
+    });
+    expect(again.repeat_question).toBe(true);
+
+    const row = db
+      .prepare(
+        `SELECT question, options, format FROM attempts
+          WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?) ORDER BY id ASC LIMIT 1`,
+      )
+      .get('csrf') as { question: string; options: string; format: string };
+    expect(row.question).toBe(stem);
+    expect(row.format).toBe('mcq');
+    expect(JSON.parse(row.options)).toEqual(['first', 'second', 'third', 'fourth']);
+  });
+
+  it('surfaces the format of past questions so the next one can vary', () => {
+    logAuthWork();
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'a multiple choice question',
+      answer: 'b',
+      grade: 4,
+      difficulty: 2,
+      format: 'mcq',
+      options: ['a', 'b', 'c', 'd'],
+      outcome: 'answered',
+    });
+    const csrf = nextSessionView('csrf');
+    expect(csrf.asked_before[0].format).toBe('mcq');
+  });
+
   it('flags a question the learner has already been asked (PRD goal 2)', () => {
     const ask = (question: string) =>
       call<any>(recordAttempt, {
@@ -751,6 +868,13 @@ describe('enforced-mode gate retry', () => {
 // `mode` is how hard Eklavya pushes; `focus` is what it teaches. The two dials
 // are independent, and these pin that they stay that way.
 describe('focus', () => {
+  it('asks everything as multiple choice for now', () => {
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    // A blank prompt mid-task goes unanswered whether or not the learner knew.
+    expect(plan.concepts.every((c: any) => c.format_to_use === 'mcq')).toBe(true);
+  });
+
   it('defaults to project, which is the historical behaviour', () => {
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
