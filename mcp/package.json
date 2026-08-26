@@ -3,6 +3,26 @@
   "version": "0.1.0",
   "description": "Eklavya MCP server \u2014 local knowledge graph, spaced repetition, and quiz gating for agent-assisted learning.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ProjectAJ14/eklavya.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://github.com/ProjectAJ14/eklavya#readme",
+  "bugs": {
+    "url": "https://github.com/ProjectAJ14/eklavya/issues"
+  },
+  "author": "Ajay Kumar",
+  "keywords": [
+    "mcp",
+    "claude-code",
+    "learning",
+    "spaced-repetition",
+    "sm-2",
+    "knowledge-graph",
+    "tutor",
+    "mentorship"
+  ],
   "type": "module",
   "bin": {
     "eklavya-mcp": "dist/server.js",

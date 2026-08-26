@@ -223,6 +223,20 @@ Plugin, hook and MCP schemas drift. What this is built against is pinned with a 
 - https://code.claude.com/docs/en/hooks
 - https://code.claude.com/docs/en/mcp
 
+## Releasing
+
+Versions are semantic and set by hand; the CHANGELOG is written, not generated. A GitHub Release is what triggers the npm publish.
+
+```bash
+scripts/bump-version.sh 0.2.0     # plugin.json + package.json + the launcher's pin, together
+# write the CHANGELOG.md entry
+cd mcp && npm test                # asserts the three versions agree
+git commit -am "chore(release): 0.2.0" && git tag v0.2.0 && git push --follow-tags
+gh release create v0.2.0 --notes-from-tag
+```
+
+The release workflow runs the suite, checks the tag matches `mcp/package.json`, and publishes with OIDC trusted publishing. Three versions must stay in lockstep — the plugin manifest, the npm package, and `PINNED_VERSION` in `mcp/bin/eklavya-mcp.sh`, which decides what an installed plugin actually downloads. `bump-version.sh` does all three and a test fails if they ever drift.
+
 ## License
 
 MIT

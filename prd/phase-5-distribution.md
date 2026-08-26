@@ -48,6 +48,15 @@ Built and verified:
 - **npm packaging** — `bin` entries for both `eklavya-mcp` and `eklavya`, `files` limited to `dist`, `prepublishOnly` builds.
 - **README** — Claude Code and Cursor quickstarts, and a by-hand test script for each phase demo (PRD §14).
 
+**2026-08-26 — release pipeline added**, mirroring the setup in `ProjectAJ14/bypass-ai-vpn`: hand-set semantic versions, a written CHANGELOG, a `v*` tag, and a GitHub Release that triggers `npm publish` with OIDC trusted publishing. That repo does *not* use the `semantic-release` package, so neither does this one.
+
+Two things specific to Eklavya that the reference setup does not have to deal with:
+
+- **The npm package is `mcp/`, not the repo root**, so the workflow runs there and the release checks the tag against `mcp/package.json`.
+- **Three files carry the version** — the plugin manifest, the npm package, and `PINNED_VERSION` in the launcher, which decides what an installed plugin downloads at runtime. Drift between them ships a plugin that silently runs a different server than it claims to, so `scripts/bump-version.sh` sets all three and a test fails if they diverge.
+
+**Unverified:** `npm publish --provenance` may be rejected from a private repository. The npm docs do not state a visibility requirement either way, and it cannot be tested until the first CI release. If it fails, drop `--provenance` from the workflow or make the repo public — nothing else in the pipeline depends on it.
+
 Left undone, on purpose:
 
 - **`npm publish` was not run.** Publishing is irreversible and public, and it needs your npm account. The PRD asks for a scope (`@<org>/eklavya-mcp`); the package is currently unscoped as `eklavya-mcp`, so decide the scope before the first publish — renaming after the fact is worse than choosing now.
