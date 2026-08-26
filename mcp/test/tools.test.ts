@@ -103,6 +103,21 @@ describe('log_session_concepts', () => {
     const res = logAuthWork();
     expect(res.logged).toEqual(['httponly-cookies', 'jwt-structure', 'csrf']);
     expect(res.created).toEqual([]);
+    // Nothing was created, so there is no debt to report.
+    expect(res.next_action).toBeUndefined();
+  });
+
+  // The tutor skill already asks for this, but it is model-invoked and may never
+  // load — the same gap that forced the concept-logging directive into the
+  // SessionStart banner. Saying it in the response reaches the model regardless.
+  it('names the upsert_concepts debt in the response when it mints bare concepts', () => {
+    const res = call<any>(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'raft-leader-election', context: 'wrote the election timeout in raft.ts' }],
+    });
+    expect(res.created).toEqual(['raft-leader-election']);
+    expect(res.next_action).toContain('upsert_concepts');
+    expect(res.next_action).toContain('raft-leader-election');
   });
 
   it('creates concepts it has never seen, marked as llm-authored', () => {
@@ -466,6 +481,37 @@ describe('record_attempt', () => {
     expect(csrf.already_taught).toBe(false);
   });
 
+  it('keeps already_taught after newer attempts push the blank out of the window', () => {
+    logAuthWork();
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'why SameSite=Lax here?',
+      grade: 0,
+      difficulty: 2,
+      outcome: 'dont_know',
+      feedback: 'taught it',
+    });
+    // asked_before only keeps the last 3, so three newer attempts evict the
+    // blank. The flag must survive that: it is a fact about the learner, not a
+    // property of the visible slice.
+    for (const q of ['q2', 'q3', 'q4']) {
+      call(recordAttempt, {
+        session_id: SESSION,
+        slug: 'csrf',
+        question: q,
+        answer: 'partial',
+        grade: 2,
+        difficulty: 2,
+        outcome: 'answered',
+      });
+    }
+
+    const csrf = nextSessionView('csrf');
+    expect(csrf.asked_before.every((a: any) => !a.taught)).toBe(true);
+    expect(csrf.already_taught).toBe(true);
+  });
+
   it('flags a question the learner has already been asked (PRD goal 2)', () => {
     const ask = (question: string) =>
       call<any>(recordAttempt, {
@@ -573,6 +619,132 @@ describe('gate arithmetic (G8)', () => {
 
     expect(call<any>(getGateStatus, { session_id: 'sess-a' }).answered).toBe(1);
     expect(call<any>(getGateStatus, { session_id: 'sess-b' }).answered).toBe(0);
+  });
+});
+
+// A blank grades 0 and burns the concept for the session, so a session answered
+// entirely with "I don't know" used to leave the gate permanently unmet: the
+// planner had nothing left to offer and the commit hook denied forever, while
+// telling the developer to run a quiz that would refuse. These pin the way out.
+describe('enforced-mode gate retry', () => {
+  const blankEverything = () => {
+    logAuthWork();
+    for (const slug of ['httponly-cookies', 'jwt-structure', 'csrf']) {
+      call(recordAttempt, {
+        session_id: SESSION,
+        slug,
+        question: `first question about ${slug}`,
+        grade: 0,
+        difficulty: 2,
+        outcome: 'dont_know',
+        feedback: 'taught it',
+      });
+    }
+  };
+
+  it('re-offers taught concepts once the gate is otherwise unreachable', () => {
+    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    blankEverything();
+    expect(call<any>(getGateStatus, { session_id: SESSION }).passed).toBe(false);
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.questions_needed).toBeGreaterThan(0);
+    expect(plan.concepts.every((c: any) => c.reason === 'gate_retry')).toBe(true);
+    // Taught, then re-opened a tier lower — not a cold re-ask at the same pitch.
+    expect(plan.concepts.every((c: any) => c.already_taught)).toBe(true);
+    expect(plan.concepts.every((c: any) => c.tier_to_ask >= 1)).toBe(true);
+    // Grounded in the same code the first question was about.
+    expect(plan.concepts.some((c: any) => c.context)).toBeTruthy();
+    // The retry must not repeat the question that produced the blank.
+    expect(
+      plan.concepts.every((c: any) =>
+        c.asked_before.some((a: any) => a.question.startsWith('first question')),
+      ),
+    ).toBe(true);
+  });
+
+  it('lets a retried answer actually pass the gate', () => {
+    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    blankEverything();
+
+    for (const slug of ['httponly-cookies', 'jwt-structure', 'csrf']) {
+      call(recordAttempt, {
+        session_id: SESSION,
+        slug,
+        question: `follow-up about ${slug}`,
+        answer: 'the thing you just taught me',
+        grade: 4,
+        difficulty: 1,
+        outcome: 'answered',
+      });
+    }
+    expect(call<any>(getGateStatus, { session_id: SESSION }).passed).toBe(true);
+  });
+
+  it('does not re-offer a concept the learner declined', () => {
+    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'why SameSite=Lax here?',
+      grade: 0,
+      difficulty: 2,
+      outcome: 'declined',
+    });
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'jwt-structure',
+      question: 'what is in the payload?',
+      grade: 0,
+      difficulty: 2,
+      outcome: 'dont_know',
+      feedback: 'taught it',
+    });
+    // httponly-cookies is untouched, so it is still a normal candidate; the
+    // retry pass only runs once the ordinary plan is empty.
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'httponly-cookies',
+      question: 'what does httpOnly stop?',
+      grade: 0,
+      difficulty: 2,
+      outcome: 'dont_know',
+      feedback: 'taught it',
+    });
+
+    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map(
+      (c: any) => c.slug,
+    );
+    expect(slugs).toContain('jwt-structure');
+    expect(slugs).not.toContain('csrf');
+  });
+
+  it('leaves ambient mode alone — no gate to deadlock, and re-offering is nagging', () => {
+    configure({ mode: 'ambient', min_minutes_between_quizzes: 0 });
+    blankEverything();
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.questions_needed).toBe(0);
+    expect(plan.reason).toBe('already_covered');
+  });
+
+  it('does not retry once the gate is passed', () => {
+    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    for (const slug of ['httponly-cookies', 'jwt-structure', 'csrf']) {
+      call(recordAttempt, {
+        session_id: SESSION,
+        slug,
+        question: `about ${slug}`,
+        answer: 'good',
+        grade: 4,
+        difficulty: 2,
+        outcome: 'answered',
+      });
+    }
+    expect(call<any>(getGateStatus, { session_id: SESSION }).passed).toBe(true);
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(0);
   });
 });
 

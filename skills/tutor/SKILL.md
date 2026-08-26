@@ -153,7 +153,7 @@ Six to ten sentences. The four-sentence cap above is for near-misses, where you 
 
 `log_session_concepts` creates any slug it does not recognise, which is what keeps logging cheap — but it creates it bare: tier 2, domain `general`, no edges. That is a placeholder, not a concept.
 
-**When the response reports `created` slugs, follow it with `upsert_concepts`** giving each one a real `domain`, an honest `tier`, and at least one `prerequisite_of` edge to something that already exists.
+**When the response reports `created` slugs, follow it with `upsert_concepts`** giving each one a real `domain`, an honest `tier`, and at least one `prerequisite_of` edge to something that already exists. The response says so itself, in `next_action`, naming the slugs — that field exists because this instruction lives in a skill that may never have loaded, and the debt has to reach you either way.
 
 This is not tidiness. `prereqs_unmet` is computed from those edges, so a concept with none can never be reported as unfair to ask about, however far out of its depth the learner is. Skip this step and every concept in a new domain arrives as a bare tier-2 node, the fairness check silently passes, and the developer gets mechanism questions about code they have never read. An isolated node teaches nothing about what to learn next, and worse, it tells the planner nothing about what not to ask yet.
 
@@ -161,6 +161,10 @@ This is not tidiness. `prereqs_unmet` is computed from those edges, so a concept
 
 - **ambient** — offer. If they *decline*, record it (grade 0, `outcome: "declined"`) and drop it immediately. Do not ask twice. Do not guilt them. A decline is not the same as "I don't know" — see below.
 - **enforced** — the quiz is required before committing. Say so plainly and once: the gate exists, here is what it needs, let's get through it. Supportive, not punitive. Never imply they are being punished.
+
+  A blank grades 0, and 0 never passes the gate — so a session answered entirely with "I don't know" would leave nothing to ask and a commit that can never go through. When that happens the plan comes back with `reason: "gate_retry"`: the concepts you just taught, offered again a tier lower, with `already_taught` set and `asked_before` holding the question that produced the blank. **This is a second lap, not a re-ask.** Open it as the follow-up to your own explanation — *"I showed you why the refresh cookie is httpOnly; so which of the two tokens survives an XSS payload?"* — and ask something the first question did not. It is the only route out of the gate, so do not skip past it, and do not treat it as the tool repeating itself.
+
+  A concept they explicitly **declined** is not offered again. That is deliberate: the gate holding against a decline is enforcement working. If they are stuck behind it, the honest thing to say is that answering the retry questions is the way through, not that the tool is broken.
 - **off** — do nothing at all.
 
 ## The bar

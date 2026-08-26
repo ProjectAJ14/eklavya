@@ -65,6 +65,7 @@ Same as above, plus:
 - The Stop-hook quiz is mandatory and has a pass threshold (default: 70% of session concepts answered at their current difficulty tier).
 - A **PreToolUse hook on Bash** intercepts `git commit` and denies it while the session gate is unpassed, with a reason instructing Claude to run the quiz first.
 - A **plain git `pre-commit` hook** (installed by `/eklavya:setup`) performs the same DB check, so commits from a terminal, VS Code, or Cursor are equally gated. This makes enforcement editor-agnostic on day one.
+- The gate must always have a route through it. A blank grades 0 and 0 never passes, while a concept with any attempt is dropped from the session plan — so a session answered entirely with "I don't know" would leave `required` unmeetable, the planner empty, and the commit hook denying while telling the developer to run a quiz that refuses. Once ordinary candidates are exhausted and the gate is still unpassed, `get_session_quiz_plan` re-offers the concepts it taught (`reason: "gate_retry"`), one tier lower, with `asked_before` forcing a different question. Concepts whose latest attempt was `declined` are excluded: the gate holding against a decline is enforcement, not a deadlock. Ambient mode is exempt — it has no gate, and re-offering there is the nagging the cooldown prevents.
 
 ### 5.3 Slash commands
 
@@ -236,11 +237,11 @@ Node 18+, TypeScript, `@modelcontextprotocol/sdk`, `better-sqlite3`, stdio trans
    Called at session start and before any quiz/teaching.
 
 2. **`log_session_concepts`** `{ session_id, concepts: [{slug, name?, domain?, tier?, context}] }` →
-   Upserts unknown slugs as `source='llm'` concepts, inserts into `session_concepts`. The tutor skill instructs Claude to call this as it works (cheap, batched).
+   Upserts unknown slugs as `source='llm'` concepts, inserts into `session_concepts`. The tutor skill instructs Claude to call this as it works (cheap, batched). Slugs it had to mint come back in `created`, and — because a bare concept has no edges and so silently defeats the `prereqs_unmet` fairness check — the response also carries `next_action` naming the `upsert_concepts` call they owe. Stated in the payload rather than only in the skill, which is model-invoked and may never load.
 
 3. **`get_session_quiz_plan`** `{ session_id, max?: number }` →
    `{ questions_needed, concepts: [{slug, name, tier_to_ask, context, last_grade?}] }`
-   Selection order: (a) session concepts not yet known, (b) session concepts due for review, (c) global due-for-review in same domain. Caps at `max` (default 4).
+   Selection order: (a) session concepts not yet known, (b) session concepts due for review, (c) global due-for-review in same domain, and — enforced mode only, once (a)–(c) are empty and the gate is still unpassed — (d) concepts already taught this session, re-offered a tier lower as `reason: "gate_retry"` so the gate always has a route through it (§5.2). Caps at `max` (default 4).
 
 4. **`record_attempt`** `{ session_id, slug, question, answer, grade, difficulty, feedback }` →
    Writes attempt, updates SM-2 state, updates gate counters. Returns `{ new_score, next_review, gate: {required, answered, passed} }`.

@@ -93,6 +93,8 @@ So a blank is the one answer that gets the **most** teaching, not the least: the
 
 Eklavya records which of the two it was (`outcome: dont_know` or `declined`), so the next session can open as a follow-up to the explanation instead of asking cold. Consecutive blanks drop the tier rather than ending the quiz — blanking means the pitch was too high, not that you wanted out.
 
+In enforced mode this distinction also decides whether the gate can be passed at all. A blank grades 0, and 0 never passes — so a session answered entirely with "I don't know" would leave the gate permanently unmet. Once every other concept is exhausted, Eklavya re-offers the ones it taught you, one tier lower and with a different question, until you can show the lesson landed. Concepts you *declined* are not re-offered: the gate holding against a decline is the gate working.
+
 ## Modes
 
 | Mode | For | Behaviour |

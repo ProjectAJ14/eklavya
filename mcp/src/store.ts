@@ -320,6 +320,64 @@ export function hasAskedQuestion(db: DB, conceptId: number, question: string): b
   return rows.some((r) => questionFingerprint(r.question) === target);
 }
 
+/**
+ * Has this concept ever been blanked on and taught?
+ *
+ * Deliberately not derived from `recentQuestions`, which is windowed: once a few
+ * newer attempts pile up, the `dont_know` row falls out of that window and the
+ * flag flips back to false. The concepts that accumulate attempts fastest are
+ * the unmastered ones that keep resurfacing -- exactly the ones most likely to
+ * have been blanked on -- so deriving it there loses the flag precisely where it
+ * matters most, and the next question opens cold on a topic already explained.
+ */
+export function wasEverTaught(db: DB, conceptId: number): boolean {
+  const row = db
+    .prepare(`SELECT 1 FROM attempts WHERE concept_id = ? AND outcome = 'dont_know' LIMIT 1`)
+    .get(conceptId);
+  return row !== undefined;
+}
+
+/**
+ * Concepts this session attempted but did not pass, minus the ones the learner
+ * declined.
+ *
+ * This is the way out of an otherwise unreachable gate. A blank grades 0, and a
+ * concept with any attempt is filtered from the session plan, so a session
+ * answered entirely with "I don't know" leaves `required` permanently unmet: the
+ * planner returns nothing, and the commit gate denies forever. Offering those
+ * concepts again -- once everything else is exhausted, a tier lower, and with
+ * `asked_before` forcing a different question -- turns the deadlock into a
+ * second lap over material that has now been taught.
+ *
+ * Declines are excluded on purpose, judged on the *latest* attempt so someone
+ * who declined and later engaged is not held to the earlier answer. "Leave me
+ * alone" is a choice, and enforced mode holding the gate against it is the
+ * enforcement working, not a deadlock.
+ */
+export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[] {
+  return db
+    .prepare(
+      // Carries `context` so a retry question stays grounded in the same code
+      // the first one was about -- the concept was taught, not the file.
+      `SELECT c.*, sc.context, sc.ts AS logged_at FROM concepts c
+         JOIN session_concepts sc ON sc.concept_id = c.id AND sc.session_id = ?
+         JOIN (
+           SELECT a.concept_id,
+                  max(a.grade) AS best_grade,
+                  (SELECT x.outcome FROM attempts x
+                    WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id
+                    ORDER BY x.id DESC LIMIT 1) AS last_outcome
+             FROM attempts a
+            WHERE a.session_id = ?
+            GROUP BY a.concept_id
+         ) t ON t.concept_id = c.id
+        WHERE t.best_grade < ?
+          AND (t.last_outcome IS NULL OR t.last_outcome <> 'declined')
+        ORDER BY sc.ts ASC`,
+    )
+    .all(sessionId, sessionId, PASSING_GRADE) as SessionConceptRow[];
+}
+
 /** Concepts already asked about in this session — they have had their turn. */
 export function attemptedConceptIds(db: DB, sessionId: string): Set<number> {
   const rows = db

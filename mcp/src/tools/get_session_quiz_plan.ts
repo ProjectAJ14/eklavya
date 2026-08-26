@@ -4,12 +4,15 @@ import { decayedScore, isDue, isKnown, nextTierToAsk } from '../srs.js';
 import { resolveSessionId } from '../session.js';
 import {
   attemptedConceptIds,
+  gateRetryConcepts,
+  gateRow,
   lastAttempt,
   lastAttemptAt,
   masteryFor,
   recentQuestions,
   sessionConcepts,
   unmetPrereqs,
+  wasEverTaught,
   type AskedQuestion,
   type ConceptRow,
 } from '../store.js';
@@ -35,7 +38,7 @@ interface PlanItem {
   already_taught: boolean;
   /** Prerequisites they have not mastered — ask about these first, or drop a tier. */
   prereqs_unmet: string[];
-  reason: 'unmastered' | 'due_review' | 'domain_review' | 'topic';
+  reason: 'unmastered' | 'due_review' | 'domain_review' | 'topic' | 'gate_retry';
 }
 
 const ASKED_HISTORY = 3;
@@ -52,7 +55,7 @@ export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
   description:
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Returns questions_needed: 0 when there is nothing worth asking.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -119,9 +122,13 @@ export const getSessionQuizPlan: ToolDef = {
       concept: ConceptRow,
       context: string | null,
       reason: PlanItem['reason'],
+      // The gate-retry pass is the one caller allowed past the already-asked
+      // filter, and it drops a tier because it is re-opening a concept the
+      // learner has just been taught rather than testing a fresh one.
+      opts: { retry?: boolean } = {},
     ): void => {
       if (seen.has(concept.slug) || picked.length >= max) return;
-      if (alreadyAsked.has(concept.id)) {
+      if (!opts.retry && alreadyAsked.has(concept.id)) {
         seen.add(concept.slug);
         skippedAsked += 1;
         return;
@@ -132,22 +139,24 @@ export const getSessionQuizPlan: ToolDef = {
       const last = lastAttempt(db, concept.id);
       const asked = recentQuestions(db, concept.id, ASKED_HISTORY);
 
+      const tier = nextTierToAsk({
+        conceptTier: concept.tier,
+        lastDifficulty: last?.difficulty ?? null,
+        lastGrade: last?.grade ?? null,
+        score,
+      });
+
       seen.add(concept.slug);
       picked.push({
         slug: concept.slug,
         name: concept.name,
         domain: concept.domain,
         description: concept.description,
-        tier_to_ask: nextTierToAsk({
-          conceptTier: concept.tier,
-          lastDifficulty: last?.difficulty ?? null,
-          lastGrade: last?.grade ?? null,
-          score,
-        }),
+        tier_to_ask: opts.retry ? Math.max(1, tier - 1) : tier,
         context,
         last_grade: last?.grade ?? null,
         asked_before: asked,
-        already_taught: asked.some((a) => a.taught),
+        already_taught: wasEverTaught(db, concept.id),
         prereqs_unmet: unmetPrereqs(db, concept.id, now),
         reason,
       });
@@ -221,6 +230,30 @@ export const getSessionQuizPlan: ToolDef = {
           )
           .all(...domains, now.toISOString()) as ConceptRow[];
         for (const c of rows) add(c, null, 'domain_review');
+      }
+    }
+
+    // Enforced mode only, and only once everything else is exhausted: a session
+    // answered entirely with "I don't know" grades every concept 0, and a graded
+    // concept is filtered from the plan above -- so `required` can never be met,
+    // the planner returns nothing, and pre-tool-gate.sh denies the commit while
+    // telling the developer to run a quiz that has nothing left to ask. That is
+    // a dead end with no route out inside the session.
+    //
+    // Ambient mode is deliberately left alone. It has no gate to deadlock, and
+    // re-offering a concept there would be the nagging the cooldown exists to
+    // prevent.
+    if (!topicMode && picked.length === 0 && config.mode === 'enforced') {
+      const gate = gateRow(db, sessionId);
+      if (gate && gate.required > 0 && !gate.passed) {
+        // `seen` carries two meanings: "already picked" and "considered and
+        // rejected". Only the second is in it here -- nothing was picked, or we
+        // would not be in this branch -- so clearing it drops exactly the
+        // rejections the retry pass exists to reconsider, and cannot lose a pick.
+        seen.clear();
+        for (const c of gateRetryConcepts(db, sessionId)) {
+          add(c, c.context, 'gate_retry', { retry: true });
+        }
       }
     }
 

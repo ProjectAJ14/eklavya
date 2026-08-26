@@ -22,7 +22,7 @@ export const logSessionConcepts: ToolDef = {
   name: 'log_session_concepts',
   title: 'Log session concepts',
   description:
-    'Record the concepts the current task genuinely exercises, each with a one-line context pointing at the real code you wrote. Call this while implementing, batched, 3-8 concepts per task. Unknown slugs are created automatically.',
+    'Record the concepts the current task genuinely exercises, each with a one-line context pointing at the real code you wrote. Call this while implementing, batched, 3-8 concepts per task. Unknown slugs are created automatically, but bare — when the response carries next_action, do what it says before quizzing.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -106,6 +106,26 @@ export const logSessionConcepts: ToolDef = {
       repo: repoRoot,
     });
 
-    return { session_id: sessionId, logged, created, matched, capped, gate };
+    // Said in the response, not only in the tutor skill. A bare concept is
+    // tier 2, domain "general", no edges -- and `prereqs_unmet` is computed from
+    // edges, so a concept with none can never be reported as unfair to ask
+    // about, however far out of its depth the learner is. The skill says to fix
+    // that, but it is model-invoked and may never load; the same gap is why the
+    // concept-logging directive had to move into the SessionStart banner. This
+    // lands in context whatever loaded.
+    const nextAction =
+      created.length > 0
+        ? `Call upsert_concepts for ${created.join(', ')} — each was created bare (tier 2, domain "general", no edges). Give each a real domain, an honest tier, and at least one prerequisite_of edge, or prereqs_unmet stays empty and the fairness check silently passes.`
+        : undefined;
+
+    return {
+      session_id: sessionId,
+      logged,
+      created,
+      matched,
+      capped,
+      gate,
+      ...(nextAction ? { next_action: nextAction } : {}),
+    };
   },
 };
