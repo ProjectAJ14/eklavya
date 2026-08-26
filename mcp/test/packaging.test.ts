@@ -51,9 +51,24 @@ describe('what ships to the plugin', () => {
   });
 
   it('.mcp.json launches through the wrapper, not a path that is gitignored', () => {
-    const mcpConfig = readJson(path.join(repoRoot, '.mcp.json'));
-    const command = mcpConfig.mcpServers.eklavya.command;
+    const command = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya.command;
     expect(command).toMatch(/eklavya-mcp\.sh/);
     expect(command).not.toMatch(/dist\/server\.js/);
+  });
+
+  it('.mcp.json does not quote the command — it is a path, not a shell string', () => {
+    // Quoting ${CLAUDE_PLUGIN_ROOT} is correct in hooks.json, whose commands run
+    // through a shell. An MCP `command` is spawned directly, so an embedded
+    // quote becomes part of the filename and the server silently never starts:
+    // the plugin loads, skills and agents register, and every tool is missing.
+    const command = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya.command;
+    expect(command).not.toMatch(/["']/);
+  });
+
+  it('the command resolves to a real executable once the placeholder expands', () => {
+    const command = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya.command;
+    const resolved = command.replace('${CLAUDE_PLUGIN_ROOT}', repoRoot);
+    expect(fs.existsSync(resolved), `${resolved} does not exist`).toBe(true);
+    expect(fs.statSync(resolved).mode & 0o111).toBeGreaterThan(0);
   });
 });

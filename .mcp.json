@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "eklavya": {
-      "command": "\"${CLAUDE_PLUGIN_ROOT}\"/mcp/bin/eklavya-mcp.sh",
+      "command": "${CLAUDE_PLUGIN_ROOT}/mcp/bin/eklavya-mcp.sh",
       "env": {
         "EKLAVYA_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
       }
