@@ -21,7 +21,7 @@ So Eklavya asks you about it — once per task, never the same question twice, a
 ### Claude Code
 
 ```bash
-/plugin marketplace add <your-github-user>/eklavya   # once this repo is pushed
+/plugin marketplace add ProjectAJ14/eklavya
 /plugin install eklavya@eklavya
 /eklavya:setup
 ```
@@ -52,7 +52,7 @@ The knowledge graph and the commit gate are editor-agnostic by design.
 # 1. Point Cursor at the MCP server (~/.cursor/mcp.json)
 {
   "mcpServers": {
-    "eklavya": { "command": "node", "args": ["/path/to/eklavya/mcp/dist/server.js"] }
+    "eklavya": { "command": "npx", "args": ["-y", "eklavya-mcp"] }
   }
 }
 
