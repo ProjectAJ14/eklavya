@@ -61,9 +61,31 @@ DUE=$(eklavya_sql "
   SELECT count(*) FROM mastery
   WHERE next_review IS NOT NULL AND next_review <= strftime('%Y-%m-%dT%H:%M:%fZ','now');")
 
+# The whole tutoring loop starts at log_session_concepts: it is the only writer
+# of session_concepts, and the Stop hook quizzes from nothing else. An unlogged
+# session is a silent no-op no matter how much was taught in it, and the Stop
+# hook exits 0 without a word, so the failure looks like "Eklavya is broken".
+#
+# The tutor skill already says to log, but it is model-invoked — it competes with
+# every other skill on the machine and may never load. So the instruction is
+# stated here, where every session sees it before any skill is chosen.
+eklavya_directive() {
+  cat <<'DIRECTIVE'
+[Eklavya] Standing instruction for this session, on every task — not only when asked to teach:
+  - Once you know what a task involves, call log_session_concepts with the 3-8 concepts it
+    genuinely exercises. Omit session_id. Log while implementing, not at the end.
+  - Log what the code is *about* (jwt-verification, react-effect-cleanup, sql-index-selectivity),
+    not what you did. Give each one a context line naming the real code you wrote.
+  - Guessed slugs are fine: unknown ones are fuzzy-matched or created.
+  - Skip this and there is nothing to quiz on, so nothing is ever learned. Load the tutor skill
+    for how to ask and grade.
+DIRECTIVE
+}
+
 # Nothing learned yet — say the useful thing instead of an empty scoreboard.
 if [ -z "$DOMAINS" ]; then
-  printf '[Eklavya] No learning history yet. Mode: %s. Log the concepts your work touches via the eklavya MCP server (log_session_concepts).\n' "$MODE"
+  printf '[Eklavya] No learning history yet. Mode: %s.\n' "$MODE"
+  eklavya_directive
   exit 0
 fi
 
@@ -71,5 +93,6 @@ LINE="[Eklavya] Learner profile: $DOMAINS."
 [ -n "$WEAK" ] && LINE="$LINE Weak: $WEAK."
 [ -n "$DUE" ] && [ "$DUE" != "0" ] && LINE="$LINE $DUE concept(s) due for review."
 
-printf '%s Mode: %s. Log task concepts via log_session_concepts; omit session_id.\n' "$LINE" "$MODE"
+printf '%s Mode: %s.\n' "$LINE" "$MODE"
+eklavya_directive
 exit 0

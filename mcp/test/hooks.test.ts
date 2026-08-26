@@ -139,6 +139,26 @@ describe('SessionStart output', () => {
     expect(res.stdout).toMatch(/No learning history yet/);
   });
 
+  it('tells the model to log concepts on a fresh install, where nothing else will', () => {
+    const res = sessionStart();
+    expect(res.stdout).toMatch(/Standing instruction/);
+    expect(res.stdout).toMatch(/log_session_concepts/);
+  });
+
+  it('repeats the logging instruction once there is history — the loop still needs feeding', () => {
+    logConcepts(['csrf']);
+    answer('csrf', 5);
+    answer('csrf', 5);
+    const res = sessionStart();
+    expect(res.stdout).toMatch(/Learner profile/);
+    expect(res.stdout).toMatch(/log_session_concepts/);
+  });
+
+  it('drops the logging instruction when quiet is set', () => {
+    configure({ quiet: true });
+    expect(sessionStart().stdout).not.toMatch(/log_session_concepts/);
+  });
+
   it('reports per-domain progress once something is known', () => {
     logConcepts(['csrf']);
     answer('csrf', 5);
