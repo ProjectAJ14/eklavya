@@ -1,7 +1,7 @@
 {
   "name": "eklavya-mcp",
   "version": "0.1.0",
-  "description": "Eklavya MCP server \u2014 local knowledge graph, spaced repetition, and quiz gating for agent-assisted learning.",
+  "description": "Eklavya MCP server — local knowledge graph, spaced repetition, and quiz gating for agent-assisted learning.",
   "license": "MIT",
   "repository": {
     "type": "git",

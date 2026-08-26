@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Never let two releases race; a second push waits rather than publishing
+  # a version the first one is still tagging.
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # commit the version bump, push the tag, create the release
+      issues: write         # semantic-release comments on released issues
+      pull-requests: write
+      id-token: write       # npm provenance
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0            # semantic-release reads the whole tag history
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Provenance needs npm >= 11.5.1, newer than the npm bundled with Node 20.
+      # Pin the 11.x major: npm@latest moved to 12.x, which needs Node 22+.
+      - run: npm install -g npm@11
+
+      - name: Install release tooling
+        run: npm ci
+
+      - name: Install and test the server
+        working-directory: mcp
+        # The suite asserts the plugin manifest, the package and the launcher's
+        # pinned version agree. A release that bumps only some of them ships a
+        # plugin that runs a different server than it claims to.
+        run: |
+          npm ci
+          npm test
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: npx semantic-release

@@ -1,10 +1,14 @@
 #!/bin/sh
 # Bump the version everywhere it is recorded, in one step.
 #
-# Three files have to agree or the release is broken in a way that is invisible
-# until someone installs it: the plugin manifest, the npm package, and the
-# launcher's pinned version (which decides what an installed plugin actually
-# downloads). `npm test` asserts all three match.
+# Normally you do not run this by hand: semantic-release calls it during a
+# release (see .releaserc.json). It exists as a script so that the three files
+# which carry the version can never drift apart.
+#
+# They have to agree or the release is broken in a way that is invisible until
+# someone installs it: the plugin manifest, the npm package, and the launcher's
+# pinned version, which decides what an installed plugin actually downloads.
+# `npm test` asserts all three match.
 #
 #   scripts/bump-version.sh 0.2.0
 
@@ -41,8 +45,4 @@ mv "$TMP" "$LAUNCHER"
 
 printf 'Bumped to %s:\n' "$VERSION"
 printf '  .claude-plugin/plugin.json\n  mcp/package.json\n  mcp/bin/eklavya-mcp.sh\n'
-printf '\nNext:\n'
-printf '  1. Add a CHANGELOG.md entry for %s\n' "$VERSION"
-printf '  2. cd mcp && npm test\n'
-printf '  3. git commit -am "chore(release): %s" && git tag v%s && git push --follow-tags\n' "$VERSION" "$VERSION"
-printf '  4. gh release create v%s --notes-from-tag   (this triggers the npm publish)\n' "$VERSION"
+printf '\nIf you ran this by hand, remember `cd mcp && npm test` before committing.\n'

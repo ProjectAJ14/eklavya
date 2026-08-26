@@ -48,17 +48,21 @@ Built and verified:
 - **npm packaging** — `bin` entries for both `eklavya-mcp` and `eklavya`, `files` limited to `dist`, `prepublishOnly` builds.
 - **README** — Claude Code and Cursor quickstarts, and a by-hand test script for each phase demo (PRD §14).
 
-**2026-08-26 — release pipeline added**, mirroring the setup in `ProjectAJ14/bypass-ai-vpn`: hand-set semantic versions, a written CHANGELOG, a `v*` tag, and a GitHub Release that triggers `npm publish` with OIDC trusted publishing. That repo does *not* use the `semantic-release` package, so neither does this one.
+**2026-08-26 — fully automated releases.** Superseded the initial release-triggered workflow: the repository is going public and the goal is push-to-release, so this now uses `semantic-release` proper. A Conventional Commit on `main` decides the version, writes the changelog, tags, creates the GitHub Release, and publishes to npm with provenance. `NPM_TOKEN` is the only secret.
+
+(The reference repo `ProjectAJ14/bypass-ai-vpn` does *not* work this way — it has no token and no push trigger, using OIDC trusted publishing fired by a manually published GitHub Release. Worth recording, because the two setups are easy to conflate.)
 
 Two things specific to Eklavya that the reference setup does not have to deal with:
 
 - **The npm package is `mcp/`, not the repo root**, so the workflow runs there and the release checks the tag against `mcp/package.json`.
 - **Three files carry the version** — the plugin manifest, the npm package, and `PINNED_VERSION` in the launcher, which decides what an installed plugin downloads at runtime. Drift between them ships a plugin that silently runs a different server than it claims to, so `scripts/bump-version.sh` sets all three and a test fails if they diverge.
 
-**Unverified:** `npm publish --provenance` may be rejected from a private repository. The npm docs do not state a visibility requirement either way, and it cannot be tested until the first CI release. If it fails, drop `--provenance` from the workflow or make the repo public — nothing else in the pipeline depends on it.
+**Provenance** is enabled via `NPM_CONFIG_PROVENANCE`, which the public repository supports. This was the open question while the repo was private.
+
+**Audit noise:** the root tooling has 18 advisories, all inside `@semantic-release/npm`'s bundled npm CLI. They are dev-only and never published — `npm audit --omit=dev` is clean — and `--force` would downgrade semantic-release, so they stay.
 
 Left undone, on purpose:
 
-- **`npm publish` was not run.** Publishing is irreversible and public, and it needs your npm account. The PRD asks for a scope (`@<org>/eklavya-mcp`); the package is currently unscoped as `eklavya-mcp`, so decide the scope before the first publish — renaming after the fact is worse than choosing now.
-- **The marketplace install command has a placeholder owner** (`<your-github-user>/eklavya`) rather than a guessed GitHub account. Fill it in once the repo is pushed.
+- **The first release has not run.** It needs the repository made public, an `NPM_TOKEN` secret, and a push to `main`. Package name settled as unscoped `eklavya-mcp` (available). First version will be `1.0.0`.
+- **Submission to the public community marketplace** is a form, not a command, and is yours to file.
 - **Clean-machine verification is not something this environment can honestly claim.** Both acceptance boxes below stay unchecked until someone runs them on a machine that has never had Eklavya on it — that is exactly the check that catches a missing native build or a path that only worked here.

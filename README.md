@@ -225,17 +225,20 @@ Plugin, hook and MCP schemas drift. What this is built against is pinned with a 
 
 ## Releasing
 
-Versions are semantic and set by hand; the CHANGELOG is written, not generated. A GitHub Release is what triggers the npm publish.
+Releases are automatic. Push a [Conventional Commit](https://www.conventionalcommits.org/) to `main` and semantic-release decides the version, writes the changelog, tags, creates the GitHub Release, and publishes to npm with provenance.
 
-```bash
-scripts/bump-version.sh 0.2.0     # plugin.json + package.json + the launcher's pin, together
-# write the CHANGELOG.md entry
-cd mcp && npm test                # asserts the three versions agree
-git commit -am "chore(release): 0.2.0" && git tag v0.2.0 && git push --follow-tags
-gh release create v0.2.0 --notes-from-tag
-```
+| Commit prefix | Effect |
+|---|---|
+| `fix:` | patch — 0.1.0 → 0.1.1 |
+| `feat:` | minor — 0.1.0 → 0.2.0 |
+| `feat!:` or a `BREAKING CHANGE:` footer | major |
+| `docs:` `test:` `chore:` `build:` `ci:` `refactor:` | no release |
 
-The release workflow runs the suite, checks the tag matches `mcp/package.json`, and publishes with OIDC trusted publishing. Three versions must stay in lockstep — the plugin manifest, the npm package, and `PINNED_VERSION` in `mcp/bin/eklavya-mcp.sh`, which decides what an installed plugin actually downloads. `bump-version.sh` does all three and a test fails if they ever drift.
+Nothing to run by hand. The workflow installs, runs all tests, and only then releases — and the suite asserts that the three places carrying a version agree: `.claude-plugin/plugin.json`, `mcp/package.json`, and `PINNED_VERSION` in `mcp/bin/eklavya-mcp.sh`, which is what an installed plugin actually downloads. `scripts/bump-version.sh` keeps them in step and semantic-release calls it for you.
+
+The Claude Code plugin has no separate publish step: the marketplace serves the plugin straight from this repository, so the same push ships it.
+
+Repository secret required: `NPM_TOKEN` (an npm **Automation** token). `GITHUB_TOKEN` is provided by Actions.
 
 ## License
 
