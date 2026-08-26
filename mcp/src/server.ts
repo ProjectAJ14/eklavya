@@ -1,9 +1,22 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { openDb } from './db.js';
 import { dbPath } from './paths.js';
 import { registerTools } from './tools/index.js';
+
+// Read the version rather than hardcoding it: a literal here silently reports a
+// stale version forever, since nothing about publishing touches this file.
+// `../package.json` resolves the same from src/ under tsx and from dist/ built.
+function serverVersion(): string {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
 
 // stdout is the MCP transport. Anything diagnostic goes to stderr or it corrupts
 // the protocol stream.
@@ -16,7 +29,7 @@ async function main(): Promise<void> {
   log(`db ready at ${dbPath()}`);
 
   const server = new McpServer(
-    { name: 'eklavya', version: '0.1.0' },
+    { name: 'eklavya', version: serverVersion() },
     {
       capabilities: { tools: {} },
       instructions:

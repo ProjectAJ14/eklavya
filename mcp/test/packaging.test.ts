@@ -36,6 +36,13 @@ describe('what ships to npm', () => {
   });
 });
 
+describe('the running server reports its real version', () => {
+  it('does not hardcode a version that publishing will leave behind', () => {
+    const source = fs.readFileSync(path.join(mcpRoot, 'src', 'server.ts'), 'utf8');
+    expect(source).not.toMatch(/version:\s*'\d+\.\d+\.\d+'/);
+  });
+});
+
 describe('what ships to the plugin', () => {
   it('the launcher is tracked and executable — plugin installs get no build step', () => {
     const launcher = path.join(mcpRoot, 'bin', 'eklavya-mcp.sh');
