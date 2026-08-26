@@ -1,7 +1,12 @@
 {
   "name": "eklavya-mcp",
+<<<<<<< HEAD
   "version": "1.0.0",
   "description": "Eklavya MCP server — local knowledge graph, spaced repetition, and quiz gating for agent-assisted learning.",
+=======
+  "version": "0.1.0",
+  "description": "Eklavya MCP server \u2014 local knowledge graph, spaced repetition, and quiz gating for agent-assisted learning.",
+>>>>>>> 6968cbc (fix(ci): declare public access so the first publish can carry provenance)
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -33,6 +38,10 @@
     "bin",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=18"
   },
