@@ -1,3 +1,16 @@
+# [1.1.0](https://github.com/ProjectAJ14/eklavya/compare/v1.0.1...v1.1.0) (2026-08-26)
+
+
+### Bug Fixes
+
+* keep the enforced gate reachable when every answer is a blank ([d0aaf1a](https://github.com/ProjectAJ14/eklavya/commit/d0aaf1a0aa5cf752628eb1a92fdb2e6c3e05bba4))
+* teach the blanks instead of recording them as skips ([8174a9d](https://github.com/ProjectAJ14/eklavya/commit/8174a9d852c27bd229ed5556d65a4f13540f5f7e))
+
+
+### Features
+
+* add focus, the dial for what Eklavya teaches ([d3e1c2a](https://github.com/ProjectAJ14/eklavya/commit/d3e1c2a29068b7703d9e50c8fd7c4dfb583167c5))
+
 ## [1.0.1](https://github.com/ProjectAJ14/eklavya/compare/v1.0.0...v1.0.1) (2026-08-26)
 
 

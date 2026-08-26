@@ -12,7 +12,7 @@
 # Keep PINNED_VERSION in step with .claude-plugin/plugin.json and
 # mcp/package.json. A test asserts all three match.
 
-PINNED_VERSION="1.0.1"
+PINNED_VERSION="1.1.0"
 
 MCP_DIR=$(cd "$(dirname "$0")/.." && pwd)
 LOCAL_SERVER="$MCP_DIR/dist/server.js"
