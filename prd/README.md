@@ -13,9 +13,9 @@ The full specification is frozen in **[PRD.md](PRD.md)**. This file is the live 
 | 2 — Ambient loop | [phase-2-ambient-loop.md](phase-2-ambient-loop.md) | 🟢 Built, live demo pending | Quiz fires once per task; skip honored; no Stop loop |
 | 3 — Enforced gates | [phase-3-enforced-gates.md](phase-3-enforced-gates.md) | 🟢 Built, live demo pending | Commit blocked in Claude Code *and* bare terminal |
 | 4 — Parallel tutoring | [phase-4-parallel-tutoring.md](phase-4-parallel-tutoring.md) | 🟢 Built, live demo pending | Concurrent writers, no corruption |
-| 5 — Distribution | [phase-5-distribution.md](phase-5-distribution.md) | 🟡 Next | Clean-machine install works for Claude Code + Cursor |
+| 5 — Distribution | [phase-5-distribution.md](phase-5-distribution.md) | 🟠 Prepared, publish is yours | Clean-machine install works for Claude Code + Cursor |
 
-Legend: ⬜ not started · 🟡 in progress · 🟢 built, awaiting live demo · ✅ done · ⛔ blocked
+Legend: ⬜ not started · 🟡 in progress · 🟢 built, awaiting live demo · 🟠 prepared, needs a human step · ✅ done · ⛔ blocked
 
 ## Working rules
 
