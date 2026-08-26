@@ -1,0 +1,24 @@
+-- `required` is derived from the concepts the session's *work* touched, but
+-- `passed` was satisfiable by any concept in `session_concepts` -- and
+-- `record_attempt` inserts a row there for anything it is asked about, so that
+-- review debt is not free. The two ends never matched: answering concepts the
+-- planner pulled in from elsewhere raised `passedCount` while leaving `required`
+-- frozen, so a gate whose bar was set by today's diff could be cleared without
+-- answering a single question about today's diff.
+--
+-- Focus modes make that the main path rather than a trickle. `concept` focus
+-- widens selection to domain siblings and prerequisites on purpose, and `learn`
+-- focus selects from a topic that may have nothing to do with the session at
+-- all.
+--
+-- So the origin has to be recorded. 'work' is a concept the implementer logged
+-- as part of the task; 'review' is one the tutor pulled in. Both still record
+-- attempts, update mastery and count as `answered` -- review debt stays real --
+-- but only 'work' can satisfy the bar the work itself set.
+--
+-- NULL means "recorded before this column existed". Those rows are read as
+-- 'work', which is what they were in every case that mattered: before focus
+-- modes there was nothing to widen with except same-domain review, and treating
+-- them as 'review' would retroactively unpass gates that have already passed.
+ALTER TABLE session_concepts ADD COLUMN origin TEXT
+  CHECK (origin IN ('work','review'));

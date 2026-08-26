@@ -26,6 +26,29 @@ fi
 
 MODE=$(eklavya_config mode ambient "$CWD")
 [ "$MODE" = "off" ] && exit 0
+
+FOCUS=$(eklavya_config focus project "$CWD")
+TOPIC=$(eklavya_config focus_topic "" "$CWD")
+FOCUS_LABEL=$FOCUS
+[ "$FOCUS" = "learn" ] && [ -n "$TOPIC" ] && FOCUS_LABEL="learn ($TOPIC)"
+
+# Repo config beats global, which is right -- it is how a lead pins a setting on
+# one codebase. Silence about it is not: a repo pinning focus switches off a
+# learn topic someone set for themselves, and without this line they have no way
+# to tell why their own setting stopped applying.
+OVERRIDE=""
+if _repo=$(eklavya_repo_config "$CWD"); then
+  _global="$(eklavya_home)/config.json"
+  if [ -f "$_global" ]; then
+    for _key in mode focus focus_topic; do
+      _r=$(jq -r --arg k "$_key" '.[$k] // empty' "$_repo" 2>/dev/null)
+      _g=$(jq -r --arg k "$_key" '.[$k] // empty' "$_global" 2>/dev/null)
+      if [ -n "$_r" ] && [ -n "$_g" ] && [ "$_r" != "$_g" ]; then
+        OVERRIDE="$OVERRIDE $_key"
+      fi
+    done
+  fi
+fi
 [ "$(eklavya_config quiet false "$CWD")" = "true" ] && exit 0
 
 # "seen" is a mastery row, which only exists once a concept has been attempted.
@@ -83,8 +106,14 @@ DIRECTIVE
 }
 
 # Nothing learned yet — say the useful thing instead of an empty scoreboard.
+emit_override() {
+  [ -n "$OVERRIDE" ] || return 0
+  printf '[Eklavya] This repo overrides your global setting for:%s (.eklavya.json wins).\n' "$OVERRIDE"
+}
+
 if [ -z "$DOMAINS" ]; then
-  printf '[Eklavya] No learning history yet. Mode: %s.\n' "$MODE"
+  printf '[Eklavya] No learning history yet. Mode: %s. Focus: %s.\n' "$MODE" "$FOCUS_LABEL"
+  emit_override
   eklavya_directive
   exit 0
 fi
@@ -93,6 +122,7 @@ LINE="[Eklavya] Learner profile: $DOMAINS."
 [ -n "$WEAK" ] && LINE="$LINE Weak: $WEAK."
 [ -n "$DUE" ] && [ "$DUE" != "0" ] && LINE="$LINE $DUE concept(s) due for review."
 
-printf '%s Mode: %s.\n' "$LINE" "$MODE"
+printf '%s Mode: %s. Focus: %s.\n' "$LINE" "$MODE" "$FOCUS_LABEL"
+emit_override
 eklavya_directive
 exit 0

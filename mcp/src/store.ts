@@ -140,29 +140,54 @@ export function gradeConcept(
   return after;
 }
 
+/**
+ * `work` is a concept the implementer logged as part of the task; `review` is
+ * one the tutor pulled in from elsewhere. Only `work` can satisfy the gate --
+ * see migration 005.
+ */
+export type ConceptOrigin = 'work' | 'review';
+
 export function logSessionConcept(
   db: DB,
   sessionId: string,
   conceptId: number,
   context: string | null,
+  origin: ConceptOrigin = 'work',
 ): void {
   db.prepare(
-    `INSERT INTO session_concepts (session_id, concept_id, context)
-     VALUES (?, ?, ?)
+    `INSERT INTO session_concepts (session_id, concept_id, context, origin)
+     VALUES (?, ?, ?, ?)
      ON CONFLICT(session_id, concept_id) DO UPDATE SET
-       context = COALESCE(excluded.context, session_concepts.context)`,
-  ).run(sessionId, conceptId, context);
+       context = COALESCE(excluded.context, session_concepts.context),
+       -- Work wins and never degrades: a concept quizzed as review debt and
+       -- then genuinely touched by the task is part of the task.
+       origin = CASE
+                  WHEN excluded.origin = 'work' THEN 'work'
+                  ELSE COALESCE(session_concepts.origin, excluded.origin)
+                END`,
+  ).run(sessionId, conceptId, context, origin);
 }
 
-export function sessionConcepts(db: DB, sessionId: string): SessionConceptRow[] {
+/**
+ * `origin: 'work'` restricts this to what the task actually touched, excluding
+ * concepts a quiz pulled in as review debt. The gate's bar must be computed from
+ * that subset: `passedCount` only counts 'work', so letting review rows raise
+ * `required` would raise a bar that nothing the learner does can clear.
+ */
+export function sessionConcepts(
+  db: DB,
+  sessionId: string,
+  origin?: ConceptOrigin,
+): SessionConceptRow[] {
   return db
     .prepare(
       `SELECT c.*, sc.context, sc.ts AS logged_at
        FROM session_concepts sc JOIN concepts c ON c.id = sc.concept_id
        WHERE sc.session_id = ?
+         ${origin ? `AND COALESCE(sc.origin, 'work') = ?` : ''}
        ORDER BY sc.ts ASC, c.tier ASC, c.slug ASC`,
     )
-    .all(sessionId) as SessionConceptRow[];
+    .all(...(origin ? [sessionId, origin] : [sessionId])) as SessionConceptRow[];
 }
 
 export function newConceptsThisSession(db: DB, sessionId: string): number {
@@ -212,9 +237,19 @@ export function gateRow(db: DB, sessionId: string): GateRow | undefined {
 function countAnswered(db: DB, sessionId: string): { answered: number; passedCount: number } {
   const row = db
     .prepare(
+      // `answered` counts everything -- quizzing on review debt is not free.
+      // `passedCount` counts only 'work', because `required` is derived from the
+      // concepts the work touched and the two ends have to measure the same
+      // thing. Without this, `concept` focus widening to domain siblings, or
+      // `learn` focus selecting from an unrelated topic, would let a gate whose
+      // bar was set by today's diff be cleared without a single question about
+      // today's diff. NULL is pre-migration and reads as 'work' (migration 005).
       `SELECT
          count(DISTINCT a.concept_id) AS answered,
-         count(DISTINCT CASE WHEN a.grade >= ? THEN a.concept_id END) AS passedCount
+         count(DISTINCT CASE
+                          WHEN a.grade >= ? AND COALESCE(sc.origin, 'work') = 'work'
+                          THEN a.concept_id
+                        END) AS passedCount
        FROM attempts a
        JOIN session_concepts sc
          ON sc.concept_id = a.concept_id AND sc.session_id = a.session_id
@@ -376,6 +411,89 @@ export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[
         ORDER BY sc.ts ASC`,
     )
     .all(sessionId, sessionId, PASSING_GRADE) as SessionConceptRow[];
+}
+
+/**
+ * Concepts in the same domains as the session's work, for `concept` focus.
+ *
+ * `project` focus asks about the diff; `concept` focus asks about the ideas the
+ * diff is an instance of, which means reaching past what the task happened to
+ * touch. Prerequisites of touched concepts come too: they are the part of "the
+ * general version" a learner is most likely to be missing.
+ */
+export function domainSiblings(db: DB, domains: string[], exclude: Set<number>): ConceptRow[] {
+  if (domains.length === 0) return [];
+  const rows = db
+    .prepare(
+      `SELECT c.* FROM concepts c
+        WHERE c.domain IN (${domains.map(() => '?').join(',')})
+        ORDER BY c.tier ASC, c.slug ASC`,
+    )
+    .all(...domains) as ConceptRow[];
+  return rows.filter((c) => !exclude.has(c.id));
+}
+
+/** Prerequisites of the given concepts, nearest first. Used to widen `concept` focus. */
+export function prereqsOf(db: DB, conceptIds: number[]): ConceptRow[] {
+  if (conceptIds.length === 0) return [];
+  return db
+    .prepare(
+      `SELECT DISTINCT c.* FROM concepts c
+         JOIN edges e ON e.from_concept = c.id
+        WHERE e.relation = 'prerequisite_of'
+          AND e.to_concept IN (${conceptIds.map(() => '?').join(',')})
+        ORDER BY c.tier ASC, c.slug ASC`,
+    )
+    .all(...conceptIds) as ConceptRow[];
+}
+
+export interface TopicMatch {
+  /** A domain the topic named outright, if any. */
+  domain: string | null;
+  /** Concepts the topic matched by slug or name. */
+  slugs: string[];
+}
+
+/**
+ * Resolve a free-text topic ("caching", "web auth") onto the graph, for `learn`
+ * focus.
+ *
+ * Tried in order of confidence: an exact domain, then a domain whose name the
+ * topic contains or is contained by, then concepts matching on slug or name.
+ * Returning both a domain and slugs lets the caller prefer the domain when the
+ * topic names one and fall back to loose concept matches when it does not.
+ *
+ * An empty result is meaningful and must not be papered over -- it means the
+ * graph has nothing on this topic yet, and the honest answer is to say so and
+ * offer to teach from first principles rather than to invent questions.
+ */
+export function resolveTopic(db: DB, topic: string): TopicMatch {
+  const needle = topic.trim().toLowerCase();
+  if (!needle) return { domain: null, slugs: [] };
+  const slugged = needle.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+  const domains = (
+    db.prepare('SELECT DISTINCT domain FROM concepts').all() as { domain: string }[]
+  ).map((r) => r.domain);
+
+  const exact = domains.find((d) => d.toLowerCase() === needle || d.toLowerCase() === slugged);
+  const loose =
+    exact ??
+    domains.find((d) => {
+      const l = d.toLowerCase();
+      return l.includes(slugged) || slugged.includes(l);
+    });
+
+  const rows = db
+    .prepare(
+      `SELECT slug FROM concepts
+        WHERE slug LIKE ? OR lower(name) LIKE ?
+        ORDER BY tier ASC, slug ASC
+        LIMIT 40`,
+    )
+    .all(`%${slugged}%`, `%${needle}%`) as { slug: string }[];
+
+  return { domain: loose ?? null, slugs: rows.map((r) => r.slug) };
 }
 
 /** Concepts already asked about in this session — they have had their turn. */

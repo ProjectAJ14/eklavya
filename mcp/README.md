@@ -34,7 +34,9 @@ State lives in `~/.eklavya/knowledge.db` (SQLite, WAL). Override with `EKLAVYA_H
 ```bash
 eklavya doctor                      # check the install
 eklavya config get
-eklavya config set mode enforced [--repo]
+eklavya config set mode enforced [--repo]     # how hard it pushes
+eklavya config set focus concept              # what it teaches
+eklavya config set focus learn --topic caching
 eklavya export-rules --out .cursor/rules/eklavya.md
 eklavya db-path
 ```

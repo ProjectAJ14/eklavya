@@ -370,7 +370,12 @@ describe('Stop hook — what it tells Claude', () => {
     configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 1 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
-    expect(res.stderr.match(/;/g) ?? []).toHaveLength(0);
+    // The concepts line, not the whole message: prose elsewhere may legitimately
+    // contain a semicolon, and matching on that made this assert something it
+    // did not mean.
+    const line = res.stderr.split('\n').find((l) => l.startsWith('Concepts:')) ?? '';
+    expect(line).toMatch(/csrf/);
+    expect(line.match(/;/g) ?? []).toHaveLength(0);
   });
 
   it('says the gate needs it in enforced mode, and offers the skip in ambient', () => {

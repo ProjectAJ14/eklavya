@@ -748,6 +748,190 @@ describe('enforced-mode gate retry', () => {
   });
 });
 
+// `mode` is how hard Eklavya pushes; `focus` is what it teaches. The two dials
+// are independent, and these pin that they stay that way.
+describe('focus', () => {
+  it('defaults to project, which is the historical behaviour', () => {
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.focus).toBe('project');
+    expect(plan.concepts.every((c: any) => c.reason === 'unmastered')).toBe(true);
+    // project focus keeps the code: the diff is the subject.
+    expect(plan.concepts.every((c: any) => c.context)).toBeTruthy();
+    expect(plan.framing).toContain('diff');
+  });
+
+  it('widens past the session in concept focus, and withholds the code', () => {
+    configure({ focus: 'concept', min_minutes_between_quizzes: 0 });
+    // One concept only, so widening has somewhere to go inside max.
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'csrf', context: 'chose SameSite=Lax on the session cookie' }],
+    });
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    const widened = plan.concepts.filter((c: any) => c.reason === 'concept_widening');
+
+    expect(plan.focus).toBe('concept');
+    expect(widened.length).toBeGreaterThan(0);
+    // Withheld on purpose: handing over a line of code invites the grounded
+    // question this focus exists to avoid.
+    expect(widened.every((c: any) => c.context === null)).toBe(true);
+    expect(plan.framing).toContain('transferable');
+  });
+
+  it('plans from the topic in learn focus, and bridges to real work where it overlaps', () => {
+    // A slug rather than a domain, so the concept is deterministically in the
+    // plan: a 33-concept domain capped at max need not include any given one.
+    configure({ focus: 'learn', focus_topic: 'csrf', min_minutes_between_quizzes: 0 });
+    logAuthWork();
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.focus).toBe('learn');
+    expect(plan.topic).toBe('csrf');
+    expect(plan.concepts.every((c: any) => c.reason === 'learn_topic')).toBe(true);
+    // csrf is both in the topic and in this session's work, so it carries the
+    // real code as the worked example.
+    const csrf = plan.concepts.find((c: any) => c.slug === 'csrf');
+    expect(csrf?.bridge_context).toContain('SameSite=Lax');
+  });
+
+  it('teaches topic concepts the session never touched, without inventing a bridge', () => {
+    configure({ focus: 'learn', focus_topic: 'web-auth', min_minutes_between_quizzes: 0 });
+    // No session work at all — learn focus does not depend on it.
+    const plan = call<any>(getSessionQuizPlan, { session_id: 'untouched-session' });
+    expect(plan.questions_needed).toBeGreaterThan(0);
+    expect(plan.concepts.every((c: any) => c.bridge_context === undefined)).toBe(true);
+  });
+
+  it('refuses rather than guessing when learn focus has no topic', () => {
+    configure({ focus: 'learn', min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.questions_needed).toBe(0);
+    expect(plan.reason).toBe('no_topic');
+  });
+
+  it('says so rather than inventing questions when the topic is not in the graph', () => {
+    configure({ focus: 'learn', focus_topic: 'quantum-basket-weaving', min_minutes_between_quizzes: 0 });
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.questions_needed).toBe(0);
+    expect(plan.reason).toBe('topic_unknown');
+  });
+
+  it('lets an explicitly named topic outrank the standing focus', () => {
+    configure({ focus: 'learn', focus_topic: 'web-auth', min_minutes_between_quizzes: 0 });
+    const plan = call<any>(getSessionQuizPlan, {
+      session_id: SESSION,
+      domain: 'react',
+      ignore_cooldown: true,
+    });
+    expect(plan.concepts.every((c: any) => c.reason === 'topic')).toBe(true);
+    expect(plan.concepts.every((c: any) => c.domain === 'react')).toBe(true);
+  });
+
+  it('is overridden per call without touching the config', () => {
+    configure({ focus: 'project', min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, focus: 'concept' }).focus).toBe(
+      'concept',
+    );
+    expect(call<any>(getConfig, {}).config.focus).toBe('project');
+  });
+
+  it('stays dormant when mode is off, whatever the focus says', () => {
+    configure({ mode: 'off', focus: 'learn', focus_topic: 'web-auth' });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).reason).toBe('mode_off');
+  });
+});
+
+// `required` is set by the work; `passed` must be earned on the work. Widening
+// (concept focus) and unrelated topics (learn focus) would otherwise let a gate
+// be cleared without answering anything about the diff that raised it.
+describe('gate counts work, not review debt', () => {
+  it('does not let a widened concept satisfy the bar the work set', () => {
+    configure({ max_questions_per_task: 1, pass_threshold: 1, min_minutes_between_quizzes: 0 });
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'csrf', context: 'chose SameSite=Lax' }],
+    });
+    expect(call<any>(getGateStatus, { session_id: SESSION }).required).toBe(1);
+
+    // A concept the work never touched, answered perfectly.
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'jwt-structure',
+      question: 'q',
+      answer: 'a',
+      grade: 5,
+      difficulty: 2,
+    });
+
+    const gate = call<any>(getGateStatus, { session_id: SESSION });
+    expect(gate.answered).toBe(1); // review debt still counts as answered
+    expect(gate.passed).toBe(false); // but cannot clear the work's bar
+
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'q',
+      answer: 'a',
+      grade: 4,
+      difficulty: 2,
+    });
+    expect(call<any>(getGateStatus, { session_id: SESSION }).passed).toBe(true);
+  });
+
+  it('does not let review debt raise a bar nothing can clear', () => {
+    configure({ max_questions_per_task: 4, pass_threshold: 1, min_minutes_between_quizzes: 0 });
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'csrf', context: 'chose SameSite=Lax' }],
+    });
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'jwt-structure',
+      question: 'q',
+      answer: 'a',
+      grade: 5,
+      difficulty: 2,
+    });
+    // The mirror of the test above: `required` must stay on the work too, or
+    // quizzing review debt makes the gate harder without making it passable.
+    expect(call<any>(getGateStatus, { session_id: SESSION }).required).toBe(1);
+  });
+
+  it('promotes a concept to work when the task turns out to touch it', () => {
+    configure({ max_questions_per_task: 1, pass_threshold: 1, min_minutes_between_quizzes: 0 });
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'csrf', context: 'chose SameSite=Lax' }],
+    });
+    // Quizzed first as review debt...
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'jwt-structure',
+      question: 'q',
+      answer: 'a',
+      grade: 4,
+      difficulty: 2,
+    });
+    // ...then genuinely touched by the work. Work wins and never degrades.
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'jwt-structure', context: 'signed the access token in token.ts' }],
+    });
+
+    const row = db
+      .prepare(
+        `SELECT sc.origin FROM session_concepts sc JOIN concepts c ON c.id = sc.concept_id
+          WHERE sc.session_id = ? AND c.slug = ?`,
+      )
+      .get(SESSION, 'jwt-structure') as { origin: string };
+    expect(row.origin).toBe('work');
+  });
+});
+
 describe('get_learner_profile', () => {
   it('starts with everything unseen', () => {
     const p = call<any>(getLearnerProfile, { domain: 'web-auth' });

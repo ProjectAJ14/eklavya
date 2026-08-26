@@ -26,6 +26,14 @@ The server creates and seeds it on first start, so this should already show `web
 
 Then `set_config` with their choice. Use `scope: "repo"` if they want it to apply to this project only — that writes `.eklavya.json` at the repo root, which is how a lead pins enforced mode for one codebase. Otherwise global.
 
+**3b. Choose a focus.** One more question, because it changes every quiz. Mode is how hard Eklavya pushes; focus is what it teaches.
+
+- **project** (default) — asks about the code just written. Best when learning a codebase.
+- **concept** — asks the transferable version of the same ideas. Best when learning a stack.
+- **learn** — you name a topic and it teaches that, using your real code as the example where the work touches it.
+
+`set_config` with `focus`, plus `focus_topic` if they chose `learn` — that combination is useless without one. If they have no preference, say project is the default and move on; this should not become an interview. `/eklavya:mode` changes it later.
+
 **4. If they chose enforced, install the git hook.** The `PreToolUse` hook only covers commits made inside Claude Code. The git `pre-commit` hook covers every other path — a bare terminal, VS Code, Cursor:
 
 ```bash

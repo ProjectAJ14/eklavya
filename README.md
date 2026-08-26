@@ -95,26 +95,41 @@ Eklavya records which of the two it was (`outcome: dont_know` or `declined`), so
 
 In enforced mode this distinction also decides whether the gate can be passed at all. A blank grades 0, and 0 never passes — so a session answered entirely with "I don't know" would leave the gate permanently unmet. Once every other concept is exhausted, Eklavya re-offers the ones it taught you, one tier lower and with a different question, until you can show the lesson landed. Concepts you *declined* are not re-offered: the gate holding against a decline is the gate working.
 
-## Modes
+## Modes and focus
 
-| Mode | For | Behaviour |
+Eklavya has **two independent dials**. `mode` is how hard it pushes; `focus` is what it teaches. They combine freely — `enforced` + `learn` is an intern who must pass a gate on a topic they chose.
+
+| `mode` | For | Behaviour |
 |---|---|---|
 | `ambient` (default) | anyone learning a new stack | questions offered after tasks, always skippable, no nagging |
 | `enforced` | interns, onboarding | the session quiz must pass before `git commit` — inside Claude Code *and* from a bare terminal |
-| `off` | — | installed but dormant |
+| `off` | — | installed but dormant; `focus` is not read |
+
+| `focus` | Asks about | Good for |
+|---|---|---|
+| `project` (default) | the code just written — the file, the line, the decision | learning a codebase |
+| `concept` | the same ideas, asked so the answer transfers to any codebase | learning a stack |
+| `learn` | a topic you name, in prerequisite order, using your real code as the example wherever the work touches it | learning something on purpose |
 
 ```bash
 eklavya config set mode enforced          # globally
 eklavya config set mode enforced --repo   # this project only
+eklavya config set focus concept
+eklavya config set focus learn --topic caching
 ```
 
-Repo settings beat global ones, which is how a team lead pins enforced mode on one codebase without touching anyone's machine-wide setup.
+Or `/eklavya:mode` to see both and change either.
+
+Repo settings beat global ones, which is how a team lead pins enforced mode on one codebase without touching anyone's machine-wide setup. That also means a repo setting `focus` overrides each contributor's personal choice there, including a `learn` topic they set for themselves — so the session banner names any setting the repo is overriding rather than letting it change silently.
+
+`learn` focus never changes *when* Eklavya interrupts: the end-of-task quiz still fires on real work, so a declared topic can't start interrupting you about something unrelated to what you're doing. Topic study on demand is `/eklavya:learn`.
 
 ## Commands
 
 | Command | Does |
 |---|---|
 | `/eklavya:quiz [topic]` | quiz now — on this session's work, or a named topic |
+| `/eklavya:mode [value]` | show or change the mode and focus dials |
 | `/eklavya:learn <topic>` | a structured lesson, prerequisite-ordered, calibrated to what you know |
 | `/eklavya:progress` | the mastery map: domains, what's due, where you're weakest |
 | `/eklavya:gate` | commit-gate status |

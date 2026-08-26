@@ -66,6 +66,57 @@ describe('config precedence', () => {
   });
 });
 
+describe('focus — the second dial', () => {
+  it('defaults to project so existing configs keep their behaviour', () => {
+    expect(DEFAULT_CONFIG.focus).toBe('project');
+    expect(DEFAULT_CONFIG.focus_topic).toBe(null);
+    writeGlobal({ mode: 'enforced' });
+    expect(loadConfig(repo).config.focus).toBe('project');
+  });
+
+  it('is independent of mode — enforced plus learn is a real combination', () => {
+    writeGlobal({ mode: 'enforced', focus: 'learn', focus_topic: 'caching' });
+    const { config } = loadConfig(repo);
+    expect(config.mode).toBe('enforced');
+    expect(config.focus).toBe('learn');
+    expect(config.focus_topic).toBe('caching');
+  });
+
+  it('ignores a focus it does not recognise rather than failing the session', () => {
+    writeGlobal({ focus: 'osmosis' });
+    expect(loadConfig(repo).config.focus).toBe('project');
+  });
+
+  it('treats a blank topic as unset', () => {
+    writeGlobal({ focus: 'learn', focus_topic: '   ' });
+    expect(loadConfig(repo).config.focus_topic).toBe(null);
+  });
+
+  it('names what the repo is overriding, so a personal focus cannot vanish silently', () => {
+    writeGlobal({ mode: 'ambient', focus: 'learn', focus_topic: 'caching' });
+    writeRepo({ mode: 'enforced', focus: 'project' });
+
+    const resolved = loadConfig(repo);
+    expect(resolved.config.focus).toBe('project'); // repo still wins
+    expect(resolved.overrides.sort()).toEqual(['focus', 'mode']);
+  });
+
+  it('does not report a repo setting the global never had as an override', () => {
+    writeGlobal({ mode: 'ambient' });
+    writeRepo({ focus: 'concept' });
+
+    const resolved = loadConfig(repo);
+    expect(resolved.config.focus).toBe('concept');
+    expect(resolved.overrides).toEqual([]);
+  });
+
+  it('does not report an override when both files agree', () => {
+    writeGlobal({ focus: 'concept' });
+    writeRepo({ focus: 'concept' });
+    expect(loadConfig(repo).overrides).toEqual([]);
+  });
+});
+
 describe('config validation', () => {
   it('ignores malformed values rather than adopting them', () => {
     writeGlobal({ mode: 'chaos', pass_threshold: 7, max_questions_per_task: -3 });

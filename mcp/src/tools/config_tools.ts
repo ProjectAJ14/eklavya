@@ -16,6 +16,9 @@ export const getConfig: ToolDef = {
       global_path: resolved.globalPath,
       repo_path: resolved.repoPath,
       repo_root: resolved.repoRoot,
+      // Which of the learner's own settings this repo is overriding. Say it
+      // rather than let a personal focus silently stop applying.
+      overridden_by_repo: resolved.overrides,
     };
   },
 };
@@ -28,7 +31,21 @@ export const setConfig: ToolDef = {
   inputSchema: {
     scope: z.enum(['global', 'repo']).optional().describe('Defaults to global.'),
     cwd: z.string().optional().describe(CWD_HINT),
-    mode: z.enum(['ambient', 'enforced', 'off']).optional(),
+    mode: z
+      .enum(['ambient', 'enforced', 'off'])
+      .optional()
+      .describe('How hard Eklavya pushes: ambient offers, enforced gates commits, off is dormant.'),
+    focus: z
+      .enum(['project', 'concept', 'learn'])
+      .optional()
+      .describe(
+        'What Eklavya teaches, independent of mode. "project" quizzes the code just written; "concept" asks the transferable version of the same ideas; "learn" follows focus_topic. Defaults to project.',
+      ),
+    focus_topic: z
+      .string()
+      .nullable()
+      .optional()
+      .describe('The topic "learn" focus teaches, e.g. "caching". Pass null to clear it.'),
     pass_threshold: z.number().min(0).max(1).optional(),
     max_questions_per_task: z.number().int().min(1).max(10).optional(),
     min_minutes_between_quizzes: z.number().int().min(0).optional(),
@@ -45,6 +62,8 @@ export const setConfig: ToolDef = {
     const patch: Record<string, unknown> = {};
     for (const key of [
       'mode',
+      'focus',
+      'focus_topic',
       'pass_threshold',
       'max_questions_per_task',
       'min_minutes_between_quizzes',

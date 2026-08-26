@@ -60,6 +60,8 @@ Then call `get_session_quiz_plan`. It returns the concepts worth asking about *a
 | `already_taught` | They blanked on this before and you explained it. The next question is a follow-up, not a first encounter. |
 | `prereqs_unmet` | Prerequisites they have not mastered yet. |
 | `last_grade` | How the last attempt went. |
+| `framing` | What this focus requires of the question. Authoritative — see *Focus*. |
+| `bridge_context` | `learn` focus: the session's work touched this topic concept, and here is the code. |
 
 If `questions_needed` is 0, say nothing and move on. `reason: "cooldown"` means they were quizzed recently; `reason: "already_covered"` means every candidate was already asked about in this session; `reason: "mode_off"` means Eklavya is dormant.
 
@@ -94,6 +96,8 @@ The `known` list in the profile is the other half: **never ask about a slug in `
 
 - Grounded: *"I set `httpOnly: true` on the refresh cookie in `auth.ts` but left the access token in memory. What attack is that split defending against, and what does it cost us?"*
 - Textbook, avoid: *"What is an httpOnly cookie?"*
+
+**…unless the focus says otherwise.** See *Focus* below. The rule above is `project` focus, which is the default and most of the time. `concept` focus changes what "grounded" means, and getting that wrong in either direction is the most likely way to ask a bad question.
 
 **Match the tier.** This is the difference between a quiz that teaches and one that annoys:
 
@@ -156,6 +160,37 @@ Six to ten sentences. The four-sentence cap above is for near-misses, where you 
 **When the response reports `created` slugs, follow it with `upsert_concepts`** giving each one a real `domain`, an honest `tier`, and at least one `prerequisite_of` edge to something that already exists. The response says so itself, in `next_action`, naming the slugs — that field exists because this instruction lives in a skill that may never have loaded, and the debt has to reach you either way.
 
 This is not tidiness. `prereqs_unmet` is computed from those edges, so a concept with none can never be reported as unfair to ask about, however far out of its depth the learner is. Skip this step and every concept in a new domain arrives as a bare tier-2 node, the fairness check silently passes, and the developer gets mechanism questions about code they have never read. An isolated node teaches nothing about what to learn next, and worse, it tells the planner nothing about what not to ask yet.
+
+## Focus
+
+Eklavya has two dials and they are not the same thing. **Mode** is how hard to push. **Focus** is what to teach. Every plan returns `focus` and a `framing` line; the framing is authoritative — follow it over your instincts, and over the grounding rule above where they differ.
+
+### project (the default)
+
+What the sections above describe. The code is the subject. Name the file, the line, the decision.
+
+### concept
+
+The same subject matter, asked so the answer transfers to a different codebase. **This does not mean textbook questions.** The diff stops being the *subject* and becomes the *motivation*: open from what was just written, then ask for the general rule, the class of problem, or where else it applies.
+
+- Right: *"We gave the profile cache a 60s TTL in `profile.ts`. TTL is one answer to cache invalidation — what problem is it actually solving, and what kind of data makes it the wrong answer?"*
+- Wrong, because it is `project` focus wearing a hat: *"Why did we pick 60s rather than 30s here?"* — a fine question, but the answer is about this file and dies with it.
+- Also wrong, and the failure this focus invites: *"What is a TTL?"* That is tier-1 recall. Generalisation is not the same as vagueness, and a definition question is not the general version of anything.
+
+The test: **could a correct answer be reused on a different project?** If not, you have written a `project` question. Plan items in this focus arrive with `context: null` on purpose — the code is deliberately withheld so you reach for the idea instead.
+
+Items with `reason: "concept_widening"` are prerequisites and domain siblings the task did not touch directly. They are the ideas the diff is an instance of. Ask about them on their own terms.
+
+### learn
+
+The developer named a topic. Teach that topic, in the prerequisite order the plan gives you, whether or not today's work touches it.
+
+- When an item carries **`bridge_context`**, the session's work *did* touch that concept, and that string is the real code. Use it as the worked example — a topic taught through code they watched get written beats a hypothetical every time.
+- When it does not, teach it on its own terms. **Do not force a link to unrelated work.** A strained bridge from a CSS bug to cache invalidation is worse than no bridge; it teaches that the connection is arbitrary.
+
+`reason: "no_topic"` means the focus is `learn` but nothing was set — ask what they want to learn and set it before quizzing. `reason: "topic_unknown"` means the graph has nothing matching; offer the closest domain from `get_concept_graph`, or teach from first principles and `upsert_concepts` as you go. Do not invent questions about concepts that do not exist.
+
+**Focus never changes when you interrupt.** The Stop hook still fires on real work, and `learn` focus does not license teaching an unrelated topic mid-task. Topic study on demand is `/eklavya:learn`, which the developer asks for.
 
 ## Mode
 

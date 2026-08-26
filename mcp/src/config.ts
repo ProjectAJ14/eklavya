@@ -5,8 +5,27 @@ import { globalConfigPath } from './paths.js';
 
 export type Mode = 'ambient' | 'enforced' | 'off';
 
+/**
+ * The second dial, and deliberately not part of `Mode`.
+ *
+ * `mode` answers "how hard does Eklavya push?" -- it governs whether the Stop
+ * hook blocks, whether commits are gated, whether the cooldown applies. `focus`
+ * answers "what does it teach?". They are orthogonal: enforced+learn (an intern
+ * must pass, on a topic they chose) and ambient+project (gentle, grounded in
+ * today's diff) are both coherent. Folding them into one enum would make those
+ * mutually exclusive for no reason, and would break every `.eklavya.json`
+ * already written against 1.0.
+ *
+ * `off` is the one interaction: it wins outright and `focus` is never read.
+ */
+export type Focus = 'project' | 'concept' | 'learn';
+
 export interface EklavyaConfig {
   mode: Mode;
+  /** What to teach. `project` is the historical behaviour and stays the default. */
+  focus: Focus;
+  /** Required by `learn` focus; ignored by the others. */
+  focus_topic: string | null;
   pass_threshold: number;
   max_questions_per_task: number;
   min_minutes_between_quizzes: number;
@@ -20,6 +39,8 @@ export interface EklavyaConfig {
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
   mode: 'ambient',
+  focus: 'project',
+  focus_topic: null,
   pass_threshold: 0.7,
   max_questions_per_task: 4,
   min_minutes_between_quizzes: 20,
@@ -38,6 +59,15 @@ export interface ResolvedConfig {
   globalPath: string;
   repoPath: string | null;
   repoRoot: string | null;
+  /**
+   * Keys the repo config set to something the global config had set differently.
+   *
+   * Repo-wins is right -- it is how a lead pins enforced mode on one codebase --
+   * but silence about it is not. A repo pinning `focus: project` switches off a
+   * `learn` topic someone set for themselves, and without this they have no way
+   * to know why their own setting stopped applying.
+   */
+  overrides: string[];
 }
 
 function realPath(p: string): string {
@@ -98,6 +128,12 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
   const out: EklavyaConfig = { ...base };
 
   if (raw.mode === 'ambient' || raw.mode === 'enforced' || raw.mode === 'off') out.mode = raw.mode;
+  if (raw.focus === 'project' || raw.focus === 'concept' || raw.focus === 'learn') out.focus = raw.focus;
+  if (typeof raw.focus_topic === 'string' && raw.focus_topic.trim()) {
+    out.focus_topic = raw.focus_topic.trim();
+  } else if (raw.focus_topic === null) {
+    out.focus_topic = null;
+  }
   if (typeof raw.pass_threshold === 'number' && raw.pass_threshold >= 0 && raw.pass_threshold <= 1) {
     out.pass_threshold = raw.pass_threshold;
   }
@@ -136,12 +172,18 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   const repoRaw = repoPath ? (readJson(repoPath) ?? {}) : {};
   const raw = { ...globalRaw, ...repoRaw };
 
+  const overrides = Object.keys(repoRaw).filter(
+    (key) =>
+      key in globalRaw && JSON.stringify(globalRaw[key]) !== JSON.stringify(repoRaw[key]),
+  );
+
   return {
     config: coerce(raw, DEFAULT_CONFIG),
     raw,
     globalPath,
     repoPath,
     repoRoot,
+    overrides,
   };
 }
 

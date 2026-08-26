@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 4;
+const LATEST_SCHEMA_VERSION = 5;
 
 const EXPECTED_TABLES = [
   'attempts',
@@ -74,6 +74,7 @@ describe('migrations', () => {
         '002_stop_markers.sql',
         '003_gate_repo.sql',
         '004_attempt_outcome.sql',
+        '005_session_concept_origin.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);

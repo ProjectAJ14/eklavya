@@ -1,6 +1,10 @@
 {
-  "_comment": "Copy to .eklavya.json at a repo root to pin Eklavya's behaviour for that project. Repo settings win over ~/.eklavya/config.json.",
+  "_comment": "Copy to .eklavya.json at a repo root to pin Eklavya's behaviour for that project. Repo settings win over ~/.eklavya/config.json — including a contributor's personal focus, so set focus here only when you mean to.",
+  "_mode": "How hard Eklavya pushes: ambient | enforced | off.",
   "mode": "enforced",
+  "_focus": "What Eklavya teaches, independent of mode: project | concept | learn.",
+  "focus": "project",
+  "_focus_topic": "Only used by focus \"learn\". The topic to teach, e.g. \"caching\".",
   "pass_threshold": 0.7,
   "max_questions_per_task": 4,
   "min_minutes_between_quizzes": 20,

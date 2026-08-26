@@ -19,6 +19,8 @@ Usage:
   eklavya export-rules [--out <file>]   Write the tutor pedagogy as a Cursor rules file
   eklavya config get                    Show the effective configuration
   eklavya config set <key> <value>      Change a setting (add --repo to scope it to this repo)
+                                        e.g. mode ambient|enforced|off, focus project|concept|learn
+                                        add --topic <topic> when setting focus to "learn"
   eklavya doctor                        Check that everything is wired up
   eklavya db-path                       Print the database location
 
@@ -85,9 +87,28 @@ function configCommand(args: string[]): void {
     fail(`Unknown setting "${key}". Known: ${Object.keys(DEFAULT_CONFIG).join(', ')}`);
   }
 
+  // `focus learn` is useless without a topic, so let one call say both rather
+  // than leaving a state that the planner will only refuse later.
+  const topicIndex = args.indexOf('--topic');
+  const topic = topicIndex === -1 ? undefined : args[topicIndex + 1];
+  if (topicIndex !== -1 && !topic) fail('--topic needs a value.');
+  if (topic !== undefined && key !== 'focus' && key !== 'focus_topic') {
+    fail('--topic only applies when setting focus.');
+  }
+  if (key === 'focus' && value === 'learn' && topic === undefined) {
+    fail('focus "learn" needs a topic: eklavya config set focus learn --topic <topic>');
+  }
+
+  // A topic is always a string. Number-parsing it would turn a topic like "html5"
+  // -- or worse, "2" -- into something `coerce` then silently drops.
+  const isTopicKey = key === 'focus_topic';
   let parsed: unknown = value;
-  if (value === 'true' || value === 'false') parsed = value === 'true';
+  if (isTopicKey) parsed = value;
+  else if (value === 'true' || value === 'false') parsed = value === 'true';
   else if (value !== '' && !Number.isNaN(Number(value))) parsed = Number(value);
+
+  const patch: Record<string, unknown> = { [key]: parsed };
+  if (topic !== undefined && key === 'focus') patch.focus_topic = topic;
 
   let target: string;
   if (scopeRepo) {
@@ -97,8 +118,10 @@ function configCommand(args: string[]): void {
     target = resolved.globalPath;
   }
 
-  writeConfigFile(target, { [key]: parsed });
-  process.stdout.write(`${key} = ${JSON.stringify(parsed)}  ->  ${target}\n`);
+  writeConfigFile(target, patch);
+  for (const [k, v] of Object.entries(patch)) {
+    process.stdout.write(`${k} = ${JSON.stringify(v)}  ->  ${target}\n`);
+  }
 }
 
 function doctor(): void {
@@ -127,7 +150,16 @@ function doctor(): void {
   }
 
   const resolved = loadConfig();
-  lines.push(`mode:     ${resolved.config.mode}${resolved.repoPath ? ' (from this repo)' : ''}`);
+  const fromRepo = resolved.repoPath ? ' (from this repo)' : '';
+  lines.push(`mode:     ${resolved.config.mode}${fromRepo}`);
+  lines.push(
+    `focus:    ${resolved.config.focus}${
+      resolved.config.focus === 'learn' ? ` (${resolved.config.focus_topic ?? 'no topic set'})` : ''
+    }${fromRepo}`,
+  );
+  if (resolved.overrides.length > 0) {
+    lines.push(`overridden by repo: ${resolved.overrides.join(', ')}`);
+  }
 
   process.stdout.write(`${lines.join('\n')}\n`);
   if (!ok) process.exit(1);

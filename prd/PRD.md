@@ -47,6 +47,8 @@ Eklavya's bet: the moment code is being generated for you is the *highest-levera
 
 Mode lives in `~/.eklavya/config.json` and can be overridden per-project in `.eklavya.json` at repo root (repo config wins — this is how a team lead enforces mode for an intern's machine on a specific repo).
 
+Mode is only half the picture: it says *how hard Eklavya pushes*, not *what it teaches*. The second dial is **`focus`** — see §10a.
+
 ## 5. Product experience
 
 ### 5.1 Core loop (ambient mode)
@@ -307,6 +309,27 @@ The pedagogy lives here as instructions to Claude. Required behaviors:
 10. **Never block the actual work.** Teaching happens after task completion or when explicitly invoked — not interleaved mid-implementation in v1.
 
 Question-quality bar (include as examples in the skill): definitions are tier-1 only; tiers 2–3 ask *why this choice here*; tiers 4–5 ask *what breaks, when, and what's the alternative* ("we store the refresh token in an httpOnly cookie and the access token in memory — what specific attack combination is this defending against, and what UX cost does it create?").
+
+## 10a. Focus — what gets taught
+
+`mode` (ambient | enforced | off) answers *how hard Eklavya pushes*. **`focus`** (project | concept | learn) answers *what it teaches*. They are separate keys because they are separate questions: `enforced` + `learn` and `ambient` + `project` are both coherent, and folding them into one enum would make them mutually exclusive while breaking every `.eklavya.json` written against 1.0. `mode: off` is the only interaction — it wins outright and `focus` is never read.
+
+Each focus is a *(selection source, framing)* pair over the existing planner:
+
+| focus | selection | framing |
+|---|---|---|
+| `project` (default) | session concepts + their `context` | ground the question in the diff; the code is the subject |
+| `concept` | session concepts, widened to prerequisites and domain siblings | the diff is the motivation, not the subject; a correct answer must transfer to another codebase |
+| `learn` | `focus_topic`, resolved to a domain or slugs, prerequisite-ordered | teach the topic; where it overlaps the session's work, `bridge_context` carries the real code to use as the worked example |
+
+Every plan returns `focus` and a `framing` string. The framing is authoritative for the tutor: the "ground every question in the diff" rule is `project` focus, not a universal one, and `concept` focus hands over `context: null` deliberately so the question reaches for the idea rather than the file.
+
+Four constraints this must respect:
+
+1. **Focus never changes what Eklavya interrupts for.** The Stop hook still fires on growth in logged work. A declared topic does not license interrupting a CSS task to teach caching; topic study on demand is `/eklavya:learn`.
+2. **Widening must not weaken the gate.** See §7 and migration 005: `required` is derived from `work` concepts and `passedCount` counts only `work`, so neither widening nor an unrelated topic can clear a bar the diff set — nor raise one nothing can clear.
+3. **An unresolvable topic is reported, not papered over.** `reason: "no_topic"` (focus is learn, nothing set) and `reason: "topic_unknown"` (nothing in the graph matches) are answers; inventing questions about concepts that do not exist is not.
+4. **Repo-over-global stays, but stops being silent.** A repo pinning `focus` overrides a contributor's personal `learn` topic. The SessionStart banner names any setting the repo is overriding, and `get_config` returns `overridden_by_repo`.
 
 ## 11. Configuration
 

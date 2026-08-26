@@ -56,11 +56,16 @@ STATS=$(eklavya_sql "
        JOIN concepts c ON c.id = sc.concept_id
        LEFT JOIN mastery m ON m.concept_id = c.id
       WHERE sc.session_id = '$SID'
+        AND COALESCE(sc.origin,'work') = 'work'
         AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
         AND sc.concept_id NOT IN
             (SELECT concept_id FROM attempts WHERE session_id = '$SID'))
     || '|' ||
-    (SELECT count(*) FROM session_concepts WHERE session_id = '$SID')
+    -- 'work' only, and the loop guard depends on it: record_attempt inserts a
+    -- session_concepts row for anything it is quizzed on, so counting review
+    -- rows here would let answering a question re-arm the block that asked it.
+    (SELECT count(*) FROM session_concepts
+      WHERE session_id = '$SID' AND COALESCE(origin,'work') = 'work')
     || '|' ||
     COALESCE((SELECT last_logged_count FROM stop_markers WHERE session_id = '$SID'), -1)
     || '|' ||
@@ -107,6 +112,29 @@ if [ "$MODE" = "ambient" ]; then
 fi
 # ---------------------------------------------------------------------------
 
+FOCUS=$(eklavya_config focus project "$CWD")
+TOPIC=$(eklavya_config focus_topic "" "$CWD")
+
+# The stderr message below is what actually drives most quizzes -- the tutor
+# skill is model-invoked and may not have loaded. If the focus is not stated
+# here, an ambient session teaches the project-mode default whatever the
+# developer configured.
+case "$FOCUS" in
+  concept)
+    FRAMING="Focus is 'concept': ask the transferable version. Open from the code just written, then ask for the general rule or the class of problem — the answer must be usable on a different codebase."
+    ;;
+  learn)
+    if [ -n "$TOPIC" ]; then
+      FRAMING="Focus is 'learn' on \"$TOPIC\": teach that topic in prerequisite order. Where the plan marks bridge_context, this session's code is your worked example; otherwise teach it on its own terms."
+    else
+      FRAMING="Focus is 'learn' but no focus_topic is set. Ask what they want to learn and set it before quizzing."
+    fi
+    ;;
+  *)
+    FRAMING="Focus is 'project': ground every question in the diff just written — the file, the line, the decision."
+    ;;
+esac
+
 MAX_Q=$(eklavya_config max_questions_per_task 4 "$CWD")
 CONCEPTS=$(eklavya_sql "
   SELECT group_concat(line, '; ') FROM (
@@ -115,6 +143,7 @@ CONCEPTS=$(eklavya_sql "
       JOIN concepts c ON c.id = sc.concept_id
       LEFT JOIN mastery m ON m.concept_id = c.id
      WHERE sc.session_id = '$SID'
+       AND COALESCE(sc.origin,'work') = 'work'
        AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
        AND sc.concept_id NOT IN
            (SELECT concept_id FROM attempts WHERE session_id = '$SID')
@@ -144,8 +173,9 @@ Eklavya: before finishing, quiz the developer on what this task just taught.
 Concepts: $CONCEPTS
 
 Use the eklavya MCP server and the tutor skill: call get_session_quiz_plan, ask
-ONE question at a time at each concept's tier_to_ask, ground every question in
-the code you just wrote, and grade each answer with record_attempt.
+ONE question at a time at each concept's tier_to_ask, and grade each answer with
+record_attempt. The plan returns a "framing" field. Follow it.
+$FRAMING
 $TONE
 EOF
 exit 2

@@ -23,5 +23,9 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
    - `nothing_logged` → "Nothing logged this session yet, so there's nothing grounded to ask about."
    - `no_candidates` (topic mode) → that topic is fully mastered and nothing is due; name the closest domain that is not.
    - `mode_off` → "Eklavya is off. `/eklavya:setup` to turn it back on."
+   - `no_topic` → focus is `learn` with nothing set; ask what they want to learn, then `/eklavya:mode learn <topic>`.
+   - `topic_unknown` → the graph has nothing matching their topic; offer the closest domain rather than inventing questions.
 
-Then ask one question at a time at each concept's `tier_to_ask`, never repeating anything in `asked_before`, grade every answer with `record_attempt`, and close with one line: what moved, and what comes back for review when.
+**A named topic overrides the configured focus for this quiz only.** Someone who types `/eklavya:quiz caching` wants caching now; it is not a request to change their standing setting. Do not call `set_config` — `/eklavya:mode` is for that.
+
+Then ask one question at a time at each concept's `tier_to_ask`, following the plan's `framing` field, never repeating anything in `asked_before`, grade every answer with `record_attempt`, and close with one line: what moved, and what comes back for review when.

@@ -71,9 +71,12 @@ export const recordAttempt: ToolDef = {
     const repeatQuestion = hasAskedQuestion(db, concept.id, args.question);
 
     const state = db.transaction(() => {
-      // An attempt on a concept the session never logged still counts toward the
-      // gate, so quizzing on review debt is not free.
-      logSessionConcept(db, sessionId, concept.id, null);
+      // An attempt on a concept the session never logged still counts toward
+      // `answered`, so quizzing on review debt is not free -- but it lands as
+      // 'review', so it cannot satisfy a bar that the session's actual work set.
+      // If the task did touch this concept, log_session_concepts has already
+      // marked it 'work' and that wins.
+      logSessionConcept(db, sessionId, concept.id, null, 'review');
       return gradeConcept(db, {
         conceptId: concept.id,
         sessionId,

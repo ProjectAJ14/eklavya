@@ -88,7 +88,7 @@ export const logSessionConcepts: ToolDef = {
           budget -= 1;
         }
 
-        logSessionConcept(db, sessionId, concept.id, input.context ?? null);
+        logSessionConcept(db, sessionId, concept.id, input.context ?? null, 'work');
         logged.push(concept.slug);
       }
     });
@@ -96,7 +96,9 @@ export const logSessionConcepts: ToolDef = {
 
     // The gate's bar rises with the work: how many touched concepts are still
     // unmastered, capped at the configured questions per task.
-    const unmastered = sessionConcepts(db, sessionId).filter((c) => {
+    // 'work' only: `passedCount` counts nothing else, so a review-debt concept
+    // raising the bar would raise it past anything the learner could clear.
+    const unmastered = sessionConcepts(db, sessionId, 'work').filter((c) => {
       const m = masteryFor(db, c.id);
       return !isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps });
     }).length;

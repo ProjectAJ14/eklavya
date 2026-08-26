@@ -1,11 +1,14 @@
 import { z } from 'zod';
-import { loadConfig } from '../config.js';
+import { loadConfig, type Focus } from '../config.js';
 import { decayedScore, isDue, isKnown, nextTierToAsk } from '../srs.js';
 import { resolveSessionId } from '../session.js';
 import {
   attemptedConceptIds,
+  domainSiblings,
   gateRetryConcepts,
   gateRow,
+  prereqsOf,
+  resolveTopic,
   lastAttempt,
   lastAttemptAt,
   masteryFor,
@@ -38,8 +41,34 @@ interface PlanItem {
   already_taught: boolean;
   /** Prerequisites they have not mastered — ask about these first, or drop a tier. */
   prereqs_unmet: string[];
-  reason: 'unmastered' | 'due_review' | 'domain_review' | 'topic' | 'gate_retry';
+  /**
+   * `learn` focus only: this topic concept also turned up in the session's work,
+   * and this is the code where. The topic is still the subject -- the diff is
+   * the example that makes it concrete.
+   */
+  bridge_context?: string;
+  reason:
+    | 'unmastered'
+    | 'due_review'
+    | 'domain_review'
+    | 'topic'
+    | 'gate_retry'
+    | 'concept_widening'
+    | 'learn_topic';
 }
+
+/**
+ * What the tutor must do with the questions, stated per focus so the pedagogy
+ * cannot drift from the setting. Returned with every plan.
+ */
+const FRAMING: Record<Focus, string> = {
+  project:
+    'Ground every question in the diff just written: name the file, the line, the decision. The code is the subject.',
+  concept:
+    'Ask the transferable version. The diff is the motivation, not the subject: open from what was just written, then ask for the general rule, the class of problem, or where else it applies. A correct answer must be usable on a different codebase. Do not ask for a definition -- that is tier 1 recall, not generalisation.',
+  learn:
+    'Teach the declared topic, in prerequisite order. Where an item carries bridge_context, the session touched that concept: use that real code as the worked example instead of a hypothetical. Where it does not, teach it on its own terms -- do not force a link to unrelated work.',
+};
 
 const ASKED_HISTORY = 3;
 
@@ -55,7 +84,7 @@ export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
   description:
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Returns questions_needed: 0 when there is nothing worth asking.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -72,6 +101,10 @@ export const getSessionQuizPlan: ToolDef = {
       .boolean()
       .optional()
       .describe('Set true when the developer asked to be quizzed. The cadence limit exists to stop nagging, not to refuse a request.'),
+    focus: z
+      .enum(['project', 'concept', 'learn'])
+      .optional()
+      .describe('Override the configured focus for this one plan. Omit to use the config.'),
   },
   handler: (
     args: {
@@ -81,6 +114,7 @@ export const getSessionQuizPlan: ToolDef = {
       domain?: string;
       slugs?: string[];
       ignore_cooldown?: boolean;
+      focus?: Focus;
     },
     { db },
   ) => {
@@ -88,7 +122,35 @@ export const getSessionQuizPlan: ToolDef = {
     const { config } = loadConfig(args.cwd);
     const sessionId = resolveSessionId(db, args.session_id);
     const max = args.max ?? config.max_questions_per_task;
-    const topicMode = Boolean(args.domain || (args.slugs && args.slugs.length > 0));
+    const focus: Focus = args.focus ?? config.focus;
+
+    // `learn` focus turns the configured topic into the same domain/slug
+    // selection an explicit topic quiz uses, so it goes through one engine with
+    // one set of tier and repeat rules. An explicit domain or slugs still win:
+    // the developer naming a topic outranks a standing setting.
+    let effDomain = args.domain;
+    let effSlugs = args.slugs;
+    let topicUnresolved = false;
+    const explicitTopic = Boolean(args.domain || (args.slugs && args.slugs.length > 0));
+
+    if (!explicitTopic && focus === 'learn') {
+      if (!config.focus_topic) {
+        return {
+          session_id: sessionId,
+          questions_needed: 0,
+          concepts: [],
+          focus,
+          reason: 'no_topic',
+          detail: 'Focus is "learn" but no focus_topic is set. Ask what they want to learn, then set_config focus_topic.',
+        };
+      }
+      const match = resolveTopic(db, config.focus_topic);
+      if (match.domain) effDomain = match.domain;
+      else if (match.slugs.length > 0) effSlugs = match.slugs;
+      else topicUnresolved = true;
+    }
+
+    const topicMode = Boolean(effDomain || (effSlugs && effSlugs.length > 0));
 
     if (config.mode === 'off') {
       return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'mode_off' };
@@ -110,8 +172,28 @@ export const getSessionQuizPlan: ToolDef = {
       }
     }
 
+    // The graph has nothing on this topic yet. Saying so is the useful answer;
+    // inventing questions about concepts that do not exist is not.
+    if (topicUnresolved) {
+      return {
+        session_id: sessionId,
+        questions_needed: 0,
+        concepts: [],
+        focus,
+        topic: config.focus_topic,
+        reason: 'topic_unknown',
+        detail: `Nothing in the graph matches "${config.focus_topic}". Offer the closest domain from get_concept_graph, or teach from first principles and upsert_concepts as you go.`,
+      };
+    }
+
     const picked: PlanItem[] = [];
     const seen = new Set<string>();
+    // Where the session's own work touched a concept. In `learn` focus this is
+    // what turns an abstract topic question into one about code they just saw.
+    const sessionContext = new Map<string, string>();
+    for (const c of sessionConcepts(db, sessionId)) {
+      if (c.context) sessionContext.set(c.slug, c.context);
+    }
     const domains = new Set<string>();
     // Concepts already answered in this session have had their turn. Re-offering
     // them is how a learner gets asked the same thing twice in five minutes.
@@ -154,6 +236,12 @@ export const getSessionQuizPlan: ToolDef = {
         description: concept.description,
         tier_to_ask: opts.retry ? Math.max(1, tier - 1) : tier,
         context,
+        // Only in `learn` focus, and only when the topic concept really did turn
+        // up in this session's work. Absent means "teach it on its own terms",
+        // which is different from "no context available".
+        ...(focus === 'learn' && sessionContext.has(concept.slug)
+          ? { bridge_context: sessionContext.get(concept.slug)! }
+          : {}),
         last_grade: last?.grade ?? null,
         asked_before: asked,
         already_taught: wasEverTaught(db, concept.id),
@@ -167,13 +255,13 @@ export const getSessionQuizPlan: ToolDef = {
       // topic gets the same tier escalation and the same repeat protection.
       const clauses: string[] = [];
       const params: unknown[] = [];
-      if (args.domain) {
+      if (effDomain) {
         clauses.push('c.domain = ?');
-        params.push(args.domain);
+        params.push(effDomain);
       }
-      if (args.slugs && args.slugs.length > 0) {
-        clauses.push(`c.slug IN (${args.slugs.map(() => '?').join(',')})`);
-        params.push(...args.slugs);
+      if (effSlugs && effSlugs.length > 0) {
+        clauses.push(`c.slug IN (${effSlugs.map(() => '?').join(',')})`);
+        params.push(...effSlugs);
       }
 
       const rows = db
@@ -200,7 +288,13 @@ export const getSessionQuizPlan: ToolDef = {
           return a.c.tier - b.c.tier;
         });
 
-      for (const cand of candidates) add(cand.c, null, 'topic');
+      // `learn_topic` and `topic` run the same selection; they differ only in
+      // why the topic was chosen, which is what the tutor needs in order to
+      // frame the question.
+      const topicReason = !explicitTopic && focus === 'learn' ? 'learn_topic' : 'topic';
+      for (const cand of candidates) {
+        add(cand.c, sessionContext.get(cand.c.slug) ?? null, topicReason);
+      }
     } else {
       const touched = sessionConcepts(db, sessionId);
       for (const c of touched) domains.add(c.domain);
@@ -216,6 +310,37 @@ export const getSessionQuizPlan: ToolDef = {
       for (const c of touched) {
         const m = masteryFor(db, c.id);
         if (isDue(m.next_review, now)) add(c, c.context, 'due_review');
+      }
+
+      // `concept` focus: reach past what the task happened to touch. The ideas
+      // the diff is an instance of live in its prerequisites and its domain
+      // siblings, and asking only about what the diff contains is how a quiz
+      // stays stuck at "what does this line do".
+      //
+      // Deliberately before (c): a prerequisite of today's work is more use than
+      // an unrelated concept that happens to be due.
+      if (focus === 'concept' && picked.length < max) {
+        const touchedIds = touched.map((c) => c.id);
+        const exclude = new Set(touchedIds);
+
+        for (const c of prereqsOf(db, touchedIds)) {
+          const m = masteryFor(db, c.id);
+          if (!isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps })) {
+            // Null context on purpose. In concept focus the diff is the
+            // motivation, not the subject, and handing over a line of code
+            // invites exactly the grounded-in-the-file question this focus
+            // exists to avoid.
+            add(c, null, 'concept_widening');
+          }
+        }
+
+        for (const c of domainSiblings(db, [...domains], exclude)) {
+          if (picked.length >= max) break;
+          const m = masteryFor(db, c.id);
+          if (!isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps })) {
+            add(c, null, 'concept_widening');
+          }
+        }
       }
 
       // (c) anything else due in the same domains, so review debt gets paid down
@@ -274,6 +399,7 @@ export const getSessionQuizPlan: ToolDef = {
             session_id: sessionId,
             questions_needed: 0,
             concepts: [],
+            focus,
             reason: 'already_covered',
             detail: `${skippedAsked} concept(s) were already asked about in this session.`,
           }
@@ -281,6 +407,7 @@ export const getSessionQuizPlan: ToolDef = {
             session_id: sessionId,
             questions_needed: 0,
             concepts: [],
+            focus,
             reason: topicMode ? 'no_candidates' : 'nothing_logged',
           };
     }
@@ -288,6 +415,11 @@ export const getSessionQuizPlan: ToolDef = {
     return {
       session_id: sessionId,
       questions_needed: picked.length,
+      focus,
+      // Stated with every plan so the pedagogy cannot drift from the setting:
+      // the tutor should not have to remember what `concept` implies.
+      framing: FRAMING[focus],
+      ...(focus === 'learn' && config.focus_topic ? { topic: config.focus_topic } : {}),
       concepts: picked,
     };
   },
