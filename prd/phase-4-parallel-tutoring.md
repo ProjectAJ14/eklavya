@@ -1,6 +1,6 @@
 # Phase 4 — Parallel tutoring (stretch)
 
-**Status:** 🟢 Built and tested — live demo pending
+**Status:** 🟢 Concurrency verified; two-pane UX not yet run live
 **Depends on:** Phase 3
 **Spec:** [PRD §5.4](PRD.md#54-parallel-tutoring-ux-stretch-goal-phase-4), [§8 Concurrency](PRD.md#concurrency)
 
@@ -36,6 +36,8 @@ Approach the dream UX: learn *during* generation, not only after. Two tracks —
 - [ ] Subagent path demoed at least once end to end
 
 ## Notes / decisions
+
+**Still genuinely pending:** the two-pane workflow has not been run live. Concurrency is verified by three real processes writing simultaneously, and `EKLAVYA_SESSION_ID` override is unit-tested through the actual hook scripts — but nobody has yet sat in front of two panes and confirmed the experience holds together. That needs an interactive terminal, not a headless run.
 
 **2026-08-26 — both tracks built, 200 tests green.** Concurrency is fully machine-verified: three OS processes writing attempts to one database simultaneously, asserting no lost writes per session, `PRAGMA integrity_check` clean, no orphaned rows, and a reader (standing in for the git hook) succeeding continuously throughout.
 

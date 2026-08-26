@@ -1,6 +1,6 @@
 # Phase 3 — Enforced mode + gates
 
-**Status:** 🟢 Built and tested — live demo pending
+**Status:** ✅ Done — live-verified 2026-08-26
 **Depends on:** Phase 2
 **Spec:** [PRD §9.3](PRD.md#93-pretooluse-matcher-bash--pre-tool-gatesh), [§9.4](PRD.md#94-plain-git-pre-commit-hook-outside-claude-code), [§5.2](PRD.md#52-core-loop-enforced-mode)
 
@@ -49,10 +49,10 @@ Make the gate real, and make it editor-agnostic on day one: blocked inside Claud
 
 ## Acceptance criteria (demo)
 
-- [ ] Enforced repo: `git commit` inside Claude Code is blocked with an instructive message
-- [ ] Enforced repo: `git commit` from a bare terminal is blocked too
-- [ ] Pass the quiz → both commit paths succeed
-- [ ] Ambient repo: no gating anywhere, no latency regression
+- [x] Enforced repo: `git commit` inside Claude Code is blocked with an instructive message
+- [x] Enforced repo: `git commit` from a bare terminal is blocked too
+- [x] Pass the quiz → both commit paths succeed
+- [x] Ambient repo: no gating anywhere, no latency regression
 
 ## Notes / decisions
 
@@ -71,3 +71,18 @@ Make the gate real, and make it editor-agnostic on day one: blocked inside Claud
 **Skips still cannot pass the gate.** Phase 1 built the arithmetic; phase 3 verifies it through the real hook: two skipped questions leave the commit blocked.
 
 **`/eklavya:setup` now installs the git hook for real**, chaining to any existing `pre-commit` rather than replacing it, with `--uninstall` restoring the original.
+
+
+---
+
+## Live verification — 2026-08-26
+
+Run against a real Claude Code session (`claude --plugin-dir`), in a throwaway git repo with `EKLAVYA_HOME`/`EKLAVYA_DB` pointed at scratch so no real learning history was touched.
+
+With `.eklavya.json` set to `{"mode":"enforced","pass_threshold":1}` and one of two concepts answered:
+
+- **Inside Claude Code:** the commit was denied, and the session explained itself accurately — *"Commit blocked — Eklavya gate is in enforced mode and needs the second concept answered (1 of 2 done); nothing else is blocked."*
+- **From a bare terminal:** `git commit` printed *"Eklavya is holding this commit. You have answered 1 of 2 concepts…"* and left the repo at **0 commits**.
+- **After answering the second question** (graded 4), the gate flipped to `required=2 answered=2 passed=1`, the in-session commit landed as `2968823`, and a subsequent bare-terminal commit was allowed too.
+
+`gates.repo` was stamped with the real resolved repo path — the symlink fix doing its job outside a test harness.

@@ -9,10 +9,10 @@ The full specification is frozen in **[PRD.md](PRD.md)**. This file is the live 
 | Phase | Doc | Status | Gate to proceed |
 |---|---|---|---|
 | 0 — Scaffold | [phase-0-scaffold.md](phase-0-scaffold.md) | ✅ Done | DB tables exist; server answers `tools/list`; seeds load |
-| 1 — Manual tutor | [phase-1-manual-tutor.md](phase-1-manual-tutor.md) | 🟢 Built, live demo pending | Diff-grounded quiz works end to end; no repeat questions |
-| 2 — Ambient loop | [phase-2-ambient-loop.md](phase-2-ambient-loop.md) | 🟢 Built, live demo pending | Quiz fires once per task; skip honored; no Stop loop |
-| 3 — Enforced gates | [phase-3-enforced-gates.md](phase-3-enforced-gates.md) | 🟢 Built, live demo pending | Commit blocked in Claude Code *and* bare terminal |
-| 4 — Parallel tutoring | [phase-4-parallel-tutoring.md](phase-4-parallel-tutoring.md) | 🟢 Built, live demo pending | Concurrent writers, no corruption |
+| 1 — Manual tutor | [phase-1-manual-tutor.md](phase-1-manual-tutor.md) | ✅ Done | Diff-grounded quiz works end to end; no repeat questions |
+| 2 — Ambient loop | [phase-2-ambient-loop.md](phase-2-ambient-loop.md) | ✅ Done | Quiz fires once per task; skip honored; no Stop loop |
+| 3 — Enforced gates | [phase-3-enforced-gates.md](phase-3-enforced-gates.md) | ✅ Done | Commit blocked in Claude Code *and* bare terminal |
+| 4 — Parallel tutoring | [phase-4-parallel-tutoring.md](phase-4-parallel-tutoring.md) | 🟢 Two-pane UX not run live | Concurrent writers, no corruption |
 | 5 — Distribution | [phase-5-distribution.md](phase-5-distribution.md) | 🟠 Prepared, publish is yours | Clean-machine install works for Claude Code + Cursor |
 
 Legend: ⬜ not started · 🟡 in progress · 🟢 built, awaiting live demo · 🟠 prepared, needs a human step · ✅ done · ⛔ blocked

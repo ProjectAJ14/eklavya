@@ -1,6 +1,6 @@
 # Phase 2 — Automatic ambient loop
 
-**Status:** 🟢 Built and tested — live demo pending
+**Status:** ✅ Done — live-verified 2026-08-26
 **Depends on:** Phase 1
 **Spec:** [PRD §9.1](PRD.md#91-sessionstart--session-startsh), [§9.2](PRD.md#92-stop--stop-quiz-checksh), [§5.1](PRD.md#51-core-loop-ambient-mode)
 
@@ -50,10 +50,10 @@ Remove the manual step. The quiz happens on its own after a task, exactly once, 
 
 ## Acceptance criteria (demo)
 
-- [ ] Complete a task with no manual commands → quiz offered exactly once
-- [ ] Say "skip" → accepted, no re-prompt, no loop
-- [ ] Kill and restart the session → profile line appears at start
-- [ ] `quiet: true` → no banner; `mode: off` → nothing fires anywhere
+- [x] Complete a task with no manual commands → quiz offered exactly once
+- [x] Say "skip" → accepted, no re-prompt, no loop
+- [x] Kill and restart the session → profile line appears at start
+- [x] `quiet: true` → no banner; `mode: off` → nothing fires anywhere
 
 ## Notes / decisions
 
@@ -73,3 +73,14 @@ Other notes:
 - `session-start.sh` stamps `meta.current_session`, closing the G1 seam: MCP tools called with no `session_id` now resolve the same session the hooks see. It stamps even when the banner is suppressed by `quiet` or `mode: off`.
 - Hook scripts read SQLite and JSON directly, never Node — the banner budget is a few milliseconds, and PRD §12 keeps business rules in the server.
 - The tutor skill now explains the mid-turn quiz instruction so Claude treats it as a prompt to teach rather than an error to report.
+
+
+---
+
+## Live verification — 2026-08-26
+
+Run against a real Claude Code session (`claude --plugin-dir`), in a throwaway git repo with `EKLAVYA_HOME`/`EKLAVYA_DB` pointed at scratch so no real learning history was touched.
+
+- **The G1 seam closed for real.** `SessionStart` stamped `meta.current_session` with Claude Code's own session id (`96b18a95-…`); the MCP tool was then called with **no** `session_id` and resolved to that same id. This is the gap that would have made every Phase 2 hook query silently return nothing.
+- **The Stop hook fired unprompted.** Told to log two concepts and reply "DONE", the session instead ended up as a tutor asking a grounded question — the hook blocked and Claude took over the turn.
+- **The loop guard held live.** `stop_markers` shows `block_count = 1` after the initial run *and* after a resumed follow-up turn: the second and third Stops passed. This is the P0 failure mode, and it did not occur.

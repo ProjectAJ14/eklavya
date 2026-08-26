@@ -1,6 +1,6 @@
 # Phase 1 — Manual tutor
 
-**Status:** 🟢 Built and tested — live demo pending
+**Status:** ✅ Done — live-verified 2026-08-26
 **Depends on:** Phase 0
 **Spec:** [PRD §8](PRD.md#8-mcp-server-eklavya-mcp), [§10](PRD.md#10-the-tutor-skill-skillstutorskillmd), [§5.3](PRD.md#53-slash-commands)
 **Plan reviewed:** 2026-08-26 — see [Design decisions settled in review](#design-decisions-settled-in-review)
@@ -134,12 +134,12 @@ The current docs describe `commands/` as the legacy flat-file form and say to us
 
 ## Acceptance criteria (demo)
 
-- [ ] Ask Claude Code to build a small Express auth endpoint
-- [ ] `/eklavya:quiz` returns diff-grounded questions (references real files/decisions)
-- [ ] Answering updates `next_review` and `score` in the DB
-- [ ] Re-running `/eklavya:quiz` does not repeat already-known concepts
-- [ ] `/eklavya:progress` renders a sensible mastery map
-- [ ] `npm test` green
+- [x] Ask Claude Code to build a small Express auth endpoint
+- [x] `/eklavya:quiz` returns diff-grounded questions (references real files/decisions)
+- [x] Answering updates `next_review` and `score` in the DB
+- [x] Re-running `/eklavya:quiz` does not repeat already-known concepts
+- [x] `/eklavya:progress` renders a sensible mastery map
+- [x] `npm test` green
 
 ## Notes / decisions
 
@@ -157,3 +157,17 @@ Other notes:
 - **`set_config` gained a `scope`** (`global` | `repo`) so `/eklavya:setup` can pin enforced mode per project — the mechanism PRD §4 describes for team leads.
 - **`get_concept_graph` gained `unmastered_only`**, which is what makes `/eklavya:learn` a short lesson instead of a re-teach of everything.
 - The `tutor` skill states the G1 convention plainly: **omit `session_id`** and let the server resolve it.
+
+
+---
+
+## Live verification — 2026-08-26
+
+Run against a real Claude Code session (`claude --plugin-dir`), in a throwaway git repo with `EKLAVYA_HOME`/`EKLAVYA_DB` pointed at scratch so no real learning history was touched.
+
+- The plugin loaded, the MCP server connected, and `get_learner_profile` returned `{"mode":"ambient","domains":[{"domain":"web-auth","known":0,"learning":0,"unseen":33}],...}`.
+- Concepts logged with real code context (`set httpOnly on the refresh cookie in auth.ts`) produced a **diff-grounded** question, unprompted: *"The refresh cookie in `auth.ts` gets `httpOnly: true`, while the access token stays in JS memory. Walk me through what the browser actually does differently with that cookie…"* — tier 2, mechanism, exactly per the rubric.
+- Grading was honest in both directions and justified out loud: a **5** ("Clean mechanism, plus the CSRF catch I didn't ask for") and a **4** ("only gap was not pinning `alg` at the verifier"). The anti-inflation rubric held without prompting.
+- SM-2 wrote through: `httponly-cookies` → score 1.0, reps 1, `next_review` exactly one day out.
+
+The one item not exercised live is `/eklavya:learn`, which needs an interactive session rather than `-p`.
