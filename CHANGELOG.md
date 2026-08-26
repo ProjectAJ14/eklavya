@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/ProjectAJ14/eklavya/compare/v1.1.0...v1.2.0) (2026-08-26)
+
+
+### Features
+
+* ask quiz questions as multiple choice ([c05a50f](https://github.com/ProjectAJ14/eklavya/commit/c05a50fab06a4005f3cf90298fec787124aa9c62))
+
 # [1.1.0](https://github.com/ProjectAJ14/eklavya/compare/v1.0.1...v1.1.0) (2026-08-26)
 
 
