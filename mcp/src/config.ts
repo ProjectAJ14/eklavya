@@ -22,7 +22,12 @@ export type Focus = 'project' | 'concept' | 'learn';
 
 export interface EklavyaConfig {
   mode: Mode;
-  /** What to teach. `project` is the historical behaviour and stays the default. */
+  /**
+   * What to teach. Defaults to `concept`: the point of Eklavya is understanding
+   * that survives the current task, and a question answerable only against this
+   * diff teaches the diff. `project` still exists and is the better setting when
+   * onboarding someone onto a specific codebase.
+   */
   focus: Focus;
   /** Required by `learn` focus; ignored by the others. */
   focus_topic: string | null;
@@ -39,7 +44,7 @@ export interface EklavyaConfig {
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
   mode: 'ambient',
-  focus: 'project',
+  focus: 'concept',
   focus_topic: null,
   pass_threshold: 0.7,
   max_questions_per_task: 4,

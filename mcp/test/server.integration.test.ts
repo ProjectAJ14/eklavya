@@ -132,7 +132,9 @@ describe('the full teaching loop over the real transport', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-home-'));
     fs.writeFileSync(
       path.join(home, 'config.json'),
-      JSON.stringify({ min_minutes_between_quizzes: 0, max_questions_per_task: 4 }),
+      // `project` focus: this test asserts the loop over exactly the two concepts
+      // it logged. The shipped default widens beyond them by design.
+      JSON.stringify({ min_minutes_between_quizzes: 0, max_questions_per_task: 4, focus: 'project' }),
     );
 
     try {

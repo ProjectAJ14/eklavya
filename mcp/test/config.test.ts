@@ -67,11 +67,11 @@ describe('config precedence', () => {
 });
 
 describe('focus — the second dial', () => {
-  it('defaults to project so existing configs keep their behaviour', () => {
-    expect(DEFAULT_CONFIG.focus).toBe('project');
+  it('defaults to concept — understanding that outlives the current diff', () => {
+    expect(DEFAULT_CONFIG.focus).toBe('concept');
     expect(DEFAULT_CONFIG.focus_topic).toBe(null);
     writeGlobal({ mode: 'enforced' });
-    expect(loadConfig(repo).config.focus).toBe('project');
+    expect(loadConfig(repo).config.focus).toBe('concept');
   });
 
   it('is independent of mode — enforced plus learn is a real combination', () => {
@@ -84,7 +84,7 @@ describe('focus — the second dial', () => {
 
   it('ignores a focus it does not recognise rather than failing the session', () => {
     writeGlobal({ focus: 'osmosis' });
-    expect(loadConfig(repo).config.focus).toBe('project');
+    expect(loadConfig(repo).config.focus).toBe('concept');
   });
 
   it('treats a blank topic as unset', () => {

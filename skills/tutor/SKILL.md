@@ -121,6 +121,7 @@ Use the **`AskUserQuestion`** tool. One question per call — the tool accepts u
 **Shape:**
 
 - **Exactly four options.** One correct, three plausible.
+- **Put the correct option where `answer_position` says.** The plan gives each question a slot from 1 to 4 — obey it. Left to your own judgement you will put the right answer first nearly every time, and a learner only needs a handful of questions to notice that and start picking A without reading. The quiz keeps looking fine and stops measuring anything. Write the four options, then place them so the correct one lands in that slot.
 - **`header`**: set it to `unsure→Other` (12 chars, fits). The tool appends an "Other" choice automatically, and that is the escape hatch for *"I don't know"* — but only if they notice it. The chip is on every question and costs no words.
 - **`question`**: the stem, grounded per the plan's `framing`. Do not number the options in the text; the tool renders them.
 - **`description`** on each option: one clause. This is where a near-miss gets to be genuinely tempting.
@@ -134,6 +135,16 @@ Use the **`AskUserQuestion`** tool. One question per call — the tool accepts u
 - right mechanism, wrong direction or wrong actor
 
 If you cannot write three that pass that bar, your stem is too vague. Fix the stem, not the options.
+
+**Say it plainly.** The concept is the difficulty; the sentence should not be. A learner mid-task is reading this in a gap between two other thoughts, and a stem they have to parse twice gets answered from the shape of the options instead of the idea.
+
+- **One idea per stem, and keep it short** — around 25 words. If you need a second clause to make it precise, the question is doing two jobs; ask the first one.
+- **Plain words over impressive ones.** "sent with the request" beats "transmitted alongside the request context". Save the precise term for when the precision is the point — then use it, and make sure the stem teaches it.
+- **Expand an acronym the first time it appears** for this learner. CSRF once, then CSRF.
+- **Keep the four options short and the same shape.** Similar length, similar grammar. A visibly longer or more careful option reads as the correct one, and learners pick it without engaging — the same failure as always putting the answer first, wearing different clothes.
+- **No double negatives, and avoid "which is NOT".** Negation tests reading, not understanding. Ask the positive form.
+
+Plain language is not easier questions. A tier-4 failure-mode question can be asked in fifteen ordinary words, and it is a better question for it.
 
 **Never restate the answer in the stem.** *"What does httpOnly do — does it block JavaScript access?"* is not a question.
 

@@ -23,7 +23,15 @@ const envBackup = { ...process.env };
 const SESSION = 'sess-1';
 
 function configure(patch: Record<string, unknown>): void {
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(patch));
+  // Pin `project` unless a test says otherwise. The shipped default is `concept`,
+  // which deliberately widens a plan past the session's own concepts — right for
+  // a learner, wrong for tests that are asserting exactly which session concepts
+  // the planner picked. The default's own behaviour is covered by the `focus`
+  // suite below, which sets it explicitly.
+  fs.writeFileSync(
+    path.join(home, 'config.json'),
+    JSON.stringify({ focus: 'project', ...patch }),
+  );
 }
 
 /** Handlers take (args, ctx); ctx is just the db. */
@@ -875,7 +883,19 @@ describe('focus', () => {
     expect(plan.concepts.every((c: any) => c.format_to_use === 'mcq')).toBe(true);
   });
 
-  it('defaults to project, which is the historical behaviour', () => {
+  it('ships with concept as the default, not project', () => {
+    // Not DEFAULT_CONFIG — the planner, with nothing configured at all. The
+    // default is only real if it survives the whole config path.
+    fs.rmSync(path.join(home, 'config.json'), { force: true });
+    logAuthWork();
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.focus).toBe('concept');
+    expect(plan.framing).toContain('transferable');
+  });
+
+  it('plans from the diff alone when project focus is set', () => {
+    configure({ focus: 'project', min_minutes_between_quizzes: 0 });
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.focus).toBe('project');

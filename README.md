@@ -115,14 +115,14 @@ Eklavya has **two independent dials**. `mode` is how hard it pushes; `focus` is 
 
 | `focus` | Asks about | Good for |
 |---|---|---|
-| `project` (default) | the code just written — the file, the line, the decision | learning a codebase |
-| `concept` | the same ideas, asked so the answer transfers to any codebase | learning a stack |
+| `concept` (default) | the ideas behind the code, asked so the answer transfers to any codebase | learning a stack |
+| `project` | the code just written — the file, the line, the decision | learning a codebase |
 | `learn` | a topic you name, in prerequisite order, using your real code as the example wherever the work touches it | learning something on purpose |
 
 ```bash
 eklavya config set mode enforced          # globally
 eklavya config set mode enforced --repo   # this project only
-eklavya config set focus concept
+eklavya config set focus project     # ask about this codebase instead
 eklavya config set focus learn --topic caching
 ```
 

@@ -11,9 +11,9 @@ Eklavya has **two independent dials**, and conflating them is the most common co
 | Dial | Question it answers | Values |
 |---|---|---|
 | `mode` | How hard does Eklavya push? | `ambient`, `enforced`, `off` |
-| `focus` | What does it teach? | `project`, `concept`, `learn` |
+| `focus` | What does it teach? | `concept` (default), `project`, `learn` |
 
-They combine freely. `enforced` + `learn` is an intern who must pass a gate on a topic they chose; `ambient` + `project` is a gentle nudge grounded in today's diff. `off` is the exception — it wins outright and `focus` is never read.
+They combine freely. `enforced` + `learn` is an intern who must pass a gate on a topic they chose; `ambient` + `project` is a gentle nudge grounded in today's diff. The default pairing is `ambient` + `concept`: teach the idea, use today's code as the way in. `off` is the exception — it wins outright and `focus` is never read.
 
 ## No arguments
 

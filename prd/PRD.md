@@ -312,7 +312,7 @@ Question-quality bar (include as examples in the skill): definitions are tier-1 
 
 ## 10a. Focus — what gets taught
 
-`mode` (ambient | enforced | off) answers *how hard Eklavya pushes*. **`focus`** (project | concept | learn) answers *what it teaches*. They are separate keys because they are separate questions: `enforced` + `learn` and `ambient` + `project` are both coherent, and folding them into one enum would make them mutually exclusive while breaking every `.eklavya.json` written against 1.0. `mode: off` is the only interaction — it wins outright and `focus` is never read.
+`mode` (ambient | enforced | off) answers *how hard Eklavya pushes*. **`focus`** (concept | project | learn) answers *what it teaches*; it defaults to `concept`. They are separate keys because they are separate questions: `enforced` + `learn` and `ambient` + `project` are both coherent, and folding them into one enum would make them mutually exclusive while breaking every `.eklavya.json` written against 1.0. `mode: off` is the only interaction — it wins outright and `focus` is never read.
 
 Each focus is a *(selection source, framing)* pair over the existing planner:
 
