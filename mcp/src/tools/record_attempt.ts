@@ -3,7 +3,7 @@ import { loadConfig } from '../config.js';
 import { normalizeSlug } from '../slug.js';
 import { decayedScore, isKnown } from '../srs.js';
 import { resolveSessionId } from '../session.js';
-import { conceptBySlug, gradeConcept, logSessionConcept, syncGate } from '../store.js';
+import { conceptBySlug, gradeConcept, hasAskedQuestion, logSessionConcept, syncGate } from '../store.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
 export const recordAttempt: ToolDef = {
@@ -53,6 +53,9 @@ export const recordAttempt: ToolDef = {
       };
     }
 
+    // Checked before the write, or the question we are recording matches itself.
+    const repeatQuestion = hasAskedQuestion(db, concept.id, args.question);
+
     const state = db.transaction(() => {
       // An attempt on a concept the session never logged still counts toward the
       // gate, so quizzing on review debt is not free.
@@ -80,6 +83,9 @@ export const recordAttempt: ToolDef = {
       reps: state.reps,
       ease: Number(state.ease.toFixed(2)),
       known: isKnown({ score, reps: state.reps }),
+      // PRD goal 2. Recorded either way — refusing the write would lose a real
+      // answer — but the tutor is told, so the next question can be a new one.
+      repeat_question: repeatQuestion,
       gate,
     };
   },

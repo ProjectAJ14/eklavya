@@ -56,7 +56,9 @@ STATS=$(eklavya_sql "
        JOIN concepts c ON c.id = sc.concept_id
        LEFT JOIN mastery m ON m.concept_id = c.id
       WHERE sc.session_id = '$SID'
-        AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2))
+        AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
+        AND sc.concept_id NOT IN
+            (SELECT concept_id FROM attempts WHERE session_id = '$SID'))
     || '|' ||
     (SELECT count(*) FROM session_concepts WHERE session_id = '$SID')
     || '|' ||
@@ -65,7 +67,10 @@ STATS=$(eklavya_sql "
     COALESCE((SELECT block_count FROM stop_markers WHERE session_id = '$SID'), 0)
     || '|' ||
     COALESCE((SELECT CAST((julianday('now') - julianday(last_blocked_at)) * 1440 AS INTEGER)
-                FROM stop_markers WHERE session_id = '$SID'), 999999);")
+                FROM stop_markers WHERE session_id = '$SID'), 999999)
+    || '|' ||
+    COALESCE((SELECT CAST((julianday('now') - julianday(ts)) * 1440 AS INTEGER)
+                FROM attempts WHERE session_id = '$SID' ORDER BY id DESC LIMIT 1), 999999);")
 
 [ -z "$STATS" ] && exit 0
 
@@ -74,8 +79,11 @@ LOGGED=$(printf '%s' "$STATS" | cut -d'|' -f2)
 LAST_LOGGED=$(printf '%s' "$STATS" | cut -d'|' -f3)
 BLOCKS=$(printf '%s' "$STATS" | cut -d'|' -f4)
 MINS_SINCE=$(printf '%s' "$STATS" | cut -d'|' -f5)
+MINS_SINCE_ANSWER=$(printf '%s' "$STATS" | cut -d'|' -f6)
 
-# Nothing worth asking about.
+# Nothing worth asking about. Concepts already answered in this session are
+# excluded above: they have had their turn, and re-offering them is exactly the
+# "asked me the same thing twice" failure this tool exists to avoid.
 [ "$UNMASTERED" -gt 0 ] 2>/dev/null || exit 0
 
 # --- the loop guard ---------------------------------------------------------
@@ -86,9 +94,16 @@ MAX_BLOCKS=$(eklavya_config max_stop_blocks_per_session "$MAX_BLOCKS_DEFAULT" "$
 
 # Ambient mode respects the quiz cadence. Enforced mode must not, or a cooldown
 # could make a commit gate unpassable (decision G5).
+#
+# Both clocks matter, and for the same reason. get_session_quiz_plan applies its
+# cooldown from the last *answer*; this hook stamps the last *block*. Checking
+# only the block would let us block a turn that the quiz plan then refuses as
+# too soon, which reads to the model as being told to teach and given nothing to
+# teach. Whichever happened more recently wins.
 if [ "$MODE" = "ambient" ]; then
   COOLDOWN=$(eklavya_config min_minutes_between_quizzes 20 "$CWD")
   [ "$MINS_SINCE" -ge "$COOLDOWN" ] 2>/dev/null || exit 0
+  [ "$MINS_SINCE_ANSWER" -ge "$COOLDOWN" ] 2>/dev/null || exit 0
 fi
 # ---------------------------------------------------------------------------
 
@@ -101,6 +116,8 @@ CONCEPTS=$(eklavya_sql "
       LEFT JOIN mastery m ON m.concept_id = c.id
      WHERE sc.session_id = '$SID'
        AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
+       AND sc.concept_id NOT IN
+           (SELECT concept_id FROM attempts WHERE session_id = '$SID')
      ORDER BY sc.ts ASC
      LIMIT $MAX_Q
   );")

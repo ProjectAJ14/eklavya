@@ -75,6 +75,16 @@ The rules file is generated from `skills/tutor/SKILL.md`, so the two editors can
 
 Tier 1 asks what a thing is. Tier 5 asks what breaks it in production. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
 
+### Never the same question twice
+
+Three separate things enforce it, because a prompt asking nicely is not enforcement:
+
+- **Mastered concepts are not asked about.** The learner profile hands the tutor the actual list of what you know, and spaced repetition is the only thing that brings one back — harder than last time.
+- **Every question you have been asked is on record**, and the quiz plan hands those exact questions back to the tutor with the tier and grade each got. A question already asked is spent: same concept, different angle. `record_attempt` flags it if one slips through.
+- **A concept answered in this session is done for the session.** Getting something half-right no longer puts it straight back in the queue five minutes later.
+
+Prerequisites are checked too. A tier-3 "why this rather than the alternative" question about a concept whose foundations you do not have yet is not a hard question, it is an unfair one, so the plan orders foundations first and says which ones are missing.
+
 ## Modes
 
 | Mode | For | Behaviour |
@@ -111,6 +121,7 @@ Repo settings beat global ones, which is how a team lead pins enforced mode on o
   "max_questions_per_task": 4,
   "min_minutes_between_quizzes": 20,
   "max_new_concepts_per_session": 8,
+  "max_stop_blocks_per_session": 3,
   "domains_enabled": ["*"],
   "quiet": false
 }

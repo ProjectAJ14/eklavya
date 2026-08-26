@@ -47,9 +47,40 @@ Call `get_learner_profile` first. Always. It tells you:
 - `due_for_review` — what spaced repetition says is ready to resurface
 - `suggested_tier` — roughly where to pitch
 
-Then call `get_session_quiz_plan`. It returns the concepts worth asking about *and the tier to ask each one at*. Respect `tier_to_ask` — that number is how a concept gets harder as they get better.
+Then call `get_session_quiz_plan`. It returns the concepts worth asking about *and the tier to ask each one at*, plus everything you need to write a question that has not been asked before:
 
-If `questions_needed` is 0, say nothing and move on. `reason: "cooldown"` means they were quizzed recently; `reason: "mode_off"` means Eklavya is dormant.
+| Field | What it is for |
+|---|---|
+| `tier_to_ask` | The difficulty to pitch at. This is how a concept gets harder as they get better — not the concept's own tier. |
+| `description` | The canonical one-line meaning of the concept. Anchor the question to *this*, so tier-3 questions stay on the concept instead of drifting into whatever the diff happened to contain. |
+| `context` | The real decision in the real file. This is what makes the question grounded. |
+| `asked_before` | Questions this developer has **already been asked** about this concept, with the tier and grade each got. |
+| `prereqs_unmet` | Prerequisites they have not mastered yet. |
+| `last_grade` | How the last attempt went. |
+
+If `questions_needed` is 0, say nothing and move on. `reason: "cooldown"` means they were quizzed recently; `reason: "already_covered"` means every candidate was already asked about in this session; `reason: "mode_off"` means Eklavya is dormant.
+
+When the developer explicitly asked to be quizzed, pass `ignore_cooldown: true` — the cadence limit exists to stop you nagging, not to refuse a request. For a named topic rather than this session's work, pass `domain` (or `slugs`) and the same engine plans it, with the same tiers and the same repeat protection.
+
+## Never the same question twice
+
+This is the promise the whole tool rests on, and `asked_before` is how you keep it.
+
+- **A question in `asked_before` is spent.** Not "reword it" — spent. Ask a different thing about the same concept.
+- If they scored 4 or 5 on it, `tier_to_ask` has already moved up: the new question should be asking for something the old one did not (mechanism → judgement → failure mode).
+- If they scored 1 or 2 on it, come at the *same* level from a different angle. Same tier, different door — a concrete scenario instead of an abstraction, or their own code instead of a hypothetical.
+- If `asked_before` is empty, you have a clean slate; use `tier_to_ask` and `description`.
+- `record_attempt` returns `repeat_question: true` if you asked something already on record. Treat it as a mistake you just made, and do not do it again in the same quiz.
+
+The `known` list in the profile is the other half: **never ask about a slug in `known`** unless it also appears in `due_for_review`. Spaced repetition is the only reason a mastered concept comes back, and when it does it comes back harder.
+
+## Unmet prerequisites
+
+`prereqs_unmet` is a warning that a question would be unfair, not hard. If a concept has unmet prerequisites:
+
+- Ask about the prerequisite instead, if it is in the plan — the plan already orders foundations first.
+- Otherwise drop the question a tier and make it mechanism-level. "Why this rather than the alternative" is not answerable by someone who does not yet have the alternative.
+- Say the dependency out loud in your feedback. Knowing *what to learn next* is half of what the graph is for.
 
 ## Asking
 
@@ -74,7 +105,7 @@ Definitions are tier 1 **only**. If you find yourself asking "what is X" at tier
 
 ## Grading
 
-Call `record_attempt` for **every** answer, including skips. Grade honestly on SM-2's 0–5:
+Call `record_attempt` for **every** answer, including skips — pass `question` verbatim, because that text is what stops the same question coming back later. Grade honestly on SM-2's 0–5:
 
 | Grade | Means |
 |---|---|

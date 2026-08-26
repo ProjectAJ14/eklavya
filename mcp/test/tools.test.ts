@@ -188,9 +188,10 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('escalates the tier for a concept the learner keeps nailing (G3)', () => {
+    // Mastered in an earlier session, and now due again — which is the only way
+    // a mastered concept resurfaces. Within one session it stays spent.
+    master('jwt-structure', 'sess-last-week');
     logAuthWork();
-    master('jwt-structure');
-    // Force it due again so it comes back for review.
     db.prepare('UPDATE mastery SET next_review = ? WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?)')
       .run(new Date(Date.now() - 86_400_000).toISOString(), 'jwt-structure');
 
@@ -198,6 +199,118 @@ describe('get_session_quiz_plan', () => {
     const jwt = plan.concepts.find((c: any) => c.slug === 'jwt-structure');
     expect(jwt.reason).toBe('due_review');
     expect(jwt.tier_to_ask).toBe(3); // asked at 2, nailed it, so ask harder
+  });
+
+  it('does not re-offer a concept already answered in this session', () => {
+    logAuthWork();
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'why is the CSRF token needed here?',
+      answer: 'hesitant but right',
+      grade: 3,
+      difficulty: 2,
+    });
+
+    // Grade 3 leaves it unmastered, so the old selection would hand it straight
+    // back — asking the same thing twice inside one session.
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 10 });
+    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('csrf');
+  });
+
+  it('says so when everything in the session has already been asked about', () => {
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'csrf', context: 'added a token check' }],
+    });
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'what does the token prove?',
+      grade: 1,
+      difficulty: 1,
+    });
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.questions_needed).toBe(0);
+    expect(plan.reason).toBe('already_covered');
+  });
+
+  it('hands back the questions already asked, so none of them is asked again', () => {
+    master('jwt-structure', 'sess-old');
+    logAuthWork();
+    db.prepare('UPDATE mastery SET next_review = ? WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?)')
+      .run(new Date(Date.now() - 86_400_000).toISOString(), 'jwt-structure');
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    const jwt = plan.concepts.find((c: any) => c.slug === 'jwt-structure');
+    expect(jwt.asked_before.map((a: any) => a.question)).toContain('about jwt-structure');
+    expect(jwt.asked_before[0]).toMatchObject({ tier: 2, grade: 5 });
+  });
+
+  it('carries the concept description, so a question can be about the concept', () => {
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    for (const c of plan.concepts) expect(typeof c.description).toBe('string');
+  });
+
+  it('reports unmet prerequisites and asks about foundations first', () => {
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [
+        { slug: 'jwt-structure', context: 'signed the access token' },
+        { slug: 'http-statelessness', context: 'why the token exists at all' },
+      ],
+    });
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    const first = plan.concepts[0];
+    // http-statelessness is a tier-1 root: nothing is missing underneath it.
+    expect(first.slug).toBe('http-statelessness');
+    expect(first.prereqs_unmet).toEqual([]);
+    const jwt = plan.concepts.find((c: any) => c.slug === 'jwt-structure');
+    expect(jwt.prereqs_unmet.length).toBeGreaterThan(0);
+  });
+
+  it('honors an explicit request during the cooldown', () => {
+    configure({ min_minutes_between_quizzes: 30, mode: 'ambient' });
+    logAuthWork();
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'q',
+      grade: 4,
+      difficulty: 2,
+    });
+
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).reason).toBe('cooldown');
+    const asked = call<any>(getSessionQuizPlan, { session_id: SESSION, ignore_cooldown: true });
+    expect(asked.questions_needed).toBeGreaterThan(0);
+  });
+
+  it('plans a topic quiz on a domain the session never touched', () => {
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'git', max: 3 });
+    expect(plan.questions_needed).toBe(3);
+    expect(plan.concepts.every((c: any) => c.reason === 'topic')).toBe(true);
+  });
+
+  it('leaves a mastered concept out of a topic quiz unless review is due', () => {
+    master('git-commit', 'sess-old');
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'git', max: 10 });
+    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('git-commit');
+
+    db.prepare('UPDATE mastery SET next_review = ? WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?)')
+      .run(new Date(Date.now() - 86_400_000).toISOString(), 'git-commit');
+    const due = call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'git', max: 10 });
+    expect(due.concepts.map((c: any) => c.slug)).toContain('git-commit');
+  });
+
+  it('plans around named slugs', () => {
+    const plan = call<any>(getSessionQuizPlan, {
+      session_id: SESSION,
+      slugs: ['csrf', 'jwt-structure'],
+    });
+    expect(plan.concepts.map((c: any) => c.slug).sort()).toEqual(['csrf', 'jwt-structure']);
   });
 
   it('pays down review debt from the same domain once session work is covered', () => {
@@ -289,6 +402,23 @@ describe('record_attempt', () => {
     });
     expect(res.new_score).toBe(0);
     expect(res.known).toBe(false);
+  });
+
+  it('flags a question the learner has already been asked (PRD goal 2)', () => {
+    const ask = (question: string) =>
+      call<any>(recordAttempt, {
+        session_id: SESSION,
+        slug: 'csrf',
+        question,
+        answer: 'a',
+        grade: 4,
+        difficulty: 2,
+      });
+
+    expect(ask('What does the CSRF token prove?').repeat_question).toBe(false);
+    expect(ask('What breaks if the token is omitted?').repeat_question).toBe(false);
+    // Punctuation and casing are not a new question.
+    expect(ask('what does the csrf token prove').repeat_question).toBe(true);
   });
 
   it('refuses a concept that does not exist rather than inventing one', () => {
@@ -416,6 +546,13 @@ describe('get_learner_profile', () => {
     expect(p.domains.map((d: any) => d.domain)).toEqual(['react']);
   });
 
+  it('names the mastered concepts, not just a count of them', () => {
+    master('csrf');
+    const profile = call<any>(getLearnerProfile, { domain: 'web-auth' });
+    expect(profile.known).toContain('csrf');
+    expect(profile.known_total).toBe(1);
+  });
+
   it('reports the mode so the tutor knows how hard to push', () => {
     configure({ mode: 'enforced' });
     expect(call<any>(getLearnerProfile, {}).mode).toBe('enforced');
@@ -508,6 +645,12 @@ describe('config tools', () => {
 
   it('refuses a repo write with no repo to write to', () => {
     expect(call<any>(setConfig, { scope: 'repo', mode: 'enforced' }).error).toBe('no_repo_root');
+  });
+
+  it('exposes the Stop-hook block cap that the hook actually reads', () => {
+    expect(call<any>(getConfig).config.max_stop_blocks_per_session).toBe(3);
+    call(setConfig, { max_stop_blocks_per_session: 1 });
+    expect(call<any>(getConfig).config.max_stop_blocks_per_session).toBe(1);
   });
 
   it('says so when asked to change nothing', () => {

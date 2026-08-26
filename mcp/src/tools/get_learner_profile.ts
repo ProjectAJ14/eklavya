@@ -4,6 +4,8 @@ import { decayedScore, isKnown, isDue, nextTierToAsk, suggestedTier } from '../s
 import { CWD_HINT, type ToolDef } from './types.js';
 
 const LIST_CAP = 8;
+/** Mastered concepts are the "don't ask this" list, so it gets more room than the rest. */
+const KNOWN_CAP = 30;
 const WEAK_THRESHOLD = 0.5;
 
 interface Row {
@@ -23,7 +25,7 @@ export const getLearnerProfile: ToolDef = {
   name: 'get_learner_profile',
   title: 'Get learner profile',
   description:
-    'What this developer already knows. Call before teaching or quizzing so you never ask about a mastered concept. Returns mode, per-domain counts, weak concepts, what is due for review, and the tier to pitch at.',
+    'What this developer already knows. Call before teaching or quizzing so you never ask about a mastered concept. Returns mode, per-domain counts, the concepts already mastered, weak concepts, what is due for review, and the tier to pitch at.',
   inputSchema: {
     domain: z.string().optional().describe('Restrict to one domain, e.g. "web-auth".'),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -48,6 +50,7 @@ export const getLearnerProfile: ToolDef = {
     const domains = new Map<string, { domain: string; known: number; learning: number; unseen: number }>();
     const knownTiers: number[] = [];
     const weak: { slug: string; score: number; tier: number }[] = [];
+    const known: { slug: string; score: number }[] = [];
     const due: { slug: string; tier: number; tier_to_ask: number }[] = [];
 
     for (const row of rows) {
@@ -69,6 +72,9 @@ export const getLearnerProfile: ToolDef = {
       if (isKnown({ score, reps })) {
         bucket.known += 1;
         knownTiers.push(row.tier);
+        // Named, not just counted: the tutor is told never to re-ask a mastered
+        // concept, which it can only honor if it is told which ones those are.
+        known.push({ slug: row.slug, score });
       } else {
         bucket.learning += 1;
       }
@@ -91,14 +97,17 @@ export const getLearnerProfile: ToolDef = {
 
     weak.sort((a, b) => a.score - b.score);
     due.sort((a, b) => b.tier - a.tier);
+    known.sort((a, b) => b.score - a.score);
 
     return {
       mode: config.mode,
       domains: [...domains.values()].sort((a, b) => a.domain.localeCompare(b.domain)),
+      known: known.slice(0, KNOWN_CAP).map((k) => k.slug),
+      known_total: known.length,
       weak: weak.slice(0, LIST_CAP).map((w) => w.slug),
       due_for_review: due.slice(0, LIST_CAP),
       suggested_tier: suggestedTier(knownTiers),
-      truncated: weak.length > LIST_CAP || due.length > LIST_CAP,
+      truncated: weak.length > LIST_CAP || due.length > LIST_CAP || known.length > KNOWN_CAP,
     };
   },
 };

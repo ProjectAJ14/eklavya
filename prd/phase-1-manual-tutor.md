@@ -171,3 +171,19 @@ Run against a real Claude Code session (`claude --plugin-dir`), in a throwaway g
 - SM-2 wrote through: `httponly-cookies` → score 1.0, reps 1, `next_review` exactly one day out.
 
 The one item not exercised live is `/eklavya:learn`, which needs an interactive session rather than `-p`.
+
+---
+
+## Review pass — 2026-08-26 (question quality)
+
+A read of the whole system against PRD goal 2 — *never ask the same question twice* — found the promise resting almost entirely on the model's goodwill. Closed:
+
+- **`attempts.question` was write-only.** Every question ever asked was persisted and never read back. `get_session_quiz_plan` now returns `asked_before` (the last three questions per concept, with the tier and grade each got), and `record_attempt` returns `repeat_question` when the text it is recording is already on file under a loose fingerprint. The skill treats an entry in `asked_before` as spent, not as something to reword.
+- **A concept answered in this session came straight back.** Grade 3 leaves a concept unmastered, so it stayed in selection path (a) — the learner could be asked about it again minutes later, and in enforced mode (no cooldown) reliably was. Concepts with an attempt in the current session are now excluded, with `reason: "already_covered"` when that empties the plan. The Stop hook applies the same filter.
+- **`get_learner_profile` never named what was known.** The skill says "never ask about a mastered concept"; the tool returned only per-domain counts. It now returns `known` (capped at 30) and `known_total`.
+- **Concept `description` never reached the question-former.** Every seed concept carries a canonical one-line meaning, and the quiz plan was dropping it — so a tier-3 question had only a slug and a diff to work from and drifted toward whatever the code happened to contain. The plan now carries `description`.
+- **No prerequisite awareness at question time.** The graph knew that `httponly-cookies` needs `cookie-attributes`; the quiz did not. Plan items now carry `prereqs_unmet`, and picks are ordered foundations-first.
+- **Topic quizzes bypassed the engine entirely.** `/eklavya:quiz <topic>` and `/eklavya:learn` hand-picked concepts off `get_concept_graph`, which returns the concept's own tier and no question history — so exactly the path a developer takes when they *ask* to be quizzed had the weakest repeat protection. `get_session_quiz_plan` now takes `domain` / `slugs`, so one selection engine serves both.
+- **The cooldown refused explicit requests.** `min_minutes_between_quizzes` exists to stop Eklavya nagging; it was also refusing `/eklavya:quiz`. New `ignore_cooldown`, passed by the quiz and learn skills.
+- **Two cooldown clocks disagreed.** The Stop hook measured minutes since the last *block*; the quiz plan measures minutes since the last *answer*. A manual quiz followed by a finished task therefore blocked the Stop and then handed the model `questions_needed: 0` — told to teach, given nothing to teach. The hook now checks both.
+- **`max_stop_blocks_per_session` was a real config key with no supported way to set it** — read by `stop-quiz-check.sh`, absent from `EklavyaConfig`, `set_config`, the CLI and the example file. Wired through all four.

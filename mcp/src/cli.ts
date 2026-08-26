@@ -23,7 +23,8 @@ Usage:
   eklavya db-path                       Print the database location
 
 Config keys: mode, pass_threshold, max_questions_per_task,
-             min_minutes_between_quizzes, max_new_concepts_per_session, quiet
+             min_minutes_between_quizzes, max_new_concepts_per_session,
+             max_stop_blocks_per_session, quiet
 `;
 
 function fail(message: string): never {

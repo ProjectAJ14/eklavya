@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Teach `$ARGUMENTS` properly. This is a lesson, not a quiz — but it is still a conversation, and it still records what was learned.
 
-1. `get_learner_profile` for the topic's domain. Note `suggested_tier`.
+1. `get_learner_profile` for the topic's domain. Note `suggested_tier`, and note `known` — those concepts are already theirs. Reference them; do not teach them.
 2. `get_concept_graph` with `include_mastery: true` and `unmastered_only: true`. The order returned **is** the teaching order: prerequisites come before what depends on them.
 3. If the topic isn't a known domain, ask which of the existing domains is closest, or teach from first principles and `upsert_concepts` as you go.
 
@@ -16,7 +16,7 @@ Then, for each concept in order, and **at most 5 per session**:
 
 - Start from what they already know — the profile tells you what that is. Never re-explain a mastered prerequisite; reference it in a clause and move on.
 - Explain in a short paragraph, then show it in code from *this repo* if it appears here. Concrete beats general.
-- Ask one question at `suggested_tier` to check it landed, and grade it with `record_attempt`.
+- Ask one question to check it landed, and grade it with `record_attempt`. For the tier and — crucially — for what has already been asked, call `get_session_quiz_plan` with `slugs: [...]` for the concepts in this lesson and `ignore_cooldown: true`. Its `tier_to_ask` beats `suggested_tier`, and its `asked_before` is what keeps a lesson from re-asking a question from a past one.
 - If they miss it, that concept is not done. Come at it from a different angle before moving on.
 
 Stop when you hit five concepts or they've had enough. Close with what to review next and when — `next_review` from the recorded attempts tells you.

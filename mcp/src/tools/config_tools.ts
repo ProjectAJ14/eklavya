@@ -33,6 +33,7 @@ export const setConfig: ToolDef = {
     max_questions_per_task: z.number().int().min(1).max(10).optional(),
     min_minutes_between_quizzes: z.number().int().min(0).optional(),
     max_new_concepts_per_session: z.number().int().min(0).max(50).optional(),
+    max_stop_blocks_per_session: z.number().int().min(0).max(20).optional(),
     quiet: z.boolean().optional(),
     domains_enabled: z.array(z.string()).optional(),
   },
@@ -48,6 +49,7 @@ export const setConfig: ToolDef = {
       'max_questions_per_task',
       'min_minutes_between_quizzes',
       'max_new_concepts_per_session',
+      'max_stop_blocks_per_session',
       'quiet',
       'domains_enabled',
     ]) {

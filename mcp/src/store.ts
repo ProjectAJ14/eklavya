@@ -1,5 +1,12 @@
 import type { DB } from './db.js';
-import { applyGrade, initialMastery, type MasteryState, SCORE_WINDOW } from './srs.js';
+import {
+  applyGrade,
+  decayedScore,
+  initialMastery,
+  isKnown,
+  type MasteryState,
+  SCORE_WINDOW,
+} from './srs.js';
 import type { EklavyaConfig } from './config.js';
 
 export interface ConceptRow {
@@ -245,4 +252,73 @@ export function syncGate(
   ).run(sessionId, config.mode, required, answered, passed ? 1 : 0, repo);
 
   return { mode: config.mode, required, answered, passed, pass_threshold: config.pass_threshold, repo };
+}
+
+// ---------------------------------------------------------------------------
+// Question history
+//
+// PRD goal 2 is "never ask the same question twice". `attempts.question` was
+// being written and never read, which left the promise resting entirely on the
+// model's memory of a conversation it does not have. These are what make it real.
+// ---------------------------------------------------------------------------
+
+export interface AskedQuestion {
+  question: string;
+  tier: number;
+  grade: number;
+}
+
+/** The last few questions actually asked about a concept, newest first. */
+export function recentQuestions(db: DB, conceptId: number, limit = 3): AskedQuestion[] {
+  return db
+    .prepare(
+      `SELECT question, difficulty AS tier, grade FROM attempts
+        WHERE concept_id = ? AND question <> ''
+        ORDER BY id DESC LIMIT ?`,
+    )
+    .all(conceptId, limit) as AskedQuestion[];
+}
+
+/** Loose match: whitespace and punctuation differences are still the same question. */
+export function questionFingerprint(question: string): string {
+  return question.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function hasAskedQuestion(db: DB, conceptId: number, question: string): boolean {
+  const target = questionFingerprint(question);
+  if (!target) return false;
+  const rows = db
+    .prepare('SELECT question FROM attempts WHERE concept_id = ? ORDER BY id DESC LIMIT 20')
+    .all(conceptId) as { question: string }[];
+  return rows.some((r) => questionFingerprint(r.question) === target);
+}
+
+/** Concepts already asked about in this session — they have had their turn. */
+export function attemptedConceptIds(db: DB, sessionId: string): Set<number> {
+  const rows = db
+    .prepare('SELECT DISTINCT concept_id FROM attempts WHERE session_id = ?')
+    .all(sessionId) as { concept_id: number }[];
+  return new Set(rows.map((r) => r.concept_id));
+}
+
+/**
+ * Prerequisites of a concept the learner has not mastered yet. A tier-3
+ * judgement question about a concept whose foundations are missing is not a hard
+ * question, it is an unfair one — the tutor needs to see this before asking.
+ */
+export function unmetPrereqs(db: DB, conceptId: number, now: Date): string[] {
+  const rows = db
+    .prepare(
+      `SELECT c.slug, m.score, m.reps, m.next_review
+         FROM edges e
+         JOIN concepts c ON c.id = e.from_concept
+         LEFT JOIN mastery m ON m.concept_id = c.id
+        WHERE e.to_concept = ? AND e.relation = 'prerequisite_of'
+        ORDER BY c.tier ASC, c.slug ASC`,
+    )
+    .all(conceptId) as { slug: string; score: number | null; reps: number | null; next_review: string | null }[];
+
+  return rows
+    .filter((r) => !isKnown({ score: decayedScore(r.score ?? 0, r.next_review, now), reps: r.reps ?? 0 }))
+    .map((r) => r.slug);
 }

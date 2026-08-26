@@ -283,6 +283,35 @@ describe('Stop hook — when not to fire', () => {
     expect(stop().status).toBe(2);
   });
 
+  it('passes when every touched concept has already been asked about', () => {
+    logConcepts(['csrf']);
+    // Grade 3 leaves it unmastered, so only the already-asked filter stops this.
+    answer('csrf', 3);
+    logConcepts(['csrf']);
+    expect(stop().status).toBe(0);
+  });
+
+  it('still fires for concepts logged after the quiz', () => {
+    logConcepts(['csrf']);
+    answer('csrf', 3);
+    logConcepts(['jwt-structure']);
+    const res = stop();
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/jwt-structure/);
+    expect(res.stderr).not.toMatch(/csrf/);
+  });
+
+  it('does not block a turn the quiz plan would then refuse as too soon', () => {
+    // A manual /eklavya:quiz just happened; the cooldown is measured from the
+    // answer, not only from the last block, or Claude is told to teach and then
+    // handed questions_needed: 0.
+    configure({ mode: 'ambient', min_minutes_between_quizzes: 60 });
+    logConcepts(['csrf']);
+    answer('csrf', 3);
+    logConcepts(['jwt-structure']);
+    expect(stop().status).toBe(0);
+  });
+
   it('exits 0 when the database is missing', () => {
     const res = runHook(STOP_CHECK, { session_id: SESSION, cwd }, { EKLAVYA_DB: '/nonexistent/x.db' });
     expect(res.status).toBe(0);

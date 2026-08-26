@@ -3,5 +3,7 @@
   "mode": "enforced",
   "pass_threshold": 0.7,
   "max_questions_per_task": 4,
-  "min_minutes_between_quizzes": 20
+  "min_minutes_between_quizzes": 20,
+  "max_new_concepts_per_session": 8,
+  "max_stop_blocks_per_session": 3
 }

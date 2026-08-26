@@ -14,6 +14,8 @@ export interface EklavyaConfig {
   quiet: boolean;
   /** Cap on LLM-minted concepts per session, against slug sprawl (PRD §15). */
   max_new_concepts_per_session: number;
+  /** Hard backstop on the Stop hook's loop guard, read by stop-quiz-check.sh. */
+  max_stop_blocks_per_session: number;
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
@@ -24,6 +26,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   domains_enabled: ['*'],
   quiet: false,
   max_new_concepts_per_session: 8,
+  max_stop_blocks_per_session: 3,
 };
 
 export const REPO_CONFIG_FILE = '.eklavya.json';
@@ -113,6 +116,12 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
     raw.max_new_concepts_per_session >= 0
   ) {
     out.max_new_concepts_per_session = Math.floor(raw.max_new_concepts_per_session);
+  }
+  if (
+    typeof raw.max_stop_blocks_per_session === 'number' &&
+    raw.max_stop_blocks_per_session >= 0
+  ) {
+    out.max_stop_blocks_per_session = Math.floor(raw.max_stop_blocks_per_session);
   }
 
   return out;

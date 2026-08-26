@@ -48,3 +48,5 @@ Approach the dream UX: learn *during* generation, not only after. Two tracks —
 **The subagent's honest limitation is documented rather than papered over:** the main thread and a subagent take turns, so Option A feels like staged explanation rather than genuine parallel tutoring. Option B (two panes) is the one that delivers the pitch.
 
 **The tutor subagent has no write tools.** Tutoring must never race the implementation for the same file.
+
+**2026-08-26 — the subagent's tool allowlist never resolved.** `agents/tutor.md` listed `mcp__eklavya__*`. A plugin's MCP tools are namespaced `mcp__plugin_<plugin>_<server>__<tool>`, so the correct names are `mcp__plugin_eklavya_eklavya__*`; an allowlist written against the bare server key matches nothing, which left the tutor subagent with `Read`/`Grep`/`Glob` and no knowledge database at all. Both forms are now listed — the bare one is genuinely correct when the server comes from a project-level `.mcp.json`, which is how this repo and a Cursor install run it — and the rule is recorded in `docs/verified-schemas.md`. Option A has still not been demoed end to end, so this was never going to surface without a read.

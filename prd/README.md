@@ -35,4 +35,8 @@ The `Stop` hook infinite loop (PRD §15, phase 2). Treat the loop guard as P0: t
 - `jq` and `sqlite3` on `PATH` (hook scripts depend on both)
 - Claude Code with plugin support
 
+## Review passes
+
+- **2026-08-26 — question quality.** Full read of skills, agents, hooks, plugin config and the MCP server against PRD goal 2. Nine gaps closed; notes in [phase-1](phase-1-manual-tutor.md#review-pass--2026-08-26-question-quality) and [phase-4](phase-4-parallel-tutoring.md). 238 tests green.
+
 Created 2026-08-26.
