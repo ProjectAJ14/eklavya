@@ -85,6 +85,14 @@ Three separate things enforce it, because a prompt asking nicely is not enforcem
 
 Prerequisites are checked too. A tier-3 "why this rather than the alternative" question about a concept whose foundations you do not have yet is not a hard question, it is an unfair one, so the plan orders foundations first and says which ones are missing.
 
+### "I don't know" is a request, not a skip
+
+The two look identical to a grade — both are 0 on SM-2's scale, because neither is a recall success. They are opposite requests. *Skip* means leave me alone. *I don't know* means teach me, and it is the clearest such request you will ever get.
+
+So a blank is the one answer that gets the **most** teaching, not the least: the mechanism, the real lines from the diff, what it generalises to, one takeaway. Then it is recorded and the quiz moves on — no re-asking in the same breath, because grade 0 pins the concept at the floor and it comes back tomorrow anyway, as a different question about something you have now been taught.
+
+Eklavya records which of the two it was (`outcome: dont_know` or `declined`), so the next session can open as a follow-up to the explanation instead of asking cold. Consecutive blanks drop the tier rather than ending the quiz — blanking means the pitch was too high, not that you wanted out.
+
 ## Modes
 
 | Mode | For | Behaviour |

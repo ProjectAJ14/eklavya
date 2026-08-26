@@ -99,12 +99,22 @@ export function recordAttemptRow(
     grade: number;
     difficulty: number;
     feedback: string | null;
+    outcome: AttemptOutcome | null;
   },
 ): void {
   db.prepare(
-    `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, feedback)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(a.conceptId, a.sessionId, a.question, a.answer, a.grade, a.difficulty, a.feedback);
+    `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, feedback, outcome)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    a.conceptId,
+    a.sessionId,
+    a.question,
+    a.answer,
+    a.grade,
+    a.difficulty,
+    a.feedback,
+    a.outcome,
+  );
 }
 
 /** Applies one grade end to end: attempt row, then recomputed SM-2 state. */
@@ -118,6 +128,7 @@ export function gradeConcept(
     grade: number;
     difficulty: number;
     feedback: string | null;
+    outcome: AttemptOutcome | null;
     now: Date;
   },
 ): MasteryState {
@@ -262,21 +273,37 @@ export function syncGate(
 // model's memory of a conversation it does not have. These are what make it real.
 // ---------------------------------------------------------------------------
 
+/**
+ * Why a grade is what it is. `answered` and `declined` both describe a closed
+ * door; `dont_know` is the one that asks to be taught, and the only one that
+ * makes a later question a follow-up rather than a cold re-ask. NULL is an
+ * attempt recorded before the column existed - unknown, not a value.
+ */
+export type AttemptOutcome = 'answered' | 'dont_know' | 'declined';
+
 export interface AskedQuestion {
   question: string;
   tier: number;
   grade: number;
+  outcome: AttemptOutcome | null;
+  /**
+   * True when the learner blanked and was taught the answer there and then. The
+   * next question about this concept must build on that explanation instead of
+   * asking as though the topic had never come up.
+   */
+  taught: boolean;
 }
 
 /** The last few questions actually asked about a concept, newest first. */
 export function recentQuestions(db: DB, conceptId: number, limit = 3): AskedQuestion[] {
-  return db
+  const rows = db
     .prepare(
-      `SELECT question, difficulty AS tier, grade FROM attempts
+      `SELECT question, difficulty AS tier, grade, outcome FROM attempts
         WHERE concept_id = ? AND question <> ''
         ORDER BY id DESC LIMIT ?`,
     )
-    .all(conceptId, limit) as AskedQuestion[];
+    .all(conceptId, limit) as Omit<AskedQuestion, 'taught'>[];
+  return rows.map((r) => ({ ...r, taught: r.outcome === 'dont_know' }));
 }
 
 /** Loose match: whitespace and punctuation differences are still the same question. */

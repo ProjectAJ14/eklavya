@@ -3,14 +3,21 @@ import { loadConfig } from '../config.js';
 import { normalizeSlug } from '../slug.js';
 import { decayedScore, isKnown } from '../srs.js';
 import { resolveSessionId } from '../session.js';
-import { conceptBySlug, gradeConcept, hasAskedQuestion, logSessionConcept, syncGate } from '../store.js';
+import {
+  conceptBySlug,
+  gradeConcept,
+  hasAskedQuestion,
+  logSessionConcept,
+  syncGate,
+  type AttemptOutcome,
+} from '../store.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
 export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date and the session gate. Record skips too, as grade 0 with feedback "skipped".',
+    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date and the session gate. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined).',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -25,6 +32,12 @@ export const recordAttempt: ToolDef = {
       .describe('0 no answer/skip, 1-2 wrong, 3 correct but laboured, 4 correct, 5 correct and explained the why.'),
     difficulty: z.number().int().min(1).max(5).describe('The tier you actually asked at — use tier_to_ask from the plan.'),
     feedback: z.string().optional().describe('The short explanation you gave back.'),
+    outcome: z
+      .enum(['answered', 'dont_know', 'declined'])
+      .optional()
+      .describe(
+        'Why the grade is what it is. "answered" they attempted it; "dont_know" they said they did not know and you taught it; "declined" they chose to skip. Grade 0 covers the last two, so this is the only thing that tells them apart later.',
+      ),
   },
   handler: (
     args: {
@@ -36,6 +49,7 @@ export const recordAttempt: ToolDef = {
       grade: number;
       difficulty: number;
       feedback?: string;
+      outcome?: AttemptOutcome;
     },
     { db },
   ) => {
@@ -68,6 +82,11 @@ export const recordAttempt: ToolDef = {
         grade: args.grade,
         difficulty: args.difficulty,
         feedback: args.feedback ?? null,
+        // Left NULL rather than guessed when the tutor does not say. An absent
+        // answer is a fair hint that nothing was attempted, but it cannot tell
+        // "teach me" from "leave it" -- and inventing the difference here would
+        // put a value in the column that nobody observed.
+        outcome: args.outcome ?? null,
         now,
       });
     })();

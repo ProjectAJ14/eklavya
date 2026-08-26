@@ -404,6 +404,68 @@ describe('record_attempt', () => {
     expect(res.known).toBe(false);
   });
 
+  // A concept attempted in this session is filtered out of this session's plan,
+  // so the question these tests actually ask is the real one: what does the NEXT
+  // session see? Hence a fresh session id reading the same concept by slug.
+  const nextSessionView = (slug: string) => {
+    const plan = call<any>(getSessionQuizPlan, {
+      session_id: `${SESSION}-tomorrow`,
+      slugs: [slug],
+      ignore_cooldown: true,
+    });
+    return plan.concepts.find((c: any) => c.slug === slug);
+  };
+
+  it('tells a blank apart from a decline, since both are grade 0', () => {
+    logAuthWork();
+    const blank = call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'why SameSite=Lax here?',
+      grade: 0,
+      difficulty: 2,
+      outcome: 'dont_know',
+      feedback: 'taught it: Lax withholds the cookie on cross-site POSTs',
+    });
+    expect(blank.new_score).toBe(0);
+
+    // The whole point of the column: tomorrow's question must know it is a
+    // follow-up to an explanation, not a first encounter.
+    const csrf = nextSessionView('csrf');
+    expect(csrf.already_taught).toBe(true);
+    expect(csrf.asked_before[0].outcome).toBe('dont_know');
+    expect(csrf.asked_before[0].taught).toBe(true);
+  });
+
+  it('does not mark a decline as taught', () => {
+    logAuthWork();
+    call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'why SameSite=Lax here?',
+      grade: 0,
+      difficulty: 2,
+      outcome: 'declined',
+    });
+    const csrf = nextSessionView('csrf');
+    expect(csrf.asked_before[0].outcome).toBe('declined');
+    expect(csrf.already_taught).toBe(false);
+  });
+
+  it('leaves outcome unknown rather than guessing when the tutor omits it', () => {
+    logAuthWork();
+    call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'why SameSite=Lax here?',
+      grade: 0,
+      difficulty: 2,
+    });
+    const csrf = nextSessionView('csrf');
+    expect(csrf.asked_before[0].outcome).toBe(null);
+    expect(csrf.already_taught).toBe(false);
+  });
+
   it('flags a question the learner has already been asked (PRD goal 2)', () => {
     const ask = (question: string) =>
       call<any>(recordAttempt, {

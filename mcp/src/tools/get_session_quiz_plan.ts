@@ -25,6 +25,14 @@ interface PlanItem {
   last_grade: number | null;
   /** Questions already put to this learner about this concept. Do not repeat them. */
   asked_before: AskedQuestion[];
+  /**
+   * They blanked on this before and were taught it on the spot. Surfaced beside
+   * `asked_before` rather than left inside it, because it changes how the next
+   * question opens -- a follow-up to an explanation they have already had, not a
+   * first encounter -- and a flag that has to be derived is a flag that gets
+   * missed.
+   */
+  already_taught: boolean;
   /** Prerequisites they have not mastered — ask about these first, or drop a tier. */
   prereqs_unmet: string[];
   reason: 'unmastered' | 'due_review' | 'domain_review' | 'topic';
@@ -44,7 +52,7 @@ export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
   description:
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one) and prereqs_unmet. Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. Returns questions_needed: 0 when there is nothing worth asking.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -122,6 +130,7 @@ export const getSessionQuizPlan: ToolDef = {
       const m = masteryFor(db, concept.id);
       const score = decayedScore(m.score, m.next_review, now);
       const last = lastAttempt(db, concept.id);
+      const asked = recentQuestions(db, concept.id, ASKED_HISTORY);
 
       seen.add(concept.slug);
       picked.push({
@@ -137,7 +146,8 @@ export const getSessionQuizPlan: ToolDef = {
         }),
         context,
         last_grade: last?.grade ?? null,
-        asked_before: recentQuestions(db, concept.id, ASKED_HISTORY),
+        asked_before: asked,
+        already_taught: asked.some((a) => a.taught),
         prereqs_unmet: unmetPrereqs(db, concept.id, now),
         reason,
       });

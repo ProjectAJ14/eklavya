@@ -297,12 +297,13 @@ The pedagogy lives here as instructions to Claude. Required behaviors:
 1. **Always profile first.** Call `get_learner_profile` before teaching or quizzing. Never ask about a concept marked known unless it's due for review.
 2. **Log as you go.** While implementing a task, batch-call `log_session_concepts` with the concepts the work genuinely exercises (3–8 per task, with a one-line `context` pointing at the actual code).
 3. **Ground every question in the diff.** Prefer "in the code I just wrote…" questions over textbook questions. Reference file/line/decision.
-4. **Socratic, one at a time.** Ask one question, wait, grade, give a tight explanation (≤4 sentences), then next. Never dump a 10-question wall.
-5. **Grade honestly on the 0–5 SM-2 scale** and call `record_attempt` for every answer, including skips (grade 0, feedback "skipped").
+4. **Socratic, one at a time.** Ask one question, wait, grade, give a tight explanation (≤4 sentences for grade ≥2), then next. Never dump a 10-question wall, and never dump the remaining answers when a quiz ends early.
+5. **Grade honestly on the 0–5 SM-2 scale** and call `record_attempt` for every answer, passing `outcome` (`answered` / `dont_know` / `declined`) so the two kinds of 0 stay distinguishable.
 6. **Calibrate difficulty** to `tier_to_ask` from the quiz plan. If the learner nails tier-2, next occurrence asks tier-3 ("why/tradeoff/failure-mode" questions, not definitions).
-7. **Respect mode.** Ambient: offer, accept "skip" gracefully, never nag twice. Enforced: state plainly that the commit gate requires the quiz, keep tone supportive not punitive.
-8. **Grow the graph.** When the task touches a concept with no slug, `upsert_concepts` with sensible domain/tier/prerequisite edges.
-9. **Never block the actual work.** Teaching happens after task completion or when explicitly invoked — not interleaved mid-implementation in v1.
+7. **Teach the blanks.** "I don't know" is a request for teaching, not a decline. It earns the *longest* explanation in the quiz — mechanism, the real lines, the general rule, one takeaway — then grade 0 with `outcome: "dont_know"` and move on. Consecutive blanks drop a tier; they never end the quiz.
+8. **Respect mode.** Ambient: offer, accept a decline gracefully, never nag twice. Enforced: state plainly that the commit gate requires the quiz, keep tone supportive not punitive.
+9. **Grow the graph.** `log_session_concepts` creates unknown slugs bare (tier 2, domain `general`, no edges). When the response reports `created`, follow with `upsert_concepts` giving a real domain, tier and at least one prerequisite edge — `prereqs_unmet` is computed from those edges, so a bare node makes the fairness check a no-op.
+10. **Never block the actual work.** Teaching happens after task completion or when explicitly invoked — not interleaved mid-implementation in v1.
 
 Question-quality bar (include as examples in the skill): definitions are tier-1 only; tiers 2–3 ask *why this choice here*; tiers 4–5 ask *what breaks, when, and what's the alternative* ("we store the refresh token in an httpOnly cookie and the access token in memory — what specific attack combination is this defending against, and what UX cost does it create?").
 
