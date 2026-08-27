@@ -1,0 +1,35 @@
+name: Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - '.github/workflows/firebase.yml'
+  workflow_dispatch:
+
+# Same rule as Pages: a queued deploy waits rather than publishing on top of
+# one that is still uploading.
+concurrency:
+  group: firebase-hosting
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # Plain HTML/CSS/JS — no build step, `site/` ships as-is.
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EKLAVYA_RUN }}
+          projectId: eklavya-run
+          channelId: live
