@@ -33,6 +33,37 @@ FOCUS_LABEL=$FOCUS
 [ "$FOCUS" = "learn" ] && [ -n "$TOPIC" ] && FOCUS_LABEL="learn ($TOPIC)"
 CADENCE=$(eklavya_config cadence interleaved "$CWD")
 
+# The level, and how far into it they are. This is the one number that makes the
+# runway visible: without it, week one and week ten look identical from the
+# outside, and a learner on `easy` reads tier-2 questions as Eklavya being
+# shallow rather than as a band they are working through.
+DIFFICULTY=$(eklavya_config difficulty auto "$CWD")
+if [ "$DIFFICULTY" = "auto" ]; then
+  REPO=$(eklavya_repo_root "$CWD") || REPO='*'
+  ESC_REPO=$(printf '%s' "$REPO" | sed "s/'/''/g")
+  LEVEL_UP_AFTER=$(eklavya_config level_up_after 100 "$CWD")
+  # One query: this runs on the critical path of session start (PRD §9.1), and
+  # idx_attempts_repo_level exists so the count does not scan a growing table.
+  LEVEL_ROW=$(eklavya_sql "
+    WITH pl AS (
+      SELECT COALESCE((SELECT level FROM project_levels WHERE repo = '$ESC_REPO'), 'easy') AS level,
+             (SELECT promoted_at FROM project_levels WHERE repo = '$ESC_REPO') AS since
+    )
+    SELECT pl.level || ' ' || (
+      SELECT count(*) FROM attempts a, pl
+       WHERE a.repo = '$ESC_REPO' AND a.level = pl.level AND a.grade >= 3
+         AND COALESCE(a.outcome, 'answered') <> 'declined'
+         AND (pl.since IS NULL OR a.ts >= pl.since)
+    ) FROM pl;")
+  LEVEL=${LEVEL_ROW%% *}
+  PASSED=${LEVEL_ROW##* }
+  [ -z "$LEVEL" ] && LEVEL=easy
+  case $PASSED in ''|*[!0-9]*) PASSED=0 ;; esac
+  LEVEL_LABEL="$LEVEL ($PASSED/$LEVEL_UP_AFTER on this project)"
+else
+  LEVEL_LABEL="$DIFFICULTY (pinned)"
+fi
+
 # Repo config beats global, which is right -- it is how a lead pins a setting on
 # one codebase. Silence about it is not: a repo pinning focus switches off a
 # learn topic someone set for themselves, and without this line they have no way
@@ -41,7 +72,7 @@ OVERRIDE=""
 if _repo=$(eklavya_repo_config "$CWD"); then
   _global="$(eklavya_home)/config.json"
   if [ -f "$_global" ]; then
-    for _key in mode focus focus_topic; do
+    for _key in mode focus focus_topic difficulty; do
       _r=$(jq -r --arg k "$_key" '.[$k] // empty' "$_repo" 2>/dev/null)
       _g=$(jq -r --arg k "$_key" '.[$k] // empty' "$_global" 2>/dev/null)
       if [ -n "$_r" ] && [ -n "$_g" ] && [ "$_r" != "$_g" ]; then
@@ -117,7 +148,7 @@ emit_override() {
 }
 
 if [ -z "$DOMAINS" ]; then
-  printf '[Eklavya] No learning history yet. Mode: %s. Focus: %s. Cadence: %s.\n' "$MODE" "$FOCUS_LABEL" "$CADENCE"
+  printf '[Eklavya] No learning history yet. Mode: %s. Focus: %s. Cadence: %s. Level: %s.\n' "$MODE" "$FOCUS_LABEL" "$CADENCE" "$LEVEL_LABEL"
   emit_override
   eklavya_directive
   exit 0
@@ -127,7 +158,7 @@ LINE="[Eklavya] Learner profile: $DOMAINS."
 [ -n "$WEAK" ] && LINE="$LINE Weak: $WEAK."
 [ -n "$DUE" ] && [ "$DUE" != "0" ] && LINE="$LINE $DUE concept(s) due for review."
 
-printf '%s Mode: %s. Focus: %s. Cadence: %s.\n' "$LINE" "$MODE" "$FOCUS_LABEL" "$CADENCE"
+printf '%s Mode: %s. Focus: %s. Cadence: %s. Level: %s.\n' "$LINE" "$MODE" "$FOCUS_LABEL" "$CADENCE" "$LEVEL_LABEL"
 emit_override
 eklavya_directive
 exit 0

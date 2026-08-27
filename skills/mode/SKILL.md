@@ -1,24 +1,27 @@
 ---
 name: mode
-description: Show or change how Eklavya teaches — the focus (project, concept, learn), the enforcement mode (ambient, enforced, off) and the cadence (interleaved, end).
+description: Show or change how Eklavya teaches — the focus (project, concept, learn), the enforcement mode (ambient, enforced, off), the cadence (interleaved, end) and the difficulty (auto, easy, medium, hard).
 disable-model-invocation: true
 ---
 
 # /eklavya:mode [project|concept|learn|ambient|enforced|off|interleaved|end] [topic]
 
-Eklavya has **three independent dials**, and conflating them is the most common confusion. Say which one you are changing.
+Eklavya has **four independent dials**, and conflating them is the most common confusion. Say which one you are changing.
 
 | Dial | Question it answers | Values |
 |---|---|---|
 | `mode` | How hard does Eklavya push? | `ambient`, `enforced`, `off` |
 | `focus` | What does it teach? | `concept` (default), `project`, `learn` |
 | `cadence` | When does it ask? | `interleaved` (default), `end` |
+| `difficulty` | How hard may the questions get? | `auto` (default), `easy`, `medium`, `hard` |
+
+`difficulty` is the one that is normally *earned* rather than set: on `auto`, each project starts at `easy` and climbs. **`/eklavya:level` is the command for it** — send them there rather than explaining the ladder here, and only set it from this command if they explicitly asked to pin a level.
 
 They combine freely. `enforced` + `learn` is an intern who must pass a gate on a topic they chose; `ambient` + `project` is a gentle nudge grounded in today's diff. The default pairing is `ambient` + `concept`: teach the idea, use today's code as the way in. `off` is the exception — it wins outright and `focus` is never read.
 
 ## No arguments
 
-Call `get_config` and report the effective settings in two lines: mode and what it means, focus and what it means. If `overridden_by_repo` is non-empty, say which settings this repo is overriding and where the file is — someone whose personal focus silently stopped applying needs to be told why, not left to guess.
+Call `get_config` and report the effective settings in two lines: mode and what it means, focus and what it means, then cadence and difficulty in a clause each. If `overridden_by_repo` is non-empty, say which settings this repo is overriding and where the file is — someone whose personal focus silently stopped applying needs to be told why, not left to guess.
 
 Then offer the three focus choices below in one line each. Do not lecture.
 
@@ -50,4 +53,4 @@ Same tool, `mode` key. Follow `/eklavya:setup` step 4 if they move **to** `enfor
 
 ## Confirm
 
-Say the new state back in one line — `Mode: ambient. Focus: learn (caching). Cadence: interleaved.` — and what changes next time they build something. If they set `learn`, add that `/eklavya:learn` teaches the topic on demand rather than waiting for a task to touch it.
+Say the new state back in one line — `Mode: ambient. Focus: learn (caching). Cadence: interleaved. Difficulty: auto (easy on this repo).` — and what changes next time they build something. If they set `learn`, add that `/eklavya:learn` teaches the topic on demand rather than waiting for a task to touch it.

@@ -211,6 +211,9 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('escalates the tier for a concept the learner keeps nailing (G3)', () => {
+    // Pinned past `easy`, because that band caps at tier 2 and would clamp the
+    // escalation this test is about. The clamp has its own tests below.
+    configure({ min_minutes_between_quizzes: 0, difficulty: 'medium' });
     // Mastered in an earlier session, and now due again — which is the only way
     // a mastered concept resurfaces. Within one session it stays spent.
     master('jwt-structure', 'sess-last-week');
@@ -1217,5 +1220,247 @@ describe('config tools', () => {
 
   it('says so when asked to change nothing', () => {
     expect(call<any>(setConfig, {}).error).toBe('nothing_to_set');
+  });
+});
+
+describe('difficulty levels, earned per project', () => {
+  /** A directory that looks like a git root, so `repoRoot` resolves to it. */
+  function repo(label: string): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `eklavya-${label}-`));
+    fs.mkdirSync(path.join(dir, '.git'));
+    return dir;
+  }
+
+  /** Pass one question per concept, in one project. */
+  function passConcepts(slugs: string[], where: string, grade = 4): any {
+    let last: any;
+    for (const slug of slugs) {
+      last = call<any>(recordAttempt, {
+        cwd: where,
+        session_id: SESSION,
+        slug,
+        question: `about ${slug} at ${where}`,
+        answer: 'a good answer',
+        grade,
+        difficulty: 2,
+      });
+    }
+    return last;
+  }
+
+  function seedSlugs(n: number): string[] {
+    return (db.prepare('SELECT slug FROM concepts ORDER BY id LIMIT ?').all(n) as { slug: string }[]).map(
+      (r) => r.slug,
+    );
+  }
+
+  it('starts a fresh project on easy and asks nothing above tier 2', () => {
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.level).toBe('easy');
+    expect(plan.level_framing).toMatch(/tiers 1-2/);
+    for (const c of plan.concepts) expect(c.tier_to_ask).toBeLessThanOrEqual(2);
+  });
+
+  it('promotes once the answers, the accuracy and the spread all clear', () => {
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 6 });
+    const where = repo('proj');
+    try {
+      const slugs = seedSlugs(6);
+      const last = passConcepts(slugs, where);
+      expect(last.level_up).toEqual(
+        expect.objectContaining({ from: 'easy', to: 'medium' }),
+      );
+      // And the next plan really asks harder questions.
+      logAuthWork();
+      const plan = call<any>(getSessionQuizPlan, { cwd: where, session_id: SESSION });
+      expect(plan.level).toBe('medium');
+      expect(Math.max(...plan.concepts.map((c: any) => c.tier_to_ask))).toBeGreaterThanOrEqual(2);
+    } finally {
+      fs.rmSync(where, { recursive: true, force: true });
+    }
+  });
+
+  it('does not promote on volume when the accuracy is not there', () => {
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 3 });
+    const where = repo('sloppy');
+    try {
+      const slugs = seedSlugs(9);
+      // Six failures, then three passes: the runway is met and the accuracy is
+      // 0.33. The order matters — a promotion is evaluated on every attempt, so
+      // three clean answers first would have promoted before the failures landed.
+      passConcepts(slugs.slice(0, 6), where, 1);
+      const last = passConcepts(slugs.slice(6), where, 4);
+      expect(last.level_up).toBeUndefined();
+      expect(last.level).toBe('easy');
+      expect(last.level_progress.unmet).toContain('accuracy');
+    } finally {
+      fs.rmSync(where, { recursive: true, force: true });
+    }
+  });
+
+  it('does not let one concept ground out forty ways carry a promotion', () => {
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 6 });
+    const where = repo('grind');
+    try {
+      let last: any;
+      for (let i = 0; i < 8; i += 1) {
+        last = call<any>(recordAttempt, {
+          cwd: where,
+          session_id: SESSION,
+          slug: 'csrf',
+          question: `csrf, angle ${i}`,
+          answer: 'a good answer',
+          grade: 4,
+          difficulty: 2,
+        });
+      }
+      expect(last.level_up).toBeUndefined();
+      expect(last.level_progress.unmet).toContain('concepts');
+    } finally {
+      fs.rmSync(where, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps progress per project — a second repo still starts at easy', () => {
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 6 });
+    const first = repo('first');
+    const second = repo('second');
+    try {
+      expect(passConcepts(seedSlugs(6), first).level).toBe('medium');
+      // Same database, same learner, different codebase: the runway restarts,
+      // because "how hard should this be" is a question about a codebase.
+      const other = call<any>(recordAttempt, {
+        cwd: second,
+        session_id: SESSION,
+        slug: 'csrf',
+        question: 'csrf on the second project',
+        answer: 'a good answer',
+        grade: 4,
+        difficulty: 1,
+      });
+      expect(other.level).toBe('easy');
+      expect(other.level_progress.passed).toBe(1);
+    } finally {
+      fs.rmSync(first, { recursive: true, force: true });
+      fs.rmSync(second, { recursive: true, force: true });
+    }
+  });
+
+  it('a pinned level sets the band and stops progression entirely', () => {
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 3, difficulty: 'hard' });
+    const where = repo('pinned');
+    try {
+      logAuthWork();
+      const plan = call<any>(getSessionQuizPlan, { cwd: where, session_id: SESSION });
+      expect(plan.level).toBe('hard');
+      for (const c of plan.concepts) expect(c.tier_to_ask).toBeGreaterThanOrEqual(3);
+      expect(plan.level_progress.pinned).toBe(true);
+
+      const last = passConcepts(seedSlugs(9), where);
+      expect(last.level_up).toBeUndefined();
+      expect(last.level).toBe('hard');
+      // Nothing earned, nothing written: drop the pin later and the project is
+      // back where its own evidence left it.
+      expect(db.prepare('SELECT count(*) n FROM project_levels').get()).toEqual({ n: 0 });
+    } finally {
+      fs.rmSync(where, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores attempts recorded before levels existed', () => {
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 2 });
+    const where = repo('legacy');
+    try {
+      const id = (db.prepare('SELECT id FROM concepts LIMIT 1').get() as { id: number }).id;
+      // A pre-migration row: no repo, no level, and a tier-3 grade that must not
+      // be read as evidence at any band.
+      for (let i = 0; i < 20; i += 1) {
+        db.prepare(
+          `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty)
+           VALUES (?, 'old', ?, 'a', 5, 3)`,
+        ).run(id, `ancient question ${i}`);
+      }
+      const last = passConcepts(seedSlugs(1), where);
+      expect(last.level).toBe('easy');
+      expect(last.level_progress.passed).toBe(1);
+    } finally {
+      fs.rmSync(where, { recursive: true, force: true });
+    }
+  });
+
+  it('does not count a decline against the accuracy', () => {
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 2 });
+    const where = repo('declined');
+    try {
+      const slugs = seedSlugs(3);
+      call(recordAttempt, {
+        cwd: where,
+        session_id: SESSION,
+        slug: slugs[0],
+        question: 'one they skipped',
+        grade: 0,
+        difficulty: 1,
+        outcome: 'declined',
+      });
+      const last = passConcepts(slugs.slice(1), where);
+      // Two passes out of two answers: the decline is in neither half of the
+      // fraction, so skipping honestly cost nothing.
+      expect(last.level_up).toEqual(expect.objectContaining({ to: 'medium', accuracy: 1 }));
+      // And the reported progress is the new level's, which starts empty.
+      expect(last.level_progress.passed).toBe(0);
+    } finally {
+      fs.rmSync(where, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the ask footer, end to end', () => {
+  it('rides along with every plan item', () => {
+    configure({ min_minutes_between_quizzes: 0, focus: 'project', mode: 'enforced' });
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    for (const c of plan.concepts) {
+      expect(c.ask_footer).toBe(`project · easy · tier ${c.tier_to_ask} · gated`);
+    }
+  });
+
+  it('is absent when the learner asked for quiet', () => {
+    configure({ min_minutes_between_quizzes: 0, quiet: true });
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.every((c: any) => c.ask_footer === undefined)).toBe(true);
+  });
+
+  it('never reaches the recorded stem, so the repeat check still fires', () => {
+    logAuthWork();
+    const stem = 'What does httpOnly stop a script from doing?';
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'httponly-cookies',
+      question: `${stem}\n\nconcept · easy · tier 2`,
+      answer: 'reading the cookie',
+      grade: 4,
+      difficulty: 2,
+      format: 'mcq',
+    });
+
+    const stored = db
+      .prepare('SELECT question FROM attempts ORDER BY id DESC LIMIT 1')
+      .get() as { question: string };
+    expect(stored.question).toBe(stem);
+
+    // The same stem, now with a different footer because the level moved on: one
+    // question, not two.
+    const again = call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'httponly-cookies',
+      question: `${stem}\n\nconcept · medium · tier 3`,
+      answer: 'reading the cookie',
+      grade: 4,
+      difficulty: 3,
+      format: 'mcq',
+    });
+    expect(again.repeat_question).toBe(true);
   });
 });

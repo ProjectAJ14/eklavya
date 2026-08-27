@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { globalConfigPath } from './paths.js';
+import type { Level } from './srs.js';
 
 export type Mode = 'ambient' | 'enforced' | 'off';
 
@@ -39,6 +40,21 @@ export type Focus = 'project' | 'concept' | 'learn';
  */
 export type Cadence = 'interleaved' | 'end';
 
+/**
+ * The fourth dial, and the only one that is normally *earned* rather than set.
+ *
+ * `auto` (the default) means the project's level comes from `project_levels`:
+ * everyone starts at `easy` and climbs on evidence. A literal level pins it and
+ * stops progression, which is a hard set rather than a floor because both real
+ * uses want exactly that -- a repo pinning `easy` is an onboarding codebase that
+ * should stay gentle for every contributor, and a senior pinning `hard` globally
+ * has said they do not want the runway.
+ *
+ * Pinned or not, `attempts.level` still records the band each question was asked
+ * at, so removing a pin later leaves a readable history rather than a hole.
+ */
+export type Difficulty = Level | 'auto';
+
 export interface EklavyaConfig {
   mode: Mode;
   /**
@@ -56,6 +72,19 @@ export interface EklavyaConfig {
    * finished is not that.
    */
   cadence: Cadence;
+  /**
+   * How hard questions on a project are allowed to get. Defaults to `auto`: the
+   * level is earned per project, starting at `easy`, because the first fortnight
+   * has to be answerable by someone who was only *watching* the agent work.
+   */
+  difficulty: Difficulty;
+  /** Passing answers needed at a level, in one project, before it promotes. */
+  level_up_after: number;
+  /**
+   * Minimum accuracy over those answers. Endurance alone is not readiness: a
+   * hundred answers of which sixty were wrong says the level is already too hard.
+   */
+  level_up_accuracy: number;
   pass_threshold: number;
   max_questions_per_task: number;
   min_minutes_between_quizzes: number;
@@ -82,6 +111,9 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   focus: 'concept',
   focus_topic: null,
   cadence: 'interleaved',
+  difficulty: 'auto',
+  level_up_after: 100,
+  level_up_accuracy: 0.7,
   pass_threshold: 0.7,
   max_questions_per_task: 4,
   min_minutes_between_quizzes: 20,
@@ -172,6 +204,24 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
   if (raw.mode === 'ambient' || raw.mode === 'enforced' || raw.mode === 'off') out.mode = raw.mode;
   if (raw.focus === 'project' || raw.focus === 'concept' || raw.focus === 'learn') out.focus = raw.focus;
   if (raw.cadence === 'interleaved' || raw.cadence === 'end') out.cadence = raw.cadence;
+  if (
+    raw.difficulty === 'auto' ||
+    raw.difficulty === 'easy' ||
+    raw.difficulty === 'medium' ||
+    raw.difficulty === 'hard'
+  ) {
+    out.difficulty = raw.difficulty;
+  }
+  if (typeof raw.level_up_after === 'number' && raw.level_up_after > 0) {
+    out.level_up_after = Math.floor(raw.level_up_after);
+  }
+  if (
+    typeof raw.level_up_accuracy === 'number' &&
+    raw.level_up_accuracy >= 0 &&
+    raw.level_up_accuracy <= 1
+  ) {
+    out.level_up_accuracy = raw.level_up_accuracy;
+  }
   if (typeof raw.focus_topic === 'string' && raw.focus_topic.trim()) {
     out.focus_topic = raw.focus_topic.trim();
   } else if (raw.focus_topic === null) {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { loadConfig, isDomainEnabled } from '../config.js';
-import { decayedScore, isKnown, isDue, nextTierToAsk, suggestedTier } from '../srs.js';
+import { clampToLevel, decayedScore, isKnown, isDue, nextTierToAsk, suggestedTier } from '../srs.js';
+import { levelStanding } from '../store.js';
 import { CWD_HINT, type ToolDef } from './types.js';
 
 const LIST_CAP = 8;
@@ -25,14 +26,18 @@ export const getLearnerProfile: ToolDef = {
   name: 'get_learner_profile',
   title: 'Get learner profile',
   description:
-    'What this developer already knows. Call before teaching or quizzing so you never ask about a mastered concept. Returns mode, per-domain counts, the concepts already mastered, weak concepts, what is due for review, and the tier to pitch at.',
+    'What this developer already knows. Call before teaching or quizzing so you never ask about a mastered concept. Returns mode, per-domain counts, the concepts already mastered, weak concepts, what is due for review, the tier to pitch at, and this project\'s difficulty level with the progress toward the next one. Every tier here is already clamped to that level.',
   inputSchema: {
     domain: z.string().optional().describe('Restrict to one domain, e.g. "web-auth".'),
     cwd: z.string().optional().describe(CWD_HINT),
   },
   handler: (args: { domain?: string; cwd?: string }, { db }) => {
     const now = new Date();
-    const { config } = loadConfig(args.cwd);
+    const { config, repoRoot } = loadConfig(args.cwd);
+    // Tiers reported here are what the tutor calibrates against, so they are
+    // clamped to the project's band exactly as the planner clamps them. An
+    // unclamped `suggested_tier` is how a learner on `easy` gets pitched at 3.
+    const standing = levelStanding(db, config, repoRoot);
 
     const rows = db
       .prepare(
@@ -85,12 +90,15 @@ export const getLearnerProfile: ToolDef = {
         due.push({
           slug: row.slug,
           tier: row.tier,
-          tier_to_ask: nextTierToAsk({
-            conceptTier: row.tier,
-            lastDifficulty: row.last_difficulty,
-            lastGrade: row.last_grade,
-            score,
-          }),
+          tier_to_ask: clampToLevel(
+            nextTierToAsk({
+              conceptTier: row.tier,
+              lastDifficulty: row.last_difficulty,
+              lastGrade: row.last_grade,
+              score,
+            }),
+            standing.level,
+          ),
         });
       }
     }
@@ -106,7 +114,19 @@ export const getLearnerProfile: ToolDef = {
       known_total: known.length,
       weak: weak.slice(0, LIST_CAP).map((w) => w.slug),
       due_for_review: due.slice(0, LIST_CAP),
-      suggested_tier: suggestedTier(knownTiers),
+      suggested_tier: clampToLevel(suggestedTier(knownTiers), standing.level),
+      level: {
+        level: standing.level,
+        next: standing.next,
+        passed: standing.counts.passed,
+        needed: standing.needed.answers,
+        concepts: standing.counts.concepts,
+        needed_concepts: standing.needed.concepts,
+        accuracy: standing.accuracy,
+        min_accuracy: standing.needed.accuracy,
+        repo: standing.repo,
+        ...(standing.pinned ? { pinned: true } : {}),
+      },
       truncated: weak.length > LIST_CAP || due.length > LIST_CAP || known.length > KNOWN_CAP,
     };
   },

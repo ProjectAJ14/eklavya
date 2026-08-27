@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
+import { levelStanding } from './store.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,15 +21,16 @@ Usage:
   eklavya config get                    Show the effective configuration
   eklavya config set <key> <value>      Change a setting (add --repo to scope it to this repo)
                                         e.g. mode ambient|enforced|off, focus project|concept|learn,
-                                        cadence interleaved|end
+                                        cadence interleaved|end,
+                                        difficulty auto|easy|medium|hard
                                         add --topic <topic> when setting focus to "learn"
   eklavya doctor                        Check that everything is wired up
   eklavya db-path                       Print the database location
 
-Config keys: mode, focus, focus_topic, cadence, pass_threshold,
-             max_questions_per_task, min_minutes_between_quizzes,
-             min_minutes_between_checkpoints, max_new_concepts_per_session,
-             max_stop_blocks_per_session, quiet
+Config keys: mode, focus, focus_topic, cadence, difficulty, level_up_after,
+             level_up_accuracy, pass_threshold, max_questions_per_task,
+             min_minutes_between_quizzes, min_minutes_between_checkpoints,
+             max_new_concepts_per_session, max_stop_blocks_per_session, quiet
 `;
 
 function fail(message: string): never {
@@ -128,6 +130,7 @@ function configCommand(args: string[]): void {
 
 function doctor(): void {
   const file = dbPath();
+  const resolved = loadConfig();
   const lines: string[] = [];
   let ok = true;
 
@@ -145,13 +148,22 @@ function doctor(): void {
     lines.push(`attempts: ${attempts}`);
     lines.push(`mastered: ${known}`);
     lines.push(`journal:  ${String(db.pragma('journal_mode', { simple: true }))}`);
+    // The project's band, and the runway left in it. Read here because `doctor`
+    // is where someone looks when the questions feel wrong for them.
+    const standing = levelStanding(db, resolved.config, resolved.repoRoot);
+    lines.push(
+      `level:    ${standing.level}${
+        standing.pinned
+          ? ' (pinned by config — no progression)'
+          : ` (${standing.counts.passed}/${standing.needed.answers} passing answers in ${standing.repo})`
+      }`,
+    );
     db.close();
   } catch (err) {
     ok = false;
     lines.push(`database error: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const resolved = loadConfig();
   const fromRepo = resolved.repoPath ? ' (from this repo)' : '';
   lines.push(`mode:     ${resolved.config.mode}${fromRepo}`);
   lines.push(

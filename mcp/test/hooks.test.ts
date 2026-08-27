@@ -557,3 +557,54 @@ describe('The budget is shared: checkpoints spend what the Stop sweep would have
     expect(named).toHaveLength(1);
   });
 });
+
+describe('SessionStart says which level the project is on', () => {
+  /** Attempts as `record_attempt` writes them: stamped with a project and a band. */
+  function answerIn(repo: string, slug: string, grade: number): void {
+    const c = conceptBySlug(db, slug)!;
+    db.prepare(
+      `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, repo, level)
+       VALUES (?, ?, ?, 'a', ?, 2, ?, 'easy')`,
+    ).run(c.id, SESSION, `about ${slug}`, grade, repo);
+  }
+
+  it('reports the level and how far into it they are', () => {
+    // The hook's cwd is not a git repository, so it falls into the shared '*'
+    // bucket — the same key the server uses for work outside a repo.
+    answerIn('*', 'csrf', 4);
+    answerIn('*', 'jwt-structure', 4);
+    answerIn('*', 'httponly-cookies', 1);
+    const res = sessionStart();
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('Level: easy (2/100 on this project)');
+  });
+
+  it('starts at easy with nothing answered', () => {
+    expect(sessionStart().stdout).toContain('Level: easy (0/100 on this project)');
+  });
+
+  it('follows a shortened runway', () => {
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 20 });
+    answerIn('*', 'csrf', 5);
+    expect(sessionStart().stdout).toContain('Level: easy (1/20 on this project)');
+  });
+
+  it('says so when the level is pinned, rather than showing a runway nobody is on', () => {
+    configure({ min_minutes_between_quizzes: 0, difficulty: 'hard' });
+    expect(sessionStart().stdout).toContain('Level: hard (pinned)');
+  });
+
+  it('reads the level a promotion wrote', () => {
+    db.prepare(
+      `INSERT INTO project_levels (repo, level, promoted_at) VALUES ('*', 'medium', datetime('now','-1 day'))`,
+    ).run();
+    answerIn('*', 'csrf', 4); // easy-band evidence, spent with the old level
+    expect(sessionStart().stdout).toContain('Level: medium (0/100 on this project)');
+  });
+
+  it('names difficulty when a repo pins it over the learner’s own setting', () => {
+    configure({ difficulty: 'auto' });
+    fs.writeFileSync(path.join(cwd, '.eklavya.json'), JSON.stringify({ difficulty: 'easy' }));
+    expect(sessionStart().stdout).toContain('overrides your global setting for: difficulty');
+  });
+});

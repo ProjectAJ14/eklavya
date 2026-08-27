@@ -27,7 +27,7 @@ export const setConfig: ToolDef = {
   name: 'set_config',
   title: 'Set config',
   description:
-    'Update Eklavya config. Scope "global" writes ~/.eklavya/config.json; scope "repo" writes .eklavya.json at the repo root, which is how a team lead pins enforced mode for one project.',
+    'Update Eklavya config. Scope "global" writes ~/.eklavya/config.json; scope "repo" writes .eklavya.json at the repo root, which is how a team lead pins enforced mode — or a difficulty level — for one project.',
   inputSchema: {
     scope: z.enum(['global', 'repo']).optional().describe('Defaults to global.'),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -48,6 +48,25 @@ export const setConfig: ToolDef = {
         'When the questions land. "interleaved" (default) asks one question mid-task, at the seam where a concept was logged, and the Stop hook then only sweeps up what is left of max_questions_per_task. "end" is the old behaviour: nothing until the task is finished.',
       ),
     min_minutes_between_checkpoints: z.number().int().min(0).max(120).optional(),
+    difficulty: z
+      .enum(['auto', 'easy', 'medium', 'hard'])
+      .optional()
+      .describe(
+        'How hard questions on a project may get. "auto" (default) earns the level per project: everyone starts at easy (tiers 1-2), then medium (2-4), then hard (3-5). A literal level pins it and stops progression — "easy" on a repo keeps an onboarding codebase gentle for everyone, "hard" globally skips the runway.',
+      ),
+    level_up_after: z
+      .number()
+      .int()
+      .min(1)
+      .max(1000)
+      .optional()
+      .describe('Passing answers needed at a level, in one project, before it promotes. Defaults to 100.'),
+    level_up_accuracy: z
+      .number()
+      .min(0)
+      .max(1)
+      .optional()
+      .describe('Minimum accuracy over those answers, declines excluded. Defaults to 0.7.'),
     focus_topic: z
       .string()
       .nullable()
@@ -72,6 +91,9 @@ export const setConfig: ToolDef = {
       'focus',
       'focus_topic',
       'cadence',
+      'difficulty',
+      'level_up_after',
+      'level_up_accuracy',
       'min_minutes_between_checkpoints',
       'pass_threshold',
       'max_questions_per_task',

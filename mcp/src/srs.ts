@@ -161,3 +161,120 @@ export function suggestedTier(knownTiers: number[]): number {
     sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!;
   return clamp(Math.round(median), 1, 5);
 }
+
+// ---------------------------------------------------------------------------
+// Difficulty levels (phase-9)
+//
+// A coarse band above the tier ladder, earned per project. `tier` is how hard
+// one question is; `level` is how hard questions on this codebase are allowed to
+// get. The level never replaces tier selection -- it clamps it.
+// ---------------------------------------------------------------------------
+
+export type Level = 'easy' | 'medium' | 'hard';
+
+/** In order. Promotion walks this array; nothing else may assume an ordering. */
+export const LEVELS: readonly Level[] = ['easy', 'medium', 'hard'] as const;
+
+export const START_LEVEL: Level = 'easy';
+
+/**
+ * The tier band each level may ask within.
+ *
+ * The bands overlap on purpose: promotion is not a cliff, so a learner who has
+ * just reached `medium` still meets tier-2 questions -- what changed is that 3
+ * and 4 are now reachable. And `hard` drops the tier-1 floor, because a
+ * definition question is a wasted question for someone a hundred answers into
+ * the concept.
+ *
+ * `easy` capping at 2 is the load-bearing decision of the whole phase. Tiers 1
+ * and 2 are answerable by someone who was *watching* the agent work, which is
+ * the state Eklavya finds people in; tier 3 asks them to defend a choice they
+ * did not make. An unanswerable first fortnight is how this gets switched off.
+ */
+export const LEVEL_BANDS: Record<Level, { min: number; max: number }> = {
+  easy: { min: 1, max: 2 },
+  medium: { min: 2, max: 4 },
+  hard: { min: 3, max: 5 },
+};
+
+/**
+ * Ceiling on the distinct concepts a promotion needs among its passing answers.
+ *
+ * Not a config key: it is not a preference, it is what stops one concept
+ * re-asked forty ways from carrying a promotion, and a learner able to lower it
+ * would be lowering the only anti-grind guard there is.
+ */
+export const LEVEL_UP_MIN_CONCEPTS = 15;
+
+/**
+ * Distinct concepts required at a given answer threshold.
+ *
+ * Scaled rather than fixed, because a fixed 15 turns into a trap the moment
+ * anyone shortens the runway: `level_up_after: 5` would need fifteen distinct
+ * concepts among five passing answers, which is unsatisfiable, and the promotion
+ * would never fire with nothing on screen explaining why. A third of the
+ * threshold keeps the guard proportional to whatever runway is configured.
+ */
+export function requiredConcepts(after: number): number {
+  return Math.max(1, Math.min(LEVEL_UP_MIN_CONCEPTS, Math.ceil(after / 3)));
+}
+
+export function clampToLevel(tier: number, level: Level): number {
+  const band = LEVEL_BANDS[level];
+  return clamp(Math.round(tier), band.min, band.max);
+}
+
+export function nextLevel(level: Level): Level | null {
+  const i = LEVELS.indexOf(level);
+  return i >= 0 && i < LEVELS.length - 1 ? LEVELS[i + 1]! : null;
+}
+
+/** Counted from `attempts`, never stored. See migration 008. */
+export interface LevelCounts {
+  /** Answers at this level that cleared PASSING_GRADE. */
+  passed: number;
+  /** Answers at this level, declines excluded. */
+  answered: number;
+  /** Distinct concepts among the passes. */
+  concepts: number;
+}
+
+/** Why a promotion has not happened yet. Reported so the learner can see the bar. */
+export type PromotionBlocker = 'answers' | 'accuracy' | 'concepts' | 'max_level';
+
+export interface PromotionVerdict {
+  promote: boolean;
+  to: Level | null;
+  accuracy: number;
+  unmet: PromotionBlocker[];
+}
+
+/**
+ * Every condition a promotion requires, evaluated together.
+ *
+ * Accuracy exists because the answer count on its own is a measure of endurance:
+ * a hundred answers of which sixty were wrong is evidence the level is too hard,
+ * and promoting on it would be the exact failure levels were added to prevent.
+ *
+ * Declines are excluded from `answered` upstream, so they cost nothing in either
+ * half of the fraction. Skipping a question honestly must never damage a level,
+ * or the level becomes a reason to guess rather than to skip.
+ */
+export function checkPromotion(input: {
+  level: Level;
+  counts: LevelCounts;
+  after: number;
+  minAccuracy: number;
+}): PromotionVerdict {
+  const { level, counts, after, minAccuracy } = input;
+  const accuracy = counts.answered > 0 ? Number((counts.passed / counts.answered).toFixed(6)) : 0;
+  const to = nextLevel(level);
+
+  const unmet: PromotionBlocker[] = [];
+  if (!to) unmet.push('max_level');
+  if (counts.passed < after) unmet.push('answers');
+  if (accuracy < minAccuracy) unmet.push('accuracy');
+  if (counts.concepts < requiredConcepts(after)) unmet.push('concepts');
+
+  return { promote: unmet.length === 0, to: unmet.length === 0 ? to : null, accuracy, unmet };
+}

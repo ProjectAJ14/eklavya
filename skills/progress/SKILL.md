@@ -14,8 +14,9 @@ Render the learning map. Read-only: do not quiz, do not teach.
 
 Present, briefly:
 
+- **This project's level** — first, in one line: the band (`easy`, `medium`, `hard`), `passed`/`needed` passing answers toward the next one, and any other condition still short. It comes from the profile's `level` block. Say `pinned` if it is, and then no runway — a pinned level never promotes. This is per project, so name the repo if it is not obvious.
 - **Per domain** — known / learning / unseen, as a count and a rough bar. Lead with the domain they have moved most in.
-- **Due for review** — how many, and the specific slugs, with the tier each will be asked at. This is the actionable part.
+- **Due for review** — how many, and the specific slugs, with the tier each will be asked at. Those tiers are already clamped to the level above. This is the actionable part.
 - **Weakest** — the `weak` list, with one clause each on what that concept actually is, so the slug means something.
 - **Mastered** — `known_total`, and the most recent few from `known`. This is the part that makes the rest feel worth doing.
 - **What to do next** — one concrete suggestion: `/eklavya:quiz` if things are due, `/eklavya:learn <topic>` if a domain is mostly unseen.

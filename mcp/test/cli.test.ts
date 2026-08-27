@@ -133,3 +133,15 @@ describe('eklavya misc', () => {
     expect(eklavya(['nonsense']).status).toBe(1);
   });
 });
+
+describe('eklavya doctor reports the difficulty level', () => {
+  it('names the level and the runway', () => {
+    const res = eklavya(['doctor']);
+    expect(res.stdout).toMatch(/level:\s+easy \(0\/100 passing answers in/);
+  });
+
+  it('says when a pin is switching progression off', () => {
+    eklavya(['config', 'set', 'difficulty', 'hard']);
+    expect(eklavya(['doctor']).stdout).toMatch(/level:\s+hard \(pinned by config/);
+  });
+});

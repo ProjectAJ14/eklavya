@@ -213,7 +213,12 @@ a:hover { color: var(--green-800); }
   font-size: 11.5px; font-weight: 500; letter-spacing: .02em;
 }
 .ask__hint { color: var(--neutral-500); font-size: 11.5px; }
-.ask__stem { margin: 0 0 10px; color: #C7CFD4; }
+.ask__stem { margin: 0 0 6px; color: #C7CFD4; }
+/* The dials that asked, printed under every real question. */
+.ask__footer {
+  margin: 0 0 10px; font-size: 11.5px; letter-spacing: .01em;
+  color: var(--neutral-500);
+}
 .ask__opts { display: flex; flex-direction: column; gap: 2px; }
 .ask__opt {
   color: #AEB8C0; padding: 2px 6px; border-radius: var(--radius-xs);
@@ -292,12 +297,22 @@ a:hover { color: var(--green-800); }
 .ladder { margin-top: 36px; display: flex; flex-direction: column; gap: 12px; }
 .ladder__ends {
   display: flex; justify-content: space-between;
-  padding-left: 182px; margin-bottom: 2px;
+  padding-left: 182px; padding-right: 80px; margin-bottom: 2px;
   font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
   text-transform: uppercase; color: var(--neutral-400);
 }
 .ladder__row {
-  display: grid; grid-template-columns: 44px 110px 1fr; align-items: center; gap: 14px;
+  display: grid; grid-template-columns: 44px 110px 1fr 66px; align-items: center; gap: 14px;
+}
+.ladder__band {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .02em; text-align: right; color: var(--neutral-400);
+}
+.ladder__band--easy { color: var(--green-500); }
+.ladder__band--medium { color: var(--green-600); }
+.ladder__band--hard { color: var(--green-700); }
+.ladder__note {
+  margin: 10px 0 0; font-size: 13px; line-height: 1.55; color: var(--neutral-500);
 }
 .ladder__tier { font-family: var(--font-mono); font-size: 12px; color: var(--neutral-500); }
 .ladder__label { font-size: 14px; font-weight: 700; }
@@ -376,7 +391,7 @@ a:hover { color: var(--green-800); }
   margin: 18px 0 0; font-size: 17px; line-height: 1.6;
   color: var(--neutral-600); max-width: 720px;
 }
-.dials { margin-top: 48px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.dials { margin-top: 48px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
 .dial {
   border: 1px solid var(--neutral-200); border-radius: var(--radius-lg);
   padding: 24px; display: flex; flex-direction: column; gap: 16px;
@@ -386,6 +401,7 @@ a:hover { color: var(--green-800); }
   font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--green-700);
 }
 .dial__q { font-size: 14px; font-weight: 700; color: var(--neutral-800); }
+.dial__sep { color: var(--neutral-300); font-size: 13px; }
 .dial__opt {
   position: relative; border-top: 1px solid var(--neutral-100); padding-top: 14px;
 }
@@ -567,6 +583,10 @@ a:hover { color: var(--green-800); }
 /* ============================================================
    RESPONSIVE
    ============================================================ */
+@media (max-width: 1180px) {
+  .dials { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 1040px) {
   .hero__title { font-size: 52px; }
   .legend__cols { gap: 32px; }
@@ -598,6 +618,7 @@ a:hover { color: var(--green-800); }
 
   .cards { grid-template-columns: 1fr; margin-top: 40px; }
   .dials { grid-template-columns: 1fr; }
+  .ladder__row { grid-template-columns: 44px 110px 1fr 58px; }
 
   .commands__grid { grid-template-columns: 1fr; padding: 72px 32px; }
   .data-card { position: static; }
@@ -622,8 +643,9 @@ a:hover { color: var(--green-800); }
   .ask__hint { display: none; }
   .ask__opt { padding-left: 2px; }
   .cmd-row { grid-template-columns: 1fr; gap: 6px; }
-  .ladder__row { grid-template-columns: 32px 96px 1fr; gap: 10px; }
-  .ladder__ends { padding-left: 148px; font-size: 10px; }
+  .ladder__row { grid-template-columns: 32px 88px 1fr 46px; gap: 8px; }
+  .ladder__band { font-size: 9.5px; }
+  .ladder__ends { padding-left: 136px; padding-right: 54px; font-size: 10px; }
   .cta__title { font-size: 28px; }
   .hero__actions, .cta__actions { flex-direction: column; align-items: stretch; }
   .hero__actions .btn, .cta__actions .btn { width: 100%; justify-content: center; }

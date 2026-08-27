@@ -178,6 +178,29 @@ Plain-text stdout is added to Claude's context. (`systemMessage` is also availab
 
 ---
 
+## Unverified — the ask footer's newline (2026-08-27)
+
+Phase 9 prints a dial readout as the last line of an `AskUserQuestion` stem,
+separated by a blank line:
+
+```
+Why is httpOnly set on the refresh cookie here but not on the access token?
+
+concept · easy · tier 2
+```
+
+**Not yet observed in a real render.** Whether Claude Code preserves the newline
+inside a question stem, collapses it to a space, or trims it is unconfirmed, and
+the tool schema does not say. Nothing breaks either way — the footer still reads
+as a trailing clause if the break is lost — but the shape of
+`stripAskFooter`'s regex (`ask.ts`) depends on it: it anchors to a trailing
+**line**, so a collapsed newline would leave the footer inside the fingerprinted
+stem.
+
+Check this the first time a question lands in a live session, then pin the answer
+here. If newlines are collapsed, the footer becomes ` — concept · easy · tier 2`
+and the regex loses its `\n` anchor.
+
 ## Deviations from the PRD
 
 These override the PRD where they conflict. The PRD text was written against an older schema.

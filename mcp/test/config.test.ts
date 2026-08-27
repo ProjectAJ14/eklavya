@@ -205,3 +205,42 @@ describe('isDomainEnabled', () => {
     expect(isDomainEnabled(cfg, 'web-auth')).toBe(false);
   });
 });
+
+describe('the difficulty dial', () => {
+  it('defaults to earning the level, starting at easy', () => {
+    expect(DEFAULT_CONFIG.difficulty).toBe('auto');
+    expect(DEFAULT_CONFIG.level_up_after).toBe(100);
+    expect(DEFAULT_CONFIG.level_up_accuracy).toBe(0.7);
+  });
+
+  it('accepts a pin, at either scope', () => {
+    writeGlobal({ difficulty: 'hard' });
+    expect(loadConfig(repo).config.difficulty).toBe('hard');
+
+    // A repo pinning easy is an onboarding codebase that stays gentle for
+    // everyone, and it must win over the contributor's own setting.
+    writeRepo({ difficulty: 'easy' });
+    const resolved = loadConfig(repo);
+    expect(resolved.config.difficulty).toBe('easy');
+    expect(resolved.overrides).toContain('difficulty');
+  });
+
+  it('ignores a level that is not a level', () => {
+    writeGlobal({ difficulty: 'expert' });
+    expect(loadConfig(repo).config.difficulty).toBe('auto');
+  });
+
+  it('ignores a runway that could never be reached', () => {
+    writeGlobal({ level_up_after: 0, level_up_accuracy: 1.4 });
+    const { config } = loadConfig(repo);
+    expect(config.level_up_after).toBe(100);
+    expect(config.level_up_accuracy).toBe(0.7);
+  });
+
+  it('takes a shortened runway as written', () => {
+    writeGlobal({ level_up_after: 40, level_up_accuracy: 0.8 });
+    const { config } = loadConfig(repo);
+    expect(config.level_up_after).toBe(40);
+    expect(config.level_up_accuracy).toBe(0.8);
+  });
+});

@@ -30,6 +30,18 @@ eklavya_repo_config() {
   return 1
 }
 
+# The git root, as the MCP server resolves it: `project_levels.repo` is keyed on
+# `git rev-parse --show-toplevel`, which reports the real path, and the server
+# realpaths its own answer for the same reason (see findRepoConfig). Outside a
+# repository this fails and callers fall back to the shared '*' bucket.
+eklavya_repo_root() {
+  _dir=${1:-$PWD}
+  command -v git >/dev/null 2>&1 || return 1
+  _root=$(cd "$_dir" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) || return 1
+  [ -n "$_root" ] || return 1
+  printf '%s' "$_root"
+}
+
 # eklavya_config KEY DEFAULT [CWD] — repo config wins over global (PRD §11).
 eklavya_config() {
   _key=$1

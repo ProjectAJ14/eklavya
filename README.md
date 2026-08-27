@@ -82,6 +82,34 @@ The rules file is generated from `skills/tutor/SKILL.md`, so the two editors can
 
 Tier 1 asks what a thing is. Tier 5 asks what breaks it in production. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
 
+### Every project starts easy
+
+The first questions on a codebase are the ones you can actually answer while watching an agent work — what a thing is, what the machine does with it. That is not a warm-up: a question you have no way of answering is the fastest route to turning the plugin off, and the first fortnight is where that decision gets made.
+
+So difficulty is also a **band**, held per project and earned:
+
+| Level | Tiers | Asks for |
+|---|---|---|
+| `easy` (where every project starts) | 1–2 | what a thing is; what the machine does with it |
+| `medium` | 2–4 | why this choice here, and what breaks it |
+| `hard` | 3–5 | judgement, failure modes, when the architecture is wrong |
+
+A band moves up when you have **100 passing answers** in that project, at **70% accuracy or better**, spread across at least fifteen distinct concepts — endurance alone is not readiness, and one concept re-asked forty ways is not either. Declining a question costs nothing: it counts on neither side of the accuracy. Nothing ever demotes you.
+
+It is per project because "how hard should this be" is a question about a codebase, not about you. The same developer is a different learner on their fourth Node service and their first Rust one — so a new repo starts at `easy` even if three others are on `hard`. `/eklavya:level` shows where you are and how far into the band; `difficulty` pins it if you would rather skip the runway.
+
+### Every question says what asked it
+
+A question arrives with a line under it naming the dials behind it:
+
+```
+Why is httpOnly set on the refresh cookie here but not on the access token?
+
+concept · easy · tier 2
+```
+
+Focus, level and tier, plus `· gated` in enforced mode. Without it, a `concept`-focus question reads as vague and an `easy` one reads as shallow — the settings are only doing their job if you can see them working. `quiet` turns it off.
+
 ### Questions are multiple choice
 
 You are in the middle of something. A blank prompt asking you to explain a mechanism gets skipped — not because you didn't know, but because typing a paragraph costs more than the question is worth right then, and the skip records as if you had no idea.
@@ -123,9 +151,9 @@ eklavya config set cadence end   # the old behaviour: nothing until the task fin
 eklavya config set min_minutes_between_checkpoints 10   # or just space them out
 ```
 
-## Modes, focus and cadence
+## Modes, focus, cadence and difficulty
 
-Eklavya has **three independent dials**. `mode` is how hard it pushes; `focus` is what it teaches; `cadence` is when it asks. They combine freely — `enforced` + `learn` is an intern who must pass a gate on a topic they chose.
+Eklavya has **four independent dials**. `mode` is how hard it pushes; `focus` is what it teaches; `cadence` is when it asks; `difficulty` is how hard the questions may get. They combine freely — `enforced` + `learn` is an intern who must pass a gate on a topic they chose.
 
 | `mode` | For | Behaviour |
 |---|---|---|
@@ -144,15 +172,22 @@ Eklavya has **three independent dials**. `mode` is how hard it pushes; `focus` i
 | `interleaved` (default) | one question mid-task, as each concept is logged; the end-of-task quiz sweeps up the remainder | learning while the agent works |
 | `end` | nothing until the task is finished | deep focus, pairing, demos |
 
+| `difficulty` | Band | Good for |
+|---|---|---|
+| `auto` (default) | earned per project: `easy`, then `medium`, then `hard` | everyone |
+| `easy` \| `medium` \| `hard` | pinned there; nothing promotes | an onboarding repo held gentle, or a senior skipping the runway |
+
 ```bash
 eklavya config set mode enforced          # globally
 eklavya config set mode enforced --repo   # this project only
 eklavya config set focus project     # ask about this codebase instead
 eklavya config set focus learn --topic caching
 eklavya config set cadence end            # stop interrupting mid-task
+eklavya config set difficulty hard        # skip the runway
+eklavya config set difficulty easy --repo # keep an onboarding repo gentle for everyone
 ```
 
-Or `/eklavya:mode` to see both and change either.
+Or `/eklavya:mode` to see all four and change any of them, and `/eklavya:level` for the difficulty band on its own.
 
 Repo settings beat global ones, which is how a team lead pins enforced mode on one codebase without touching anyone's machine-wide setup. That also means a repo setting `focus` overrides each contributor's personal choice there, including a `learn` topic they set for themselves — so the session banner names any setting the repo is overriding rather than letting it change silently.
 
@@ -163,8 +198,9 @@ Repo settings beat global ones, which is how a team lead pins enforced mode on o
 | Command | Does |
 |---|---|
 | `/eklavya:quiz [topic]` | quiz now — on this session's work, or a named topic |
-| `/eklavya:mode [value]` | show or change the mode, focus and cadence dials |
+| `/eklavya:mode [value]` | show or change the mode, focus, cadence and difficulty dials |
 | `/eklavya:learn <topic>` | a structured lesson, prerequisite-ordered, calibrated to what you know |
+| `/eklavya:level [value]` | this project's difficulty band, the runway into it, or pin one |
 | `/eklavya:progress` | the mastery map: domains, what's due, where you're weakest |
 | `/eklavya:gate` | commit-gate status |
 | `/eklavya:setup` | first run |
@@ -178,6 +214,9 @@ Repo settings beat global ones, which is how a team lead pins enforced mode on o
   "mode": "ambient",
   "focus": "concept",
   "cadence": "interleaved",
+  "difficulty": "auto",
+  "level_up_after": 100,
+  "level_up_accuracy": 0.7,
   "pass_threshold": 0.7,
   "max_questions_per_task": 4,
   "min_minutes_between_quizzes": 20,
@@ -188,6 +227,8 @@ Repo settings beat global ones, which is how a team lead pins enforced mode on o
   "quiet": false
 }
 ```
+
+`difficulty` is `auto` unless you pin it; `level_up_after` and `level_up_accuracy` are what a band costs. Shorten the runway if 100 answers is too long a first act — the distinct-concept floor scales with it, so a short runway stays reachable.
 
 `max_questions_per_task` is a **session budget**, not a batch size: mid-task checkpoints and the end-of-task sweep draw from the same allowance, so turning on `interleaved` moves questions earlier without adding any. `min_minutes_between_checkpoints` is the floor between mid-task questions — it exists so that logging eight concepts in one call cannot become eight questions in a row.
 
@@ -209,7 +250,7 @@ Interleaved cadence (above) is the built-in version: questions land mid-task, in
 
 ## Manual test scripts
 
-Automated coverage is `cd mcp && npm test` (215 tests). These are the by-hand checks behind each phase's acceptance demo.
+Automated coverage is `cd mcp && npm test` (344 tests). These are the by-hand checks behind each phase's acceptance demo.
 
 <details>
 <summary><b>Phase 0 — scaffold</b></summary>

@@ -94,7 +94,10 @@ Then call `get_session_quiz_plan`. It returns the concepts worth asking about *a
 | `last_grade` | How the last attempt went. |
 | `framing` | What this focus requires of the question. Authoritative — see *Focus*. |
 | `format_to_use` | How to put it. Always `mcq` today — four options via `AskUserQuestion`, never a blank prompt. |
+| `ask_footer` | The line naming the settings that asked. Print it under the stem; never record it. |
 | `bridge_context` | `learn` focus: the session's work touched this topic concept, and here is the code. |
+
+The plan also carries `level`, `level_framing` and `level_progress` for the whole quiz. See *Level* below — `level_framing` is authoritative in the same way `framing` is.
 
 If `questions_needed` is 0, say nothing and move on. `reason: "cooldown"` means they were quizzed recently; `reason: "already_covered"` means every candidate was already asked about in this session; `reason: "mode_off"` means Eklavya is dormant.
 
@@ -134,7 +137,7 @@ The `known` list in the profile is the other half: **never ask about a slug in `
 
 **…unless the focus says otherwise.** See *Focus* below. The rule above is `project` focus, which is the default and most of the time. `concept` focus changes what "grounded" means, and getting that wrong in either direction is the most likely way to ask a bad question.
 
-**Match the tier.** This is the difference between a quiz that teaches and one that annoys:
+**Match the tier.** `tier_to_ask` is already clamped to the project's level, so it is not a suggestion — asking above it is asking a question the learner has not reached. This is the difference between a quiz that teaches and one that annoys:
 
 | Tier | Asks for | Shape |
 |---|---|---|
@@ -246,9 +249,47 @@ Six to ten sentences. The four-sentence cap above is for near-misses, where you 
 
 This is not tidiness. `prereqs_unmet` is computed from those edges, so a concept with none can never be reported as unfair to ask about, however far out of its depth the learner is. Skip this step and every concept in a new domain arrives as a bare tier-2 node, the fairness check silently passes, and the developer gets mechanism questions about code they have never read. An isolated node teaches nothing about what to learn next, and worse, it tells the planner nothing about what not to ask yet.
 
+## Level
+
+Every project sits on one of three bands, and the plan tells you which: **easy** (tiers 1–2), **medium** (2–4), **hard** (3–5). It is earned, not chosen — everyone starts at `easy` on a codebase, and the band moves up after enough passing answers there.
+
+`level_framing` says what the band permits, and it outranks your instinct about how hard a question ought to be:
+
+| Level | Ask for | Never |
+|---|---|---|
+| `easy` | what a thing is; what the machine does with it | judgement, failure modes, design |
+| `medium` | mechanism, then why this rather than the alternative, then what breaks it | definitions |
+| `hard` | judgement, failure modes, when this is the wrong approach entirely | definitions, and anything answerable by reading one line |
+
+**`easy` is not a warm-up to hurry through.** It is the reason the developer is still here in week ten. They have been *watching* you work, not writing the code — so a tier-1 or tier-2 question is the only kind they can answer honestly, and an honest answer is what the whole record is built on. Do not apologise for an easy question, do not stack two of them to make one hard one, and do not sneak a "why" clause onto the end of a "what" question.
+
+**`level_progress`** is the runway: `passed` of `needed`, plus the accuracy and the spread of concepts still required. Mention it only if they ask, or when it changes.
+
+**When `record_attempt` returns `level_up`**, they have just cleared a band on this project. Say it in **one line** — what they cleared, and what changes about the questions — then go straight back to the task. No congratulations paragraph, no summary of their journey.
+
+> That's `easy` cleared on this repo — 100 answers, 78% right. Questions get harder from here: why-this-choice and what-breaks-it, not what-is-it.
+
+A pinned level (`pinned: true`) means someone set the band deliberately — an onboarding repo held at `easy`, or a senior who skipped the runway. Nothing will ever promote, so never imply progress toward a next level.
+
+## The footer
+
+Every plan item carries `ask_footer`: one line naming the settings that asked the question.
+
+```
+Why is httpOnly set on the refresh cookie here but not on the access token?
+
+concept · easy · tier 2
+```
+
+**Print it as the last line of the `question` you pass to `AskUserQuestion`**, after a blank line, exactly as given. It is the only thing on screen that explains why a question is pitched where it is — without it, a `concept`-focus question reads as vague and an `easy` question reads as shallow.
+
+**Never pass it back in `record_attempt`.** `question` is the stem alone. The stem is what gets fingerprinted, so a footer inside it would make one question look like a new one every time the level or the focus changed, and *never the same question twice* would quietly stop being true. The server strips a trailing footer if you forget, and that is a backstop, not a licence.
+
+If `ask_footer` is absent, the developer has set `quiet` — say nothing extra.
+
 ## Focus
 
-Eklavya has three dials and they are not the same thing. **Mode** is how hard to push, **focus** is what to teach, **cadence** is when to ask. They are independent; every combination is coherent. Every plan returns `focus` and a `framing` line; the framing is authoritative — follow it over your instincts, and over the grounding rule above where they differ.
+Eklavya has four dials and they are not the same thing. **Mode** is how hard to push, **focus** is what to teach, **cadence** is when to ask, **difficulty** is how hard the questions may get. They are independent; every combination is coherent. Every plan returns `focus` and a `framing` line; the framing is authoritative — follow it over your instincts, and over the grounding rule above where they differ.
 
 ### project (the default)
 

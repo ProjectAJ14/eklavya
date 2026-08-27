@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { loadConfig, type Focus } from '../config.js';
-import { decayedScore, isDue, isKnown, nextTierToAsk } from '../srs.js';
+import { clampToLevel, decayedScore, isDue, isKnown, nextTierToAsk, type Level } from '../srs.js';
 import { answerPosition } from '../mcq.js';
+import { askFooter } from '../ask.js';
 import { resolveSessionId } from '../session.js';
 import {
   attemptedConceptIds,
@@ -12,6 +13,7 @@ import {
   resolveTopic,
   lastAttempt,
   lastAttemptAt,
+  levelStanding,
   masteryFor,
   recentQuestions,
   sessionConcepts,
@@ -65,6 +67,12 @@ interface PlanItem {
    */
   answer_position: number;
   /**
+   * The line to print under the stem, naming the settings that asked: the focus,
+   * the project's level and this question's tier. Absent when `quiet` is set.
+   * Display it, never record it -- see `record_attempt`.
+   */
+  ask_footer?: string;
+  /**
    * `learn` focus only: this topic concept also turned up in the session's work,
    * and this is the code where. The topic is still the subject -- the diff is
    * the example that makes it concrete.
@@ -93,6 +101,20 @@ const FRAMING: Record<Focus, string> = {
     'Teach the declared topic, in prerequisite order. Where an item carries bridge_context, the session touched that concept: use that real code as the worked example instead of a hypothetical. Where it does not, teach it on its own terms -- do not force a link to unrelated work.',
 };
 
+/**
+ * What the project's level permits, stated per level for the same reason
+ * `FRAMING` is stated per focus: the tier number alone does not stop a tutor
+ * writing a judgement question and labelling it tier 2.
+ */
+const LEVEL_FRAMING: Record<Level, string> = {
+  easy:
+    'Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.',
+  medium:
+    'Level medium (tiers 2-4). Mechanism, then why this choice rather than the obvious alternative, then what breaks it. Definitions are spent at this level.',
+  hard:
+    'Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.',
+};
+
 const ASKED_HISTORY = 3;
 
 function minutesSince(iso: string | null, now: Date): number {
@@ -107,7 +129,7 @@ export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
   description:
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Each item carries format_to_use, currently always "mcq": ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Each item carries format_to_use, currently always "mcq": ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Each item carries ask_footer, the line naming the settings that asked; print it under the stem, and never pass it back in record_attempt. Returns questions_needed: 0 when there is nothing worth asking.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -142,10 +164,14 @@ export const getSessionQuizPlan: ToolDef = {
     { db },
   ) => {
     const now = new Date();
-    const { config } = loadConfig(args.cwd);
+    const { config, repoRoot } = loadConfig(args.cwd);
     const sessionId = resolveSessionId(db, args.session_id);
     const max = args.max ?? config.max_questions_per_task;
     const focus: Focus = args.focus ?? config.focus;
+    // The band this project is on. Every tier below is clamped into it, so a
+    // learner three sessions in cannot be handed a tier-4 question by an
+    // escalation rule that only knows about one concept at a time.
+    const standing = levelStanding(db, config, repoRoot);
 
     // `learn` focus turns the configured topic into the same domain/slug
     // selection an explicit topic quiz uses, so it goes through one engine with
@@ -244,11 +270,23 @@ export const getSessionQuizPlan: ToolDef = {
       const last = lastAttempt(db, concept.id);
       const asked = recentQuestions(db, concept.id, ASKED_HISTORY);
 
-      const tier = nextTierToAsk({
-        conceptTier: concept.tier,
-        lastDifficulty: last?.difficulty ?? null,
-        lastGrade: last?.grade ?? null,
-        score,
+      const tier = clampToLevel(
+        nextTierToAsk({
+          conceptTier: concept.tier,
+          lastDifficulty: last?.difficulty ?? null,
+          lastGrade: last?.grade ?? null,
+          score,
+        }),
+        standing.level,
+      );
+      // A retry drops a tier because the concept has just been taught rather than
+      // tested -- but never below the band, or `easy` would ask tier 0.
+      const tierToAsk = opts.retry ? clampToLevel(tier - 1, standing.level) : tier;
+      const footer = askFooter({
+        config,
+        level: standing.level,
+        pinned: standing.pinned,
+        tier: tierToAsk,
       });
 
       seen.add(concept.slug);
@@ -257,8 +295,9 @@ export const getSessionQuizPlan: ToolDef = {
         name: concept.name,
         domain: concept.domain,
         description: concept.description,
-        tier_to_ask: opts.retry ? Math.max(1, tier - 1) : tier,
+        tier_to_ask: tierToAsk,
         context,
+        ...(footer ? { ask_footer: footer } : {}),
         // Only in `learn` focus, and only when the topic concept really did turn
         // up in this session's work. Absent means "teach it on its own terms",
         // which is different from "no context available".
@@ -445,6 +484,18 @@ export const getSessionQuizPlan: ToolDef = {
       // the tutor should not have to remember what `concept` implies.
       framing: FRAMING[focus],
       ...(focus === 'learn' && config.focus_topic ? { topic: config.focus_topic } : {}),
+      level: standing.level,
+      level_framing: LEVEL_FRAMING[standing.level],
+      level_progress: {
+        passed: standing.counts.passed,
+        needed: standing.needed.answers,
+        concepts: standing.counts.concepts,
+        needed_concepts: standing.needed.concepts,
+        accuracy: standing.accuracy,
+        min_accuracy: standing.needed.accuracy,
+        next: standing.next,
+        ...(standing.pinned ? { pinned: true } : {}),
+      },
       concepts: picked,
     };
   },

@@ -1,13 +1,21 @@
 import type { DB } from './db.js';
 import {
   applyGrade,
+  checkPromotion,
   decayedScore,
   initialMastery,
   isKnown,
+  type Level,
+  type LevelCounts,
   type MasteryState,
+  type PromotionBlocker,
+  nextLevel,
+  requiredConcepts,
   SCORE_WINDOW,
+  START_LEVEL,
 } from './srs.js';
 import type { EklavyaConfig } from './config.js';
+import { stripAskFooter } from './ask.js';
 
 export interface ConceptRow {
   id: number;
@@ -102,12 +110,15 @@ export function recordAttemptRow(
     outcome: AttemptOutcome | null;
     format: QuestionFormat | null;
     options: string[] | null;
+    repo: string | null;
+    level: Level | null;
   },
 ): void {
   db.prepare(
     `INSERT INTO attempts
-       (concept_id, session_id, question, answer, grade, difficulty, feedback, outcome, format, options)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (concept_id, session_id, question, answer, grade, difficulty, feedback, outcome, format,
+        options, repo, level)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     a.conceptId,
     a.sessionId,
@@ -121,6 +132,10 @@ export function recordAttemptRow(
     // Stored beside the stem, never inside it: `question` is what gets
     // fingerprinted, and options that move would defeat the repeat check.
     a.options ? JSON.stringify(a.options) : null,
+    // The project this was earned in, and the band it was asked at. Progress
+    // toward the next level is counted from these two (migration 008).
+    a.repo,
+    a.level,
   );
 }
 
@@ -138,6 +153,8 @@ export function gradeConcept(
     outcome: AttemptOutcome | null;
     format: QuestionFormat | null;
     options: string[] | null;
+    repo: string | null;
+    level: Level | null;
     now: Date;
   },
 ): MasteryState {
@@ -369,9 +386,16 @@ export function recentQuestions(db: DB, conceptId: number, limit = 3): AskedQues
   return rows.map((r) => ({ ...r, taught: r.outcome === 'dont_know' }));
 }
 
-/** Loose match: whitespace and punctuation differences are still the same question. */
+/**
+ * Loose match: whitespace and punctuation differences are still the same question.
+ *
+ * The ask footer is stripped before hashing. It is presentation -- the dials that
+ * asked -- and it changes when the level or the focus changes, so leaving it in
+ * would make one question fingerprint as several and quietly undo "never the same
+ * question twice".
+ */
 export function questionFingerprint(question: string): string {
-  return question.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return stripAskFooter(question).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 export function hasAskedQuestion(db: DB, conceptId: number, question: string): boolean {
@@ -552,4 +576,160 @@ export function unmetPrereqs(db: DB, conceptId: number, now: Date): string[] {
   return rows
     .filter((r) => !isKnown({ score: decayedScore(r.score ?? 0, r.next_review, now), reps: r.reps ?? 0 }))
     .map((r) => r.slug);
+}
+
+// ---------------------------------------------------------------------------
+// Difficulty levels (phase-9)
+//
+// The level is per project and earned. `srs.ts` holds the rules; this holds the
+// two facts they are computed from -- which band the project is on, and what has
+// been answered since it got there.
+// ---------------------------------------------------------------------------
+
+/**
+ * The bucket for work outside any git repository.
+ *
+ * A scratch directory still deserves a level, but keying on `cwd` would mint a
+ * row per temp folder and mean nobody ever accumulates a hundred answers
+ * anywhere.
+ */
+export const GLOBAL_PROJECT = '*';
+
+export function projectKey(repoRoot: string | null | undefined): string {
+  return repoRoot && repoRoot.trim() ? repoRoot : GLOBAL_PROJECT;
+}
+
+export interface ProjectLevelRow {
+  repo: string;
+  level: Level;
+  promoted_at: string | null;
+  updated_at: string;
+}
+
+export function projectLevelRow(db: DB, repo: string): ProjectLevelRow | undefined {
+  return db.prepare('SELECT * FROM project_levels WHERE repo = ?').get(repo) as
+    | ProjectLevelRow
+    | undefined;
+}
+
+/**
+ * Counts the evidence at one level in one project.
+ *
+ * Derived, never stored. A counter column would drift from the attempt rows that
+ * justify it, and it would freeze `level_up_after` at whatever it was when each
+ * attempt landed -- so lowering the threshold would not release the learners
+ * already past it, which is the one change most likely to be made after watching
+ * a real learner.
+ *
+ * `since` is the level's `promoted_at`: answers from the previous band are spent.
+ * Declines are excluded from both halves of the accuracy fraction -- skipping a
+ * question honestly must never cost a level, or the level becomes a reason to
+ * guess.
+ */
+export function levelCounts(db: DB, repo: string, level: Level, since: string | null): LevelCounts {
+  const row = db
+    .prepare(
+      `SELECT
+         COALESCE(sum(CASE WHEN grade >= ? THEN 1 ELSE 0 END), 0) AS passed,
+         count(*) AS answered,
+         count(DISTINCT CASE WHEN grade >= ? THEN concept_id END) AS concepts
+       FROM attempts
+       WHERE repo = ? AND level = ?
+         AND COALESCE(outcome, 'answered') <> 'declined'
+         AND (? IS NULL OR ts >= ?)`,
+    )
+    .get(PASSING_GRADE, PASSING_GRADE, repo, level, since, since) as LevelCounts;
+  return { passed: row.passed, answered: row.answered, concepts: row.concepts };
+}
+
+export interface LevelStanding {
+  repo: string;
+  level: Level;
+  /** Pinned by config, so no promotion will ever fire. */
+  pinned: boolean;
+  /** When this level was entered; null for a project still on the starting band. */
+  entered_at: string | null;
+  next: Level | null;
+  counts: LevelCounts;
+  accuracy: number;
+  needed: { answers: number; accuracy: number; concepts: number };
+  /** Which conditions are not met yet — say the bar out loud rather than hint at it. */
+  unmet: PromotionBlocker[];
+}
+
+/** Everything a caller needs to ask at the right band and report the runway. */
+export function levelStanding(
+  db: DB,
+  config: EklavyaConfig,
+  repoRoot: string | null | undefined,
+): LevelStanding {
+  const repo = projectKey(repoRoot);
+  const pinned = config.difficulty !== 'auto';
+  const row = projectLevelRow(db, repo);
+  // A pin wins outright, and does not disturb the earned row underneath it: drop
+  // the pin later and the project is back where its evidence left it.
+  const level: Level = pinned ? (config.difficulty as Level) : (row?.level ?? START_LEVEL);
+  const entered_at = pinned ? null : (row?.promoted_at ?? null);
+
+  const counts = levelCounts(db, repo, level, entered_at);
+  const verdict = checkPromotion({
+    level,
+    counts,
+    after: config.level_up_after,
+    minAccuracy: config.level_up_accuracy,
+  });
+
+  return {
+    repo,
+    level,
+    pinned,
+    entered_at,
+    next: nextLevel(level),
+    counts,
+    accuracy: verdict.accuracy,
+    needed: {
+      answers: config.level_up_after,
+      accuracy: config.level_up_accuracy,
+      concepts: requiredConcepts(config.level_up_after),
+    },
+    unmet: verdict.unmet,
+  };
+}
+
+/**
+ * Promotes the project if this attempt has just earned it. Call inside the same
+ * transaction as the grade, or a crash between the two loses the evidence.
+ *
+ * `datetime('now')` rather than a JS timestamp, deliberately: `attempts.ts`
+ * defaults to SQLite's own format, and `promoted_at` is compared against it as a
+ * string. An ISO timestamp with a `T` in it would sort wrong against
+ * `2026-08-27 09:31:00` and silently count the previous band's answers.
+ */
+export function promoteIfEarned(
+  db: DB,
+  config: EklavyaConfig,
+  repoRoot: string | null | undefined,
+): { from: Level; to: Level; counts: LevelCounts } | null {
+  // A pinned level is a decision, not a stage: no progression, and no row written.
+  if (config.difficulty !== 'auto') return null;
+
+  const standing = levelStanding(db, config, repoRoot);
+  const verdict = checkPromotion({
+    level: standing.level,
+    counts: standing.counts,
+    after: config.level_up_after,
+    minAccuracy: config.level_up_accuracy,
+  });
+  if (!verdict.promote || !verdict.to) return null;
+
+  db.prepare(
+    `INSERT INTO project_levels (repo, level, promoted_at, updated_at)
+     VALUES (?, ?, datetime('now'), datetime('now'))
+     ON CONFLICT(repo) DO UPDATE SET
+       level = excluded.level,
+       promoted_at = excluded.promoted_at,
+       updated_at = excluded.updated_at`,
+  ).run(standing.repo, verdict.to);
+
+  return { from: standing.level, to: verdict.to, counts: standing.counts };
 }

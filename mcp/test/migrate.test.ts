@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 7;
+const LATEST_SCHEMA_VERSION = 8;
 
 const EXPECTED_TABLES = [
   'attempts',
@@ -19,6 +19,7 @@ const EXPECTED_TABLES = [
   'gates',
   'mastery',
   'meta',
+  'project_levels',
   'session_concepts',
   'stop_markers',
 ];
@@ -78,6 +79,7 @@ describe('migrations', () => {
         '005_session_concept_origin.sql',
         '006_attempt_format.sql',
         '007_checkpoints.sql',
+        '008_difficulty_levels.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
