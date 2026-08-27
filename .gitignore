@@ -17,3 +17,6 @@ coverage/
 
 # local Claude Code permissions, per-machine
 .claude/settings.local.json
+
+# firebase deploy cache
+.firebase/
