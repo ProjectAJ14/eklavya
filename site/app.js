@@ -59,7 +59,18 @@
     el.classList.add('is-visible');
   }
   function grow(el) { el.style.width = el.dataset.w; }
-  function fire(el) { el.classList.add('is-firing'); }
+  /* Restart the whole group from frame zero. A CSS animation only replays when
+     its animation-name changes, so drop it inline, force a reflow, then hand it
+     back to the stylesheet. Descendants carry their own animations, hence the
+     `*` — same set the paused rule in styles.css covers. */
+  function fire(el) {
+    var parts = [].slice.call(el.querySelectorAll('[data-anim], [data-anim] *'));
+    el.classList.remove('is-firing');
+    parts.forEach(function (p) { p.style.animation = 'none'; });
+    void el.offsetWidth;
+    parts.forEach(function (p) { p.style.animation = ''; });
+    el.classList.add('is-firing');
+  }
 
   if (reduced || !('IntersectionObserver' in window)) {
     reveals.forEach(show);
@@ -70,10 +81,16 @@
 
   var io = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
-      if (!entry.isIntersecting) return;
       var el = entry.target;
+      // [data-shoot] keeps its observer: the loop pauses when the section
+      // leaves and replays from the beginning the next time it is on screen.
+      if (el.hasAttribute('data-shoot')) {
+        if (entry.isIntersecting) fire(el);
+        else el.classList.remove('is-firing');
+        return;
+      }
+      if (!entry.isIntersecting) return;
       if (el.hasAttribute('data-grow')) grow(el);
-      else if (el.hasAttribute('data-shoot')) fire(el);
       else show(el);
       io.unobserve(el);
     });

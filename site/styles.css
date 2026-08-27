@@ -112,8 +112,10 @@ a:hover { color: var(--green-800); }
   background: radial-gradient(circle, rgba(4,157,102,.10) 0%, rgba(4,157,102,0) 65%);
 }
 .hero__arrows {
-  position: absolute; top: 34px; left: 0; width: 100%;
-  opacity: .18; filter: blur(.5px); pointer-events: none; overflow: visible;
+  /* pulled above the headline so the flight line runs behind the badge and the
+     target clears the terminal's top edge instead of hiding behind it */
+  position: absolute; top: -20px; left: 0; width: 100%;
+  opacity: .22; filter: blur(.5px); pointer-events: none; overflow: visible;
 }
 .hero__grid {
   position: relative;
@@ -384,50 +386,62 @@ a:hover { color: var(--green-800); }
 /* ============================================================
    DIALS
    ============================================================ */
-.modes { background: var(--neutral-0); }
+.modes { position: relative; overflow: hidden; background: var(--neutral-900); }
+.modes__dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+}
+.modes .section { position: relative; }
+.modes .h2 { color: #fff; }
 /* #modes was the section's original id and may already be in a shared link */
 .anchor-alias { display: block; position: relative; top: -80px; visibility: hidden; }
 .dials__sub {
   margin: 18px 0 0; font-size: 17px; line-height: 1.6;
-  color: var(--neutral-600); max-width: 720px;
+  color: var(--on-dark-muted); max-width: 720px;
 }
 .dials { margin-top: 48px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
 .dial {
-  border: 1px solid var(--neutral-200); border-radius: var(--radius-lg);
+  background: var(--neutral-800);
+  border: 1px solid var(--neutral-700); border-radius: var(--radius-lg);
   padding: 24px; display: flex; flex-direction: column; gap: 16px;
 }
 .dial__head { display: flex; flex-direction: column; gap: 4px; padding-bottom: 4px; }
 .dial__key {
-  font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--green-700);
+  font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--green-300);
 }
-.dial__q { font-size: 14px; font-weight: 700; color: var(--neutral-800); }
-.dial__sep { color: var(--neutral-300); font-size: 13px; }
+.dial__q { font-size: 14px; font-weight: 700; color: #fff; }
+.dial__sep { color: var(--neutral-600); font-size: 13px; }
 .dial__opt {
-  position: relative; border-top: 1px solid var(--neutral-100); padding-top: 14px;
+  position: relative; border-top: 1px solid var(--neutral-700); padding-top: 14px;
 }
 .dial__opt--default {
-  border-top: 0; background: var(--green-50); border: 1px solid var(--green-300);
+  border-top: 0; background: rgba(4,157,102,.12); border: 1px solid rgba(4,157,102,.45);
   border-radius: var(--radius-md); padding: 14px 16px;
 }
 .dial__pill {
   position: absolute; top: 12px; right: 12px;
   font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--green-700); background: #fff; border: 1px solid var(--green-200);
+  color: var(--green-300); background: rgba(4,157,102,.18);
+  border: 1px solid rgba(4,157,102,.35);
   padding: 2px 8px; border-radius: var(--radius-pill);
 }
 .dial__val {
-  font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--neutral-800);
+  font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: #E8EDEF;
 }
-.dial__opt--default .dial__val { color: var(--green-800); }
-.dial__opt p { margin: 6px 0 0; font-size: 14px; line-height: 1.6; color: var(--neutral-600); }
-.dial__opt--note p { font-size: 13.5px; color: var(--neutral-500); }
+.dial__opt--default .dial__val { color: var(--green-300); }
+.dial__opt p { margin: 6px 0 0; font-size: 14px; line-height: 1.6; color: var(--on-dark-muted); }
+.dial__opt--note p { font-size: 13.5px; color: var(--neutral-400); }
 .code-inline {
   font-family: var(--font-mono); font-size: 13px;
   background: var(--neutral-100); padding: 1px 5px; border-radius: var(--radius-xs);
 }
-.dial__opt--default .code-inline { background: #fff; }
-.modes__foot { margin: 28px 0 0; font-size: 14px; line-height: 1.6; color: var(--neutral-500); max-width: 860px; }
-.modes__foot .code-inline { color: var(--green-700); padding: 2px 8px; }
+.modes .code-inline { background: var(--neutral-900); color: var(--green-300); }
+.modes .dial__opt--default .code-inline { background: rgba(0,0,0,.28); }
+.modes__foot { margin: 28px 0 0; font-size: 14px; line-height: 1.6; color: var(--neutral-400); max-width: 860px; }
+.modes__foot .code-inline { color: var(--green-300); padding: 2px 8px; }
 
 /* ============================================================
    COMMANDS + DATA
@@ -605,7 +619,7 @@ a:hover { color: var(--green-800); }
 /* the brand glow drifts between the stations the story is told at */
 .story__glow {
   position: absolute; top: 50%; left: 50%;
-  width: 1040px; height: 840px; margin: -420px 0 0 -520px;
+  width: 1040px; height: 672px; margin: -336px 0 0 -520px;
   background: radial-gradient(ellipse at center, rgba(4,157,102,.11), rgba(4,157,102,0) 65%);
   animation: storyGlow 17.5s ease-in-out infinite;
 }
@@ -734,30 +748,30 @@ a:hover { color: var(--green-800); }
   100% { opacity: 0; transform: scale(1); }
 }
 @keyframes storyGlow {
-  0%    { transform: translate(-30vw, 12px); }
-  17.1% { transform: translate(0, 180px); }
-  34.3% { transform: translate(24vw, -110px); }
-  48.6% { transform: translate(29vw, 12px); }
-  77%   { transform: translate(28vw, 34px); }
-  100%  { transform: translate(-30vw, 12px); }
+  0%    { transform: translate(-30vw, 10px); }
+  17.1% { transform: translate(0, 144px); }
+  34.3% { transform: translate(24vw, -88px); }
+  48.6% { transform: translate(29vw, 10px); }
+  77%   { transform: translate(28vw, 27px); }
+  100%  { transform: translate(-30vw, 10px); }
 }
 @keyframes storyType { 0% { width: 0; } 6.9%, 100% { width: var(--w); } }
 @keyframes storyCur { 0% { opacity: 1; } 6.9%, 100% { opacity: 0; } }
 @keyframes storyCode {
   0%, 18.3% { opacity: .5; transform: translateY(0); }
-  27.4% { opacity: .2; transform: translateY(-40px); }
+  27.4% { opacity: .2; transform: translateY(-32px); }
   34.3% { opacity: .2; }
-  40%, 100% { opacity: .13; transform: translateY(-40px); }
+  40%, 100% { opacity: .13; transform: translateY(-32px); }
 }
 @keyframes storyPr {
-  0%, 18% { opacity: 0; transform: translateY(26px); }
+  0%, 18% { opacity: 0; transform: translateY(21px); }
   22%, 28% { opacity: 1; transform: translateY(0); }
-  32.6%, 100% { opacity: 0; transform: translateY(-90px); }
+  32.6%, 100% { opacity: 0; transform: translateY(-72px); }
 }
 @keyframes storyChip {
-  0%, 37.1% { opacity: 0; transform: translateY(26px); }
+  0%, 37.1% { opacity: 0; transform: translateY(21px); }
   41.1%, 50.9% { opacity: 1; transform: translateY(0); }
-  53.7%, 100% { opacity: 0; transform: translateY(-12px); }
+  53.7%, 100% { opacity: 0; transform: translateY(-10px); }
 }
 @keyframes storyAsk {
   0%, 51.4% { opacity: 0; transform: translateX(70px) rotate(2deg) scale(.9); }
@@ -829,6 +843,7 @@ a:hover { color: var(--green-800); }
 /* the dark bands breathe: dot grids drift a tile, glows wander */
 .hero__dots { animation: gridDrift26 30s linear infinite; }
 .legend__dots { animation: gridDrift26 34s linear infinite; }
+.modes__dots { animation: gridDrift26 38s linear infinite; }
 .hero__glow { animation: glow 7s ease-in-out infinite, glowDrift 21s ease-in-out infinite; }
 .hero__glow--low { animation: glowDrift 26s ease-in-out infinite reverse; }
 .legend__glow { animation: glowDrift 24s ease-in-out infinite; }
@@ -856,8 +871,8 @@ a:hover { color: var(--green-800); }
    ============================================================ */
 /* only where the cards fit: below this the section keeps its natural height */
 @media (min-width: 1241px) {
-  .story { min-height: 720px; display: grid; align-content: center; }
-  .story .why__inner { padding: 88px 32px; }
+  .story { min-height: 576px; display: grid; align-content: center; }
+  .story .why__inner { padding: 70px 32px; }
   /* a little narrower than the page default, so the props keep their gutters */
   .story .why__statement { max-width: 780px; margin-left: auto; margin-right: auto; }
 }
