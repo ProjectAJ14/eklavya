@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -51,24 +53,65 @@ describe('what ships to the plugin', () => {
   });
 
   it('.mcp.json launches through the wrapper, not a path that is gitignored', () => {
-    const command = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya.command;
-    expect(command).toMatch(/eklavya-mcp\.sh/);
-    expect(command).not.toMatch(/dist\/server\.js/);
+    const script = launchScript();
+    expect(script).toMatch(/eklavya-mcp\.sh/);
+    expect(script).not.toMatch(/dist\/server\.js/);
   });
 
-  it('.mcp.json does not quote the command — it is a path, not a shell string', () => {
-    // Quoting ${CLAUDE_PLUGIN_ROOT} is correct in hooks.json, whose commands run
-    // through a shell. An MCP `command` is spawned directly, so an embedded
-    // quote becomes part of the filename and the server silently never starts:
-    // the plugin loads, skills and agents register, and every tool is missing.
-    const command = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya.command;
-    expect(command).not.toMatch(/["']/);
+  it('.mcp.json does not depend on the host expanding a placeholder', () => {
+    // `${CLAUDE_PLUGIN_ROOT}` is defined when the plugin loader reads this file
+    // and undefined when the same file is read as project-level MCP config —
+    // which is how this repo, and any host without plugin support, runs it.
+    // An MCP `command` is spawned directly, with no shell, so an unexpanded
+    // placeholder becomes part of the filename and the server never starts.
+    // Resolution therefore belongs at runtime, in the shell we spawn.
+    const server = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya;
+    expect(server.command).toBe('sh');
+    expect(launchScript()).not.toMatch(/\$\{CLAUDE_PLUGIN_ROOT\}/);
   });
 
-  it('the command resolves to a real executable once the placeholder expands', () => {
-    const command = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya.command;
-    const resolved = command.replace('${CLAUDE_PLUGIN_ROOT}', repoRoot);
-    expect(fs.existsSync(resolved), `${resolved} does not exist`).toBe(true);
-    expect(fs.statSync(resolved).mode & 0o111).toBeGreaterThan(0);
+  it('starts the server whether or not the placeholder was expanded', () => {
+    // Plugin scope: the loader expanded the root and the cwd is the user's repo.
+    expect(probe(pluginRootFromLoader, os.tmpdir())).toMatch(/"serverInfo"/);
+    // Project scope: nothing expanded it, so the literal arrives in the env and
+    // the cwd is the only thing pointing at the launcher.
+    expect(probe(literalPlaceholder, repoRoot)).toMatch(/"serverInfo"/);
   });
 });
+
+const launchScript = (): string =>
+  readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya.args[1];
+
+const pluginRootFromLoader = repoRoot;
+const literalPlaceholder = '${CLAUDE_PLUGIN_ROOT}';
+
+/**
+ * Runs the launch script the way a client would and speaks one `initialize` to
+ * it. Closing stdin ends the server, so this returns its whole reply.
+ */
+function probe(pluginRoot: string, cwd: string): string {
+  const initialize = JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'packaging-test', version: '0' },
+    },
+  });
+
+  return execFileSync('sh', ['-c', launchScript()], {
+    cwd,
+    input: `${initialize}\n`,
+    encoding: 'utf8',
+    timeout: 60_000,
+    stdio: ['pipe', 'pipe', 'ignore'],
+    env: {
+      ...process.env,
+      EKLAVYA_PLUGIN_ROOT: pluginRoot,
+      // Never let a packaging test touch the real learner's database.
+      EKLAVYA_DB: path.join(os.tmpdir(), 'eklavya-packaging-probe.db'),
+    },
+  });
+}
