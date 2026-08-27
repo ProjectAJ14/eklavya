@@ -20,6 +20,25 @@ export type Mode = 'ambient' | 'enforced' | 'off';
  */
 export type Focus = 'project' | 'concept' | 'learn';
 
+/**
+ * The third dial: *when* the questions land.
+ *
+ * `mode` is how hard Eklavya pushes, `focus` is what it teaches, and this is
+ * when it asks. Kept separate for the same reason `focus` was: every
+ * combination is coherent. ambient+interleaved is the default experience --
+ * one question at the seam where a concept was logged, while the agent works --
+ * and enforced+end is a team lead who wants the gate but not the interruption.
+ *
+ * `interleaved` does not mean "more questions". `max_questions_per_task` becomes
+ * a session budget: questions answered mid-work are questions the Stop hook no
+ * longer asks. A session that answered its whole budget while the agent worked
+ * finishes in silence, which is the entire point -- the old behaviour spent that
+ * time at the end, when the developer wanted to be done.
+ *
+ * `end` is the pre-1.4 behaviour, unchanged: nothing until Stop.
+ */
+export type Cadence = 'interleaved' | 'end';
+
 export interface EklavyaConfig {
   mode: Mode;
   /**
@@ -31,9 +50,25 @@ export interface EklavyaConfig {
   focus: Focus;
   /** Required by `learn` focus; ignored by the others. */
   focus_topic: string | null;
+  /**
+   * When to ask. Defaults to `interleaved`: the promise is learning while your
+   * coding agent works, and a question that only ever arrives after the work is
+   * finished is not that.
+   */
+  cadence: Cadence;
   pass_threshold: number;
   max_questions_per_task: number;
   min_minutes_between_quizzes: number;
+  /**
+   * Floor on the gap between mid-work checkpoint questions, in minutes. Read by
+   * `checkpoint-quiz.sh`, not by the planner.
+   *
+   * Much shorter than `min_minutes_between_quizzes` on purpose: that one paces
+   * whole quizzes and exists so Eklavya does not nag, this one paces single
+   * questions and exists so a batch of eight logged concepts does not become
+   * eight questions back to back. Set it to 0 to ask at every seam.
+   */
+  min_minutes_between_checkpoints: number;
   domains_enabled: string[];
   quiet: boolean;
   /** Cap on LLM-minted concepts per session, against slug sprawl (PRD §15). */
@@ -46,9 +81,11 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   mode: 'ambient',
   focus: 'concept',
   focus_topic: null,
+  cadence: 'interleaved',
   pass_threshold: 0.7,
   max_questions_per_task: 4,
   min_minutes_between_quizzes: 20,
+  min_minutes_between_checkpoints: 4,
   domains_enabled: ['*'],
   quiet: false,
   max_new_concepts_per_session: 8,
@@ -134,6 +171,7 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
 
   if (raw.mode === 'ambient' || raw.mode === 'enforced' || raw.mode === 'off') out.mode = raw.mode;
   if (raw.focus === 'project' || raw.focus === 'concept' || raw.focus === 'learn') out.focus = raw.focus;
+  if (raw.cadence === 'interleaved' || raw.cadence === 'end') out.cadence = raw.cadence;
   if (typeof raw.focus_topic === 'string' && raw.focus_topic.trim()) {
     out.focus_topic = raw.focus_topic.trim();
   } else if (raw.focus_topic === null) {
@@ -147,6 +185,12 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
   }
   if (typeof raw.min_minutes_between_quizzes === 'number' && raw.min_minutes_between_quizzes >= 0) {
     out.min_minutes_between_quizzes = Math.floor(raw.min_minutes_between_quizzes);
+  }
+  if (
+    typeof raw.min_minutes_between_checkpoints === 'number' &&
+    raw.min_minutes_between_checkpoints >= 0
+  ) {
+    out.min_minutes_between_checkpoints = Math.floor(raw.min_minutes_between_checkpoints);
   }
   if (Array.isArray(raw.domains_enabled) && raw.domains_enabled.every((d) => typeof d === 'string')) {
     out.domains_enabled = raw.domains_enabled as string[];

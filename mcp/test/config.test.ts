@@ -66,6 +66,36 @@ describe('config precedence', () => {
   });
 });
 
+describe('cadence — the third dial', () => {
+  it('interleaves by default: the promise is learning while the agent works', () => {
+    expect(DEFAULT_CONFIG.cadence).toBe('interleaved');
+    expect(loadConfig(repo).config.cadence).toBe('interleaved');
+  });
+
+  it('can be turned off per repo without touching the other dials', () => {
+    writeGlobal({ mode: 'enforced', focus: 'learn', focus_topic: 'caching' });
+    writeRepo({ cadence: 'end' });
+
+    const resolved = loadConfig(repo);
+    expect(resolved.config.cadence).toBe('end');
+    expect(resolved.config.mode).toBe('enforced');
+    expect(resolved.config.focus).toBe('learn');
+  });
+
+  it('ignores a cadence it does not recognise rather than failing the session', () => {
+    writeGlobal({ cadence: 'whenever' });
+    expect(loadConfig(repo).config.cadence).toBe('interleaved');
+  });
+
+  it('reads the checkpoint gap, and refuses a negative one', () => {
+    expect(DEFAULT_CONFIG.min_minutes_between_checkpoints).toBe(4);
+    writeGlobal({ min_minutes_between_checkpoints: 0 });
+    expect(loadConfig(repo).config.min_minutes_between_checkpoints).toBe(0);
+    writeGlobal({ min_minutes_between_checkpoints: -5 });
+    expect(loadConfig(repo).config.min_minutes_between_checkpoints).toBe(4);
+  });
+});
+
 describe('focus — the second dial', () => {
   it('defaults to concept — understanding that outlives the current diff', () => {
     expect(DEFAULT_CONFIG.focus).toBe('concept');

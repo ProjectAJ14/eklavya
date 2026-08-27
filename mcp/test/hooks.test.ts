@@ -14,6 +14,7 @@ const hooksDir = path.join(
 );
 const SESSION_START = path.join(hooksDir, 'session-start.sh');
 const STOP_CHECK = path.join(hooksDir, 'stop-quiz-check.sh');
+const CHECKPOINT = path.join(hooksDir, 'checkpoint-quiz.sh');
 
 const SESSION = 'hook-session';
 
@@ -39,6 +40,29 @@ function runHook(script: string, input: Record<string, unknown>, env: Record<str
 
 const stop = (extra: Record<string, unknown> = {}) =>
   runHook(STOP_CHECK, { session_id: SESSION, cwd, hook_event_name: 'Stop', stop_reason: 'end_turn', ...extra });
+
+/**
+ * The mid-work checkpoint, as PostToolUse delivers it: right after the model
+ * called log_session_concepts.
+ */
+const checkpoint = (extra: Record<string, unknown> = {}) =>
+  runHook(CHECKPOINT, {
+    session_id: SESSION,
+    cwd,
+    hook_event_name: 'PostToolUse',
+    tool_name: 'mcp__eklavya__log_session_concepts',
+    tool_input: { concepts: [{ slug: 'csrf' }] },
+    ...extra,
+  });
+
+/** The instruction the model actually receives, or null when the hook stayed quiet. */
+function checkpointContext(res: HookResult): string | null {
+  if (!res.stdout.trim()) return null;
+  const parsed = JSON.parse(res.stdout) as {
+    hookSpecificOutput?: { additionalContext?: string };
+  };
+  return parsed.hookSpecificOutput?.additionalContext ?? null;
+}
 
 const sessionStart = (extra: Record<string, unknown> = {}) =>
   runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart', session_start_reason: 'startup', ...extra });
@@ -386,5 +410,150 @@ describe('Stop hook — what it tells Claude', () => {
     configure({ mode: 'ambient', min_minutes_between_quizzes: 0 });
     logConcepts(['jwt-structure']);
     expect(stop().stderr).toMatch(/say skip/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('PostToolUse checkpoint — asking while the agent still works', () => {
+  it('asks about the concept that was just logged, not the oldest one', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+    logConcepts(['jwt-structure']);
+
+    const ctx = checkpointContext(checkpoint());
+    expect(ctx).toMatch(/jwt-structure/);
+    expect(ctx).not.toMatch(/csrf/);
+  });
+
+  it('tells the model to ask exactly one question and then resume', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+
+    const ctx = checkpointContext(checkpoint())!;
+    expect(ctx).toMatch(/max: 1/);
+    expect(ctx).toMatch(/ignore_cooldown/);
+    expect(ctx).toMatch(/ONE question/);
+    expect(ctx).toMatch(/Resume the task/);
+  });
+
+  it('exits 0 with valid JSON, never exit 2 — nothing here is an error to prevent', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+
+    const res = checkpoint();
+    expect(res.status).toBe(0);
+    expect(() => JSON.parse(res.stdout)).not.toThrow();
+    expect(JSON.parse(res.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
+  });
+
+  it('carries the configured focus, because the tutor skill may never have loaded', () => {
+    configure({ min_minutes_between_checkpoints: 0, focus: 'project' });
+    logConcepts(['csrf']);
+    expect(checkpointContext(checkpoint())).toMatch(/Focus is 'project'/);
+  });
+});
+
+describe('PostToolUse checkpoint — the burst guard', () => {
+  it('does not fire twice in a row: eight logged concepts are not eight questions', () => {
+    // The default gap. Two calls in the same second must produce one question.
+    logConcepts(['csrf', 'jwt-structure', 'pkce']);
+
+    expect(checkpointContext(checkpoint())).toMatch(/\w/);
+    expect(checkpoint().stdout).toBe('');
+    expect(checkpoint().stdout).toBe('');
+  });
+
+  it('stays quiet once the session budget is spent, wherever it was spent', () => {
+    configure({ min_minutes_between_checkpoints: 0, max_questions_per_task: 2 });
+    logConcepts(['csrf', 'jwt-structure', 'pkce']);
+
+    answer('csrf', 3);
+    answer('jwt-structure', 3);
+
+    expect(checkpoint().stdout).toBe('');
+  });
+
+  it('stays quiet when everything logged has already been asked about', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+    answer('csrf', 3);
+    expect(checkpoint().stdout).toBe('');
+  });
+
+  it('stays quiet when the session touched nothing', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    expect(checkpoint().stdout).toBe('');
+  });
+
+  it('stays quiet inside a subagent, which cannot ask the developer anything', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+    expect(checkpoint({ agent_id: 'sub-1', agent_type: 'general-purpose' }).stdout).toBe('');
+  });
+
+  it('stays quiet when cadence is "end" — the pre-1.4 behaviour, on request', () => {
+    configure({ min_minutes_between_checkpoints: 0, cadence: 'end' });
+    logConcepts(['csrf']);
+    expect(checkpoint().stdout).toBe('');
+  });
+
+  it('stays quiet when the mode is off', () => {
+    configure({ min_minutes_between_checkpoints: 0, mode: 'off' });
+    logConcepts(['csrf']);
+    expect(checkpoint().stdout).toBe('');
+  });
+
+  it('lets a repo config turn checkpoints off for one project', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    fs.writeFileSync(path.join(cwd, '.eklavya.json'), JSON.stringify({ cadence: 'end' }));
+    logConcepts(['csrf']);
+    expect(checkpoint().stdout).toBe('');
+  });
+
+  it('never breaks a tool call: no database, no output, exit 0', () => {
+    const res = runHook(
+      CHECKPOINT,
+      { session_id: SESSION, cwd, hook_event_name: 'PostToolUse' },
+      { EKLAVYA_DB: '/nonexistent/eklavya.db' },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toBe('');
+  });
+
+  it('exits 0 on malformed hook input', () => {
+    const res = spawnSync('/bin/sh', [CHECKPOINT], {
+      input: 'not json at all',
+      encoding: 'utf8',
+      env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
+    });
+    expect(res.status).toBe(0);
+  });
+});
+
+describe('The budget is shared: checkpoints spend what the Stop sweep would have', () => {
+  it('says nothing at the end when the whole budget was answered during the work', () => {
+    configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 2 });
+    logConcepts(['csrf', 'jwt-structure']);
+
+    answer('csrf', 3);
+    answer('jwt-structure', 3);
+
+    // Two questions already asked mid-task, budget of two. The end of the task
+    // is exactly as quiet as it would have been without Eklavya installed.
+    expect(stop().status).toBe(0);
+  });
+
+  it('sweeps up only the remainder', () => {
+    configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 2 });
+    logConcepts(['csrf', 'jwt-structure', 'pkce']);
+
+    answer('csrf', 3);
+
+    const res = stop();
+    expect(res.status).toBe(2);
+    // One left in the budget, so one concept named -- not the other two.
+    const named = ['jwt-structure', 'pkce'].filter((slug) => res.stderr.includes(slug));
+    expect(named).toHaveLength(1);
   });
 });

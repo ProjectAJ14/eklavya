@@ -1,6 +1,6 @@
 # Verified Claude Code schemas
 
-Fetched **2026-08-26** from the official docs, per PRD §6. Re-verify before changing any plugin/hook/MCP config — these schemas drift.
+Fetched **2026-08-26**, PostToolUse section re-verified **2026-08-27**, from the official docs, per PRD §6. Re-verify before changing any plugin/hook/MCP config — these schemas drift.
 
 Sources:
 - https://code.claude.com/docs/en/plugins
@@ -66,6 +66,12 @@ The bare form `mcp__eklavya__<tool>` is still correct when the server comes from
 and how a Cursor user wires it up. `agents/tutor.md` therefore lists both, and
 whichever install it lands in, one set resolves.
 
+This is also why the `PostToolUse` matcher is the regex `mcp__.*log_session_concepts`
+rather than either literal name: the checkpoint hook has to fire whether Eklavya
+was installed as a plugin or wired up through a project-level `.mcp.json`. A
+matcher containing anything outside `[A-Za-z0-9_\- ,|]` is treated as an
+unanchored regex, so the `.` and `*` are what select that behaviour.
+
 ## 3. Hooks — `hooks/hooks.json` at plugin root
 
 ```json
@@ -73,6 +79,12 @@ whichever install it lands in, one set resolves.
   "hooks": {
     "SessionStart": [
       { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-start.sh" }] }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*log_session_concepts",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/checkpoint-quiz.sh" }]
+      }
     ],
     "PreToolUse": [
       {
@@ -102,8 +114,46 @@ With `args` → exec form (no shell). Without `args` → shell form (`sh -c`).
 Common: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `hook_event_name`, `effort`, `agent_id`, `agent_type`.
 
 - `PreToolUse`: `tool_name`, `tool_input` (`.tool_input.command` for Bash), `tool_use_id`
+- `PostToolUse`: `tool_name`, `tool_input`, `tool_use_id`, `tool_output`
 - `Stop`: `stop_reason`, `last_assistant_message`
 - `SessionStart`: `session_start_reason` (`startup|resume|clear|compact|fork`), `model`
+
+`agent_id` / `agent_type` are present **only inside a subagent**, which is how
+`checkpoint-quiz.sh` knows not to ask a question nobody is watching: a subagent
+has no `AskUserQuestion`.
+
+### PostToolUse output (verified 2026-08-27)
+
+Fires after a tool call **succeeds**, and cannot block — the tool already ran.
+What it can do is put text in front of the model mid-turn, which is the whole
+mechanism behind interleaved quizzing.
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PostToolUse",
+    "additionalContext": "seen by the model, mid-turn",
+    "systemMessage": "shown in the transcript to the user and the model"
+  }
+}
+```
+
+Exit 2 also surfaces stderr to the model here, but as a *warning* — an error face
+on a working feature. `checkpoint-quiz.sh` therefore uses exit 0 + JSON, unlike
+the Stop hook, which has something to actually prevent (deviation D1).
+
+### Events not in the older snapshot
+
+The event list has grown since this file was first written. Ones worth knowing
+about, none of which Eklavya uses yet:
+
+`Setup`, `UserPromptExpansion`, `PermissionRequest`, `PermissionDenied`,
+`PostToolUseFailure`, `PostToolBatch` (once per resolved batch of parallel calls
+— a cheaper seam than `PostToolUse` if checkpointing ever needs one),
+`StopFailure`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`,
+`TeammateIdle`, `MessageDisplay`, `InstructionsLoaded`, `ConfigChange`,
+`CwdChanged`, `DirectoryAdded`, `FileChanged`, `WorktreeCreate`,
+`WorktreeRemove`, `PostCompact`, `Elicitation`, `ElicitationResult`.
 
 ### Exit codes
 | Code | Meaning |

@@ -27,10 +27,11 @@ fi
 MODE=$(eklavya_config mode ambient "$CWD")
 [ "$MODE" = "off" ] && exit 0
 
-FOCUS=$(eklavya_config focus project "$CWD")
+FOCUS=$(eklavya_config focus concept "$CWD")
 TOPIC=$(eklavya_config focus_topic "" "$CWD")
 FOCUS_LABEL=$FOCUS
 [ "$FOCUS" = "learn" ] && [ -n "$TOPIC" ] && FOCUS_LABEL="learn ($TOPIC)"
+CADENCE=$(eklavya_config cadence interleaved "$CWD")
 
 # Repo config beats global, which is right -- it is how a lead pins a setting on
 # one codebase. Silence about it is not: a repo pinning focus switches off a
@@ -102,6 +103,10 @@ eklavya_directive() {
   - Guessed slugs are fine: unknown ones are fuzzy-matched or created.
   - Skip this and there is nothing to quiz on, so nothing is ever learned. Load the tutor skill
     for how to ask and grade.
+  - Logging may come straight back with an [Eklavya checkpoint]: ONE multiple-choice question to
+    ask right then, before the next line of code, then back to the task in the same turn. That
+    interruption is the product -- learning while the work happens, not a pile of questions after
+    it. One question, no summary, no re-plan, no second question.
 DIRECTIVE
 }
 
@@ -112,7 +117,7 @@ emit_override() {
 }
 
 if [ -z "$DOMAINS" ]; then
-  printf '[Eklavya] No learning history yet. Mode: %s. Focus: %s.\n' "$MODE" "$FOCUS_LABEL"
+  printf '[Eklavya] No learning history yet. Mode: %s. Focus: %s. Cadence: %s.\n' "$MODE" "$FOCUS_LABEL" "$CADENCE"
   emit_override
   eklavya_directive
   exit 0
@@ -122,7 +127,7 @@ LINE="[Eklavya] Learner profile: $DOMAINS."
 [ -n "$WEAK" ] && LINE="$LINE Weak: $WEAK."
 [ -n "$DUE" ] && [ "$DUE" != "0" ] && LINE="$LINE $DUE concept(s) due for review."
 
-printf '%s Mode: %s. Focus: %s.\n' "$LINE" "$MODE" "$FOCUS_LABEL"
+printf '%s Mode: %s. Focus: %s. Cadence: %s.\n' "$LINE" "$MODE" "$FOCUS_LABEL" "$CADENCE"
 emit_override
 eklavya_directive
 exit 0

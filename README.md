@@ -69,9 +69,10 @@ The rules file is generated from `skills/tutor/SKILL.md`, so the two editors can
 
 1. **You ask for something.** "Add JWT auth to the Express API."
 2. **Claude logs what the work touches** — `jwt-structure`, `httponly-cookies`, `middleware-order-auth` — each with a line pointing at the actual code.
-3. **When the task finishes**, a `Stop` hook checks the knowledge graph. Anything you haven't mastered turns into a quiz — at most once per batch of work.
-4. **You answer.** Claude grades honestly on SM-2's 0–5 scale and records it. Mastery and the next review date update.
-5. **Next session** starts with a one-line profile, so Claude calibrates from your first message. Shaky concepts come back later, at a higher tier.
+3. **While it's still building**, that logging call triggers a checkpoint: *one* multiple-choice question about the concept it just logged, asked there and then, while the code is still on your screen. You answer in a couple of seconds and Claude carries straight on.
+4. **When the task finishes**, a `Stop` hook sweeps up whatever the checkpoints didn't get to. Answer your whole budget during the work and the end of the task is silent.
+5. **You answer.** Claude grades honestly on SM-2's 0–5 scale and records it. Mastery and the next review date update.
+6. **Next session** starts with a one-line profile, so Claude calibrates from your first message. Shaky concepts come back later, at a higher tier.
 
 Tier 1 asks what a thing is. Tier 5 asks what breaks it in production. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
 
@@ -103,9 +104,22 @@ Eklavya records which of the two it was (`outcome: dont_know` or `declined`), so
 
 In enforced mode this distinction also decides whether the gate can be passed at all. A blank grades 0, and 0 never passes — so a session answered entirely with "I don't know" would leave the gate permanently unmet. Once every other concept is exhausted, Eklavya re-offers the ones it taught you, one tier lower and with a different question, until you can show the lesson landed. Concepts you *declined* are not re-offered: the gate holding against a decline is the gate working.
 
-## Modes and focus
+### Questions arrive during the work, not after it
 
-Eklavya has **two independent dials**. `mode` is how hard it pushes; `focus` is what it teaches. They combine freely — `enforced` + `learn` is an intern who must pass a gate on a topic they chose.
+The point was always to learn *while* your coding agent works. A quiz that only fires when the task is done is a tax on shipping: four questions at the exact moment you wanted to be finished, about code you stopped thinking about ten minutes ago.
+
+So the default cadence is **interleaved**. The moment Claude logs a concept, Eklavya may come back with one question about it — one, not four — and Claude answers it with you and returns to the task in the same breath. `max_questions_per_task` becomes a budget for the whole session rather than a batch at the end, and the end-of-task quiz only asks for what's left of it.
+
+A one-minute task gets one question, or none. A long session spreads its four across the work, each one landing next to the code that taught it.
+
+```bash
+eklavya config set cadence end   # the old behaviour: nothing until the task finishes
+eklavya config set min_minutes_between_checkpoints 10   # or just space them out
+```
+
+## Modes, focus and cadence
+
+Eklavya has **three independent dials**. `mode` is how hard it pushes; `focus` is what it teaches; `cadence` is when it asks. They combine freely — `enforced` + `learn` is an intern who must pass a gate on a topic they chose.
 
 | `mode` | For | Behaviour |
 |---|---|---|
@@ -119,11 +133,17 @@ Eklavya has **two independent dials**. `mode` is how hard it pushes; `focus` is 
 | `project` | the code just written — the file, the line, the decision | learning a codebase |
 | `learn` | a topic you name, in prerequisite order, using your real code as the example wherever the work touches it | learning something on purpose |
 
+| `cadence` | Asks | Good for |
+|---|---|---|
+| `interleaved` (default) | one question mid-task, as each concept is logged; the end-of-task quiz sweeps up the remainder | learning while the agent works |
+| `end` | nothing until the task is finished | deep focus, pairing, demos |
+
 ```bash
 eklavya config set mode enforced          # globally
 eklavya config set mode enforced --repo   # this project only
 eklavya config set focus project     # ask about this codebase instead
 eklavya config set focus learn --topic caching
+eklavya config set cadence end            # stop interrupting mid-task
 ```
 
 Or `/eklavya:mode` to see both and change either.
@@ -137,7 +157,7 @@ Repo settings beat global ones, which is how a team lead pins enforced mode on o
 | Command | Does |
 |---|---|
 | `/eklavya:quiz [topic]` | quiz now — on this session's work, or a named topic |
-| `/eklavya:mode [value]` | show or change the mode and focus dials |
+| `/eklavya:mode [value]` | show or change the mode, focus and cadence dials |
 | `/eklavya:learn <topic>` | a structured lesson, prerequisite-ordered, calibrated to what you know |
 | `/eklavya:progress` | the mastery map: domains, what's due, where you're weakest |
 | `/eklavya:gate` | commit-gate status |
@@ -150,15 +170,20 @@ Repo settings beat global ones, which is how a team lead pins enforced mode on o
 ```json
 {
   "mode": "ambient",
+  "focus": "concept",
+  "cadence": "interleaved",
   "pass_threshold": 0.7,
   "max_questions_per_task": 4,
   "min_minutes_between_quizzes": 20,
+  "min_minutes_between_checkpoints": 4,
   "max_new_concepts_per_session": 8,
   "max_stop_blocks_per_session": 3,
   "domains_enabled": ["*"],
   "quiet": false
 }
 ```
+
+`max_questions_per_task` is a **session budget**, not a batch size: mid-task checkpoints and the end-of-task sweep draw from the same allowance, so turning on `interleaved` moves questions earlier without adding any. `min_minutes_between_checkpoints` is the floor between mid-task questions — it exists so that logging eight concepts in one call cannot become eight questions in a row.
 
 ## Your data
 
@@ -174,7 +199,7 @@ Set `EKLAVYA_HOME` or `EKLAVYA_DB` to experiment without touching your real hist
 
 ## Learning while it builds
 
-The post-task quiz is the reliable version. For tutoring that runs *during* generation — a second session teaching while the first one builds, sharing one database — see [`docs/parallel-tutoring.md`](docs/parallel-tutoring.md).
+Interleaved cadence (above) is the built-in version: questions land mid-task, in the same session, at the seam where each concept was logged. For tutoring that runs *during* generation in a separate pane — a second session teaching while the first one builds, sharing one database — see [`docs/parallel-tutoring.md`](docs/parallel-tutoring.md).
 
 ## Manual test scripts
 

@@ -55,10 +55,11 @@ Mode is only half the picture: it says *how hard Eklavya pushes*, not *what it t
 
 1. Developer asks Claude Code to implement something ("add JWT auth to the Express API").
 2. As Claude works, it logs the concepts the task touches (JWT structure, httpOnly cookies, session vs token auth, middleware order) via the MCP server.
-3. When the task completes, a **Stop hook** checks the knowledge graph: which touched concepts does this developer *not* yet have mastered?
-4. If any exist, the hook blocks the stop with a reason, causing Claude to continue the turn as a tutor: 2–4 Socratic questions, grounded in the diff it just wrote ("I set `httpOnly: true` on the refresh-token cookie — what attack does that mitigate, and why doesn't it fully solve it?").
-5. Answers are graded by the LLM and recorded via `record_attempt`. Mastery scores and next-review dates update (SM-2).
-6. Next session, `SessionStart` injects a one-line learner profile so Claude calibrates from message one, and previously-shaky concepts resurface at higher difficulty when their review date arrives.
+3. **While Claude is still working**, that logging call fires a **PostToolUse hook**: one multiple-choice question about the concept just logged, asked there and then, with the code still on screen. Claude asks it and returns to the task in the same turn. This is the cadence dial (§11, phase 8) and it is `interleaved` by default — the product promise is learning *during* generation, not after it.
+4. When the task completes, a **Stop hook** checks the knowledge graph: which touched concepts does this developer *not* yet have mastered, and how much of the session's question budget is left?
+5. If any exist, the hook blocks the stop with a reason, causing Claude to continue the turn as a tutor: 2–4 Socratic questions, grounded in the diff it just wrote ("I set `httpOnly: true` on the refresh-token cookie — what attack does that mitigate, and why doesn't it fully solve it?").
+6. Answers are graded by the LLM and recorded via `record_attempt`. Mastery scores and next-review dates update (SM-2).
+7. Next session, `SessionStart` injects a one-line learner profile so Claude calibrates from message one, and previously-shaky concepts resurface at higher difficulty when their review date arrives.
 
 ### 5.2 Core loop (enforced mode)
 
@@ -281,6 +282,17 @@ Must complete in <200ms; on any error, print nothing and exit 0 (never break a s
 - If yes → output `{"decision": "block", "reason": "Eklavya: before finishing, quiz the developer on: <slugs+contexts>. Call get_session_quiz_plan, ask one question at a time, grade with record_attempt."}` — this makes Claude continue the turn as tutor.
 - **Loop guard (critical):** write a marker (e.g., row in `gates` or a tmp file keyed by session + stop-count) so the hook blocks at most once per task completion; after the quiz runs (attempts recorded), subsequent Stops pass. Ambient mode: also pass if the developer declines ("skip") — the skill records a skip and the hook must not re-block.
 
+`max_questions_per_task` is a **session budget**, not a batch size: the hook subtracts attempts already recorded for the session (including those from §9.2a) and asks only for the remainder, exiting silently at zero.
+
+### 9.2a `PostToolUse` (matcher: `mcp__.*log_session_concepts`) → `checkpoint-quiz.sh`
+
+The interleaved cadence (phase 8). Fires at the seam where the model declares what the work just taught, which is the only trigger that knows both *what* was learned and *that the code is still on screen*.
+
+- Exit 0 + JSON: `additionalContext` instructs the model, `systemMessage` tells the developer. Never exit 2 — nothing here needs preventing, and exit 2 renders as a warning on a feature that is working.
+- **Burst guard (critical, the mirror of §9.2's loop guard):** exactly one question per checkpoint; `min_minutes_between_checkpoints` since both the last checkpoint and the last answer; and the shared session budget above. The model logs 3–8 concepts per call, so without this a single call becomes eight questions in a row.
+- Skips when `cadence: end`, `mode: off`, nothing is unmastered-and-unasked, or `agent_id` is present — a subagent has no `AskUserQuestion` and no human reading its transcript.
+- Silent on every failure path. It runs on tool calls.
+
 ### 9.3 `PreToolUse` (matcher: `Bash`) → `pre-tool-gate.sh`
 
 - Parse `tool_input.command`; if it doesn't contain `git commit`, exit 0 immediately.
@@ -350,14 +362,19 @@ Phase 2 adds `fill_blank` and `open` and rotates between the three — bounded b
 
 ```json
 {
-  "mode": "ambient",              // "ambient" | "enforced" | "off"
-  "pass_threshold": 0.7,           // enforced mode
-  "max_questions_per_task": 4,
-  "min_minutes_between_quizzes": 20,
+  "mode": "ambient",                     // "ambient" | "enforced" | "off"  — how hard it pushes
+  "focus": "concept",                    // "concept" | "project" | "learn" — what it teaches
+  "cadence": "interleaved",              // "interleaved" | "end"           — when it asks
+  "pass_threshold": 0.7,                  // enforced mode
+  "max_questions_per_task": 4,            // a SESSION budget, shared by checkpoints and the Stop sweep
+  "min_minutes_between_quizzes": 20,      // paces whole quizzes
+  "min_minutes_between_checkpoints": 4,   // paces single mid-task questions
   "domains_enabled": ["*"],
-  "quiet": false                   // suppress SessionStart banner
+  "quiet": false                          // suppress SessionStart banner
 }
 ```
+
+Three orthogonal dials. `mode` is how hard Eklavya pushes, `focus` (§10a) is what it teaches, `cadence` (phase 8) is when it asks. Every combination is coherent; `off` is the one interaction, and wins outright.
 
 ## 12. Portability (design constraints for future Cursor support)
 

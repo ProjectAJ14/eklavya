@@ -14,6 +14,9 @@ The full specification is frozen in **[PRD.md](PRD.md)**. This file is the live 
 | 3 — Enforced gates | [phase-3-enforced-gates.md](phase-3-enforced-gates.md) | ✅ Done | Commit blocked in Claude Code *and* bare terminal |
 | 4 — Parallel tutoring | [phase-4-parallel-tutoring.md](phase-4-parallel-tutoring.md) | 🟢 Two-pane UX not run live | Concurrent writers, no corruption |
 | 5 — Distribution | [phase-5-distribution.md](phase-5-distribution.md) | 🟠 Prepared, publish is yours | Clean-machine install works for Claude Code + Cursor |
+| 6 — Focus modes | [phase-6-focus-modes.md](phase-6-focus-modes.md) | ✅ Done | `focus` changes what is taught, independently of `mode` |
+| 7 — Question formats | [phase-7-question-formats.md](phase-7-question-formats.md) | ✅ Phase 1 (MCQ) done | Every question answerable with one keystroke |
+| 8 — Interleaved cadence | [phase-8-interleaved-cadence.md](phase-8-interleaved-cadence.md) | 🟢 Built, awaiting live run | Questions land during the work; the end of the task is quiet |
 
 Legend: ⬜ not started · 🟡 in progress · 🟢 built, awaiting live demo · 🟠 prepared, needs a human step · ✅ done · ⛔ blocked
 

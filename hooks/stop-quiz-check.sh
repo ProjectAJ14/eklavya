@@ -75,7 +75,12 @@ STATS=$(eklavya_sql "
                 FROM stop_markers WHERE session_id = '$SID'), 999999)
     || '|' ||
     COALESCE((SELECT CAST((julianday('now') - julianday(ts)) * 1440 AS INTEGER)
-                FROM attempts WHERE session_id = '$SID' ORDER BY id DESC LIMIT 1), 999999);")
+                FROM attempts WHERE session_id = '$SID' ORDER BY id DESC LIMIT 1), 999999)
+    || '|' ||
+    -- Budget already spent, wherever it was spent. Since 1.4 the mid-work
+    -- checkpoint hook asks from the same allowance, so this is what turns the
+    -- Stop quiz from a fixed batch of four into a sweep of whatever is left.
+    (SELECT count(*) FROM attempts WHERE session_id = '$SID');")
 
 [ -z "$STATS" ] && exit 0
 
@@ -85,6 +90,7 @@ LAST_LOGGED=$(printf '%s' "$STATS" | cut -d'|' -f3)
 BLOCKS=$(printf '%s' "$STATS" | cut -d'|' -f4)
 MINS_SINCE=$(printf '%s' "$STATS" | cut -d'|' -f5)
 MINS_SINCE_ANSWER=$(printf '%s' "$STATS" | cut -d'|' -f6)
+SPENT=$(printf '%s' "$STATS" | cut -d'|' -f7)
 
 # Nothing worth asking about. Concepts already answered in this session are
 # excluded above: they have had their turn, and re-offering them is exactly the
@@ -112,7 +118,7 @@ if [ "$MODE" = "ambient" ]; then
 fi
 # ---------------------------------------------------------------------------
 
-FOCUS=$(eklavya_config focus project "$CWD")
+FOCUS=$(eklavya_config focus concept "$CWD")
 TOPIC=$(eklavya_config focus_topic "" "$CWD")
 
 # The stderr message below is what actually drives most quizzes -- the tutor
@@ -135,7 +141,19 @@ case "$FOCUS" in
     ;;
 esac
 
+# --- what is left of the session budget --------------------------------------
+# `max_questions_per_task` is a SESSION allowance, not an end-of-session batch
+# size. Every question answered while the agent was working is one this hook must
+# not ask again -- that is the whole trade the interleaved cadence makes, and
+# without this subtraction it would be a lie: four questions mid-task and then
+# four more at the end is worse than what it replaced.
+#
+# Answer the whole budget during the work and the Stop hook says nothing at all.
 MAX_Q=$(eklavya_config max_questions_per_task 4 "$CWD")
+REMAINING=$((MAX_Q - SPENT))
+[ "$REMAINING" -gt 0 ] 2>/dev/null || exit 0
+# -----------------------------------------------------------------------------
+
 CONCEPTS=$(eklavya_sql "
   SELECT group_concat(line, '; ') FROM (
     SELECT c.slug || COALESCE(' (' || sc.context || ')', '') AS line
@@ -148,7 +166,7 @@ CONCEPTS=$(eklavya_sql "
        AND sc.concept_id NOT IN
            (SELECT concept_id FROM attempts WHERE session_id = '$SID')
      ORDER BY sc.ts ASC
-     LIMIT $MAX_Q
+     LIMIT $REMAINING
   );")
 
 # Stamp the guard BEFORE blocking. If anything below fails, the worst case is a

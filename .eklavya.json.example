@@ -5,9 +5,14 @@
   "_focus": "What Eklavya teaches, independent of mode: project | concept | learn.",
   "focus": "project",
   "_focus_topic": "Only used by focus \"learn\". The topic to teach, e.g. \"caching\".",
+  "_cadence": "When Eklavya asks: interleaved | end. \"interleaved\" (default) asks one question mid-task as each concept is logged, so the developer learns while the agent works; the end-of-task quiz then only sweeps up the remainder. \"end\" waits until the task is finished.",
+  "cadence": "interleaved",
   "pass_threshold": 0.7,
+  "_max_questions_per_task": "A budget for the whole session, shared by mid-task checkpoints and the end-of-task sweep — not a batch size.",
   "max_questions_per_task": 4,
   "min_minutes_between_quizzes": 20,
+  "_min_minutes_between_checkpoints": "Floor between mid-task questions, so eight concepts logged in one call cannot become eight questions in a row.",
+  "min_minutes_between_checkpoints": 4,
   "max_new_concepts_per_session": 8,
   "max_stop_blocks_per_session": 3
 }

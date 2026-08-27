@@ -19,13 +19,15 @@ Usage:
   eklavya export-rules [--out <file>]   Write the tutor pedagogy as a Cursor rules file
   eklavya config get                    Show the effective configuration
   eklavya config set <key> <value>      Change a setting (add --repo to scope it to this repo)
-                                        e.g. mode ambient|enforced|off, focus project|concept|learn
+                                        e.g. mode ambient|enforced|off, focus project|concept|learn,
+                                        cadence interleaved|end
                                         add --topic <topic> when setting focus to "learn"
   eklavya doctor                        Check that everything is wired up
   eklavya db-path                       Print the database location
 
-Config keys: mode, pass_threshold, max_questions_per_task,
-             min_minutes_between_quizzes, max_new_concepts_per_session,
+Config keys: mode, focus, focus_topic, cadence, pass_threshold,
+             max_questions_per_task, min_minutes_between_quizzes,
+             min_minutes_between_checkpoints, max_new_concepts_per_session,
              max_stop_blocks_per_session, quiet
 `;
 
@@ -155,6 +157,13 @@ function doctor(): void {
   lines.push(
     `focus:    ${resolved.config.focus}${
       resolved.config.focus === 'learn' ? ` (${resolved.config.focus_topic ?? 'no topic set'})` : ''
+    }${fromRepo}`,
+  );
+  lines.push(
+    `cadence:  ${resolved.config.cadence}${
+      resolved.config.cadence === 'interleaved'
+        ? ` (one question mid-task, min ${resolved.config.min_minutes_between_checkpoints}m apart)`
+        : ' (all questions at the end of the task)'
     }${fromRepo}`,
   );
   if (resolved.overrides.length > 0) {

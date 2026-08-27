@@ -12,18 +12,6 @@
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/stop-quiz-check.sh",
-            "timeout": 10,
-            "statusMessage": "Eklavya: checking what you learned"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -32,6 +20,31 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pre-tool-gate.sh",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*log_session_concepts",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/checkpoint-quiz.sh",
+            "timeout": 5,
+            "statusMessage": "Eklavya: checking if it is time to ask"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/stop-quiz-check.sh",
+            "timeout": 10,
+            "statusMessage": "Eklavya: checking what you learned"
           }
         ]
       }

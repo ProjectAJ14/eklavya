@@ -41,6 +41,13 @@ export const setConfig: ToolDef = {
       .describe(
         'What Eklavya teaches, independent of mode. "project" quizzes the code just written; "concept" asks the transferable version of the same ideas; "learn" follows focus_topic. Defaults to project.',
       ),
+    cadence: z
+      .enum(['interleaved', 'end'])
+      .optional()
+      .describe(
+        'When the questions land. "interleaved" (default) asks one question mid-task, at the seam where a concept was logged, and the Stop hook then only sweeps up what is left of max_questions_per_task. "end" is the old behaviour: nothing until the task is finished.',
+      ),
+    min_minutes_between_checkpoints: z.number().int().min(0).max(120).optional(),
     focus_topic: z
       .string()
       .nullable()
@@ -64,6 +71,8 @@ export const setConfig: ToolDef = {
       'mode',
       'focus',
       'focus_topic',
+      'cadence',
+      'min_minutes_between_checkpoints',
       'pass_threshold',
       'max_questions_per_task',
       'min_minutes_between_quizzes',

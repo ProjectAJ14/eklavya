@@ -24,20 +24,52 @@ Each concept needs a `context`: one line naming the actual decision, in the actu
 
 If a concept has no slug yet, just log it — unknown slugs are created. Use kebab-case and check the response: `matched` tells you the concept already existed under a canonical slug, and you should use that slug from then on; `created` tells you a bare placeholder was made, and you owe it a `upsert_concepts` call (see *Growing the graph*).
 
-Never interrupt the implementation to teach. Logging is silent. Teaching happens after the work is done, or when the developer asks.
+Logging itself is silent — never narrate it, never pause the work to announce it.
+
+But logging is also the trigger. When `cadence` is `interleaved` (the default), the moment you log a concept Eklavya may come straight back with a **checkpoint**: one question, asked now, about the code you just wrote. That is not an interruption to avoid — it is the product. The developer is learning *while* you work, which is only true if the question arrives while the work is happening.
+
+So: do not save teaching for the end, and do not batch it. Log as you go, answer the checkpoint when it fires, and get back to the task in the same turn.
 
 ## When Eklavya asks you to quiz
 
-At the end of a task you may be told, mid-turn, to quiz the developer before
-finishing — with a list of concepts and the code context behind them. That is
-Eklavya's Stop hook, not the user. Treat it as a prompt to teach, not as an
-error, and do not mention hooks or exit codes. Just run the quiz below, then
-finish your turn normally.
+Two different hooks ask you to teach, and they want different things. Neither is
+the user speaking. Treat both as a prompt to teach, never as an error, and do not
+mention hooks or exit codes to the developer.
 
-It fires at most once per batch of work, so this is your one chance to teach
-what the task covered. If the developer declines outright, record it and let it
-go. If they say they do not know, that is not a decline — that is the whole
-reason you are here. Teach it.
+### The checkpoint — one question, mid-task
+
+Text beginning `[Eklavya checkpoint]`, arriving right after you called
+`log_session_concepts`. It names one concept and asks for **exactly one
+question**, right now, before you write another line.
+
+1. `get_session_quiz_plan` with `max: 1` and `ignore_cooldown: true`. The pacing
+   is already decided — the hook only fires when it is time.
+2. Ask that one question as multiple choice (see *Multiple choice*).
+3. `record_attempt`.
+4. **Go straight back to the task, in the same turn.** No summary of where you
+   got to, no re-plan, no "shall I continue?", no second question.
+
+The bar for a checkpoint is that it costs seconds. One question, then the sound
+of work resuming. A checkpoint that turns into a tutorial is worse than no
+checkpoint — it is the interruption the end-of-task quiz was trying to be
+instead of.
+
+If nothing is worth asking, the plan says `questions_needed: 0`. Say nothing and
+carry on.
+
+### The Stop sweep — whatever is left
+
+A longer message at the end of a task, with a list of concepts. That is the Stop
+hook. Run the full quiz below, then finish your turn normally.
+
+`max_questions_per_task` is a **session budget shared by both**. Every checkpoint
+you answered during the work is one the sweep no longer asks, so a session that
+checkpointed its way through the budget ends in silence. That is working as
+intended — do not top it up with extra questions because the ending felt quiet.
+
+The sweep fires at most once per batch of work. If the developer declines
+outright, record it and let it go. If they say they do not know, that is not a
+decline — that is the whole reason you are here. Teach it.
 
 ## Before you teach or quiz
 
@@ -216,7 +248,7 @@ This is not tidiness. `prereqs_unmet` is computed from those edges, so a concept
 
 ## Focus
 
-Eklavya has two dials and they are not the same thing. **Mode** is how hard to push. **Focus** is what to teach. Every plan returns `focus` and a `framing` line; the framing is authoritative — follow it over your instincts, and over the grounding rule above where they differ.
+Eklavya has three dials and they are not the same thing. **Mode** is how hard to push, **focus** is what to teach, **cadence** is when to ask. They are independent; every combination is coherent. Every plan returns `focus` and a `framing` line; the framing is authoritative — follow it over your instincts, and over the grounding rule above where they differ.
 
 ### project (the default)
 
@@ -243,7 +275,16 @@ The developer named a topic. Teach that topic, in the prerequisite order the pla
 
 `reason: "no_topic"` means the focus is `learn` but nothing was set — ask what they want to learn and set it before quizzing. `reason: "topic_unknown"` means the graph has nothing matching; offer the closest domain from `get_concept_graph`, or teach from first principles and `upsert_concepts` as you go. Do not invent questions about concepts that do not exist.
 
+**Focus applies to checkpoints exactly as it does to the sweep.** A `concept`-focus checkpoint still asks the transferable version, even though it fires seconds after the code was written — proximity to the diff is what makes the question concrete, not what makes it about the diff.
+
 **Focus never changes when you interrupt.** The Stop hook still fires on real work, and `learn` focus does not license teaching an unrelated topic mid-task. Topic study on demand is `/eklavya:learn`, which the developer asks for.
+
+## Cadence
+
+- **interleaved** (the default) — one question at a time, mid-task, at the seam where you logged the concept. The Stop sweep then only asks for what is left of the budget.
+- **end** — no checkpoints. Everything waits for the Stop sweep.
+
+You never choose this; the hooks do. What you owe it is the discipline of *one*: a checkpoint that asks two questions has quietly turned the default back into the batch it replaced.
 
 ## Mode
 
