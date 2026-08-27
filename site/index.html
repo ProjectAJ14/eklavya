@@ -36,7 +36,7 @@
     <div class="nav__links">
       <a class="nav__link" href="#legend">The legend</a>
       <a class="nav__link" href="#how">How it works</a>
-      <a class="nav__link" href="#modes">Modes</a>
+      <a class="nav__link" href="#dials">Dials</a>
       <a class="nav__link" href="#commands">Commands</a>
       <a class="btn btn--white" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
@@ -121,15 +121,19 @@
           <span class="term__dot" aria-hidden="true"></span>
           <span class="term__title">claude — my-express-api</span>
         </div>
-        <div class="term__body" aria-label="A Claude Code session: Eklavya logs the concepts a task touched, then quizzes on them.">
+        <div class="term__body" aria-label="A Claude Code session: Eklavya logs the concepts a task touches, asks one multiple-choice question mid-work, and the task then finishes without another interruption.">
           <div class="tl-0 tl-user" data-term-line><span class="term__prompt">❯</span> add JWT auth to the Express API</div>
           <div class="tl-1 tl-sys" data-term-line>● writing src/auth.ts, src/middleware/verify.ts…</div>
           <div class="tl-2 tl-ek" data-term-line>◆ eklavya · logged jwt-structure, httponly-cookies,<br><span class="tl-hang">◆ eklavya · </span>middleware-order-auth</div>
-          <div class="tl-3 tl-sys" data-term-line>✓ task complete — 4 files changed</div>
-          <div class="tl-4 tl-ek" data-term-line>◆ eklavya · quiz — 1 question on this work</div>
-          <div class="tl-5 tl-q" data-term-line>I set httpOnly: true on the refresh cookie in auth.ts:42 but left the access token in memory. What attack does that split defend against?</div>
-          <div class="tl-6 tl-user" data-term-line><span class="term__prompt">❯</span> XSS — injected script can't read the refresh token…</div>
-          <div class="tl-7 tl-grade" data-term-line>✓ grade 4 · mastery updated · next review in 6 days</div>
+          <div class="tl-3 tl-ek" data-term-line>◆ eklavya · httponly-cookies · tier 2</div>
+          <div class="tl-4 tl-q" data-term-line>I set httpOnly on the refresh cookie in auth.ts:42 and left the access token in memory. What does that split buy?<br>
+            <span class="tl-opt"><span class="tl-optn">1</span> Injected script can't read the refresh token</span><br>
+            <span class="tl-opt"><span class="tl-optn">2</span> A forged cross-site request can't be sent</span><br>
+            <span class="tl-opt"><span class="tl-optn">3</span> The token never reaches the server logs</span>
+          </div>
+          <div class="tl-5 tl-user" data-term-line><span class="term__prompt">❯</span> 1</div>
+          <div class="tl-6 tl-grade" data-term-line>✓ grade 4 · recognition caps at 4 · review in 6 days</div>
+          <div class="tl-7 tl-sys" data-term-line>● still writing src/routes/session.ts…<br>✓ task complete — 4 files changed · nothing left to ask</div>
           <div class="term__cursor" aria-hidden="true">▍</div>
         </div>
       </div>
@@ -208,29 +212,30 @@
       <p class="eyebrow eyebrow--light" data-reveal>The loop</p>
       <h2 class="h2" id="how-title" data-reveal data-delay="100">How it works</h2>
       <p class="how__body pretty" data-reveal data-delay="200">
-        Tier 1 asks what a thing is. Tier 5 asks what breaks it in production. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
+        Difficulty is a ladder, not a setting you pick. Tier 1 asks what a thing is; tier 5 asks when it is the wrong architecture entirely. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
       </p>
 
       <div class="ladder" data-reveal data-delay="300">
+        <div class="ladder__ends"><span>easier</span><span>harder</span></div>
         <div class="ladder__row">
           <span class="ladder__tier">T1</span><span class="ladder__label">Recall</span>
-          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="20%"></span></span>
+          <span class="ladder__track"><span class="ladder__fill ladder__fill--t1" data-grow data-w="20%"></span></span>
         </div>
         <div class="ladder__row">
           <span class="ladder__tier">T2</span><span class="ladder__label">Mechanism</span>
-          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="40%"></span></span>
+          <span class="ladder__track"><span class="ladder__fill ladder__fill--t2" data-grow data-w="40%"></span></span>
         </div>
         <div class="ladder__row">
           <span class="ladder__tier">T3</span><span class="ladder__label">Judgement</span>
-          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="60%"></span></span>
+          <span class="ladder__track"><span class="ladder__fill ladder__fill--t3" data-grow data-w="60%"></span></span>
         </div>
         <div class="ladder__row">
           <span class="ladder__tier">T4</span><span class="ladder__label">Failure modes</span>
-          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="80%"></span></span>
+          <span class="ladder__track"><span class="ladder__fill ladder__fill--t4" data-grow data-w="80%"></span></span>
         </div>
         <div class="ladder__row">
           <span class="ladder__tier">T5</span><span class="ladder__label">Design</span>
-          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="100%"></span></span>
+          <span class="ladder__track"><span class="ladder__fill ladder__fill--t5" data-grow data-w="100%"></span></span>
         </div>
       </div>
     </div>
@@ -254,16 +259,21 @@
       </li>
       <li data-reveal data-delay="200">
         <span class="steps__n">3</span>
-        <h3>The task finishes, a quiz arrives</h3>
-        <p>A Stop hook checks the knowledge graph. Anything you haven't mastered turns into a quiz — at most once per batch of work.</p>
+        <h3>A question lands at the seam</h3>
+        <p>Logging a concept is a natural pause, so that is where the question goes — one question, while the agent keeps working. Set <code class="code-inline">cadence: end</code> and it waits for the task instead.</p>
       </li>
       <li data-reveal data-delay="300">
         <span class="steps__n">4</span>
         <h3>You answer, it grades honestly</h3>
-        <p>SM-2's 0–5 scale, recorded in the graph. Mastery and the next review date update.</p>
+        <p>Four options and a keystroke, so answering costs less than the question is worth. SM-2's 0–5 scale, recorded in the graph. Recognition is capped at grade 4 — picking one of four is weaker evidence than producing the answer.</p>
       </li>
       <li data-reveal data-delay="400">
-        <span class="steps__n steps__n--solid">5</span>
+        <span class="steps__n">5</span>
+        <h3>The task finishes, and sweeps up the rest</h3>
+        <p>Whatever the session budget has left. A session that answered its budget while the agent worked finishes in silence, which is the entire point.</p>
+      </li>
+      <li data-reveal data-delay="500">
+        <span class="steps__n steps__n--solid">6</span>
         <h3>Next session starts calibrated</h3>
         <p>A one-line learner profile, so Claude calibrates from your first message. Shaky concepts come back later, at a higher tier.</p>
       </li>
@@ -304,30 +314,79 @@
   </div>
 </section>
 
-<!-- ============================ MODES ============================ -->
-<section class="modes" id="modes" aria-labelledby="modes-title">
+<!-- ============================ DIALS ============================ -->
+<section class="modes" id="dials" aria-labelledby="dials-title">
+  <span id="modes" class="anchor-alias" aria-hidden="true"></span>
   <div class="wrap section">
-    <h2 class="h2" id="modes-title" data-reveal>Three modes</h2>
-    <div class="modes__grid">
-      <div class="mode mode--default" data-reveal>
-        <span class="mode__pill">default</span>
-        <code class="mode__name">ambient</code>
-        <p class="mode__who">For anyone learning a new stack</p>
-        <p class="mode__body">Questions offered after tasks, always skippable, no nagging.</p>
+    <p class="eyebrow eyebrow--light" data-reveal>The dials</p>
+    <h2 class="h2" id="dials-title" data-reveal data-delay="100">Three independent dials</h2>
+    <p class="dials__sub" data-reveal data-delay="200">
+      <code class="code-inline">mode</code> is how hard it pushes, <code class="code-inline">focus</code> is what it teaches, <code class="code-inline">cadence</code> is when it asks. They combine freely — <code class="code-inline">enforced</code> + <code class="code-inline">learn</code> is an intern who must pass a gate on a topic they chose.
+    </p>
+
+    <div class="dials">
+      <div class="dial" data-reveal>
+        <div class="dial__head">
+          <code class="dial__key">mode</code>
+          <span class="dial__q">How hard does it push?</span>
+        </div>
+        <div class="dial__opt dial__opt--default">
+          <span class="dial__pill">default</span>
+          <code class="dial__val">ambient</code>
+          <p>Questions offered, always skippable, no nagging. For anyone learning a new stack.</p>
+        </div>
+        <div class="dial__opt">
+          <code class="dial__val">enforced</code>
+          <p>The session quiz must pass before <code class="code-inline">git commit</code> — inside Claude Code and from a bare terminal. For interns and onboarding.</p>
+        </div>
+        <div class="dial__opt">
+          <code class="dial__val">off</code>
+          <p>Installed but dormant. Nothing fires, and <code class="code-inline">focus</code> is never read.</p>
+        </div>
       </div>
-      <div class="mode" data-reveal data-delay="120">
-        <code class="mode__name">enforced</code>
-        <p class="mode__who">For interns and onboarding</p>
-        <p class="mode__body">The session quiz must pass before <code class="code-inline">git commit</code> — inside Claude Code and from a bare terminal.</p>
+
+      <div class="dial" data-reveal data-delay="120">
+        <div class="dial__head">
+          <code class="dial__key">focus</code>
+          <span class="dial__q">What does it teach?</span>
+        </div>
+        <div class="dial__opt dial__opt--default">
+          <span class="dial__pill">default</span>
+          <code class="dial__val">concept</code>
+          <p>The ideas behind the code, asked so the answer transfers to any codebase. For learning a stack.</p>
+        </div>
+        <div class="dial__opt">
+          <code class="dial__val">project</code>
+          <p>The code just written — the file, the line, the decision. For learning a codebase.</p>
+        </div>
+        <div class="dial__opt">
+          <code class="dial__val">learn</code>
+          <p>A topic you name, in prerequisite order, using your real code as the example wherever the work touches it.</p>
+        </div>
       </div>
-      <div class="mode" data-reveal data-delay="240">
-        <code class="mode__name">off</code>
-        <p class="mode__who">For later</p>
-        <p class="mode__body">Installed but dormant. Nothing fires, nothing asks.</p>
+
+      <div class="dial" data-reveal data-delay="240">
+        <div class="dial__head">
+          <code class="dial__key">cadence</code>
+          <span class="dial__q">When does it ask?</span>
+        </div>
+        <div class="dial__opt dial__opt--default">
+          <span class="dial__pill">default</span>
+          <code class="dial__val">interleaved</code>
+          <p>One question mid-task, at the seam where a concept is logged. The end-of-task quiz only sweeps up the remainder.</p>
+        </div>
+        <div class="dial__opt">
+          <code class="dial__val">end</code>
+          <p>Nothing until the task is finished. For deep focus, pairing, demos.</p>
+        </div>
+        <div class="dial__opt dial__opt--note">
+          <p><code class="code-inline">max_questions_per_task</code> is a session budget, not a batch size — a question answered mid-work is one the Stop hook no longer asks.</p>
+        </div>
       </div>
     </div>
+
     <p class="modes__foot" data-reveal data-delay="300">
-      Repo settings beat global ones — <code class="code-inline">eklavya config set mode enforced --repo</code> pins enforced mode on one codebase without touching anyone's machine-wide setup.
+      Repo settings beat global ones — <code class="code-inline">eklavya config set mode enforced --repo</code> pins enforced mode on one codebase without touching anyone's machine-wide setup. Because that also overrides a contributor's personal <code class="code-inline">focus</code>, the session banner names whatever the repo is overriding rather than letting it change silently.
     </p>
   </div>
 </section>
@@ -336,9 +395,10 @@
 <section class="commands" id="commands" aria-labelledby="commands-title">
   <div class="wrap commands__grid">
     <div>
-      <h2 class="h2" id="commands-title" data-reveal>Five commands</h2>
+      <h2 class="h2" id="commands-title" data-reveal>Six commands</h2>
       <div class="cmd-table" data-reveal data-delay="100">
         <div class="cmd-row"><code>/eklavya:quiz [topic]</code><span>Quiz now — on this session's work, or a named topic</span></div>
+        <div class="cmd-row"><code>/eklavya:mode [value]</code><span>Show or change the mode, focus and cadence dials</span></div>
         <div class="cmd-row"><code>/eklavya:learn &lt;topic&gt;</code><span>A structured lesson, prerequisite-ordered, calibrated to what you know</span></div>
         <div class="cmd-row"><code>/eklavya:progress</code><span>The mastery map: domains, what's due, where you're weakest</span></div>
         <div class="cmd-row"><code>/eklavya:gate</code><span>Commit-gate status</span></div>

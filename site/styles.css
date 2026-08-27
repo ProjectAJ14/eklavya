@@ -186,7 +186,7 @@ a:hover { color: var(--green-800); }
 }
 .term__body {
   padding: 20px 22px 24px; font-family: var(--font-mono);
-  font-size: 13px; line-height: 1.75; min-height: 342px;
+  font-size: 13px; line-height: 1.75; min-height: 392px;
   display: flex; flex-direction: column; gap: 6px;
 }
 .term__body > div { opacity: 0; }
@@ -198,6 +198,11 @@ a:hover { color: var(--green-800); }
   color: #C7CFD4; padding-left: 16px; border-left: 2px solid var(--green-600);
 }
 .tl-grade { color: var(--green-400); }
+.tl-opt { display: inline-block; margin-top: 6px; color: #AEB8C0; }
+.tl-optn {
+  display: inline-block; min-width: 16px; margin-right: 6px;
+  color: var(--green-400); font-weight: 500;
+}
 .term__cursor { color: var(--green-400); opacity: 1; animation: blink 1.1s steps(1) infinite; }
 
 .tl-0 { animation: tl0 16s linear infinite; }
@@ -260,6 +265,12 @@ a:hover { color: var(--green-800); }
 .how__body { margin: 18px 0 0; font-size: 17px; line-height: 1.6; color: var(--neutral-600); }
 
 .ladder { margin-top: 36px; display: flex; flex-direction: column; gap: 12px; }
+.ladder__ends {
+  display: flex; justify-content: space-between;
+  padding-left: 182px; margin-bottom: 2px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--neutral-400);
+}
 .ladder__row {
   display: grid; grid-template-columns: 44px 110px 1fr; align-items: center; gap: 14px;
 }
@@ -273,11 +284,11 @@ a:hover { color: var(--green-800); }
   display: block; height: 100%; width: 0; border-radius: var(--radius-pill);
   transition: width 1s var(--ease);
 }
-.ladder__row:nth-child(1) .ladder__fill { background: var(--green-300); transition-delay: 0ms; }
-.ladder__row:nth-child(2) .ladder__fill { background: var(--green-400); transition-delay: 100ms; }
-.ladder__row:nth-child(3) .ladder__fill { background: var(--green-500); transition-delay: 200ms; }
-.ladder__row:nth-child(4) .ladder__fill { background: var(--green-600); transition-delay: 300ms; }
-.ladder__row:nth-child(5) .ladder__fill { background: var(--green-700); transition-delay: 400ms; }
+.ladder__fill--t1 { background: var(--green-300); transition-delay: 0ms; }
+.ladder__fill--t2 { background: var(--green-400); transition-delay: 100ms; }
+.ladder__fill--t3 { background: var(--green-500); transition-delay: 200ms; }
+.ladder__fill--t4 { background: var(--green-600); transition-delay: 300ms; }
+.ladder__fill--t5 { background: var(--green-700); transition-delay: 400ms; }
 
 .steps { list-style: none; margin: 0; padding: 0; position: relative; }
 .steps__spine {
@@ -331,33 +342,50 @@ a:hover { color: var(--green-800); }
 .icon-tile--dark { background: rgba(4,157,102,.18); color: var(--green-300); }
 
 /* ============================================================
-   MODES
+   DIALS
    ============================================================ */
 .modes { background: var(--neutral-0); }
-.modes .h2 { margin-top: 0; }
-.modes__grid { margin-top: 48px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-.mode {
+/* #modes was the section's original id and may already be in a shared link */
+.anchor-alias { display: block; position: relative; top: -80px; visibility: hidden; }
+.dials__sub {
+  margin: 18px 0 0; font-size: 17px; line-height: 1.6;
+  color: var(--neutral-600); max-width: 720px;
+}
+.dials { margin-top: 48px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.dial {
   border: 1px solid var(--neutral-200); border-radius: var(--radius-lg);
-  padding: 28px; position: relative;
+  padding: 24px; display: flex; flex-direction: column; gap: 16px;
 }
-.mode--default { border-color: var(--green-300); background: var(--green-50); }
-.mode__pill {
-  position: absolute; top: 20px; right: 20px;
-  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+.dial__head { display: flex; flex-direction: column; gap: 4px; padding-bottom: 4px; }
+.dial__key {
+  font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--green-700);
+}
+.dial__q { font-size: 14px; font-weight: 700; color: var(--neutral-800); }
+.dial__opt {
+  position: relative; border-top: 1px solid var(--neutral-100); padding-top: 14px;
+}
+.dial__opt--default {
+  border-top: 0; background: var(--green-50); border: 1px solid var(--green-300);
+  border-radius: var(--radius-md); padding: 14px 16px;
+}
+.dial__pill {
+  position: absolute; top: 12px; right: 12px;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   color: var(--green-700); background: #fff; border: 1px solid var(--green-200);
-  padding: 3px 10px; border-radius: var(--radius-pill);
+  padding: 2px 8px; border-radius: var(--radius-pill);
 }
-.mode__name {
-  font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--neutral-800);
+.dial__val {
+  font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--neutral-800);
 }
-.mode--default .mode__name { color: var(--green-800); }
-.mode__who { margin: 14px 0 4px; font-size: 14px; font-weight: 700; color: var(--neutral-800); }
-.mode__body { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--neutral-600); }
+.dial__opt--default .dial__val { color: var(--green-800); }
+.dial__opt p { margin: 6px 0 0; font-size: 14px; line-height: 1.6; color: var(--neutral-600); }
+.dial__opt--note p { font-size: 13.5px; color: var(--neutral-500); }
 .code-inline {
   font-family: var(--font-mono); font-size: 13px;
   background: var(--neutral-100); padding: 1px 5px; border-radius: var(--radius-xs);
 }
-.modes__foot { margin: 24px 0 0; font-size: 14px; color: var(--neutral-500); }
+.dial__opt--default .code-inline { background: #fff; }
+.modes__foot { margin: 28px 0 0; font-size: 14px; line-height: 1.6; color: var(--neutral-500); max-width: 860px; }
 .modes__foot .code-inline { color: var(--green-700); padding: 2px 8px; }
 
 /* ============================================================
@@ -476,10 +504,10 @@ a:hover { color: var(--green-800); }
 @keyframes tl1 { 0%,10% { opacity:0; transform:translateY(6px); } 12% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
 @keyframes tl2 { 0%,20% { opacity:0; transform:translateY(6px); } 22% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
 @keyframes tl3 { 0%,30% { opacity:0; transform:translateY(6px); } 32% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl4 { 0%,40% { opacity:0; transform:translateY(6px); } 42% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl5 { 0%,46% { opacity:0; transform:translateY(6px); } 48% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl6 { 0%,64% { opacity:0; transform:translateY(6px); } 66% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl7 { 0%,78% { opacity:0; transform:translateY(6px); } 80% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
+@keyframes tl4 { 0%,38% { opacity:0; transform:translateY(6px); } 40% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
+@keyframes tl5 { 0%,58% { opacity:0; transform:translateY(6px); } 60% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
+@keyframes tl6 { 0%,68% { opacity:0; transform:translateY(6px); } 70% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
+@keyframes tl7 { 0%,80% { opacity:0; transform:translateY(6px); } 82% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
 
 /* hero entrance */
 .fade-up { animation: fadeUp .7s var(--ease) both; }
@@ -539,7 +567,7 @@ a:hover { color: var(--green-800); }
   .h2 { font-size: 32px; }
 
   .cards { grid-template-columns: 1fr; margin-top: 40px; }
-  .modes__grid { grid-template-columns: 1fr; }
+  .dials { grid-template-columns: 1fr; }
 
   .commands__grid { grid-template-columns: 1fr; padding: 72px 32px; }
   .data-card { position: static; }
@@ -561,6 +589,7 @@ a:hover { color: var(--green-800); }
   .term__body { font-size: 12px; padding: 16px 16px 20px; }
   .cmd-row { grid-template-columns: 1fr; gap: 6px; }
   .ladder__row { grid-template-columns: 32px 96px 1fr; gap: 10px; }
+  .ladder__ends { padding-left: 148px; font-size: 10px; }
   .cta__title { font-size: 28px; }
   .hero__actions, .cta__actions { flex-direction: column; align-items: stretch; }
   .hero__actions .btn, .cta__actions .btn { width: 100%; justify-content: center; }
