@@ -21,7 +21,7 @@ Every question is now asked with **`AskUserQuestion`** — four options, one cor
 
 `AskUserQuestion` appends an "Other" option automatically, which is where *"I don't know"* goes — and that remains the single most valuable answer in the system, the one that triggers teaching rather than a note in a table.
 
-Four real options plus Other was chosen over three options plus an explicit "not sure" button. Three distractors is a meaningfully harder question than two, and the escape is one keystroke either way. The cost is discoverability, paid for by setting `header` to `unsure→Other` on every question — it fits in the 12-character chip and costs no words in the stem.
+Four real options plus Other was chosen over three options plus an explicit "not sure" button. Three distractors is a meaningfully harder question than two, and the escape is one keystroke either way. The cost is discoverability. That was originally paid for by setting `header` to `unsure→Other` on every question; the chip now reads `Eklavya` instead, because attribution turned out to matter more — a question arriving mid-task with no name on it reads as the agent going off-piste. "Other" is still appended by the tool and still one keystroke; it is just no longer advertised in the header.
 
 Someone who picks Other and types a real explanation has given *better* evidence than the options could. That records as `format: "open"` and the cap below does not apply.
 

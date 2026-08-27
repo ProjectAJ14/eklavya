@@ -195,10 +195,11 @@ ONE question at a time at each concept's tier_to_ask, and grade each answer with
 record_attempt. The plan returns a "framing" field. Follow it.
 
 Ask each question as MULTIPLE CHOICE via the AskUserQuestion tool: four options,
-one correct and three plausible, header "unsure->Other" so the escape hatch is
-visible. They are mid-task -- a blank prompt gets skipped whether or not they
-knew the answer. Record with format "mcq", the labels in "options", and only the
-stem in "question".
+one correct and three plausible, header "Eklavya" so it is clear who is asking.
+The tool's own "Other" choice is the escape hatch for "I don't know". They are
+mid-task -- a blank prompt gets skipped whether or not they knew the answer.
+Record with format "mcq", the labels in "options", and only the stem in
+"question".
 $FRAMING
 $TONE
 EOF

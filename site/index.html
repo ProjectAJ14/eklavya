@@ -126,12 +126,19 @@
           <div class="tl-1 tl-sys" data-term-line>● writing src/auth.ts, src/middleware/verify.ts…</div>
           <div class="tl-2 tl-ek" data-term-line>◆ eklavya · logged jwt-structure, httponly-cookies,<br><span class="tl-hang">◆ eklavya · </span>middleware-order-auth</div>
           <div class="tl-3 tl-ek" data-term-line>◆ eklavya · httponly-cookies · tier 2</div>
-          <div class="tl-4 tl-q" data-term-line>I set httpOnly on the refresh cookie in auth.ts:42 and left the access token in memory. What does that split buy?<br>
-            <span class="tl-opt"><span class="tl-optn">1</span> Injected script can't read the refresh token</span><br>
-            <span class="tl-opt"><span class="tl-optn">2</span> A forged cross-site request can't be sent</span><br>
-            <span class="tl-opt"><span class="tl-optn">3</span> The token never reaches the server logs</span>
+          <div class="tl-4" data-term-line>
+            <div class="ask">
+              <div class="ask__head"><span class="ask__chip">Eklavya</span><span class="ask__hint">↑↓ to move · enter to pick</span></div>
+              <p class="ask__stem">I set httpOnly on the refresh cookie in auth.ts:42 and left the access token in memory. What does that split buy?</p>
+              <div class="ask__opts">
+                <div class="ask__opt tl-pick"><span class="ask__mark">❯</span><span class="ask__n">1</span> Injected script can't read the refresh token</div>
+                <div class="ask__opt"><span class="ask__mark"> </span><span class="ask__n">2</span> A forged cross-site request can't be sent</div>
+                <div class="ask__opt"><span class="ask__mark"> </span><span class="ask__n">3</span> The token never reaches the server logs</div>
+                <div class="ask__opt"><span class="ask__mark"> </span><span class="ask__n">4</span> The access token can be revoked instantly</div>
+                <div class="ask__opt ask__opt--other"><span class="ask__mark"> </span><span class="ask__n">5</span> Other — I don't know</div>
+              </div>
+            </div>
           </div>
-          <div class="tl-5 tl-user" data-term-line><span class="term__prompt">❯</span> 1</div>
           <div class="tl-6 tl-grade" data-term-line>✓ grade 4 · recognition caps at 4 · review in 6 days</div>
           <div class="tl-7 tl-sys" data-term-line>● still writing src/routes/session.ts…<br>✓ task complete — 4 files changed · nothing left to ask</div>
           <div class="term__cursor" aria-hidden="true">▍</div>

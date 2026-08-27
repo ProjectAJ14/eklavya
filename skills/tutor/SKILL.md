@@ -154,7 +154,7 @@ Use the **`AskUserQuestion`** tool. One question per call — the tool accepts u
 
 - **Exactly four options.** One correct, three plausible.
 - **Put the correct option where `answer_position` says.** The plan gives each question a slot from 1 to 4 — obey it. Left to your own judgement you will put the right answer first nearly every time, and a learner only needs a handful of questions to notice that and start picking A without reading. The quiz keeps looking fine and stops measuring anything. Write the four options, then place them so the correct one lands in that slot.
-- **`header`**: set it to `unsure→Other` (12 chars, fits). The tool appends an "Other" choice automatically, and that is the escape hatch for *"I don't know"* — but only if they notice it. The chip is on every question and costs no words.
+- **`header`**: set it to `Eklavya` (7 chars, fits). The chip is the only thing on screen that says who is asking. A question that arrives mid-task with no attribution reads as Claude going off-piste, and the developer answers a stranger. The tool still appends an "Other" choice automatically and that is the escape hatch for *"I don't know"* — name it in a `description` if a question needs it, not in the header.
 - **`question`**: the stem, grounded per the plan's `framing`. Do not number the options in the text; the tool renders them.
 - **`description`** on each option: one clause. This is where a near-miss gets to be genuinely tempting.
 - **`preview`**: use it when the options are *code*. Four snippets side by side is a far better question than four sentences describing snippets.

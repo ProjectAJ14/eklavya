@@ -198,11 +198,37 @@ a:hover { color: var(--green-800); }
   color: #C7CFD4; padding-left: 16px; border-left: 2px solid var(--green-600);
 }
 .tl-grade { color: var(--green-400); }
-.tl-opt { display: inline-block; margin-top: 6px; color: #AEB8C0; }
-.tl-optn {
-  display: inline-block; min-width: 16px; margin-right: 6px;
-  color: var(--green-400); font-weight: 500;
+
+/* the AskUserQuestion picker, as Claude Code draws it */
+.ask {
+  border: 1px solid var(--neutral-700); border-left: 2px solid var(--green-600);
+  border-radius: var(--radius-md); padding: 12px 14px; margin: 4px 0 2px;
+  background: rgba(18, 22, 25, .45);
 }
+.ask__head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ask__chip {
+  color: var(--green-300); background: rgba(4, 157, 102, .18);
+  border: 1px solid rgba(4, 157, 102, .35);
+  padding: 1px 8px; border-radius: var(--radius-pill);
+  font-size: 11.5px; font-weight: 500; letter-spacing: .02em;
+}
+.ask__hint { color: var(--neutral-500); font-size: 11.5px; }
+.ask__stem { margin: 0 0 10px; color: #C7CFD4; }
+.ask__opts { display: flex; flex-direction: column; gap: 2px; }
+.ask__opt {
+  color: #AEB8C0; padding: 2px 6px; border-radius: var(--radius-xs);
+  display: flex; align-items: flex-start; gap: 4px;
+}
+.ask__opt--other { color: var(--neutral-500); }
+.ask__mark { flex: none; width: 12px; color: var(--green-400); }
+.ask__n { flex: none; min-width: 14px; color: var(--neutral-500); }
+
+/* the picked row. Base state is selected so that when prefers-reduced-motion
+   kills the animation the panel still shows an answered question. */
+.tl-pick { background: rgba(4, 157, 102, .16); color: #E8EDEF; }
+.tl-pick .ask__n { color: var(--green-300); }
+.tl-pick { animation: pick 16s linear infinite; }
+.tl-pick .ask__mark { animation: pickMark 16s linear infinite; }
 .term__cursor { color: var(--green-400); opacity: 1; animation: blink 1.1s steps(1) infinite; }
 
 .tl-0 { animation: tl0 16s linear infinite; }
@@ -210,7 +236,6 @@ a:hover { color: var(--green-800); }
 .tl-2 { animation: tl2 16s linear infinite; }
 .tl-3 { animation: tl3 16s linear infinite; }
 .tl-4 { animation: tl4 16s linear infinite; margin-top: 10px; }
-.tl-5 { animation: tl5 16s linear infinite; }
 .tl-6 { animation: tl6 16s linear infinite; margin-top: 6px; }
 .tl-7 { animation: tl7 16s linear infinite; }
 .tl-hang { opacity: 0; }
@@ -505,7 +530,12 @@ a:hover { color: var(--green-800); }
 @keyframes tl2 { 0%,20% { opacity:0; transform:translateY(6px); } 22% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
 @keyframes tl3 { 0%,30% { opacity:0; transform:translateY(6px); } 32% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
 @keyframes tl4 { 0%,38% { opacity:0; transform:translateY(6px); } 40% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl5 { 0%,58% { opacity:0; transform:translateY(6px); } 60% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
+@keyframes pick {
+  0%, 58% { background: transparent; color: #AEB8C0; }
+  60%, 96% { background: rgba(4, 157, 102, .16); color: #E8EDEF; }
+  100% { background: transparent; color: #AEB8C0; }
+}
+@keyframes pickMark { 0%, 58% { opacity: 0; } 60%, 96% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes tl6 { 0%,68% { opacity:0; transform:translateY(6px); } 70% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
 @keyframes tl7 { 0%,80% { opacity:0; transform:translateY(6px); } 82% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
 
@@ -587,6 +617,10 @@ a:hover { color: var(--green-800); }
   .install__lines code { white-space: normal; word-break: break-all; }
   .copy { align-self: flex-start; }
   .term__body { font-size: 12px; padding: 16px 16px 20px; }
+  .ask { padding: 10px; }
+  .ask__head { flex-wrap: wrap; gap: 6px; }
+  .ask__hint { display: none; }
+  .ask__opt { padding-left: 2px; }
   .cmd-row { grid-template-columns: 1fr; gap: 6px; }
   .ladder__row { grid-template-columns: 32px 96px 1fr; gap: 10px; }
   .ladder__ends { padding-left: 148px; font-size: 10px; }

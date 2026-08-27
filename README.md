@@ -86,7 +86,7 @@ Tier 1 asks what a thing is. Tier 5 asks what breaks it in production. You climb
 
 You are in the middle of something. A blank prompt asking you to explain a mechanism gets skipped — not because you didn't know, but because typing a paragraph costs more than the question is worth right then, and the skip records as if you had no idea.
 
-So every question comes as four options, through Claude Code's own question UI: one right, three that a competent person could believe. Picking one is a keystroke. "Other" is always there for *I don't know* — which is a request to be taught, not a skip — or for typing a real answer if you'd rather explain.
+So every question comes as four options, through Claude Code's own question UI, under an **Eklavya** header so you can see who is asking: one right, three that a competent person could believe. Picking one is a keystroke. "Other" is always there for *I don't know* — which is a request to be taught, not a skip — or for typing a real answer if you'd rather explain.
 
 Recognition is easier than recall, and the grading knows it: a multiple-choice answer is capped at 4 out of 5, because choosing the right option can't show you could have explained it. Two clean answers still reach mastery; it just isn't claimed on one lucky guess.
 
