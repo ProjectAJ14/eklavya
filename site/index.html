@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eklavya — learn while your agent works</title>
+<meta name="description" content="Eklavya is a Claude Code plugin that turns agent generation time into learning time. While Claude implements your task, it teaches you the concepts behind that exact work — Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph.">
+<link rel="canonical" href="https://projectaj14.github.io/eklavya/">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Eklavya — learn while your agent works">
+<meta property="og:description" content="A Claude Code plugin that turns agent generation time into learning time. Never the same question twice.">
+<meta property="og:url" content="https://projectaj14.github.io/eklavya/">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#121619">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23049D66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6c6.7 3.3 6.7 18 0 21.3'/%3E%3Cline x1='9' y1='6' x2='9' y2='27'/%3E%3Cline x1='6.5' y1='16' x2='24' y2='16'/%3E%3Cpolyline points='19.5,11.5 24,16 19.5,20.5'/%3E%3C/g%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============================ NAV ============================ -->
+<nav class="nav">
+  <div class="wrap nav__inner">
+    <a class="brand" href="#top" aria-label="Eklavya, home">
+      <span class="brand__mark">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg>
+      </span>
+      <span class="brand__name">Eklavya</span>
+      <span class="brand__tag">Claude Code plugin</span>
+    </a>
+    <div class="nav__links">
+      <a class="nav__link" href="#legend">The legend</a>
+      <a class="nav__link" href="#how">How it works</a>
+      <a class="nav__link" href="#modes">Modes</a>
+      <a class="nav__link" href="#commands">Commands</a>
+      <a class="btn btn--white" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============================ HERO ============================ -->
+<header class="hero" id="top">
+  <div class="hero__dots" aria-hidden="true"></div>
+  <div class="hero__glow" aria-hidden="true"></div>
+  <div class="hero__glow hero__glow--low" aria-hidden="true"></div>
+
+  <svg class="hero__arrows" viewBox="0 0 1000 140" fill="none" aria-hidden="true">
+    <line x1="150" y1="70" x2="850" y2="70" stroke="rgba(143,216,182,.35)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
+    <g class="shot__bow">
+      <path d="M 62 16 Q 112 70 62 124" stroke="var(--green-300)" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="62" y1="16" x2="62" y2="124" stroke="rgba(143,216,182,.6)" stroke-width="1.5"/>
+    </g>
+    <g class="shot__arrow">
+      <line x1="66" y1="70" x2="150" y2="70" stroke="#C3EAD8" stroke-width="3" stroke-linecap="round"/>
+      <polyline points="140 61 152 70 140 79" stroke="#C3EAD8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <line x1="74" y1="70" x2="66" y2="62" stroke="#C3EAD8" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="74" y1="70" x2="66" y2="78" stroke="#C3EAD8" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="84" y1="70" x2="76" y2="62" stroke="#C3EAD8" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="84" y1="70" x2="76" y2="78" stroke="#C3EAD8" stroke-width="2.5" stroke-linecap="round"/>
+    </g>
+    <g class="shot__target">
+      <circle cx="890" cy="70" r="36" stroke="var(--green-300)" stroke-width="2.5"/>
+      <circle cx="890" cy="70" r="23" stroke="rgba(143,216,182,.55)" stroke-width="2"/>
+      <circle cx="890" cy="70" r="10" stroke="rgba(143,216,182,.4)" stroke-width="2"/>
+      <circle cx="890" cy="70" r="3.5" fill="var(--green-300)"/>
+    </g>
+    <circle class="shot__ripple" cx="890" cy="70" r="38" stroke="var(--green-300)" stroke-width="2"/>
+    <circle class="shot__ripple shot__ripple--late" cx="890" cy="70" r="38" stroke="rgba(143,216,182,.5)" stroke-width="1.5"/>
+  </svg>
+
+  <div class="wrap hero__grid">
+    <div>
+      <div class="badge fade-up">
+        <span class="badge__dot" aria-hidden="true"></span>
+        A plugin for Claude Code
+      </div>
+
+      <h1 class="hero__title fade-up fade-up--1">Learn while your<br>agent <em>works.</em></h1>
+
+      <p class="hero__lede pretty fade-up fade-up--2">
+        Eklavya turns agent generation time into learning time. While Claude Code implements your task, it teaches you the concepts behind that exact work — Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph.
+      </p>
+
+      <div class="install fade-up fade-up--3">
+        <div class="install__lines">
+          <code><span class="install__n">1</span>&nbsp;&nbsp;/plugin marketplace add ProjectAJ14/eklavya</code>
+          <code><span class="install__n">2</span>&nbsp;&nbsp;/plugin install eklavya@eklavya</code>
+          <code><span class="install__n">3</span>&nbsp;&nbsp;/eklavya:setup</code>
+        </div>
+        <button class="copy" type="button" data-copy>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          <span data-copy-label>Copy</span>
+        </button>
+      </div>
+
+      <div class="hero__actions fade-up fade-up--4">
+        <a class="btn btn--brand" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
+          View on GitHub
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </a>
+        <a class="btn btn--ghost" href="#legend">The legend</a>
+      </div>
+
+      <p class="hero__note fade-up fade-up--5">Everything is local. No accounts, no sync, no telemetry.</p>
+    </div>
+
+    <!-- animated terminal -->
+    <div class="term-shell fade-up fade-up--term">
+      <div class="term">
+        <div class="term__bar">
+          <span class="term__dot" aria-hidden="true"></span>
+          <span class="term__dot" aria-hidden="true"></span>
+          <span class="term__dot" aria-hidden="true"></span>
+          <span class="term__title">claude — my-express-api</span>
+        </div>
+        <div class="term__body" aria-label="A Claude Code session: Eklavya logs the concepts a task touched, then quizzes on them.">
+          <div class="tl-0 tl-user" data-term-line><span class="term__prompt">❯</span> add JWT auth to the Express API</div>
+          <div class="tl-1 tl-sys" data-term-line>● writing src/auth.ts, src/middleware/verify.ts…</div>
+          <div class="tl-2 tl-ek" data-term-line>◆ eklavya · logged jwt-structure, httponly-cookies,<br><span class="tl-hang">◆ eklavya · </span>middleware-order-auth</div>
+          <div class="tl-3 tl-sys" data-term-line>✓ task complete — 4 files changed</div>
+          <div class="tl-4 tl-ek" data-term-line>◆ eklavya · quiz — 1 question on this work</div>
+          <div class="tl-5 tl-q" data-term-line>I set httpOnly: true on the refresh cookie in auth.ts:42 but left the access token in memory. What attack does that split defend against?</div>
+          <div class="tl-6 tl-user" data-term-line><span class="term__prompt">❯</span> XSS — injected script can't read the refresh token…</div>
+          <div class="tl-7 tl-grade" data-term-line>✓ grade 4 · mastery updated · next review in 6 days</div>
+          <div class="term__cursor" aria-hidden="true">▍</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============================ WHY ============================ -->
+<section class="why" aria-label="Why Eklavya exists">
+  <div class="why__inner">
+    <p class="why__statement pretty" data-reveal>
+      Coding agents create a comprehension gap. You ship code you didn't write and <em>couldn't debug.</em>
+    </p>
+    <p class="why__body pretty" data-reveal data-delay="150">
+      The moment code is being generated is the highest-leverage teaching moment there is: the concepts are concrete, the code is right in front of you, and your hands are free. So Eklavya asks you about it — once per task, never the same question twice, and harder each time you get it right.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ LEGEND ============================ -->
+<section class="legend" id="legend" data-shoot aria-labelledby="legend-title">
+  <div class="legend__dots" aria-hidden="true"></div>
+  <div class="legend__glow" aria-hidden="true"></div>
+  <div class="wrap legend__inner">
+    <p class="eyebrow eyebrow--dark center" data-reveal>The name</p>
+    <h2 class="h2 legend__title center" id="legend-title" data-reveal data-delay="100">The archer who taught himself</h2>
+
+    <svg class="shot" viewBox="0 0 1000 140" fill="none" data-reveal data-delay="200" aria-hidden="true">
+      <line x1="150" y1="70" x2="850" y2="70" stroke="rgba(143,216,182,.28)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
+      <g class="shot__bow" data-anim>
+        <path d="M 62 16 Q 112 70 62 124" stroke="var(--green-300)" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="62" y1="16" x2="62" y2="124" stroke="rgba(143,216,182,.6)" stroke-width="1.5"/>
+      </g>
+      <g class="shot__arrow" data-anim>
+        <line x1="66" y1="70" x2="150" y2="70" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+        <polyline points="140 61 152 70 140 79" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <line x1="74" y1="70" x2="66" y2="62" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+        <line x1="74" y1="70" x2="66" y2="78" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+        <line x1="84" y1="70" x2="76" y2="62" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+        <line x1="84" y1="70" x2="76" y2="78" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <g class="shot__target" data-anim>
+        <circle cx="890" cy="70" r="36" stroke="var(--green-300)" stroke-width="2.5"/>
+        <circle cx="890" cy="70" r="23" stroke="rgba(143,216,182,.55)" stroke-width="2"/>
+        <circle cx="890" cy="70" r="10" stroke="rgba(143,216,182,.4)" stroke-width="2"/>
+        <circle cx="890" cy="70" r="3.5" fill="var(--green-300)"/>
+      </g>
+      <circle class="shot__ripple" data-anim cx="890" cy="70" r="38" stroke="var(--green-300)" stroke-width="2"/>
+      <circle class="shot__ripple shot__ripple--late" data-anim cx="890" cy="70" r="38" stroke="rgba(143,216,182,.5)" stroke-width="1.5"/>
+    </svg>
+
+    <div class="legend__cols">
+      <div data-reveal>
+        <span class="legend__idx">01</span>
+        <h3 class="legend__head">Refused a teacher</h3>
+        <p class="legend__body pretty">In the Mahabharata, Drona taught archery to princes. Ekalavya, a forest hunter's son, asked to learn — and was turned away.</p>
+      </div>
+      <div data-reveal data-delay="150">
+        <span class="legend__idx">02</span>
+        <h3 class="legend__head">Practiced before a statue</h3>
+        <p class="legend__body pretty">He built a clay likeness of the guru and trained alone before it, arrow after arrow, until his skill surpassed the court's best archer.</p>
+      </div>
+      <div data-reveal data-delay="300">
+        <span class="legend__idx">03</span>
+        <h3 class="legend__head">Here, the statue talks back</h3>
+        <p class="legend__body pretty">You already learn beside a master that builds in front of you. Eklavya makes it answer: it asks about the work, grades honestly, and remembers what you've mastered.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ HOW IT WORKS ============================ -->
+<section class="how" id="how" aria-labelledby="how-title">
+  <div class="wrap how__grid">
+    <div>
+      <p class="eyebrow eyebrow--light" data-reveal>The loop</p>
+      <h2 class="h2" id="how-title" data-reveal data-delay="100">How it works</h2>
+      <p class="how__body pretty" data-reveal data-delay="200">
+        Tier 1 asks what a thing is. Tier 5 asks what breaks it in production. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
+      </p>
+
+      <div class="ladder" data-reveal data-delay="300">
+        <div class="ladder__row">
+          <span class="ladder__tier">T1</span><span class="ladder__label">Recall</span>
+          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="20%"></span></span>
+        </div>
+        <div class="ladder__row">
+          <span class="ladder__tier">T2</span><span class="ladder__label">Mechanism</span>
+          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="40%"></span></span>
+        </div>
+        <div class="ladder__row">
+          <span class="ladder__tier">T3</span><span class="ladder__label">Judgement</span>
+          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="60%"></span></span>
+        </div>
+        <div class="ladder__row">
+          <span class="ladder__tier">T4</span><span class="ladder__label">Failure modes</span>
+          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="80%"></span></span>
+        </div>
+        <div class="ladder__row">
+          <span class="ladder__tier">T5</span><span class="ladder__label">Design</span>
+          <span class="ladder__track"><span class="ladder__fill" data-grow data-w="100%"></span></span>
+        </div>
+      </div>
+    </div>
+
+    <ol class="steps">
+      <div class="steps__spine" aria-hidden="true"></div>
+      <li data-reveal>
+        <span class="steps__n">1</span>
+        <h3>You ask for something</h3>
+        <p>"Add JWT auth to the Express API." Claude Code gets to work, same as always.</p>
+      </li>
+      <li data-reveal data-delay="100">
+        <span class="steps__n">2</span>
+        <h3>Claude logs what the work touches</h3>
+        <p class="has-chips">Each concept comes with a line pointing at the actual code.</p>
+        <div class="chips">
+          <span class="chip">jwt-structure</span>
+          <span class="chip">httponly-cookies</span>
+          <span class="chip">middleware-order-auth</span>
+        </div>
+      </li>
+      <li data-reveal data-delay="200">
+        <span class="steps__n">3</span>
+        <h3>The task finishes, a quiz arrives</h3>
+        <p>A Stop hook checks the knowledge graph. Anything you haven't mastered turns into a quiz — at most once per batch of work.</p>
+      </li>
+      <li data-reveal data-delay="300">
+        <span class="steps__n">4</span>
+        <h3>You answer, it grades honestly</h3>
+        <p>SM-2's 0–5 scale, recorded in the graph. Mastery and the next review date update.</p>
+      </li>
+      <li data-reveal data-delay="400">
+        <span class="steps__n steps__n--solid">5</span>
+        <h3>Next session starts calibrated</h3>
+        <p>A one-line learner profile, so Claude calibrates from your first message. Shaky concepts come back later, at a higher tier.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================ THE PROMISE ============================ -->
+<section class="promise" aria-labelledby="promise-title">
+  <div class="wrap section">
+    <p class="eyebrow eyebrow--light center" data-reveal>The promise</p>
+    <h2 class="h2 center" id="promise-title" data-reveal data-delay="100">Never the same question twice</h2>
+    <p class="promise__sub" data-reveal data-delay="200">Three separate things enforce it, because a prompt asking nicely is not enforcement.</p>
+
+    <div class="cards">
+      <div class="card" data-reveal>
+        <span class="icon-tile">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        </span>
+        <h3>Mastered concepts stay retired</h3>
+        <p>The learner profile hands the tutor the list of what you know. Spaced repetition is the only thing that brings one back — harder than last time.</p>
+      </div>
+      <div class="card" data-reveal data-delay="120">
+        <span class="icon-tile">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+        </span>
+        <h3>Every question is on record</h3>
+        <p>The quiz plan hands past questions back with the tier and grade each got. A question already asked is spent: same concept, different angle.</p>
+      </div>
+      <div class="card" data-reveal data-delay="240">
+        <span class="icon-tile">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </span>
+        <h3>Answered means done for the session</h3>
+        <p>Getting something half-right no longer puts it straight back in the queue five minutes later. Prerequisites are checked too — foundations come first.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ MODES ============================ -->
+<section class="modes" id="modes" aria-labelledby="modes-title">
+  <div class="wrap section">
+    <h2 class="h2" id="modes-title" data-reveal>Three modes</h2>
+    <div class="modes__grid">
+      <div class="mode mode--default" data-reveal>
+        <span class="mode__pill">default</span>
+        <code class="mode__name">ambient</code>
+        <p class="mode__who">For anyone learning a new stack</p>
+        <p class="mode__body">Questions offered after tasks, always skippable, no nagging.</p>
+      </div>
+      <div class="mode" data-reveal data-delay="120">
+        <code class="mode__name">enforced</code>
+        <p class="mode__who">For interns and onboarding</p>
+        <p class="mode__body">The session quiz must pass before <code class="code-inline">git commit</code> — inside Claude Code and from a bare terminal.</p>
+      </div>
+      <div class="mode" data-reveal data-delay="240">
+        <code class="mode__name">off</code>
+        <p class="mode__who">For later</p>
+        <p class="mode__body">Installed but dormant. Nothing fires, nothing asks.</p>
+      </div>
+    </div>
+    <p class="modes__foot" data-reveal data-delay="300">
+      Repo settings beat global ones — <code class="code-inline">eklavya config set mode enforced --repo</code> pins enforced mode on one codebase without touching anyone's machine-wide setup.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ COMMANDS + DATA ============================ -->
+<section class="commands" id="commands" aria-labelledby="commands-title">
+  <div class="wrap commands__grid">
+    <div>
+      <h2 class="h2" id="commands-title" data-reveal>Five commands</h2>
+      <div class="cmd-table" data-reveal data-delay="100">
+        <div class="cmd-row"><code>/eklavya:quiz [topic]</code><span>Quiz now — on this session's work, or a named topic</span></div>
+        <div class="cmd-row"><code>/eklavya:learn &lt;topic&gt;</code><span>A structured lesson, prerequisite-ordered, calibrated to what you know</span></div>
+        <div class="cmd-row"><code>/eklavya:progress</code><span>The mastery map: domains, what's due, where you're weakest</span></div>
+        <div class="cmd-row"><code>/eklavya:gate</code><span>Commit-gate status</span></div>
+        <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node 18+, sqlite3 and jq</span></div>
+      </div>
+    </div>
+
+    <div class="data-card" data-reveal data-delay="200">
+      <span class="icon-tile icon-tile--dark">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+      </span>
+      <h3>Your data stays yours</h3>
+      <p><code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. Delete the directory and Eklavya forgets you entirely.</p>
+      <p>The knowledge graph and the commit gate are editor-agnostic — the same MCP server and pedagogy export to Cursor as a rules file, so the two editors cannot drift apart.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ CTA ============================ -->
+<section class="cta" aria-labelledby="cta-title">
+  <div class="cta__glow" aria-hidden="true"></div>
+  <div class="cta__inner">
+    <h2 class="cta__title" id="cta-title" data-reveal>Turn generation time<br>into <em>learning time.</em></h2>
+    <div class="cta__code" data-reveal data-delay="150">
+      <div><span>$</span> /plugin marketplace add ProjectAJ14/eklavya</div>
+      <div><span>$</span> /plugin install eklavya@eklavya</div>
+      <div><span>$</span> /eklavya:setup</div>
+    </div>
+    <div class="cta__actions" data-reveal data-delay="300">
+      <a class="btn btn--brand" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+        Star on GitHub
+      </a>
+    </div>
+    <p class="cta__note" data-reveal data-delay="400">Node 18+ · sqlite3 and jq on PATH · works in Claude Code and Cursor</p>
+  </div>
+</section>
+
+<!-- ============================ FOOTER ============================ -->
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <div class="footer__left">
+      <div class="brand">
+        <span class="footer__mark">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg>
+        </span>
+        <span class="footer__name">Eklavya</span>
+      </div>
+      <p class="footer__quote pretty">Named for Ekalavya, who mastered archery practicing before a silent statue of his guru. Here, the statue talks back.</p>
+    </div>
+    <div class="footer__right">
+      <a href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener" class="footer__link">github.com/ProjectAJ14/eklavya</a>
+      <span>MIT License · Built by Ajay Kumar</span>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>

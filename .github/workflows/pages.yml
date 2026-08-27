@@ -1,0 +1,40 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# Never let two deploys race; a queued run waits rather than publishing
+# on top of one that is still uploading.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write          # publish the artifact to Pages
+      id-token: write       # deploy-pages authenticates with OIDC, not a token
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/configure-pages@v5
+
+      # The site is plain HTML/CSS/JS — no build step, upload the folder as-is.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

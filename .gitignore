@@ -11,3 +11,9 @@ dist/
 .DS_Store
 *.log
 coverage/
+
+# playwright-mcp scratch output
+.playwright-mcp/
+
+# local Claude Code permissions, per-machine
+.claude/settings.local.json

@@ -1,0 +1,135 @@
+/* ============================================================
+   NonStop Design System — Colors & Type
+   Brand: NonStop io  ·  Primary: Emerald #049D66
+   Fonts: Manrope (UI/display), JetBrains Mono (code)
+   Loaded from Google Fonts CDN. See README "Visual Foundations".
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---------- BRAND GREEN SCALE ---------- */
+  --green-50:  #E6F6EF;
+  --green-100: #C3EAD8;
+  --green-200: #8FD8B6;
+  --green-300: #57C492;
+  --green-400: #1FAF74;
+  --green-500: #049D66; /* PRIMARY */
+  --green-600: #03875A;
+  --green-700: #036D49;
+  --green-800: #024E36;
+  --green-900: #013827;
+
+  /* ---------- NEUTRALS (cool slate) ---------- */
+  --neutral-0:   #FFFFFF;
+  --neutral-50:  #F7F9FA;
+  --neutral-100: #EEF1F3;
+  --neutral-200: #E0E5E9;
+  --neutral-300: #CAD2D8;
+  --neutral-400: #9AA6AF;
+  --neutral-500: #6B7780;
+  --neutral-600: #4D575F;
+  --neutral-700: #363F45;
+  --neutral-800: #21282D;
+  --neutral-900: #121619; /* near-black */
+
+  /* ---------- SEMANTIC / FUNCTIONAL (use sparingly) ---------- */
+  --success:    #049D66;  --success-bg: #E6F6EF;
+  --warning:    #E8920C;  --warning-bg: #FCF1DD;
+  --error:      #E5484D;  --error-bg:   #FCE9EA;
+  --info:       #2A7DE1;  --info-bg:    #E6F0FC;
+
+  /* ---------- SEMANTIC ROLES ---------- */
+  --brand:            var(--green-500);
+  --brand-hover:      var(--green-600);
+  --brand-active:     var(--green-700);
+  --brand-subtle:     var(--green-50);
+  --on-brand:         var(--neutral-0);
+
+  --bg:               var(--neutral-0);   /* page background */
+  --bg-subtle:        var(--neutral-50);  /* app shell / sections */
+  --bg-sunken:        var(--neutral-100); /* wells, code blocks */
+  --surface:          var(--neutral-0);   /* cards */
+  --surface-hover:    var(--neutral-50);
+
+  --fg:               var(--neutral-900); /* primary text */
+  --fg-muted:         var(--neutral-600); /* secondary text */
+  --fg-subtle:        var(--neutral-500); /* tertiary / captions */
+  --fg-faint:         var(--neutral-400); /* disabled / placeholder */
+  --on-dark:          var(--neutral-0);
+  --on-dark-muted:    rgba(255,255,255,.68);
+
+  --border:           var(--neutral-200); /* default hairline */
+  --border-strong:    var(--neutral-300);
+  --border-focus:     var(--green-500);
+  --ring:             0 0 0 3px rgba(4,157,102,.28); /* focus ring */
+
+  /* ---------- TYPE FAMILIES ---------- */
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ---------- TYPE SCALE (1.20 minor third) ---------- */
+  --text-xs:   12px;  --lh-xs:   16px;
+  --text-sm:   14px;  --lh-sm:   20px;
+  --text-base: 16px;  --lh-base: 24px;
+  --text-md:   18px;  --lh-md:   28px;
+  --text-lg:   20px;  --lh-lg:   28px;
+  --text-xl:   24px;  --lh-xl:   32px;
+  --text-2xl:  30px;  --lh-2xl:  38px;
+  --text-3xl:  38px;  --lh-3xl:  46px;
+  --text-4xl:  48px;  --lh-4xl:  56px;
+  --text-5xl:  60px;  --lh-5xl:  66px;
+
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-semibold:600;
+  --weight-bold:    700;
+  --weight-extra:   800;
+
+  --tracking-tight:  -0.02em;
+  --tracking-snug:   -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.02em;
+  --tracking-caps:   0.08em;
+
+  /* ---------- SPACING (4px base) ---------- */
+  --space-1: 4px;   --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
+  --space-5: 20px;  --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
+  --space-12: 48px; --space-16: 64px; --space-20: 80px; --space-24: 96px;
+
+  /* ---------- RADII ---------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;    /* default control radius */
+  --radius-lg: 12px;   /* cards */
+  --radius-xl: 16px;   /* large surfaces */
+  --radius-2xl: 24px;
+  --radius-pill: 999px;
+
+  /* ---------- SHADOWS (soft, cool-tinted) ---------- */
+  --shadow-xs: 0 1px 2px rgba(18,22,25,.06);
+  --shadow-sm: 0 1px 3px rgba(18,22,25,.08), 0 1px 2px rgba(18,22,25,.04);
+  --shadow-md: 0 4px 12px rgba(18,22,25,.08), 0 2px 4px rgba(18,22,25,.04);
+  --shadow-lg: 0 12px 28px rgba(18,22,25,.12), 0 4px 8px rgba(18,22,25,.05);
+  --shadow-brand: 0 6px 18px rgba(4,157,102,.28);
+
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease: cubic-bezier(.2,.6,.2,1);
+}
+
+/* ============================================================
+   SEMANTIC ELEMENT STYLES — apply via classes or element tags
+   ============================================================ */
+.ns-h1 { font-family:var(--font-sans); font-weight:var(--weight-extra); font-size:var(--text-4xl); line-height:var(--lh-4xl); letter-spacing:var(--tracking-tight); color:var(--fg); }
+.ns-h2 { font-family:var(--font-sans); font-weight:var(--weight-bold); font-size:var(--text-3xl); line-height:var(--lh-3xl); letter-spacing:var(--tracking-tight); color:var(--fg); }
+.ns-h3 { font-family:var(--font-sans); font-weight:var(--weight-bold); font-size:var(--text-2xl); line-height:var(--lh-2xl); letter-spacing:var(--tracking-snug); color:var(--fg); }
+.ns-h4 { font-family:var(--font-sans); font-weight:var(--weight-semibold); font-size:var(--text-xl); line-height:var(--lh-xl); letter-spacing:var(--tracking-snug); color:var(--fg); }
+.ns-h5 { font-family:var(--font-sans); font-weight:var(--weight-semibold); font-size:var(--text-md); line-height:var(--lh-md); color:var(--fg); }
+.ns-lead { font-family:var(--font-sans); font-weight:var(--weight-regular); font-size:var(--text-lg); line-height:var(--lh-lg); color:var(--fg-muted); }
+.ns-body { font-family:var(--font-sans); font-weight:var(--weight-regular); font-size:var(--text-base); line-height:var(--lh-base); color:var(--fg); }
+.ns-small { font-family:var(--font-sans); font-weight:var(--weight-regular); font-size:var(--text-sm); line-height:var(--lh-sm); color:var(--fg-muted); }
+.ns-caption { font-family:var(--font-sans); font-weight:var(--weight-medium); font-size:var(--text-xs); line-height:var(--lh-xs); color:var(--fg-subtle); }
+.ns-overline { font-family:var(--font-sans); font-weight:var(--weight-bold); font-size:var(--text-xs); line-height:var(--lh-xs); letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--fg-subtle); }
+.ns-code { font-family:var(--font-mono); font-weight:var(--weight-regular); font-size:var(--text-sm); color:var(--green-700); background:var(--bg-sunken); padding:2px 6px; border-radius:var(--radius-xs); }
