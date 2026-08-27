@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/ProjectAJ14/eklavya/compare/v1.6.0...v1.6.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* start the MCP server when no plugin loader expanded the root ([83612cb](https://github.com/ProjectAJ14/eklavya/commit/83612cb07ec2f6baf9e7210d29c0e1cc08189351))
+
 # [1.6.0](https://github.com/ProjectAJ14/eklavya/compare/v1.5.0...v1.6.0) (2026-08-27)
 
 

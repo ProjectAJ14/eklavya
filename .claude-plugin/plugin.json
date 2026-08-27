@@ -1,7 +1,7 @@
 {
   "name": "eklavya",
   "displayName": "Eklavya",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Learn while your agent works. Turns coding-agent generation time into adaptive, Socratic learning grounded in the code being written.",
   "author": {
     "name": "Ajay Kumar"
