@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/ProjectAJ14/eklavya/compare/v1.4.1...v1.5.0) (2026-08-27)
+
+
+### Features
+
+* **quiz:** earn a difficulty level per project, easy to hard ([c83c3f6](https://github.com/ProjectAJ14/eklavya/commit/c83c3f67a316acdd4adb1141c0f0542990841938))
+
 ## [1.4.1](https://github.com/ProjectAJ14/eklavya/compare/v1.4.0...v1.4.1) (2026-08-27)
 
 
