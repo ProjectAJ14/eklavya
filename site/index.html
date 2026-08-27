@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eklavya — learn while your agent works</title>
 <meta name="description" content="Eklavya is a Claude Code plugin that turns agent generation time into learning time. While Claude implements your task, it teaches you the concepts behind that exact work — Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph.">
-<link rel="canonical" href="https://projectaj14.github.io/eklavya/">
+<link rel="canonical" href="https://eklavya-run.web.app/">
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="Eklavya — learn while your agent works">
 <meta property="og:description" content="A Claude Code plugin that turns agent generation time into learning time. Never the same question twice.">
-<meta property="og:url" content="https://projectaj14.github.io/eklavya/">
+<meta property="og:url" content="https://eklavya-run.web.app/">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#121619">
 
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23049D66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6c6.7 3.3 6.7 18 0 21.3'/%3E%3Cline x1='9' y1='6' x2='9' y2='27'/%3E%3Cline x1='6.5' y1='16' x2='24' y2='16'/%3E%3Cpolyline points='19.5,11.5 24,16 19.5,20.5'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -125,11 +125,12 @@
           <div class="tl-0 tl-user" data-term-line><span class="term__prompt">❯</span> add JWT auth to the Express API</div>
           <div class="tl-1 tl-sys" data-term-line>● writing src/auth.ts, src/middleware/verify.ts…</div>
           <div class="tl-2 tl-ek" data-term-line>◆ eklavya · logged jwt-structure, httponly-cookies,<br><span class="tl-hang">◆ eklavya · </span>middleware-order-auth</div>
-          <div class="tl-3 tl-ek" data-term-line>◆ eklavya · httponly-cookies · tier 2</div>
+          <div class="tl-3 tl-ek" data-term-line>◆ eklavya · checkpoint · httponly-cookies</div>
           <div class="tl-4" data-term-line>
             <div class="ask">
               <div class="ask__head"><span class="ask__chip">Eklavya</span><span class="ask__hint">↑↓ to move · enter to pick</span></div>
               <p class="ask__stem">I set httpOnly on the refresh cookie in auth.ts:42 and left the access token in memory. What does that split buy?</p>
+              <p class="ask__footer">concept · easy · tier 2</p>
               <div class="ask__opts">
                 <div class="ask__opt tl-pick"><span class="ask__mark">❯</span><span class="ask__n">1</span> Injected script can't read the refresh token</div>
                 <div class="ask__opt"><span class="ask__mark"> </span><span class="ask__n">2</span> A forged cross-site request can't be sent</div>
@@ -219,7 +220,10 @@
       <p class="eyebrow eyebrow--light" data-reveal>The loop</p>
       <h2 class="h2" id="how-title" data-reveal data-delay="100">How it works</h2>
       <p class="how__body pretty" data-reveal data-delay="200">
-        Difficulty is a ladder, not a setting you pick. Tier 1 asks what a thing is; tier 5 asks when it is the wrong architecture entirely. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
+        Difficulty is earned, not picked. Tier 1 asks what a thing is; tier 5 asks when it is the wrong architecture entirely. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
+      </p>
+      <p class="how__body pretty" data-reveal data-delay="250">
+        Three bands sit over that ladder, held <em>per project.</em> Every codebase starts at <code class="code-inline">easy</code>, because the questions you can answer while watching an agent work are the ones that make the habit stick. A band moves up after 100 passing answers in that project, at 70% accuracy, across at least fifteen concepts. Nothing ever demotes you.
       </p>
 
       <div class="ladder" data-reveal data-delay="300">
@@ -227,23 +231,29 @@
         <div class="ladder__row">
           <span class="ladder__tier">T1</span><span class="ladder__label">Recall</span>
           <span class="ladder__track"><span class="ladder__fill ladder__fill--t1" data-grow data-w="20%"></span></span>
+          <span class="ladder__band ladder__band--easy">easy</span>
         </div>
         <div class="ladder__row">
           <span class="ladder__tier">T2</span><span class="ladder__label">Mechanism</span>
           <span class="ladder__track"><span class="ladder__fill ladder__fill--t2" data-grow data-w="40%"></span></span>
+          <span class="ladder__band ladder__band--easy">easy</span>
         </div>
         <div class="ladder__row">
           <span class="ladder__tier">T3</span><span class="ladder__label">Judgement</span>
           <span class="ladder__track"><span class="ladder__fill ladder__fill--t3" data-grow data-w="60%"></span></span>
+          <span class="ladder__band ladder__band--medium">medium</span>
         </div>
         <div class="ladder__row">
           <span class="ladder__tier">T4</span><span class="ladder__label">Failure modes</span>
           <span class="ladder__track"><span class="ladder__fill ladder__fill--t4" data-grow data-w="80%"></span></span>
+          <span class="ladder__band ladder__band--medium">medium</span>
         </div>
         <div class="ladder__row">
           <span class="ladder__tier">T5</span><span class="ladder__label">Design</span>
           <span class="ladder__track"><span class="ladder__fill ladder__fill--t5" data-grow data-w="100%"></span></span>
+          <span class="ladder__band ladder__band--hard">hard</span>
         </div>
+        <p class="ladder__note">Bands overlap — <code class="code-inline">medium</code> still asks tier 2, <code class="code-inline">hard</code> starts at tier 3. Promotion is not a cliff.</p>
       </div>
     </div>
 
@@ -326,9 +336,9 @@
   <span id="modes" class="anchor-alias" aria-hidden="true"></span>
   <div class="wrap section">
     <p class="eyebrow eyebrow--light" data-reveal>The dials</p>
-    <h2 class="h2" id="dials-title" data-reveal data-delay="100">Three independent dials</h2>
+    <h2 class="h2" id="dials-title" data-reveal data-delay="100">Four independent dials</h2>
     <p class="dials__sub" data-reveal data-delay="200">
-      <code class="code-inline">mode</code> is how hard it pushes, <code class="code-inline">focus</code> is what it teaches, <code class="code-inline">cadence</code> is when it asks. They combine freely — <code class="code-inline">enforced</code> + <code class="code-inline">learn</code> is an intern who must pass a gate on a topic they chose.
+      <code class="code-inline">mode</code> is how hard it pushes, <code class="code-inline">focus</code> is what it teaches, <code class="code-inline">cadence</code> is when it asks, <code class="code-inline">difficulty</code> is how hard the questions may get. They combine freely — <code class="code-inline">enforced</code> + <code class="code-inline">learn</code> is an intern who must pass a gate on a topic they chose.
     </p>
 
     <div class="dials">
@@ -390,6 +400,25 @@
           <p><code class="code-inline">max_questions_per_task</code> is a session budget, not a batch size — a question answered mid-work is one the Stop hook no longer asks.</p>
         </div>
       </div>
+
+      <div class="dial" data-reveal data-delay="360">
+        <div class="dial__head">
+          <code class="dial__key">difficulty</code>
+          <span class="dial__q">How hard may it get?</span>
+        </div>
+        <div class="dial__opt dial__opt--default">
+          <span class="dial__pill">default</span>
+          <code class="dial__val">auto</code>
+          <p>Earned per project. Every codebase starts at <code class="code-inline">easy</code> and climbs to <code class="code-inline">medium</code>, then <code class="code-inline">hard</code>, on passing answers.</p>
+        </div>
+        <div class="dial__opt">
+          <code class="dial__val">easy</code> <span class="dial__sep">·</span> <code class="dial__val">medium</code> <span class="dial__sep">·</span> <code class="dial__val">hard</code>
+          <p>Pinned there, and nothing promotes. <code class="code-inline">easy</code> on a repo keeps an onboarding codebase gentle for everyone; <code class="code-inline">hard</code> globally skips the runway.</p>
+        </div>
+        <div class="dial__opt dial__opt--note">
+          <p>Per project, because "how hard should this be" is a question about a codebase. A new repo starts at <code class="code-inline">easy</code> even when three others are on <code class="code-inline">hard</code>.</p>
+        </div>
+      </div>
     </div>
 
     <p class="modes__foot" data-reveal data-delay="300">
@@ -402,11 +431,12 @@
 <section class="commands" id="commands" aria-labelledby="commands-title">
   <div class="wrap commands__grid">
     <div>
-      <h2 class="h2" id="commands-title" data-reveal>Six commands</h2>
+      <h2 class="h2" id="commands-title" data-reveal>Seven commands</h2>
       <div class="cmd-table" data-reveal data-delay="100">
         <div class="cmd-row"><code>/eklavya:quiz [topic]</code><span>Quiz now — on this session's work, or a named topic</span></div>
-        <div class="cmd-row"><code>/eklavya:mode [value]</code><span>Show or change the mode, focus and cadence dials</span></div>
+        <div class="cmd-row"><code>/eklavya:mode [value]</code><span>Show or change the mode, focus, cadence and difficulty dials</span></div>
         <div class="cmd-row"><code>/eklavya:learn &lt;topic&gt;</code><span>A structured lesson, prerequisite-ordered, calibrated to what you know</span></div>
+        <div class="cmd-row"><code>/eklavya:level [value]</code><span>This project's difficulty band and the runway into it — or pin one</span></div>
         <div class="cmd-row"><code>/eklavya:progress</code><span>The mastery map: domains, what's due, where you're weakest</span></div>
         <div class="cmd-row"><code>/eklavya:gate</code><span>Commit-gate status</span></div>
         <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node 18+, sqlite3 and jq</span></div>
