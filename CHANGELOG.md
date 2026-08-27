@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/ProjectAJ14/eklavya/compare/v1.2.0...v1.3.0) (2026-08-27)
+
+
+### Features
+
+* stop the correct answer always landing first, and ask it plainly ([a50dcc8](https://github.com/ProjectAJ14/eklavya/commit/a50dcc87edef86f4e4997190f5668e13f291cc5c))
+
 # [1.2.0](https://github.com/ProjectAJ14/eklavya/compare/v1.1.0...v1.2.0) (2026-08-26)
 
 
