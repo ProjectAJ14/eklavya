@@ -1,10 +1,16 @@
+<div align="center">
+
+<img src="assets/eklavya.png" alt="Eklavya" width="220">
+
 # Eklavya
 
 **Learn while your agent works.**
 
-Eklavya turns agent generation time into learning time. While Claude Code implements your task, Eklavya teaches you the concepts behind *that exact work* — adaptive Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph, and optionally a commit gate until you can show you understood it.
+*Named for Ekalavya, who mastered archery practicing before a silent statue of his guru. Here, the statue talks back.*
 
-> Named for Ekalavya, who mastered archery practicing before a silent statue of his guru. Here, the statue talks back.
+</div>
+
+Eklavya turns agent generation time into learning time. While Claude Code implements your task, Eklavya teaches you the concepts behind *that exact work* — adaptive Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph, and optionally a commit gate until you can show you understood it.
 
 Everything is local. No accounts, no sync, no telemetry.
 
