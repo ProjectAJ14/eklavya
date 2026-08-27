@@ -572,8 +572,10 @@ a:hover { color: var(--green-800); }
 [data-reveal].is-visible { opacity: 1; transform: none; }
 
 /* the legend's arrow flight holds until scrolled into view */
-[data-shoot] [data-anim] { animation-play-state: paused; }
-[data-shoot].is-firing [data-anim] { animation-play-state: running; }
+[data-shoot] [data-anim],
+[data-shoot] [data-anim] * { animation-play-state: paused; }
+[data-shoot].is-firing [data-anim],
+[data-shoot].is-firing [data-anim] * { animation-play-state: running; }
 .shot__bow { animation: bowRecoil 9s linear infinite; transform-box: fill-box; }
 .shot__arrow { animation: arrowFly 9s cubic-bezier(.3,0,.4,1) infinite; }
 .shot__target { animation: targetPop 9s linear infinite; transform-box: fill-box; transform-origin: center; }
@@ -581,8 +583,290 @@ a:hover { color: var(--green-800); }
 .shot__ripple--late { animation-delay: .25s; }
 
 /* ============================================================
+   THE STORY — the loop that plays behind the WHY copy.
+   One 17.5s clock, six beats: generate, ship, debug, teach,
+   harder, hold. Every element below is a percentage window on
+   that clock, the same way the hero terminal is written, so
+   nothing needs JavaScript to stay in sync.
+   ============================================================ */
+.story { position: relative; overflow: hidden; }
+.story .why__inner { position: relative; z-index: 1; }
+/* the copy is never covered: the props are all one layer behind it */
+.story__bg {
+  position: absolute; inset: 0; z-index: 0; opacity: 0; pointer-events: none;
+  animation: storyBg 17.5s linear infinite;
+}
+.story__grid {
+  position: absolute; inset: -40px;
+  background-image: radial-gradient(circle, var(--neutral-300) 1px, transparent 1px);
+  background-size: 34px 34px; opacity: .5;
+  animation: gridDrift 26s linear infinite;
+}
+/* the brand glow drifts between the stations the story is told at */
+.story__glow {
+  position: absolute; top: 50%; left: 50%;
+  width: 1040px; height: 840px; margin: -420px 0 0 -520px;
+  background: radial-gradient(ellipse at center, rgba(4,157,102,.11), rgba(4,157,102,0) 65%);
+  animation: storyGlow 17.5s ease-in-out infinite;
+}
+
+/* ---------- the agent's code, typing itself in ---------- */
+.story__code {
+  position: absolute; font-family: var(--font-mono);
+  font-size: 14px; line-height: 26px; color: var(--neutral-900);
+  opacity: .5; animation: storyCode 17.5s var(--ease) infinite;
+}
+.story__code--l { left: 3%; top: 20%; --s: .2s; }
+.story__code--r { right: 3%; top: 24%; --s: .55s; }
+.story__line { white-space: pre; }
+.story__t {
+  display: inline-block; overflow: hidden; vertical-align: bottom;
+  width: 0; animation: storyType 17.5s steps(20, end) infinite;
+}
+.story__cur {
+  color: var(--green-500); opacity: 0;
+  animation: storyCur 17.5s steps(1, end) infinite;
+}
+.story__t, .story__cur { animation-delay: calc(var(--s) + var(--i) * .16s); }
+
+/* ---------- the PR that ships it ---------- */
+.story__pr {
+  position: absolute; left: 7%; top: 74%;
+  display: flex; align-items: center; gap: 12px;
+  background: #fff; border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-lg); padding: 12px 18px;
+  box-shadow: 0 6px 20px rgba(18,22,25,.07);
+  opacity: 0; animation: storyPr 17.5s var(--ease) infinite;
+}
+.story__pr-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green-500); flex: none; }
+.story__pr-msg { font-family: var(--font-mono); font-size: 13.5px; color: var(--neutral-900); }
+.story__pr-meta {
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--neutral-500);
+}
+
+/* ---------- months later ---------- */
+.story__chip {
+  position: absolute; right: 4%; top: 11%;
+  font-family: var(--font-mono); font-size: 14px; color: var(--neutral-500);
+  background: #fff; border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-md); padding: 7px 12px;
+  box-shadow: 0 4px 16px rgba(18,22,25,.06);
+  opacity: 0; animation: storyChip 17.5s var(--ease) infinite;
+}
+.story__chip-c { color: var(--neutral-400); }
+
+/* ---------- so Eklavya asks, at generation time ---------- */
+.story__ask {
+  position: absolute; right: 1.5%; top: 60%; width: 272px;
+  background: #fff; border: 1px solid var(--neutral-200);
+  border-radius: 14px; padding: 16px 18px;
+  box-shadow: 0 10px 30px rgba(18,22,25,.08);
+  opacity: 0; animation: storyAsk 17.5s var(--ease) infinite;
+}
+.story__ask-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+}
+.story__ask-over {
+  font-size: 11px; font-weight: 800; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--green-700);
+}
+.story__pips { display: flex; gap: 5px; }
+.story__pip {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--neutral-200); transform: scale(.7);
+  animation: storyPip 17.5s var(--ease) infinite;
+}
+.story__pip:nth-child(2) { animation-delay: .6s; }
+.story__pip:nth-child(3) { animation-delay: 1.2s; }
+.story__stem {
+  margin: 0 0 11px; font-size: 14px; font-weight: 700;
+  line-height: 1.35; color: var(--neutral-900);
+}
+.story__opts { display: flex; flex-direction: column; gap: 7px; }
+.story__opt {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--neutral-200); border-radius: var(--radius-md);
+  padding: 6px 10px; font-size: 12.5px; color: var(--neutral-500);
+  opacity: 0; animation: storyOpt 17.5s var(--ease) infinite;
+}
+.story__opt:nth-child(2) { animation-delay: .25s; }
+.story__opt:nth-child(3) { animation-delay: .5s; }
+.story__radio {
+  width: 15px; height: 15px; border-radius: 50%; flex: none;
+  border: 1.5px solid var(--neutral-300);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* the answer locks in green on the Harder beat */
+.story__opt--ok { animation: storyOpt 17.5s var(--ease) infinite, storyPick 17.5s var(--ease) infinite; }
+.story__opt--ok .story__radio { animation: storyRadio 17.5s var(--ease) infinite; }
+.story__opt--ok .story__radio::after {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green-500); transform: scale(0);
+  animation: storyRadioDot 17.5s var(--ease) infinite;
+}
+
+/* ---------- the marker sweep over each phrase ---------- */
+/* An inline phrase can wrap, and a wrapped span is several boxes: a
+   background paints into every fragment (box-decoration-break: clone),
+   where one positioned pseudo-element would only cover the bounding box. */
+.hl {
+  background-image: linear-gradient(rgba(4,157,102,.10), rgba(4,157,102,.10));
+  background-repeat: no-repeat;
+  background-size: 0% 78%; background-position: 0 60%;
+  border-radius: var(--radius-xs);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  animation: storySweep 17.5s var(--ease) infinite;
+}
+.hl--c { background-image: linear-gradient(rgba(4,157,102,.16), rgba(4,157,102,.16)); }
+.hl--a { animation-delay: .9s; }
+.hl--b { animation-delay: 3.6s; }
+.hl--c { animation-delay: 6.55s; }
+.hl--d { animation-delay: 9s; }
+.hl--e { animation-delay: 10.5s; }
+.hl--f { animation-delay: 12.7s; }
+.hl--g { animation-delay: 14s; }
+
+/* ---------- the clock ---------- */
+@keyframes storyBg {
+  0% { opacity: 0; transform: scale(1.045); }
+  3% { opacity: 1; }
+  96% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes storyGlow {
+  0%    { transform: translate(-30vw, 12px); }
+  17.1% { transform: translate(0, 180px); }
+  34.3% { transform: translate(24vw, -110px); }
+  48.6% { transform: translate(29vw, 12px); }
+  77%   { transform: translate(28vw, 34px); }
+  100%  { transform: translate(-30vw, 12px); }
+}
+@keyframes storyType { 0% { width: 0; } 6.9%, 100% { width: var(--w); } }
+@keyframes storyCur { 0% { opacity: 1; } 6.9%, 100% { opacity: 0; } }
+@keyframes storyCode {
+  0%, 18.3% { opacity: .5; transform: translateY(0); }
+  27.4% { opacity: .2; transform: translateY(-40px); }
+  34.3% { opacity: .2; }
+  40%, 100% { opacity: .13; transform: translateY(-40px); }
+}
+@keyframes storyPr {
+  0%, 18% { opacity: 0; transform: translateY(26px); }
+  22%, 28% { opacity: 1; transform: translateY(0); }
+  32.6%, 100% { opacity: 0; transform: translateY(-90px); }
+}
+@keyframes storyChip {
+  0%, 37.1% { opacity: 0; transform: translateY(26px); }
+  41.1%, 50.9% { opacity: 1; transform: translateY(0); }
+  53.7%, 100% { opacity: 0; transform: translateY(-12px); }
+}
+@keyframes storyAsk {
+  0%, 51.4% { opacity: 0; transform: translateX(70px) rotate(2deg) scale(.9); }
+  54.5% { opacity: 1; }
+  56%, 100% { opacity: 1; transform: translateX(0) rotate(2deg) scale(1); }
+}
+@keyframes storyOpt { 0%, 54.3% { opacity: 0; } 56.6%, 100% { opacity: 1; } }
+@keyframes storyPip {
+  0%, 73.1% { background: var(--neutral-200); transform: scale(.7); }
+  74.6% { background: var(--green-500); transform: scale(1.1); }
+  75.1%, 100% { background: var(--green-500); transform: scale(1); }
+}
+@keyframes storyPick {
+  0%, 82.9% { border-color: var(--neutral-200); background: #fff; color: var(--neutral-500); }
+  86%, 100% { border-color: var(--green-500); background: rgba(4,157,102,.07); color: var(--green-700); }
+}
+@keyframes storyRadio {
+  0%, 82.9% { border-color: var(--neutral-300); }
+  86%, 100% { border-color: var(--green-500); }
+}
+@keyframes storyRadioDot { 0%, 82.9% { transform: scale(0); } 86%, 100% { transform: scale(1); } }
+/* on over 1.3s, hold 1.6s, then retract to the right over 0.8s */
+@keyframes storySweep {
+  0%    { background-size: 0% 78%;   background-position: 0 60%; }
+  7.4%  { background-size: 100% 78%; background-position: 0 60%; }
+  16.6% { background-size: 100% 78%; background-position: 100% 60%; }
+  21.1%, 100% { background-size: 0% 78%; background-position: 100% 60%; }
+}
+
+/* ============================================================
+   PAGE MOTION — the shuttle.
+   A single emerald beam that travels out and back along the
+   page's own lines: section seams, the loop's spine, the tier
+   bars. Slow, low-contrast, and always the same gesture, so the
+   page reads as alive rather than as decorated.
+   ============================================================ */
+.seam { position: relative; }
+.seam::before {
+  content: ""; position: absolute; top: -1px; left: 0; right: 0; height: 1px;
+  --beam: 240px;
+  background-image: linear-gradient(90deg, rgba(4,157,102,0), var(--green-400), rgba(4,157,102,0));
+  background-repeat: no-repeat; background-size: var(--beam) 100%;
+  background-position: calc(-1 * var(--beam)) 0;
+  animation: shuttle 13s var(--ease) infinite;
+}
+.commands.seam::before { animation-delay: 2.5s; }
+.footer.seam::before { animation-delay: 5s; }
+
+.steps__spine { overflow: hidden; }
+.steps__spine::after {
+  content: ""; position: absolute; left: 0; width: 2px; height: 72px; top: -72px;
+  background: linear-gradient(to bottom, rgba(4,157,102,0), var(--green-400), rgba(4,157,102,0));
+  animation: spineShuttle 10s var(--ease) infinite;
+}
+
+.ladder__fill { position: relative; overflow: hidden; }
+.ladder__fill::after {
+  content: ""; position: absolute; inset: 0; --beam: 64px;
+  background-image: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0));
+  background-repeat: no-repeat; background-size: var(--beam) 100%;
+  background-position: calc(-1 * var(--beam)) 0;
+  animation: shuttle 8s var(--ease) infinite;
+}
+.ladder__fill--t2::after { animation-delay: .5s; }
+.ladder__fill--t3::after { animation-delay: 1s; }
+.ladder__fill--t4::after { animation-delay: 1.5s; }
+.ladder__fill--t5::after { animation-delay: 2s; }
+
+/* the dark bands breathe: dot grids drift a tile, glows wander */
+.hero__dots { animation: gridDrift26 30s linear infinite; }
+.legend__dots { animation: gridDrift26 34s linear infinite; }
+.hero__glow { animation: glow 7s ease-in-out infinite, glowDrift 21s ease-in-out infinite; }
+.hero__glow--low { animation: glowDrift 26s ease-in-out infinite reverse; }
+.legend__glow { animation: glowDrift 24s ease-in-out infinite; }
+.cta__glow { animation: glowDrift 23s ease-in-out infinite reverse; }
+.badge__dot { animation: pipPulse 3.4s ease-in-out infinite; }
+
+@keyframes shuttle {
+  0%, 100% { background-position: calc(-1 * var(--beam)) 0; }
+  50% { background-position: calc(100% + var(--beam)) 0; }
+}
+@keyframes spineShuttle { 0%, 100% { top: -72px; } 50% { top: 100%; } }
+@keyframes gridDrift { to { background-position: 34px 34px; } }
+@keyframes gridDrift26 { to { background-position: 26px 26px; } }
+@keyframes glowDrift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-70px, 46px); }
+}
+@keyframes pipPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(4,157,102,.5); }
+  50% { box-shadow: 0 0 0 6px rgba(4,157,102,0); }
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
+/* only where the cards fit: below this the section keeps its natural height */
+@media (min-width: 1241px) {
+  .story { min-height: 720px; display: grid; align-content: center; }
+  .story .why__inner { padding: 88px 32px; }
+  /* a little narrower than the page default, so the props keep their gutters */
+  .story .why__statement { max-width: 780px; margin-left: auto; margin-right: auto; }
+}
+
+@media (max-width: 1240px) {
+  /* the two opaque cards are the only props that would land on the copy */
+  .story__pr, .story__chip, .story__ask { display: none; }
+}
+
 @media (max-width: 1180px) {
   .dials { grid-template-columns: repeat(2, 1fr); }
 }
@@ -592,6 +876,10 @@ a:hover { color: var(--green-800); }
   .legend__cols { gap: 32px; }
   .how__grid { gap: 48px; }
   .commands__grid { gap: 48px; }
+}
+
+@media (max-width: 1000px) {
+  .story__bg { display: none; }
 }
 
 @media (max-width: 900px) {
@@ -664,6 +952,10 @@ a:hover { color: var(--green-800); }
   .term__cursor,
   [data-reveal] { opacity: 1 !important; transform: none !important; }
   .fade-up { opacity: 1; }
+  /* the story is pure background: with no clock to run it, it does not play,
+     and the copy it was illustrating is left to speak for itself. */
+  .story__bg { display: none; }
+  .hl { background-image: none; }
 }
 
 .footer__name { font-weight: 800; font-size: 16px; }

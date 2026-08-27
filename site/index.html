@@ -149,14 +149,66 @@
   </div>
 </header>
 
-<!-- ============================ WHY ============================ -->
-<section class="why" aria-label="Why Eklavya exists">
+<!-- ============================ WHY / THE STORY ============================ -->
+<!-- The copy stays put; a 17.5s loop behind it acts the story out: an agent
+     writes the code, the PR ships, months later nobody can debug it, so
+     Eklavya asks about it while it is still being written. -->
+<section class="why story" aria-label="Why Eklavya exists" data-shoot>
+  <div class="story__bg" data-anim aria-hidden="true">
+    <div class="story__grid"></div>
+    <div class="story__glow"></div>
+    <div class="story__code story__code--l">
+      <div class="story__line"><span class="story__t" style="--w:24ch;--i:0">const cache = new Map();</span><span class="story__cur" style="--i:0">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:35ch;--i:1">export async function getUser(id) {</span><span class="story__cur" style="--i:1">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:42ch;--i:2">  if (cache.has(id)) return cache.get(id);</span><span class="story__cur" style="--i:2">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:46ch;--i:3">  const res = await fetch(`/api/users/${id}`);</span><span class="story__cur" style="--i:3">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:32ch;--i:4">  const user = await res.json();</span><span class="story__cur" style="--i:4">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:22ch;--i:5">  cache.set(id, user);</span><span class="story__cur" style="--i:5">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:14ch;--i:6">  return user;</span><span class="story__cur" style="--i:6">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:1ch;--i:7">}</span><span class="story__cur" style="--i:7">▍</span></div>
+    </div>
+    <div class="story__code story__code--r">
+      <div class="story__line"><span class="story__t" style="--w:27ch;--i:0">function debounce(fn, ms) {</span><span class="story__cur" style="--i:0">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:8ch;--i:1">  let t;</span><span class="story__cur" style="--i:1">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:23ch;--i:2">  return (...args) =&gt; {</span><span class="story__cur" style="--i:2">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:20ch;--i:3">    clearTimeout(t);</span><span class="story__cur" style="--i:3">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:24ch;--i:4">    t = setTimeout(() =&gt;</span><span class="story__cur" style="--i:4">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:23ch;--i:5">      fn(...args), ms);</span><span class="story__cur" style="--i:5">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:4ch;--i:6">  };</span><span class="story__cur" style="--i:6">▍</span></div>
+      <div class="story__line"><span class="story__t" style="--w:1ch;--i:7">}</span><span class="story__cur" style="--i:7">▍</span></div>
+    </div>
+    <div class="story__pr">
+      <span class="story__pr-dot"></span>
+      <span class="story__pr-msg">feat: user cache + debounce</span>
+      <span class="story__pr-meta">PR #142 &middot; MERGED</span>
+    </div>
+    <div class="story__chip"><span class="story__chip-c">// </span>who wrote this?</div>
+    <div class="story__ask">
+      <div class="story__ask-head">
+        <span class="story__ask-over">Eklavya asks</span>
+        <span class="story__pips">
+          <span class="story__pip"></span><span class="story__pip"></span><span class="story__pip"></span>
+        </span>
+      </div>
+      <p class="story__stem">Why is the timer cleared before each call?</p>
+      <div class="story__opts">
+        <div class="story__opt story__opt--ok"><span class="story__radio"></span>To cancel the pending run</div>
+        <div class="story__opt"><span class="story__radio"></span>To reset the argument list</div>
+        <div class="story__opt"><span class="story__radio"></span>To free the closure</div>
+      </div>
+    </div>
+  </div>
   <div class="why__inner">
-    <p class="why__statement pretty" data-reveal>
-      Coding agents create a comprehension gap. You ship code you didn't write and <em>couldn't debug.</em>
+    <p class="why__statement pretty" data-reveal data-anim>
+      <span class="hl hl--a">Coding agents create a comprehension gap.</span>
+      <span class="hl hl--b">You ship code you didn&rsquo;t write</span>
+      and <em class="hl hl--c">couldn&rsquo;t debug.</em>
     </p>
-    <p class="why__body pretty" data-reveal data-delay="150">
-      The moment code is being generated is the highest-leverage teaching moment there is: the concepts are concrete, the code is right in front of you, and your hands are free. So Eklavya asks you about it — once per task, never the same question twice, and harder each time you get it right.
+    <p class="why__body pretty" data-reveal data-delay="150" data-anim>
+      <span class="hl hl--d">The moment code is being generated is the highest-leverage teaching moment there is:</span>
+      <span class="hl hl--e">the concepts are concrete, the code is right in front of you, and your hands are free.</span>
+      <span class="hl hl--f">So Eklavya asks you about it &mdash; once per task,</span>
+      <span class="hl hl--g">never the same question twice, and harder each time you get it right.</span>
     </p>
   </div>
 </section>
@@ -299,7 +351,7 @@
 </section>
 
 <!-- ============================ THE PROMISE ============================ -->
-<section class="promise" aria-labelledby="promise-title">
+<section class="promise seam" aria-labelledby="promise-title">
   <div class="wrap section">
     <p class="eyebrow eyebrow--light center" data-reveal>The promise</p>
     <h2 class="h2 center" id="promise-title" data-reveal data-delay="100">Never the same question twice</h2>
@@ -428,7 +480,7 @@
 </section>
 
 <!-- ============================ COMMANDS + DATA ============================ -->
-<section class="commands" id="commands" aria-labelledby="commands-title">
+<section class="commands seam" id="commands" aria-labelledby="commands-title">
   <div class="wrap commands__grid">
     <div>
       <h2 class="h2" id="commands-title" data-reveal>Seven commands</h2>
@@ -475,7 +527,7 @@
 </section>
 
 <!-- ============================ FOOTER ============================ -->
-<footer class="footer">
+<footer class="footer seam">
   <div class="wrap footer__inner">
     <div class="footer__left">
       <div class="brand">
