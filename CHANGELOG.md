@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/ProjectAJ14/eklavya/compare/v1.5.0...v1.6.0) (2026-08-27)
+
+
+### Features
+
+* **site:** sharpen the page's motion and rhythm ([b0aa30e](https://github.com/ProjectAJ14/eklavya/commit/b0aa30e1f3fb8f0e8e0f2f40075a664974b585ef))
+
 # [1.5.0](https://github.com/ProjectAJ14/eklavya/compare/v1.4.1...v1.5.0) (2026-08-27)
 
 
