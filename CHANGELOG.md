@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/ProjectAJ14/eklavya/compare/v1.4.0...v1.4.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **quiz:** put Eklavya's name on the question it is asking ([80ada06](https://github.com/ProjectAJ14/eklavya/commit/80ada06114ceaaceb30a8c5c2e2efde7d25c79c3))
+
 # [1.4.0](https://github.com/ProjectAJ14/eklavya/compare/v1.3.0...v1.4.0) (2026-08-27)
 
 
