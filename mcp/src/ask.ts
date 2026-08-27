@@ -34,7 +34,18 @@ export interface AskFooterInput {
   pinned: boolean;
   /** The tier this specific question is asked at. */
   tier: number;
+  /** Where this question sits in the plan, when the plan holds more than one. */
+  position?: { index: number; total: number };
 }
+
+/** What each tier is actually asking for, so `tier 4` is not a bare number. */
+const TIER_LABEL: Record<number, string> = {
+  1: 'recall',
+  2: 'mechanism',
+  3: 'judgement',
+  4: 'failure modes',
+  5: 'design',
+};
 
 /**
  * `null` when nothing should be shown.
@@ -44,11 +55,12 @@ export interface AskFooterInput {
  *
  * `cadence` is deliberately absent. The question's *arrival* -- mid-task or at
  * the end -- already tells them when Eklavya asks, and a footer that repeats what
- * the moment just demonstrated is noise. `mode` appears only when it is
- * `enforced`, because that is the only value with a consequence attached; an
- * ambient question has nothing to warn anyone about.
+ * the moment just demonstrated is noise. Everything else is here: the mode, the
+ * focus, the level, what the tier is asking for, and how many questions are
+ * coming. A learner who cannot see those is answering a question with no idea
+ * why it was pitched where it was, or whether four more follow.
  */
-export function askFooter({ config, level, pinned, tier }: AskFooterInput): string | null {
+export function askFooter({ config, level, pinned, tier, position }: AskFooterInput): string | null {
   if (config.quiet) return null;
 
   const focus =
@@ -56,10 +68,17 @@ export function askFooter({ config, level, pinned, tier }: AskFooterInput): stri
       ? `learn: ${config.focus_topic}`
       : config.focus;
 
-  const parts = [focus, pinned ? `${level} (pinned)` : level, `tier ${tier}`];
-  // A pinned level explains itself here or nowhere: without it, questions simply
-  // stop getting harder one day and nothing on screen says why.
-  if (config.mode === 'enforced') parts.push('gated');
+  const label = TIER_LABEL[tier];
+  const parts = [
+    // `enforced` is the one value with a consequence attached, so it says so.
+    config.mode === 'enforced' ? 'enforced (gated)' : config.mode,
+    focus,
+    // A pinned level explains itself here or nowhere: without it, questions
+    // simply stop getting harder one day and nothing on screen says why.
+    pinned ? `${level} (pinned)` : level,
+    label ? `tier ${tier} ${label}` : `tier ${tier}`,
+  ];
+  if (position && position.total > 1) parts.push(`q ${position.index}/${position.total}`);
 
   return parts.join(' · ');
 }
@@ -75,7 +94,7 @@ export function askFooter({ config, level, pinned, tier }: AskFooterInput): stri
  * the options out of the stem to avoid.
  */
 const FOOTER_LINE =
-  /\n[ \t]*(?:project|concept|learn(?::[^\n·]*)?)[ \t]*·[ \t]*(?:easy|medium|hard)(?:[ \t]*\(pinned\))?[ \t]*·[ \t]*tier[ \t]*[1-5](?:[ \t]*·[ \t]*gated)?[ \t]*$/i;
+  /\n[ \t]*(?:(?:off|ambient|enforced(?:[ \t]*\(gated\))?)[ \t]*·[ \t]*)?(?:project|concept|learn(?::[^\n·]*)?)[ \t]*·[ \t]*(?:easy|medium|hard)(?:[ \t]*\(pinned\))?[ \t]*·[ \t]*tier[ \t]*[1-5][^\n]*$/i;
 
 export function stripAskFooter(question: string): string {
   return question.replace(FOOTER_LINE, '').trimEnd();

@@ -1421,7 +1421,9 @@ describe('the ask footer, end to end', () => {
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     for (const c of plan.concepts) {
-      expect(c.ask_footer).toBe(`project · easy · tier ${c.tier_to_ask} · gated`);
+      expect(c.ask_footer).toMatch(
+        new RegExp(`^enforced \\(gated\\) · project · easy · tier ${c.tier_to_ask} \\w`),
+      );
     }
   });
 

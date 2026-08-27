@@ -278,8 +278,11 @@ Every plan item carries `ask_footer`: one line naming the settings that asked th
 ```
 Why is httpOnly set on the refresh cookie here but not on the access token?
 
-concept · easy · tier 2
+ambient · concept · easy · tier 2 mechanism · q 1/3
 ```
+
+Mode, focus, level, what the tier is asking for, and — when the plan holds more
+than one — which question of how many this is.
 
 **Print it as the last line of the `question` you pass to `AskUserQuestion`**, after a blank line, exactly as given. It is the only thing on screen that explains why a question is pitched where it is — without it, a `concept`-focus question reads as vague and an `easy` question reads as shallow.
 

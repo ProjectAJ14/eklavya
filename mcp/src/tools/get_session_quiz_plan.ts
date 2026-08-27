@@ -455,6 +455,21 @@ export const getSessionQuizPlan: ToolDef = {
       return a.tier_to_ask - b.tier_to_ask;
     });
 
+    // Numbered after the sort, so `q 2/3` is the order they will actually be
+    // asked in. Only when there is more than one -- `q 1/1` is noise.
+    if (picked.length > 1) {
+      picked.forEach((item, i) => {
+        const numbered = askFooter({
+          config,
+          level: standing.level,
+          pinned: standing.pinned,
+          tier: item.tier_to_ask,
+          position: { index: i + 1, total: picked.length },
+        });
+        if (numbered) item.ask_footer = numbered;
+      });
+    }
+
     if (picked.length === 0) {
       // Distinguish "nothing left to ask" from "nothing to ask about" — they
       // need different things said to the developer.

@@ -131,9 +131,9 @@ describe('promotion', () => {
 });
 
 describe('the ask footer', () => {
-  it('names the focus, the level and the tier', () => {
+  it('names the mode, the focus, the level and what the tier asks for', () => {
     expect(askFooter({ config: config({ focus: 'concept' }), level: 'easy', pinned: false, tier: 2 })).toBe(
-      'concept · easy · tier 2',
+      'ambient · concept · easy · tier 2 mechanism',
     );
   });
 
@@ -145,24 +145,34 @@ describe('the ask footer', () => {
         pinned: false,
         tier: 3,
       }),
-    ).toBe('learn: caching · medium · tier 3');
+    ).toBe('ambient · learn: caching · medium · tier 3 judgement');
   });
 
   it('says when the level is pinned — otherwise questions just stop getting harder', () => {
     expect(askFooter({ config: config(), level: 'hard', pinned: true, tier: 5 })).toBe(
-      'concept · hard (pinned) · tier 5',
+      'ambient · concept · hard (pinned) · tier 5 design',
     );
   });
 
-  it('warns only when there is something to warn about', () => {
+  it('says when the mode has a consequence attached', () => {
     expect(askFooter({ config: config({ mode: 'enforced' }), level: 'easy', pinned: false, tier: 1 })).toBe(
-      'concept · easy · tier 1 · gated',
+      'enforced (gated) · concept · easy · tier 1 recall',
     );
-    // Ambient has no consequence attached, and cadence is never in the footer:
-    // the question's arrival already said when Eklavya asks.
+    // Cadence is never in the footer: the question's arrival already said when
+    // Eklavya asks.
     expect(askFooter({ config: config({ mode: 'ambient', cadence: 'end' }), level: 'easy', pinned: false, tier: 1 })).toBe(
-      'concept · easy · tier 1',
+      'ambient · concept · easy · tier 1 recall',
     );
+  });
+
+  it('counts the questions when more than one is coming', () => {
+    expect(
+      askFooter({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 2, total: 3 } }),
+    ).toBe('ambient · concept · easy · tier 2 mechanism · q 2/3');
+    // A lone question needs no scoreboard.
+    expect(
+      askFooter({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 1, total: 1 } }),
+    ).toBe('ambient · concept · easy · tier 2 mechanism');
   });
 
   it('is absent under quiet', () => {
@@ -176,10 +186,14 @@ describe('stripping the footer back off', () => {
   it('removes every shape the composer can produce', () => {
     const levels: Level[] = ['easy', 'medium', 'hard'];
     const footers = [
-      ...levels.map((l) => `concept · ${l} · tier 2`),
-      'project · easy · tier 1',
-      'learn: http caching · medium · tier 3',
-      'concept · hard (pinned) · tier 5',
+      ...levels.map((l) => `ambient · concept · ${l} · tier 2 mechanism`),
+      'ambient · project · easy · tier 1 recall',
+      'ambient · learn: http caching · medium · tier 3 judgement',
+      'ambient · concept · hard (pinned) · tier 5 design',
+      'enforced (gated) · concept · easy · tier 1 recall',
+      'ambient · concept · easy · tier 2 mechanism · q 2/3',
+      // Footers written by an older version, still stripped.
+      'concept · easy · tier 2',
       'concept · easy · tier 2 · gated',
     ];
     for (const footer of footers) {
@@ -195,7 +209,7 @@ describe('stripping the footer back off', () => {
   });
 
   it('only ever takes the last line', () => {
-    const multi = `concept · easy · tier 2\n\n${stem}`;
+    const multi = `ambient · concept · easy · tier 2 mechanism\n\n${stem}`;
     expect(stripAskFooter(multi)).toBe(multi);
   });
 });

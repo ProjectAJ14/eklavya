@@ -105,10 +105,10 @@ A question arrives with a line under it naming the dials behind it:
 ```
 Why is httpOnly set on the refresh cookie here but not on the access token?
 
-concept · easy · tier 2
+ambient · concept · easy · tier 2 mechanism
 ```
 
-Focus, level and tier, plus `· gated` in enforced mode. Without it, a `concept`-focus question reads as vague and an `easy` one reads as shallow — the settings are only doing their job if you can see them working. `quiet` turns it off.
+Mode, focus, level, what the tier is asking for — and `· q 2/3` when more than one question is coming. Enforced mode reads `enforced (gated)`. Without it, a `concept`-focus question reads as vague and an `easy` one reads as shallow — the settings are only doing their job if you can see them working. `quiet` turns it off.
 
 ### Questions are multiple choice
 
