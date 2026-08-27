@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/ProjectAJ14/eklavya/compare/v1.3.0...v1.4.0) (2026-08-27)
+
+
+### Features
+
+* ask the questions while the agent is still working ([1e9f106](https://github.com/ProjectAJ14/eklavya/commit/1e9f1061a5fcff640f221ddf553cf3ba3b100dda))
+
 # [1.3.0](https://github.com/ProjectAJ14/eklavya/compare/v1.2.0...v1.3.0) (2026-08-27)
 
 
