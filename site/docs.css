@@ -1,0 +1,343 @@
+/* ============================================================
+   Eklavya docs page — /docs
+   Layers on top of styles.css (nav, footer, buttons, .wrap are
+   shared). Tokens come from tokens.css; no raw hexes below
+   except the two dot-grid overlays, which need alpha on white.
+   ============================================================ */
+
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  background: var(--green-500); color: #fff;
+  padding: 10px 16px; border-radius: 0 0 var(--radius-md) 0;
+  font-size: 14px; font-weight: 700;
+}
+.skip-link:focus { left: 0; color: #fff; }
+
+.nav__link.is-current { color: var(--green-300); }
+
+/* ============================================================
+   DOC HERO
+   ============================================================ */
+.doc-hero {
+  position: relative; overflow: hidden;
+  background: var(--neutral-900);
+  padding: 72px 0 80px;
+}
+.doc-hero__dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 88%);
+  mask-image: linear-gradient(to bottom, black 0%, transparent 88%);
+}
+.doc-hero__glow {
+  position: absolute; top: -260px; right: -140px; width: 640px; height: 640px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(4,157,102,.20) 0%, rgba(4,157,102,0) 65%);
+}
+.doc-hero__inner { position: relative; }
+.doc-hero__title {
+  margin: 14px 0 0; max-width: 15ch;
+  font-size: 52px; line-height: 1.06; font-weight: 800;
+  letter-spacing: -0.025em; color: #fff; text-wrap: balance;
+}
+.doc-hero__lede {
+  margin: 20px 0 0; max-width: 60ch;
+  font-size: 18px; line-height: 1.65; color: var(--on-dark-muted);
+}
+.doc-hero__meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.doc-chip {
+  font-family: var(--font-mono); font-size: 12px; color: var(--green-300);
+  background: rgba(4,157,102,.14); border: 1px solid rgba(4,157,102,.28);
+  padding: 5px 11px; border-radius: var(--radius-pill);
+}
+
+/* ============================================================
+   LAYOUT — sticky sidebar + prose column
+   ============================================================ */
+.doc-layout {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 64px;
+  align-items: start;
+  padding-top: 56px;
+  padding-bottom: 96px;
+}
+
+.doc-nav { position: sticky; top: 88px; }
+.doc-nav__toggle { display: none; }
+.doc-nav__inner {
+  max-height: calc(100vh - 120px); overflow-y: auto;
+  border-left: 1px solid var(--border);
+}
+.doc-nav__group {
+  margin: 22px 0 8px; padding-left: 16px;
+  font-size: 11px; font-weight: 700; letter-spacing: var(--tracking-caps);
+  text-transform: uppercase; color: var(--fg-faint);
+}
+.doc-nav__group:first-child { margin-top: 0; }
+.doc-nav a {
+  display: block; padding: 6px 12px 6px 16px;
+  margin-left: -1px; border-left: 2px solid transparent;
+  font-size: 14px; line-height: 1.45; color: var(--fg-muted);
+  transition: color 140ms var(--ease), border-color 140ms var(--ease);
+}
+.doc-nav a code {
+  font-family: var(--font-mono); font-size: 12.5px; color: inherit; background: none;
+}
+.doc-nav a:hover { color: var(--green-700); }
+.doc-nav a.is-active {
+  color: var(--green-700); font-weight: 700;
+  border-left-color: var(--green-500);
+}
+
+/* ============================================================
+   PROSE
+   ============================================================ */
+.doc { max-width: 76ch; }
+.doc > section { padding-bottom: 24px; }
+.doc > section + section {
+  margin-top: 56px; padding-top: 56px; border-top: 1px solid var(--border);
+}
+
+.doc-kicker {
+  margin: 0 0 10px;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .02em;
+  color: var(--green-600);
+}
+
+.doc h2 {
+  margin: 0 0 20px;
+  font-size: 34px; line-height: 1.18; font-weight: 800;
+  letter-spacing: -0.02em; color: var(--fg); scroll-margin-top: 88px;
+}
+.doc h3 {
+  margin: 40px 0 12px;
+  font-size: 21px; line-height: 1.3; font-weight: 700;
+  letter-spacing: -0.01em; color: var(--fg); scroll-margin-top: 88px;
+}
+.doc h4 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 700; color: var(--fg);
+}
+.doc h2 code, .doc h3 code, .doc h4 code { font-size: .92em; }
+
+.doc p {
+  margin: 0 0 16px;
+  font-size: 16px; line-height: 1.7; color: var(--fg-muted);
+  text-wrap: pretty;
+}
+.doc strong { color: var(--fg); font-weight: 700; }
+.doc em { color: var(--fg-muted); }
+.doc a { font-weight: 600; text-decoration: underline; text-decoration-color: var(--green-200); text-underline-offset: 3px; }
+.doc a:hover { text-decoration-color: var(--green-500); }
+
+.doc ul, .doc ol { margin: 0 0 16px; padding-left: 22px; }
+.doc li {
+  margin-bottom: 8px;
+  font-size: 16px; line-height: 1.7; color: var(--fg-muted);
+}
+.doc li::marker { color: var(--green-500); }
+
+.doc code {
+  font-family: var(--font-mono); font-size: 13.5px;
+  color: var(--green-700); background: var(--bg-sunken);
+  padding: 2px 6px; border-radius: var(--radius-xs);
+  overflow-wrap: break-word;
+}
+
+/* ---------- code blocks ---------- */
+.doc pre {
+  position: relative; margin: 0 0 20px;
+  background: var(--neutral-800); border-radius: var(--radius-lg);
+  padding: 18px 20px; overflow-x: auto;
+}
+.doc pre code {
+  display: block;
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.75;
+  color: var(--green-200); background: none; padding: 0;
+  white-space: pre; overflow-wrap: normal;
+}
+.doc pre[data-lang]::before {
+  content: attr(data-lang);
+  display: block; margin: -4px 0 12px;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--neutral-400);
+}
+.pre-copy {
+  position: absolute; top: 10px; right: 10px;
+  font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+  color: var(--neutral-300); background: var(--neutral-700);
+  border: 1px solid var(--neutral-600); border-radius: var(--radius-sm);
+  padding: 4px 9px; cursor: pointer; opacity: 0;
+  transition: opacity 140ms var(--ease), color 140ms var(--ease);
+}
+.doc pre:hover .pre-copy, .pre-copy:focus-visible { opacity: 1; }
+.pre-copy:hover { color: var(--green-300); }
+
+/* ---------- tables ---------- */
+.doc-table-wrap { overflow-x: auto; margin: 0 0 22px; }
+.doc-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 14.5px; line-height: 1.6;
+}
+.doc-table th {
+  text-align: left; padding: 10px 14px;
+  font-size: 12px; font-weight: 700; letter-spacing: var(--tracking-caps);
+  text-transform: uppercase; color: var(--fg-subtle);
+  border-bottom: 1px solid var(--border-strong); white-space: nowrap;
+}
+.doc-table td {
+  padding: 13px 14px; vertical-align: top;
+  color: var(--fg-muted); border-bottom: 1px solid var(--border);
+}
+.doc-table tr:last-child td { border-bottom: none; }
+.doc-table td:first-child { color: var(--fg); }
+.doc-table code { white-space: nowrap; }
+.doc-table--keys td:first-child, .doc-table--keys td:nth-child(2) { white-space: nowrap; }
+.doc-table--trouble td:first-child { font-weight: 600; min-width: 200px; }
+
+.tag {
+  display: inline-block; margin-left: 6px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--green-700); background: var(--green-50);
+  border-radius: var(--radius-pill); padding: 2px 8px; white-space: nowrap;
+}
+
+/* ---------- numbered steps ---------- */
+.doc-steps { list-style: none; margin: 8px 0 24px; padding: 0; counter-reset: step; }
+.doc-steps > li {
+  position: relative; counter-increment: step;
+  padding: 0 0 26px 46px; margin: 0;
+  border-left: 1px solid var(--border); margin-left: 15px;
+}
+.doc-steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+.doc-steps > li::before {
+  content: counter(step);
+  position: absolute; left: -15px; top: -2px;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--green-500); color: #fff;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+.doc-steps > li > h4 { margin: 4px 0 10px; font-size: 16px; }
+.doc-steps--tight > li { padding-bottom: 18px; }
+
+/* ---------- session timeline ---------- */
+.doc-timeline { list-style: none; margin: 8px 0 24px; padding: 0; }
+.doc-timeline > li {
+  display: flex; gap: 18px; padding-bottom: 26px; position: relative;
+}
+.doc-timeline > li::after {
+  content: ""; position: absolute; left: 14px; top: 32px; bottom: 4px;
+  width: 1px; background: var(--border);
+}
+.doc-timeline > li:last-child::after { display: none; }
+.doc-timeline__n {
+  flex: none; width: 29px; height: 29px; border-radius: 50%;
+  border: 1px solid var(--green-200); background: var(--green-50);
+  color: var(--green-700); font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; position: relative; z-index: 1;
+}
+.doc-timeline h4 { margin: 4px 0 8px; font-size: 16px; }
+.doc-timeline > li > div { min-width: 0; flex: 1; }
+
+/* ---------- check lists ---------- */
+.doc-checks { list-style: none; padding-left: 0; }
+.doc-checks > li { position: relative; padding-left: 26px; }
+.doc-checks > li::before {
+  content: ""; position: absolute; left: 4px; top: 10px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green-500); box-shadow: 0 0 0 3px var(--green-50);
+}
+
+/* ---------- callouts ---------- */
+.note {
+  margin: 0 0 22px; padding: 16px 20px;
+  border-left: 3px solid var(--green-500);
+  background: var(--bg-subtle); border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.note p:last-child { margin-bottom: 0; }
+.note p { font-size: 15px; }
+.note--tip { border-left-color: var(--green-400); background: var(--green-50); }
+.note--warn { border-left-color: var(--warning); background: var(--warning-bg); }
+
+/* ---------- per-command blocks ---------- */
+.cmd {
+  margin: 32px 0; padding: 26px 28px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.cmd h3 {
+  margin: 0; font-family: var(--font-mono); font-size: 18px; font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.cmd h3 code { font-size: 1em; color: var(--fg); background: none; padding: 0; }
+.cmd__sub { margin: 6px 0 18px !important; color: var(--fg-subtle); font-size: 15px; font-style: italic; }
+.cmd h4 { margin-top: 22px; color: var(--green-700); font-size: 13px; letter-spacing: .02em; text-transform: uppercase; }
+.cmd > h4:first-of-type { margin-top: 0; }
+
+/* ---------- closing card ---------- */
+.doc-next {
+  margin-top: 40px; padding: 28px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+}
+.doc-next .eyebrow { margin-bottom: 8px; }
+.doc-next__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.btn--quiet { border: 1px solid var(--border-strong); color: var(--fg); }
+.btn--quiet:hover { background: var(--neutral-100); color: var(--fg); }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+  .doc-hero { padding: 56px 0 60px; }
+  .doc-hero__title { font-size: 38px; max-width: none; }
+  .doc-hero__lede { font-size: 17px; }
+
+  /* minmax(0,…) rather than 1fr: a grid track sized `auto` refuses to go
+     below the widest code block, which pushes the whole page sideways. */
+  .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 28px; }
+
+  /* The TOC becomes a disclosure above the content instead of a rail. */
+  .doc-nav { position: static; margin-bottom: 32px; }
+  .doc-nav__toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-sans); font-size: 14px; font-weight: 700; color: var(--fg);
+    background: var(--bg-subtle); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 10px 16px; cursor: pointer;
+  }
+  .doc-nav__inner {
+    display: none; max-height: none; margin-top: 12px;
+    padding: 8px 0; border: 1px solid var(--border); border-radius: var(--radius-md);
+  }
+  .doc-nav__inner.is-open { display: block; }
+  .doc-nav a { border-left: none; padding-left: 18px; }
+  .doc-nav a.is-active { border-left: none; }
+  .doc-nav__group { padding-left: 18px; }
+
+  .doc { max-width: none; }
+  .doc h2 { font-size: 28px; }
+  .cmd { padding: 22px 20px; }
+}
+
+@media (max-width: 560px) {
+  .doc-hero__title { font-size: 30px; }
+  .doc-hero__meta { gap: 8px; }
+  .doc h2 { font-size: 25px; }
+  .doc h3 { font-size: 19px; }
+  .doc p, .doc li { font-size: 15px; }
+  .doc pre { padding: 16px 14px; border-radius: var(--radius-md); }
+  .doc pre code { font-size: 12px; }
+  .doc-steps > li { padding-left: 34px; }
+  .doc-table { font-size: 13.5px; }
+  .doc-table th, .doc-table td { padding: 10px; }
+  .cmd { padding: 20px 16px; }
+  .pre-copy { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-nav a, .pre-copy { transition: none; }
+}

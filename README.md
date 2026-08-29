@@ -14,6 +14,9 @@ Eklavya turns agent generation time into learning time. While Claude Code implem
 
 Everything is local. No accounts, no sync, no telemetry.
 
+**[Read the docs](https://eklavya-run.web.app/docs)** — step-by-step install, every command, every
+config key, the commit gate, and troubleshooting.
+
 ---
 
 ## Why

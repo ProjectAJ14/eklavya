@@ -551,6 +551,38 @@ a:hover { color: var(--green-800); }
 }
 
 /* ============================================================
+   DOCS — the pointer to /docs
+   ============================================================ */
+.docs { background: var(--neutral-0); border-top: 1px solid var(--neutral-200); }
+.docs__grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 64px; align-items: start; }
+.docs__sub { margin: 16px 0 0; font-size: 17px; line-height: 1.65; color: var(--neutral-600); }
+.docs__actions { margin-top: 28px; }
+
+.docs__cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.docs__card {
+  display: block; padding: 22px 22px 24px;
+  border: 1px solid var(--neutral-200); border-radius: var(--radius-lg);
+  background: var(--neutral-50);
+  transition: border-color 160ms var(--ease), background 160ms var(--ease),
+              transform 160ms var(--ease);
+}
+.docs__card:hover {
+  border-color: var(--green-300); background: var(--neutral-0);
+  transform: translateY(-2px);
+}
+.docs__n {
+  display: block; font-family: var(--font-mono); font-size: 12px;
+  color: var(--green-600); margin-bottom: 12px;
+}
+.docs__card b {
+  display: block; font-size: 16px; font-weight: 700;
+  color: var(--neutral-900); margin-bottom: 6px;
+}
+.docs__card span:last-child {
+  display: block; font-size: 14px; line-height: 1.6; color: var(--neutral-600);
+}
+
+/* ============================================================
    CTA
    ============================================================ */
 .cta { position: relative; overflow: hidden; background: var(--neutral-900); }
@@ -1003,6 +1035,8 @@ a:hover { color: var(--green-800); }
   .commands__grid { grid-template-columns: 1fr; padding: 72px 32px; }
   .data-card { position: static; }
 
+  .docs__grid { grid-template-columns: 1fr; gap: 40px; }
+
   .cta__inner { padding: 80px 32px; }
   .cta__title { font-size: 34px; }
 
@@ -1023,6 +1057,7 @@ a:hover { color: var(--green-800); }
   .ask__hint { display: none; }
   .ask__opt { padding-left: 2px; }
   .cmd-row { grid-template-columns: 1fr; gap: 6px; }
+  .docs__cards { grid-template-columns: 1fr; }
   .ladder__row { grid-template-columns: 32px 88px 1fr 46px; gap: 8px; }
   .ladder__band { font-size: 9.5px; }
   .ladder__ends { padding-left: 136px; padding-right: 54px; font-size: 10px; }

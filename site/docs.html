@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eklavya docs — install, commands and configuration</title>
+<meta name="description" content="The complete Eklavya manual: prerequisites, installation in Claude Code and Cursor, first run, every slash command, the eklavya CLI, every configuration key, the commit gate, the dashboard, and how the spaced-repetition engine grades you.">
+<link rel="canonical" href="https://eklavya-run.web.app/docs">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Eklavya docs — install, commands and configuration">
+<meta property="og:description" content="Step-by-step documentation for Eklavya: install it, run it, and understand every dial, command and config key.">
+<meta property="og:url" content="https://eklavya-run.web.app/docs">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#121619">
+
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<a class="skip-link" href="#doc-main">Skip to content</a>
+
+<!-- ============================ NAV ============================ -->
+<nav class="nav">
+  <div class="wrap nav__inner">
+    <a class="brand" href="index.html" aria-label="Eklavya, home">
+      <span class="brand__mark">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg>
+      </span>
+      <span class="brand__name">Eklavya</span>
+      <span class="brand__tag">Claude Code plugin</span>
+    </a>
+    <div class="nav__links">
+      <a class="nav__link" href="index.html#how">How it works</a>
+      <a class="nav__link" href="index.html#dials">Dials</a>
+      <a class="nav__link" href="index.html#commands">Commands</a>
+      <a class="nav__link is-current" href="docs.html" aria-current="page">Docs</a>
+      <a class="btn btn--white" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============================ DOC HERO ============================ -->
+<header class="doc-hero">
+  <div class="doc-hero__dots" aria-hidden="true"></div>
+  <div class="doc-hero__glow" aria-hidden="true"></div>
+  <div class="wrap doc-hero__inner">
+    <p class="eyebrow eyebrow--dark">Documentation</p>
+    <h1 class="doc-hero__title">Install it, run it, and know exactly what every dial does.</h1>
+    <p class="doc-hero__lede pretty">
+      This is the whole manual, in order. Read it top to bottom on your first day and you will
+      have Eklavya installed, configured and understood. Come back later and jump straight to
+      the command or config key you need.
+    </p>
+    <div class="doc-hero__meta">
+      <span class="doc-chip">Written for a first-week developer</span>
+      <span class="doc-chip">No prior MCP knowledge assumed</span>
+      <span class="doc-chip">~20 minutes end to end</span>
+    </div>
+  </div>
+</header>
+
+<div class="doc-layout wrap">
+
+  <!-- ============================ SIDEBAR ============================ -->
+  <aside class="doc-nav" aria-label="Documentation sections">
+    <button class="doc-nav__toggle" type="button" data-toc-toggle aria-expanded="false" aria-controls="toc">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      On this page
+    </button>
+    <div class="doc-nav__inner" id="toc">
+      <p class="doc-nav__group">Getting started</p>
+      <a href="#what-it-is">What Eklavya is</a>
+      <a href="#requirements">Before you start</a>
+      <a href="#install">Installing</a>
+      <a href="#setup">First run: <code>/eklavya:setup</code></a>
+      <a href="#first-session">Your first session</a>
+
+      <p class="doc-nav__group">Using it</p>
+      <a href="#dials">The four dials</a>
+      <a href="#levels">Levels and tiers</a>
+      <a href="#commands">Command reference</a>
+      <a href="#cli">The <code>eklavya</code> CLI</a>
+
+      <p class="doc-nav__group">Reference</p>
+      <a href="#config">Configuration</a>
+      <a href="#gate">Enforced mode and the commit gate</a>
+      <a href="#dashboard">The dashboard</a>
+
+      <p class="doc-nav__group">Going deeper</p>
+      <a href="#engine">How the grading engine works</a>
+      <a href="#data">Your data</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+      <a href="#faq">FAQ and uninstall</a>
+    </div>
+  </aside>
+
+  <!-- ============================ CONTENT ============================ -->
+  <main class="doc" id="doc-main">
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="what-it-is" aria-labelledby="what-it-is-h">
+      <p class="doc-kicker">01 — Getting started</p>
+      <h2 id="what-it-is-h">What Eklavya is</h2>
+
+      <p>
+        Eklavya is a plugin for <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude
+        Code</a>. You keep working exactly as you do now — you ask Claude to build something, and
+        it builds it. The difference is that while it works, Eklavya asks you <strong>one
+        multiple-choice question</strong> about a concept the code it just wrote depends on.
+      </p>
+
+      <p>
+        You answer with one keystroke. Claude grades the answer, writes the result to a small
+        database on your machine, and carries on with the task. Over weeks, the questions get
+        harder, the ones you got right stop coming back, and the ones you fumbled return at
+        spaced-out intervals until they stick.
+      </p>
+
+      <p>That is the entire product. Everything below is detail on top of that loop.</p>
+
+      <h3>The problem it solves</h3>
+      <p>
+        Coding agents create a comprehension gap: you ship code you did not write and could not
+        debug at 3am. The moment the code is being generated is the best possible teaching moment —
+        the concepts are concrete, the code is on your screen, and your hands are free while you
+        wait. Eklavya spends that waiting time on you.
+      </p>
+
+      <h3>The three moving parts</h3>
+      <p>
+        You never interact with these directly, but knowing they exist makes the rest of this page
+        much easier to follow.
+      </p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead>
+            <tr><th>Part</th><th>Lives in</th><th>What it does</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>The MCP server</strong></td>
+              <td><code>mcp/</code>, published as <code>eklavya-mcp</code> on npm</td>
+              <td>The memory and the rules. It holds the knowledge graph of concepts, decides what you should be asked next and at what difficulty, and grades and stores every answer.</td>
+            </tr>
+            <tr>
+              <td><strong>The hooks</strong></td>
+              <td><code>hooks/</code> — small shell scripts</td>
+              <td>The timing. They decide <em>when</em> a question arrives: at session start, mid-task, at the end of a task, and before a <code>git commit</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>The skills</strong></td>
+              <td><code>skills/</code> — Markdown instructions for Claude</td>
+              <td>The teaching. They tell Claude how to phrase a question, how to grade it honestly, and how to explain an answer you did not know.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note note--tip">
+        <p><strong>MCP in one line.</strong> The Model Context Protocol is how Claude Code talks to
+        a local program. Eklavya's MCP server is just a Node process on your machine that Claude
+        can ask questions like <em>"what does this person already know?"</em>. It makes no network
+        calls of its own, and there is no account.</p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="requirements" aria-labelledby="requirements-h">
+      <p class="doc-kicker">02 — Getting started</p>
+      <h2 id="requirements-h">Before you start</h2>
+
+      <p>Three things need to be on your machine. Check all three before installing.</p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead>
+            <tr><th>Requirement</th><th>Check it with</th><th>Why Eklavya needs it</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Node 18 or newer</strong></td>
+              <td><code>node --version</code></td>
+              <td>Runs the MCP server. The database driver (<code>better-sqlite3</code>) compiles a small native binding on install, which needs a modern Node.</td>
+            </tr>
+            <tr>
+              <td><strong><code>sqlite3</code> on your PATH</strong></td>
+              <td><code>sqlite3 --version</code></td>
+              <td>The hook scripts read the database directly instead of going through the MCP server, because they run on the critical path of things you are already doing and have to be fast.</td>
+            </tr>
+            <tr>
+              <td><strong><code>jq</code> on your PATH</strong></td>
+              <td><code>jq --version</code></td>
+              <td>The hook scripts are POSIX shell. <code>jq</code> is how they read the JSON that Claude Code hands them.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Installing the two command-line tools</h3>
+
+      <pre data-lang="macOS"><code>brew install jq sqlite</code></pre>
+
+      <pre data-lang="Ubuntu / Debian"><code>sudo apt-get update &amp;&amp; sudo apt-get install -y jq sqlite3</code></pre>
+
+      <pre data-lang="Windows"><code># Use WSL. Inside your Ubuntu shell:
+sudo apt-get update &amp;&amp; sudo apt-get install -y jq sqlite3</code></pre>
+
+      <div class="note">
+        <p><strong>If <code>jq</code> or <code>sqlite3</code> is missing, nothing breaks.</strong> The
+        hooks are written to exit silently when a dependency is absent — a learning tool that
+        stops your session from working gets uninstalled the same day. You simply get no
+        questions until you install them. The MCP server itself, and every <code>/eklavya:*</code>
+        command, still work.</p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="install" aria-labelledby="install-h">
+      <p class="doc-kicker">03 — Getting started</p>
+      <h2 id="install-h">Installing</h2>
+
+      <p>Pick the one that matches you. Almost everyone wants the first.</p>
+
+      <h3>A. In Claude Code (the normal way)</h3>
+
+      <p>Four steps, in order. Three of them are a single line typed into Claude Code.</p>
+
+      <ol class="doc-steps">
+        <li>
+          <h4>Add the marketplace</h4>
+          <pre><code>/plugin marketplace add ProjectAJ14/eklavya</code></pre>
+          <p>
+            A marketplace is a list of plugins Claude Code is allowed to install from. This one
+            points at the Eklavya GitHub repository. You should see a confirmation naming the
+            marketplace <code>eklavya</code>.
+          </p>
+        </li>
+        <li>
+          <h4>Install the plugin</h4>
+          <pre><code>/plugin install eklavya@eklavya</code></pre>
+          <p>
+            The part before the <code>@</code> is the plugin, the part after is the marketplace
+            it comes from — they happen to share a name. Claude Code downloads the plugin and
+            registers its MCP server, its four hooks and its seven slash commands.
+          </p>
+        </li>
+        <li>
+          <h4>Restart Claude Code</h4>
+          <p>
+            Hooks and MCP servers are wired up when a session starts, so the session you installed
+            from will not have them. Quit and reopen.
+          </p>
+        </li>
+        <li>
+          <h4>Run first-time setup</h4>
+          <pre><code>/eklavya:setup</code></pre>
+          <p>
+            This checks your prerequisites, creates the database, and asks you two short
+            questions. <a href="#setup">The next section walks through it.</a>
+          </p>
+        </li>
+      </ol>
+
+      <h4>Check that it worked</h4>
+      <p>
+        Run <code>/plugin</code> and confirm <strong>eklavya</strong> is listed with no errors. The
+        first thing a healthy session prints is a one-line learner profile, like this:
+      </p>
+      <pre data-lang="Session start"><code>[Eklavya] No learning history yet. Mode: ambient. Focus: concept. Cadence: interleaved. Level: easy.</code></pre>
+      <p>
+        If you see that line, you are done. If you see nothing at all, jump to
+        <a href="#troubleshooting">Troubleshooting</a>.
+      </p>
+
+      <h3>B. From a checkout (contributors)</h3>
+
+      <p>Use this when you are changing Eklavya itself and want your edits to take effect immediately.</p>
+
+      <pre data-lang="Terminal"><code>git clone https://github.com/ProjectAJ14/eklavya.git
+cd eklavya/mcp
+npm install        # approve the better-sqlite3 build script if npm asks
+npm run build
+cd ..
+claude --plugin-dir "$(pwd)"</code></pre>
+
+      <p>
+        <code>--plugin-dir</code> tells Claude Code to load the plugin from a folder instead of a
+        marketplace. The launcher script prefers your local <code>mcp/dist/</code> build when one
+        exists, so a rebuild is all it takes to see a change.
+      </p>
+
+      <h3>C. In Cursor</h3>
+
+      <p>
+        The knowledge graph and the commit gate are deliberately editor-agnostic. Cursor gets the
+        same server and the same teaching rules; it just does not get the slash commands or the
+        automatic hooks.
+      </p>
+
+      <ol class="doc-steps">
+        <li>
+          <h4>Point Cursor at the MCP server</h4>
+          <p>Add this to <code>~/.cursor/mcp.json</code>:</p>
+          <pre data-lang="~/.cursor/mcp.json"><code>{
+  "mcpServers": {
+    "eklavya": { "command": "npx", "args": ["-y", "eklavya-mcp"] }
+  }
+}</code></pre>
+        </li>
+        <li>
+          <h4>Export the teaching rules</h4>
+          <pre><code>node /path/to/eklavya/mcp/dist/cli.js export-rules --out .cursor/rules/eklavya.md</code></pre>
+          <p>
+            That file is generated from the plugin's own tutor skill, so the two editors cannot
+            drift apart. Regenerate it after upgrading Eklavya.
+          </p>
+        </li>
+        <li>
+          <h4>Install the commit gate, if you use enforced mode</h4>
+          <pre><code>/path/to/eklavya/scripts/install-git-hook.sh</code></pre>
+          <p>See <a href="#gate">Enforced mode and the commit gate</a> for what this does.</p>
+        </li>
+      </ol>
+
+      <h3>Getting the <code>eklavya</code> command</h3>
+      <p>
+        Some things — checking your setup, serving the dashboard, editing config from a terminal —
+        are done with a small CLI rather than a slash command. It ships in the same npm package:
+      </p>
+      <pre data-lang="Terminal"><code>npm install -g eklavya-mcp     # then: eklavya doctor
+
+# or without installing anything globally:
+npx --package eklavya-mcp eklavya doctor</code></pre>
+      <p>Full list of subcommands: <a href="#cli">The <code>eklavya</code> CLI</a>.</p>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="setup" aria-labelledby="setup-h">
+      <p class="doc-kicker">04 — Getting started</p>
+      <h2 id="setup-h">First run: <code>/eklavya:setup</code></h2>
+
+      <p>
+        Run this once per machine. It takes one exchange. Here is exactly what happens, in order,
+        so nothing surprises you.
+      </p>
+
+      <h3>The five things it does</h3>
+
+      <ol class="doc-steps">
+        <li>
+          <h4>It checks your prerequisites</h4>
+          <p>
+            Claude runs <code>command -v jq sqlite3</code> and <code>node --version</code>. If
+            something is missing it tells you how to install it on your platform, then continues
+            anyway — the MCP server works without them.
+          </p>
+        </li>
+        <li>
+          <h4>It confirms the database exists</h4>
+          <p>
+            The server creates and seeds <code>~/.eklavya/knowledge.db</code> the first time it
+            starts. Setup verifies it by counting the seeded concepts:
+          </p>
+          <pre data-lang="Terminal"><code>sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'</code></pre>
+          <p>
+            You should see four starter domains: <code>web-auth</code>, <code>react</code>,
+            <code>node-backend</code> and <code>git</code>. If the file does not exist, the MCP
+            server is not running — check <code>/plugin</code> for errors.
+          </p>
+        </li>
+        <li>
+          <h4>It asks you to choose a mode</h4>
+          <p>How hard Eklavya should push. If you are not sure, take the default.</p>
+          <ul>
+            <li><strong>ambient</strong> (default) — questions arrive as you work and are always skippable.</li>
+            <li><strong>enforced</strong> — you must pass the session quiz before a commit goes through. For interns and onboarding.</li>
+            <li><strong>off</strong> — installed but dormant.</li>
+          </ul>
+        </li>
+        <li>
+          <h4>It asks you to choose a focus</h4>
+          <p>What Eklavya should teach. Again, the default is fine.</p>
+          <ul>
+            <li><strong>concept</strong> (default) — the transferable idea behind the code. Best when you are learning a stack.</li>
+            <li><strong>project</strong> — the code that was just written: this file, this line, this decision. Best when you are learning a codebase.</li>
+            <li><strong>learn</strong> — a topic you name, taught in prerequisite order. Requires a topic.</li>
+          </ul>
+          <p>
+            Both answers are written to <code>~/.eklavya/config.json</code> — or to
+            <code>.eklavya.json</code> at the repository root if you say you want them to apply to
+            this project only. You can change them any time with
+            <a href="#cmd-mode"><code>/eklavya:mode</code></a>.
+          </p>
+        </li>
+        <li>
+          <h4>If you chose enforced, it installs the git hook</h4>
+          <pre><code>"${CLAUDE_PLUGIN_ROOT}"/scripts/install-git-hook.sh</code></pre>
+          <p>
+            Without this, only commits made inside Claude Code are gated. See
+            <a href="#gate">the commit gate</a>. Skip this step for ambient or off.
+          </p>
+        </li>
+      </ol>
+
+      <div class="note note--tip">
+        <p><strong>Nothing here is permanent.</strong> Every answer is one line in a JSON file you
+        own. <code>eklavya config get</code> shows the result, and every dial can be changed later
+        from a slash command.</p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="first-session" aria-labelledby="first-session-h">
+      <p class="doc-kicker">05 — Getting started</p>
+      <h2 id="first-session-h">Your first session, minute by minute</h2>
+
+      <p>
+        Nothing below requires you to type an Eklavya command. This is the plugin working on its
+        own while you do ordinary work.
+      </p>
+
+      <h3>The loop, start to finish</h3>
+
+      <ol class="doc-timeline">
+        <li>
+          <span class="doc-timeline__n">1</span>
+          <div>
+            <h4>You open Claude Code</h4>
+            <p>
+              The <strong>SessionStart</strong> hook prints one line: your learner profile, the
+              current mode, focus, cadence and level. Claude reads that line too, so it is
+              calibrated from your very first message. <code>quiet: true</code> turns the banner
+              off.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="doc-timeline__n">2</span>
+          <div>
+            <h4>You ask for something</h4>
+            <p>For example: <em>"Add JWT auth to the Express API."</em> Claude starts working.</p>
+          </div>
+        </li>
+        <li>
+          <span class="doc-timeline__n">3</span>
+          <div>
+            <h4>Claude logs what the work touches</h4>
+            <p>
+              As it implements, Claude calls the <code>log_session_concepts</code> tool with three
+              to eight concepts — say <code>jwt-structure</code>, <code>httponly-cookies</code>,
+              <code>middleware-order-auth</code> — each with one line naming the real code it
+              wrote. This is what everything else is grounded in: no logging, nothing to ask about.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="doc-timeline__n">4</span>
+          <div>
+            <h4>A question lands at the seam</h4>
+            <p>
+              That logging call fires the <strong>PostToolUse</strong> checkpoint hook. If the
+              cadence is <code>interleaved</code> (the default), you get <em>one</em> question
+              right there, while the code is still on your screen:
+            </p>
+            <pre data-lang="Checkpoint"><code>Why is httpOnly set on the refresh cookie here but not on the access token?
+
+ambient · concept · easy · tier 2 mechanism</code></pre>
+            <p>
+              Four options arrive through Claude Code's own question UI, under an
+              <strong>Eklavya</strong> header so you can see who is asking. Picking one is a
+              keystroke. The footer line names the settings that produced the question — mode,
+              focus, level, what the tier is asking for, and <code>· q 2/3</code> when more are
+              coming.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="doc-timeline__n">5</span>
+          <div>
+            <h4>Claude grades it and goes straight back to work</h4>
+            <p>
+              The answer is graded on a 0–5 scale and stored, along with the next review date. No
+              summary, no re-plan, no second question — the interruption is meant to cost you
+              seconds.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="doc-timeline__n">6</span>
+          <div>
+            <h4>The task finishes and sweeps up the rest</h4>
+            <p>
+              The <strong>Stop</strong> hook checks whether anything worth asking is left. Because
+              <code>max_questions_per_task</code> is a <em>session budget</em> and not a batch
+              size, a session that answered its whole budget while you worked ends in silence.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="doc-timeline__n">7</span>
+          <div>
+            <h4>Tomorrow</h4>
+            <p>
+              Concepts you got right are scheduled further out. Concepts you fumbled come back
+              sooner, as a <em>different</em> question, sometimes a tier lower. Concepts you
+              mastered are retired unless spaced repetition brings them back.
+            </p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="note">
+        <p><strong>Answering "I don't know" is not the same as skipping.</strong> Both grade 0, but
+        "I don't know" is treated as a request to be taught: you get the mechanism, the real lines
+        from your diff, and one takeaway. Skipping just moves on. Eklavya records which one it
+        was.</p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="dials" aria-labelledby="dials-h">
+      <p class="doc-kicker">06 — Using it</p>
+      <h2 id="dials-h">The four dials</h2>
+
+      <p>
+        Eklavya's behaviour is four independent settings. Conflating them is the most common
+        confusion, so learn them as four separate questions:
+      </p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead>
+            <tr><th>Dial</th><th>Question it answers</th><th>Values</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>mode</code></td><td>How hard does Eklavya push?</td><td><code>ambient</code> (default), <code>enforced</code>, <code>off</code></td></tr>
+            <tr><td><code>focus</code></td><td>What does it teach?</td><td><code>concept</code> (default), <code>project</code>, <code>learn</code></td></tr>
+            <tr><td><code>cadence</code></td><td>When does it ask?</td><td><code>interleaved</code> (default), <code>end</code></td></tr>
+            <tr><td><code>difficulty</code></td><td>How hard may the questions get?</td><td><code>auto</code> (default), <code>easy</code>, <code>medium</code>, <code>hard</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        They combine freely. <code>enforced</code> + <code>learn</code> is an intern who must pass
+        a gate on a topic they chose. <code>ambient</code> + <code>project</code> is a gentle nudge
+        grounded in today's diff. The one interaction is <code>off</code>: it wins outright and
+        <code>focus</code> is never read.
+      </p>
+
+      <h3 id="dial-mode"><code>mode</code> — how hard it pushes</h3>
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Value</th><th>Behaviour</th><th>Reach for it when</th></tr></thead>
+          <tbody>
+            <tr><td><code>ambient</code> <span class="tag">default</span></td><td>Questions are offered as you work and at the end of a task. Always skippable, never nagging.</td><td>You are learning a new stack on your own terms.</td></tr>
+            <tr><td><code>enforced</code></td><td>The session quiz must be passed before <code>git commit</code> succeeds — both inside Claude Code and from a bare terminal.</td><td>Onboarding, interns, a codebase where shipping unread code is expensive.</td></tr>
+            <tr><td><code>off</code></td><td>Installed but dormant. No questions, no gate, no banner.</td><td>A demo, a deadline, a repo you are only passing through.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="dial-focus"><code>focus</code> — what it teaches</h3>
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Value</th><th>Asks about</th><th>Good for</th></tr></thead>
+          <tbody>
+            <tr><td><code>concept</code> <span class="tag">default</span></td><td>The idea behind the code, phrased so the answer transfers to any codebase. Your diff is the motivation, not the subject.</td><td>Learning a stack.</td></tr>
+            <tr><td><code>project</code></td><td>The code just written — the file, the line, the decision.</td><td>Learning a codebase.</td></tr>
+            <tr><td><code>learn</code></td><td>A topic you name, taught in prerequisite order, using your real code as the worked example wherever the work touches it.</td><td>Learning something on purpose.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <p><code>focus: "learn"</code> needs <code>focus_topic</code> set as well. Without one the
+        planner refuses with <code>reason: "no_topic"</code> and you get no questions.</p>
+      </div>
+
+      <h3 id="dial-cadence"><code>cadence</code> — when it asks</h3>
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Value</th><th>Behaviour</th><th>Good for</th></tr></thead>
+          <tbody>
+            <tr><td><code>interleaved</code> <span class="tag">default</span></td><td>One question mid-task, the moment a concept is logged. The end-of-task quiz then only asks for what is left of the budget.</td><td>Learning while the agent works — the thing the tool is for.</td></tr>
+            <tr><td><code>end</code></td><td>Nothing until the task is finished. Everything arrives in one sweep.</td><td>Pairing, demos, deep focus.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <code>interleaved</code> does not mean more questions. It moves the same budget earlier.
+        If being interrupted is the problem rather than the timing, raise
+        <code>min_minutes_between_checkpoints</code> before switching to <code>end</code>.
+      </p>
+
+      <h3 id="dial-difficulty"><code>difficulty</code> — how hard it may get</h3>
+      <p>
+        This is the one dial you normally <em>earn</em> rather than set. On <code>auto</code>,
+        every project starts at <code>easy</code> and climbs on evidence. Setting a literal value
+        pins the band and stops progression. See <a href="#levels">Levels and tiers</a>.
+      </p>
+
+      <h3>Changing a dial</h3>
+      <p>Two ways, both equivalent:</p>
+      <pre data-lang="In Claude Code"><code>/eklavya:mode              # show all four, then change any of them
+/eklavya:mode project      # set focus to project
+/eklavya:level medium      # pin this project's difficulty band</code></pre>
+      <pre data-lang="From a terminal"><code>eklavya config set mode enforced            # for you, everywhere
+eklavya config set mode enforced --repo     # for this project only
+eklavya config set focus learn --topic caching
+eklavya config set cadence end</code></pre>
+
+      <div class="note note--warn">
+        <p><strong>Repo settings beat personal ones.</strong> A value written with
+        <code>--repo</code> lands in <code>.eklavya.json</code> at the repository root and applies
+        to <em>everyone</em> who works in that project — including overriding a
+        <code>learn</code> topic a teammate set for themselves. That is exactly what you want for
+        pinning <code>enforced</code> on an onboarding repo, and exactly what you do not want by
+        accident. The session banner names any setting a repo is overriding, so it never changes
+        silently.</p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="levels" aria-labelledby="levels-h">
+      <p class="doc-kicker">07 — Using it</p>
+      <h2 id="levels-h">Levels and tiers</h2>
+
+      <p>Difficulty has two layers, and they are easy to mix up.</p>
+
+      <h3>Tiers: how hard one question is</h3>
+      <p>
+        Every concept can be asked about at five depths. The tier is chosen per question, and the
+        label appears in the footer under the question so you know what is being asked of you.
+      </p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Tier</th><th>Label</th><th>The question it asks</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td><code>recall</code></td><td>What is this thing?</td></tr>
+            <tr><td>2</td><td><code>mechanism</code></td><td>What does the machine actually do with it?</td></tr>
+            <tr><td>3</td><td><code>judgement</code></td><td>Why this choice here, rather than the alternative?</td></tr>
+            <tr><td>4</td><td><code>failure modes</code></td><td>What breaks it, and how would you notice?</td></tr>
+            <tr><td>5</td><td><code>design</code></td><td>When is this the wrong approach entirely?</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Levels: the band of tiers a project is allowed to use</h3>
+      <p>
+        A level is a coarse band held <strong>per project</strong>. It does not replace tier
+        selection — it clamps it.
+      </p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Level</th><th>Tier band</th><th>Asks for</th></tr></thead>
+          <tbody>
+            <tr><td><code>easy</code> <span class="tag">every project starts here</span></td><td>1–2</td><td>What a thing is; what the machine does with it.</td></tr>
+            <tr><td><code>medium</code></td><td>2–4</td><td>Why this choice here, and what breaks it.</td></tr>
+            <tr><td><code>hard</code></td><td>3–5</td><td>Judgement, failure modes, when the architecture is wrong.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Starting easy is deliberate, not a warm-up. You have been <em>watching</em> an agent work,
+        and tiers 1–2 are the questions that state can answer honestly. A question you have no way
+        of answering is the fastest route to turning the plugin off.
+      </p>
+
+      <h3>How a project is promoted</h3>
+      <p>All three conditions must hold before the band moves up:</p>
+      <ul class="doc-checks">
+        <li><strong>100 passing answers</strong> in that project — the <code>level_up_after</code> setting. "Passing" means graded 3 or better.</li>
+        <li><strong>70% accuracy or better</strong> over them — <code>level_up_accuracy</code>. Endurance alone is not readiness.</li>
+        <li><strong>At least 15 distinct concepts</strong> — one concept re-asked forty ways is not readiness either. This floor scales down if you shorten <code>level_up_after</code>, so a shortened runway stays reachable.</li>
+      </ul>
+      <p>
+        Declining a question costs nothing: a decline counts on neither side of the accuracy.
+        <strong>Nothing ever demotes you.</strong>
+      </p>
+
+      <h3>Why it is per project</h3>
+      <p>
+        "How hard should this be" is a question about a codebase, not about a person. The same
+        developer is a different learner on their fourth Node service and their first Rust one — so
+        a new repository starts at <code>easy</code> even when three others are on
+        <code>hard</code>.
+      </p>
+
+      <h3>Pinning a level</h3>
+      <pre><code>eklavya config set difficulty hard          # skip the runway, for you
+eklavya config set difficulty easy --repo  # keep an onboarding repo gentle for everyone</code></pre>
+      <p>
+        A pin is a hard set, not a floor: while it stands, nothing promotes.
+        <code>auto</code> hands control back to the evidence, and the project's own record resumes
+        where it left off. <code>/eklavya:level</code> shows where you are and how far into the
+        band.
+      </p>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="commands" aria-labelledby="commands-h">
+      <p class="doc-kicker">08 — Using it</p>
+      <h2 id="commands-h">Command reference</h2>
+
+      <p>
+        Seven slash commands, all typed inside Claude Code. Every one of them is read-only until
+        you ask for a change, and none of them starts a quiz unless that is what the command is
+        for.
+      </p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Command</th><th>One line</th></tr></thead>
+          <tbody>
+            <tr><td><a href="#cmd-quiz"><code>/eklavya:quiz [topic]</code></a></td><td>Quiz now — on this session's work, or a named topic.</td></tr>
+            <tr><td><a href="#cmd-mode"><code>/eklavya:mode [value]</code></a></td><td>Show or change the mode, focus, cadence and difficulty dials.</td></tr>
+            <tr><td><a href="#cmd-learn"><code>/eklavya:learn &lt;topic&gt;</code></a></td><td>A structured lesson, prerequisite-ordered, calibrated to what you know.</td></tr>
+            <tr><td><a href="#cmd-level"><code>/eklavya:level [value]</code></a></td><td>This project's difficulty band and the runway into it — or pin one.</td></tr>
+            <tr><td><a href="#cmd-progress"><code>/eklavya:progress</code></a></td><td>The mastery map: projects, what they taught, what you skipped, what is due.</td></tr>
+            <tr><td><a href="#cmd-gate"><code>/eklavya:gate</code></a></td><td>Commit-gate status.</td></tr>
+            <tr><td><a href="#cmd-setup"><code>/eklavya:setup</code></a></td><td>First run.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- quiz -->
+      <article class="cmd" id="cmd-quiz">
+        <h3><code>/eklavya:quiz [topic]</code></h3>
+        <p class="cmd__sub">Ask me questions now.</p>
+
+        <h4>What it does</h4>
+        <p>
+          Starts a quiz immediately, without waiting for a task to finish. Because <em>you</em>
+          asked, the normal spacing rules are ignored — the cadence limits exist to stop Eklavya
+          nagging, never to refuse a request.
+        </p>
+
+        <h4>With no topic</h4>
+        <p>
+          Quizzes this session's work: the concepts Claude logged while building, minus anything
+          you have already mastered or already answered this session. If there is nothing worth
+          asking, it says so in one line and stops — and the reason it gives is always specific,
+          whether you named a topic or not:
+        </p>
+        <div class="doc-table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Reason</th><th>What it means</th></tr></thead>
+            <tbody>
+              <tr><td><code>already_covered</code></td><td>Everything from this session has been asked. Try a topic.</td></tr>
+              <tr><td><code>nothing_logged</code></td><td>No concepts logged yet, so there is nothing grounded to ask about.</td></tr>
+              <tr><td><code>no_candidates</code></td><td>That topic is fully mastered and nothing is due.</td></tr>
+              <tr><td><code>mode_off</code></td><td>Eklavya is off. Run <code>/eklavya:setup</code> to turn it back on.</td></tr>
+              <tr><td><code>no_topic</code></td><td>Focus is <code>learn</code> with no topic set.</td></tr>
+              <tr><td><code>topic_unknown</code></td><td>Nothing in the graph matches that topic; the closest domain is offered instead.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>With a topic</h4>
+        <pre><code>/eklavya:quiz caching
+/eklavya:quiz web-auth</code></pre>
+        <p>
+          The topic is treated as a domain, or as one or more concept slugs. Prerequisites are
+          asked first, mastered concepts are dropped, and nothing you have already been asked is
+          repeated.
+        </p>
+
+        <h4>Worth knowing</h4>
+        <ul>
+          <li>A topic here overrides your configured focus <strong>for this quiz only</strong>. It does not change your settings — <code>/eklavya:mode</code> is for that.</li>
+          <li>Questions come one at a time, each at its own tier, each graded before the next.</li>
+          <li>It closes with one line: what moved, and what comes back for review when.</li>
+        </ul>
+      </article>
+
+      <!-- mode -->
+      <article class="cmd" id="cmd-mode">
+        <h3><code>/eklavya:mode [value]</code></h3>
+        <p class="cmd__sub">Show or change how Eklavya behaves.</p>
+
+        <h4>With no argument</h4>
+        <p>
+          Reports your effective settings in two lines — mode, focus, cadence, difficulty — plus,
+          if this repository is overriding any of your personal settings, which ones and where the
+          file is. Then it offers the three focus choices in one line each.
+        </p>
+
+        <h4>With an argument</h4>
+        <pre><code>/eklavya:mode enforced          # change the mode dial
+/eklavya:mode concept           # change the focus dial
+/eklavya:mode end               # change the cadence dial
+/eklavya:mode learn caching     # focus learn, with its required topic</code></pre>
+        <p>
+          The value tells Eklavya which dial you mean, so you never have to name the dial. Values
+          are unambiguous across the four.
+        </p>
+
+        <h4>Worth knowing</h4>
+        <ul>
+          <li>It asks which scope you mean when it is ambiguous: <strong>global</strong> (you, everywhere) or <strong>repo</strong> (this project, for everyone).</li>
+          <li>It warns you before writing <code>focus</code> at repo scope, because that overrides every contributor's personal choice there.</li>
+          <li>Moving <em>to</em> <code>enforced</code> prompts you to install the git hook — without it, only commits made inside Claude Code are gated.</li>
+          <li>For difficulty, it sends you to <code>/eklavya:level</code> rather than explaining the ladder twice.</li>
+        </ul>
+      </article>
+
+      <!-- learn -->
+      <article class="cmd" id="cmd-learn">
+        <h3><code>/eklavya:learn &lt;topic&gt;</code></h3>
+        <p class="cmd__sub">Teach me this properly, right now.</p>
+
+        <h4>What it does</h4>
+        <p>
+          A lesson rather than a quiz. Eklavya looks up what you already know in that domain,
+          orders the remaining concepts so prerequisites come first, and teaches up to
+          <strong>five concepts per session</strong> — each one explained, then checked with a
+          question, so it is still a conversation and still recorded.
+        </p>
+
+        <h4>How to use it</h4>
+        <pre><code>/eklavya:learn caching
+/eklavya:learn react hooks</code></pre>
+
+        <h4>Worth knowing</h4>
+        <ul>
+          <li>It offers, once, to make the topic stick by setting <code>focus: learn</code>. Decline and it just teaches the lesson. It never sets that silently, because it changes what every later session asks about.</li>
+          <li>Concepts you have already mastered are referenced, not re-taught.</li>
+          <li>If the topic is not a known domain, it either asks which existing domain is closest or teaches from first principles and grows the graph as it goes.</li>
+          <li>This is the on-demand version. Setting <code>focus: learn</code> is the standing version — and it never changes <em>when</em> Eklavya interrupts, so a declared topic cannot start interrupting you about something unrelated to your work.</li>
+        </ul>
+      </article>
+
+      <!-- level -->
+      <article class="cmd" id="cmd-level">
+        <h3><code>/eklavya:level [auto|easy|medium|hard]</code></h3>
+        <p class="cmd__sub">Where am I, and how far to the next band?</p>
+
+        <h4>With no argument</h4>
+        <p>Three lines or fewer:</p>
+        <ul>
+          <li><strong>Where you are</strong> — the level, and what that band asks for.</li>
+          <li><strong>The runway</strong> — passing answers out of the number needed, plus whichever other condition is still short (accuracy, or distinct concepts).</li>
+          <li><strong>What is next</strong> — the band above, and what changes about the questions there.</li>
+        </ul>
+        <p>If the level is pinned it says so, names the file that pinned it, and does not report a runway toward something a pin makes unreachable.</p>
+
+        <h4>With an argument</h4>
+        <pre><code>/eklavya:level auto      # back to earning it
+/eklavya:level medium    # pin the band, stop progression</code></pre>
+
+        <h4>Worth knowing</h4>
+        <ul>
+          <li>Pinning at repo scope overrides every contributor's personal setting in that project.</li>
+          <li>If the questions feel trivial, check the level before pinning up — you may simply be close to a promotion.</li>
+          <li>Pinning <code>hard</code> on a codebase you have just met is the exact failure levels exist to prevent.</li>
+        </ul>
+      </article>
+
+      <!-- progress -->
+      <article class="cmd" id="cmd-progress">
+        <h3><code>/eklavya:progress</code></h3>
+        <p class="cmd__sub">The mastery map. Read-only — it never quizzes you.</p>
+
+        <h4>What it shows, in this order</h4>
+        <ol>
+          <li><strong>Which projects</strong> this has been happening on, with answers, passes and accuracy per repository.</li>
+          <li><strong>What you actually learned</strong> — led by the context line, not the slug: <em>"moved <code>flutter create</code> into pre_gen so brick files overlay it"</em> means something; <code>mason-lifecycle-hooks</code> does not.</li>
+          <li><strong>What you skipped</strong>, split into <em>declined</em> (you chose to skip) and <em>don't know</em> (you blanked and were taught). These come back a tier lower, so it is a backlog, not a scolding.</li>
+          <li><strong>What is due</strong> for review, with the tier each will be asked at.</li>
+          <li><strong>What is shaky</strong> — your weakest concepts, each with a one-clause gloss.</li>
+          <li><strong>What is mastered</strong>, and if that is still zero, what is one correct answer away from it.</li>
+        </ol>
+
+        <h4>Worth knowing</h4>
+        <ul>
+          <li>It is capped at about 20 lines. For history, per-project comparison and the full concept list, it points you at <code>eklavya dashboard</code>.</li>
+          <li>The seeded catalogue is large on purpose — the "not yet seen" count is not a gap to close, and nobody is expected to learn every concept in it.</li>
+          <li>With no history at all, it says so in two lines and suggests building something first.</li>
+        </ul>
+      </article>
+
+      <!-- gate -->
+      <article class="cmd" id="cmd-gate">
+        <h3><code>/eklavya:gate</code></h3>
+        <p class="cmd__sub">Why is my commit blocked, and what is left?</p>
+
+        <h4>What it shows</h4>
+        <ul>
+          <li>The mode. If it is not <code>enforced</code>, it says nothing is gated and stops.</li>
+          <li>How many concepts you have answered out of the number required.</li>
+          <li>The <code>pass_threshold</code> those answers have to clear.</li>
+          <li>Whether the gate has passed.</li>
+        </ul>
+        <p>
+          If it has not passed, it says exactly what remains and offers to run the quiz — it will
+          not start one without being asked.
+        </p>
+      </article>
+
+      <!-- setup -->
+      <article class="cmd" id="cmd-setup">
+        <h3><code>/eklavya:setup</code></h3>
+        <p class="cmd__sub">First run on this machine.</p>
+        <p>
+          Checks prerequisites, confirms the database, asks for a mode and a focus, and installs
+          the git hook if you chose enforced. Walked through step by step in
+          <a href="#setup">First run</a>. Safe to run again any time.
+        </p>
+      </article>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="cli" aria-labelledby="cli-h">
+      <p class="doc-kicker">09 — Using it</p>
+      <h2 id="cli-h">The <code>eklavya</code> CLI</h2>
+
+      <p>
+        For the parts of Eklavya that make sense outside a Claude Code session. Install it with
+        <code>npm install -g eklavya-mcp</code>, or run it without installing via
+        <code>npx --package eklavya-mcp eklavya &lt;command&gt;</code>.
+      </p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>eklavya config get</code></td><td>Prints the effective configuration as JSON, plus the paths of the global and repo files it came from.</td></tr>
+            <tr><td><code>eklavya config set &lt;key&gt; &lt;value&gt;</code></td><td>Changes one setting. Add <code>--repo</code> to write <code>.eklavya.json</code> at the repository root instead of your global config. Add <code>--topic &lt;topic&gt;</code> when setting <code>focus learn</code>.</td></tr>
+            <tr><td><code>eklavya doctor</code></td><td>Checks that everything is wired up: home directory, database, concept and attempt counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if the database cannot be opened.</td></tr>
+            <tr><td><code>eklavya dashboard [--port &lt;n&gt;]</code></td><td>Serves your learning history as a local web page. See <a href="#dashboard">The dashboard</a>.</td></tr>
+            <tr><td><code>eklavya db-path</code></td><td>Prints the database location. Useful in scripts.</td></tr>
+            <tr><td><code>eklavya export-rules [--out &lt;file&gt;]</code></td><td>Writes the tutor pedagogy as a Cursor rules file. With no <code>--out</code> it prints to stdout.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>What <code>doctor</code> looks like</h3>
+      <pre data-lang="Terminal"><code>$ eklavya doctor
+home:     /Users/you/.eklavya
+database: /Users/you/.eklavya/knowledge.db
+concepts: 87
+attempts: 41
+mastered: 12
+journal:  wal
+level:    easy (23/100 passing answers in /Users/you/code/api)
+mode:     ambient
+focus:    concept
+cadence:  interleaved (one question mid-task, min 4m apart)</code></pre>
+      <p>This is the first thing to run when something feels wrong.</p>
+
+      <div class="note">
+        <p><strong>Guard rails you will meet.</strong> <code>config set</code> rejects unknown keys
+        and lists the valid ones. <code>focus learn</code> without <code>--topic</code> is refused
+        outright, because that combination produces no questions at all. <code>--repo</code>
+        outside a git repository is refused, because there is nowhere to write the file.</p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="config" aria-labelledby="config-h">
+      <p class="doc-kicker">10 — Reference</p>
+      <h2 id="config-h">Configuration</h2>
+
+      <h3>Where settings live</h3>
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Layer</th><th>File</th><th>Applies to</th></tr></thead>
+          <tbody>
+            <tr><td>Defaults</td><td>built in</td><td>Everything, until something overrides it.</td></tr>
+            <tr><td>Global</td><td><code>~/.eklavya/config.json</code></td><td>You, on every project.</td></tr>
+            <tr><td>Repo <span class="tag">wins</span></td><td><code>.eklavya.json</code> at a repository root</td><td>Everyone working in that project.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Later layers win key by key, not file by file: a repo file setting only <code>mode</code>
+        leaves your personal <code>focus</code> alone. The search for a repo file walks up from
+        your working directory and <strong>stops at the git root</strong>, so a stray config above
+        the repository never leaks in. A missing or malformed file is ignored rather than fatal —
+        defaults win and your session keeps working.
+      </p>
+
+      <h3>Every key</h3>
+      <div class="doc-table-wrap">
+        <table class="doc-table doc-table--keys">
+          <thead><tr><th>Key</th><th>Default</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>mode</code></td><td><code>"ambient"</code></td><td>How hard Eklavya pushes: <code>ambient</code>, <code>enforced</code>, <code>off</code>.</td></tr>
+            <tr><td><code>focus</code></td><td><code>"concept"</code></td><td>What it teaches: <code>concept</code>, <code>project</code>, <code>learn</code>.</td></tr>
+            <tr><td><code>focus_topic</code></td><td><code>null</code></td><td>The topic for <code>learn</code> focus. Ignored by the other two, required by that one.</td></tr>
+            <tr><td><code>cadence</code></td><td><code>"interleaved"</code></td><td>When it asks: <code>interleaved</code> (mid-task) or <code>end</code>.</td></tr>
+            <tr><td><code>difficulty</code></td><td><code>"auto"</code></td><td>The tier band: <code>auto</code> earns it per project; <code>easy</code>/<code>medium</code>/<code>hard</code> pin it and stop progression.</td></tr>
+            <tr><td><code>level_up_after</code></td><td><code>100</code></td><td>Passing answers needed in one project before the band moves up. The distinct-concept floor scales with this, so shortening it keeps the runway reachable.</td></tr>
+            <tr><td><code>level_up_accuracy</code></td><td><code>0.7</code></td><td>Minimum accuracy over those answers. Declines are excluded from the calculation.</td></tr>
+            <tr><td><code>pass_threshold</code></td><td><code>0.7</code></td><td>The fraction of a session's required concepts you must answer correctly — grade 3 or better — before the commit gate opens. At the default, three of four required concepts have to be passed.</td></tr>
+            <tr><td><code>max_questions_per_task</code></td><td><code>4</code></td><td>A budget for the <strong>whole session</strong>, shared between mid-task checkpoints and the end-of-task sweep. Not a batch size.</td></tr>
+            <tr><td><code>min_minutes_between_quizzes</code></td><td><code>20</code></td><td>Floor between whole quizzes. This is the anti-nagging dial.</td></tr>
+            <tr><td><code>min_minutes_between_checkpoints</code></td><td><code>4</code></td><td>Floor between single mid-task questions, so logging eight concepts at once cannot become eight questions in a row. <code>0</code> asks at every seam.</td></tr>
+            <tr><td><code>max_new_concepts_per_session</code></td><td><code>8</code></td><td>Cap on concepts Claude may invent per session, against slug sprawl.</td></tr>
+            <tr><td><code>max_stop_blocks_per_session</code></td><td><code>3</code></td><td>Hard backstop on how many times the end-of-task hook may hold a session open.</td></tr>
+            <tr><td><code>domains_enabled</code></td><td><code>["*"]</code></td><td>Restrict questions to named domains. <code>["*"]</code> means all.</td></tr>
+            <tr><td><code>quiet</code></td><td><code>false</code></td><td><code>true</code> suppresses the session-start banner and the footer line under each question.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>A complete file</h3>
+      <p>
+        Every key is optional — write only the ones you want to change. This example is a repo
+        file for an onboarding codebase: enforced, grounded in the project, held at easy for
+        everyone.
+      </p>
+      <pre data-lang=".eklavya.json"><code>{
+  "mode": "enforced",
+  "focus": "project",
+  "cadence": "interleaved",
+  "difficulty": "easy",
+  "pass_threshold": 0.7,
+  "max_questions_per_task": 4,
+  "min_minutes_between_checkpoints": 4
+}</code></pre>
+
+      <div class="note note--tip">
+        <p><strong>Two settings people misread.</strong> <code>max_questions_per_task</code> is a
+        session budget, so turning on <code>interleaved</code> moves questions earlier without
+        adding any. And <code>difficulty</code> is a <em>band</em>, not a question — pinning
+        <code>hard</code> does not make every question tier 5, it makes tiers 3–5 the range the
+        planner may choose from.</p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="gate" aria-labelledby="gate-h">
+      <p class="doc-kicker">11 — Reference</p>
+      <h2 id="gate-h">Enforced mode and the commit gate</h2>
+
+      <p>
+        In <code>enforced</code> mode, a commit is held until you have answered enough of what this
+        session taught you. Nothing else is blocked — you can still edit, run, test and push.
+      </p>
+
+      <h3>What "enough" means, exactly</h3>
+      <p>
+        Each session gets a gate with a <strong>required</strong> number of concepts, taken from
+        what Claude logged while building. The gate opens once you have passed
+        <code>required × pass_threshold</code> of them, rounded up — with the default 0.7, that is
+        three of four. A concept counts as passed only when it was answered at <strong>grade 3 or
+        better</strong>: a skip counts as answered but never as passed, or the gate would be
+        theatre.
+      </p>
+      <p>
+        <code>required</code> is frozen when the gate opens and only ever grows, so mastering
+        concepts mid-quiz cannot shrink the obligation you already have.
+      </p>
+
+      <h3>The two paths a commit can take</h3>
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Where you commit</th><th>What stops it</th><th>Installed by</th></tr></thead>
+          <tbody>
+            <tr><td>Inside Claude Code</td><td>A <code>PreToolUse</code> hook that inspects every Bash command and denies the ones that are really a <code>git commit</code>.</td><td>The plugin, automatically.</td></tr>
+            <tr><td>A terminal, VS Code, Cursor, anything</td><td>A git <code>pre-commit</code> hook in the repository.</td><td>You, with the script below.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Install both, or enforced mode only gates half the ways to commit.</p>
+
+      <h3>Installing the git hook</h3>
+      <pre data-lang="Terminal"><code>/path/to/eklavya/scripts/install-git-hook.sh            # in the repo you want gated
+/path/to/eklavya/scripts/install-git-hook.sh --uninstall</code></pre>
+      <ul>
+        <li>It <strong>chains</strong> to any <code>pre-commit</code> hook you already have rather than replacing it — your existing one is moved to <code>pre-commit.local</code> and still runs.</li>
+        <li><code>--uninstall</code> removes Eklavya's hook and restores the previous one.</li>
+        <li>It only acts on repositories whose <code>.eklavya.json</code> sets <code>"mode": "enforced"</code>, so installing it is safe even if you later switch to ambient.</li>
+      </ul>
+
+      <h3>What a blocked commit looks like</h3>
+      <pre data-lang="Terminal"><code>  Eklavya is holding this commit.
+
+  You have answered 1 of 4 concepts from this session's work.
+  Open Claude Code in this repo and run /eklavya:quiz to finish, then commit again.
+
+  To see what is outstanding:  /eklavya:gate
+  To turn this off for the repo, set "mode" to "ambient" in .eklavya.json</code></pre>
+
+      <h3>How to get through it</h3>
+      <ol class="doc-steps doc-steps--tight">
+        <li><h4>Run <code>/eklavya:gate</code></h4><p>See how many concepts are outstanding and what score they need.</p></li>
+        <li><h4>Run <code>/eklavya:quiz</code></h4><p>Answer honestly. Guessing does not help — the point is the gap, not the gate.</p></li>
+        <li><h4>Commit again</h4><p>Both paths now succeed.</p></li>
+      </ol>
+
+      <h3>The safety rules</h3>
+      <ul class="doc-checks">
+        <li><strong>It fails open.</strong> A missing <code>jq</code>, a missing database or an unreadable config lets the commit through with a warning. A learning tool that bricks commits gets uninstalled.</li>
+        <li><strong>No gate row, no block.</strong> If nothing was taught this session there is nothing to prove, so nothing is held. An unpassable gate teaches nothing.</li>
+        <li><strong>Only opted-in repositories are gated.</strong> A repository with no <code>.eklavya.json</code> is never touched by the git hook.</li>
+        <li><strong>Blanking cannot lock you out.</strong> A grade of 0 never passes, so a session answered entirely with "I don't know" would leave the gate permanently unmet. Once everything else is exhausted, Eklavya re-offers the concepts it taught you, one tier lower and as a different question, until the lesson lands. Concepts you <em>declined</em> are not re-offered — the gate holding against a decline is the gate working.</li>
+      </ul>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="dashboard" aria-labelledby="dashboard-h">
+      <p class="doc-kicker">12 — Reference</p>
+      <h2 id="dashboard-h">The dashboard</h2>
+
+      <pre data-lang="Terminal"><code>$ eklavya dashboard
+Eklavya dashboard on http://127.0.0.1:41729
+Reading /Users/you/.eklavya/knowledge.db — press Ctrl+C to stop.</code></pre>
+
+      <p>
+        <code>/eklavya:progress</code> fits in twenty lines and answers <em>what now</em>. The
+        dashboard is the long view, and shows:
+      </p>
+      <ul>
+        <li>Accuracy, mastered, due and skipped — recomputed per project.</li>
+        <li>Thirty days of answers, split into right, missed and skipped.</li>
+        <li>Every concept you have been asked, weakest first, with the code it came from.</li>
+        <li>The skipped list, because those come back a tier lower.</li>
+      </ul>
+
+      <p>
+        It binds to loopback only and reads the same local database — nothing is served to anyone
+        but you, and nothing leaves the machine. Use <code>--port</code> if 41729 is taken; if the
+        port you asked for is busy the command fails rather than quietly moving, and with no
+        <code>--port</code> at all it falls back to any free port.
+      </p>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="engine" aria-labelledby="engine-h">
+      <p class="doc-kicker">13 — Going deeper</p>
+      <h2 id="engine-h">How the grading engine works</h2>
+
+      <p>
+        You do not need this section to use Eklavya. Read it when you want to know why a question
+        arrived when it did.
+      </p>
+
+      <h3>Concepts and the graph</h3>
+      <p>
+        A <strong>concept</strong> is one idea with a kebab-case slug, a domain, a tier and, often,
+        prerequisite edges to other concepts. Eklavya ships with a seeded catalogue across
+        <code>web-auth</code>, <code>react</code>, <code>node-backend</code> and <code>git</code>,
+        and grows new ones as your work touches ideas the catalogue does not have — capped at
+        <code>max_new_concepts_per_session</code> so the graph does not sprawl.
+      </p>
+      <p>
+        Prerequisites matter for fairness. A tier-3 <em>"why this rather than the alternative"</em>
+        question about a concept whose foundations you do not have is not a hard question, it is an
+        unfair one. The planner orders foundations first and reports which are missing.
+      </p>
+
+      <h3>Grading: the 0–5 scale</h3>
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Grade</th><th>Means</th></tr></thead>
+          <tbody>
+            <tr><td><code>0</code></td><td>No answer — a skip, or "I don't know".</td></tr>
+            <tr><td><code>1–2</code></td><td>Wrong.</td></tr>
+            <tr><td><code>3</code></td><td>Correct, but laboured. <span class="tag">the passing line</span></td></tr>
+            <tr><td><code>4</code></td><td>Correct.</td></tr>
+            <tr><td><code>5</code></td><td>Correct, and explained why.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <strong>A multiple-choice answer is capped at 4.</strong> Recognition is easier than
+        recall, and picking the right option out of four cannot demonstrate that you could have
+        explained it. Two clean answers still reach mastery; it just is not claimed on one lucky
+        guess.
+      </p>
+
+      <h3>Why the questions are multiple choice</h3>
+      <p>
+        You are in the middle of something. A blank prompt asking you to explain a mechanism gets
+        skipped — not because you did not know, but because typing a paragraph costs more than the
+        question is worth right then, and that skip records as if you had no idea. So every
+        question is four options: one right, three that a competent person could believe. "Other"
+        is always there, for <em>I don't know</em> or for typing a real answer if you would rather
+        explain.
+      </p>
+
+      <h3>Scheduling: SM-2</h3>
+      <p>Eklavya uses the SM-2 spaced-repetition algorithm, the same family Anki is built on.</p>
+      <ul class="doc-checks">
+        <li>Each concept carries a <strong>score</strong>, an <strong>ease factor</strong> (starts at 2.5, never below 1.3) and an <strong>interval</strong>.</li>
+        <li>A passing answer moves the interval along: 1 day, then 6 days, then multiplied by the ease each time.</li>
+        <li>A failed recall resets the interval to 1 day — you see it again tomorrow, as a different question.</li>
+        <li>A concept counts as <strong>mastered</strong> at a score of 0.7 or better across at least two repetitions.</li>
+        <li>Scores decay slowly while a concept is overdue — about 5% a week, floored at 0.3 — so mastery reflects what you would remember today, not what you knew once.</li>
+      </ul>
+
+      <h3>Never the same question twice</h3>
+      <p>Three separate mechanisms enforce this, because a prompt asking nicely is not enforcement:</p>
+      <ul class="doc-checks">
+        <li><strong>Mastered concepts are not asked about.</strong> The learner profile hands Claude the actual list of what you know. Only spaced repetition brings one back, and it comes back harder.</li>
+        <li><strong>Every question you have been asked is on record</strong>, and the plan hands those exact questions back with the tier and grade each got. A question already asked is spent: same concept, different angle.</li>
+        <li><strong>A concept answered this session is done for the session.</strong> Getting something half-right no longer puts it straight back in the queue five minutes later.</li>
+      </ul>
+
+      <h3>Where each hook fits</h3>
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Hook</th><th>Fires</th><th>Does</th></tr></thead>
+          <tbody>
+            <tr><td><code>SessionStart</code></td><td>When a session opens</td><td>Stamps the session id and prints your one-line learner profile.</td></tr>
+            <tr><td><code>PostToolUse</code></td><td>Right after Claude logs concepts</td><td>Decides whether to ask one mid-task question. Respects the cadence, the budget and the checkpoint spacing.</td></tr>
+            <tr><td><code>Stop</code></td><td>When a task finishes</td><td>Sweeps up whatever the checkpoints did not reach, within the remaining budget and at most <code>max_stop_blocks_per_session</code> times.</td></tr>
+            <tr><td><code>PreToolUse</code></td><td>Before every Bash command</td><td>In enforced mode, denies the ones that are really a <code>git commit</code> while the gate is unmet. Everything else passes through untouched.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Every one of these exits cleanly on any failure. A hook that breaks your session is worse
+        than a hook that misses a question.
+      </p>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="data" aria-labelledby="data-h">
+      <p class="doc-kicker">14 — Going deeper</p>
+      <h2 id="data-h">Your data</h2>
+
+      <p>
+        Everything Eklavya knows about you is in one directory. There is no account, no sync and
+        no telemetry.
+      </p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table">
+          <thead><tr><th>Path</th><th>What it holds</th></tr></thead>
+          <tbody>
+            <tr><td><code>~/.eklavya/knowledge.db</code></td><td>SQLite, WAL mode: concepts and their prerequisite edges, your mastery per concept, every attempt, what each session logged, the gates, and each project's level.</td></tr>
+            <tr><td><code>~/.eklavya/config.json</code></td><td>Your global settings.</td></tr>
+            <tr><td><code>&lt;repo&gt;/.eklavya.json</code></td><td>Per-project settings, checked into the repository if you want them shared.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Looking inside</h3>
+      <pre data-lang="Terminal"><code>eklavya db-path
+sqlite3 ~/.eklavya/knowledge.db '.tables'
+sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'
+sqlite3 ~/.eklavya/knowledge.db \
+  'select c.slug, m.score, m.next_review from mastery m join concepts c on c.id = m.concept_id'</code></pre>
+
+      <h3>Experimenting safely</h3>
+      <p>
+        Two environment variables redirect everything, so you can try settings without touching
+        your real history:
+      </p>
+      <pre><code>export EKLAVYA_HOME=/tmp/eklavya-test   # whole directory
+export EKLAVYA_DB=/tmp/test.db          # just the database</code></pre>
+
+      <h3>Deleting it</h3>
+      <pre><code>rm -rf ~/.eklavya</code></pre>
+      <p>That is the whole uninstall of your data. Eklavya forgets you entirely.</p>
+
+      <div class="note note--warn">
+        <p><strong>Never commit a learner's database.</strong> <code>knowledge.db</code> and
+        anything under <code>~/.eklavya/</code> is personal. <code>.eklavya.json</code> is the only
+        Eklavya file meant to be checked in.</p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="troubleshooting" aria-labelledby="troubleshooting-h">
+      <p class="doc-kicker">15 — Going deeper</p>
+      <h2 id="troubleshooting-h">Troubleshooting</h2>
+
+      <p>Start with <code>eklavya doctor</code>. It answers most of these in one screen.</p>
+
+      <div class="doc-table-wrap">
+        <table class="doc-table doc-table--trouble">
+          <thead><tr><th>Symptom</th><th>Likely cause and fix</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>No profile line at session start</td>
+              <td>Either <code>quiet</code> is <code>true</code>, or <code>jq</code>/<code>sqlite3</code> is missing, or the plugin did not load. Run <code>/plugin</code> and check for errors, then <code>eklavya config get</code>.</td>
+            </tr>
+            <tr>
+              <td>No questions at all, ever</td>
+              <td>Check the mode is not <code>off</code>. Then check that Claude is actually logging concepts — with nothing logged there is nothing grounded to ask about. <code>/eklavya:quiz</code> will tell you which of the two it is.</td>
+            </tr>
+            <tr>
+              <td>Questions only arrive at the end</td>
+              <td>Cadence is <code>end</code>. <code>eklavya config set cadence interleaved</code>.</td>
+            </tr>
+            <tr>
+              <td>Too many interruptions</td>
+              <td>Raise <code>min_minutes_between_checkpoints</code>, or lower <code>max_questions_per_task</code>. Switching to <code>end</code> is the blunt version.</td>
+            </tr>
+            <tr>
+              <td>Questions feel far too easy</td>
+              <td>You are on <code>easy</code>, which is where every project starts. Run <code>/eklavya:level</code> to see the runway — you may be close to a promotion. Pin a band only if you are sure.</td>
+            </tr>
+            <tr>
+              <td>My personal setting stopped applying</td>
+              <td>A <code>.eklavya.json</code> in this repository is overriding it. The session banner names which settings; <code>eklavya config get</code> prints the file path.</td>
+            </tr>
+            <tr>
+              <td>The database file does not exist</td>
+              <td>The MCP server never started. Check <code>/plugin</code> for errors and confirm <code>node --version</code> is 18 or newer — the native database binding fails to build on older ones.</td>
+            </tr>
+            <tr>
+              <td>A commit is blocked and I do not know why</td>
+              <td><code>/eklavya:gate</code> tells you how many concepts are outstanding. <code>/eklavya:quiz</code> clears it.</td>
+            </tr>
+            <tr>
+              <td>Commits are blocked but I never chose enforced</td>
+              <td>The repository sets it. Open <code>.eklavya.json</code> at the repository root; repo settings beat personal ones by design.</td>
+            </tr>
+            <tr>
+              <td>The git hook does not fire</td>
+              <td>It only acts on repositories whose <code>.eklavya.json</code> sets <code>"mode": "enforced"</code>, and it deliberately fails open when <code>jq</code> or <code>sqlite3</code> is missing. Check both.</td>
+            </tr>
+            <tr>
+              <td>Cursor is not teaching the same way</td>
+              <td>Regenerate the rules file after upgrading: <code>eklavya export-rules --out .cursor/rules/eklavya.md</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <section id="faq" aria-labelledby="faq-h">
+      <p class="doc-kicker">16 — Going deeper</p>
+      <h2 id="faq-h">FAQ and uninstall</h2>
+
+      <h3>Does anything leave my machine?</h3>
+      <p>
+        No. The database, the config and the dashboard are all local, and the dashboard binds to
+        loopback. There is no account and no telemetry. The only network access in normal use is
+        npm fetching the server package when you install or upgrade.
+      </p>
+
+      <h3>Will it slow down my work?</h3>
+      <p>
+        A checkpoint question is one keystroke, asked while Claude is still working. The hooks read
+        SQLite directly rather than going through the MCP server precisely because they sit on the
+        critical path of something you are already doing.
+      </p>
+
+      <h3>Can I skip a question?</h3>
+      <p>
+        Always, in ambient mode. A skip is recorded as a decline: grade 0, excluded from your
+        accuracy, and not re-offered by the commit gate. In enforced mode you can still skip
+        individual questions, but the gate stays shut until enough concepts are answered.
+      </p>
+
+      <h3>Why did it ask about something I already know?</h3>
+      <p>
+        Either it is not yet marked mastered — that needs two repetitions at a decent score — or
+        spaced repetition brought it back for review. A review question is never the same question
+        as last time, and often a tier higher.
+      </p>
+
+      <h3>Can my team share settings?</h3>
+      <p>
+        Yes: commit <code>.eklavya.json</code> at the repository root. That is how a lead pins
+        <code>enforced</code> or holds an onboarding repository at <code>easy</code> without
+        touching anyone's machine.
+      </p>
+
+      <h3>Can two Claude Code sessions share one quiz?</h3>
+      <p>
+        Yes — one pane building while another teaches, sharing a single database. Set the same
+        <code>EKLAVYA_SESSION_ID</code> in both. See <code>docs/parallel-tutoring.md</code> in the
+        repository.
+      </p>
+
+      <h3>How do I upgrade?</h3>
+      <p>
+        Run <code>/plugin</code> and update Eklavya from the menu, then restart Claude Code. If you
+        use Cursor, regenerate the rules file afterwards with <code>eklavya export-rules</code>.
+      </p>
+
+      <h3>How do I uninstall?</h3>
+      <p>Three independent steps — do as many as you want:</p>
+      <ol>
+        <li>Remove the plugin from the <code>/plugin</code> menu in Claude Code.</li>
+        <li>Restore your previous git hook: <code>/path/to/eklavya/scripts/install-git-hook.sh --uninstall</code></li>
+        <li>Delete your learning history: <code>rm -rf ~/.eklavya</code></li>
+      </ol>
+      <p>
+        Removing the plugin leaves your history intact, so you can come back to it later.
+      </p>
+
+      <div class="doc-next">
+        <p class="eyebrow eyebrow--light">Still stuck?</p>
+        <p>
+          Every default, flag and rule on this page is written from Eklavya's source. If the docs
+          and the tool disagree, the tool is right and the docs are a bug —
+          <a href="https://github.com/ProjectAJ14/eklavya/issues" target="_blank" rel="noopener">open an issue</a>.
+        </p>
+        <div class="doc-next__actions">
+          <a class="btn btn--brand" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">View on GitHub</a>
+          <a class="btn btn--quiet" href="index.html">Back to the overview</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============================ FOOTER ============================ -->
+<footer class="footer seam">
+  <div class="wrap footer__inner">
+    <div class="footer__left">
+      <div class="brand">
+        <span class="footer__mark">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg>
+        </span>
+        <span class="footer__name">Eklavya</span>
+      </div>
+      <p class="footer__quote pretty">Named for Ekalavya, who mastered archery practicing before a silent statue of his guru. Here, the statue talks back.</p>
+    </div>
+    <div class="footer__right">
+      <a href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener" class="footer__link">github.com/ProjectAJ14/eklavya</a>
+      <span>MIT License · Built by Ajay Kumar</span>
+    </div>
+  </div>
+</footer>
+
+<script src="docs.js" defer></script>
+</body>
+</html>

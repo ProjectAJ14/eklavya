@@ -15,14 +15,18 @@ working in this repo.
 | `agents/` | the tutor subagent |
 | `cli/` | the `eklavya` binary: config, export-rules, diagnostics |
 | `prd/` | the spec and one file per delivered phase |
-| `site/` | the landing page, deployed to GitHub Pages |
+| `site/` | the landing page and `docs.html`, the manual — deployed to GitHub Pages and Firebase. See `site/CLAUDE.md` |
 | `assets/` | README artwork |
 
-## The landing page is part of the feature
+## The site is part of the feature
 
 `site/` is user-facing documentation, not decoration. **Any change to what
-Eklavya does or how it is configured is not finished until `site/` says the
-same thing.** That includes:
+Eklavya does or how it is configured is not finished until `site/index.html`,
+`site/docs.html` and `README.md` all say the same thing.** A feature branch that
+changes behaviour and touches no documentation is an incomplete branch, and the
+docs are not a follow-up ticket — they ship in the same commit as the code.
+
+That applies to:
 
 - a new or renamed config key, or a changed default
 - a new value for `mode`, `focus` or `cadence` — or a fourth dial
@@ -45,8 +49,15 @@ Concretely, when you change behaviour, check these against the diff:
 | `#commands` | the user-invocable skills under `skills/` |
 | data card, install/CTA blocks | `paths.ts`, the setup skill's requirements |
 
-`README.md` and `.eklavya.json.example` carry the same duty. If the three
-disagree, `mcp/src/config.ts` is the source of truth.
+`site/docs.html` is the manual, and it carries the heaviest duty of all: it
+spells out every command's arguments, every config key with its default, every
+CLI subcommand, the tier and level bands, and the gate's arithmetic. It goes
+stale faster than the landing page because it says more. `site/CLAUDE.md` has
+the per-section source-of-truth map and the writing conventions — read it before
+editing anything under `site/`.
+
+`README.md` and `.eklavya.json.example` carry the same duty. If they disagree,
+`mcp/src/config.ts` is the source of truth.
 
 Do not advertise unshipped work. `prd/` describes phases that are specified but
 not implemented (question formats beyond multiple choice, for one) — those stay
