@@ -1,8 +1,8 @@
 /* ============================================================
    Eklavya docs page — /docs
    Layers on top of styles.css (nav, footer, buttons, .wrap are
-   shared). Tokens come from tokens.css; no raw hexes below
-   except the two dot-grid overlays, which need alpha on white.
+   shared). Tokens come from tokens.css; the only raw values below
+   are #fff on brand-green fills, where a token would be indirection.
    ============================================================ */
 
 .skip-link {
@@ -14,43 +14,6 @@
 .skip-link:focus { left: 0; color: #fff; }
 
 .nav__link.is-current { color: var(--green-300); }
-
-/* ============================================================
-   DOC HERO
-   ============================================================ */
-.doc-hero {
-  position: relative; overflow: hidden;
-  background: var(--neutral-900);
-  padding: 72px 0 80px;
-}
-.doc-hero__dots {
-  position: absolute; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px);
-  background-size: 26px 26px;
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 88%);
-  mask-image: linear-gradient(to bottom, black 0%, transparent 88%);
-}
-.doc-hero__glow {
-  position: absolute; top: -260px; right: -140px; width: 640px; height: 640px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(4,157,102,.20) 0%, rgba(4,157,102,0) 65%);
-}
-.doc-hero__inner { position: relative; }
-.doc-hero__title {
-  margin: 14px 0 0; max-width: 15ch;
-  font-size: 52px; line-height: 1.06; font-weight: 800;
-  letter-spacing: -0.025em; color: #fff; text-wrap: balance;
-}
-.doc-hero__lede {
-  margin: 20px 0 0; max-width: 60ch;
-  font-size: 18px; line-height: 1.65; color: var(--on-dark-muted);
-}
-.doc-hero__meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
-.doc-chip {
-  font-family: var(--font-mono); font-size: 12px; color: var(--green-300);
-  background: rgba(4,157,102,.14); border: 1px solid rgba(4,157,102,.28);
-  padding: 5px 11px; border-radius: var(--radius-pill);
-}
 
 /* ============================================================
    LAYOUT — sticky sidebar + prose column
@@ -295,10 +258,6 @@
    RESPONSIVE
    ============================================================ */
 @media (max-width: 900px) {
-  .doc-hero { padding: 56px 0 60px; }
-  .doc-hero__title { font-size: 38px; max-width: none; }
-  .doc-hero__lede { font-size: 17px; }
-
   /* minmax(0,…) rather than 1fr: a grid track sized `auto` refuses to go
      below the widest code block, which pushes the whole page sideways. */
   .doc-layout { grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 28px; }
@@ -326,8 +285,6 @@
 }
 
 @media (max-width: 560px) {
-  .doc-hero__title { font-size: 30px; }
-  .doc-hero__meta { gap: 8px; }
   .doc h2 { font-size: 25px; }
   .doc h3 { font-size: 19px; }
   .doc p, .doc li { font-size: 15px; }
