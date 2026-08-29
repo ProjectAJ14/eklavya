@@ -1,3 +1,12 @@
+# [1.7.0](https://github.com/ProjectAJ14/eklavya/compare/v1.6.1...v1.7.0) (2026-08-29)
+
+
+### Features
+
+* **dashboard:** serve the learning history on localhost ([33cddac](https://github.com/ProjectAJ14/eklavya/commit/33cddac491a5f3f5c76be58df898b3d78bd21154))
+* **progress:** report which project, what it taught, what was skipped ([fe9469e](https://github.com/ProjectAJ14/eklavya/commit/fe9469e4677c097317a5df1dbdb7c4f55ba7f8db))
+* say which settings asked the question, and make sure it shows ([055e791](https://github.com/ProjectAJ14/eklavya/commit/055e791661b2a86b80d94d7feaf12e9038617e3e))
+
 ## [1.6.1](https://github.com/ProjectAJ14/eklavya/compare/v1.6.0...v1.6.1) (2026-08-27)
 
 
