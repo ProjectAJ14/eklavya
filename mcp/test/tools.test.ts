@@ -1122,6 +1122,36 @@ describe('get_learner_profile', () => {
     configure({ mode: 'enforced' });
     expect(call<any>(getLearnerProfile, {}).mode).toBe('enforced');
   });
+
+  it('answers which project, what was learned there, and what was skipped', () => {
+    logAuthWork();
+    call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q', answer: 'a', grade: 5, difficulty: 3 });
+    call(recordAttempt, {
+      session_id: SESSION, slug: 'jwt-structure', question: 'q', grade: 0, difficulty: 2, outcome: 'declined',
+    });
+    const p = call<any>(getLearnerProfile, {});
+
+    // One project, and the declined answer still counts as an answer on it.
+    expect(p.projects).toHaveLength(1);
+    expect(p.projects[0].answers).toBe(2);
+    expect(p.projects[0].passed).toBe(1);
+
+    // The context line is the point: a slug alone is not a memory.
+    expect(p.recent_concepts.map((r: any) => r.slug)).toContain('csrf');
+    expect(p.recent_concepts.find((r: any) => r.slug === 'csrf').context).toMatch(/SameSite/);
+
+    expect(p.skipped.map((s: any) => s.slug)).toEqual(['jwt-structure']);
+    expect(p.skipped[0].outcome).toBe('declined');
+  });
+
+  it('does not count a pre-migration attempt with no outcome as a skip', () => {
+    logAuthWork();
+    call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q', answer: 'a', grade: 1, difficulty: 2 });
+    // Migration 004 added `outcome`; rows written before it are NULL, and a
+    // NULL is "we did not record why", not "they ducked it".
+    db.prepare('UPDATE attempts SET outcome = NULL').run();
+    expect(call<any>(getLearnerProfile, {}).skipped).toEqual([]);
+  });
 });
 
 describe('upsert_concepts', () => {

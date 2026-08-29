@@ -22,11 +22,34 @@ interface Row {
   last_difficulty: number | null;
 }
 
+interface ProjectRow {
+  /** `null` is the pre-migration-003 bucket, kept rather than dropped: hiding
+   *  those rows would silently shrink every total the report prints. */
+  repo: string | null;
+  answers: number;
+  passed: number;
+  last_active: string;
+}
+
+interface RecentRow {
+  slug: string;
+  context: string;
+  repo: string | null;
+  ts: string;
+}
+
+interface SkippedRow {
+  slug: string;
+  outcome: string;
+  repo: string | null;
+  ts: string;
+}
+
 export const getLearnerProfile: ToolDef = {
   name: 'get_learner_profile',
   title: 'Get learner profile',
   description:
-    'What this developer already knows. Call before teaching or quizzing so you never ask about a mastered concept. Returns mode, per-domain counts, the concepts already mastered, weak concepts, what is due for review, the tier to pitch at, and this project\'s difficulty level with the progress toward the next one. Every tier here is already clamped to that level.',
+    'What this developer already knows. Call before teaching or quizzing so you never ask about a mastered concept. Returns mode, per-domain counts, the concepts already mastered, weak concepts, what is due for review, the tier to pitch at, and this project\'s difficulty level with the progress toward the next one. Every tier here is already clamped to that level. Also returns the three things a progress report needs and mastery counts cannot give: `projects` (per-repo answered/passed, so a report can say *which* codebase), `recent_concepts` (what was logged, with the context line naming the real code it came from) and `skipped` (declined or blanked, the actionable backlog).',
   inputSchema: {
     domain: z.string().optional().describe('Restrict to one domain, e.g. "web-auth".'),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -103,6 +126,51 @@ export const getLearnerProfile: ToolDef = {
       }
     }
 
+    const domainFilter = args.domain ? 'AND c.domain = ?' : '';
+    const domainArg = args.domain ? [args.domain] : [];
+
+    // Three things mastery counts cannot answer, and a progress report must:
+    // which project this happened on, what was actually learned there, and
+    // what was ducked. All three are already in the schema; nothing read them.
+    const projects = db
+      .prepare(
+        `SELECT NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, count(*) AS answers,
+                sum(CASE WHEN a.grade >= 3 THEN 1 ELSE 0 END) AS passed,
+                max(a.ts) AS last_active
+         FROM attempts a JOIN concepts c ON c.id = a.concept_id
+         WHERE 1 = 1 ${domainFilter}
+         GROUP BY repo
+         ORDER BY last_active DESC
+         LIMIT ?`,
+      )
+      .all(...domainArg, LIST_CAP) as ProjectRow[];
+
+    // `session_concepts` has no repo of its own; the session's gate row carries
+    // it. LEFT JOIN because a session that never opened a gate still logged work.
+    const recent = db
+      .prepare(
+        `SELECT c.slug AS slug, sc.context AS context, sc.ts AS ts, g.repo AS repo
+         FROM session_concepts sc
+         JOIN concepts c ON c.id = sc.concept_id
+         LEFT JOIN gates g ON g.session_id = sc.session_id
+         WHERE sc.context IS NOT NULL AND trim(sc.context) <> '' ${domainFilter}
+         ORDER BY sc.ts DESC
+         LIMIT ?`,
+      )
+      .all(...domainArg, LIST_CAP) as RecentRow[];
+
+    // A NULL outcome is a row written before migration 004, not a skip. `IN`
+    // excludes it: counting those as ducked would invent a backlog.
+    const skipped = db
+      .prepare(
+        `SELECT c.slug AS slug, a.outcome AS outcome, a.repo AS repo, a.ts AS ts
+         FROM attempts a JOIN concepts c ON c.id = a.concept_id
+         WHERE a.outcome IN ('declined','dont_know') ${domainFilter}
+         ORDER BY a.ts DESC
+         LIMIT ?`,
+      )
+      .all(...domainArg, LIST_CAP) as SkippedRow[];
+
     weak.sort((a, b) => a.score - b.score);
     due.sort((a, b) => b.tier - a.tier);
     known.sort((a, b) => b.score - a.score);
@@ -114,6 +182,9 @@ export const getLearnerProfile: ToolDef = {
       known_total: known.length,
       weak: weak.slice(0, LIST_CAP).map((w) => w.slug),
       due_for_review: due.slice(0, LIST_CAP),
+      projects,
+      recent_concepts: recent,
+      skipped,
       suggested_tier: clampToLevel(suggestedTier(knownTiers), standing.level),
       level: {
         level: standing.level,
