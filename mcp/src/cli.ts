@@ -11,6 +11,7 @@ import { openDb } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
 import { levelStanding } from './store.js';
+import { startDashboard } from './dashboard.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,7 @@ Usage:
                                         cadence interleaved|end,
                                         difficulty auto|easy|medium|hard
                                         add --topic <topic> when setting focus to "learn"
+  eklavya dashboard [--port <n>]        Serve the learning dashboard on localhost
   eklavya doctor                        Check that everything is wired up
   eklavya db-path                       Print the database location
 
@@ -186,6 +188,25 @@ function doctor(): void {
   if (!ok) process.exit(1);
 }
 
+function dashboardCommand(argv: string[]): void {
+  const i = argv.indexOf('--port');
+  const port = i === -1 ? undefined : Number(argv[i + 1]);
+  if (port !== undefined && !Number.isInteger(port)) {
+    process.stderr.write('eklavya dashboard: --port needs a number\n');
+    process.exit(1);
+  }
+
+  startDashboard(openDb(), { port }).then(
+    ({ url }) => {
+      process.stdout.write(`Eklavya dashboard on ${url}\nReading ${dbPath()} — press Ctrl+C to stop.\n`);
+    },
+    (err: Error) => {
+      process.stderr.write(`eklavya dashboard: ${err.message}\n`);
+      process.exit(1);
+    },
+  );
+}
+
 function main(): void {
   const [command, ...rest] = process.argv.slice(2);
 
@@ -194,6 +215,8 @@ function main(): void {
       return exportRules(rest);
     case 'config':
       return configCommand(rest);
+    case 'dashboard':
+      return dashboardCommand(rest);
     case 'doctor':
       return doctor();
     case 'db-path':

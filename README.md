@@ -237,10 +237,16 @@ Repo settings beat global ones, which is how a team lead pins enforced mode on o
 `~/.eklavya/knowledge.db` — SQLite, WAL mode, yours. Delete the directory and Eklavya forgets you entirely.
 
 ```bash
+eklavya dashboard                  # the same data as a local web page
 eklavya doctor                     # is everything wired up?
 eklavya db-path
 sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'
 ```
+
+`eklavya dashboard` serves your progress on `127.0.0.1:41729` (`--port` to change
+it): accuracy over time, per-project comparison, the concepts each session
+taught with the code they came from, and the ones you skipped. Loopback only —
+it reads the same local database and sends nothing anywhere.
 
 Set `EKLAVYA_HOME` or `EKLAVYA_DB` to experiment without touching your real history.
 

@@ -474,6 +474,83 @@ a:hover { color: var(--green-800); }
 .data-card code { font-family: var(--font-mono); font-size: 13px; color: var(--green-300); }
 
 /* ============================================================
+   DASHBOARD
+   ============================================================ */
+.dash { background: var(--neutral-50); border-top: 1px solid var(--neutral-200); }
+.dash__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.dash__sub { margin: 16px 0 0; font-size: 17px; line-height: 1.65; color: var(--neutral-600); }
+.dash__cmd {
+  margin-top: 28px; background: var(--neutral-900); border-radius: var(--radius-lg);
+  padding: 18px 20px; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.9;
+}
+.dash__cmd div { color: #fff; }
+.dash__cmd span { color: var(--green-400); margin-right: 10px; }
+.dash__cmd-out { color: var(--on-dark-muted) !important; }
+.dash__list { margin: 24px 0 0; padding: 0; list-style: none; }
+.dash__list li {
+  position: relative; padding-left: 26px; margin-bottom: 10px;
+  font-size: 15px; line-height: 1.6; color: var(--neutral-600);
+}
+.dash__list li::before {
+  content: ""; position: absolute; left: 4px; top: 9px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--green-500);
+}
+.dash__note { margin: 22px 0 0; font-size: 14px; line-height: 1.6; color: var(--neutral-500); }
+.dash__note code { font-family: var(--font-mono); font-size: 13px; color: var(--green-700); }
+
+.dash__preview {
+  background: #fff; border: 1px solid var(--neutral-200); border-radius: var(--radius-xl);
+  padding: 24px; box-shadow: var(--shadow-md);
+}
+.dash__tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.dash__tile {
+  background: var(--neutral-900); border-radius: var(--radius-md); padding: 12px 10px;
+}
+.dash__tile b {
+  display: block; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--on-dark-muted);
+}
+.dash__tile i {
+  display: block; margin-top: 4px; font-style: normal; font-size: 22px;
+  font-weight: 800; letter-spacing: -0.02em; color: #fff;
+}
+.dash__legend { display: flex; gap: 16px; margin: 22px 0 12px; font-size: 11.5px; color: var(--neutral-600); }
+.dash__legend b { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.dash__legend .is-right { background: var(--green-600); }
+.dash__legend .is-missed { background: var(--warning); }
+.dash__legend .is-skipped { background: var(--neutral-400); }
+
+/* Each bar is one element; the three segments are gradient stops driven by the
+   --r/--m/--s custom properties, so a bar is markup-free apart from its values. */
+.dash__chart {
+  display: flex; align-items: flex-end; gap: 6px; height: 120px;
+  border-bottom: 1px solid var(--neutral-200);
+}
+.dash__chart span {
+  flex: 1; border-radius: 3px 3px 0 0;
+  height: calc(var(--r) + var(--m) + var(--s));
+  background: linear-gradient(
+    to top,
+    var(--green-600) 0, var(--green-600) var(--rs),
+    transparent var(--rs), transparent calc(var(--rs) + 2px),
+    var(--warning) calc(var(--rs) + 2px), var(--warning) var(--ms),
+    transparent var(--ms), transparent calc(var(--ms) + 2px),
+    var(--neutral-400) calc(var(--ms) + 2px)
+  );
+  --total: calc(var(--r) + var(--m) + var(--s));
+  --rs: calc(var(--r) / var(--total) * 100%);
+  --ms: calc((var(--r) + var(--m)) / var(--total) * 100%);
+}
+
+@media (max-width: 900px) {
+  .dash__grid { grid-template-columns: 1fr; gap: 40px; }
+}
+@media (max-width: 560px) {
+  .dash__tiles { grid-template-columns: repeat(2, 1fr); }
+  .dash__chart { height: 96px; }
+}
+
+/* ============================================================
    CTA
    ============================================================ */
 .cta { position: relative; overflow: hidden; background: var(--neutral-900); }

@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eklavya — learning progress</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23049D66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M7 5a11 11 0 0 1 0 14'/%3E%3Cpath d='M6 12h12'/%3E%3Cpath d='M14 9l3 3-3 3'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="/tokens.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin:0; font-family:var(--font-sans); background:var(--bg-subtle); color:var(--fg);
+         font-size:var(--text-base); line-height:var(--lh-base); }
+  .wrap { max-width:1140px; margin:0 auto; padding:0 var(--space-8); }
+  code, .mono { font-family:var(--font-mono); font-size:var(--text-sm); }
+
+  /* ---------- header ---------- */
+  header { background:var(--neutral-900); color:var(--on-dark); padding:var(--space-8) 0 var(--space-10); }
+  .bar { display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; }
+  .mark { width:36px; height:36px; border-radius:var(--radius-md); background:var(--brand);
+          display:grid; place-items:center; flex:none; }
+  h1 { font-size:var(--text-xl); font-weight:var(--weight-bold); letter-spacing:-.02em; margin:0; }
+  .sub { color:var(--on-dark-muted); font-size:var(--text-sm); margin:2px 0 0; }
+  .spacer { flex:1 1 auto; }
+  select { font:inherit; font-size:var(--text-sm); background:var(--neutral-800); color:var(--on-dark);
+           border:1px solid var(--neutral-700); border-radius:var(--radius-md);
+           padding:var(--space-2) var(--space-3); }
+  select:focus-visible { outline:none; box-shadow:var(--ring); }
+
+  /* ---------- stat tiles ---------- */
+  .tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--space-4); margin-top:var(--space-6); }
+  .tile { background:var(--neutral-800); border:1px solid var(--neutral-700); border-radius:var(--radius-lg);
+          padding:var(--space-5); }
+  .tile .k { font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.08em;
+             text-transform:uppercase; color:var(--on-dark-muted); }
+  .tile .v { font-size:var(--text-3xl); font-weight:var(--weight-extra,800); letter-spacing:-.025em;
+             line-height:1.1; margin-top:var(--space-2); }
+  .tile .n { font-size:var(--text-sm); color:var(--on-dark-muted); margin-top:var(--space-1); }
+  .good { color:var(--green-300); }
+
+  /* ---------- cards ---------- */
+  main { padding:var(--space-10) 0 var(--space-20); }
+  section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+            padding:var(--space-6); margin-bottom:var(--space-6); }
+  h2 { font-size:var(--text-md); font-weight:var(--weight-bold); letter-spacing:-.01em; margin:0; }
+  .hint { color:var(--fg-subtle); font-size:var(--text-sm); margin:var(--space-1) 0 var(--space-5); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-6); }
+  .grid2 > section { margin:0; }
+
+  /* ---------- tables ---------- */
+  table { width:100%; border-collapse:collapse; font-size:var(--text-sm); }
+  th { text-align:left; font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.08em;
+       text-transform:uppercase; color:var(--fg-subtle); padding:0 var(--space-3) var(--space-2) 0;
+       border-bottom:1px solid var(--border); white-space:nowrap; }
+  td { padding:var(--space-3) var(--space-3) var(--space-3) 0; border-bottom:1px solid var(--border);
+       vertical-align:top; }
+  tr:last-child td { border-bottom:none; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .scroll { overflow-x:auto; }
+
+  /* ---------- meters (sequential, one hue) ---------- */
+  .meter { height:8px; border-radius:var(--radius-pill); background:var(--bg-sunken); overflow:hidden;
+           min-width:80px; }
+  .meter > i { display:block; height:100%; background:var(--brand); border-radius:var(--radius-pill); }
+  .meter.warn > i { background:var(--warning); }
+
+  /* ---------- chart ---------- */
+  .legend { display:flex; gap:var(--space-5); font-size:var(--text-sm); color:var(--fg-muted);
+            margin-bottom:var(--space-4); flex-wrap:wrap; }
+  .legend b { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:var(--space-2); }
+  .chart { position:relative; }
+  .chart svg { display:block; width:100%; height:200px; overflow:visible; }
+  .gridline { stroke:var(--border); stroke-width:1; }
+  .axis { font-family:var(--font-mono); font-size:10px; fill:var(--fg-faint); }
+  .hit { fill:transparent; cursor:pointer; }
+  .hit:hover + .col, .hit:focus-visible + .col { opacity:.75; }
+  .tip { position:absolute; pointer-events:none; opacity:0; transform:translate(-50%,-100%);
+         background:var(--neutral-900); color:var(--on-dark); border-radius:var(--radius-md);
+         padding:var(--space-3); font-size:var(--text-xs); line-height:1.6; white-space:nowrap;
+         box-shadow:var(--shadow-md); transition:opacity var(--duration-fast) var(--ease); z-index:2; }
+  .tip.on { opacity:1; }
+  .tip .r { display:flex; justify-content:space-between; gap:var(--space-4); }
+
+  /* ---------- pills & misc ---------- */
+  .pill { display:inline-block; font-family:var(--font-mono); font-size:var(--text-xs);
+          padding:2px 8px; border-radius:var(--radius-pill); background:var(--bg-sunken);
+          color:var(--fg-muted); white-space:nowrap; }
+  .pill.due { background:var(--warning-bg); color:#8a5600; }
+  .pill.ok  { background:var(--brand-subtle); color:var(--green-700); }
+  .ctx { color:var(--fg); }
+  .slug { font-family:var(--font-mono); font-size:var(--text-xs); color:var(--fg-subtle); }
+  .empty { color:var(--fg-subtle); font-size:var(--text-sm); }
+  footer { color:var(--fg-subtle); font-size:var(--text-sm); text-align:center; padding-bottom:var(--space-10); }
+
+  @media (max-width:900px) {
+    .tiles { grid-template-columns:repeat(2,1fr); }
+    .grid2 { grid-template-columns:1fr; }
+  }
+  @media (max-width:560px) {
+    .wrap { padding:0 var(--space-4); }
+    .tiles { grid-template-columns:1fr 1fr; gap:var(--space-3); }
+    .tile .v { font-size:var(--text-2xl); }
+  }
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <div class="mark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 3a13 13 0 0 1 0 18"/><path d="M5 3l14 9L5 21"/><path d="M3 12h18"/><path d="M15 8l4 4-4 4"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Learning progress</h1>
+        <p class="sub" id="sub">Loading…</p>
+      </div>
+      <div class="spacer"></div>
+      <label class="sub" for="proj">Project</label>
+      <select id="proj"><option value="*">All projects</option></select>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <h2>Answers over the last 30 days</h2>
+    <p class="hint" id="chart-hint">Right, missed and skipped, per day.</p>
+    <div class="legend">
+      <span><b style="background:var(--green-600)"></b>Right</span>
+      <span><b style="background:var(--warning)"></b>Missed</span>
+      <span><b style="background:var(--neutral-400)"></b>Skipped</span>
+    </div>
+    <div class="chart"><div class="tip" id="tip"></div><svg id="chart" role="img"
+      aria-label="Daily answers, split into right, missed and skipped"></svg></div>
+  </section>
+
+  <div class="grid2">
+    <section>
+      <h2>Projects</h2>
+      <p class="hint">Where the learning is happening, and how it is going there.</p>
+      <div class="scroll"><table id="projects"></table></div>
+    </section>
+    <section>
+      <h2>Domains</h2>
+      <p class="hint">Mastered out of what you have actually touched. The catalogue is a library, not a to-do list.</p>
+      <div class="scroll"><table id="domains"></table></div>
+    </section>
+  </div>
+
+  <section>
+    <h2>What these sessions taught you</h2>
+    <p class="hint">The real code each concept came from — the memory the slug hangs on.</p>
+    <div class="scroll"><table id="recent"></table></div>
+  </section>
+
+  <section>
+    <h2>Skipped</h2>
+    <p class="hint">Declined or blanked. They come back a tier lower — a backlog, not a scolding.</p>
+    <div class="scroll"><table id="skipped"></table></div>
+  </section>
+
+  <section>
+    <h2>Every concept you have been asked</h2>
+    <p class="hint">Weakest first. Score decays until you see it again.</p>
+    <div class="scroll"><table id="concepts"></table></div>
+  </section>
+</main>
+
+<footer class="wrap">
+  Read from <code id="dbline">~/.eklavya/knowledge.db</code> — nothing on this page leaves your machine.
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const base = (p) => (p ? p.split('/').filter(Boolean).pop() : 'unattributed');
+const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0);
+const day = (s) => new Date(s + 'T00:00:00').toLocaleDateString(undefined, { month:'short', day:'numeric' });
+const ago = (ts) => {
+  const d = Math.floor((Date.now() - new Date(ts.replace(' ', 'T') + 'Z')) / 86400000);
+  return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago';
+};
+
+let STATE = null;
+let FILTER = '*';
+
+const inScope = (repo) => FILTER === '*' || (repo ?? '') === (FILTER === '~' ? '' : FILTER);
+
+function rows(t, head, body) {
+  t.innerHTML = body.length
+    ? '<thead><tr>' + head.map((h) => `<th${h.n ? ' class="num"' : ''}>${esc(h.t)}</th>`).join('') + '</tr></thead>'
+      + '<tbody>' + body.join('') + '</tbody>'
+    : '<tbody><tr><td class="empty">Nothing here yet.</td></tr></tbody>';
+}
+
+function renderTiles() {
+  const t = STATE.totals;
+  const scoped = STATE.projects.filter((p) => inScope(p.repo));
+  const answers = scoped.reduce((a, p) => a + p.answers, 0);
+  const passed = scoped.reduce((a, p) => a + p.passed, 0);
+  const skipped = scoped.reduce((a, p) => a + p.skipped, 0);
+  const due = STATE.concepts.filter((c) => c.due && inScope(c.repo)).length;
+  const mastered = STATE.concepts.filter((c) => c.mastered && inScope(c.repo)).length;
+  const tiles = [
+    ['Accuracy', answers ? pct(passed, answers) + '%' : '—', `${passed} right of ${answers} answered`, passed && pct(passed, answers) >= 70],
+    ['Mastered', mastered, `of ${STATE.concepts.filter((c) => inScope(c.repo)).length} concepts asked`, mastered > 0],
+    ['Due now', due, due ? 'run /eklavya:quiz' : 'nothing waiting', false],
+    ['Skipped', skipped, skipped ? 'waiting a tier lower' : 'none ducked', false],
+  ];
+  $('tiles').innerHTML = tiles.map(([k, v, n, good]) =>
+    `<div class="tile"><div class="k">${k}</div><div class="v${good ? ' good' : ''}">${esc(v)}</div><div class="n">${esc(n)}</div></div>`).join('');
+}
+
+function renderChart() {
+  const byDay = new Map();
+  for (const d of STATE.timeline) {
+    if (!inScope(d.repo)) continue;
+    const cur = byDay.get(d.day) ?? { day: d.day, passed: 0, missed: 0, skipped: 0 };
+    cur.passed += d.passed; cur.missed += d.missed; cur.skipped += d.skipped;
+    byDay.set(d.day, cur);
+  }
+  const svg = $('chart');
+  if (!byDay.size) {
+    svg.innerHTML = '<text x="0" y="24" class="axis">No answers in this window.</text>';
+    return;
+  }
+  // A real date axis: every day in the window gets a slot, including the empty
+  // ones. Plotting only the days that have data would space three sessions
+  // evenly across a month and hide the gaps, which are the honest part.
+  const days = [];
+  const cursor = new Date();
+  cursor.setUTCHours(0, 0, 0, 0);
+  cursor.setUTCDate(cursor.getUTCDate() - (STATE.timeline_days - 1));
+  for (let i = 0; i < STATE.timeline_days; i++) {
+    const key = cursor.toISOString().slice(0, 10);
+    days.push(byDay.get(key) ?? { day: key, passed: 0, missed: 0, skipped: 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  // The viewBox tracks the container's real pixel width so the SVG renders 1:1.
+  // A fixed 1000-wide viewBox scaled to a 520px card would shrink the 10px axis
+  // text to five, which is the whole reason the chart is redrawn on resize.
+  const W = Math.max(320, svg.parentElement.clientWidth || 1000);
+  const H = 200, PAD_B = 22, PAD_L = 24;
+  const max = Math.max(...days.map((d) => d.passed + d.missed + d.skipped), 1);
+  const step = (W - PAD_L) / days.length;
+  const bw = Math.min(28, Math.max(6, step - 6));
+  const y = (v) => (H - PAD_B) - (v / max) * (H - PAD_B - 8);
+  const GAP = 2; // surface gap between stacked segments
+
+  let out = '';
+  for (let i = 0; i <= 2; i++) {
+    const v = Math.round((max / 2) * i);
+    out += `<line class="gridline" x1="${PAD_L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>`
+         + `<text class="axis" x="0" y="${y(v) + 3}">${v}</text>`;
+  }
+  // Stack order is fixed: right at the base, then missed, then skipped on top.
+  // Segment colour never depends on rank, only on which measure it is.
+  const SEGMENTS = [['passed', 'var(--green-600)'], ['missed', 'var(--warning)'], ['skipped', 'var(--neutral-400)']];
+  const labelEvery = Math.max(1, Math.ceil(46 / step));
+  days.forEach((d, i) => {
+    const x = PAD_L + i * step + (step - bw) / 2;
+    let acc = 0, seg = '', topColor = 'var(--green-600)';
+    for (const [key, color] of SEGMENTS) {
+      if (!d[key]) continue;
+      const h = (d[key] / max) * (H - PAD_B - 8);
+      // A 2px surface gap between stacked fills, taken off the upper segment
+      // so the bar's total height still reads as the day's total.
+      const inset = acc ? GAP : 0;
+      seg += `<rect x="${x}" y="${y(acc) - h + inset}" width="${bw}" height="${Math.max(1, h - inset)}" fill="${color}"/>`;
+      acc += d[key];
+      topColor = color;
+    }
+    // 4px rounded cap on the top of the stack only; the base stays square on the
+    // axis. A day with no answers draws nothing at all — a cap on an empty stack
+    // is a mark sitting on the baseline, which reads as data that is not there.
+    const hit = `<rect class="hit" x="${PAD_L + i * step}" y="0" width="${step}" height="${H - PAD_B}" data-i="${i}" tabindex="0"/>`;
+    const cap = acc ? `<rect x="${x}" y="${y(acc)}" width="${bw}" height="4" rx="2" fill="${topColor}"/>` : '';
+    out += hit + `<g class="col">${seg}${cap}</g>`;
+    // Ends always get a label; strided ones stand down near the right edge
+    // rather than colliding with the last date.
+    if (i === 0 || i === days.length - 1 || (i % labelEvery === 0 && i < days.length - labelEvery)) {
+      out += `<text class="axis" x="${x + bw / 2}" text-anchor="middle" y="${H - 6}">${day(d.day)}</text>`;
+    }
+  });
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = out;
+
+  const tip = $('tip');
+  svg.querySelectorAll('.hit').forEach((hit) => {
+    const show = () => {
+      const d = days[+hit.dataset.i];
+      tip.innerHTML = `<div class="mono">${esc(day(d.day))}</div>`
+        + [['Right', d.passed], ['Missed', d.missed], ['Skipped', d.skipped]]
+            .map(([k, v]) => `<div class="r"><span>${k}</span><span>${v}</span></div>`).join('');
+      const r = hit.getBoundingClientRect(), p = svg.parentElement.getBoundingClientRect();
+      tip.style.left = (r.left - p.left + r.width / 2) + 'px';
+      tip.style.top = (r.top - p.top - 8) + 'px';
+      tip.classList.add('on');
+    };
+    hit.addEventListener('mouseenter', show);
+    hit.addEventListener('focus', show);
+    hit.addEventListener('mouseleave', () => tip.classList.remove('on'));
+    hit.addEventListener('blur', () => tip.classList.remove('on'));
+  });
+}
+
+function renderProjects() {
+  const body = STATE.projects.filter((p) => inScope(p.repo)).map((p) => {
+    const acc = pct(p.passed, p.answers);
+    return `<tr><td><strong>${esc(base(p.repo))}</strong><div class="slug">${esc(p.repo ?? 'recorded before projects were tracked')}</div></td>`
+      + `<td><span class="pill">${esc(p.level)}</span></td>`
+      + `<td class="num">${p.answers}</td>`
+      + `<td style="min-width:120px"><div class="meter${acc < 70 ? ' warn' : ''}"><i style="width:${acc}%"></i></div>
+           <div class="slug">${acc}% right</div></td>`
+      + `<td class="num slug">${esc(ago(p.last_active))}</td></tr>`;
+  });
+  rows($('projects'), [{t:'Project'},{t:'Level'},{t:'Answers',n:1},{t:'Accuracy'},{t:'Last',n:1}], body);
+}
+
+function renderDomains() {
+  // Recomputed from the scoped concept list rather than read off the server's
+  // totals, so picking a project moves this card too. `unseen` stays
+  // catalogue-wide on purpose: the seed graph does not belong to a repo.
+  const touchedBy = new Map();
+  for (const c of STATE.concepts) {
+    if (!inScope(c.repo)) continue;
+    const d = touchedBy.get(c.domain) ?? { domain: c.domain, mastered: 0, learning: 0, unseen: 0 };
+    d[c.mastered ? 'mastered' : 'learning'] += 1;
+    touchedBy.set(c.domain, d);
+  }
+  for (const d of STATE.domains) {
+    const row = touchedBy.get(d.domain);
+    if (row) row.unseen = d.unseen;
+  }
+  const body = [...touchedBy.values()]
+    .sort((a, b) => b.mastered + b.learning - (a.mastered + a.learning))
+    .map((d) => {
+    const touched = d.mastered + d.learning;
+    return `<tr><td><strong>${esc(d.domain)}</strong></td>`
+      + `<td style="min-width:120px"><div class="meter"><i style="width:${pct(d.mastered, touched)}%"></i></div>
+          <div class="slug">${d.mastered} of ${touched} touched</div></td>`
+      + `<td class="num slug">${d.unseen} not seen</td></tr>`;
+  });
+  rows($('domains'), [{t:'Domain'},{t:'Mastered'},{t:'Catalogue',n:1}], body);
+}
+
+function renderRecent() {
+  const body = STATE.recent.filter((r) => inScope(r.repo)).slice(0, 20).map((r) =>
+    `<tr><td class="ctx">${esc(r.context)}<div class="slug">${esc(r.slug)} · ${esc(base(r.repo))}</div></td>`
+    + `<td class="num slug">${esc(ago(r.ts))}</td></tr>`);
+  rows($('recent'), [{t:'What you did'},{t:'When',n:1}], body);
+}
+
+function renderSkipped() {
+  const body = STATE.skipped.filter((s) => inScope(s.repo)).map((s) =>
+    `<tr><td><strong>${esc(s.name)}</strong><div class="slug">${esc(s.slug)}</div></td>`
+    + `<td><span class="pill">${s.outcome === 'declined' ? 'declined' : 'blanked'}</span></td>`
+    + `<td class="ctx">${esc(s.question ?? '')}</td>`
+    + `<td class="num slug">${esc(ago(s.ts))}</td></tr>`);
+  rows($('skipped'), [{t:'Concept'},{t:'How'},{t:'The question'},{t:'When',n:1}], body);
+}
+
+function renderConcepts() {
+  const body = STATE.concepts.filter((c) => inScope(c.repo)).map((c) =>
+    `<tr><td><strong>${esc(c.name)}</strong><div class="slug">${esc(c.slug)} · ${esc(c.domain)} · T${c.tier}</div></td>`
+    + `<td style="min-width:110px"><div class="meter${c.score < 0.5 ? ' warn' : ''}"><i style="width:${Math.round(c.score * 100)}%"></i></div>
+        <div class="slug">${Math.round(c.score * 100)}%</div></td>`
+    + `<td class="num">${c.attempts}</td>`
+    + `<td>${c.mastered ? '<span class="pill ok">mastered</span>' : c.due ? '<span class="pill due">due</span>' : '<span class="pill">learning</span>'}</td>`
+    + `<td class="ctx">${esc(c.context ?? '')}</td></tr>`);
+  rows($('concepts'), [{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'},{t:'From your code'}], body);
+}
+
+function renderAll() {
+  const scoped = STATE.concepts.filter((c) => inScope(c.repo));
+  const answers = STATE.projects.filter((p) => inScope(p.repo)).reduce((a, p) => a + p.answers, 0);
+  const where = FILTER === '*' ? 'across all projects' : 'in ' + base(FILTER === '~' ? null : FILTER);
+  const n = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+  $('sub').textContent =
+    `${n(scoped.length, 'concept')} asked · ${n(answers, 'answer')} · ${scoped.filter((c) => c.mastered).length} mastered — ${where}`;
+  renderTiles(); renderChart(); renderProjects(); renderDomains();
+  renderRecent(); renderSkipped(); renderConcepts();
+}
+
+fetch('/api/state').then((r) => r.json()).then((s) => {
+  STATE = s;
+  const sel = $('proj');
+  for (const p of s.projects) {
+    const o = document.createElement('option');
+    o.value = p.repo ?? '~';
+    o.textContent = base(p.repo);
+    sel.appendChild(o);
+  }
+  sel.addEventListener('change', () => { FILTER = sel.value; renderAll(); });
+  renderAll();
+  addEventListener('resize', renderChart);
+}).catch((e) => { $('sub').textContent = 'Could not read the database: ' + e.message; });
+</script>
+</body>
+</html>

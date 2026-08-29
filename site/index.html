@@ -38,6 +38,7 @@
       <a class="nav__link" href="#how">How it works</a>
       <a class="nav__link" href="#dials">Dials</a>
       <a class="nav__link" href="#commands">Commands</a>
+      <a class="nav__link" href="#dashboard">Dashboard</a>
       <a class="btn btn--white" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
         GitHub
@@ -503,6 +504,60 @@
       <h3>Your data stays yours</h3>
       <p><code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. Delete the directory and Eklavya forgets you entirely.</p>
       <p>The knowledge graph and the commit gate are editor-agnostic — the same MCP server and pedagogy export to Cursor as a rules file, so the two editors cannot drift apart.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ DASHBOARD ============================ -->
+<section class="dash" id="dashboard" aria-labelledby="dash-title">
+  <div class="wrap section dash__grid">
+    <div>
+      <p class="eyebrow" data-reveal>The long view</p>
+      <h2 class="h2" id="dash-title" data-reveal data-delay="100">Am I actually getting better?</h2>
+      <p class="dash__sub" data-reveal data-delay="150">
+        A terminal report has twenty lines and answers <em>what now</em>. History, per-project
+        comparison and the full concept list need more room, so they get a local page.
+      </p>
+      <div class="dash__cmd" data-reveal data-delay="200">
+        <div><span>$</span> eklavya dashboard</div>
+        <div class="dash__cmd-out">Eklavya dashboard on http://127.0.0.1:41729</div>
+      </div>
+      <ul class="dash__list" data-reveal data-delay="250">
+        <li>Accuracy, mastered, due and skipped — recomputed per project</li>
+        <li>Thirty days of answers, split into right, missed and skipped</li>
+        <li>Every concept you have been asked, weakest first, with the code it came from</li>
+        <li>The skipped list, because those come back a tier lower</li>
+      </ul>
+      <p class="dash__note" data-reveal data-delay="300">
+        Bound to loopback, reading the same <code>~/.eklavya/knowledge.db</code>. Nothing is
+        served to anyone but you. <code>--port</code> if 41729 is taken.
+      </p>
+    </div>
+
+    <div class="dash__preview" data-reveal data-delay="200" aria-hidden="true">
+      <div class="dash__tiles">
+        <div class="dash__tile"><b>Accuracy</b><i>67%</i></div>
+        <div class="dash__tile"><b>Mastered</b><i>12</i></div>
+        <div class="dash__tile"><b>Due now</b><i>8</i></div>
+        <div class="dash__tile"><b>Skipped</b><i>3</i></div>
+      </div>
+      <div class="dash__legend">
+        <span><b class="is-right"></b>Right</span>
+        <span><b class="is-missed"></b>Missed</span>
+        <span><b class="is-skipped"></b>Skipped</span>
+      </div>
+      <div class="dash__chart">
+        <span style="--r:38%;--m:14%;--s:0%"></span>
+        <span style="--r:22%;--m:26%;--s:8%"></span>
+        <span style="--r:54%;--m:12%;--s:0%"></span>
+        <span style="--r:31%;--m:9%;--s:12%"></span>
+        <span style="--r:62%;--m:10%;--s:0%"></span>
+        <span style="--r:48%;--m:20%;--s:6%"></span>
+        <span style="--r:74%;--m:8%;--s:0%"></span>
+        <span style="--r:58%;--m:6%;--s:9%"></span>
+        <span style="--r:81%;--m:11%;--s:0%"></span>
+        <span style="--r:69%;--m:5%;--s:0%"></span>
+      </div>
     </div>
   </div>
 </section>

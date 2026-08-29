@@ -42,6 +42,11 @@ Finish with **one** concrete next step: `/eklavya:quiz` when anything is due,
 `/eklavya:learn <topic>` when a domain the developer clearly works in is
 mostly unseen.
 
+Then one line pointing at `eklavya dashboard` — the same data as a local page,
+with the history and the full concept list this report deliberately truncates.
+Mention it once, at the end; it is the deeper view, not a replacement for
+answering the question they just asked.
+
 ## How to render it
 
 Keep it under 20 lines. A wall of statistics is not a progress report.
