@@ -53,27 +53,6 @@ claude --plugin-dir /path/to/eklavya
 
 `/eklavya:setup` checks all three. Without `jq` or `sqlite3` the hooks quietly do nothing — they never break a session.
 
-### Cursor
-
-The knowledge graph and the commit gate are editor-agnostic by design.
-
-```bash
-# 1. Point Cursor at the MCP server (~/.cursor/mcp.json)
-{
-  "mcpServers": {
-    "eklavya": { "command": "npx", "args": ["-y", "eklavya-mcp"] }
-  }
-}
-
-# 2. Export the same pedagogy as a Cursor rules file
-node /path/to/eklavya/mcp/dist/cli.js export-rules --out .cursor/rules/eklavya.md
-
-# 3. Install the commit gate (enforced repos only)
-/path/to/eklavya/scripts/install-git-hook.sh
-```
-
-The rules file is generated from `skills/tutor/SKILL.md`, so the two editors cannot drift apart. Regenerate it after upgrading.
-
 ## How it works
 
 1. **You ask for something.** "Add JWT auth to the Express API."

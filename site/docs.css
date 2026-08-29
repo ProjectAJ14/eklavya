@@ -158,11 +158,13 @@
   color: var(--green-200); background: none; padding: 0;
   white-space: pre; overflow-wrap: normal;
 }
+/* Not uppercased: the label is often a real filename (`.eklavya.json`), and
+   shouting it makes it wrong as well as loud. */
 .doc pre[data-lang]::before {
   content: attr(data-lang);
   display: block; margin: -4px 0 12px;
   font-family: var(--font-mono); font-size: 11px;
-  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
   color: var(--neutral-400);
 }
 .pre-copy {

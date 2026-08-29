@@ -37,7 +37,7 @@ eklavya config get
 eklavya config set mode enforced [--repo]     # how hard it pushes
 eklavya config set focus concept              # what it teaches
 eklavya config set focus learn --topic caching
-eklavya export-rules --out .cursor/rules/eklavya.md
+eklavya export-rules --out rules.md              # the tutor pedagogy as Markdown
 eklavya db-path
 ```
 

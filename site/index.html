@@ -504,7 +504,7 @@
       </span>
       <h3>Your data stays yours</h3>
       <p><code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. Delete the directory and Eklavya forgets you entirely.</p>
-      <p>The knowledge graph and the commit gate are editor-agnostic — the same MCP server and pedagogy export to Cursor as a rules file, so the two editors cannot drift apart.</p>
+      <p>The commit gate is editor-agnostic: a plain git <code>pre-commit</code> hook runs the same check, so a commit from a bare terminal is held exactly like one made inside Claude Code.</p>
     </div>
   </div>
 </section>
@@ -586,7 +586,7 @@
       <a class="docs__card" href="docs.html#install">
         <span class="docs__n">01</span>
         <b>Installing</b>
-        <span>Claude Code, a local checkout, or Cursor — with the checks that prove it worked.</span>
+        <span>The plugin, or a local checkout for contributors — with the checks that prove it worked.</span>
       </a>
       <a class="docs__card" href="docs.html#commands">
         <span class="docs__n">02</span>
@@ -623,7 +623,7 @@
         Star on GitHub
       </a>
     </div>
-    <p class="cta__note" data-reveal data-delay="400">Node 18+ · sqlite3 and jq on PATH · works in Claude Code and Cursor</p>
+    <p class="cta__note" data-reveal data-delay="400">Node 18+ · sqlite3 and jq on PATH · everything stays on your machine</p>
   </div>
 </section>
 

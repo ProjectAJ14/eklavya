@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eklavya docs — install, commands and configuration</title>
-<meta name="description" content="The complete Eklavya manual: prerequisites, installation in Claude Code and Cursor, first run, every slash command, the eklavya CLI, every configuration key, the commit gate, the dashboard, and how the spaced-repetition engine grades you.">
+<meta name="description" content="The complete Eklavya manual: prerequisites, installation, first run, every slash command, the eklavya CLI, every configuration key, the commit gate, the dashboard, and how the spaced-repetition engine grades you.">
 <link rel="canonical" href="https://eklavya-run.web.app/docs">
 
 <meta property="og:type" content="article">
@@ -299,39 +299,6 @@ claude --plugin-dir "$(pwd)"</code></pre>
         marketplace. The launcher script prefers your local <code>mcp/dist/</code> build when one
         exists, so a rebuild is all it takes to see a change.
       </p>
-
-      <h3>C. In Cursor</h3>
-
-      <p>
-        The knowledge graph and the commit gate are deliberately editor-agnostic. Cursor gets the
-        same server and the same teaching rules; it just does not get the slash commands or the
-        automatic hooks.
-      </p>
-
-      <ol class="doc-steps">
-        <li>
-          <h4>Point Cursor at the MCP server</h4>
-          <p>Add this to <code>~/.cursor/mcp.json</code>:</p>
-          <pre data-lang="~/.cursor/mcp.json"><code>{
-  "mcpServers": {
-    "eklavya": { "command": "npx", "args": ["-y", "eklavya-mcp"] }
-  }
-}</code></pre>
-        </li>
-        <li>
-          <h4>Export the teaching rules</h4>
-          <pre><code>node /path/to/eklavya/mcp/dist/cli.js export-rules --out .cursor/rules/eklavya.md</code></pre>
-          <p>
-            That file is generated from the plugin's own tutor skill, so the two editors cannot
-            drift apart. Regenerate it after upgrading Eklavya.
-          </p>
-        </li>
-        <li>
-          <h4>Install the commit gate, if you use enforced mode</h4>
-          <pre><code>/path/to/eklavya/scripts/install-git-hook.sh</code></pre>
-          <p>See <a href="#gate">Enforced mode and the commit gate</a> for what this does.</p>
-        </li>
-      </ol>
 
       <h3>Getting the <code>eklavya</code> command</h3>
       <p>
@@ -943,7 +910,7 @@ eklavya config set difficulty easy --repo  # keep an onboarding repo gentle for 
             <tr><td><code>eklavya doctor</code></td><td>Checks that everything is wired up: home directory, database, concept and attempt counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if the database cannot be opened.</td></tr>
             <tr><td><code>eklavya dashboard [--port &lt;n&gt;]</code></td><td>Serves your learning history as a local web page. See <a href="#dashboard">The dashboard</a>.</td></tr>
             <tr><td><code>eklavya db-path</code></td><td>Prints the database location. Useful in scripts.</td></tr>
-            <tr><td><code>eklavya export-rules [--out &lt;file&gt;]</code></td><td>Writes the tutor pedagogy as a Cursor rules file. With no <code>--out</code> it prints to stdout.</td></tr>
+            <tr><td><code>eklavya export-rules [--out &lt;file&gt;]</code></td><td>Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. With no <code>--out</code> it prints to stdout. Nothing in the Claude Code flow needs it.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1073,7 +1040,7 @@ cadence:  interleaved (one question mid-task, min 4m apart)</code></pre>
           <thead><tr><th>Where you commit</th><th>What stops it</th><th>Installed by</th></tr></thead>
           <tbody>
             <tr><td>Inside Claude Code</td><td>A <code>PreToolUse</code> hook that inspects every Bash command and denies the ones that are really a <code>git commit</code>.</td><td>The plugin, automatically.</td></tr>
-            <tr><td>A terminal, VS Code, Cursor, anything</td><td>A git <code>pre-commit</code> hook in the repository.</td><td>You, with the script below.</td></tr>
+            <tr><td>A terminal, or any other editor</td><td>A git <code>pre-commit</code> hook in the repository.</td><td>You, with the script below.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1329,10 +1296,6 @@ export EKLAVYA_DB=/tmp/test.db          # just the database</code></pre>
               <td>The git hook does not fire</td>
               <td>It only acts on repositories whose <code>.eklavya.json</code> sets <code>"mode": "enforced"</code>, and it deliberately fails open when <code>jq</code> or <code>sqlite3</code> is missing. Check both.</td>
             </tr>
-            <tr>
-              <td>Cursor is not teaching the same way</td>
-              <td>Regenerate the rules file after upgrading: <code>eklavya export-rules --out .cursor/rules/eklavya.md</code>.</td>
-            </tr>
           </tbody>
         </table>
       </div>
@@ -1387,8 +1350,8 @@ export EKLAVYA_DB=/tmp/test.db          # just the database</code></pre>
 
       <h3>How do I upgrade?</h3>
       <p>
-        Run <code>/plugin</code> and update Eklavya from the menu, then restart Claude Code. If you
-        use Cursor, regenerate the rules file afterwards with <code>eklavya export-rules</code>.
+        Run <code>/plugin</code> and update Eklavya from the menu, then restart Claude Code — hooks
+        and MCP servers are wired up when a session starts, so the running one keeps the old build.
       </p>
 
       <h3>How do I uninstall?</h3>
