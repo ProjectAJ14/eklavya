@@ -25,7 +25,6 @@
   ],
   "type": "module",
   "bin": {
-    "eklavya-mcp": "dist/server.js",
     "eklavya": "dist/cli.js"
   },
   "files": [

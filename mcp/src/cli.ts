@@ -19,6 +19,7 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const USAGE = `eklavya — local learning state for agent-assisted development
 
 Usage:
+  eklavya serve                         Run the MCP server on stdio (what Claude Code starts)
   eklavya install                       Install Eklavya into Claude Code, runtime included
   eklavya uninstall [--purge]           Remove it (--purge also deletes your learning history)
   eklavya export-rules [--out <file>]   Write the tutor pedagogy as a Cursor rules file
@@ -214,6 +215,15 @@ function main(): void {
   const [command, ...rest] = process.argv.slice(2);
 
   switch (command) {
+    case 'serve':
+      // Importing the server runs it: it owns stdout from here on, which is why
+      // nothing above may print. It never returns -- the process ends when the
+      // stdio transport closes.
+      void import('./server.js').catch((err: unknown) => {
+        process.stderr.write(`eklavya serve: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(1);
+      });
+      return;
     case 'install':
       return install(rest);
     case 'uninstall':

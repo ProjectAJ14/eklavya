@@ -376,7 +376,9 @@ Nothing to run by hand. The workflow installs, runs all tests, and only then rel
 
 The Claude Code plugin has no separate publish step: the marketplace serves the plugin straight from this repository, so the same push ships it. The npm package carries the same plugin tree inside it (`mcp/dist/plugin/`, assembled by `mcp/scripts/copy-assets.mjs`), which is what lets `npx eklavya install` set everything up without a git clone — and what keeps the two install routes from drifting apart.
 
-The package is published as **`eklavya`**. It was `eklavya-mcp` up to 1.7.0; that name still exists on npm so that already-installed plugins pinned to it keep resolving, and it must never be unpublished.
+The package is published as **`eklavya`**, and ships one binary of the same name — the MCP server is `eklavya serve` rather than a second `eklavya-mcp` executable.
+
+Up to 1.7.0 the package was called `eklavya-mcp`. That name still exists on npm so that already-installed plugins, which pin it by exact version, keep resolving; it is deprecated rather than removed, and must never be unpublished.
 
 Repository secret required: `NPM_TOKEN` (an npm **Automation** token). `GITHUB_TOKEN` is provided by Actions.
 

@@ -25,16 +25,14 @@ editor-agnostic.
 ```json
 {
   "mcpServers": {
-    "eklavya": { "command": "npx", "args": ["-y", "--package", "eklavya", "eklavya-mcp"] }
+    "eklavya": { "command": "npx", "args": ["-y", "eklavya", "serve"] }
   }
 }
 ```
 
-`--package` is needed because this package ships two binaries: `eklavya` is the CLI,
-`eklavya-mcp` is the server.
-
-> Renamed from `eklavya-mcp` after 1.7.0. That package still exists so older installs keep
-> working, but it is no longer updated.
+> Renamed from `eklavya-mcp` after 1.7.0, and the separate `eklavya-mcp` binary folded into
+> `eklavya serve` at the same time — one package, one command. The old package still exists on
+> npm so older installs keep resolving, but it is no longer updated.
 
 State lives in `~/.eklavya/knowledge.db` (SQLite, WAL). Override with `EKLAVYA_HOME` or `EKLAVYA_DB`.
 

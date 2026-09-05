@@ -152,9 +152,7 @@ async function main() {
     const version = pinnedVersion();
     if (!version) process.exit(0);
     const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    // `--package` because the package ships two bins and the one named after
-    // the package is the CLI, not the server.
-    const child = spawn(npx, ['--yes', '--package', `eklavya@${version}`, 'eklavya-mcp'], {
+    const child = spawn(npx, ['--yes', `eklavya@${version}`, 'serve'], {
       stdio: ['inherit', 'inherit', 'ignore'],
       shell: process.platform === 'win32',
     });

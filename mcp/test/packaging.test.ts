@@ -37,10 +37,27 @@ describe('what ships to npm', () => {
     expect(files).toContain('dist');
   });
 
-  it('exposes both binaries', () => {
+  it('exposes exactly one binary', () => {
+    // One package, one command. The server used to be a second bin called
+    // `eklavya-mcp`, which forced every standalone MCP config and the npx
+    // fallback through `npx --package eklavya eklavya-mcp`. It is `eklavya
+    // serve` now, so there is one name to know.
     const bin = readJson(path.join(mcpRoot, 'package.json')).bin;
-    expect(bin['eklavya-mcp']).toBe('dist/server.js');
+    expect(Object.keys(bin)).toEqual(['eklavya']);
     expect(bin['eklavya']).toBe('dist/cli.js');
+  });
+
+  it('starts the MCP server through `eklavya serve`', () => {
+    const cli = path.join(mcpRoot, 'dist', 'cli.js');
+    expect(probe([cli, 'serve'], os.tmpdir())).toMatch(/"serverInfo"/);
+  });
+
+  it('the npx fallback asks for the command that exists', () => {
+    // If this drifts from the bin above, the /plugin-install route silently
+    // loses its server: npx would resolve a binary name that is not there.
+    const launcher = fs.readFileSync(path.join(repoRoot, 'hooks', 'run.mjs'), 'utf8');
+    expect(launcher).toMatch(/'serve'/);
+    expect(launcher).not.toMatch(/eklavya-mcp/);
   });
 
   it('is published under the name `npx eklavya install` needs', () => {

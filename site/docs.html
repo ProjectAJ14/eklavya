@@ -966,13 +966,16 @@ eklavya config set difficulty easy --repo  # keep an onboarding repo gentle for 
         For the parts of Eklavya that make sense outside a Claude Code session.
         <code>npx eklavya install</code> already puts it on your machine; to have it on your
         <code>PATH</code> permanently use <code>npm install -g eklavya</code>, or run any
-        subcommand without installing via <code>npx eklavya &lt;command&gt;</code>.
+        subcommand without installing via <code>npx eklavya &lt;command&gt;</code>. The package
+        ships this one command; the MCP server is <code>eklavya serve</code>, not a separate
+        executable.
       </p>
 
       <div class="doc-table-wrap">
         <table class="doc-table">
           <thead><tr><th>Command</th><th>What it does</th></tr></thead>
           <tbody>
+            <tr><td><code>eklavya serve</code></td><td>Runs the MCP server on stdio. This is what Claude Code starts for you — you would only run it by hand to point another MCP client at Eklavya.</td></tr>
             <tr><td><code>eklavya install</code></td><td>Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, and creates the database. Safe to re-run — that is how you upgrade.</td></tr>
             <tr><td><code>eklavya uninstall [--purge]</code></td><td>Removes the plugin and the runtime, and deregisters it from Claude Code. Your learning history is kept unless you pass <code>--purge</code>.</td></tr>
             <tr><td><code>eklavya config get</code></td><td>Prints the effective configuration as JSON, plus the paths of the global and repo files it came from.</td></tr>
