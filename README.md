@@ -95,7 +95,7 @@ and fails open with a warning without them. Nothing else does.
 1. **You ask for something.** "Add JWT auth to the Express API."
 2. **Claude logs what the work touches** — `jwt-structure`, `httponly-cookies`, `middleware-order-auth` — each with a line pointing at the actual code.
 3. **While it's still building**, that logging call triggers a checkpoint: *one* multiple-choice question about the concept it just logged, asked there and then, while the code is still on your screen. You answer in a couple of seconds and Claude carries straight on.
-4. **When the task finishes**, a `Stop` hook sweeps up whatever the checkpoints didn't get to. Answer your whole budget during the work and the end of the task is silent.
+4. **When the task finishes**, a `Stop` hook may ask one last question about a concept the checkpoints didn't reach — one, not a pile. Answer your budget during the work and the end of the task is silent.
 5. **You answer.** Claude grades honestly on SM-2's 0–5 scale and records it. Mastery and the next review date update.
 6. **Next session** starts with a one-line profile, so Claude calibrates from your first message. Shaky concepts come back later, at a higher tier.
 
@@ -161,9 +161,9 @@ In enforced mode this distinction also decides whether the gate can be passed at
 
 The point was always to learn *while* your coding agent works. A quiz that only fires when the task is done is a tax on shipping: four questions at the exact moment you wanted to be finished, about code you stopped thinking about ten minutes ago.
 
-So the default cadence is **interleaved**. The moment Claude logs a concept, Eklavya may come back with one question about it — one, not four — and Claude answers it with you and returns to the task in the same breath. `max_questions_per_task` becomes a budget for the whole session rather than a batch at the end, and the end-of-task quiz only asks for what's left of it.
+So the default cadence is **interleaved**, and under it a quiz is never more than one question — the planner caps it, so this holds for the end-of-task sweep too, not only for the mid-task checkpoints. (Enforced mode is exempt: a commit gate that needs three passing answers has to be able to ask for them.) The moment Claude logs a concept, Eklavya may come back with one question about it, and Claude answers it with you and returns to the task in the same breath. `max_questions_per_task` becomes a budget for the whole session rather than a batch at the end.
 
-A one-minute task gets one question, or none. A long session spreads its four across the work, each one landing next to the code that taught it.
+A one-minute task gets one question, or none. A long session spreads its four across the work, each one landing next to the code that taught it. What the budget never reaches isn't lost — those concepts stay unmastered and come back as review in a later session.
 
 ```bash
 eklavya config set cadence end   # the old behaviour: nothing until the task finishes
@@ -188,8 +188,8 @@ Eklavya has **four independent dials**. `mode` is how hard it pushes; `focus` is
 
 | `cadence` | Asks | Good for |
 |---|---|---|
-| `interleaved` (default) | one question mid-task, as each concept is logged; the end-of-task quiz sweeps up the remainder | learning while the agent works |
-| `end` | nothing until the task is finished | deep focus, pairing, demos |
+| `interleaved` (default) | one question at a time, mid-task, as each concept is logged — never a batch, at the end or anywhere else (except in `enforced` mode, where the gate needs a full round) | learning while the agent works |
+| `end` | nothing until the task is finished, then whatever the budget has left, one question at a time | deep focus, pairing, demos |
 
 | `difficulty` | Band | Good for |
 |---|---|---|
@@ -262,7 +262,7 @@ mention Eklavya or its settings — ordinary coding questions don't load it.
 
 `difficulty` is `auto` unless you pin it; `level_up_after` and `level_up_accuracy` are what a band costs. Shorten the runway if 100 answers is too long a first act — the distinct-concept floor scales with it, so a short runway stays reachable.
 
-`max_questions_per_task` is a **session budget**, not a batch size: mid-task checkpoints and the end-of-task sweep draw from the same allowance, so turning on `interleaved` moves questions earlier without adding any. `min_minutes_between_checkpoints` is the floor between mid-task questions — it exists so that logging eight concepts in one call cannot become eight questions in a row.
+`max_questions_per_task` is a **session budget**, not a batch size: mid-task checkpoints and the end-of-task sweep draw from the same allowance, so turning on `interleaved` moves questions earlier without adding any. Under `interleaved` it is also never spent all at once — one question per ask is the cap, and an unspent budget is simply unspent. `min_minutes_between_checkpoints` is the floor between mid-task questions — it exists so that logging eight concepts in one call cannot become eight questions in a row.
 
 ## Your data
 

@@ -38,6 +38,14 @@ function runHook(script: string, input: Record<string, unknown>, env: Record<str
   return { status: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
+/**
+ * The concepts line, not the whole message: prose elsewhere may legitimately
+ * contain a semicolon, and matching on that made these asserts something they
+ * did not mean.
+ */
+const conceptsLine = (stderr: string): string =>
+  stderr.split('\n').find((l) => l.startsWith('Concepts:')) ?? '';
+
 const stop = (extra: Record<string, unknown> = {}) =>
   runHook(STOP_CHECK, { session_id: SESSION, cwd, hook_event_name: 'Stop', stop_reason: 'end_turn', ...extra });
 
@@ -383,6 +391,7 @@ describe('Stop hook — when not to fire', () => {
 
 describe('Stop hook — what it tells Claude', () => {
   it('names the concepts and the code context behind them', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure']);
     const res = stop();
     expect(res.stderr).toMatch(/csrf \(touched csrf in auth\.ts\)/);
@@ -390,14 +399,39 @@ describe('Stop hook — what it tells Claude', () => {
     expect(res.stderr).toMatch(/ONE question at a time/);
   });
 
+  // The cadence decides the size of the sweep, and this is the failure it was
+  // written for: three questions in a row at the exact moment the developer
+  // wanted to be finished, under the setting that promises the opposite.
+  it('sweeps one concept only under the interleaved cadence', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    logConcepts(['csrf', 'jwt-structure', 'pkce']);
+    const res = stop();
+    const line = conceptsLine(res.stderr);
+    expect(line).toMatch(/csrf/);
+    expect(line.match(/;/g) ?? []).toHaveLength(0);
+    expect(res.stderr).toMatch(/One question, then let them finish/);
+    expect(res.stderr).not.toMatch(/ONE question at a time/);
+  });
+
+  it('sweeps the whole remaining budget in enforced mode, cadence notwithstanding', () => {
+    // Decision G5 again: the gate has to stay passable inside the session.
+    configure({ mode: 'enforced', cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+    logConcepts(['csrf', 'jwt-structure', 'pkce']);
+    expect(conceptsLine(stop().stderr).match(/;/g) ?? []).toHaveLength(2);
+  });
+
+  it('sweeps the whole remaining budget under the end cadence', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
+    logConcepts(['csrf', 'jwt-structure', 'pkce']);
+    const line = conceptsLine(stop().stderr);
+    expect(line.match(/;/g) ?? []).toHaveLength(2);
+  });
+
   it('caps the list at the configured questions per task', () => {
     configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 1 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
-    // The concepts line, not the whole message: prose elsewhere may legitimately
-    // contain a semicolon, and matching on that made this assert something it
-    // did not mean.
-    const line = res.stderr.split('\n').find((l) => l.startsWith('Concepts:')) ?? '';
+    const line = conceptsLine(res.stderr);
     expect(line).toMatch(/csrf/);
     expect(line.match(/;/g) ?? []).toHaveLength(0);
   });

@@ -167,10 +167,14 @@ describe('the full teaching loop over the real transport', () => {
       expect(logged.logged).toEqual(['httponly-cookies', 'jwt-structure']);
       expect(logged.session_id).toBe('e2e');
 
-      // 2. The quiz plan comes back grounded in that code.
+      // 2. The quiz plan comes back grounded in that code — and one question
+      //    long, because the shipped cadence is `interleaved` and that is what
+      //    it means. Asking outright still plans the whole budget.
       const plan = await callTool('get_session_quiz_plan');
-      expect(plan.questions_needed).toBe(2);
-      expect(plan.concepts.find((c: any) => c.slug === 'httponly-cookies').context).toMatch(/auth\.ts/);
+      expect(plan.questions_needed).toBe(1);
+      const full = await callTool('get_session_quiz_plan', { max: 2 });
+      expect(full.questions_needed).toBe(2);
+      expect(full.concepts.find((c: any) => c.slug === 'httponly-cookies').context).toMatch(/auth\.ts/);
 
       // 3. Answering well twice moves the concept to known.
       for (const round of [1, 2]) {

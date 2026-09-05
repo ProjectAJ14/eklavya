@@ -57,15 +57,26 @@ instead of.
 If nothing is worth asking, the plan says `questions_needed: 0`. Say nothing and
 carry on.
 
-### The Stop sweep — whatever is left
+### The Stop sweep — what the cadence left
 
-A longer message at the end of a task, with a list of concepts. That is the Stop
-hook. Run the full quiz below, then finish your turn normally.
+A longer message at the end of a task, naming the concepts. That is the Stop
+hook. Run the quiz below, then finish your turn normally.
+
+**How many questions is not your call — it is the plan's.** Under `interleaved`,
+the default, the sweep names one concept and `get_session_quiz_plan` returns one
+item: ask it, grade it, and let them finish. Three questions in a row at the
+moment someone wanted to be done is the pile-up the interleaved cadence exists
+to replace, and it is what the developer will remember about the tool. Under
+`end` — and in enforced mode, where the gate needs a round it can actually pass
+— the plan comes back with the whole remaining budget, and you ask those one at
+a time.
 
 `max_questions_per_task` is a **session budget shared by both**. Every checkpoint
 you answered during the work is one the sweep no longer asks, so a session that
 checkpointed its way through the budget ends in silence. That is working as
-intended — do not top it up with extra questions because the ending felt quiet.
+intended — do not top it up with extra questions because the ending felt quiet,
+and never call the plan a second time to refill it. What the budget never reached
+is not lost: those concepts stay unmastered and come back as review.
 
 The sweep fires at most once per batch of work. If the developer declines
 outright, record it and let it go. If they say they do not know, that is not a
@@ -327,10 +338,10 @@ The developer named a topic. Teach that topic, in the prerequisite order the pla
 
 ## Cadence
 
-- **interleaved** (the default) — one question at a time, mid-task, at the seam where you logged the concept. The Stop sweep then only asks for what is left of the budget.
-- **end** — no checkpoints. Everything waits for the Stop sweep.
+- **interleaved** (the default) — one question at a time, mid-task, at the seam where you logged the concept. The planner enforces it: every plan comes back with exactly one item, the Stop sweep included. Enforced mode is exempt, because the gate has to stay passable.
+- **end** — no checkpoints. Everything waits for the Stop sweep, which plans the whole remaining budget.
 
-You never choose this; the hooks do. What you owe it is the discipline of *one*: a checkpoint that asks two questions has quietly turned the default back into the batch it replaced.
+You never choose this; the hooks do. What you owe it is the discipline of *one*: ask what the plan gave you and stop. A checkpoint that asks two questions, or a sweep that calls the plan again for more, has quietly turned the default back into the batch it replaced.
 
 ## Mode
 

@@ -1,6 +1,13 @@
 /**
  * Stop: turn a finished task into a quiz, at most once per batch of work.
  *
+ * How much of a quiz is the cadence's call, not this file's. Under `interleaved`
+ * this sweep asks exactly one question: that setting promises a question at the
+ * seam where the work happened, and a sweep that ends the task with three in a
+ * row is precisely the pile-up it was sold as replacing. Under `end`, or in
+ * enforced mode where the gate needs a quiz it can actually pass, it asks for
+ * whatever is left of the budget.
+ *
  * Blocking is exit 2 with the reason on stderr (deviation D1) — the current hooks
  * reference documents no Stop-specific JSON envelope, but does document that
  * exit 2 prevents stopping and uses stderr as the message.
@@ -33,6 +40,7 @@ await run(async (input) => {
 
   const {
     mode,
+    cadence,
     focus,
     focus_topic,
     max_questions_per_task,
@@ -116,6 +124,17 @@ await run(async (input) => {
   if (remaining <= 0) return 0;
   // ---------------------------------------------------------------------------
 
+  // How many of those to ask here. Under `interleaved` the answer is always one:
+  // that cadence promises a question at a time, at the seam where the concept was
+  // logged, and a sweep that ends the task with three questions in a row is the
+  // thing it was sold as replacing. What the sweep leaves unasked is not lost --
+  // the concept stays unmastered and comes back as review in a later session,
+  // which is what spaced repetition is for. Under `end`, a batch is the setting.
+  // Enforced mode is exempt, as it is from the cooldown (decision G5): the gate
+  // needs several passing answers and this hook only re-arms when new work is
+  // logged, so pacing it to one would leave a commit that cannot be made.
+  const take = cadence === 'interleaved' && mode !== 'enforced' ? 1 : remaining;
+
   const rows = db
     .prepare(
       `SELECT c.slug || COALESCE(' (' || sc.context || ')', '') AS line
@@ -128,9 +147,9 @@ await run(async (input) => {
           AND sc.concept_id NOT IN
               (SELECT concept_id FROM attempts WHERE session_id = @sid)
         ORDER BY sc.ts ASC
-        LIMIT @remaining`,
+        LIMIT @take`,
     )
-    .all({ sid, remaining }) as Array<{ line: string }>;
+    .all({ sid, take }) as Array<{ line: string }>;
 
   const concepts = rows.map((r) => r.line).join('; ');
 
@@ -146,6 +165,19 @@ await run(async (input) => {
   ).run({ sid, logged: stats.logged });
 
   const framing = framingFor(focus, focus_topic, 'stop');
+  // What the model is being asked for, in the words of the cadence it is running
+  // under. `interleaved` gets a hard singular -- the plan will hand back exactly
+  // one item, and prose that still says "each question" reads as licence to go
+  // looking for more.
+  const ask =
+    take === 1
+      ? `Use the eklavya MCP server and the tutor skill: call get_session_quiz_plan,
+ask the ONE question it returns at that concept's tier_to_ask, and grade it with
+record_attempt. One question, then let them finish -- there is no second one to
+come back for. The plan returns a "framing" field. Follow it.`
+      : `Use the eklavya MCP server and the tutor skill: call get_session_quiz_plan, ask
+ONE question at a time at each concept's tier_to_ask, and grade each answer with
+record_attempt. The plan returns a "framing" field. Follow it.`;
   const tone =
     mode === 'enforced'
       ? 'This session is in enforced mode: the commit gate needs this quiz.'
@@ -155,9 +187,7 @@ await run(async (input) => {
 
 Concepts: ${concepts}
 
-Use the eklavya MCP server and the tutor skill: call get_session_quiz_plan, ask
-ONE question at a time at each concept's tier_to_ask, and grade each answer with
-record_attempt. The plan returns a "framing" field. Follow it.
+${ask}
 
 Ask each question as MULTIPLE CHOICE via the AskUserQuestion tool: four options,
 one correct and three plausible, header "Eklavya" so it is clear who is asking.

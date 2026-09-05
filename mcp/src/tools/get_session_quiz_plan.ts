@@ -129,7 +129,7 @@ export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
   description:
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Each item carries format_to_use, currently always "mcq": ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Each item carries ask_header, the bracketed line naming the settings that asked; print it as the FIRST line of the question, then a blank line, then the stem — never under it, where it reads as part of the question — and never pass it back in record_attempt. Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Each item carries format_to_use, currently always "mcq": ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Each item carries ask_header, the bracketed line naming the settings that asked; print it as the FIRST line of the question, then a blank line, then the stem — never under it, where it reads as part of the question — and never pass it back in record_attempt. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -166,7 +166,6 @@ export const getSessionQuizPlan: ToolDef = {
     const now = new Date();
     const { config, repoRoot } = loadConfig(args.cwd);
     const sessionId = resolveSessionId(db, args.session_id);
-    const max = args.max ?? config.max_questions_per_task;
     const focus: Focus = args.focus ?? config.focus;
     // The band this project is on. Every tier below is clamped into it, so a
     // learner three sessions in cannot be handed a tier-4 question by an
@@ -181,6 +180,29 @@ export const getSessionQuizPlan: ToolDef = {
     let effSlugs = args.slugs;
     let topicUnresolved = false;
     const explicitTopic = Boolean(args.domain || (args.slugs && args.slugs.length > 0));
+
+    // The cadence decides how big a plan is allowed to be, and this is the only
+    // place that can enforce it. `interleaved` promises one question at a time,
+    // at the seam where the concept was logged -- but a plan of four is a plan
+    // the caller works through end to end, so handing one back is how "learning
+    // while the agent works" turns into the pile-up at the end of the task that
+    // this cadence exists to replace. Saying "ask one" in the hook text and then
+    // returning four was an instruction the model had to remember; a plan of one
+    // is a thing it cannot get wrong.
+    //
+    // An explicit `max`, `domain` or `slugs` is the developer asking to be
+    // quizzed rather than Eklavya deciding to ask, and that still gets the whole
+    // budget. So does `end` cadence -- a batch at the end is exactly what it means.
+    //
+    // Enforced mode is exempt for the same reason it ignores the cooldown
+    // (decision G5): the gate needs `ceil(required * pass_threshold)` passing
+    // answers, and a session whose concepts were all logged in one late call
+    // would never be offered that many one at a time -- the Stop hook only
+    // re-arms when new work is logged. A pacing rule must never be the thing
+    // that makes a commit impossible.
+    const capped =
+      config.cadence === 'interleaved' && config.mode !== 'enforced' && !explicitTopic;
+    const max = args.max ?? (capped ? 1 : config.max_questions_per_task);
 
     if (!explicitTopic && focus === 'learn') {
       if (!config.focus_topic) {

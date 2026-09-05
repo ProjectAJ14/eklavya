@@ -17,7 +17,9 @@
  * the naive version asks eight questions in a row and gets uninstalled. Three
  * rules keep it to a trickle:
  *
- *   1. one question per checkpoint, never a batch (max: 1, and we say so);
+ *   1. one question per checkpoint, never a batch -- we ask for `max: 1`, and
+ *      the planner caps an interleaved plan at one anyway, so a model that drops
+ *      the argument still cannot be handed four;
  *   2. min_minutes_between_checkpoints since the last one, wall clock;
  *   3. the session budget is max_questions_per_task, shared with the Stop hook.
  *

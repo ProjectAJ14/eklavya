@@ -553,9 +553,11 @@ Why is httpOnly set on the refresh cookie here but not on the access token?</cod
           <div>
             <h4>The task finishes and sweeps up the rest</h4>
             <p>
-              The <strong>Stop</strong> hook checks whether anything worth asking is left. Because
-              <code>max_questions_per_task</code> is a <em>session budget</em> and not a batch
-              size, a session that answered its whole budget while you worked ends in silence.
+              The <strong>Stop</strong> hook checks whether anything worth asking is left, and if
+              so asks <strong>one</strong> more question on the default cadence — never a row of
+              them, unless the session is gated and the gate still needs answers. Because <code>max_questions_per_task</code> is a <em>session budget</em> and
+              not a batch size, a session that answered its whole budget while you worked ends in
+              silence.
             </p>
           </div>
         </li>
@@ -644,15 +646,17 @@ Why is httpOnly set on the refresh cookie here but not on the access token?</cod
         <table class="doc-table">
           <thead><tr><th>Value</th><th>Behaviour</th><th>Good for</th></tr></thead>
           <tbody>
-            <tr><td><code>interleaved</code> <span class="tag">default</span></td><td>One question mid-task, the moment a concept is logged. The end-of-task quiz then only asks for what is left of the budget.</td><td>Learning while the agent works — the thing the tool is for.</td></tr>
-            <tr><td><code>end</code></td><td>Nothing until the task is finished. Everything arrives in one sweep.</td><td>Pairing, demos, deep focus.</td></tr>
+            <tr><td><code>interleaved</code> <span class="tag">default</span></td><td>One question at a time, the moment a concept is logged. A quiz is capped at one question under this cadence, the end-of-task sweep included — never a batch.<br><span class="tag">exception</span> <code>enforced</code> mode plans the full remaining budget, because the commit gate needs enough passing answers to open.</td><td>Learning while the agent works — the thing the tool is for.</td></tr>
+            <tr><td><code>end</code></td><td>Nothing until the task is finished, then whatever the budget has left, asked one question at a time.</td><td>Pairing, demos, deep focus.</td></tr>
           </tbody>
         </table>
       </div>
       <p>
-        <code>interleaved</code> does not mean more questions. It moves the same budget earlier.
-        If being interrupted is the problem rather than the timing, raise
-        <code>min_minutes_between_checkpoints</code> before switching to <code>end</code>.
+        <code>interleaved</code> does not mean more questions. It moves the same budget earlier,
+        and caps every quiz at one question — a budget it never reaches is simply not spent, and
+        those concepts come back as review in a later session. If being interrupted is the problem
+        rather than the timing, raise <code>min_minutes_between_checkpoints</code> before switching
+        to <code>end</code>.
       </p>
 
       <h3 id="dial-difficulty"><code>difficulty</code> — how hard it may get</h3>
@@ -1101,12 +1105,12 @@ cadence:  interleaved (one question mid-task, min 4m apart)</code></pre>
             <tr><td><code>mode</code></td><td><code>"ambient"</code></td><td>How hard Eklavya pushes: <code>ambient</code>, <code>enforced</code>, <code>off</code>.</td></tr>
             <tr><td><code>focus</code></td><td><code>"concept"</code></td><td>What it teaches: <code>concept</code>, <code>project</code>, <code>learn</code>.</td></tr>
             <tr><td><code>focus_topic</code></td><td><code>null</code></td><td>The topic for <code>learn</code> focus. Ignored by the other two, required by that one.</td></tr>
-            <tr><td><code>cadence</code></td><td><code>"interleaved"</code></td><td>When it asks: <code>interleaved</code> (mid-task) or <code>end</code>.</td></tr>
+            <tr><td><code>cadence</code></td><td><code>"interleaved"</code></td><td>When it asks, and how many at once: <code>interleaved</code> asks mid-task, one question per quiz (<code>enforced</code> mode excepted); <code>end</code> waits and asks the remaining budget.</td></tr>
             <tr><td><code>difficulty</code></td><td><code>"auto"</code></td><td>The tier band: <code>auto</code> earns it per project; <code>easy</code>/<code>medium</code>/<code>hard</code> pin it and stop progression.</td></tr>
             <tr><td><code>level_up_after</code></td><td><code>100</code></td><td>Passing answers needed in one project before the band moves up. The distinct-concept floor scales with this, so shortening it keeps the runway reachable.</td></tr>
             <tr><td><code>level_up_accuracy</code></td><td><code>0.7</code></td><td>Minimum accuracy over those answers. Declines are excluded from the calculation.</td></tr>
             <tr><td><code>pass_threshold</code></td><td><code>0.7</code></td><td>The fraction of a session's required concepts you must answer correctly — grade 3 or better — before the commit gate opens. At the default, three of four required concepts have to be passed.</td></tr>
-            <tr><td><code>max_questions_per_task</code></td><td><code>4</code></td><td>A budget for the <strong>whole session</strong>, shared between mid-task checkpoints and the end-of-task sweep. Not a batch size.</td></tr>
+            <tr><td><code>max_questions_per_task</code></td><td><code>4</code></td><td>A budget for the <strong>whole session</strong>, shared between mid-task checkpoints and the end-of-task sweep. Not a batch size — on the default cadence a quiz asks one question, so the budget is spent one at a time or not at all.</td></tr>
             <tr><td><code>min_minutes_between_quizzes</code></td><td><code>20</code></td><td>Floor between whole quizzes. This is the anti-nagging dial.</td></tr>
             <tr><td><code>min_minutes_between_checkpoints</code></td><td><code>4</code></td><td>Floor between single mid-task questions, so logging eight concepts at once cannot become eight questions in a row. <code>0</code> asks at every seam.</td></tr>
             <tr><td><code>max_new_concepts_per_session</code></td><td><code>8</code></td><td>Cap on concepts Claude may invent per session, against slug sprawl.</td></tr>
@@ -1136,7 +1140,8 @@ cadence:  interleaved (one question mid-task, min 4m apart)</code></pre>
       <div class="note note--tip">
         <p><strong>Two settings people misread.</strong> <code>max_questions_per_task</code> is a
         session budget, so turning on <code>interleaved</code> moves questions earlier without
-        adding any. And <code>difficulty</code> is a <em>band</em>, not a question — pinning
+        adding any — and under that cadence it is a ceiling for the session, not a number of
+        questions you will be asked. And <code>difficulty</code> is a <em>band</em>, not a question — pinning
         <code>hard</code> does not make every question tier 5, it makes tiers 3–5 the range the
         planner may choose from.</p>
       </div>
@@ -1319,7 +1324,7 @@ Reading /Users/you/.eklavya/knowledge.db — press Ctrl+C to stop.</code></pre>
           <tbody>
             <tr><td><code>SessionStart</code></td><td>When a session opens</td><td>Stamps the session id and prints your one-line learner profile.</td></tr>
             <tr><td><code>PostToolUse</code></td><td>Right after Claude logs concepts</td><td>Decides whether to ask one mid-task question. Respects the cadence, the budget and the checkpoint spacing.</td></tr>
-            <tr><td><code>Stop</code></td><td>When a task finishes</td><td>Sweeps up whatever the checkpoints did not reach, within the remaining budget and at most <code>max_stop_blocks_per_session</code> times.</td></tr>
+            <tr><td><code>Stop</code></td><td>When a task finishes</td><td>Asks about what the checkpoints did not reach — one question on the <code>interleaved</code> cadence, the remaining budget on <code>end</code> or in <code>enforced</code> mode — and at most <code>max_stop_blocks_per_session</code> times.</td></tr>
             <tr><td><code>PreToolUse</code></td><td>Before every Bash command</td><td>In enforced mode, denies the ones that are really a <code>git commit</code> while the gate is unmet. Everything else passes through untouched.</td></tr>
           </tbody>
         </table>
@@ -1397,8 +1402,8 @@ export EKLAVYA_DB=/tmp/test.db          # just the database</code></pre>
               <td>Check the mode is not <code>off</code>. Then check that Claude is actually logging concepts — with nothing logged there is nothing grounded to ask about. <code>/eklavya:quiz</code> will tell you which of the two it is.</td>
             </tr>
             <tr>
-              <td>Questions only arrive at the end</td>
-              <td>Cadence is <code>end</code>. <code>eklavya config set cadence interleaved</code>.</td>
+              <td>Questions only arrive at the end, or several in a row</td>
+              <td>Cadence is <code>end</code>. <code>eklavya config set cadence interleaved</code> — that asks at the seam where a concept is logged, and caps a quiz at one question. If they still arrive late on <code>interleaved</code>, Claude is logging concepts at the end of the task rather than as it works; tell it to log as it goes.</td>
             </tr>
             <tr>
               <td>Too many interruptions</td>

@@ -17,7 +17,7 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
 
 **No topic**: quiz this session's work.
 1. `get_learner_profile`.
-2. `get_session_quiz_plan` with `ignore_cooldown: true`.
+2. `get_config`, then `get_session_quiz_plan` with `ignore_cooldown: true` and `max` set to the config's `max_questions_per_task`. Both arguments are there for the same reason: on the default `interleaved` cadence a plan is capped at one question, because Eklavya interrupting is not allowed to become a pile-up — but the developer typing `/eklavya:quiz` asked for a round, and a request is never refused or trimmed. A named topic (above) is already treated as a request; this branch has to say so.
 3. If `questions_needed` is 0, say why in one line and stop. The `reason` tells you which:
    - `already_covered` → "Everything from this session has already been asked about. `/eklavya:quiz <topic>` to go wider."
    - `nothing_logged` → "Nothing logged this session yet, so there's nothing grounded to ask about."

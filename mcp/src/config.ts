@@ -36,7 +36,15 @@ export type Focus = 'project' | 'concept' | 'learn';
  * finishes in silence, which is the entire point -- the old behaviour spent that
  * time at the end, when the developer wanted to be done.
  *
- * `end` is the pre-1.4 behaviour, unchanged: nothing until Stop.
+ * It is also the batch size. Under `interleaved` a plan is one question -- the
+ * planner caps it, so "one at a time" is a property of the data rather than an
+ * instruction the tutor has to remember -- and the Stop sweep asks one too.
+ * Concepts the budget never reaches are not lost: they stay unmastered and
+ * resurface as review in a later session. Enforced mode is the exception, for the
+ * reason it is exempt from the cooldown: the gate has to stay passable.
+ *
+ * `end` is the pre-1.4 behaviour, unchanged: nothing until Stop, then a batch of
+ * whatever the budget has left.
  */
 export type Cadence = 'interleaved' | 'end';
 

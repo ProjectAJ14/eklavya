@@ -446,8 +446,8 @@
       </li>
       <li data-reveal data-delay="400">
         <span class="steps__n">5</span>
-        <h3>The task finishes, and sweeps up the rest</h3>
-        <p>Whatever the session budget has left. A session that answered its budget while the agent worked finishes in silence, which is the entire point.</p>
+        <h3>The task finishes, and asks at most one more</h3>
+        <p>One question about a concept the checkpoints did not reach — never a row of them at the moment you wanted to be done. A session that answered its budget while the agent worked finishes in silence, which is the entire point.</p>
       </li>
       <li data-reveal data-delay="500">
         <span class="steps__n steps__n--solid">6</span>
@@ -551,14 +551,14 @@
         <div class="dial__opt dial__opt--default">
           <span class="dial__pill">default</span>
           <code class="dial__val">interleaved</code>
-          <p>One question mid-task, at the seam where a concept is logged. The end-of-task quiz only sweeps up the remainder.</p>
+          <p>One question at a time, at the seam where a concept is logged. A quiz is capped at one question under this cadence — the end-of-task sweep included, unless a commit gate is waiting on it.</p>
         </div>
         <div class="dial__opt">
           <code class="dial__val">end</code>
-          <p>Nothing until the task is finished. For deep focus, pairing, demos.</p>
+          <p>Nothing until the task is finished, then whatever the budget has left. For deep focus, pairing, demos.</p>
         </div>
         <div class="dial__opt dial__opt--note">
-          <p><code class="code-inline">max_questions_per_task</code> is a session budget, not a batch size — a question answered mid-work is one the Stop hook no longer asks.</p>
+          <p><code class="code-inline">max_questions_per_task</code> is a session budget, not a batch size — a question answered mid-work is one the Stop hook no longer asks, and a budget it never reaches is simply not spent.</p>
         </div>
       </div>
 

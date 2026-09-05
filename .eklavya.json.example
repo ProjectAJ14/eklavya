@@ -5,7 +5,7 @@
   "_focus": "What Eklavya teaches, independent of mode: project | concept | learn.",
   "focus": "project",
   "_focus_topic": "Only used by focus \"learn\". The topic to teach, e.g. \"caching\".",
-  "_cadence": "When Eklavya asks: interleaved | end. \"interleaved\" (default) asks one question mid-task as each concept is logged, so the developer learns while the agent works; the end-of-task quiz then only sweeps up the remainder. \"end\" waits until the task is finished.",
+  "_cadence": "When Eklavya asks, and how many at once: interleaved | end. \"interleaved\" (default) asks one question mid-task as each concept is logged, so the developer learns while the agent works, and caps every quiz at one question -- including the end-of-task sweep, except in enforced mode, where the gate needs a full round. \"end\" waits until the task is finished, then asks whatever the budget has left.",
   "cadence": "interleaved",
   "_difficulty": "How hard questions on this project may get: auto | easy | medium | hard. \"auto\" (default) earns the band -- every project starts at easy (tiers 1-2), then medium (2-4), then hard (3-5). A literal level pins it and stops progression: \"easy\" here keeps an onboarding codebase gentle for every contributor, whatever they set for themselves.",
   "difficulty": "easy",

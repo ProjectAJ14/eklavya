@@ -28,9 +28,13 @@ function configure(patch: Record<string, unknown>): void {
   // a learner, wrong for tests that are asserting exactly which session concepts
   // the planner picked. The default's own behaviour is covered by the `focus`
   // suite below, which sets it explicitly.
+  //
+  // `end` cadence for the same reason: the shipped default caps a plan at one
+  // question, which is right for a learner and useless for a test asserting the
+  // order and contents of a whole plan. The cap has its own suite below.
   fs.writeFileSync(
     path.join(home, 'config.json'),
-    JSON.stringify({ focus: 'project', ...patch }),
+    JSON.stringify({ focus: 'project', cadence: 'end', ...patch }),
   );
 }
 
@@ -208,6 +212,49 @@ describe('get_session_quiz_plan', () => {
     configure({ max_questions_per_task: 1, min_minutes_between_quizzes: 0 });
     logAuthWork();
     expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts).toHaveLength(1);
+  });
+
+  // The bug this suite exists for: `interleaved` promised a question at a time
+  // and the planner handed back four, which the tutor then asked end to end at
+  // the moment the developer wanted to be finished.
+  describe('cadence caps the plan', () => {
+    it('plans one question under the interleaved cadence', () => {
+      configure({ cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+      logAuthWork();
+      const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+      expect(plan.questions_needed).toBe(1);
+      // No `q 1/1`: the numbering only means something when more is coming.
+      expect(plan.concepts[0].ask_header).not.toMatch(/q \d/);
+    });
+
+    it('plans the whole budget under the end cadence', () => {
+      configure({ cadence: 'end', min_minutes_between_quizzes: 0 });
+      logAuthWork();
+      expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(3);
+    });
+
+    // Decision G5: a pacing rule must not be the thing that makes a commit
+    // impossible. The gate needs several passing answers and the Stop hook only
+    // re-arms on new work, so enforced mode keeps the whole plan.
+    it('plans the whole budget in enforced mode, cadence notwithstanding', () => {
+      configure({ mode: 'enforced', cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+      logAuthWork();
+      expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(3);
+    });
+
+    it('still plans the budget when the developer asked to be quizzed', () => {
+      configure({ cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+      logAuthWork();
+      // An explicit max, or a named topic, is a request rather than an ambient
+      // interruption — the cap is there to stop nagging, not to refuse.
+      expect(
+        call<any>(getSessionQuizPlan, { session_id: SESSION, max: 3 }).questions_needed,
+      ).toBe(3);
+      expect(
+        call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'web-auth' })
+          .questions_needed,
+      ).toBeGreaterThan(1);
+    });
   });
 
   it('escalates the tier for a concept the learner keeps nailing (G3)', () => {
