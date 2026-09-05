@@ -123,28 +123,43 @@
           <span class="term__dot" aria-hidden="true"></span>
           <span class="term__title">claude — my-express-api</span>
         </div>
-        <div class="term__body" aria-label="A Claude Code session: Eklavya logs the concepts a task touches, asks one multiple-choice question mid-work, and the task then finishes without another interruption.">
-          <div class="tl-0 tl-user" data-term-line><span class="term__prompt">❯</span> add JWT auth to the Express API</div>
-          <div class="tl-1 tl-sys" data-term-line>● writing src/auth.ts, src/middleware/verify.ts…</div>
-          <div class="tl-2 tl-ek" data-term-line>◆ eklavya · logged jwt-structure, httponly-cookies,<br><span class="tl-hang">◆ eklavya · </span>middleware-order-auth</div>
-          <div class="tl-3 tl-ek" data-term-line>◆ eklavya · checkpoint · httponly-cookies</div>
-          <div class="tl-4" data-term-line>
-            <div class="ask">
-              <div class="ask__head"><span class="ask__chip">Eklavya</span><span class="ask__hint">↑↓ to move · enter to pick</span></div>
-              <p class="ask__stem">I set httpOnly on the refresh cookie in auth.ts:42 and left the access token in memory. What does that split buy?</p>
-              <p class="ask__footer">ambient · concept · easy · tier 2 mechanism</p>
-              <div class="ask__opts">
-                <div class="ask__opt tl-pick"><span class="ask__mark">❯</span><span class="ask__n">1</span> Injected script can't read the refresh token</div>
-                <div class="ask__opt"><span class="ask__mark"> </span><span class="ask__n">2</span> A forged cross-site request can't be sent</div>
-                <div class="ask__opt"><span class="ask__mark"> </span><span class="ask__n">3</span> The token never reaches the server logs</div>
-                <div class="ask__opt"><span class="ask__mark"> </span><span class="ask__n">4</span> The access token can be revoked instantly</div>
-                <div class="ask__opt ask__opt--other"><span class="ask__mark"> </span><span class="ask__n">5</span> Other — I don't know</div>
+        <div class="term__body" data-term aria-label="A Claude Code session you can run: Eklavya logs the concepts a task touches, asks one multiple-choice question mid-work, grades the answer, and the task then finishes without another interruption.">
+          <div class="term__log">
+            <!-- the SessionStart hook's profile line, printed before anything is typed -->
+            <div class="tl is-on tl-ek">&#9670; eklavya &middot; session start &middot; ambient &middot; concept &middot; easy</div>
+            <div class="tl tl-user" data-line="user" hidden><span class="term__prompt">&#10095;</span> <span data-typed>add JWT auth to the Express API</span><span class="term__cursor" data-type-cursor hidden>&#9613;</span></div>
+            <!-- only shown when the visitor typed a task of their own: the rest of
+                 the transcript is the recorded JWT session either way -->
+            <div class="tl tl-note" data-line="replay" hidden>&nbsp;&nbsp;demo terminal &mdash; replaying the recorded JWT session</div>
+            <div class="tl tl-sys" data-line="write" hidden>&#9679; writing src/auth.ts, src/middleware/verify.ts&#8230;</div>
+            <div class="tl tl-ek" data-line="logged" hidden>&#9670; eklavya &middot; logged jwt-structure, httponly-cookies,<br><span class="tl-hang">&#9670; eklavya &middot; </span>middleware-order-auth</div>
+            <div class="tl tl-ek" data-line="checkpoint" hidden>&#9670; eklavya &middot; checkpoint &middot; httponly-cookies</div>
+            <div class="tl tl-ask" data-line="ask" hidden>
+              <div class="ask">
+                <div class="ask__head"><span class="ask__chip">Eklavya</span><span class="ask__hint">&#8593;&#8595; to move &middot; enter to pick</span></div>
+                <p class="ask__stem">I set httpOnly on the refresh cookie in auth.ts:42 and left the access token in memory. What does that split buy?</p>
+                <p class="ask__footer">ambient &middot; concept &middot; easy &middot; tier 2 mechanism</p>
+                <div class="ask__opts" data-opts role="group" aria-label="Answer the question">
+                  <button class="ask__opt" type="button" data-opt="1"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">1</span><span>Injected script can't read the refresh token</span></button>
+                  <button class="ask__opt" type="button" data-opt="2"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">2</span><span>A forged cross-site request can't be sent</span></button>
+                  <button class="ask__opt" type="button" data-opt="3"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">3</span><span>The token never reaches the server logs</span></button>
+                  <button class="ask__opt" type="button" data-opt="4"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">4</span><span>The access token can be revoked instantly</span></button>
+                  <button class="ask__opt ask__opt--other" type="button" data-opt="5"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">5</span><span>Other &mdash; I don't know</span></button>
+                </div>
               </div>
             </div>
+            <div class="tl tl-grade" data-line="grade" role="status" hidden></div>
+            <div class="tl tl-why" data-line="why" hidden></div>
+            <div class="tl tl-sys" data-line="done" hidden>&#9679; still writing src/routes/session.ts&#8230;<br>&#10003; task complete &mdash; 4 files changed &middot; nothing left to ask</div>
           </div>
-          <div class="tl-6 tl-grade" data-term-line>✓ grade 4 · recognition caps at 4 · review in 6 days</div>
-          <div class="tl-7 tl-sys" data-term-line>● still writing src/routes/session.ts…<br>✓ task complete — 4 files changed · nothing left to ask</div>
-          <div class="term__cursor" aria-hidden="true">▍</div>
+
+          <form class="term__ask-row is-armed" data-term-form>
+            <span class="term__prompt" aria-hidden="true">&#10095;</span>
+            <input class="term__input" type="text" data-term-input autocomplete="off" spellcheck="false"
+                   placeholder="add JWT auth to the Express API" aria-label="Ask Claude Code to do something">
+            <span class="term__cursor" data-idle-cursor aria-hidden="true">&#9613;</span>
+            <button class="term__go" type="submit" data-term-go>Press Enter</button>
+          </form>
         </div>
       </div>
     </div>
