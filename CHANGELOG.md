@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/ProjectAJ14/eklavya/compare/v1.8.0...v1.8.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* the plugin's MCP server could not start when installed from the marketplace ([8e7f862](https://github.com/ProjectAJ14/eklavya/commit/8e7f86247afd6ef51d5c1b3d68842822764faf4b))
+
 # [1.8.0](https://github.com/ProjectAJ14/eklavya/compare/v1.7.0...v1.8.0) (2026-09-05)
 
 
