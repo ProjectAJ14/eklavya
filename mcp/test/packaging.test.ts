@@ -89,6 +89,26 @@ describe('what ships to npm', () => {
   });
 });
 
+describe('CI can actually run what it publishes', () => {
+  it('the release workflow uses a Node that satisfies engines', () => {
+    // These drifted once: engines went to >=22 while the workflow stayed on 20,
+    // so `eklavya install` correctly refused to run and took 13 tests with it.
+    // The failure is easy to misread as a bug in the installer rather than a
+    // stale workflow, which is why it is asserted here.
+    const workflow = fs.readFileSync(
+      path.join(repoRoot, '.github', 'workflows', 'release.yml'),
+      'utf8',
+    );
+    const ciMajor = Number(workflow.match(/node-version:\s*'(\d+)'/)?.[1]);
+    const required = Number(
+      readJson(path.join(mcpRoot, 'package.json')).engines.node.match(/(\d+)/)[1],
+    );
+
+    expect(Number.isNaN(ciMajor)).toBe(false);
+    expect(ciMajor).toBeGreaterThanOrEqual(required);
+  });
+});
+
 describe('the running server reports its real version', () => {
   it('does not hardcode a version that publishing will leave behind', () => {
     const source = fs.readFileSync(path.join(mcpRoot, 'src', 'server.ts'), 'utf8');

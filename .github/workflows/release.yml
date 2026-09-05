@@ -32,12 +32,14 @@ jobs:
       # NODE_AUTH_TOKEN is unset, so npm authenticates with an empty string and
       # every release dies on `401 Unauthorized - GET /-/whoami` that looks
       # exactly like a bad token. semantic-release configures its own auth.
+      # Must satisfy the package's own `engines` (>=22). Below that,
+      # better-sqlite3 has no prebuilt binary and `eklavya install` refuses to
+      # run at all, so the suite fails before it can test anything.
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
-      # Provenance needs npm >= 11.5.1, newer than the npm bundled with Node 20.
-      # Pin the 11.x major: npm@latest moved to 12.x, which needs Node 22+.
+      # Provenance needs npm >= 11.5.1, newer than the npm bundled with Node 22.
       - run: npm install -g npm@11
 
       - name: Install release tooling
