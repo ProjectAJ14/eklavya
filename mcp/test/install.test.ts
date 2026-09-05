@@ -85,11 +85,64 @@ describe('eklavya install', () => {
 
   it('is idempotent — running it twice is how you upgrade', () => {
     expect(install().status).toBe(0);
+    const first = readJson(path.join(claudeHome, 'plugins', 'installed_plugins.json'));
+    const installedAt = first.plugins['eklavya@eklavya'][0].installedAt;
+
     expect(install().status).toBe(0);
 
-    const installed = readJson(path.join(claudeHome, 'plugins', 'installed_plugins.json'));
-    // One entry, not two appended.
-    expect(installed.plugins['eklavya@eklavya']).toHaveLength(1);
+    const second = readJson(path.join(claudeHome, 'plugins', 'installed_plugins.json'));
+    const userEntries = second.plugins['eklavya@eklavya'].filter(
+      (e: { scope: string }) => e.scope === 'user',
+    );
+    // One user entry, not two appended...
+    expect(userEntries).toHaveLength(1);
+    // ...and it reads as an upgrade rather than a fresh install.
+    expect(userEntries[0].installedAt).toBe(installedAt);
+  });
+
+  it('keeps project-scoped installs of Eklavya itself', () => {
+    // The value is an array, one entry per scope. Assigning a fresh array here
+    // silently uninstalled the plugin from every project it had been added to.
+    // That is data loss with no error and no warning, so it gets its own test.
+    install();
+
+    const installedPath = path.join(claudeHome, 'plugins', 'installed_plugins.json');
+    const before = readJson(installedPath);
+    before.plugins['eklavya@eklavya'].push({
+      scope: 'local',
+      projectPath: '/somewhere/else',
+      version: '1.6.1',
+    });
+    fs.writeFileSync(installedPath, JSON.stringify(before));
+
+    install();
+
+    const after = readJson(installedPath).plugins['eklavya@eklavya'];
+    const local = after.filter((e: { scope: string }) => e.scope === 'local');
+    expect(local).toHaveLength(1);
+    expect(local[0].projectPath).toBe('/somewhere/else');
+    expect(local[0].version).toBe('1.6.1');
+  });
+
+  it('does not replace a marketplace directory git is managing', () => {
+    // `/plugin marketplace add` clones the repo here and keeps it current, and
+    // Eklavya's manifest lists its plugin at `./` -- so the checkout IS the
+    // plugin. Replacing the directory would delete the clone and leave
+    // autoUpdate pulling into nothing.
+    install();
+
+    const dir = path.join(claudeHome, 'plugins', 'marketplaces', 'eklavya');
+    fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.git', 'HEAD'), 'ref: refs/heads/main');
+    fs.writeFileSync(path.join(dir, 'LOCAL_EDIT'), 'x');
+
+    const res = install();
+    expect(res.status).toBe(0);
+
+    expect(fs.existsSync(path.join(dir, '.git', 'HEAD'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'LOCAL_EDIT'))).toBe(true);
+    // And it says so, rather than looking like it did nothing.
+    expect(res.stdout).toMatch(/git checkout/);
   });
 
   it('leaves other plugins and unrelated settings alone', () => {
@@ -139,6 +192,30 @@ describe('eklavya uninstall', () => {
     install();
     run(['uninstall', '--purge']);
     expect(fs.existsSync(path.join(eklavyaHome, 'knowledge.db'))).toBe(false);
+  });
+
+  it('keeps the shared directory while a project still installs from it', () => {
+    install();
+
+    const installedPath = path.join(claudeHome, 'plugins', 'installed_plugins.json');
+    const before = readJson(installedPath);
+    before.plugins['eklavya@eklavya'].push({
+      scope: 'local',
+      projectPath: '/somewhere/else',
+      version: '1.6.1',
+    });
+    fs.writeFileSync(installedPath, JSON.stringify(before));
+
+    const res = run(['uninstall']);
+    expect(res.status).toBe(0);
+
+    // Deleting it would leave that project pointing at nothing.
+    expect(fs.existsSync(path.join(claudeHome, 'plugins', 'marketplaces', 'eklavya'))).toBe(true);
+    const after = readJson(installedPath).plugins['eklavya@eklavya'];
+    expect(after).toHaveLength(1);
+    expect(after[0].scope).toBe('local');
+    // And the person is told, with the path, instead of it happening silently.
+    expect(res.stdout).toMatch(/somewhere\/else/);
   });
 
   it('does not disturb a neighbouring plugin', () => {

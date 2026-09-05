@@ -188,7 +188,20 @@ function verifyRuntime(): void {
 
 // --- 3. the plugin payload --------------------------------------------------
 
-function copyPayload(): void {
+/**
+ * True when the marketplace directory is a git checkout Claude Code maintains.
+ *
+ * `/plugin marketplace add ProjectAJ14/eklavya` clones the repository here and
+ * keeps it current with `autoUpdate`. Eklavya's marketplace manifest lists its
+ * plugin at `./`, so the plugin IS that checkout — which means replacing the
+ * directory would delete the clone and leave autoUpdate pulling into nothing.
+ */
+function isGitManaged(dir: string): boolean {
+  return fs.existsSync(path.join(dir, '.git'));
+}
+
+/** Returns false when the payload was deliberately left alone. */
+function copyPayload(): boolean {
   const from = payloadDir();
   if (!fs.existsSync(from)) {
     process.stderr.write(
@@ -199,11 +212,18 @@ function copyPayload(): void {
   }
 
   const to = marketplaceDir();
-  // Replace rather than merge: a stale hook or skill left behind by an older
-  // version is worse than a slow copy, and this directory is ours entirely.
+
+  // Someone else's directory. Git is the source of truth for its contents and
+  // `/plugin update` is what refreshes it; copying over the top would only
+  // produce a checkout whose files no longer match its own HEAD.
+  if (isGitManaged(to)) return false;
+
+  // Ours, so replace rather than merge: a stale hook or skill left behind by an
+  // older version is worse than a slow copy.
   fs.rmSync(to, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(to), { recursive: true });
   fs.cpSync(from, to, { recursive: true });
+  return true;
 }
 
 // --- 4. Claude Code's registries --------------------------------------------
@@ -254,17 +274,32 @@ function register(version: string): void {
   };
   writeJson(marketplaces, known);
 
+  // The value here is an ARRAY, one entry per scope: a `user` install and any
+  // number of `local` ones, each pinned to a project directory. Assigning a
+  // fresh array would silently uninstall the plugin from every project someone
+  // had added it to -- so this replaces the `user` entry and leaves the rest
+  // exactly as it found them.
   const installedPath = path.join(pluginsDir, 'installed_plugins.json');
   const installed = readJson(installedPath);
   if (typeof installed.version !== 'number') installed.version = 2;
   const plugins = (installed.plugins ?? {}) as Record<string, unknown>;
+
+  const existing = Array.isArray(plugins['eklavya@eklavya'])
+    ? (plugins['eklavya@eklavya'] as Array<Record<string, unknown>>)
+    : [];
+  const otherScopes = existing.filter((entry) => entry?.scope !== 'user');
+  const previousUser = existing.find((entry) => entry?.scope === 'user');
+  const now = new Date().toISOString();
+
   plugins['eklavya@eklavya'] = [
+    ...otherScopes,
     {
       scope: 'user',
       installPath: marketplaceDir(),
       version,
-      installedAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
+      // Kept, so re-running this reads as an upgrade rather than a fresh install.
+      installedAt: (previousUser?.installedAt as string | undefined) ?? now,
+      lastUpdated: now,
     },
   ];
   installed.plugins = plugins;
@@ -278,7 +313,7 @@ function register(version: string): void {
   writeJson(settingsPath, settings);
 }
 
-function deregister(): void {
+function deregister(): Array<Record<string, unknown>> {
   const pluginsDir = path.join(claudeHome(), 'plugins');
 
   const marketplaces = path.join(pluginsDir, 'known_marketplaces.json');
@@ -288,11 +323,20 @@ function deregister(): void {
     writeJson(marketplaces, known);
   }
 
+  // Symmetric with register(): drop the `user` entry this CLI owns and leave
+  // project-scoped installs alone. Returns them so the caller can say they are
+  // still there rather than leaving someone with a half-removed plugin.
   const installedPath = path.join(pluginsDir, 'installed_plugins.json');
   const installed = readJson(installedPath);
   const plugins = (installed.plugins ?? {}) as Record<string, unknown>;
-  if ('eklavya@eklavya' in plugins) {
-    delete plugins['eklavya@eklavya'];
+  const existing = Array.isArray(plugins['eklavya@eklavya'])
+    ? (plugins['eklavya@eklavya'] as Array<Record<string, unknown>>)
+    : [];
+  const otherScopes = existing.filter((entry) => entry?.scope !== 'user');
+
+  if (existing.length > 0) {
+    if (otherScopes.length > 0) plugins['eklavya@eklavya'] = otherScopes;
+    else delete plugins['eklavya@eklavya'];
     installed.plugins = plugins;
     writeJson(installedPath, installed);
   }
@@ -305,6 +349,8 @@ function deregister(): void {
     settings.enabledPlugins = enabled;
     writeJson(settingsPath, settings);
   }
+
+  return otherScopes;
 }
 
 // --- commands ---------------------------------------------------------------
@@ -323,8 +369,12 @@ export function install(args: string[]): void {
     say(`  runtime     ${runtimeHome()}`);
   }
 
-  copyPayload();
-  say(`  plugin      ${marketplaceDir()}`);
+  const copied = copyPayload();
+  if (copied) {
+    say(`  plugin      ${marketplaceDir()}`);
+  } else {
+    say(`  plugin      ${marketplaceDir()} (git checkout — left as it is)`);
+  }
 
   register(version);
   say('  registered  eklavya@eklavya, enabled for Claude Code');
@@ -342,6 +392,14 @@ export function install(args: string[]): void {
   }
 
   say('');
+  if (!copied) {
+    // Said plainly, because otherwise this install looks like it did nothing.
+    say('You added Eklavya through `/plugin marketplace add`, so that git checkout');
+    say('is the source of truth for the plugin files and this left them alone.');
+    say('The runtime and database above are installed and current.');
+    say('To move the plugin itself to this version, run `/plugin update eklavya`.');
+    say('');
+  }
   say('Done. Restart Claude Code (or start a session) and Eklavya loads with it.');
   say('Next: run /eklavya:setup in Claude Code to choose a mode, or `eklavya doctor` here.');
 }
@@ -349,11 +407,17 @@ export function install(args: string[]): void {
 export function uninstall(args: string[]): void {
   const purge = args.includes('--purge');
 
-  deregister();
+  const otherScopes = deregister();
   say('  registered  removed from Claude Code');
 
-  fs.rmSync(marketplaceDir(), { recursive: true, force: true });
-  say('  plugin      removed');
+  // Removing the shared directory out from under a project-scoped install would
+  // leave that project pointing at nothing, so it stays until those go too.
+  if (otherScopes.length === 0) {
+    fs.rmSync(marketplaceDir(), { recursive: true, force: true });
+    say('  plugin      removed');
+  } else {
+    say(`  plugin      kept — still installed in ${otherScopes.length} project(s)`);
+  }
 
   fs.rmSync(runtimeHome(), { recursive: true, force: true });
   say('  runtime     removed');
@@ -369,5 +433,13 @@ export function uninstall(args: string[]): void {
   }
 
   say('');
+  if (otherScopes.length > 0) {
+    say('Removed for your user account. These project-scoped installs remain, and');
+    say('were not touched — remove them with `/plugin uninstall` in each project:');
+    for (const entry of otherScopes) {
+      say(`  ${String(entry.projectPath ?? 'unknown project')} (${String(entry.version ?? '?')})`);
+    }
+    say('');
+  }
   say('Eklavya is uninstalled. Restart Claude Code to unload it.');
 }
