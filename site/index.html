@@ -54,28 +54,31 @@
   <div class="hero__glow" aria-hidden="true"></div>
   <div class="hero__glow hero__glow--low" aria-hidden="true"></div>
 
-  <svg class="hero__arrows" viewBox="0 0 1000 140" fill="none" aria-hidden="true">
-    <line x1="150" y1="70" x2="850" y2="70" stroke="rgba(143,216,182,.35)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
+  <!-- The shot runs in the empty band between the nav and the hero content,
+       where nothing sits on top of it. Flat 1000x60 viewBox so it stays a thin
+       strip at any width instead of growing tall enough to reach the terminal. -->
+  <svg class="hero__arrows" viewBox="0 0 1000 60" fill="none" aria-hidden="true">
+    <line x1="104" y1="30" x2="900" y2="30" stroke="rgba(143,216,182,.35)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
     <g class="shot__bow">
-      <path d="M 62 16 Q 112 70 62 124" stroke="var(--green-300)" stroke-width="2.5" stroke-linecap="round"/>
-      <line x1="62" y1="16" x2="62" y2="124" stroke="rgba(143,216,182,.6)" stroke-width="1.5"/>
+      <path d="M 26 8 Q 50 30 26 52" stroke="var(--green-300)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="26" y1="8" x2="26" y2="52" stroke="rgba(143,216,182,.6)" stroke-width="1.2"/>
     </g>
     <g class="shot__arrow">
-      <line x1="66" y1="70" x2="150" y2="70" stroke="#C3EAD8" stroke-width="3" stroke-linecap="round"/>
-      <polyline points="140 61 152 70 140 79" stroke="#C3EAD8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-      <line x1="74" y1="70" x2="66" y2="62" stroke="#C3EAD8" stroke-width="2.5" stroke-linecap="round"/>
-      <line x1="74" y1="70" x2="66" y2="78" stroke="#C3EAD8" stroke-width="2.5" stroke-linecap="round"/>
-      <line x1="84" y1="70" x2="76" y2="62" stroke="#C3EAD8" stroke-width="2.5" stroke-linecap="round"/>
-      <line x1="84" y1="70" x2="76" y2="78" stroke="#C3EAD8" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="32" y1="30" x2="88" y2="30" stroke="#C3EAD8" stroke-width="2.4" stroke-linecap="round"/>
+      <polyline points="82 24 92 30 82 36" stroke="#C3EAD8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <line x1="38" y1="30" x2="31" y2="24" stroke="#C3EAD8" stroke-width="2" stroke-linecap="round"/>
+      <line x1="38" y1="30" x2="31" y2="36" stroke="#C3EAD8" stroke-width="2" stroke-linecap="round"/>
+      <line x1="46" y1="30" x2="39" y2="24" stroke="#C3EAD8" stroke-width="2" stroke-linecap="round"/>
+      <line x1="46" y1="30" x2="39" y2="36" stroke="#C3EAD8" stroke-width="2" stroke-linecap="round"/>
     </g>
     <g class="shot__target">
-      <circle cx="890" cy="70" r="36" stroke="var(--green-300)" stroke-width="2.5"/>
-      <circle cx="890" cy="70" r="23" stroke="rgba(143,216,182,.55)" stroke-width="2"/>
-      <circle cx="890" cy="70" r="10" stroke="rgba(143,216,182,.4)" stroke-width="2"/>
-      <circle cx="890" cy="70" r="3.5" fill="var(--green-300)"/>
+      <circle cx="946" cy="30" r="24" stroke="var(--green-300)" stroke-width="2"/>
+      <circle cx="946" cy="30" r="15" stroke="rgba(143,216,182,.55)" stroke-width="1.6"/>
+      <circle cx="946" cy="30" r="6.5" stroke="rgba(143,216,182,.4)" stroke-width="1.6"/>
+      <circle cx="946" cy="30" r="2.5" fill="var(--green-300)"/>
     </g>
-    <circle class="shot__ripple" cx="890" cy="70" r="38" stroke="var(--green-300)" stroke-width="2"/>
-    <circle class="shot__ripple shot__ripple--late" cx="890" cy="70" r="38" stroke="rgba(143,216,182,.5)" stroke-width="1.5"/>
+    <circle class="shot__ripple" cx="946" cy="30" r="25" stroke="var(--green-300)" stroke-width="1.6"/>
+    <circle class="shot__ripple shot__ripple--late" cx="946" cy="30" r="25" stroke="rgba(143,216,182,.5)" stroke-width="1.2"/>
   </svg>
 
   <div class="wrap hero__grid">
@@ -91,76 +94,163 @@
         Eklavya turns agent generation time into learning time. While Claude Code implements your task, it teaches you the concepts behind that exact work — Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph.
       </p>
 
-      <div class="install fade-up fade-up--3">
-        <div class="install__lines">
-          <code><span class="install__n">1</span>&nbsp;&nbsp;npx eklavya install</code>
-          <code><span class="install__n">2</span>&nbsp;&nbsp;/eklavya:setup</code>
-        </div>
-        <button class="copy" type="button" data-copy>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-          <span data-copy-label>Copy</span>
-        </button>
-      </div>
-
-      <div class="hero__actions fade-up fade-up--4">
-        <a class="btn btn--brand" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
-          View on GitHub
+      <!-- No commands in the hero. The install has two routes and a Node
+           requirement; the docs carry all of that, and this is the one door
+           into them. -->
+      <div class="hero__actions fade-up fade-up--3">
+        <a class="btn btn--brand" href="docs.html#install">
+          Get started
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </a>
-        <a class="btn btn--ghost" href="#legend">The legend</a>
+        <a class="btn btn--ghost" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+          View on GitHub
+        </a>
       </div>
 
-      <p class="hero__note fade-up fade-up--5">Prefer the plugin marketplace? <code>/plugin marketplace add ProjectAJ14/eklavya</code> then <code>/plugin install eklavya@eklavya</code> works too.</p>
-
-      <p class="hero__note fade-up fade-up--5">Everything is local. No accounts, no sync, no telemetry.</p>
+      <p class="hero__note fade-up fade-up--4">Node 22+ &middot; macOS, Linux and Windows &middot; everything stays on your machine. No accounts, no sync, no telemetry.</p>
     </div>
 
-    <!-- animated terminal -->
+    <!-- ========================= THE TERMINAL =========================
+         A real Claude Code session, replayed. It boots itself (types
+         `claude`, then types the task), then stops and hands the keyboard
+         over: the visitor sends the prompt, watches the tools run, and
+         answers the checkpoint question with the arrows the real picker
+         takes. Everything printed here is the default config — ambient,
+         concept, interleaved, easy — and the grades and intervals are the
+         ones in mcp/src/srs.ts. -->
     <div class="term-shell fade-up fade-up--term">
-      <div class="term">
+      <div class="term" data-term>
         <div class="term__bar">
-          <span class="term__dot" aria-hidden="true"></span>
-          <span class="term__dot" aria-hidden="true"></span>
-          <span class="term__dot" aria-hidden="true"></span>
-          <span class="term__title">claude — my-express-api</span>
+          <!-- macOS window controls, in the colours macOS actually uses:
+               this is a picture of a terminal, not an Eklavya surface. -->
+          <span class="term__lights" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="term__title">claude &mdash; ~/my-express-api &mdash; zsh</span>
+          <span class="term__size" aria-hidden="true">98&times;34</span>
         </div>
-        <div class="term__body" data-term aria-label="A Claude Code session you can run: Eklavya logs the concepts a task touches, asks one multiple-choice question mid-work, grades the answer, and the task then finishes without another interruption.">
-          <div class="term__log">
-            <!-- the SessionStart hook's profile line, printed before anything is typed -->
-            <div class="tl is-on tl-ek">&#9670; eklavya &middot; session start &middot; ambient &middot; concept &middot; easy</div>
-            <div class="tl tl-user" data-line="user" hidden><span class="term__prompt">&#10095;</span> <span data-typed>add JWT auth to the Express API</span><span class="term__cursor" data-type-cursor hidden>&#9613;</span></div>
-            <!-- only shown when the visitor typed a task of their own: the rest of
-                 the transcript is the recorded JWT session either way -->
-            <div class="tl tl-note" data-line="replay" hidden>&nbsp;&nbsp;demo terminal &mdash; replaying the recorded JWT session</div>
-            <div class="tl tl-sys" data-line="write" hidden>&#9679; writing src/auth.ts, src/middleware/verify.ts&#8230;</div>
-            <div class="tl tl-ek" data-line="logged" hidden>&#9670; eklavya &middot; logged jwt-structure, httponly-cookies,<br><span class="tl-hang">&#9670; eklavya &middot; </span>middleware-order-auth</div>
-            <div class="tl tl-ek" data-line="checkpoint" hidden>&#9670; eklavya &middot; checkpoint &middot; httponly-cookies</div>
-            <div class="tl tl-ask" data-line="ask" hidden>
-              <div class="ask">
-                <div class="ask__head"><span class="ask__chip">Eklavya</span><span class="ask__hint">&#8593;&#8595; to move &middot; enter to pick</span></div>
-                <p class="ask__stem">I set httpOnly on the refresh cookie in auth.ts:42 and left the access token in memory. What does that split buy?</p>
-                <p class="ask__footer">ambient &middot; concept &middot; easy &middot; tier 2 mechanism</p>
-                <div class="ask__opts" data-opts role="group" aria-label="Answer the question">
-                  <button class="ask__opt" type="button" data-opt="1"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">1</span><span>Injected script can't read the refresh token</span></button>
-                  <button class="ask__opt" type="button" data-opt="2"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">2</span><span>A forged cross-site request can't be sent</span></button>
-                  <button class="ask__opt" type="button" data-opt="3"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">3</span><span>The token never reaches the server logs</span></button>
-                  <button class="ask__opt" type="button" data-opt="4"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">4</span><span>The access token can be revoked instantly</span></button>
-                  <button class="ask__opt ask__opt--other" type="button" data-opt="5"><span class="ask__mark" aria-hidden="true">&#10095;</span><span class="ask__n">5</span><span>Other &mdash; I don't know</span></button>
-                </div>
+
+        <div class="term__screen" data-screen role="group"
+             aria-label="An interactive Claude Code session. Send the prompt, watch Eklavya log the concepts the task touches, then answer the one checkpoint question it asks mid-work.">
+          <!-- only this scrolls; the composer below is fixed furniture -->
+          <div class="term__log" data-log>
+            <div class="term__lines">
+
+            <!-- the shell, before Claude Code is even running -->
+            <div class="ln ln--shell is-on" data-line="shell">
+              <span class="ln__cwd">~/my-express-api</span>
+              <span class="ln__branch">git:(main)</span>
+              <span class="ln__p">&#10095;</span><span data-boot></span><span class="cur" data-boot-cur hidden>&#9613;</span>
+            </div>
+
+            <!-- Claude Code's welcome box -->
+            <div class="ln" data-line="welcome" hidden>
+              <div class="box box--welcome">
+                <div class="box__row"><span class="box__star">&#10043;</span> Welcome to <b>Claude Code</b></div>
+                <div class="box__row dim">&nbsp;&nbsp;/help for help &middot; /status for your account</div>
+                <div class="box__row dim">&nbsp;&nbsp;cwd: /Users/ajay/my-express-api</div>
+                <div class="box__row dim">&nbsp;&nbsp;plugins: eklavya</div>
               </div>
             </div>
-            <div class="tl tl-grade" data-line="grade" role="status" hidden></div>
-            <div class="tl tl-why" data-line="why" hidden></div>
-            <div class="tl tl-sys" data-line="done" hidden>&#9679; still writing src/routes/session.ts&#8230;<br>&#10003; task complete &mdash; 4 files changed &middot; nothing left to ask</div>
+
+            <!-- what the SessionStart hook puts in front of the model -->
+            <div class="ln ln--hook" data-line="hook1" hidden>[Eklavya] session start &middot; ambient &middot; concept &middot; interleaved &middot; easy</div>
+            <div class="ln ln--hook" data-line="hook2" hidden>[Eklavya] 86 concepts tracked &middot; 37 due for review &middot; level 4/100 on this project</div>
+
+            <!-- ...and how it looks once sent -->
+            <div class="ln ln--user" data-line="sent" hidden><span class="ln__p">&gt;</span><span data-sent>add JWT auth to the Express API</span></div>
+            <div class="ln ln--note" data-line="replay" hidden>&nbsp;&nbsp;demo terminal &mdash; replaying the recorded JWT session</div>
+
+            <div class="ln ln--think" data-line="think" hidden>
+              <span class="think__g" data-think-glyph>&#10043;</span>
+              <span data-think-word>Forging</span><span>&#8230;</span>
+              <span class="dim">(<span data-think-t>0s</span> &middot; &#8593; <span data-think-k>0</span> tokens &middot; esc to interrupt)</span>
+            </div>
+
+            <div class="ln tool" data-line="t1" hidden>
+              <div class="tool__head"><span class="tool__dot">&#9679;</span> Read(<span class="tool__arg">src/app.ts</span>)</div>
+              <div class="tool__res"><span class="tool__el">&#9151;</span> Read 84 lines</div>
+            </div>
+            <div class="ln tool" data-line="t2" hidden>
+              <div class="tool__head"><span class="tool__dot">&#9679;</span> Write(<span class="tool__arg">src/auth.ts</span>)</div>
+              <div class="tool__res"><span class="tool__el">&#9151;</span> Wrote 61 lines to src/auth.ts</div>
+            </div>
+            <div class="ln tool" data-line="t3" hidden>
+              <div class="tool__head"><span class="tool__dot">&#9679;</span> Write(<span class="tool__arg">src/middleware/verify.ts</span>)</div>
+              <div class="tool__res"><span class="tool__el">&#9151;</span> Wrote 28 lines to src/middleware/verify.ts</div>
+            </div>
+            <div class="ln tool tool--ek" data-line="t4" hidden>
+              <div class="tool__head"><span class="tool__dot">&#9679;</span> eklavya &middot; log_session_concepts(<span class="tool__arg">3 concepts</span>)</div>
+              <div class="tool__res"><span class="tool__el">&#9151;</span> logged jwt-structure, httponly-cookies, middleware-order-auth</div>
+              <div class="tool__res tool__res--sub">[Eklavya checkpoint] ask one question about httponly-cookies before the next line of code</div>
+            </div>
+
+            <!-- the picker, drawn the way AskUserQuestion draws it -->
+            <div class="ln" data-line="ask" hidden>
+              <div class="box box--ask">
+                <div class="ask__head">
+                  <span class="ask__chip">Eklavya</span>
+                  <span class="ask__meta">[ambient &middot; concept &middot; easy &middot; tier 2 mechanism]</span>
+                </div>
+                <p class="ask__stem">I set httpOnly on the refresh cookie in <span class="ask__ref">auth.ts:42</span> and left the access token in memory. What does that split buy?</p>
+                <div class="ask__opts" data-opts role="group" aria-label="Answer the checkpoint question">
+                  <button class="ask__opt" type="button" data-opt="1"><span class="ask__cur" aria-hidden="true">&#10095;</span><span class="ask__n">1.</span><span class="ask__txt">Injected script can't read the refresh token</span><span class="ask__mark" aria-hidden="true"></span></button>
+                  <button class="ask__opt" type="button" data-opt="2"><span class="ask__cur" aria-hidden="true">&#10095;</span><span class="ask__n">2.</span><span class="ask__txt">A forged cross-site request can't be sent</span><span class="ask__mark" aria-hidden="true"></span></button>
+                  <button class="ask__opt" type="button" data-opt="3"><span class="ask__cur" aria-hidden="true">&#10095;</span><span class="ask__n">3.</span><span class="ask__txt">The token never reaches the server logs</span><span class="ask__mark" aria-hidden="true"></span></button>
+                  <button class="ask__opt" type="button" data-opt="4"><span class="ask__cur" aria-hidden="true">&#10095;</span><span class="ask__n">4.</span><span class="ask__txt">The access token can be revoked instantly</span><span class="ask__mark" aria-hidden="true"></span></button>
+                  <button class="ask__opt ask__opt--other" type="button" data-opt="5"><span class="ask__cur" aria-hidden="true">&#10095;</span><span class="ask__n">5.</span><span class="ask__txt">Other &mdash; I don't know</span><span class="ask__mark" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="ask__keys" data-keys>&#8593;&#8595; to move &middot; 1&ndash;5 to pick &middot; <kbd>&#9166;</kbd> to select</div>
+              <!-- the same nudge the prompt gets, for the same reason: the
+                   question is a real one and nothing moves until it is answered -->
+              <button class="nudge" type="button" data-nudge-ask hidden>
+                <span class="nudge__arrow" aria-hidden="true"></span>
+                Your turn &mdash; pick an answer
+              </button>
+            </div>
+
+            <div class="ln tool tool--ek" data-line="grade" hidden>
+              <div class="tool__head"><span class="tool__dot">&#9679;</span> eklavya &middot; record_attempt(<span class="tool__arg">httponly-cookies</span>)</div>
+              <div class="tool__res"><span class="tool__el">&#9151;</span><span data-grade role="status"></span></div>
+              <div class="tool__res tool__res--why" data-why></div>
+            </div>
+
+            <div class="ln tool" data-line="t5" hidden>
+              <div class="tool__head"><span class="tool__dot">&#9679;</span> Update(<span class="tool__arg">src/routes/session.ts</span>)</div>
+              <div class="tool__res"><span class="tool__el">&#9151;</span> Updated src/routes/session.ts with 12 additions</div>
+            </div>
+            <div class="ln ln--done" data-line="done" hidden><span class="done__tick">&#10003;</span> <span data-done></span></div>
+            </div>
           </div>
 
-          <form class="term__ask-row is-armed" data-term-form>
-            <span class="term__prompt" aria-hidden="true">&#10095;</span>
-            <input class="term__input" type="text" data-term-input autocomplete="off" spellcheck="false"
-                   placeholder="add JWT auth to the Express API" aria-label="Ask Claude Code to do something">
-            <span class="term__cursor" data-idle-cursor aria-hidden="true">&#9613;</span>
-            <button class="term__go" type="submit" data-term-go>Press Enter</button>
-          </form>
+          <!-- Claude Code's prompt sits on the last row of the window and stays
+               there while the transcript scrolls behind it. -->
+          <div class="term__dock" data-dock hidden>
+            <div class="box box--composer" data-composer>
+              <span class="box__p">&gt;</span>
+              <span class="composer__echo" data-echo></span><span class="cur" data-echo-cur>&#9613;</span>
+              <label class="visually-hidden" for="term-input">Type a task for Claude Code</label>
+              <input class="composer__ghost" id="term-input" data-input type="text"
+                     autocomplete="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <div class="composer__foot">
+              <span class="dim">&#9205;&#9205; accept edits on</span>
+              <span class="composer__hint" data-hint hidden>press <kbd>&#9166;</kbd> to send</span>
+            </div>
+            <button class="nudge" type="button" data-nudge hidden>
+              <span class="nudge__arrow" aria-hidden="true"></span>
+              Your turn &mdash; press <kbd>&#9166;</kbd> to run it
+            </button>
+          </div>
+        </div>
+
+        <!-- the status line, the way a terminal multiplexer paints one -->
+        <div class="term__status" aria-hidden="true">
+          <span class="term__st">~/my-express-api</span>
+          <span class="term__st dim">node v22.3.0</span>
+          <span class="term__gap"></span>
+          <span class="term__st dim">ambient &middot; concept &middot; interleaved</span>
+          <span class="term__st term__st--ek">eklavya</span>
         </div>
       </div>
     </div>
