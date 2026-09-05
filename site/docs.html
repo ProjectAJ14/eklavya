@@ -353,8 +353,10 @@ claude --plugin-dir "$(pwd)"</code></pre>
 
       <p>
         <code>--plugin-dir</code> tells Claude Code to load the plugin from a folder instead of a
-        marketplace. The launcher prefers your local <code>mcp/dist/</code> build when one exists,
-        so a rebuild is all it takes to see a change.
+        marketplace, and sets <code>CLAUDE_PLUGIN_ROOT</code> so the MCP server can find itself.
+        Use it rather than relying on the repository's <code>.mcp.json</code> as project config,
+        which has no plugin root to expand. The launcher prefers your local
+        <code>mcp/dist/</code> build when one exists, so a rebuild is all it takes to see a change.
       </p>
 
       <h3>Uninstalling</h3>

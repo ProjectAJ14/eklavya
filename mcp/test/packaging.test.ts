@@ -149,29 +149,36 @@ describe('hooks run on every platform', () => {
 });
 
 describe('what ships to the plugin', () => {
-  it('the installed plugin expands the placeholder; the repo copy cannot', () => {
-    // `${CLAUDE_PLUGIN_ROOT}` is expanded when the plugin loader reads this file
-    // and left alone when the same shape is read as project-level MCP config —
-    // which is how this repo runs it. An MCP `command` is spawned directly, with
-    // no shell, so an unexpanded placeholder becomes part of the filename and the
-    // server never starts. Hence two shapes, one generated from the other.
+  it('both install routes ship the same .mcp.json', () => {
+    // The marketplace clones this repository and serves it as the plugin; the
+    // npm payload copies the same tree. So there is exactly one shape, and it
+    // has to be the one the plugin loader can resolve.
+    const repo = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya;
     const shipped = readJson(path.join(mcpRoot, 'dist', 'plugin', '.mcp.json')).mcpServers.eklavya;
-    expect(shipped.command).toBe('node');
-    expect(shipped.args[0]).toBe('${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs');
-
-    const local = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya;
-    expect(local.command).toBe('node');
-    expect(local.args[0]).not.toMatch(/\$\{CLAUDE_PLUGIN_ROOT\}/);
+    expect(shipped).toEqual(repo);
   });
 
-  it('starts the server in plugin scope, where the loader expanded the root', () => {
-    const script = path.join(repoRoot, 'hooks', 'run.mjs');
-    expect(probe([script, 'server'], os.tmpdir(), repoRoot)).toMatch(/"serverInfo"/);
+  it('the MCP command is an absolute placeholder, never a relative path', () => {
+    // This is the regression that shipped in 1.8.0. A bare `hooks/run.mjs`
+    // resolves against the process cwd, which for a plugin-scoped MCP server is
+    // the user's project -- so the server died with "Cannot find module" for
+    // everyone who installed from the marketplace.
+    const server = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya;
+    expect(server.command).toBe('node');
+    expect(server.args[0]).toBe('${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs');
   });
 
-  it('starts the server in project scope, from the repo root', () => {
-    const local = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya;
-    expect(probe(local.args, repoRoot)).toMatch(/"serverInfo"/);
+  it('starts the server from a cwd that is not the plugin', () => {
+    // The test this replaces ran from the repo root, where a relative path
+    // happens to resolve -- which is precisely why it did not catch the bug.
+    // The loader expands the placeholder and spawns with the user's project as
+    // cwd, so that is what gets simulated here.
+    const server = readJson(path.join(repoRoot, '.mcp.json')).mcpServers.eklavya;
+    const args = server.args.map((a: string) =>
+      a.replace('${CLAUDE_PLUGIN_ROOT}', repoRoot),
+    );
+
+    expect(probe(args, os.tmpdir(), repoRoot)).toMatch(/"serverInfo"/);
   });
 });
 

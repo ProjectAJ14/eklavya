@@ -234,10 +234,15 @@ PowerShell, or WSL's bash depending on what is installed, and a `.sh` hook fails
 differently in each (claude-code#18610, #21847, #23556, #73971). Every hook is
 therefore exec form — `"command": "node"`, `"args": [".../run.mjs", "<name>"]` —
 which the hooks reference names as the one portable shape, because `node.exe` is
-a real executable and exec form needs no shell at all. The repo's own `.mcp.json`
-keeps a path relative to the repo root, because project-scope config gets no
-`${CLAUDE_PLUGIN_ROOT}` expansion; the shipped copy is generated from it by
-`mcp/scripts/copy-assets.mjs`.
+a real executable and exec form needs no shell at all. There is exactly ONE
+`.mcp.json`, and it uses `${CLAUDE_PLUGIN_ROOT}`. An earlier attempt kept a
+repo-relative path for project scope and rewrote it for the npm payload, which
+shipped the relative one to every marketplace install -- the marketplace clones
+this repository and serves it as the plugin, so the repo file IS what users
+get. A bare `hooks/run.mjs` resolves against the process cwd, which for a
+plugin-scoped MCP server is the user's project, so the server died with
+"Cannot find module". Contributors who want the server while working in this
+repo should use `claude --plugin-dir "$(pwd)"`, which sets the variable.
 
 ### D3 — `hooks.timeout` is in seconds, MCP server `timeout` is in milliseconds
 Easy to get backwards. Noted so nobody "fixes" one to match the other.

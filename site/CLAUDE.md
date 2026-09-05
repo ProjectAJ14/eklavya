@@ -26,7 +26,7 @@ the page compounds its own drift.
 | Docs section | Source of truth |
 |---|---|
 | `#requirements` | `mcp/package.json` `engines` (Node only — the hooks are Node, so there is nothing else to install) |
-| `#install` | `README.md` install block, `mcp/src/install.ts`, `.mcp.json`, `hooks/run.mjs` |
+| `#install` | `README.md` install block, `mcp/src/install.ts`, `.mcp.json`, `hooks/run.mjs` (one config, `${CLAUDE_PLUGIN_ROOT}`-rooted, shared by both routes) |
 | `#setup` | `skills/setup/SKILL.md` |
 | `#first-session` | `hooks/hooks.json` and the four hooks in `mcp/src/hooks/` |
 | `#dials` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` |

@@ -1,6 +1,6 @@
 // Copies non-TypeScript runtime assets (SQL migrations, seed graphs) into dist/
 // so the built server resolves them the same way it does when run from src via tsx.
-import { cp, mkdir, rm, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -68,17 +68,13 @@ for (const entry of [
   }
 }
 
-// The one file that genuinely differs between the two scopes.
+// NOTE: .mcp.json is copied verbatim, and must be.
 //
-// An MCP `command` is spawned directly, with no shell, so an unexpanded
-// `${CLAUDE_PLUGIN_ROOT}` would become part of the filename and the server
-// would never start. The repo's own .mcp.json is read as PROJECT config, where
-// nothing expands that placeholder, so it uses a path relative to the repo root.
-// The installed plugin is read by the plugin loader, which does expand it — and
-// must, because there the cwd is the user's project, not the plugin.
-const mcpConfig = path.join(payload, '.mcp.json');
-const config = JSON.parse(await readFile(mcpConfig, 'utf8'));
-config.mcpServers.eklavya.args = ['${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs', 'server'];
-await writeFile(mcpConfig, `${JSON.stringify(config, null, 2)}\n`);
+// Both install routes ship the repo's copy: the marketplace clones this
+// repository and serves it as the plugin, and the npm payload copies the same
+// tree. An earlier version rewrote the path here for the payload and left a
+// repo-relative one behind for git installs, which gave every marketplace user
+// an MCP server that could not resolve its own entry point. One file, one
+// shape, `${CLAUDE_PLUGIN_ROOT}` — expanded by the plugin loader in both cases.
 
 console.log('assets copied to dist/');

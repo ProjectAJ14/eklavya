@@ -2,10 +2,7 @@
   "mcpServers": {
     "eklavya": {
       "command": "node",
-      "args": [
-        "hooks/run.mjs",
-        "server"
-      ]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "server"]
     }
   }
 }
