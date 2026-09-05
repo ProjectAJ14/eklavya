@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/ProjectAJ14/eklavya/compare/v1.9.0...v1.9.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* ask one question at a time on the interleaved cadence ([be64c5c](https://github.com/ProjectAJ14/eklavya/commit/be64c5c91c346f37a9c79e533de6d6986da4d309))
+
 # [1.9.0](https://github.com/ProjectAJ14/eklavya/compare/v1.8.1...v1.9.0) (2026-09-05)
 
 
