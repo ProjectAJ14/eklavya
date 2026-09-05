@@ -1,3 +1,11 @@
+# [1.9.0](https://github.com/ProjectAJ14/eklavya/compare/v1.8.1...v1.9.0) (2026-09-05)
+
+
+### Features
+
+* control Eklavya from plain chat with a user-level skill ([9ea100e](https://github.com/ProjectAJ14/eklavya/commit/9ea100e7ab49359c84a944bef9b1b758fbef59ce))
+* print the settings line above the question, in brackets ([9cf406c](https://github.com/ProjectAJ14/eklavya/commit/9cf406c3fc1f2d6eedba38e0a3b0150b182733f4))
+
 ## [1.8.1](https://github.com/ProjectAJ14/eklavya/compare/v1.8.0...v1.8.1) (2026-09-05)
 
 
