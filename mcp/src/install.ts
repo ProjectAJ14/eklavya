@@ -16,6 +16,9 @@
  *      puts the compiled server, the hooks and that one native dependency
  *      somewhere both install routes can find them.
  *   3. The plugin payload, copied into the Claude Code marketplace directory.
+ *   3b. The user-level skill, copied into `~/.claude/skills/eklavya/`, so
+ *      "make Eklavya go easier on me" works in plain chat and keeps working
+ *      where the plugin is not loaded.
  *   4. Claude Code's three registry files, written directly. There is no public
  *      API for "install this plugin" from outside a session, so this reproduces
  *      what `/plugin install` does. See the comment on `register()`.
@@ -226,6 +229,70 @@ function copyPayload(): boolean {
   return true;
 }
 
+// --- 3b. the user-level skill -----------------------------------------------
+
+/**
+ * `~/.claude/skills/eklavya/` — the one part of Eklavya that is installed for
+ * the *user* rather than for the plugin.
+ *
+ * The plugin's own skills are all `disable-model-invocation: true`, so they are
+ * slash commands and nothing else: "go easier on me" in plain chat reaches
+ * none of them. This skill is model-invocable and teaches an agent to drive the
+ * `eklavya` CLI, which also means it keeps working where the plugin is not
+ * loaded at all — a bare terminal session, another editor, a repo where the
+ * plugin is disabled.
+ */
+export function userSkillDir(): string {
+  return path.join(claudeHome(), 'skills', 'eklavya');
+}
+
+function skillPayloadDir(): string {
+  return path.join(moduleDir, 'user-skill', 'eklavya');
+}
+
+/**
+ * True when the file at this path is ours to replace.
+ *
+ * `~/.claude/skills/` is the user's own namespace, not a directory Eklavya
+ * owns, and a name collision there is somebody's hand-written skill. Reading
+ * the frontmatter `name` is enough to tell them apart, and an unreadable or
+ * unrecognised file is treated as theirs — refusing to overwrite something we
+ * cannot identify is the safe direction to be wrong in.
+ */
+function isOurSkill(file: string): boolean {
+  try {
+    const head = fs.readFileSync(file, 'utf8').slice(0, 2048);
+    return /^name:\s*["']?eklavya["']?\s*$/m.test(head);
+  } catch {
+    return false;
+  }
+}
+
+type SkillResult = 'installed' | 'foreign' | 'missing';
+
+function installSkill(): SkillResult {
+  const from = skillPayloadDir();
+  if (!fs.existsSync(from)) return 'missing';
+
+  const to = userSkillDir();
+  const target = path.join(to, 'SKILL.md');
+  if (fs.existsSync(target) && !isOurSkill(target)) return 'foreign';
+
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.rmSync(to, { recursive: true, force: true });
+  fs.cpSync(from, to, { recursive: true });
+  return 'installed';
+}
+
+/** Symmetric with installSkill(): never removes a skill that is not ours. */
+function removeSkill(): boolean {
+  const dir = userSkillDir();
+  const target = path.join(dir, 'SKILL.md');
+  if (!fs.existsSync(target) || !isOurSkill(target)) return false;
+  fs.rmSync(dir, { recursive: true, force: true });
+  return true;
+}
+
 // --- 4. Claude Code's registries --------------------------------------------
 
 function readJson(file: string): Record<string, unknown> {
@@ -376,6 +443,14 @@ export function install(args: string[]): void {
     say(`  plugin      ${marketplaceDir()} (git checkout — left as it is)`);
   }
 
+  if (!args.includes('--skip-skill')) {
+    const skill = installSkill();
+    if (skill === 'installed') say(`  skill       ${userSkillDir()}`);
+    else if (skill === 'foreign') {
+      say(`  skill       skipped — ${path.join(userSkillDir(), 'SKILL.md')} is not ours`);
+    } else say('  skill       not in this package (skipped)');
+  }
+
   register(version);
   say('  registered  eklavya@eklavya, enabled for Claude Code');
 
@@ -418,6 +493,8 @@ export function uninstall(args: string[]): void {
   } else {
     say(`  plugin      kept — still installed in ${otherScopes.length} project(s)`);
   }
+
+  if (removeSkill()) say('  skill       removed');
 
   fs.rmSync(runtimeHome(), { recursive: true, force: true });
   say('  runtime     removed');

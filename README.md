@@ -34,8 +34,9 @@ npx eklavya install
 ```
 
 That checks your Node version, installs the runtime and its SQLite driver,
-registers the plugin with Claude Code and enables it, and creates the database.
-Restart Claude Code and it loads with your next session.
+registers the plugin with Claude Code and enables it, installs the chat skill at
+`~/.claude/skills/eklavya/`, and creates the database. Restart Claude Code and it
+loads with your next session.
 
 Or from inside Claude Code, if you would rather use the plugin marketplace:
 
@@ -44,10 +45,12 @@ Or from inside Claude Code, if you would rather use the plugin marketplace:
 /plugin install eklavya@eklavya
 ```
 
-Both routes end up in the same place. The marketplace route installs the plugin
-files; the first session then finishes the runtime in the background, so the
-loop is live from the session after that. `npx eklavya install` does the whole
-thing up front.
+Both routes end up in the same place, with one exception: a slash command cannot
+run `npm` or write outside the plugin, so the marketplace route installs the
+plugin files but not the runtime and not the chat skill. The first session
+finishes the runtime in the background, so the loop is live from the session
+after that. `npx eklavya install` does the whole thing up front, and is safe to
+run over a marketplace install if you want the skill too.
 
 Either way, run `/eklavya:setup` in Claude Code afterwards to choose a mode.
 
@@ -116,12 +119,12 @@ It is per project because "how hard should this be" is a question about a codeba
 
 ### Every question says what asked it
 
-A question arrives with a line under it naming the dials behind it:
+A question arrives with a bracketed line above it naming the dials behind it:
 
 ```
-Why is httpOnly set on the refresh cookie here but not on the access token?
+[ambient · concept · easy · tier 2 mechanism]
 
-ambient · concept · easy · tier 2 mechanism
+Why is httpOnly set on the refresh cookie here but not on the access token?
 ```
 
 Mode, focus, level, what the tier is asking for — and `· q 2/3` when more than one question is coming. Enforced mode reads `enforced (gated)`. Without it, a `concept`-focus question reads as vague and an `easy` one reads as shallow — the settings are only doing their job if you can see them working. `quiet` turns it off.
@@ -220,6 +223,19 @@ Repo settings beat global ones, which is how a team lead pins enforced mode on o
 | `/eklavya:progress` | the mastery map: domains, what's due, where you're weakest |
 | `/eklavya:gate` | commit-gate status |
 | `/eklavya:setup` | first run |
+
+### Or just ask
+
+`npx eklavya install` also installs a skill at `~/.claude/skills/eklavya/SKILL.md`,
+so you don't have to remember any of the above. "Eklavya is quizzing me too much,
+space it out", "put Eklavya in enforced mode for this repo only", "open my
+dashboard" — Claude makes the change through the same MCP tools and the same
+`eklavya` CLI, and tells you which key it set and which file it landed in.
+
+It's installed for your user account rather than for the plugin, so it also works
+in projects where the plugin isn't enabled. It won't teach or quiz: for that it
+points you at `/eklavya:learn` or `/eklavya:quiz`. And it only wakes up when you
+mention Eklavya or its settings — ordinary coding questions don't load it.
 
 ## Configuration
 
@@ -346,7 +362,8 @@ Layout:
 ```
 .claude-plugin/     plugin + marketplace manifests
 .mcp.json           registers the eklavya MCP server
-skills/             tutor pedagogy, and the five /eklavya:* commands
+skills/             tutor pedagogy, and the seven /eklavya:* commands
+user-skill/         the chat skill, installed to ~/.claude/skills/ rather than shipped in the plugin
 agents/             the eklavya-tutor subagent
 hooks/              hooks.json + run.mjs, the one cross-platform entry point
 cli/, scripts/      the editor-agnostic commit gate

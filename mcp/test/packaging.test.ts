@@ -81,6 +81,14 @@ describe('what ships to npm', () => {
     }
   });
 
+  it('carries the user-level skill, and only through one route', () => {
+    expect(fs.existsSync(path.join(mcpRoot, 'dist', 'user-skill', 'eklavya', 'SKILL.md'))).toBe(true);
+    // Not under skills/ as well: that whole directory becomes the plugin
+    // payload, and a skill shipped through both routes registers twice in the
+    // same session.
+    expect(fs.existsSync(path.join(mcpRoot, 'dist', 'plugin', 'skills', 'eklavya'))).toBe(false);
+  });
+
   it('does not ship the shell hooks it replaced', () => {
     // They were unreliable on Windows, which is why they are gone. A stale copy
     // shipping alongside the Node ones is how they come back.

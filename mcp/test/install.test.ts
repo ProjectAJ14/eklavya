@@ -162,6 +162,48 @@ describe('eklavya install', () => {
   });
 });
 
+describe('the user-level skill', () => {
+  const skill = () => path.join(claudeHome, 'skills', 'eklavya', 'SKILL.md');
+
+  it('lands in the user skills directory', () => {
+    install();
+    expect(fs.existsSync(skill())).toBe(true);
+    // The description is what the model matches on to decide whether to load
+    // the skill at all, so an empty or renamed one makes the skill unreachable.
+    const text = fs.readFileSync(skill(), 'utf8');
+    expect(text).toMatch(/^name: eklavya$/m);
+    expect(text).toMatch(/^description: /m);
+  });
+
+  it('is replaced rather than merged when installed twice', () => {
+    install();
+    fs.writeFileSync(path.join(claudeHome, 'skills', 'eklavya', 'stale.md'), 'from an older version');
+
+    install();
+
+    // Same rule as the plugin payload: a stale file left behind is worse than
+    // a slow copy.
+    expect(fs.existsSync(path.join(claudeHome, 'skills', 'eklavya', 'stale.md'))).toBe(false);
+    expect(fs.existsSync(skill())).toBe(true);
+  });
+
+  it('refuses to overwrite a skill that is not ours', () => {
+    // ~/.claude/skills is the user's own namespace. A name collision there is
+    // somebody's hand-written skill, and taking it would be indistinguishable
+    // from data loss.
+    const theirs = '---\nname: my-eklavya-notes\ndescription: mine\n---\n\nDo not touch.\n';
+    fs.mkdirSync(path.join(claudeHome, 'skills', 'eklavya'), { recursive: true });
+    fs.writeFileSync(skill(), theirs);
+
+    const res = install();
+
+    expect(res.status).toBe(0);
+    expect(fs.readFileSync(skill(), 'utf8')).toBe(theirs);
+    // Silently skipping would leave them wondering why plain chat does nothing.
+    expect(res.stdout).toMatch(/not ours/);
+  });
+});
+
 describe('eklavya uninstall', () => {
   it('removes every trace of the registration', () => {
     install();
@@ -175,6 +217,18 @@ describe('eklavya uninstall', () => {
       readJson(path.join(claudeHome, 'settings.json')).enabledPlugins['eklavya@eklavya'],
     ).toBeUndefined();
     expect(fs.existsSync(path.join(claudeHome, 'plugins', 'marketplaces', 'eklavya'))).toBe(false);
+    expect(fs.existsSync(path.join(claudeHome, 'skills', 'eklavya'))).toBe(false);
+  });
+
+  it('leaves a skill it did not install', () => {
+    install();
+    const skill = path.join(claudeHome, 'skills', 'eklavya', 'SKILL.md');
+    const theirs = '---\nname: my-eklavya-notes\ndescription: mine\n---\n\nDo not touch.\n';
+    fs.writeFileSync(skill, theirs);
+
+    run(['uninstall']);
+
+    expect(fs.readFileSync(skill, 'utf8')).toBe(theirs);
   });
 
   it('keeps the learning history unless asked to delete it', () => {

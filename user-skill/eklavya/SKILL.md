@@ -1,0 +1,143 @@
+---
+name: eklavya
+description: "Operate Eklavya, the local learning tool that quizzes this developer on the code their agent writes. Use when the user mentions Eklavya by name, or asks to change how often or how hard it quizzes them (its mode, focus, cadence or difficulty dials), see their learning progress or mastery, open the learning dashboard, check the commit gate, or find where their learning data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
+---
+
+# Eklavya
+
+Eklavya turns the time an agent spends generating code into learning: it logs
+the concepts each task touches, quizzes the developer on them, and tracks
+mastery with spaced repetition. Everything is local — one SQLite database, no
+network.
+
+This skill is for *operating* Eklavya: reading its state and changing its
+settings on request. Teaching is a different job, and the `tutor` skill has it.
+
+## Find the binary first
+
+`eklavya` is usually **not on `PATH`**. `npx eklavya install` puts the runtime
+under `~/.eklavya/runtime`, and npm does not link a `--prefix` install globally.
+Resolve it once:
+
+```bash
+command -v eklavya || command -v "$HOME/.eklavya/runtime/node_modules/.bin/eklavya"
+```
+
+That prints the path to use, or nothing. Shell variables do not survive between
+tool calls, so **write the resolved path into every later command** rather than
+setting `EK=` and hoping it is still there. On Windows the runtime binary is
+`eklavya.cmd` in that same `.bin` directory, and `EKLAVYA_RUNTIME` overrides the
+location if it is set.
+
+If it prints nothing, fall back to `npx -y eklavya <command>`, which downloads
+on first use. If that fails too, Eklavya is not installed: say so and give the
+one command that fixes it — `npx eklavya install` — rather than guessing at a
+path.
+
+Examples below write `eklavya` for readability. Substitute whatever the line
+above resolved to.
+
+## Prefer the MCP tools when they are there
+
+In a Claude Code session with the Eklavya plugin loaded, `get_config`,
+`set_config`, `get_learner_profile`, `get_concept_graph` and `get_gate_status`
+are available as tools. Use them: they validate the values, they report which
+settings a repo is overriding, and they need no subprocess.
+
+The CLI is the fallback for everywhere else — a plain terminal, Cursor, a
+session where the plugin is not enabled. The two write the same files, so it
+never matters which one a given change went through.
+
+## The four dials
+
+Independent, and conflating them is the usual confusion. Say which one is
+changing.
+
+| Dial | Question it answers | Values | Default |
+|---|---|---|---|
+| `mode` | How hard does Eklavya push? | `ambient`, `enforced`, `off` | `ambient` |
+| `focus` | What does it teach? | `project`, `concept`, `learn` | `concept` |
+| `cadence` | When do the questions land? | `interleaved`, `end` | `interleaved` |
+| `difficulty` | How hard may they get? | `auto`, `easy`, `medium`, `hard` | `auto` |
+
+- `ambient` offers questions; `enforced` also blocks the Stop hook and gates
+  commits; `off` is dormant and `focus` is never read.
+- `project` quizzes the code just written. `concept` asks the transferable
+  version of the same idea. `learn` follows `focus_topic`.
+- `interleaved` asks one question mid-task, at the seam where a concept was
+  logged. `end` holds everything until the task finishes. Neither asks *more*
+  questions: `max_questions_per_task` is the budget either way.
+- `auto` earns the level per project — everyone starts at `easy` and climbs on
+  evidence. A literal level **pins** it and stops progression.
+
+Set one:
+
+```bash
+eklavya config set mode enforced          # global: ~/.eklavya/config.json
+eklavya config set difficulty easy --repo # this project only: .eklavya.json
+```
+
+`focus learn` is useless without a topic, so pass both at once:
+
+```bash
+eklavya config set focus learn --topic "database indexing"
+```
+
+Repo config wins over global. When someone's personal setting has stopped
+applying, that is why — `config get` prints both paths and the override list,
+and so does `get_config`.
+
+Other keys, same `config set` shape: `pass_threshold`,
+`max_questions_per_task`, `min_minutes_between_quizzes`,
+`min_minutes_between_checkpoints`, `level_up_after`, `level_up_accuracy`,
+`max_new_concepts_per_session`, `max_stop_blocks_per_session`, `quiet`.
+
+## Reading state
+
+```bash
+eklavya doctor      # is it wired up: database, counts, mode, focus, cadence, level
+eklavya config get  # the effective config, and which file each half came from
+eklavya db-path     # where the learning history lives
+```
+
+## The dashboard
+
+```bash
+eklavya dashboard              # http://127.0.0.1:41729
+eklavya dashboard --port 8080
+```
+
+It binds to loopback only and reads the local database — that is the whole
+security model, and it is worth saying when someone asks where their data
+goes. The process runs until interrupted, so start it in the background and
+hand back the URL rather than blocking the session on it.
+
+## When the plugin is loaded, point at the commands
+
+These do more than this skill should reimplement. Name the one that fits and
+let the user run it:
+
+| Command | For |
+|---|---|
+| `/eklavya:progress` | the mastery map — what stuck, what was skipped, what is due |
+| `/eklavya:quiz [topic]` | a quiz right now, ignoring the cooldown |
+| `/eklavya:learn <topic>` | a structured lesson ordered by prerequisites |
+| `/eklavya:mode` | the dials, explained and changed in a conversation |
+| `/eklavya:level` | the per-project difficulty band and progress through it |
+| `/eklavya:gate` | commit-gate status for this session |
+| `/eklavya:setup` | first-run setup |
+
+If they are asking to *be taught*, that is `/eklavya:learn` or the `tutor`
+skill, not this one.
+
+## Rules
+
+- Never run `eklavya uninstall --purge` unless the user has said, in this
+  conversation, that they want their learning history deleted. It is months of
+  spaced repetition and it does not come back.
+- Do not set `focus: learn` as a side effect of a lesson. It changes what every
+  later session asks about; ask first.
+- Report a dial change in one line — the key, the new value, and which file it
+  landed in. Do not re-explain the dial they just set.
+- A repo-scoped change writes `.eklavya.json` at the repo root, which is a
+  tracked file in most projects. Say so when you write one.

@@ -26,12 +26,12 @@ the page compounds its own drift.
 | Docs section | Source of truth |
 |---|---|
 | `#requirements` | `mcp/package.json` `engines` (Node only — the hooks are Node, so there is nothing else to install) |
-| `#install` | `README.md` install block, `mcp/src/install.ts`, `.mcp.json`, `hooks/run.mjs` (one config, `${CLAUDE_PLUGIN_ROOT}`-rooted, shared by both routes) |
+| `#install` | `README.md` install block, `mcp/src/install.ts` (its numbered steps are the numbered steps on the page), `.mcp.json`, `hooks/run.mjs` (one config, `${CLAUDE_PLUGIN_ROOT}`-rooted, shared by both routes) |
 | `#setup` | `skills/setup/SKILL.md` |
 | `#first-session` | `hooks/hooks.json` and the four hooks in `mcp/src/hooks/` |
 | `#dials` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` |
 | `#levels` | `TIER_LABEL` in `mcp/src/ask.ts`; `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts` |
-| `#commands` | one `<article class="cmd">` per skill under `skills/` |
+| `#commands` | one `<article class="cmd">` per skill under `skills/`, plus one for `user-skill/` |
 | `#cli` | the `USAGE` string in `mcp/src/cli.ts` |
 | `#config` | `DEFAULT_CONFIG` in `mcp/src/config.ts` — every key, no omissions |
 | `#gate` | `mcp/src/store.ts` (`PASSING_GRADE`, `syncGate`, `gateRetryConcepts`), `cli/eklavya-gate`, `mcp/src/hooks/pre-tool-gate.ts`, `scripts/install-git-hook.sh` |

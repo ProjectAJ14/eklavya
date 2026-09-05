@@ -35,6 +35,18 @@ try {
   console.warn(`warning: could not bundle the design tokens (${err.code ?? err.message})`);
 }
 
+// The user-level skill travels the same way, for the same reason: `eklavya
+// install` copies it into ~/.claude/skills/, so it must be in the tarball. It
+// is deliberately NOT under skills/ — that whole directory becomes the plugin
+// payload below, and shipping this skill through both routes would register it
+// twice in the same session.
+const userSkill = path.join(path.dirname(root), 'user-skill');
+try {
+  await cp(userSkill, path.join(root, 'dist', 'user-skill'), { recursive: true });
+} catch (err) {
+  console.warn(`warning: could not bundle the user-level skill (${err.code ?? err.message})`);
+}
+
 // The plugin payload travels inside the npm package, which is what makes
 // `npx eklavya install` a single command: the installer copies dist/plugin/
 // straight into Claude Code's marketplace directory, with no git clone and no

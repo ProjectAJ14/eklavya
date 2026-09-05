@@ -614,6 +614,11 @@ kbd {
 .cmd-row:last-child { border-bottom: 0; }
 .cmd-row code { font-family: var(--font-mono); font-size: 13.5px; color: var(--green-700); }
 .cmd-row span { font-size: 14px; color: var(--neutral-600); }
+.cmd-ask { margin: 20px 0 0; font-size: 14px; line-height: 1.7; color: var(--neutral-600); }
+.cmd-ask code { font-family: var(--font-mono); font-size: 13px; color: var(--green-700); }
+.cmd-ask em { font-style: normal; color: var(--neutral-800); }
+.cmd-ask a { color: var(--green-700); text-decoration: none; border-bottom: 1px solid var(--green-200); }
+.cmd-ask a:hover { border-bottom-color: var(--green-700); }
 
 .data-card {
   background: var(--neutral-900); border-radius: var(--radius-xl); padding: 36px;

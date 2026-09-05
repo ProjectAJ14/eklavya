@@ -266,6 +266,16 @@ nvm install 22 &amp;&amp; nvm use 22</code></pre>
           </p>
         </li>
         <li>
+          <h4>Installs the chat skill</h4>
+          <p>
+            A single file at <code>~/.claude/skills/eklavya/SKILL.md</code>. It is what lets you
+            change Eklavya by asking in plain English instead of remembering a slash command —
+            <a href="#commands">see below</a>. It is installed for your user account, not for the
+            plugin, so it keeps working in projects where the plugin is not enabled. If a skill
+            of your own is already at that path, this step says so and leaves it alone.
+          </p>
+        </li>
+        <li>
           <h4>Creates the database</h4>
           <p>
             <code>~/.eklavya/knowledge.db</code>, migrated and seeded, so <code>eklavya doctor</code>
@@ -322,11 +332,13 @@ nvm install 22 &amp;&amp; nvm use 22</code></pre>
 
       <div class="note">
         <p><strong>What route B does differently.</strong> A slash command cannot run
-        <code>npm</code>, so this route installs the plugin files but not the runtime. Your first
-        session starts that download in the background and carries on as normal; the questions
-        begin from the session after it finishes. Route A does it up front instead. If you would
-        rather not wait, run <code>npx eklavya install</code> at any point — it finishes the job
-        and is safe to run over an existing install.</p>
+        <code>npm</code> or write outside the plugin, so this route installs the plugin files but
+        not the runtime and not the chat skill. Your first session starts that download in the
+        background and carries on as normal; the questions begin from the session after it
+        finishes, and the slash commands work throughout. Route A does both up front instead. If
+        you would rather not wait — or you want to change Eklavya by asking rather than by
+        command — run <code>npx eklavya install</code> at any point. It finishes the job and is
+        safe to run over an existing install.</p>
       </div>
 
       <h4>Check that it worked</h4>
@@ -361,7 +373,7 @@ claude --plugin-dir "$(pwd)"</code></pre>
 
       <h3>Uninstalling</h3>
 
-      <pre data-lang="Terminal"><code>npx eklavya uninstall           # removes the plugin, keeps your history
+      <pre data-lang="Terminal"><code>npx eklavya uninstall           # removes the plugin and skill, keeps your history
 npx eklavya uninstall --purge   # removes ~/.eklavya as well</code></pre>
 
       <p>
@@ -512,15 +524,16 @@ npx eklavya doctor</code></pre>
               cadence is <code>interleaved</code> (the default), you get <em>one</em> question
               right there, while the code is still on your screen:
             </p>
-            <pre data-lang="Checkpoint"><code>Why is httpOnly set on the refresh cookie here but not on the access token?
+            <pre data-lang="Checkpoint"><code>[ambient · concept · easy · tier 2 mechanism]
 
-ambient · concept · easy · tier 2 mechanism</code></pre>
+Why is httpOnly set on the refresh cookie here but not on the access token?</code></pre>
             <p>
               Four options arrive through Claude Code's own question UI, under an
               <strong>Eklavya</strong> header so you can see who is asking. Picking one is a
-              keystroke. The footer line names the settings that produced the question — mode,
-              focus, level, what the tier is asking for, and <code>· q 2/3</code> when more are
-              coming.
+              keystroke. The bracketed line above the question names the settings that produced
+              it — mode, focus, level, what the tier is asking for, and <code>· q 2/3</code> when
+              more are coming. It sits above rather than below because the question UI draws
+              everything in one weight, and underneath it read as part of the question.
             </p>
           </div>
         </li>
@@ -680,7 +693,8 @@ eklavya config set cadence end</code></pre>
       <h3>Tiers: how hard one question is</h3>
       <p>
         Every concept can be asked about at five depths. The tier is chosen per question, and the
-        label appears in the footer under the question so you know what is being asked of you.
+        label appears in the bracketed line above the question so you know what is being asked of
+        you.
       </p>
 
       <div class="doc-table-wrap">
@@ -758,7 +772,7 @@ eklavya config set difficulty easy --repo  # keep an onboarding repo gentle for 
       <p>
         Seven slash commands, all typed inside Claude Code. Every one of them is read-only until
         you ask for a change, and none of them starts a quiz unless that is what the command is
-        for.
+        for. If you would rather not memorise them, <a href="#cmd-chat">you can just ask</a>.
       </p>
 
       <div class="doc-table-wrap">
@@ -960,6 +974,46 @@ eklavya config set difficulty easy --repo  # keep an onboarding repo gentle for 
           <a href="#setup">First run</a>. Safe to run again any time.
         </p>
       </article>
+
+      <!-- plain chat -->
+      <article class="cmd" id="cmd-chat">
+        <h3>Or just ask</h3>
+        <p class="cmd__sub">No command to remember.</p>
+
+        <h4>What it does</h4>
+        <p>
+          <code>npx eklavya install</code> also installs a skill at
+          <code>~/.claude/skills/eklavya/SKILL.md</code>. It teaches Claude how to read and change
+          Eklavya's settings, so these all work in ordinary conversation:
+        </p>
+        <ul>
+          <li>“Eklavya is quizzing me too much — space it out.”</li>
+          <li>“Put Eklavya in enforced mode for this repo only.”</li>
+          <li>“Have Eklavya teach me database indexing from now on.”</li>
+          <li>“Open my Eklavya dashboard.”</li>
+          <li>“Where does Eklavya keep my data?”</li>
+        </ul>
+        <p>
+          Claude makes the change through the same MCP tools and the same
+          <a href="#cli"><code>eklavya</code> CLI</a> the commands use, so it does not matter which
+          route a given change went through. It tells you the key it set and the file it landed in.
+        </p>
+
+        <h4>How it differs from the commands</h4>
+        <p>
+          The seven commands above come from the plugin, so they exist only where the plugin is
+          loaded. This skill is installed for your user account, so it also works in projects
+          where you have not enabled the plugin, and in a plain terminal session. What it will not
+          do is teach or quiz — for that it points you at
+          <a href="#cmd-learn"><code>/eklavya:learn</code></a> or
+          <a href="#cmd-quiz"><code>/eklavya:quiz</code></a>.
+        </p>
+
+        <div class="note note--tip">
+          <p>It only wakes up when you mention Eklavya or its settings by name. Asking Claude an
+          ordinary coding question does not load it.</p>
+        </div>
+      </article>
     </section>
 
     <!-- ---------------------------------------------------------- -->
@@ -981,8 +1035,8 @@ eklavya config set difficulty easy --repo  # keep an onboarding repo gentle for 
           <thead><tr><th>Command</th><th>What it does</th></tr></thead>
           <tbody>
             <tr><td><code>eklavya serve</code></td><td>Runs the MCP server on stdio. This is what Claude Code starts for you — you would only run it by hand to point another MCP client at Eklavya.</td></tr>
-            <tr><td><code>eklavya install</code></td><td>Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, and creates the database. Safe to re-run — that is how you upgrade.</td></tr>
-            <tr><td><code>eklavya uninstall [--purge]</code></td><td>Removes the plugin and the runtime, and deregisters it from Claude Code. Your learning history is kept unless you pass <code>--purge</code>.</td></tr>
+            <tr><td><code>eklavya install</code></td><td>Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at <code>~/.claude/skills/eklavya/</code>, and creates the database. Safe to re-run — that is how you upgrade.</td></tr>
+            <tr><td><code>eklavya uninstall [--purge]</code></td><td>Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass <code>--purge</code>.</td></tr>
             <tr><td><code>eklavya config get</code></td><td>Prints the effective configuration as JSON, plus the paths of the global and repo files it came from.</td></tr>
             <tr><td><code>eklavya config set &lt;key&gt; &lt;value&gt;</code></td><td>Changes one setting. Add <code>--repo</code> to write <code>.eklavya.json</code> at the repository root instead of your global config. Add <code>--topic &lt;topic&gt;</code> when setting <code>focus learn</code>.</td></tr>
             <tr><td><code>eklavya doctor</code></td><td>Checks that everything is wired up: home directory, database, concept and attempt counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if the database cannot be opened.</td></tr>
@@ -1058,7 +1112,7 @@ cadence:  interleaved (one question mid-task, min 4m apart)</code></pre>
             <tr><td><code>max_new_concepts_per_session</code></td><td><code>8</code></td><td>Cap on concepts Claude may invent per session, against slug sprawl.</td></tr>
             <tr><td><code>max_stop_blocks_per_session</code></td><td><code>3</code></td><td>Hard backstop on how many times the end-of-task hook may hold a session open.</td></tr>
             <tr><td><code>domains_enabled</code></td><td><code>["*"]</code></td><td>Restrict questions to named domains. <code>["*"]</code> means all.</td></tr>
-            <tr><td><code>quiet</code></td><td><code>false</code></td><td><code>true</code> suppresses the session-start banner and the footer line under each question.</td></tr>
+            <tr><td><code>quiet</code></td><td><code>false</code></td><td><code>true</code> suppresses the session-start banner and the bracketed settings line above each question.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1435,7 +1489,7 @@ export EKLAVYA_DB=/tmp/test.db          # just the database</code></pre>
       <h3>How do I uninstall?</h3>
       <p>Three independent steps — do as many as you want:</p>
       <ol>
-        <li>Remove the plugin from the <code>/plugin</code> menu in Claude Code.</li>
+        <li>Remove the plugin from the <code>/plugin</code> menu in Claude Code, or run <code>npx eklavya uninstall</code>, which also removes the chat skill from <code>~/.claude/skills/eklavya/</code>.</li>
         <li>Restore your previous git hook: <code>/path/to/eklavya/scripts/install-git-hook.sh --uninstall</code></li>
         <li>Delete your learning history: <code>rm -rf ~/.eklavya</code></li>
       </ol>

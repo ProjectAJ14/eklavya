@@ -12,6 +12,7 @@ working in this repo.
 | `mcp/src/migrations/` | SQLite migrations, forward-only |
 | `hooks/` | SessionStart, PostToolUse checkpoint, Stop quiz gate, commit gate |
 | `skills/` | the prompt-side behaviour; each skill with `disable-model-invocation: true` is also a `/eklavya:<name>` slash command |
+| `user-skill/` | the one skill installed to `~/.claude/skills/`, not shipped in the plugin — it drives the CLI from plain chat. Must never be under `skills/`, or it registers twice |
 | `agents/` | the tutor subagent |
 | `cli/` | the `eklavya` binary: config, export-rules, diagnostics |
 | `prd/` | the spec and one file per delivered phase |
@@ -30,7 +31,7 @@ That applies to:
 
 - a new or renamed config key, or a changed default
 - a new value for `mode`, `focus` or `cadence` — or a fourth dial
-- a new, renamed or removed slash command
+- a new, renamed or removed slash command, or a change to what `user-skill/` can do
 - a change to the quiz loop: when questions arrive, what shape they take, how
   they are graded, what the gate requires
 - a change to where data is stored or what leaves the machine
@@ -46,7 +47,7 @@ Concretely, when you change behaviour, check these against the diff:
 | hero terminal script | the real loop for the default config |
 | `#how` steps and tier ladder | the actual sequence and tier meanings |
 | `#dials` | `Mode`, `Focus`, `Cadence` in `mcp/src/config.ts`, defaults included |
-| `#commands` | the user-invocable skills under `skills/` |
+| `#commands` | the user-invocable skills under `skills/`, plus `user-skill/` |
 | data card, install/CTA blocks | `paths.ts`, the setup skill's requirements |
 
 `site/docs.html` is the manual, and it carries the heaviest duty of all: it
