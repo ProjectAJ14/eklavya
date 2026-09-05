@@ -1,0 +1,523 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Eklavya — Runtime Architecture",
+    "output": "eklavya-runtime.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1352,
+      620
+    ],
+    "repository": {
+      "url": "https://github.com/ProjectAJ14/eklavya",
+      "revision": "6ef287f4cdbf1dbc0087c0cf5725a3ceb3ddf3f8"
+    },
+    "views": [
+      {
+        "id": "the-loop",
+        "label": "One turn of the loop",
+        "focus": [
+          "developer",
+          "session",
+          "mcp",
+          "store",
+          "db",
+          "hooks"
+        ],
+        "note": "Concepts logged mid-task come back through the hook, which tells the model to ask — the hook never writes the question itself."
+      },
+      {
+        "id": "what-decides",
+        "label": "What decides the question",
+        "focus": [
+          "config",
+          "srs",
+          "store",
+          "mcp"
+        ],
+        "note": "Four dials pick the framing; SM-2 and the project level pick the concept and the tier."
+      },
+      {
+        "id": "readers",
+        "label": "Enforcement and readers",
+        "focus": [
+          "developer",
+          "gate",
+          "db",
+          "dashboard"
+        ],
+        "note": "Everything that opens knowledge.db from outside a Claude Code session."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "developer",
+      "type": "external",
+      "label": "Developer",
+      "sublabel": "terminal · editor",
+      "pos": [
+        30,
+        240
+      ],
+      "size": [
+        146,
+        76
+      ]
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "Commit Gate",
+      "sublabel": "git pre-commit",
+      "tag": "fails open",
+      "pos": [
+        30,
+        440
+      ],
+      "size": [
+        146,
+        76
+      ],
+      "sources": [
+        {
+          "path": "cli/eklavya-gate",
+          "line": 1,
+          "label": "POSIX gate"
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "type": "frontend",
+      "label": "Skills & Tutor Agent",
+      "sublabel": "prompt side · model-invoked",
+      "pos": [
+        268,
+        40
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "skills/quiz/SKILL.md",
+          "label": "8 skills"
+        },
+        {
+          "path": "agents/tutor.md",
+          "label": "tutor subagent"
+        }
+      ]
+    },
+    {
+      "id": "config",
+      "type": "database",
+      "label": "Config files",
+      "sublabel": ".eklavya.json → config.json",
+      "tag": "server + hooks",
+      "pos": [
+        554,
+        40
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "mcp/src/config.ts",
+          "label": "TS resolver"
+        },
+        {
+          "path": "hooks/lib.sh",
+          "label": "jq resolver"
+        }
+      ]
+    },
+    {
+      "id": "srs",
+      "type": "backend",
+      "label": "SRS Engine",
+      "sublabel": "SM-2 · decay · level bands",
+      "tag": "pure",
+      "pos": [
+        840,
+        40
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "mcp/src/srs.ts",
+          "label": "scheduling"
+        }
+      ]
+    },
+    {
+      "id": "session",
+      "type": "frontend",
+      "label": "Claude Code Session",
+      "sublabel": "agent host process",
+      "pos": [
+        268,
+        240
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": ".mcp.json",
+          "label": "server wiring"
+        }
+      ]
+    },
+    {
+      "id": "mcp",
+      "type": "backend",
+      "label": "Eklavya MCP Server",
+      "sublabel": "stdio · 9 tools",
+      "tag": "local dist, else npx",
+      "pos": [
+        554,
+        240
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "mcp/src/server.ts",
+          "label": "stdio transport"
+        },
+        {
+          "path": "mcp/bin/eklavya-mcp.sh",
+          "label": "launcher"
+        }
+      ]
+    },
+    {
+      "id": "store",
+      "type": "backend",
+      "label": "Store & Gate Ledger",
+      "sublabel": "mastery · attempts · gates",
+      "pos": [
+        840,
+        240
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "mcp/src/store.ts",
+          "label": "data access"
+        }
+      ]
+    },
+    {
+      "id": "hooks",
+      "type": "backend",
+      "label": "Hook Scripts",
+      "sublabel": "4 lifecycle events · POSIX sh",
+      "tag": "always exit 0",
+      "pos": [
+        268,
+        440
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "hooks/hooks.json",
+          "label": "wiring"
+        },
+        {
+          "path": "hooks/checkpoint-quiz.sh",
+          "label": "mid-task checkpoint"
+        }
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "knowledge.db",
+      "sublabel": "SQLite WAL · migrated on open",
+      "pos": [
+        840,
+        440
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "mcp/src/db.ts",
+          "label": "pragmas"
+        },
+        {
+          "path": "mcp/src/migrations/001_init.sql",
+          "label": "8 migrations"
+        }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "CLI & Dashboard",
+      "sublabel": "eklavya dashboard",
+      "tag": "read-only",
+      "pos": [
+        1126,
+        440
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "mcp/src/dashboard.ts",
+          "label": "http server"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Local process space · Claude Code + MCP server",
+      "wraps": [
+        "skills",
+        "config",
+        "srs",
+        "session",
+        "mcp",
+        "store"
+      ],
+      "pad": 26
+    },
+    {
+      "kind": "security-group",
+      "label": "~/.eklavya/ · private learner state",
+      "wraps": [
+        "db"
+      ],
+      "pad": 22
+    },
+    {
+      "kind": "security-group",
+      "label": "loopback only · 127.0.0.1:41729",
+      "wraps": [
+        "dashboard"
+      ],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "ask",
+      "from": "developer",
+      "to": "session",
+      "variant": "emphasis"
+    },
+    {
+      "id": "question",
+      "from": "session",
+      "to": "developer",
+      "label": "one MCQ",
+      "variant": "emphasis",
+      "labelAt": [
+        222,
+        236
+      ]
+    },
+    {
+      "id": "tool-calls",
+      "from": "session",
+      "to": "mcp",
+      "label": "log · plan · grade",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        509,
+        225
+      ]
+    },
+    {
+      "id": "resolve",
+      "from": "mcp",
+      "to": "store",
+      "label": "resolve · schedule",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        795,
+        225
+      ]
+    },
+    {
+      "id": "persist",
+      "from": "store",
+      "to": "db",
+      "label": "WAL write, retry on BUSY",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        938,
+        371
+      ]
+    },
+    {
+      "id": "hooks-read",
+      "from": "db",
+      "to": "hooks",
+      "label": "PostToolUse reads the row",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right",
+      "labelAt": [
+        652,
+        471
+      ]
+    },
+    {
+      "id": "inject",
+      "from": "hooks",
+      "to": "session",
+      "label": "additionalContext: ask ONE",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        366,
+        371
+      ]
+    },
+    {
+      "id": "load-skills",
+      "from": "skills",
+      "to": "session",
+      "label": "tutor pedagogy",
+      "labelAt": [
+        430,
+        178
+      ]
+    },
+    {
+      "id": "dials",
+      "from": "config",
+      "to": "mcp",
+      "label": "mode · focus · cadence · difficulty",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        652,
+        171
+      ]
+    },
+    {
+      "id": "schedule",
+      "from": "store",
+      "to": "srs",
+      "label": "SM-2 grade → next review",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        938,
+        171
+      ]
+    },
+    {
+      "id": "dashboard-read",
+      "from": "dashboard",
+      "to": "db",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "commit",
+      "from": "developer",
+      "to": "gate",
+      "label": "git commit",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        103,
+        371
+      ]
+    },
+    {
+      "id": "gate-check",
+      "from": "gate",
+      "to": "db",
+      "label": "reads gates.repo · fails open",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          103,
+          560
+        ],
+        [
+          938,
+          560
+        ]
+      ],
+      "labelAt": [
+        520,
+        553
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "One turn of the loop",
+      "items": [
+        "1 · the agent calls log_session_concepts while it works",
+        "2 · PostToolUse reads that row and returns additionalContext",
+        "3 · which is an instruction to ask — never the question itself",
+        "4 · the model plans, asks, then grades with record_attempt",
+        "Budget is per session: mid-task answers are ones Stop no longer asks"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Four hooks, four mechanisms",
+      "items": [
+        "SessionStart — stdout: profile + the directive that starts it all",
+        "PostToolUse — exit 0 + JSON; skipped inside subagents",
+        "Stop — exit 2 + stderr is what actually blocks the turn",
+        "PreToolUse(Bash) — permissionDecision \"deny\" on git commit"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Server, state and boundaries",
+      "items": [
+        "stdout is the protocol; diagnostics are forced to stderr",
+        "retryOnBusy wraps every handler; openDb migrates and seeds",
+        "Config precedence exists twice: config.ts in TS, lib.sh in jq",
+        "Two commit gates — one on the session, one on the repo; both fail open",
+        "Launcher prefers mcp/dist; npx @1.7.0 only without a local build"
+      ]
+    }
+  ]
+}

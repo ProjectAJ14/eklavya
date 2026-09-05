@@ -97,15 +97,18 @@
       <p>
         Eklavya is a plugin for <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude
         Code</a>. You keep working exactly as you do now — you ask Claude to build something, and
-        it builds it. The difference is that while it works, Eklavya asks you <strong>one
-        multiple-choice question</strong> about a concept the code it just wrote depends on.
+        it builds it. The difference is that while it works, Eklavya interrupts with a
+        <strong>multiple-choice question</strong> about a concept the code it just wrote depends
+        on — one question at a time, never a batch.
       </p>
 
       <p>
         You answer with one keystroke. Claude grades the answer, writes the result to a small
-        database on your machine, and carries on with the task. Over weeks, the questions get
-        harder, the ones you got right stop coming back, and the ones you fumbled return at
-        spaced-out intervals until they stick.
+        database on your machine, and carries on with the task. By default you get at most
+        <strong>four questions in a whole session</strong>, spread across the work rather than
+        piled at the end; <a href="#config"><code>max_questions_per_task</code></a> is that budget.
+        Over weeks the questions get harder, the ones you got right stop coming back, and the ones
+        you fumbled return at spaced-out intervals until they stick.
       </p>
 
       <p>That is the entire product. Everything below is detail on top of that loop.</p>
