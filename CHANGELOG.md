@@ -1,3 +1,15 @@
+# [1.8.0](https://github.com/ProjectAJ14/eklavya/compare/v1.7.0...v1.8.0) (2026-09-05)
+
+
+### Bug Fixes
+
+* stop the installer destroying existing installs ([cc3d072](https://github.com/ProjectAJ14/eklavya/commit/cc3d072f59b32648a1b2fcbbfff0b306d9f3f6ed))
+
+
+### Features
+
+* install with one command on macOS and Windows ([afbcbb3](https://github.com/ProjectAJ14/eklavya/commit/afbcbb382a6836229c67406ade697f466c88b03c)), closes [claude-code#18610](https://github.com/claude-code/issues/18610) [#21847](https://github.com/ProjectAJ14/eklavya/issues/21847) [#23556](https://github.com/ProjectAJ14/eklavya/issues/23556) [#73971](https://github.com/ProjectAJ14/eklavya/issues/73971)
+
 # [1.7.0](https://github.com/ProjectAJ14/eklavya/compare/v1.6.1...v1.7.0) (2026-08-29)
 
 
