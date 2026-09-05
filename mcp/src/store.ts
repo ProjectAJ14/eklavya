@@ -15,7 +15,7 @@ import {
   START_LEVEL,
 } from './srs.js';
 import type { EklavyaConfig } from './config.js';
-import { stripAskFooter } from './ask.js';
+import { stripAskHeader } from './ask.js';
 
 export interface ConceptRow {
   id: number;
@@ -389,13 +389,13 @@ export function recentQuestions(db: DB, conceptId: number, limit = 3): AskedQues
 /**
  * Loose match: whitespace and punctuation differences are still the same question.
  *
- * The ask footer is stripped before hashing. It is presentation -- the dials that
+ * The settings line is stripped before hashing. It is presentation -- the dials that
  * asked -- and it changes when the level or the focus changes, so leaving it in
  * would make one question fingerprint as several and quietly undo "never the same
  * question twice".
  */
 export function questionFingerprint(question: string): string {
-  return stripAskFooter(question).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return stripAskHeader(question).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 export function hasAskedQuestion(db: DB, conceptId: number, question: string): boolean {

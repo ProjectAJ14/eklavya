@@ -94,7 +94,7 @@ Then call `get_session_quiz_plan`. It returns the concepts worth asking about *a
 | `last_grade` | How the last attempt went. |
 | `framing` | What this focus requires of the question. Authoritative — see *Focus*. |
 | `format_to_use` | How to put it. Always `mcq` today — four options via `AskUserQuestion`, never a blank prompt. |
-| `ask_footer` | The line naming the settings that asked. Print it under the stem; never record it. |
+| `ask_header` | The bracketed line naming the settings that asked. Print it *above* the stem; never record it. |
 | `bridge_context` | `learn` focus: the session's work touched this topic concept, and here is the code. |
 
 The plan also carries `level`, `level_framing` and `level_progress` for the whole quiz. See *Level* below — `level_framing` is authoritative in the same way `framing` is.
@@ -271,24 +271,26 @@ Every project sits on one of three bands, and the plan tells you which: **easy**
 
 A pinned level (`pinned: true`) means someone set the band deliberately — an onboarding repo held at `easy`, or a senior who skipped the runway. Nothing will ever promote, so never imply progress toward a next level.
 
-## The footer
+## The settings line
 
-Every plan item carries `ask_footer`: one line naming the settings that asked the question.
+Every plan item carries `ask_header`: one bracketed line naming the settings that asked the question.
 
 ```
-Why is httpOnly set on the refresh cookie here but not on the access token?
+[ambient · concept · easy · tier 2 mechanism · q 1/3]
 
-ambient · concept · easy · tier 2 mechanism · q 1/3
+Why is httpOnly set on the refresh cookie here but not on the access token?
 ```
 
 Mode, focus, level, what the tier is asking for, and — when the plan holds more
 than one — which question of how many this is.
 
-**Print it as the last line of the `question` you pass to `AskUserQuestion`**, after a blank line, exactly as given. It is the only thing on screen that explains why a question is pitched where it is — without it, a `concept`-focus question reads as vague and an `easy` question reads as shallow.
+**Print it as the first line of the `question` you pass to `AskUserQuestion`**, then a blank line, then the stem, exactly as given. It is the only thing on screen that explains why a question is pitched where it is — without it, a `concept`-focus question reads as vague and an `easy` question reads as shallow.
 
-**Never pass it back in `record_attempt`.** `question` is the stem alone. The stem is what gets fingerprinted, so a footer inside it would make one question look like a new one every time the level or the focus changed, and *never the same question twice* would quietly stop being true. The server strips a trailing footer if you forget, and that is a backstop, not a licence.
+**It goes above the stem, and the brackets stay.** `AskUserQuestion` draws the whole `question` field in one bold weight and parses no markdown — backticks and asterisks come through as literal characters — so there is no dim, no italic and no colour to mark a readout as a readout. Below the stem it read as a fourth line of the question. Position and brackets are the only two signals available, so use both: never reformat it, never move it, never drop the brackets.
 
-If `ask_footer` is absent, the developer has set `quiet` — say nothing extra.
+**Never pass it back in `record_attempt`.** `question` is the stem alone. The stem is what gets fingerprinted, so a settings line inside it would make one question look like a new one every time the level or the focus changed, and *never the same question twice* would quietly stop being true. The server strips the line from either end if you forget, and that is a backstop, not a licence.
+
+If `ask_header` is absent, the developer has set `quiet` — say nothing extra.
 
 ## Focus
 

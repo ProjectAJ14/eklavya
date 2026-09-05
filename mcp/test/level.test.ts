@@ -8,7 +8,7 @@ import {
   requiredConcepts,
   type Level,
 } from '../src/srs.js';
-import { askFooter, stripAskFooter } from '../src/ask.js';
+import { askHeader, stripAskHeader } from '../src/ask.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 
 const config = (patch: Partial<EklavyaConfig> = {}): EklavyaConfig => ({ ...DEFAULT_CONFIG, ...patch });
@@ -130,86 +130,94 @@ describe('promotion', () => {
   });
 });
 
-describe('the ask footer', () => {
+describe('the ask header', () => {
   it('names the mode, the focus, the level and what the tier asks for', () => {
-    expect(askFooter({ config: config({ focus: 'concept' }), level: 'easy', pinned: false, tier: 2 })).toBe(
-      'ambient · concept · easy · tier 2 mechanism',
+    expect(askHeader({ config: config({ focus: 'concept' }), level: 'easy', pinned: false, tier: 2 })).toBe(
+      '[ambient · concept · easy · tier 2 mechanism]',
     );
   });
 
   it('carries the topic in learn focus, so a question about caching says so', () => {
     expect(
-      askFooter({
+      askHeader({
         config: config({ focus: 'learn', focus_topic: 'caching' }),
         level: 'medium',
         pinned: false,
         tier: 3,
       }),
-    ).toBe('ambient · learn: caching · medium · tier 3 judgement');
+    ).toBe('[ambient · learn: caching · medium · tier 3 judgement]');
   });
 
   it('says when the level is pinned — otherwise questions just stop getting harder', () => {
-    expect(askFooter({ config: config(), level: 'hard', pinned: true, tier: 5 })).toBe(
-      'ambient · concept · hard (pinned) · tier 5 design',
+    expect(askHeader({ config: config(), level: 'hard', pinned: true, tier: 5 })).toBe(
+      '[ambient · concept · hard (pinned) · tier 5 design]',
     );
   });
 
   it('says when the mode has a consequence attached', () => {
-    expect(askFooter({ config: config({ mode: 'enforced' }), level: 'easy', pinned: false, tier: 1 })).toBe(
-      'enforced (gated) · concept · easy · tier 1 recall',
+    expect(askHeader({ config: config({ mode: 'enforced' }), level: 'easy', pinned: false, tier: 1 })).toBe(
+      '[enforced (gated) · concept · easy · tier 1 recall]',
     );
-    // Cadence is never in the footer: the question's arrival already said when
+    // Cadence is never in the line: the question's arrival already said when
     // Eklavya asks.
-    expect(askFooter({ config: config({ mode: 'ambient', cadence: 'end' }), level: 'easy', pinned: false, tier: 1 })).toBe(
-      'ambient · concept · easy · tier 1 recall',
+    expect(askHeader({ config: config({ mode: 'ambient', cadence: 'end' }), level: 'easy', pinned: false, tier: 1 })).toBe(
+      '[ambient · concept · easy · tier 1 recall]',
     );
   });
 
   it('counts the questions when more than one is coming', () => {
     expect(
-      askFooter({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 2, total: 3 } }),
-    ).toBe('ambient · concept · easy · tier 2 mechanism · q 2/3');
+      askHeader({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 2, total: 3 } }),
+    ).toBe('[ambient · concept · easy · tier 2 mechanism · q 2/3]');
     // A lone question needs no scoreboard.
     expect(
-      askFooter({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 1, total: 1 } }),
-    ).toBe('ambient · concept · easy · tier 2 mechanism');
+      askHeader({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 1, total: 1 } }),
+    ).toBe('[ambient · concept · easy · tier 2 mechanism]');
   });
 
   it('is absent under quiet', () => {
-    expect(askFooter({ config: config({ quiet: true }), level: 'easy', pinned: false, tier: 1 })).toBeNull();
+    expect(askHeader({ config: config({ quiet: true }), level: 'easy', pinned: false, tier: 1 })).toBeNull();
   });
 });
 
-describe('stripping the footer back off', () => {
+describe('stripping the settings line back off', () => {
   const stem = 'Why is httpOnly set on the refresh cookie here but not on the access token?';
 
-  it('removes every shape the composer can produce', () => {
+  it('removes every shape the composer can produce, above the stem or below it', () => {
     const levels: Level[] = ['easy', 'medium', 'hard'];
-    const footers = [
-      ...levels.map((l) => `ambient · concept · ${l} · tier 2 mechanism`),
-      'ambient · project · easy · tier 1 recall',
-      'ambient · learn: http caching · medium · tier 3 judgement',
-      'ambient · concept · hard (pinned) · tier 5 design',
-      'enforced (gated) · concept · easy · tier 1 recall',
-      'ambient · concept · easy · tier 2 mechanism · q 2/3',
-      // Footers written by an older version, still stripped.
+    const lines = [
+      ...levels.map((l) => `[ambient · concept · ${l} · tier 2 mechanism]`),
+      '[ambient · project · easy · tier 1 recall]',
+      '[ambient · learn: http caching · medium · tier 3 judgement]',
+      '[ambient · concept · hard (pinned) · tier 5 design]',
+      '[enforced (gated) · concept · easy · tier 1 recall]',
+      '[ambient · concept · easy · tier 2 mechanism · q 2/3]',
+      // Written by an older version -- below the stem, and without the brackets.
+      // Those rows are still in the database and must keep their fingerprint.
+      'ambient · concept · easy · tier 2 mechanism',
       'concept · easy · tier 2',
       'concept · easy · tier 2 · gated',
     ];
-    for (const footer of footers) {
-      expect(stripAskFooter(`${stem}\n\n${footer}`)).toBe(stem);
+    for (const line of lines) {
+      expect(stripAskHeader(`${line}\n\n${stem}`)).toBe(stem);
+      expect(stripAskHeader(`${stem}\n\n${line}`)).toBe(stem);
     }
   });
 
-  it('leaves a stem with no footer untouched', () => {
-    expect(stripAskFooter(stem)).toBe(stem);
-    expect(stripAskFooter(`${stem}\n\nAnd what breaks if it is missing?`)).toBe(
+  it('leaves a stem with no settings line untouched', () => {
+    expect(stripAskHeader(stem)).toBe(stem);
+    expect(stripAskHeader(`${stem}\n\nAnd what breaks if it is missing?`)).toBe(
       `${stem}\n\nAnd what breaks if it is missing?`,
     );
   });
 
-  it('only ever takes the last line', () => {
-    const multi = `ambient · concept · easy · tier 2 mechanism\n\n${stem}`;
-    expect(stripAskFooter(multi)).toBe(multi);
+  it('takes one line, never a middle one', () => {
+    const buried = `${stem}\n\n[ambient · concept · easy · tier 2 mechanism]\n\nAnd why?`;
+    expect(stripAskHeader(buried)).toBe(buried);
+  });
+
+  it('strips the line from both ends at once, in case the tutor pastes both', () => {
+    const line = '[ambient · concept · easy · tier 2 mechanism]';
+    expect(stripAskHeader(`${line}\n\n${stem}\n\n${line}`)).toBe(stem);
   });
 });

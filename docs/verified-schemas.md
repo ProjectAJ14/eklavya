@@ -178,28 +178,31 @@ Plain-text stdout is added to Claude's context. (`systemMessage` is also availab
 
 ---
 
-## Unverified — the ask footer's newline (2026-08-27)
+## Verified — how `AskUserQuestion` renders a stem (2026-09-05)
 
-Phase 9 prints a dial readout as the last line of an `AskUserQuestion` stem,
-separated by a blank line:
+Observed in a live terminal session, with three copies of the same line in one
+stem:
 
 ```
-Why is httpOnly set on the refresh cookie here but not on the access token?
-
-concept · easy · tier 2
+[ambient · concept · easy · tier 2 mechanism]
+`[ambient · concept · easy · tier 2 mechanism]`
+*[ambient · concept · easy · tier 2 mechanism]*
 ```
 
-**Not yet observed in a real render.** Whether Claude Code preserves the newline
-inside a question stem, collapses it to a space, or trims it is unconfirmed, and
-the tool schema does not say. Nothing breaks either way — the footer still reads
-as a trailing clause if the break is lost — but the shape of
-`stripAskFooter`'s regex (`ask.ts`) depends on it: it anchors to a trailing
-**line**, so a collapsed newline would leave the footer inside the fingerprinted
-stem.
+- **Newlines are preserved.** Blank lines survive as blank lines, so a settings
+  line on its own row stays on its own row. `stripAskHeader`'s regex (`ask.ts`)
+  anchors to a `\n`, and that anchor holds.
+- **Markdown is not parsed.** All three rendered identically; the backticks and
+  the asterisks appeared as literal characters. There is no code span, no
+  emphasis, no dim.
+- **The whole `question` field is drawn in one bold weight** — the same weight as
+  the stem. Nothing in the string can change colour or weight.
 
-Check this the first time a question lands in a live session, then pin the answer
-here. If newlines are collapsed, the footer becomes ` — concept · easy · tier 2`
-and the regex loses its `\n` anchor.
+That is why the settings line moved above the stem and gained brackets (1.9):
+position and bracket are the only two signals available to separate a readout
+from prose. Raw ANSI was not tried and should not be — it would have to survive
+the JSON hop through the MCP response, and it means nothing to a non-terminal
+renderer.
 
 ## Deviations from the PRD
 

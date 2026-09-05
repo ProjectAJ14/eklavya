@@ -15,14 +15,14 @@ import {
   type AttemptOutcome,
   type QuestionFormat,
 } from '../store.js';
-import { stripAskFooter } from '../ask.js';
+import { stripAskHeader } from '../ask.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
 export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format and, for multiple choice, the options you offered — put only the stem in question, never the options and never the ask_footer line, or the repeat check breaks. Multiple choice is capped at grade 4: picking one of four cannot show you know why. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
+    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format and, for multiple choice, the options you offered — put only the stem in question, never the options and never the ask_header line, or the repeat check breaks. Multiple choice is capped at grade 4: picking one of four cannot show you know why. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -30,7 +30,7 @@ export const recordAttempt: ToolDef = {
     question: z
       .string()
       .describe(
-        'The question stem exactly as asked — WITHOUT the options and WITHOUT the ask_footer line. This text is what stops the same question coming back later, so anything baked in here that moves (shuffled options, the level in the footer) would make one question look like several.',
+        'The question stem exactly as asked — WITHOUT the options and WITHOUT the ask_header line. This text is what stops the same question coming back later, so anything baked in here that moves (shuffled options, the level in the settings line) would make one question look like several.',
       ),
     answer: z
       .string()
@@ -93,10 +93,10 @@ export const recordAttempt: ToolDef = {
       };
     }
 
-    // The footer is presentation. Stripped rather than rejected, because the
+    // The settings line is presentation. Stripped rather than rejected, because the
     // tutor pasting back the block it displayed is the likely mistake and losing
     // a real answer over it would be the wrong trade.
-    const question = stripAskFooter(args.question);
+    const question = stripAskHeader(args.question);
 
     // Which band this answer was earned at, read before the write so a promotion
     // triggered by this very attempt cannot relabel it.

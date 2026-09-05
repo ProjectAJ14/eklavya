@@ -1,5 +1,5 @@
 /**
- * The footer that says which settings asked the question.
+ * The line that says which settings asked the question.
  *
  * Eklavya has four dials, and at the one moment they decide what the developer
  * is looking at -- a question on screen -- every one of them used to be
@@ -15,19 +15,26 @@
  * (1.4.1). Trading attribution for settings would reopen the bug that fixed --
  * an unattributed question mid-task reads as the agent going off-piste.
  *
- * So it is a line under the stem. Composed here rather than by whoever writes the
- * question, for the same reason `tier_to_ask`, `answer_position` and
- * `format_to_use` are: a string each question assembles for itself is a string
- * that drifts, and this one has to be identical every time or it stops being a
- * readout and becomes decoration.
+ * So it is a line above the stem, in brackets. Both halves of that were learned
+ * the hard way. Below the stem it read as a fourth line of the question -- you
+ * finish "tier 2 mechanism" still looking for the thing being asked -- because
+ * `AskUserQuestion` draws the whole `question` field in one bold weight and gives
+ * us nothing to separate a readout from prose. Markdown is not parsed in that
+ * field either: backticks and asterisks come through as literal characters, so
+ * there is no dim to reach for. Brackets are what is left, and they are what a
+ * terminal already uses to mean *metadata, not prose* -- log levels, build tags,
+ * branch names. Raw ANSI would survive neither the JSON hop nor a non-terminal
+ * renderer, so it is not an option.
+ *
+ * Composed here rather than by whoever writes the question, for the same reason
+ * `tier_to_ask`, `answer_position` and `format_to_use` are: a string each
+ * question assembles for itself is a string that drifts, and this one has to be
+ * identical every time or it stops being a readout and becomes decoration.
  */
 import type { EklavyaConfig } from './config.js';
 import type { Level } from './srs.js';
 
-/** Blank line between stem and footer, so the two never read as one sentence. */
-export const FOOTER_GAP = '\n\n';
-
-export interface AskFooterInput {
+export interface AskHeaderInput {
   config: EklavyaConfig;
   level: Level;
   /** True when `difficulty` pins the level, so progression is switched off. */
@@ -54,13 +61,13 @@ const TIER_LABEL: Record<number, string> = {
  * already answered this question.
  *
  * `cadence` is deliberately absent. The question's *arrival* -- mid-task or at
- * the end -- already tells them when Eklavya asks, and a footer that repeats what
+ * the end -- already tells them when Eklavya asks, and a line that repeats what
  * the moment just demonstrated is noise. Everything else is here: the mode, the
  * focus, the level, what the tier is asking for, and how many questions are
  * coming. A learner who cannot see those is answering a question with no idea
  * why it was pitched where it was, or whether four more follow.
  */
-export function askFooter({ config, level, pinned, tier, position }: AskFooterInput): string | null {
+export function askHeader({ config, level, pinned, tier, position }: AskHeaderInput): string | null {
   if (config.quiet) return null;
 
   const focus =
@@ -80,22 +87,32 @@ export function askFooter({ config, level, pinned, tier, position }: AskFooterIn
   ];
   if (position && position.total > 1) parts.push(`q ${position.index}/${position.total}`);
 
-  return parts.join(' · ');
+  return `[${parts.join(' · ')}]`;
 }
 
 /**
- * A trailing footer line, matched exactly as `askFooter` composes it.
+ * The settings line, matched exactly as `askHeader` composes it.
  *
- * Strict, anchored to the end, and one line only, so it can never eat a real
- * stem. It exists because the tutor will eventually record the whole block it
- * displayed, and `question` is what `questionFingerprint` hashes -- a footer
- * inside the stem would make the same question look brand new every time the
+ * Anchored to the start or the end of the stem, one line only, and strict enough
+ * about the shape -- mode, focus, level, tier, in that order -- that it can never
+ * eat a real question. Both positions are matched because the line moved from the
+ * bottom to the top in 1.9, and stems recorded before that are still in the
+ * database; a strip that only knew the new position would let every old row's
+ * fingerprint drift.
+ *
+ * It exists because the tutor will eventually record the whole block it
+ * displayed, and `question` is what `questionFingerprint` hashes -- a settings
+ * line inside the stem would make the same question look brand new every time the
  * level or the focus changed, which is precisely the failure migration 006 kept
- * the options out of the stem to avoid.
+ * the options out of the stem to avoid. The brackets are optional in the pattern
+ * for the same reason the leading dials group is: older rows do not have them.
  */
-const FOOTER_LINE =
-  /\n[ \t]*(?:(?:off|ambient|enforced(?:[ \t]*\(gated\))?)[ \t]*·[ \t]*)?(?:project|concept|learn(?::[^\n·]*)?)[ \t]*·[ \t]*(?:easy|medium|hard)(?:[ \t]*\(pinned\))?[ \t]*·[ \t]*tier[ \t]*[1-5][^\n]*$/i;
+const SETTINGS_LINE_BODY =
+  String.raw`\[?[ \t]*(?:(?:off|ambient|enforced(?:[ \t]*\(gated\))?)[ \t]*·[ \t]*)?(?:project|concept|learn(?::[^\n·\]]*)?)[ \t]*·[ \t]*(?:easy|medium|hard)(?:[ \t]*\(pinned\))?[ \t]*·[ \t]*tier[ \t]*[1-5][^\n]*`;
 
-export function stripAskFooter(question: string): string {
-  return question.replace(FOOTER_LINE, '').trimEnd();
+const LEADING_LINE = new RegExp(String.raw`^[ \t]*${SETTINGS_LINE_BODY}\n+`, 'i');
+const TRAILING_LINE = new RegExp(String.raw`\n[ \t]*${SETTINGS_LINE_BODY}$`, 'i');
+
+export function stripAskHeader(question: string): string {
+  return question.replace(LEADING_LINE, '').replace(TRAILING_LINE, '').trim();
 }

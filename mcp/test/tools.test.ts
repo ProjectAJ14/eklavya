@@ -1445,14 +1445,14 @@ describe('difficulty levels, earned per project', () => {
   });
 });
 
-describe('the ask footer, end to end', () => {
+describe('the ask header, end to end', () => {
   it('rides along with every plan item', () => {
     configure({ min_minutes_between_quizzes: 0, focus: 'project', mode: 'enforced' });
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     for (const c of plan.concepts) {
-      expect(c.ask_footer).toMatch(
-        new RegExp(`^enforced \\(gated\\) · project · easy · tier ${c.tier_to_ask} \\w`),
+      expect(c.ask_header).toMatch(
+        new RegExp(`^\\[enforced \\(gated\\) · project · easy · tier ${c.tier_to_ask} \\w[^\\]]*\\]$`),
       );
     }
   });
@@ -1461,7 +1461,7 @@ describe('the ask footer, end to end', () => {
     configure({ min_minutes_between_quizzes: 0, quiet: true });
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
-    expect(plan.concepts.every((c: any) => c.ask_footer === undefined)).toBe(true);
+    expect(plan.concepts.every((c: any) => c.ask_header === undefined)).toBe(true);
   });
 
   it('never reaches the recorded stem, so the repeat check still fires', () => {
@@ -1470,7 +1470,7 @@ describe('the ask footer, end to end', () => {
     call(recordAttempt, {
       session_id: SESSION,
       slug: 'httponly-cookies',
-      question: `${stem}\n\nconcept · easy · tier 2`,
+      question: `[ambient · concept · easy · tier 2 mechanism]\n\n${stem}`,
       answer: 'reading the cookie',
       grade: 4,
       difficulty: 2,
@@ -1482,12 +1482,12 @@ describe('the ask footer, end to end', () => {
       .get() as { question: string };
     expect(stored.question).toBe(stem);
 
-    // The same stem, now with a different footer because the level moved on: one
+    // The same stem, now with a different settings line because the level moved on: one
     // question, not two.
     const again = call<any>(recordAttempt, {
       session_id: SESSION,
       slug: 'httponly-cookies',
-      question: `${stem}\n\nconcept · medium · tier 3`,
+      question: `[ambient · concept · medium · tier 3 judgement]\n\n${stem}`,
       answer: 'reading the cookie',
       grade: 4,
       difficulty: 3,
