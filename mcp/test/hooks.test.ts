@@ -8,13 +8,13 @@ import { openDb, type DB } from '../src/db.js';
 import { conceptBySlug, gradeConcept, logSessionConcept } from '../src/store.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
-const hooksDir = path.join(
-  path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url)))),
-  'hooks',
-);
-const SESSION_START = path.join(hooksDir, 'session-start.sh');
-const STOP_CHECK = path.join(hooksDir, 'stop-quiz-check.sh');
-const CHECKPOINT = path.join(hooksDir, 'checkpoint-quiz.sh');
+// The built hooks, not the sources: these are what the plugin actually runs,
+// and `pretest` builds them. They are Node rather than shell so that Windows,
+// where `.sh` hooks are unreliable, runs the same code as everywhere else.
+const hooksDir = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'dist', 'hooks');
+const SESSION_START = path.join(hooksDir, 'session-start.js');
+const STOP_CHECK = path.join(hooksDir, 'stop-quiz-check.js');
+const CHECKPOINT = path.join(hooksDir, 'checkpoint-quiz.js');
 
 const SESSION = 'hook-session';
 
@@ -30,7 +30,7 @@ interface HookResult {
 }
 
 function runHook(script: string, input: Record<string, unknown>, env: Record<string, string> = {}): HookResult {
-  const res = spawnSync('/bin/sh', [script], {
+  const res = spawnSync(process.execPath, [script], {
     input: JSON.stringify(input),
     encoding: 'utf8',
     env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home, ...env },
@@ -125,23 +125,23 @@ describe('SessionStart never breaks a session (PRD §9.1)', () => {
     expect(res.status).toBe(0);
   });
 
-  it('exits 0 when jq is not installed', () => {
+  // The hooks used to shell out to `jq` and the `sqlite3` CLI, and degraded to
+  // silence when either was missing -- which on Windows was most of the time.
+  // They are Node now, so an empty PATH costs nothing: this asserts the profile
+  // still prints with no external tool reachable at all.
+  it('works with nothing on PATH — no jq, no sqlite3, no shell', () => {
     const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-bin-'));
     try {
-      for (const tool of ['sh', 'cat', 'sed', 'dirname', 'sqlite3', 'printf', 'command']) {
-        const found = spawnSync('/bin/sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout?.trim();
-        if (found) fs.symlinkSync(found, path.join(bin, tool));
-      }
       const res = runHook(SESSION_START, { session_id: SESSION, cwd }, { PATH: bin });
       expect(res.status).toBe(0);
-      expect(res.stdout).toBe('');
+      expect(res.stdout).toMatch(/\[Eklavya\]/);
     } finally {
       fs.rmSync(bin, { recursive: true, force: true });
     }
   });
 
   it('exits 0 on malformed hook input', () => {
-    const res = spawnSync('/bin/sh', [SESSION_START], {
+    const res = spawnSync(process.execPath, [SESSION_START], {
       input: 'not json at all',
       encoding: 'utf8',
       env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
@@ -522,7 +522,7 @@ describe('PostToolUse checkpoint — the burst guard', () => {
   });
 
   it('exits 0 on malformed hook input', () => {
-    const res = spawnSync('/bin/sh', [CHECKPOINT], {
+    const res = spawnSync(process.execPath, [CHECKPOINT], {
       input: 'not json at all',
       encoding: 'utf8',
       env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },

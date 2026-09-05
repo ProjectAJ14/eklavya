@@ -1,7 +1,7 @@
 {
-  "name": "eklavya-mcp",
+  "name": "eklavya",
   "version": "1.7.0",
-  "description": "Eklavya MCP server — local knowledge graph, spaced repetition, and quiz gating for agent-assisted learning.",
+  "description": "Learn while your agent works \u2014 local knowledge graph, spaced repetition, and quiz gating for agent-assisted development.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,7 +30,6 @@
   },
   "files": [
     "dist",
-    "bin",
     "README.md"
   ],
   "publishConfig": {
@@ -38,7 +37,7 @@
     "provenance": true
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",

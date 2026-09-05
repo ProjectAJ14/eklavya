@@ -10,7 +10,12 @@ import { conceptBySlug, gradeConcept, logSessionConcept, syncGate } from '../src
 import { tempDbPath, cleanup } from './helpers.js';
 
 const root = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
-const PRE_TOOL_GATE = path.join(root, 'hooks', 'pre-tool-gate.sh');
+const PRE_TOOL_GATE = path.join(
+  path.dirname(path.dirname(fileURLToPath(import.meta.url))),
+  'dist',
+  'hooks',
+  'pre-tool-gate.js',
+);
 const GATE_CLI = path.join(root, 'cli', 'eklavya-gate');
 const INSTALLER = path.join(root, 'scripts', 'install-git-hook.sh');
 
@@ -32,7 +37,7 @@ function sh(cmd: string, args: string[], opts: { input?: string; cwd?: string; e
 }
 
 const preToolGate = (command: string, extra: Record<string, unknown> = {}) =>
-  sh('/bin/sh', [PRE_TOOL_GATE], {
+  sh(process.execPath, [PRE_TOOL_GATE], {
     input: JSON.stringify({
       session_id: SESSION,
       cwd: repo,

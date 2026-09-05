@@ -34,15 +34,15 @@ Component paths can be overridden in the manifest (`"hooks": "./config/hooks.jso
 
 ## 2. MCP registration — `.mcp.json` at plugin root
 
-What we actually ship (a launcher script, so a marketplace install can fall back
-to `npx eklavya-mcp` when `dist/` is absent):
+What we actually ship (a Node launcher, so it works on Windows and can fall back
+to `npx eklavya` when no runtime is installed yet):
 
 ```json
 {
   "mcpServers": {
     "eklavya": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/mcp/bin/eklavya-mcp.sh",
-      "env": { "EKLAVYA_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}" }
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "server"]
     }
   }
 }
@@ -224,9 +224,20 @@ This raises, not lowers, the severity of the P0 Stop-loop risk (PRD §15). Test 
 path and the server silently never starts. Every MCP tool then goes missing while
 the plugin still reports as loaded.
 
-**Decision:** `"command": "${CLAUDE_PLUGIN_ROOT}/mcp/bin/eklavya-mcp.sh"`, no
-quotes. Neither the test suite nor plugin validation caught this class of error
-until a fresh install was simulated; `test/packaging.test.ts` now guards it.
+**Decision:** `"command": "node"` with the script path in `args`, no quotes.
+Neither the test suite nor plugin validation caught this class of error until a
+fresh install was simulated; `test/packaging.test.ts` now guards it.
+
+**Update (the Node port):** the same reasoning now applies to `hooks.json` as
+well, and more forcefully. Shell form on Windows resolves to Git Bash,
+PowerShell, or WSL's bash depending on what is installed, and a `.sh` hook fails
+differently in each (claude-code#18610, #21847, #23556, #73971). Every hook is
+therefore exec form — `"command": "node"`, `"args": [".../run.mjs", "<name>"]` —
+which the hooks reference names as the one portable shape, because `node.exe` is
+a real executable and exec form needs no shell at all. The repo's own `.mcp.json`
+keeps a path relative to the repo root, because project-scope config gets no
+`${CLAUDE_PLUGIN_ROOT}` expansion; the shipped copy is generated from it by
+`mcp/scripts/copy-assets.mjs`.
 
 ### D3 — `hooks.timeout` is in seconds, MCP server `timeout` is in milliseconds
 Easy to get backwards. Noted so nobody "fixes" one to match the other.

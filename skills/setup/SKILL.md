@@ -8,7 +8,9 @@ disable-model-invocation: true
 
 Get Eklavya working on this machine. Be brief; this should take one exchange.
 
-**1. Check prerequisites.** Run `command -v jq sqlite3` and `node --version`. The hook scripts in later phases need `jq` and `sqlite3` on `PATH`; Node must be 18+. If something is missing, say which and how to install it on this platform, then continue — the MCP server still works without them.
+**1. Check prerequisites.** Run `node --version`. That is the whole list — the server, the CLI and all four hooks are Node, so nothing else has to be on `PATH`. Node must be 22+; below that the SQLite driver has no prebuilt binary and would need a C++ toolchain to install. If it is older, say so and how to upgrade on this platform, and stop: the rest of setup will not work.
+
+Optionally run `eklavya doctor`, which reports the same thing plus the database and the effective config.
 
 **2. Confirm the database.** Call `get_config` and report `global_path`, then check the DB:
 
@@ -16,7 +18,7 @@ Get Eklavya working on this machine. Be brief; this should take one exchange.
 sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'
 ```
 
-The server creates and seeds it on first start, so this should already show `web-auth`, `react`, `node-backend` and `git`. If the file is missing, the MCP server is not running — check `/plugin` for errors.
+The server creates and seeds it on first start, and `npx eklavya install` creates it up front, so this should already show `web-auth`, `react`, `node-backend` and `git`. If the file is missing, the MCP server is not running — check `/plugin` for errors, and check that the runtime is installed (`npx eklavya install` finishes it in one step).
 
 **3. Choose a mode.** Ask which fits, and explain in one line each:
 

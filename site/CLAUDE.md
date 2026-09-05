@@ -25,16 +25,16 @@ the page compounds its own drift.
 
 | Docs section | Source of truth |
 |---|---|
-| `#requirements` | `mcp/package.json` `engines`, `hooks/lib.sh` (`jq`, `sqlite3`) |
-| `#install` | `README.md` install block, `.mcp.json`, `mcp/bin/eklavya-mcp.sh` |
+| `#requirements` | `mcp/package.json` `engines` (Node only — the hooks are Node, so there is nothing else to install) |
+| `#install` | `README.md` install block, `mcp/src/install.ts`, `.mcp.json`, `hooks/run.mjs` |
 | `#setup` | `skills/setup/SKILL.md` |
-| `#first-session` | `hooks/hooks.json` and the four hook scripts |
+| `#first-session` | `hooks/hooks.json` and the four hooks in `mcp/src/hooks/` |
 | `#dials` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` |
 | `#levels` | `TIER_LABEL` in `mcp/src/ask.ts`; `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts` |
 | `#commands` | one `<article class="cmd">` per skill under `skills/` |
 | `#cli` | the `USAGE` string in `mcp/src/cli.ts` |
 | `#config` | `DEFAULT_CONFIG` in `mcp/src/config.ts` — every key, no omissions |
-| `#gate` | `mcp/src/store.ts` (`PASSING_GRADE`, `syncGate`, `gateRetryConcepts`), `cli/eklavya-gate`, `hooks/pre-tool-gate.sh`, `scripts/install-git-hook.sh` |
+| `#gate` | `mcp/src/store.ts` (`PASSING_GRADE`, `syncGate`, `gateRetryConcepts`), `cli/eklavya-gate`, `mcp/src/hooks/pre-tool-gate.ts`, `scripts/install-git-hook.sh` |
 | `#dashboard` | `DEFAULT_PORT` and `startDashboard` in `mcp/src/dashboard.ts` |
 | `#engine` | `mcp/src/srs.ts` constants; the `get_session_quiz_plan` and `record_attempt` tool descriptions |
 | `#data` | `mcp/src/paths.ts`, `mcp/src/migrations/` |

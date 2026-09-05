@@ -27,12 +27,35 @@ So Eklavya asks you about it — once per task, never the same question twice, a
 
 ## Install
 
-### Claude Code
+One command, from any terminal:
+
+```bash
+npx eklavya install
+```
+
+That checks your Node version, installs the runtime and its SQLite driver,
+registers the plugin with Claude Code and enables it, and creates the database.
+Restart Claude Code and it loads with your next session.
+
+Or from inside Claude Code, if you would rather use the plugin marketplace:
 
 ```bash
 /plugin marketplace add ProjectAJ14/eklavya
 /plugin install eklavya@eklavya
-/eklavya:setup
+```
+
+Both routes end up in the same place. The marketplace route installs the plugin
+files; the first session then finishes the runtime in the background, so the
+loop is live from the session after that. `npx eklavya install` does the whole
+thing up front.
+
+Either way, run `/eklavya:setup` in Claude Code afterwards to choose a mode.
+
+To remove it:
+
+```bash
+npx eklavya uninstall            # keeps your learning history
+npx eklavya uninstall --purge    # deletes it too
 ```
 
 Or run it straight from a checkout while developing:
@@ -47,11 +70,22 @@ claude --plugin-dir /path/to/eklavya
 
 | Requirement | Why |
 |---|---|
-| Node 18+ | the MCP server; `better-sqlite3` builds a native binding |
-| `sqlite3` on `PATH` | hook scripts read the knowledge database directly, with no MCP round trip |
-| `jq` on `PATH` | hook scripts parse hook input JSON |
+| Node 22+ | everything. The server, the CLI and all four hooks are Node |
 
-`/eklavya:setup` checks all three. Without `jq` or `sqlite3` the hooks quietly do nothing — they never break a session.
+That is the whole list, on macOS, Linux and Windows alike. Nothing else needs to
+be on your `PATH`: the hooks used to be POSIX shell and needed `jq` and the
+`sqlite3` CLI, which made them unreliable on Windows and silently inert without
+those tools. They are Node now.
+
+Node 22 is a floor rather than a preference — below it the SQLite driver has no
+prebuilt binary for these platforms, so `npm` would try to compile one and the
+install would need a full C++ toolchain. `npx eklavya install` checks first and
+tells you how to upgrade rather than half-installing.
+
+One exception, for one optional feature: the git `pre-commit` gate
+(`cli/eklavya-gate`, enforced mode only) is still POSIX shell, because a git hook
+should not pay Node's startup cost on every commit. It needs `jq` and `sqlite3`
+and fails open with a warning without them. Nothing else does.
 
 ## How it works
 
@@ -314,9 +348,9 @@ Layout:
 .mcp.json           registers the eklavya MCP server
 skills/             tutor pedagogy, and the five /eklavya:* commands
 agents/             the eklavya-tutor subagent
-hooks/              SessionStart, Stop, PreToolUse(Bash)
+hooks/              hooks.json + run.mjs, the one cross-platform entry point
 cli/, scripts/      the editor-agnostic commit gate
-mcp/                MCP server: knowledge graph, SM-2, gates, CLI
+mcp/                MCP server: knowledge graph, SM-2, gates, CLI, installer, hook logic
 docs/               verified schemas, parallel tutoring
 prd/                the spec and its per-phase delivery tracker
 ```
@@ -338,9 +372,11 @@ Releases are automatic. Push a [Conventional Commit](https://www.conventionalcom
 | `feat!:` or a `BREAKING CHANGE:` footer | major |
 | `docs:` `test:` `chore:` `build:` `ci:` `refactor:` | no release |
 
-Nothing to run by hand. The workflow installs, runs all tests, and only then releases — and the suite asserts that the three places carrying a version agree: `.claude-plugin/plugin.json`, `mcp/package.json`, and `PINNED_VERSION` in `mcp/bin/eklavya-mcp.sh`, which is what an installed plugin actually downloads. `scripts/bump-version.sh` keeps them in step and semantic-release calls it for you.
+Nothing to run by hand. The workflow installs, runs all tests, and only then releases — and the suite asserts that the two places carrying a version agree: `.claude-plugin/plugin.json` and `mcp/package.json`. `hooks/run.mjs` reads the version out of the plugin manifest at runtime rather than carrying a third copy, which is one fewer thing a release can forget. `scripts/bump-version.sh` keeps the two in step and semantic-release calls it for you.
 
-The Claude Code plugin has no separate publish step: the marketplace serves the plugin straight from this repository, so the same push ships it.
+The Claude Code plugin has no separate publish step: the marketplace serves the plugin straight from this repository, so the same push ships it. The npm package carries the same plugin tree inside it (`mcp/dist/plugin/`, assembled by `mcp/scripts/copy-assets.mjs`), which is what lets `npx eklavya install` set everything up without a git clone — and what keeps the two install routes from drifting apart.
+
+The package is published as **`eklavya`**. It was `eklavya-mcp` up to 1.7.0; that name still exists on npm so that already-installed plugins pinned to it keep resolving, and it must never be unpublished.
 
 Repository secret required: `NPM_TOKEN` (an npm **Automation** token). `GITHUB_TOKEN` is provided by Actions.
 

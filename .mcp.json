@@ -1,14 +1,11 @@
 {
   "mcpServers": {
     "eklavya": {
-      "command": "sh",
+      "command": "node",
       "args": [
-        "-c",
-        "R=$EKLAVYA_PLUGIN_ROOT; [ -d \"$R/mcp/bin\" ] || R=$PWD; exec \"$R/mcp/bin/eklavya-mcp.sh\""
-      ],
-      "env": {
-        "EKLAVYA_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
-      }
+        "hooks/run.mjs",
+        "server"
+      ]
     }
   }
 }

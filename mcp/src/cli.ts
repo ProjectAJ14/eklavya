@@ -12,12 +12,15 @@ import { dbPath, eklavyaHome } from './paths.js';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
 import { levelStanding } from './store.js';
 import { startDashboard } from './dashboard.js';
+import { install, uninstall } from './install.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 const USAGE = `eklavya — local learning state for agent-assisted development
 
 Usage:
+  eklavya install                       Install Eklavya into Claude Code, runtime included
+  eklavya uninstall [--purge]           Remove it (--purge also deletes your learning history)
   eklavya export-rules [--out <file>]   Write the tutor pedagogy as a Cursor rules file
   eklavya config get                    Show the effective configuration
   eklavya config set <key> <value>      Change a setting (add --repo to scope it to this repo)
@@ -211,6 +214,10 @@ function main(): void {
   const [command, ...rest] = process.argv.slice(2);
 
   switch (command) {
+    case 'install':
+      return install(rest);
+    case 'uninstall':
+      return uninstall(rest);
     case 'export-rules':
       return exportRules(rest);
     case 'config':

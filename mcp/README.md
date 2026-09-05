@@ -1,16 +1,40 @@
-# eklavya-mcp
+# eklavya
 
-The MCP server behind [Eklavya](../README.md): a local knowledge graph, SM-2 spaced repetition, and commit-gate state for agent-assisted learning.
+[Eklavya](https://github.com/ProjectAJ14/eklavya) — learn while your agent works. This package is
+the whole thing: the installer, the MCP server, the CLI, and the Claude Code plugin it installs.
 
-Runs standalone, so any MCP client can use it — this is what makes Eklavya editor-agnostic.
+## Install
+
+```bash
+npx eklavya install
+```
+
+That checks your Node version, installs the runtime and its SQLite driver, registers the plugin
+with Claude Code and enables it, and creates the database. Restart Claude Code afterwards, then
+run `/eklavya:setup` to pick a mode. Re-running it is how you upgrade; `npx eklavya uninstall`
+removes it and keeps your history unless you pass `--purge`.
+
+Requires **Node 22+** — below that the SQLite driver has no prebuilt binary and would need a C++
+toolchain to compile.
+
+## As a standalone MCP server
+
+The server runs on its own, so any MCP client can use it — this is what makes Eklavya
+editor-agnostic.
 
 ```json
 {
   "mcpServers": {
-    "eklavya": { "command": "npx", "args": ["-y", "eklavya-mcp"] }
+    "eklavya": { "command": "npx", "args": ["-y", "--package", "eklavya", "eklavya-mcp"] }
   }
 }
 ```
+
+`--package` is needed because this package ships two binaries: `eklavya` is the CLI,
+`eklavya-mcp` is the server.
+
+> Renamed from `eklavya-mcp` after 1.7.0. That package still exists so older installs keep
+> working, but it is no longer updated.
 
 State lives in `~/.eklavya/knowledge.db` (SQLite, WAL). Override with `EKLAVYA_HOME` or `EKLAVYA_DB`.
 
@@ -32,12 +56,15 @@ State lives in `~/.eklavya/knowledge.db` (SQLite, WAL). Override with `EKLAVYA_H
 ## CLI
 
 ```bash
+eklavya install                     # install into Claude Code, runtime included
+eklavya uninstall [--purge]         # remove it; --purge also deletes your history
 eklavya doctor                      # check the install
 eklavya config get
 eklavya config set mode enforced [--repo]     # how hard it pushes
 eklavya config set focus concept              # what it teaches
 eklavya config set focus learn --topic caching
 eklavya export-rules --out rules.md              # the tutor pedagogy as Markdown
+eklavya dashboard [--port <n>]                   # your learning history, served locally
 eklavya db-path
 ```
 

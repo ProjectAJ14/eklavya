@@ -37,12 +37,6 @@ node -e "
 
 (cd "$ROOT/mcp" && npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null)
 
-LAUNCHER="$ROOT/mcp/bin/eklavya-mcp.sh"
-TMP="$LAUNCHER.tmp$$"
-sed "s/^PINNED_VERSION=\".*\"$/PINNED_VERSION=\"$VERSION\"/" "$LAUNCHER" > "$TMP"
-chmod +x "$TMP"
-mv "$TMP" "$LAUNCHER"
-
 printf 'Bumped to %s:\n' "$VERSION"
-printf '  .claude-plugin/plugin.json\n  mcp/package.json\n  mcp/bin/eklavya-mcp.sh\n'
+printf '  .claude-plugin/plugin.json\n  mcp/package.json\n'
 printf '\nIf you ran this by hand, remember `cd mcp && npm test` before committing.\n'

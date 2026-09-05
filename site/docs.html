@@ -132,12 +132,12 @@
           <tbody>
             <tr>
               <td><strong>The MCP server</strong></td>
-              <td><code>mcp/</code>, published as <code>eklavya-mcp</code> on npm</td>
+              <td><code>mcp/</code>, published as <code>eklavya</code> on npm</td>
               <td>The memory and the rules. It holds the knowledge graph of concepts, decides what you should be asked next and at what difficulty, and grades and stores every answer.</td>
             </tr>
             <tr>
               <td><strong>The hooks</strong></td>
-              <td><code>hooks/</code> — small shell scripts</td>
+              <td><code>hooks/</code> and <code>mcp/src/hooks/</code> — small Node scripts</td>
               <td>The timing. They decide <em>when</em> a question arrives: at session start, mid-task, at the end of a task, and before a <code>git commit</code>.</td>
             </tr>
             <tr>
@@ -162,7 +162,7 @@
       <p class="doc-kicker">02 — Getting started</p>
       <h2 id="requirements-h">Before you start</h2>
 
-      <p>Three things need to be on your machine. Check all three before installing.</p>
+      <p>One thing needs to be on your machine.</p>
 
       <div class="doc-table-wrap">
         <table class="doc-table">
@@ -171,39 +171,57 @@
           </thead>
           <tbody>
             <tr>
-              <td><strong>Node 18 or newer</strong></td>
+              <td><strong>Node 22 or newer</strong></td>
               <td><code>node --version</code></td>
-              <td>Runs the MCP server. The database driver (<code>better-sqlite3</code>) compiles a small native binding on install, which needs a modern Node.</td>
-            </tr>
-            <tr>
-              <td><strong><code>sqlite3</code> on your PATH</strong></td>
-              <td><code>sqlite3 --version</code></td>
-              <td>The hook scripts read the database directly instead of going through the MCP server, because they run on the critical path of things you are already doing and have to be fast.</td>
-            </tr>
-            <tr>
-              <td><strong><code>jq</code> on your PATH</strong></td>
-              <td><code>jq --version</code></td>
-              <td>The hook scripts are POSIX shell. <code>jq</code> is how they read the JSON that Claude Code hands them.</td>
+              <td>Runs everything: the MCP server, the <code>eklavya</code> command, and all four hooks.</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <h3>Installing the two command-line tools</h3>
+      <p>
+        That is the whole list, on macOS, Linux and Windows alike. Earlier versions of Eklavya
+        also needed <code>jq</code> and the <code>sqlite3</code> command line tool, because the
+        hooks were shell scripts. They are Node now, so there is nothing else to install and
+        nothing to go missing.
+      </p>
 
-      <pre data-lang="macOS"><code>brew install jq sqlite</code></pre>
+      <h3>Why Node 22 specifically</h3>
 
-      <pre data-lang="Ubuntu / Debian"><code>sudo apt-get update &amp;&amp; sudo apt-get install -y jq sqlite3</code></pre>
+      <p>
+        Eklavya stores your knowledge graph in SQLite, through a driver called
+        <code>better-sqlite3</code>. That driver is native code, and it ships ready-compiled
+        binaries for Node 22 and newer. On Node 20 or older there is no ready-made binary for
+        your platform, so <code>npm</code> falls back to compiling one, which needs a full C++
+        toolchain — Xcode command line tools on macOS, Visual Studio Build Tools on Windows.
+      </p>
 
-      <pre data-lang="Windows"><code># Use WSL. Inside your Ubuntu shell:
-sudo apt-get update &amp;&amp; sudo apt-get install -y jq sqlite3</code></pre>
+      <p>
+        Rather than let you find that out halfway through, <code>npx eklavya install</code> checks
+        your Node version first and stops with instructions if it is too old.
+      </p>
+
+      <pre data-lang="macOS"><code>brew install node</code></pre>
+
+      <pre data-lang="Windows"><code>winget install OpenJS.NodeJS.LTS</code></pre>
+
+      <pre data-lang="Linux"><code># with nvm
+nvm install 22 &amp;&amp; nvm use 22</code></pre>
 
       <div class="note">
-        <p><strong>If <code>jq</code> or <code>sqlite3</code> is missing, nothing breaks.</strong> The
-        hooks are written to exit silently when a dependency is absent — a learning tool that
-        stops your session from working gets uninstalled the same day. You simply get no
-        questions until you install them. The MCP server itself, and every <code>/eklavya:*</code>
-        command, still work.</p>
+        <p><strong>One exception, for one optional feature.</strong> The git
+        <code>pre-commit</code> gate — which enforces the quiz for commits made outside Claude
+        Code, in enforced mode only — is a POSIX shell script, because a git hook should not pay
+        Node's startup cost on every commit. It needs <code>jq</code> and the <code>sqlite3</code>
+        command line tool, and it fails open with a warning when they are absent. Nothing else in
+        Eklavya does. Install them with <code>brew install jq sqlite</code> or
+        <code>sudo apt-get install -y jq sqlite3</code> if you want that gate.</p>
+      </div>
+
+      <div class="note">
+        <p><strong>git is optional.</strong> Without it Eklavya still runs, but two things change:
+        your difficulty level is tracked in one shared bucket instead of per project, and the
+        commit gate has nothing to attach to. Everything else works.</p>
       </div>
     </section>
 
@@ -212,11 +230,56 @@ sudo apt-get update &amp;&amp; sudo apt-get install -y jq sqlite3</code></pre>
       <p class="doc-kicker">03 — Getting started</p>
       <h2 id="install-h">Installing</h2>
 
-      <p>Pick the one that matches you. Almost everyone wants the first.</p>
+      <p>Two routes, and they end up in the same place. Pick either.</p>
 
-      <h3>A. In Claude Code (the normal way)</h3>
+      <h3>A. One command, from a terminal</h3>
 
-      <p>Four steps, in order. Three of them are a single line typed into Claude Code.</p>
+      <pre data-lang="Terminal"><code>npx eklavya install</code></pre>
+
+      <p>That does the whole job, in this order:</p>
+
+      <ol class="doc-steps">
+        <li>
+          <h4>Checks your Node version</h4>
+          <p>
+            Stops with upgrade instructions if it is older than 22, rather than half-installing
+            and failing later.
+          </p>
+        </li>
+        <li>
+          <h4>Installs the runtime</h4>
+          <p>
+            The server, the hooks and the SQLite driver go into <code>~/.eklavya/runtime</code>.
+            This is the step that downloads the ready-compiled database binary for your platform.
+            It then loads it once to prove it actually works, instead of trusting that
+            <code>npm</code> exiting cleanly meant a working binary.
+          </p>
+        </li>
+        <li>
+          <h4>Installs and enables the plugin</h4>
+          <p>
+            Copies the plugin into Claude Code's plugin directory and registers it, which is the
+            same end state <code>/plugin install</code> produces.
+          </p>
+        </li>
+        <li>
+          <h4>Creates the database</h4>
+          <p>
+            <code>~/.eklavya/knowledge.db</code>, migrated and seeded, so <code>eklavya doctor</code>
+            works before you have opened Claude Code even once.
+          </p>
+        </li>
+      </ol>
+
+      <p>
+        Then restart Claude Code and run <code>/eklavya:setup</code> to choose a mode. Running
+        <code>npx eklavya install</code> again is how you upgrade — every step is safe to repeat,
+        and it will not disturb your other plugins or your learning history.
+      </p>
+
+      <h3>B. In Claude Code, through the plugin marketplace</h3>
+
+      <p>If you would rather not touch a terminal:</p>
 
       <ol class="doc-steps">
         <li>
@@ -254,6 +317,15 @@ sudo apt-get update &amp;&amp; sudo apt-get install -y jq sqlite3</code></pre>
         </li>
       </ol>
 
+      <div class="note">
+        <p><strong>What route B does differently.</strong> A slash command cannot run
+        <code>npm</code>, so this route installs the plugin files but not the runtime. Your first
+        session starts that download in the background and carries on as normal; the questions
+        begin from the session after it finishes. Route A does it up front instead. If you would
+        rather not wait, run <code>npx eklavya install</code> at any point — it finishes the job
+        and is safe to run over an existing install.</p>
+      </div>
+
       <h4>Check that it worked</h4>
       <p>
         Run <code>/plugin</code> and confirm <strong>eklavya</strong> is listed with no errors. The
@@ -265,7 +337,7 @@ sudo apt-get update &amp;&amp; sudo apt-get install -y jq sqlite3</code></pre>
         <a href="#troubleshooting">Troubleshooting</a>.
       </p>
 
-      <h3>B. From a checkout (contributors)</h3>
+      <h3>C. From a checkout (contributors)</h3>
 
       <p>Use this when you are changing Eklavya itself and want your edits to take effect immediately.</p>
 
@@ -278,19 +350,32 @@ claude --plugin-dir "$(pwd)"</code></pre>
 
       <p>
         <code>--plugin-dir</code> tells Claude Code to load the plugin from a folder instead of a
-        marketplace. The launcher script prefers your local <code>mcp/dist/</code> build when one
-        exists, so a rebuild is all it takes to see a change.
+        marketplace. The launcher prefers your local <code>mcp/dist/</code> build when one exists,
+        so a rebuild is all it takes to see a change.
+      </p>
+
+      <h3>Uninstalling</h3>
+
+      <pre data-lang="Terminal"><code>npx eklavya uninstall           # removes the plugin, keeps your history
+npx eklavya uninstall --purge   # removes ~/.eklavya as well</code></pre>
+
+      <p>
+        Without <code>--purge</code> your knowledge graph stays at
+        <code>~/.eklavya/knowledge.db</code>, so reinstalling picks up exactly where you left off.
+        That is deliberate: months of spaced repetition should not disappear because you removed a
+        plugin.
       </p>
 
       <h3>Getting the <code>eklavya</code> command</h3>
       <p>
         Some things — checking your setup, serving the dashboard, editing config from a terminal —
-        are done with a small CLI rather than a slash command. It ships in the same npm package:
+        are done with a small CLI rather than a slash command. <code>npx eklavya install</code>
+        already put it on your machine; to have it permanently on your <code>PATH</code>:
       </p>
-      <pre data-lang="Terminal"><code>npm install -g eklavya-mcp     # then: eklavya doctor
+      <pre data-lang="Terminal"><code>npm install -g eklavya     # then: eklavya doctor
 
 # or without installing anything globally:
-npx --package eklavya-mcp eklavya doctor</code></pre>
+npx eklavya doctor</code></pre>
       <p>Full list of subcommands: <a href="#cli">The <code>eklavya</code> CLI</a>.</p>
     </section>
 
@@ -310,9 +395,9 @@ npx --package eklavya-mcp eklavya doctor</code></pre>
         <li>
           <h4>It checks your prerequisites</h4>
           <p>
-            Claude runs <code>command -v jq sqlite3</code> and <code>node --version</code>. If
-            something is missing it tells you how to install it on your platform, then continues
-            anyway — the MCP server works without them.
+            Claude runs <code>node --version</code>. That is the only requirement, so if it is
+            22 or newer you are ready; if it is older, setup tells you how to upgrade on your
+            platform and stops there.
           </p>
         </li>
         <li>
@@ -878,15 +963,18 @@ eklavya config set difficulty easy --repo  # keep an onboarding repo gentle for 
       <h2 id="cli-h">The <code>eklavya</code> CLI</h2>
 
       <p>
-        For the parts of Eklavya that make sense outside a Claude Code session. Install it with
-        <code>npm install -g eklavya-mcp</code>, or run it without installing via
-        <code>npx --package eklavya-mcp eklavya &lt;command&gt;</code>.
+        For the parts of Eklavya that make sense outside a Claude Code session.
+        <code>npx eklavya install</code> already puts it on your machine; to have it on your
+        <code>PATH</code> permanently use <code>npm install -g eklavya</code>, or run any
+        subcommand without installing via <code>npx eklavya &lt;command&gt;</code>.
       </p>
 
       <div class="doc-table-wrap">
         <table class="doc-table">
           <thead><tr><th>Command</th><th>What it does</th></tr></thead>
           <tbody>
+            <tr><td><code>eklavya install</code></td><td>Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, and creates the database. Safe to re-run — that is how you upgrade.</td></tr>
+            <tr><td><code>eklavya uninstall [--purge]</code></td><td>Removes the plugin and the runtime, and deregisters it from Claude Code. Your learning history is kept unless you pass <code>--purge</code>.</td></tr>
             <tr><td><code>eklavya config get</code></td><td>Prints the effective configuration as JSON, plus the paths of the global and repo files it came from.</td></tr>
             <tr><td><code>eklavya config set &lt;key&gt; &lt;value&gt;</code></td><td>Changes one setting. Add <code>--repo</code> to write <code>.eklavya.json</code> at the repository root instead of your global config. Add <code>--topic &lt;topic&gt;</code> when setting <code>focus learn</code>.</td></tr>
             <tr><td><code>eklavya doctor</code></td><td>Checks that everything is wired up: home directory, database, concept and attempt counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if the database cannot be opened.</td></tr>
@@ -1240,7 +1328,7 @@ export EKLAVYA_DB=/tmp/test.db          # just the database</code></pre>
           <tbody>
             <tr>
               <td>No profile line at session start</td>
-              <td>Either <code>quiet</code> is <code>true</code>, or <code>jq</code>/<code>sqlite3</code> is missing, or the plugin did not load. Run <code>/plugin</code> and check for errors, then <code>eklavya config get</code>.</td>
+              <td>Either <code>quiet</code> is <code>true</code>, <code>mode</code> is <code>off</code>, the runtime is not installed yet, or the plugin did not load. Run <code>/plugin</code> and check for errors, then <code>eklavya doctor</code>. If you installed through the marketplace, <code>npx eklavya install</code> finishes the runtime immediately.</td>
             </tr>
             <tr>
               <td>No questions at all, ever</td>

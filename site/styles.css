@@ -141,6 +141,10 @@ a:hover { color: var(--green-800); }
   color: var(--on-dark-muted); max-width: 520px;
 }
 .hero__note { margin: 22px 0 0; font-size: 13.5px; color: var(--neutral-500); }
+/* Two notes stack under the hero — the second is a footnote to the first, not a
+   new beat, so it sits closer than the 22px that separates them from the CTA. */
+.hero__note + .hero__note { margin-top: 8px; }
+.hero__note code { font-family: var(--font-mono); font-size: 12.5px; color: var(--neutral-400); }
 .hero__actions { margin-top: 24px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 
 /* install box */

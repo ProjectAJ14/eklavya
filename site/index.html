@@ -93,9 +93,8 @@
 
       <div class="install fade-up fade-up--3">
         <div class="install__lines">
-          <code><span class="install__n">1</span>&nbsp;&nbsp;/plugin marketplace add ProjectAJ14/eklavya</code>
-          <code><span class="install__n">2</span>&nbsp;&nbsp;/plugin install eklavya@eklavya</code>
-          <code><span class="install__n">3</span>&nbsp;&nbsp;/eklavya:setup</code>
+          <code><span class="install__n">1</span>&nbsp;&nbsp;npx eklavya install</code>
+          <code><span class="install__n">2</span>&nbsp;&nbsp;/eklavya:setup</code>
         </div>
         <button class="copy" type="button" data-copy>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
@@ -110,6 +109,8 @@
         </a>
         <a class="btn btn--ghost" href="#legend">The legend</a>
       </div>
+
+      <p class="hero__note fade-up fade-up--5">Prefer the plugin marketplace? <code>/plugin marketplace add ProjectAJ14/eklavya</code> then <code>/plugin install eklavya@eklavya</code> works too.</p>
 
       <p class="hero__note fade-up fade-up--5">Everything is local. No accounts, no sync, no telemetry.</p>
     </div>
@@ -494,7 +495,7 @@
         <div class="cmd-row"><code>/eklavya:level [value]</code><span>This project's difficulty band and the runway into it — or pin one</span></div>
         <div class="cmd-row"><code>/eklavya:progress</code><span>The mastery map: which projects, what they taught, what you skipped, what's due</span></div>
         <div class="cmd-row"><code>/eklavya:gate</code><span>Commit-gate status</span></div>
-        <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node 18+, sqlite3 and jq</span></div>
+        <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node, then picks your mode and focus</span></div>
       </div>
     </div>
 
@@ -613,8 +614,7 @@
   <div class="cta__inner">
     <h2 class="cta__title" id="cta-title" data-reveal>Turn generation time<br>into <em>learning time.</em></h2>
     <div class="cta__code" data-reveal data-delay="150">
-      <div><span>$</span> /plugin marketplace add ProjectAJ14/eklavya</div>
-      <div><span>$</span> /plugin install eklavya@eklavya</div>
+      <div><span>$</span> npx eklavya install</div>
       <div><span>$</span> /eklavya:setup</div>
     </div>
     <div class="cta__actions" data-reveal data-delay="300">
@@ -623,7 +623,7 @@
         Star on GitHub
       </a>
     </div>
-    <p class="cta__note" data-reveal data-delay="400">Node 18+ · sqlite3 and jq on PATH · everything stays on your machine</p>
+    <p class="cta__note" data-reveal data-delay="400">Node 22+ · macOS, Linux and Windows · everything stays on your machine</p>
   </div>
 </section>
 
