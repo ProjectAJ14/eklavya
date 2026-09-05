@@ -186,20 +186,75 @@ a:hover { color: var(--green-800); }
   margin-left: 10px; font-family: var(--font-mono);
   font-size: 12px; color: var(--neutral-500);
 }
+/* Fixed height, and the transcript scrolls inside it: the demo runs to about
+   twice this and the hero must not grow a screen taller as it plays. */
 .term__body {
   padding: 20px 22px 24px; font-family: var(--font-mono);
-  font-size: 13px; line-height: 1.75; min-height: 392px;
-  display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; line-height: 1.75; height: 470px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--neutral-700) transparent;
+  overscroll-behavior: contain;
 }
-.term__body > div { opacity: 0; }
+.term__body::-webkit-scrollbar { width: 8px; }
+.term__body::-webkit-scrollbar-thumb { background: var(--neutral-700); border-radius: var(--radius-pill); }
+.term__log { display: flex; flex-direction: column; gap: 6px; }
 .term__prompt { color: var(--green-400); }
+
+/* Every log line starts `hidden`; app.js unhides it and adds .is-on a frame
+   later so the transition has two states to run between. With no JS the
+   whole transcript is visible, which is the sensible fallback. */
+.tl { opacity: 0; transform: translateY(6px); transition: opacity 260ms var(--ease), transform 260ms var(--ease); }
+.tl.is-on { opacity: 1; transform: none; }
+/* No JS, no [data-ready]: nothing will ever unhide the lines, so print the
+   finished transcript and drop the prompt the visitor could not have used. */
+.term__body:not([data-ready]) .tl[hidden] { display: block; opacity: 1; transform: none; }
+.term__body:not([data-ready]) [data-type-cursor],
+.term__body:not([data-ready]) .term__ask-row { display: none; }
 .tl-user { color: #E8EDEF; }
 .tl-sys { color: var(--neutral-400); }
 .tl-ek { color: var(--green-300); }
-.tl-q {
-  color: #C7CFD4; padding-left: 16px; border-left: 2px solid var(--green-600);
+.tl-ask { margin-top: 10px; }
+.tl-grade { color: var(--green-400); margin-top: 6px; }
+.tl-grade.is-miss { color: var(--error); }
+.tl-grade.is-blank { color: var(--neutral-400); }
+.tl-note { color: var(--neutral-500); font-size: 11.5px; }
+.tl-why { color: var(--neutral-400); padding-left: 16px; border-left: 2px solid var(--neutral-700); }
+.tl-hang { opacity: 0; }
+.term__cursor { color: var(--green-400); animation: blink 1.1s steps(1) infinite; }
+
+/* the prompt the visitor actually types into */
+/* The prompt sits directly under the last line of output, the way a shell
+   leaves it — not pinned to the bottom of the window. */
+.term__ask-row {
+  padding-top: 14px;
+  display: flex; align-items: center; gap: 8px;
 }
-.tl-grade { color: var(--green-400); }
+.term__input {
+  flex: 1 1 auto; min-width: 0; padding: 0; border: 0; background: none;
+  font: inherit; color: #E8EDEF; caret-color: var(--green-400);
+}
+.term__input::placeholder { color: var(--neutral-500); }
+/* No box on a terminal prompt: the caret plus a hairline under the field is
+   the focus indicator. */
+.term__input:focus,
+.term__input:focus-visible { outline: none; box-shadow: inset 0 -1px 0 var(--green-600); }
+/* The block cursor stands in for the caret until the field is focused, so the
+   idle prompt still looks like a live terminal. */
+.term__ask-row .term__cursor { flex: none; }
+.term__ask-row:focus-within .term__cursor { display: none; }
+.term__go {
+  flex: none; font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
+  color: var(--green-300); background: rgba(4, 157, 102, .16);
+  border: 1px solid rgba(4, 157, 102, .35); border-radius: var(--radius-pill);
+  padding: 4px 13px; cursor: pointer;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease), color 140ms var(--ease);
+}
+.term__go:hover { background: rgba(4, 157, 102, .3); border-color: var(--green-500); color: var(--green-200); }
+.term__ask-row.is-armed .term__go { animation: armed 2.4s var(--ease) infinite; }
+.term__ask-row.is-busy { opacity: .45; pointer-events: none; }
+/* display:flex beats the UA [hidden] rule, so say it again. */
+.term__ask-row[hidden] { display: none; }
+.term__go:focus-visible,
+.ask__opt:focus-visible { outline: 2px solid var(--green-400); outline-offset: 2px; }
 
 /* the AskUserQuestion picker, as Claude Code draws it */
 .ask {
@@ -223,29 +278,30 @@ a:hover { color: var(--green-800); }
 }
 .ask__opts { display: flex; flex-direction: column; gap: 2px; }
 .ask__opt {
+  width: 100%; font: inherit; text-align: left; border: 0; background: none;
   color: #AEB8C0; padding: 2px 6px; border-radius: var(--radius-xs);
-  display: flex; align-items: flex-start; gap: 4px;
+  display: flex; align-items: flex-start; gap: 4px; cursor: default;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
 }
 .ask__opt--other { color: var(--neutral-500); }
-.ask__mark { flex: none; width: 12px; color: var(--green-400); }
+.ask__mark { flex: none; width: 12px; color: var(--green-400); opacity: 0; }
 .ask__n { flex: none; min-width: 14px; color: var(--neutral-500); }
 
-/* the picked row. Base state is selected so that when prefers-reduced-motion
-   kills the animation the panel still shows an answered question. */
-.tl-pick { background: rgba(4, 157, 102, .16); color: #E8EDEF; }
-.tl-pick .ask__n { color: var(--green-300); }
-.tl-pick { animation: pick 16s linear infinite; }
-.tl-pick .ask__mark { animation: pickMark 16s linear infinite; }
-.term__cursor { color: var(--green-400); opacity: 1; animation: blink 1.1s steps(1) infinite; }
-
-.tl-0 { animation: tl0 16s linear infinite; }
-.tl-1 { animation: tl1 16s linear infinite; }
-.tl-2 { animation: tl2 16s linear infinite; }
-.tl-3 { animation: tl3 16s linear infinite; }
-.tl-4 { animation: tl4 16s linear infinite; margin-top: 10px; }
-.tl-6 { animation: tl6 16s linear infinite; margin-top: 6px; }
-.tl-7 { animation: tl7 16s linear infinite; }
-.tl-hang { opacity: 0; }
+/* .is-live is on only while the question is open — after the pick the rows
+   stop reacting to the pointer, the way a resolved picker does. */
+.ask__opts.is-live .ask__opt { cursor: pointer; }
+.ask__opts.is-live .ask__opt:hover,
+.ask__opts.is-live .ask__opt:focus { background: rgba(4, 157, 102, .16); color: #E8EDEF; outline: none; }
+.ask__opts.is-live .ask__opt:hover .ask__mark,
+.ask__opts.is-live .ask__opt:focus .ask__mark { opacity: 1; }
+.ask__opt.is-right { background: rgba(4, 157, 102, .16); color: #E8EDEF; }
+.ask__opt.is-right .ask__n { color: var(--green-300); }
+.ask__opt.is-right .ask__mark { opacity: 1; }
+.ask__opt.is-blank { background: rgba(107, 119, 128, .18); color: #C7CFD4; }
+.ask__opt.is-blank .ask__mark { opacity: 1; color: var(--neutral-400); }
+.ask__opt.is-wrong { background: rgba(229, 72, 77, .14); color: #E8EDEF; }
+.ask__opt.is-wrong .ask__mark,
+.ask__opt.is-wrong .ask__n { opacity: 1; color: var(--error); }
 
 /* ============================================================
    WHY
@@ -638,6 +694,10 @@ a:hover { color: var(--green-800); }
    ============================================================ */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
 @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes armed {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(4, 157, 102, .35); }
+  50% { box-shadow: 0 0 0 7px rgba(4, 157, 102, 0); }
+}
 @keyframes glow { 0%, 100% { opacity: .55; } 50% { opacity: .9; } }
 @keyframes arrowFly {
   0%, 4% { transform: translateX(0); opacity: 0; }
@@ -664,19 +724,6 @@ a:hover { color: var(--green-800); }
   22% { transform: translateX(0); }
   100% { transform: translateX(0); }
 }
-@keyframes tl0 { 0%,2% { opacity:0; transform:translateY(6px); } 4% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl1 { 0%,10% { opacity:0; transform:translateY(6px); } 12% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl2 { 0%,20% { opacity:0; transform:translateY(6px); } 22% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl3 { 0%,30% { opacity:0; transform:translateY(6px); } 32% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl4 { 0%,38% { opacity:0; transform:translateY(6px); } 40% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes pick {
-  0%, 58% { background: transparent; color: #AEB8C0; }
-  60%, 96% { background: rgba(4, 157, 102, .16); color: #E8EDEF; }
-  100% { background: transparent; color: #AEB8C0; }
-}
-@keyframes pickMark { 0%, 58% { opacity: 0; } 60%, 96% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes tl6 { 0%,68% { opacity:0; transform:translateY(6px); } 70% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
-@keyframes tl7 { 0%,80% { opacity:0; transform:translateY(6px); } 82% { opacity:1; transform:none; } 96% { opacity:1; transform:none; } 100% { opacity:0; } }
 
 /* hero entrance */
 .fade-up { animation: fadeUp .7s var(--ease) both; }
@@ -1075,7 +1122,7 @@ a:hover { color: var(--green-800); }
   /* Several loops end their cycle at opacity 0. Killing the animation would
      leave that content invisible, so land every animated element in the state
      a reader should see. */
-  .term__body > div,
+  .tl.is-on,
   .term__cursor,
   [data-reveal] { opacity: 1 !important; transform: none !important; }
   .fade-up { opacity: 1; }
