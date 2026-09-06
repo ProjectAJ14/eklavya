@@ -1,3 +1,11 @@
+# [1.10.0](https://github.com/ProjectAJ14/eklavya/compare/v1.9.4...v1.10.0) (2026-09-06)
+
+
+### Features
+
+* **ask:** label every dial in the settings line ([2bdd5fa](https://github.com/ProjectAJ14/eklavya/commit/2bdd5faceba7adda4165f6e9169755a1650968e7))
+* **dashboard:** rebuild it as a navigable learning record ([d00936c](https://github.com/ProjectAJ14/eklavya/commit/d00936ccd5e75d280ea052b86038116b1261feac))
+
 ## [1.9.4](https://github.com/ProjectAJ14/eklavya/compare/v1.9.3...v1.9.4) (2026-09-06)
 
 
