@@ -41,24 +41,53 @@ behaviour, update the matching page in the same commit — and read the value ou
 of the file below rather than copying what the page already says, or the page
 compounds its own drift.
 
+Every `.mdx` under `src/content/docs/docs/` has a row here, in sidebar order.
+
 | Page | Source of truth |
 |---|---|
-| `before-you-start.mdx` | `mcp/package.json` `engines` (Node only — the hooks are Node, so there is nothing else to install) |
+| `index.mdx` | the loop as it actually runs: the four hooks in `mcp/src/hooks/` and `max_questions_per_task` in `mcp/src/config.ts`. It also carries the one prerequisite — `mcp/package.json` `engines` — because `before-you-start.mdx` was merged into it. Keep it short: it is the page that says what the tool is, not how it works |
 | `installing.mdx` | `mcp/src/install.ts` (its numbered steps are the numbered steps on the page), `.mcp.json`, `hooks/run.mjs`. `README.md` points here rather than repeating it — keep it that way |
 | `first-run.mdx` | `skills/setup/SKILL.md` |
 | `first-session.mdx` | `hooks/hooks.json` and the four hooks in `mcp/src/hooks/` |
-| `dials.mdx` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` |
+| `dials.mdx` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` — **and** `mcp/src/tools/get_session_quiz_plan.ts`, because the `interleaved` one-question cap and its exemptions live in the planner, not in the config |
 | `levels-and-tiers.mdx` | `TIER_LABEL` in `mcp/src/ask.ts`; `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts` |
-| `commands.mdx` | one `###` per skill under `skills/`, plus one for `user-skill/` |
+| `commands.mdx` | one `###` per slash command — the skills under `skills/` carrying `disable-model-invocation: true`, seven of them; `skills/tutor/` is model-invocable only and gets no heading. Plus one for `user-skill/` |
 | `cli.mdx` | the `USAGE` string in `mcp/src/cli.ts` |
 | `configuration.mdx` | `DEFAULT_CONFIG` in `mcp/src/config.ts` — every key, no omissions |
 | `commit-gate.mdx` | `mcp/src/store.ts` (`PASSING_GRADE`, `syncGate`, `gateRetryConcepts`), `cli/eklavya-gate`, `mcp/src/hooks/pre-tool-gate.ts`, `scripts/install-git-hook.sh` |
 | `dashboard.mdx` | `DEFAULT_PORT`, `startDashboard` and `dashboardState` in `mcp/src/dashboard.ts`; the sections, routes and page sizes in `mcp/src/assets/dashboard.html` (`NAV`, `VIEWS`, `PER`) |
-| `grading-engine.mdx` | `mcp/src/srs.ts` constants; the `get_session_quiz_plan` and `record_attempt` tool descriptions |
+| `how-it-works.mdx` | the `mcp/` / `hooks/` / `skills/` split in the root `CLAUDE.md`, `mcp/package.json` `engines` and its `better-sqlite3` dependency, and `cli/eklavya-gate` for the one place `jq` and `sqlite3` are still needed. This is where architecture and rationale trimmed off `index.mdx` belongs |
+| `grading-engine.mdx` | `mcp/src/srs.ts` constants; the `get_session_quiz_plan` and `record_attempt` tool descriptions; `mcp/src/mcq.ts` and `skills/tutor/SKILL.md` for the option count, the "Other" escape hatch and the MCQ grade ceiling — none of which are in `srs.ts` |
 | `your-data.mdx` | `mcp/src/paths.ts`, `mcp/src/migrations/` |
+| `troubleshooting.mdx` | `doctor` in `mcp/src/cli.ts`, and the fail-open paths — `mcp/src/hooks/lib.ts`, `cli/eklavya-gate` |
+| `faq.mdx` | `mcp/src/paths.ts`, the `AttemptOutcome` handling in `mcp/src/store.ts` (what a decline does), `uninstall` in `mcp/src/install.ts`, and the `<link>` tags at the top of `mcp/src/assets/dashboard.html` — the dashboard fetches three webfonts from Google Fonts, so "nothing leaves your machine" needs that carve-out |
 
 Adding a page means adding its row here **and** an entry in `astro.config.mjs`'s
 sidebar — it is hand-ordered, so a new file that nobody links to is invisible.
+
+## The landing page quotes real output
+
+`public/index.html` is the half that went stale once: it shipped promising two
+dials when four had landed. The root `CLAUDE.md` carries the section-by-section
+map. What that table hides is that the hero terminal is not a mock-up — it
+quotes **three separate pieces of real output**, each from its own file, and
+each has to be re-quoted when that file changes:
+
+| Terminal line | Where the string is built |
+|---|---|
+| the `[Eklavya] Learner profile: …` banner | `mcp/src/hooks/session-start.ts` — one line in the real hook, wrapped over two rows here the way a terminal wraps it |
+| the `[mode: … · focus: … · level: … · tier: …]` ask header | `askHeader` in `mcp/src/ask.ts`, composed centrally so it cannot drift |
+| the checkpoint instruction | `mcp/src/hooks/checkpoint-quiz.ts` |
+
+`public/styles.css` holds a **no-JS fallback copy** of the terminal's grade,
+explanation and done text, in `.term__screen:not([data-ready]) …::after` rules.
+Edit `VERDICTS` in `app.js` without mirroring them and the two disagree
+silently, for exactly the readers who cannot see the disagreement.
+
+The git commit gate is **opt-in**: nothing in `eklavya install` puts a
+`pre-commit` hook on a repo, `scripts/install-git-hook.sh` does, as a separate
+step. Any line here promising a bare-terminal commit is held has to attach that
+step, or it is a promise the default install does not keep.
 
 ## Writing conventions for the manual
 

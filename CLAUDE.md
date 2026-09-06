@@ -8,17 +8,49 @@ working in this repo.
 
 | Path | What lives there |
 |---|---|
-| `mcp/src/` | the MCP server: config, store, SM-2 scheduling, quiz planning, tools |
+| `mcp/src/` | the MCP server: config, store, SM-2 scheduling, quiz planning, tools — and `cli.ts`, which builds to `dist/cli.js`, the `eklavya` binary |
 | `mcp/src/migrations/` | SQLite migrations, forward-only |
-| `hooks/` | SessionStart, PostToolUse checkpoint, Stop quiz gate, commit gate |
+| `mcp/src/hooks/` | the hook logic, in TypeScript — one file per hook, plus the shared `lib.ts` |
+| `mcp/test/` | the vitest suite: `cd mcp && npm test` |
+| `hooks/` | `hooks.json` and `run.mjs`, the one cross-platform entry point. Four hooks: SessionStart, PreToolUse (`Bash`, the commit gate), PostToolUse (the log-concepts checkpoint), Stop. Every one dispatches into `mcp/src/hooks/` |
 | `skills/` | the prompt-side behaviour; each skill with `disable-model-invocation: true` is also a `/eklavya:<name>` slash command |
 | `user-skill/` | the one skill installed to `~/.claude/skills/`, not shipped in the plugin — it drives the CLI from plain chat. Must never be under `skills/`, or it registers twice |
 | `agents/` | the tutor subagent |
-| `cli/` | the `eklavya` binary: config, export-rules, diagnostics |
-| `prd/` | the spec and one file per delivered phase |
+| `cli/`, `scripts/` | the editor-agnostic commit gate: `cli/eklavya-gate` is a POSIX script (no Node startup cost in a git hook), `scripts/install-git-hook.sh` installs it. `scripts/bump-version.sh` is the release's version bump |
+| `docs/` | contributor reference, not the manual: the pinned plugin/hook/MCP schemas and parallel tutoring, both kept current by hand. `eklavya-runtime.html` is **generated** from `eklavya-runtime.architecture.json` and stamped with the revision it was built from — edit the JSON, never the HTML, then regenerate (see below) |
+| `prd/` | the spec and one file per phase, with `prd/README.md` as the delivery tracker |
 | `CONTRIBUTING.md` | development setup, the manual test scripts, the release process |
 | `web/` | the site: the landing page (`public/`) and the manual (Astro Starlight, `src/content/docs/docs/`), deployed to Firebase Hosting. See `web/CLAUDE.md` |
+| `.claude/skills/` | this repo's own working skills: the visual language and the dashboard contract |
 | `assets/` | README artwork |
+
+**Five directories carry their own `CLAUDE.md`, and it is the one to read
+before you edit anything inside them**: `mcp/`, `hooks/`, `cli/`, `skills/` and
+`web/`. This file is the shape of the repo and the rules that cross it; those
+files hold the invariants each directory enforces and the failure each one
+prevents. A change that breaks one of them is a change that passes review and
+breaks a learner's session a week later.
+
+## The runtime diagram is generated
+
+`docs/eklavya-runtime.html` is a 700KB artifact rendered from
+`docs/eklavya-runtime.architecture.json` by the `archify` skill. Hand-editing the
+HTML is how it silently stops matching its own spec. Change the JSON, then:
+
+```bash
+cd ~/.claude/skills/archify
+node bin/archify.mjs deliver architecture <repo>/docs/eklavya-runtime.architecture.json \
+  <repo>/docs/eklavya-runtime.html --quality showcase --repo-root <repo> --json
+node bin/archify.mjs visual-check <repo>/docs/eklavya-runtime.html --json
+```
+
+`deliver` must report 9/9 checks with 0 errors and 0 warnings, and `visual-check`
+must pass every viewport — the artifact fits 1440x900 with nothing to spare, so
+a card line one word too long overflows it. `visual-check` writes PNG and JSON
+sidecars next to the HTML; they are evidence, not deliverables, so delete them.
+
+Bump `meta.repository.revision` to the commit the evidence was read at, or every
+source permalink in the diagram points at the wrong code.
 
 ## The site is part of the feature
 
@@ -31,7 +63,7 @@ not a follow-up ticket — they ship in the same commit as the code.
 That applies to:
 
 - a new or renamed config key, or a changed default
-- a new value for `mode`, `focus` or `cadence` — or a fifth dial
+- a new value for `mode`, `focus`, `cadence` or `difficulty` — or a fifth dial
 - a new, renamed or removed slash command, or a change to what `user-skill/` can do
 - a change to the quiz loop: when questions arrive, what shape they take, how
   they are graded, what the gate requires
