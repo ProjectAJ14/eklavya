@@ -93,7 +93,7 @@ export const getLearnerProfile: ToolDef = {
         continue;
       }
 
-      // Decay is a read-time view only — never written back (PRD §7).
+      // Decay is a read-time view only — never written back.
       const score = decayedScore(row.score ?? 0, row.next_review, now);
       const reps = row.reps ?? 0;
 

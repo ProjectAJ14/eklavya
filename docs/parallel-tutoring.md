@@ -2,7 +2,7 @@
 
 The post-task quiz (Phase 2) is the reliable version of Eklavya's idea. This document covers the ambitious version: tutoring that runs **during** generation, while the code is still being written.
 
-There are two ways to get it. Neither requires code changes — that was a design constraint on the MCP server from the start (PRD §5.4).
+There are two ways to get it. Neither requires code changes — that was a design constraint on the MCP server from the start.
 
 ---
 

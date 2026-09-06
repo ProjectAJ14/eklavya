@@ -1,6 +1,6 @@
 /**
  * Several Claude Code sessions and the git pre-commit hook can hit the same
- * SQLite file at once (PRD §8 "Concurrency"). WAL plus `busy_timeout` handles
+ * SQLite file at once. WAL plus `busy_timeout` handles
  * almost all of it; what remains is the case where two writers upgrade to a
  * write transaction at the same moment and SQLite returns SQLITE_BUSY
  * immediately rather than waiting.

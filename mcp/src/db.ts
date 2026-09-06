@@ -11,7 +11,7 @@ export type DB = Database.Database;
 /**
  * Opens (creating if needed) the knowledge DB with the pragmas the design
  * depends on: WAL so several Claude Code sessions and the git hook can share
- * the file (PRD §8 "Concurrency"), and foreign keys so the graph stays honest.
+ * the file, and foreign keys so the graph stays honest.
  */
 export function openDb(file: string = dbPath()): DB {
   if (file !== ':memory:') {

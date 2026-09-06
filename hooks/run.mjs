@@ -30,7 +30,7 @@
  * alone gets you a working MCP server immediately, and the first session heals
  * the rest in the background.
  *
- * Hard rule (PRD §9.1): a hook must never break a session. Everything here
+ * Hard rule: a hook must never break a session. Everything here
  * fails to exit 0 in silence.
  */
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';

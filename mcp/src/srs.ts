@@ -1,5 +1,5 @@
 /**
- * SM-2 spaced repetition, mastery scoring and difficulty escalation (PRD §7).
+ * SM-2 spaced repetition, mastery scoring and difficulty escalation.
  *
  * Everything here is pure: no database, no clock. `now` is always a parameter so
  * the whole scheduling model is testable without freezing time.
@@ -10,7 +10,7 @@ export const DEFAULT_EASE = 2.5;
 export const MASTERY_THRESHOLD = 0.7;
 export const MIN_REPS_FOR_KNOWN = 2;
 
-/** Read-time decay (PRD §7): how fast an ignored concept loses credibility, and its floor. */
+/** Read-time decay: how fast an ignored concept loses credibility, and its floor. */
 export const DECAY_PER_WEEK = 0.05;
 export const DECAY_FLOOR = 0.3;
 
@@ -102,7 +102,7 @@ export function applyGrade({ state, grade, grades, now }: ApplyGradeInput): Mast
 
 /**
  * Soft decay for concepts whose review date is long past. Computed at read time
- * and never persisted (PRD §7), so an ignored concept resurfaces without its
+ * and never persisted, so an ignored concept resurfaces without its
  * history being rewritten.
  */
 export function decayedScore(score: number, nextReview: string | null, now: Date): number {

@@ -1,9 +1,9 @@
 /**
  * Where the correct option goes in a multiple-choice question.
  *
- * This is decided server-side, for the same reason `tier_to_ask` and
- * `format_to_use` are: left to the model, it is not decided at all. An LLM asked
- * to "vary the position" reliably puts the right answer first — it writes the
+ * This is decided server-side, for the same reason `tier_to_ask` is: left to the
+ * model, it is not decided at all. An LLM asked to "vary the position" reliably
+ * puts the right answer first — it writes the
  * answer it is thinking of, then invents distractors after it — so learners
  * discover within a handful of questions that A is always correct and stop
  * reading the options. The quiz keeps working and stops measuring anything.

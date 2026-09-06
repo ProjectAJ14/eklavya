@@ -43,7 +43,7 @@ Within the cap, still grade honestly:
 
 **If they want to explain, let them, and say so.** Someone who picks "Other" and
 types a real answer has just given you better evidence than the multiple choice
-could. Grade that as the free answer it is — `format: "open"`, and the cap does
+could. Grade that as the free answer it is — **omit `format`**, and the cap does
 not apply.
 
 ## Feedback

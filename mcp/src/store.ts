@@ -241,7 +241,7 @@ export function lastAttemptAt(db: DB, sessionId: string): string | null {
 // `required` is frozen when the gate opens and only ever grows, so a learner
 // cannot shrink their own obligation by mastering concepts mid-quiz. `passed`
 // counts only concepts actually answered at grade >= 3: a skip (grade 0) counts
-// as answered but never as passing, or the gate is theater (PRD §15).
+// as answered but never as passing, or the gate is theater.
 // ---------------------------------------------------------------------------
 
 export interface GateRow {
@@ -349,7 +349,7 @@ export function syncGate(
 // ---------------------------------------------------------------------------
 // Question history
 //
-// PRD goal 2 is "never ask the same question twice". `attempts.question` was
+// The promise: never ask the same question twice. `attempts.question` was
 // being written and never read, which left the promise resting entirely on the
 // model's memory of a conversation it does not have. These are what make it real.
 // ---------------------------------------------------------------------------
@@ -362,8 +362,15 @@ export function syncGate(
  */
 export type AttemptOutcome = 'answered' | 'dont_know' | 'declined';
 
-/** How the question was put. See migration 006. */
-export type QuestionFormat = 'mcq' | 'fill_blank' | 'open';
+/**
+ * How the question was put. See migration 006.
+ *
+ * `mcq` is the only shape Eklavya asks in -- see `mcq.ts`. The column stays a
+ * string because migration 006 wrote one and migrations here are forward-only,
+ * and because an attempt the learner answered in their own words is recorded
+ * with no format at all, which is what lifts the recognition grade cap.
+ */
+export type QuestionFormat = 'mcq';
 
 /**
  * The best grade a multiple-choice answer can earn.
@@ -384,7 +391,7 @@ export interface AskedQuestion {
   tier: number;
   grade: number;
   outcome: AttemptOutcome | null;
-  /** How it was put. NULL for attempts recorded before formats existed. */
+  /** How it was put. NULL when the learner answered in their own words. */
   format: QuestionFormat | null;
   /**
    * True when the learner blanked and was taught the answer there and then. The

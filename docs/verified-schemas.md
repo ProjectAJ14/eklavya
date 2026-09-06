@@ -1,6 +1,6 @@
 # Verified Claude Code schemas
 
-Fetched **2026-08-26**, PostToolUse section re-verified **2026-08-27**, from the official docs, per PRD §6. Re-verify before changing any plugin/hook/MCP config — these schemas drift.
+Fetched **2026-08-26**, PostToolUse section re-verified **2026-08-27**, from the official docs. Re-verify before changing any plugin/hook/MCP config — these schemas drift.
 
 Sources:
 - https://code.claude.com/docs/en/plugins
@@ -342,21 +342,22 @@ ANSI *does* work, so `enforced` can be amber. `stripAskHeader` stays in
 `ask.ts` for the rows recorded while the line existed; their stems still contain
 it and `questionFingerprint` hashes that text.
 
-## Deviations from the PRD
+## Deviations from the original design
 
-These override the PRD where they conflict. The PRD text was written against an older schema.
+Each of these overrides what Eklavya was first designed against, because the
+schema moved after the design was written.
 
 ### D1 — Stop hook blocks via exit 2 + stderr, not `{"decision":"block"}`
-PRD §9.2 specifies `{"decision": "block", "reason": "..."}` on stdout. The current hooks reference documents no Stop-specific JSON output shape; what it *does* document unambiguously is that **exit 2 prevents stopping and continues the conversation, using stderr as the blocking message**.
+The original design specified `{"decision": "block", "reason": "..."}` on stdout. The current hooks reference documents no Stop-specific JSON output shape; what it *does* document unambiguously is that **exit 2 prevents stopping and continues the conversation, using stderr as the blocking message**.
 
 **Decision:** `stop-quiz-check` writes the tutor instruction to **stderr and exits 2**. This is schema-stable and needs no guessing at a JSON envelope. Revisit if a documented Stop JSON shape reappears.
 
 ### D2 — `stop_hook_active` is not documented; the loop guard must be entirely ours
-PRD §9.2 and the phase-2 plan lean on `stop_hook_active` to avoid re-blocking. That field is absent from the current stdin field list.
+The original design leaned on `stop_hook_active` to avoid re-blocking. That field is absent from the current stdin field list.
 
-**Decision:** the loop guard is a **DB-side marker keyed by session** (PRD §9.2 already requires one as the primary mechanism). It must be correct with zero help from the harness. If `stop_hook_active` is present at runtime we honor it as a belt-and-braces extra check, but nothing depends on it.
+**Decision:** the loop guard is a **DB-side marker keyed by session**, which was always the primary mechanism. It must be correct with zero help from the harness. If `stop_hook_active` is present at runtime we honor it as a belt-and-braces extra check, but nothing depends on it.
 
-This raises, not lowers, the severity of the P0 Stop-loop risk (PRD §15). Test the guard first.
+This raises, not lowers, the severity of the Stop-loop risk. Test the guard first.
 
 ### D4 — `.mcp.json` `command` is spawned directly, so it must not be quoted
 `hooks.json` commands run through `sh -c` in shell form, which is why

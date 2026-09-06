@@ -512,7 +512,7 @@ export type Check = { name: string; ok: boolean; detail: string };
  * *after* a successful install and that nothing else notices.
  *
  * They are silent failures, every one. The hooks exit 0 whatever happens
- * (PRD §9.1), so a dead runtime or a de-registered plugin costs a learner a
+ *, so a dead runtime or a de-registered plugin costs a learner a
  * week of quizzes with no error anywhere — the only symptom is that Eklavya
  * stopped asking. This is the one place that says so.
  *

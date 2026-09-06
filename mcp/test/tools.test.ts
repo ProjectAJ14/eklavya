@@ -160,7 +160,7 @@ describe('log_session_concepts', () => {
     expect(res.created).toEqual(['websocket-heartbeats']);
   });
 
-  it('caps how many new concepts one session may mint (PRD §15)', () => {
+  it('caps how many new concepts one session may mint', () => {
     configure({ max_new_concepts_per_session: 2, min_minutes_between_quizzes: 0 });
     const res = call<any>(logSessionConcepts, {
       session_id: SESSION,
@@ -592,7 +592,7 @@ describe('record_attempt', () => {
     ).toBe(4);
   });
 
-  it('does not cap a free answer', () => {
+  it('does not cap an answer they explained in their own words', () => {
     logAuthWork();
     const res = call<any>(recordAttempt, {
       session_id: SESSION,
@@ -601,7 +601,8 @@ describe('record_attempt', () => {
       answer: 'a full explanation',
       grade: 5,
       difficulty: 2,
-      format: 'open',
+      // No format: they picked "Other" and typed a real explanation, which is
+      // free recall and not what the multiple-choice cap is for.
       outcome: 'answered',
     });
     expect(res.recorded_grade).toBe(5);
@@ -628,7 +629,8 @@ describe('record_attempt', () => {
   });
 
   // The stem is what gets fingerprinted. Options baked into it would make every
-  // reshuffle look like a brand-new question and quietly undo PRD goal 2.
+  // reshuffle look like a brand-new question and quietly undo
+  // "never ask the same question twice".
   it('keeps options out of the question text so reshuffling cannot defeat the repeat check', () => {
     logAuthWork();
     const stem = 'What does SameSite=Lax actually withhold?';
@@ -686,7 +688,7 @@ describe('record_attempt', () => {
     expect(csrf.asked_before[0].format).toBe('mcq');
   });
 
-  it('flags a question the learner has already been asked (PRD goal 2)', () => {
+  it('flags a question the learner has already been asked', () => {
     const ask = (question: string) =>
       call<any>(recordAttempt, {
         session_id: SESSION,
@@ -925,13 +927,6 @@ describe('enforced-mode gate retry', () => {
 // `mode` is how hard Eklavya pushes; `focus` is what it teaches. The two dials
 // are independent, and these pin that they stay that way.
 describe('focus', () => {
-  it('asks everything as multiple choice for now', () => {
-    logAuthWork();
-    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
-    // A blank prompt mid-task goes unanswered whether or not the learner knew.
-    expect(plan.concepts.every((c: any) => c.format_to_use === 'mcq')).toBe(true);
-  });
-
   it('ships with concept as the default, not project', () => {
     // Not DEFAULT_CONFIG — the planner, with nothing configured at all. The
     // default is only real if it survives the whole config path.

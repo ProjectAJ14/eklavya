@@ -108,7 +108,7 @@ export interface EklavyaConfig {
   min_minutes_between_checkpoints: number;
   domains_enabled: string[];
   quiet: boolean;
-  /** Cap on LLM-minted concepts per session, against slug sprawl (PRD §15). */
+  /** Cap on LLM-minted concepts per session, against slug sprawl. */
   max_new_concepts_per_session: number;
   /** Hard backstop on the Stop hook's loop guard, read by the stop-quiz-check hook. */
   max_stop_blocks_per_session: number;
@@ -270,7 +270,7 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
   return out;
 }
 
-/** Global config merged with the repo's, repo winning (PRD §11). */
+/** Global config merged with the repo's, repo winning. */
 export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   const globalPath = globalConfigPath();
   const { repoPath, repoRoot } = findRepoConfig(cwd);

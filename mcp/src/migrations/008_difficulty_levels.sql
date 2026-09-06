@@ -52,6 +52,6 @@ CREATE TABLE IF NOT EXISTS project_levels (
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- The progress count runs on the SessionStart critical path (PRD §9.1), so it
+-- The progress count runs on the SessionStart critical path, so it
 -- gets its own index rather than scanning a growing attempts table.
 CREATE INDEX IF NOT EXISTS idx_attempts_repo_level ON attempts(repo, level, ts DESC);

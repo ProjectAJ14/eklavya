@@ -1,7 +1,7 @@
 /**
  * Concept slugs are the join key across the whole system, and the LLM is allowed
- * to mint new ones (PRD §8 tool 6). Normalizing hard here is what keeps slug
- * sprawl from turning the graph into mush (PRD §15).
+ * to mint new ones. Normalizing hard here is what keeps slug
+ * sprawl from turning the graph into mush.
  */
 export function normalizeSlug(input: string): string {
   return input

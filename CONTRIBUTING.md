@@ -142,7 +142,6 @@ hooks/              hooks.json + run.mjs, the one cross-platform entry point
 cli/, scripts/      the editor-agnostic commit gate, plus the release version bump
 mcp/                MCP server: knowledge graph, SM-2, gates, CLI, installer, hook logic
 docs/               verified schemas, parallel tutoring, the runtime architecture
-prd/                the spec and its per-phase delivery tracker
 web/                the landing page and the manual — see web/CLAUDE.md
 eval/               the question-quality eval — see eval/README.md
 ```

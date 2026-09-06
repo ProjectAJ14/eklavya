@@ -121,7 +121,7 @@ afterEach(() => {
 
 // ---------------------------------------------------------------------------
 
-describe('SessionStart never breaks a session (PRD §9.1)', () => {
+describe('SessionStart never breaks a session', () => {
   it('says nothing and exits 0 when the database does not exist', () => {
     const res = runHook(SESSION_START, { session_id: SESSION, cwd }, { EKLAVYA_DB: '/nonexistent/eklavya.db' });
     expect(res.status).toBe(0);
@@ -812,7 +812,7 @@ describe('the UserPromptSubmit nudge', () => {
     expect(stateValue()).toBeUndefined();
     expect(context(nudge())).toBeNull();
   });
-  it('never breaks a session when there is no database (PRD §9.1)', () => {
+  it('never breaks a session when there is no database', () => {
     const res = runHook(NUDGE, { session_id: SESSION, cwd }, { EKLAVYA_DB: '/nonexistent/eklavya.db' });
     expect(res.status).toBe(0);
     expect(res.stdout).toBe('');
@@ -928,7 +928,7 @@ describe('the SubagentStart directive', () => {
     expect(additionalContext(res)).toContain('log_session_concepts');
   });
 
-  it('never breaks a session on unparseable input (PRD §9.1)', () => {
+  it('never breaks a session on unparseable input', () => {
     const res = spawnSync(process.execPath, [SUBAGENT], {
       input: 'not json at all',
       encoding: 'utf8',

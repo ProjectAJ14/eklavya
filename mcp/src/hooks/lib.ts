@@ -12,7 +12,7 @@
  * the `sqlite3` CLI and a POSIX shell on PATH before it could do anything;
  * this version needs the Node that Eklavya already requires.
  *
- * The hard rule survives the port unchanged (PRD §9.1): a hook must never break
+ * The hard rule survives the port unchanged: a hook must never break
  * a session. `run()` is the only entry point, and it swallows everything.
  */
 import fs from 'node:fs';

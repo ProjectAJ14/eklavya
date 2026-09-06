@@ -1,4 +1,4 @@
--- Eklavya schema v1 (PRD §7).
+-- Eklavya schema v1.
 -- Every statement is IF NOT EXISTS so the runner is safe to re-apply.
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS gates (
 );
 
 -- Read paths that must stay fast: the SessionStart hook and the PreToolUse gate
--- both run on the critical path of a user action (PRD §9).
+-- both run on the critical path of a user action.
 CREATE INDEX IF NOT EXISTS idx_concepts_domain       ON concepts(domain);
 CREATE INDEX IF NOT EXISTS idx_session_concepts_sid  ON session_concepts(session_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_concept_ts   ON attempts(concept_id, ts DESC);

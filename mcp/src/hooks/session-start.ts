@@ -1,7 +1,7 @@
 /**
  * SessionStart: stamp the session id and print a one-line learner profile.
  *
- * Hard rule (PRD §9.1): this must never break a session. Every failure path
+ * Hard rule: this must never break a session. Every failure path
  * exits 0 with no output — `run()` enforces it.
  */
 import { setCurrentSession } from '../session.js';

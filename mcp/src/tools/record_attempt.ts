@@ -22,7 +22,7 @@ export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format and, for multiple choice, the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. Multiple choice is capped at grade 4: picking one of four cannot show you know why. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
+    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -47,10 +47,10 @@ export const recordAttempt: ToolDef = {
     difficulty: z.number().int().min(1).max(5).describe('The tier you actually asked at — use tier_to_ask from the plan.'),
     feedback: z.string().optional().describe('The short explanation you gave back.'),
     format: z
-      .enum(['mcq', 'fill_blank', 'open'])
+      .literal('mcq')
       .optional()
       .describe(
-        'How you put the question. "mcq" is the default shape — four options via AskUserQuestion. Say so, because a correct multiple-choice answer is weaker evidence than a correct free one and is graded accordingly.',
+        'Pass "mcq" — the only shape Eklavya asks in: four options via AskUserQuestion. Say so, because a correct multiple-choice answer is weaker evidence than a correct free one and is capped accordingly. Omit it only when the learner picked "Other" and typed a real explanation, which is free recall and earns an uncapped grade.',
       ),
     options: z
       .array(z.string())
@@ -176,8 +176,9 @@ export const recordAttempt: ToolDef = {
       reps: state.reps,
       ease: Number(state.ease.toFixed(2)),
       known: isKnown({ score, reps: state.reps }),
-      // PRD goal 2. Recorded either way — refusing the write would lose a real
-      // answer — but the tutor is told, so the next question can be a new one.
+      // Never the same question twice. Recorded either way — refusing the
+      // write would lose a real answer — but the tutor is told, so the next
+      // question can be a new one.
       repeat_question: repeatQuestion,
       ...(outcomeConflict
         ? {

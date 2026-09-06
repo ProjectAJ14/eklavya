@@ -143,18 +143,15 @@ step, or it is a promise the default install does not keep.
 - Sentence case. No emoji. Second person. Present tense.
 - **Numbers over adjectives.** "Four options, capped at grade 4" beats "a few
   carefully chosen options".
-- **Never document unshipped work.** `prd/` describes phases that are specified
-  but not built; those stay off the page until the code exists. "The code
-  exists" is not enough on its own — the acceptance criterion has to be ticked.
+- **Never document unshipped work.** "The code exists" is not enough on its own
+  — it has to actually work end to end for the reader.
   **Cursor is the standing example:** `eklavya export-rules` is implemented and
-  tested, and the git gate is genuinely editor-agnostic, but
-  `prd/phase-5-distribution.md` still has *"Clean machine: Cursor with one
-  `mcpServers` entry → tools reachable, git gate enforced"* unticked, and Cursor
-  gets no hooks at all — no session profile, no mid-task checkpoints, no
-  end-of-task sweep, which is the entire ambient loop. Documenting it was
-  promising the headline feature somewhere it does not run, so it stays out of
-  the manual, the landing page and `README.md`. Put it back when that box is
-  ticked, and lead with what Cursor does *not* get.
+  tested, and the git gate is genuinely editor-agnostic, but Cursor gets no hooks
+  at all — no session profile, no mid-task checkpoints, no end-of-task sweep,
+  which is the entire ambient loop. Documenting it was promising the headline
+  feature somewhere it does not run, so it stays out of the manual, the landing
+  page and `README.md`. Put it back when Cursor gets hooks, and lead with what
+  Cursor does *not* get.
 - Prefer a table when every row has the same shape, `<Steps>` when order
   matters, and prose when neither is true. A two-row table is prose pretending
   to be data.

@@ -97,7 +97,6 @@ Then `get_session_quiz_plan`. What it returns outranks your instincts:
 | `already_taught` | they blanked on this and you explained it; the next one is a follow-up |
 | `prereqs_unmet` | prerequisites not mastered — the question would be unfair, not hard |
 | `framing`, `level_framing` | what this focus and this band require of the question |
-| `format_to_use` | how to put it. Always `mcq` today |
 | `last_grade` | how the last attempt went, even when `asked_before` is empty |
 | `bridge_context` | `learn` focus: the session's work touched this, and here is the code |
 
