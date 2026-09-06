@@ -6,7 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tempDbPath, cleanup } from './helpers.js';
 
-const cliPath = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'dist', 'cli.js');
+const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const cliPath = path.join(mcpRoot, 'dist', 'cli.js');
 
 let dbFile = '';
 let home = '';
@@ -92,6 +93,54 @@ describe('eklavya export-rules', () => {
     const res = eklavya(['export-rules']);
     expect(res.stdout.match(/^---$/gm)?.length).toBe(2);
     expect(res.stdout).not.toMatch(/disable-model-invocation/);
+  });
+
+  it('inlines the reference files, because Cursor cannot open one on demand', () => {
+    // The pedagogy lives in SKILL.md plus references/. Claude Code follows a
+    // "read references/grading.md" pointer; a Cursor rules file is one
+    // always-apply document where that pointer resolves to nothing. If this
+    // breaks, Cursor gets the dispatch logic and none of the craft -- and every
+    // other test still passes.
+    const out = eklavya(['export-rules']).stdout;
+    // Mid-body, not a heading: a heading survives the body being deleted.
+    expect(out).toMatch(/Options belong in/);                     // writing-mcq
+    expect(out).toMatch(/A blank is not a skip/);                 // grading
+    expect(out).toMatch(/reused on a different project/);         // focus-and-level
+  });
+
+  it('tells that editor the references are further down the same file', () => {
+    expect(eklavya(['export-rules']).stdout).toMatch(/further down this same\s+file/);
+  });
+
+  it('refuses to emit a rules file when a reference did not bundle', () => {
+    // The preamble tells the editor the material is further down this file. If
+    // a reference is missing that promise is false, and it is worse than an
+    // empty file: the model is assured the rules are here somewhere and hunts
+    // instead of falling back. `copy-assets.mjs` only warns when a copy fails,
+    // so a half-bundled build is reachable rather than hypothetical.
+    //
+    // Run from a copy of dist/ so the real one stays intact for every other
+    // test; inside mcp/ so the driver still resolves through mcp/node_modules.
+    const staged = path.join(mcpRoot, '.tmp-export-rules');
+    fs.rmSync(staged, { recursive: true, force: true });
+    try {
+      fs.cpSync(path.join(mcpRoot, 'dist'), path.join(staged, 'dist'), { recursive: true });
+      const refs = path.join(staged, 'dist', 'assets', 'tutor', 'references');
+      const victim = fs.readdirSync(refs).filter((f) => f.endsWith('.md')).sort()[0];
+      fs.rmSync(path.join(refs, victim));
+
+      const res = spawnSync(process.execPath, [path.join(staged, 'dist', 'cli.js'), 'export-rules'], {
+        encoding: 'utf8',
+        env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
+      });
+
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain(victim);
+      // And nothing on stdout that an editor would mistake for a rules file.
+      expect(res.stdout ?? '').not.toMatch(/alwaysApply/);
+    } finally {
+      fs.rmSync(staged, { recursive: true, force: true });
+    }
   });
 
   it('says where it came from, so nobody hand-edits the generated file', () => {

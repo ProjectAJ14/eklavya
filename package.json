@@ -4,7 +4,8 @@
   "description": "Release tooling for the Eklavya plugin. The published package lives in mcp/.",
   "scripts": {
     "release": "semantic-release",
-    "release:dry": "semantic-release --dry-run --no-ci"
+    "release:dry": "semantic-release --dry-run --no-ci",
+    "eval": "node eval/harness.mjs"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

@@ -72,3 +72,58 @@ describe('fuzzy matching', () => {
     expect(collisions).toEqual([]);
   });
 });
+
+describe('plurals are not a second concept', () => {
+  const match = (slug: string, candidates: string[]) =>
+    findFuzzyMatch(slug, candidates.map((c) => ({ slug: c })))?.slug;
+
+  it('merges a slug differing only by a plural', () => {
+    // Found in a real graph: both of these existed side by side, one concept
+    // split by a letter. They score 0.60, so no threshold catches them without
+    // also merging things that must stay apart.
+    expect(match('claude-code-hooks-lifecycle', ['claude-code-hook-lifecycle'])).toBe(
+      'claude-code-hook-lifecycle',
+    );
+    expect(match('forward-only-sql-migrations', ['forward-only-sql-migration'])).toBe(
+      'forward-only-sql-migration',
+    );
+    expect(match('react-effect-cleanups', ['react-effect-cleanup'])).toBe('react-effect-cleanup');
+  });
+
+  it('still refuses the pair the threshold exists to keep apart', () => {
+    // slug.ts's own comment names this one: a qualifier is not a plural, and
+    // rotation is a different idea from the token itself.
+    expect(match('refresh-token', ['refresh-token-rotation'])).toBeUndefined();
+    expect(match('refresh-token-rotation', ['refresh-token'])).toBeUndefined();
+  });
+
+  it('matches the plural that actually shows up in this domain', () => {
+    // An `-es` rule for `boxes` -> `box` turns `caches` into `cach`, which
+    // never equals `cache`. Both sides get the same treatment, so dropping the
+    // rule is what makes the common word work.
+    expect(match('caches-invalidation', ['cache-invalidation'])).toBe('cache-invalidation');
+    expect(match('categories-of-error', ['category-of-error'])).toBe('category-of-error');
+  });
+
+  it('leaves the platform alone, which is the false merge that would cost most', () => {
+    // `windows` is the operating system far more often than a plural of
+    // `window`, and this repo's hook behaviour differs by platform.
+    expect(match('windows-path-handling', ['window-path-handling'])).toBeUndefined();
+    expect(match('news-feed-ranking', ['new-feed-ranking'])).toBeUndefined();
+    expect(match('bias-variance-tradeoff', ['bia-variance-tradeoff'])).toBeUndefined();
+  });
+
+  it('does not mangle a word that merely ends in s', () => {
+    // Singularising `https` yields `http`, which would merge two real and
+    // different concepts. Same shape for class/process/status/axis.
+    expect(match('https-basics', ['http-basics'])).toBeUndefined();
+    expect(match('class-fields', ['clas-fields'])).toBeUndefined();
+    expect(match('process-isolation', ['proces-isolation'])).toBeUndefined();
+    expect(match('status-codes', ['statu-codes'])).toBeUndefined();
+  });
+
+  it('leaves short tokens alone, since they are acronyms more often than plurals', () => {
+    expect(match('cors-preflight', ['cor-preflight'])).toBeUndefined();
+    expect(match('dns-resolution', ['dn-resolution'])).toBeUndefined();
+  });
+});

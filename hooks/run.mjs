@@ -11,8 +11,8 @@
  *
  *     "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "<name>"]
  *
- * and every platform-specific decision lives here instead of in four shell
- * scripts.
+ * and every platform-specific decision lives here instead of one shell script
+ * per hook.
  *
  * The second job is finding the runtime. The plugin payload is source and
  * manifests only — no `dist/`, no `node_modules/`, because a git-installed
@@ -88,7 +88,7 @@ function healInBackground() {
   const version = pinnedVersion();
   if (!version) return;
 
-  // Claim the attempt BEFORE spawning. Four hooks fire per session and the
+  // Claim the attempt BEFORE spawning. Every hook fires per session and the
   // check alone would let every one of them start its own npm — a spawn storm
   // on the machine of the person whose install is already struggling. An hour
   // makes the claim self-expiring, so a heal that dies still gets retried

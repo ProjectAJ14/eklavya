@@ -1,0 +1,32 @@
+{
+  "id": "nudge-rate-limit",
+  "title": "Rate-limiting a hook that runs on every prompt",
+  "source": "mcp/src/hooks/prompt-submit-nudge.ts",
+  "diff": "const GRACE_MINUTES = 12;\nconst COOLDOWN_MINUTES = 25;\nconst MAX_NUDGES = 3;\n\n// state: `<first-seen ISO>|<last-nudge ISO or empty>|<count>`\nfunction readState(db: DB, key: string) {\n  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key);\n  if (!row) return null;\n  const [first, nudged, count] = row.value.split('|');\n  return { first, nudged: nudged || null, count: Number(count) || 0 };\n}\n\nawait run(async (input) => {\n  if (input.agent_id) return 0;\n  const { mode, quiet } = config(cwdOf(input)).config;\n  if (mode === 'off' || quiet) return 0;\n\n  const db = openExisting();\n  if (!db) return 0;\n  const sid = sessionId(input, db);\n  if (!sid) return 0;\n\n  const logged = db\n    .prepare('SELECT count(*) AS n FROM session_concepts WHERE session_id = ?')\n    .get(sid);\n  if ((logged?.n ?? 0) > 0) return 0;\n\n  const state = readState(db, `prompt_nudge:${sid}`);\n  if (!state) { prune(db); writeState(db, key, now, null, 0); return 0; }\n  if (state.count >= MAX_NUDGES) return 0;\n  if (minutesSince(state.first) < GRACE_MINUTES) return 0;\n  if (state.nudged && minutesSince(state.nudged) < COOLDOWN_MINUTES) return 0;\n\n  writeState(db, key, state.first, now, state.count + 1);\n  process.stdout.write(JSON.stringify({ hookSpecificOutput: { ... } }) + '\\n');\n  return 0;\n});",
+  "concepts": [
+    {
+      "slug": "rate-limiting-with-a-cap",
+      "domain": "node-backend",
+      "tier": 3,
+      "description": "A cooldown limits how often something fires; a hard cap limits how many times it can fire at all, which is what bounds a condition that never resolves.",
+      "context": "MAX_NUDGES bounds the nudge because 'this session logged nothing' is also what an unreachable MCP server looks like from inside the hook",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "key-value-state-in-a-relational-table",
+      "domain": "node-backend",
+      "tier": 2,
+      "description": "Storing small per-entity state as pipe- or JSON-delimited values in a generic key/value table, trading query power for not needing a migration.",
+      "context": "the nudge keeps `<first-seen>|<last-nudge>|<count>` in one meta row rather than adding a table",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "cheap-predicate-ordering",
+      "domain": "node-backend",
+      "tier": 3,
+      "description": "Ordering guard clauses so the cheapest test that can exit early runs first, when the code path is hot.",
+      "context": "config is read before SQLite is opened, because this hook runs on every prompt the developer types",
+      "prerequisite_of": []
+    }
+  ]
+}

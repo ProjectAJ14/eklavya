@@ -1,0 +1,77 @@
+{
+  "source": "knowledge.db",
+  "span": {
+    "first": "2026-08-26 13:20:00",
+    "last": "2026-09-06 14:22:19"
+  },
+  "repeat": {
+    "attempts": 62,
+    "concepts": 56,
+    "repeatable": 6,
+    "repeats": 0,
+    "plannerSaw": 0,
+    "recorderOnly": 0,
+    "outsideBoth": 0,
+    "worstRun": 1
+  },
+  "tiers": {
+    "allGraded": {
+      "basis": "all-graded",
+      "rows": [
+        {
+          "tier": 1,
+          "attempts": 4,
+          "meanGrade": 1,
+          "passRate": 0
+        },
+        {
+          "tier": 2,
+          "attempts": 40,
+          "meanGrade": 2.25,
+          "passRate": 0.45
+        },
+        {
+          "tier": 3,
+          "attempts": 2,
+          "meanGrade": 0.5,
+          "passRate": 0
+        }
+      ],
+      "monotonic": false,
+      "excludedDeclines": 16,
+      "excludedUnknown": 0
+    },
+    "knownOutcome": {
+      "basis": "known-outcome",
+      "rows": [
+        {
+          "tier": 1,
+          "attempts": 2,
+          "meanGrade": 2,
+          "passRate": 0
+        },
+        {
+          "tier": 2,
+          "attempts": 26,
+          "meanGrade": 3.076923076923077,
+          "passRate": 0.6153846153846154
+        }
+      ],
+      "monotonic": false,
+      "excludedDeclines": 16,
+      "excludedUnknown": 18
+    }
+  },
+  "gaps": {
+    "minDays": 1,
+    "pairs": 0,
+    "held": 0,
+    "skippedNoPriorPass": 2
+  },
+  "outcomes": {
+    "answered": 28,
+    "dontKnow": 0,
+    "declined": 16,
+    "unrecorded": 18
+  }
+}

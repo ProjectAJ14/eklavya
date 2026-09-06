@@ -22,7 +22,7 @@ export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format and, for multiple choice, the options you offered — put only the stem in question, never the options and never a settings line, or the repeat check breaks. Multiple choice is capped at grade 4: picking one of four cannot show you know why. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
+    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format and, for multiple choice, the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. Multiple choice is capped at grade 4: picking one of four cannot show you know why. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -30,7 +30,7 @@ export const recordAttempt: ToolDef = {
     question: z
       .string()
       .describe(
-        'The question stem exactly as asked — WITHOUT the options and WITHOUT any settings line. This text is what stops the same question coming back later, so anything baked in here that moves (shuffled options, the level in the settings line) would make one question look like several.',
+        'The question stem exactly as asked, and only the stem. This text is what stops the same question coming back later, so anything baked in here that moves — shuffled options, a dial in a bracketed line — would make one question look like several.',
       ),
     answer: z
       .string()
@@ -60,7 +60,7 @@ export const recordAttempt: ToolDef = {
       .enum(['answered', 'dont_know', 'declined'])
       .optional()
       .describe(
-        'Why the grade is what it is. "answered" they attempted it; "dont_know" they said they did not know and you taught it; "declined" they chose to skip. Grade 0 covers the last two, so this is the only thing that tells them apart later.',
+        'Why the grade is what it is. "answered" they attempted it; "dont_know" they said they did not know and you taught it; "declined" they chose to skip and you dropped it without explaining. Grade 0 covers the last two, so this is the only thing that tells them apart later -- and they are not interchangeable: a declined concept is never offered again, so labelling a blank as a decline removes it from the only route out of a blocked commit gate. If you taught it, it is "dont_know".',
       ),
   },
   handler: (
@@ -109,6 +109,15 @@ export const recordAttempt: ToolDef = {
     // why", which choosing among four options cannot demonstrate; one in four is
     // a coin. Capping is visible in the response so a tutor that keeps awarding
     // 5s for multiple choice finds out.
+    // A decline you explained is a contradiction, and the likelier reading is a
+    // mislabelled blank: the rule for a decline is to drop it immediately, so
+    // there is nothing to write feedback about. Reported rather than corrected
+    // -- rewriting a stated outcome would be guessing at what happened -- but
+    // reported loudly, because silence here is what let 11 of 16 declines in a
+    // real history carry an explanation with nobody noticing.
+    const outcomeConflict =
+      args.outcome === 'declined' && typeof args.feedback === 'string' && args.feedback.trim().length > 0;
+
     const capped = args.format === 'mcq' && args.grade > MAX_MCQ_GRADE;
     const grade = capped ? MAX_MCQ_GRADE : args.grade;
 
@@ -170,6 +179,12 @@ export const recordAttempt: ToolDef = {
       // PRD goal 2. Recorded either way — refusing the write would lose a real
       // answer — but the tutor is told, so the next question can be a new one.
       repeat_question: repeatQuestion,
+      ...(outcomeConflict
+        ? {
+            outcome_conflict:
+              'You passed outcome "declined" and also feedback. A decline is dropped without explanation, so if you taught this concept it was a blank: record outcome "dont_know". It matters — a declined concept is never offered again, and in enforced mode that is the only way out of a blocked commit.',
+          }
+        : {}),
       gate,
       level: after.level,
       // The runway, said in numbers. A level nobody can see the progress toward

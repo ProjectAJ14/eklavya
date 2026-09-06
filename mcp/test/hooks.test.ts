@@ -15,6 +15,7 @@ const hooksDir = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.u
 const SESSION_START = path.join(hooksDir, 'session-start.js');
 const STOP_CHECK = path.join(hooksDir, 'stop-quiz-check.js');
 const CHECKPOINT = path.join(hooksDir, 'checkpoint-quiz.js');
+const NUDGE = path.join(hooksDir, 'prompt-submit-nudge.js');
 
 const SESSION = 'hook-session';
 
@@ -186,9 +187,15 @@ describe('SessionStart output', () => {
     expect(res.stdout).toMatch(/log_session_concepts/);
   });
 
-  it('drops the logging instruction when quiet is set', () => {
+  it('still gives the logging instruction when quiet is set', () => {
+    // `quiet` is about the greeting. It used to drop the directive too, which
+    // meant a developer who turned the banner off logged nothing, was never
+    // quizzed, and saw `mode: ambient` in `get_config` the whole time. Two
+    // tests encoded that as intended behaviour; this is the corrected pair.
     configure({ quiet: true });
-    expect(sessionStart().stdout).not.toMatch(/log_session_concepts/);
+    const res = sessionStart();
+    expect(res.stdout).toMatch(/log_session_concepts/);
+    expect(res.stdout).not.toMatch(/Learner profile/);
   });
 
   it('reports per-domain progress once something is known', () => {
@@ -208,11 +215,18 @@ describe('SessionStart output', () => {
     expect(res.stdout).toMatch(/Weak: csrf/);
   });
 
-  it('stays silent when quiet is set, but still stamps the session', () => {
+  it('prints no banner when quiet is set, and still stamps the session', () => {
     configure({ quiet: true });
     const res = sessionStart();
-    expect(res.stdout).toBe('');
+    expect(res.stdout).not.toMatch(/Learner profile|No learning history|Mode: /);
+    expect(res.stdout).toMatch(/Standing instruction/);
     expect(db.prepare("SELECT value FROM meta WHERE key='current_session'").get()).toBeTruthy();
+  });
+
+  it('says nothing at all only when the mode is off', () => {
+    // The one setting that means "do nothing". `quiet` is not a second one.
+    configure({ mode: 'off', quiet: false });
+    expect(sessionStart().stdout).toBe('');
   });
 
   it('stays silent when the mode is off', () => {
@@ -640,5 +654,168 @@ describe('SessionStart says which level the project is on', () => {
     configure({ difficulty: 'auto' });
     fs.writeFileSync(path.join(cwd, '.eklavya.json'), JSON.stringify({ difficulty: 'easy' }));
     expect(sessionStart().stdout).toContain('overrides your global setting for: difficulty');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('the UserPromptSubmit nudge', () => {
+  const nudge = (extra: Record<string, unknown> = {}) =>
+    runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit', ...extra });
+
+  /** The line the model receives, or null when the hook stayed quiet. */
+  const context = (res: HookResult): string | null => {
+    if (!res.stdout.trim()) return null;
+    const parsed = JSON.parse(res.stdout) as {
+      hookSpecificOutput?: { hookEventName?: string; additionalContext?: string };
+    };
+    expect(parsed.hookSpecificOutput?.hookEventName).toBe('UserPromptSubmit');
+    return parsed.hookSpecificOutput?.additionalContext ?? null;
+  };
+
+  /**
+   * Move this session's first-seen stamp into the past. The grace window is a
+   * constant rather than a config key, so backdating the row is the only way to
+   * reach the other side of it without sleeping.
+   */
+  const seenMinutesAgo = (
+    minutes: number,
+    nudgedMinutesAgo: number | null = null,
+    count = 0,
+  ): void => {
+    const iso = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+    db.prepare(
+      'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    ).run(
+      `prompt_nudge:${SESSION}`,
+      `${iso(minutes)}|${nudgedMinutesAgo === null ? '' : iso(nudgedMinutesAgo)}|${count}`,
+    );
+  };
+
+  const stateValue = (): string | undefined =>
+    (
+      db.prepare('SELECT value FROM meta WHERE key = ?').get(`prompt_nudge:${SESSION}`) as
+        | { value: string }
+        | undefined
+    )?.value;
+
+  it('says nothing on the first prompt — the directive was injected seconds ago', () => {
+    const res = nudge();
+    expect(res.status).toBe(0);
+    expect(context(res)).toBeNull();
+    // But it starts the clock, or the grace window could never elapse.
+    expect(stateValue()).toMatch(/^\d{4}-\d{2}-\d{2}T.*\|\|0$/);
+  });
+
+  it('stays quiet inside the grace window', () => {
+    seenMinutesAgo(5);
+    expect(context(nudge())).toBeNull();
+  });
+
+  it('nudges once the session has had a fair chance and still logged nothing', () => {
+    seenMinutesAgo(30);
+    const line = context(nudge());
+    expect(line).toContain('log_session_concepts');
+    // One line, not the whole session-start block: this runs on every prompt.
+    expect(line!.split('\n')).toHaveLength(1);
+  });
+
+  it('does not nudge a session that is logging', () => {
+    logConcepts(['csrf']);
+    seenMinutesAgo(30);
+    expect(context(nudge())).toBeNull();
+  });
+
+  it('does not nudge twice in a row', () => {
+    seenMinutesAgo(30);
+    expect(context(nudge())).not.toBeNull();
+    // The hook has just recorded itself, so the very next prompt is inside the
+    // cooldown even though nothing has been logged.
+    expect(context(nudge())).toBeNull();
+  });
+
+  it('nudges again once the cooldown has passed', () => {
+    seenMinutesAgo(90, 40);
+    expect(context(nudge())).not.toBeNull();
+  });
+
+  it('is silent when Eklavya is dormant', () => {
+    seenMinutesAgo(30);
+    configure({ mode: 'off' });
+    expect(context(nudge())).toBeNull();
+  });
+
+  it('still fires when quiet is set, because quiet is about the banner', () => {
+    // This is an additionalContext line the model reads, exactly like the
+    // session-start directive it restates -- not something the developer looks
+    // at. Gating it on `quiet` was defended as consistency with that directive,
+    // which was itself wrongly suppressed; together they made a preference
+    // about greetings into a silent off switch.
+    seenMinutesAgo(30);
+    configure({ quiet: true });
+    expect(context(nudge())).toMatch(/log_session_concepts/);
+  });
+
+  it('is silent inside a subagent — the parent thread is the one that logs', () => {
+    seenMinutesAgo(30);
+    expect(context(nudge({ agent_id: 'sub-1' }))).toBeNull();
+  });
+
+
+  it('stops after three nudges, however long the session runs', () => {
+    // "logged nothing at all" is also exactly what an unreachable MCP server
+    // looks like from here, and that never resolves. Without a cap a long
+    // session against a dead server is nudged every 25 minutes forever, each
+    // time about a tool that is not registered.
+    seenMinutesAgo(600, 60, 3);
+    expect(context(nudge())).toBeNull();
+    // The cap is the reason, not the cooldown: no nudge was recorded, so the
+    // stored count must not have moved either.
+    expect(stateValue()!.endsWith('|3')).toBe(true);
+  });
+
+  it('counts each nudge it emits, so the cap can be reached', () => {
+    seenMinutesAgo(600, 60, 1);
+    expect(context(nudge())).not.toBeNull();
+    expect(stateValue()!.endsWith('|2')).toBe(true);
+  });
+
+  it('reads a row written before the count existed as zero rather than throwing', () => {
+    // The count was appended to the value, so the previous two-field shape is
+    // still parseable — worth a test, because the alternative was a migration.
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(
+      `prompt_nudge:${SESSION}`,
+      `${new Date(Date.now() - 600 * 60_000).toISOString()}|`,
+    );
+    expect(context(nudge())).not.toBeNull();
+    expect(stateValue()!.endsWith('|1')).toBe(true);
+  });
+
+  it('is re-armed by SessionStart, so a resume does not restate a fresh directive', () => {
+    // SessionStart fires on resume and after a compaction as well as at startup,
+    // and reprints the directive every time. The old row would have a spent
+    // grace window, so the very next prompt would repeat what was just printed.
+    seenMinutesAgo(600, 60, 1);
+    sessionStart();
+    expect(stateValue()).toBeUndefined();
+    expect(context(nudge())).toBeNull();
+  });
+  it('never breaks a session when there is no database (PRD §9.1)', () => {
+    const res = runHook(NUDGE, { session_id: SESSION, cwd }, { EKLAVYA_DB: '/nonexistent/eklavya.db' });
+    expect(res.status).toBe(0);
+    expect(res.stdout).toBe('');
+  });
+
+  it('prunes its own bookkeeping rather than keeping a row per session forever', () => {
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(
+      'prompt_nudge:ancient',
+      `${new Date(Date.now() - 40 * 24 * 3600_000).toISOString()}|`,
+    );
+    // The prune runs on the first sighting of a new session.
+    runHook(NUDGE, { session_id: 'brand-new', cwd, hook_event_name: 'UserPromptSubmit' });
+    const gone = db.prepare("SELECT count(*) AS n FROM meta WHERE key = 'prompt_nudge:ancient'").get() as {
+      n: number;
+    };
+    expect(gone.n).toBe(0);
   });
 });

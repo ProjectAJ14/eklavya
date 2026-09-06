@@ -1,0 +1,302 @@
+{
+  "model": "default",
+  "summary": {
+    "fixtures": 3,
+    "labels": 8,
+    "extracted": 20,
+    "matched": 0,
+    "precision": 0,
+    "recall": 0,
+    "f1": 0,
+    "unlabelled": 20
+  },
+  "semanticRecall": 0.625,
+  "generousPrecision": 0.8,
+  "results": [
+    {
+      "fixture": "deterministic-answer-slot",
+      "matched": [],
+      "missed": [
+        "deterministic-hashing-for-distribution",
+        "position-bias-in-assessment"
+      ],
+      "unlabelled": [
+        "fnv-1a-hash",
+        "deterministic-seeding",
+        "modulo-bias",
+        "unsigned-right-shift-coercion",
+        "math-imul-32bit-multiply",
+        "answer-position-randomization"
+      ],
+      "precision": 0,
+      "recall": 0,
+      "f1": 0
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "matched": [],
+      "missed": [
+        "rate-limiting-with-a-cap",
+        "key-value-state-in-a-relational-table",
+        "cheap-predicate-ordering"
+      ],
+      "unlabelled": [
+        "hook-fail-open-exit-zero",
+        "rate-limiting-cooldown-window",
+        "key-value-state-table",
+        "delimited-string-serialization",
+        "grace-period-before-side-effect",
+        "subagent-invocation-guard",
+        "stdout-json-hook-protocol"
+      ],
+      "precision": 0,
+      "recall": 0,
+      "f1": 0
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "matched": [],
+      "missed": [
+        "wal-journal-mode",
+        "busy-timeout-versus-retry",
+        "idempotency-and-safe-retries"
+      ],
+      "unlabelled": [
+        "sqlite-wal-mode",
+        "sqlite-busy-timeout",
+        "retry-with-backoff",
+        "transaction-rollback-semantics",
+        "idempotent-retry-safety",
+        "error-discrimination-in-catch",
+        "sqlite-foreign-key-enforcement"
+      ],
+      "precision": 0,
+      "recall": 0,
+      "f1": 0
+    }
+  ],
+  "shapes": [
+    {
+      "fixture": "deterministic-answer-slot",
+      "checks": [
+        {
+          "id": "count_in_range",
+          "ok": true,
+          "detail": "6 concept(s) (asked for 3-8)"
+        },
+        {
+          "id": "slugs_valid",
+          "ok": true,
+          "detail": "all slugs normalize cleanly"
+        },
+        {
+          "id": "every_concept_has_context",
+          "ok": true,
+          "detail": "every concept carries a context line"
+        },
+        {
+          "id": "context_names_the_code",
+          "ok": true,
+          "detail": "every context line names something from the diff"
+        }
+      ]
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "checks": [
+        {
+          "id": "count_in_range",
+          "ok": true,
+          "detail": "7 concept(s) (asked for 3-8)"
+        },
+        {
+          "id": "slugs_valid",
+          "ok": true,
+          "detail": "all slugs normalize cleanly"
+        },
+        {
+          "id": "every_concept_has_context",
+          "ok": true,
+          "detail": "every concept carries a context line"
+        },
+        {
+          "id": "context_names_the_code",
+          "ok": true,
+          "detail": "every context line names something from the diff"
+        }
+      ]
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "checks": [
+        {
+          "id": "count_in_range",
+          "ok": true,
+          "detail": "7 concept(s) (asked for 3-8)"
+        },
+        {
+          "id": "slugs_valid",
+          "ok": true,
+          "detail": "all slugs normalize cleanly"
+        },
+        {
+          "id": "every_concept_has_context",
+          "ok": true,
+          "detail": "every concept carries a context line"
+        },
+        {
+          "id": "context_names_the_code",
+          "ok": true,
+          "detail": "every context line names something from the diff"
+        }
+      ]
+    }
+  ],
+  "coverage": [
+    {
+      "fixture": "deterministic-answer-slot",
+      "covered": [
+        "deterministic-hashing-for-distribution"
+      ],
+      "why": "fnv-1a-hash plus deterministic-seeding names the same deterministic-hash-to-distribute idea, while answer-position-randomization is the mechanism, not the assessment-validity concern that position bias names, and modulo-bias is about uneven residues rather than bias in assessment."
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "covered": [
+        "rate-limiting-with-a-cap",
+        "key-value-state-in-a-relational-table"
+      ],
+      "why": "rate-limiting-cooldown-window and key-value-state-table name the same throttling and KV-rows-in-SQL ideas, while nothing logged expresses ordering checks cheapest-first."
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "covered": [
+        "wal-journal-mode",
+        "idempotency-and-safe-retries"
+      ],
+      "why": "sqlite-wal-mode is wal-journal-mode and idempotent-retry-safety is idempotency-and-safe-retries, but no logged concept names the busy-timeout-versus-retry tradeoff — the two mechanisms are logged separately, never their comparison."
+    }
+  ],
+  "verdicts": [
+    {
+      "fixture": "deterministic-answer-slot",
+      "slug": "fnv-1a-hash",
+      "exercised": true,
+      "why": "The hash function is a literal FNV-1a implementation — offset basis 2166136261, prime 16777619, xor-then-multiply per byte, with Math.imul for 32-bit wraparound — so reading it teaches the actual algorithm."
+    },
+    {
+      "fixture": "deterministic-answer-slot",
+      "slug": "deterministic-seeding",
+      "exercised": true,
+      "why": "The code derives an answer slot from a hash of the question text so the same input always yields the same position, which is exactly what deterministic seeding means and shows why a PRNG was avoided."
+    },
+    {
+      "fixture": "deterministic-answer-slot",
+      "slug": "modulo-bias",
+      "exercised": false,
+      "why": "The code hits modulo bias (`hash % 4` over a 2^32 range is fine here since 4 divides evenly, so no bias exists) but nothing in it names, demonstrates, or corrects the phenomenon — a reader learns FNV-1a hashing, not modulo bias."
+    },
+    {
+      "fixture": "deterministic-answer-slot",
+      "slug": "unsigned-right-shift-coercion",
+      "exercised": true,
+      "why": "`h >>> 0` is the load-bearing line that converts the signed 32-bit result of Math.imul into an unsigned integer, and dropping it would make the modulo yield negative slots — real, learnable use."
+    },
+    {
+      "fixture": "deterministic-answer-slot",
+      "slug": "math-imul-32bit-multiply",
+      "exercised": true,
+      "why": "Math.imul is used precisely for its wrapping 32-bit signed multiply in the FNV-1a step, and the >>> 0 to get back to unsigned shows why it's needed over plain `*`."
+    },
+    {
+      "fixture": "deterministic-answer-slot",
+      "slug": "answer-position-randomization",
+      "exercised": true,
+      "why": "The code is exactly a deterministic answer-slot placement derived from hashing the question seed, so a reader learns the mechanism — and that it is deterministic, not random, which is the interesting part of the concept."
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "slug": "hook-fail-open-exit-zero",
+      "exercised": true,
+      "why": "Every guard path returns 0 and the handler never throws, so the code demonstrably shows a hook that fails open by exiting zero on missing db, missing session, or disabled config."
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "slug": "rate-limiting-cooldown-window",
+      "exercised": true,
+      "why": "Code implements a real cooldown window plus grace period and max-attempt cap over persisted timestamps, so a reader learns the actual mechanics of rate-limiting a nudge."
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "slug": "key-value-state-table",
+      "exercised": true,
+      "why": "The code stores structured session state as a delimited string in a generic meta key/value table, showing the namespaced key, encode/decode pair, and pruning that define the pattern."
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "slug": "delimited-string-serialization",
+      "exercised": true,
+      "why": "Code packs three fields into one pipe-joined meta value and splits it back with fallbacks for empty/NaN parts — a real, readable instance of delimited-string serialization."
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "slug": "grace-period-before-side-effect",
+      "exercised": true,
+      "why": "GRACE_MINUTES gates the first nudge behind minutesSince(state.first), with the first sighting only recording state and returning — a readable instance of deferring a side effect until a thing has persisted long enough."
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "slug": "subagent-invocation-guard",
+      "exercised": false,
+      "why": "The `if (input.agent_id) return 0;` line skips subagent sessions, but it is one unexplained guard clause with no subagent context, delegation model, or invocation mechanics visible — the code is about nudge state machines and cooldowns, not subagent invocation."
+    },
+    {
+      "fixture": "nudge-rate-limit",
+      "slug": "stdout-json-hook-protocol",
+      "exercised": true,
+      "why": "Code writes a single JSON line with hookSpecificOutput to stdout and returns exit 0, showing the hook's stdout-JSON contract in real use, though the payload body is elided."
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "slug": "sqlite-wal-mode",
+      "exercised": true,
+      "why": "It sets journal_mode=WAL alongside busy_timeout and a busy-retry loop, so the reader learns both how WAL is turned on and the writer-contention/SQLITE_BUSY behaviour that makes retrying safe under it."
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "slug": "sqlite-busy-timeout",
+      "exercised": true,
+      "why": "The code both sets `busy_timeout = 5000` and wraps calls in a SQLITE_BUSY retry loop, showing what the pragma does and why an application-level retry is still needed after it expires."
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "slug": "retry-with-backoff",
+      "exercised": true,
+      "why": "The loop shows the core pattern — bounded attempts, retry only on a transient (busy) error, rethrow everything else, escalating sleep per attempt index — so a reader learns real retry-with-backoff mechanics, even though the delay curve hides inside sleepBriefly."
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "slug": "transaction-rollback-semantics",
+      "exercised": false,
+      "why": "No transaction is begun, committed, or rolled back here — the rollback claim lives only in a comment justifying the retry; the code actually exercises SQLITE_BUSY retry and WAL pragmas."
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "slug": "idempotent-retry-safety",
+      "exercised": true,
+      "why": "The retry loop plus its comment turn on exactly why re-running the operation is safe — the busy transaction already rolled back, so the write leaves no partial effect — which is the core of retry safety."
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "slug": "error-discrimination-in-catch",
+      "exercised": true,
+      "why": "The catch block inspects the error with isBusy and rethrows anything it doesn't own, which is the whole point of discriminating errors in a catch rather than swallowing them."
+    },
+    {
+      "fixture": "wal-and-busy-retry",
+      "slug": "sqlite-foreign-key-enforcement",
+      "exercised": false,
+      "why": "The FK pragma is one toggle line with no constraints, cascades, or violation handling in sight — the code's real subject is SQLITE_BUSY retry, so a reader learns nothing about how foreign key enforcement behaves."
+    }
+  ]
+}

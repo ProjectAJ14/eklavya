@@ -58,8 +58,9 @@ by what it is, not loaded by trigger.
   `eklavya` CLI and the read/write config tools; it does not teach or quiz.
 - **`agents/tutor.md`** is the subagent. It has the Eklavya MCP tools and
   read-only file access — and **no `AskUserQuestion`** — so it renders the four
-  options as lettered text. Any change to the *Multiple choice* section of
-  `skills/tutor/SKILL.md` has to hold for a plain-text renderer too.
+  options as lettered text. Any change to
+  `skills/tutor/references/writing-mcq.md` has to hold for a plain-text
+  renderer too.
 
 ## A skill is a prompt, but it is also an API client
 
@@ -148,23 +149,114 @@ cadence, so a tier there would sometimes name the previous question's
 difficulty, and a stale readout is worse than none. `level` covers what the tier
 was explaining: `easy` already means tiers 1-2.
 
-## `skills/tutor/SKILL.md` has two readers
+## The tutor skill is an entry point plus references
 
-`mcp/scripts/copy-assets.mjs` bundles it to `mcp/dist/assets/tutor-skill.md`,
-and `eklavya export-rules` (`mcp/src/cli.ts`) strips the frontmatter and wraps
-it as a Cursor rules file. So that file is consumed by two editors.
+`skills/tutor/SKILL.md` was 5,296 words in one file, loaded whole whenever the
+model decided a task was non-trivial. It is now the part that decides *whether
+to act* — the log loop, checkpoint versus sweep, the shared budget, the tier
+ladder, the plan's authoritative fields, and a Red Flags table of the
+rationalizations that have each shipped a worse session — with the craft in
+three siblings:
 
-Consequence: **no Claude-Code-only instructions in its body.** Slash-command
-names, plugin paths and hook mechanics belong in the command skills, not in
-the pedagogy. `AskUserQuestion` is the one unavoidable exception, and
-`agents/tutor.md` already carries the fallback for renderers that lack it.
+| File | Holds |
+|---|---|
+| `references/writing-mcq.md` | the four-option shape, `answer_position`, distractors, plain language, the second question about a concept, `prereqs_unmet`, and how to record a stem |
+| `references/grading.md` | both scales, the mcq cap, feedback length, the four-step sequence a blank earns, `already_taught` |
+| `references/focus-and-level.md` | the three focuses, the earned level bands, the cadence contract, the enforced-mode gate retry |
+
+Two rules keep that split working.
+
+**Mark a reference REQUIRED at the point of use, never as an `@`-link.** An
+`@`-path is resolved eagerly by the host, which pulls the whole file into
+context and undoes the split. "Read `references/grading.md` before you grade",
+written where grading comes up, is what makes the model open it exactly when it
+needs it.
+
+**The entry point does not grow back, and the pointers stay honest.**
+`test/packaging.test.ts` fails above 2,000 whitespace tokens, and asserts the
+set of files named in SKILL.md is *equal* to the set on disk. Both directions
+matter. A pointer with no file is the worse half — the model is told the rules
+are elsewhere, cannot find them, and improvises, while nothing errors. A file
+with no pointer is the quieter half: it ships, `export-rules` inlines it, and
+Claude Code is never told to read it, so the same pedagogy differs by surface.
+An earlier version of that test harvested pointers from SKILL.md *and*
+`agents/tutor.md` into one list and asserted the list was non-empty — which
+passed with no pointers in SKILL.md at all, the exact state it was written to
+catch.
+
+## Match the form to the failure
+
+Two failures need opposite wording, and using the wrong form measurably makes
+things worse. superpowers A/B tested this on their own dispatch-prompt
+guidance: the "don't do X" version produced **more** of the unwanted content
+than the "here is the shape" version — the distributions fully separated — and
+it did worse than giving no guidance at all.
+
+- **The model knows the rule and breaks it under pressure.** Discipline. Ban
+  it, and name the excuse next to it: that is what the Red Flags table at the
+  top of `SKILL.md` is, and what the shared budget, one-question and
+  spent-question rules live in.
+- **The model complies and produces the wrong shape.** Craft. Bans backfire
+  here. Describe the shape you want, in build order, and let the prohibitions
+  fall out of it as properties of the finished thing.
+
+Writing a good multiple-choice question is the second kind, and
+`references/writing-mcq.md` was written as the first kind — *never restate the
+answer, no double negatives, avoid "which is NOT", do not number the options*.
+It is now a six-part recipe in build order followed by a checklist of
+properties, so the same rules arrive as "the answer appears among the options
+and nowhere in the stem" rather than as separate bans to weigh.
+
+**No nuance clauses in the recipe.** superpowers measured this separately: one
+appended "unless it matters" turns a reliable recipe into a noisy one, because
+it reopens the negotiation the recipe had settled. `writing-mcq.md` carried
+exactly one — *"Save the precise term for when the precision is the point"* —
+and it is gone. If an exception is real, it belongs in the plan's `framing`,
+which is server-side and authoritative, not in a hedge the model gets to weigh.
+
+`references/grading.md` keeps its prohibitions on purpose. Inflating a grade
+and offering to stop because someone is blanking are pressure failures, not
+shape failures: the model knows what honest grading is.
+
+## The tutor skill has two readers
+
+`mcp/scripts/copy-assets.mjs` bundles the whole `skills/tutor/` directory to
+`mcp/dist/assets/tutor/`, and `eklavya export-rules` (`mcp/src/cli.ts`) strips
+the frontmatter and wraps it as a Cursor rules file. So the pedagogy is
+consumed by two editors.
+
+**Cursor has no progressive disclosure**, and that is the reason `export-rules`
+concatenates SKILL.md with every `references/*.md` in alphabetical order and
+says so in its preamble. A rules file is one document with `alwaysApply: true`,
+so "read `references/grading.md`" there is a pointer to nothing. Had the split
+shipped without the inlining, Cursor would have got the dispatch logic and none
+of the craft — and every test would still have passed. `test/cli.test.ts` now
+asserts a line from each reference reaches the output.
+
+Alphabetical rather than a hand-kept order: in an always-apply document the
+whole thing is in context at once, so order carries no meaning, and a listed
+order is one more place a new reference gets forgotten.
+
+**A missing reference is a hard failure there, not a warning.** `export-rules`
+reads the pointers out of SKILL.md and refuses to emit anything if one of them
+did not bundle, naming the file. It has to: the preamble promises the material
+is further down the document, so a half-bundled export is worse than none — the
+model is assured the rules are present and hunts for them instead of falling
+back on what it has. `copy-assets.mjs` only warns when a copy fails, so that
+state is reachable rather than hypothetical.
+
+Consequence of the two readers: **no Claude-Code-only instructions in any of
+the four files.** Slash-command names, plugin paths and hook mechanics belong
+in the command skills, not in the pedagogy. `AskUserQuestion` is the one
+unavoidable exception, and `agents/tutor.md` already carries the fallback for
+renderers that lack it.
 
 ## Consistency
 
 The same behaviour described in two skills has drifted apart before — that is
 how `focus: project` got into three files. The four dials appear in
 `skills/mode/SKILL.md` and `user-skill/eklavya/SKILL.md`; the level bands
-appear in `skills/level/SKILL.md` and the *Level* section of `tutor`; the
-cadence cap appears in `mode`, `quiz` and `tutor`. **When you change one, grep
-the others for the same claim.** Where any of them disagrees with the code,
+appear in `skills/level/SKILL.md` and `tutor/references/focus-and-level.md`;
+the cadence cap appears in `mode`, `quiz` and that same reference. **When you
+change one, grep the others for the same claim.** Where any of them disagrees with the code,
 `mcp/src/config.ts` and the tool file are right and the skill is wrong.

@@ -98,6 +98,7 @@ mcp/                MCP server: knowledge graph, SM-2, gates, CLI, installer, ho
 docs/               verified schemas, parallel tutoring, the runtime architecture
 prd/                the spec and its per-phase delivery tracker
 web/                the landing page and the manual — see web/CLAUDE.md
+eval/               the question-quality eval — see eval/README.md
 ```
 
 Plugin, hook and MCP schemas drift. What this is built against is pinned with a date in [`docs/verified-schemas.md`](docs/verified-schemas.md) — re-verify before changing any manifest:
@@ -105,6 +106,65 @@ Plugin, hook and MCP schemas drift. What this is built against is pinned with a 
 - https://code.claude.com/docs/en/plugins · [reference](https://code.claude.com/docs/en/plugins-reference) · [marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
 - https://code.claude.com/docs/en/hooks
 - https://code.claude.com/docs/en/mcp
+
+## The eval
+
+`mcp/test/` tests the machinery. It does not test the product, which is a
+question — so a change that makes every question worse passes every one of them.
+`eval/` is where that gets measured.
+
+```bash
+(cd mcp && npm run build)                    # the harness imports mcp/dist
+npm run eval -- run --limit 8 --focus project --difficulty hard
+npm run eval -- score eval/results/<run>     # free, no model calls
+```
+
+Four stages: `plan` drives the real `get_session_quiz_plan` against a throwaway
+home, `generate` gives a model the shipped tutor skill and asks for one
+question, `score` runs deterministic checks, `judge` asks a model the three
+things counting cannot answer. `score` is free and reproducible; `generate` and
+`judge` cost one model call per question, which is why **none of this runs in
+CI** and why it is not part of `npm test`.
+
+Read [`eval/README.md`](eval/README.md) before quoting a number from it. It
+states the method, what is deterministic versus judged, and what would disprove
+the whole thing — including that the generator and judge are currently the same
+model family, and that the fixtures are this repo's own code and therefore an
+upper bound.
+
+`extract` measures the step before any question exists — whether
+`log_session_concepts` names the concepts a diff genuinely exercises. It is
+upstream of question quality: pick the wrong concepts and every question after
+is well-formed and about the wrong thing, which `score` would call clean.
+
+```bash
+npm run eval -- extract
+```
+
+It is scored with `slug.ts`'s own `findFuzzyMatch`, so a near-miss slug is
+credited exactly as the server would credit it, and only the slugs matching no
+label are sent to a judge — the labels are one person's reading of a diff, and
+grading against them alone would count a concept the labeller missed as an error.
+
+There is another command, and it measures the far end:
+
+```bash
+npm run eval -- history          # read-only, against ~/.eklavya/knowledge.db
+```
+
+It reports the repeat rate — *never the same question twice*, the promise the
+whole tool rests on — plus tier calibration and what held across a gap. It reads
+a real learner's database, so it is read-only and emits aggregates only: no stem
+or answer reaches the report, because the report is committed.
+
+Results go in `eval/results/` as one dated Markdown file per run; the timestamped
+run directories are gitignored scratch. **A result file that does not say what
+would make it wrong is not finished**, and one that reports only the numbers
+that came out well is worse than none — the first history run is published with
+a defect it found in the product and a tier ladder that did not behave.
+
+**A change to the pedagogy in `skills/tutor/` is the change this exists for.**
+Run it before and after.
 
 ## Releasing
 

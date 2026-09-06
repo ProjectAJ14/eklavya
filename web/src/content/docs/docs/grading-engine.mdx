@@ -53,6 +53,7 @@ Three separate mechanisms enforce this, because a prompt asking nicely is not en
 | Hook | Fires | Does |
 | --- | --- | --- |
 | `SessionStart` | When a session opens | Stamps the session id and prints your one-line learner profile. |
+| `UserPromptSubmit` | On a message you send | Nothing, almost always. In a session that has logged nothing at all after about twelve minutes, restates the one-line instruction to log concepts — at most three times, and never while logging is working. |
 | `PostToolUse` | Right after Claude logs concepts | Decides whether to ask one mid-task question. Respects the cadence, the budget and the checkpoint spacing. |
 | `Stop` | When a task finishes | Asks about what the checkpoints did not reach — one question on the `interleaved` cadence, the remaining budget on `end` or in `enforced` mode — and at most `max_stop_blocks_per_session` times. |
 | `PreToolUse` | Before every Bash command | In enforced mode, denies the ones that are really a `git commit` while the gate is unmet. Everything else passes through untouched. |

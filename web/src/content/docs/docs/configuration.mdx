@@ -34,7 +34,7 @@ Later layers win key by key, not file by file: a repo file setting only `mode` l
 | `max_new_concepts_per_session` | `8` | Cap on concepts Claude may invent per session, against slug sprawl. |
 | `max_stop_blocks_per_session` | `3` | Hard backstop on how many times the end-of-task hook may hold a session open. |
 | `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
-| `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. |
+| `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `mode: off` for that. |
 
 ### A complete file
 

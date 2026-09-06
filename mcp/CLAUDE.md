@@ -14,12 +14,14 @@ what an agent editing code in this directory has to know before it does.
 | `src/store.ts` | every query. Gates, level standing, question history, graph walks | no MCP, no config decisions beyond what it is handed |
 | `src/db.ts`, `src/migrate.ts`, `src/migrations/` | `openDb()` — pragmas, then migrate, then seed; forward-only numbered SQL with the version in `meta` | |
 | `src/seed.ts`, `src/seed/` | the shipped concept graphs, validated on load | never touches `mastery` — a learner's history survives every seed update |
+| `src/stdin.ts` | the bounded stdin read shared by the hooks and `eklavya statusline` — idle timer, total cap, `error` handler, `unref`, BOM strip. A hook that waits is worse than one that throws | never rejects; a caller that cannot read its input has a fallback |
 | `src/session.ts`, `src/slug.ts`, `src/concurrency.ts` | session-id resolution; slug normalization and fuzzy matching; `retryOnBusy` | |
 | `src/statusline.ts` | `[EKLAVYA ambient · concept · interleaved · easy]` — the dials, for `eklavya statusline` and the host's status bar | never per-question: no tier, no counter |
 | `src/ask.ts`, `src/mcq.ts` | stripping a settings line back out of a recorded stem (history only — nothing composes one now); the deterministic `answerPosition` | |
 | `src/server.ts` | stdio MCP wiring only. **stdout is the protocol** — diagnostics go to stderr | |
 | `src/tools/*.ts` | one file per tool, registered in `tools/index.ts` | |
 | `src/hooks/*.ts` | one file per hook plus `lib.ts`; `run()` swallows everything and exits 0 | |
+| `src/eval/*.ts` | the offline half of the eval — `question-checks.ts` (question shape), `extraction-score.ts` (are the logged concepts right, scored with `slug.ts`'s own matcher), `history-stats.ts` (repeat rate, tier calibration) and `extract-json.ts`. Pure, like `srs.ts`. Driven by `eval/harness.mjs` at the repo root | no model, no I/O; anything needing a judge stays out |
 | `src/install.ts` | `eklavya install/uninstall` — Node check, runtime, plugin payload, registry files, db | |
 | `src/dashboard.ts` + `src/assets/dashboard.html` | the local page on loopback (default port 41729). Read `.claude/skills/eklavya-dashboard/SKILL.md` first | |
 
@@ -83,6 +85,42 @@ say what remains — `needed - passed_count` — rather than only that it is shu
 `requiredHint: Math.min(unmastered, max_questions_per_task)`. That cap is what
 makes the docs' "three of four" true — 4 questions, `pass_threshold` 0.7,
 `ceil(4 * 0.7) = 3`. Change either default and the example is wrong everywhere.
+
+## `declined` and `dont_know` are not interchangeable
+
+`gateRetryConcepts` in `store.ts` excludes concepts whose latest outcome is
+`declined`, and that exclusion is the only thing standing between a blanked
+session and an unpassable commit gate. `outcome` is supplied by the model and
+cross-checked against nothing, so a blank mislabelled as a decline strands the
+developer while the tool reports enforcement working correctly.
+
+Two guards, neither of which guesses at what happened. `record_attempt` returns
+`outcome_conflict` when handed `declined` together with `feedback` — a decline
+that was dropped immediately has nothing to explain. And the exclusion asks for
+a *clean* decline: a declined row carrying feedback is not treated as one, since
+the two mistakes are not symmetric. An unnecessary retry question costs a
+question; a wrongly excluded concept costs the developer their commit.
+
+A real answer history had 11 of 16 declines carrying an explanation, which is
+what these exist for.
+
+## Slug matching has three passes, and only one is fuzzy
+
+`findFuzzyMatch` tries qualifier-stripped equality, then **plural-insensitive**
+equality, then `tokenJaccard` against `FUZZY_MATCH_THRESHOLD` (0.8).
+
+The middle one is narrow on purpose. `claude-code-hook-lifecycle` and
+`claude-code-hooks-lifecycle` are one concept split by a letter and score 0.60,
+so no threshold reaches them without also merging `refresh-token` into
+`refresh-token-rotation` — the pair `slug.ts`'s own comment names as one that
+must never merge. Being an equality test rather than a score keeps it from
+touching anything else: measured against a 249-concept graph it merged exactly
+two pairs.
+
+`singular()` guards `ss`/`us`/`is` endings and a short denylist, because
+singularising `https` yields `http` and would merge two different ideas. It only
+prevents *new* duplicates; concepts already split in an existing graph stay
+split.
 
 ## `srs.ts` is pure
 

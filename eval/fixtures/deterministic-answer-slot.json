@@ -1,0 +1,24 @@
+{
+  "id": "deterministic-answer-slot",
+  "title": "Placing a quiz answer by hash instead of by choice",
+  "source": "mcp/src/mcq.ts",
+  "diff": "export const MCQ_OPTION_COUNT = 4;\n\n/**\n * Which slot the correct option goes in, derived from the question itself.\n */\nfunction hash(text: string): number {\n  let h = 2166136261;\n  for (let i = 0; i < text.length; i++) {\n    h ^= text.charCodeAt(i);\n    h = Math.imul(h, 16777619);\n  }\n  return h >>> 0;\n}\n\nexport function answerPosition(seed: string): number {\n  return (hash(seed) % MCQ_OPTION_COUNT) + 1;\n}",
+  "concepts": [
+    {
+      "slug": "deterministic-hashing-for-distribution",
+      "domain": "general",
+      "tier": 3,
+      "description": "Deriving a choice from a hash of the input so it is uniformly spread and reproducible, rather than random or left to judgement.",
+      "context": "answerPosition hashes the question text so the same question always lands in the same slot and the slots stay even",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "position-bias-in-assessment",
+      "domain": "general",
+      "tier": 4,
+      "description": "When the correct answer sits in the same place too often, respondents learn the position instead of the material and the instrument stops measuring.",
+      "context": "the slot is assigned server-side precisely because a generator left to itself puts the answer first nearly every time",
+      "prerequisite_of": []
+    }
+  ]
+}

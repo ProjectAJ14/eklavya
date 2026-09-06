@@ -90,6 +90,18 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "prompt-submit-nudge"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -134,7 +146,7 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
 }
 ```
 
-Four events, one command. Every hook is exec form — `"command": "node"` plus
+Five events, one command. Every hook is exec form — `"command": "node"` plus
 `args` — and every one of them dispatches through the same `hooks/run.mjs`, which
 resolves a runtime and imports `dist/hooks/<name>.js`. The logic lives in
 `mcp/src/hooks/*.ts`; there are no `.sh` files under `hooks/` any more, and the
@@ -167,6 +179,7 @@ Common: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, 
 - `PostToolUse`: `tool_name`, `tool_input`, `tool_use_id`, `tool_output`
 - `Stop`: `stop_reason`, `last_assistant_message`
 - `SessionStart`: `session_start_reason` (`startup|resume|clear|compact|fork`), `model`
+- `UserPromptSubmit`: `prompt` (the text the developer just submitted; Eklavya does not read it)
 
 `agent_id` / `agent_type` are present **only inside a subagent**, which is how
 `checkpoint-quiz` knows not to ask a question nobody is watching: a subagent
@@ -192,6 +205,29 @@ mechanism behind interleaved quizzing.
 Exit 2 also surfaces stderr to the model here, but as a *warning* — an error face
 on a working feature. `checkpoint-quiz` therefore uses exit 0 + JSON, unlike
 the Stop hook, which has something to actually prevent (deviation D1).
+
+### UserPromptSubmit output (in use since 1.15)
+
+Fires before the model sees the developer's message, and can put text in front of
+it — the seam `prompt-submit-nudge` uses to restate the log directive in a
+session that has gone quiet.
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "seen by the model, before it reads the prompt"
+  }
+}
+```
+
+Eklavya uses the explicit JSON form rather than relying on plain stdout. Plain
+text is documented to work on `SessionStart`, and the exit-code table below says
+stdout not starting with `{` is treated as text on any event — but the JSON form
+names the event, and a hook that runs on *every* prompt is the wrong place to
+depend on the looser reading. This shape is the one Eklavya emits; it has not
+been re-verified against a live terminal the way the `AskUserQuestion` rendering
+below was, so treat it as the contract we build to rather than an observation.
 
 ### Events not in the older snapshot
 

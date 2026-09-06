@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import Database from 'better-sqlite3';
 import { dbPath } from '../paths.js';
 import { loadConfig, type ResolvedConfig } from '../config.js';
+import { readStdinBounded, stripBom, HOOK_STDIN } from '../stdin.js';
 
 export type DB = Database.Database;
 
@@ -32,20 +33,21 @@ export interface HookInput {
 }
 
 /**
- * Reads stdin to EOF. Hooks are always given JSON, but "always" is doing a lot
- * of work on a critical path — a hook invoked by hand, or by a harness version
- * that changes its mind, gets an empty object rather than an exception.
+ * The JSON the host piped in, or `{}`.
+ *
+ * Hooks are always given JSON, but "always" is doing a lot of work on a
+ * critical path -- a hook invoked by hand, or by a harness version that changes
+ * its mind, gets an empty object rather than an exception.
+ *
+ * The read is bounded (`readStdinBounded`). It used to be `for await (const
+ * chunk of process.stdin)`, which waits for EOF and has no other exit: on
+ * Windows the host may run a hook through a PowerShell block that swallows the
+ * pipe, so `end` never fires and the hook blocks the session on every tool call
+ * that triggers it. A hook that throws is survivable; a hook that waits is not.
  */
-async function readStdin(): Promise<string> {
-  if (process.stdin.isTTY) return '';
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString('utf8');
-}
-
 export async function readInput(): Promise<HookInput> {
   try {
-    const raw = await readStdin();
+    const raw = stripBom(await readStdinBounded(HOOK_STDIN));
     if (!raw.trim()) return {};
     const parsed: unknown = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? (parsed as HookInput) : {};
@@ -59,7 +61,7 @@ export async function readInput(): Promise<HookInput> {
  *
  * `openDb()` is the server's entry point and does both, which is right for a
  * server and wrong here: a hook is not the thing that should be migrating a
- * schema, and four hooks racing a migration on session start is a corruption
+ * schema, and several hooks racing a migration on session start is a corruption
  * story rather than a feature. A hook that finds no database has nothing to say,
  * which is the same answer `eklavya_have_deps` gave.
  */
@@ -73,6 +75,31 @@ export function openExisting(): DB | null {
     return db;
   } catch {
     return null;
+  }
+}
+
+/**
+ * `meta` key holding the UserPromptSubmit nudge's per-session bookkeeping.
+ * Shared here rather than exported from the hook, because `session-start`
+ * clears it and two hooks spelling the same key differently would be a bug that
+ * only shows up as a nudge that never stops.
+ */
+export const NUDGE_KEY_PREFIX = 'prompt_nudge:';
+
+/**
+ * Forget what the nudge knows about this session.
+ *
+ * Called by `session-start`, which fires on resume and after a compaction as
+ * well as at startup, and reprints the standing directive every time. Without
+ * this the nudge's row survives with its original first-seen stamp, the grace
+ * window is already spent, and the first prompt of a resumed session restates a
+ * directive printed seconds earlier.
+ */
+export function clearNudgeState(db: DB, sessionId: string): void {
+  try {
+    db.prepare('DELETE FROM meta WHERE key = ?').run(`${NUDGE_KEY_PREFIX}${sessionId}`);
+  } catch {
+    /* Bookkeeping. A session that keeps its old row gets one extra nudge. */
   }
 }
 
