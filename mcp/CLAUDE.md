@@ -86,6 +86,42 @@ say what remains — `needed - passed_count` — rather than only that it is shu
 makes the docs' "three of four" true — 4 questions, `pass_threshold` 0.7,
 `ceil(4 * 0.7) = 3`. Change either default and the example is wrong everywhere.
 
+## `declined` and `dont_know` are not interchangeable
+
+`gateRetryConcepts` in `store.ts` excludes concepts whose latest outcome is
+`declined`, and that exclusion is the only thing standing between a blanked
+session and an unpassable commit gate. `outcome` is supplied by the model and
+cross-checked against nothing, so a blank mislabelled as a decline strands the
+developer while the tool reports enforcement working correctly.
+
+Two guards, neither of which guesses at what happened. `record_attempt` returns
+`outcome_conflict` when handed `declined` together with `feedback` — a decline
+that was dropped immediately has nothing to explain. And the exclusion asks for
+a *clean* decline: a declined row carrying feedback is not treated as one, since
+the two mistakes are not symmetric. An unnecessary retry question costs a
+question; a wrongly excluded concept costs the developer their commit.
+
+A real answer history had 11 of 16 declines carrying an explanation, which is
+what these exist for.
+
+## Slug matching has three passes, and only two are fuzzy
+
+`findFuzzyMatch` tries qualifier-stripped equality, then **plural-insensitive**
+equality, then `tokenJaccard` against `FUZZY_MATCH_THRESHOLD` (0.8).
+
+The middle one is narrow on purpose. `claude-code-hook-lifecycle` and
+`claude-code-hooks-lifecycle` are one concept split by a letter and score 0.60,
+so no threshold reaches them without also merging `refresh-token` into
+`refresh-token-rotation` — the pair `slug.ts`'s own comment names as one that
+must never merge. Being an equality test rather than a score keeps it from
+touching anything else: measured against a 249-concept graph it merged exactly
+two pairs.
+
+`singular()` guards `ss`/`us`/`is` endings and a short denylist, because
+singularising `https` yields `http` and would merge two different ideas. It only
+prevents *new* duplicates; concepts already split in an existing graph stay
+split.
+
 ## `srs.ts` is pure
 
 No database, no clock; `now` is always a parameter. That is why the whole

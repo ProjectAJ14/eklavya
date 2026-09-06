@@ -125,12 +125,15 @@ await run(async (input) => {
   // prompt the developer types, so a dormant or quiet session should not pay to
   // open SQLite before finding out it had nothing to do. Reading one or two
   // small JSON files is the cheaper question, so it is asked first.
-  const { mode, quiet } = config(cwdOf(input)).config;
+  const { mode } = config(cwdOf(input)).config;
   if (mode === 'off') return 0;
-  // `quiet` already suppresses the session-start directive itself, so honouring
-  // it here is consistency rather than a second policy: someone who turned that
-  // off has answered this question.
-  if (quiet) return 0;
+  // `quiet` is deliberately NOT consulted. It suppresses the banner and the
+  // status bar -- things the developer looks at -- and this is an
+  // additionalContext line the model reads, exactly like the session-start
+  // directive it restates. Honouring it here used to be defended as consistency
+  // with that directive, which was itself being dropped under `quiet`: between
+  // them they turned a preference about greetings into a silent off switch.
+  // `mode: off` is the off switch.
 
   const db = openExisting();
   if (!db) return 0;

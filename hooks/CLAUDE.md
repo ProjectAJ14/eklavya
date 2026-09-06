@@ -126,6 +126,19 @@ against the old code all three cases hang until the test kills them.
 byte-order mark, and `JSON.parse` throws on input that looks perfectly
 well-formed in a terminal and in any editor — another silent nothing-happens.
 
+## `quiet` is not an off switch
+
+It suppresses the session-start banner and the status bar — things the developer
+looks at. It does **not** suppress the standing directive, and it does not gate
+the `UserPromptSubmit` nudge, because both are `additionalContext` the model
+reads rather than output anyone sees.
+
+That was a bug for a while, and a bad one: `session-start` returned before
+pushing the directive, so a developer who turned the greeting off logged
+nothing, was never quizzed, and saw `mode: ambient` in `get_config` the whole
+time. Two tests encoded it as intended behaviour. `mode: off` is the off switch,
+and it is the only one.
+
 ## The Stop hook blocks in `ambient` too
 
 Commonly got wrong. `ambient` is not "never interrupts" — `stop-quiz-check.ts`

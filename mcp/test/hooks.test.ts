@@ -187,9 +187,15 @@ describe('SessionStart output', () => {
     expect(res.stdout).toMatch(/log_session_concepts/);
   });
 
-  it('drops the logging instruction when quiet is set', () => {
+  it('still gives the logging instruction when quiet is set', () => {
+    // `quiet` is about the greeting. It used to drop the directive too, which
+    // meant a developer who turned the banner off logged nothing, was never
+    // quizzed, and saw `mode: ambient` in `get_config` the whole time. Two
+    // tests encoded that as intended behaviour; this is the corrected pair.
     configure({ quiet: true });
-    expect(sessionStart().stdout).not.toMatch(/log_session_concepts/);
+    const res = sessionStart();
+    expect(res.stdout).toMatch(/log_session_concepts/);
+    expect(res.stdout).not.toMatch(/Learner profile/);
   });
 
   it('reports per-domain progress once something is known', () => {
@@ -209,11 +215,18 @@ describe('SessionStart output', () => {
     expect(res.stdout).toMatch(/Weak: csrf/);
   });
 
-  it('stays silent when quiet is set, but still stamps the session', () => {
+  it('prints no banner when quiet is set, and still stamps the session', () => {
     configure({ quiet: true });
     const res = sessionStart();
-    expect(res.stdout).toBe('');
+    expect(res.stdout).not.toMatch(/Learner profile|No learning history|Mode: /);
+    expect(res.stdout).toMatch(/Standing instruction/);
     expect(db.prepare("SELECT value FROM meta WHERE key='current_session'").get()).toBeTruthy();
+  });
+
+  it('says nothing at all only when the mode is off', () => {
+    // The one setting that means "do nothing". `quiet` is not a second one.
+    configure({ mode: 'off', quiet: false });
+    expect(sessionStart().stdout).toBe('');
   });
 
   it('stays silent when the mode is off', () => {
@@ -726,12 +739,21 @@ describe('the UserPromptSubmit nudge', () => {
     expect(context(nudge())).not.toBeNull();
   });
 
-  it('is silent when Eklavya is dormant or quiet', () => {
+  it('is silent when Eklavya is dormant', () => {
     seenMinutesAgo(30);
     configure({ mode: 'off' });
     expect(context(nudge())).toBeNull();
+  });
+
+  it('still fires when quiet is set, because quiet is about the banner', () => {
+    // This is an additionalContext line the model reads, exactly like the
+    // session-start directive it restates -- not something the developer looks
+    // at. Gating it on `quiet` was defended as consistency with that directive,
+    // which was itself wrongly suppressed; together they made a preference
+    // about greetings into a silent off switch.
+    seenMinutesAgo(30);
     configure({ quiet: true });
-    expect(context(nudge())).toBeNull();
+    expect(context(nudge())).toMatch(/log_session_concepts/);
   });
 
   it('is silent inside a subagent — the parent thread is the one that logs', () => {

@@ -109,16 +109,47 @@ await run(async (input) => {
   // `levelStanding` is the server's own function, so the banner cannot drift
   // from what the quiz planner actually does — the shell version reimplemented
   // this query and had to keep it in step by hand.
-  let levelLabel = `${difficulty} (pinned)`;
-  if (difficulty === 'auto') {
-    const standing = levelStanding(db, resolved.config, resolved.repoRoot);
-    levelLabel = `${standing.level} (${standing.counts.passed}/${standing.needed.answers} on this project)`;
+  const out: string[] = [];
+
+  // `quiet` suppresses the banner, and only the banner. It used to return here,
+  // which also dropped the directive below -- so a developer who turned the
+  // greeting off silently turned the whole product off: nothing was logged, so
+  // the Stop hook found no candidates, so no question was ever asked, while
+  // `get_config` went on reporting `mode: ambient`. The manual has always said
+  // this key "suppresses the session-start banner and the statusline output",
+  // and `mode: off` is the documented way to stop Eklavya doing anything.
+  if (!quiet) {
+    let levelLabel = `${difficulty} (pinned)`;
+    if (difficulty === 'auto') {
+      const standing = levelStanding(db, resolved.config, resolved.repoRoot);
+      levelLabel = `${standing.level} (${standing.counts.passed}/${standing.needed.answers} on this project)`;
+    }
+    banner(db, out, { mode, focusLabel, cadence, levelLabel, overrides: resolved.overrides });
   }
 
-  if (quiet) return 0;
+  // The directive is on screen again, so the nudge's clock starts again. This
+  // hook fires on resume and after a compaction, not only at startup, and both
+  // reuse the session id -- without this the first prompt of a resumed session
+  // restates what was printed seconds ago.
+  if (sid) clearNudgeState(db, sid);
 
+  out.push(DIRECTIVE);
+  process.stdout.write(`${out.join('\n')}\n`);
+  return 0;
+});
+
+interface BannerParts {
+  mode: string;
+  focusLabel: string;
+  cadence: string;
+  levelLabel: string;
+  overrides: string[];
+}
+
+/** The developer-facing greeting. Everything `quiet` is about. */
+function banner(db: DB, out: string[], parts: BannerParts): void {
+  const { mode, focusLabel, cadence, levelLabel, overrides } = parts;
   const domains = domainSummary(db);
-  const out: string[] = [];
 
   if (!domains) {
     // Nothing learned yet — say the useful thing instead of an empty scoreboard.
@@ -136,19 +167,9 @@ await run(async (input) => {
     );
   }
 
-  if (resolved.overrides.length > 0) {
+  if (overrides.length > 0) {
     out.push(
-      `[Eklavya] This repo overrides your global setting for: ${resolved.overrides.join(' ')} (.eklavya.json wins).`,
+      `[Eklavya] This repo overrides your global setting for: ${overrides.join(' ')} (.eklavya.json wins).`,
     );
   }
-
-  // The directive is on screen again, so the nudge's clock starts again. This
-  // hook fires on resume and after a compaction, not only at startup, and both
-  // reuse the session id -- without this the first prompt of a resumed session
-  // restates what was printed seconds ago.
-  if (sid) clearNudgeState(db, sid);
-
-  out.push(DIRECTIVE);
-  process.stdout.write(`${out.join('\n')}\n`);
-  return 0;
-});
+}

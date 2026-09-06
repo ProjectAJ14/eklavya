@@ -10,6 +10,7 @@ import { recordAttempt } from '../src/tools/record_attempt.js';
 import { getGateStatus } from '../src/tools/get_gate_status.js';
 import { upsertConcepts } from '../src/tools/upsert_concepts.js';
 import { getConceptGraph } from '../src/tools/get_concept_graph.js';
+import { gateRetryConcepts } from '../src/store.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
 import { resolveSessionId, setCurrentSession, FALLBACK_SESSION_ID } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
@@ -1534,5 +1535,66 @@ describe('the settings line, end to end', () => {
       format: 'mcq',
     });
     expect(again.repeat_question).toBe(true);
+  });
+});
+
+describe('a decline that was explained anyway', () => {
+
+  it('is reported, because the two outcomes are not interchangeable', () => {
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'the csrf token check in auth.ts' }] });
+    const res = call<{ outcome_conflict?: string }>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'Why is a CSRF token needed here?',
+      difficulty: 2,
+      grade: 0,
+      outcome: 'declined',
+      feedback: 'A CSRF token proves the request came from your own page.',
+    });
+    expect(res.outcome_conflict).toMatch(/dont_know/);
+  });
+
+  it('says nothing when a decline is a clean decline', () => {
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'the csrf token check in auth.ts' }] });
+    const res = call<{ outcome_conflict?: string }>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'Why is a CSRF token needed here?',
+      difficulty: 2,
+      grade: 0,
+      outcome: 'declined',
+    });
+    expect(res.outcome_conflict).toBeUndefined();
+  });
+
+  it('does not strand an explained decline outside the gate retry', () => {
+    // The exclusion exists to honour "leave me alone". A row with a taught
+    // explanation is not that, and treating it as one removes the concept from
+    // the only route out of a blocked commit gate -- so in enforced mode the
+    // developer is stuck while the tool insists enforcement is working.
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'the csrf token check in auth.ts' }] });
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'Why is a CSRF token needed here?',
+      difficulty: 2,
+      grade: 0,
+      outcome: 'declined',
+      feedback: 'Taught it: the token proves same-origin intent.',
+    });
+    expect(gateRetryConcepts(db, SESSION).map((c) => c.slug)).toContain('csrf');
+  });
+
+  it('still keeps a clean decline out of the gate retry', () => {
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'the csrf token check in auth.ts' }] });
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'Why is a CSRF token needed here?',
+      difficulty: 2,
+      grade: 0,
+      outcome: 'declined',
+    });
+    expect(gateRetryConcepts(db, SESSION).map((c) => c.slug)).not.toContain('csrf');
   });
 });

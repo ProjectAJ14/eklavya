@@ -460,6 +460,17 @@ export function wasEverTaught(db: DB, conceptId: number): boolean {
  * who declined and later engaged is not held to the earlier answer. "Leave me
  * alone" is a choice, and enforced mode holding the gate against it is the
  * enforcement working, not a deadlock.
+ *
+ * A decline carrying tutor feedback does not count as one. `outcome` is
+ * supplied by the model and cross-checked against nothing, and a real answer
+ * history showed 11 of 16 declines with an explanation stored against them --
+ * either declines that were lectured anyway, against the rule, or blanks
+ * mislabelled as declines. The data cannot say which, and the two mistakes are
+ * not symmetric: an extra retry question costs a question, while a mislabelled
+ * blank removes the concept from the only route out of a blocked gate and
+ * leaves the developer stuck with the tool insisting enforcement is working.
+ * So the exclusion asks for a *clean* decline -- no explanation attached --
+ * which is what "leave me alone" actually looks like.
  */
 export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[] {
   return db
@@ -473,13 +484,16 @@ export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[
                   max(a.grade) AS best_grade,
                   (SELECT x.outcome FROM attempts x
                     WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id
-                    ORDER BY x.id DESC LIMIT 1) AS last_outcome
+                    ORDER BY x.id DESC LIMIT 1) AS last_outcome,
+                  (SELECT coalesce(length(trim(coalesce(x.feedback, ''))), 0) FROM attempts x
+                    WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id
+                    ORDER BY x.id DESC LIMIT 1) AS last_feedback_len
              FROM attempts a
             WHERE a.session_id = ?
             GROUP BY a.concept_id
          ) t ON t.concept_id = c.id
         WHERE t.best_grade < ?
-          AND (t.last_outcome IS NULL OR t.last_outcome <> 'declined')
+          AND (t.last_outcome IS NULL OR t.last_outcome <> 'declined' OR t.last_feedback_len > 0)
         ORDER BY sc.ts ASC`,
     )
     .all(sessionId, sessionId, PASSING_GRADE) as SessionConceptRow[];
