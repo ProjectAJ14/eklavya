@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "6ef287f4cdbf1dbc0087c0cf5725a3ceb3ddf3f8"
+      "revision": "9edbc03c8dba5f4d1155fd555ec65a27a49b419c"
     },
     "views": [
       {
@@ -92,7 +92,7 @@
       "id": "skills",
       "type": "frontend",
       "label": "Skills & Tutor Agent",
-      "sublabel": "prompt side · model-invoked",
+      "sublabel": "7 slash commands + tutor",
       "pos": [
         268,
         40
@@ -129,11 +129,11 @@
       "sources": [
         {
           "path": "mcp/src/config.ts",
-          "label": "TS resolver"
+          "label": "resolver"
         },
         {
-          "path": "hooks/lib.sh",
-          "label": "jq resolver"
+          "path": "mcp/src/hooks/lib.ts",
+          "label": "hook side"
         }
       ]
     },
@@ -198,7 +198,7 @@
           "label": "stdio transport"
         },
         {
-          "path": "mcp/bin/eklavya-mcp.sh",
+          "path": "hooks/run.mjs",
           "label": "launcher"
         }
       ]
@@ -227,8 +227,8 @@
       "id": "hooks",
       "type": "backend",
       "label": "Hook Scripts",
-      "sublabel": "4 lifecycle events · POSIX sh",
-      "tag": "always exit 0",
+      "sublabel": "4 lifecycle events · Node",
+      "tag": "exit 0 on failure",
       "pos": [
         268,
         440
@@ -243,7 +243,7 @@
           "label": "wiring"
         },
         {
-          "path": "hooks/checkpoint-quiz.sh",
+          "path": "mcp/src/hooks/checkpoint-quiz.ts",
           "label": "mid-task checkpoint"
         }
       ]
@@ -514,9 +514,9 @@
       "items": [
         "stdout is the protocol; diagnostics are forced to stderr",
         "retryOnBusy wraps every handler; openDb migrates and seeds",
-        "Config precedence exists twice: config.ts in TS, lib.sh in jq",
+        "The repo gate reads .eklavya.json only, never the global config",
         "Two commit gates — one on the session, one on the repo; both fail open",
-        "Launcher prefers mcp/dist; npx @1.7.0 only without a local build"
+        "run.mjs prefers mcp/dist; npx at the pinned version without one"
       ]
     }
   ]
