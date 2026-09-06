@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "9edbc03c8dba5f4d1155fd555ec65a27a49b419c"
+      "revision": "94ec8cf091bc011237c40e91c2a95a9850e3a218"
     },
     "views": [
       {
@@ -227,7 +227,7 @@
       "id": "hooks",
       "type": "backend",
       "label": "Hook Scripts",
-      "sublabel": "4 lifecycle events · Node",
+      "sublabel": "5 lifecycle events · Node",
       "tag": "exit 0 on failure",
       "pos": [
         268,
@@ -500,9 +500,10 @@
     },
     {
       "dot": "amber",
-      "title": "Four hooks, four mechanisms",
+      "title": "Five hooks, five mechanisms",
       "items": [
         "SessionStart — stdout: profile + the directive that starts it all",
+        "UserPromptSubmit — one line, only when a session logged nothing",
         "PostToolUse — exit 0 + JSON; skipped inside subagents",
         "Stop — exit 2 + stderr is what actually blocks the turn",
         "PreToolUse(Bash) — permissionDecision \"deny\" on git commit"
