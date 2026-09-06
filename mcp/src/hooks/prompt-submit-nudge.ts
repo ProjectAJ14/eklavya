@@ -79,9 +79,9 @@ function writeState(db: DB, key: string, first: string, nudged: string | null): 
 function prune(db: DB): void {
   db.prepare(
     `DELETE FROM meta
-      WHERE key LIKE '${KEY_PREFIX}%'
+      WHERE key LIKE ?
         AND substr(value, 1, 10) < date('now', '-7 day')`,
-  ).run();
+  ).run(`${KEY_PREFIX}%`);
 }
 
 await run(async (input) => {
@@ -90,15 +90,19 @@ await run(async (input) => {
   // reading. Same reasoning as checkpoint-quiz.ts.
   if (input.agent_id) return 0;
 
-  const db = openExisting();
-  if (!db) return 0;
-
+  // Config before the database, unlike the other hooks: this one runs on every
+  // prompt the developer types, so a dormant or quiet session should not pay to
+  // open SQLite before finding out it had nothing to do. Reading one or two
+  // small JSON files is the cheaper question, so it is asked first.
   const { mode, quiet } = config(cwdOf(input)).config;
   if (mode === 'off') return 0;
   // `quiet` already suppresses the session-start directive itself, so honouring
   // it here is consistency rather than a second policy: someone who turned that
   // off has answered this question.
   if (quiet) return 0;
+
+  const db = openExisting();
+  if (!db) return 0;
 
   const sid = sessionId(input, db);
   if (!sid) return 0;
