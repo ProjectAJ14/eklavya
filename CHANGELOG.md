@@ -1,3 +1,10 @@
+## [1.13.1](https://github.com/ProjectAJ14/eklavya/compare/v1.13.0...v1.13.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **tutor:** make the skill description a trigger, not a workflow summary ([b1bf3a2](https://github.com/ProjectAJ14/eklavya/commit/b1bf3a278563748b22abb2184e6a732c5d20adf9))
+
 # [1.13.0](https://github.com/ProjectAJ14/eklavya/compare/v1.12.0...v1.13.0) (2026-09-06)
 
 
