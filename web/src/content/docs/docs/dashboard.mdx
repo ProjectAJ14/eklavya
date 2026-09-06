@@ -8,7 +8,14 @@ sidebar:
 $ eklavya dashboard
 Eklavya dashboard on http://127.0.0.1:41729
 Reading /Users/you/.eklavya/knowledge.db — press Ctrl+C to stop.
+Opening it in your browser…
 ```
+
+It opens your default browser for you. The command then stays in the foreground
+because it *is* the server — Ctrl+C stops it, and `eklavya dashboard &` frees the
+terminal if you want it running while you work. On a machine with no browser to
+open — a container, a bare SSH session — the attempt fails silently and the URL
+above is still what you need.
 
 `/eklavya:progress` fits in twenty lines and answers *what now*. The dashboard is
 the long view: six sections behind a sidebar, each one answering a different
@@ -72,4 +79,4 @@ call except the fonts.
 
 `--port` if 41729 is taken; if the port you asked for is busy the command fails
 rather than quietly moving, and with no `--port` at all it falls back to any
-free port.
+free port. `--no-open` skips the browser and just prints the URL.

@@ -14,7 +14,7 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | `eklavya config get` | Prints the effective configuration as JSON, plus the paths of the global and repo files it came from. |
 | `eklavya config set <key> <value>` | Changes one setting. Add `--repo` to write `.eklavya.json` at the repository root instead of your global config. Add `--topic <topic>` when setting `focus learn`. |
 | `eklavya doctor` | Checks that everything is wired up: home directory, database, concept and attempt counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if the database cannot be opened. |
-| `eklavya dashboard [--port <n>]` | Serves your learning history as a local web page. See [The dashboard](/docs/dashboard/). |
+| `eklavya dashboard [--port <n>] [--no-open]` | Serves your learning history as a local web page and opens it in your browser. `--no-open` serves it and prints the URL instead. See [The dashboard](/docs/dashboard/). |
 | `eklavya db-path` | Prints the database location. Useful in scripts. |
 | `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
 

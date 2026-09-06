@@ -23,8 +23,10 @@ and served at `/tokens.css`. The dashboard and the site therefore share one
 palette by construction; do not fork it.
 
 When iterating: `npm run build` in `mcp/` (tsc + copy-assets), then
-`node dist/cli.js dashboard --port 41799`. Editing only the HTML? `cp
-src/assets/dashboard.html dist/assets/` and reload — no rebuild needed.
+`node dist/cli.js dashboard --port 41799 --no-open`. **Use `--no-open`** — the
+command opens the reader's browser by default, and a restart loop without it
+spawns a tab every time. Editing only the HTML? `cp src/assets/dashboard.html
+dist/assets/` and reload — no rebuild needed.
 
 ## The one rule about data
 

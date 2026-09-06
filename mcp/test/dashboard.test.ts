@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
-import { dashboardState, startDashboard } from '../src/dashboard.js';
+import { dashboardState, startDashboard, browserCommand } from '../src/dashboard.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { tempDbPath, cleanup } from './helpers.js';
@@ -119,6 +119,15 @@ describe('dashboardState', () => {
     expect(p.level_needed.answers).toBeGreaterThan(0);
     // The bar is said out loud rather than hinted at.
     expect(p.level_unmet).toContain('answers');
+  });
+
+  it('hands the URL to each platform opener in the shape that platform wants', () => {
+    const url = 'http://127.0.0.1:41729';
+    expect(browserCommand(url, 'darwin')).toEqual(['open', [url]]);
+    expect(browserCommand(url, 'linux')).toEqual(['xdg-open', [url]]);
+    // The empty string is load-bearing: `start <url>` reads its first quoted
+    // argument as the window title, so the URL alone can be swallowed as one.
+    expect(browserCommand(url, 'win32')).toEqual(['cmd', ['/c', 'start', '', url]]);
   });
 
   it('serves the state over loopback and stops cleanly', async () => {

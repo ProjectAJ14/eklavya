@@ -11,7 +11,7 @@ import { openDb } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
 import { levelStanding } from './store.js';
-import { startDashboard } from './dashboard.js';
+import { startDashboard, openInBrowser } from './dashboard.js';
 import { install, uninstall } from './install.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -29,7 +29,8 @@ Usage:
                                         cadence interleaved|end,
                                         difficulty auto|easy|medium|hard
                                         add --topic <topic> when setting focus to "learn"
-  eklavya dashboard [--port <n>]        Serve the learning dashboard on localhost
+  eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser
+                                        (--no-open serves it and just prints the URL)
   eklavya doctor                        Check that everything is wired up
   eklavya db-path                       Print the database location
 
@@ -199,10 +200,20 @@ function dashboardCommand(argv: string[]): void {
     process.stderr.write('eklavya dashboard: --port needs a number\n');
     process.exit(1);
   }
+  // Opens by default. A dashboard you have to copy out of a terminal is a
+  // dashboard you open once; `--no-open` is for a headless box, or for an agent
+  // that only wants the URL to hand back.
+  const open = !argv.includes('--no-open');
 
   startDashboard(openDb(), { port }).then(
     ({ url }) => {
-      process.stdout.write(`Eklavya dashboard on ${url}\nReading ${dbPath()} — press Ctrl+C to stop.\n`);
+      process.stdout.write(
+        `Eklavya dashboard on ${url}\nReading ${dbPath()} — press Ctrl+C to stop.\n`,
+      );
+      if (open) {
+        process.stdout.write('Opening it in your browser…\n');
+        openInBrowser(url);
+      }
     },
     (err: Error) => {
       process.stderr.write(`eklavya dashboard: ${err.message}\n`);

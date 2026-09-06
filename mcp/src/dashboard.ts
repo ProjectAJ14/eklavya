@@ -20,6 +20,7 @@
  */
 import http from 'node:http';
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
@@ -369,6 +370,42 @@ export function dashboardState(db: DB): Record<string, unknown> {
     attempts,
     logged,
   };
+}
+
+/**
+ * The platform's URL opener, as a command and its arguments.
+ *
+ * The empty string before the URL on Windows is load-bearing: `start <url>`
+ * reads its first quoted argument as the new window's *title*, so a URL passed
+ * alone can be swallowed as one. `start "" <url>` is the documented shape.
+ */
+export function browserCommand(
+  url: string,
+  platform: NodeJS.Platform = process.platform,
+): [string, string[]] {
+  if (platform === 'darwin') return ['open', [url]];
+  if (platform === 'win32') return ['cmd', ['/c', 'start', '', url]];
+  return ['xdg-open', [url]];
+}
+
+/**
+ * Hands the URL to whatever the OS considers the browser.
+ *
+ * Best effort, and deliberately silent when it fails: a container, a bare SSH
+ * session or a machine with no desktop has no browser to hand it to, and the
+ * URL is on stdout for those. Detached and unref'd so the opener's lifetime is
+ * not tied to this process — `xdg-open` can outlive the launch by seconds, and
+ * a child still attached would hold the terminal after Ctrl+C.
+ */
+export function openInBrowser(url: string): void {
+  try {
+    const [cmd, args] = browserCommand(url);
+    const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
+    child.on('error', () => {});
+    child.unref();
+  } catch {
+    // Nothing to do: the URL is printed either way.
+  }
 }
 
 function send(res: http.ServerResponse, status: number, type: string, body: string | Buffer): void {

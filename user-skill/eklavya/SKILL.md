@@ -103,14 +103,19 @@ eklavya db-path     # where the learning history lives
 ## The dashboard
 
 ```bash
-eklavya dashboard              # http://127.0.0.1:41729
+eklavya dashboard              # opens http://127.0.0.1:41729 in their browser
 eklavya dashboard --port 8080
+eklavya dashboard --no-open    # serve it, print the URL, open nothing
 ```
 
 It binds to loopback only and reads the local database — that is the whole
 security model, and it is worth saying when someone asks where their data
 goes. The process runs until interrupted, so start it in the background and
 hand back the URL rather than blocking the session on it.
+
+It opens the browser itself, so do not tell them to click the URL. Use
+`--no-open` when they only asked *where* the dashboard is, or when the session
+is on a machine with no desktop.
 
 Six sections, each deep-linkable — hand back the one that answers what was
 actually asked rather than the bare root:
