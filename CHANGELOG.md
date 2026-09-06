@@ -1,3 +1,10 @@
+## [1.9.2](https://github.com/ProjectAJ14/eklavya/compare/v1.9.1...v1.9.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* stop promising an eklavya command that is not on PATH ([f765097](https://github.com/ProjectAJ14/eklavya/commit/f7650978d8252d65970e92c58f430e3e4dd315f2))
+
 ## [1.9.1](https://github.com/ProjectAJ14/eklavya/compare/v1.9.0...v1.9.1) (2026-09-05)
 
 
