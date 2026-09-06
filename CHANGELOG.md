@@ -1,3 +1,24 @@
+# [1.15.0](https://github.com/ProjectAJ14/eklavya/compare/v1.14.0...v1.15.0) (2026-09-06)
+
+
+### Bug Fixes
+
+* **eval:** correct the published history, including both headline numbers ([6c447dc](https://github.com/ProjectAJ14/eklavya/commit/6c447dc05183e9627727772865cba91bbb70b517))
+* **eval:** the harness could hang, self-compare, and flatter itself ([614f52e](https://github.com/ProjectAJ14/eklavya/commit/614f52ea72debb6f611e9f1196b72ec7a321eaeb))
+* **hooks:** a hook can no longer wait forever on stdin ([0c0e297](https://github.com/ProjectAJ14/eklavya/commit/0c0e297569c79a5f36c9ccd81452af8a5c3147e1)), closes [#443](https://github.com/ProjectAJ14/eklavya/issues/443)
+* **hooks:** cap the nudge, re-arm it on resume, and fix the docs it left stale ([68e9543](https://github.com/ProjectAJ14/eklavya/commit/68e9543cdc5c963fe6dc2500ea3f90621ac558d9))
+* **hooks:** let go of stdin, or the read resolves and the process never exits ([fe6797c](https://github.com/ProjectAJ14/eklavya/commit/fe6797ca7f9d5f2a76044be5d77ae33cfc1d31bd))
+* pre-PR review findings ([ca940a1](https://github.com/ProjectAJ14/eklavya/commit/ca940a1124ac1f06950bc549de13aa8aa2b8520d))
+* the three bugs the eval and the reviews turned up ([876bbf0](https://github.com/ProjectAJ14/eklavya/commit/876bbf0922deac26061c614b292d2051ff326ee5))
+
+
+### Features
+
+* **eval:** measure concept extraction, the step before any question exists ([9dfbc7a](https://github.com/ProjectAJ14/eklavya/commit/9dfbc7a268b0b75ac017983f0e21888567442f0e))
+* **eval:** measure the promise on a real history, and publish what it says ([751d973](https://github.com/ProjectAJ14/eklavya/commit/751d973aae1c98480ae7bd78757dcdfcc831cd38))
+* **eval:** measure the questions, not just the machinery ([8e5af7e](https://github.com/ProjectAJ14/eklavya/commit/8e5af7eef0dfaf213bb4cff539687466780c96d0))
+* **hooks:** restate the log directive on a prompt when a session has logged nothing ([94ec8cf](https://github.com/ProjectAJ14/eklavya/commit/94ec8cf091bc011237c40e91c2a95a9850e3a218))
+
 # [1.14.0](https://github.com/ProjectAJ14/eklavya/compare/v1.13.1...v1.14.0) (2026-09-06)
 
 
