@@ -92,6 +92,36 @@ afterEach(() => {
 
 // ---------------------------------------------------------------------------
 
+describe('gate status — what remains', () => {
+  // /eklavya:gate promises to say exactly how far off the gate is, which is only
+  // computable if the status carries the bar and the passing count, not just the
+  // boolean. Regressing either field silently turns that command into a shrug.
+  it('reports the bar and the passing count, not just passed', () => {
+    repoConfig({ mode: 'enforced' });
+    openGate({ required: 4, answeredWell: 2 });
+
+    const { config, repoRoot } = loadConfig(repo);
+    const status = syncGate(db, SESSION, config, { repo: repoRoot });
+
+    expect(status.required).toBe(4);
+    expect(status.needed).toBe(Math.ceil(4 * config.pass_threshold));
+    expect(status.passed_count).toBe(2);
+    expect(status.passed).toBe(false);
+    expect(status.needed - status.passed_count).toBe(1);
+  });
+
+  it('opens once passed_count reaches needed', () => {
+    repoConfig({ mode: 'enforced' });
+    openGate({ required: 4, answeredWell: 3 });
+
+    const { config, repoRoot } = loadConfig(repo);
+    const status = syncGate(db, SESSION, config, { repo: repoRoot });
+
+    expect(status.passed_count).toBe(status.needed);
+    expect(status.passed).toBe(true);
+  });
+});
+
 describe('PreToolUse gate — getting out of the way', () => {
   it.each([
     'npm test',

@@ -98,7 +98,7 @@ export interface EklavyaConfig {
   min_minutes_between_quizzes: number;
   /**
    * Floor on the gap between mid-work checkpoint questions, in minutes. Read by
-   * `checkpoint-quiz.sh`, not by the planner.
+   * the checkpoint-quiz hook, not by the planner.
    *
    * Much shorter than `min_minutes_between_quizzes` on purpose: that one paces
    * whole quizzes and exists so Eklavya does not nag, this one paces single
@@ -110,7 +110,7 @@ export interface EklavyaConfig {
   quiet: boolean;
   /** Cap on LLM-minted concepts per session, against slug sprawl (PRD §15). */
   max_new_concepts_per_session: number;
-  /** Hard backstop on the Stop hook's loop guard, read by stop-quiz-check.sh. */
+  /** Hard backstop on the Stop hook's loop guard, read by the stop-quiz-check hook. */
   max_stop_blocks_per_session: number;
 }
 

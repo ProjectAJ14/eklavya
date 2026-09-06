@@ -289,6 +289,17 @@ export interface GateStatus {
   mode: string;
   required: number;
   answered: number;
+  /**
+   * Passing answers that count towards the bar, and the bar itself.
+   *
+   * `answered` on its own cannot say what is left: it counts every concept
+   * attempted, including review debt, while only `origin = 'work'` passes move
+   * `passed_count`. Without both numbers `/eklavya:gate` can tell you the gate
+   * is shut but not how far off it is, which is the one thing it is asked.
+   */
+  passed_count: number;
+  /** `ceil(required * pass_threshold)` — what `passed_count` has to reach. */
+  needed: number;
   passed: boolean;
   pass_threshold: number;
   repo?: string | null;
@@ -323,7 +334,16 @@ export function syncGate(
        updated_at = excluded.updated_at, repo = excluded.repo`,
   ).run(sessionId, config.mode, required, answered, passed ? 1 : 0, repo);
 
-  return { mode: config.mode, required, answered, passed, pass_threshold: config.pass_threshold, repo };
+  return {
+    mode: config.mode,
+    required,
+    answered,
+    passed_count: passedCount,
+    needed,
+    passed,
+    pass_threshold: config.pass_threshold,
+    repo,
+  };
 }
 
 // ---------------------------------------------------------------------------

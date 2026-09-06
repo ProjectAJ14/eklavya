@@ -4,9 +4,15 @@
 # This is what makes enforcement editor-agnostic (PRD §9.4): the same check runs
 # from a bare terminal, VS Code, or Cursor via the git pre-commit hook.
 #
-# It fails OPEN. A missing jq, a missing database or an unreadable config lets
-# the commit through with a warning. A learning tool that bricks commits when a
-# dependency is absent gets uninstalled, and an unpassable gate teaches nothing.
+# It fails OPEN. A missing jq, a missing sqlite3, a missing database or an
+# unreadable config lets the commit through with a warning. A learning tool that
+# bricks commits when a dependency is absent gets uninstalled, and an unpassable
+# gate teaches nothing.
+#
+# It reads the repo's .eklavya.json and nothing else -- never ~/.eklavya/config.json.
+# That is deliberate: a git hook installed once must not start blocking commits
+# because someone flipped a global setting. Gating a repo is a per-repo decision,
+# stated in a file the repo can see.
 
 set -u
 
@@ -58,6 +64,9 @@ cat >&2 <<EOF
   Eklavya is holding this commit.
 
   You have answered $ANSWERED of $REQUIRED concepts from this session's work.
+  Answering is not the same as passing: a skipped or wrong answer counts here
+  but not towards the gate. /eklavya:gate has the passing count.
+
   Open Claude Code in this repo and run /eklavya:quiz to finish, then commit again.
 
   To see what is outstanding:  /eklavya:gate

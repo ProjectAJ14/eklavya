@@ -2,13 +2,13 @@
 # Bump the version everywhere it is recorded, in one step.
 #
 # Normally you do not run this by hand: semantic-release calls it during a
-# release (see .releaserc.json). It exists as a script so that the three files
+# release (see .releaserc.json). It exists as a script so that the two files
 # which carry the version can never drift apart.
 #
 # They have to agree or the release is broken in a way that is invisible until
-# someone installs it: the plugin manifest, the npm package, and the launcher's
-# pinned version, which decides what an installed plugin actually downloads.
-# `npm test` asserts all three match.
+# someone installs it: the plugin manifest and the npm package. `npm test`
+# asserts they match, and that hooks/run.mjs still *reads* plugin.json rather
+# than carrying a third copy of the number.
 #
 #   scripts/bump-version.sh 0.2.0
 

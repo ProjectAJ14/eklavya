@@ -60,8 +60,9 @@ changing.
 | `cadence` | When do the questions land? | `interleaved`, `end` | `interleaved` |
 | `difficulty` | How hard may they get? | `auto`, `easy`, `medium`, `hard` | `auto` |
 
-- `ambient` offers questions; `enforced` also blocks the Stop hook and gates
-  commits; `off` is dormant and `focus` is never read.
+- `ambient` offers questions and respects the quiz cooldown; `enforced` ignores
+  that cooldown, asks a full round rather than one question, and gates commits;
+  `off` is dormant and `focus` is never read.
 - `project` quizzes the code just written. `concept` asks the transferable
   version of the same idea. `learn` follows `focus_topic`.
 - `interleaved` asks one question mid-task, at the seam where a concept was
@@ -84,8 +85,8 @@ eklavya config set focus learn --topic "database indexing"
 ```
 
 Repo config wins over global. When someone's personal setting has stopped
-applying, that is why — `config get` prints both paths and the override list,
-and so does `get_config`.
+applying, that is why — `config get` prints both paths, and `eklavya doctor` or
+`get_config` names the keys the repo is overriding.
 
 Other keys, same `config set` shape: `pass_threshold`,
 `max_questions_per_task`, `min_minutes_between_quizzes`,

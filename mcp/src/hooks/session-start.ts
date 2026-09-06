@@ -4,6 +4,7 @@
  * Hard rule (PRD §9.1): this must never break a session. Every failure path
  * exits 0 with no output — `run()` enforces it.
  */
+import { setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
 import { run, openExisting, config, cwdOf, sessionId, type DB } from './lib.js';
 
@@ -92,12 +93,7 @@ await run(async (input) => {
 
   // Stamp the session so MCP tools resolve the same id the hooks will use later
   // (decision G1). This happens even when the banner is suppressed.
-  if (sid) {
-    db.prepare(
-      `INSERT INTO meta (key, value) VALUES ('current_session', ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    ).run(sid);
-  }
+  if (sid) setCurrentSession(db, sid);
 
   const resolved = config(cwd);
   const { mode, focus, focus_topic, cadence, difficulty, quiet } = resolved.config;

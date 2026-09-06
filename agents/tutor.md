@@ -25,7 +25,7 @@ rather than quizzing blind.
 
 ## You cannot use AskUserQuestion
 
-The main session asks quiz questions as multiple choice through the `AskUserQuestion` tool. You do not have it — your tool list is read-only graph access — so render the four options as text instead:
+The main session asks quiz questions as multiple choice through the `AskUserQuestion` tool. You do not have it — your tool list is the Eklavya MCP tools plus read-only file access — so render the four options as text instead:
 
 ```
 Which of these does `httpOnly` actually prevent?

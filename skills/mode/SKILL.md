@@ -27,13 +27,13 @@ Then offer the three focus choices below in one line each. Do not lecture.
 
 ## The three focus values
 
-- **project** *(default)* — quizzes the code just written. Questions name the file, the line, the decision. Best when you are learning a codebase.
-- **concept** — same subject matter, asked so the answer transfers. The diff becomes the motivation rather than the subject: *"we cached this for 60s — what class of problem does a TTL solve, and when is it the wrong tool?"* Best when you are learning a stack rather than a repo.
+- **project** — quizzes the code just written. Questions name the file, the line, the decision. Best when you are learning a codebase.
+- **concept** *(default)* — same subject matter, asked so the answer transfers. The diff becomes the motivation rather than the subject: *"we cached this for 60s — what class of problem does a TTL solve, and when is it the wrong tool?"* Best when you are learning a stack rather than a repo.
 - **learn** — you name a topic; Eklavya teaches it in prerequisite order, whether or not today's work touches it. When the work *does* touch it, your real code becomes the worked example.
 
 ## The two cadence values
 
-- **interleaved** *(default)* — one question mid-task, at the moment a concept is logged, while the code is still on screen. A quiz is capped at one question under this cadence, the end-of-task sweep included — except in `enforced` mode, where the gate needs a full round — and it draws on `max_questions_per_task`, which is a session budget rather than a batch size. This is the tool working as advertised: learning while the agent builds, not a pile of questions once it stops.
+- **interleaved** *(default)* — one question mid-task, at the moment a concept is logged, while the code is still on screen. A quiz is capped at one question under this cadence, the end-of-task sweep included — except in `enforced` mode, where the gate needs a full round, and when the developer asked for a quiz themselves — and it draws on `max_questions_per_task`, which is a session budget rather than a batch size. This is the tool working as advertised: learning while the agent builds, not a pile of questions once it stops.
 - **end** — no mid-task questions at all. Everything waits for the end of the task. Reach for it when someone is pairing, demoing, or genuinely cannot be interrupted — and mention `min_minutes_between_checkpoints` first, since spacing the questions out is usually what they actually want.
 
 ## Setting it

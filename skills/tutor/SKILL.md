@@ -11,7 +11,7 @@ Everything you learn about them persists in the Eklavya MCP server. Use it — t
 
 ## Session id
 
-Every tool takes an optional `session_id`. **Omit it.** The server resolves the current session on its own. Only pass one if the user or a hook explicitly gave you an id to use.
+Every tool that takes a `session_id` takes it optionally. **Omit it.** The server resolves the current session on its own. Only pass one if the user or a hook explicitly gave you an id to use.
 
 ## While you work
 
@@ -146,7 +146,7 @@ The `known` list in the profile is the other half: **never ask about a slug in `
 - Grounded: *"I set `httpOnly: true` on the refresh cookie in `auth.ts` but left the access token in memory. What attack is that split defending against, and what does it cost us?"*
 - Textbook, avoid: *"What is an httpOnly cookie?"*
 
-**…unless the focus says otherwise.** See *Focus* below. The rule above is `project` focus, which is the default and most of the time. `concept` focus changes what "grounded" means, and getting that wrong in either direction is the most likely way to ask a bad question.
+**…unless the focus says otherwise.** See *Focus* below. The rule above is `project` focus. `concept` is the default, and it changes what "grounded" means — getting that wrong in either direction is the most likely way to ask a bad question.
 
 **Match the tier.** `tier_to_ask` is already clamped to the project's level, so it is not a suggestion — asking above it is asking a question the learner has not reached. This is the difference between a quiz that teaches and one that annoys:
 
@@ -309,11 +309,11 @@ If `ask_header` is absent, the developer has set `quiet` — say nothing extra.
 
 Eklavya has four dials and they are not the same thing. **Mode** is how hard to push, **focus** is what to teach, **cadence** is when to ask, **difficulty** is how hard the questions may get. They are independent; every combination is coherent. Every plan returns `focus` and a `framing` line; the framing is authoritative — follow it over your instincts, and over the grounding rule above where they differ.
 
-### project (the default)
+### project
 
 What the sections above describe. The code is the subject. Name the file, the line, the decision.
 
-### concept
+### concept (the default)
 
 The same subject matter, asked so the answer transfers to a different codebase. **This does not mean textbook questions.** The diff stops being the *subject* and becomes the *motivation*: open from what was just written, then ask for the general rule, the class of problem, or where else it applies.
 
@@ -340,7 +340,7 @@ The developer named a topic. Teach that topic, in the prerequisite order the pla
 
 ## Cadence
 
-- **interleaved** (the default) — one question at a time, mid-task, at the seam where you logged the concept. The planner enforces it: every plan comes back with exactly one item, the Stop sweep included. Enforced mode is exempt, because the gate has to stay passable.
+- **interleaved** (the default) — one question at a time, mid-task, at the seam where you logged the concept. The planner enforces it: every plan comes back with exactly one item, the Stop sweep included. Enforced mode is exempt, because the gate has to stay passable, and so is a plan the developer asked for by name — passing `domain` or `slugs` still gets the whole budget.
 - **end** — no checkpoints. Everything waits for the Stop sweep, which plans the whole remaining budget.
 
 You never choose this; the hooks do. What you owe it is the discipline of *one*: ask what the plan gave you and stop. A checkpoint that asks two questions, or a sweep that calls the plan again for more, has quietly turned the default back into the batch it replaced.

@@ -447,7 +447,7 @@ export const getSessionQuizPlan: ToolDef = {
     // Enforced mode only, and only once everything else is exhausted: a session
     // answered entirely with "I don't know" grades every concept 0, and a graded
     // concept is filtered from the plan above -- so `required` can never be met,
-    // the planner returns nothing, and pre-tool-gate.sh denies the commit while
+    // the planner returns nothing, and pre-tool-gate hook denies the commit while
     // telling the developer to run a quiz that has nothing left to ask. That is
     // a dead end with no route out inside the session.
     //

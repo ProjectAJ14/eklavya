@@ -11,7 +11,7 @@ Teach `$ARGUMENTS` properly. This is a lesson, not a quiz — but it is still a 
 **First, offer to make it stick.** A one-off lesson ends when the conversation does. If they want this topic to keep coming back as they work, `set_config` with `focus: "learn"` and `focus_topic: "$ARGUMENTS"` — from then on quizzes plan from this topic, and use their real code as the example wherever the work touches it. Ask once, in one line; if they decline or say nothing, just teach the lesson. Do not set it silently: it changes what every later session asks about.
 
 1. `get_learner_profile` for the topic's domain. Note `suggested_tier`, and note `known` — those concepts are already theirs. Reference them; do not teach them.
-2. `get_concept_graph` with `include_mastery: true` and `unmastered_only: true`. The order returned **is** the teaching order: prerequisites come before what depends on them.
+2. `get_concept_graph` for that `domain` — it is required — with `include_mastery: true` and `unmastered_only: true`. The order returned **is** the teaching order: prerequisites come before what depends on them.
 3. If the topic isn't a known domain, ask which of the existing domains is closest, or teach from first principles and `upsert_concepts` as you go.
 
 Then, for each concept in order, and **at most 5 per session**:

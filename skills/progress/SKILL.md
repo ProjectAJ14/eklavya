@@ -34,7 +34,8 @@ In this order, because this is the order a learner asks them:
    `tier_to_ask`. Already clamped to the level, so do not re-explain tiers.
 5. **What is shaky?** `weak` — each with a one-clause gloss of what the concept
    actually is. A bare slug list is not a report.
-6. **What is mastered?** `known_total`, then the most recent few. If it is 0,
+6. **What is mastered?** `known_total`, then the first few slugs from `known`
+   — that list is ordered by score, strongest first, not by date. If it is 0,
    name the concepts closest to it instead (one more correct rep, not a first)
    — a zero with no runway attached reads as failure and it is not.
 
@@ -63,11 +64,11 @@ Keep it under 20 lines. A wall of statistics is not a progress report.
 - **Tables only when every column is populated for every row.** Two columns
   of zeros is prose pretending to be data.
 - The seed catalogue is large on purpose. Never present the unseen count as a
-  gap to close — nobody is meant to learn all 174 concepts, and framing it
+  gap to close — nobody is meant to learn all 87 seeded concepts, and framing it
   that way makes the honest numbers feel like failure.
 
 ## When there is nothing yet
 
-If `projects`, `recent_concepts` and `attempts` are all empty, say so plainly
+If `projects` and `recent_concepts` are both empty, say so plainly
 in two lines and suggest building something first — the tool has nothing to
 show until there is work to ground it in. Do not render empty sections.

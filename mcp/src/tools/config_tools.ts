@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import path from 'node:path';
-import { loadConfig, writeConfigFile, REPO_CONFIG_FILE } from '../config.js';
+import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from '../config.js';
 import { CWD_HINT, type ToolDef } from './types.js';
 
 export const getConfig: ToolDef = {
@@ -39,7 +39,7 @@ export const setConfig: ToolDef = {
       .enum(['project', 'concept', 'learn'])
       .optional()
       .describe(
-        'What Eklavya teaches, independent of mode. "project" quizzes the code just written; "concept" asks the transferable version of the same ideas; "learn" follows focus_topic. Defaults to project.',
+        'What Eklavya teaches, independent of mode. "project" quizzes the code just written; "concept" asks the transferable version of the same ideas; "learn" follows focus_topic. Defaults to concept.',
       ),
     cadence: z
       .enum(['interleaved', 'end'])
@@ -85,24 +85,13 @@ export const setConfig: ToolDef = {
     const cwd = args.cwd as string | undefined;
     const resolved = loadConfig(cwd);
 
+    // Derived from DEFAULT_CONFIG rather than hand-listed. A hand-listed copy is a
+    // second place a new key has to be added, and forgetting it is invisible:
+    // the schema accepts the key, the tool reports success, and the setting is
+    // silently dropped on the floor. `scope` and `cwd` are not config keys, so
+    // they cannot leak into the file.
     const patch: Record<string, unknown> = {};
-    for (const key of [
-      'mode',
-      'focus',
-      'focus_topic',
-      'cadence',
-      'difficulty',
-      'level_up_after',
-      'level_up_accuracy',
-      'min_minutes_between_checkpoints',
-      'pass_threshold',
-      'max_questions_per_task',
-      'min_minutes_between_quizzes',
-      'max_new_concepts_per_session',
-      'max_stop_blocks_per_session',
-      'quiet',
-      'domains_enabled',
-    ]) {
+    for (const key of Object.keys(DEFAULT_CONFIG)) {
       if (args[key] !== undefined) patch[key] = args[key];
     }
 
