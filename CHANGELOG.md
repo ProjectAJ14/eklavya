@@ -1,3 +1,10 @@
+## [1.11.1](https://github.com/ProjectAJ14/eklavya/compare/v1.11.0...v1.11.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* correct what the plugin tells the model, and let the gate say what remains ([321542a](https://github.com/ProjectAJ14/eklavya/commit/321542a94ce2a56676c3c3520f3e0d93217e957c))
+
 # [1.11.0](https://github.com/ProjectAJ14/eklavya/compare/v1.10.0...v1.11.0) (2026-09-06)
 
 
