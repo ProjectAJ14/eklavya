@@ -44,7 +44,7 @@ compounds its own drift.
 | `cli.mdx` | the `USAGE` string in `mcp/src/cli.ts` |
 | `configuration.mdx` | `DEFAULT_CONFIG` in `mcp/src/config.ts` — every key, no omissions |
 | `commit-gate.mdx` | `mcp/src/store.ts` (`PASSING_GRADE`, `syncGate`, `gateRetryConcepts`), `cli/eklavya-gate`, `mcp/src/hooks/pre-tool-gate.ts`, `scripts/install-git-hook.sh` |
-| `dashboard.mdx` | `DEFAULT_PORT` and `startDashboard` in `mcp/src/dashboard.ts` |
+| `dashboard.mdx` | `DEFAULT_PORT`, `startDashboard` and `dashboardState` in `mcp/src/dashboard.ts`; the sections, routes and page sizes in `mcp/src/assets/dashboard.html` (`NAV`, `VIEWS`, `PER`) |
 | `grading-engine.mdx` | `mcp/src/srs.ts` constants; the `get_session_quiz_plan` and `record_attempt` tool descriptions |
 | `your-data.mdx` | `mcp/src/paths.ts`, `mcp/src/migrations/` |
 

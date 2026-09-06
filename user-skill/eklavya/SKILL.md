@@ -112,6 +112,18 @@ security model, and it is worth saying when someone asks where their data
 goes. The process runs until interrupted, so start it in the background and
 hand back the URL rather than blocking the session on it.
 
+Six sections, each deep-linkable — hand back the one that answers what was
+actually asked rather than the bare root:
+
+| Ask | Link |
+|---|---|
+| how am I doing, streaks, activity | `/#/overview` |
+| what am I learning, search a concept | `/#/concepts` (or `/#/concepts/due`, `/mastered`, `/unseen`), `/#/concept/<slug>` for one |
+| what is due, what is scheduled, what I skipped | `/#/review`, `/#/review/upcoming`, `/#/review/skipped` |
+| what did that session teach me | `/#/sessions` |
+| how hard is this repo allowed to get | `/#/projects` |
+| where are the gaps | `/#/domains` |
+
 ## When the plugin is loaded, point at the commands
 
 These do more than this skill should reimplement. Name the one that fits and

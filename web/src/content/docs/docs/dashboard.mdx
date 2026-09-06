@@ -10,11 +10,66 @@ Eklavya dashboard on http://127.0.0.1:41729
 Reading /Users/you/.eklavya/knowledge.db — press Ctrl+C to stop.
 ```
 
-`/eklavya:progress` fits in twenty lines and answers *what now*. The dashboard is the long view, and shows:
+`/eklavya:progress` fits in twenty lines and answers *what now*. The dashboard is
+the long view: six sections behind a sidebar, each one answering a different
+question, with every concept, session and question you have ever been asked
+reachable in two clicks.
 
-- Accuracy, mastered, due and skipped — recomputed per project.
-- Thirty days of answers, split into right, missed and skipped.
-- Every concept you have been asked, weakest first, with the code it came from.
-- The skipped list, because those come back a tier lower.
+## The sections
 
-It binds to loopback only and reads the same local database — nothing is served to anyone but you, and nothing leaves the machine. Use `--port` if 41729 is taken; if the port you asked for is busy the command fails rather than quietly moving, and with no `--port` at all it falls back to any free port.
+Each is a link, so you can bookmark the one you actually use.
+
+| Section | What it answers |
+|---|---|
+| Overview (`#/overview`) | Am I getting better? Accuracy, mastered, due, current and best streak, thirty days of answers, a year of practice as a calendar heatmap, your weakest five, and the last five sessions. |
+| Concepts (`#/concepts`) | What am I learning? Every concept in your graph, searchable, filterable by state or domain, sortable, 20 to a page. The state filter is part of the address: `#/concepts/due`, `/learning`, `/mastered`, `/unseen`. |
+| Review (`#/review`) | What is waiting? Everything due, sorted by how overdue it is; what is scheduled for the next fourteen days (`#/review/upcoming`); and the skipped backlog (`#/review/skipped`). |
+| Sessions (`#/sessions`) | What did that session teach me? One row per Claude Code session that logged something. |
+| Projects (`#/projects`) | How hard is this codebase allowed to get? Per project: accuracy, the level ladder, and the exact runway to the next promotion. |
+| Domains (`#/domains`) | Where are the gaps? Coverage per domain, and the tier spread of what you have been asked. |
+
+## Opening one thing
+
+Rows are clickable, and the three detail pages are where the dashboard stops
+being a report and starts being a record.
+
+- **A concept** (`#/concept/<slug>`) shows its score and how much of it is
+  decay, its SM-2 state (reps, ease, interval, next review), every grade in
+  order as a chart, **every question you were asked on it** — the options, the
+  one you picked, and what the tutor told you afterwards — every context line
+  the agent wrote when it logged the concept, and its prerequisites, what it
+  unlocks and its neighbours, each a link.
+- **A session** (`#/session/<id>`) shows what the work touched with the context
+  line for each concept, what was pulled in for review rather than logged by the
+  work, and every question asked in that session with its grade.
+- **A domain** (`#/domain/<name>`) lists its concepts, weakest first, with what
+  is mastered, learning and not yet asked.
+
+## Scope, ground and paging
+
+The **project selector** in the sidebar scopes the whole page: pick one and the
+tiles, charts, sessions and concept list all narrow to concepts your work in
+that repository has touched. The choice is remembered in your browser. Mastery
+itself is not per project — a concept you know is a concept you know — so scores
+and review dates do not change when you switch.
+
+The **ink / paper** toggle is the same one the site uses, and remembers your
+choice. Tables page at 20 rows, question histories at 5.
+
+Everything that looks clickable is: the wordmark goes back to the overview, a
+row opens its detail page, and a stat tile whose number is a list — due, mastered,
+sessions — takes you to that list. Rows are reachable with Tab and open with
+Enter.
+
+## What it is, underneath
+
+One static page and one JSON endpoint on loopback. The endpoint ships flat rows
+— every attempt, every logged context, one row per day — and the page derives
+the views, so nothing on screen is a number the database does not hold. It reads
+the same `~/.eklavya/knowledge.db` as everything else, binds to `127.0.0.1`, and
+serves to nobody but you. There is no build step, no framework and no network
+call except the fonts.
+
+`--port` if 41729 is taken; if the port you asked for is busy the command fails
+rather than quietly moving, and with no `--port` at all it falls back to any
+free port.

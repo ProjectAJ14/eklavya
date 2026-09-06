@@ -43,7 +43,8 @@ Finish with **one** concrete next step: `/eklavya:quiz` when anything is due,
 mostly unseen.
 
 Then one line pointing at `eklavya dashboard` — the same data as a local page,
-with the history and the full concept list this report deliberately truncates.
+with the history, the per-session record and every question ever asked on a
+concept, all of which this report deliberately truncates.
 Mention it once, at the end; it is the deeper view, not a replacement for
 answering the question they just asked.
 

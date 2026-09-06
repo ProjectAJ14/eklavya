@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Eklavya — learning progress</title>
+<title>Eklavya — learning dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230E6E66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M7 5a11 11 0 0 1 0 14'/%3E%3Cpath d='M6 12h12'/%3E%3Cpath d='M14 9l3 3-3 3'/%3E%3C/g%3E%3C/svg%3E">
 <script>
 /* Ground selection, shared with the site: same localStorage key, same default.
@@ -36,269 +36,587 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* ============================================================
+     Layout: a fixed rail and one scrolling column.
+
+     Every view is a stack of cards on the same rhythm — 24px between
+     cards, 16px from a card's heading block to its content. Nothing
+     sets its own vertical margins; `.stack` owns the gaps, so a new
+     card can never invent a different one.
+     ============================================================ */
   *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body { margin:0; font-family:var(--font-body); background:var(--bg); color:var(--ink);
-         font-size:14.5px; line-height:1.65;
-         background-image:
-           linear-gradient(var(--grid) 1px, transparent 1px),
-           linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-         background-size:72px 72px; }
+         font-size:14.5px; line-height:1.65; }
   ::selection { background:var(--spot); color:var(--spot-ink); }
-  .wrap { max-width:1140px; margin:0 auto; padding:0 var(--space-8); }
-  code, .mono { font-family:var(--font-mono); font-size:var(--text-sm); }
+  code, .mono { font-family:var(--font-mono); }
+  a { color:inherit; }
 
-  /* ---------- header ---------- */
-  header { border-bottom:1px solid var(--line-2); padding:var(--space-8) 0 var(--space-10); }
-  .bar { display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; }
-  .mark { width:34px; height:34px; background:var(--spot); color:var(--spot-ink);
+  .app { display:grid; grid-template-columns:248px minmax(0,1fr); min-height:100vh; }
+
+  /* ---------- the rail ---------- */
+  .side { position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+          background:var(--panel); border-right:1px solid var(--line-2);
+          display:flex; flex-direction:column; gap:var(--space-6); padding:var(--space-6) 0; }
+  /* The wordmark is the way home, the way it is on every other site the reader
+     has ever used. */
+  .side__brand { display:flex; align-items:center; gap:var(--space-3); padding:0 var(--space-5);
+                 text-decoration:none; color:inherit; }
+  .side__brand:hover b { color:var(--spot); }
+  .mark { width:30px; height:30px; background:var(--spot); color:var(--spot-ink);
           display:grid; place-items:center; flex:none; }
-  h1 { font-family:var(--font-disp); font-size:26px; font-weight:var(--weight-extra);
-       letter-spacing:var(--tracking-tight); margin:0; }
-  .sub { color:var(--dim); font-size:var(--text-sm); margin:2px 0 0; }
-  .spacer { flex:1 1 auto; }
-  select { font:inherit; font-size:var(--text-sm); background:var(--panel); color:var(--ink);
-           border:1px solid var(--line-2); border-radius:0;
-           padding:var(--space-2) var(--space-3); }
-  select:focus-visible { outline:none; box-shadow:var(--ring); }
+  .side__brand b { font-family:var(--font-disp); font-size:17px; font-weight:var(--weight-extra);
+                   letter-spacing:var(--tracking-tight); display:block; line-height:1.2; }
+  .side__brand span { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);
+                      text-transform:uppercase; color:var(--faint); }
 
-  /* ---------- stat tiles ---------- */
-  .tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--space-4); margin-top:var(--space-6); }
-  .tile { background:var(--panel); border:1px solid var(--line-2); border-radius:0;
-          padding:var(--space-5); }
-  .tile .k { font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.08em;
-             text-transform:uppercase; color:var(--dim); }
-  .tile .v { font-size:var(--text-3xl); font-weight:var(--weight-extra,800); letter-spacing:-.025em;
-             line-height:1.1; margin-top:var(--space-2); }
-  .tile .n { font-size:var(--text-sm); color:var(--dim); margin-top:var(--space-1); }
-  .good { color:var(--spot); }
+  .side__controls { display:flex; flex-direction:column; gap:var(--space-6); margin-top:auto; }
+  .side__group { padding:0 var(--space-5); }
+  .side__label { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);
+                 text-transform:uppercase; color:var(--faint); margin:0 0 var(--space-2); }
 
-  /* ---------- cards ---------- */
-  main { padding:var(--space-10) 0 var(--space-20); }
-  section { background:var(--panel); border:1px solid var(--line); border-radius:0;
-            padding:var(--space-6); margin-bottom:var(--space-6); }
-  h2 { font-size:var(--text-md); font-weight:var(--weight-bold); letter-spacing:-.01em; margin:0; }
-  .hint { color:var(--faint); font-size:var(--text-sm); margin:var(--space-1) 0 var(--space-5); }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-6); }
-  .grid2 > section { margin:0; }
+  nav.side__nav { display:flex; flex-direction:column; }
+  nav.side__nav a { display:flex; align-items:center; gap:var(--space-3); text-decoration:none;
+                    padding:var(--space-2) var(--space-5); color:var(--dim); font-size:14px;
+                    border-left:2px solid transparent;
+                    transition:color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease); }
+  nav.side__nav a:hover { color:var(--ink); background:var(--mass); }
+  nav.side__nav a[aria-current="page"] { color:var(--ink); border-left-color:var(--spot); background:var(--mass); }
+  nav.side__nav a svg { width:17px; height:17px; flex:none; color:var(--faint); }
+  nav.side__nav a[aria-current="page"] svg { color:var(--spot); }
+  nav.side__nav a i { margin-left:auto; font-style:normal; font-family:var(--font-mono);
+                      font-size:11px; color:var(--faint); }
+  nav.side__nav a i.hot { color:var(--warning); }
 
-  /* ---------- tables ---------- */
-  table { width:100%; border-collapse:collapse; font-size:var(--text-sm); }
-  th { text-align:left; font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.08em;
-       text-transform:uppercase; color:var(--faint); padding:0 var(--space-3) var(--space-2) 0;
-       border-bottom:1px solid var(--line); white-space:nowrap; }
-  td { padding:var(--space-3) var(--space-3) var(--space-3) 0; border-bottom:1px solid var(--line);
-       vertical-align:top; }
-  tr:last-child td { border-bottom:none; }
-  .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .scroll { overflow-x:auto; }
+  .foot { margin-top:var(--space-12); padding-top:var(--space-5); border-top:1px solid var(--line);
+          color:var(--faint); font-size:var(--text-xs); display:flex; gap:var(--space-4);
+          justify-content:space-between; flex-wrap:wrap; }
+  .foot code { font-family:var(--font-mono); word-break:break-all; color:var(--dim); }
+  #dials { font-family:var(--font-mono); }
 
-  /* ---------- meters (sequential, one hue) ---------- */
-  .meter { height:8px; border-radius:var(--radius-pill); background:var(--mass); overflow:hidden;
-           min-width:80px; }
-  .meter > i { display:block; height:100%; background:var(--spot); border-radius:var(--radius-pill); }
-  .meter.warn > i { background:var(--warning); }
-
-  /* ---------- chart ---------- */
-  .legend { display:flex; gap:var(--space-5); font-size:var(--text-sm); color:var(--dim);
-            margin-bottom:var(--space-4); flex-wrap:wrap; }
-  .legend b { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:var(--space-2); }
-  .chart { position:relative; }
-  .chart svg { display:block; width:100%; height:200px; overflow:visible; }
-  .gridline { stroke:var(--line); stroke-width:1; }
-  .axis { font-family:var(--font-mono); font-size:10px; fill:var(--faint-2); }
-  .hit { fill:transparent; cursor:pointer; }
-  .hit:hover + .col, .hit:focus-visible + .col { opacity:.75; }
-  .tip { position:absolute; pointer-events:none; opacity:0; transform:translate(-50%,-100%);
-         background:var(--panel); color:var(--ink); border-radius:0;
-         padding:var(--space-3); font-size:var(--text-xs); line-height:1.6; white-space:nowrap; transition:opacity var(--duration-fast) var(--ease); z-index:2; }
-  .tip.on { opacity:1; }
-  .tip .r { display:flex; justify-content:space-between; gap:var(--space-4); }
-
-  /* ---------- pills & misc ---------- */
-  .pill { display:inline-block; font-family:var(--font-mono); font-size:var(--text-xs);
-          padding:2px 8px; border-radius:var(--radius-pill); background:var(--mass);
-          color:var(--dim); white-space:nowrap; }
-  .pill.due { background:var(--mass); color:var(--warning); }
-  .pill.ok  { background:var(--spot-soft); color:var(--spot); }
-  .ctx { color:var(--ink); }
-  .slug { font-family:var(--font-mono); font-size:var(--text-xs); color:var(--faint); }
-  .empty { color:var(--faint); font-size:var(--text-sm); }
-  footer { color:var(--faint); font-size:var(--text-sm); text-align:center; padding-bottom:var(--space-10); }
-
-  @media (max-width:900px) {
-    .tiles { grid-template-columns:repeat(2,1fr); }
-    .grid2 { grid-template-columns:1fr; }
+  select, input[type="search"], input[type="text"] {
+    font:inherit; font-size:13.5px; background:var(--bg); color:var(--ink);
+    border:1px solid var(--line-2); border-radius:0; padding:7px var(--space-3); width:100%;
   }
-  @media (max-width:560px) {
-    .wrap { padding:0 var(--space-4); }
-    .tiles { grid-template-columns:1fr 1fr; gap:var(--space-3); }
-    .tile .v { font-size:var(--text-2xl); }
-  }
-  @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
+  select:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible,
+  [tabindex]:focus-visible { outline:none; box-shadow:var(--ring); }
 
-  /* ---------- the ground toggle ---------- */
-  .ground { display:flex; border:1px solid var(--line-2); flex:none; }
-  .ground button {
-    font-family:var(--font-mono); font-size:11px; letter-spacing:.12em;
+  .ground { display:flex; border:1px solid var(--line-2); width:max-content; }
+  .ground button { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em;
     text-transform:uppercase; background:none; border:0; color:var(--faint);
-    padding:6px 11px; cursor:pointer; line-height:1.4;
-    transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
-  }
+    padding:5px 10px; cursor:pointer; line-height:1.4;
+    transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
   .ground button:hover { color:var(--ink); }
   .ground button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
+
+  /* ---------- the column ---------- */
+  main { padding:var(--space-8) var(--space-10) var(--space-20); min-width:0; }
+  .inner { max-width:1080px; }
+  .stack > * + * { margin-top:var(--space-6); }
+
+  .page__eyebrow { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);
+                   text-transform:uppercase; color:var(--spot); margin:0 0 var(--space-2); }
+  .page__title { font-family:var(--font-disp); font-size:var(--text-2xl); font-weight:var(--weight-extra);
+                 letter-spacing:var(--tracking-tight); line-height:1.1; margin:0; }
+  .page__sub { color:var(--dim); margin:var(--space-2) 0 0; max-width:70ch; }
+  .page__back { display:inline-block; font-family:var(--font-mono); font-size:11.5px;
+                letter-spacing:.08em; text-transform:uppercase; color:var(--faint);
+                text-decoration:none; margin:0 0 var(--space-3); cursor:pointer; }
+  .page__back:hover { color:var(--spot); }
+
+  .card { background:var(--panel); border:1px solid var(--line); padding:var(--space-6); }
+  .card--flush { padding:0; }
+  .head { margin-bottom:var(--space-4); }
+  .head h2 { font-size:var(--text-md); font-weight:var(--weight-bold); letter-spacing:-.01em; margin:0; }
+  .head p { color:var(--faint); font-size:13.5px; margin:2px 0 0; max-width:78ch; }
+  .head--row { display:flex; align-items:flex-end; gap:var(--space-4); flex-wrap:wrap; }
+  .head--row > :first-child { flex:1 1 320px; }
+
+  .g2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-6); }
+  .g3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-6); }
+  .g2 > *, .g3 > * { margin-top:0 !important; }
+
+  /* ---------- stat tiles ---------- */
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--space-4); }
+  .tile { background:var(--panel); border:1px solid var(--line-2); padding:var(--space-4) var(--space-5); }
+  .tile b { display:block; font-size:10.5px; font-family:var(--font-mono); font-weight:var(--weight-medium);
+            letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--faint); }
+  .tile strong { display:block; font-family:var(--font-disp); font-size:var(--text-2xl);
+                 font-weight:var(--weight-extra); letter-spacing:-.03em; line-height:1.15;
+                 margin-top:var(--space-2); }
+  .tile span { display:block; font-size:12.5px; color:var(--dim); margin-top:2px; }
+  .tile.is-good strong { color:var(--spot); }
+  .tile.is-warn strong { color:var(--warning); }
+
+  /* ---------- tables ---------- */
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { text-align:left; font-family:var(--font-mono); font-size:10.5px; font-weight:var(--weight-medium);
+       letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--faint);
+       padding:0 var(--space-4) var(--space-3) 0; border-bottom:1px solid var(--line-2); white-space:nowrap; }
+  td { padding:var(--space-3) var(--space-4) var(--space-3) 0; border-bottom:1px solid var(--line);
+       vertical-align:top; }
+  th:last-child, td:last-child { padding-right:0; }
+  tbody tr:last-child td { border-bottom:none; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tr.row { cursor:pointer; }
+  tr.row:hover td { background:var(--mass); }
+  /* Rows are keyboard-operable: `tabindex` is set on render, Enter and Space
+     open them. A row you can only reach with a mouse is a dead end. */
+  tr.row:focus-visible { outline:2px solid var(--spot); outline-offset:-2px; }
+  .tile[data-go] { cursor:pointer; transition:border-color var(--duration-fast) var(--ease); }
+  .tile[data-go]:hover { border-color:var(--spot); }
+  .tile[data-go]:focus-visible { outline:none; box-shadow:var(--ring); }
+  td .title { font-weight:var(--weight-semibold); color:var(--ink); }
+  .slug { font-family:var(--font-mono); font-size:11.5px; color:var(--faint); word-break:break-word; }
+  .ctx { color:var(--dim); }
+  .empty { color:var(--faint); padding:var(--space-5) 0; font-size:13.5px; }
+
+  /* ---------- controls ---------- */
+  .filters { display:flex; gap:var(--space-3); flex-wrap:wrap; align-items:center;
+             margin-bottom:var(--space-4); }
+  .filters .grow { flex:1 1 220px; min-width:180px; }
+  .filters select { width:auto; }
+  .chips { display:flex; gap:var(--space-2); flex-wrap:wrap; }
+  .chip { font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em; text-transform:uppercase;
+          background:none; border:1px solid var(--line-2); color:var(--faint); padding:5px 10px;
+          cursor:pointer; transition:color var(--duration-fast) var(--ease),
+          border-color var(--duration-fast) var(--ease); }
+  .chip:hover { color:var(--ink); }
+  .chip[aria-pressed="true"] { color:var(--spot); border-color:var(--spot); }
+
+  .pager { display:flex; align-items:center; gap:var(--space-3); margin-top:var(--space-4);
+           padding-top:var(--space-4); border-top:1px solid var(--line); }
+  .pager__count { font-size:12.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  .pager__btns { margin-left:auto; display:flex; gap:var(--space-2); }
+  .pager button { font-family:var(--font-mono); font-size:12px; background:none;
+                  border:1px solid var(--line-2); color:var(--dim); padding:4px 10px; cursor:pointer;
+                  min-width:32px; }
+  .pager button:hover:not(:disabled) { color:var(--ink); border-color:var(--spot); }
+  .pager button[aria-current="true"] { color:var(--spot-ink); background:var(--spot); border-color:var(--spot); }
+  .pager button:disabled { opacity:.4; cursor:default; }
+
+  /* ---------- meters, pills, badges ---------- */
+  .meter { height:6px; background:var(--mass); overflow:hidden; min-width:72px; }
+  .meter > i { display:block; height:100%; background:var(--spot); }
+  .meter.warn > i { background:var(--warning); }
+  .meter.mute > i { background:var(--faint-2); }
+
+  .pill { display:inline-block; font-family:var(--font-mono); font-size:11px; padding:2px 8px;
+          border-radius:var(--radius-pill); background:var(--mass); color:var(--dim); white-space:nowrap; }
+  .pill.ok { background:var(--spot-soft); color:var(--spot); }
+  .pill.due { color:var(--warning); }
+  .pill.new { color:var(--faint); }
+
+  .grade { font-family:var(--font-mono); font-size:11.5px; padding:2px 8px; white-space:nowrap;
+           background:var(--mass); color:var(--dim); }
+  .grade.pass { background:var(--spot-soft); color:var(--spot); }
+  .grade.miss { color:var(--warning); }
+
+  .kv { display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:var(--space-4) var(--space-5); }
+  .kv div b { display:block; font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);
+              text-transform:uppercase; color:var(--faint); font-weight:var(--weight-medium); }
+  .kv div span { display:block; font-size:15px; color:var(--ink); margin-top:2px; }
+
+  /* ---------- segmented bar (a whole, split) ---------- */
+  .seg { display:flex; height:10px; background:var(--mass); overflow:hidden; }
+  .seg > span { display:block; height:100%; }
+  .seg__key { display:flex; gap:var(--space-5); flex-wrap:wrap; margin-top:var(--space-3);
+              font-size:12.5px; color:var(--dim); }
+  .seg__key b { display:inline-block; width:9px; height:9px; margin-right:var(--space-2); }
+
+  /* ---------- charts ---------- */
+  .legend { display:flex; gap:var(--space-5); font-size:12.5px; color:var(--dim);
+            margin-bottom:var(--space-4); flex-wrap:wrap; }
+  .legend b { display:inline-block; width:9px; height:9px; margin-right:var(--space-2); }
+  .chart { position:relative; }
+  .chart svg { display:block; width:100%; overflow:visible; }
+  .gridline { stroke:var(--line-2); stroke-width:1; }
+  .axis { font-family:var(--font-mono); font-size:10px; fill:var(--faint); }
+  .hit { fill:transparent; cursor:pointer; }
+  .hit:hover + .col, .hit:focus-visible + .col { opacity:.72; }
+  .tip { position:absolute; pointer-events:none; opacity:0; transform:translate(-50%,-100%);
+         background:var(--bg); border:1px solid var(--line-2); color:var(--ink);
+         padding:var(--space-3); font-size:var(--text-xs); line-height:1.6; white-space:nowrap;
+         transition:opacity var(--duration-fast) var(--ease); z-index:3; }
+  .tip.on { opacity:1; }
+  .tip .r { display:flex; justify-content:space-between; gap:var(--space-4); }
+  .heat { overflow-x:auto; }
+  .heat svg { width:auto; max-width:none; }
+  .heat rect.cell { stroke:var(--panel); stroke-width:1; }
+
+  /* ---------- question & answer records ---------- */
+  .qa { border:1px solid var(--line); padding:var(--space-4) var(--space-5); }
+  .qa + .qa { margin-top:var(--space-3); }
+  .qa__meta { display:flex; align-items:center; gap:var(--space-3); flex-wrap:wrap;
+              font-family:var(--font-mono); font-size:11px; color:var(--faint); }
+  .qa__meta .sp { margin-left:auto; }
+  .qa__q { margin:var(--space-3) 0 0; color:var(--ink); }
+  .qa__opts { list-style:none; margin:var(--space-3) 0 0; padding:0; display:grid; gap:var(--space-1); }
+  .qa__opts li { font-size:13px; color:var(--dim); padding-left:var(--space-5); position:relative; }
+  .qa__opts li::before { content:'○'; position:absolute; left:0; color:var(--faint-2); }
+  .qa__opts li.picked { color:var(--ink); }
+  .qa__opts li.picked::before { content:'●'; color:var(--spot); }
+  .qa__f { margin:var(--space-3) 0 0; padding-left:var(--space-4); border-left:2px solid var(--spot);
+           color:var(--dim); font-size:13.5px; }
+  .qa__a { margin:var(--space-3) 0 0; font-size:13.5px; color:var(--dim); }
+  .qa__a b { color:var(--faint); font-weight:var(--weight-semibold); }
+
+  .ladder { display:flex; gap:var(--space-2); }
+  .ladder div { flex:1; border:1px solid var(--line-2); padding:var(--space-2) var(--space-3);
+                font-family:var(--font-mono); font-size:11.5px; color:var(--faint); text-align:center;
+                text-transform:uppercase; letter-spacing:.08em; }
+  .ladder div.on { border-color:var(--spot); color:var(--spot-ink); background:var(--spot); }
+  .ladder div.done { border-color:var(--spot); color:var(--spot); }
+
+  .checks { display:grid; gap:var(--space-3); margin-top:var(--space-4); }
+  .checks div { display:flex; align-items:center; gap:var(--space-3); font-size:13.5px; color:var(--dim); }
+  .checks .mark-ok { color:var(--spot); }
+  .checks .mark-no { color:var(--faint); }
+  .checks .bar { flex:1; }
+
+  .list { display:grid; gap:var(--space-3); }
+  .link { color:var(--spot); text-decoration:none; cursor:pointer; }
+  .link:hover { text-decoration:underline; }
+  .tags { display:flex; gap:var(--space-2); flex-wrap:wrap; }
+
+  .banner { border:1px solid var(--line-2); border-left:2px solid var(--spot); padding:var(--space-4) var(--space-5);
+            background:var(--panel); display:flex; gap:var(--space-4); align-items:center; flex-wrap:wrap; }
+  .banner p { margin:0; color:var(--dim); font-size:13.5px; }
+  .banner code { background:var(--mass); padding:2px 6px; font-size:12.5px; color:var(--ink); }
+
+  @media (max-width:1080px) {
+    .g3 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:900px) {
+    .app { grid-template-columns:1fr; }
+    .side { position:static; height:auto; flex-direction:column; border-right:0;
+            border-bottom:1px solid var(--line-2); padding:var(--space-4) 0; gap:var(--space-4); }
+    nav.side__nav { flex-direction:row; overflow-x:auto; padding:0 var(--space-4); gap:var(--space-1); }
+    nav.side__nav a { border-left:0; border-bottom:2px solid transparent; padding:var(--space-2) var(--space-3);
+                      white-space:nowrap; }
+    nav.side__nav a[aria-current="page"] { border-left:0; border-bottom-color:var(--spot); }
+    /* The two control groups sit side by side rather than stacking: a rail
+       unrolled into a column of full-width controls buries the page. */
+    .side__controls { flex-direction:row; gap:var(--space-5); align-items:flex-end;
+                      padding:0 var(--space-4); margin-top:0; }
+    .side__group { padding:0; }
+    .side__group:first-child { flex:0 1 260px; }
+    main { padding:var(--space-6) var(--space-5) var(--space-16); }
+    .g2, .g3 { grid-template-columns:minmax(0,1fr); }
+  }
+  @media (max-width:560px) {
+    .stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); }
+    .tile strong { font-size:var(--text-xl); }
+    .card { padding:var(--space-5) var(--space-4); }
+    .page__title { font-size:var(--text-xl); }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    html { scroll-behavior:auto; }
+    * { transition:none !important; animation:none !important; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <div class="wrap">
-    <div class="bar">
+<div class="app">
+  <aside class="side">
+    <a class="side__brand" href="#/overview" aria-label="Eklavya dashboard, overview">
       <div class="mark" aria-hidden="true">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round">
           <path d="M5 3a13 13 0 0 1 0 18"/><path d="M5 3l14 9L5 21"/><path d="M3 12h18"/><path d="M15 8l4 4-4 4"/>
         </svg>
       </div>
       <div>
-        <h1>Learning progress</h1>
-        <p class="sub" id="sub">Loading…</p>
+        <b>Eklavya</b>
+        <span>learning dashboard</span>
       </div>
-      <div class="spacer"></div>
+    </a>
+
+    <nav class="side__nav" id="nav" aria-label="Sections"></nav>
+
+    <div class="side__controls">
+      <div class="side__group">
+        <p class="side__label" id="proj-label">Project</p>
+        <select id="proj" aria-labelledby="proj-label"><option value="*">All projects</option></select>
+      </div>
+
+      <div class="side__group">
+        <p class="side__label">Ground</p>
         <div class="ground" role="group" aria-label="Colour ground">
           <button type="button" data-ground="ink" aria-pressed="true">ink</button>
           <button type="button" data-ground="paper" aria-pressed="false">paper</button>
         </div>
-      <label class="sub" for="proj">Project</label>
-      <select id="proj"><option value="*">All projects</option></select>
+      </div>
     </div>
-    <div class="tiles" id="tiles"></div>
-  </div>
-</header>
 
-<main class="wrap">
-  <section>
-    <h2>Answers over the last 30 days</h2>
-    <p class="hint" id="chart-hint">Right, missed and skipped, per day.</p>
-    <div class="legend">
-      <span><b style="background:var(--spot)"></b>Right</span>
-      <span><b style="background:var(--warning)"></b>Missed</span>
-      <span><b style="background:var(--faint)"></b>Skipped</span>
+  </aside>
+
+  <main>
+    <div class="inner stack" id="view">
+      <p class="empty">Loading your learning history…</p>
     </div>
-    <div class="chart"><div class="tip" id="tip"></div><svg id="chart" role="img"
-      aria-label="Daily answers, split into right, missed and skipped"></svg></div>
-  </section>
-
-  <div class="grid2">
-    <section>
-      <h2>Projects</h2>
-      <p class="hint">Where the learning is happening, and how it is going there.</p>
-      <div class="scroll"><table id="projects"></table></div>
-    </section>
-    <section>
-      <h2>Domains</h2>
-      <p class="hint">Mastered out of what you have actually touched. The catalogue is a library, not a to-do list.</p>
-      <div class="scroll"><table id="domains"></table></div>
-    </section>
-  </div>
-
-  <section>
-    <h2>What these sessions taught you</h2>
-    <p class="hint">The real code each concept came from — the memory the slug hangs on.</p>
-    <div class="scroll"><table id="recent"></table></div>
-  </section>
-
-  <section>
-    <h2>Skipped</h2>
-    <p class="hint">Declined or blanked. They come back a tier lower — a backlog, not a scolding.</p>
-    <div class="scroll"><table id="skipped"></table></div>
-  </section>
-
-  <section>
-    <h2>Every concept you have been asked</h2>
-    <p class="hint">Weakest first. Score decays until you see it again.</p>
-    <div class="scroll"><table id="concepts"></table></div>
-  </section>
-</main>
-
-<footer class="wrap">
-  Read from <code id="dbline">~/.eklavya/knowledge.db</code> — nothing on this page leaves your machine.
-</footer>
+    <footer class="foot inner">
+      <span>Read from <code id="dbline">~/.eklavya/knowledge.db</code> — nothing on this page leaves your machine.<span id="foot-note"></span></span>
+      <span id="dials"></span>
+    </footer>
+  </main>
+</div>
 
 <script>
+/* ============================================================
+   One payload, many views.
+
+   `/api/state` ships flat rows — every attempt, every logged context, one row
+   per day — and everything on screen is derived here. That is why a new view is
+   a render function and not a new endpoint.
+   ============================================================ */
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const base = (p) => (p ? p.split('/').filter(Boolean).pop() : 'unattributed');
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0);
-const day = (s) => new Date(s + 'T00:00:00').toLocaleDateString(undefined, { month:'short', day:'numeric' });
-const ago = (ts) => {
-  const d = Math.floor((Date.now() - new Date(ts.replace(' ', 'T') + 'Z')) / 86400000);
-  return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago';
+const base = (p) => (p ? p.split('/').filter(Boolean).pop() : 'unattributed');
+const DAY_MS = 86400000;
+
+/* SQLite writes `2026-09-05 21:04:00` in UTC with no zone marker; `new Date()`
+   would read that as local time and shift every timestamp by the offset. */
+const parse = (ts) => (ts ? new Date(String(ts).replace(' ', 'T') + (String(ts).endsWith('Z') ? '' : 'Z')) : null);
+const dayKey = (d) => d.toISOString().slice(0, 10);
+const fromKey = (k) => new Date(k + 'T00:00:00Z');
+
+const fmtDay = (k) => fromKey(k).toLocaleDateString(undefined, { month:'short', day:'numeric', timeZone:'UTC' });
+const fmtDate = (ts) => {
+  const d = parse(ts); if (!d) return '—';
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year: sameYear ? undefined : 'numeric' });
 };
+const ago = (ts) => {
+  const d = parse(ts); if (!d) return '—';
+  const n = Math.floor((Date.now() - d.getTime()) / DAY_MS);
+  return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n < 30 ? n + ' days ago'
+       : n < 60 ? 'a month ago' : Math.round(n / 30) + ' months ago';
+};
+const inDays = (ts) => {
+  const d = parse(ts); if (!d) return null;
+  return Math.round((d.getTime() - Date.now()) / DAY_MS);
+};
+const whenDue = (ts) => {
+  const n = inDays(ts);
+  if (n === null) return 'not scheduled';
+  return n < 0 ? Math.abs(n) + ' days overdue' : n === 0 ? 'today' : n === 1 ? 'tomorrow' : 'in ' + n + ' days';
+};
+const stamp = (ts) => {
+  const d = parse(ts); if (!d) return '—';
+  return d.toLocaleDateString(undefined, { month:'short', day:'numeric' })
+    + ', ' + d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+};
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
-let STATE = null;
-let FILTER = '*';
+const TIER = { 1:'recall', 2:'mechanism', 3:'judgement', 4:'failure modes', 5:'design' };
+const tierLabel = (t) => `T${t}${TIER[t] ? ' ' + TIER[t] : ''}`;
 
+let S = null;                 // the payload
+let FILTER = '*';             // project scope: '*' all, '~' unattributed, else a repo path
+let SCOPE = null;             // Set of slugs touched in scope, or null for all
+const AFTER = [];             // render hooks that need a laid-out DOM (charts)
+
+/* ---------- per-view control state, kept across re-renders ---------- */
+const T = {
+  concepts: { page:1, q:'', state:'all', domain:'all', sort:'weakest' },
+  review:   { page:1, tab:'due' },
+  sessions: { page:1 },
+  attempts: { page:1 },
+  domain:   { page:1 },
+  concept:  { page:1 },
+  session:  { page:1 },
+};
+const PER = 20;
+
+/* ============================================================
+   Scope
+   ============================================================ */
 const inScope = (repo) => FILTER === '*' || (repo ?? '') === (FILTER === '~' ? '' : FILTER);
 
-function rows(t, head, body) {
-  t.innerHTML = body.length
-    ? '<thead><tr>' + head.map((h) => `<th${h.n ? ' class="num"' : ''}>${esc(h.t)}</th>`).join('') + '</tr></thead>'
-      + '<tbody>' + body.join('') + '</tbody>'
-    : '<tbody><tr><td class="empty">Nothing here yet.</td></tr></tbody>';
+function recomputeScope() {
+  if (FILTER === '*') { SCOPE = null; return; }
+  SCOPE = new Set();
+  for (const a of S.attempts) if (inScope(a.repo)) SCOPE.add(a.slug);
+  for (const l of S.logged) if (inScope(l.repo)) SCOPE.add(l.slug);
 }
+const conceptsInScope = () => (SCOPE ? S.concepts.filter((c) => SCOPE.has(c.slug)) : S.concepts);
+const seenConcepts = () => conceptsInScope().filter((c) => c.seen);
+const attemptsInScope = () => S.attempts.filter((a) => inScope(a.repo));
+const loggedInScope = () => S.logged.filter((l) => inScope(l.repo));
+const scopeName = () => (FILTER === '*' ? 'all projects' : base(FILTER === '~' ? null : FILTER));
 
-function renderTiles() {
-  const t = STATE.totals;
-  const scoped = STATE.projects.filter((p) => inScope(p.repo));
-  const answers = scoped.reduce((a, p) => a + p.answers, 0);
-  const passed = scoped.reduce((a, p) => a + p.passed, 0);
-  const skipped = scoped.reduce((a, p) => a + p.skipped, 0);
-  const due = STATE.concepts.filter((c) => c.due && inScope(c.repo)).length;
-  const mastered = STATE.concepts.filter((c) => c.mastered && inScope(c.repo)).length;
-  const tiles = [
-    ['Accuracy', answers ? pct(passed, answers) + '%' : '—', `${passed} right of ${answers} answered`, passed && pct(passed, answers) >= 70],
-    ['Mastered', mastered, `of ${STATE.concepts.filter((c) => inScope(c.repo)).length} concepts asked`, mastered > 0],
-    ['Due now', due, due ? 'run /eklavya:quiz' : 'nothing waiting', false],
-    ['Skipped', skipped, skipped ? 'waiting a tier lower' : 'none ducked', false],
-  ];
-  $('tiles').innerHTML = tiles.map(([k, v, n, good]) =>
-    `<div class="tile"><div class="k">${k}</div><div class="v${good ? ' good' : ''}">${esc(v)}</div><div class="n">${esc(n)}</div></div>`).join('');
-}
-
-function renderChart() {
-  const byDay = new Map();
-  for (const d of STATE.timeline) {
+/** One row per calendar day in scope: { day, passed, missed, skipped, total }. */
+function dailyInScope() {
+  const m = new Map();
+  for (const d of S.daily) {
     if (!inScope(d.repo)) continue;
-    const cur = byDay.get(d.day) ?? { day: d.day, passed: 0, missed: 0, skipped: 0 };
+    const cur = m.get(d.day) ?? { day:d.day, passed:0, missed:0, skipped:0, total:0 };
     cur.passed += d.passed; cur.missed += d.missed; cur.skipped += d.skipped;
-    byDay.set(d.day, cur);
+    cur.total = cur.passed + cur.missed + cur.skipped;
+    m.set(d.day, cur);
   }
-  const svg = $('chart');
-  if (!byDay.size) {
-    svg.innerHTML = '<text x="0" y="24" class="axis">No answers in this window.</text>';
-    return;
+  return m;
+}
+
+/** Fills every day in a window, including the empty ones — the gaps are data. */
+function fillDays(map, n, endKey) {
+  const out = [];
+  const end = endKey ? fromKey(endKey) : new Date();
+  end.setUTCHours(0, 0, 0, 0);
+  const cur = new Date(end.getTime() - (n - 1) * DAY_MS);
+  for (let i = 0; i < n; i++) {
+    const k = dayKey(cur);
+    out.push(map.get(k) ?? { day:k, passed:0, missed:0, skipped:0, total:0 });
+    cur.setUTCDate(cur.getUTCDate() + 1);
   }
-  // A real date axis: every day in the window gets a slot, including the empty
-  // ones. Plotting only the days that have data would space three sessions
-  // evenly across a month and hide the gaps, which are the honest part.
-  const days = [];
-  const cursor = new Date();
-  cursor.setUTCHours(0, 0, 0, 0);
-  cursor.setUTCDate(cursor.getUTCDate() - (STATE.timeline_days - 1));
-  for (let i = 0; i < STATE.timeline_days; i++) {
-    const key = cursor.toISOString().slice(0, 10);
-    days.push(byDay.get(key) ?? { day: key, passed: 0, missed: 0, skipped: 0 });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  return out;
+}
+
+/** Consecutive days with at least one answer, counting back from today. */
+function streaks(map) {
+  const active = new Set([...map.values()].filter((d) => d.total > 0).map((d) => d.day));
+  let current = 0;
+  const cur = new Date(); cur.setUTCHours(0, 0, 0, 0);
+  if (!active.has(dayKey(cur))) cur.setUTCDate(cur.getUTCDate() - 1); // today may not have started yet
+  while (active.has(dayKey(cur))) { current += 1; cur.setUTCDate(cur.getUTCDate() - 1); }
+
+  let best = 0, run = 0, prev = null;
+  for (const k of [...active].sort()) {
+    run = prev && fromKey(k).getTime() - fromKey(prev).getTime() === DAY_MS ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
   }
-  // The viewBox tracks the container's real pixel width so the SVG renders 1:1.
-  // A fixed 1000-wide viewBox scaled to a 520px card would shrink the 10px axis
-  // text to five, which is the whole reason the chart is redrawn on resize.
-  const W = Math.max(320, svg.parentElement.clientWidth || 1000);
-  const H = 200, PAD_B = 22, PAD_L = 24;
-  const max = Math.max(...days.map((d) => d.passed + d.missed + d.skipped), 1);
+  return { current, best, days: active.size };
+}
+
+/** Sessions, rebuilt from the two row sets that mention a session id. */
+function sessions() {
+  const m = new Map();
+  const get = (id) => {
+    if (!m.has(id)) m.set(id, { id, repo:null, logged:[], asked:[], first:null, last:null });
+    return m.get(id);
+  };
+  const touch = (s, ts) => {
+    if (!s.first || ts < s.first) s.first = ts;
+    if (!s.last || ts > s.last) s.last = ts;
+  };
+  for (const l of loggedInScope()) { const s = get(l.session_id); s.logged.push(l); s.repo = s.repo ?? l.repo; touch(s, l.ts); }
+  for (const a of attemptsInScope()) {
+    if (!a.session_id) continue;
+    const s = get(a.session_id); s.asked.push(a); s.repo = s.repo ?? a.repo; touch(s, a.ts);
+  }
+  return [...m.values()]
+    .map((s) => ({ ...s, passed: s.asked.filter((a) => a.grade >= 3).length }))
+    .sort((a, b) => String(b.last).localeCompare(String(a.last)));
+}
+
+/**
+ * What a session is called in a list. The context line the agent wrote is the
+ * only human description there is; a session that logged nothing readable is
+ * named by its concepts rather than by its uuid, and never by a question — a
+ * question stem in the description slot reads as if the session were about
+ * asking it.
+ */
+function sessionLabel(s) {
+  const ctx = s.logged.find((l) => l.context && String(l.context).trim());
+  if (ctx) return ctx.context;
+  const names = s.logged.map((l) => l.name);
+  if (names.length) return names.slice(0, 4).join(' · ') + (names.length > 4 ? ` +${names.length - 4}` : '');
+  return s.asked.length ? plural(s.asked.length, 'question') + ' answered' : s.id;
+}
+
+/* ============================================================
+   Small view helpers
+   ============================================================ */
+const meter = (p, kind) => `<div class="meter${kind ? ' ' + kind : ''}"><i style="width:${Math.max(0, Math.min(100, p))}%"></i></div>`;
+const gradeBadge = (a) => {
+  if (a.outcome === 'declined') return '<span class="grade">skipped</span>';
+  if (a.outcome === 'dont_know') return '<span class="grade">blanked</span>';
+  return `<span class="grade ${a.grade >= 3 ? 'pass' : 'miss'}">${a.grade}/5</span>`;
+};
+const statePill = (c) =>
+  !c.seen ? '<span class="pill new">not asked</span>'
+  : c.mastered ? '<span class="pill ok">mastered</span>'
+  : c.due ? '<span class="pill due">due</span>'
+  : '<span class="pill">learning</span>';
+
+/**
+ * `[label, value, note, kind, go]`. A tile with a `go` is a link: a number the
+ * reader wants to act on — 36 due, 28 sessions — should take them to the list it
+ * counts, not make them find it in the sidebar.
+ */
+function tiles(items) {
+  return `<div class="stats">` + items.map(([k, v, n, kind, go]) =>
+    `<div class="tile${kind ? ' is-' + kind : ''}"${go ? ` data-go="${esc(go)}" tabindex="0" role="link"` : ''}>`
+    + `<b>${esc(k)}</b><strong>${esc(v)}</strong><span>${esc(n)}</span></div>`
+  ).join('') + `</div>`;
+}
+
+function card(title, hint, body, opts = {}) {
+  const head = title
+    ? `<div class="head${opts.aside ? ' head--row' : ''}"><div><h2>${esc(title)}</h2>${hint ? `<p>${esc(hint)}</p>` : ''}</div>${opts.aside ?? ''}</div>`
+    : '';
+  return `<section class="card">${head}${body}</section>`;
+}
+
+function table(cols, rows) {
+  if (!rows.length) return '<p class="empty">Nothing here yet.</p>';
+  return `<div class="scroll"><table><thead><tr>`
+    + cols.map((c) => `<th${c.n ? ' class="num"' : ''}${c.w ? ` style="width:${c.w}"` : ''}>${esc(c.t)}</th>`).join('')
+    + `</tr></thead><tbody>` + rows.join('') + `</tbody></table></div>`;
+}
+
+/**
+ * Pagination as a pure function of (total, page): the caller slices, this draws
+ * the controls. Windowed to seven buttons so a hundred pages still fit a card.
+ */
+function pager(key, total, page, per = PER) {
+  const pages = Math.max(1, Math.ceil(total / per));
+  if (total <= per) return '';
+  const from = (page - 1) * per + 1;
+  const to = Math.min(total, page * per);
+  const win = [];
+  const push = (n) => { if (n >= 1 && n <= pages && !win.includes(n)) win.push(n); };
+  push(1); for (let i = page - 2; i <= page + 2; i++) push(i); push(pages);
+  win.sort((a, b) => a - b);
+
+  let btns = `<button data-pager="${key}" data-page="${page - 1}"${page === 1 ? ' disabled' : ''} aria-label="Previous page">‹</button>`;
+  let last = 0;
+  for (const n of win) {
+    if (n - last > 1) btns += `<button disabled aria-hidden="true">…</button>`;
+    btns += `<button data-pager="${key}" data-page="${n}"${n === page ? ' aria-current="true"' : ''}>${n}</button>`;
+    last = n;
+  }
+  btns += `<button data-pager="${key}" data-page="${page + 1}"${page === pages ? ' disabled' : ''} aria-label="Next page">›</button>`;
+  return `<div class="pager"><span class="pager__count">${from}–${to} of ${total}</span><div class="pager__btns">${btns}</div></div>`;
+}
+
+/** Clamps a stored page number to a list that may have shrunk under a filter. */
+function page(key, total, per = PER) {
+  const pages = Math.max(1, Math.ceil(total / per));
+  if (T[key].page > pages) T[key].page = pages;
+  if (T[key].page < 1) T[key].page = 1;
+  return T[key].page;
+}
+const slice = (arr, p, per = PER) => arr.slice((p - 1) * per, p * per);
+
+/* ============================================================
+   Charts — hand-rolled SVG. No library, no network, both grounds.
+   ============================================================ */
+
+/** Stacked daily bars: right at the base, then missed, then skipped. */
+function chartActivity(el, days) {
+  const tip = el.parentElement.querySelector('.tip');
+  const W = Math.max(320, el.parentElement.clientWidth || 900);
+  const H = 190, PAD_B = 22, PAD_L = 26;
+  const max = Math.max(...days.map((d) => d.total), 1);
   const step = (W - PAD_L) / days.length;
-  const bw = Math.min(28, Math.max(6, step - 6));
-  const y = (v) => (H - PAD_B) - (v / max) * (H - PAD_B - 8);
-  const GAP = 2; // surface gap between stacked segments
+  const bw = Math.min(26, Math.max(4, step - 5));
+  const y = (v) => (H - PAD_B) - (v / max) * (H - PAD_B - 10);
+  const SEGMENTS = [['passed', 'var(--spot)'], ['missed', 'var(--warning)'], ['skipped', 'var(--faint-2)']];
 
   let out = '';
   for (let i = 0; i <= 2; i++) {
@@ -306,46 +624,35 @@ function renderChart() {
     out += `<line class="gridline" x1="${PAD_L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>`
          + `<text class="axis" x="0" y="${y(v) + 3}">${v}</text>`;
   }
-  // Stack order is fixed: right at the base, then missed, then skipped on top.
-  // Segment colour never depends on rank, only on which measure it is.
-  const SEGMENTS = [['passed', 'var(--spot)'], ['missed', 'var(--warning)'], ['skipped', 'var(--faint)']];
-  const labelEvery = Math.max(1, Math.ceil(46 / step));
+  const labelEvery = Math.max(1, Math.ceil(48 / step));
   days.forEach((d, i) => {
     const x = PAD_L + i * step + (step - bw) / 2;
-    let acc = 0, seg = '', topColor = 'var(--spot)';
+    let acc = 0, seg = '', top = 'var(--spot)';
     for (const [key, color] of SEGMENTS) {
       if (!d[key]) continue;
-      const h = (d[key] / max) * (H - PAD_B - 8);
-      // A 2px surface gap between stacked fills, taken off the upper segment
-      // so the bar's total height still reads as the day's total.
-      const inset = acc ? GAP : 0;
+      const h = (d[key] / max) * (H - PAD_B - 10);
+      const inset = acc ? 2 : 0;   // a 2px surface gap between stacked fills
       seg += `<rect x="${x}" y="${y(acc) - h + inset}" width="${bw}" height="${Math.max(1, h - inset)}" fill="${color}"/>`;
-      acc += d[key];
-      topColor = color;
+      acc += d[key]; top = color;
     }
-    // 4px rounded cap on the top of the stack only; the base stays square on the
-    // axis. A day with no answers draws nothing at all — a cap on an empty stack
-    // is a mark sitting on the baseline, which reads as data that is not there.
-    const hit = `<rect class="hit" x="${PAD_L + i * step}" y="0" width="${step}" height="${H - PAD_B}" data-i="${i}" tabindex="0"/>`;
-    const cap = acc ? `<rect x="${x}" y="${y(acc)}" width="${bw}" height="4" rx="2" fill="${topColor}"/>` : '';
-    out += hit + `<g class="col">${seg}${cap}</g>`;
-    // Ends always get a label; strided ones stand down near the right edge
-    // rather than colliding with the last date.
+    out += `<rect class="hit" x="${PAD_L + i * step}" y="0" width="${step}" height="${H - PAD_B}" data-i="${i}" tabindex="0"/>`
+         + `<g class="col">${seg}${acc ? `<rect x="${x}" y="${y(acc)}" width="${bw}" height="3" fill="${top}"/>` : ''}</g>`;
     if (i === 0 || i === days.length - 1 || (i % labelEvery === 0 && i < days.length - labelEvery)) {
-      out += `<text class="axis" x="${x + bw / 2}" text-anchor="middle" y="${H - 6}">${day(d.day)}</text>`;
+      out += `<text class="axis" x="${x + bw / 2}" text-anchor="middle" y="${H - 6}">${fmtDay(d.day)}</text>`;
     }
   });
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.innerHTML = out;
+  el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  el.style.height = H + 'px';
+  el.innerHTML = out;
 
-  const tip = $('tip');
-  svg.querySelectorAll('.hit').forEach((hit) => {
+  if (!tip) return;
+  el.querySelectorAll('.hit').forEach((hit) => {
     const show = () => {
       const d = days[+hit.dataset.i];
-      tip.innerHTML = `<div class="mono">${esc(day(d.day))}</div>`
+      tip.innerHTML = `<div class="mono">${esc(fmtDay(d.day))}</div>`
         + [['Right', d.passed], ['Missed', d.missed], ['Skipped', d.skipped]]
-            .map(([k, v]) => `<div class="r"><span>${k}</span><span>${v}</span></div>`).join('');
-      const r = hit.getBoundingClientRect(), p = svg.parentElement.getBoundingClientRect();
+          .map(([k, v]) => `<div class="r"><span>${k}</span><span>${v}</span></div>`).join('');
+      const r = hit.getBoundingClientRect(), p = el.parentElement.getBoundingClientRect();
       tip.style.left = (r.left - p.left + r.width / 2) + 'px';
       tip.style.top = (r.top - p.top - 8) + 'px';
       tip.classList.add('on');
@@ -357,86 +664,821 @@ function renderChart() {
   });
 }
 
-function renderProjects() {
-  const body = STATE.projects.filter((p) => inScope(p.repo)).map((p) => {
+/**
+ * Calendar heatmap: one column per week, one row per weekday. Every day in the
+ * window gets a cell, empty ones included — a fortnight of silence has to read
+ * as a fortnight of silence, not close up into the next session.
+ */
+function chartHeatmap(el, map) {
+  const CELL = 13, GAP = 3, PAD_T = 18, PAD_L = 26;
+  // The window is chosen from the width rather than the width from the window:
+  // a wide card shows a year, a phone shows a quarter, and the cell stays the
+  // same size on both. Capped at 53 because that is all the payload carries.
+  const avail = (el.parentElement.clientWidth || 700) - PAD_L - 2;
+  const weeks = Math.max(12, Math.min(53, Math.floor(avail / (CELL + GAP))));
+  const end = new Date(); end.setUTCHours(0, 0, 0, 0);
+  end.setUTCDate(end.getUTCDate() + (6 - end.getUTCDay()));      // to the end of this week
+  const total = weeks * 7;
+  const days = fillDays(map, total, dayKey(end));
+  const max = Math.max(...days.map((d) => d.total), 1);
+
+  let out = '', lastMonth = '';
+  days.forEach((d, i) => {
+    const col = Math.floor(i / 7), row = i % 7;
+    const x = PAD_L + col * (CELL + GAP), y = PAD_T + row * (CELL + GAP);
+    const date = fromKey(d.day);
+    if (row === 0) {
+      const m = date.toLocaleDateString(undefined, { month:'short', timeZone:'UTC' });
+      // Not in the last two columns: a month label starting there runs off the
+      // right edge of the card.
+      if (m !== lastMonth) { if (col < weeks - 2) out += `<text class="axis" x="${x}" y="${PAD_T - 6}">${m}</text>`; lastMonth = m; }
+    }
+    const future = date.getTime() > Date.now();
+    const fill = d.total ? 'var(--spot)' : future ? 'transparent' : 'var(--mass)';
+    const op = d.total ? (0.3 + 0.7 * Math.min(1, d.total / max)).toFixed(2) : 1;
+    out += `<rect class="cell" x="${x}" y="${y}" width="${CELL}" height="${CELL}" fill="${fill}" fill-opacity="${op}">`
+         + `<title>${fmtDate(d.day)} — ${d.total ? plural(d.total, 'answer') + ` (${d.passed} right)` : 'nothing'}</title></rect>`;
+  });
+  ['Mon', 'Wed', 'Fri'].forEach((label, n) => {
+    const row = [1, 3, 5][n];
+    out += `<text class="axis" x="0" y="${PAD_T + row * (CELL + GAP) + CELL - 3}">${label}</text>`;
+  });
+  const W = PAD_L + weeks * (CELL + GAP), H = PAD_T + 7 * (CELL + GAP);
+  el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  el.setAttribute('width', W); el.setAttribute('height', H);
+  el.innerHTML = out;
+}
+
+/** Review load for the next fortnight, with everything overdue in one column. */
+function chartForecast(el, buckets) {
+  const W = Math.max(300, el.parentElement.clientWidth || 600), H = 150, PAD_B = 26, PAD_L = 24;
+  const max = Math.max(...buckets.map((b) => b.n), 1);
+  const step = (W - PAD_L) / buckets.length;
+  const bw = Math.min(30, Math.max(6, step - 8));
+  const y = (v) => (H - PAD_B) - (v / max) * (H - PAD_B - 14);
+
+  let out = `<line class="gridline" x1="${PAD_L}" x2="${W}" y1="${H - PAD_B}" y2="${H - PAD_B}"/>`;
+  buckets.forEach((b, i) => {
+    const x = PAD_L + i * step + (step - bw) / 2;
+    const fill = b.overdue ? 'var(--warning)' : 'var(--spot)';
+    if (b.n) {
+      out += `<rect x="${x}" y="${y(b.n)}" width="${bw}" height="${(H - PAD_B) - y(b.n)}" fill="${fill}">`
+           + `<title>${esc(b.label)}: ${plural(b.n, 'concept')}</title></rect>`
+           + `<text class="axis" x="${x + bw / 2}" text-anchor="middle" y="${y(b.n) - 5}">${b.n}</text>`;
+    }
+    out += `<text class="axis" x="${x + bw / 2}" text-anchor="middle" y="${H - 8}">${esc(b.short)}</text>`;
+  });
+  el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  el.style.height = H + 'px';
+  el.innerHTML = out;
+}
+
+/** One concept's grades in order — the shape of learning it, not a number. */
+function chartGrades(el, attempts) {
+  const pts = [...attempts].reverse();
+  const W = Math.max(240, el.parentElement.clientWidth || 480), H = 120, PAD_B = 20, PAD_L = 20;
+  const step = pts.length > 1 ? (W - PAD_L - 10) / (pts.length - 1) : 0;
+  const y = (g) => (H - PAD_B) - (g / 5) * (H - PAD_B - 12);
+
+  let out = '';
+  for (const g of [0, 3, 5]) {
+    out += `<line class="gridline" x1="${PAD_L}" x2="${W}" y1="${y(g)}" y2="${y(g)}"/>`
+         + `<text class="axis" x="0" y="${y(g) + 3}">${g}</text>`;
+  }
+  const xy = pts.map((a, i) => [PAD_L + i * step + (pts.length === 1 ? (W - PAD_L) / 2 : 0), y(a.grade)]);
+  if (xy.length > 1) {
+    out += `<polyline fill="none" stroke="var(--line-2)" stroke-width="1.5" points="${xy.map((p) => p.join(',')).join(' ')}"/>`;
+  }
+  pts.forEach((a, i) => {
+    const [x, cy] = xy[i];
+    const fill = a.outcome === 'declined' || a.outcome === 'dont_know' ? 'var(--faint-2)'
+      : a.grade >= 3 ? 'var(--spot)' : 'var(--warning)';
+    out += `<circle cx="${x}" cy="${cy}" r="4.5" fill="${fill}"><title>${esc(fmtDate(a.ts))} — grade ${a.grade}, ${esc(tierLabel(a.tier))}</title></circle>`;
+  });
+  out += `<text class="axis" x="${PAD_L}" y="${H - 4}">${esc(fmtDate(pts[0].ts))}</text>`;
+  if (pts.length > 1) out += `<text class="axis" x="${W}" text-anchor="end" y="${H - 4}">${esc(fmtDate(pts.at(-1).ts))}</text>`;
+  el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  el.style.height = H + 'px';
+  el.innerHTML = out;
+}
+
+/** A whole, split — mastered / learning / never asked. */
+function segbar(parts) {
+  const total = parts.reduce((a, p) => a + p.n, 0) || 1;
+  return `<div class="seg">`
+    + parts.map((p) => `<span style="width:${(p.n / total) * 100}%;background:${p.color}" title="${esc(p.label)}: ${p.n}"></span>`).join('')
+    + `</div><div class="seg__key">`
+    + parts.map((p) => `<span><b style="background:${p.color}"></b>${esc(p.label)} ${p.n}</span>`).join('')
+    + `</div>`;
+}
+
+const chart = (id, fn) => { AFTER.push(() => { const el = $(id); if (el) fn(el); }); };
+
+/* ============================================================
+   Views
+   ============================================================ */
+
+function viewOverview() {
+  const daily = dailyInScope();
+  const st = streaks(daily);
+  const seen = seenConcepts();
+  const scoped = conceptsInScope();
+  const atts = attemptsInScope();
+  const answered = atts.length;
+  const passed = atts.filter((a) => a.grade >= 3).length;
+  const due = seen.filter((c) => c.due);
+  const mastered = seen.filter((c) => c.mastered);
+  const sess = sessions();
+  const last30 = fillDays(daily, 30);
+
+  const weakest = seen.filter((c) => !c.mastered).sort((a, b) => a.score - b.score || b.attempts - a.attempts).slice(0, 5);
+  const recentSessions = sess.slice(0, 5);
+
+  chart('c-activity', (el) => chartActivity(el, last30));
+  chart('c-heat', (el) => chartHeatmap(el, daily));
+
+  return [
+    `<div>
+       <p class="page__eyebrow">${esc(scopeName())}</p>
+       <h1 class="page__title">Am I actually getting better?</h1>
+       <p class="page__sub">${plural(seen.length, 'concept')} asked out of ${S.totals.catalogue} in the graph ·
+         ${plural(answered, 'answer')} · ${plural(sess.length, 'session')} · first answer ${esc(fmtDate(S.totals.first_answer))}.</p>
+     </div>`,
+
+    tiles([
+      ['Accuracy', answered ? pct(passed, answered) + '%' : '—', `${passed} right of ${answered}`, answered && pct(passed, answered) >= 70 ? 'good' : '', '#/sessions'],
+      ['Mastered', mastered.length, `of ${seen.length} asked`, mastered.length ? 'good' : '', '#/concepts/mastered'],
+      ['Due now', due.length, due.length ? 'ready for review' : 'nothing waiting', due.length ? 'warn' : '', '#/review'],
+      ['Streak', st.current ? plural(st.current, 'day') : '—', st.best ? `best ${plural(st.best, 'day')}` : 'no answers yet'],
+      ['Active days', st.days, 'with at least one answer'],
+    ]),
+
+    due.length
+      ? `<div class="banner"><p><strong>${plural(due.length, 'concept')}</strong> ${due.length === 1 ? 'is' : 'are'} due.
+          Run <code>/eklavya:quiz</code> in Claude Code, or open the
+          <a class="link" data-go="#/review">review queue</a> to see what is waiting.</p></div>`
+      : '',
+
+    card('Answers over the last 30 days', 'Right, missed and skipped, per day. Empty days are shown as empty.',
+      `<div class="legend">
+         <span><b style="background:var(--spot)"></b>Right</span>
+         <span><b style="background:var(--warning)"></b>Missed</span>
+         <span><b style="background:var(--faint-2)"></b>Skipped</span>
+       </div>
+       <div class="chart"><div class="tip" id="tip"></div><svg id="c-activity" role="img"
+         aria-label="Daily answers, split into right, missed and skipped"></svg></div>`),
+
+    card('Practice history', 'One cell per day, up to a year back. Darker means more answered that day.',
+      `<div class="heat"><svg id="c-heat" role="img" aria-label="Calendar heatmap of daily answers"></svg></div>`),
+
+    `<div class="g2">
+       ${card('Where you stand', 'The catalogue is a library, not a to-do list — untouched concepts are not debt.',
+         segbar([
+           { label:'Mastered', n:mastered.length, color:'var(--spot)' },
+           { label:'Learning', n:seen.length - mastered.length, color:'var(--warning)' },
+           { label:'Not asked', n:Math.max(0, scoped.length - seen.length), color:'var(--mass)' },
+         ]) + `<p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">
+           A concept is mastered at score 0.7 with two or more passes. Score decays about
+           5% a week once a review is overdue, so mastery is kept, not banked.</p>`)}
+       ${card('Weakest five', 'Lowest score first. These are what the next quiz will reach for.',
+         weakest.length
+           ? `<div class="list">` + weakest.map((c) => `
+               <div style="display:flex;gap:var(--space-4);align-items:center">
+                 <div style="flex:1;min-width:0">
+                   <a class="link" data-go="#/concept/${encodeURIComponent(c.slug)}">${esc(c.name)}</a>
+                   <div class="slug">${esc(c.domain)} · ${esc(tierLabel(c.tier))} · ${plural(c.attempts, 'attempt')}</div>
+                 </div>
+                 <div style="width:96px">${meter(c.score * 100, c.score < 0.5 ? 'warn' : '')}
+                   <div class="slug" style="text-align:right">${Math.round(c.score * 100)}%</div></div>
+               </div>`).join('') + `</div>`
+           : '<p class="empty">Nothing asked in this scope yet.</p>')}
+     </div>`,
+
+    card('Recent sessions', 'Each one is a piece of work your agent did, and what it taught.',
+      table([{t:'Session'},{t:'Concepts',n:1},{t:'Asked',n:1},{t:'Right',n:1},{t:'When',n:1}],
+        recentSessions.map((s) => `<tr class="row" data-go="#/session/${encodeURIComponent(s.id)}">
+            <td><span class="title">${esc(base(s.repo))}</span>
+              <div class="slug">${esc(sessionLabel(s))}</div></td>
+            <td class="num">${s.logged.length}</td>
+            <td class="num">${s.asked.length}</td>
+            <td class="num">${s.passed}</td>
+            <td class="num slug">${esc(ago(s.last))}</td></tr>`)),
+      { aside: `<a class="link" data-go="#/sessions">All ${sess.length} sessions →</a>` }),
+  ].join('');
+}
+
+/** The state filter lives in the hash — `#/concepts/due` is a link worth having. */
+const CONCEPT_STATES = ['all', 'due', 'learning', 'mastered', 'unseen'];
+
+function viewConcepts(param) {
+  const t = T.concepts;
+  t.state = CONCEPT_STATES.includes(param) ? param : 'all';
+  const all = conceptsInScope();
+  const domains = [...new Set(all.map((c) => c.domain))].sort();
+  const q = t.q.trim().toLowerCase();
+
+  let list = all.filter((c) => {
+    if (t.state === 'mastered' && !c.mastered) return false;
+    if (t.state === 'learning' && (!c.seen || c.mastered)) return false;
+    if (t.state === 'due' && !c.due) return false;
+    if (t.state === 'unseen' && c.seen) return false;
+    if (t.domain !== 'all' && c.domain !== t.domain) return false;
+    if (q && !(`${c.name} ${c.slug} ${c.domain} ${c.context ?? ''}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  const SORTS = {
+    weakest: (a, b) => (a.seen === b.seen ? a.score - b.score || b.attempts - a.attempts : a.seen ? -1 : 1),
+    strongest: (a, b) => b.score - a.score,
+    recent: (a, b) => String(b.last_seen ?? '').localeCompare(String(a.last_seen ?? '')),
+    asked: (a, b) => b.attempts - a.attempts,
+    name: (a, b) => a.name.localeCompare(b.name),
+    tier: (a, b) => a.tier - b.tier || a.name.localeCompare(b.name),
+  };
+  list = [...list].sort(SORTS[t.sort] ?? SORTS.weakest);
+
+  const p = page('concepts', list.length);
+  const rows = slice(list, p).map((c) => `
+    <tr class="row" data-go="#/concept/${encodeURIComponent(c.slug)}">
+      <td style="min-width:210px"><span class="title">${esc(c.name)}</span>
+        <div class="slug">${esc(c.slug)}</div></td>
+      <td><span class="pill">${esc(c.domain)}</span></td>
+      <td class="slug" style="white-space:nowrap">${esc(tierLabel(c.tier))}</td>
+      <td style="min-width:104px">${c.seen ? meter(c.score * 100, c.score < 0.5 ? 'warn' : '') +
+        `<div class="slug">${Math.round(c.score * 100)}%</div>` : '<span class="slug">—</span>'}</td>
+      <td class="num">${c.attempts || '—'}</td>
+      <td>${statePill(c)}</td>
+      <td class="ctx" style="min-width:220px">${esc(c.context ?? '')}</td>
+    </tr>`);
+
+  const counts = {
+    all: all.length,
+    due: all.filter((c) => c.due).length,
+    learning: all.filter((c) => c.seen && !c.mastered).length,
+    mastered: all.filter((c) => c.mastered).length,
+    unseen: all.filter((c) => !c.seen).length,
+  };
+  const chip = (k, label) => `<button class="chip" data-state="${k}" aria-pressed="${t.state === k}">${label} ${counts[k]}</button>`;
+
+  return [
+    `<div>
+       <h1 class="page__title">Concepts</h1>
+       <p class="page__sub">Everything in your graph — what you have been asked, and what is still just catalogue.
+         Open one to see every question you were given on it.</p>
+     </div>`,
+    card(null, null,
+      `<div class="filters">
+         <div class="grow"><input type="search" id="q" value="${esc(t.q)}" placeholder="Search name, slug, domain or context…" aria-label="Search concepts"></div>
+         <select id="dom" aria-label="Domain">
+           <option value="all">All domains</option>
+           ${domains.map((d) => `<option value="${esc(d)}"${t.domain === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}
+         </select>
+         <select id="sort" aria-label="Sort">
+           ${[['weakest','Weakest first'],['strongest','Strongest first'],['recent','Recently seen'],['asked','Most asked'],['tier','By tier'],['name','A–Z']]
+             .map(([v, l]) => `<option value="${v}"${t.sort === v ? ' selected' : ''}>${l}</option>`).join('')}
+         </select>
+       </div>
+       <div class="chips" id="chips">
+         ${chip('all','All')}${chip('due','Due')}${chip('learning','Learning')}${chip('mastered','Mastered')}${chip('unseen','Not asked')}
+       </div>
+       <div style="margin-top:var(--space-4)">
+         ${table([{t:'Concept'},{t:'Domain'},{t:'Tier'},{t:'Score'},{t:'Asked',n:1},{t:'State'},{t:'From your code'}], rows)}
+         ${pager('concepts', list.length, p)}
+       </div>`),
+  ].join('');
+}
+
+function viewConcept(slug) {
+  const c = S.concepts.find((x) => x.slug === slug);
+  if (!c) return `<p class="empty">No concept called <code>${esc(slug)}</code>. <a class="link" data-go="#/concepts">Back to concepts</a>.</p>`;
+
+  const atts = S.attempts.filter((a) => a.slug === slug);
+  // A logged row with no context line is a bookkeeping row, not a memory: it
+  // would render as a date attached to nothing.
+  const ctx = S.logged.filter((l) => l.slug === slug && l.context && String(l.context).trim());
+  const byName = new Map(S.concepts.map((x) => [x.slug, x]));
+  const links = (slugs) => slugs.length
+    ? `<div class="tags">` + slugs.map((s) => `<a class="pill link" data-go="#/concept/${encodeURIComponent(s)}">${esc(byName.get(s)?.name ?? s)}</a>`).join('') + `</div>`
+    : '<p class="slug" style="margin:0">None recorded.</p>';
+
+  const p = page('concept', atts.length, 5);
+  const history = slice(atts, p, 5).map((a) => {
+    let opts = [];
+    try { opts = a.options ? JSON.parse(a.options) : []; } catch { opts = []; }
+    return `<article class="qa">
+      <div class="qa__meta">
+        <span>${esc(fmtDate(a.ts))}</span><span>${esc(tierLabel(a.tier))}</span>
+        ${a.format ? `<span>${esc(a.format)}</span>` : ''}${a.level ? `<span>${esc(a.level)}</span>` : ''}
+        ${a.repo ? `<span>${esc(base(a.repo))}</span>` : ''}
+        <span class="sp">${gradeBadge(a)}</span>
+      </div>
+      <p class="qa__q">${esc(a.question)}</p>
+      ${opts.length ? `<ul class="qa__opts">${opts.map((o) =>
+        `<li class="${a.answer && o === a.answer ? 'picked' : ''}">${esc(o)}</li>`).join('')}</ul>` : ''}
+      ${a.answer && !opts.length ? `<p class="qa__a"><b>You said:</b> ${esc(a.answer)}</p>` : ''}
+      ${a.feedback ? `<p class="qa__f">${esc(a.feedback)}</p>` : ''}
+    </article>`;
+  }).join('');
+
+  if (atts.length) chart('c-grades', (el) => chartGrades(el, atts));
+  const decayed = c.stored_score > c.score;
+
+  return [
+    `<div>
+       <a class="page__back" data-go="#/concepts">← Concepts</a>
+       <h1 class="page__title">${esc(c.name)}</h1>
+       <p class="page__sub"><code class="slug">${esc(c.slug)}</code> · ${esc(c.domain)} · ${esc(tierLabel(c.tier))} ·
+         ${esc(c.source === 'seed' ? 'from the seed graph' : 'minted from your work')}
+         ${c.description ? '<br>' + esc(c.description) : ''}</p>
+     </div>`,
+
+    tiles([
+      ['Score', c.seen ? Math.round(c.score * 100) + '%' : '—', decayed ? `decayed from ${Math.round(c.stored_score * 100)}%` : 'recency-weighted last 5 grades', c.mastered ? 'good' : c.score < 0.5 && c.seen ? 'warn' : ''],
+      ['State', c.mastered ? 'mastered' : c.seen ? (c.due ? 'due' : 'learning') : 'not asked', c.seen ? `${c.passed} of ${c.attempts} right` : 'no questions yet', c.due ? 'warn' : ''],
+      ['Next review', c.seen ? whenDue(c.next_review) : '—', c.interval_d ? `interval ${Math.round(c.interval_d)}d` : 'not scheduled', c.due ? 'warn' : ''],
+      ['Reps', c.reps, `ease ${c.ease ? c.ease.toFixed(2) : '—'}`],
+    ]),
+
+    atts.length
+      ? card('How the grades went', 'Every graded answer in order. Grey points are skips and blanks.',
+          `<div class="chart"><svg id="c-grades" role="img" aria-label="Grades over time for this concept"></svg></div>`)
+      : '',
+
+    card('Where this came from', 'The code that logged it — the memory the slug hangs on.',
+      ctx.length
+        ? `<div class="list">` + ctx.slice(0, 12).map((l) => `
+            <div>
+              <div class="ctx">${esc(l.context ?? '')}</div>
+              <div class="slug">${esc(ago(l.ts))} · ${esc(base(l.repo))} · ${esc(l.origin ?? 'work')} ·
+                <a class="link" data-go="#/session/${encodeURIComponent(l.session_id)}">that session</a></div>
+            </div>`).join('') + `</div>`
+        : '<p class="empty">No context recorded — this one came from the seed graph.</p>'),
+
+    card(`Every question you were asked`, atts.length ? `${plural(atts.length, 'attempt')}, newest first.` : '',
+      atts.length ? history + pager('concept', atts.length, p, 5)
+        : '<p class="empty">Not asked yet. It will come up when your work touches it.</p>'),
+
+    `<div class="g3">
+       ${card('Prerequisites', 'Asked first when the graph plans a session.', links(c.prereqs))}
+       ${card('Unlocks', 'These lean on this one.', links(c.unlocks))}
+       ${card('Related', 'Same neighbourhood.', links(c.related))}
+     </div>`,
+  ].join('');
+}
+
+const REVIEW_TABS = ['due', 'upcoming', 'skipped'];
+
+function viewReview(param) {
+  const t = T.review;
+  t.tab = REVIEW_TABS.includes(param) ? param : 'due';
+  const seen = seenConcepts();
+  const due = seen.filter((c) => c.due).sort((a, b) => (b.overdue_days ?? 0) - (a.overdue_days ?? 0));
+  const upcoming = seen.filter((c) => !c.due && c.next_review)
+    .sort((a, b) => String(a.next_review).localeCompare(String(b.next_review)));
+  const skipped = attemptsInScope().filter((a) => a.outcome === 'declined' || a.outcome === 'dont_know');
+
+  // Fourteen days of scheduled reviews, with everything already overdue in one
+  // column — a backlog that grows off the left of the chart is a backlog nobody
+  // sees.
+  const buckets = [{ label:'Overdue', short:'late', n:due.length, overdue:true }];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() + i);
+    const k = dayKey(d);
+    buckets.push({
+      label: i === 0 ? 'Today' : fmtDay(k),
+      short: i === 0 ? 'today' : String(fromKey(k).getUTCDate()),
+      n: upcoming.filter((c) => String(c.next_review).slice(0, 10) === k).length,
+      overdue: false,
+    });
+  }
+  chart('c-forecast', (el) => chartForecast(el, buckets));
+
+  const tabs = [['due', `Due now ${due.length}`], ['upcoming', `Upcoming ${upcoming.length}`], ['skipped', `Skipped ${skipped.length}`]];
+  const list = t.tab === 'due' ? due : t.tab === 'upcoming' ? upcoming : skipped;
+  const p = page('review', list.length);
+  const rows = slice(list, p).map((x) => t.tab === 'skipped'
+    ? `<tr class="row" data-go="#/concept/${encodeURIComponent(x.slug)}">
+         <td><span class="title">${esc(x.name)}</span><div class="slug">${esc(x.slug)}</div></td>
+         <td><span class="pill">${x.outcome === 'declined' ? 'declined' : 'blanked'}</span></td>
+         <td class="ctx" style="min-width:280px">${esc(x.question)}</td>
+         <td class="num slug">${esc(ago(x.ts))}</td></tr>`
+    : `<tr class="row" data-go="#/concept/${encodeURIComponent(x.slug)}">
+         <td><span class="title">${esc(x.name)}</span><div class="slug">${esc(x.slug)} · ${esc(x.domain)}</div></td>
+         <td style="min-width:104px">${meter(x.score * 100, x.score < 0.5 ? 'warn' : '')}
+           <div class="slug">${Math.round(x.score * 100)}%</div></td>
+         <td class="num">${x.attempts}</td>
+         <td class="slug" style="white-space:nowrap">${esc(tierLabel(x.tier))}</td>
+         <td class="num slug">${esc(whenDue(x.next_review))}</td></tr>`);
+
+  const cols = t.tab === 'skipped'
+    ? [{t:'Concept'},{t:'How'},{t:'The question'},{t:'When',n:1}]
+    : [{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'Tier'},{t:t.tab === 'due' ? 'Overdue' : 'Due',n:1}];
+
+  return [
+    `<div>
+       <h1 class="page__title">Review queue</h1>
+       <p class="page__sub">SM-2 decides when a concept comes back: one day after a miss, then 6, then the
+         interval times its ease. A score decays about 5% a week while a review is overdue, so this list is
+         also the list of things quietly getting weaker.</p>
+     </div>`,
+
+    tiles([
+      ['Due now', due.length, due.length ? 'run /eklavya:quiz' : 'nothing waiting', due.length ? 'warn' : 'good'],
+      ['Next 7 days', buckets.slice(1, 8).reduce((a, b) => a + b.n, 0), 'scheduled reviews'],
+      ['Skipped', skipped.length, 'come back a tier lower'],
+      ['Longest overdue', due.length ? plural(Math.max(...due.map((c) => c.overdue_days ?? 0)), 'day') : '—', 'since it was due'],
+    ]),
+
+    card('The next fortnight', 'How much review is already scheduled, day by day.',
+      `<div class="chart"><svg id="c-forecast" role="img" aria-label="Scheduled reviews for the next fourteen days"></svg></div>`),
+
+    card(null, null,
+      `<div class="chips" id="tabs">` + tabs.map(([k, label]) =>
+        `<button class="chip" data-tab="${k}" aria-pressed="${t.tab === k}">${esc(label)}</button>`).join('') + `</div>
+       <div style="margin-top:var(--space-4)">${table(cols, rows)}${pager('review', list.length, p)}</div>`),
+  ].join('');
+}
+
+function viewSessions() {
+  const all = sessions();
+  const p = page('sessions', all.length);
+  const rows = slice(all, p).map((s) => {
+    const acc = s.asked.length ? pct(s.passed, s.asked.length) : null;
+    return `<tr class="row" data-go="#/session/${encodeURIComponent(s.id)}">
+      <td style="min-width:260px"><span class="title">${esc(base(s.repo))}</span>
+        <div class="slug">${esc(sessionLabel(s).slice(0, 120))}</div></td>
+      <td class="num">${s.logged.length}</td>
+      <td class="num">${s.asked.length}</td>
+      <td style="min-width:96px">${acc === null ? '<span class="slug">—</span>'
+        : meter(acc, acc < 70 ? 'warn' : '') + `<div class="slug">${acc}%</div>`}</td>
+      <td class="num slug">${esc(stamp(s.last))}</td></tr>`;
+  });
+
+  const withQuestions = all.filter((s) => s.asked.length).length;
+  return [
+    `<div>
+       <h1 class="page__title">Sessions</h1>
+       <p class="page__sub">One row per Claude Code session that logged something. Open one to see what the
+         agent built, what it said each concept was for, and what you were asked about it.</p>
+     </div>`,
+    tiles([
+      ['Sessions', all.length, 'that logged a concept'],
+      ['With questions', withQuestions, `${pct(withQuestions, all.length)}% of sessions`],
+      ['Concepts logged', all.reduce((a, s) => a + s.logged.length, 0), 'context lines recorded'],
+      ['Answers', all.reduce((a, s) => a + s.asked.length, 0), 'across every session'],
+    ]),
+    card(null, null,
+      table([{t:'Session'},{t:'Logged',n:1},{t:'Asked',n:1},{t:'Accuracy'},{t:'When',n:1}], rows)
+      + pager('sessions', all.length, p)),
+  ].join('');
+}
+
+function viewSession(id) {
+  const s = sessions().find((x) => x.id === id);
+  if (!s) return `<p class="empty">No session <code>${esc(id)}</code> in this scope.
+    <a class="link" data-go="#/sessions">Back to sessions</a>.</p>`;
+
+  const byName = new Map(S.concepts.map((c) => [c.slug, c]));
+  const work = s.logged.filter((l) => (l.origin ?? 'work') === 'work');
+  const review = s.logged.filter((l) => l.origin === 'review');
+
+  const conceptRow = (l) => {
+    const c = byName.get(l.slug);
+    return `<tr class="row" data-go="#/concept/${encodeURIComponent(l.slug)}">
+      <td style="min-width:190px"><span class="title">${esc(c?.name ?? l.slug)}</span>
+        <div class="slug">${esc(l.slug)} · ${esc(l.domain)}</div></td>
+      <td class="ctx" style="min-width:280px">${esc(l.context ?? '')}</td>
+      <td>${c ? statePill(c) : ''}</td></tr>`;
+  };
+
+  const qa = s.asked.slice().reverse().map((a) => {
+    let opts = [];
+    try { opts = a.options ? JSON.parse(a.options) : []; } catch { opts = []; }
+    return `<article class="qa">
+      <div class="qa__meta">
+        <a class="link" data-go="#/concept/${encodeURIComponent(a.slug)}">${esc(a.name)}</a>
+        <span>${esc(tierLabel(a.tier))}</span>${a.level ? `<span>${esc(a.level)}</span>` : ''}
+        <span class="sp">${gradeBadge(a)}</span>
+      </div>
+      <p class="qa__q">${esc(a.question)}</p>
+      ${opts.length ? `<ul class="qa__opts">${opts.map((o) =>
+        `<li class="${a.answer && o === a.answer ? 'picked' : ''}">${esc(o)}</li>`).join('')}</ul>` : ''}
+      ${a.answer && !opts.length ? `<p class="qa__a"><b>You said:</b> ${esc(a.answer)}</p>` : ''}
+      ${a.feedback ? `<p class="qa__f">${esc(a.feedback)}</p>` : ''}
+    </article>`;
+  }).join('');
+
+  return [
+    `<div>
+       <a class="page__back" data-go="#/sessions">← Sessions</a>
+       <h1 class="page__title">${esc(base(s.repo))}</h1>
+       <p class="page__sub">${esc(stamp(s.first))} → ${esc(stamp(s.last))} · <code class="slug">${esc(s.id)}</code></p>
+     </div>`,
+    tiles([
+      ['Logged', s.logged.length, 'concepts the work touched'],
+      ['Asked', s.asked.length, s.asked.length ? `${s.passed} right` : 'no questions in this one'],
+      ['Accuracy', s.asked.length ? pct(s.passed, s.asked.length) + '%' : '—', 'in this session',
+        s.asked.length && pct(s.passed, s.asked.length) >= 70 ? 'good' : ''],
+      ['Review pulled in', review.length, 'from earlier work'],
+    ]),
+    card('What the work taught', 'Each line is what the agent said the concept was for, in the code it wrote.',
+      table([{t:'Concept'},{t:'What you did'},{t:'State now'}], work.map(conceptRow))),
+    review.length
+      ? card('Pulled in for review', 'Not from this diff — the tutor widened to prerequisites and neighbours.',
+          table([{t:'Concept'},{t:'Context'},{t:'State now'}], review.map(conceptRow)))
+      : '',
+    card('What you were asked', s.asked.length ? `${plural(s.asked.length, 'question')}, in order.` : '',
+      s.asked.length ? qa : '<p class="empty">No questions were asked in this session.</p>'),
+  ].join('');
+}
+
+function viewProjects() {
+  const list = S.projects.filter((p) => inScope(p.repo));
+  const daily = dailyInScope();
+
+  const cards = list.map((p, i) => {
     const acc = pct(p.passed, p.answers);
-    return `<tr><td><strong>${esc(base(p.repo))}</strong><div class="slug">${esc(p.repo ?? 'recorded before projects were tracked')}</div></td>`
-      + `<td><span class="pill">${esc(p.level)}</span></td>`
-      + `<td class="num">${p.answers}</td>`
-      + `<td style="min-width:120px"><div class="meter${acc < 70 ? ' warn' : ''}"><i style="width:${acc}%"></i></div>
-           <div class="slug">${acc}% right</div></td>`
-      + `<td class="num slug">${esc(ago(p.last_active))}</td></tr>`;
+    const need = p.level_needed, got = p.level_counts;
+    const bar = (label, value, target, ok) => `
+      <div><span class="${ok ? 'mark-ok' : 'mark-no'}">${ok ? '✓' : '○'}</span>
+        <span style="min-width:150px">${esc(label)}</span>
+        <span class="bar">${meter(pct(value, target), ok ? '' : 'mute')}</span>
+        <span class="slug" style="white-space:nowrap">${value} / ${target}</span></div>`;
+
+    const ladder = ['easy', 'medium', 'hard'].map((l) => {
+      const idx = ['easy','medium','hard'].indexOf(l), cur = ['easy','medium','hard'].indexOf(p.level);
+      return `<div class="${idx === cur ? 'on' : idx < cur ? 'done' : ''}">${l}</div>`;
+    }).join('');
+
+    chart('c-proj-' + i, (el) => {
+      const m = new Map();
+      for (const d of S.daily) {
+        if ((d.repo ?? '') !== (p.repo ?? '')) continue;
+        m.set(d.day, { ...d, total: d.passed + d.missed + d.skipped });
+      }
+      chartActivity(el, fillDays(m, 30));
+    });
+
+    return card(base(p.repo), p.repo ?? 'recorded before projects were tracked',
+      `<div class="kv" style="margin-bottom:var(--space-5)">
+         <div><b>Answers</b><span>${p.answers}</span></div>
+         <div><b>Accuracy</b><span>${acc}%</span></div>
+         <div><b>Concepts</b><span>${p.concepts}</span></div>
+         <div><b>Level</b><span>${esc(p.level)}${p.pinned ? ' (pinned)' : ''}</span></div>
+         <div><b>Active since</b><span>${esc(fmtDate(p.first_active))}</span></div>
+         <div><b>Last answer</b><span>${esc(ago(p.last_active))}</span></div>
+       </div>
+       <div class="ladder">${ladder}</div>
+       ${p.pinned
+         ? `<p class="slug" style="margin:var(--space-4) 0 0">Difficulty is pinned in config, so this project does not promote.</p>`
+         : p.next_level
+           ? `<p class="slug" style="margin:var(--space-4) 0 var(--space-2)">To reach <strong>${esc(p.next_level)}</strong>, counting answers since ${esc(p.promoted_at ? fmtDate(p.promoted_at) : 'you started')}:</p>
+              <div class="checks">
+                ${bar('Passing answers', got.passed, need.answers, !p.level_unmet.includes('answers'))}
+                ${bar('Accuracy', Math.round(p.level_accuracy * 100), Math.round(need.accuracy * 100), !p.level_unmet.includes('accuracy'))}
+                ${bar('Distinct concepts', got.concepts, need.concepts, !p.level_unmet.includes('concepts'))}
+              </div>`
+           : `<p class="slug" style="margin:var(--space-4) 0 0">Top of the ladder — questions can reach tier 5 here.</p>`}
+       <div class="chart" style="margin-top:var(--space-5)"><svg id="c-proj-${i}" role="img"
+         aria-label="Thirty days of answers in this project"></svg></div>`);
   });
-  rows($('projects'), [{t:'Project'},{t:'Level'},{t:'Answers',n:1},{t:'Accuracy'},{t:'Last',n:1}], body);
+
+  return [
+    `<div>
+       <h1 class="page__title">Projects</h1>
+       <p class="page__sub">Difficulty is earned per codebase, not per person: the same developer is a different
+         learner on their fourth Node service and their first Rust one. Everyone starts at easy (tiers 1–2)
+         and climbs on evidence.</p>
+     </div>`,
+    tiles([
+      ['Projects', list.length, 'with recorded answers'],
+      ['Answers', list.reduce((a, p) => a + p.answers, 0), 'across all of them'],
+      ['Best accuracy', list.length ? Math.max(...list.map((p) => pct(p.passed, p.answers))) + '%' : '—', 'of any project'],
+      ['Active days', streaks(daily).days, 'with at least one answer'],
+    ]),
+    cards.join('') || '<p class="empty">No answers recorded yet.</p>',
+  ].join('');
 }
 
-function renderDomains() {
-  // Recomputed from the scoped concept list rather than read off the server's
-  // totals, so picking a project moves this card too. `unseen` stays
-  // catalogue-wide on purpose: the seed graph does not belong to a repo.
-  const touchedBy = new Map();
-  for (const c of STATE.concepts) {
-    if (!inScope(c.repo)) continue;
-    const d = touchedBy.get(c.domain) ?? { domain: c.domain, mastered: 0, learning: 0, unseen: 0 };
-    d[c.mastered ? 'mastered' : 'learning'] += 1;
-    touchedBy.set(c.domain, d);
+function viewDomains() {
+  const scoped = conceptsInScope();
+  const byDomain = new Map();
+  for (const c of scoped) {
+    const d = byDomain.get(c.domain) ?? { domain:c.domain, catalogue:0, touched:0, mastered:0, due:0, attempts:0 };
+    d.catalogue += 1;
+    if (c.seen) { d.touched += 1; d.attempts += c.attempts; if (c.mastered) d.mastered += 1; if (c.due) d.due += 1; }
+    byDomain.set(c.domain, d);
   }
-  for (const d of STATE.domains) {
-    const row = touchedBy.get(d.domain);
-    if (row) row.unseen = d.unseen;
+  const list = [...byDomain.values()].sort((a, b) => b.touched - a.touched || b.catalogue - a.catalogue);
+
+  const rows = list.map((d) => `
+    <tr class="row" data-go="#/domain/${encodeURIComponent(d.domain)}">
+      <td><span class="title">${esc(d.domain)}</span>
+        <div class="slug">${plural(d.catalogue, 'concept')} in the graph</div></td>
+      <td style="min-width:130px">${d.touched
+        ? meter(pct(d.mastered, d.touched)) + `<div class="slug">${d.mastered} mastered of ${d.touched} asked</div>`
+        : '<span class="slug">your work has not reached it</span>'}</td>
+      <td class="num">${d.attempts}</td>
+      <td class="num">${d.due || '—'}</td>
+      <td class="num slug">${d.catalogue - d.touched} not asked</td>
+    </tr>`);
+
+  const tierCount = [1,2,3,4,5].map((t) => scoped.filter((c) => c.seen && c.tier === t).length);
+  // A sequential ramp mixed from the accent role rather than picked off the
+  // accent scale: a fixed --vd-200 is legible on ink and invisible on paper.
+  const COLORS = [100, 78, 58, 40, 24].map((p) => `color-mix(in srgb, var(--spot) ${p}%, var(--mass))`);
+
+  return [
+    `<div>
+       <h1 class="page__title">Domains</h1>
+       <p class="page__sub">What you are learning, grouped. The catalogue is a library, not a to-do list —
+         a domain with untouched concepts is a domain your work has not reached yet.</p>
+     </div>`,
+    card('Coverage', 'Open a domain to see its concepts.',
+      table([{t:'Domain'},{t:'Mastered'},{t:'Answers',n:1},{t:'Due',n:1},{t:'Catalogue',n:1}], rows)),
+    card('Tier spread of what you have been asked', 'Tier is how hard one question is: recall, mechanism, judgement, failure modes, design.',
+      segbar([1,2,3,4,5].map((t, i) => ({ label: tierLabel(t), n: tierCount[i], color: COLORS[i] })))),
+  ].join('');
+}
+
+function viewDomain(name) {
+  const all = conceptsInScope().filter((c) => c.domain === name);
+  if (!all.length) return `<p class="empty">No concepts in <code>${esc(name)}</code> for this scope.
+    <a class="link" data-go="#/domains">Back to domains</a>.</p>`;
+
+  const seen = all.filter((c) => c.seen);
+  const list = [...all].sort((a, b) => (a.seen === b.seen ? a.score - b.score : a.seen ? -1 : 1));
+  const p = page('domain', list.length);
+  const rows = slice(list, p).map((c) => `
+    <tr class="row" data-go="#/concept/${encodeURIComponent(c.slug)}">
+      <td style="min-width:220px"><span class="title">${esc(c.name)}</span><div class="slug">${esc(c.slug)}</div></td>
+      <td class="slug" style="white-space:nowrap">${esc(tierLabel(c.tier))}</td>
+      <td style="min-width:104px">${c.seen ? meter(c.score * 100, c.score < 0.5 ? 'warn' : '')
+        + `<div class="slug">${Math.round(c.score * 100)}%</div>` : '<span class="slug">—</span>'}</td>
+      <td class="num">${c.attempts || '—'}</td>
+      <td>${statePill(c)}</td>
+      <td class="ctx" style="min-width:200px">${esc(c.context ?? '')}</td>
+    </tr>`);
+
+  return [
+    `<div>
+       <a class="page__back" data-go="#/domains">← Domains</a>
+       <h1 class="page__title">${esc(name)}</h1>
+       <p class="page__sub">${plural(all.length, 'concept')} in the graph · ${seen.length} asked ·
+         ${seen.filter((c) => c.mastered).length} mastered.</p>
+     </div>`,
+    card(null, null, segbar([
+      { label:'Mastered', n:seen.filter((c) => c.mastered).length, color:'var(--spot)' },
+      { label:'Learning', n:seen.filter((c) => !c.mastered).length, color:'var(--warning)' },
+      { label:'Not asked', n:all.length - seen.length, color:'var(--mass)' },
+    ])),
+    card(null, null, table([{t:'Concept'},{t:'Tier'},{t:'Score'},{t:'Asked',n:1},{t:'State'},{t:'From your code'}], rows)
+      + pager('domain', list.length, p)),
+  ].join('');
+}
+
+/* ============================================================
+   Router
+   ============================================================ */
+const NAV = [
+  ['overview', 'Overview', '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>'],
+  ['concepts', 'Concepts', '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/>'],
+  ['review',   'Review',   '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>'],
+  ['sessions', 'Sessions', '<rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M8 4v16"/>'],
+  ['projects', 'Projects', '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>'],
+  ['domains',  'Domains',  '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M9 6h6a3 3 0 0 1 3 3v6"/>'],
+];
+
+const VIEWS = {
+  overview: viewOverview,
+  concepts: viewConcepts,
+  concept: viewConcept,
+  review: viewReview,
+  sessions: viewSessions,
+  session: viewSession,
+  projects: viewProjects,
+  domains: viewDomains,
+  domain: viewDomain,
+};
+
+function route() {
+  const raw = location.hash.replace(/^#\/?/, '');
+  const [name, ...rest] = raw.split('/');
+  return { name: VIEWS[name] ? name : 'overview', param: decodeURIComponent(rest.join('/')) };
+}
+
+function renderNav(active) {
+  const seen = seenConcepts();
+  const counts = {
+    concepts: conceptsInScope().length,
+    review: seen.filter((c) => c.due).length,
+    sessions: sessions().length,
+    projects: S.projects.filter((p) => inScope(p.repo)).length,
+    domains: new Set(conceptsInScope().map((c) => c.domain)).size,
+  };
+  $('nav').innerHTML = NAV.map(([key, label, icon]) => `
+    <a href="#/${key}"${key === active ? ' aria-current="page"' : ''}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>
+      ${label}${counts[key] !== undefined ? `<i class="${key === 'review' && counts[key] ? 'hot' : ''}">${counts[key]}</i>` : ''}
+    </a>`).join('');
+}
+
+function render(keepFocus) {
+  const { name, param } = route();
+  const root = name === 'concept' || name === 'session' || name === 'domain'
+    ? { concept:'concepts', session:'sessions', domain:'domains' }[name] : name;
+  renderNav(root);
+
+  AFTER.length = 0;
+  $('view').innerHTML = VIEWS[name](param);
+  // A clickable row has to be reachable by Tab as well as by mouse.
+  $('view').querySelectorAll('tr.row').forEach((r) => { r.tabIndex = 0; });
+  for (const fn of AFTER) fn();
+
+  if (keepFocus) {
+    const el = $(keepFocus.id);
+    if (el) { el.focus(); if (el.setSelectionRange && keepFocus.pos != null) el.setSelectionRange(keepFocus.pos, keepFocus.pos); }
+  } else {
+    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
   }
-  const body = [...touchedBy.values()]
-    .sort((a, b) => b.mastered + b.learning - (a.mastered + a.learning))
-    .map((d) => {
-    const touched = d.mastered + d.learning;
-    return `<tr><td><strong>${esc(d.domain)}</strong></td>`
-      + `<td style="min-width:120px"><div class="meter"><i style="width:${pct(d.mastered, touched)}%"></i></div>
-          <div class="slug">${d.mastered} of ${touched} touched</div></td>`
-      + `<td class="num slug">${d.unseen} not seen</td></tr>`;
-  });
-  rows($('domains'), [{t:'Domain'},{t:'Mastered'},{t:'Catalogue',n:1}], body);
 }
 
-function renderRecent() {
-  const body = STATE.recent.filter((r) => inScope(r.repo)).slice(0, 20).map((r) =>
-    `<tr><td class="ctx">${esc(r.context)}<div class="slug">${esc(r.slug)} · ${esc(base(r.repo))}</div></td>`
-    + `<td class="num slug">${esc(ago(r.ts))}</td></tr>`);
-  rows($('recent'), [{t:'What you did'},{t:'When',n:1}], body);
+/* ---------- events, all delegated ---------- */
+/** Navigates, re-rendering in place when the hash is already what we want. */
+function goTo(hash) {
+  if (location.hash === hash) render();
+  else location.hash = hash;
 }
 
-function renderSkipped() {
-  const body = STATE.skipped.filter((s) => inScope(s.repo)).map((s) =>
-    `<tr><td><strong>${esc(s.name)}</strong><div class="slug">${esc(s.slug)}</div></td>`
-    + `<td><span class="pill">${s.outcome === 'declined' ? 'declined' : 'blanked'}</span></td>`
-    + `<td class="ctx">${esc(s.question ?? '')}</td>`
-    + `<td class="num slug">${esc(ago(s.ts))}</td></tr>`);
-  rows($('skipped'), [{t:'Concept'},{t:'How'},{t:'The question'},{t:'When',n:1}], body);
+function onActivate(e) {
+  const pg = e.target.closest('[data-page]');
+  if (pg && !pg.disabled) { T[pg.dataset.pager].page = +pg.dataset.page; render(); return; }
+  // The filter and the tab live in the hash, so a filtered list is a link the
+  // reader can bookmark, share and come back to.
+  const chipState = e.target.closest('[data-state]');
+  if (chipState) {
+    T.concepts.page = 1;
+    return goTo(chipState.dataset.state === 'all' ? '#/concepts' : '#/concepts/' + chipState.dataset.state);
+  }
+  const tab = e.target.closest('[data-tab]');
+  if (tab) { T.review.page = 1; return goTo(tab.dataset.tab === 'due' ? '#/review' : '#/review/' + tab.dataset.tab); }
+  const go = e.target.closest('[data-go]');
+  if (go) return goTo(go.dataset.go);
 }
 
-function renderConcepts() {
-  const body = STATE.concepts.filter((c) => inScope(c.repo)).map((c) =>
-    `<tr><td><strong>${esc(c.name)}</strong><div class="slug">${esc(c.slug)} · ${esc(c.domain)} · T${c.tier}</div></td>`
-    + `<td style="min-width:110px"><div class="meter${c.score < 0.5 ? ' warn' : ''}"><i style="width:${Math.round(c.score * 100)}%"></i></div>
-        <div class="slug">${Math.round(c.score * 100)}%</div></td>`
-    + `<td class="num">${c.attempts}</td>`
-    + `<td>${c.mastered ? '<span class="pill ok">mastered</span>' : c.due ? '<span class="pill due">due</span>' : '<span class="pill">learning</span>'}</td>`
-    + `<td class="ctx">${esc(c.context ?? '')}</td></tr>`);
-  rows($('concepts'), [{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'},{t:'From your code'}], body);
-}
+$('view').addEventListener('click', onActivate);
+// Anything clickable is operable from the keyboard: rows, tiles and the pills
+// are divs and table rows, so Enter and Space have to be wired by hand.
+$('view').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  if (!e.target.closest('[data-go],[data-state],[data-tab],[data-page]')) return;
+  e.preventDefault();
+  onActivate(e);
+});
 
-function renderAll() {
-  const scoped = STATE.concepts.filter((c) => inScope(c.repo));
-  const answers = STATE.projects.filter((p) => inScope(p.repo)).reduce((a, p) => a + p.answers, 0);
-  const where = FILTER === '*' ? 'across all projects' : 'in ' + base(FILTER === '~' ? null : FILTER);
-  const n = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
-  $('sub').textContent =
-    `${n(scoped.length, 'concept')} asked · ${n(answers, 'answer')} · ${scoped.filter((c) => c.mastered).length} mastered — ${where}`;
-  renderTiles(); renderChart(); renderProjects(); renderDomains();
-  renderRecent(); renderSkipped(); renderConcepts();
-}
+$('view').addEventListener('input', (e) => {
+  if (e.target.id !== 'q') return;
+  T.concepts.q = e.target.value;
+  T.concepts.page = 1;
+  render({ id:'q', pos:e.target.selectionStart });
+});
+
+$('view').addEventListener('change', (e) => {
+  if (e.target.id === 'dom') { T.concepts.domain = e.target.value; T.concepts.page = 1; render(); }
+  if (e.target.id === 'sort') { T.concepts.sort = e.target.value; T.concepts.page = 1; render(); }
+});
+
+addEventListener('hashchange', () => render());
+
+let resizeTimer = 0;
+addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => render({ id:'q', pos:null }), 120);
+});
+
+document.querySelectorAll('[data-ground]').forEach((b) => {
+  b.addEventListener('click', () => { window.eklavyaGround.set(b.dataset.ground); render(); });
+});
+
+/* ---------- boot ---------- */
+// The head script runs before the toggle exists, so its aria-pressed state has
+// to be applied again once the markup is there — otherwise a reader on paper is
+// shown "ink" as the active ground.
+window.eklavyaGround.apply(window.eklavyaGround.read());
 
 fetch('/api/state').then((r) => r.json()).then((s) => {
-  STATE = s;
+  S = s;
+  $('dbline').textContent = s.db_path;
+  // Totals are aggregated in SQL over the whole table, so a cap can only
+  // shorten a history list — but say so rather than let it look complete.
+  if (s.attempts_shown < s.attempts_total) {
+    $('foot-note').textContent =
+      ` Question histories show the most recent ${s.attempts_shown} of ${s.attempts_total} answers.`;
+  }
+  const c = s.config;
+  $('dials').innerHTML = `<span class="mono">${esc(c.mode)} · ${esc(c.focus)} · ${esc(c.cadence)} · ${esc(c.difficulty)}</span>`;
+
   const sel = $('proj');
   for (const p of s.projects) {
     const o = document.createElement('option');
@@ -444,15 +1486,24 @@ fetch('/api/state').then((r) => r.json()).then((s) => {
     o.textContent = base(p.repo);
     sel.appendChild(o);
   }
-  sel.addEventListener('change', () => { FILTER = sel.value; renderAll(); });
-  renderAll();
-  addEventListener('resize', renderChart);
-}).catch((e) => { $('sub').textContent = 'Could not read the database: ' + e.message; });
-</script>
-<script>
-  document.querySelectorAll('[data-ground]').forEach(function (b) {
-    b.addEventListener('click', function () { window.eklavyaGround.set(b.dataset.ground); });
+  try {
+    const saved = localStorage.getItem('eklavya-dash-project');
+    if (saved && [...sel.options].some((o) => o.value === saved)) FILTER = saved;
+  } catch (e) {}
+  sel.value = FILTER;
+  sel.addEventListener('change', () => {
+    FILTER = sel.value;
+    try { localStorage.setItem('eklavya-dash-project', FILTER); } catch (e) {}
+    for (const k of Object.keys(T)) T[k].page = 1;
+    recomputeScope();
+    render();
   });
+
+  recomputeScope();
+  render();
+}).catch((e) => {
+  $('view').innerHTML = `<p class="empty">Could not read the database: ${esc(e.message)}</p>`;
+});
 </script>
 </body>
 </html>

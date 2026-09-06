@@ -87,6 +87,17 @@ Preview with `npm run build && npm run preview` from `web/`, and check 1280, 900
 and 560px **in both grounds** — a bug that only shows on paper is the commonest
 kind. `web/CLAUDE.md` has the full pre-commit checklist.
 
+## The dashboard is a third surface
+
+`eklavya dashboard` (`mcp/src/dashboard.ts` and `mcp/src/assets/dashboard.html`)
+is a web page too, on the same tokens as the site, and it has its own rules:
+one JSON payload of flat rows with every view derived in the browser, a hash
+router, hand-rolled SVG charts, and an interaction contract — the wordmark goes
+home, anything clickable is keyboard-operable, a filter worth linking to lives
+in the hash. **Read `.claude/skills/eklavya-dashboard/SKILL.md` before touching
+either file.** Its manual page, `web/src/content/docs/docs/dashboard.mdx`, ships
+in the same commit as the change, like every other doc here.
+
 ## Conventions
 
 - Conventional commits; semantic-release publishes from `main`. `feat:` and
