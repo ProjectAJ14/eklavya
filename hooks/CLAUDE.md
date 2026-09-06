@@ -66,34 +66,59 @@ that blocks never errors, never logs, and stalls the session on every tool call
 that triggers it — with nothing for the developer to report except that Claude
 Code got slow.
 
-It is reachable. `readInput` used to be `for await (const chunk of
-process.stdin)`, which has exactly one exit: EOF. On Windows the host may run a
-hook through a PowerShell block that swallows the piped JSON, so `end` never
-fires (reported by ponytail, #443). `run.mjs` is careful about everything else —
-Node version, four resolution candidates, a self-expiring heal claim, exit 0 on
-every throw — and this was the one gap.
+`readInput` used to be `for await (const chunk of process.stdin)`, which has
+exactly one exit: EOF. Ponytail's issue #443 reports Claude Code on Windows
+running a hook through a PowerShell block that swallows the piped JSON, so `end`
+never fires. **Nothing here verifies that mechanism** — there is no Windows
+machine in the loop — so what this defends against is the consequence, a stdin
+that never ends, which the tests reproduce directly. `run.mjs` is careful about
+everything else — Node version, four resolution candidates, a self-expiring heal
+claim, exit 0 on every throw — and this was the one gap.
 
 `mcp/src/stdin.ts` closes it, and `eklavya statusline` shares it: both read a
 JSON blob the host pipes in, both must degrade rather than hang, and two copies
 would be one copy getting the fix. Three things matter about it.
 
-**The bound is on silence, not on total time.** A flat cap truncates a payload
-still arriving when it fires, and truncated JSON does not fail loudly — it fails
-as `{}`, so the hook runs to completion having quietly decided the session has
-no cwd and no id. The idle timer resets on every chunk, so a slow or large
-payload is never cut off; a total cap sits behind it for a stream that never
-stops.
+**The primary bound is on silence, not on total time.** A flat cap truncates a
+payload still arriving when it fires, and truncated JSON does not fail loudly —
+it fails as `{}`, so the hook runs to completion having quietly decided the
+session has no cwd and no id. The idle timer resets on every chunk, so a payload
+is safe as long as it keeps making progress. The total cap behind it *can* still
+truncate, and claiming otherwise would be the same overclaim in the other
+direction — it is a deliberate trade, and `totalMs` is generous against how long
+a real payload takes.
 
-**Every timer is `unref`'d.** `end` arrives first in almost every real
-invocation, and a pending timer must not hold the process open or add latency to
-a hook that has already done its work.
+**It pauses the stream, not just the listeners.** This is the line the rest of
+it depends on. `setEncoding` puts stdin in flowing mode and a flowing stdin holds
+an active libuv handle, so removing the `data` listener resolves the read and
+leaves the process alive. The hooks hide that — `run()` ends in `process.exit` —
+but `eklavya statusline` just returns, and under exactly the no-EOF condition
+this exists for it printed the dials and then lingered forever, once per status
+bar refresh. `test/stdin.test.ts` spawns the statusline for that reason: it is
+the caller with no `process.exit` behind it, so it is the honest test of whether
+the read lets go.
+
+**Every timer is `unref`'d**, so a pending timer adds no latency to a hook that
+has already finished. On its own that does not let the process exit — see above.
 
 **There is an `error` handler.** A stream that errors never emits `end`, so
-without one the read waits on something that is not coming.
+without one the read waits on something that is not coming. It is also
+load-bearing beyond that: an unhandled `error` on `process.stdin` is an async
+exception `run()`'s `try`/`catch` could not have caught.
+
+**It costs something, and the cost is worth stating.** On a host that swallows
+the pipe this turns an infinite hang into `idleMs` per invocation, and PreToolUse
+matches every `Bash` call — so +2s per command until the host is fixed. Two
+seconds a command is bad; a frozen session is worse.
 
 `HOOK_STDIN` is 2s idle / 5s total, well under the 10s `hooks.json` grants (15
 for Stop) — a read that outlives its host timeout is a read the developer waits
 on, and `test/stdin.test.ts` asserts the relationship rather than the number.
+`STATUSLINE_STDIN` is 150ms / 250ms, and the total is pinned at or below the
+250ms flat cap the inline reader had before it: splitting one budget into idle
+plus total made the worst case four times worse for the one caller whose latency
+a human sees, which a test now prevents.
+
 That suite spawns a real hook, writes a payload, and **never closes stdin**;
 against the old code all three cases hang until the test kills them.
 

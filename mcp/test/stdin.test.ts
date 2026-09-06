@@ -33,6 +33,8 @@ function hookWithoutEof(payload: string, timeoutMs = 12000) {
 
     let stdout = '';
     child.stdout.on('data', (c) => (stdout += String(c)));
+    // EPIPE on the write side must not surface as an unhandled stream error.
+    child.stdin.on('error', () => {});
     child.stdin.write(payload);
     // No child.stdin.end() -- that is the whole point.
 
@@ -72,6 +74,55 @@ describe('a hook whose stdin never ends', () => {
   }, 20000);
 });
 
+describe('a caller with no process.exit behind it', () => {
+  /**
+   * `eklavya statusline`, spawned with a payload and no EOF.
+   *
+   * The hooks hide this failure: `run()` ends in `process.exit`, so the process
+   * goes away whatever the stream is doing. The statusline just returns, so it
+   * is the honest test of whether the read actually lets go -- and it did not.
+   * Removing the `data` listener leaves the stream flowing, and a flowing stdin
+   * holds a libuv handle open, so the bar printed its line at 300ms and then
+   * sat there forever, once per refresh.
+   */
+  function statuslineWithoutEof(timeoutMs = 4000) {
+    return new Promise<{ exited: boolean; printed: boolean; ms: number }>((resolve) => {
+      const started = Date.now();
+      const child = spawn(process.execPath, [path.join(mcpRoot, 'dist', 'cli.js'), 'statusline'], {
+        cwd: mcpRoot,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      let printed = false;
+      child.stdout.on('data', () => (printed = true));
+      child.stdin.on('error', () => {});
+      child.stdin.write(JSON.stringify({ cwd: mcpRoot }));
+      // Never child.stdin.end().
+
+      const killer = setTimeout(() => {
+        child.kill('SIGKILL');
+        resolve({ exited: false, printed, ms: Date.now() - started });
+      }, timeoutMs);
+      child.on('close', () => {
+        clearTimeout(killer);
+        resolve({ exited: true, printed, ms: Date.now() - started });
+      });
+    });
+  }
+
+  it('exits, rather than printing and lingering forever', async () => {
+    const res = await statuslineWithoutEof();
+    expect(res.printed).toBe(true);
+    expect(res.exited, 'the process printed and then never exited').toBe(true);
+  }, 12000);
+
+  it('exits fast enough that a status bar refresh does not stack up', async () => {
+    // A bar that leaves a process behind on every refresh is a slow leak; one
+    // that takes a second to answer is a visible stutter.
+    const res = await statuslineWithoutEof();
+    expect(res.ms).toBeLessThan(STATUSLINE_STDIN.totalMs + 900);
+  }, 12000);
+});
+
 describe('the bounds themselves', () => {
   it('sits well under the smallest timeout hooks.json grants', () => {
     // 10s for four hooks, 15s for Stop. A read that outlives its host timeout
@@ -93,6 +144,14 @@ describe('the bounds themselves', () => {
     // A bar blocks on every refresh; a hook blocks once per trigger.
     expect(STATUSLINE_STDIN.totalMs).toBeLessThan(HOOK_STDIN.totalMs);
     expect(STATUSLINE_STDIN.idleMs).toBeLessThan(HOOK_STDIN.idleMs);
+  });
+
+  it('never makes the status bar slower than the flat cap it replaced', () => {
+    // The inline reader this replaced was a flat 250ms. Splitting that into
+    // idle + total quietly made the worst case 1000ms -- four times worse, for
+    // the one caller whose latency a human sees, in a change whose whole point
+    // was that it should not be felt.
+    expect(STATUSLINE_STDIN.totalMs).toBeLessThanOrEqual(250);
   });
 
   it('bounds silence, not total time, so a slow payload is not truncated', () => {
