@@ -25,6 +25,14 @@ Firebase is the only host, and should stay that way: Astro's `base` is fixed at
 build time, so one build cannot serve both a root host and a subfolder host. A
 second host means a second build, which drifts.
 
+`firebase.json` sets the cache policy, and the split matters: **HTML is
+`no-cache`** (stored, but revalidated on every request) while `/_astro/**` is
+immutable for a year. Firebase's default is `max-age=3600` on everything, which
+meant a fix could ship, deploy green, and still be invisible to a reader for an
+hour — their cached HTML points at the previous build's fingerprinted CSS. The
+globs are deliberately non-overlapping: header precedence between two matching
+`headers` entries is undocumented.
+
 ## The rule that matters
 
 **The manual is a test of the source, not prose about it.** Every default, flag,
@@ -131,11 +139,15 @@ EOF
   the span — a page added later would miss it. The plugin deliberately skips
   `code`, `pre`, `kbd` and `a`, and only matches the capitalised name standing
   alone: lowercase `eklavya` is a binary, a slug or a config key.
-- Tables: the key column is `width: 1%` (shrink to content) with a `14ch` floor,
-  and inline code wraps everywhere but the first column. Without the floor, one
-  long `nowrap` command in the description squeezes the key column to a single
-  character per line — the troubleshooting table once read `S Y M P T O M` down
-  the page.
+- Tables: cells use `overflow-wrap: **break-word**`, never `anywhere`. Both
+  break a long slug rather than let it push the table, but `anywhere` also
+  shrinks a cell's *min-content* to one character — and the key column is
+  `width: 1%` ("as narrow as you can be"), so the browser obliged and the
+  troubleshooting table read `S Y M P T O M` down the page. The key column also
+  carries a `14ch` floor, and inline code wraps everywhere but the first column.
+- Asides come back to our palette: note and tip take `--spot`, caution
+  `--warning`, danger `--error`. Starlight's own blue, purple, orange and red
+  are four hues that appear nowhere else on this site.
 - `public/` assets carry a `?v=N` query. Bump it when you change one, or
   returning readers get the cached copy.
 - Grid columns holding code blocks need `minmax(0, 1fr)`, not `1fr` — an `auto`

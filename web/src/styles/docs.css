@@ -167,7 +167,14 @@ nav.sidebar summary span.large {
 .sl-markdown-content :where(td, th) {
   border-color: var(--line);
   vertical-align: top;
-  overflow-wrap: anywhere;      /* a long slug must break, not push the table */
+  /* `break-word`, never `anywhere`. Both break a long slug rather than let it
+     push the table, but `anywhere` also shrinks the cell's *min-content* to the
+     width of one character — and the key column below asks to be as narrow as
+     it can be, so the browser obliged: the troubleshooting table rendered
+     "S Y M P T O M" one letter per line down the page. `break-word` breaks the
+     same slugs and leaves min-content at the longest word, which is what
+     "shrink to content" was always supposed to mean. */
+  overflow-wrap: break-word;
   hyphens: none;
 }
 .sl-markdown-content tr:last-child :where(td) { border-bottom: 0; }
@@ -184,12 +191,11 @@ nav.sidebar summary span.large {
    start" must wrap, and telling the whole column `nowrap` is what clipped it. */
 .sl-markdown-content :where(td, th):first-child { width: 1%; min-width: 14ch; }
 .sl-markdown-content td code { white-space: nowrap; }
-/* ...but `width: 1%` means "as narrow as you can be", and a browser honours that
-   against the *other* column's minimum. One `nowrap` command of 38 characters in
-   the description was enough to squeeze the key column to a single character per
-   line — the troubleshooting table rendered "S Y M P T O M" down the page. So the
-   key column gets a floor, and a multi-word command in the description may wrap
-   at its spaces when the room is genuinely not there. */
+/* A floor under "as narrow as you can be", because that instruction is resolved
+   against whatever the other columns demand: one 38-character `nowrap` command
+   in the description column is enough to squeeze a key column that has nothing
+   left to give. A multi-word command in the description may wrap at its spaces
+   when the room is genuinely not there. */
 .sl-markdown-content td:not(:first-child) code { white-space: normal; }
 
 
@@ -252,3 +258,32 @@ site-search kbd { background: var(--mass); color: var(--dim); border-radius: 0; 
    a heading anchor, or the aside titles Starlight tints itself. */
 a .brand-word,
 .starlight-aside .starlight-aside__title .brand-word { color: inherit; }
+
+/* ---------- asides ----------
+   Starlight tints each variant with a hue of its own — blue for note, purple
+   for tip, orange for caution, red for danger — and three of those four are
+   colours that appear nowhere else on this site. The design language spends one
+   accent and keeps amber and red for real warnings, so note and tip come back
+   to the accent, caution to --warning and danger to --error, and the tint is a
+   mix against the page rather than a fifth and sixth colour.
+
+   Border and title only carry the hue; the body text stays --ink, because an
+   aside is a paragraph with a flag on it, not a coloured box. */
+.starlight-aside {
+  border-inline-start-width: 2px;
+  color: var(--ink);
+  background-color: color-mix(in srgb, var(--sl-color-asides-border) 8%, transparent);
+}
+.starlight-aside--note,
+.starlight-aside--tip {
+  --sl-color-asides-text-accent: var(--spot);
+  --sl-color-asides-border: var(--spot);
+}
+.starlight-aside--caution {
+  --sl-color-asides-text-accent: var(--warning);
+  --sl-color-asides-border: var(--warning);
+}
+.starlight-aside--danger {
+  --sl-color-asides-text-accent: var(--error);
+  --sl-color-asides-border: var(--error);
+}
