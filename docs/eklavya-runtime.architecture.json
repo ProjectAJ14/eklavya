@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "2bc4a5fb57d28865d4668201860cf79a451d31ac"
+      "revision": "db9d7b4b23eab89ea9785646a2602f9ef547a230"
     },
     "views": [
       {
@@ -92,7 +92,7 @@
       "id": "skills",
       "type": "frontend",
       "label": "Skills & Tutor Agent",
-      "sublabel": "7 slash commands + tutor",
+      "sublabel": "8 slash commands + tutor",
       "pos": [
         268,
         40
@@ -104,7 +104,7 @@
       "sources": [
         {
           "path": "skills/quiz/SKILL.md",
-          "label": "8 skills"
+          "label": "9 skills"
         },
         {
           "path": "agents/tutor.md",
