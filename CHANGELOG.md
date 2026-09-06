@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/ProjectAJ14/eklavya/compare/v1.13.1...v1.14.0) (2026-09-06)
+
+
+### Features
+
+* **statusline:** move the dials out of every question and into the status bar ([001ea72](https://github.com/ProjectAJ14/eklavya/commit/001ea72d8eea713b1d79fabd6a722282aa98acf4))
+
 ## [1.13.1](https://github.com/ProjectAJ14/eklavya/compare/v1.13.0...v1.13.1) (2026-09-06)
 
 
