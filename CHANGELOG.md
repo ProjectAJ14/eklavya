@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/ProjectAJ14/eklavya/compare/v1.10.0...v1.11.0) (2026-09-06)
+
+
+### Features
+
+* **dashboard:** open it in the browser instead of printing a URL ([71593e7](https://github.com/ProjectAJ14/eklavya/commit/71593e79a782cda746275aab545e562b87fc1b64))
+
 # [1.10.0](https://github.com/ProjectAJ14/eklavya/compare/v1.9.4...v1.10.0) (2026-09-06)
 
 
