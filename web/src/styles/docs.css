@@ -207,7 +207,7 @@ nav.sidebar summary span.large {
 .expressive-code .frame pre,
 .expressive-code .frame .header,
 .expressive-code figure {
-  background: var(--mass) !important;
+  background: var(--code-bg) !important;
   border-color: var(--line-2) !important;
 }
 .expressive-code .frame .header { color: var(--faint); font-family: var(--font-mono); }
@@ -222,4 +222,10 @@ site-search button {
   border: 1px solid var(--line-2) !important;
   color: var(--faint);
 }
-site-search kbd { background: var(--mass); color: var(--faint); border-radius: 0; }
+site-search kbd { background: var(--mass); color: var(--dim); border-radius: 0; }
+
+/* ---------- inline code inside an aside ----------
+   Starlight gives each aside its own tinted inline-code ground. The accent is
+   tuned against our --mass, not against that tint, and lands at 4.26:1 on the
+   caution amber — so in here the code reads in the aside's own colour. */
+.starlight-aside code:not(:where(.expressive-code *)) { color: inherit; }

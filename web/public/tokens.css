@@ -34,14 +34,15 @@
   --vd-300: #79D5C4; /* accent on ink   — 10.33:1 */
   --vd-400: #3FB8A3;
   --vd-500: #199688;
-  --vd-600: #0E6E66; /* accent on paper —  5.22:1 */
-  --vd-700: #0A5751;
+  --vd-600: #0E6E66;
+  --vd-700: #0A5751; /* accent on paper — 7.20:1 on the ground, 5.10:1 on a tint */
   --vd-800: #07403C;
   --vd-900: #052E2B;
 
   /* ---------- SEMANTIC (real errors and warnings only) ----------
-     Kept off the accent hue so state never reads as branding. */
-  --warning: #E8920C;
+     Kept off the accent hue so state never reads as branding. Both are
+     redefined per ground below: an orange that carries on ink is 2.3:1 on
+     cream, which fails as text and as a chart fill alike. */
   --error:   #E5484D;
   --info:    #4A9EFF;
 
@@ -142,6 +143,8 @@
   --glow:     rgba(25,150,136,.22);  /* the terminal's halo */
   --glow-low: rgba(25,150,136,.10);
   --shot-op:  .28;                   /* the arrow scene, as ambient art */
+  --warning:  #E8920C;
+  --code-bg:  var(--mass);           /* the well behind a code block */
   --shadow-lg: 0 12px 28px rgba(0,0,0,.45);
   --ring:     0 0 0 2px var(--bg), 0 0 0 4px var(--spot);
 }
@@ -153,13 +156,13 @@
 
   --ink:      #16150f;
   --dim:      #57534a;
-  --faint:    #6E695E; /* 4.67:1 on paper */
+  --faint:    #635E52; /* 5.04:1 on --panel, the darkest ground it sits on */
   --faint-2:  #a09a8c;
 
   --line:     #e3dfd4;
   --line-2:   #cec8b9;
 
-  --spot:     var(--vd-600);
+  --spot:     var(--vd-700);
   --spot-ink: #ffffff;
   --spot-soft: color-mix(in srgb, var(--spot) 10%, transparent);
 
@@ -169,6 +172,11 @@
   --glow:     rgba(14,110,102,.10);
   --glow-low: rgba(14,110,102,.05);
   --shot-op:  .5;
+  --warning:  #7A4B00;               /* 5.21:1 on --mass */
+  /* A syntax theme's dimmest token (comments) lands at 3.9:1 on --mass. The
+     well is lightened rather than the theme repainted, which lifts every
+     token at once; the frame's border is what still reads it as a block. */
+  --code-bg:  #EDEAE2;
   --shadow-lg: 0 12px 28px rgba(22,21,15,.10);
   --ring:     0 0 0 2px var(--bg), 0 0 0 4px var(--spot);
 }
