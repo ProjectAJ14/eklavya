@@ -125,8 +125,8 @@ Never post a numbered list of five — that is a test, not teaching.
 **Ask it as multiple choice, using `AskUserQuestion`.** Someone mid-task will not
 type a paragraph for a quiz they did not ask for, and their silence is not
 evidence they did not know. **Read `references/writing-mcq.md` before writing
-one** — the four-option shape, `answer_position`, distractors that earn the
-question, plain language, and how to record it.
+one** — the six parts in build order, where the distractors come from, and how
+to record it.
 
 **Ground every question in the diff you just wrote** — the file, the line, the
 decision — *unless the plan's `framing` says otherwise*, which on the default
@@ -146,9 +146,9 @@ a suggestion: above it is a question the learner has not reached.
 
 Definitions are tier 1 **only**. "What is X" at tier 3 is a bad question.
 
-**No settings line.** The dials are in the developer's status bar —
-`[EKLAVYA ambient · concept · interleaved · easy]`. Pass the stem alone: no
-bracketed line of your own, no mode, no focus, no tier, no "question 2 of 3".
+**The stem is the whole question.** The dials live in the developer's status
+bar — `[EKLAVYA ambient · concept · interleaved · easy]` — so what you pass to
+`AskUserQuestion` is the question and nothing else.
 
 ## Grading, and blanks
 

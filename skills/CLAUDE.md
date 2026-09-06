@@ -184,6 +184,40 @@ An earlier version of that test harvested pointers from SKILL.md *and*
 passed with no pointers in SKILL.md at all, the exact state it was written to
 catch.
 
+## Match the form to the failure
+
+Two failures need opposite wording, and using the wrong form measurably makes
+things worse. superpowers A/B tested this on their own dispatch-prompt
+guidance: the "don't do X" version produced **more** of the unwanted content
+than the "here is the shape" version — the distributions fully separated — and
+it did worse than giving no guidance at all.
+
+- **The model knows the rule and breaks it under pressure.** Discipline. Ban
+  it, and name the excuse next to it: that is what the Red Flags table at the
+  top of `SKILL.md` is, and what the shared budget, one-question and
+  spent-question rules live in.
+- **The model complies and produces the wrong shape.** Craft. Bans backfire
+  here. Describe the shape you want, in build order, and let the prohibitions
+  fall out of it as properties of the finished thing.
+
+Writing a good multiple-choice question is the second kind, and
+`references/writing-mcq.md` was written as the first kind — *never restate the
+answer, no double negatives, avoid "which is NOT", do not number the options*.
+It is now a six-part recipe in build order followed by a checklist of
+properties, so the same rules arrive as "the answer appears among the options
+and nowhere in the stem" rather than as separate bans to weigh.
+
+**No nuance clauses in the recipe.** superpowers measured this separately: one
+appended "unless it matters" turns a reliable recipe into a noisy one, because
+it reopens the negotiation the recipe had settled. `writing-mcq.md` carried
+exactly one — *"Save the precise term for when the precision is the point"* —
+and it is gone. If an exception is real, it belongs in the plan's `framing`,
+which is server-side and authoritative, not in a hedge the model gets to weigh.
+
+`references/grading.md` keeps its prohibitions on purpose. Inflating a grade
+and offering to stop because someone is blanking are pressure failures, not
+shape failures: the model knows what honest grading is.
+
 ## The tutor skill has two readers
 
 `mcp/scripts/copy-assets.mjs` bundles the whole `skills/tutor/` directory to
