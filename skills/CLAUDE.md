@@ -11,9 +11,9 @@ One directory, one `SKILL.md`, YAML frontmatter with `name` and `description`.
 `/eklavya:<name>` slash command** — the model can no longer load it on its own,
 and the developer types it. Without that line the skill is model-invocable only.
 
-Seven have it, and they are the seven slash commands:
+Eight have it, and they are the eight slash commands:
 
-`gate`, `learn`, `level`, `mode`, `progress`, `quiz`, `setup`.
+`gate`, `learn`, `level`, `mode`, `pack`, `progress`, `quiz`, `setup`.
 
 `skills/tutor/SKILL.md` deliberately does not. It is the pedagogy — one
 question at a time, honest grading, never the same question twice — and every
@@ -40,7 +40,7 @@ So, for `tutor` and anything else without `disable-model-invocation`:
 number of questions, never the order of the tool calls, never the grading.
 Those live in the body, which is where the model has to go to get them.
 
-The seven slash commands are exempt, and it is not a technicality:
+The eight slash commands are exempt, and it is not a technicality:
 `disable-model-invocation: true` means the model never matches on their
 description at all. The developer types the command and the description is its
 one line of help, so those should say what they do. `agents/tutor.md` keeps one

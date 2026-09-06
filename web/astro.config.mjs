@@ -70,6 +70,7 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { slug: 'docs/configuration' },
+            { slug: 'docs/packs' },
             { slug: 'docs/commit-gate' },
             { slug: 'docs/dashboard' },
           ],

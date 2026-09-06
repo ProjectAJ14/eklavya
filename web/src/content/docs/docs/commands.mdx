@@ -4,7 +4,7 @@ sidebar:
   order: 7
 ---
 
-Seven slash commands, all typed inside Claude Code. Every one of them is read-only until you ask for a change, and none of them starts a quiz unless that is what the command is for. If you would rather not memorise them, [you can just ask](/docs/commands/#or-just-ask).
+Eight slash commands, all typed inside Claude Code. Every one of them is read-only until you ask for a change, and none of them starts a quiz unless that is what the command is for. If you would rather not memorise them, [you can just ask](/docs/commands/#or-just-ask).
 
 | Command | One line |
 | --- | --- |
@@ -127,6 +127,19 @@ If the level is pinned it says so, names the file that pinned it, and does not r
 - If the questions feel trivial, check the level before pinning up — you may simply be close to a promotion.
 - Pinning `hard` on a codebase you have just met is the exact failure levels exist to prevent.
 
+### `/eklavya:pack [domain or repo]`
+
+*Add a domain Eklavya has never heard of, or teach it this codebase.*
+
+Writes a [concept pack](/docs/packs/) — concepts, tiers and prerequisites as JSON — either into `~/.eklavya/packs/` for you alone or into `<repo>/.eklavya/packs/`, checked in for everyone working in that repository. It asks which before it writes, reads what Eklavya already knows about the domain so the pack extends the shipped graph rather than colliding with it, and finishes by running `eklavya doctor` so you can see it loaded.
+
+```text
+/eklavya:pack rust
+/eklavya:pack this repo
+```
+
+It does not quiz on what it just wrote — nothing has been logged yet. `/eklavya:learn <domain>` is how you ask to be taught it.
+
 ### `/eklavya:progress`
 
 *The mastery map. Read-only — it never quizzes you.*
@@ -184,7 +197,7 @@ Claude makes the change through the same MCP tools and the same [`eklavya` CLI](
 
 #### How it differs from the commands
 
-The seven commands above come from the plugin, so they exist only where the plugin is loaded. This skill is installed for your user account, so it also works in projects where you have not enabled the plugin, and in a plain terminal session. What it will not do is teach or quiz — for that it points you at [`/eklavya:learn`](/docs/commands/#eklavyalearn-topic) or [`/eklavya:quiz`](/docs/commands/#eklavyaquiz-topic).
+The eight commands above come from the plugin, so they exist only where the plugin is loaded. This skill is installed for your user account, so it also works in projects where you have not enabled the plugin, and in a plain terminal session. What it will not do is teach or quiz — for that it points you at [`/eklavya:learn`](/docs/commands/#eklavyalearn-topic) or [`/eklavya:quiz`](/docs/commands/#eklavyaquiz-topic).
 
 :::tip
 It only wakes up when you mention Eklavya or its settings by name. Asking Claude an ordinary coding question does not load it.

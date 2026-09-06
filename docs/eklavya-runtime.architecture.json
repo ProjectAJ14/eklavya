@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "ca940a1124ac1f06950bc549de13aa8aa2b8520d"
+      "revision": "2bc4a5fb57d28865d4668201860cf79a451d31ac"
     },
     "views": [
       {
@@ -227,7 +227,7 @@
       "id": "hooks",
       "type": "backend",
       "label": "Hook Scripts",
-      "sublabel": "5 lifecycle events · Node",
+      "sublabel": "6 lifecycle events · Node",
       "tag": "exit 0 on failure",
       "pos": [
         268,
@@ -492,17 +492,17 @@
       "title": "One turn of the loop",
       "items": [
         "1 · the agent calls log_session_concepts while it works",
-        "2 · PostToolUse reads that row and returns additionalContext",
-        "3 · which is an instruction to ask — never the question itself",
-        "4 · the model plans, asks, then grades with record_attempt",
-        "Budget is per session: mid-task answers are ones Stop no longer asks"
+        "2 · PostToolUse reads it and returns additionalContext",
+        "3 · an instruction to ask — never the question itself",
+        "4 · the model plans, asks, grades with record_attempt",
+        "Budget is per session: mid-task answers Stop then skips"
       ]
     },
     {
       "dot": "amber",
-      "title": "Five hooks, five mechanisms",
+      "title": "Six hooks, six mechanisms",
       "items": [
-        "SessionStart — stdout: profile + the directive that starts it all",
+        "SessionStart — stdout; SubagentStart — the JSON form only",
         "UserPromptSubmit — one line, only when a session logged nothing",
         "PostToolUse — exit 0 + JSON; skipped inside subagents",
         "Stop — exit 2 + stderr is what actually blocks the turn",
@@ -514,10 +514,10 @@
       "title": "Server, state and boundaries",
       "items": [
         "stdout is the protocol; diagnostics are forced to stderr",
-        "retryOnBusy wraps every handler; openDb migrates and seeds",
-        "The repo gate reads .eklavya.json only, never the global config",
-        "Two commit gates — one on the session, one on the repo; both fail open",
-        "run.mjs prefers mcp/dist; npx at the pinned version without one"
+        "retryOnBusy wraps handlers; openDb seeds, then packs",
+        "Repo gate reads .eklavya.json only, never global config",
+        "Two commit gates, session and repo; both fail open",
+        "run.mjs prefers mcp/dist; npx at the pinned version"
       ]
     }
   ]

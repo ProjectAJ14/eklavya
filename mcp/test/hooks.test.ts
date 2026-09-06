@@ -16,6 +16,7 @@ const SESSION_START = path.join(hooksDir, 'session-start.js');
 const STOP_CHECK = path.join(hooksDir, 'stop-quiz-check.js');
 const CHECKPOINT = path.join(hooksDir, 'checkpoint-quiz.js');
 const NUDGE = path.join(hooksDir, 'prompt-submit-nudge.js');
+const SUBAGENT = path.join(hooksDir, 'subagent-start.js');
 
 const SESSION = 'hook-session';
 
@@ -244,6 +245,17 @@ describe('SessionStart output', () => {
 // ---------------------------------------------------------------------------
 
 describe('Stop hook — the loop guard (P0)', () => {
+  it('never blocks inside a subagent, which cannot answer and is not being read', () => {
+    // Exit 2 here would tell an agent with no AskUserQuestion to run a quiz, in
+    // a transcript nobody sees, up to max_stop_blocks_per_session times. Before
+    // subagent-start.ts a subagent logged nothing, so the `logged > last_logged`
+    // predicate could not arm; that hook is what made this path reachable.
+    logConcepts(['csrf', 'jwt-structure']);
+    expect(stop({ agent_id: 'sub-1' }).status).toBe(0);
+    // And the work is still there for the parent's own Stop to pick up.
+    expect(stop().status).toBe(2);
+  });
+
   it('blocks exactly once for one batch of work, however many times Claude stops', () => {
     logConcepts(['csrf', 'jwt-structure']);
 
@@ -817,5 +829,111 @@ describe('the UserPromptSubmit nudge', () => {
       n: number;
     };
     expect(gone.n).toBe(0);
+  });
+});
+
+describe('the SubagentStart directive', () => {
+  const subagent = (extra: Record<string, unknown> = {}) =>
+    runHook(SUBAGENT, {
+      session_id: SESSION,
+      cwd,
+      hook_event_name: 'SubagentStart',
+      agent_id: 'sub-1',
+      agent_type: 'general-purpose',
+      ...extra,
+    });
+
+  /**
+   * Raw stdout is context on SessionStart and is dropped on SubagentStart, so
+   * "it printed something" is not the assertion that matters -- parsing the
+   * documented envelope is.
+   */
+  const additionalContext = (res: HookResult): string | null => {
+    // Exit 2 is a *blocking* error. On this event that kills the delegated task
+    // before it starts, and every assertion below passed while it did.
+    expect(res.status).toBe(0);
+    if (!res.stdout.trim()) return null;
+    const parsed = JSON.parse(res.stdout) as {
+      hookSpecificOutput?: { hookEventName?: string; additionalContext?: string };
+    };
+    expect(parsed.hookSpecificOutput?.hookEventName).toBe('SubagentStart');
+    return parsed.hookSpecificOutput?.additionalContext ?? null;
+  };
+
+  /** Silent AND non-blocking: a hook that exits 2 without output still kills the task. */
+  const silent = (res: HookResult): boolean => {
+    expect(res.status).toBe(0);
+    return res.stdout === '';
+  };
+
+  it('tells an implementer subagent to log, in the hookSpecificOutput form', () => {
+    const ctx = additionalContext(subagent());
+    expect(ctx).toContain('log_session_concepts');
+  });
+
+  it('tells it not to ask a question, because nobody is watching the transcript', () => {
+    // checkpoint-quiz.ts returns on agent_id for the same reason. A directive
+    // that invited a question here would undo that guard in prose.
+    expect(additionalContext(subagent())).toMatch(/do not ask/i);
+  });
+
+  it('stays silent for eklavya-tutor, whose whole job is to quiz', () => {
+    // The directive orders a subagent not to ask the developer anything, which
+    // is the one thing agents/tutor.md exists to do (docs/parallel-tutoring.md,
+    // Option A). Delivering it there disables parallel tutoring in silence.
+    expect(silent(subagent({ agent_type: 'eklavya-tutor' }))).toBe(true);
+  });
+
+  it('recognises the tutor however it was installed', () => {
+    // Bare as a user-level agent, `<plugin>:<name>` through /plugin.
+    expect(silent(subagent({ agent_type: 'eklavya:eklavya-tutor' }))).toBe(true);
+  });
+
+  it('does not swallow a different Eklavya agent on a loose match', () => {
+    // `includes('eklavya')` or `includes('tutor')` would pass every other test
+    // in this block, because general-purpose was the only non-tutor fixture.
+    expect(additionalContext(subagent({ agent_type: 'eklavya-explorer' }))).toContain(
+      'log_session_concepts',
+    );
+  });
+
+  it('speaks when agent_type is absent: it fails open, on purpose', () => {
+    // A host that does not send the field is a host where failing closed would
+    // kill the feature silently. The cost of this direction is a tutor that
+    // logs instead of quizzing, which the developer is watching for.
+    const res = runHook(SUBAGENT, { session_id: SESSION, cwd, hook_event_name: 'SubagentStart' });
+    expect(additionalContext(res)).toContain('log_session_concepts');
+  });
+
+  it('says nothing at all when mode is off', () => {
+    configure({ mode: 'off' });
+    expect(silent(subagent())).toBe(true);
+  });
+
+  it('still speaks when quiet is set: quiet hides output, not context', () => {
+    // hooks/CLAUDE.md, "`quiet` is not an off switch". session-start.ts once
+    // returned early here and silently turned the whole product off.
+    configure({ quiet: true });
+    expect(additionalContext(subagent())).toContain('log_session_concepts');
+  });
+
+  it('speaks on a fresh install with no database yet (it reads no database)', () => {
+    // A delegated task may be the first thing in a session to touch Eklavya.
+    const res = runHook(
+      SUBAGENT,
+      { session_id: SESSION, cwd, agent_type: 'general-purpose' },
+      { EKLAVYA_DB: '/nonexistent/eklavya.db' },
+    );
+    expect(res.status).toBe(0);
+    expect(additionalContext(res)).toContain('log_session_concepts');
+  });
+
+  it('never breaks a session on unparseable input (PRD §9.1)', () => {
+    const res = spawnSync(process.execPath, [SUBAGENT], {
+      input: 'not json at all',
+      encoding: 'utf8',
+      env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
+    });
+    expect(res.status).toBe(0);
   });
 });

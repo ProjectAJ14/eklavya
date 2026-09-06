@@ -40,7 +40,16 @@ export interface SeedSummary {
   domains: string[];
 }
 
-function validateGraph(graph: SeedGraph, file: string): void {
+/**
+ * Shared with `packs.ts`, which is why `allowExternalEdges` exists: a seed file
+ * must be independently valid, but a pack extending a shipped domain has to be
+ * able to point an edge at a concept it did not declare.
+ */
+export function validateSeedGraph(
+  graph: SeedGraph,
+  file: string,
+  opts: { allowExternalEdges?: boolean } = {},
+): void {
   if (!graph.domain) throw new Error(`${file}: missing "domain"`);
   if (!Array.isArray(graph.concepts) || graph.concepts.length === 0) {
     throw new Error(`${file}: "concepts" must be a non-empty array`);
@@ -61,11 +70,18 @@ function validateGraph(graph: SeedGraph, file: string): void {
     if (!RELATIONS.includes(e.relation)) {
       throw new Error(`${file}: unknown relation "${e.relation}"`);
     }
+    if (e.from === e.to) throw new Error(`${file}: self-edge on "${e.from}"`);
     // Edges may only point within the same seed file: cross-domain links are the
     // LLM's job via upsert_concepts, and this keeps each file independently valid.
+    // A pack is the exception — see `allowExternalEdges` above — and an endpoint
+    // naming nothing is dropped when the pack is applied, not when it is read.
+    if (opts.allowExternalEdges) {
+      if (!isValidSlug(e.from)) throw new Error(`${file}: edge from invalid slug "${e.from}"`);
+      if (!isValidSlug(e.to)) throw new Error(`${file}: edge to invalid slug "${e.to}"`);
+      continue;
+    }
     if (!slugs.has(e.from)) throw new Error(`${file}: edge from unknown slug "${e.from}"`);
     if (!slugs.has(e.to)) throw new Error(`${file}: edge to unknown slug "${e.to}"`);
-    if (e.from === e.to) throw new Error(`${file}: self-edge on "${e.from}"`);
   }
 }
 
@@ -76,25 +92,35 @@ export function loadSeedGraphs(dir: string = seedDir()): SeedGraph[] {
     .sort()
     .map((file) => {
       const graph = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')) as SeedGraph;
-      validateGraph(graph, file);
+      validateSeedGraph(graph, file);
       return graph;
     });
 }
 
 /**
  * Upserts a graph by slug. Mastery rows are never touched — a learner's history
- * survives any number of seed updates.
+ * survives any number of seed updates, and any number of packs.
+ *
+ * `source` records where a concept came from: `seed` shipped with Eklavya,
+ * `pack` came from `~/.eklavya/packs/` or a repository's own `.eklavya/packs/`,
+ * `llm` was minted by `upsert_concepts` mid-session. A pack applied over a
+ * seeded slug takes it over, which is the point — that is how a team retiers a
+ * shipped concept for its own codebase.
  */
-export function applySeedGraph(db: Database, graph: SeedGraph): SeedSummary {
+export function applySeedGraph(
+  db: Database,
+  graph: SeedGraph,
+  source: 'seed' | 'pack' = 'seed',
+): SeedSummary {
   const upsertConcept = db.prepare(
     `INSERT INTO concepts (slug, name, domain, description, tier, source)
-     VALUES (@slug, @name, @domain, @description, @tier, 'seed')
+     VALUES (@slug, @name, @domain, @description, @tier, @source)
      ON CONFLICT(slug) DO UPDATE SET
        name        = excluded.name,
        domain      = excluded.domain,
        description = excluded.description,
        tier        = excluded.tier,
-       source      = 'seed'`,
+       source      = excluded.source`,
   );
   const idOf = db.prepare('SELECT id FROM concepts WHERE slug = ?');
   const insertEdge = db.prepare(
@@ -110,6 +136,7 @@ export function applySeedGraph(db: Database, graph: SeedGraph): SeedSummary {
         domain: c.domain ?? graph.domain,
         description: c.description ?? null,
         tier: c.tier,
+        source,
       });
     }
     for (const e of graph.edges ?? []) {

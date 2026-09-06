@@ -11,6 +11,7 @@ import { openDb } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
+import { loadPacks, applyPacks } from './packs.js';
 import { levelStanding } from './store.js';
 import { statusLine } from './statusline.js';
 import { START_LEVEL, type Level } from './srs.js';
@@ -36,7 +37,7 @@ Usage:
   eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser
                                         (--no-open serves it and just prints the URL)
   eklavya statusline                    Print the dials for a status bar (one line, or nothing)
-  eklavya doctor                        Check the install and say what to fix if it broke
+  eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
 
 Config keys: mode, focus, focus_topic, cadence, difficulty, level_up_after,
@@ -222,8 +223,15 @@ function doctor(): void {
 
   lines.push(`database: ${file}${fs.existsSync(file) ? '' : '   (not created yet)'}`);
 
+  let edgesDropped = 0;
   try {
     const db = openDb(file);
+    // Applied here, on the connection `doctor` already has, and unconditionally
+    // -- every other path skips when the fingerprint matches, which leaves no
+    // recovery for the edit a fingerprint cannot see (a same-size write that
+    // preserves the mtime). `doctor` is where someone goes when a pack is not
+    // taking effect, so `doctor` is what makes it take effect.
+    edgesDropped = applyPacks(db).edgesDropped;
     const concepts = (db.prepare('SELECT count(*) n FROM concepts').get() as { n: number }).n;
     const attempts = (db.prepare('SELECT count(*) n FROM attempts').get() as { n: number }).n;
     const known = (
@@ -265,6 +273,37 @@ function doctor(): void {
   );
   if (resolved.overrides.length > 0) {
     lines.push(`overridden by repo: ${resolved.overrides.join(', ')}`);
+  }
+
+  // Packs, and the one place a broken one is visible. `loadPacks` never throws
+  // -- a malformed file in ~/.eklavya/packs/ makes one pack unavailable, not
+  // Eklavya -- so without this line the failure is a domain that quietly never
+  // shows up.
+  const packs = loadPacks();
+  if (packs.length > 0) {
+    const good = packs.filter((p) => p.pack);
+    lines.push(
+      `packs:    ${good.length} loaded${
+        good.length > 0
+          ? ` — ${good.map((p) => `${p.pack!.pack}${p.pack!.version ? `@${p.pack!.version}` : ''} (${p.scope})`).join(', ')}`
+          : ''
+      }`,
+    );
+    if (edgesDropped > 0) {
+      // An edge endpoint naming nothing is almost always a typo, and it is
+      // silent everywhere else: the pack loads, the concept appears, and the
+      // prerequisite it was meant to hang off simply is not there.
+      lines.push(
+        `packs:    ${edgesDropped} edge(s) dropped — an endpoint named a slug that does not exist`,
+      );
+    }
+    for (const bad of packs.filter((p) => !p.pack)) {
+      // Deliberately does NOT set `ok`. A bad pack costs that pack and nothing
+      // else, and the blanket remedy below is `eklavya install`, which never
+      // touches ~/.eklavya/packs/ and could not repair this if it wanted to.
+      lines.push(`packs:    FAILED — ${bad.file}: ${bad.error}`);
+      lines.push(`packs:    fix or delete that file; everything else is unaffected`);
+    }
   }
 
   // One fix for all of them: `install` is idempotent, so re-running it is the

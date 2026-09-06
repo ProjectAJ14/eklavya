@@ -102,6 +102,18 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "subagent-start"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -146,7 +158,7 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
 }
 ```
 
-Five events, one command. Every hook is exec form — `"command": "node"` plus
+Six events, one command. Every hook is exec form — `"command": "node"` plus
 `args` — and every one of them dispatches through the same `hooks/run.mjs`, which
 resolves a runtime and imports `dist/hooks/<name>.js`. The logic lives in
 `mcp/src/hooks/*.ts`; there are no `.sh` files under `hooks/` any more, and the
@@ -181,10 +193,39 @@ Common: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, 
 - `SessionStart`: `session_start_reason` (`startup|resume|clear|compact|fork`), `model`
 - `UserPromptSubmit`: `prompt` (the text the developer just submitted; Eklavya does not read it)
 
+- `SubagentStart`: `agent_type` — the agent's name, bare when it is a user-level
+  agent and `<plugin>:<name>` through `/plugin`. Contract rather than
+  observation: the evidence is ponytail's `hooks/ponytail-subagent.js` reading
+  `JSON.parse(input).agent_type`, and ponytail does not treat its presence as
+  guaranteed either — it fails open when the field is missing, and so does
+  `subagent-start.ts`.
+
 `agent_id` / `agent_type` are present **only inside a subagent**, which is how
 `checkpoint-quiz` knows not to ask a question nobody is watching: a subagent
 has no `AskUserQuestion`. (`checkpoint-quiz.ts` reads `agent_id` and returns
-immediately when it is set; `agent_type` is not read.)
+immediately when it is set; `agent_type` is read by `subagent-start.ts`, which
+uses it to stay silent for `eklavya-tutor`.)
+
+### SubagentStart output (contract, not yet observed)
+
+Unlike `SessionStart`, raw stdout is **not** accepted as context here — the
+`hookSpecificOutput` form is required and anything else is dropped without an
+error:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SubagentStart",
+    "additionalContext": "..."
+  }
+}
+```
+
+Taken from ponytail's `hooks/ponytail-runtime.js`, which branches on exactly
+this (*"SessionStart accepts raw stdout, but SubagentStart needs the
+hookSpecificOutput JSON form or the context is dropped"*). Like the
+`UserPromptSubmit` shape above, this is the contract Eklavya builds to rather
+than something re-verified against a live terminal here.
 
 ### PostToolUse output (verified 2026-08-27)
 
@@ -231,13 +272,14 @@ below was, so treat it as the contract we build to rather than an observation.
 
 ### Events not in the older snapshot
 
-The event list has grown since this file was first written. Ones worth knowing
-about, none of which Eklavya uses yet:
+The event list has grown since this file was first written. `SubagentStart` came
+off it when `subagent-start.ts` started using it — see `docs/subagent-policy.md`.
+The rest are worth knowing about and Eklavya uses none of them yet:
 
 `Setup`, `UserPromptExpansion`, `PermissionRequest`, `PermissionDenied`,
 `PostToolUseFailure`, `PostToolBatch` (once per resolved batch of parallel calls
 — a cheaper seam than `PostToolUse` if checkpointing ever needs one),
-`StopFailure`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`,
+`StopFailure`, `SubagentStop`, `TaskCreated`, `TaskCompleted`,
 `TeammateIdle`, `MessageDisplay`, `InstructionsLoaded`, `ConfigChange`,
 `CwdChanged`, `DirectoryAdded`, `FileChanged`, `WorktreeCreate`,
 `WorktreeRemove`, `PostCompact`, `Elicitation`, `ElicitationResult`.

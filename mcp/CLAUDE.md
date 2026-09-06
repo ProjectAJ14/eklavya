@@ -14,6 +14,7 @@ what an agent editing code in this directory has to know before it does.
 | `src/store.ts` | every query. Gates, level standing, question history, graph walks | no MCP, no config decisions beyond what it is handed |
 | `src/db.ts`, `src/migrate.ts`, `src/migrations/` | `openDb()` — pragmas, then migrate, then seed; forward-only numbered SQL with the version in `meta` | |
 | `src/seed.ts`, `src/seed/` | the shipped concept graphs, validated on load | never touches `mastery` — a learner's history survives every seed update |
+| `src/packs.ts` | concept packs from `~/.eklavya/packs/` and `<repo>/.eklavya/packs/`, applied over the seed. Reads never throw: one bad file costs one pack, not `openDb()` | never removes anything — deleting a pack's concepts would delete the attempts pointing at them |
 | `src/stdin.ts` | the bounded stdin read shared by the hooks and `eklavya statusline` — idle timer, total cap, `error` handler, `unref`, BOM strip. A hook that waits is worse than one that throws | never rejects; a caller that cannot read its input has a fallback |
 | `src/session.ts`, `src/slug.ts`, `src/concurrency.ts` | session-id resolution; slug normalization and fuzzy matching; `retryOnBusy` | |
 | `src/statusline.ts` | `[EKLAVYA ambient · concept · interleaved · easy]` — the dials, for `eklavya statusline` and the host's status bar | never per-question: no tier, no counter |
@@ -187,6 +188,35 @@ install" case, and `EXPECTED_TABLES` (currently 10) in `test/migrate.test.ts`.
 The seed catalogue is **87 concepts** across four files in `src/seed/` — git 19,
 node-backend 17, react 18, web-auth 33. Recount when a seed file changes, fix any
 doc hardcoding the total, and bump `SEED_VERSION` so existing installs pick it up.
+
+Packs land **after** the seed, and that ordering is load-bearing: `seedIfNeeded`
+upserts every shipped concept back to its shipped name and tier, so a pack that
+had merged over one is undone by a re-seed unless it lands again.
+
+Which is why `SEED_VERSION` is folded into the pack fingerprint rather than
+handled by a `force` flag from `openDb()`. A flag only re-applies for the
+directory the learner happened to be in when the re-seed ran; folding the seed
+version in marks **every** scope stale, so each repository re-applies its own
+packs the next time it is opened. There is one fingerprint row per set of pack
+directories (`packs_fingerprint:<hash of the dirs>`), not one per install — a
+single global row had two repositories overwriting each other's hash on every
+`openDb()`, which is a write on every CLI invocation for anyone with a repo pack
+and more than one project. The write on the way out happens even when nothing
+was applied: it is what records that this scope has seen this state, and
+skipping it for the empty set means the next open finds no row and applies
+again, for ever.
+
+`eklavya doctor` is the one caller that applies **unconditionally**, and that is
+its job: a same-size edit that preserves the mtime is invisible to the
+fingerprint, and `doctor` is where someone goes when a pack is not taking
+effect. A malformed pack is reported there without failing the run, because the
+blanket remedy `doctor` prints is `eklavya install`, which never touches
+`~/.eklavya/packs/`.
+
+`concepts.source` says where a row came from: `seed`, `pack`, or `llm` from
+`upsert_concepts`. There is no repository column, so a repo pack's override of a
+shipped slug is global to that learner — `web/src/content/docs/docs/packs.mdx`
+says so, and a real fix means a per-repo overlay, which is a design change.
 
 ## Running it
 

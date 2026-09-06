@@ -29,6 +29,7 @@ export interface HookInput {
   cwd?: string;
   stop_hook_active?: boolean;
   agent_id?: string;
+  agent_type?: string;
   tool_input?: { command?: string };
 }
 

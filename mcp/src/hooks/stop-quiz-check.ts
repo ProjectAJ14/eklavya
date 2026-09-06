@@ -28,6 +28,16 @@
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
 
 await run(async (input) => {
+  // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
+  // blocks with exit 2. `Stop` is believed to be parent-only -- `SubagentStop`
+  // is a separate event -- but nothing in this repo has verified that, and the
+  // cost of being wrong is a subagent told to run a quiz it has no
+  // AskUserQuestion to ask, in a transcript nobody reads, up to
+  // max_stop_blocks_per_session times. subagent-start.ts is what made that
+  // reachable: before it, a subagent logged nothing, so the `logged > last_logged`
+  // predicate below could never arm.
+  if (input.agent_id) return 0;
+
   const db = openExisting();
   if (!db) return 0;
 
