@@ -182,8 +182,15 @@ nav.sidebar summary span.large {
    Nothing is told not to wrap except inline code, which is a single token and
    would be unreadable broken; a prose label like "No profile line at session
    start" must wrap, and telling the whole column `nowrap` is what clipped it. */
-.sl-markdown-content :where(td, th):first-child { width: 1%; }
+.sl-markdown-content :where(td, th):first-child { width: 1%; min-width: 14ch; }
 .sl-markdown-content td code { white-space: nowrap; }
+/* ...but `width: 1%` means "as narrow as you can be", and a browser honours that
+   against the *other* column's minimum. One `nowrap` command of 38 characters in
+   the description was enough to squeeze the key column to a single character per
+   line — the troubleshooting table rendered "S Y M P T O M" down the page. So the
+   key column gets a floor, and a multi-word command in the description may wrap
+   at its spaces when the room is genuinely not there. */
+.sl-markdown-content td:not(:first-child) code { white-space: normal; }
 
 
 @media (max-width: 50rem) {
@@ -229,3 +236,19 @@ site-search kbd { background: var(--mass); color: var(--dim); border-radius: 0; 
    tuned against our --mass, not against that tint, and lands at 4.26:1 on the
    caution amber — so in here the code reads in the aside's own colour. */
 .starlight-aside code:not(:where(.expressive-code *)) { color: inherit; }
+
+/* ---------- the product's name ----------
+   Every prose mention of "Eklavya" is painted in the accent, by
+   `src/plugins/rehype-brand.mjs` in the body and by `PageTitle.astro` in the
+   <h1>. Colour only: the name is already carrying the sentence's weight, and a
+   bolder or underlined word would read as a link that does not click.
+
+   The accent clears contrast as body text on both grounds (10.3:1 on ink,
+   7.2:1 on paper), which is why this can be a colour swap rather than a tint.
+   Inside a heading it inherits the heading's weight, which is the "one word in
+   the headline" the design language already spends the accent on. */
+.brand-word { color: var(--spot); }
+/* An accent inside an already-accented run would be invisible or clash: a link,
+   a heading anchor, or the aside titles Starlight tints itself. */
+a .brand-word,
+.starlight-aside .starlight-aside__title .brand-word { color: inherit; }

@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import rehypeBrand from './src/plugins/rehype-brand.mjs';
 
 /**
  * The site is two halves that share one ground.
@@ -18,6 +19,11 @@ import starlight from '@astrojs/starlight';
 export default defineConfig({
   site: 'https://eklavya-run.web.app',
   trailingSlash: 'ignore',
+  // Every prose mention of the product's name is painted in the accent. It runs
+  // over the rendered tree rather than being written by hand, so a page added
+  // next year gets it without anyone remembering to. See the plugin for what it
+  // deliberately does not touch.
+  markdown: { rehypePlugins: [rehypeBrand] },
   integrations: [
     starlight({
       title: 'Eklavya',
@@ -38,6 +44,8 @@ export default defineConfig({
       components: {
         ThemeSelect: './src/components/GroundToggle.astro',
         SiteTitle: './src/components/SiteTitle.astro',
+        // The <h1> comes from frontmatter, so the rehype plugin cannot reach it.
+        PageTitle: './src/components/PageTitle.astro',
       },
       sidebar: [
         {

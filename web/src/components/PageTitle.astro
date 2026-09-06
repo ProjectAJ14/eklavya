@@ -1,0 +1,35 @@
+---
+/**
+ * Starlight's PageTitle, with the product's name in the accent.
+ *
+ * The `<h1>` comes from frontmatter, not from Markdown, so the rehype plugin
+ * that paints the name in the body (`src/plugins/rehype-brand.mjs`) never sees
+ * it — and "What Eklavya is" is exactly the heading a reader looks at first.
+ * Same rule as the plugin: capital `Eklavya` only, never part of a longer token.
+ *
+ * Copied from the upstream component, styles included; the only addition is the
+ * split. Keep it in step if Starlight changes its markup.
+ */
+// `@astrojs/starlight/constants` is not an exported subpath, and the upstream
+// component reaches it by a relative path we cannot use from here. The value has
+// been `_top` since Starlight 0.x, and the in-page "skip to content" anchor
+// depends on it, so it is quoted rather than imported.
+const PAGE_TITLE_ID = '_top';
+
+const title: string = Astro.props.entry.data.title;
+const parts = title.split(/(?<![\w./:-])(Eklavya)(?![\w./:-])/g);
+---
+
+<h1 id={PAGE_TITLE_ID}
+  >{parts.map((part) => (part === 'Eklavya' ? <span class="brand-word">{part}</span> : part))}</h1
+>
+
+<style>
+  h1 {
+    margin-top: 1rem;
+    font-size: var(--sl-text-h1);
+    line-height: var(--sl-line-height-headings);
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+</style>
