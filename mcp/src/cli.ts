@@ -12,7 +12,7 @@ import { dbPath, eklavyaHome } from './paths.js';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
 import { levelStanding } from './store.js';
 import { startDashboard, openInBrowser } from './dashboard.js';
-import { install, uninstall } from './install.js';
+import { install, uninstall, health } from './install.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,7 +31,7 @@ Usage:
                                         add --topic <topic> when setting focus to "learn"
   eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser
                                         (--no-open serves it and just prints the URL)
-  eklavya doctor                        Check that everything is wired up
+  eklavya doctor                        Check the install and say what to fix if it broke
   eklavya db-path                       Print the database location
 
 Config keys: mode, focus, focus_topic, cadence, difficulty, level_up_after,
@@ -142,6 +142,16 @@ function doctor(): void {
   let ok = true;
 
   lines.push(`home:     ${eklavyaHome()}`);
+
+  // The install checks come first because they are what someone is looking for
+  // when Eklavya has gone quiet. Everything below reads fine on an install that
+  // Claude Code can no longer load at all.
+  const checks = health();
+  for (const check of checks) {
+    if (!check.ok) ok = false;
+    lines.push(`${`${check.name}:`.padEnd(10)}${check.ok ? '' : 'FAILED — '}${check.detail}`);
+  }
+
   lines.push(`database: ${file}${fs.existsSync(file) ? '' : '   (not created yet)'}`);
 
   try {
@@ -187,6 +197,14 @@ function doctor(): void {
   );
   if (resolved.overrides.length > 0) {
     lines.push(`overridden by repo: ${resolved.overrides.join(', ')}`);
+  }
+
+  // One fix for all of them: `install` is idempotent, so re-running it is the
+  // repair. Naming it here is the whole point of the checks above — a report
+  // nobody can act on is worse than no report.
+  if (!ok) {
+    lines.push('');
+    lines.push('Something is broken. Run: eklavya install');
   }
 
   process.stdout.write(`${lines.join('\n')}\n`);

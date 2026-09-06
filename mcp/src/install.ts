@@ -187,29 +187,48 @@ function installRuntime(version: string): void {
   }
 }
 
-/**
- * Proves the native dependency actually loads, rather than trusting that npm
- * exiting 0 means a working binary. A prebuilt binary for the wrong ABI installs
- * cleanly and throws on first require — which would otherwise surface as a dead
- * MCP server three commands later.
- */
-function verifyRuntime(): void {
-  const entry = path.join(runtimeHome(), 'node_modules', 'eklavya', 'dist', 'server.js');
-  if (!fs.existsSync(entry)) {
-    process.stderr.write(`The runtime installed but ${entry} is missing.\n`);
-    process.exit(1);
-  }
+/** The compiled server the plugin actually loads, wherever the runtime is. */
+function runtimeEntry(): string {
+  return path.join(runtimeHome(), 'node_modules', 'eklavya', 'dist', 'server.js');
+}
 
+/**
+ * Loads the native dependency in a child process and returns why it failed, or
+ * null if it works. A prebuilt binary for the wrong ABI installs cleanly and
+ * throws on first require — which would otherwise surface as a dead MCP server
+ * three commands later.
+ *
+ * Out of process on purpose: a bad `.node` can abort the interpreter rather than
+ * throw, and `doctor` must survive reporting that.
+ */
+function driverError(): string | null {
   const probe = spawnSync(
     process.execPath,
     ['-e', 'require(process.argv[1]); console.log("ok")', path.join(runtimeHome(), 'node_modules', 'better-sqlite3')],
     { encoding: 'utf8' },
   );
+  if (probe.status === 0) return null;
 
-  if (probe.status !== 0) {
+  // Node's crash dump is source excerpt, then the error, then a stack, then a
+  // `Node.js v26.7.0` trailer. The last line is that trailer and says nothing;
+  // the `Error:` line is the one naming the missing symbol or wrong ABI.
+  const out = (probe.stderr ?? '').trim().split('\n').map((l) => l.trim());
+  return out.find((l) => /^[A-Za-z]*Error:/.test(l)) ?? out.find(Boolean) ?? 'unknown error';
+}
+
+/** Install-time gate: the same two checks, but fatal. */
+function verifyRuntime(): void {
+  const entry = runtimeEntry();
+  if (!fs.existsSync(entry)) {
+    process.stderr.write(`The runtime installed but ${entry} is missing.\n`);
+    process.exit(1);
+  }
+
+  const err = driverError();
+  if (err) {
     process.stderr.write(
       '\nThe SQLite driver installed but will not load:\n' +
-        `${(probe.stderr ?? '').trim()}\n\n` +
+        `${err}\n\n` +
         'This usually means the prebuilt binary does not match this Node version.\n' +
         `Try removing ${runtimeHome()} and running \`npx eklavya install\` again.\n`,
     );
@@ -482,6 +501,103 @@ function deregister(): Array<Record<string, unknown>> {
   }
 
   return otherScopes;
+}
+
+// --- health -----------------------------------------------------------------
+
+export type Check = { name: string; ok: boolean; detail: string };
+
+/**
+ * What `eklavya doctor` checks beyond the database: the four things that break
+ * *after* a successful install and that nothing else notices.
+ *
+ * They are silent failures, every one. The hooks exit 0 whatever happens
+ * (PRD §9.1), so a dead runtime or a de-registered plugin costs a learner a
+ * week of quizzes with no error anywhere — the only symptom is that Eklavya
+ * stopped asking. This is the one place that says so.
+ *
+ * Every failure has the same fix, because `install()` is idempotent by design:
+ * re-running it reinstalls the runtime, re-copies the payload and rewrites the
+ * registry files. `doctor` names that command rather than repairing anything
+ * itself — a diagnostic that silently rewrites the user's Claude Code config is
+ * not a diagnostic.
+ */
+export function health(): Check[] {
+  const checks: Check[] = [];
+
+  const entry = runtimeEntry();
+  const haveRuntime = fs.existsSync(entry);
+  checks.push({
+    name: 'runtime',
+    ok: haveRuntime,
+    detail: haveRuntime ? runtimeHome() : `no compiled server at ${entry}`,
+  });
+
+  // Only meaningful once the runtime is there; probing an absent directory
+  // would report a require error that says nothing the line above did not.
+  if (haveRuntime) {
+    const err = driverError();
+    checks.push({
+      name: 'driver',
+      ok: err === null,
+      detail: err === null
+        ? `better-sqlite3 loads on Node ${process.versions.node}`
+        : `will not load on Node ${process.versions.node} — ${err}`,
+    });
+  }
+
+  checks.push(pluginCheck());
+
+  const skillFile = path.join(userSkillDir(), 'SKILL.md');
+  const haveSkill = fs.existsSync(skillFile);
+  checks.push({
+    name: 'skill',
+    ok: haveSkill && isOurSkill(skillFile),
+    detail: !haveSkill
+      ? `nothing at ${skillFile}`
+      : isOurSkill(skillFile)
+        ? userSkillDir()
+        // `install` will not overwrite someone else's skill either, so "run
+        // install" alone is a dead end here. Name the step that unblocks it.
+        : `${skillFile} is a different skill named eklavya — move it first`,
+  });
+
+  return checks;
+}
+
+/**
+ * Is the plugin still registered with Claude Code and switched on?
+ *
+ * Reads the three files `register()` writes. Their shape is Claude Code's
+ * private business and can change, which is exactly why this reports rather
+ * than repairs: a shape change should read as "not registered" and be fixed by
+ * an installer that knows the current shape, not patched here.
+ */
+function pluginCheck(): Check {
+  const dir = marketplaceDir();
+  if (!fs.existsSync(dir)) {
+    return { name: 'plugin', ok: false, detail: `nothing at ${dir}` };
+  }
+
+  const installed = readJson(path.join(claudeHome(), 'plugins', 'installed_plugins.json'));
+  const entries = (installed.plugins as Record<string, unknown> | undefined)?.['eklavya@eklavya'];
+  const registered = Array.isArray(entries) && entries.length > 0;
+  if (!registered) {
+    return { name: 'plugin', ok: false, detail: `${dir} — on disk but not registered` };
+  }
+
+  // Anything but an explicit `true` counts as off. Both install routes write
+  // this key — `register()` here, and `/plugin install` in Claude Code — so a
+  // missing one means something removed it, and reading that as healthy is the
+  // one failure this whole command exists to prevent. Being wrong the other way
+  // costs a run of an idempotent installer.
+  const settings = readJson(path.join(claudeHome(), 'settings.json'));
+  const enabled = (settings.enabledPlugins as Record<string, boolean> | undefined)?.['eklavya@eklavya'];
+  if (enabled !== true) {
+    return { name: 'plugin', ok: false, detail: 'registered but not enabled in settings.json' };
+  }
+
+  return { name: 'plugin', ok: true, detail: `${dir} — registered, enabled` };
 }
 
 // --- commands ---------------------------------------------------------------

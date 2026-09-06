@@ -4,7 +4,16 @@ sidebar:
   order: 15
 ---
 
-Start with `eklavya doctor`. It answers most of these in one screen.
+Start with `eklavya doctor`. It answers most of these in one screen, and it
+checks the install itself — the runtime, the SQLite driver, the plugin's
+registration and the chat skill — before anything else. If one of those has
+broken, `doctor` says which and tells you to run `eklavya install`, which is
+idempotent and repairs all four without touching your history.
+
+That first block matters more than it looks. Eklavya never breaks a session:
+every hook exits successfully whatever happens. So a broken install and a quiet
+one look identical from the inside — it just stops asking. `doctor` is the only
+thing that tells them apart.
 
 | Symptom | Likely cause and fix |
 | --- | --- |
@@ -18,3 +27,6 @@ Start with `eklavya doctor`. It answers most of these in one screen.
 | A commit is blocked and I do not know why | `/eklavya:gate` tells you how many concepts are outstanding. `/eklavya:quiz` clears it. |
 | Commits are blocked but I never chose enforced | The repository sets it. Open `.eklavya.json` at the repository root; repo settings beat personal ones by design. |
 | The git hook does not fire | It only acts on repositories whose `.eklavya.json` sets `"mode": "enforced"`, and it deliberately fails open when `jq` or `sqlite3` is missing. Check both. |
+| Eklavya worked, then went silent after a Node upgrade | The SQLite driver's prebuilt binary is tied to a Node ABI. `eklavya doctor` reports this as `driver: FAILED`; `eklavya install` rebuilds it. |
+| `doctor` says the plugin is registered but not enabled | Under `enabledPlugins` in `~/.claude/settings.json`, `eklavya@eklavya` is `false` or missing entirely. Re-enable it there, with `/plugin` in Claude Code, or by running `eklavya install`. |
+| `doctor` says the skill is a different skill named eklavya | You have your own `~/.claude/skills/eklavya/`. Eklavya will not overwrite it — rename or move yours, then run `eklavya install`. |

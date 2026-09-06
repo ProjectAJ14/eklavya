@@ -10,7 +10,7 @@ Get Eklavya working on this machine. Be brief; this should take one exchange.
 
 **1. Check prerequisites.** Run `node --version`. That is the whole list — the server, the CLI and all four hooks are Node, so nothing else has to be on `PATH`. Node must be 22+; below that the SQLite driver has no prebuilt binary and would need a C++ toolchain to install. If it is older, say so and how to upgrade on this platform, and stop: the rest of setup will not work.
 
-Optionally run `eklavya doctor`, which reports the same thing plus the database and the effective config.
+Optionally run `eklavya doctor`, which reports the same thing plus the runtime, the SQLite driver, the plugin's registration, the chat skill, the database and the effective config. It exits non-zero and names the repair — `eklavya install` — if any of those has broken. That is also the command to reach for later, whenever Eklavya has gone quiet: the hooks never fail loudly, so a broken install looks exactly like a quiet one.
 
 **2. Confirm the database.** Call `get_config` and report `global_path`, then check the DB:
 

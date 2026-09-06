@@ -96,10 +96,34 @@ Other keys, same `config set` shape: `pass_threshold`,
 ## Reading state
 
 ```bash
-eklavya doctor      # is it wired up: database, counts, mode, focus, cadence, level
+eklavya doctor      # is it wired up: runtime, driver, plugin, skill, database, config, level
 eklavya config get  # the effective config, and which file each half came from
 eklavya db-path     # where the learning history lives
 ```
+
+## When Eklavya has stopped working
+
+Reach for this whenever someone says Eklavya has gone quiet, stopped asking
+questions, or seems to have switched itself off. It never fails loudly — every
+hook exits successfully by design, so it can't break a session — which means a
+broken install and a quiet one look the same from the outside.
+
+Run `eklavya doctor`. Its first four lines are the install itself: `runtime`,
+`driver`, `plugin`, `skill`. If any says `FAILED`, it exits non-zero and prints
+the fix.
+
+The fix is almost always `eklavya install`. It is idempotent — it reinstalls the
+runtime, re-copies the plugin and rewrites the registration, and never touches
+the learning history. Two cases it can't fix on its own, and `doctor` says which:
+
+- **the plugin is registered but not enabled** — something switched it off in
+  `~/.claude/settings.json`; re-enable it there or with `/plugin`.
+- **the skill is a different skill named eklavya** — they have their own
+  `~/.claude/skills/eklavya/`. Never overwrite it. Tell them to move theirs
+  first, then run `eklavya install`.
+
+Restarting Claude Code is what picks up a repaired install — the plugin and MCP
+server are read at session start. There is no background process to restart.
 
 ## The dashboard
 

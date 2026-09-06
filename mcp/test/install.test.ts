@@ -96,7 +96,16 @@ describe('eklavya install', () => {
   it('creates and seeds the database, so `doctor` works before Claude Code is opened', () => {
     install();
     expect(fs.existsSync(path.join(eklavyaHome, 'knowledge.db'))).toBe(true);
-    expect(run(['doctor']).status).toBe(0);
+
+    // These installs are `--skip-runtime`, so `doctor` is right to fail: what
+    // this test owns is that it still *reports* — the registry writes above
+    // landed, the database opened, and the one failure is the step we skipped.
+    const res = run(['doctor']);
+    expect(res.stdout).toMatch(/plugin:.*registered, enabled/);
+    expect(res.stdout).toMatch(/skill:\s+\//);
+    expect(res.stdout).toMatch(/concepts: \d+/);
+    expect(res.stdout).toMatch(/runtime:\s+FAILED/);
+    expect(res.status).toBe(1);
   });
 
   it('is idempotent — running it twice is how you upgrade', () => {

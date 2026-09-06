@@ -13,7 +13,7 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | `eklavya uninstall [--purge]` | Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`. |
 | `eklavya config get` | Prints the effective configuration as JSON, plus the paths of the global and repo files it came from. |
 | `eklavya config set <key> <value>` | Changes one setting. Add `--repo` to write `.eklavya.json` at the repository root instead of your global config. Add `--topic <topic>` when setting `focus learn`. |
-| `eklavya doctor` | Checks that everything is wired up: home directory, database, concept and attempt counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if the database cannot be opened. |
+| `eklavya doctor` | Checks that everything is wired up: the runtime, the SQLite driver, the plugin's registration with Claude Code, the chat skill, then the database, counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if any check fails, and names the command that repairs it. |
 | `eklavya dashboard [--port <n>] [--no-open]` | Serves your learning history as a local web page and opens it in your browser. `--no-open` serves it and prints the URL instead. See [The dashboard](/docs/dashboard/). |
 | `eklavya db-path` | Prints the database location. Useful in scripts. |
 | `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
@@ -23,6 +23,10 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 ```bash
 $ eklavya doctor
 home:     /Users/you/.eklavya
+runtime:  /Users/you/.eklavya/runtime
+driver:   better-sqlite3 loads on Node 22.14.0
+plugin:   /Users/you/.claude/plugins/marketplaces/eklavya — registered, enabled
+skill:    /Users/you/.claude/skills/eklavya
 database: /Users/you/.eklavya/knowledge.db
 concepts: 87
 attempts: 41
@@ -35,6 +39,38 @@ cadence:  interleaved (one question mid-task, min 4m apart)
 ```
 
 This is the first thing to run when something feels wrong.
+
+The first four lines are the install itself. They matter because Eklavya fails
+quietly by design — every hook exits successfully whatever happens, so it can
+never break a session you are in the middle of. The cost of that guarantee is
+that a broken install looks exactly like a quiet one: Eklavya simply stops
+asking. These four checks are the only place that says which it is.
+
+When one fails, `doctor` says so and names the fix:
+
+```bash
+$ eklavya doctor
+home:     /Users/you/.eklavya
+runtime:  /Users/you/.eklavya/runtime
+driver:   FAILED — will not load on Node 24.0.0 — Error: dlopen: symbol not found
+plugin:   /Users/you/.claude/plugins/marketplaces/eklavya — registered, enabled
+skill:    /Users/you/.claude/skills/eklavya
+...
+
+Something is broken. Run: eklavya install
+```
+
+`eklavya install` is the repair for all four. It is idempotent — re-running it
+reinstalls the runtime, re-copies the plugin and rewrites the registration,
+leaving your learning history untouched. `doctor` never repairs anything itself;
+it reports, and you decide.
+
+| Check | What it means when it fails |
+|---|---|
+| `runtime` | The compiled server is missing from `~/.eklavya/runtime`. Usually an install that was interrupted. |
+| `driver` | The SQLite driver will not load — almost always a Node upgrade that left the prebuilt binary on the wrong ABI. |
+| `plugin` | The plugin is gone from Claude Code's registry, or is registered but switched off in `settings.json`. |
+| `skill` | The chat skill is missing from `~/.claude/skills/eklavya`. If the name is taken by a skill of your own, `doctor` says so and leaves it alone — move yours first. |
 
 :::note
 **Guard rails you will meet.** `config set` rejects unknown keys and lists the valid ones. `focus learn` without `--topic` is refused outright, because that combination produces no questions at all. `--repo` outside a git repository is refused, because there is nowhere to write the file.
