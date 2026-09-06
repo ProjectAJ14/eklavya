@@ -1,0 +1,60 @@
+---
+title: "How the grading engine works"
+sidebar:
+  order: 13
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+You do not need this section to use Eklavya. Read it when you want to know why a question arrived when it did.
+
+### Concepts and the graph
+
+A **concept** is one idea with a kebab-case slug, a domain, a tier and, often, prerequisite edges to other concepts. Eklavya ships with a seeded catalogue across `web-auth`, `react`, `node-backend` and `git`, and grows new ones as your work touches ideas the catalogue does not have — capped at `max_new_concepts_per_session` so the graph does not sprawl.
+
+Prerequisites matter for fairness. A tier-3 *"why this rather than the alternative"* question about a concept whose foundations you do not have is not a hard question, it is an unfair one. The planner orders foundations first and reports which are missing.
+
+### Grading: the 0–5 scale
+
+| Grade | Means |
+| --- | --- |
+| `0` | No answer — a skip, or "I don't know". |
+| `1–2` | Wrong. |
+| `3` | Correct, but laboured. <Badge text="the passing line" variant="tip" size="small" /> |
+| `4` | Correct. |
+| `5` | Correct, and explained why. |
+
+**A multiple-choice answer is capped at 4.** Recognition is easier than recall, and picking the right option out of four cannot demonstrate that you could have explained it. Two clean answers still reach mastery; it just is not claimed on one lucky guess.
+
+### Why the questions are multiple choice
+
+You are in the middle of something. A blank prompt asking you to explain a mechanism gets skipped — not because you did not know, but because typing a paragraph costs more than the question is worth right then, and that skip records as if you had no idea. So every question is four options: one right, three that a competent person could believe. "Other" is always there, for *I don't know* or for typing a real answer if you would rather explain.
+
+### Scheduling: SM-2
+
+Eklavya uses the SM-2 spaced-repetition algorithm, the same family Anki is built on.
+
+- Each concept carries a **score**, an **ease factor** (starts at 2.5, never below 1.3) and an **interval**.
+- A passing answer moves the interval along: 1 day, then 6 days, then multiplied by the ease each time.
+- A failed recall resets the interval to 1 day — you see it again tomorrow, as a different question.
+- A concept counts as **mastered** at a score of 0.7 or better across at least two repetitions.
+- Scores decay slowly while a concept is overdue — about 5% a week, floored at 0.3 — so mastery reflects what you would remember today, not what you knew once.
+
+### Never the same question twice
+
+Three separate mechanisms enforce this, because a prompt asking nicely is not enforcement:
+
+- **Mastered concepts are not asked about.** The learner profile hands Claude the actual list of what you know. Only spaced repetition brings one back, and it comes back harder.
+- **Every question you have been asked is on record**, and the plan hands those exact questions back with the tier and grade each got. A question already asked is spent: same concept, different angle.
+- **A concept answered this session is done for the session.** Getting something half-right no longer puts it straight back in the queue five minutes later.
+
+### Where each hook fits
+
+| Hook | Fires | Does |
+| --- | --- | --- |
+| `SessionStart` | When a session opens | Stamps the session id and prints your one-line learner profile. |
+| `PostToolUse` | Right after Claude logs concepts | Decides whether to ask one mid-task question. Respects the cadence, the budget and the checkpoint spacing. |
+| `Stop` | When a task finishes | Asks about what the checkpoints did not reach — one question on the `interleaved` cadence, the remaining budget on `end` or in `enforced` mode — and at most `max_stop_blocks_per_session` times. |
+| `PreToolUse` | Before every Bash command | In enforced mode, denies the ones that are really a `git commit` while the gate is unmet. Everything else passes through untouched. |
+
+Every one of these exits cleanly on any failure. A hook that breaks your session is worse than a hook that misses a question.

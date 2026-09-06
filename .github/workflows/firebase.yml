@@ -4,14 +4,15 @@ on:
   push:
     branches: [main]
     paths:
-      - 'site/**'
+      - 'web/**'
       - 'firebase.json'
       - '.firebaserc'
       - '.github/workflows/firebase.yml'
   workflow_dispatch:
 
-# Same rule as Pages: a queued deploy waits rather than publishing on top of
-# one that is still uploading.
+# A queued deploy waits rather than publishing on top of one that is still
+# uploading. This is the only host, and should stay that way: Astro's `base` is
+# fixed at build time, so one build cannot serve a root and a subfolder host.
 concurrency:
   group: firebase-hosting
   cancel-in-progress: false
@@ -26,7 +27,20 @@ jobs:
         with:
           persist-credentials: false
 
-      # Plain HTML/CSS/JS — no build step, `site/` ships as-is.
+      # The landing page is still hand-written HTML (web/public), but the manual
+      # is Starlight, so the site is built before it ships.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+        working-directory: web
+
+      - run: npm run build
+        working-directory: web
+
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,55 @@
+---
+title: "First run"
+sidebar:
+  order: 4
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Run this once per machine. It takes one exchange. Here is exactly what happens, in order, so nothing surprises you.
+
+### The five things it does
+
+<Steps>
+
+1. #### It checks your prerequisites
+
+   Claude runs `node --version`. That is the only requirement, so if it is 22 or newer you are ready; if it is older, setup tells you how to upgrade on your platform and stops there.
+2. #### It confirms the database exists
+
+   The server creates and seeds `~/.eklavya/knowledge.db` the first time it starts. Setup verifies it by counting the seeded concepts:
+
+   ```bash
+   sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'
+   ```
+
+   You should see four starter domains: `web-auth`, `react`, `node-backend` and `git`. If the file does not exist, the MCP server is not running — check `/plugin` for errors.
+3. #### It asks you to choose a mode
+
+   How hard Eklavya should push. If you are not sure, take the default.
+
+   - **ambient** (default) — questions arrive as you work and are always skippable.
+   - **enforced** — you must pass the session quiz before a commit goes through. For interns and onboarding.
+   - **off** — installed but dormant.
+4. #### It asks you to choose a focus
+
+   What Eklavya should teach. Again, the default is fine.
+
+   - **concept** (default) — the transferable idea behind the code. Best when you are learning a stack.
+   - **project** — the code that was just written: this file, this line, this decision. Best when you are learning a codebase.
+   - **learn** — a topic you name, taught in prerequisite order. Requires a topic.
+
+   Both answers are written to `~/.eklavya/config.json` — or to `.eklavya.json` at the repository root if you say you want them to apply to this project only. You can change them any time with [`/eklavya:mode`](/docs/commands/#eklavyamode-value).
+5. #### If you chose enforced, it installs the git hook
+
+   ```text
+   "${CLAUDE_PLUGIN_ROOT}"/scripts/install-git-hook.sh
+   ```
+
+   Without this, only commits made inside Claude Code are gated. See [the commit gate](/docs/commit-gate/). Skip this step for ambient or off.
+
+</Steps>
+
+:::tip
+**Nothing here is permanent.** Every answer is one line in a JSON file you own. `eklavya config get` shows the result, and every dial can be changed later from a slash command.
+:::

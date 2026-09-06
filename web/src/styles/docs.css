@@ -1,0 +1,207 @@
+/* ============================================================
+   Starlight, skinned onto Eklavya's grounds.
+
+   Starlight has its own token scale (--sl-color-*). Rather than
+   restyle its components one by one, this maps that scale onto the
+   roles in tokens.css — so the manual and the landing page are
+   literally the same colours, and one toggle drives both.
+
+   tokens.css is imported first and owns --bg/--ink/--spot/...;
+   everything below only re-points Starlight's names at them.
+   ============================================================ */
+
+@import '/tokens.css';
+
+/* Starlight keys its own rules off data-theme; tokens.css keys off
+   data-mode. GroundToggle.astro sets both, so these two blocks only
+   have to agree about which is which. */
+:root[data-theme='dark'],
+:root:not([data-theme='light']) {
+  --sl-color-accent: var(--spot);
+  --sl-color-accent-low: var(--spot-soft);
+  --sl-color-accent-high: var(--spot);
+  --sl-color-text-accent: var(--spot);
+  --sl-color-text-invert: var(--spot-ink);
+
+  --sl-color-white: var(--ink);
+  --sl-color-gray-1: var(--ink);
+  --sl-color-gray-2: var(--dim);
+  --sl-color-gray-3: var(--faint);
+  --sl-color-gray-4: var(--faint-2);
+  --sl-color-gray-5: var(--line-2);
+  --sl-color-gray-6: var(--line);
+  --sl-color-gray-7: var(--mass);
+  --sl-color-black: var(--bg);
+}
+:root[data-theme='light'] {
+  --sl-color-accent: var(--spot);
+  --sl-color-accent-low: var(--spot-soft);
+  --sl-color-accent-high: var(--spot);
+  --sl-color-text-accent: var(--spot);
+  --sl-color-text-invert: var(--spot-ink);
+
+  --sl-color-white: var(--ink);
+  --sl-color-gray-1: var(--ink);
+  --sl-color-gray-2: var(--dim);
+  --sl-color-gray-3: var(--faint);
+  --sl-color-gray-4: var(--faint-2);
+  --sl-color-gray-5: var(--line-2);
+  --sl-color-gray-6: var(--line);
+  --sl-color-gray-7: var(--mass);
+  --sl-color-black: var(--bg);
+}
+
+:root {
+  --sl-color-text: var(--dim);
+  --sl-color-bg: var(--bg);
+  --sl-color-bg-nav: var(--bg);
+  --sl-color-bg-sidebar: var(--bg);
+  --sl-color-bg-inline-code: var(--mass);
+  --sl-color-hairline: var(--line-2);
+  --sl-color-hairline-light: var(--line);
+  --sl-color-hairline-shade: var(--line-2);
+
+  --sl-font: var(--font-body);
+  --sl-font-mono: var(--font-mono);
+
+  --sl-nav-height: 60px;
+  --sl-text-h1: var(--display-2);
+  --sl-text-h2: 26px;
+  --sl-text-h3: 20px;
+  --sl-content-width: 48rem;
+}
+
+/* ---------- the ground ----------
+   No rule grid here. It gives the landing page's short blocks a measure, but
+   behind a column of running prose it reads as ruled paper and fights the text. */
+body { background: var(--bg); }
+::selection { background: var(--spot); color: var(--spot-ink); }
+
+/* ---------- square chrome, hairline rules ---------- */
+:where(.sl-markdown-content) :where(pre, .expressive-code .frame),
+.sl-markdown-content :where(table, th, td),
+.card, dialog, .sidebar-pane, site-search button {
+  border-radius: 0 !important;
+}
+
+header.header {
+  border-bottom: 1px solid var(--line-2);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+.sidebar-pane { border-inline-end: 1px solid var(--line-2); }
+.right-sidebar { border-inline-start: 1px solid var(--line-2); }
+
+/* ---------- type: the display face carries the headings ---------- */
+.sl-markdown-content :where(h1, h2, h3, h4),
+h1, .content-panel h1 {
+  font-family: var(--font-disp);
+  letter-spacing: var(--tracking-tight);
+}
+.sl-markdown-content h1, .content-panel h1 {
+  font-weight: var(--weight-extra);
+  letter-spacing: var(--tracking-display);
+  line-height: 1;
+}
+.sl-markdown-content :where(h2, h3, h4) { font-weight: var(--weight-bold); }
+
+/* sidebar groups read as the micro-labels they are on the landing page */
+.sidebar-content > ul > li > details > summary,
+.sidebar-content .large,
+nav.sidebar summary span.large {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 400;
+}
+.right-sidebar h2 {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: var(--tracking-caps-wide);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ---------- our wordmark and toggle in Starlight's header ---------- */
+.site-lock { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.site-lock__mark {
+  width: 28px; height: 28px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--spot); color: var(--spot-ink);
+}
+.site-lock b {
+  font-family: var(--font-disp); font-weight: var(--weight-extra);
+  font-size: 19px; letter-spacing: var(--tracking-tight); color: var(--ink);
+}
+
+.ground { display: flex; border: 1px solid var(--line-2); flex: none; }
+.ground button {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: .12em; text-transform: uppercase;
+  background: none; border: 0; color: var(--faint);
+  padding: 5px 10px; cursor: pointer; line-height: 1.4;
+  transition: background 140ms var(--ease), color 140ms var(--ease);
+}
+.ground button:hover { color: var(--ink); }
+.ground button[aria-pressed='true'] { background: var(--ink); color: var(--bg); }
+
+/* ---------- code blocks ---------- */
+.expressive-code .frame pre { border: 1px solid var(--line-2); background: var(--mass); }
+.expressive-code .frame .header { border-color: var(--line-2); }
+.sl-markdown-content code:not(:where(.expressive-code *)) { color: var(--spot); }
+
+/* ---------- tables ---------- */
+.sl-markdown-content th {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 400;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--faint); border-bottom: 1px solid var(--line-2);
+}
+.sl-markdown-content :where(td, th) { border-color: var(--line); }
+.sl-markdown-content tr:last-child :where(td) { border-bottom: 0; }
+
+@media (max-width: 50rem) {
+  .ground button { padding: 5px 8px; font-size: 10px; }
+}
+
+/* ---------- badges ----------
+   `.tag` in the old manual became <Badge>. Starlight's variants are its own
+   blues and purples, which are the one thing on the page not in our palette. */
+.sl-badge { border-radius: 0; font-family: var(--font-mono); font-weight: 400; }
+.sl-badge.tip, .sl-badge.note, .sl-badge.default {
+  background: var(--spot-soft);
+  border-color: var(--spot);
+  color: var(--spot);
+}
+
+/* ---------- tables ----------
+   A key/default/description table is mostly description: let it take the room
+   and stop the two narrow columns wrapping mid-token. */
+.sl-markdown-content :where(td, th):first-child { white-space: nowrap; }
+.sl-markdown-content :where(td, th):nth-child(2) { white-space: nowrap; }
+.sl-markdown-content table { table-layout: auto; width: 100%; }
+.sl-markdown-content td code { white-space: nowrap; }
+
+/* ---------- code frames ----------
+   Expressive Code's own themes paint a white (or near-black) ground that sits
+   just off ours. The syntax colours are theirs; the surface is ours. */
+.expressive-code .frame pre,
+.expressive-code .frame .header,
+.expressive-code figure {
+  background: var(--mass) !important;
+  border-color: var(--line-2) !important;
+}
+.expressive-code .frame .header { color: var(--faint); font-family: var(--font-mono); }
+.expressive-code code { background: transparent !important; }
+.expressive-code .copy button {
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: 0;
+}
+
+/* the search field is chrome, not a card */
+site-search button {
+  background: var(--panel) !important;
+  border: 1px solid var(--line-2) !important;
+  color: var(--faint);
+}
+site-search kbd { background: var(--mass); color: var(--faint); border-radius: 0; }

@@ -1,0 +1,192 @@
+/* ============================================================
+   Eklavya design tokens.
+
+   Two layers, and the order matters:
+
+   1. A SCALE — accent ramp, type, spacing, radii, motion. Fixed
+      values that mean the same thing on every ground.
+   2. GROUNDS — `ink` (default) and `paper`, each redefining the
+      same set of ROLE tokens. Components must only ever name a
+      role (--ink, --dim, --line, --spot). Naming a scale step or
+      a raw hex in a component is a bug: it pins that component to
+      one ground and the theme toggle stops working for it.
+
+   The ground is set as data-mode on <html> by a blocking inline
+   script in each page's <head>, before this file loads. Custom
+   properties inherit, so flipping that one attribute re-resolves
+   every role for the whole tree.
+
+   Ink is the default and `auto` resolves to ink. That is a
+   presentation decision, deliberately not the reader's OS setting:
+   Eklavya is a terminal plugin and the dark ground is the product.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---------- ACCENT: verdigris ----------
+     Aged bronze on a bow fitting. One hue, spent sparingly. The
+     ground blocks below pick which step is --spot; these steps are
+     for the rare tint or border that needs a specific value. */
+  --vd-50:  #E6F7F3;
+  --vd-100: #C4EDE4;
+  --vd-200: #9BE0D2;
+  --vd-300: #79D5C4; /* accent on ink   — 10.33:1 */
+  --vd-400: #3FB8A3;
+  --vd-500: #199688;
+  --vd-600: #0E6E66; /* accent on paper —  5.22:1 */
+  --vd-700: #0A5751;
+  --vd-800: #07403C;
+  --vd-900: #052E2B;
+
+  /* ---------- SEMANTIC (real errors and warnings only) ----------
+     Kept off the accent hue so state never reads as branding. */
+  --warning: #E8920C;
+  --error:   #E5484D;
+  --info:    #4A9EFF;
+
+  /* ---------- TYPE FAMILIES ----------
+     Two extremes, no middle: enormous tight display, tiny wide-
+     tracked uppercase mono. Body text stays small and quiet. */
+  --font-disp: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ---------- TYPE SCALE ---------- */
+  --text-xs:   12px;  --lh-xs:   16px;
+  --text-sm:   14px;  --lh-sm:   20px;
+  --text-base: 16px;  --lh-base: 24px;
+  --text-md:   18px;  --lh-md:   28px;
+  --text-lg:   20px;  --lh-lg:   28px;
+  --text-xl:   24px;  --lh-xl:   32px;
+  --text-2xl:  30px;  --lh-2xl:  38px;
+  --text-3xl:  38px;  --lh-3xl:  46px;
+  --text-4xl:  48px;  --lh-4xl:  56px;
+  --text-5xl:  60px;  --lh-5xl:  66px;
+
+  /* Display sizes are fluid — they set the page's confidence, and a
+     fixed 40px hero reads timid on a wide screen. */
+  --display-hero: clamp(38px, 6.4vw, 120px);
+  --display-1:    clamp(34px, 4.6vw, 68px);
+  --display-2:    clamp(28px, 3.2vw, 44px);
+
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-semibold:600;
+  --weight-bold:    800;
+  --weight-extra:   900;
+
+  /* Display tracking is aggressively negative — this, plus the
+     sub-1 leading, is most of what reads as "designed". */
+  --tracking-display: -0.055em;
+  --tracking-tight:   -0.045em;
+  --tracking-snug:    -0.02em;
+  --tracking-normal:  0;
+  --tracking-caps:    0.16em;
+  --tracking-caps-wide: 0.24em;
+
+  --leading-display: 0.9;
+
+  /* ---------- SPACING (4px base) ---------- */
+  --space-1: 4px;   --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
+  --space-5: 20px;  --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
+  --space-12: 48px; --space-16: 64px; --space-20: 80px; --space-24: 96px;
+
+  --gut: 34px;   /* frame gutter */
+  --max: 1440px; /* frame width  */
+
+  /* ---------- RADII ----------
+     The chrome is square: hairline rules, not rounded cards. The
+     showpieces keep their own geometry — see --radius-term. */
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 999px;
+  --radius-term: 16px; /* the hero terminal and the arrow scene only */
+
+  /* ---------- MOTION ----------
+     Consumed by the arrow flight and the terminal loop. Do not
+     retime these without re-checking both. */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease: cubic-bezier(.2,.6,.2,1);
+}
+
+/* ============================================================
+   GROUNDS
+   Every role below exists in both blocks. A role defined in only
+   one of them renders one ground's text on the other's surface.
+   ============================================================ */
+
+:root,
+:root[data-mode="ink"] {
+  --bg:       #17171a; /* page */
+  --panel:    #1e1e22; /* raised band, sidebar */
+  --mass:     #26262a; /* wells, inline code */
+
+  --ink:      #EAE7E1; /* primary text */
+  --dim:      #A29C93; /* secondary */
+  --faint:    #77726A; /* captions, micro-labels */
+  --faint-2:  #565249; /* disabled, placeholder */
+
+  --line:     #26262a; /* hairline */
+  --line-2:   #33333a; /* stronger hairline, frame edges */
+
+  --spot:     var(--vd-300);
+  --spot-ink: #17171a; /* text ON a --spot fill */
+  --spot-soft: color-mix(in srgb, var(--spot) 14%, transparent);
+
+  --grid:     #1f1f23; /* background rule grid */
+  --glow:     rgba(25,150,136,.22);  /* the terminal's halo */
+  --glow-low: rgba(25,150,136,.10);
+  --shot-op:  .28;                   /* the arrow scene, as ambient art */
+  --shadow-lg: 0 12px 28px rgba(0,0,0,.45);
+  --ring:     0 0 0 2px var(--bg), 0 0 0 4px var(--spot);
+}
+
+:root[data-mode="paper"] {
+  --bg:       #f0ede6;
+  --panel:    #e7e3da;
+  --mass:     #ddd8cc;
+
+  --ink:      #16150f;
+  --dim:      #57534a;
+  --faint:    #8a8578;
+  --faint-2:  #a09a8c;
+
+  --line:     #e3dfd4;
+  --line-2:   #cec8b9;
+
+  --spot:     var(--vd-600);
+  --spot-ink: #ffffff;
+  --spot-soft: color-mix(in srgb, var(--spot) 10%, transparent);
+
+  --grid:     #e5e1d7;
+  /* a light ground carries far less glow before it reads as a stain, and
+     line art needs more weight on it than it does on ink */
+  --glow:     rgba(14,110,102,.10);
+  --glow-low: rgba(14,110,102,.05);
+  --shot-op:  .5;
+  --shadow-lg: 0 12px 28px rgba(22,21,15,.10);
+  --ring:     0 0 0 2px var(--bg), 0 0 0 4px var(--spot);
+}
+
+/* ============================================================
+   THE TERMINAL
+   The hero terminal is a picture of a terminal, and terminals are
+   dark — so it keeps one palette on both grounds rather than
+   flipping. These are the only colours on the site that do not
+   follow the ground, and that is deliberate.
+   ============================================================ */
+:root {
+  --term-bg:     #121215;
+  --term-chrome: #1c1c20;
+  --term-line:   #2b2b31;
+  --term-text:   #C8CDD4;
+  --term-dim:    #6A7078;
+  --term-spot:   var(--vd-300);
+  --term-cmd:    #8ECF7A;
+  --term-str:    #E6C060;
+}

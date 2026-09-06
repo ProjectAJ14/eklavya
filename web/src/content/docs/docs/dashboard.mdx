@@ -1,0 +1,20 @@
+---
+title: "The dashboard"
+sidebar:
+  order: 12
+---
+
+```bash
+$ eklavya dashboard
+Eklavya dashboard on http://127.0.0.1:41729
+Reading /Users/you/.eklavya/knowledge.db — press Ctrl+C to stop.
+```
+
+`/eklavya:progress` fits in twenty lines and answers *what now*. The dashboard is the long view, and shows:
+
+- Accuracy, mastered, due and skipped — recomputed per project.
+- Thirty days of answers, split into right, missed and skipped.
+- Every concept you have been asked, weakest first, with the code it came from.
+- The skipped list, because those come back a tier lower.
+
+It binds to loopback only and reads the same local database — nothing is served to anyone but you, and nothing leaves the machine. Use `--port` if 41729 is taken; if the port you asked for is busy the command fails rather than quietly moving, and with no `--port` at all it falls back to any free port.

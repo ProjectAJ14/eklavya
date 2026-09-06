@@ -1,0 +1,190 @@
+---
+title: "Command reference"
+sidebar:
+  order: 8
+---
+
+Seven slash commands, all typed inside Claude Code. Every one of them is read-only until you ask for a change, and none of them starts a quiz unless that is what the command is for. If you would rather not memorise them, [you can just ask](/docs/commands/#or-just-ask).
+
+| Command | One line |
+| --- | --- |
+| [`/eklavya:quiz [topic]`](/docs/commands/#eklavyaquiz-topic) | Quiz now — on this session's work, or a named topic. |
+| [`/eklavya:mode [value]`](/docs/commands/#eklavyamode-value) | Show or change the mode, focus, cadence and difficulty dials. |
+| [`/eklavya:learn <topic>`](/docs/commands/#eklavyalearn-topic) | A structured lesson, prerequisite-ordered, calibrated to what you know. |
+| [`/eklavya:level [value]`](/docs/commands/#eklavyalevel-autoeasymediumhard) | This project's difficulty band and the runway into it — or pin one. |
+| [`/eklavya:progress`](/docs/commands/#eklavyaprogress) | The mastery map: projects, what they taught, what you skipped, what is due. |
+| [`/eklavya:gate`](/docs/commands/#eklavyagate) | Commit-gate status. |
+| [`/eklavya:setup`](/docs/commands/#eklavyasetup) | First run. |
+
+### `/eklavya:quiz [topic]`
+
+*Ask me questions now.*
+
+#### What it does
+
+Starts a quiz immediately, without waiting for a task to finish. Because *you* asked, the normal spacing rules are ignored — the cadence limits exist to stop Eklavya nagging, never to refuse a request.
+
+#### With no topic
+
+Quizzes this session's work: the concepts Claude logged while building, minus anything you have already mastered or already answered this session. If there is nothing worth asking, it says so in one line and stops — and the reason it gives is always specific, whether you named a topic or not:
+
+| Reason | What it means |
+| --- | --- |
+| `already_covered` | Everything from this session has been asked. Try a topic. |
+| `nothing_logged` | No concepts logged yet, so there is nothing grounded to ask about. |
+| `no_candidates` | That topic is fully mastered and nothing is due. |
+| `mode_off` | Eklavya is off. Run `/eklavya:setup` to turn it back on. |
+| `no_topic` | Focus is `learn` with no topic set. |
+| `topic_unknown` | Nothing in the graph matches that topic; the closest domain is offered instead. |
+
+#### With a topic
+
+```text
+/eklavya:quiz caching
+/eklavya:quiz web-auth
+```
+
+The topic is treated as a domain, or as one or more concept slugs. Prerequisites are asked first, mastered concepts are dropped, and nothing you have already been asked is repeated.
+
+#### Worth knowing
+
+- A topic here overrides your configured focus **for this quiz only**. It does not change your settings — `/eklavya:mode` is for that.
+- Questions come one at a time, each at its own tier, each graded before the next.
+- It closes with one line: what moved, and what comes back for review when.
+
+### `/eklavya:mode [value]`
+
+*Show or change how Eklavya behaves.*
+
+#### With no argument
+
+Reports your effective settings in two lines — mode, focus, cadence, difficulty — plus, if this repository is overriding any of your personal settings, which ones and where the file is. Then it offers the three focus choices in one line each.
+
+#### With an argument
+
+```text
+/eklavya:mode enforced          # change the mode dial
+/eklavya:mode concept           # change the focus dial
+/eklavya:mode end               # change the cadence dial
+/eklavya:mode learn caching     # focus learn, with its required topic
+```
+
+The value tells Eklavya which dial you mean, so you never have to name the dial. Values are unambiguous across the four.
+
+#### Worth knowing
+
+- It asks which scope you mean when it is ambiguous: **global** (you, everywhere) or **repo** (this project, for everyone).
+- It warns you before writing `focus` at repo scope, because that overrides every contributor's personal choice there.
+- Moving *to* `enforced` prompts you to install the git hook — without it, only commits made inside Claude Code are gated.
+- For difficulty, it sends you to `/eklavya:level` rather than explaining the ladder twice.
+
+### `/eklavya:learn <topic>`
+
+*Teach me this properly, right now.*
+
+#### What it does
+
+A lesson rather than a quiz. Eklavya looks up what you already know in that domain, orders the remaining concepts so prerequisites come first, and teaches up to **five concepts per session** — each one explained, then checked with a question, so it is still a conversation and still recorded.
+
+#### How to use it
+
+```text
+/eklavya:learn caching
+/eklavya:learn react hooks
+```
+
+#### Worth knowing
+
+- It offers, once, to make the topic stick by setting `focus: learn`. Decline and it just teaches the lesson. It never sets that silently, because it changes what every later session asks about.
+- Concepts you have already mastered are referenced, not re-taught.
+- If the topic is not a known domain, it either asks which existing domain is closest or teaches from first principles and grows the graph as it goes.
+- This is the on-demand version. Setting `focus: learn` is the standing version — and it never changes *when* Eklavya interrupts, so a declared topic cannot start interrupting you about something unrelated to your work.
+
+### `/eklavya:level [auto|easy|medium|hard]`
+
+*Where am I, and how far to the next band?*
+
+#### With no argument
+
+Three lines or fewer:
+
+- **Where you are** — the level, and what that band asks for.
+- **The runway** — passing answers out of the number needed, plus whichever other condition is still short (accuracy, or distinct concepts).
+- **What is next** — the band above, and what changes about the questions there.
+
+If the level is pinned it says so, names the file that pinned it, and does not report a runway toward something a pin makes unreachable.
+
+#### With an argument
+
+```text
+/eklavya:level auto      # back to earning it
+/eklavya:level medium    # pin the band, stop progression
+```
+
+#### Worth knowing
+
+- Pinning at repo scope overrides every contributor's personal setting in that project.
+- If the questions feel trivial, check the level before pinning up — you may simply be close to a promotion.
+- Pinning `hard` on a codebase you have just met is the exact failure levels exist to prevent.
+
+### `/eklavya:progress`
+
+*The mastery map. Read-only — it never quizzes you.*
+
+#### What it shows, in this order
+
+1. **Which projects** this has been happening on, with answers, passes and accuracy per repository.
+2. **What you actually learned** — led by the context line, not the slug: *"moved `flutter create` into pre_gen so brick files overlay it"* means something; `mason-lifecycle-hooks` does not.
+3. **What you skipped**, split into *declined* (you chose to skip) and *don't know* (you blanked and were taught). These come back a tier lower, so it is a backlog, not a scolding.
+4. **What is due** for review, with the tier each will be asked at.
+5. **What is shaky** — your weakest concepts, each with a one-clause gloss.
+6. **What is mastered**, and if that is still zero, what is one correct answer away from it.
+
+#### Worth knowing
+
+- It is capped at about 20 lines. For history, per-project comparison and the full concept list, it points you at `eklavya dashboard`.
+- The seeded catalogue is large on purpose — the "not yet seen" count is not a gap to close, and nobody is expected to learn every concept in it.
+- With no history at all, it says so in two lines and suggests building something first.
+
+### `/eklavya:gate`
+
+*Why is my commit blocked, and what is left?*
+
+#### What it shows
+
+- The mode. If it is not `enforced`, it says nothing is gated and stops.
+- How many concepts you have answered out of the number required.
+- The `pass_threshold` those answers have to clear.
+- Whether the gate has passed.
+
+If it has not passed, it says exactly what remains and offers to run the quiz — it will not start one without being asked.
+
+### `/eklavya:setup`
+
+*First run on this machine.*
+
+Checks prerequisites, confirms the database, asks for a mode and a focus, and installs the git hook if you chose enforced. Walked through step by step in [First run](/docs/first-run/). Safe to run again any time.
+
+### Or just ask
+
+*No command to remember.*
+
+#### What it does
+
+`npx eklavya install` also installs a skill at `~/.claude/skills/eklavya/SKILL.md`. It teaches Claude how to read and change Eklavya's settings, so these all work in ordinary conversation:
+
+- “Eklavya is quizzing me too much — space it out.”
+- “Put Eklavya in enforced mode for this repo only.”
+- “Have Eklavya teach me database indexing from now on.”
+- “Open my Eklavya dashboard.”
+- “Where does Eklavya keep my data?”
+
+Claude makes the change through the same MCP tools and the same [`eklavya` CLI](/docs/cli/) the commands use, so it does not matter which route a given change went through. It tells you the key it set and the file it landed in.
+
+#### How it differs from the commands
+
+The seven commands above come from the plugin, so they exist only where the plugin is loaded. This skill is installed for your user account, so it also works in projects where you have not enabled the plugin, and in a plain terminal session. What it will not do is teach or quiz — for that it points you at [`/eklavya:learn`](/docs/commands/#eklavyalearn-topic) or [`/eklavya:quiz`](/docs/commands/#eklavyaquiz-topic).
+
+:::tip
+It only wakes up when you mention Eklavya or its settings by name. Asking Claude an ordinary coding question does not load it.
+:::

@@ -397,3 +397,16 @@
 
   reveals.concat(grows, shoots).forEach(function (el) { io.observe(el); });
 }());
+
+/* ---------------------------------------------------------------
+   The ground toggle. window.eklavyaGround is defined by the
+   blocking script in <head>, which has already applied the stored
+   choice to <html> — but the buttons did not exist yet, so their
+   pressed state is re-synced here before they are bound.
+   --------------------------------------------------------------- */
+window.eklavyaGround.apply(window.eklavyaGround.read());
+document.querySelectorAll('[data-ground]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    window.eklavyaGround.set(btn.dataset.ground);
+  });
+});

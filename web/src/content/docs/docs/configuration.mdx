@@ -1,0 +1,57 @@
+---
+title: "Configuration"
+sidebar:
+  order: 10
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+### Where settings live
+
+| Layer | File | Applies to |
+| --- | --- | --- |
+| Defaults | built in | Everything, until something overrides it. |
+| Global | `~/.eklavya/config.json` | You, on every project. |
+| Repo <Badge text="wins" variant="tip" size="small" /> | `.eklavya.json` at a repository root | Everyone working in that project. |
+
+Later layers win key by key, not file by file: a repo file setting only `mode` leaves your personal `focus` alone. The search for a repo file walks up from your working directory and **stops at the git root**, so a stray config above the repository never leaks in. A missing or malformed file is ignored rather than fatal — defaults win and your session keeps working.
+
+### Every key
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `mode` | `"ambient"` | How hard Eklavya pushes: `ambient`, `enforced`, `off`. |
+| `focus` | `"concept"` | What it teaches: `concept`, `project`, `learn`. |
+| `focus_topic` | `null` | The topic for `learn` focus. Ignored by the other two, required by that one. |
+| `cadence` | `"interleaved"` | When it asks, and how many at once: `interleaved` asks mid-task, one question per quiz (`enforced` mode excepted); `end` waits and asks the remaining budget. |
+| `difficulty` | `"auto"` | The tier band: `auto` earns it per project; `easy`/`medium`/`hard` pin it and stop progression. |
+| `level_up_after` | `100` | Passing answers needed in one project before the band moves up. The distinct-concept floor scales with this, so shortening it keeps the runway reachable. |
+| `level_up_accuracy` | `0.7` | Minimum accuracy over those answers. Declines are excluded from the calculation. |
+| `pass_threshold` | `0.7` | The fraction of a session's required concepts you must answer correctly — grade 3 or better — before the commit gate opens. At the default, three of four required concepts have to be passed. |
+| `max_questions_per_task` | `4` | A budget for the **whole session**, shared between mid-task checkpoints and the end-of-task sweep. Not a batch size — on the default cadence a quiz asks one question, so the budget is spent one at a time or not at all. |
+| `min_minutes_between_quizzes` | `20` | Floor between whole quizzes. This is the anti-nagging dial. |
+| `min_minutes_between_checkpoints` | `4` | Floor between single mid-task questions, so logging eight concepts at once cannot become eight questions in a row. `0` asks at every seam. |
+| `max_new_concepts_per_session` | `8` | Cap on concepts Claude may invent per session, against slug sprawl. |
+| `max_stop_blocks_per_session` | `3` | Hard backstop on how many times the end-of-task hook may hold a session open. |
+| `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
+| `quiet` | `false` | `true` suppresses the session-start banner and the bracketed settings line above each question. |
+
+### A complete file
+
+Every key is optional — write only the ones you want to change. This example is a repo file for an onboarding codebase: enforced, grounded in the project, held at easy for everyone.
+
+```json title=".eklavya.json"
+{
+  "mode": "enforced",
+  "focus": "project",
+  "cadence": "interleaved",
+  "difficulty": "easy",
+  "pass_threshold": 0.7,
+  "max_questions_per_task": 4,
+  "min_minutes_between_checkpoints": 4
+}
+```
+
+:::tip
+**Two settings people misread.** `max_questions_per_task` is a session budget, so turning on `interleaved` moves questions earlier without adding any — and under that cadence it is a ceiling for the session, not a number of questions you will be asked. And `difficulty` is a *band*, not a question — pinning `hard` does not make every question tier 5, it makes tiers 3–5 the range the planner may choose from.
+:::

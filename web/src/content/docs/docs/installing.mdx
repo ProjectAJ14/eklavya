@@ -1,0 +1,123 @@
+---
+title: "Installing"
+sidebar:
+  order: 3
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Two routes, and they end up in the same place. Pick either.
+
+### A. One command, from a terminal
+
+```bash
+npx eklavya install
+```
+
+That does the whole job, in this order:
+
+<Steps>
+
+1. #### Checks your Node version
+
+   Stops with upgrade instructions if it is older than 22, rather than half-installing and failing later.
+2. #### Installs the runtime
+
+   The server, the hooks and the SQLite driver go into `~/.eklavya/runtime`. This is the step that downloads the ready-compiled database binary for your platform. It then loads it once to prove it actually works, instead of trusting that `npm` exiting cleanly meant a working binary.
+3. #### Installs and enables the plugin
+
+   Copies the plugin into Claude Code's plugin directory and registers it, which is the same end state `/plugin install` produces.
+4. #### Installs the chat skill
+
+   A single file at `~/.claude/skills/eklavya/SKILL.md`. It is what lets you change Eklavya by asking in plain English instead of remembering a slash command — [see below](/docs/commands/). It is installed for your user account, not for the plugin, so it keeps working in projects where the plugin is not enabled. If a skill of your own is already at that path, this step says so and leaves it alone.
+5. #### Creates the database
+
+   `~/.eklavya/knowledge.db`, migrated and seeded, so `eklavya doctor` works before you have opened Claude Code even once.
+
+</Steps>
+
+Then restart Claude Code and run `/eklavya:setup` to choose a mode. Running `npx eklavya install` again is how you upgrade — every step is safe to repeat, and it will not disturb your other plugins or your learning history.
+
+### B. In Claude Code, through the plugin marketplace
+
+If you would rather not touch a terminal:
+
+<Steps>
+
+1. #### Add the marketplace
+
+   ```text
+   /plugin marketplace add ProjectAJ14/eklavya
+   ```
+
+   A marketplace is a list of plugins Claude Code is allowed to install from. This one points at the Eklavya GitHub repository. You should see a confirmation naming the marketplace `eklavya`.
+2. #### Install the plugin
+
+   ```text
+   /plugin install eklavya@eklavya
+   ```
+
+   The part before the `@` is the plugin, the part after is the marketplace it comes from — they happen to share a name. Claude Code downloads the plugin and registers its MCP server, its four hooks and its seven slash commands.
+3. #### Restart Claude Code
+
+   Hooks and MCP servers are wired up when a session starts, so the session you installed from will not have them. Quit and reopen.
+4. #### Run first-time setup
+
+   ```text
+   /eklavya:setup
+   ```
+
+   This checks your prerequisites, creates the database, and asks you two short questions. [The next section walks through it.](/docs/first-run/)
+
+</Steps>
+
+:::note
+**What route B does differently.** A slash command cannot run `npm` or write outside the plugin, so this route installs the plugin files but not the runtime and not the chat skill. Your first session starts that download in the background and carries on as normal; the questions begin from the session after it finishes, and the slash commands work throughout. Route A does both up front instead. If you would rather not wait — or you want to change Eklavya by asking rather than by command — run `npx eklavya install` at any point. It finishes the job and is safe to run over an existing install.
+:::
+
+#### Check that it worked
+
+Run `/plugin` and confirm **eklavya** is listed with no errors. The first thing a healthy session prints is a one-line learner profile, like this:
+
+```text title="Session start"
+[Eklavya] No learning history yet. Mode: ambient. Focus: concept. Cadence: interleaved. Level: easy.
+```
+
+If you see that line, you are done. If you see nothing at all, jump to [Troubleshooting](/docs/troubleshooting/).
+
+### C. From a checkout (contributors)
+
+Use this when you are changing Eklavya itself and want your edits to take effect immediately.
+
+```bash
+git clone https://github.com/ProjectAJ14/eklavya.git
+cd eklavya/mcp
+npm install        # approve the better-sqlite3 build script if npm asks
+npm run build
+cd ..
+claude --plugin-dir "$(pwd)"
+```
+
+`--plugin-dir` tells Claude Code to load the plugin from a folder instead of a marketplace, and sets `CLAUDE_PLUGIN_ROOT` so the MCP server can find itself. Use it rather than relying on the repository's `.mcp.json` as project config, which has no plugin root to expand. The launcher prefers your local `mcp/dist/` build when one exists, so a rebuild is all it takes to see a change.
+
+### Uninstalling
+
+```bash
+npx eklavya uninstall           # removes the plugin and skill, keeps your history
+npx eklavya uninstall --purge   # removes ~/.eklavya as well
+```
+
+Without `--purge` your knowledge graph stays at `~/.eklavya/knowledge.db`, so reinstalling picks up exactly where you left off. That is deliberate: months of spaced repetition should not disappear because you removed a plugin.
+
+### Getting the `eklavya` command
+
+Some things — checking your setup, serving the dashboard, editing config from a terminal — are done with a small CLI rather than a slash command. `npx eklavya install` already put it on your machine; to have it permanently on your `PATH`:
+
+```bash
+npm install -g eklavya     # then: eklavya doctor
+
+# or without installing anything globally:
+npx eklavya doctor
+```
+
+Full list of subcommands: [The `eklavya` CLI](/docs/cli/).

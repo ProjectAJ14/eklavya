@@ -1,0 +1,70 @@
+---
+title: "Enforced mode and the commit gate"
+sidebar:
+  order: 11
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+In `enforced` mode, a commit is held until you have answered enough of what this session taught you. Nothing else is blocked — you can still edit, run, test and push.
+
+### What "enough" means, exactly
+
+Each session gets a gate with a **required** number of concepts, taken from what Claude logged while building. The gate opens once you have passed `required × pass_threshold` of them, rounded up — with the default 0.7, that is three of four. A concept counts as passed only when it was answered at **grade 3 or better**: a skip counts as answered but never as passed, or the gate would be theatre.
+
+`required` is frozen when the gate opens and only ever grows, so mastering concepts mid-quiz cannot shrink the obligation you already have.
+
+### The two paths a commit can take
+
+| Where you commit | What stops it | Installed by |
+| --- | --- | --- |
+| Inside Claude Code | A `PreToolUse` hook that inspects every Bash command and denies the ones that are really a `git commit`. | The plugin, automatically. |
+| A terminal, or any other editor | A git `pre-commit` hook in the repository. | You, with the script below. |
+
+Install both, or enforced mode only gates half the ways to commit.
+
+### Installing the git hook
+
+```bash
+/path/to/eklavya/scripts/install-git-hook.sh            # in the repo you want gated
+/path/to/eklavya/scripts/install-git-hook.sh --uninstall
+```
+
+- It **chains** to any `pre-commit` hook you already have rather than replacing it — your existing one is moved to `pre-commit.local` and still runs.
+- `--uninstall` removes Eklavya's hook and restores the previous one.
+- It only acts on repositories whose `.eklavya.json` sets `"mode": "enforced"`, so installing it is safe even if you later switch to ambient.
+
+### What a blocked commit looks like
+
+```bash
+  Eklavya is holding this commit.
+
+  You have answered 1 of 4 concepts from this session's work.
+  Open Claude Code in this repo and run /eklavya:quiz to finish, then commit again.
+
+  To see what is outstanding:  /eklavya:gate
+  To turn this off for the repo, set "mode" to "ambient" in .eklavya.json
+```
+
+### How to get through it
+
+<Steps>
+
+1. #### Run `/eklavya:gate`
+
+   See how many concepts are outstanding and what score they need.
+2. #### Run `/eklavya:quiz`
+
+   Answer honestly. Guessing does not help — the point is the gap, not the gate.
+3. #### Commit again
+
+   Both paths now succeed.
+
+</Steps>
+
+### The safety rules
+
+- **It fails open.** A missing `jq`, a missing database or an unreadable config lets the commit through with a warning. A learning tool that bricks commits gets uninstalled.
+- **No gate row, no block.** If nothing was taught this session there is nothing to prove, so nothing is held. An unpassable gate teaches nothing.
+- **Only opted-in repositories are gated.** A repository with no `.eklavya.json` is never touched by the git hook.
+- **Blanking cannot lock you out.** A grade of 0 never passes, so a session answered entirely with "I don't know" would leave the gate permanently unmet. Once everything else is exhausted, Eklavya re-offers the concepts it taught you, one tier lower and as a different question, until the lesson lands. Concepts you *declined* are not re-offered — the gate holding against a decline is the gate working.

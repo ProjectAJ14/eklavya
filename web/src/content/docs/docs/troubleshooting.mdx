@@ -1,0 +1,20 @@
+---
+title: "Troubleshooting"
+sidebar:
+  order: 15
+---
+
+Start with `eklavya doctor`. It answers most of these in one screen.
+
+| Symptom | Likely cause and fix |
+| --- | --- |
+| No profile line at session start | Either `quiet` is `true`, `mode` is `off`, the runtime is not installed yet, or the plugin did not load. Run `/plugin` and check for errors, then `eklavya doctor`. If you installed through the marketplace, `npx eklavya install` finishes the runtime immediately. |
+| No questions at all, ever | Check the mode is not `off`. Then check that Claude is actually logging concepts — with nothing logged there is nothing grounded to ask about. `/eklavya:quiz` will tell you which of the two it is. |
+| Questions only arrive at the end, or several in a row | Cadence is `end`. `eklavya config set cadence interleaved` — that asks at the seam where a concept is logged, and caps a quiz at one question. If they still arrive late on `interleaved`, Claude is logging concepts at the end of the task rather than as it works; tell it to log as it goes. |
+| Too many interruptions | Raise `min_minutes_between_checkpoints`, or lower `max_questions_per_task`. Switching to `end` is the blunt version. |
+| Questions feel far too easy | You are on `easy`, which is where every project starts. Run `/eklavya:level` to see the runway — you may be close to a promotion. Pin a band only if you are sure. |
+| My personal setting stopped applying | A `.eklavya.json` in this repository is overriding it. The session banner names which settings; `eklavya config get` prints the file path. |
+| The database file does not exist | The MCP server never started. Check `/plugin` for errors and confirm `node --version` is 18 or newer — the native database binding fails to build on older ones. |
+| A commit is blocked and I do not know why | `/eklavya:gate` tells you how many concepts are outstanding. `/eklavya:quiz` clears it. |
+| Commits are blocked but I never chose enforced | The repository sets it. Open `.eklavya.json` at the repository root; repo settings beat personal ones by design. |
+| The git hook does not fire | It only acts on repositories whose `.eklavya.json` sets `"mode": "enforced"`, and it deliberately fails open when `jq` or `sqlite3` is missing. Check both. |

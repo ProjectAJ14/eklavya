@@ -1,0 +1,56 @@
+---
+title: "Levels and tiers"
+sidebar:
+  order: 7
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Difficulty has two layers, and they are easy to mix up.
+
+### Tiers: how hard one question is
+
+Every concept can be asked about at five depths. The tier is chosen per question, and the label appears in the bracketed line above the question so you know what is being asked of you.
+
+| Tier | Label | The question it asks |
+| --- | --- | --- |
+| 1 | `recall` | What is this thing? |
+| 2 | `mechanism` | What does the machine actually do with it? |
+| 3 | `judgement` | Why this choice here, rather than the alternative? |
+| 4 | `failure modes` | What breaks it, and how would you notice? |
+| 5 | `design` | When is this the wrong approach entirely? |
+
+### Levels: the band of tiers a project is allowed to use
+
+A level is a coarse band held **per project**. It does not replace tier selection — it clamps it.
+
+| Level | Tier band | Asks for |
+| --- | --- | --- |
+| `easy` <Badge text="every project starts here" variant="tip" size="small" /> | 1–2 | What a thing is; what the machine does with it. |
+| `medium` | 2–4 | Why this choice here, and what breaks it. |
+| `hard` | 3–5 | Judgement, failure modes, when the architecture is wrong. |
+
+Starting easy is deliberate, not a warm-up. You have been *watching* an agent work, and tiers 1–2 are the questions that state can answer honestly. A question you have no way of answering is the fastest route to turning the plugin off.
+
+### How a project is promoted
+
+All three conditions must hold before the band moves up:
+
+- **100 passing answers** in that project — the `level_up_after` setting. "Passing" means graded 3 or better.
+- **70% accuracy or better** over them — `level_up_accuracy`. Endurance alone is not readiness.
+- **At least 15 distinct concepts** — one concept re-asked forty ways is not readiness either. This floor scales down if you shorten `level_up_after`, so a shortened runway stays reachable.
+
+Declining a question costs nothing: a decline counts on neither side of the accuracy. **Nothing ever demotes you.**
+
+### Why it is per project
+
+"How hard should this be" is a question about a codebase, not about a person. The same developer is a different learner on their fourth Node service and their first Rust one — so a new repository starts at `easy` even when three others are on `hard`.
+
+### Pinning a level
+
+```text
+eklavya config set difficulty hard          # skip the runway, for you
+eklavya config set difficulty easy --repo  # keep an onboarding repo gentle for everyone
+```
+
+A pin is a hard set, not a floor: while it stands, nothing promotes. `auto` hands control back to the evidence, and the project's own record resumes where it left off. `/eklavya:level` shows where you are and how far into the band.

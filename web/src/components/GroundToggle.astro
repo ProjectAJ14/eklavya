@@ -1,0 +1,35 @@
+---
+/**
+ * Replaces Starlight's own theme select. Starlight stores light/dark under its
+ * `starlight-theme` key; our two halves store ink/paper under `eklavya-ground`.
+ * Rather than run two sources of truth, this writes both — the attribute
+ * Starlight's own CSS keys off, and the one tokens.css does — so a choice made
+ * in the manual carries to the landing page and back.
+ */
+---
+<div class="ground" role="group" aria-label="Colour ground">
+  <button type="button" data-ground="ink" aria-pressed="true">ink</button>
+  <button type="button" data-ground="paper" aria-pressed="false">paper</button>
+</div>
+
+<script is:inline>
+  (function () {
+    var read = function () {
+      try { return localStorage.getItem('eklavya-ground') === 'paper' ? 'paper' : 'ink'; }
+      catch (e) { return 'ink'; }
+    };
+    var apply = function (mode) {
+      var root = document.documentElement;
+      root.setAttribute('data-mode', mode);
+      root.dataset.theme = mode === 'paper' ? 'light' : 'dark';
+      try { localStorage.setItem('eklavya-ground', mode); } catch (e) {}
+      document.querySelectorAll('[data-ground]').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.dataset.ground === mode));
+      });
+    };
+    apply(read());
+    document.querySelectorAll('[data-ground]').forEach(function (b) {
+      b.addEventListener('click', function () { apply(b.dataset.ground); });
+    });
+  })();
+</script>

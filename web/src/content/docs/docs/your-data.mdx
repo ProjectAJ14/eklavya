@@ -1,0 +1,44 @@
+---
+title: "Your data"
+sidebar:
+  order: 14
+---
+
+Everything Eklavya knows about you is in one directory. There is no account, no sync and no telemetry.
+
+| Path | What it holds |
+| --- | --- |
+| `~/.eklavya/knowledge.db` | SQLite, WAL mode: concepts and their prerequisite edges, your mastery per concept, every attempt, what each session logged, the gates, and each project's level. |
+| `~/.eklavya/config.json` | Your global settings. |
+| `<repo>/.eklavya.json` | Per-project settings, checked into the repository if you want them shared. |
+
+### Looking inside
+
+```bash
+eklavya db-path
+sqlite3 ~/.eklavya/knowledge.db '.tables'
+sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'
+sqlite3 ~/.eklavya/knowledge.db \
+  'select c.slug, m.score, m.next_review from mastery m join concepts c on c.id = m.concept_id'
+```
+
+### Experimenting safely
+
+Two environment variables redirect everything, so you can try settings without touching your real history:
+
+```text
+export EKLAVYA_HOME=/tmp/eklavya-test   # whole directory
+export EKLAVYA_DB=/tmp/test.db          # just the database
+```
+
+### Deleting it
+
+```text
+rm -rf ~/.eklavya
+```
+
+That is the whole uninstall of your data. Eklavya forgets you entirely.
+
+:::caution
+**Never commit a learner's database.** `knowledge.db` and anything under `~/.eklavya/` is personal. `.eklavya.json` is the only Eklavya file meant to be checked in.
+:::

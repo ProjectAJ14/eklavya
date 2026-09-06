@@ -7,20 +7,35 @@ description: Visual design language for Eklavya (the "learn while your agent wor
 
 Eklavya's look: calm, dark, engineering-grade — a developer tool that quietly references the Ekalavya legend (the self-taught archer) through bow / arrow / target line-art motifs. Never storybook or ornamental.
 
-## Palette
-Emerald on cool slate. Green is the only accent; use it sparingly and it reads as brand.
+## Grounds and palette
 
-- Green scale: 50 #E6F6EF, 100 #C3EAD8, 200 #8FD8B6, 300 #57C492, 400 #1FAF74, **500 #049D66 (primary)**, 600 #03875A, 700 #036D49, 800 #024E36, 900 #013827
-- Neutral slate: 0 #FFFFFF, 50 #F7F9FA, 100 #EEF1F3, 200 #E0E5E9, 300 #CAD2D8, 400 #9AA6AF, 500 #6B7780, 600 #4D575F, 700 #363F45, 800 #21282D, 900 #121619
-- Dark surfaces: page bands in neutral-900, story/legend bands in green-900, cards on dark in neutral-800 with neutral-700 hairlines. Light surfaces: white and neutral-50 with neutral-200 hairlines.
-- On dark, body text is rgba(255,255,255,.62–.68); accents green-300/400. On light, text neutral-900 / neutral-600; accents green-500–700.
-- No other hues. No warm oranges/golds (the generated mascot logo is off-palette — translate its motifs, not its colors). Semantic red/amber only for real errors/warnings.
+Two grounds, one accent. `data-mode` on `<html>` is `ink` (default) or `paper`, and
+each redefines the same **role** tokens in `site/tokens.css`. Components name a role
+— `--ink`, `--dim`, `--faint`, `--line`, `--line-2`, `--panel`, `--mass`, `--spot`,
+`--spot-ink` — and never a scale step or a raw hex. That is the whole theme
+implementation: custom properties inherit, so one attribute re-resolves the tree.
+
+- **Ink** (default): bg #17171a, panel #1e1e22, mass #26262a, text #EAE7E1, dim #A29C93, faint #77726A, lines #26262a / #33333a.
+- **Paper**: bg #f0ede6, panel #e7e3da, mass #ddd8cc, text #16150f, dim #57534a, faint #8a8578, lines #e3dfd4 / #cec8b9.
+- Neither ground is neutral grey — warm ink, warm paper. That is what stops paper reading as a bleached inversion of ink.
+- Ink is the default and an absent choice stays ink; the ground deliberately does **not** follow the reader's OS. Eklavya is a terminal plugin and the dark ground is the product.
+
+**Accent: verdigris** — aged bronze on a bow fitting. One hue, two values, because
+no single value clears contrast on both grounds:
+
+- Ramp: 50 #E6F7F3, 100 #C4EDE4, 200 #9BE0D2, **300 #79D5C4 (accent on ink, 10.33:1)**, 400 #3FB8A3, 500 #199688, **600 #0E6E66 (accent on paper, 5.22:1)**, 700 #0A5751, 800 #07403C, 900 #052E2B.
+- Spend it perhaps six times a page: one word in the headline, the `$`, link text, the active nav item. Everything else is a neutral role.
+- `--spot-soft` is the accent at 10–14% for tints; text on a `--spot` fill takes `--spot-ink`.
+- No other hues. Semantic amber/red (`--warning`, `--error`) are for real warnings and errors only, and are kept off the accent so state never reads as branding.
 
 ## Type
-- **Manrope** for everything (400–800). Display: 800 weight, tracking -0.02 to -0.025em. H1 ~62px/1.04, H2 40–44px/1.15, body 15–19px/1.6.
-- **JetBrains Mono** for code, slash-commands, concept slugs, tier labels, terminal content, tiny index numbers (01, T1…). Mono content on dark is green-300.
-- Sentence case everywhere; ALL-CAPS only for 12px/700 eyebrows with +0.08em tracking.
-- No emoji.
+
+- **Archivo** for display (600/800/900), **Inter** for body (400/500/600), **JetBrains Mono** for code, slash-commands, concept slugs, tier labels, terminal content and micro-labels.
+- The system is two extremes with no middle: enormous tight display, tiny wide-tracked uppercase mono. Body text stays small and quiet — 14.5px/1.65 — and the contrast between those poles is most of what reads as designed.
+- Display: weight 900, `letter-spacing: -0.055em`, `line-height: .88–.92`, sized with `clamp()` (`--display-hero`, `--display-1`, `--display-2`) so it scales with the viewport instead of sitting at a timid fixed size.
+- Micro-labels: mono, 10–11.5px, uppercase, `letter-spacing: .16–.24em`, in `--faint` or `--spot`. These replace pill-shaped eyebrows.
+- Sentence case in prose. No emoji.
+- Do not set `-webkit-font-smoothing: antialiased`: grayscale smoothing thins light-on-dark glyphs, and ink is the default ground.
 
 ## Layout
 - Content max-width 1140px, 32px side padding; sections pad 96px vertical; 4px base grid.
@@ -31,8 +46,9 @@ Emerald on cool slate. Green is the only accent; use it sparingly and it reads a
 ## Signature motifs
 - **Bow-and-arrow mark**: white line-art bow (arc + string) with an arrow through it, in a green-500 rounded-8 square.
 - **Arrow-flight scene**: line bow → dashed dotted trajectory → concentric-circle target; arrow flies and hits the bullseye. Full-strength in story sections; as ambient background run it at ~15–18% opacity with a slight blur.
-- **Terminal window**: neutral-800, radius 16, three muted dots, mono 13px/1.75; show the real product loop (prompt → work → concept log → quiz → grade), lines appearing sequentially on an infinite loop with a blinking green block cursor.
-- Icons: Lucide line icons only (stroke currentColor, 1.8–2px, round joins), 20–22px in tiles of green-50 (light) or rgba(4,157,102,.18) (dark).
+- **Terminal window**: its own fixed dark palette (`--term-*`) on **both** grounds — it is a picture of a terminal, and terminals are dark. Radius 16, three muted dots, mono 13px/1.75; show the real product loop (prompt → work → concept log → quiz → grade), lines appearing sequentially on an infinite loop with a blinking green block cursor.
+- Icons: Lucide line icons only (stroke currentColor, 1.8–2px, round joins), 20–22px in `--spot-soft` tiles.
+- **The terminal and the arrow flight are the two showpieces and are not to be redesigned.** They may be recoloured onto the ground tokens; their geometry, timing and behaviour stay.
 
 ## Motion
 - Easing `cubic-bezier(.2,.6,.2,1)`; micro-interactions 140–200ms; no bounce or spring.

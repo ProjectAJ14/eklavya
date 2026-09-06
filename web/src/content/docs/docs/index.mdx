@@ -1,0 +1,29 @@
+---
+title: "What Eklavya is"
+sidebar:
+  order: 1
+---
+
+Eklavya is a plugin for [Claude Code](https://claude.com/claude-code). You keep working exactly as you do now — you ask Claude to build something, and it builds it. The difference is that while it works, Eklavya interrupts with a **multiple-choice question** about a concept the code it just wrote depends on — one question at a time, never a batch.
+
+You answer with one keystroke. Claude grades the answer, writes the result to a small database on your machine, and carries on with the task. By default you get at most **four questions in a whole session**, spread across the work rather than piled at the end; [`max_questions_per_task`](/docs/configuration/) is that budget. Over weeks the questions get harder, the ones you got right stop coming back, and the ones you fumbled return at spaced-out intervals until they stick.
+
+That is the entire product. Everything below is detail on top of that loop.
+
+### The problem it solves
+
+Coding agents create a comprehension gap: you ship code you did not write and could not debug at 3am. The moment the code is being generated is the best possible teaching moment — the concepts are concrete, the code is on your screen, and your hands are free while you wait. Eklavya spends that waiting time on you.
+
+### The three moving parts
+
+You never interact with these directly, but knowing they exist makes the rest of this page much easier to follow.
+
+| Part | Lives in | What it does |
+| --- | --- | --- |
+| **The MCP server** | `mcp/`, published as `eklavya` on npm | The memory and the rules. It holds the knowledge graph of concepts, decides what you should be asked next and at what difficulty, and grades and stores every answer. |
+| **The hooks** | `hooks/` and `mcp/src/hooks/` — small Node scripts | The timing. They decide *when* a question arrives: at session start, mid-task, at the end of a task, and before a `git commit`. |
+| **The skills** | `skills/` — Markdown instructions for Claude | The teaching. They tell Claude how to phrase a question, how to grade it honestly, and how to explain an answer you did not know. |
+
+:::tip
+**MCP in one line.** The Model Context Protocol is how Claude Code talks to a local program. Eklavya's MCP server is just a Node process on your machine that Claude can ask questions like *"what does this person already know?"*. It makes no network calls of its own, and there is no account.
+:::

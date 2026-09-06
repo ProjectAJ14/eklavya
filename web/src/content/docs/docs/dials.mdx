@@ -1,0 +1,72 @@
+---
+title: "The four dials"
+sidebar:
+  order: 6
+---
+
+import { Badge } from '@astrojs/starlight/components';
+
+Eklavya's behaviour is four independent settings. Conflating them is the most common confusion, so learn them as four separate questions:
+
+| Dial | Question it answers | Values |
+| --- | --- | --- |
+| `mode` | How hard does Eklavya push? | `ambient` (default), `enforced`, `off` |
+| `focus` | What does it teach? | `concept` (default), `project`, `learn` |
+| `cadence` | When does it ask? | `interleaved` (default), `end` |
+| `difficulty` | How hard may the questions get? | `auto` (default), `easy`, `medium`, `hard` |
+
+They combine freely. `enforced` + `learn` is an intern who must pass a gate on a topic they chose. `ambient` + `project` is a gentle nudge grounded in today's diff. The one interaction is `off`: it wins outright and `focus` is never read.
+
+### `mode` — how hard it pushes
+
+| Value | Behaviour | Reach for it when |
+| --- | --- | --- |
+| `ambient` <Badge text="default" variant="tip" size="small" /> | Questions are offered as you work and at the end of a task. Always skippable, never nagging. | You are learning a new stack on your own terms. |
+| `enforced` | The session quiz must be passed before `git commit` succeeds — both inside Claude Code and from a bare terminal. | Onboarding, interns, a codebase where shipping unread code is expensive. |
+| `off` | Installed but dormant. No questions, no gate, no banner. | A demo, a deadline, a repo you are only passing through. |
+
+### `focus` — what it teaches
+
+| Value | Asks about | Good for |
+| --- | --- | --- |
+| `concept` <Badge text="default" variant="tip" size="small" /> | The idea behind the code, phrased so the answer transfers to any codebase. Your diff is the motivation, not the subject. | Learning a stack. |
+| `project` | The code just written — the file, the line, the decision. | Learning a codebase. |
+| `learn` | A topic you name, taught in prerequisite order, using your real code as the worked example wherever the work touches it. | Learning something on purpose. |
+
+:::note
+`focus: "learn"` needs `focus_topic` set as well. Without one the planner refuses with `reason: "no_topic"` and you get no questions.
+:::
+
+### `cadence` — when it asks
+
+| Value | Behaviour | Good for |
+| --- | --- | --- |
+| `interleaved` <Badge text="default" variant="tip" size="small" /> | One question at a time, the moment a concept is logged. A quiz is capped at one question under this cadence, the end-of-task sweep included — never a batch.<br /><Badge text="exception" variant="tip" size="small" /> `enforced` mode plans the full remaining budget, because the commit gate needs enough passing answers to open. | Learning while the agent works — the thing the tool is for. |
+| `end` | Nothing until the task is finished, then whatever the budget has left, asked one question at a time. | Pairing, demos, deep focus. |
+
+`interleaved` does not mean more questions. It moves the same budget earlier, and caps every quiz at one question — a budget it never reaches is simply not spent, and those concepts come back as review in a later session. If being interrupted is the problem rather than the timing, raise `min_minutes_between_checkpoints` before switching to `end`.
+
+### `difficulty` — how hard it may get
+
+This is the one dial you normally *earn* rather than set. On `auto`, every project starts at `easy` and climbs on evidence. Setting a literal value pins the band and stops progression. See [Levels and tiers](/docs/levels-and-tiers/).
+
+### Changing a dial
+
+Two ways, both equivalent:
+
+```text title="In Claude Code"
+/eklavya:mode              # show all four, then change any of them
+/eklavya:mode project      # set focus to project
+/eklavya:level medium      # pin this project's difficulty band
+```
+
+```text title="From a terminal"
+eklavya config set mode enforced            # for you, everywhere
+eklavya config set mode enforced --repo     # for this project only
+eklavya config set focus learn --topic caching
+eklavya config set cadence end
+```
+
+:::caution
+**Repo settings beat personal ones.** A value written with `--repo` lands in `.eklavya.json` at the repository root and applies to *everyone* who works in that project — including overriding a `learn` topic a teammate set for themselves. That is exactly what you want for pinning `enforced` on an onboarding repo, and exactly what you do not want by accident. The session banner names any setting a repo is overriding, so it never changes silently.
+:::

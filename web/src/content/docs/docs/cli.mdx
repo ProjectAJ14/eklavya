@@ -1,0 +1,41 @@
+---
+title: "The eklavya CLI"
+sidebar:
+  order: 9
+---
+
+For the parts of Eklavya that make sense outside a Claude Code session. `npx eklavya install` already puts it on your machine; to have it on your `PATH` permanently use `npm install -g eklavya`, or run any subcommand without installing via `npx eklavya <command>`. The package ships this one command; the MCP server is `eklavya serve`, not a separate executable.
+
+| Command | What it does |
+| --- | --- |
+| `eklavya serve` | Runs the MCP server on stdio. This is what Claude Code starts for you — you would only run it by hand to point another MCP client at Eklavya. |
+| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. Safe to re-run — that is how you upgrade. |
+| `eklavya uninstall [--purge]` | Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`. |
+| `eklavya config get` | Prints the effective configuration as JSON, plus the paths of the global and repo files it came from. |
+| `eklavya config set <key> <value>` | Changes one setting. Add `--repo` to write `.eklavya.json` at the repository root instead of your global config. Add `--topic <topic>` when setting `focus learn`. |
+| `eklavya doctor` | Checks that everything is wired up: home directory, database, concept and attempt counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if the database cannot be opened. |
+| `eklavya dashboard [--port <n>]` | Serves your learning history as a local web page. See [The dashboard](/docs/dashboard/). |
+| `eklavya db-path` | Prints the database location. Useful in scripts. |
+| `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
+
+### What `doctor` looks like
+
+```bash
+$ eklavya doctor
+home:     /Users/you/.eklavya
+database: /Users/you/.eklavya/knowledge.db
+concepts: 87
+attempts: 41
+mastered: 12
+journal:  wal
+level:    easy (23/100 passing answers in /Users/you/code/api)
+mode:     ambient
+focus:    concept
+cadence:  interleaved (one question mid-task, min 4m apart)
+```
+
+This is the first thing to run when something feels wrong.
+
+:::note
+**Guard rails you will meet.** `config set` rejects unknown keys and lists the valid ones. `focus learn` without `--topic` is refused outright, because that combination produces no questions at all. `--repo` outside a git repository is refused, because there is nowhere to write the file.
+:::

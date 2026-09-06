@@ -1,0 +1,49 @@
+---
+title: "FAQ and uninstall"
+sidebar:
+  order: 16
+---
+
+### Does anything leave my machine?
+
+No. The database, the config and the dashboard are all local, and the dashboard binds to loopback. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade.
+
+### Will it slow down my work?
+
+A checkpoint question is one keystroke, asked while Claude is still working. The hooks read SQLite directly rather than going through the MCP server precisely because they sit on the critical path of something you are already doing.
+
+### Can I skip a question?
+
+Always, in ambient mode. A skip is recorded as a decline: grade 0, excluded from your accuracy, and not re-offered by the commit gate. In enforced mode you can still skip individual questions, but the gate stays shut until enough concepts are answered.
+
+### Why did it ask about something I already know?
+
+Either it is not yet marked mastered — that needs two repetitions at a decent score — or spaced repetition brought it back for review. A review question is never the same question as last time, and often a tier higher.
+
+### Can my team share settings?
+
+Yes: commit `.eklavya.json` at the repository root. That is how a lead pins `enforced` or holds an onboarding repository at `easy` without touching anyone's machine.
+
+### Can two Claude Code sessions share one quiz?
+
+Yes — one pane building while another teaches, sharing a single database. Set the same `EKLAVYA_SESSION_ID` in both. See `docs/parallel-tutoring.md` in the repository.
+
+### How do I upgrade?
+
+Run `/plugin` and update Eklavya from the menu, then restart Claude Code — hooks and MCP servers are wired up when a session starts, so the running one keeps the old build.
+
+### How do I uninstall?
+
+Three independent steps — do as many as you want:
+
+1. Remove the plugin from the `/plugin` menu in Claude Code, or run `npx eklavya uninstall`, which also removes the chat skill from `~/.claude/skills/eklavya/`.
+2. Restore your previous git hook: `/path/to/eklavya/scripts/install-git-hook.sh --uninstall`
+3. Delete your learning history: `rm -rf ~/.eklavya`
+
+Removing the plugin leaves your history intact, so you can come back to it later.
+
+## Still stuck?
+
+Every default, flag and rule in this manual is written from Eklavya's source. If
+the docs and the tool disagree, **the tool is right and the docs are a bug** —
+[open an issue](https://github.com/ProjectAJ14/eklavya/issues).

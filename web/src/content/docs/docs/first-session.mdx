@@ -1,0 +1,49 @@
+---
+title: "Your first session"
+sidebar:
+  order: 5
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Nothing below requires you to type an Eklavya command. This is the plugin working on its own while you do ordinary work.
+
+### The loop, start to finish
+
+<Steps>
+
+1. #### You open Claude Code
+
+   The **SessionStart** hook prints one line: your learner profile, the current mode, focus, cadence and level. Claude reads that line too, so it is calibrated from your very first message. `quiet: true` turns the banner off.
+2. #### You ask for something
+
+   For example: *"Add JWT auth to the Express API."* Claude starts working.
+3. #### Claude logs what the work touches
+
+   As it implements, Claude calls the `log_session_concepts` tool with three to eight concepts — say `jwt-structure`, `httponly-cookies`, `middleware-order-auth` — each with one line naming the real code it wrote. This is what everything else is grounded in: no logging, nothing to ask about.
+4. #### A question lands at the seam
+
+   That logging call fires the **PostToolUse** checkpoint hook. If the cadence is `interleaved` (the default), you get *one* question right there, while the code is still on your screen:
+
+   ```text title="Checkpoint"
+   [ambient · concept · easy · tier 2 mechanism]
+
+   Why is httpOnly set on the refresh cookie here but not on the access token?
+   ```
+
+   Four options arrive through Claude Code's own question UI, under an **Eklavya** header so you can see who is asking. Picking one is a keystroke. The bracketed line above the question names the settings that produced it — mode, focus, level, what the tier is asking for, and `· q 2/3` when more are coming. It sits above rather than below because the question UI draws everything in one weight, and underneath it read as part of the question.
+5. #### Claude grades it and goes straight back to work
+
+   The answer is graded on a 0–5 scale and stored, along with the next review date. No summary, no re-plan, no second question — the interruption is meant to cost you seconds.
+6. #### The task finishes and sweeps up the rest
+
+   The **Stop** hook checks whether anything worth asking is left, and if so asks **one** more question on the default cadence — never a row of them, unless the session is gated and the gate still needs answers. Because `max_questions_per_task` is a *session budget* and not a batch size, a session that answered its whole budget while you worked ends in silence.
+7. #### Tomorrow
+
+   Concepts you got right are scheduled further out. Concepts you fumbled come back sooner, as a *different* question, sometimes a tier lower. Concepts you mastered are retired unless spaced repetition brings them back.
+
+</Steps>
+
+:::note
+**Answering "I don't know" is not the same as skipping.** Both grade 0, but "I don't know" is treated as a request to be taught: you get the mechanism, the real lines from your diff, and one takeaway. Skipping just moves on. Eklavya records which one it was.
+:::
