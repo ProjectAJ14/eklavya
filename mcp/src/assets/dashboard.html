@@ -4,95 +4,126 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eklavya — learning progress</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23049D66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M7 5a11 11 0 0 1 0 14'/%3E%3Cpath d='M6 12h12'/%3E%3Cpath d='M14 9l3 3-3 3'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230E6E66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M7 5a11 11 0 0 1 0 14'/%3E%3Cpath d='M6 12h12'/%3E%3Cpath d='M14 9l3 3-3 3'/%3E%3C/g%3E%3C/svg%3E">
+<script>
+/* Ground selection, shared with the site: same localStorage key, same default.
+   Runs before the stylesheet so the page never paints one ground then swaps.
+   Ink is the default and an absent choice stays ink — deliberately not the
+   reader's OS setting, because this is a terminal tool. */
+(function () {
+  window.eklavyaGround = {
+    read: function () {
+      try { return localStorage.getItem('eklavya-ground') === 'paper' ? 'paper' : 'ink'; }
+      catch (e) { return 'ink'; }
+    },
+    apply: function (mode) {
+      document.documentElement.setAttribute('data-mode', mode);
+      document.querySelectorAll('[data-ground]').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.dataset.ground === mode));
+      });
+      return mode;
+    },
+    set: function (mode) {
+      try { localStorage.setItem('eklavya-ground', mode); } catch (e) {}
+      this.apply(mode);
+    }
+  };
+  window.eklavyaGround.apply(window.eklavyaGround.read());
+})();
+</script>
 <link rel="stylesheet" href="/tokens.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; }
-  body { margin:0; font-family:var(--font-sans); background:var(--bg-subtle); color:var(--fg);
-         font-size:var(--text-base); line-height:var(--lh-base); }
+  body { margin:0; font-family:var(--font-body); background:var(--bg); color:var(--ink);
+         font-size:14.5px; line-height:1.65;
+         background-image:
+           linear-gradient(var(--grid) 1px, transparent 1px),
+           linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+         background-size:72px 72px; }
+  ::selection { background:var(--spot); color:var(--spot-ink); }
   .wrap { max-width:1140px; margin:0 auto; padding:0 var(--space-8); }
   code, .mono { font-family:var(--font-mono); font-size:var(--text-sm); }
 
   /* ---------- header ---------- */
-  header { background:var(--neutral-900); color:var(--on-dark); padding:var(--space-8) 0 var(--space-10); }
+  header { border-bottom:1px solid var(--line-2); padding:var(--space-8) 0 var(--space-10); }
   .bar { display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; }
-  .mark { width:36px; height:36px; border-radius:var(--radius-md); background:var(--brand);
+  .mark { width:34px; height:34px; background:var(--spot); color:var(--spot-ink);
           display:grid; place-items:center; flex:none; }
-  h1 { font-size:var(--text-xl); font-weight:var(--weight-bold); letter-spacing:-.02em; margin:0; }
-  .sub { color:var(--on-dark-muted); font-size:var(--text-sm); margin:2px 0 0; }
+  h1 { font-family:var(--font-disp); font-size:26px; font-weight:var(--weight-extra);
+       letter-spacing:var(--tracking-tight); margin:0; }
+  .sub { color:var(--dim); font-size:var(--text-sm); margin:2px 0 0; }
   .spacer { flex:1 1 auto; }
-  select { font:inherit; font-size:var(--text-sm); background:var(--neutral-800); color:var(--on-dark);
-           border:1px solid var(--neutral-700); border-radius:var(--radius-md);
+  select { font:inherit; font-size:var(--text-sm); background:var(--panel); color:var(--ink);
+           border:1px solid var(--line-2); border-radius:0;
            padding:var(--space-2) var(--space-3); }
   select:focus-visible { outline:none; box-shadow:var(--ring); }
 
   /* ---------- stat tiles ---------- */
   .tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--space-4); margin-top:var(--space-6); }
-  .tile { background:var(--neutral-800); border:1px solid var(--neutral-700); border-radius:var(--radius-lg);
+  .tile { background:var(--panel); border:1px solid var(--line-2); border-radius:0;
           padding:var(--space-5); }
   .tile .k { font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.08em;
-             text-transform:uppercase; color:var(--on-dark-muted); }
+             text-transform:uppercase; color:var(--dim); }
   .tile .v { font-size:var(--text-3xl); font-weight:var(--weight-extra,800); letter-spacing:-.025em;
              line-height:1.1; margin-top:var(--space-2); }
-  .tile .n { font-size:var(--text-sm); color:var(--on-dark-muted); margin-top:var(--space-1); }
-  .good { color:var(--green-300); }
+  .tile .n { font-size:var(--text-sm); color:var(--dim); margin-top:var(--space-1); }
+  .good { color:var(--spot); }
 
   /* ---------- cards ---------- */
   main { padding:var(--space-10) 0 var(--space-20); }
-  section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+  section { background:var(--panel); border:1px solid var(--line); border-radius:0;
             padding:var(--space-6); margin-bottom:var(--space-6); }
   h2 { font-size:var(--text-md); font-weight:var(--weight-bold); letter-spacing:-.01em; margin:0; }
-  .hint { color:var(--fg-subtle); font-size:var(--text-sm); margin:var(--space-1) 0 var(--space-5); }
+  .hint { color:var(--faint); font-size:var(--text-sm); margin:var(--space-1) 0 var(--space-5); }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-6); }
   .grid2 > section { margin:0; }
 
   /* ---------- tables ---------- */
   table { width:100%; border-collapse:collapse; font-size:var(--text-sm); }
   th { text-align:left; font-size:var(--text-xs); font-weight:var(--weight-bold); letter-spacing:.08em;
-       text-transform:uppercase; color:var(--fg-subtle); padding:0 var(--space-3) var(--space-2) 0;
-       border-bottom:1px solid var(--border); white-space:nowrap; }
-  td { padding:var(--space-3) var(--space-3) var(--space-3) 0; border-bottom:1px solid var(--border);
+       text-transform:uppercase; color:var(--faint); padding:0 var(--space-3) var(--space-2) 0;
+       border-bottom:1px solid var(--line); white-space:nowrap; }
+  td { padding:var(--space-3) var(--space-3) var(--space-3) 0; border-bottom:1px solid var(--line);
        vertical-align:top; }
   tr:last-child td { border-bottom:none; }
   .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   .scroll { overflow-x:auto; }
 
   /* ---------- meters (sequential, one hue) ---------- */
-  .meter { height:8px; border-radius:var(--radius-pill); background:var(--bg-sunken); overflow:hidden;
+  .meter { height:8px; border-radius:var(--radius-pill); background:var(--mass); overflow:hidden;
            min-width:80px; }
-  .meter > i { display:block; height:100%; background:var(--brand); border-radius:var(--radius-pill); }
+  .meter > i { display:block; height:100%; background:var(--spot); border-radius:var(--radius-pill); }
   .meter.warn > i { background:var(--warning); }
 
   /* ---------- chart ---------- */
-  .legend { display:flex; gap:var(--space-5); font-size:var(--text-sm); color:var(--fg-muted);
+  .legend { display:flex; gap:var(--space-5); font-size:var(--text-sm); color:var(--dim);
             margin-bottom:var(--space-4); flex-wrap:wrap; }
   .legend b { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:var(--space-2); }
   .chart { position:relative; }
   .chart svg { display:block; width:100%; height:200px; overflow:visible; }
-  .gridline { stroke:var(--border); stroke-width:1; }
-  .axis { font-family:var(--font-mono); font-size:10px; fill:var(--fg-faint); }
+  .gridline { stroke:var(--line); stroke-width:1; }
+  .axis { font-family:var(--font-mono); font-size:10px; fill:var(--faint-2); }
   .hit { fill:transparent; cursor:pointer; }
   .hit:hover + .col, .hit:focus-visible + .col { opacity:.75; }
   .tip { position:absolute; pointer-events:none; opacity:0; transform:translate(-50%,-100%);
-         background:var(--neutral-900); color:var(--on-dark); border-radius:var(--radius-md);
-         padding:var(--space-3); font-size:var(--text-xs); line-height:1.6; white-space:nowrap;
-         box-shadow:var(--shadow-md); transition:opacity var(--duration-fast) var(--ease); z-index:2; }
+         background:var(--panel); color:var(--ink); border-radius:0;
+         padding:var(--space-3); font-size:var(--text-xs); line-height:1.6; white-space:nowrap; transition:opacity var(--duration-fast) var(--ease); z-index:2; }
   .tip.on { opacity:1; }
   .tip .r { display:flex; justify-content:space-between; gap:var(--space-4); }
 
   /* ---------- pills & misc ---------- */
   .pill { display:inline-block; font-family:var(--font-mono); font-size:var(--text-xs);
-          padding:2px 8px; border-radius:var(--radius-pill); background:var(--bg-sunken);
-          color:var(--fg-muted); white-space:nowrap; }
-  .pill.due { background:var(--warning-bg); color:#8a5600; }
-  .pill.ok  { background:var(--brand-subtle); color:var(--green-700); }
-  .ctx { color:var(--fg); }
-  .slug { font-family:var(--font-mono); font-size:var(--text-xs); color:var(--fg-subtle); }
-  .empty { color:var(--fg-subtle); font-size:var(--text-sm); }
-  footer { color:var(--fg-subtle); font-size:var(--text-sm); text-align:center; padding-bottom:var(--space-10); }
+          padding:2px 8px; border-radius:var(--radius-pill); background:var(--mass);
+          color:var(--dim); white-space:nowrap; }
+  .pill.due { background:var(--mass); color:var(--warning); }
+  .pill.ok  { background:var(--spot-soft); color:var(--spot); }
+  .ctx { color:var(--ink); }
+  .slug { font-family:var(--font-mono); font-size:var(--text-xs); color:var(--faint); }
+  .empty { color:var(--faint); font-size:var(--text-sm); }
+  footer { color:var(--faint); font-size:var(--text-sm); text-align:center; padding-bottom:var(--space-10); }
 
   @media (max-width:900px) {
     .tiles { grid-template-columns:repeat(2,1fr); }
@@ -104,6 +135,17 @@
     .tile .v { font-size:var(--text-2xl); }
   }
   @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
+
+  /* ---------- the ground toggle ---------- */
+  .ground { display:flex; border:1px solid var(--line-2); flex:none; }
+  .ground button {
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; background:none; border:0; color:var(--faint);
+    padding:6px 11px; cursor:pointer; line-height:1.4;
+    transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+  }
+  .ground button:hover { color:var(--ink); }
+  .ground button[aria-pressed="true"] { background:var(--ink); color:var(--bg); }
 </style>
 </head>
 <body>
@@ -111,7 +153,7 @@
   <div class="wrap">
     <div class="bar">
       <div class="mark" aria-hidden="true">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round">
           <path d="M5 3a13 13 0 0 1 0 18"/><path d="M5 3l14 9L5 21"/><path d="M3 12h18"/><path d="M15 8l4 4-4 4"/>
         </svg>
@@ -121,6 +163,10 @@
         <p class="sub" id="sub">Loading…</p>
       </div>
       <div class="spacer"></div>
+        <div class="ground" role="group" aria-label="Colour ground">
+          <button type="button" data-ground="ink" aria-pressed="true">ink</button>
+          <button type="button" data-ground="paper" aria-pressed="false">paper</button>
+        </div>
       <label class="sub" for="proj">Project</label>
       <select id="proj"><option value="*">All projects</option></select>
     </div>
@@ -133,9 +179,9 @@
     <h2>Answers over the last 30 days</h2>
     <p class="hint" id="chart-hint">Right, missed and skipped, per day.</p>
     <div class="legend">
-      <span><b style="background:var(--green-600)"></b>Right</span>
+      <span><b style="background:var(--spot)"></b>Right</span>
       <span><b style="background:var(--warning)"></b>Missed</span>
-      <span><b style="background:var(--neutral-400)"></b>Skipped</span>
+      <span><b style="background:var(--faint)"></b>Skipped</span>
     </div>
     <div class="chart"><div class="tip" id="tip"></div><svg id="chart" role="img"
       aria-label="Daily answers, split into right, missed and skipped"></svg></div>
@@ -262,11 +308,11 @@ function renderChart() {
   }
   // Stack order is fixed: right at the base, then missed, then skipped on top.
   // Segment colour never depends on rank, only on which measure it is.
-  const SEGMENTS = [['passed', 'var(--green-600)'], ['missed', 'var(--warning)'], ['skipped', 'var(--neutral-400)']];
+  const SEGMENTS = [['passed', 'var(--spot)'], ['missed', 'var(--warning)'], ['skipped', 'var(--faint)']];
   const labelEvery = Math.max(1, Math.ceil(46 / step));
   days.forEach((d, i) => {
     const x = PAD_L + i * step + (step - bw) / 2;
-    let acc = 0, seg = '', topColor = 'var(--green-600)';
+    let acc = 0, seg = '', topColor = 'var(--spot)';
     for (const [key, color] of SEGMENTS) {
       if (!d[key]) continue;
       const h = (d[key] / max) * (H - PAD_B - 8);
@@ -402,6 +448,11 @@ fetch('/api/state').then((r) => r.json()).then((s) => {
   renderAll();
   addEventListener('resize', renderChart);
 }).catch((e) => { $('sub').textContent = 'Could not read the database: ' + e.message; });
+</script>
+<script>
+  document.querySelectorAll('[data-ground]').forEach(function (b) {
+    b.addEventListener('click', function () { window.eklavyaGround.set(b.dataset.ground); });
+  });
 </script>
 </body>
 </html>
