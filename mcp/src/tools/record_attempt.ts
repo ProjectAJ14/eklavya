@@ -22,7 +22,7 @@ export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format and, for multiple choice, the options you offered — put only the stem in question, never the options and never a settings line, or the repeat check breaks. Multiple choice is capped at grade 4: picking one of four cannot show you know why. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
+    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format and, for multiple choice, the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. Multiple choice is capped at grade 4: picking one of four cannot show you know why. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -30,7 +30,7 @@ export const recordAttempt: ToolDef = {
     question: z
       .string()
       .describe(
-        'The question stem exactly as asked — WITHOUT the options and WITHOUT any settings line. This text is what stops the same question coming back later, so anything baked in here that moves (shuffled options, the level in the settings line) would make one question look like several.',
+        'The question stem exactly as asked, and only the stem. This text is what stops the same question coming back later, so anything baked in here that moves — shuffled options, a dial in a bracketed line — would make one question look like several.',
       ),
     answer: z
       .string()

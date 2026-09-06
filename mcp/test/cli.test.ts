@@ -102,7 +102,8 @@ describe('eklavya export-rules', () => {
     // breaks, Cursor gets the dispatch logic and none of the craft -- and every
     // other test still passes.
     const out = eklavya(['export-rules']).stdout;
-    expect(out).toMatch(/Build it in this order/);                // writing-mcq
+    // Mid-body, not a heading: a heading survives the body being deleted.
+    expect(out).toMatch(/Options belong in/);                     // writing-mcq
     expect(out).toMatch(/A blank is not a skip/);                 // grading
     expect(out).toMatch(/reused on a different project/);         // focus-and-level
   });

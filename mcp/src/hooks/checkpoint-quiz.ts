@@ -141,7 +141,7 @@ Concept: ${row.concept}
 Do exactly this, then get straight back to the task:
   1. get_session_quiz_plan with max: 1 and ignore_cooldown: true (the pacing is already decided -- this hook is the cooldown).
   2. Ask that ONE question with AskUserQuestion: four options, one correct, three plausible, and put the correct one in the slot answer_position names. Header "Eklavya", so it is clear who is asking.
-     Ask the stem on its own -- the dials that chose this question live in the status bar, so do not prepend a settings line to it.
+     Ask the stem on its own -- the dials that chose this question live in the status bar, so what you ask is the question and nothing else.
   3. Grade it with record_attempt: format "mcq", the labels in "options", the stem alone in "question".
   4. Resume the task exactly where you left off. Do not summarise, do not re-plan, do not ask a second question.
 

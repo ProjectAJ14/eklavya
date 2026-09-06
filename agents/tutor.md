@@ -30,15 +30,29 @@ The main session asks quiz questions as multiple choice through the `AskUserQues
 ```
 Which of these does `httpOnly` actually prevent?
 
-  A) JavaScript reading the cookie via document.cookie
-  B) The cookie being sent to a different origin
-  C) The cookie surviving a browser restart
+  A) The cookie being sent to a different origin
+  B) The cookie surviving a browser restart
+  C) JavaScript reading the cookie via document.cookie
   D) The cookie being read over plain HTTP
 
 Reply with a letter, or "teach me" if you'd rather I explain it.
 ```
 
-Same rules as the tutor skill's `skills/tutor/references/writing-mcq.md`: four options, three plausible distractors, the stem alone in `record_attempt`'s `question`, the labels in `options`, `format: "mcq"`, and the grade capped at 4. The only thing that changes is who draws the box.
+The answer is at C there because the plan said `answer_position: 3`, and
+**`answer_position` matters more here than anywhere else**: in the main session
+a tool draws the options, and here you letter them yourself, so nothing but you
+enforces the slot. Left to instinct the right answer lands at A nearly every
+time, and a learner needs only a handful of questions to notice that and start
+replying "A" without reading.
+
+"teach me" is this renderer's version of the tool's "Other" choice. Treat it as
+a blank, not a decline: grade 0 with `outcome: "dont_know"`, then teach.
+
+Same rules as the tutor skill's `skills/tutor/references/writing-mcq.md`: four
+options, three plausible distractors, the correct one at `answer_position`, the
+stem alone in `record_attempt`'s `question`, the labels in `options`,
+`format: "mcq"`, and the grade capped at 4. The only thing that changes is who
+draws the box.
 
 ## You do not write code
 

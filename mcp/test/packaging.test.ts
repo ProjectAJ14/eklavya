@@ -129,6 +129,18 @@ describe('what ships to npm', () => {
     }
   });
 
+  it('ships references with a body, not just a heading', () => {
+    // The export test asserts one phrase per reference reaches the output,
+    // which proves the file was bundled -- not that anything is in it. Gut a
+    // reference to its first heading and that test still passes, and so does
+    // every other one, while the model is pointed at a file with no rules.
+    const refsDir = path.join(repoRoot, 'skills', 'tutor', 'references');
+    for (const name of fs.readdirSync(refsDir).filter((f) => f.endsWith('.md'))) {
+      const words = fs.readFileSync(path.join(refsDir, name), 'utf8').trim().split(/\s+/).length;
+      expect(words, `${name} is ${words} words`).toBeGreaterThan(300);
+    }
+  });
+
   it('resolves the reference paths the tutor subagent cites', () => {
     // agents/tutor.md is the file that already went stale this way -- it
     // pointed at a section of SKILL.md that the split had moved out. It has no
