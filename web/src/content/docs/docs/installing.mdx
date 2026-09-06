@@ -11,8 +11,13 @@ Two routes, and they end up in the same place. Pick either.
 ### A. One command, from a terminal
 
 ```bash
-npx eklavya install
+npm install -g eklavya && eklavya install
 ```
+
+That one line gives you both halves: the `eklavya` command on your `PATH`, and
+the install it then runs. If you would rather not install anything globally,
+`npx eklavya install` does the same setup — but leaves no `eklavya` command
+behind, so `eklavya doctor` and `eklavya dashboard` will not exist afterwards.
 
 That does the whole job, in this order:
 
@@ -36,7 +41,7 @@ That does the whole job, in this order:
 
 </Steps>
 
-Then restart Claude Code and run `/eklavya:setup` to choose a mode. Running `npx eklavya install` again is how you upgrade — every step is safe to repeat, and it will not disturb your other plugins or your learning history.
+Then restart Claude Code and run `/eklavya:setup` to choose a mode. Running `eklavya install` again is how you upgrade — every step is safe to repeat, and it will not disturb your other plugins or your learning history.
 
 ### B. In Claude Code, through the plugin marketplace
 
@@ -109,15 +114,12 @@ npx eklavya uninstall --purge   # removes ~/.eklavya as well
 
 Without `--purge` your knowledge graph stays at `~/.eklavya/knowledge.db`, so reinstalling picks up exactly where you left off. That is deliberate: months of spaced repetition should not disappear because you removed a plugin.
 
-### Getting the `eklavya` command
+### The `eklavya` command
 
-Some things — checking your setup, serving the dashboard, editing config from a terminal — are done with a small CLI rather than a slash command. `npx eklavya install` already put it on your machine; to have it permanently on your `PATH`:
+Some things — checking your setup, serving the dashboard, editing config from a terminal — are done with a small CLI rather than a slash command. Route A above installs it. If you took route B, or used `npx`, add it whenever you want it:
 
 ```bash
 npm install -g eklavya     # then: eklavya doctor
-
-# or without installing anything globally:
-npx eklavya doctor
 ```
 
 Full list of subcommands: [The `eklavya` CLI](/docs/cli/).

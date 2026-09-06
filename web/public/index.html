@@ -77,9 +77,16 @@
         <button type="button" data-ground="ink" aria-pressed="true">ink</button>
         <button type="button" data-ground="paper" aria-pressed="false">paper</button>
       </div>
-      <a class="btn btn--white" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
-        GitHub
+      <a class="star" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener"
+         aria-label="Star Eklavya on GitHub">
+        <svg class="star__mark" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+        <span class="star__label">Star</span>
+        <b class="star__n" data-stars hidden></b>
+      </a>
+      <a class="by" href="https://github.com/ProjectAJ14" target="_blank" rel="noopener">
+        <span class="by__txt">Built by<b>Ajay Kumar</b></span>
+        <img class="by__pic" src="https://github.com/ProjectAJ14.png?size=72" width="30" height="30"
+             alt="" loading="lazy" decoding="async">
       </a>
     </div>
   </div>
@@ -95,27 +102,27 @@
        where nothing sits on top of it. Flat 1000x60 viewBox so it stays a thin
        strip at any width instead of growing tall enough to reach the terminal. -->
   <svg class="hero__arrows" viewBox="0 0 1000 60" fill="none" aria-hidden="true">
-    <line x1="104" y1="30" x2="900" y2="30" stroke="rgba(143,216,182,.35)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
+    <line x1="104" y1="30" x2="900" y2="30" stroke="color-mix(in srgb, var(--spot) 35%, transparent)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
     <g class="shot__bow">
-      <path d="M 26 8 Q 50 30 26 52" stroke="var(--green-300)" stroke-width="2" stroke-linecap="round"/>
-      <line x1="26" y1="8" x2="26" y2="52" stroke="rgba(143,216,182,.6)" stroke-width="1.2"/>
+      <path d="M 26 8 Q 50 30 26 52" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="26" y1="8" x2="26" y2="52" stroke="color-mix(in srgb, var(--spot) 60%, transparent)" stroke-width="1.2"/>
     </g>
     <g class="shot__arrow">
-      <line x1="32" y1="30" x2="88" y2="30" stroke="#C3EAD8" stroke-width="2.4" stroke-linecap="round"/>
-      <polyline points="82 24 92 30 82 36" stroke="#C3EAD8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-      <line x1="38" y1="30" x2="31" y2="24" stroke="#C3EAD8" stroke-width="2" stroke-linecap="round"/>
-      <line x1="38" y1="30" x2="31" y2="36" stroke="#C3EAD8" stroke-width="2" stroke-linecap="round"/>
-      <line x1="46" y1="30" x2="39" y2="24" stroke="#C3EAD8" stroke-width="2" stroke-linecap="round"/>
-      <line x1="46" y1="30" x2="39" y2="36" stroke="#C3EAD8" stroke-width="2" stroke-linecap="round"/>
+      <line x1="32" y1="30" x2="88" y2="30" stroke="var(--spot)" stroke-width="2.4" stroke-linecap="round"/>
+      <polyline points="82 24 92 30 82 36" stroke="var(--spot)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <line x1="38" y1="30" x2="31" y2="24" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="38" y1="30" x2="31" y2="36" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="46" y1="30" x2="39" y2="24" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="46" y1="30" x2="39" y2="36" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
     </g>
     <g class="shot__target">
-      <circle cx="946" cy="30" r="24" stroke="var(--green-300)" stroke-width="2"/>
-      <circle cx="946" cy="30" r="15" stroke="rgba(143,216,182,.55)" stroke-width="1.6"/>
-      <circle cx="946" cy="30" r="6.5" stroke="rgba(143,216,182,.4)" stroke-width="1.6"/>
-      <circle cx="946" cy="30" r="2.5" fill="var(--green-300)"/>
+      <circle cx="946" cy="30" r="24" stroke="var(--spot)" stroke-width="2"/>
+      <circle cx="946" cy="30" r="15" stroke="color-mix(in srgb, var(--spot) 55%, transparent)" stroke-width="1.6"/>
+      <circle cx="946" cy="30" r="6.5" stroke="color-mix(in srgb, var(--spot) 40%, transparent)" stroke-width="1.6"/>
+      <circle cx="946" cy="30" r="2.5" fill="var(--spot)"/>
     </g>
-    <circle class="shot__ripple" cx="946" cy="30" r="25" stroke="var(--green-300)" stroke-width="1.6"/>
-    <circle class="shot__ripple shot__ripple--late" cx="946" cy="30" r="25" stroke="rgba(143,216,182,.5)" stroke-width="1.2"/>
+    <circle class="shot__ripple" cx="946" cy="30" r="25" stroke="var(--spot)" stroke-width="1.6"/>
+    <circle class="shot__ripple shot__ripple--late" cx="946" cy="30" r="25" stroke="color-mix(in srgb, var(--spot) 50%, transparent)" stroke-width="1.2"/>
   </svg>
 
   <div class="wrap hero__grid">
@@ -367,27 +374,27 @@
     <h2 class="h2 legend__title center" id="legend-title" data-reveal data-delay="100">The archer who taught himself</h2>
 
     <svg class="shot" viewBox="0 0 1000 140" fill="none" data-reveal data-delay="200" aria-hidden="true">
-      <line x1="150" y1="70" x2="850" y2="70" stroke="rgba(143,216,182,.28)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
+      <line x1="150" y1="70" x2="850" y2="70" stroke="color-mix(in srgb, var(--spot) 28%, transparent)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
       <g class="shot__bow" data-anim>
-        <path d="M 62 16 Q 112 70 62 124" stroke="var(--green-300)" stroke-width="2.5" stroke-linecap="round"/>
-        <line x1="62" y1="16" x2="62" y2="124" stroke="rgba(143,216,182,.6)" stroke-width="1.5"/>
+        <path d="M 62 16 Q 112 70 62 124" stroke="var(--spot)" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="62" y1="16" x2="62" y2="124" stroke="color-mix(in srgb, var(--spot) 60%, transparent)" stroke-width="1.5"/>
       </g>
       <g class="shot__arrow" data-anim>
-        <line x1="66" y1="70" x2="150" y2="70" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
-        <polyline points="140 61 152 70 140 79" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        <line x1="74" y1="70" x2="66" y2="62" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-        <line x1="74" y1="70" x2="66" y2="78" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-        <line x1="84" y1="70" x2="76" y2="62" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
-        <line x1="84" y1="70" x2="76" y2="78" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+        <line x1="66" y1="70" x2="150" y2="70" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/>
+        <polyline points="140 61 152 70 140 79" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <line x1="74" y1="70" x2="66" y2="62" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>
+        <line x1="74" y1="70" x2="66" y2="78" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>
+        <line x1="84" y1="70" x2="76" y2="62" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>
+        <line x1="84" y1="70" x2="76" y2="78" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"/>
       </g>
       <g class="shot__target" data-anim>
-        <circle cx="890" cy="70" r="36" stroke="var(--green-300)" stroke-width="2.5"/>
-        <circle cx="890" cy="70" r="23" stroke="rgba(143,216,182,.55)" stroke-width="2"/>
-        <circle cx="890" cy="70" r="10" stroke="rgba(143,216,182,.4)" stroke-width="2"/>
-        <circle cx="890" cy="70" r="3.5" fill="var(--green-300)"/>
+        <circle cx="890" cy="70" r="36" stroke="var(--spot)" stroke-width="2.5"/>
+        <circle cx="890" cy="70" r="23" stroke="color-mix(in srgb, var(--spot) 55%, transparent)" stroke-width="2"/>
+        <circle cx="890" cy="70" r="10" stroke="color-mix(in srgb, var(--spot) 40%, transparent)" stroke-width="2"/>
+        <circle cx="890" cy="70" r="3.5" fill="var(--spot)"/>
       </g>
-      <circle class="shot__ripple" data-anim cx="890" cy="70" r="38" stroke="var(--green-300)" stroke-width="2"/>
-      <circle class="shot__ripple shot__ripple--late" data-anim cx="890" cy="70" r="38" stroke="rgba(143,216,182,.5)" stroke-width="1.5"/>
+      <circle class="shot__ripple" data-anim cx="890" cy="70" r="38" stroke="var(--spot)" stroke-width="2"/>
+      <circle class="shot__ripple shot__ripple--late" data-anim cx="890" cy="70" r="38" stroke="color-mix(in srgb, var(--spot) 50%, transparent)" stroke-width="1.5"/>
     </svg>
 
     <div class="legend__cols">
@@ -640,7 +647,7 @@
         <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node, then picks your mode and focus</span></div>
       </div>
       <p class="cmd-ask" data-reveal data-delay="150">
-        Or don't learn any of them. <code>npx eklavya install</code> also puts a skill in your
+        Or don't learn any of them. <code>npm install -g eklavya &amp;&amp; eklavya install</code> also puts a skill in your
         Claude Code, so <em>“Eklavya, ease off — too many questions”</em> and <em>“open my
         dashboard”</em> move the same dials, in an ordinary sentence.
         <a href="/docs/commands/#or-just-ask">How that works</a>
@@ -762,8 +769,7 @@
   <div class="cta__inner">
     <h2 class="cta__title" id="cta-title" data-reveal>Turn generation time<br>into <em>learning time.</em></h2>
     <div class="cta__code" data-reveal data-delay="150">
-      <div><span>$</span> npx eklavya install</div>
-      <div><span>$</span> /eklavya:setup</div>
+      <div><span>$</span> npm install -g eklavya &amp;&amp; eklavya install</div>
     </div>
     <div class="cta__actions" data-reveal data-delay="300">
       <a class="btn btn--brand" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener">

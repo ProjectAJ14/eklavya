@@ -33,10 +33,11 @@ Everything is local. No accounts, no sync, no telemetry.
 Needs **Node 22+**. Nothing else, on macOS, Linux or Windows.
 
 ```bash
-npx eklavya install
+npm install -g eklavya && eklavya install
 ```
 
-Then run `/eklavya:setup` inside Claude Code to choose a mode.
+That gives you the plugin and the `eklavya` command. Then run `/eklavya:setup`
+inside Claude Code to choose a mode.
 
 You can also install from the plugin marketplace inside Claude Code, with one
 caveat about what a slash command is allowed to do — both routes and the caveat

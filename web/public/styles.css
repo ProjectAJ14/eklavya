@@ -131,12 +131,52 @@ a { color: inherit; text-decoration: none; }
 .nav__inner {
   height: 64px; display: flex; align-items: center; justify-content: space-between;
 }
-.brand { display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; flex: none; }
 .brand__mark {
   width: 30px; height: 30px; border-radius: 0;
   background: var(--spot); color: var(--spot-ink);
   display: flex; align-items: center; justify-content: center; flex: none;
 }
+
+/* ---------- the star count ----------
+   The number is the ask. A live count reads as "other people did this" where
+   "please star the repo" reads as begging, so the figure carries it and the
+   label stays a verb. It is hidden until the fetch lands, so a rate-limited
+   or offline visitor gets a clean button rather than a zero. */
+.star {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--line-2); padding: 6px 12px; flex: none;
+  font-family: var(--font-mono); font-size: 11.5px;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--ink);
+  transition: border-color 140ms var(--ease), color 140ms var(--ease);
+}
+.star:hover { border-color: var(--spot); color: var(--spot); }
+.star__mark { flex: none; }
+.star__n {
+  font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  padding-left: 8px; margin-left: 2px; border-left: 1px solid var(--line-2);
+  color: var(--spot);
+}
+.star__n[hidden] { display: none; }
+
+/* ---------- the byline ---------- */
+.by { display: inline-flex; align-items: center; gap: 9px; flex: none; }
+.by__txt {
+  display: flex; flex-direction: column; line-height: 1.25; text-align: right;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint);
+}
+.by__txt b {
+  font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+  letter-spacing: 0; text-transform: none; color: var(--ink);
+}
+.by__pic {
+  border-radius: 50%; flex: none; display: block;
+  border: 1px solid var(--line-2);
+  transition: border-color 140ms var(--ease);
+}
+.by:hover .by__pic { border-color: var(--spot); }
+.by:hover .by__txt b { color: var(--spot); }
 
 /* ---------- the ground toggle ----------
    Two states, both always visible and labelled, so the current
@@ -155,13 +195,13 @@ a { color: inherit; text-decoration: none; }
 .brand__tag {
   font-family: var(--font-mono); font-size: 11px; color: var(--faint);
   background: var(--panel); padding: 3px 8px;
-  border-radius: 0; margin-left: 2px;
+  border-radius: 0; margin-left: 2px; white-space: nowrap;
 }
-.nav__links { display: flex; align-items: center; gap: 28px; }
+.nav__links { display: flex; align-items: center; gap: 18px; min-width: 0; }
 .nav__link {
   font-family: var(--font-mono); font-size: 11.5px; font-weight: 400;
   letter-spacing: .07em; text-transform: uppercase; color: var(--faint);
-  transition: color 140ms var(--ease);
+  transition: color 140ms var(--ease); white-space: nowrap; flex: none;
 }
 .nav__link:hover { color: var(--spot); }
 
@@ -184,6 +224,7 @@ a { color: inherit; text-decoration: none; }
   /* Lives in the gap between the nav and the hero content, clear of the badge
      and the terminal — capped to the content width so a wide viewport cannot
      scale it tall enough to collide with either. */
+  --fly: 854px;
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 1400px;
   opacity: var(--shot-op); filter: blur(.4px); pointer-events: none; overflow: visible;
@@ -496,7 +537,7 @@ kbd {
 }
 .legend__inner { position: relative; padding: 96px 32px 88px; }
 .legend__title { color: var(--ink); font-size: var(--display-2); margin-left: auto; margin-right: auto; }
-.shot { display: block; width: 100%; max-width: 980px; margin: 48px auto 0; overflow: visible; }
+.shot { --fly: 738px; display: block; width: 100%; max-width: 980px; margin: 48px auto 0; overflow: visible; }
 .legend__cols {
   margin-top: 56px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px;
 }
@@ -854,9 +895,9 @@ kbd {
 @keyframes arrowFly {
   0%, 4% { transform: translateX(0); opacity: 0; }
   7% { opacity: 1; }
-  16% { transform: translateX(854px); opacity: 1; }
-  88% { transform: translateX(854px); opacity: 1; }
-  94%, 100% { transform: translateX(854px); opacity: 0; }
+  16% { transform: translateX(var(--fly)); opacity: 1; }
+  88% { transform: translateX(var(--fly)); opacity: 1; }
+  94%, 100% { transform: translateX(var(--fly)); opacity: 0; }
 }
 @keyframes ripple {
   0%, 15% { transform: scale(.3); opacity: 0; }
@@ -1203,9 +1244,11 @@ kbd {
 
 @media (max-width: 900px) {
   .section { padding: 72px 0; }
-  .nav__links { gap: 18px; }
+  .nav__links { gap: 14px; }
   .nav__link { display: none; }
   .brand__tag { display: none; }
+  /* the byline is the first thing to go: the star count is the one that works */
+  .by__txt { display: none; }
 
   .hero__grid { grid-template-columns: 1fr; gap: 48px; padding: 64px 32px 80px; }
   .hero__arrows { display: none; }
@@ -1272,3 +1315,20 @@ kbd {
 
 .footer__name { font-weight: 800; font-size: 16px; }
 .footer__link { font-weight: 600; }
+
+@media (max-width: 640px) {
+  .by { display: none; }
+  .star__label { display: none; }
+  .star__n { padding-left: 0; margin-left: 0; border-left: 0; }
+}
+
+/* ---------- nav crowding ----------
+   The bar now carries six links, the ground toggle, a star count and a byline.
+   Things leave in order of how much they earn their place: the tagline first
+   (the byline says who made it better), then the section links, then the
+   byline's words, then the byline. The star count never leaves. */
+@media (max-width: 1300px) { .brand__tag { display: none; } }
+@media (max-width: 1120px) {
+  .nav__link { display: none; }
+  .nav__links { gap: 14px; }
+}

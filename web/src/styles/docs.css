@@ -152,14 +152,39 @@ nav.sidebar summary span.large {
 .expressive-code .frame .header { border-color: var(--line-2); }
 .sl-markdown-content code:not(:where(.expressive-code *)) { color: var(--spot); }
 
-/* ---------- tables ---------- */
+/* ---------- tables ----------
+   These are reference tables: a narrow key column and a description that runs
+   long. Two rules do the work — the key column shrinks to its content and does
+   not wrap, the description takes everything left and wraps freely. `nowrap` on
+   anything but the first column clips it, and a table that overflows must
+   scroll in its own box rather than move the page. */
 .sl-markdown-content th {
   font-family: var(--font-mono); font-size: 11px; font-weight: 400;
   letter-spacing: var(--tracking-caps); text-transform: uppercase;
   color: var(--faint); border-bottom: 1px solid var(--line-2);
+  text-align: left; vertical-align: bottom;
 }
-.sl-markdown-content :where(td, th) { border-color: var(--line); }
+.sl-markdown-content :where(td, th) {
+  border-color: var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;      /* a long slug must break, not push the table */
+  hyphens: none;
+}
 .sl-markdown-content tr:last-child :where(td) { border-bottom: 0; }
+
+.sl-markdown-content table {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+}
+/* The key column shrinks to its content — `width: 1%` on an auto-layout table
+   means "as narrow as you can be" — and the description takes what is left.
+   Nothing is told not to wrap except inline code, which is a single token and
+   would be unreadable broken; a prose label like "No profile line at session
+   start" must wrap, and telling the whole column `nowrap` is what clipped it. */
+.sl-markdown-content :where(td, th):first-child { width: 1%; }
+.sl-markdown-content td code { white-space: nowrap; }
+
 
 @media (max-width: 50rem) {
   .ground button { padding: 5px 8px; font-size: 10px; }
@@ -175,13 +200,6 @@ nav.sidebar summary span.large {
   color: var(--spot);
 }
 
-/* ---------- tables ----------
-   A key/default/description table is mostly description: let it take the room
-   and stop the two narrow columns wrapping mid-token. */
-.sl-markdown-content :where(td, th):first-child { white-space: nowrap; }
-.sl-markdown-content :where(td, th):nth-child(2) { white-space: nowrap; }
-.sl-markdown-content table { table-layout: auto; width: 100%; }
-.sl-markdown-content td code { white-space: nowrap; }
 
 /* ---------- code frames ----------
    Expressive Code's own themes paint a white (or near-black) ground that sits

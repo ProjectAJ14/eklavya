@@ -410,3 +410,23 @@ document.querySelectorAll('[data-ground]').forEach(function (btn) {
     window.eklavyaGround.set(btn.dataset.ground);
   });
 });
+
+/* ---------------------------------------------------------------
+   Live star count. Unauthenticated api.github.com is rate-limited
+   per IP, so this fails silently and the button keeps its label —
+   a visitor who hits the limit sees "Star", never "0".
+   --------------------------------------------------------------- */
+(function () {
+  var el = document.querySelector('[data-stars]');
+  if (!el) return;
+  fetch('https://api.github.com/repos/ProjectAJ14/eklavya')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var n = d && d.stargazers_count;
+      if (typeof n !== 'number') return;
+      el.textContent = n >= 1000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k'
+                                 : String(n);
+      el.hidden = false;
+    })
+    .catch(function () {});
+})();
