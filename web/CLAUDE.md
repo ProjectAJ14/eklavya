@@ -45,10 +45,10 @@ Every `.mdx` under `src/content/docs/docs/` has a row here, in sidebar order.
 
 | Page | Source of truth |
 |---|---|
-| `index.mdx` | the loop as it actually runs: the five hooks in `mcp/src/hooks/` and `max_questions_per_task` in `mcp/src/config.ts`. It also carries the one prerequisite — `mcp/package.json` `engines` — because `before-you-start.mdx` was merged into it. Keep it short: it is the page that says what the tool is, not how it works |
+| `index.mdx` | the loop as it actually runs: the six hooks in `mcp/src/hooks/` and `max_questions_per_task` in `mcp/src/config.ts`. It also carries the one prerequisite — `mcp/package.json` `engines` — because `before-you-start.mdx` was merged into it. Keep it short: it is the page that says what the tool is, not how it works |
 | `installing.mdx` | `mcp/src/install.ts` (its numbered steps are the numbered steps on the page), `.mcp.json`, `hooks/run.mjs`. `README.md` points here rather than repeating it — keep it that way |
 | `first-run.mdx` | `skills/setup/SKILL.md` |
-| `first-session.mdx` | `hooks/hooks.json` and the five hooks in `mcp/src/hooks/` |
+| `first-session.mdx` | `hooks/hooks.json` and the six hooks in `mcp/src/hooks/` |
 | `dials.mdx` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` — **and** `mcp/src/tools/get_session_quiz_plan.ts`, because the `interleaved` one-question cap and its exemptions live in the planner, not in the config |
 | `levels-and-tiers.mdx` | `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts`; the tier labels are `TIER` in `mcp/src/assets/dashboard.html` and the tier table in `skills/tutor/SKILL.md` — `TIER_LABEL` left `ask.ts` with the settings line in 1.14 |
 | `commands.mdx` | one `###` per slash command — the skills under `skills/` carrying `disable-model-invocation: true`, seven of them; `skills/tutor/` is model-invocable only and gets no heading. Plus one for `user-skill/` |

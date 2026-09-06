@@ -125,8 +125,9 @@ describe('a caller with no process.exit behind it', () => {
 
 describe('the bounds themselves', () => {
   it('sits well under the smallest timeout hooks.json grants', () => {
-    // 10s for four hooks, 15s for Stop. A read that outlives its host timeout
-    // is a read the developer waits on, so both bounds must clear it with room.
+    // 10s for most hooks, 15s for Stop, and the assert takes the smallest of
+    // whatever is actually there rather than a count that drifts. A read that
+    // outlives its host timeout is a read the developer waits on.
     const hooks = JSON.parse(
       fs.readFileSync(path.join(path.dirname(mcpRoot), 'hooks', 'hooks.json'), 'utf8'),
     );

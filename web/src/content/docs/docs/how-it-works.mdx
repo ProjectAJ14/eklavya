@@ -15,7 +15,7 @@ You never interact with these directly, but knowing they exist makes the rest of
 | Part | Lives in | What it does |
 | --- | --- | --- |
 | **The MCP server** | `mcp/`, published as `eklavya` on npm | The memory and the rules. It holds the knowledge graph of concepts, decides what you should be asked next and at what difficulty, and grades and stores every answer. |
-| **The hooks** | `hooks/` and `mcp/src/hooks/` — small Node scripts | The timing. They decide *when* a question arrives: at session start, on a prompt in a session that has gone quiet, mid-task, at the end of a task, and before a `git commit`. |
+| **The hooks** | `hooks/` and `mcp/src/hooks/` — small Node scripts | The timing. They decide *when* a question arrives: at session start, on a prompt in a session that has gone quiet, mid-task, at the end of a task, and before a `git commit` — and when work is delegated to a subagent, that it does not. |
 | **The skills** | `skills/` — Markdown instructions for Claude | The teaching. They tell Claude how to phrase a question, how to grade it honestly, and how to explain an answer you did not know. |
 
 :::tip

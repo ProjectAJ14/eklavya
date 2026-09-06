@@ -225,6 +225,28 @@ describe('hooks run on every platform', () => {
     }
   });
 
+  it('every hook source is registered in hooks.json', () => {
+    // The reverse of the check below, and the one that catches a hook nobody
+    // wired up: `dist/hooks/<name>.js` existing proves nothing on its own, and
+    // deleting an entry from hooks.json left the whole suite green.
+    // Asserted as a relationship, so a seventh hook needs no edit here.
+    const { hooks } = readJson(path.join(repoRoot, 'hooks', 'hooks.json'));
+    const registered = new Set(
+      (Object.values(hooks).flat() as Array<{ hooks: Array<{ args: string[] }> }>).flatMap((m) =>
+        m.hooks.map((h) => h.args[1]),
+      ),
+    );
+    const sources = fs
+      .readdirSync(path.join(mcpRoot, 'src', 'hooks'))
+      .filter((f) => f.endsWith('.ts') && f !== 'lib.ts')
+      .map((f) => f.replace(/\.ts$/, ''));
+
+    expect(sources.length).toBeGreaterThan(0);
+    for (const name of sources) {
+      expect(registered.has(name), `mcp/src/hooks/${name}.ts is not in hooks.json`).toBe(true);
+    }
+  });
+
   it('names a hook script that exists', () => {
     const { hooks } = readJson(path.join(repoRoot, 'hooks', 'hooks.json'));
     const all = Object.values(hooks).flat() as Array<{ hooks: Array<{ args: string[] }> }>;

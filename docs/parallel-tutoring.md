@@ -16,6 +16,8 @@ The subagent reads the files being written and teaches from them, sharing the sa
 
 **What it cannot do:** it has no file-writing tools, on purpose. Tutoring must never race the implementation for the same file. It does still write to the knowledge database — that is what `record_attempt` and `upsert_concepts` are for.
 
+The tutor is also the one subagent `SubagentStart` deliberately says nothing to — it has no `log_session_concepts` and nothing to log. [`subagent-policy.md`](subagent-policy.md) is the whole policy: who logs, who quizzes, who stays silent.
+
 **The honest limitation:** the main thread and the subagent take turns rather than genuinely interleaving. It feels closer to "explain what you just did, in stages" than to a second person talking while the first types.
 
 ---

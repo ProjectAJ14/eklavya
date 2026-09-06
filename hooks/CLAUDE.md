@@ -30,12 +30,13 @@ triple in here, even in a comment, fails that test on purpose.
 `scripts/bump-version.sh` bumps `plugin.json` and `mcp/package.json`, nothing
 else.
 
-## The five hooks, out of `hooks.json`
+## The six hooks, out of `hooks.json`
 
 | Event | Matcher | Timeout | Script | Job |
 |---|---|---|---|---|
 | SessionStart | — | 10s | `session-start` | stamp `meta.current_session`, print the profile banner and the standing log directive |
 | UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
+| SubagentStart | — | 10s | `subagent-start` | give a delegated agent the log directive the parent's SessionStart never reached it with |
 | PreToolUse | `Bash` | 10s | `pre-tool-gate` | in `enforced` mode only, deny a `git commit` whose session gate has not passed |
 | PostToolUse | `mcp__.*log_session_concepts` | 10s | `checkpoint-quiz` | one mid-task question, `interleaved` cadence only |
 | Stop | — | 15s | `stop-quiz-check` | block the turn and demand a quiz |
@@ -46,6 +47,36 @@ the prefix depends on how the plugin was installed —
 `mcp__plugin_eklavya_eklavya__log_session_concepts` via `/plugin`. `mcp__.*`
 catches both; anchoring it to one spelling silently disables the checkpoint for
 half the installs.
+
+## SubagentStart needs the JSON form, and skips the tutor
+
+`SessionStart` may print its context as raw stdout. `SubagentStart` may not: it
+reads `hookSpecificOutput.additionalContext` and drops anything else in silence,
+so the wrong form is a hook that runs, exits 0, and does nothing. That is the
+one thing `subagent-start.ts` cannot get wrong, and `mcp/test/hooks.test.ts`
+parses the envelope rather than asserting that something was printed.
+
+It also stays silent for `eklavya-tutor`, matched as a substring so both
+`eklavya-tutor` and `eklavya:eklavya-tutor` are caught. Not because the tutor
+lacks `log_session_concepts` — so do `Explore` and `Plan`, and they are told
+anyway. It is the directive's second sentence: *do not ask the developer
+anything here* is an order not to do the only thing `agents/tutor.md` exists
+for, so delivering it disables parallel tutoring in silence. An absent or
+unrecognised `agent_type` fails **open** — a host that does not send the field
+is a host where failing closed would turn the feature off with nothing to
+report. `docs/subagent-policy.md` is the policy in full; keep the two in step.
+
+`stop-quiz-check.ts` carries the same `agent_id` guard as `checkpoint-quiz.ts`,
+and for a stronger reason: it blocks with exit 2. `Stop` is believed to be
+parent-only, since `SubagentStop` is a separate event — but nothing here has
+verified that, and this hook is what made the path reachable, because before it
+a subagent logged nothing and the Stop hook's `logged > last_logged` predicate
+could never arm.
+
+**And it pays the stdin cost on every delegated task.** It needs `agent_type`,
+so it cannot keep ponytail's stdin-independent fast path; on a host that
+swallows the pipe that is `idleMs` — 2s — per subagent spawn, the same trade
+`PreToolUse` makes per `Bash` call.
 
 ## Every failure path exits 0
 

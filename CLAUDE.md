@@ -12,12 +12,12 @@ working in this repo.
 | `mcp/src/migrations/` | SQLite migrations, forward-only |
 | `mcp/src/hooks/` | the hook logic, in TypeScript — one file per hook, plus the shared `lib.ts` |
 | `mcp/test/` | the vitest suite: `cd mcp && npm test` |
-| `hooks/` | `hooks.json` and `run.mjs`, the one cross-platform entry point. Five hooks: SessionStart, UserPromptSubmit (the log-directive nudge), PreToolUse (`Bash`, the commit gate), PostToolUse (the log-concepts checkpoint), Stop. Every one dispatches into `mcp/src/hooks/` |
+| `hooks/` | `hooks.json` and `run.mjs`, the one cross-platform entry point. Six hooks: SessionStart, UserPromptSubmit (the log-directive nudge), SubagentStart (the same directive for delegated work), PreToolUse (`Bash`, the commit gate), PostToolUse (the log-concepts checkpoint), Stop. Every one dispatches into `mcp/src/hooks/` |
 | `skills/` | the prompt-side behaviour; each skill with `disable-model-invocation: true` is also a `/eklavya:<name>` slash command. `tutor/` is the pedagogy, split into a short `SKILL.md` and `tutor/references/*.md` the model reads on demand |
 | `user-skill/` | the one skill installed to `~/.claude/skills/`, not shipped in the plugin — it drives the CLI from plain chat. Must never be under `skills/`, or it registers twice |
 | `agents/` | the tutor subagent |
 | `cli/`, `scripts/` | the editor-agnostic commit gate: `cli/eklavya-gate` is a POSIX script (no Node startup cost in a git hook), `scripts/install-git-hook.sh` installs it. `scripts/bump-version.sh` is the release's version bump |
-| `docs/` | contributor reference, not the manual: the pinned plugin/hook/MCP schemas and parallel tutoring, both kept current by hand. `eklavya-runtime.html` is **generated** from `eklavya-runtime.architecture.json` and stamped with the revision it was built from — edit the JSON, never the HTML, then regenerate (see below) |
+| `docs/` | contributor reference, not the manual: the pinned plugin/hook/MCP schemas, parallel tutoring, and the subagent policy — who logs, who quizzes, who stays silent — all kept current by hand. `eklavya-runtime.html` is **generated** from `eklavya-runtime.architecture.json` and stamped with the revision it was built from — edit the JSON, never the HTML, then regenerate (see below) |
 | `eval/` | the question-quality eval: fixtures, a four-stage harness, and dated results. Measures the product (are the questions good) rather than the machinery. Never runs in CI — two of its four stages cost a model call per question. `eval/README.md` has the method and what would disprove it |
 | `prd/` | the spec and one file per phase, with `prd/README.md` as the delivery tracker |
 | `CONTRIBUTING.md` | development setup, the manual test scripts, the release process |
