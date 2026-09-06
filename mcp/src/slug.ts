@@ -59,7 +59,20 @@ export function stripQualifiers(slug: string): string {
  * merge `https-basics` into `http-basics` -- two different ideas, and exactly
  * the false merge the qualifier strip is careful to avoid elsewhere.
  */
-const NOT_PLURAL = new Set(['https', 'js', 'ts', 'cors', 'dns', 'tls', 'aws', 'css', 'os', 'as', 'is']);
+const NOT_PLURAL = new Set([
+  // Acronyms and mass nouns four characters or longer. Anything shorter is
+  // already covered by the length guard in `singular()`, so listing `js` or
+  // `dns` here would be decoration.
+  'https',
+  'cors',
+  'nats',
+  // Not an acronym, but the false merge with the likeliest cost: `windows` is
+  // the operating system far more often than it is a plural of `window`, and
+  // this repo has hook behaviour that differs by platform.
+  'windows',
+  'news',
+  'bias',
+]);
 
 /**
  * A token with its English plural removed, when that is safe.
@@ -73,7 +86,12 @@ function singular(token: string): string {
   if (token.length < 4 || NOT_PLURAL.has(token)) return token;
   if (/(?:ss|us|is)$/.test(token)) return token;
   if (token.endsWith('ies')) return `${token.slice(0, -3)}y`;
-  if (token.endsWith('es') && /(?:ch|sh|x|z)es$/.test(token)) return token.slice(0, -2);
+  // Only the trailing `s`, deliberately. An `-es` rule for `boxes` -> `box`
+  // also turns `caches` into `cach`, which never equals `cache` -- and in this
+  // domain `cache-invalidation` is a concept that will really be logged both
+  // ways, while `box` is not. Since both sides of the comparison get the same
+  // treatment, dropping the rule trades a false negative on `boxes` for a
+  // working match on the word that matters.
   if (token.endsWith('s')) return token.slice(0, -1);
   return token;
 }

@@ -110,7 +110,7 @@ Plugin, hook and MCP schemas drift. What this is built against is pinned with a 
 ## The eval
 
 `mcp/test/` tests the machinery. It does not test the product, which is a
-question — so a change that makes every question worse passes all 447 of them.
+question — so a change that makes every question worse passes every one of them.
 `eval/` is where that gets measured.
 
 ```bash

@@ -1,7 +1,7 @@
 # The question-quality eval
 
-Eklavya's claim is that the developer learns. The 426 tests in `mcp/test/`
-that predate this directory check the machinery — SM-2 arithmetic, plan sizing, gate maths, migrations —
+Eklavya's claim is that the developer learns. The suite in `mcp/test/` checks
+the machinery — SM-2 arithmetic, plan sizing, gate maths, migrations —
 and not one of them checks the product, which is a question. This measures the
 question.
 

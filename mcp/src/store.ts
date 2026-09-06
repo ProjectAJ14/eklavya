@@ -485,7 +485,7 @@ export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[
                   (SELECT x.outcome FROM attempts x
                     WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id
                     ORDER BY x.id DESC LIMIT 1) AS last_outcome,
-                  (SELECT coalesce(length(trim(coalesce(x.feedback, ''))), 0) FROM attempts x
+                  (SELECT length(trim(coalesce(x.feedback, ''), ' ' || char(9) || char(10) || char(13))) FROM attempts x
                     WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id
                     ORDER BY x.id DESC LIMIT 1) AS last_feedback_len
              FROM attempts a

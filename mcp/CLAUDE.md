@@ -104,7 +104,7 @@ question; a wrongly excluded concept costs the developer their commit.
 A real answer history had 11 of 16 declines carrying an explanation, which is
 what these exist for.
 
-## Slug matching has three passes, and only two are fuzzy
+## Slug matching has three passes, and only one is fuzzy
 
 `findFuzzyMatch` tries qualifier-stripped equality, then **plural-insensitive**
 equality, then `tokenJaccard` against `FUZZY_MATCH_THRESHOLD` (0.8).

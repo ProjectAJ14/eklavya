@@ -300,10 +300,16 @@ export function scoreAll(questions: GeneratedQuestion[]): { scored: Scored[]; su
   for (const { question } of scored) {
     const i = question.correct - 1;
     if (i === 0 || i === 1 || i === 2 || i === 3) slots[i] += 1;
-
-    const lengths = question.options.map((o) => words(o).length);
-    const mine = lengths[i] ?? 0;
-    if (mine === Math.max(...lengths, 0) && lengths.filter((l) => l === mine).length === 1) correctLongest++;
+    // Inside the same guard as `slots`: an out-of-range `correct` is a
+    // malformed question, and counting it as "not the longest" reports a
+    // property of a question that does not exist.
+    if (i === 0 || i === 1 || i === 2 || i === 3) {
+      const lengths = question.options.map((o) => words(o).length);
+      const mine = lengths[i] ?? 0;
+      if (mine === Math.max(...lengths, 0) && lengths.filter((l) => l === mine).length === 1) {
+        correctLongest++;
+      }
+    }
   }
 
   return {

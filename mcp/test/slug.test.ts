@@ -97,6 +97,22 @@ describe('plurals are not a second concept', () => {
     expect(match('refresh-token-rotation', ['refresh-token'])).toBeUndefined();
   });
 
+  it('matches the plural that actually shows up in this domain', () => {
+    // An `-es` rule for `boxes` -> `box` turns `caches` into `cach`, which
+    // never equals `cache`. Both sides get the same treatment, so dropping the
+    // rule is what makes the common word work.
+    expect(match('caches-invalidation', ['cache-invalidation'])).toBe('cache-invalidation');
+    expect(match('categories-of-error', ['category-of-error'])).toBe('category-of-error');
+  });
+
+  it('leaves the platform alone, which is the false merge that would cost most', () => {
+    // `windows` is the operating system far more often than a plural of
+    // `window`, and this repo's hook behaviour differs by platform.
+    expect(match('windows-path-handling', ['window-path-handling'])).toBeUndefined();
+    expect(match('news-feed-ranking', ['new-feed-ranking'])).toBeUndefined();
+    expect(match('bias-variance-tradeoff', ['bia-variance-tradeoff'])).toBeUndefined();
+  });
+
   it('does not mangle a word that merely ends in s', () => {
     // Singularising `https` yields `http`, which would merge two real and
     // different concepts. Same shape for class/process/status/axis.
