@@ -114,6 +114,32 @@ function checkGit(): boolean {
   return probe.status === 0;
 }
 
+/**
+ * Is `eklavya` on the caller's PATH?
+ *
+ * It usually is not. `npx eklavya install` runs the package out of npx's cache
+ * and leaves no global binary, so telling that caller to "run `eklavya doctor`"
+ * sends them straight into `command not found`. The runtime install does put a
+ * real binary at `~/.eklavya/runtime/node_modules/.bin/eklavya`, but nothing
+ * puts that directory on PATH, and writing into a global bin ourselves is not
+ * this installer's business.
+ *
+ * So: check, and say something true either way.
+ */
+function cliOnPath(): boolean {
+  const dirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
+  const names = process.platform === 'win32'
+    ? ['eklavya.cmd', 'eklavya.exe', 'eklavya.ps1', 'eklavya']
+    : ['eklavya'];
+  return dirs.some((d) => names.some((n) => {
+    try {
+      return fs.statSync(path.join(d, n)).isFile() || fs.lstatSync(path.join(d, n)).isSymbolicLink();
+    } catch {
+      return false;
+    }
+  }));
+}
+
 // --- 2. the runtime ---------------------------------------------------------
 
 function installRuntime(version: string): void {
@@ -476,7 +502,18 @@ export function install(args: string[]): void {
     say('');
   }
   say('Done. Restart Claude Code (or start a session) and Eklavya loads with it.');
-  say('Next: run /eklavya:setup in Claude Code to choose a mode, or `eklavya doctor` here.');
+  if (cliOnPath()) {
+    say('Next: run /eklavya:setup in Claude Code to choose a mode, or `eklavya doctor` here.');
+  } else {
+    // Ran through npx, most likely: the plugin is installed but no `eklavya`
+    // command exists. Say so rather than suggesting one that is not there.
+    say('Next: run /eklavya:setup in Claude Code to choose a mode.');
+    say('');
+    say('The `eklavya` command is not on your PATH. For the CLI — `doctor`,');
+    say('`dashboard`, `config` — install it once:');
+    say('');
+    say('  npm install -g eklavya');
+  }
 }
 
 export function uninstall(args: string[]): void {

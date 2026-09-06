@@ -42,6 +42,22 @@ function run(args: string[]) {
 // `verifyRuntime` at install time; what these tests own is the registry writing.
 const install = () => run(['install', '--skip-runtime']);
 
+/** Same install, but with a PATH we control, to pin what it says about the CLI. */
+function installWithPath(dirs: string[]) {
+  const res = spawnSync(process.execPath, [CLI, 'install', '--skip-runtime'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: dirs.join(path.delimiter),
+      CLAUDE_CONFIG_DIR: claudeHome,
+      EKLAVYA_HOME: eklavyaHome,
+      EKLAVYA_DB: path.join(eklavyaHome, 'knowledge.db'),
+      EKLAVYA_RUNTIME: path.join(eklavyaHome, 'runtime'),
+    },
+  });
+  return res.stdout ?? '';
+}
+
 beforeEach(() => {
   claudeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-claude-'));
   eklavyaHome = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-home-'));
@@ -159,6 +175,27 @@ describe('eklavya install', () => {
     const after = readJson(settingsPath);
     expect(after.enabledPlugins['other@else']).toBe(true);
     expect(after.model).toBe('opus');
+  });
+});
+
+describe('what install says about the eklavya command', () => {
+  // `npx eklavya install` leaves no `eklavya` on PATH, so promising one sends
+  // the reader straight into `command not found` — which is exactly what it
+  // used to do.
+  it('does not promise a command that is not there', () => {
+    const out = installWithPath([fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-nopath-'))]);
+    expect(out).toContain('not on your PATH');
+    expect(out).toContain('npm install -g eklavya');
+    expect(out).not.toContain('`eklavya doctor` here');
+  });
+
+  it('offers the command when it really is on PATH', () => {
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-bin-'));
+    const name = process.platform === 'win32' ? 'eklavya.cmd' : 'eklavya';
+    fs.writeFileSync(path.join(binDir, name), '');
+    const out = installWithPath([binDir]);
+    expect(out).toContain('`eklavya doctor` here');
+    expect(out).not.toContain('not on your PATH');
   });
 });
 

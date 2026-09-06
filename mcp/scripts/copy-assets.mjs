@@ -28,7 +28,7 @@ try {
 // The dashboard page and the design tokens ship with the package: `eklavya
 // dashboard` must work from a plain npm install, with no repo checked out.
 await cp(path.join(root, 'src', 'assets'), assets, { recursive: true });
-const tokens = path.join(path.dirname(root), 'site', 'tokens.css');
+const tokens = path.join(path.dirname(root), 'web', 'public', 'tokens.css');
 try {
   await cp(tokens, path.join(assets, 'tokens.css'));
 } catch (err) {
