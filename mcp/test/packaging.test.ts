@@ -89,27 +89,38 @@ describe('what ships to npm', () => {
     expect(fs.existsSync(path.join(mcpRoot, 'dist', 'plugin', 'skills', 'eklavya'))).toBe(false);
   });
 
-  it('carries every reference file the tutor skill tells the model to read', () => {
+  it('points at every reference file it ships, and ships every one it points at', () => {
     // The pedagogy is split: SKILL.md says "read references/grading.md before
-    // you grade" and the model opens the file. A pointer to a file that did not
-    // ship is the worst-shaped failure available here -- the model is told the
-    // rules exist elsewhere, cannot find them, and improvises, while nothing
-    // errors. So the pointers and the files are checked against each other.
+    // you grade" and the model opens the file. Two ways that breaks, and this
+    // asserts set equality because only one direction is not enough.
+    //
+    // A pointer with no file is the worse half -- the model is told the rules
+    // are elsewhere, cannot find them, and improvises, while nothing errors.
+    // A file with no pointer is the quieter half: it ships, `export-rules`
+    // inlines it for Cursor, and Claude Code is never told to read it, so a
+    // third of the pedagogy goes missing on one surface only.
+    //
+    // An earlier version of this test harvested pointers from SKILL.md and
+    // agents/tutor.md into one list and asserted the list was non-empty. That
+    // passed with no pointers in SKILL.md at all, which is precisely the state
+    // it was written to catch.
     const tutor = path.join(repoRoot, 'skills', 'tutor');
-    // agents/tutor.md cites them by the same relative path, and it is the file
-    // that already went stale once this way -- it pointed at a section of
-    // SKILL.md that the split had moved out.
-    const citing = [path.join(tutor, 'SKILL.md'), path.join(repoRoot, 'agents', 'tutor.md')];
-    const named = citing.flatMap((f) =>
-      [...fs.readFileSync(f, 'utf8').matchAll(/references\/([a-z0-9-]+\.md)/g)].map((m) => m[1]),
-    );
+    const skill = fs.readFileSync(path.join(tutor, 'SKILL.md'), 'utf8');
+    const pointedAt = [
+      ...new Set([...skill.matchAll(/references\/([a-z0-9-]+\.md)/g)].map((m) => m[1])),
+    ].sort();
+    const onDisk = fs
+      .readdirSync(path.join(tutor, 'references'))
+      .filter((f) => f.endsWith('.md'))
+      .sort();
 
-    expect(named.length).toBeGreaterThan(0);
-    for (const name of new Set(named)) {
-      // In the repo, in the npm asset copy `export-rules` reads, and in the
-      // plugin payload Claude Code loads from.
+    expect(pointedAt).toEqual(onDisk);
+    expect(onDisk.length).toBeGreaterThan(0);
+
+    // And each one travels by both routes: the npm asset copy `export-rules`
+    // reads, and the plugin payload Claude Code loads from.
+    for (const name of onDisk) {
       for (const dir of [
-        path.join(tutor, 'references'),
         path.join(mcpRoot, 'dist', 'assets', 'tutor', 'references'),
         path.join(mcpRoot, 'dist', 'plugin', 'skills', 'tutor', 'references'),
       ]) {
@@ -118,10 +129,32 @@ describe('what ships to npm', () => {
     }
   });
 
+  it('resolves the reference paths the tutor subagent cites', () => {
+    // agents/tutor.md is the file that already went stale this way -- it
+    // pointed at a section of SKILL.md that the split had moved out. It has no
+    // Skill tool, only Read/Grep/Glob, so it cites these by path and the path
+    // has to be one that exists from the repo root.
+    const agent = fs.readFileSync(path.join(repoRoot, 'agents', 'tutor.md'), 'utf8');
+    const cited = [...agent.matchAll(/`(skills\/tutor\/references\/[a-z0-9-]+\.md)`/g)].map(
+      (m) => m[1],
+    );
+
+    expect(cited.length).toBeGreaterThan(0);
+    for (const rel of cited) {
+      expect(fs.existsSync(path.join(repoRoot, rel)), `missing ${rel}`).toBe(true);
+    }
+  });
+
   it('keeps the tutor entry point small enough to load on every task', () => {
     // It was 5,296 words in one file, loaded whole whenever the model decided a
     // task was non-trivial. The split is the point of the references above, and
     // this is the only thing stopping the entry point growing back into them.
+    //
+    // Whitespace tokens, not words: the count includes the frontmatter and the
+    // bare `|` cells of three tables, so it reads high. That is the safe
+    // direction for a ceiling, and it bounds only this file -- the references
+    // are deliberately uncapped, since being read on demand is what they are
+    // for.
     const skill = fs.readFileSync(path.join(repoRoot, 'skills', 'tutor', 'SKILL.md'), 'utf8');
     expect(skill.trim().split(/\s+/).length).toBeLessThan(2000);
   });

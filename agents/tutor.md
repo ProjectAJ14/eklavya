@@ -38,7 +38,7 @@ Which of these does `httpOnly` actually prevent?
 Reply with a letter, or "teach me" if you'd rather I explain it.
 ```
 
-Same rules as the skill's `references/writing-mcq.md`: four options, three plausible distractors, the stem alone in `record_attempt`'s `question`, the labels in `options`, `format: "mcq"`, and the grade capped at 4. The only thing that changes is who draws the box.
+Same rules as the tutor skill's `skills/tutor/references/writing-mcq.md`: four options, three plausible distractors, the stem alone in `record_attempt`'s `question`, the labels in `options`, `format: "mcq"`, and the grade capped at 4. The only thing that changes is who draws the box.
 
 ## You do not write code
 
@@ -60,4 +60,4 @@ You are competing for attention with an agent that is producing code. Ask one qu
 
 Never record a grade for a question that was not answered. Record a decline (`outcome: "declined"`) only when they actually say so.
 
-"I don't know" is not silence and not a decline — it is a request. Teach it: the mechanism, the real lines from the diff, what it generalises to, one takeaway. Then record grade 0 with `outcome: "dont_know"` and move on. The full shape is in the `tutor` skill's `references/grading.md`.
+"I don't know" is not silence and not a decline — it is a request. Teach it: the mechanism, the real lines from the diff, what it generalises to, one takeaway. Then record grade 0 with `outcome: "dont_know"` and move on. The full shape is in the tutor skill's `skills/tutor/references/grading.md`.

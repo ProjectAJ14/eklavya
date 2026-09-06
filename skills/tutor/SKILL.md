@@ -33,7 +33,7 @@ yourself thinking one, the right-hand column is what is actually happening.
 ## While you work
 
 Every tool takes `session_id` optionally. **Omit it** — the server resolves the
-session itself. Only pass one a hook handed you.
+session itself. Only pass one the developer or a hook explicitly gave you.
 
 Call `log_session_concepts` as you implement, batched, once or twice per task:
 **3–8 concepts the work genuinely exercises**, each with a `context` naming the
@@ -98,6 +98,7 @@ Then `get_session_quiz_plan`. What it returns outranks your instincts:
 | `prereqs_unmet` | prerequisites not mastered — the question would be unfair, not hard |
 | `framing`, `level_framing` | what this focus and this band require of the question |
 | `format_to_use` | how to put it. Always `mcq` today |
+| `last_grade` | how the last attempt went, even when `asked_before` is empty |
 | `bridge_context` | `learn` focus: the session's work touched this, and here is the code |
 
 When the developer explicitly asked to be quizzed, pass `ignore_cooldown: true`
@@ -164,9 +165,8 @@ scales, how long feedback may be, the sequence a blank earns, and what
 ## The dials
 
 **Mode** is how hard to push, **focus** is what to teach, **cadence** is when to
-ask, **difficulty** is how hard questions may get. Independent, every
-combination coherent; the defaults are `ambient`, `concept`, `interleaved`,
-`auto`.
+ask, **difficulty** is how hard questions may get. They are independent and
+every combination is coherent.
 
 You choose none of them — the plan and the hooks do. **Read
 `references/focus-and-level.md` before you quiz**: the three focuses and what

@@ -64,6 +64,8 @@ function fail(message: string): never {
  * context at once so order carries no meaning, and a hand-maintained order is
  * one more place a new reference file gets forgotten.
  */
+const FRONTMATTER = /^---\n[\s\S]*?\n---\n/;
+
 function tutorSections(): string[] {
   const tutorDir = path.join(moduleDir, 'assets', 'tutor');
   const skillPath = path.join(tutorDir, 'SKILL.md');
@@ -71,14 +73,40 @@ function tutorSections(): string[] {
     fail('The bundled tutor skill is missing. Run `npm run build` in the mcp/ directory.');
   }
 
-  const skill = fs.readFileSync(skillPath, 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '');
-  const sections = [skill.trim()];
-
+  const skill = fs.readFileSync(skillPath, 'utf8').replace(FRONTMATTER, '');
   const refsDir = path.join(tutorDir, 'references');
+
+  // Which references are required is not a list kept here -- it is whatever
+  // SKILL.md tells the model to read. Anything it names has to be inlined, or
+  // the preamble below is a lie: it promises the material is further down the
+  // document, so a reader who cannot find it hunts instead of falling back.
+  //
+  // Hence a hard failure rather than a warning. `copy-assets.mjs` only warns
+  // when it cannot bundle the skill, so a half-copied directory is reachable,
+  // and a rules file carrying the dispatch logic and none of the craft is worse
+  // than no rules file at all -- the split's whole failure mode, re-created at
+  // the last step.
+  const cited = [...skill.matchAll(/references\/([a-z0-9-]+\.md)/g)].flatMap((m) => (m[1] ? [m[1]] : []));
+  const required = [...new Set(cited)];
+  const missing = required.filter((name) => !fs.existsSync(path.join(refsDir, name)));
+  if (missing.length > 0) {
+    fail(
+      `The tutor skill's reference files are missing: ${missing.join(', ')}.\n` +
+        'Run `npm run build` in the mcp/ directory.',
+    );
+  }
+
+  const sections = [skill.trim()];
+  // Read from the directory rather than from `required`, so a reference that
+  // ships without being pointed at is still inlined. Frontmatter stripped from
+  // each: a stray YAML block mid-document renders as content in a rules file,
+  // and the natural instinct for a file inside a skill directory is to give it
+  // some.
   if (fs.existsSync(refsDir)) {
     for (const name of fs.readdirSync(refsDir).sort()) {
       if (!name.endsWith('.md')) continue;
-      sections.push(fs.readFileSync(path.join(refsDir, name), 'utf8').trim());
+      const body = fs.readFileSync(path.join(refsDir, name), 'utf8').replace(FRONTMATTER, '');
+      sections.push(body.trim());
     }
   }
 
@@ -98,10 +126,10 @@ alwaysApply: true
 The Eklavya MCP server is available in this editor. Its tools are the source of
 truth for what this developer already knows.
 
-The sections after the first are the skill's reference files, inlined: this
-editor has no way to open one on demand, so read them as part of the whole. A
-"read references/..." instruction below means the material is further down this
-file.
+The first section below is the skill itself; the ones after it are its
+reference files, inlined, because this editor has no way to open one on demand.
+Read them as part of the whole: wherever the first section says to read
+\`references/something.md\`, that material is further down this same file.
 
 ${tutorSections().join('\n\n')}
 `;

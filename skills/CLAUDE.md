@@ -172,12 +172,17 @@ context and undoes the split. "Read `references/grading.md` before you grade",
 written where grading comes up, is what makes the model open it exactly when it
 needs it.
 
-**The entry point does not grow back.** `test/packaging.test.ts` fails above
-2,000 words, and separately asserts that every `references/<file>` named in
-SKILL.md exists in the repo, in `dist/assets/tutor/references/` and in the
-plugin payload. A pointer to a file that did not ship is the worst failure
-available here: the model is told the rules are elsewhere, cannot find them,
-and improvises, while nothing errors.
+**The entry point does not grow back, and the pointers stay honest.**
+`test/packaging.test.ts` fails above 2,000 whitespace tokens, and asserts the
+set of files named in SKILL.md is *equal* to the set on disk. Both directions
+matter. A pointer with no file is the worse half — the model is told the rules
+are elsewhere, cannot find them, and improvises, while nothing errors. A file
+with no pointer is the quieter half: it ships, `export-rules` inlines it, and
+Claude Code is never told to read it, so the same pedagogy differs by surface.
+An earlier version of that test harvested pointers from SKILL.md *and*
+`agents/tutor.md` into one list and asserted the list was non-empty — which
+passed with no pointers in SKILL.md at all, the exact state it was written to
+catch.
 
 ## The tutor skill has two readers
 
@@ -197,6 +202,14 @@ asserts a line from each reference reaches the output.
 Alphabetical rather than a hand-kept order: in an always-apply document the
 whole thing is in context at once, so order carries no meaning, and a listed
 order is one more place a new reference gets forgotten.
+
+**A missing reference is a hard failure there, not a warning.** `export-rules`
+reads the pointers out of SKILL.md and refuses to emit anything if one of them
+did not bundle, naming the file. It has to: the preamble promises the material
+is further down the document, so a half-bundled export is worse than none — the
+model is assured the rules are present and hunts for them instead of falling
+back on what it has. `copy-assets.mjs` only warns when a copy fails, so that
+state is reachable rather than hypothetical.
 
 Consequence of the two readers: **no Claude-Code-only instructions in any of
 the four files.** Slash-command names, plugin paths and hook mechanics belong

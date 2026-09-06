@@ -30,9 +30,8 @@ to four, but four at once is a test, not teaching.
 - **`preview`**: use it when the options are *code*. Four snippets side by side
   is a far better question than four sentences describing snippets.
 
-A renderer without `AskUserQuestion` — the parallel tutor subagent is one — lays
-the same four options out as lettered text. Everything here still applies; only
-the rendering changes.
+A renderer without `AskUserQuestion` lays the same four options out as lettered
+text. Everything here still applies; only the rendering changes.
 
 ## Distractors are the whole question
 
