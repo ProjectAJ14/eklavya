@@ -51,28 +51,28 @@
         right: true,
         grade: '✓ correct · grade 4 · recognition caps at 4 · next review in 6 days',
         why: 'httpOnly keeps the cookie out of document.cookie, so an injected script can reach the in-memory access token but never the refresh token that mints new ones.',
-        done: 'task complete — 4 files changed. You can explain the split you just shipped.'
+        done: 'task complete — 3 files changed. You can explain the split you just shipped.'
       },
       '2': {
         grade: '✗ grade 1 · under the passing grade of 3 · next review tomorrow',
         why: 'That is CSRF. The browser still attaches the cookie to a forged cross-site request — SameSite is what stops it. httpOnly only hides the value from scripts.',
-        done: 'task complete — 4 files changed. httponly-cookies goes back in the deck for tomorrow.'
+        done: 'task complete — 3 files changed. httponly-cookies goes back in the deck for tomorrow.'
       },
       '3': {
         grade: '✗ grade 1 · under the passing grade of 3 · next review tomorrow',
         why: 'httpOnly is read by the browser, not the server. The cookie arrives on every request either way, so whatever your server logs, it still logs.',
-        done: 'task complete — 4 files changed. httponly-cookies goes back in the deck for tomorrow.'
+        done: 'task complete — 3 files changed. httponly-cookies goes back in the deck for tomorrow.'
       },
       '4': {
         grade: '✗ grade 1 · under the passing grade of 3 · next review tomorrow',
         why: 'Revocation is a server-side decision about the token store. A cookie flag has no say in it — and an access token held in memory is the one you cannot revoke.',
-        done: 'task complete — 4 files changed. httponly-cookies goes back in the deck for tomorrow.'
+        done: 'task complete — 3 files changed. httponly-cookies goes back in the deck for tomorrow.'
       },
       '5': {
         blank: true,
         grade: '· grade 0 · recorded as "I don\'t know" · next review tomorrow',
         why: 'No penalty for saying so. httpOnly hides the refresh cookie from document.cookie, so an XSS payload can steal the access token in memory but not the refresh token — which is why the two live in different places.',
-        done: 'task complete — 4 files changed. httponly-cookies queued for tomorrow, no penalty.'
+        done: 'task complete — 3 files changed. httponly-cookies queued for tomorrow, no penalty.'
       }
     };
 

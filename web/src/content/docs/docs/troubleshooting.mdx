@@ -14,7 +14,7 @@ Start with `eklavya doctor`. It answers most of these in one screen.
 | Too many interruptions | Raise `min_minutes_between_checkpoints`, or lower `max_questions_per_task`. Switching to `end` is the blunt version. |
 | Questions feel far too easy | You are on `easy`, which is where every project starts. Run `/eklavya:level` to see the runway — you may be close to a promotion. Pin a band only if you are sure. |
 | My personal setting stopped applying | A `.eklavya.json` in this repository is overriding it. The session banner names which settings; `eklavya config get` prints the file path. |
-| The database file does not exist | The MCP server never started. Check `/plugin` for errors and confirm `node --version` is 18 or newer — the native database binding fails to build on older ones. |
+| The database file does not exist | The MCP server never started. Check `/plugin` for errors and confirm `node --version` is 22 or newer — below that the native database binding has no prebuilt binary and will not install. |
 | A commit is blocked and I do not know why | `/eklavya:gate` tells you how many concepts are outstanding. `/eklavya:quiz` clears it. |
 | Commits are blocked but I never chose enforced | The repository sets it. Open `.eklavya.json` at the repository root; repo settings beat personal ones by design. |
 | The git hook does not fire | It only acts on repositories whose `.eklavya.json` sets `"mode": "enforced"`, and it deliberately fails open when `jq` or `sqlite3` is missing. Check both. |

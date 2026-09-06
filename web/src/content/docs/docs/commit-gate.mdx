@@ -1,7 +1,7 @@
 ---
 title: "Enforced mode and the commit gate"
 sidebar:
-  order: 11
+  order: 10
 ---
 
 import { Steps } from '@astrojs/starlight/components';
@@ -10,7 +10,7 @@ In `enforced` mode, a commit is held until you have answered enough of what this
 
 ### What "enough" means, exactly
 
-Each session gets a gate with a **required** number of concepts, taken from what Claude logged while building. The gate opens once you have passed `required × pass_threshold` of them, rounded up — with the default 0.7, that is three of four. A concept counts as passed only when it was answered at **grade 3 or better**: a skip counts as answered but never as passed, or the gate would be theatre.
+Each session gets a gate with a **required** number of concepts: how many of the concepts Claude logged while building you have not already mastered, capped at `max_questions_per_task`. The gate opens once you have passed `required × pass_threshold` of them, rounded up — at the defaults, three of four. A concept counts as passed only when it was answered at **grade 3 or better**, and only when this session's work is what put it on the list: a skip counts as answered but never as passed, and a concept a quiz pulled in as review debt cannot clear a bar the diff set, or the gate would be theatre.
 
 `required` is frozen when the gate opens and only ever grows, so mastering concepts mid-quiz cannot shrink the obligation you already have.
 
@@ -33,6 +33,7 @@ Install both, or enforced mode only gates half the ways to commit.
 - It **chains** to any `pre-commit` hook you already have rather than replacing it — your existing one is moved to `pre-commit.local` and still runs.
 - `--uninstall` removes Eklavya's hook and restores the previous one.
 - It only acts on repositories whose `.eklavya.json` sets `"mode": "enforced"`, so installing it is safe even if you later switch to ambient.
+- It reads **that file and no other** — never your global `~/.eklavya/config.json`. Enforcing globally gates commits made inside Claude Code, but a bare-terminal commit is only held in repositories that say so themselves. A hook installed once must not start blocking because a global setting changed elsewhere.
 
 ### What a blocked commit looks like
 
@@ -40,6 +41,9 @@ Install both, or enforced mode only gates half the ways to commit.
   Eklavya is holding this commit.
 
   You have answered 1 of 4 concepts from this session's work.
+  Answering is not the same as passing: a skipped or wrong answer counts here
+  but not towards the gate. /eklavya:gate has the passing count.
+
   Open Claude Code in this repo and run /eklavya:quiz to finish, then commit again.
 
   To see what is outstanding:  /eklavya:gate
@@ -64,7 +68,7 @@ Install both, or enforced mode only gates half the ways to commit.
 
 ### The safety rules
 
-- **It fails open.** A missing `jq`, a missing database or an unreadable config lets the commit through with a warning. A learning tool that bricks commits gets uninstalled.
+- **It fails open.** A missing `jq`, a missing `sqlite3`, a missing database or an unreadable config lets the commit through with a warning. A learning tool that bricks commits gets uninstalled.
 - **No gate row, no block.** If nothing was taught this session there is nothing to prove, so nothing is held. An unpassable gate teaches nothing.
 - **Only opted-in repositories are gated.** A repository with no `.eklavya.json` is never touched by the git hook.
 - **Blanking cannot lock you out.** A grade of 0 never passes, so a session answered entirely with "I don't know" would leave the gate permanently unmet. Once everything else is exhausted, Eklavya re-offers the concepts it taught you, one tier lower and as a different question, until the lesson lands. Concepts you *declined* are not re-offered — the gate holding against a decline is the gate working.

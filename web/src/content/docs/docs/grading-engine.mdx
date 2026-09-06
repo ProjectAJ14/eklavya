@@ -45,8 +45,8 @@ Eklavya uses the SM-2 spaced-repetition algorithm, the same family Anki is built
 Three separate mechanisms enforce this, because a prompt asking nicely is not enforcement:
 
 - **Mastered concepts are not asked about.** The learner profile hands Claude the actual list of what you know. Only spaced repetition brings one back, and it comes back harder.
-- **Every question you have been asked is on record**, and the plan hands those exact questions back with the tier and grade each got. A question already asked is spent: same concept, different angle.
-- **A concept answered this session is done for the session.** Getting something half-right no longer puts it straight back in the queue five minutes later.
+- **Every question you have been asked is on record**, and the plan hands the most recent of them back with the tier and grade each got. A question already asked is spent: same concept, different angle.
+- **A concept answered this session is done for the session.** Getting something half-right no longer puts it straight back in the queue five minutes later. The one exception is enforced mode's [gate retry](/docs/commit-gate/), which re-opens a concept you blanked on — a tier lower, and as a different question.
 
 ### Where each hook fits
 

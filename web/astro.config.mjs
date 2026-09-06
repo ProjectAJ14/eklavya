@@ -52,7 +52,6 @@ export default defineConfig({
           label: 'Getting started',
           items: [
             { slug: 'docs' },
-            { slug: 'docs/before-you-start' },
             { slug: 'docs/installing' },
             { slug: 'docs/first-run' },
             { slug: 'docs/first-session' },
@@ -78,6 +77,7 @@ export default defineConfig({
         {
           label: 'Going deeper',
           items: [
+            { slug: 'docs/how-it-works' },
             { slug: 'docs/grading-engine' },
             { slug: 'docs/your-data' },
             { slug: 'docs/troubleshooting' },

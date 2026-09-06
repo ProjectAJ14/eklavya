@@ -51,7 +51,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="tokens.css?v=2">
-<link rel="stylesheet" href="styles.css?v=2">
+<link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
 <div class="frame">
@@ -67,21 +67,17 @@
     </a>
     <div class="nav__links">
       <a class="nav__link" href="#legend">The legend</a>
-      <a class="nav__link" href="#how">How it works</a>
-      <a class="nav__link" href="#dials">Dials</a>
-      <a class="nav__link" href="#commands">Commands</a>
-      <a class="nav__link" href="#dashboard">Dashboard</a>
       <a class="nav__link" href="/docs/">Docs</a>
-      <div class="ground" role="group" aria-label="Colour ground">
-        <button type="button" data-ground="ink" aria-pressed="true">ink</button>
-        <button type="button" data-ground="paper" aria-pressed="false">paper</button>
-      </div>
       <a class="star" href="https://github.com/ProjectAJ14/eklavya" target="_blank" rel="noopener"
          aria-label="Star Eklavya on GitHub">
         <svg class="star__mark" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
         <span class="star__label">Star</span>
         <b class="star__n" data-stars hidden></b>
       </a>
+      <div class="ground" role="group" aria-label="Colour ground">
+        <button type="button" data-ground="ink" aria-pressed="true">ink</button>
+        <button type="button" data-ground="paper" aria-pressed="false">paper</button>
+      </div>
     </div>
   </div>
 </nav>
@@ -194,9 +190,11 @@
               </div>
             </div>
 
-            <!-- what the SessionStart hook puts in front of the model -->
-            <div class="ln ln--hook" data-line="hook1" hidden>[Eklavya] session start &middot; ambient &middot; concept &middot; interleaved &middot; easy</div>
-            <div class="ln ln--hook" data-line="hook2" hidden>[Eklavya] 86 concepts tracked &middot; 37 due for review &middot; level 4/100 on this project</div>
+            <!-- What the SessionStart hook puts in front of the model. One line
+                 in the real hook (mcp/src/hooks/session-start.ts), wrapped over
+                 two rows here exactly as a terminal wraps it. -->
+            <div class="ln ln--hook" data-line="hook1" hidden>[Eklavya] Learner profile: web-auth 12/34 known, node-backend 9/26 known. Weak: cors-preflight, refresh-rotation. 37 concept(s) due for review.</div>
+            <div class="ln ln--hook" data-line="hook2" hidden>Mode: ambient. Focus: concept. Cadence: interleaved. Level: easy (4/100 on this project).</div>
 
             <!-- ...and how it looks once sent -->
             <div class="ln ln--user" data-line="sent" hidden><span class="ln__p">&gt;</span><span data-sent>add JWT auth to the Express API</span></div>
@@ -557,7 +555,7 @@
         </div>
         <div class="dial__opt">
           <code class="dial__val">enforced</code>
-          <p>The session quiz must pass before <code class="code-inline">git commit</code> — inside Claude Code and from a bare terminal. For interns and onboarding.</p>
+          <p>The session quiz must pass before <code class="code-inline">git commit</code> — inside Claude Code, and from a bare terminal once you install the git hook. For interns and onboarding.</p>
         </div>
         <div class="dial__opt">
           <code class="dial__val">off</code>
@@ -593,7 +591,7 @@
         <div class="dial__opt dial__opt--default">
           <span class="dial__pill">default</span>
           <code class="dial__val">interleaved</code>
-          <p>One question at a time, at the seam where a concept is logged. A quiz is capped at one question under this cadence — the end-of-task sweep included, unless a commit gate is waiting on it.</p>
+          <p>One question at a time, at the seam where a concept is logged. A quiz is capped at one question under this cadence — the end-of-task sweep included, unless a commit gate is waiting on it or you asked for a quiz yourself.</p>
         </div>
         <div class="dial__opt">
           <code class="dial__val">end</code>
@@ -658,7 +656,7 @@
       </span>
       <h3>Your data stays yours</h3>
       <p><code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. Delete the directory and Eklavya forgets you entirely.</p>
-      <p>The commit gate is editor-agnostic: a plain git <code>pre-commit</code> hook runs the same check, so a commit from a bare terminal is held exactly like one made inside Claude Code.</p>
+      <p>The commit gate is editor-agnostic: one script installs a plain git <code>pre-commit</code> hook that runs the same check, so a commit from a bare terminal is held exactly like one made inside Claude Code.</p>
     </div>
   </div>
 </section>
@@ -800,7 +798,7 @@
   </div>
 </footer>
 
-<script src="app.js?v=2" defer></script>
+<script src="app.js?v=3" defer></script>
 </div><!-- /.frame -->
 </body>
 </html>

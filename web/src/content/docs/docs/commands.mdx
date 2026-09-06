@@ -1,7 +1,7 @@
 ---
 title: "Command reference"
 sidebar:
-  order: 8
+  order: 7
 ---
 
 Seven slash commands, all typed inside Claude Code. Every one of them is read-only until you ask for a change, and none of them starts a quiz unless that is what the command is for. If you would rather not memorise them, [you can just ask](/docs/commands/#or-just-ask).
@@ -49,7 +49,7 @@ The topic is treated as a domain, or as one or more concept slugs. Prerequisites
 #### Worth knowing
 
 - A topic here overrides your configured focus **for this quiz only**. It does not change your settings — `/eklavya:mode` is for that.
-- Questions come one at a time, each at its own tier, each graded before the next.
+- Questions come one at a time, each at its own tier, each graded before the next. Because you asked, a quiz here plans the whole remaining `max_questions_per_task` budget rather than the single question the `interleaved` cadence caps an offered quiz at.
 - It closes with one line: what moved, and what comes back for review when.
 
 ### `/eklavya:mode [value]`
@@ -69,7 +69,7 @@ Reports your effective settings in two lines — mode, focus, cadence, difficult
 /eklavya:mode learn caching     # focus learn, with its required topic
 ```
 
-The value tells Eklavya which dial you mean, so you never have to name the dial. Values are unambiguous across the four.
+The value tells Eklavya which dial you mean, so you never have to name the dial. The values are unambiguous across mode, focus and cadence; difficulty is the exception, and has its own command below.
 
 #### Worth knowing
 
@@ -153,11 +153,12 @@ If the level is pinned it says so, names the file that pinned it, and does not r
 #### What it shows
 
 - The mode. If it is not `enforced`, it says nothing is gated and stops.
-- How many concepts you have answered out of the number required.
-- The `pass_threshold` those answers have to clear.
+- How many passing answers you have, out of the number the gate needs — `required` concepts multiplied by `pass_threshold`, rounded up.
 - Whether the gate has passed.
 
-If it has not passed, it says exactly what remains and offers to run the quiz — it will not start one without being asked.
+If it has not passed, it says exactly how many more passing answers remain and offers to run the quiz — it will not start one without being asked.
+
+The count of concepts *answered* can be higher than the count that *counts*: review debt pulled in by a quiz moves the first number and not the second, because the bar was set by this session's work. When the two are far apart, that is why.
 
 ### `/eklavya:setup`
 

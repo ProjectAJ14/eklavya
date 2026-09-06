@@ -1,7 +1,7 @@
 ---
 title: "The dashboard"
 sidebar:
-  order: 12
+  order: 11
 ---
 
 ```bash
@@ -30,7 +30,7 @@ Each is a link, so you can bookmark the one you actually use.
 |---|---|
 | Overview (`#/overview`) | Am I getting better? Accuracy, mastered, due, current and best streak, thirty days of answers, a year of practice as a calendar heatmap, your weakest five, and the last five sessions. |
 | Concepts (`#/concepts`) | What am I learning? Every concept in your graph, searchable, filterable by state or domain, sortable, 20 to a page. The state filter is part of the address: `#/concepts/due`, `/learning`, `/mastered`, `/unseen`. |
-| Review (`#/review`) | What is waiting? Everything due, sorted by how overdue it is; what is scheduled for the next fourteen days (`#/review/upcoming`); and the skipped backlog (`#/review/skipped`). |
+| Review (`#/review`) | What is waiting? Everything due, sorted by how overdue it is; everything else that is scheduled, soonest first, under a fourteen-day forecast chart (`#/review/upcoming`); and the skipped backlog (`#/review/skipped`). |
 | Sessions (`#/sessions`) | What did that session teach me? One row per Claude Code session that logged something. |
 | Projects (`#/projects`) | How hard is this codebase allowed to get? Per project: accuracy, the level ladder, and the exact runway to the next promotion. |
 | Domains (`#/domains`) | Where are the gaps? Coverage per domain, and the tier spread of what you have been asked. |
@@ -43,8 +43,9 @@ being a report and starts being a record.
 - **A concept** (`#/concept/<slug>`) shows its score and how much of it is
   decay, its SM-2 state (reps, ease, interval, next review), every grade in
   order as a chart, **every question you were asked on it** — the options, the
-  one you picked, and what the tutor told you afterwards — every context line
-  the agent wrote when it logged the concept, and its prerequisites, what it
+  one you picked, and what the tutor told you afterwards — the most recent
+  context lines the agent wrote when it logged the concept, and its
+  prerequisites, what it
   unlocks and its neighbours, each a link.
 - **A session** (`#/session/<id>`) shows what the work touched with the context
   line for each concept, what was pulled in for review rather than logged by the

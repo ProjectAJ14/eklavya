@@ -391,7 +391,7 @@ a { color: inherit; text-decoration: none; }
 .term__screen:not([data-ready]) [data-boot]::after { content: "claude"; }
 .term__screen:not([data-ready]) [data-grade]::after { content: "\2713 correct \00b7 grade 4 \00b7 next review in 6 days"; }
 .term__screen:not([data-ready]) [data-why]::after { content: "httpOnly keeps the cookie out of document.cookie, so an injected script can reach the in-memory access token but never the refresh token that mints new ones."; }
-.term__screen:not([data-ready]) [data-done]::after { content: "task complete \2014 4 files changed, nothing left to ask"; }
+.term__screen:not([data-ready]) [data-done]::after { content: "task complete \2014 3 files changed, nothing left to ask"; }
 .term__screen:not([data-ready]) .ask__opt:first-child { background: rgba(25, 150, 136, .18); color: #E8EDEF; }
 .term__screen:not([data-ready]) .ask__opt:first-child .ask__mark::after { content: "\2713"; color: var(--green-300); }
 

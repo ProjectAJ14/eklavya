@@ -1,0 +1,39 @@
+---
+title: "How it works"
+sidebar:
+  order: 12
+---
+
+### The problem it solves
+
+Coding agents create a comprehension gap: you ship code you did not write and could not debug at 3am. The moment the code is being generated is the best possible teaching moment — the concepts are concrete, the code is on your screen, and your hands are free while you wait. Eklavya spends that waiting time on you.
+
+### The three moving parts
+
+You never interact with these directly, but knowing they exist makes the rest of the manual easier to follow.
+
+| Part | Lives in | What it does |
+| --- | --- | --- |
+| **The MCP server** | `mcp/`, published as `eklavya` on npm | The memory and the rules. It holds the knowledge graph of concepts, decides what you should be asked next and at what difficulty, and grades and stores every answer. |
+| **The hooks** | `hooks/` and `mcp/src/hooks/` — small Node scripts | The timing. They decide *when* a question arrives: at session start, mid-task, at the end of a task, and before a `git commit`. |
+| **The skills** | `skills/` — Markdown instructions for Claude | The teaching. They tell Claude how to phrase a question, how to grade it honestly, and how to explain an answer you did not know. |
+
+:::tip
+**MCP in one line.** The Model Context Protocol is how Claude Code talks to a local program. Eklavya's MCP server is just a Node process on your machine that Claude can ask questions like *"what does this person already know?"*. It makes no network calls of its own, and there is no account.
+:::
+
+### Why Node 22 specifically
+
+Eklavya stores your knowledge graph in SQLite, through a driver called `better-sqlite3`. That driver is native code, and it ships ready-compiled binaries for Node 22 and newer. On Node 20 or older there is no ready-made binary for your platform, so `npm` falls back to compiling one, which needs a full C++ toolchain — Xcode command line tools on macOS, Visual Studio Build Tools on Windows.
+
+Rather than let you find that out halfway through, `eklavya install` checks your Node version first and stops with instructions if it is too old.
+
+Earlier versions of Eklavya also needed `jq` and the `sqlite3` command line tool, because the hooks were shell scripts. They are Node now, so there is nothing else to install and nothing to go missing.
+
+:::note
+**One exception, for one optional feature.** The git `pre-commit` gate — which enforces the quiz for commits made outside Claude Code, in enforced mode only — is a POSIX shell script, because a git hook should not pay Node's startup cost on every commit. It needs `jq` and the `sqlite3` command line tool, and it fails open with a warning when either is absent. Nothing else in Eklavya does. Install them with `brew install jq sqlite` or `sudo apt-get install -y jq sqlite3` if you want that gate.
+:::
+
+:::note
+**git is optional.** Without it Eklavya still runs, but two things change: your difficulty level is tracked in one shared bucket instead of per project, and the commit gate has nothing to attach to. Everything else works.
+:::

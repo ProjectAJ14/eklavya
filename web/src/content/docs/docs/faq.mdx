@@ -6,7 +6,7 @@ sidebar:
 
 ### Does anything leave my machine?
 
-No. The database, the config and the dashboard are all local, and the dashboard binds to loopback. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade.
+No. The database, the config and the dashboard are all local, and the dashboard binds to loopback. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade, and the dashboard page loading its three webfonts from Google Fonts — no learning data is involved in either.
 
 ### Will it slow down my work?
 
@@ -30,7 +30,7 @@ Yes — one pane building while another teaches, sharing a single database. Set 
 
 ### How do I upgrade?
 
-Run `/plugin` and update Eklavya from the menu, then restart Claude Code — hooks and MCP servers are wired up when a session starts, so the running one keeps the old build.
+Run `/plugin` and update Eklavya from the menu, or run `eklavya install` again — every step of it is safe to repeat and that is what refreshes the runtime. Either way, restart Claude Code afterwards: hooks and MCP servers are wired up when a session starts, so the running one keeps the old build.
 
 ### How do I uninstall?
 

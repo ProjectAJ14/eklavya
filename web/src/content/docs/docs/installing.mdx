@@ -1,7 +1,7 @@
 ---
 title: "Installing"
 sidebar:
-  order: 3
+  order: 2
 ---
 
 import { Steps } from '@astrojs/starlight/components';
@@ -25,7 +25,19 @@ That does the whole job, in this order:
 
 1. #### Checks your Node version
 
-   Stops with upgrade instructions if it is older than 22, rather than half-installing and failing later.
+   Stops with upgrade instructions if it is older than 22, rather than half-installing and failing later. If you need to upgrade first:
+
+   ```bash title="macOS"
+   brew install node
+   ```
+
+   ```bash title="Windows"
+   winget install OpenJS.NodeJS.LTS
+   ```
+
+   ```bash title="Linux (nvm)"
+   nvm install 22 && nvm use 22
+   ```
 2. #### Installs the runtime
 
    The server, the hooks and the SQLite driver go into `~/.eklavya/runtime`. This is the step that downloads the ready-compiled database binary for your platform. It then loads it once to prove it actually works, instead of trusting that `npm` exiting cleanly meant a working binary.
@@ -85,7 +97,7 @@ If you would rather not touch a terminal:
 Run `/plugin` and confirm **eklavya** is listed with no errors. The first thing a healthy session prints is a one-line learner profile, like this:
 
 ```text title="Session start"
-[Eklavya] No learning history yet. Mode: ambient. Focus: concept. Cadence: interleaved. Level: easy.
+[Eklavya] No learning history yet. Mode: ambient. Focus: concept. Cadence: interleaved. Level: easy (0/100 on this project).
 ```
 
 If you see that line, you are done. If you see nothing at all, jump to [Troubleshooting](/docs/troubleshooting/).
