@@ -1,0 +1,49 @@
+name: Test
+
+# The release workflow also runs this suite, but only on a push to `main` —
+# by which point a failing test reports a bug that has already landed. This
+# workflow is the same suite moved to where it can still prevent something:
+# every pull request, and every push to a branch that is not `main`.
+#
+# `main` is deliberately excluded rather than tested twice: Release already
+# installs and tests before it publishes, and that step is load-bearing there.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+# One run per branch. `head_ref` is the source branch on a pull_request and
+# empty on a push, so `head_ref || ref_name` resolves to the same group for
+# both events — which is what stops a same-repo PR running the suite twice,
+# and cancels the stale run when you push again a minute later.
+concurrency:
+  group: test-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # Must satisfy the package's own `engines` (>=22). Below that,
+      # better-sqlite3 has no prebuilt binary and the suite fails on node-gyp
+      # rather than on anything it meant to test.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      # `npm test` has a `pretest` that builds, so there is no separate build
+      # step: tsc and copy-assets run first, then vitest over mcp/test/.
+      - name: Install and test the server
+        working-directory: mcp
+        run: |
+          npm ci
+          npm test

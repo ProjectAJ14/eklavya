@@ -79,6 +79,11 @@ npm run test:watch
 claude plugin validate ..
 ```
 
+The same suite runs in CI on every pull request and every push to a branch
+other than `main` ([`.github/workflows/test.yml`](.github/workflows/test.yml)).
+`main` is not tested twice: Release installs and tests before it publishes, so
+a push there is already covered.
+
 Layout:
 
 ```
