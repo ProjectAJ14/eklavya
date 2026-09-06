@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/ProjectAJ14/eklavya/compare/v1.11.1...v1.12.0) (2026-09-06)
+
+
+### Features
+
+* **install:** pull the marketplace checkout forward instead of leaving it stale ([d07caf6](https://github.com/ProjectAJ14/eklavya/commit/d07caf64307061982777732d96277c02fc09e1ed))
+
 ## [1.11.1](https://github.com/ProjectAJ14/eklavya/compare/v1.11.0...v1.11.1) (2026-09-06)
 
 
