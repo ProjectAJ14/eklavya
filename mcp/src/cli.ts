@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
+import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
 import { levelStanding } from './store.js';
 import { statusLine } from './statusline.js';
@@ -300,16 +301,7 @@ async function statuslineCommand(argv: string[]): Promise<void> {
     // PowerShell block that swallows the pipe, so `end` never fires and a naive
     // read waits forever -- which in a status bar means every refresh blocks.
     // `unref` keeps the timer off the normal path, where `end` arrives first.
-    const raw = await new Promise<string>((resolve) => {
-      if (process.stdin.isTTY) return resolve('');
-      let buf = '';
-      const done = (): void => resolve(buf);
-      process.stdin.setEncoding('utf8');
-      process.stdin.on('data', (c: string) => (buf += c));
-      process.stdin.on('end', done);
-      process.stdin.on('error', done);
-      setTimeout(done, 250).unref();
-    });
+    const raw = await readStdinBounded(STATUSLINE_STDIN);
 
     let cwd = process.cwd();
     // Parsed in its own try: input we cannot read is a reason to fall back to
@@ -319,7 +311,7 @@ async function statuslineCommand(argv: string[]): Promise<void> {
       if (raw.trim()) {
         // Strip a BOM: some Windows shells prepend one, and JSON.parse throws
         // on input that looks perfectly well-formed.
-        const parsed: unknown = JSON.parse(raw.replace(/^﻿/, ''));
+        const parsed: unknown = JSON.parse(stripBom(raw));
         const input = (parsed ?? {}) as { cwd?: string; workspace?: { current_dir?: string } };
         cwd = input.workspace?.current_dir ?? input.cwd ?? cwd;
       }

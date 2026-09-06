@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import Database from 'better-sqlite3';
 import { dbPath } from '../paths.js';
 import { loadConfig, type ResolvedConfig } from '../config.js';
+import { readStdinBounded, stripBom, HOOK_STDIN } from '../stdin.js';
 
 export type DB = Database.Database;
 
@@ -32,20 +33,21 @@ export interface HookInput {
 }
 
 /**
- * Reads stdin to EOF. Hooks are always given JSON, but "always" is doing a lot
- * of work on a critical path — a hook invoked by hand, or by a harness version
- * that changes its mind, gets an empty object rather than an exception.
+ * The JSON the host piped in, or `{}`.
+ *
+ * Hooks are always given JSON, but "always" is doing a lot of work on a
+ * critical path -- a hook invoked by hand, or by a harness version that changes
+ * its mind, gets an empty object rather than an exception.
+ *
+ * The read is bounded (`readStdinBounded`). It used to be `for await (const
+ * chunk of process.stdin)`, which waits for EOF and has no other exit: on
+ * Windows the host may run a hook through a PowerShell block that swallows the
+ * pipe, so `end` never fires and the hook blocks the session on every tool call
+ * that triggers it. A hook that throws is survivable; a hook that waits is not.
  */
-async function readStdin(): Promise<string> {
-  if (process.stdin.isTTY) return '';
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString('utf8');
-}
-
 export async function readInput(): Promise<HookInput> {
   try {
-    const raw = await readStdin();
+    const raw = stripBom(await readStdinBounded(HOOK_STDIN));
     if (!raw.trim()) return {};
     const parsed: unknown = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? (parsed as HookInput) : {};

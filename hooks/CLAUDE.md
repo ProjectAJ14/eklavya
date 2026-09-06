@@ -59,6 +59,48 @@ database, and deliberately does not migrate or seed (several hooks racing a
 migration on session start is a corruption story). The one non-zero code is the
 Stop hook's `return 2`, which is how Stop blocks; the reason goes on stderr.
 
+## A hook must never *wait*, either
+
+Exiting 0 on a throw covers the loud failure. The quiet one is worse: a hook
+that blocks never errors, never logs, and stalls the session on every tool call
+that triggers it — with nothing for the developer to report except that Claude
+Code got slow.
+
+It is reachable. `readInput` used to be `for await (const chunk of
+process.stdin)`, which has exactly one exit: EOF. On Windows the host may run a
+hook through a PowerShell block that swallows the piped JSON, so `end` never
+fires (reported by ponytail, #443). `run.mjs` is careful about everything else —
+Node version, four resolution candidates, a self-expiring heal claim, exit 0 on
+every throw — and this was the one gap.
+
+`mcp/src/stdin.ts` closes it, and `eklavya statusline` shares it: both read a
+JSON blob the host pipes in, both must degrade rather than hang, and two copies
+would be one copy getting the fix. Three things matter about it.
+
+**The bound is on silence, not on total time.** A flat cap truncates a payload
+still arriving when it fires, and truncated JSON does not fail loudly — it fails
+as `{}`, so the hook runs to completion having quietly decided the session has
+no cwd and no id. The idle timer resets on every chunk, so a slow or large
+payload is never cut off; a total cap sits behind it for a stream that never
+stops.
+
+**Every timer is `unref`'d.** `end` arrives first in almost every real
+invocation, and a pending timer must not hold the process open or add latency to
+a hook that has already done its work.
+
+**There is an `error` handler.** A stream that errors never emits `end`, so
+without one the read waits on something that is not coming.
+
+`HOOK_STDIN` is 2s idle / 5s total, well under the 10s `hooks.json` grants (15
+for Stop) — a read that outlives its host timeout is a read the developer waits
+on, and `test/stdin.test.ts` asserts the relationship rather than the number.
+That suite spawns a real hook, writes a payload, and **never closes stdin**;
+against the old code all three cases hang until the test kills them.
+
+`stripBom` runs before every `JSON.parse` here. Some Windows shells prepend a
+byte-order mark, and `JSON.parse` throws on input that looks perfectly
+well-formed in a terminal and in any editor — another silent nothing-happens.
+
 ## The Stop hook blocks in `ambient` too
 
 Commonly got wrong. `ambient` is not "never interrupts" — `stop-quiz-check.ts`
