@@ -1,0 +1,80 @@
+---
+title: "Concept packs"
+sidebar:
+  order: 10
+---
+
+Eklavya ships four concept graphs — git, node-backend, react and web-auth. A **pack** is the same file, written by someone else: a JSON list of concepts, their tiers and what has to come before what. It is how a domain Eklavya has never heard of gets added without a pull request, and how a team teaches its own codebase.
+
+## Where they live
+
+| Path | Applies to |
+| --- | --- |
+| `~/.eklavya/packs/*.json` | you, on every project |
+| `<repo>/.eklavya/packs/*.json` | everyone who works in that repository |
+
+Both are `packs/` directories, so the rule is one sentence: a pack lives in `packs/`, next to whichever Eklavya state it belongs to. The repository one is checked in — it is the only Eklavya file other than `.eklavya.json` that is meant to be.
+
+Packs load when Eklavya next opens the database, and again whenever a pack file changes. The MCP server opens the database once, when the session starts — so a pack written mid-session is not live yet. `eklavya doctor` is a separate process and applies packs unconditionally, which is why writing one ends by running it.
+
+## What a pack looks like
+
+```json
+{
+  "pack": "acme-billing",
+  "version": "1.0.0",
+  "domain": "acme",
+  "concepts": [
+    { "slug": "idempotency-keys", "name": "Idempotency keys", "tier": 2,
+      "description": "Why every write endpoint in billing/ takes one, and what a retry does without it." },
+    { "slug": "ledger-append-only", "name": "The ledger is append-only", "tier": 3,
+      "description": "Corrections are new rows. Nothing in billing/ledger updates a posted entry." }
+  ],
+  "edges": [
+    { "from": "idempotency-keys", "to": "ledger-append-only", "relation": "prerequisite_of" }
+  ]
+}
+```
+
+| Field | |
+| --- | --- |
+| `pack` | required — the pack's identifier, and how `eklavya doctor` names it |
+| `version` | optional, a string. Bump it when you edit the pack |
+| `domain` | required — the one word that groups these concepts in your learner profile |
+| `concepts[]` | `slug` (lowercase, hyphenated), `name`, `tier` 1–5, optional `description` and `domain` |
+| `edges[]` | `from`, `to`, and `relation`: `prerequisite_of`, `related_to` or `part_of` |
+
+Tiers are the same ladder [levels](/docs/levels-and-tiers/) draw from: 1 is what a thing is, 3 is why this choice here, 5 is when the architecture is wrong.
+
+An edge may point at a concept the pack did not declare — that is how a pack hangs itself off the shipped graph, `prerequisite_of` from a seeded concept to one of yours. An endpoint that names nothing is dropped, and `eklavya doctor` counts how many.
+
+## Two rules worth knowing before you write one
+
+**A pack merges over the shipped graph; it does not replace it.** Writing a slug Eklavya already seeds retiers, renames or re-domains that concept rather than adding a second one. That is deliberate — it is how a team says "this is harder in our codebase" — and it applies in order: the shipped graph first, then your global packs, then the repository's. The repository wins.
+
+**An override is global to you, even from a repository pack.** There is one database, one row per slug, and no repository column — so a repo pack that retiers `jwt-structure` retiers it in *your* graph, in every project, and leaving that repository does not put it back. New slugs are yours alone and harmless; overriding a shipped concept is the part to think about before committing it for a team.
+
+**Removing a pack leaves its concepts behind.** Your answers point at them, so deleting them would delete your history with them. Deleting the file stops the pack being re-applied; it does not undo it.
+
+## Writing one
+
+```text
+/eklavya:pack rust          # a domain
+/eklavya:pack this repo     # read the codebase and describe it
+```
+
+The command asks which scope you want, reads what Eklavya already knows about the domain so the pack extends it rather than colliding with it, and writes the file. Then:
+
+```bash
+eklavya doctor
+```
+
+`doctor` names every pack that loaded, with its version and scope, and every one that did not, with the reason. A malformed pack costs you that pack and nothing else — Eklavya starts normally without it.
+
+## If your profile is missing the new domain
+
+`/eklavya:progress` filters on `domains_enabled`, which defaults to everything. If you have narrowed it, a new pack's domain is quizzable but invisible there until you add it.
+
+## What packs do not carry
+
+The question wording. `framing` and the level framing are server-side strings, so a pack changes *what* Eklavya can ask about, not the language it asks in. Translating Eklavya is a separate job and is not shipped.

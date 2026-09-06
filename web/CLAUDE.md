@@ -51,9 +51,10 @@ Every `.mdx` under `src/content/docs/docs/` has a row here, in sidebar order.
 | `first-session.mdx` | `hooks/hooks.json` and the six hooks in `mcp/src/hooks/` |
 | `dials.mdx` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` — **and** `mcp/src/tools/get_session_quiz_plan.ts`, because the `interleaved` one-question cap and its exemptions live in the planner, not in the config |
 | `levels-and-tiers.mdx` | `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts`; the tier labels are `TIER` in `mcp/src/assets/dashboard.html` and the tier table in `skills/tutor/SKILL.md` — `TIER_LABEL` left `ask.ts` with the settings line in 1.14 |
-| `commands.mdx` | one `###` per slash command — the skills under `skills/` carrying `disable-model-invocation: true`, seven of them; `skills/tutor/` is model-invocable only and gets no heading. Plus one for `user-skill/` |
+| `commands.mdx` | one `###` per slash command — the skills under `skills/` carrying `disable-model-invocation: true`, eight of them; `skills/tutor/` is model-invocable only and gets no heading. Plus one for `user-skill/` |
 | `cli.mdx` | the `USAGE` string in `mcp/src/cli.ts` |
 | `configuration.mdx` | `DEFAULT_CONFIG` in `mcp/src/config.ts` — every key, no omissions |
+| `packs.mdx` | `mcp/src/packs.ts` (the two directories, the merge order, the fail-open read) and `validateSeedGraph` in `mcp/src/seed.ts` for the field rules. `skills/pack/SKILL.md` is the command it documents |
 | `commit-gate.mdx` | `mcp/src/store.ts` (`PASSING_GRADE`, `syncGate`, `gateRetryConcepts`), `cli/eklavya-gate`, `mcp/src/hooks/pre-tool-gate.ts`, `scripts/install-git-hook.sh` |
 | `dashboard.mdx` | `DEFAULT_PORT`, `startDashboard` and `dashboardState` in `mcp/src/dashboard.ts`; the sections, routes and page sizes in `mcp/src/assets/dashboard.html` (`NAV`, `VIEWS`, `PER`) |
 | `how-it-works.mdx` | the `mcp/` / `hooks/` / `skills/` split in the root `CLAUDE.md`, `mcp/package.json` `engines` and its `better-sqlite3` dependency, and `cli/eklavya-gate` for the one place `jq` and `sqlite3` are still needed. This is where architecture and rationale trimmed off `index.mdx` belongs |

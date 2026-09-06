@@ -135,7 +135,7 @@ Layout:
 ```
 .claude-plugin/     plugin + marketplace manifests
 .mcp.json           registers the eklavya MCP server
-skills/             tutor pedagogy, and the seven /eklavya:* commands
+skills/             tutor pedagogy, and the eight /eklavya:* commands
 user-skill/         the chat skill, installed to ~/.claude/skills/ rather than shipped in the plugin
 agents/             the eklavya-tutor subagent
 hooks/              hooks.json + run.mjs, the one cross-platform entry point

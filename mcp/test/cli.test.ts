@@ -194,6 +194,13 @@ describe('eklavya config', () => {
   });
 });
 
+/** A pack in the learner's own directory — the scope `doctor` labels `global`. */
+function writeGlobalPack(name: string, body: unknown): void {
+  const dir = path.join(home, 'packs');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(body));
+}
+
 describe('eklavya doctor', () => {
   it('reports the database, seed count and journal mode', () => {
     const res = eklavya(['doctor']);
@@ -207,6 +214,39 @@ describe('eklavya doctor', () => {
     expect(fs.existsSync(dbFile)).toBe(false);
     eklavya(['doctor']);
     expect(fs.existsSync(dbFile)).toBe(true);
+  });
+
+  it('names each concept pack it loaded, with its scope', () => {
+    writeGlobalPack('rust', {
+      pack: 'eklavya-pack-rust',
+      version: '1.0.0',
+      domain: 'rust',
+      concepts: [{ slug: 'rust-ownership', name: 'Ownership', tier: 1 }],
+    });
+    const res = eklavya(['doctor']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/packs:\s+1 loaded — eklavya-pack-rust@1\.0\.0 \(global\)/);
+  });
+
+  it('counts an edge whose endpoint names nothing, which is silent everywhere else', () => {
+    writeGlobalPack('typo', {
+      pack: 'typo',
+      domain: 'rust',
+      concepts: [{ slug: 'rust-ownership', name: 'Ownership', tier: 1 }],
+      edges: [{ from: 'rust-ownershp', to: 'rust-ownership', relation: 'prerequisite_of' }],
+    });
+    expect(eklavya(['doctor']).stdout).toMatch(/1 edge\(s\) dropped/);
+  });
+
+  it('reports a broken pack without failing the run', () => {
+    // The blanket remedy `doctor` prints is `eklavya install`, which never
+    // touches ~/.eklavya/packs/ and could not repair this if it wanted to.
+    fs.mkdirSync(path.join(home, 'packs'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'packs', 'broken.json'), '{ not json');
+    const res = eklavya(['doctor']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/packs:\s+FAILED/);
+    expect(res.stdout).not.toMatch(/Run: eklavya install/);
   });
 });
 

@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import { dbPath } from './paths.js';
 import { runMigrations } from './migrate.js';
 import { seedIfNeeded } from './seed.js';
+import { applyPacksIfNeeded } from './packs.js';
 
 export type DB = Database.Database;
 
@@ -26,6 +27,10 @@ export function openDb(file: string = dbPath()): DB {
 
   runMigrations(db);
   seedIfNeeded(db);
+  // After the seed, because packs are merged over it. A re-seed undoes whatever
+  // a pack had overridden, and `applyPacksIfNeeded` knows that: SEED_VERSION is
+  // part of the fingerprint it compares.
+  applyPacksIfNeeded(db);
 
   return db;
 }

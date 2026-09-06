@@ -8,7 +8,7 @@ working in this repo.
 
 | Path | What lives there |
 |---|---|
-| `mcp/src/` | the MCP server: config, store, SM-2 scheduling, quiz planning, tools — and `cli.ts`, which builds to `dist/cli.js`, the `eklavya` binary |
+| `mcp/src/` | the MCP server: config, store, SM-2 scheduling, quiz planning, concept packs, tools — and `cli.ts`, which builds to `dist/cli.js`, the `eklavya` binary |
 | `mcp/src/migrations/` | SQLite migrations, forward-only |
 | `mcp/src/hooks/` | the hook logic, in TypeScript — one file per hook, plus the shared `lib.ts` |
 | `mcp/test/` | the vitest suite: `cd mcp && npm test` |
@@ -66,6 +66,8 @@ That applies to:
 - a new or renamed config key, or a changed default
 - a new value for `mode`, `focus`, `cadence` or `difficulty` — or a fifth dial
 - a new, renamed or removed slash command, or a change to what `user-skill/` can do
+- a change to the concept graph's shape — a new seed domain, or anything about
+  the pack format in `mcp/src/packs.ts`
 - a change to the quiz loop: when questions arrive, what shape they take, how
   they are graded, what the gate requires
 - a change to where data is stored or what leaves the machine
