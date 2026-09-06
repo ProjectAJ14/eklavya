@@ -1,3 +1,10 @@
+## [1.9.3](https://github.com/ProjectAJ14/eklavya/compare/v1.9.2...v1.9.3) (2026-09-06)
+
+
+### Bug Fixes
+
+* restyle the dashboard onto the site's design system ([4577890](https://github.com/ProjectAJ14/eklavya/commit/4577890d00fd13cdb1c0a4b031146084a78b629e))
+
 ## [1.9.2](https://github.com/ProjectAJ14/eklavya/compare/v1.9.1...v1.9.2) (2026-09-06)
 
 
