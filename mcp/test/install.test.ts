@@ -157,8 +157,51 @@ describe('eklavya install', () => {
 
     expect(fs.existsSync(path.join(dir, '.git', 'HEAD'))).toBe(true);
     expect(fs.existsSync(path.join(dir, 'LOCAL_EDIT'))).toBe(true);
-    // And it says so, rather than looking like it did nothing.
-    expect(res.stdout).toMatch(/git checkout/);
+    // Not a real repository, so the pull cannot work -- and it says so rather
+    // than looking like it did nothing.
+    expect(res.stdout).toMatch(/could not pull/);
+  });
+
+  it('fast-forwards a clean marketplace checkout instead of leaving it stale', () => {
+    // The upgrade path for someone who installed through `/plugin marketplace
+    // add`: the files are a clone, so the way to move them to a new version is
+    // a pull, and re-running the installer should do it.
+    const origin = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-origin-'));
+    const g = (dir: string, ...args: string[]) =>
+      spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+
+    g(origin, 'init', '-q', '-b', 'main');
+    g(origin, 'config', 'user.email', 't@example.com');
+    g(origin, 'config', 'user.name', 'T');
+    fs.writeFileSync(path.join(origin, 'plugin.json'), '{"version":"1"}');
+    g(origin, 'add', '-A');
+    g(origin, 'commit', '-qm', 'one');
+
+    const dir = path.join(claudeHome, 'plugins', 'marketplaces', 'eklavya');
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    spawnSync('git', ['clone', '-q', origin, dir], { encoding: 'utf8' });
+
+    fs.writeFileSync(path.join(origin, 'plugin.json'), '{"version":"2"}');
+    g(origin, 'commit', '-qam', 'two');
+
+    const res = install();
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/pulled/);
+    expect(fs.readFileSync(path.join(dir, 'plugin.json'), 'utf8')).toContain('"2"');
+
+    // Second run has nothing to pull, and does not pretend otherwise.
+    expect(install().stdout).toMatch(/already current/);
+
+    // A dirty checkout is somebody's work in progress: left exactly as it is.
+    fs.writeFileSync(path.join(dir, 'plugin.json'), '{"version":"mine"}');
+    fs.writeFileSync(path.join(origin, 'plugin.json'), '{"version":"3"}');
+    g(origin, 'commit', '-qam', 'three');
+
+    const dirty = install();
+    expect(dirty.stdout).toMatch(/local changes/);
+    expect(fs.readFileSync(path.join(dir, 'plugin.json'), 'utf8')).toContain('mine');
+
+    fs.rmSync(origin, { recursive: true, force: true });
   });
 
   it('leaves other plugins and unrelated settings alone', () => {

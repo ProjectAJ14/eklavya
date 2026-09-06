@@ -15,7 +15,9 @@
  *   2. The runtime. `npm install eklavya@<version> --prefix ~/.eklavya/runtime`
  *      puts the compiled server, the hooks and that one native dependency
  *      somewhere both install routes can find them.
- *   3. The plugin payload, copied into the Claude Code marketplace directory.
+ *   3. The plugin payload, copied into the Claude Code marketplace directory —
+ *      or, where that directory is a git checkout `/plugin marketplace add`
+ *      made, fast-forwarded with a pull instead of overwritten.
  *   3b. The user-level skill, copied into `~/.claude/skills/eklavya/`, so
  *      "make Eklavya go easier on me" works in plain chat and keeps working
  *      where the plugin is not loaded.
@@ -229,8 +231,44 @@ function isGitManaged(dir: string): boolean {
   return fs.existsSync(path.join(dir, '.git'));
 }
 
-/** Returns false when the payload was deliberately left alone. */
-function copyPayload(): boolean {
+function git(dir: string, args: string[]) {
+  return spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+}
+
+/**
+ * Bring a git-managed checkout up to date the only way that is safe: `git pull
+ * --ff-only`, which is what `/plugin update` amounts to.
+ *
+ * Two things it will not do. It will not touch a checkout with local changes —
+ * someone editing the plugin in place is developing against it, and losing
+ * their work to an installer is not a trade Eklavya gets to make. And it will
+ * not force anything: a diverged or detached checkout fails the pull and is
+ * reported, not resolved.
+ *
+ * This tracks the checkout's own branch, so it lands on whatever that branch
+ * points at now, which is not necessarily the npm version being installed.
+ * That is the same thing `/plugin update` would have given them.
+ */
+type CheckoutResult = 'updated' | 'current' | 'dirty' | 'failed';
+
+function updateCheckout(dir: string): CheckoutResult {
+  const head = () => git(dir, ['rev-parse', 'HEAD']).stdout?.trim() ?? '';
+  const before = head();
+  if (!before) return 'failed';
+  if (git(dir, ['status', '--porcelain']).stdout?.trim()) return 'dirty';
+  const pull = git(dir, ['pull', '--ff-only', '--quiet']);
+  if (pull.status !== 0) {
+    // git's own reason, or "could not pull" is a support ticket with no clue in it.
+    const why = (pull.stderr ?? '').trim();
+    if (why) process.stderr.write(`${why}\n`);
+    return 'failed';
+  }
+  return head() === before ? 'current' : 'updated';
+}
+
+type PayloadResult = 'copied' | CheckoutResult;
+
+function copyPayload(): PayloadResult {
   const from = payloadDir();
   if (!fs.existsSync(from)) {
     process.stderr.write(
@@ -242,17 +280,17 @@ function copyPayload(): boolean {
 
   const to = marketplaceDir();
 
-  // Someone else's directory. Git is the source of truth for its contents and
-  // `/plugin update` is what refreshes it; copying over the top would only
-  // produce a checkout whose files no longer match its own HEAD.
-  if (isGitManaged(to)) return false;
+  // Someone else's directory. Git is the source of truth for its contents, so
+  // copying over the top would only produce a checkout whose files no longer
+  // match its own HEAD — pull it instead.
+  if (isGitManaged(to)) return updateCheckout(to);
 
   // Ours, so replace rather than merge: a stale hook or skill left behind by an
   // older version is worse than a slow copy.
   fs.rmSync(to, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(to), { recursive: true });
   fs.cpSync(from, to, { recursive: true });
-  return true;
+  return 'copied';
 }
 
 // --- 3b. the user-level skill -----------------------------------------------
@@ -462,12 +500,15 @@ export function install(args: string[]): void {
     say(`  runtime     ${runtimeHome()}`);
   }
 
-  const copied = copyPayload();
-  if (copied) {
-    say(`  plugin      ${marketplaceDir()}`);
-  } else {
-    say(`  plugin      ${marketplaceDir()} (git checkout — left as it is)`);
-  }
+  const payload = copyPayload();
+  const notes: Record<PayloadResult, string> = {
+    copied: '',
+    updated: ' (git checkout — pulled)',
+    current: ' (git checkout — already current)',
+    dirty: ' (git checkout with local changes — left as it is)',
+    failed: ' (git checkout — could not pull, left as it is)',
+  };
+  say(`  plugin      ${marketplaceDir()}${notes[payload]}`);
 
   if (!args.includes('--skip-skill')) {
     const skill = installSkill();
@@ -493,12 +534,15 @@ export function install(args: string[]): void {
   }
 
   say('');
-  if (!copied) {
+  if (payload === 'dirty' || payload === 'failed') {
     // Said plainly, because otherwise this install looks like it did nothing.
-    say('You added Eklavya through `/plugin marketplace add`, so that git checkout');
-    say('is the source of truth for the plugin files and this left them alone.');
+    say('You added Eklavya through `/plugin marketplace add`, so the plugin files are');
+    say(payload === 'dirty'
+      ? 'that git checkout — and it has uncommitted changes, so this left it alone.'
+      : 'that git checkout, and pulling it failed — so this left it alone.');
     say('The runtime and database above are installed and current.');
-    say('To move the plugin itself to this version, run `/plugin update eklavya`.');
+    say('To move the plugin itself, commit or stash there and re-run this, or use');
+    say('`/plugin update eklavya` in Claude Code.');
     say('');
   }
   say('Done. Restart Claude Code (or start a session) and Eklavya loads with it.');

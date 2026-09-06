@@ -43,7 +43,7 @@ That does the whole job, in this order:
    The server, the hooks and the SQLite driver go into `~/.eklavya/runtime`. This is the step that downloads the ready-compiled database binary for your platform. It then loads it once to prove it actually works, instead of trusting that `npm` exiting cleanly meant a working binary.
 3. #### Installs and enables the plugin
 
-   Copies the plugin into Claude Code's plugin directory and registers it, which is the same end state `/plugin install` produces.
+   Copies the plugin into Claude Code's plugin directory and registers it, which is the same end state `/plugin install` produces. If you first added Eklavya with `/plugin marketplace add`, that directory is a git clone rather than a copy — so this fast-forwards it with a pull instead of overwriting it, and says which it did. A clone with uncommitted changes in it is left exactly as it is.
 4. #### Installs the chat skill
 
    A single file at `~/.claude/skills/eklavya/SKILL.md`. It is what lets you change Eklavya by asking in plain English instead of remembering a slash command — [see below](/docs/commands/). It is installed for your user account, not for the plugin, so it keeps working in projects where the plugin is not enabled. If a skill of your own is already at that path, this step says so and leaves it alone.
@@ -89,7 +89,7 @@ If you would rather not touch a terminal:
 </Steps>
 
 :::note
-**What route B does differently.** A slash command cannot run `npm` or write outside the plugin, so this route installs the plugin files but not the runtime and not the chat skill. Your first session starts that download in the background and carries on as normal; the questions begin from the session after it finishes, and the slash commands work throughout. Route A does both up front instead. If you would rather not wait — or you want to change Eklavya by asking rather than by command — run `npx eklavya install` at any point. It finishes the job and is safe to run over an existing install.
+**What route B does differently.** A slash command cannot run `npm` or write outside the plugin, so this route installs the plugin files but not the runtime and not the chat skill. Your first session starts that download in the background and carries on as normal; the questions begin from the session after it finishes, and the slash commands work throughout. Route A does both up front instead. If you would rather not wait — or you want to change Eklavya by asking rather than by command — run `npx eklavya install` at any point. It finishes the job and is safe to run over an existing install: the plugin files here are a git clone, and it pulls that clone rather than overwriting it.
 :::
 
 #### Check that it worked

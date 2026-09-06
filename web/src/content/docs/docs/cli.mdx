@@ -9,7 +9,7 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | Command | What it does |
 | --- | --- |
 | `eklavya serve` | Runs the MCP server on stdio. This is what Claude Code starts for you — you would only run it by hand to point another MCP client at Eklavya. |
-| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. Safe to re-run — that is how you upgrade. |
+| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. Safe to re-run — that is how you upgrade, including for a marketplace install, where it pulls the plugin's git clone forward. |
 | `eklavya uninstall [--purge]` | Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`. |
 | `eklavya config get` | Prints the effective configuration as JSON, plus the paths of the global and repo files it came from. |
 | `eklavya config set <key> <value>` | Changes one setting. Add `--repo` to write `.eklavya.json` at the repository root instead of your global config. Add `--topic <topic>` when setting `focus learn`. |
