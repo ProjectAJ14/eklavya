@@ -30,11 +30,12 @@ triple in here, even in a comment, fails that test on purpose.
 `scripts/bump-version.sh` bumps `plugin.json` and `mcp/package.json`, nothing
 else.
 
-## The four hooks, out of `hooks.json`
+## The five hooks, out of `hooks.json`
 
 | Event | Matcher | Timeout | Script | Job |
 |---|---|---|---|---|
 | SessionStart | — | 10s | `session-start` | stamp `meta.current_session`, print the profile banner and the standing log directive |
+| UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
 | PreToolUse | `Bash` | 10s | `pre-tool-gate` | in `enforced` mode only, deny a `git commit` whose session gate has not passed |
 | PostToolUse | `mcp__.*log_session_concepts` | 10s | `checkpoint-quiz` | one mid-task question, `interleaved` cadence only |
 | Stop | — | 15s | `stop-quiz-check` | block the turn and demand a quiz |
@@ -54,7 +55,7 @@ stdin defensively, run the body, exit 0 silently on any throw. A new hook body
 goes inside `await run(async (input) => { ... })` and returns an exit code; it
 never calls `process.exit` itself. Helpers follow the same rule —
 `openExisting()` returns `null` rather than throwing on a missing or corrupt
-database, and deliberately does not migrate or seed (four hooks racing a
+database, and deliberately does not migrate or seed (several hooks racing a
 migration on session start is a corruption story). The one non-zero code is the
 Stop hook's `return 2`, which is how Stop blocks; the reason goes on stderr.
 

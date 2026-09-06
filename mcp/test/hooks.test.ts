@@ -15,6 +15,7 @@ const hooksDir = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.u
 const SESSION_START = path.join(hooksDir, 'session-start.js');
 const STOP_CHECK = path.join(hooksDir, 'stop-quiz-check.js');
 const CHECKPOINT = path.join(hooksDir, 'checkpoint-quiz.js');
+const NUDGE = path.join(hooksDir, 'prompt-submit-nudge.js');
 
 const SESSION = 'hook-session';
 
@@ -640,5 +641,112 @@ describe('SessionStart says which level the project is on', () => {
     configure({ difficulty: 'auto' });
     fs.writeFileSync(path.join(cwd, '.eklavya.json'), JSON.stringify({ difficulty: 'easy' }));
     expect(sessionStart().stdout).toContain('overrides your global setting for: difficulty');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('the UserPromptSubmit nudge', () => {
+  const nudge = (extra: Record<string, unknown> = {}) =>
+    runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit', ...extra });
+
+  /** The line the model receives, or null when the hook stayed quiet. */
+  const context = (res: HookResult): string | null => {
+    if (!res.stdout.trim()) return null;
+    const parsed = JSON.parse(res.stdout) as {
+      hookSpecificOutput?: { hookEventName?: string; additionalContext?: string };
+    };
+    expect(parsed.hookSpecificOutput?.hookEventName).toBe('UserPromptSubmit');
+    return parsed.hookSpecificOutput?.additionalContext ?? null;
+  };
+
+  /**
+   * Move this session's first-seen stamp into the past. The grace window is a
+   * constant rather than a config key, so backdating the row is the only way to
+   * reach the other side of it without sleeping.
+   */
+  const seenMinutesAgo = (minutes: number, nudgedMinutesAgo: number | null = null): void => {
+    const iso = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+    db.prepare(
+      'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    ).run(
+      `prompt_nudge:${SESSION}`,
+      `${iso(minutes)}|${nudgedMinutesAgo === null ? '' : iso(nudgedMinutesAgo)}`,
+    );
+  };
+
+  it('says nothing on the first prompt — the directive was injected seconds ago', () => {
+    const res = nudge();
+    expect(res.status).toBe(0);
+    expect(context(res)).toBeNull();
+    // But it starts the clock, or the grace window could never elapse.
+    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`prompt_nudge:${SESSION}`) as
+      | { value: string }
+      | undefined;
+    expect(row?.value).toMatch(/^\d{4}-\d{2}-\d{2}T.*\|$/);
+  });
+
+  it('stays quiet inside the grace window', () => {
+    seenMinutesAgo(5);
+    expect(context(nudge())).toBeNull();
+  });
+
+  it('nudges once the session has had a fair chance and still logged nothing', () => {
+    seenMinutesAgo(30);
+    const line = context(nudge());
+    expect(line).toContain('log_session_concepts');
+    // One line, not the whole session-start block: this runs on every prompt.
+    expect(line!.split('\n')).toHaveLength(1);
+  });
+
+  it('does not nudge a session that is logging', () => {
+    logConcepts(['csrf']);
+    seenMinutesAgo(30);
+    expect(context(nudge())).toBeNull();
+  });
+
+  it('does not nudge twice in a row', () => {
+    seenMinutesAgo(30);
+    expect(context(nudge())).not.toBeNull();
+    // The hook has just recorded itself, so the very next prompt is inside the
+    // cooldown even though nothing has been logged.
+    expect(context(nudge())).toBeNull();
+  });
+
+  it('nudges again once the cooldown has passed', () => {
+    seenMinutesAgo(90, 40);
+    expect(context(nudge())).not.toBeNull();
+  });
+
+  it('is silent when Eklavya is dormant or quiet', () => {
+    seenMinutesAgo(30);
+    configure({ mode: 'off' });
+    expect(context(nudge())).toBeNull();
+    configure({ quiet: true });
+    expect(context(nudge())).toBeNull();
+  });
+
+  it('is silent inside a subagent — the parent thread is the one that logs', () => {
+    seenMinutesAgo(30);
+    expect(context(nudge({ agent_id: 'sub-1' }))).toBeNull();
+  });
+
+  it('never breaks a session when there is no database (PRD §9.1)', () => {
+    const res = runHook(NUDGE, { session_id: SESSION, cwd }, { EKLAVYA_DB: '/nonexistent/eklavya.db' });
+    expect(res.status).toBe(0);
+    expect(res.stdout).toBe('');
+  });
+
+  it('prunes its own bookkeeping rather than keeping a row per session forever', () => {
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(
+      'prompt_nudge:ancient',
+      `${new Date(Date.now() - 40 * 24 * 3600_000).toISOString()}|`,
+    );
+    // The prune runs on the first sighting of a new session.
+    runHook(NUDGE, { session_id: 'brand-new', cwd, hook_event_name: 'UserPromptSubmit' });
+    const gone = db.prepare("SELECT count(*) AS n FROM meta WHERE key = 'prompt_nudge:ancient'").get() as {
+      n: number;
+    };
+    expect(gone.n).toBe(0);
   });
 });

@@ -6,9 +6,27 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "session-start"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs",
+              "session-start"
+            ],
             "timeout": 10,
             "statusMessage": "Eklavya: loading learner profile"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs",
+              "prompt-submit-nudge"
+            ],
+            "timeout": 10
           }
         ]
       }
@@ -20,7 +38,10 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "pre-tool-gate"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs",
+              "pre-tool-gate"
+            ],
             "timeout": 10
           }
         ]
@@ -33,7 +54,10 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "checkpoint-quiz"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs",
+              "checkpoint-quiz"
+            ],
             "timeout": 10,
             "statusMessage": "Eklavya: checking if it is time to ask"
           }
@@ -46,7 +70,10 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "stop-quiz-check"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs",
+              "stop-quiz-check"
+            ],
             "timeout": 15,
             "statusMessage": "Eklavya: checking what you learned"
           }

@@ -1,0 +1,140 @@
+/**
+ * UserPromptSubmit: say the standing instruction again, once, when a session
+ * has plainly stopped hearing it.
+ *
+ * `session-start.ts` injects the directive that starts the whole loop -- call
+ * `log_session_concepts` with what this task exercises -- and its own comment
+ * explains why it lives in a hook rather than only in the tutor skill: the skill
+ * is model-invocable, it competes with every other skill on the machine, and it
+ * may never load. The same argument applies one level up. A directive injected
+ * once is the oldest thing in the context window by turn forty, competing with
+ * everything that arrived after it.
+ *
+ * That failure is the worst-shaped one Eklavya has, because nothing errors.
+ * Nothing gets logged, so `session_concepts` stays empty, so the Stop hook finds
+ * no candidates and exits silently. From the outside it reads as *Eklavya is
+ * broken* -- which is unreportable, and the reason both comparable plugins
+ * (ponytail, claude-mem) re-inject on every prompt rather than once per session.
+ *
+ * Where this deliberately differs from them: they re-emit their whole ruleset
+ * every turn. This emits ONE line, and only when it has been earned. A hook that
+ * spends tokens on every prompt to repeat something the model is already doing
+ * is a hook that makes every session more expensive to no end -- and a nudge
+ * that arrives while logging is working teaches the model to ignore nudges.
+ *
+ * So the predicate is narrow, and it is the one case worth catching: this
+ * session has logged **nothing at all**, and it has been going long enough that
+ * the session-start directive can no longer be blamed on not having had a chance.
+ * A session that logged once and then went quiet for a while is *not* nudged --
+ * concepts are logged per task and a task can legitimately run long, so that
+ * signal is noise.
+ *
+ * State lives in `meta` rather than a table of its own: one row per session,
+ * `prompt_nudge:<sid>` -> `<first-seen>|<last-nudge>`, pipe-delimited so the
+ * prune below is one statement and needs no JSON parsing in SQL. A migration
+ * for a rate limiter would be a schema change for a comment.
+ *
+ * Failure is silent, as everywhere here: exit 0, no output. This runs on every
+ * prompt the developer types, so it is also the hook with the least right to be
+ * slow -- the common case (a session that is logging) is one COUNT and out.
+ */
+import { run, openExisting, config, cwdOf, sessionId, minutesSince, type DB } from './lib.js';
+
+/**
+ * Long enough that the session-start directive has had a fair chance, short
+ * enough to still be the same piece of work. Not configurable on purpose: a
+ * knob for this would be a config key, a schema entry, a CLI line and four doc
+ * updates to tune something nobody can feel.
+ */
+const GRACE_MINUTES = 12;
+
+/** And having said it once, do not say it again this soon. */
+const COOLDOWN_MINUTES = 25;
+
+const KEY_PREFIX = 'prompt_nudge:';
+
+/** `<first-seen ISO>|<last-nudge ISO or empty>` */
+function readState(db: DB, key: string): { first: string; nudged: string | null } | null {
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined;
+  if (!row) return null;
+  const [first, nudged] = row.value.split('|');
+  if (!first) return null;
+  return { first, nudged: nudged || null };
+}
+
+function writeState(db: DB, key: string, first: string, nudged: string | null): void {
+  db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
+    key,
+    `${first}|${nudged ?? ''}`,
+  );
+}
+
+/**
+ * One row per session would otherwise be one row per session forever. The value
+ * starts with an ISO date, which compares lexicographically, so a week's cutoff
+ * is a substring comparison rather than a parse.
+ */
+function prune(db: DB): void {
+  db.prepare(
+    `DELETE FROM meta
+      WHERE key LIKE '${KEY_PREFIX}%'
+        AND substr(value, 1, 10) < date('now', '-7 day')`,
+  ).run();
+}
+
+await run(async (input) => {
+  // A subagent's prompts are not the developer's, and the parent is the thread
+  // that logs. Nudging here would spend context inside a transcript nobody is
+  // reading. Same reasoning as checkpoint-quiz.ts.
+  if (input.agent_id) return 0;
+
+  const db = openExisting();
+  if (!db) return 0;
+
+  const { mode, quiet } = config(cwdOf(input)).config;
+  if (mode === 'off') return 0;
+  // `quiet` already suppresses the session-start directive itself, so honouring
+  // it here is consistency rather than a second policy: someone who turned that
+  // off has answered this question.
+  if (quiet) return 0;
+
+  const sid = sessionId(input, db);
+  if (!sid) return 0;
+
+  // The fast path, and the one that runs on almost every prompt: a session that
+  // is logging needs nothing said to it.
+  const logged = db
+    .prepare('SELECT count(*) AS n FROM session_concepts WHERE session_id = ?')
+    .get(sid) as { n: number } | undefined;
+  if ((logged?.n ?? 0) > 0) return 0;
+
+  const key = `${KEY_PREFIX}${sid}`;
+  const now = new Date().toISOString();
+  const state = readState(db, key);
+
+  // First prompt we have seen for this session. The directive was injected
+  // seconds ago; repeating it now would be noise. Start the clock instead.
+  if (!state) {
+    prune(db);
+    writeState(db, key, now, null);
+    return 0;
+  }
+
+  if (minutesSince(state.first) < GRACE_MINUTES) return 0;
+  if (state.nudged && minutesSince(state.nudged) < COOLDOWN_MINUTES) return 0;
+
+  writeState(db, key, state.first, now);
+
+  process.stdout.write(
+    `${JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext:
+          '[Eklavya] Nothing logged this session. Once you know what the current task involves, call log_session_concepts with the 3-8 concepts it genuinely exercises, each with a context line naming the real code — without it there is nothing to quiz on.',
+      },
+    })}\n`,
+  );
+  return 0;
+});
