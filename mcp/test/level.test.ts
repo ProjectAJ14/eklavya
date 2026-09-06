@@ -131,9 +131,9 @@ describe('promotion', () => {
 });
 
 describe('the ask header', () => {
-  it('names the mode, the focus, the level and what the tier asks for', () => {
+  it('labels every dial, so four bare words are never left to be decoded', () => {
     expect(askHeader({ config: config({ focus: 'concept' }), level: 'easy', pinned: false, tier: 2 })).toBe(
-      '[ambient · concept · easy · tier 2 mechanism]',
+      '[mode: ambient · focus: concept · level: easy · tier: 2 mechanism]',
     );
   });
 
@@ -145,34 +145,36 @@ describe('the ask header', () => {
         pinned: false,
         tier: 3,
       }),
-    ).toBe('[ambient · learn: caching · medium · tier 3 judgement]');
+      // Parenthesised, not `learn: caching`: the value already sits behind a
+      // `focus:` label, and two colons in one field read as a nested key.
+    ).toBe('[mode: ambient · focus: learn (caching) · level: medium · tier: 3 judgement]');
   });
 
   it('says when the level is pinned — otherwise questions just stop getting harder', () => {
     expect(askHeader({ config: config(), level: 'hard', pinned: true, tier: 5 })).toBe(
-      '[ambient · concept · hard (pinned) · tier 5 design]',
+      '[mode: ambient · focus: concept · level: hard (pinned) · tier: 5 design]',
     );
   });
 
   it('says when the mode has a consequence attached', () => {
     expect(askHeader({ config: config({ mode: 'enforced' }), level: 'easy', pinned: false, tier: 1 })).toBe(
-      '[enforced (gated) · concept · easy · tier 1 recall]',
+      '[mode: enforced (gated) · focus: concept · level: easy · tier: 1 recall]',
     );
     // Cadence is never in the line: the question's arrival already said when
     // Eklavya asks.
     expect(askHeader({ config: config({ mode: 'ambient', cadence: 'end' }), level: 'easy', pinned: false, tier: 1 })).toBe(
-      '[ambient · concept · easy · tier 1 recall]',
+      '[mode: ambient · focus: concept · level: easy · tier: 1 recall]',
     );
   });
 
   it('counts the questions when more than one is coming', () => {
     expect(
       askHeader({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 2, total: 3 } }),
-    ).toBe('[ambient · concept · easy · tier 2 mechanism · q 2/3]');
+    ).toBe('[mode: ambient · focus: concept · level: easy · tier: 2 mechanism · question: 2 of 3]');
     // A lone question needs no scoreboard.
     expect(
       askHeader({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 1, total: 1 } }),
-    ).toBe('[ambient · concept · easy · tier 2 mechanism]');
+    ).toBe('[mode: ambient · focus: concept · level: easy · tier: 2 mechanism]');
   });
 
   it('is absent under quiet', () => {
@@ -186,14 +188,18 @@ describe('stripping the settings line back off', () => {
   it('removes every shape the composer can produce, above the stem or below it', () => {
     const levels: Level[] = ['easy', 'medium', 'hard'];
     const lines = [
-      ...levels.map((l) => `[ambient · concept · ${l} · tier 2 mechanism]`),
-      '[ambient · project · easy · tier 1 recall]',
+      ...levels.map((l) => `[mode: ambient · focus: concept · level: ${l} · tier: 2 mechanism]`),
+      '[mode: ambient · focus: project · level: easy · tier: 1 recall]',
+      '[mode: ambient · focus: learn (http caching) · level: medium · tier: 3 judgement]',
+      '[mode: ambient · focus: concept · level: hard (pinned) · tier: 5 design]',
+      '[mode: enforced (gated) · focus: concept · level: easy · tier: 1 recall]',
+      '[mode: ambient · focus: concept · level: easy · tier: 2 mechanism · question: 2 of 3]',
+      // Written by older versions -- unlabelled, below the stem, without the
+      // brackets. Those rows are still in the database and must keep their
+      // fingerprint, or every one of them looks like a brand-new question.
+      '[ambient · concept · easy · tier 2 mechanism]',
       '[ambient · learn: http caching · medium · tier 3 judgement]',
-      '[ambient · concept · hard (pinned) · tier 5 design]',
-      '[enforced (gated) · concept · easy · tier 1 recall]',
       '[ambient · concept · easy · tier 2 mechanism · q 2/3]',
-      // Written by an older version -- below the stem, and without the brackets.
-      // Those rows are still in the database and must keep their fingerprint.
       'ambient · concept · easy · tier 2 mechanism',
       'concept · easy · tier 2',
       'concept · easy · tier 2 · gated',
@@ -212,12 +218,12 @@ describe('stripping the settings line back off', () => {
   });
 
   it('takes one line, never a middle one', () => {
-    const buried = `${stem}\n\n[ambient · concept · easy · tier 2 mechanism]\n\nAnd why?`;
+    const buried = `${stem}\n\n[mode: ambient · focus: concept · level: easy · tier: 2 mechanism]\n\nAnd why?`;
     expect(stripAskHeader(buried)).toBe(buried);
   });
 
   it('strips the line from both ends at once, in case the tutor pastes both', () => {
-    const line = '[ambient · concept · easy · tier 2 mechanism]';
+    const line = '[mode: ambient · focus: concept · level: easy · tier: 2 mechanism]';
     expect(stripAskHeader(`${line}\n\n${stem}\n\n${line}`)).toBe(stem);
   });
 });

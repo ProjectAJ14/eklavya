@@ -223,8 +223,8 @@ describe('get_session_quiz_plan', () => {
       logAuthWork();
       const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
       expect(plan.questions_needed).toBe(1);
-      // No `q 1/1`: the numbering only means something when more is coming.
-      expect(plan.concepts[0].ask_header).not.toMatch(/q \d/);
+      // No `question: 1 of 1`: the numbering only means something when more is coming.
+      expect(plan.concepts[0].ask_header).not.toMatch(/question: \d/);
     });
 
     it('plans the whole budget under the end cadence', () => {
@@ -1499,7 +1499,9 @@ describe('the ask header, end to end', () => {
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     for (const c of plan.concepts) {
       expect(c.ask_header).toMatch(
-        new RegExp(`^\\[enforced \\(gated\\) · project · easy · tier ${c.tier_to_ask} \\w[^\\]]*\\]$`),
+        new RegExp(
+          `^\\[mode: enforced \\(gated\\) · focus: project · level: easy · tier: ${c.tier_to_ask} \\w[^\\]]*\\]$`,
+        ),
       );
     }
   });

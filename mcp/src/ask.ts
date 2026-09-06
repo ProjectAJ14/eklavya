@@ -26,6 +26,13 @@
  * branch names. Raw ANSI would survive neither the JSON hop nor a non-terminal
  * renderer, so it is not an option.
  *
+ * Every part names its dial: `[mode: ambient · focus: concept · level: easy ·
+ * tier: 1 recall]`. The unlabelled form it replaced was four bare values in a
+ * row, which only reads as a settings line to someone who already knows there
+ * are four dials and what order they come in -- and the whole point of the line
+ * is the reader who does not. Four words with no keys is a readout you have to
+ * be taught to read, which is exactly the state it was added to fix.
+ *
  * Composed here rather than by whoever writes the question, for the same reason
  * `tier_to_ask`, `answer_position` and `format_to_use` are: a string each
  * question assembles for itself is a string that drifts, and this one has to be
@@ -70,24 +77,26 @@ const TIER_LABEL: Record<number, string> = {
 export function askHeader({ config, level, pinned, tier, position }: AskHeaderInput): string | null {
   if (config.quiet) return null;
 
+  // `learn (topic)` rather than `learn: topic`: the value now sits behind its own
+  // `focus:` label, and two colons in one field read as a nested key.
   const focus =
     config.focus === 'learn' && config.focus_topic
-      ? `learn: ${config.focus_topic}`
+      ? `learn (${config.focus_topic})`
       : config.focus;
 
   const label = TIER_LABEL[tier];
-  const parts = [
+  const parts: [string, string][] = [
     // `enforced` is the one value with a consequence attached, so it says so.
-    config.mode === 'enforced' ? 'enforced (gated)' : config.mode,
-    focus,
+    ['mode', config.mode === 'enforced' ? 'enforced (gated)' : config.mode],
+    ['focus', focus],
     // A pinned level explains itself here or nowhere: without it, questions
     // simply stop getting harder one day and nothing on screen says why.
-    pinned ? `${level} (pinned)` : level,
-    label ? `tier ${tier} ${label}` : `tier ${tier}`,
+    ['level', pinned ? `${level} (pinned)` : level],
+    ['tier', label ? `${tier} ${label}` : String(tier)],
   ];
-  if (position && position.total > 1) parts.push(`q ${position.index}/${position.total}`);
+  if (position && position.total > 1) parts.push(['question', `${position.index} of ${position.total}`]);
 
-  return `[${parts.join(' · ')}]`;
+  return `[${parts.map(([key, value]) => `${key}: ${value}`).join(' · ')}]`;
 }
 
 /**
@@ -98,7 +107,10 @@ export function askHeader({ config, level, pinned, tier, position }: AskHeaderIn
  * eat a real question. Both positions are matched because the line moved from the
  * bottom to the top in 1.9, and stems recorded before that are still in the
  * database; a strip that only knew the new position would let every old row's
- * fingerprint drift.
+ * fingerprint drift. The `key:` labels are optional in the pattern for the same
+ * reason: rows recorded before the line was labelled are still the same
+ * questions, and a strip that only knew the labelled shape would leave the old
+ * line baked into every one of their fingerprints.
  *
  * It exists because the tutor will eventually record the whole block it
  * displayed, and `question` is what `questionFingerprint` hashes -- a settings
@@ -108,7 +120,7 @@ export function askHeader({ config, level, pinned, tier, position }: AskHeaderIn
  * for the same reason the leading dials group is: older rows do not have them.
  */
 const SETTINGS_LINE_BODY =
-  String.raw`\[?[ \t]*(?:(?:off|ambient|enforced(?:[ \t]*\(gated\))?)[ \t]*·[ \t]*)?(?:project|concept|learn(?::[^\n·\]]*)?)[ \t]*·[ \t]*(?:easy|medium|hard)(?:[ \t]*\(pinned\))?[ \t]*·[ \t]*tier[ \t]*[1-5][^\n]*`;
+  String.raw`\[?[ \t]*(?:(?:mode:[ \t]*)?(?:off|ambient|enforced(?:[ \t]*\(gated\))?)[ \t]*·[ \t]*)?(?:focus:[ \t]*)?(?:project|concept|learn(?:[ \t]*[:(][^\n·\]]*)?)[ \t]*·[ \t]*(?:level:[ \t]*)?(?:easy|medium|hard)(?:[ \t]*\(pinned\))?[ \t]*·[ \t]*tier:?[ \t]*[1-5][^\n]*`;
 
 const LEADING_LINE = new RegExp(String.raw`^[ \t]*${SETTINGS_LINE_BODY}\n+`, 'i');
 const TRAILING_LINE = new RegExp(String.raw`\n[ \t]*${SETTINGS_LINE_BODY}$`, 'i');

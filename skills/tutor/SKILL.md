@@ -287,13 +287,15 @@ A pinned level (`pinned: true`) means someone set the band deliberately — an o
 Every plan item carries `ask_header`: one bracketed line naming the settings that asked the question.
 
 ```
-[ambient · concept · easy · tier 2 mechanism · q 1/3]
+[mode: ambient · focus: concept · level: easy · tier: 2 mechanism · question: 1 of 3]
 
 Why is httpOnly set on the refresh cookie here but not on the access token?
 ```
 
-Mode, focus, level, what the tier is asking for, and — when the plan holds more
-than one — which question of how many this is.
+Every part names its dial: mode, focus, level, what the tier is asking for, and
+— when the plan holds more than one — which question of how many this is. The
+labels are the point. Four bare values only read as a settings line to someone
+who already knows there are four dials and what order they come in.
 
 **Print it as the first line of the `question` you pass to `AskUserQuestion`**, then a blank line, then the stem, exactly as given. It is the only thing on screen that explains why a question is pitched where it is — without it, a `concept`-focus question reads as vague and an `easy` question reads as shallow.
 

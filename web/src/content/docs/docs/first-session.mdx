@@ -26,12 +26,12 @@ Nothing below requires you to type an Eklavya command. This is the plugin workin
    That logging call fires the **PostToolUse** checkpoint hook. If the cadence is `interleaved` (the default), you get *one* question right there, while the code is still on your screen:
 
    ```text title="Checkpoint"
-   [ambient · concept · easy · tier 2 mechanism]
+   [mode: ambient · focus: concept · level: easy · tier: 2 mechanism]
 
    Why is httpOnly set on the refresh cookie here but not on the access token?
    ```
 
-   Four options arrive through Claude Code's own question UI, under an **Eklavya** header so you can see who is asking. Picking one is a keystroke. The bracketed line above the question names the settings that produced it — mode, focus, level, what the tier is asking for, and `· q 2/3` when more are coming. It sits above rather than below because the question UI draws everything in one weight, and underneath it read as part of the question.
+   Four options arrive through Claude Code's own question UI, under an **Eklavya** header so you can see who is asking. Picking one is a keystroke. The bracketed line above the question names the settings that produced it — each one labelled: mode, focus, level, what the tier is asking for, and `· question: 2 of 3` when more are coming. It sits above rather than below because the question UI draws everything in one weight, and underneath it read as part of the question.
 5. #### Claude grades it and goes straight back to work
 
    The answer is graded on a 0–5 scale and stored, along with the next review date. No summary, no re-plan, no second question — the interruption is meant to cost you seconds.
