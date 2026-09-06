@@ -132,9 +132,22 @@ the whole thing — including that the generator and judge are currently the sam
 model family, and that the fixtures are this repo's own code and therefore an
 upper bound.
 
-Results go in `eval/results/` as one dated Markdown file per run; the raw JSON
-each run writes is gitignored scratch. A result file that does not say what
-would make it wrong is not finished.
+There is a fifth command, and it measures the other end:
+
+```bash
+npm run eval -- history          # read-only, against ~/.eklavya/knowledge.db
+```
+
+It reports the repeat rate — *never the same question twice*, the promise the
+whole tool rests on — plus tier calibration and what held across a gap. It reads
+a real learner's database, so it is read-only and emits aggregates only: no stem
+or answer reaches the report, because the report is committed.
+
+Results go in `eval/results/` as one dated Markdown file per run; the timestamped
+run directories are gitignored scratch. **A result file that does not say what
+would make it wrong is not finished**, and one that reports only the numbers
+that came out well is worse than none — the first history run is published with
+a defect it found in the product and a tier ladder that did not behave.
 
 **A change to the pedagogy in `skills/tutor/` is the change this exists for.**
 Run it before and after.

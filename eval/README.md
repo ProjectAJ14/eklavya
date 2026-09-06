@@ -82,6 +82,39 @@ model is involved:
 - does the question match the tier it was pitched at
 - does the stem ask one thing
 
+## The other end: a real answer history
+
+`generate`/`score`/`judge` measure questions before anyone answers them.
+`history` measures what happened after — it reads an actual `knowledge.db`
+read-only and reports three things:
+
+```bash
+npm run eval -- history                 # defaults to ~/.eklavya/knowledge.db
+npm run eval -- history --db <path>
+```
+
+- **The repeat rate.** *Never the same question twice* is the promise the whole
+  tool rests on, and the only claim measurable today with no new harness. It
+  imports `questionFingerprint` from `store.ts`, so it uses the product's own
+  definition of "the same question" rather than a second opinion — and it
+  divides by the attempts that **could** have repeated, not by all of them,
+  because most attempts are the first question on their concept and a first
+  question cannot repeat.
+- **Tier calibration.** Mean grade per tier. If grades do not fall as tiers
+  rise, the ladder is decoration.
+- **What held across a gap.** The weakest honest version of retention: when a
+  concept came back a day or more later, did the answer pass.
+
+Aggregates only, by construction — the statistics module is handed rows and
+hands back numbers, and no stem or answer reaches the report. The output is
+committed and the repo rule is that a learner's data never is.
+
+The repeat rate's error is in the flattering direction, and the result file has
+to say so: a fingerprint is a normalised stem, so two questions asking the
+identical thing in different words are not counted as a repeat. It measures
+*literal* repetition, and nothing here bounds the gap to the promise people
+actually care about.
+
 ## What would disprove this
 
 Stated first, because a number that cannot be wrong is not a measurement.

@@ -33,6 +33,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 const evalDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.dirname(evalDir);
@@ -63,7 +64,7 @@ function fail(message) {
 }
 
 /** Flags that take a value, so the value is not mistaken for a positional. */
-const VALUE_FLAGS = new Set(['focus', 'difficulty', 'limit', 'model']);
+const VALUE_FLAGS = new Set(['focus', 'difficulty', 'limit', 'model', 'db']);
 
 function flag(name, dflt = null) {
   const i = process.argv.indexOf(`--${name}`);
@@ -439,6 +440,79 @@ async function judge(run, model) {
   return summary;
 }
 
+/* --------------------------------------------------------------- history --- */
+
+/**
+ * What a real answer history says about the promises the product makes.
+ *
+ * Everything above measures questions before anyone answers them. This reads an
+ * actual knowledge.db and asks whether the claims survived contact -- above all
+ * the repeat rate, because *never the same question twice* is the promise the
+ * whole tool rests on and it needs no new harness to check.
+ *
+ * Read-only, and aggregates only. The output file is committed, and the repo
+ * rule is that a learner's data never is, so nothing here reads a stem into the
+ * report -- the statistics module is handed the rows and hands back numbers.
+ */
+async function history(dbFile) {
+  const stats = await loadDist('eval/history-stats.js');
+
+  // Resolved from mcp/, not from here: node looks for node_modules relative to
+  // the importing file, and eval/ has none. The driver is the server's
+  // dependency, not the harness's.
+  let Database;
+  try {
+    Database = createRequire(pathToFileURL(path.join(repoRoot, 'mcp', 'package.json')).href)('better-sqlite3');
+  } catch {
+    fail('better-sqlite3 could not be loaded. Run `npm ci` in mcp/.');
+  }
+
+  const file = dbFile ?? path.join(os.homedir(), '.eklavya', 'knowledge.db');
+  if (!fs.existsSync(file)) fail(`No database at ${file}. Pass --db <path>.`);
+
+  // Read-only on purpose: a measurement that can write to the thing it measures
+  // is a measurement nobody should trust, and this one is pointed at a real
+  // learner's history by default.
+  const db = new Database(file, { readonly: true });
+  const rows = db
+    .prepare('SELECT id, concept_id, question, grade, difficulty, outcome, ts FROM attempts ORDER BY id')
+    .all();
+  const span = db.prepare('SELECT min(ts) AS first, max(ts) AS last FROM attempts').get();
+  db.close();
+
+  if (rows.length === 0) fail(`${file} has no attempts yet -- nothing to measure.`);
+
+  const repeat = stats.repeatStats(rows);
+  const tiers = stats.tierStats(rows);
+  const gaps = stats.gapStats(rows, 1);
+  const outcomes = stats.outcomeStats(rows);
+  const report = { source: path.basename(file), span, repeat, tiers, gaps, outcomes };
+
+  const pct = (n, d) => (d > 0 ? `${((100 * n) / d).toFixed(1)}%` : 'n/a');
+  process.stdout.write(`\n${repeat.attempts} attempts on ${repeat.concepts} concepts, ${span.first} -> ${span.last}\n`);
+  process.stdout.write(
+    `\nrepeat rate: ${repeat.repeats}/${repeat.repeatable} (${pct(repeat.repeats, repeat.repeatable)}) ` +
+      `-- of the ${repeat.repeatable} attempt(s) that had an earlier question on the same concept\n`,
+  );
+  process.stdout.write(`  the product should have caught: ${repeat.withinWindow}\n`);
+  process.stdout.write(`  older than the ${stats.REPEAT_WINDOW}-attempt window it checks: ${repeat.outsideWindow}\n`);
+  process.stdout.write(`\ntier   n   mean   pass\n`);
+  for (const r of tiers.rows) {
+    process.stdout.write(`  ${r.tier}  ${String(r.attempts).padStart(3)}   ${r.meanGrade.toFixed(2)}   ${pct(r.passRate, 1)}\n`);
+  }
+  process.stdout.write(`  grades fall as tiers rise: ${tiers.monotonic ? 'yes' : 'NO'}`);
+  process.stdout.write(` (${tiers.excludedDeclines} decline(s) excluded)\n`);
+  process.stdout.write(`\nconcepts re-asked after a day: ${gaps.held}/${gaps.pairs} held\n`);
+  process.stdout.write(
+    `outcomes: ${outcomes.answered} answered, ${outcomes.dontKnow} blank, ${outcomes.declined} declined, ${outcomes.unrecorded} unrecorded\n`,
+  );
+
+  const out = path.join(evalDir, 'results', `${new Date().toISOString().slice(0, 10)}-history.json`);
+  fs.writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`);
+  process.stdout.write(`\nnumbers written to ${path.relative(repoRoot, out)}\n`);
+  return report;
+}
+
 /* ------------------------------------------------------------------- io --- */
 
 const write = (run, name, data) =>
@@ -461,6 +535,9 @@ switch (command) {
   case 'judge':
     await judge(maybeRun ?? fail('usage: harness.mjs judge <run-dir>'), model);
     break;
+  case 'history':
+    await history(flag('db'));
+    break;
   case 'run': {
     const run = await plan();
     await generate(run, model);
@@ -470,5 +547,5 @@ switch (command) {
     break;
   }
   default:
-    fail('usage: harness.mjs plan|generate|score|judge|run [<run-dir>] [--focus f] [--difficulty d] [--limit n] [--model m]');
+    fail('usage: harness.mjs plan|generate|score|judge|run|history [<run-dir>] [--focus f] [--difficulty d] [--limit n] [--model m] [--db path]');
 }
