@@ -70,9 +70,17 @@ sidebar — it is hand-ordered, so a new file that nobody links to is invisible.
 
 `how-it-works.mdx` shows `docs/eklavya-runtime.html` in an `EmbeddedDiagram`.
 That file is **generated** — the root `CLAUDE.md` says how — so the site does not
-keep its own copy: `prebuild` and `predev` copy it into `public/`, which is
-gitignored, and `.github/workflows/firebase.yml` lists it as a deploy trigger so
-regenerating the diagram republishes the page.
+keep its own copy: `prebuild` and `predev` run `scripts/embed-diagram.mjs`,
+which copies it into `public/` (gitignored), and
+`.github/workflows/firebase.yml` lists it as a deploy trigger so regenerating
+the diagram republishes the page.
+
+That script is a copy with one edit: archify emits no `<link rel="icon">`, so
+the diagram opened in its own tab fell back to `/favicon.ico`, which this site
+does not have, and showed the browser's blank mark. The link is injected on the
+way into `public/` rather than written into `docs/`, for the same reason
+everything else here is injected — a hand-edit to a generated file dies with the
+next regeneration.
 
 The component is a still picture, deliberately. The frame loads `?embed=1`
 (which hides the viewer's toolbar) with `pointer-events: none`, because

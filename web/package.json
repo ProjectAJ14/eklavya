@@ -6,9 +6,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "predev": "cp ../docs/eklavya-runtime.html public/",
+    "predev": "node scripts/embed-diagram.mjs",
     "dev": "astro dev",
-    "prebuild": "cp ../docs/eklavya-runtime.html public/",
+    "prebuild": "node scripts/embed-diagram.mjs",
     "build": "astro build",
     "preview": "astro preview"
   },
