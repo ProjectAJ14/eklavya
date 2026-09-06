@@ -378,3 +378,29 @@ describe('malformed questions', () => {
     expect(find(q, 'correct_not_conspicuous').ok).toBe(false);
   });
 });
+
+describe('extractJson: nested objects', () => {
+  it('returns the wrapper, not the last element inside it', () => {
+    // "Last object in the text" was wrong the moment a reply nested one. The
+    // extraction stage asks for {"concepts":[{...},{...}]}, whose last `{` is
+    // the final array element -- and it parses, so the caller silently got one
+    // concept and read it as an empty extraction.
+    const reply = '{"concepts":[{"slug":"a","context":"x"},{"slug":"b","context":"y"}]}';
+    expect(extractJson(reply)).toEqual({
+      concepts: [
+        { slug: 'a', context: 'x' },
+        { slug: 'b', context: 'y' },
+      ],
+    });
+  });
+
+  it('still skips an example in the preamble when both are top level', () => {
+    const reply = 'e.g. {"concepts":[{"slug":"x"}]}\n\nMine:\n{"concepts":[{"slug":"real"}]}';
+    expect(extractJson(reply)).toEqual({ concepts: [{ slug: 'real' }] });
+  });
+
+  it('handles a nested wrapper inside narration', () => {
+    const reply = 'Here you go:\n\n{"outer":{"inner":{"deep":1}}}\n\nHope that helps.';
+    expect(extractJson(reply)).toEqual({ outer: { inner: { deep: 1 } } });
+  });
+});

@@ -132,7 +132,21 @@ the whole thing — including that the generator and judge are currently the sam
 model family, and that the fixtures are this repo's own code and therefore an
 upper bound.
 
-There is a fifth command, and it measures the other end:
+`extract` measures the step before any question exists — whether
+`log_session_concepts` names the concepts a diff genuinely exercises. It is
+upstream of question quality: pick the wrong concepts and every question after
+is well-formed and about the wrong thing, which `score` would call clean.
+
+```bash
+npm run eval -- extract
+```
+
+It is scored with `slug.ts`'s own `findFuzzyMatch`, so a near-miss slug is
+credited exactly as the server would credit it, and only the slugs matching no
+label are sent to a judge — the labels are one person's reading of a diff, and
+grading against them alone would count a concept the labeller missed as an error.
+
+There is another command, and it measures the far end:
 
 ```bash
 npm run eval -- history          # read-only, against ~/.eklavya/knowledge.db

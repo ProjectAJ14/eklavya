@@ -440,6 +440,173 @@ async function judge(run, model) {
   return summary;
 }
 
+/* ------------------------------------------------------------ extraction --- */
+
+/**
+ * Does `log_session_concepts` name the concepts a diff actually exercises?
+ *
+ * Upstream of everything else here. If extraction picks the wrong concepts,
+ * every question after it is well-formed and about the wrong thing, and `score`
+ * would call that run clean -- a good question about an irrelevant concept is
+ * still a good question.
+ *
+ * Same shape as `generate`: the model gets the shipped skill and a diff, and
+ * produces the call it would have made. No session, no hooks.
+ *
+ * The judge pass exists because of the denominator. An extracted slug matching
+ * no label is either a false positive or a concept the labeller did not think
+ * of, and scoring every unmatched slug as wrong would grade the model against
+ * one person's reading of the diff. Only the unmatched ones are judged, and the
+ * report gives precision both ways.
+ */
+async function extract(model) {
+  const { extractJson } = await loadDist('eval/extract-json.js');
+  const scorer = await loadDist('eval/extraction-score.js');
+
+  const tutor = path.join(repoRoot, 'skills', 'tutor');
+  const skill = fs.readFileSync(path.join(tutor, 'SKILL.md'), 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '').trim();
+
+  const results = [];
+  const shapes = [];
+  const unlabelled = [];
+
+  for (const fixture of fixtures()) {
+    const prompt = [
+      'You are the Eklavya tutor, working alongside a developer. Follow the pedagogy below.',
+      '',
+      '=== PEDAGOGY (the shipped skill) ===',
+      skill,
+      '',
+      '=== THE CODE YOU JUST WROTE ===',
+      `File: ${fixture.source}`,
+      '```ts',
+      fixture.diff,
+      '```',
+      '',
+      'Produce the log_session_concepts call you would make for this work.',
+      'Reply with a single JSON object and nothing else:',
+      '{"concepts": [{"slug": "kebab-case", "context": "one line naming the real code"}]}',
+    ].join('\n');
+
+    let parsed = null;
+    try {
+      parsed = extractJson(ask(prompt, model));
+    } catch (err) {
+      process.stdout.write(`  ${fixture.id}: ${String(err.message ?? err)}\n`);
+      continue;
+    }
+    const concepts = Array.isArray(parsed?.concepts) ? parsed.concepts : [];
+    if (concepts.length === 0) {
+      process.stdout.write(`  ${fixture.id}: no parsable concepts in the reply\n`);
+      continue;
+    }
+
+    const labels = fixture.concepts.map((cpt) => cpt.slug);
+    const result = scorer.scoreExtraction(fixture.id, labels, concepts);
+    results.push(result);
+    shapes.push({ fixture: fixture.id, checks: scorer.checkExtractionShape(concepts, fixture.diff) });
+    for (const slug of result.unlabelled) unlabelled.push({ fixture: fixture.id, slug, diff: fixture.diff });
+    process.stdout.write(
+      `  ${fixture.id}: ${result.matched.length}/${labels.length} labels found, ${result.unlabelled.length} unlabelled\n`,
+    );
+  }
+
+  if (results.length === 0) fail('No fixture produced a parsable extraction.');
+  const summary = scorer.summarizeExtraction(results);
+
+  // Semantic recall, because the strict number is not measuring extraction.
+  //
+  // The first run scored 0/8 recall while a judge called 15 of the 20 logged
+  // concepts genuinely exercised. The labels are one person's phrasing, and
+  // slug overlap cannot bridge ordinary naming variation: `wal-journal-mode`
+  // against `sqlite-wal-mode` scores 0.50 on the product's own matcher, well
+  // under its 0.8 threshold, and they are the same idea. So a missed label is
+  // asked about directly -- did anything logged cover it -- one call per
+  // fixture rather than per label.
+  const coverage = [];
+  for (const result of results.filter((r) => r.missed.length > 0)) {
+    const logged = [...result.matched, ...result.unlabelled];
+    const prompt = [
+      'Answer only with JSON. Below are concept names a tool logged for a piece of code, and concepts a human labelled the same code with. For each labelled concept, say whether any logged concept covers the same idea, even under a different name.',
+      '',
+      `Logged: ${logged.join(', ')}`,
+      '',
+      'Labelled:',
+      ...result.missed.map((m) => `  - ${m}`),
+      '',
+      'Answer: {"covered": ["<labelled concept>", ...], "why": "one sentence"}',
+      'Include a labelled concept in "covered" only if a logged name means the same thing, not merely something adjacent.',
+    ].join('\n');
+    try {
+      const v = extractJson(ask(prompt, model));
+      const covered = Array.isArray(v?.covered) ? v.covered.filter((x) => result.missed.includes(x)) : [];
+      coverage.push({ fixture: result.fixture, covered, why: v?.why ?? null });
+    } catch (err) {
+      coverage.push({ fixture: result.fixture, covered: [], error: String(err.message ?? err) });
+    }
+  }
+  const coveredCount = coverage.reduce((n, c) => n + c.covered.length, 0);
+  const semanticRecall = summary.labels > 0 ? (summary.matched + coveredCount) / summary.labels : 0;
+
+  // Judge only the unmatched slugs. Each one is a single yes/no about whether
+  // the diff genuinely exercises it, which is the cheapest useful judgement in
+  // this whole directory.
+  const verdicts = [];
+  for (const item of unlabelled) {
+    const prompt = [
+      'Answer only with JSON. A tool logged a concept as being exercised by the code below. Is it?',
+      '',
+      '```ts',
+      item.diff,
+      '```',
+      '',
+      `Concept: ${item.slug}`,
+      '',
+      'Answer: {"exercised": true|false, "why": "one sentence"}',
+      '"exercised" is true only if someone would learn something real about this concept by reading this code.',
+    ].join('\n');
+    try {
+      const v = extractJson(ask(prompt, model));
+      verdicts.push({ ...item, diff: undefined, exercised: Boolean(v?.exercised), why: v?.why ?? null });
+    } catch (err) {
+      verdicts.push({ ...item, diff: undefined, error: String(err.message ?? err) });
+    }
+  }
+
+  const judgedReal = verdicts.filter((v) => v.exercised).length;
+  const generous = summary.extracted > 0 ? (summary.matched + judgedReal) / summary.extracted : 0;
+
+  const out = path.join(evalDir, 'results', `${new Date().toISOString().replace(/[:.]/g, '-')}-extraction.json`);
+  fs.writeFileSync(
+    out,
+    `${JSON.stringify(
+      { model: model ?? 'default', summary, semanticRecall, generousPrecision: generous, results, shapes, coverage, verdicts },
+      null,
+      2,
+    )}\n`,
+  );
+
+  const pc = (n) => `${(100 * n).toFixed(0)}%`;
+  process.stdout.write(`\n${summary.matched}/${summary.labels} labelled concepts matched by slug (strict recall ${pc(summary.recall)})\n`);
+  process.stdout.write(
+    `${summary.matched + coveredCount}/${summary.labels} covered once a judge allows a different name ` +
+      `(semantic recall ${pc(semanticRecall)})\n`,
+  );
+  process.stdout.write(`${summary.matched}/${summary.extracted} logged concepts matched a label (precision ${pc(summary.precision)})\n`);
+  process.stdout.write(
+    `of the ${summary.unlabelled} unlabelled, a judge called ${judgedReal} genuinely exercised ` +
+      `-- precision counting those as right: ${pc(generous)}\n`,
+  );
+  process.stdout.write(`\nshape checks\n`);
+  for (const s of shapes) {
+    for (const check of s.checks.filter((x) => !x.ok)) {
+      process.stdout.write(`  FAIL ${s.fixture}: ${check.id} -- ${check.detail}\n`);
+    }
+  }
+  process.stdout.write(`\nwritten to ${path.relative(repoRoot, out)}\n`);
+  return summary;
+}
+
 /* --------------------------------------------------------------- history --- */
 
 /**
@@ -555,6 +722,9 @@ switch (command) {
   case 'history':
     await history(flag('db'));
     break;
+  case 'extract':
+    await extract(model);
+    break;
   case 'run': {
     const run = await plan();
     await generate(run, model);
@@ -564,5 +734,5 @@ switch (command) {
     break;
   }
   default:
-    fail('usage: harness.mjs plan|generate|score|judge|run|history [<run-dir>] [--focus f] [--difficulty d] [--limit n] [--model m] [--db path]');
+    fail('usage: harness.mjs plan|generate|score|judge|run|extract|history [<run-dir>] [--focus f] [--difficulty d] [--limit n] [--model m] [--db path]');
 }

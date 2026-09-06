@@ -31,3 +31,4 @@ eval/results/*/
 # raw history runs are timestamped scratch; the published snapshot is the
 # <date>-history.json committed next to its markdown
 eval/results/*T*Z-history.json
+eval/results/*T*Z-extraction.json

@@ -175,14 +175,57 @@ this plugin — including one installed globally on the machine running the
 benchmark. This eval avoids it only by having no arms: it measures questions,
 not sessions.
 
+## The step before any question exists
+
+`extract` asks whether `log_session_concepts` names the concepts a diff actually
+exercises. It is upstream of everything else: if extraction picks the wrong
+concepts, every question after it is well-formed and about the wrong thing, and
+`score` calls that run clean — a good question about an irrelevant concept is
+still a good question.
+
+```bash
+npm run eval -- extract
+```
+
+Same shape as `generate`: the model gets the shipped skill and a diff and
+produces the call it would have made. No session, no hooks.
+
+Scored with **the product's own matcher**. `findFuzzyMatch` and
+`FUZZY_MATCH_THRESHOLD` from `slug.ts` are what the server uses to decide two
+slugs mean the same concept, so a model that logs `wal-mode` against a label of
+`wal-journal-mode` is credited here exactly as `log_session_concepts` would
+credit it. One label is never credited twice, or recall would be inflatable by
+logging one concept five ways.
+
+Four shape checks need no model: the count is within the 3–8 the skill asks for,
+the slugs survive normalisation, every concept carries a context line, and the
+context names something that actually appears in the diff. That last one is the
+`"used cookies"` case the skill calls useless — it reads fine, produces a
+question, grounds it in nothing, and nothing downstream notices.
+
+**The denominator is judged, not assumed.** An extracted slug matching no label
+is either a false positive or a concept the labeller did not think of, and
+scoring every unmatched slug as wrong would grade the model against one person's
+reading of a diff. Only the unmatched ones go to a judge, and the report gives
+precision both ways — strict, and counting judge-confirmed concepts as right.
+
 ## Not built yet
 
-The board lists three harnesses. This is one.
+The board lists three harnesses. Two are built.
 
 - **Loop behaviour** — headless `claude -p` against a pinned public repo,
   asserting one checkpoint per task, exactly one question, and the work resuming
-  with no summary. The S321 regression belongs here.
-- **Extraction** — does `log_session_concepts` pick the concepts a diff genuinely
-  exercises? Precision and recall against the same hand labels.
+  with no summary. The S321 regression belongs here, and it is the one that
+  matters most: the suite proves the *planner* returns one item under
+  `interleaved` cadence, and nothing proves the *model* asked one and then got
+  back to work.
 
-Both need a session harness, and both need the trap above taken seriously.
+That one needs a real session — the plugin installed into a throwaway
+`CLAUDE_CONFIG_DIR` so hooks fire, assertions over a parsed transcript rather
+than a return value, and a rate across several runs rather than a pass/fail,
+because the model may legitimately vary. It also needs the trap above taken
+seriously.
+
+An earlier version of this file claimed extraction needed a session harness too.
+It did not: it is the same offline shape as `generate`, and the scoring problem
+it seemed to have was already solved inside the product.
