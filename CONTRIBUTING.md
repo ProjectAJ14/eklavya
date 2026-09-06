@@ -10,7 +10,7 @@ an incomplete branch.
 
 ## Manual test scripts
 
-Automated coverage is `cd mcp && npm test` (387 tests across 16 files). These are the by-hand checks behind each phase's acceptance demo.
+Automated coverage is `cd mcp && npm test` — 16 files under `mcp/test/`. (No count here on purpose: it drifts every feature branch and nothing asserts it.) These are the by-hand checks behind each phase's acceptance demo.
 
 <details>
 <summary><b>Phase 0 — scaffold</b></summary>
@@ -20,7 +20,7 @@ cd mcp && npm install && npm run build
 node dist/cli.js doctor
 sqlite3 ~/.eklavya/knowledge.db '.tables'
 ```
-Expect all seven tables and ~87 concepts across four domains.
+Expect all ten tables (`EXPECTED_TABLES` in `mcp/test/migrate.test.ts` is the list) and 87 concepts across four domains.
 </details>
 
 <details>
@@ -88,10 +88,11 @@ skills/             tutor pedagogy, and the seven /eklavya:* commands
 user-skill/         the chat skill, installed to ~/.claude/skills/ rather than shipped in the plugin
 agents/             the eklavya-tutor subagent
 hooks/              hooks.json + run.mjs, the one cross-platform entry point
-cli/, scripts/      the editor-agnostic commit gate
+cli/, scripts/      the editor-agnostic commit gate, plus the release version bump
 mcp/                MCP server: knowledge graph, SM-2, gates, CLI, installer, hook logic
-docs/               verified schemas, parallel tutoring
+docs/               verified schemas, parallel tutoring, the runtime architecture
 prd/                the spec and its per-phase delivery tracker
+web/                the landing page and the manual — see web/CLAUDE.md
 ```
 
 Plugin, hook and MCP schemas drift. What this is built against is pinned with a date in [`docs/verified-schemas.md`](docs/verified-schemas.md) — re-verify before changing any manifest:

@@ -8,6 +8,13 @@ Eklavya is a Claude Code plugin that turns agent generation time into learning t
 
 > **This is the frozen master spec.** Per-phase execution docs live alongside it in `prd/phase-*.md`; status tracking lives in `prd/README.md`. If the spec changes, change it here first, then reflect it in the affected phase doc.
 
+> **Where the shipped code has moved on.** The repository tree in §5 and the
+> hook sections in §9 are the design, not the files. The hooks were rewritten in
+> TypeScript under `mcp/src/hooks/` and are dispatched by one `hooks/run.mjs`,
+> and the `commands/` directory became `skills/`. Read `hooks/hooks.json` for
+> the wiring, `skills/` for the commands and `mcp/src/config.ts` for any
+> default — never this file.
+
 ---
 
 ## 1. Problem statement
@@ -231,7 +238,7 @@ Implement SM-2:
 
 ## 8. MCP server (`eklavya-mcp`)
 
-Node 18+, TypeScript, `@modelcontextprotocol/sdk`, `better-sqlite3`, stdio transport. Registered by the plugin so it's available in every session. All tools return compact JSON; keep responses small (they land in the model's context).
+Node 22+ (`mcp/package.json` `engines`), TypeScript, `@modelcontextprotocol/sdk`, `better-sqlite3`, stdio transport. Registered by the plugin so it's available in every session. All tools return compact JSON; keep responses small (they land in the model's context).
 
 ### Tools
 
@@ -330,8 +337,8 @@ Each focus is a *(selection source, framing)* pair over the existing planner:
 
 | focus | selection | framing |
 |---|---|---|
-| `project` (default) | session concepts + their `context` | ground the question in the diff; the code is the subject |
-| `concept` | session concepts, widened to prerequisites and domain siblings | the diff is the motivation, not the subject; a correct answer must transfer to another codebase |
+| `project` | session concepts + their `context` | ground the question in the diff; the code is the subject |
+| `concept` (default since 1.3) | session concepts, widened to prerequisites and domain siblings | the diff is the motivation, not the subject; a correct answer must transfer to another codebase |
 | `learn` | `focus_topic`, resolved to a domain or slugs, prerequisite-ordered | teach the topic; where it overlaps the session's work, `bridge_context` carries the real code to use as the worked example |
 
 Every plan returns `focus` and a `framing` string. The framing is authoritative for the tutor: the "ground every question in the diff" rule is `project` focus, not a universal one, and `concept` focus hands over `context: null` deliberately so the question reaches for the idea rather than the file.

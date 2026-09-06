@@ -78,25 +78,75 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-start.sh" }] }
-    ],
-    "PostToolUse": [
       {
-        "matcher": "mcp__.*log_session_concepts",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/checkpoint-quiz.sh" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "session-start"],
+            "timeout": 10,
+            "statusMessage": "Eklavya: loading learner profile"
+          }
+        ]
       }
     ],
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pre-tool-gate.sh" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "pre-tool-gate"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*log_session_concepts",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "checkpoint-quiz"],
+            "timeout": 10,
+            "statusMessage": "Eklavya: checking if it is time to ask"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "stop-quiz-check"],
+            "timeout": 15,
+            "statusMessage": "Eklavya: checking what you learned"
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-Note the quoting of `${CLAUDE_PLUGIN_ROOT}` in shell form — plugin paths can contain spaces.
+Four events, one command. Every hook is exec form — `"command": "node"` plus
+`args` — and every one of them dispatches through the same `hooks/run.mjs`, which
+resolves a runtime and imports `dist/hooks/<name>.js`. The logic lives in
+`mcp/src/hooks/*.ts`; there are no `.sh` files under `hooks/` any more, and the
+only place the shell names still appear is `mcp/src/hooks/lib.ts`, which names
+`hooks/lib.sh` deliberately, as the thing it replaced.
+
+**Superseded:** this block used to show shell form —
+`"command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-start.sh"` — with a note that
+`${CLAUDE_PLUGIN_ROOT}` must be quoted because plugin paths can contain spaces.
+That was correct for shell form and is now moot: exec form passes `args` to the
+process directly, so there is no shell to quote for. See the Update under D4 for
+why the shell form had to go.
 
 ### Matcher syntax
 | Format | Evaluation |
@@ -119,8 +169,9 @@ Common: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, 
 - `SessionStart`: `session_start_reason` (`startup|resume|clear|compact|fork`), `model`
 
 `agent_id` / `agent_type` are present **only inside a subagent**, which is how
-`checkpoint-quiz.sh` knows not to ask a question nobody is watching: a subagent
-has no `AskUserQuestion`.
+`checkpoint-quiz` knows not to ask a question nobody is watching: a subagent
+has no `AskUserQuestion`. (`checkpoint-quiz.ts` reads `agent_id` and returns
+immediately when it is set; `agent_type` is not read.)
 
 ### PostToolUse output (verified 2026-08-27)
 
@@ -139,7 +190,7 @@ mechanism behind interleaved quizzing.
 ```
 
 Exit 2 also surfaces stderr to the model here, but as a *warning* — an error face
-on a working feature. `checkpoint-quiz.sh` therefore uses exit 0 + JSON, unlike
+on a working feature. `checkpoint-quiz` therefore uses exit 0 + JSON, unlike
 the Stop hook, which has something to actually prevent (deviation D1).
 
 ### Events not in the older snapshot
@@ -211,7 +262,7 @@ These override the PRD where they conflict. The PRD text was written against an 
 ### D1 — Stop hook blocks via exit 2 + stderr, not `{"decision":"block"}`
 PRD §9.2 specifies `{"decision": "block", "reason": "..."}` on stdout. The current hooks reference documents no Stop-specific JSON output shape; what it *does* document unambiguously is that **exit 2 prevents stopping and continues the conversation, using stderr as the blocking message**.
 
-**Decision:** `stop-quiz-check.sh` writes the tutor instruction to **stderr and exits 2**. This is schema-stable and needs no guessing at a JSON envelope. Revisit if a documented Stop JSON shape reappears.
+**Decision:** `stop-quiz-check` writes the tutor instruction to **stderr and exits 2**. This is schema-stable and needs no guessing at a JSON envelope. Revisit if a documented Stop JSON shape reappears.
 
 ### D2 — `stop_hook_active` is not documented; the loop guard must be entirely ours
 PRD §9.2 and the phase-2 plan lean on `stop_hook_active` to avoid re-blocking. That field is absent from the current stdin field list.
@@ -222,7 +273,8 @@ This raises, not lowers, the severity of the P0 Stop-loop risk (PRD §15). Test 
 
 ### D4 — `.mcp.json` `command` is spawned directly, so it must not be quoted
 `hooks.json` commands run through `sh -c` in shell form, which is why
-`"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/x.sh"` is right there. An MCP server's
+`"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/x.sh"` was right there when this was written.
+An MCP server's
 `command` is **not** — it is exec'd, so the quote characters become part of the
 path and the server silently never starts. Every MCP tool then goes missing while
 the plugin still reports as loaded.

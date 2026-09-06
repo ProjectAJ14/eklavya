@@ -35,8 +35,9 @@ The `Stop` hook infinite loop (PRD §15, phase 2). Treat the loop guard as P0: t
 
 ## Prerequisites
 
-- Node 18+ (`better-sqlite3` native build)
-- `jq` and `sqlite3` on `PATH` (hook scripts depend on both)
+- Node 22+ (`mcp/package.json` `engines`; below that `better-sqlite3` has no prebuilt binary)
+- `jq` and `sqlite3` on `PATH` — only for the git commit gate (`cli/eklavya-gate`), which fails
+  open without them. The Claude Code hooks are Node and need neither.
 - Claude Code with plugin support
 
 ## Review passes

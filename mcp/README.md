@@ -10,9 +10,10 @@ npx eklavya install
 ```
 
 That checks your Node version, installs the runtime and its SQLite driver, registers the plugin
-with Claude Code and enables it, and creates the database. Restart Claude Code afterwards, then
-run `/eklavya:setup` to pick a mode. Re-running it is how you upgrade; `npx eklavya uninstall`
-removes it and keeps your history unless you pass `--purge`.
+with Claude Code and enables it, installs the chat skill into `~/.claude/skills/`, and creates the
+database. Restart Claude Code afterwards, then run `/eklavya:setup` to pick a mode. Re-running it
+is how you upgrade; `npx eklavya uninstall` removes it and keeps your history unless you pass
+`--purge`.
 
 Requires **Node 22+** — below that the SQLite driver has no prebuilt binary and would need a C++
 toolchain to compile.
@@ -62,7 +63,8 @@ eklavya config set mode enforced [--repo]     # how hard it pushes
 eklavya config set focus concept              # what it teaches
 eklavya config set focus learn --topic caching
 eklavya export-rules --out rules.md              # the tutor pedagogy as Markdown
-eklavya dashboard [--port <n>]                   # your learning history, served locally
+eklavya dashboard [--port <n>] [--no-open]       # your learning history, served locally and opened
+                                                 # in your browser (--no-open just prints the URL)
 eklavya db-path
 ```
 

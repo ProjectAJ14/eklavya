@@ -51,7 +51,7 @@ logged, asked while the code is still on your screen. You answer in a couple of
 seconds and Claude carries straight on. When the task finishes, at most one more
 question — never a pile.
 
-Tier 1 asks what a thing is. Tier 5 asks what breaks it in production. You climb
+Tier 1 asks what a thing is. Tier 5 asks when it is the wrong approach. You climb
 as you get things right, which is how "never ask the same question twice"
 survives contact with a finite concept graph. Difficulty is earned per project,
 so a codebase you have just met starts easy however senior you are.

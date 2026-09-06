@@ -8,13 +8,13 @@ There are two ways to get it. Neither requires code changes — that was a desig
 
 ## Option A — the tutor subagent
 
-`agents/tutor.md` defines an `eklavya-tutor` subagent with read-only file access and the Eklavya MCP tools. Ask for it by name:
+`agents/tutor.md` defines an `eklavya-tutor` subagent with read-only file access (`Read`, `Grep`, `Glob`) and six of the nine Eklavya MCP tools: `get_learner_profile`, `get_session_quiz_plan`, `record_attempt`, `get_concept_graph`, `upsert_concepts`, `get_gate_status`. Not `log_session_concepts`, and not `get_config`/`set_config` — the tutor teaches what the builder logged; it does not log work of its own or change the dials. Each name is listed twice, plugin-scoped and bare, so one set resolves whichever way the server was registered. Ask for it by name:
 
 > Implement the refresh-token rotation in `auth.ts`. While you do, have the eklavya-tutor agent quiz me on what it involves.
 
 The subagent reads the files being written and teaches from them, sharing the same knowledge database and the same session, so anything it records counts toward the same mastery history and the same commit gate.
 
-**What it cannot do:** it has no write tools, on purpose. Tutoring must never race the implementation for the same file.
+**What it cannot do:** it has no file-writing tools, on purpose. Tutoring must never race the implementation for the same file. It does still write to the knowledge database — that is what `record_attempt` and `upsert_concepts` are for.
 
 **The honest limitation:** the main thread and the subagent take turns rather than genuinely interleaving. It feels closer to "explain what you just did, in stages" than to a second person talking while the first types.
 
@@ -28,8 +28,8 @@ The version that actually feels like the pitch. Run two Claude Code sessions sid
 # One shared id, so both panes agree on which session this work belongs to.
 export EKLAVYA_SESSION_ID="$(basename "$PWD")-$(date +%s)"
 
-tmux new-session  -s eklavya -n work   "EKLAVYA_SESSION_ID=$EKLAVYA_SESSION_ID claude"
-tmux split-window -t eklavya           "EKLAVYA_SESSION_ID=$EKLAVYA_SESSION_ID claude"
+tmux new-session -d -s eklavya -n work "EKLAVYA_SESSION_ID=$EKLAVYA_SESSION_ID claude"
+tmux split-window    -t eklavya        "EKLAVYA_SESSION_ID=$EKLAVYA_SESSION_ID claude"
 tmux attach -t eklavya
 ```
 
@@ -38,9 +38,11 @@ Right pane: `/eklavya:learn <topic>` or `/eklavya:quiz`. It teaches from what th
 
 ### Why the environment variable matters
 
-Claude Code gives every session its own id, so without it the two panes would be two unrelated sessions: the teaching pane would see none of the building pane's work, and answering questions in the right pane would not satisfy the gate holding the left pane's commit.
+Claude Code gives every session its own id, and the hooks use the one they are handed on stdin — so without the override the two panes' hooks are two unrelated sessions, and answering questions in the right pane would not satisfy the gate holding the left pane's commit.
 
-`EKLAVYA_SESSION_ID` overrides session resolution in both the MCP server and the hooks, so both panes write to one session. In normal single-pane use it is unset and the harness's own session id is authoritative.
+The MCP tools are messier still. A tool call that carries no `session_id` falls back to `meta.current_session`, a single row that the SessionStart hook stamps with the *starting* pane's id — so the second pane to start overwrites it, and both panes' tools then disagree with both panes' hooks about which session the work belongs to.
+
+`EKLAVYA_SESSION_ID` overrides session resolution in both the MCP server (`resolveSessionId`, `mcp/src/session.ts`) and the hooks (`sessionId`, `mcp/src/hooks/lib.ts`), ahead of the harness id and ahead of that `meta` row, so both panes write to one session. In normal single-pane use it is unset and the harness's own session id is authoritative. The one asymmetry: in the server an explicit `session_id` argument still beats the variable; in the hooks nothing does.
 
 ### What is shared, and what is not
 
@@ -54,7 +56,7 @@ The teaching pane learns what is being built by reading the database and the fil
 
 ### Practical notes
 
-- **The Stop hook fires in both panes.** In the teaching pane it usually has nothing to say, because nothing was logged there. If it becomes noisy, set `"quiet": true` or a longer `min_minutes_between_quizzes` for that session.
+- **The Stop hook fires in both panes.** With a shared `EKLAVYA_SESSION_ID` it reads the same session in both, so either pane can be the one told to run the quiz — the teaching pane is not silent just because nothing was logged *there*. The loop guard is shared for the same reason: `stop_markers` is keyed by session, and a block only re-arms when the count of logged concepts grows, so the two panes cannot both block on the same batch of work. If it is noisy, raise `min_minutes_between_quizzes` (ambient mode only — enforced ignores the cooldown so the gate stays passable) or lower `max_stop_blocks_per_session`. Both panes read the same repo config, so there is no per-pane setting — and `quiet` is not the lever here: it suppresses the session-start banner and the settings line above a question, not the Stop quiz.
 - **The commit gate is satisfied from either pane.** Answering in the teaching pane unblocks the commit in the building pane, which is the whole point.
-- **Concurrent writes are safe.** WAL mode, short transactions, and a retry on lock contention (`src/concurrency.ts`); tested with three processes writing simultaneously plus a reader running throughout.
+- **Concurrent writes are safe.** WAL mode, short transactions, and a retry on lock contention (`mcp/src/concurrency.ts`, five attempts on `SQLITE_BUSY`); tested with three processes writing simultaneously, and separately with a reader held open while writers work — the git hook must never stall.
 - **Any multiplexer works.** tmux is the example; screen, iTerm splits, or two terminal windows behave identically. Nothing here is tmux-specific.
