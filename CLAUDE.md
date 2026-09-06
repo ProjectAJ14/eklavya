@@ -133,6 +133,8 @@ in the same commit as the change, like every other doc here.
 
 ## Conventions
 
+- Every pull request fills `.github/PULL_REQUEST_TEMPLATE.md`, and one that changes
+  behaviour pastes the transcript of the acceptance test `CONTRIBUTING.md` defines.
 - Conventional commits; semantic-release publishes from `main`. `feat:` and
   `fix:` cut a release, `docs:` and `chore:` do not — site and README work is
   `docs:`.

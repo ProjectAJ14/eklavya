@@ -8,9 +8,55 @@ repo-wide conventions are in [`CLAUDE.md`](CLAUDE.md). Read those before changin
 behaviour: a branch that changes what Eklavya does and touches no documentation is
 an incomplete branch.
 
+## The acceptance test
+
+One sentence, and every pull request that changes behaviour has to pass it:
+
+> Ask for a non-trivial change, and one question arrives **before the turn ends**
+> — mid-task, with the work resuming straight afterwards and no summary.
+
+Set it up so that a failure means something. Build first (`cd mcp && npm test`,
+which is also what puts `mcp/dist` where the plugin can find it), use a scratch
+repo with no `.eklavya.json`, and check `eklavya doctor` reports mode `ambient`,
+focus `concept`, cadence `interleaved` before you start — the Phase 3 script
+below deliberately writes `mode: enforced` into a repo, and reusing that repo
+quietly changes the answer.
+
+```bash
+cd /some/scratch/repo
+claude --plugin-dir /path/to/eklavya
+```
+
+Then read *which* hook asked. The checkpoint arrives with the system message
+"Eklavya: quick question on what you just built"; a question after the work is
+finished is the Stop hook, which also asks exactly one under the default
+cadence and does not count.
+
+And a checkpoint can only fire if the model logged — nothing in the runtime
+makes `log_session_concepts` happen, which is the whole reason the
+`UserPromptSubmit` nudge exists. A run where it was never called is
+**inconclusive**: report that, rather than rerunning until one comes out green.
+
+Paste the transcript into the pull request. The test is short on purpose: the
+mid-task interruption *is* the product, so a change that leaves it working can
+prove it in a paragraph.
+
+What does not count as evidence:
+
+- a green `npm test` — the suite covers the machinery, and the loop breaking is
+  exactly the failure none of it sees
+- a `/eklavya:quiz <topic>` you typed yourself — a topic quiz plans from the
+  seeded graph rather than from this session, so it passes with the ambient loop
+  stone dead. A bare `/eklavya:quiz` is not independent either: it reads the same
+  `session_concepts` rows the checkpoint does, so it dies of the same emptiness
+- a description of what should happen
+
+A change to `skills/tutor/` needs eval evidence as well — see
+[The eval](#the-eval).
+
 ## Manual test scripts
 
-Automated coverage is `cd mcp && npm test` — 16 files under `mcp/test/`. (No count here on purpose: it drifts every feature branch and nothing asserts it.) These are the by-hand checks behind each phase's acceptance demo.
+Automated coverage is `cd mcp && npm test`, over the suites in `mcp/test/`. (No count here on purpose: it drifts every feature branch and nothing asserts it.) These are the by-hand checks behind each phase's acceptance demo.
 
 <details>
 <summary><b>Phase 0 — scaffold</b></summary>
