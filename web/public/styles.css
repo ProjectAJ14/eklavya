@@ -138,6 +138,29 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; justify-content: center; flex: none;
 }
 
+/* ---------- copy a command ----------
+   Injected by app.js into every block that holds a shell command, so a reader
+   never has to select text by hand. Sits in the block's top-right corner and
+   only fills in on hover or focus, so it is out of the way while reading and
+   obvious the moment you reach for it. */
+.cmd-block { position: relative; }
+.cmd-copy {
+  position: absolute; top: 8px; right: 8px;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); background: var(--bg);
+  border: 1px solid var(--line-2); padding: 5px 9px; cursor: pointer;
+  opacity: 0; transition: opacity 140ms var(--ease), color 140ms var(--ease),
+                          border-color 140ms var(--ease);
+}
+.cmd-block:hover .cmd-copy,
+.cmd-copy:focus-visible { opacity: 1; }
+.cmd-copy:hover { color: var(--spot); border-color: var(--spot); }
+.cmd-copy.is-done { opacity: 1; color: var(--spot); border-color: var(--spot); }
+/* a touch screen has no hover, so the button is simply always there */
+@media (hover: none) { .cmd-copy { opacity: 1; } }
+
 /* ---------- the star count ----------
    The number is the ask. A live count reads as "other people did this" where
    "please star the repo" reads as begging, so the figure carries it and the
@@ -256,6 +279,10 @@ a { color: inherit; text-decoration: none; }
 }
 .term__bar {
   display: flex; align-items: center; gap: 8px;
+  /* The 98x34 badge used to be the tallest thing in here and set the bar's
+     height at 45px. Removing it would have shrunk the bar and moved the whole
+     terminal up, so the height it always had is stated outright. */
+  min-height: 45px;
   padding: 11px 14px; border-bottom: 1px solid var(--neutral-800);
   background: linear-gradient(180deg, #1B2125 0%, #161B1E 100%);
 }
@@ -276,19 +303,13 @@ a { color: inherit; text-decoration: none; }
   font-size: 12px; color: var(--neutral-500);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.term__size {
-  font-family: var(--font-mono); font-size: 11px; color: var(--neutral-600);
-  border: 1px solid var(--neutral-800); border-radius: var(--radius-xs);
-  padding: 1px 6px;
-}
-
 /* ---------- who built it ----------
    Sits in the title bar because that is where a window says whose window it is.
    Deliberately quiet: it takes the terminal's own muted chrome colour rather
    than the accent, and only comes up to full strength on hover.
 
-   The height is the constraint. The bar is 45px with 22px of content room, set
-   by the size badge, so the avatar is 18px and every box in here is given an
+   The height is the constraint: the bar is 45px, set by its 11px padding and
+   the title's line box, so the avatar is 18px and every box in here is given an
    explicit line-height — inheriting the page's 1.65 is what pushed the bar
    taller on the first attempt. */
 .term__by {
@@ -545,7 +566,7 @@ kbd {
 }
 .legend__idx { font-family: var(--font-mono); font-size: 13px; color: var(--spot); }
 .legend__head { margin: 12px 0 8px; font-family: var(--font-disp); font-size: 19px; font-weight: var(--weight-bold); letter-spacing: var(--tracking-snug); color: var(--ink); }
-.legend__body { margin: 0; font-size: 15px; line-height: 1.65; color: rgba(255,255,255,.62); }
+.legend__body { margin: 0; font-size: 15px; line-height: 1.65; color: var(--dim); }
 
 /* ============================================================
    HOW IT WORKS
@@ -684,7 +705,7 @@ kbd {
 .dial__opt p { margin: 6px 0 0; font-size: 14px; line-height: 1.6; color: var(--dim); }
 .dial__opt--note p { font-size: 13.5px; color: var(--faint); }
 .code-inline {
-  font-family: var(--font-mono); font-size: 13px;
+  font-family: var(--font-mono); font-size: 13px; color: var(--dim);
   background: var(--mass); padding: 1px 5px; border-radius: 0;
 }
 .modes .code-inline { background: var(--mass); color: var(--spot); }
@@ -1181,7 +1202,7 @@ kbd {
 .ladder__fill { position: relative; overflow: hidden; }
 .ladder__fill::after {
   content: ""; position: absolute; inset: 0; --beam: 64px;
-  background-image: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0));
+  background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--spot-ink) 55%, transparent), transparent);
   background-repeat: no-repeat; background-size: var(--beam) 100%;
   background-position: calc(-1 * var(--beam)) 0;
   animation: shuttle 8s var(--ease) infinite;
@@ -1280,7 +1301,7 @@ kbd {
   .wrap, .hero__grid, .why__inner, .legend__inner, .how__grid,
   .commands__grid, .cta__inner, .footer__inner { padding-left: 20px; padding-right: 20px; }
   .term__screen { font-size: 12px; padding: 14px 14px 12px; height: 470px; }
-  .term__size, .term__status .dim { display: none; }
+  .term__status .dim { display: none; }
   .box { padding: 7px 9px; }
   .ask__meta { display: none; }
   .ask__opt { padding-left: 0; gap: .5ch; }

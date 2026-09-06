@@ -430,3 +430,49 @@ document.querySelectorAll('[data-ground]').forEach(function (btn) {
     })
     .catch(function () {});
 })();
+
+/* ---------------------------------------------------------------
+   A copy button on every block that holds a shell command.
+
+   The command lines are the ones with a `$` prompt; anything else
+   in the block is sample output and must not end up on the
+   clipboard. The prompt itself is dropped too — pasting `$ npm …`
+   into a shell is a syntax error.
+   --------------------------------------------------------------- */
+(function () {
+  var blocks = document.querySelectorAll('.cta__code, .dash__cmd');
+  if (!blocks.length || !navigator.clipboard) return;
+
+  blocks.forEach(function (block) {
+    var lines = [].filter.call(block.children, function (row) {
+      return row.querySelector('span') && !row.classList.contains('dash__cmd-out');
+    }).map(function (row) {
+      var clone = row.cloneNode(true);
+      var prompt = clone.querySelector('span');
+      if (prompt) prompt.remove();
+      return clone.textContent.trim();
+    }).filter(Boolean);
+    if (!lines.length) return;
+
+    block.classList.add('cmd-block');
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cmd-copy';
+    btn.textContent = 'Copy';
+    btn.setAttribute('aria-label', 'Copy command to clipboard');
+    block.appendChild(btn);
+
+    var reset;
+    btn.addEventListener('click', function () {
+      navigator.clipboard.writeText(lines.join('\n')).then(function () {
+        btn.textContent = 'Copied';
+        btn.classList.add('is-done');
+        clearTimeout(reset);
+        reset = setTimeout(function () {
+          btn.textContent = 'Copy';
+          btn.classList.remove('is-done');
+        }, 1600);
+      });
+    });
+  });
+})();

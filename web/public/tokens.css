@@ -128,7 +128,7 @@
 
   --ink:      #EAE7E1; /* primary text */
   --dim:      #A29C93; /* secondary */
-  --faint:    #77726A; /* captions, micro-labels */
+  --faint:    #8B857B; /* captions, micro-labels — 4.89:1 on ink */
   --faint-2:  #565249; /* disabled, placeholder */
 
   --line:     #26262a; /* hairline */
@@ -153,7 +153,7 @@
 
   --ink:      #16150f;
   --dim:      #57534a;
-  --faint:    #8a8578;
+  --faint:    #6E695E; /* 4.67:1 on paper */
   --faint-2:  #a09a8c;
 
   --line:     #e3dfd4;
