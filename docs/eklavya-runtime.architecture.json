@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "c323fc223d9869857bc8da34d2a84a66d41b5187"
+      "revision": "2bc4a5fb57d28865d4668201860cf79a451d31ac"
     },
     "views": [
       {
@@ -514,7 +514,7 @@
       "title": "Server, state and boundaries",
       "items": [
         "stdout is the protocol; diagnostics are forced to stderr",
-        "retryOnBusy wraps every handler; openDb migrates, seeds",
+        "retryOnBusy wraps handlers; openDb seeds, then packs",
         "Repo gate reads .eklavya.json only, never global config",
         "Two commit gates, session and repo; both fail open",
         "run.mjs prefers mcp/dist; npx at the pinned version"
