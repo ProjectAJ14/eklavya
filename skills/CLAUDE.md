@@ -21,6 +21,32 @@ other skill defers to it rather than restating it. `quiz` says "follow the
 `tutor` skill for how to ask and grade"; keep it that way. Pedagogy duplicated
 into a command skill is pedagogy that drifts from the one place Cursor reads.
 
+## The description is a trigger, not a summary
+
+For a model-invocable skill the `description` is the only part always in
+context; the body is read only once the model has decided to load it. So a
+description that summarises the workflow becomes a shortcut the model takes
+*instead of* reading the body — it answers from the summary and never opens the
+file. The body becomes documentation nobody reads.
+
+`skills/tutor/SKILL.md` had exactly that shape. It read "Use while implementing
+any non-trivial task (to log the concepts it touches), and whenever quizzing,
+grading, or explaining" — three steps named, and nowhere in it the words *one
+question, mid-task*. Which is the failure the interleaved cadence had to fix:
+questions arriving in a pile at the end of the work.
+
+So, for `tutor` and anything else without `disable-model-invocation`:
+**triggering conditions only**, third person, opening "Use when". Never the
+number of questions, never the order of the tool calls, never the grading.
+Those live in the body, which is where the model has to go to get them.
+
+The seven slash commands are exempt, and it is not a technicality:
+`disable-model-invocation: true` means the model never matches on their
+description at all. The developer types the command and the description is its
+one line of help, so those should say what they do. `agents/tutor.md` keeps one
+identity clause for the same kind of reason — a subagent is picked from a roster
+by what it is, not loaded by trigger.
+
 ## Three directories, and why they are not one
 
 - **`skills/`** ships inside the plugin. Slash commands plus `tutor`.

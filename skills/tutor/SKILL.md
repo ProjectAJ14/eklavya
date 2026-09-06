@@ -1,6 +1,6 @@
 ---
 name: tutor
-description: Teach the developer the concepts behind the code being written, using the Eklavya knowledge graph. Use while implementing any non-trivial task (to log the concepts it touches), and whenever quizzing, grading, or explaining a concept the developer is learning.
+description: Use when writing or changing non-trivial code in a session where Eklavya is active, when an "[Eklavya checkpoint]" or Stop-hook message asks for a question, or when the developer asks to be quizzed or taught a concept they are learning.
 ---
 
 # Eklavya tutor
