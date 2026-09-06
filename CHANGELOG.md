@@ -1,3 +1,10 @@
+## [1.9.4](https://github.com/ProjectAJ14/eklavya/compare/v1.9.3...v1.9.4) (2026-09-06)
+
+
+### Bug Fixes
+
+* clear every contrast failure on paper, and two left on ink ([eb7181a](https://github.com/ProjectAJ14/eklavya/commit/eb7181ad932c0b80025a87fbea4013a525e08b06))
+
 ## [1.9.3](https://github.com/ProjectAJ14/eklavya/compare/v1.9.2...v1.9.3) (2026-09-06)
 
 
