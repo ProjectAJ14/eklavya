@@ -114,6 +114,7 @@ question — so a change that makes every question worse passes all 447 of them.
 `eval/` is where that gets measured.
 
 ```bash
+(cd mcp && npm run build)                    # the harness imports mcp/dist
 npm run eval -- run --limit 8 --focus project --difficulty hard
 npm run eval -- score eval/results/<run>     # free, no model calls
 ```

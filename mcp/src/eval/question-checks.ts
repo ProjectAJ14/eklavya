@@ -2,7 +2,7 @@
  * The deterministic half of the question-quality eval.
  *
  * Eklavya's claim is that the developer learns, and until now nothing measured
- * it: the suite next door tests SM-2 arithmetic, plan sizing, gate maths and
+ * it: the 426 tests next door cover SM-2 arithmetic, plan sizing, gate maths and
  * migrations -- the machinery -- while the product is a question, and whether a
  * question is any good was checked by nobody.
  *
@@ -46,8 +46,18 @@ function words(text: string): string[] {
   return text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
 }
 
+/**
+ * Lowercased words, with identifiers kept whole.
+ *
+ * `_`, `-`, `.` and `/` stay inside a token on purpose. Splitting on them turns
+ * `max_questions_per_task` into four words and `mcp/src/eval/question-checks.ts`
+ * into six, so a stem and an answer that merely name the same identifier -- the
+ * ordinary way to write these questions -- would share a four-word run and trip
+ * `answer_not_in_stem` on its own. The fixtures here are this repo's own code,
+ * so that is the common case, not the corner one.
+ */
 function normalized(text: string): string[] {
-  return words(text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' '));
+  return words(text.toLowerCase().replace(/[^\p{L}\p{N}_\-./]+/gu, ' '));
 }
 
 /**
@@ -94,6 +104,13 @@ export const ANSWER_RUN_LIMIT = 4;
 export const OPTION_RATIO_LIMIT = 2.5;
 
 /**
+ * Below this many words in the longest option, the ratio says nothing: four
+ * answers like `O(1)` / `O(n log n)` sit at 3.0 and are perfectly matched to a
+ * reader. Shape is a tell in sentences, not in tokens.
+ */
+export const PARITY_MIN_WORDS = 6;
+
+/**
  * How many words longer the correct option may be than the next-longest before
  * the length itself is a hint. Below this it is noise; a reader does not count
  * words, they see a shape.
@@ -110,13 +127,27 @@ export const LENGTH_MARGIN_WORDS = 3;
  * question itself inside out.
  */
 const NEGATED_STEM = [
-  /\bwhich\b[^?]*\bis\s+not\b/i,
-  /\bwhich\b[^?]*\bdoes\s+not\b/i,
-  /\bexcept\b/i,
+  // "Which of these is not / will not / can't / is never ..."
+  /\bwhich\b(?:\s+of\s+(?:these|the\s+following))?\s+\w*\s*\b(?:is|are|does|do|will|would|can|could)(?:n't|\s+not|\s+never)\b/i,
+  // "... except which of these", but not the ordinary prose "except a corrupt file"
+  /\bexcept\b\s+(?:for\s+)?(?:which|one|these|the\s+following)\b/i,
+  /\b(?:is|are)\s+(?:not|never)\s+true\b/i,
+  /\b(?:incorrect|least\s+likely)\b/i,
+  /\bnone\s+of\s+(?:these|the\s+above)\b/i,
 ];
 
-/** The tool renders the labels; a stem that numbers them is showing them twice. */
-const NUMBERED_IN_STEM = /(^|\s)(?:[a-d]\)|\(?[1-4][).]\s)/im;
+/**
+ * The tool renders the labels; a stem that numbers them is showing them twice.
+ *
+ * Two markers, not one. A single `b)` is `retry(db, b)` and a single `3.` is
+ * "the plan asked for tier 3. Why..." -- both ordinary, and both were flagged by
+ * the first version of this. An actual enumeration always has at least two.
+ */
+const OPTION_MARKER = /(^|\s)(?:[a-d]\)|\(?[1-4][).]\s)/gim;
+
+function numberedOptions(stem: string): boolean {
+  return (stem.match(OPTION_MARKER) ?? []).length >= 2;
+}
 
 export function checkQuestion(q: GeneratedQuestion): Check[] {
   const checks: Check[] = [];
@@ -146,7 +177,18 @@ export function checkQuestion(q: GeneratedQuestion): Check[] {
   const stemWords = words(q.stem).length;
   push('stem_length', stemWords <= STEM_WORD_LIMIT, `${stemWords} words (limit ${STEM_WORD_LIMIT})`);
 
-  const correct = q.options[q.correct - 1] ?? '';
+  // Indexed into `q.options`, never `labels`. `labels` drops empty options, so
+  // one blank before the answer shifts every later index by one -- and the
+  // conspicuousness check below then compared the correct option against
+  // itself and always passed, on exactly the malformed question it should have
+  // been loudest about.
+  const inRange = Number.isInteger(q.correct) && q.correct >= 1 && q.correct <= q.options.length;
+  push(
+    'correct_in_range',
+    inRange,
+    inRange ? `correct = ${q.correct}` : `correct = ${JSON.stringify(q.correct)}, options = ${q.options.length}`,
+  );
+  const correct = inRange ? (q.options[q.correct - 1] ?? '') : '';
   const run = longestSharedRun(q.stem, correct);
   push(
     'answer_not_in_stem',
@@ -154,14 +196,17 @@ export function checkQuestion(q: GeneratedQuestion): Check[] {
     `longest run shared with the correct option: ${run} word(s)`,
   );
 
-  const lengths = labels.map((o) => words(o).length);
+  const lengths = q.options.map((o) => words(o).length);
   const longest = Math.max(...lengths, 0);
   const shortest = Math.min(...lengths, Infinity);
   const ratio = shortest > 0 ? longest / shortest : Infinity;
+  const shortEnoughToNotMatter = longest <= PARITY_MIN_WORDS;
   push(
     'option_parity',
-    ratio <= OPTION_RATIO_LIMIT,
-    `longest/shortest = ${ratio.toFixed(2)} (limit ${OPTION_RATIO_LIMIT})`,
+    shortEnoughToNotMatter || ratio <= OPTION_RATIO_LIMIT,
+    shortEnoughToNotMatter
+      ? `all four options are ${longest} words or fewer, so shape carries nothing`
+      : `longest/shortest = ${ratio.toFixed(2)} (limit ${OPTION_RATIO_LIMIT})`,
   );
 
   // Separate from parity on purpose. Four options can sit inside the ratio and
@@ -169,13 +214,14 @@ export function checkQuestion(q: GeneratedQuestion): Check[] {
   // pick the most careful-sounding answer without reading it.
   //
   // The margin is why this is not simply "is it the longest". The first live
-  // run flagged all three questions, and all three were the correct option
-  // beating the next by two words -- 17 against 15, which nobody can see. A
-  // check that fires on noise is a check whose report gets skipped. Being the
-  // longest at all is still worth counting, but as a rate across the run
+  // run flagged all three of its questions, and one of the three was the
+  // correct option beating the next by two words -- 17 against 15, which nobody
+  // can see. The other two were four-word margins and still flag today. A check
+  // that fires on noise is a check whose report gets skipped. Being the longest
+  // at all is still worth counting, but as a rate across the run
   // (`correctLongest` below), not as a verdict on one question.
   const correctLength = words(correct).length;
-  const others = labels.filter((_, i) => i !== q.correct - 1).map((o) => words(o).length);
+  const others = q.options.filter((_, i) => i !== q.correct - 1).map((o) => words(o).length);
   const runnerUp = Math.max(...others, 0);
   const margin = correctLength - runnerUp;
   push(
@@ -187,7 +233,12 @@ export function checkQuestion(q: GeneratedQuestion): Check[] {
   const negated = NEGATED_STEM.find((re) => re.test(q.stem));
   push('positive_form', !negated, negated ? `stem is negated: ${negated}` : 'stem asks the positive form');
 
-  push('options_not_numbered', !NUMBERED_IN_STEM.test(q.stem), 'stem does not letter or number the options');
+  const numbered = numberedOptions(q.stem);
+  push(
+    'options_not_numbered',
+    !numbered,
+    numbered ? 'stem enumerates the options itself' : 'stem does not letter or number the options',
+  );
 
   // 1.14 removed the settings line from the stem. A stem that opens with a
   // bracketed readout is the model composing one anyway, and it would change

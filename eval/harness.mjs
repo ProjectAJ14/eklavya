@@ -2,7 +2,7 @@
 /**
  * The question-quality eval.
  *
- * Eklavya's claim is that the developer learns. 445 tests next door check the
+ * Eklavya's claim is that the developer learns. 426 tests next door check the
  * machinery -- SM-2, plan sizing, gate arithmetic, migrations -- and none of
  * them check the product, which is a question. This measures the question.
  *
@@ -32,20 +32,64 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const evalDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.dirname(evalDir);
 const dist = path.join(repoRoot, 'mcp', 'dist');
+
+/**
+ * `import()` of a bare absolute path throws ERR_UNSUPPORTED_ESM_URL_SCHEME on
+ * Windows, and this repo takes cross-platform seriously enough to have one
+ * hooks/run.mjs for all of them.
+ */
+const fromDist = (rel) => import(pathToFileURL(path.join(dist, rel)).href);
+
+/** Everything the eval needs out of the built server, with one clear failure. */
+async function loadDist(rel) {
+  try {
+    return await fromDist(rel);
+  } catch (err) {
+    if (err?.code === 'ERR_MODULE_NOT_FOUND') {
+      fail('mcp/dist is missing or stale. Run `npm run build` in mcp/ first.');
+    }
+    throw err;
+  }
+}
 
 function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exit(1);
 }
 
+/** Flags that take a value, so the value is not mistaken for a positional. */
+const VALUE_FLAGS = new Set(['focus', 'difficulty', 'limit', 'model']);
+
 function flag(name, dflt = null) {
   const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? (process.argv[i + 1] ?? true) : dflt;
+  if (i < 0) return dflt;
+  return VALUE_FLAGS.has(name) ? (process.argv[i + 1] ?? dflt) : true;
+}
+
+/**
+ * Positional arguments, with flag values removed.
+ *
+ * `argv.filter(a => !a.startsWith('--'))` drops flag names and keeps their
+ * values, so `score --model sonnet <run>` read the run directory as "sonnet"
+ * and failed on sonnet/questions.json.
+ */
+function positionals() {
+  const out = [];
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg.startsWith('--')) {
+      if (VALUE_FLAGS.has(arg.slice(2))) i++;
+      continue;
+    }
+    out.push(arg);
+  }
+  return out;
 }
 
 const fixtures = () =>
@@ -90,10 +134,10 @@ async function plan() {
     ),
   );
 
-  const { openDb } = await import(path.join(dist, 'db.js'));
-  const { logSessionConcepts } = await import(path.join(dist, 'tools/log_session_concepts.js'));
-  const { upsertConcepts } = await import(path.join(dist, 'tools/upsert_concepts.js'));
-  const { getSessionQuizPlan } = await import(path.join(dist, 'tools/get_session_quiz_plan.js'));
+  const { openDb } = await loadDist('db.js');
+  const { logSessionConcepts } = await loadDist('tools/log_session_concepts.js');
+  const { upsertConcepts } = await loadDist('tools/upsert_concepts.js');
+  const { getSessionQuizPlan } = await loadDist('tools/get_session_quiz_plan.js');
 
   const db = openDb(path.join(home, 'knowledge.db'));
   const ctx = { db };
@@ -134,6 +178,11 @@ async function plan() {
     fixture: bySlug.get(item.slug)?.id ?? null,
     diff: bySlug.get(item.slug)?.diff ?? null,
     source: bySlug.get(item.slug)?.source ?? null,
+    // `concept` focus returns context: null on purpose -- the code is withheld
+    // so the model reaches for the idea. The generator has to be shown exactly
+    // what the product shows it, or a non-project focus is graded on a
+    // generator that saw more than the real one would.
+    code_shown: item.context != null,
   }));
 
   const run = path.join(evalDir, 'results', new Date().toISOString().replace(/[:.]/g, '-'));
@@ -149,6 +198,9 @@ async function plan() {
     items,
   });
 
+  // Closed before the directory is removed: an open handle makes the rm fail
+  // outright on Windows and leaves WAL sidecars behind everywhere else.
+  db.close();
   fs.rmSync(home, { recursive: true, force: true });
   fs.rmSync(cwd, { recursive: true, force: true });
 
@@ -179,39 +231,21 @@ function pedagogy() {
 function ask(prompt, model) {
   const args = ['-p', prompt];
   if (model) args.push('--model', model);
-  const res = spawnSync('claude', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  const res = spawnSync('claude', args, {
+    encoding: 'utf8',
+    maxBuffer: 8 * 1024 * 1024,
+    // A stage that can hang has no place in something meant to be run
+    // unattended, and one wedged call would otherwise stall the whole run.
+    timeout: Number(process.env.EKLAVYA_EVAL_TIMEOUT_MS ?? 180000),
+  });
   if (res.error) throw new Error(`claude not runnable: ${res.error.message}`);
+  if (res.signal) throw new Error(`claude timed out (${res.signal})`);
   if (res.status !== 0) throw new Error(`claude exited ${res.status}: ${(res.stderr || '').slice(0, 400)}`);
   return res.stdout ?? '';
 }
 
-/**
- * The last balanced JSON object in the text.
- *
- * Last rather than first, and balanced rather than greedy: a model asked for
- * JSON often narrates first, and a question's own options can contain braces.
- */
-export function extractJson(text) {
-  for (let start = text.lastIndexOf('{'); start >= 0; start = text.lastIndexOf('{', start - 1)) {
-    let depth = 0;
-    for (let i = start; i < text.length; i++) {
-      if (text[i] === '{') depth++;
-      else if (text[i] === '}') {
-        depth--;
-        if (depth === 0) {
-          try {
-            return JSON.parse(text.slice(start, i + 1));
-          } catch {
-            break;
-          }
-        }
-      }
-    }
-  }
-  return null;
-}
-
-function generate(run, model) {
+async function generate(run, model) {
+  const { extractJson } = await loadDist('eval/extract-json.js');
   const plan = read(run, 'plan.json');
   const skill = pedagogy();
   const questions = [];
@@ -224,12 +258,13 @@ function generate(run, model) {
       '=== PEDAGOGY (the shipped skill) ===',
       skill,
       '',
-      '=== THE CODE THE DEVELOPER JUST WATCHED YOU WRITE ===',
-      `File: ${item.source}`,
-      '```ts',
-      item.diff,
-      '```',
-      '',
+      ...(item.code_shown
+        ? ['=== THE CODE THE DEVELOPER JUST WATCHED YOU WRITE ===', `File: ${item.source}`, '```ts', item.diff, '```', '']
+        : [
+            '=== THE CODE IS DELIBERATELY WITHHELD ===',
+            'This focus returns context: null so the question reaches for the idea rather than the file.',
+            '',
+          ]),
       '=== THE PLAN ITEM (authoritative) ===',
       JSON.stringify(
         {
@@ -285,11 +320,23 @@ function generate(run, model) {
 /* ----------------------------------------------------------------- score --- */
 
 async function score(run) {
-  const { scoreAll } = await import(path.join(dist, 'eval/question-checks.js'));
-  const { questions } = read(run, 'questions.json');
-  const { scored, summary } = scoreAll(questions);
-  write(run, 'score.json', { summary, scored });
+  const { scoreAll } = await loadDist('eval/question-checks.js');
+  const generated = read(run, 'questions.json');
+  const { scored, summary } = scoreAll(generated.questions);
 
+  // Carried through, and printed, because a run where nine of twelve items
+  // produced nothing would otherwise report "3/3 passed every check" and a slot
+  // histogram over three questions. Every rate here is out of what was
+  // generated, not out of what was planned.
+  const planned = read(run, 'plan.json').items.length;
+  const failures = generated.failures?.length ?? 0;
+  write(run, 'score.json', { summary, planned, generation_failures: failures, scored });
+
+  if (failures > 0) {
+    process.stdout.write(
+      `\n${failures} of ${planned} planned item(s) produced no question -- every rate below is out of the ${summary.questions} that did\n`,
+    );
+  }
   process.stdout.write(`\n${summary.clean}/${summary.questions} questions passed every check\n`);
   for (const [id, row] of Object.entries(summary.byCheck)) {
     const mark = row.failed === 0 ? 'ok  ' : 'FAIL';
@@ -311,14 +358,15 @@ async function score(run) {
 /* ----------------------------------------------------------------- judge --- */
 
 /**
- * The three questions counting cannot answer.
+ * The five questions counting cannot answer.
  *
  * Kept to three on purpose. Every criterion handed to a judge is a criterion
  * whose verdict moves between runs, so anything decidable by `score` is
  * decided there instead. The judge is also told to give a reason, because a
  * bare verdict from a model is not evidence of anything.
  */
-function judge(run, model) {
+async function judge(run, model) {
+  const { extractJson } = await loadDist('eval/extract-json.js');
   const { questions } = read(run, 'questions.json');
   const plan = read(run, 'plan.json');
   const byslug = new Map(plan.items.map((i) => [i.slug, i]));
@@ -332,9 +380,11 @@ function judge(run, model) {
       `Concept: ${q.slug} -- ${item.description ?? ''}`,
       `Tier asked for: ${q.tier_to_ask} (1 recall, 2 mechanism, 3 judgement, 4 failure modes, 5 design)`,
       '',
-      'Code:',
+      item.code_shown
+        ? 'Code the question writer was shown:'
+        : 'Code the question writer was NOT shown (this focus withholds it on purpose); it is here only so you can judge the concept:',
       '```ts',
-      item.diff ?? '(withheld: this focus deliberately hides the code)',
+      item.diff ?? '(no code for this fixture)',
       '```',
       '',
       `Question: ${q.stem}`,
@@ -395,7 +445,7 @@ const write = (run, name, data) =>
   fs.writeFileSync(path.join(run, name), `${JSON.stringify(data, null, 2)}\n`);
 const read = (run, name) => JSON.parse(fs.readFileSync(path.join(run, name), 'utf8'));
 
-const [command, maybeRun] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const [command, maybeRun] = positionals();
 const model = flag('model');
 
 switch (command) {
@@ -403,19 +453,19 @@ switch (command) {
     await plan();
     break;
   case 'generate':
-    generate(maybeRun ?? fail('usage: harness.mjs generate <run-dir>'), model);
+    await generate(maybeRun ?? fail('usage: harness.mjs generate <run-dir>'), model);
     break;
   case 'score':
     await score(maybeRun ?? fail('usage: harness.mjs score <run-dir>'));
     break;
   case 'judge':
-    judge(maybeRun ?? fail('usage: harness.mjs judge <run-dir>'), model);
+    await judge(maybeRun ?? fail('usage: harness.mjs judge <run-dir>'), model);
     break;
   case 'run': {
     const run = await plan();
-    generate(run, model);
+    await generate(run, model);
     await score(run);
-    judge(run, model);
+    await judge(run, model);
     process.stdout.write(`\nrun written to ${path.relative(repoRoot, run)}\n`);
     break;
   }

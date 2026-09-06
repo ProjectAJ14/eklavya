@@ -34,13 +34,18 @@ general rule, the class of problem, or where else it applies.
   question is not the general version of anything.
 
 The test: **could a correct answer be reused on a different project?** If not,
-you have written a `project` question. Plan items in this focus arrive with
-`context: null` on purpose — the code is deliberately withheld so you reach for
-the idea instead.
+you have written a `project` question.
 
 Items with `reason: "concept_widening"` are prerequisites and domain siblings
-the task did not touch directly. They are the ideas the diff is an instance of.
-Ask about them on their own terms.
+the task did not touch directly. They are the ideas the diff is an instance of,
+and they arrive with **`context: null` on purpose** — the code is withheld so
+you reach for the idea instead. Ask about them on their own terms.
+
+Items the session *did* touch keep their `context` even in this focus. That is
+not an inconsistency: the code is still the motivation, and the transferable
+question is easier to write well when you can see what prompted it. Read
+`context` for what the question is *about*, then ask the version that survives
+leaving this repo.
 
 ### learn
 

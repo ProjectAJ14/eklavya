@@ -1,7 +1,16 @@
 # Question quality — first run
 
-**2026-09-06** · eklavya at `a35e592`+ (branch `feat/prompt-submit-nudge`) ·
-3 fixtures, 8 concepts · generator and judge both Claude Code's default model
+**2026-09-06** · eklavya at `a35e592` (branch `feat/prompt-submit-nudge`) ·
+**3 questions**, drawn from 2 of the 3 fixtures · generator and judge both
+Claude Code's default model
+
+> **This run does not describe the shipped skill.** It was generated at
+> `a35e592`; the next commit, `2589b4d`, changed
+> `skills/tutor/references/writing-mcq.md` by +32/−16 — including restoring the
+> "Other" escape hatch. `CONTRIBUTING.md`'s own rule for this directory is to
+> run the eval before and after a pedagogy change, and that rule postdates the
+> commit it would have applied to. The next run should be the first one that
+> obeys it.
 
 ## Method
 
@@ -18,6 +27,14 @@ run with its weaknesses written down is worth more than no run, and because it
 found something.
 
 ## What would make this wrong
+
+- The harness itself was wrong in three ways when this ran, all fixed in
+  `8e5af7e`+: `extractJson` could not terminate on a reply opening with `{`,
+  `correct_not_conspicuous` compared the correct option against itself when an
+  earlier option was blank, and generation failures left the denominator. None
+  affected the numbers below — the run had no blank options, no generation
+  failures, and every reply parsed — but a result whose harness has since been
+  corrected deserves to say so.
 
 - Generator and judge are the **same model family**, so the judged half may be
   measuring the judge. Not yet run with a second model.
@@ -57,7 +74,8 @@ Clean on every check: **1 of 3**.
 **The correct option was the longest one every time.** Two of the three were
 long enough for it to be visible — a four-word margin over the next-longest.
 
-This is the tell `references/writing-mcq.md` explicitly warns about: *"A visibly
+Two of the three margins were four words; one was two. This is the tell
+`references/writing-mcq.md` explicitly warns about: *"A visibly
 longer or more careful option reads as the correct one, and gets picked without
 engaging — the same leak as always answering first."* The guidance is present,
 in build order, in the file the generator was given, and the generator did it
@@ -90,6 +108,15 @@ spread with unpredictability"*.
 
 Two of nine distractors judged implausible is the number to watch next, and it
 is the one thing here the deterministic half will never catch.
+
+## What the eval found in the product, off to the side
+
+Driving the real planner turned up a documentation bug the harness was not
+looking for. `references/focus-and-level.md` said plan items in `concept` focus
+"arrive with `context: null` on purpose". They do not — only
+`reason: "concept_widening"` items do. A 12-item concept-focus plan here
+returned 7 items **with** context and 4 without. Corrected in the same commit as
+these fixes.
 
 ## What ran, and what did not
 
