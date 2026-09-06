@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { loadConfig, type Focus } from '../config.js';
 import { clampToLevel, decayedScore, isDue, isKnown, nextTierToAsk, type Level } from '../srs.js';
 import { answerPosition } from '../mcq.js';
-import { askHeader } from '../ask.js';
 import { resolveSessionId } from '../session.js';
 import {
   attemptedConceptIds,
@@ -71,7 +70,6 @@ interface PlanItem {
    * the project's level and this question's tier. Absent when `quiet` is set.
    * Display it, never record it -- see `record_attempt`.
    */
-  ask_header?: string;
   /**
    * `learn` focus only: this topic concept also turned up in the session's work,
    * and this is the code where. The topic is still the subject -- the diff is
@@ -129,7 +127,7 @@ export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
   description:
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Each item carries format_to_use, currently always "mcq": ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Each item carries ask_header, the bracketed line naming the settings that asked; print it as the FIRST line of the question, then a blank line, then the stem — never under it, where it reads as part of the question — and never pass it back in record_attempt. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Each item carries format_to_use, currently always "mcq": ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Ask the stem on its own: the dials this question was pitched from (mode, focus, cadence, level) are shown in the status bar, so never prepend a settings line to the question. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking.',
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -304,12 +302,6 @@ export const getSessionQuizPlan: ToolDef = {
       // A retry drops a tier because the concept has just been taught rather than
       // tested -- but never below the band, or `easy` would ask tier 0.
       const tierToAsk = opts.retry ? clampToLevel(tier - 1, standing.level) : tier;
-      const header = askHeader({
-        config,
-        level: standing.level,
-        pinned: standing.pinned,
-        tier: tierToAsk,
-      });
 
       seen.add(concept.slug);
       picked.push({
@@ -319,7 +311,6 @@ export const getSessionQuizPlan: ToolDef = {
         description: concept.description,
         tier_to_ask: tierToAsk,
         context,
-        ...(header ? { ask_header: header } : {}),
         // Only in `learn` focus, and only when the topic concept really did turn
         // up in this session's work. Absent means "teach it on its own terms",
         // which is different from "no context available".
@@ -476,21 +467,6 @@ export const getSessionQuizPlan: ToolDef = {
       }
       return a.tier_to_ask - b.tier_to_ask;
     });
-
-    // Numbered after the sort, so `q 2/3` is the order they will actually be
-    // asked in. Only when there is more than one -- `q 1/1` is noise.
-    if (picked.length > 1) {
-      picked.forEach((item, i) => {
-        const numbered = askHeader({
-          config,
-          level: standing.level,
-          pinned: standing.pinned,
-          tier: item.tier_to_ask,
-          position: { index: i + 1, total: picked.length },
-        });
-        if (numbered) item.ask_header = numbered;
-      });
-    }
 
     if (picked.length === 0) {
       // Distinguish "nothing left to ask" from "nothing to ask about" — they

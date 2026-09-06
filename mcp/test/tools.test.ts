@@ -223,8 +223,6 @@ describe('get_session_quiz_plan', () => {
       logAuthWork();
       const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
       expect(plan.questions_needed).toBe(1);
-      // No `question: 1 of 1`: the numbering only means something when more is coming.
-      expect(plan.concepts[0].ask_header).not.toMatch(/question: \d/);
     });
 
     it('plans the whole budget under the end cadence', () => {
@@ -1492,25 +1490,18 @@ describe('difficulty levels, earned per project', () => {
   });
 });
 
-describe('the ask header, end to end', () => {
-  it('rides along with every plan item', () => {
+describe('the settings line, end to end', () => {
+  it('never ships one — the dials are in the status bar now', () => {
     configure({ min_minutes_between_quizzes: 0, focus: 'project', mode: 'enforced' });
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.length).toBeGreaterThan(0);
     for (const c of plan.concepts) {
-      expect(c.ask_header).toMatch(
-        new RegExp(
-          `^\\[mode: enforced \\(gated\\) · focus: project · level: easy · tier: ${c.tier_to_ask} \\w[^\\]]*\\]$`,
-        ),
-      );
+      expect(c.ask_header).toBeUndefined();
+      // Nothing else in the item may smuggle one back in either: a model that
+      // finds a bracketed dial string anywhere will paste it above the stem.
+      expect(JSON.stringify(c)).not.toMatch(/mode:\s*(ambient|enforced|off)/);
     }
-  });
-
-  it('is absent when the learner asked for quiet', () => {
-    configure({ min_minutes_between_quizzes: 0, quiet: true });
-    logAuthWork();
-    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
-    expect(plan.concepts.every((c: any) => c.ask_header === undefined)).toBe(true);
   });
 
   it('never reaches the recorded stem, so the repeat check still fires', () => {

@@ -105,7 +105,6 @@ Then call `get_session_quiz_plan`. It returns the concepts worth asking about *a
 | `last_grade` | How the last attempt went. |
 | `framing` | What this focus requires of the question. Authoritative — see *Focus*. |
 | `format_to_use` | How to put it. Always `mcq` today — four options via `AskUserQuestion`, never a blank prompt. |
-| `ask_header` | The bracketed line naming the settings that asked. Print it *above* the stem; never record it. |
 | `bridge_context` | `learn` focus: the session's work touched this topic concept, and here is the code. |
 
 The plan also carries `level`, `level_framing` and `level_progress` for the whole quiz. See *Level* below — `level_framing` is authoritative in the same way `framing` is.
@@ -282,28 +281,34 @@ Every project sits on one of three bands, and the plan tells you which: **easy**
 
 A pinned level (`pinned: true`) means someone set the band deliberately — an onboarding repo held at `easy`, or a senior who skipped the runway. Nothing will ever promote, so never imply progress toward a next level.
 
-## The settings line
+## No settings line
 
-Every plan item carries `ask_header`: one bracketed line naming the settings that asked the question.
+The dials are in the developer's status bar — `[EKLAVYA ambient · concept ·
+interleaved · easy]`, printed by `eklavya statusline`. So the question is the
+question:
 
 ```
-[mode: ambient · focus: concept · level: easy · tier: 2 mechanism · question: 1 of 3]
-
 Why is httpOnly set on the refresh cookie here but not on the access token?
 ```
 
-Every part names its dial: mode, focus, level, what the tier is asking for, and
-— when the plan holds more than one — which question of how many this is. The
-labels are the point. Four bare values only read as a settings line to someone
-who already knows there are four dials and what order they come in.
+**Pass the stem alone to `AskUserQuestion`.** Do not compose a bracketed line of
+your own, do not restate the mode or the focus or the tier above the stem, and
+do not tell them which question of how many this is. Those were printed above
+every stem until 1.14 and the plan no longer carries them; a line you assemble
+yourself is one the server cannot keep consistent, and it puts four settings
+between the developer and the thing being asked.
 
-**Print it as the first line of the `question` you pass to `AskUserQuestion`**, then a blank line, then the stem, exactly as given. It is the only thing on screen that explains why a question is pitched where it is — without it, a `concept`-focus question reads as vague and an `easy` question reads as shallow.
+The tier is deliberately nowhere on screen now. A status bar refreshes when the
+host decides to, so a tier there would sometimes name the *previous* question's
+difficulty, and a stale readout is worse than none. `level` is in the bar and it
+is the part that explained the pitch: `easy` already means tiers 1–2.
 
-**It goes above the stem, and the brackets stay.** `AskUserQuestion` draws the whole `question` field in one bold weight and parses no markdown — backticks and asterisks come through as literal characters — so there is no dim, no italic and no colour to mark a readout as a readout. Below the stem it read as a fourth line of the question. Position and brackets are the only two signals available, so use both: never reformat it, never move it, never drop the brackets.
-
-**Never pass it back in `record_attempt`.** `question` is the stem alone. The stem is what gets fingerprinted, so a settings line inside it would make one question look like a new one every time the level or the focus changed, and *never the same question twice* would quietly stop being true. The server strips the line from either end if you forget, and that is a backstop, not a licence.
-
-If `ask_header` is absent, the developer has set `quiet` — say nothing extra.
+**`record_attempt` takes the stem, and only ever took the stem.** That has not
+changed and matters more than it looks: the stem is what gets fingerprinted, so
+anything decorative inside it would make one question look new every time a dial
+moved, and *never the same question twice* would quietly stop being true. The
+server still strips a settings line from either end if one appears — that is a
+backstop for old rows, not a licence to add one.
 
 ## Focus
 

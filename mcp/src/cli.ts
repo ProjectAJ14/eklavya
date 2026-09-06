@@ -11,6 +11,9 @@ import { openDb } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
 import { levelStanding } from './store.js';
+import { statusLine } from './statusline.js';
+import { START_LEVEL, type Level } from './srs.js';
+import Database from 'better-sqlite3';
 import { startDashboard, openInBrowser } from './dashboard.js';
 import { install, uninstall, health } from './install.js';
 
@@ -31,6 +34,7 @@ Usage:
                                         add --topic <topic> when setting focus to "learn"
   eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser
                                         (--no-open serves it and just prints the URL)
+  eklavya statusline                    Print the dials for a status bar (one line, or nothing)
   eklavya doctor                        Check the install and say what to fix if it broke
   eklavya db-path                       Print the database location
 
@@ -211,6 +215,81 @@ function doctor(): void {
   if (!ok) process.exit(1);
 }
 
+/**
+ * `eklavya statusline` — the dials, for the host's status bar.
+ *
+ * Runs on every status-bar refresh, so the contract is stricter than any other
+ * command's: fast, silent on every failure path, and it must never hang. It
+ * prints one line or nothing at all, and exits 0 either way — a status bar is
+ * not a place to report that Eklavya is unwell.
+ *
+ * Only the earned level needs the database. The dials themselves come from
+ * `.eklavya.json`, and a pinned difficulty *is* the level, so a pinned setup
+ * never opens the file at all and an install with no database yet still shows
+ * its dials rather than nothing.
+ */
+async function statuslineCommand(argv: string[]): Promise<void> {
+  try {
+    // Claude Code writes a JSON blob to stdin (cwd, model, session). We want
+    // the cwd, so the repo-scoped .eklavya.json is the one that answers.
+    //
+    // Bounded deliberately. On Windows the host may wrap a command in a
+    // PowerShell block that swallows the pipe, so `end` never fires and a naive
+    // read waits forever -- which in a status bar means every refresh blocks.
+    // `unref` keeps the timer off the normal path, where `end` arrives first.
+    const raw = await new Promise<string>((resolve) => {
+      if (process.stdin.isTTY) return resolve('');
+      let buf = '';
+      const done = (): void => resolve(buf);
+      process.stdin.setEncoding('utf8');
+      process.stdin.on('data', (c: string) => (buf += c));
+      process.stdin.on('end', done);
+      process.stdin.on('error', done);
+      setTimeout(done, 250).unref();
+    });
+
+    let cwd = process.cwd();
+    // Parsed in its own try: input we cannot read is a reason to fall back to
+    // the working directory, not a reason to show the developer nothing. The
+    // dials are still true; only the choice of .eklavya.json was in doubt.
+    try {
+      if (raw.trim()) {
+        // Strip a BOM: some Windows shells prepend one, and JSON.parse throws
+        // on input that looks perfectly well-formed.
+        const parsed: unknown = JSON.parse(raw.replace(/^﻿/, ''));
+        const input = (parsed ?? {}) as { cwd?: string; workspace?: { current_dir?: string } };
+        cwd = input.workspace?.current_dir ?? input.cwd ?? cwd;
+      }
+    } catch {
+      /* Unreadable stdin: process.cwd() it is. */
+    }
+
+    const resolved = loadConfig(cwd);
+    const pinned = resolved.config.difficulty !== 'auto';
+
+    let level: Level = pinned ? (resolved.config.difficulty as Level) : START_LEVEL;
+    if (!pinned && fs.existsSync(dbPath())) {
+      // `levelStanding` rather than a query of our own: the banner learned this
+      // the hard way, and a second implementation of the band rules is a second
+      // thing to keep in step with the planner.
+      const db = new Database(dbPath(), { readonly: true });
+      try {
+        level = levelStanding(db, resolved.config, resolved.repoRoot).level;
+      } finally {
+        db.close();
+      }
+    }
+
+    // NO_COLOR is the cross-tool convention, and some bars render the string
+    // literally rather than through a terminal.
+    const color = !process.env.NO_COLOR && !argv.includes('--no-color');
+    const line = statusLine({ config: resolved.config, level, pinned, color });
+    if (line) process.stdout.write(`${line}\n`);
+  } catch {
+    /* A status bar with nothing to say says nothing. */
+  }
+}
+
 function dashboardCommand(argv: string[]): void {
   const i = argv.indexOf('--port');
   const port = i === -1 ? undefined : Number(argv[i + 1]);
@@ -261,6 +340,9 @@ function main(): void {
       return exportRules(rest);
     case 'config':
       return configCommand(rest);
+    case 'statusline':
+      void statuslineCommand(rest);
+      return;
     case 'dashboard':
       return dashboardCommand(rest);
     case 'doctor':

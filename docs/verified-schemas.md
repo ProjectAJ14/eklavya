@@ -249,11 +249,20 @@ stem:
 - **The whole `question` field is drawn in one bold weight** — the same weight as
   the stem. Nothing in the string can change colour or weight.
 
-That is why the settings line moved above the stem and gained brackets (1.9):
-position and bracket are the only two signals available to separate a readout
+That is why the settings line moved above the stem and gained brackets in 1.9:
+position and bracket were the only two signals available to separate a readout
 from prose. Raw ANSI was not tried and should not be — it would have to survive
 the JSON hop through the MCP response, and it means nothing to a non-terminal
 renderer.
+
+**In 1.14 the line left the question entirely.** The findings above are the
+reason: a field with no dim, no weight and no colour is a poor place to put a
+readout, and the readout in question was ambient session state rather than part
+of any one question. The dials now come from `eklavya statusline`
+(`mcp/src/statusline.ts`), which the host renders in its own status bar — where
+ANSI *does* work, so `enforced` can be amber. `stripAskHeader` stays in
+`ask.ts` for the rows recorded while the line existed; their stems still contain
+it and `questionFingerprint` hashes that text.
 
 ## Deviations from the PRD
 

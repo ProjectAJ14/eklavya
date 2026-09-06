@@ -8,7 +8,8 @@ import {
   requiredConcepts,
   type Level,
 } from '../src/srs.js';
-import { askHeader, stripAskHeader } from '../src/ask.js';
+import { stripAskHeader } from '../src/ask.js';
+import { statusLine } from '../src/statusline.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 
 const config = (patch: Partial<EklavyaConfig> = {}): EklavyaConfig => ({ ...DEFAULT_CONFIG, ...patch });
@@ -130,62 +131,59 @@ describe('promotion', () => {
   });
 });
 
-describe('the ask header', () => {
-  it('labels every dial, so four bare words are never left to be decoded', () => {
-    expect(askHeader({ config: config({ focus: 'concept' }), level: 'easy', pinned: false, tier: 2 })).toBe(
-      '[mode: ambient · focus: concept · level: easy · tier: 2 mechanism]',
-    );
+describe('the status-bar dials', () => {
+  const plain = (patch = {}, level: Level = 'easy', pinned = false) =>
+    statusLine({ config: config(patch), level, pinned, color: false });
+
+  it('shows all four dials, unlabelled — a bar you learn once, not a line you decode', () => {
+    expect(plain({ focus: 'concept' })).toBe('[EKLAVYA ambient · concept · interleaved · easy]');
   });
 
   it('carries the topic in learn focus, so a question about caching says so', () => {
-    expect(
-      askHeader({
-        config: config({ focus: 'learn', focus_topic: 'caching' }),
-        level: 'medium',
-        pinned: false,
-        tier: 3,
-      }),
-      // Parenthesised, not `learn: caching`: the value already sits behind a
-      // `focus:` label, and two colons in one field read as a nested key.
-    ).toBe('[mode: ambient · focus: learn (caching) · level: medium · tier: 3 judgement]');
+    // Parenthesised rather than `learn: caching`: a colon in a bar reads as a
+    // key, and the topic has no key of its own here.
+    expect(plain({ focus: 'learn', focus_topic: 'caching' }, 'medium')).toBe(
+      '[EKLAVYA ambient · learn (caching) · interleaved · medium]',
+    );
   });
 
   it('says when the level is pinned — otherwise questions just stop getting harder', () => {
-    expect(askHeader({ config: config(), level: 'hard', pinned: true, tier: 5 })).toBe(
-      '[mode: ambient · focus: concept · level: hard (pinned) · tier: 5 design]',
-    );
+    expect(plain({}, 'hard', true)).toBe('[EKLAVYA ambient · concept · interleaved · hard (pinned)]');
   });
 
-  it('says when the mode has a consequence attached', () => {
-    expect(askHeader({ config: config({ mode: 'enforced' }), level: 'easy', pinned: false, tier: 1 })).toBe(
-      '[mode: enforced (gated) · focus: concept · level: easy · tier: 1 recall]',
-    );
-    // Cadence is never in the line: the question's arrival already said when
-    // Eklavya asks.
-    expect(askHeader({ config: config({ mode: 'ambient', cadence: 'end' }), level: 'easy', pinned: false, tier: 1 })).toBe(
-      '[mode: ambient · focus: concept · level: easy · tier: 1 recall]',
-    );
+  it('includes cadence, which the old question-line deliberately left out', () => {
+    // The old argument was that the question's arrival already said when
+    // Eklavya asks. A bar is on screen before any question arrives, so the
+    // dial has to name itself.
+    expect(plain({ cadence: 'end' })).toBe('[EKLAVYA ambient · concept · end · easy]');
   });
 
-  it('counts the questions when more than one is coming', () => {
-    expect(
-      askHeader({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 2, total: 3 } }),
-    ).toBe('[mode: ambient · focus: concept · level: easy · tier: 2 mechanism · question: 2 of 3]');
-    // A lone question needs no scoreboard.
-    expect(
-      askHeader({ config: config(), level: 'easy', pinned: false, tier: 2, position: { index: 1, total: 1 } }),
-    ).toBe('[mode: ambient · focus: concept · level: easy · tier: 2 mechanism]');
+  it('paints enforced amber and everything else verdigris, with the word still there', () => {
+    // Colour is a redundant cue, never the only one: strip the ANSI and the
+    // mode is still spelled out.
+    const enforced = statusLine({ config: config({ mode: 'enforced' }), level: 'easy', pinned: false });
+    expect(enforced).toContain('[38;5;172m');
+    expect(enforced).toContain('enforced');
+
+    const ambient = statusLine({ config: config(), level: 'easy', pinned: false });
+    expect(ambient).toContain('[38;5;116m');
   });
 
-  it('is absent under quiet', () => {
-    expect(askHeader({ config: config({ quiet: true }), level: 'easy', pinned: false, tier: 1 })).toBeNull();
+  it('emits no escape codes when colour is off, for a bar that renders literally', () => {
+    expect(plain()).not.toContain('\u001b');
+  });
+
+  it('says nothing at all when Eklavya is dormant or quiet', () => {
+    // A bar that always says something is a bar you stop reading.
+    expect(plain({ mode: 'off' })).toBeNull();
+    expect(plain({ quiet: true })).toBeNull();
   });
 });
 
 describe('stripping the settings line back off', () => {
   const stem = 'Why is httpOnly set on the refresh cookie here but not on the access token?';
 
-  it('removes every shape the composer can produce, above the stem or below it', () => {
+  it('removes every shape Eklavya ever composed, above the stem or below it', () => {
     const levels: Level[] = ['easy', 'medium', 'hard'];
     const lines = [
       ...levels.map((l) => `[mode: ambient · focus: concept · level: ${l} · tier: 2 mechanism]`),

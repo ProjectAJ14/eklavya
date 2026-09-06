@@ -15,8 +15,45 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | `eklavya config set <key> <value>` | Changes one setting. Add `--repo` to write `.eklavya.json` at the repository root instead of your global config. Add `--topic <topic>` when setting `focus learn`. |
 | `eklavya doctor` | Checks that everything is wired up: the runtime, the SQLite driver, the plugin's registration with Claude Code, the chat skill, then the database, counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. Exits non-zero if any check fails, and names the command that repairs it. |
 | `eklavya dashboard [--port <n>] [--no-open]` | Serves your learning history as a local web page and opens it in your browser. `--no-open` serves it and prints the URL instead. See [The dashboard](/docs/dashboard/). |
+| `eklavya statusline` | Prints your dials as one line for a status bar, or nothing at all. See [below](#eklavya-statusline). |
 | `eklavya db-path` | Prints the database location. Useful in scripts. |
 | `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
+
+### `eklavya statusline`
+
+Your four dials, in Claude Code's status bar, so the settings that shape a
+question are on screen when it arrives:
+
+```text
+~/eklavya · main · Opus 5 · [EKLAVYA ambient · concept · interleaved · easy]
+```
+
+Add it to `~/.claude/settings.json`:
+
+```json title="~/.claude/settings.json"
+{
+  "statusLine": {
+    "type": "command",
+    "command": "eklavya statusline"
+  }
+}
+```
+
+Already have a status line? Call `eklavya statusline` from your own script and
+append the output — it prints one line and exits 0, and prints nothing when it
+has nothing to say.
+
+It stays silent when `mode` is `off` or `quiet` is `true`, so a bar you have
+stopped reading is a bar Eklavya is not writing to. `enforced` mode is printed
+in amber, because that is the one dial value with a consequence attached: your
+commits are gated. Pass `--no-color`, or set `NO_COLOR`, for plain text.
+
+The bar never shows the tier of the question in front of you. A status bar
+refreshes when Claude Code decides to, not when a question appears, so a tier
+there would sometimes name the previous question's difficulty. The level is
+there instead, and it is the part that explains the pitch — `easy` means tiers
+1–2. For the exact tier of any past answer, see [the
+dashboard](/docs/dashboard/).
 
 ### What `doctor` looks like
 

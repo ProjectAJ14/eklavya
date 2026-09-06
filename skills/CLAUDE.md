@@ -115,27 +115,38 @@ Check every one of these against the code when you touch a skill.
   number in a skill, recount it first; a seed file gains concepts and the
   sentence does not.
 
-## `ask_header`
+## The dials are in the status bar, not above the stem
 
-Composed centrally in `mcp/src/ask.ts` — mode, focus, level, tier label, and
-`question: N of M` only when a plan holds more than one. It is central so it
-cannot drift; a skill must never assemble its own.
+Until 1.14 every plan item carried `ask_header` and the tutor printed it above
+the question: `[mode: ambient · focus: concept · level: easy · tier: 2
+mechanism]`. It existed for a real reason — on `concept` focus a deliberately
+transferable question reads as a vague one, and on `easy` a tier-2 question
+reads as shallow rather than as a runway — but it spent four settings' worth of
+screen above *every* stem to say something that is true for the whole session.
 
-Three rules, all learned the hard way and all documented in that file: it goes
-**above** the stem with a blank line after it, the brackets stay, and it is
-**never passed back to `record_attempt`**. The stem alone is what gets
-fingerprinted, so a settings line inside it would make one question look new
-every time the level changed. `stripAskHeader()` is a backstop, not a licence.
-It is absent when `quiet` is set.
+Ambient state belongs somewhere ambient. `statusLine` in `mcp/src/statusline.ts`
+composes `[EKLAVYA ambient · concept · interleaved · easy]` for
+`eklavya statusline`, which the host's status bar runs. `askHeader` is deleted,
+the plan no longer carries `ask_header`, and both hooks now say *ask the stem on
+its own*.
 
-## The site ships with the change
+Two consequences for anyone editing a skill:
 
-The seven commands and `user-skill/` are documented in
-`web/src/content/docs/docs/commands.mdx`, and the landing page's `#commands`
-section lists them. Adding, renaming or removing a command, or changing its
-arguments, means updating both in the same commit. The root `CLAUDE.md` has
-the full rule and the source-of-truth table — follow it there rather than
-keeping a second copy of it here.
+- **Never tell the model to compose a settings line.** Not the dials, not the
+  tier, not `question: 2 of 3`. A line a skill assembles is a line the server
+  cannot keep consistent, which is the reason this was centralised in the first
+  place.
+- **`stripAskHeader` stays, and must.** Every attempt recorded while the line
+  existed still has it inside the stem, and `questionFingerprint` (`store.ts`)
+  hashes that text. Delete the stripper and the entire back catalogue changes
+  fingerprint at once, so *never the same question twice* breaks for every
+  question ever asked. It is now a guard for history, plus a model that invents
+  a line anyway.
+
+The tier is deliberately nowhere on screen. A status bar refreshes on the host's
+cadence, so a tier there would sometimes name the previous question's
+difficulty, and a stale readout is worse than none. `level` covers what the tier
+was explaining: `easy` already means tiers 1-2.
 
 ## `skills/tutor/SKILL.md` has two readers
 

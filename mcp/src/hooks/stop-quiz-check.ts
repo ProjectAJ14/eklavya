@@ -193,13 +193,11 @@ Ask each question as MULTIPLE CHOICE via the AskUserQuestion tool: four options,
 one correct and three plausible, header "Eklavya" so it is clear who is asking.
 The tool's own "Other" choice is the escape hatch for "I don't know". They are
 mid-task -- a blank prompt gets skipped whether or not they knew the answer.
-Begin each question's text with that plan item's ask_header, verbatim, then a
-blank line, then the stem: the mode, focus, level, tier and how many questions
-are coming. It is the only thing on screen saying why a question is pitched
-where it is, and it goes above the stem -- below it, it reads as part of the
+Ask the stem on its own. The dials that pitched it -- mode, focus, cadence,
+level -- are in the status bar, so never prepend a settings line to the
 question.
 Record with format "mcq", the labels in "options", and only the stem in
-"question" -- never the settings line.
+"question".
 ${framing}
 ${tone}
 `);

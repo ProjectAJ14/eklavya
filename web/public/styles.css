@@ -498,7 +498,6 @@ kbd {
   padding: 0 8px; border-radius: var(--radius-pill);
   font-size: 11.5px; letter-spacing: .02em;
 }
-.ask__meta { color: var(--neutral-600); font-size: 11.5px; }
 .ask__stem { margin: 0 0 8px; color: #E8EDEF; }
 .ask__ref { color: var(--green-300); }
 .ask__opts { display: flex; flex-direction: column; }
@@ -1303,7 +1302,6 @@ kbd {
   .term__screen { font-size: 12px; padding: 14px 14px 12px; height: 470px; }
   .term__status .dim { display: none; }
   .box { padding: 7px 9px; }
-  .ask__meta { display: none; }
   .ask__opt { padding-left: 0; gap: .5ch; }
   .cmd-row { grid-template-columns: 1fr; gap: 6px; }
   .docs__cards { grid-template-columns: 1fr; }

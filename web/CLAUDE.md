@@ -50,7 +50,7 @@ Every `.mdx` under `src/content/docs/docs/` has a row here, in sidebar order.
 | `first-run.mdx` | `skills/setup/SKILL.md` |
 | `first-session.mdx` | `hooks/hooks.json` and the four hooks in `mcp/src/hooks/` |
 | `dials.mdx` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` — **and** `mcp/src/tools/get_session_quiz_plan.ts`, because the `interleaved` one-question cap and its exemptions live in the planner, not in the config |
-| `levels-and-tiers.mdx` | `TIER_LABEL` in `mcp/src/ask.ts`; `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts` |
+| `levels-and-tiers.mdx` | `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts`; the tier labels are `TIER` in `mcp/src/assets/dashboard.html` and the tier table in `skills/tutor/SKILL.md` — `TIER_LABEL` left `ask.ts` with the settings line in 1.14 |
 | `commands.mdx` | one `###` per slash command — the skills under `skills/` carrying `disable-model-invocation: true`, seven of them; `skills/tutor/` is model-invocable only and gets no heading. Plus one for `user-skill/` |
 | `cli.mdx` | the `USAGE` string in `mcp/src/cli.ts` |
 | `configuration.mdx` | `DEFAULT_CONFIG` in `mcp/src/config.ts` — every key, no omissions |
@@ -76,7 +76,7 @@ each has to be re-quoted when that file changes:
 | Terminal line | Where the string is built |
 |---|---|
 | the `[Eklavya] Learner profile: …` banner | `mcp/src/hooks/session-start.ts` — one line in the real hook, wrapped over two rows here the way a terminal wraps it |
-| the `[mode: … · focus: … · level: … · tier: …]` ask header | `askHeader` in `mcp/src/ask.ts`, composed centrally so it cannot drift |
+| the `[EKLAVYA ambient · concept · interleaved · easy]` status bar | `statusLine` in `mcp/src/statusline.ts`, composed centrally so it cannot drift. There is no settings line above a question any more — do not draw one |
 | the checkpoint instruction | `mcp/src/hooks/checkpoint-quiz.ts` |
 
 `public/styles.css` holds a **no-JS fallback copy** of the terminal's grade,

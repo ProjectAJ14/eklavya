@@ -15,7 +15,8 @@ what an agent editing code in this directory has to know before it does.
 | `src/db.ts`, `src/migrate.ts`, `src/migrations/` | `openDb()` — pragmas, then migrate, then seed; forward-only numbered SQL with the version in `meta` | |
 | `src/seed.ts`, `src/seed/` | the shipped concept graphs, validated on load | never touches `mastery` — a learner's history survives every seed update |
 | `src/session.ts`, `src/slug.ts`, `src/concurrency.ts` | session-id resolution; slug normalization and fuzzy matching; `retryOnBusy` | |
-| `src/ask.ts`, `src/mcq.ts` | the `[mode: … · focus: … · level: … · tier: …]` header, composed and stripped; the deterministic `answerPosition` | |
+| `src/statusline.ts` | `[EKLAVYA ambient · concept · interleaved · easy]` — the dials, for `eklavya statusline` and the host's status bar | never per-question: no tier, no counter |
+| `src/ask.ts`, `src/mcq.ts` | stripping a settings line back out of a recorded stem (history only — nothing composes one now); the deterministic `answerPosition` | |
 | `src/server.ts` | stdio MCP wiring only. **stdout is the protocol** — diagnostics go to stderr | |
 | `src/tools/*.ts` | one file per tool, registered in `tools/index.ts` | |
 | `src/hooks/*.ts` | one file per hook plus `lib.ts`; `run()` swallows everything and exits 0 | |
