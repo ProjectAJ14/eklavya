@@ -483,7 +483,7 @@ async function history(dbFile) {
   if (rows.length === 0) fail(`${file} has no attempts yet -- nothing to measure.`);
 
   const repeat = stats.repeatStats(rows);
-  const tiers = stats.tierStats(rows);
+  const tiers = stats.tierReadings(rows);
   const gaps = stats.gapStats(rows, 1);
   const outcomes = stats.outcomeStats(rows);
   const report = { source: path.basename(file), span, repeat, tiers, gaps, outcomes };
@@ -494,20 +494,37 @@ async function history(dbFile) {
     `\nrepeat rate: ${repeat.repeats}/${repeat.repeatable} (${pct(repeat.repeats, repeat.repeatable)}) ` +
       `-- of the ${repeat.repeatable} attempt(s) that had an earlier question on the same concept\n`,
   );
-  process.stdout.write(`  the product should have caught: ${repeat.withinWindow}\n`);
-  process.stdout.write(`  older than the ${stats.REPEAT_WINDOW}-attempt window it checks: ${repeat.outsideWindow}\n`);
-  process.stdout.write(`\ntier   n   mean   pass\n`);
-  for (const r of tiers.rows) {
-    process.stdout.write(`  ${r.tier}  ${String(r.attempts).padStart(3)}   ${r.meanGrade.toFixed(2)}   ${pct(r.passRate, 1)}\n`);
+  process.stdout.write(`  the planner had it in asked_before (a broken promise): ${repeat.plannerSaw}\n`);
+  process.stdout.write(`  only the recorder saw it, and it does not reject:      ${repeat.recorderOnly}\n`);
+  process.stdout.write(`  outside both windows:                                 ${repeat.outsideBoth}\n`);
+
+  // Both readings, always. Choosing one and printing it alone is a judgement
+  // call wearing a measurement's clothes -- on the first run it was the
+  // difference between tier 2 sitting below the pass threshold and above it.
+  for (const [label, t] of [
+    ['all graded rows (unknown outcomes kept)', tiers.allGraded],
+    ['known outcomes only', tiers.knownOutcome],
+  ]) {
+    process.stdout.write(`\n${label}\ntier   n   mean   pass\n`);
+    for (const r of t.rows) {
+      process.stdout.write(`  ${r.tier}  ${String(r.attempts).padStart(3)}   ${r.meanGrade.toFixed(2)}   ${pct(r.passRate, 1)}\n`);
+    }
+    process.stdout.write(`  grades fall as tiers rise: ${t.monotonic ? 'yes' : 'NO'}`);
+    process.stdout.write(` (${t.excludedDeclines} decline(s), ${t.excludedUnknown} unknown-outcome row(s) excluded)\n`);
   }
-  process.stdout.write(`  grades fall as tiers rise: ${tiers.monotonic ? 'yes' : 'NO'}`);
-  process.stdout.write(` (${tiers.excludedDeclines} decline(s) excluded)\n`);
-  process.stdout.write(`\nconcepts re-asked after a day: ${gaps.held}/${gaps.pairs} held\n`);
+
+  process.stdout.write(
+    `\ngaps where something had been held: ${gaps.held}/${gaps.pairs} still passed ` +
+      `(${gaps.skippedNoPriorPass} gap(s) skipped -- nothing had passed before them)\n`,
+  );
   process.stdout.write(
     `outcomes: ${outcomes.answered} answered, ${outcomes.dontKnow} blank, ${outcomes.declined} declined, ${outcomes.unrecorded} unrecorded\n`,
   );
 
-  const out = path.join(evalDir, 'results', `${new Date().toISOString().slice(0, 10)}-history.json`);
+  // Timestamped, not just dated. The dated file is a published record; a second
+  // run on the same day -- or a run against someone else's --db -- used to
+  // overwrite it in place.
+  const out = path.join(evalDir, 'results', `${new Date().toISOString().replace(/[:.]/g, '-')}-history.json`);
   fs.writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`);
   process.stdout.write(`\nnumbers written to ${path.relative(repoRoot, out)}\n`);
   return report;

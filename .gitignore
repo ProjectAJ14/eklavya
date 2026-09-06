@@ -27,3 +27,7 @@ coverage/
 # raw eval runs: one directory per invocation, timestamped. The dated summaries
 # in eval/results/*.md are the record; the JSON behind them is scratch.
 eval/results/*/
+
+# raw history runs are timestamped scratch; the published snapshot is the
+# <date>-history.json committed next to its markdown
+eval/results/*T*Z-history.json

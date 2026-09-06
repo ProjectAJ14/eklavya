@@ -100,14 +100,35 @@ npm run eval -- history --db <path>
   divides by the attempts that **could** have repeated, not by all of them,
   because most attempts are the first question on their concept and a first
   question cannot repeat.
-- **Tier calibration.** Mean grade per tier. If grades do not fall as tiers
-  rise, the ladder is decoration.
-- **What held across a gap.** The weakest honest version of retention: when a
-  concept came back a day or more later, did the answer pass.
+
+  Repeats are split by which mechanism would have seen them, because only one of
+  the two prevents anything. The planner fills `asked_before` from
+  `recentQuestions(db, concept.id, ASKED_HISTORY)` with `ASKED_HISTORY = 3`, and
+  that acts while the question is being written. `hasAskedQuestion` looks back 20
+  but runs inside `record_attempt` after the fact and rejects nothing — it
+  records the row and returns `repeat_question: true`. A repeat at distance 4–20
+  is therefore not "one the product should have caught", and the first published
+  run said it was.
+- **Tier calibration.** Mean grade per tier, reported under **both** readings of
+  the 18 rows that predate the `outcome` column — `migrations/004` says a NULL
+  outcome must be treated as unknown, so counting those grade-0 rows as answers
+  is a choice, and on the first run it was the difference between tier 2 sitting
+  below the pass threshold and above it. One number there would have been a
+  judgement call wearing a measurement's clothes.
+- **What held across a gap.** The weakest honest version of retention: a concept
+  that **passed**, came back a day or more later, and passed again. The prior
+  pass is required — without it the metric counts two failures far apart as
+  something that failed to hold, which is what the first run published.
 
 Aggregates only, by construction — the statistics module is handed rows and
 hands back numbers, and no stem or answer reaches the report. The output is
 committed and the repo rule is that a learner's data never is.
+
+A published result file gets **corrected in place, with the original claim left
+visible**, when a later reading shows it was wrong. `2026-09-06-history.md`
+carries three such corrections — two of them to its headline numbers. A results
+directory whose files only ever grow more favourable is not a record of
+anything.
 
 The repeat rate's error is in the flattering direction, and the result file has
 to say so: a fingerprint is a normalised stem, so two questions asking the

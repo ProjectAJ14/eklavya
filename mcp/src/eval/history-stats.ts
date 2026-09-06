@@ -45,6 +45,22 @@ export interface AttemptRow {
  */
 export const REPEAT_WINDOW = 20;
 
+/**
+ * How many previous questions the *planner* puts in front of the tutor.
+ *
+ * `get_session_quiz_plan` fills each item's `asked_before` from
+ * `recentQuestions(db, concept.id, ASKED_HISTORY)` with ASKED_HISTORY = 3. That
+ * is the mechanism that actually prevents a repeat, because it acts while the
+ * question is being written.
+ *
+ * `REPEAT_WINDOW` above is a different thing and a weaker one: `hasAskedQuestion`
+ * is consulted by `record_attempt` *after* the question was asked, and it does
+ * not reject anything -- it records the attempt and returns `repeat_question:
+ * true`. Calling a repeat at distance 4-20 "one the product should have caught"
+ * credits a check that never saw it. Both numbers are reported, separately.
+ */
+export const PLANNER_HISTORY = 3;
+
 export interface RepeatStats {
   attempts: number;
   concepts: number;
@@ -60,11 +76,24 @@ export interface RepeatStats {
   repeatable: number;
   /** Attempts whose stem had already been asked on that concept. */
   repeats: number;
-  /** Of those, the ones the product's own check should have caught. */
-  withinWindow: number;
-  /** Of those, the ones older than the window it looks at. */
-  outsideWindow: number;
-  /** Highest number of attempts sharing one fingerprint, for context. */
+  /**
+   * Repeats the planner had in front of it: the earlier question was among the
+   * `PLANNER_HISTORY` most recent on that concept, so `asked_before` carried it
+   * while the new question was being written. These are broken promises.
+   */
+  plannerSaw: number;
+  /**
+   * Repeats the recorder would have flagged but the planner never showed:
+   * further back than `PLANNER_HISTORY`, within `REPEAT_WINDOW`. The attempt is
+   * still recorded; `record_attempt` only returns `repeat_question: true`.
+   */
+  recorderOnly: number;
+  /** Older than either window, so outside everything the product inspects. */
+  outsideBoth: number;
+  /**
+   * The most attempts on a single concept sharing one fingerprint, for context.
+   * Counted per concept, and not necessarily consecutive.
+   */
   worstRun: number;
 }
 
@@ -78,7 +107,8 @@ export function repeatStats(rows: AttemptRow[]): RepeatStats {
 
   let repeats = 0;
   let repeatable = 0;
-  let withinWindow = 0;
+  let plannerSaw = 0;
+  let recorderOnly = 0;
   let worstRun = 0;
 
   for (const list of byConcept.values()) {
@@ -87,17 +117,23 @@ export function repeatStats(rows: AttemptRow[]): RepeatStats {
     const counts = new Map<string, number>();
 
     for (const [index, row] of ordered.entries()) {
-      if (index > 0) repeatable++;
       const print = questionFingerprint(row.question);
       // An empty fingerprint is not evidence of anything -- it means the stem
       // was blank or punctuation only, which the product also refuses to match.
+      // It cannot count as a repeat, so it must not swell the denominator
+      // either; that error would run in the flattering direction.
       if (print) {
+        if (index > 0) repeatable++;
+
+        // lastIndexOf, not indexOf: what matters is how far back the NEAREST
+        // earlier copy was, since that is the one both windows would have held.
+        // Taking the oldest copy under-reports repeats the product could see.
         const previous = seen.lastIndexOf(print);
         if (previous >= 0) {
           repeats++;
-          // Distance in attempts on this concept, which is the same span
-          // `hasAskedQuestion` was looking at when the repeat was allowed.
-          if (seen.length - previous <= REPEAT_WINDOW) withinWindow++;
+          const distance = seen.length - previous;
+          if (distance <= PLANNER_HISTORY) plannerSaw++;
+          else if (distance <= REPEAT_WINDOW) recorderOnly++;
         }
         const n = (counts.get(print) ?? 0) + 1;
         counts.set(print, n);
@@ -112,8 +148,9 @@ export function repeatStats(rows: AttemptRow[]): RepeatStats {
     concepts: byConcept.size,
     repeatable,
     repeats,
-    withinWindow,
-    outsideWindow: repeats - withinWindow,
+    plannerSaw,
+    recorderOnly,
+    outsideBoth: repeats - plannerSaw - recorderOnly,
     worstRun,
   };
 }
@@ -127,6 +164,8 @@ export interface TierRow {
 }
 
 export interface TierStats {
+  /** Which rows this reading kept. */
+  basis: 'all-graded' | 'known-outcome';
   rows: TierRow[];
   /**
    * Whether mean grade falls, or at least does not rise, as the tier rises.
@@ -137,13 +176,41 @@ export interface TierStats {
   monotonic: boolean;
   /** Attempts left out because a decline says nothing about knowing. */
   excludedDeclines: number;
+  /**
+   * Attempts left out because their outcome predates the `outcome` column.
+   *
+   * Zero in the `all-graded` reading, which keeps them.
+   */
+  excludedUnknown: number;
 }
 
-export function tierStats(rows: AttemptRow[]): TierStats {
+/**
+ * Both readings, because the data cannot choose between them.
+ *
+ * `migrations/004_attempt_outcome.sql` states the contract: NULL means
+ * "recorded before this column existed", and readers "must treat it as unknown,
+ * not as any particular outcome". Keeping those rows counts a grade 0 of unknown
+ * provenance as evidence the learner did not know; dropping them throws away
+ * real answers. On the first published history the choice moved tier 2 from
+ * mean 2.25 to 3.10 -- from below the pass threshold to above it -- and changed
+ * which tier scored worst.
+ *
+ * A single number there would have been a choice presented as a measurement, so
+ * both are reported and the result file has to show both.
+ */
+export function tierReadings(rows: AttemptRow[]): { allGraded: TierStats; knownOutcome: TierStats } {
+  return {
+    allGraded: tierStats(rows, true),
+    knownOutcome: tierStats(rows, false),
+  };
+}
+
+export function tierStats(rows: AttemptRow[], includeUnknownOutcome = true): TierStats {
   // A decline is recorded as grade 0 and means "not now", not "did not know".
   // Averaging it in would make any tier the developer happened to skip look
   // harder than it is.
-  const graded = rows.filter((r) => r.outcome !== 'declined');
+  const notDeclined = rows.filter((r) => r.outcome !== 'declined');
+  const graded = includeUnknownOutcome ? notDeclined : notDeclined.filter((r) => r.outcome != null);
   const byTier = new Map<number, AttemptRow[]>();
   for (const row of graded) {
     const list = byTier.get(row.difficulty);
@@ -165,18 +232,44 @@ export function tierStats(rows: AttemptRow[]): TierStats {
     if ((out[i]?.meanGrade ?? 0) > (out[i - 1]?.meanGrade ?? 0)) monotonic = false;
   }
 
-  return { rows: out, monotonic, excludedDeclines: rows.length - graded.length };
+  return {
+    basis: includeUnknownOutcome ? 'all-graded' : 'known-outcome',
+    rows: out,
+    monotonic,
+    excludedDeclines: rows.length - notDeclined.length,
+    excludedUnknown: notDeclined.length - graded.length,
+  };
 }
 
 export interface GapStats {
   /** Minimum days between two attempts on one concept for the pair to count. */
   minDays: number;
+  /**
+   * Gaps where the earlier attempt actually passed, so there was something to
+   * survive.
+   *
+   * The first published run reported "0 of 1 held" on a pair whose earlier
+   * attempt was a grade 0 of unknown outcome -- two failures nine days apart,
+   * described as a thing that failed to hold. Nothing had been held.
+   */
   pairs: number;
-  /** Pairs whose later attempt graded 3 or better. */
+  /** Of those, the ones whose later attempt graded 3 or better. */
   held: number;
+  /** Gaps skipped because the earlier attempt had not passed either. */
+  skippedNoPriorPass: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * `ts` is written by SQLite's `datetime('now')`, which is UTC with no zone
+ * marker. `Date.parse('2026-09-01 10:00:00')` reads that as local time, so on a
+ * machine at UTC+5:30 every timestamp shifts and a gap near the threshold lands
+ * on the wrong side of it.
+ */
+function parseTs(ts: string): number {
+  return Date.parse(`${ts.replace(' ', 'T')}Z`);
+}
 
 /**
  * Consecutive attempts on the same concept separated by at least `minDays`.
@@ -195,24 +288,36 @@ export function gapStats(rows: AttemptRow[], minDays = 1): GapStats {
 
   let pairs = 0;
   let held = 0;
+  let skippedNoPriorPass = 0;
 
   for (const list of byConcept.values()) {
-    const ordered = [...list]
-      .filter((r) => r.outcome !== 'declined')
-      .sort((a, b) => a.id - b.id);
+    // Ordered over EVERY attempt, declines included. Filtering them out first
+    // makes two attempts either side of a skipped one look consecutive, so a
+    // concept the learner saw three times reports one long quiet gap it never
+    // had. Declines are skipped as the *later* member below instead.
+    const ordered = [...list].sort((a, b) => a.id - b.id);
 
     for (let i = 1; i < ordered.length; i++) {
       const before = ordered[i - 1];
       const after = ordered[i];
       if (!before || !after) continue;
-      const gap = Date.parse(after.ts.replace(' ', 'T')) - Date.parse(before.ts.replace(' ', 'T'));
+      if (after.outcome === 'declined') continue;
+
+      // `datetime('now')` writes UTC without a zone; treat it as UTC rather than
+      // letting Date.parse guess local, which shifts every gap by the offset.
+      const gap = parseTs(after.ts) - parseTs(before.ts);
       if (!Number.isFinite(gap) || gap < minDays * DAY_MS) continue;
+
+      if (before.grade < 3) {
+        skippedNoPriorPass++;
+        continue;
+      }
       pairs++;
       if (after.grade >= 3) held++;
     }
   }
 
-  return { minDays, pairs, held };
+  return { minDays, pairs, held, skippedNoPriorPass };
 }
 
 export interface OutcomeStats {
