@@ -665,25 +665,33 @@ describe('the UserPromptSubmit nudge', () => {
    * constant rather than a config key, so backdating the row is the only way to
    * reach the other side of it without sleeping.
    */
-  const seenMinutesAgo = (minutes: number, nudgedMinutesAgo: number | null = null): void => {
+  const seenMinutesAgo = (
+    minutes: number,
+    nudgedMinutesAgo: number | null = null,
+    count = 0,
+  ): void => {
     const iso = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
     db.prepare(
       'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
     ).run(
       `prompt_nudge:${SESSION}`,
-      `${iso(minutes)}|${nudgedMinutesAgo === null ? '' : iso(nudgedMinutesAgo)}`,
+      `${iso(minutes)}|${nudgedMinutesAgo === null ? '' : iso(nudgedMinutesAgo)}|${count}`,
     );
   };
+
+  const stateValue = (): string | undefined =>
+    (
+      db.prepare('SELECT value FROM meta WHERE key = ?').get(`prompt_nudge:${SESSION}`) as
+        | { value: string }
+        | undefined
+    )?.value;
 
   it('says nothing on the first prompt — the directive was injected seconds ago', () => {
     const res = nudge();
     expect(res.status).toBe(0);
     expect(context(res)).toBeNull();
     // But it starts the clock, or the grace window could never elapse.
-    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`prompt_nudge:${SESSION}`) as
-      | { value: string }
-      | undefined;
-    expect(row?.value).toMatch(/^\d{4}-\d{2}-\d{2}T.*\|$/);
+    expect(stateValue()).toMatch(/^\d{4}-\d{2}-\d{2}T.*\|\|0$/);
   });
 
   it('stays quiet inside the grace window', () => {
@@ -731,6 +739,45 @@ describe('the UserPromptSubmit nudge', () => {
     expect(context(nudge({ agent_id: 'sub-1' }))).toBeNull();
   });
 
+
+  it('stops after three nudges, however long the session runs', () => {
+    // "logged nothing at all" is also exactly what an unreachable MCP server
+    // looks like from here, and that never resolves. Without a cap a long
+    // session against a dead server is nudged every 25 minutes forever, each
+    // time about a tool that is not registered.
+    seenMinutesAgo(600, 60, 3);
+    expect(context(nudge())).toBeNull();
+    // The cap is the reason, not the cooldown: no nudge was recorded, so the
+    // stored count must not have moved either.
+    expect(stateValue()!.endsWith('|3')).toBe(true);
+  });
+
+  it('counts each nudge it emits, so the cap can be reached', () => {
+    seenMinutesAgo(600, 60, 1);
+    expect(context(nudge())).not.toBeNull();
+    expect(stateValue()!.endsWith('|2')).toBe(true);
+  });
+
+  it('reads a row written before the count existed as zero rather than throwing', () => {
+    // The count was appended to the value, so the previous two-field shape is
+    // still parseable — worth a test, because the alternative was a migration.
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(
+      `prompt_nudge:${SESSION}`,
+      `${new Date(Date.now() - 600 * 60_000).toISOString()}|`,
+    );
+    expect(context(nudge())).not.toBeNull();
+    expect(stateValue()!.endsWith('|1')).toBe(true);
+  });
+
+  it('is re-armed by SessionStart, so a resume does not restate a fresh directive', () => {
+    // SessionStart fires on resume and after a compaction as well as at startup,
+    // and reprints the directive every time. The old row would have a spent
+    // grace window, so the very next prompt would repeat what was just printed.
+    seenMinutesAgo(600, 60, 1);
+    sessionStart();
+    expect(stateValue()).toBeUndefined();
+    expect(context(nudge())).toBeNull();
+  });
   it('never breaks a session when there is no database (PRD §9.1)', () => {
     const res = runHook(NUDGE, { session_id: SESSION, cwd }, { EKLAVYA_DB: '/nonexistent/eklavya.db' });
     expect(res.status).toBe(0);

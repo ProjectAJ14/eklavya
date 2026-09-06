@@ -90,6 +90,18 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "prompt-submit-nudge"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -134,7 +146,7 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
 }
 ```
 
-Four events, one command. Every hook is exec form — `"command": "node"` plus
+Five events, one command. Every hook is exec form — `"command": "node"` plus
 `args` — and every one of them dispatches through the same `hooks/run.mjs`, which
 resolves a runtime and imports `dist/hooks/<name>.js`. The logic lives in
 `mcp/src/hooks/*.ts`; there are no `.sh` files under `hooks/` any more, and the

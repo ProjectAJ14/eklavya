@@ -30,15 +30,26 @@
  * signal is noise.
  *
  * State lives in `meta` rather than a table of its own: one row per session,
- * `prompt_nudge:<sid>` -> `<first-seen>|<last-nudge>`, pipe-delimited so the
- * prune below is one statement and needs no JSON parsing in SQL. A migration
- * for a rate limiter would be a schema change for a comment.
+ * `prompt_nudge:<sid>` -> `<first-seen>|<last-nudge>|<count>`, pipe-delimited so
+ * the prune below is one statement and needs no JSON parsing in SQL. A
+ * migration for a rate limiter would be a schema change for a comment.
+ * `session-start` deletes the row when it reprints the directive, which is what
+ * re-arms the grace window on a resume or after a compaction.
  *
  * Failure is silent, as everywhere here: exit 0, no output. This runs on every
  * prompt the developer types, so it is also the hook with the least right to be
  * slow -- the common case (a session that is logging) is one COUNT and out.
  */
-import { run, openExisting, config, cwdOf, sessionId, minutesSince, type DB } from './lib.js';
+import {
+  run,
+  openExisting,
+  config,
+  cwdOf,
+  sessionId,
+  minutesSince,
+  NUDGE_KEY_PREFIX,
+  type DB,
+} from './lib.js';
 
 /**
  * Long enough that the session-start directive has had a fair chance, short
@@ -51,23 +62,43 @@ const GRACE_MINUTES = 12;
 /** And having said it once, do not say it again this soon. */
 const COOLDOWN_MINUTES = 25;
 
-const KEY_PREFIX = 'prompt_nudge:';
+/**
+ * And having said it three times, stop.
+ *
+ * The cooldown alone is not a bound. "This session has logged nothing at all"
+ * is not only the signature of a model that forgot the directive -- it is also
+ * exactly what a dead MCP server looks like from here, and that state never
+ * resolves. Without a cap an eight-hour session against an unreachable server
+ * gets nineteen injections telling the model to call a tool that is not
+ * registered, each one likely drawing a visible failure in the transcript.
+ *
+ * `max_stop_blocks_per_session` is the same kind of backstop for the Stop hook,
+ * for the same reason. A constant rather than a config key: the difference
+ * between three nudges and four is not something anyone needs to tune.
+ */
+const MAX_NUDGES = 3;
 
-/** `<first-seen ISO>|<last-nudge ISO or empty>` */
-function readState(db: DB, key: string): { first: string; nudged: string | null } | null {
+/**
+ * `<first-seen ISO>|<last-nudge ISO or empty>|<nudges so far>`
+ *
+ * The count was appended rather than inserted, so a row written by the previous
+ * shape reads back as count 0 instead of throwing. It buys such a row at most
+ * MAX_NUDGES extra nudges, once, which is cheaper than a migration.
+ */
+function readState(db: DB, key: string): { first: string; nudged: string | null; count: number } | null {
   const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as
     | { value: string }
     | undefined;
   if (!row) return null;
-  const [first, nudged] = row.value.split('|');
+  const [first, nudged, count] = row.value.split('|');
   if (!first) return null;
-  return { first, nudged: nudged || null };
+  return { first, nudged: nudged || null, count: Number(count) || 0 };
 }
 
-function writeState(db: DB, key: string, first: string, nudged: string | null): void {
+function writeState(db: DB, key: string, first: string, nudged: string | null, count: number): void {
   db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
     key,
-    `${first}|${nudged ?? ''}`,
+    `${first}|${nudged ?? ''}|${count}`,
   );
 }
 
@@ -81,7 +112,7 @@ function prune(db: DB): void {
     `DELETE FROM meta
       WHERE key LIKE ?
         AND substr(value, 1, 10) < date('now', '-7 day')`,
-  ).run(`${KEY_PREFIX}%`);
+  ).run(`${NUDGE_KEY_PREFIX}%`);
 }
 
 await run(async (input) => {
@@ -114,7 +145,7 @@ await run(async (input) => {
     .get(sid) as { n: number } | undefined;
   if ((logged?.n ?? 0) > 0) return 0;
 
-  const key = `${KEY_PREFIX}${sid}`;
+  const key = `${NUDGE_KEY_PREFIX}${sid}`;
   const now = new Date().toISOString();
   const state = readState(db, key);
 
@@ -122,14 +153,15 @@ await run(async (input) => {
   // seconds ago; repeating it now would be noise. Start the clock instead.
   if (!state) {
     prune(db);
-    writeState(db, key, now, null);
+    writeState(db, key, now, null, 0);
     return 0;
   }
 
+  if (state.count >= MAX_NUDGES) return 0;
   if (minutesSince(state.first) < GRACE_MINUTES) return 0;
   if (state.nudged && minutesSince(state.nudged) < COOLDOWN_MINUTES) return 0;
 
-  writeState(db, key, state.first, now);
+  writeState(db, key, state.first, now, state.count + 1);
 
   process.stdout.write(
     `${JSON.stringify({

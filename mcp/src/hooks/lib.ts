@@ -59,7 +59,7 @@ export async function readInput(): Promise<HookInput> {
  *
  * `openDb()` is the server's entry point and does both, which is right for a
  * server and wrong here: a hook is not the thing that should be migrating a
- * schema, and four hooks racing a migration on session start is a corruption
+ * schema, and several hooks racing a migration on session start is a corruption
  * story rather than a feature. A hook that finds no database has nothing to say,
  * which is the same answer `eklavya_have_deps` gave.
  */
@@ -73,6 +73,31 @@ export function openExisting(): DB | null {
     return db;
   } catch {
     return null;
+  }
+}
+
+/**
+ * `meta` key holding the UserPromptSubmit nudge's per-session bookkeeping.
+ * Shared here rather than exported from the hook, because `session-start`
+ * clears it and two hooks spelling the same key differently would be a bug that
+ * only shows up as a nudge that never stops.
+ */
+export const NUDGE_KEY_PREFIX = 'prompt_nudge:';
+
+/**
+ * Forget what the nudge knows about this session.
+ *
+ * Called by `session-start`, which fires on resume and after a compaction as
+ * well as at startup, and reprints the standing directive every time. Without
+ * this the nudge's row survives with its original first-seen stamp, the grace
+ * window is already spent, and the first prompt of a resumed session restates a
+ * directive printed seconds earlier.
+ */
+export function clearNudgeState(db: DB, sessionId: string): void {
+  try {
+    db.prepare('DELETE FROM meta WHERE key = ?').run(`${NUDGE_KEY_PREFIX}${sessionId}`);
+  } catch {
+    /* Bookkeeping. A session that keeps its old row gets one extra nudge. */
   }
 }
 

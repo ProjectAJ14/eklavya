@@ -6,7 +6,7 @@
  */
 import { setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
-import { run, openExisting, config, cwdOf, sessionId, type DB } from './lib.js';
+import { run, openExisting, config, cwdOf, sessionId, clearNudgeState, type DB } from './lib.js';
 
 /**
  * The whole tutoring loop starts at log_session_concepts: it is the only writer
@@ -141,6 +141,12 @@ await run(async (input) => {
       `[Eklavya] This repo overrides your global setting for: ${resolved.overrides.join(' ')} (.eklavya.json wins).`,
     );
   }
+
+  // The directive is on screen again, so the nudge's clock starts again. This
+  // hook fires on resume and after a compaction, not only at startup, and both
+  // reuse the session id -- without this the first prompt of a resumed session
+  // restates what was printed seconds ago.
+  if (sid) clearNudgeState(db, sid);
 
   out.push(DIRECTIVE);
   process.stdout.write(`${out.join('\n')}\n`);
