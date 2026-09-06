@@ -20,3 +20,6 @@ coverage/
 
 # firebase deploy cache
 .firebase/
+
+# editor config, per-machine
+.idea/
