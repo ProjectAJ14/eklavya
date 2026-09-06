@@ -20,6 +20,7 @@ what an agent editing code in this directory has to know before it does.
 | `src/server.ts` | stdio MCP wiring only. **stdout is the protocol** — diagnostics go to stderr | |
 | `src/tools/*.ts` | one file per tool, registered in `tools/index.ts` | |
 | `src/hooks/*.ts` | one file per hook plus `lib.ts`; `run()` swallows everything and exits 0 | |
+| `src/eval/question-checks.ts` | the deterministic half of the question-quality eval — pure, like `srs.ts`. Driven by `eval/harness.mjs` at the repo root | no model, no I/O; anything needing a judge stays out |
 | `src/install.ts` | `eklavya install/uninstall` — Node check, runtime, plugin payload, registry files, db | |
 | `src/dashboard.ts` + `src/assets/dashboard.html` | the local page on loopback (default port 41729). Read `.claude/skills/eklavya-dashboard/SKILL.md` first | |
 

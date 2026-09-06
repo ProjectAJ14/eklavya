@@ -18,6 +18,7 @@ working in this repo.
 | `agents/` | the tutor subagent |
 | `cli/`, `scripts/` | the editor-agnostic commit gate: `cli/eklavya-gate` is a POSIX script (no Node startup cost in a git hook), `scripts/install-git-hook.sh` installs it. `scripts/bump-version.sh` is the release's version bump |
 | `docs/` | contributor reference, not the manual: the pinned plugin/hook/MCP schemas and parallel tutoring, both kept current by hand. `eklavya-runtime.html` is **generated** from `eklavya-runtime.architecture.json` and stamped with the revision it was built from — edit the JSON, never the HTML, then regenerate (see below) |
+| `eval/` | the question-quality eval: fixtures, a four-stage harness, and dated results. Measures the product (are the questions good) rather than the machinery. Never runs in CI — two of its four stages cost a model call per question. `eval/README.md` has the method and what would disprove it |
 | `prd/` | the spec and one file per phase, with `prd/README.md` as the delivery tracker |
 | `CONTRIBUTING.md` | development setup, the manual test scripts, the release process |
 | `web/` | the site: the landing page (`public/`) and the manual (Astro Starlight, `src/content/docs/docs/`), deployed to Firebase Hosting. See `web/CLAUDE.md` |

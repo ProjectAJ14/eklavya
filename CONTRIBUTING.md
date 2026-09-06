@@ -98,6 +98,7 @@ mcp/                MCP server: knowledge graph, SM-2, gates, CLI, installer, ho
 docs/               verified schemas, parallel tutoring, the runtime architecture
 prd/                the spec and its per-phase delivery tracker
 web/                the landing page and the manual — see web/CLAUDE.md
+eval/               the question-quality eval — see eval/README.md
 ```
 
 Plugin, hook and MCP schemas drift. What this is built against is pinned with a date in [`docs/verified-schemas.md`](docs/verified-schemas.md) — re-verify before changing any manifest:
@@ -105,6 +106,37 @@ Plugin, hook and MCP schemas drift. What this is built against is pinned with a 
 - https://code.claude.com/docs/en/plugins · [reference](https://code.claude.com/docs/en/plugins-reference) · [marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
 - https://code.claude.com/docs/en/hooks
 - https://code.claude.com/docs/en/mcp
+
+## The eval
+
+`mcp/test/` tests the machinery. It does not test the product, which is a
+question — so a change that makes every question worse passes all 447 of them.
+`eval/` is where that gets measured.
+
+```bash
+npm run eval -- run --limit 8 --focus project --difficulty hard
+npm run eval -- score eval/results/<run>     # free, no model calls
+```
+
+Four stages: `plan` drives the real `get_session_quiz_plan` against a throwaway
+home, `generate` gives a model the shipped tutor skill and asks for one
+question, `score` runs deterministic checks, `judge` asks a model the three
+things counting cannot answer. `score` is free and reproducible; `generate` and
+`judge` cost one model call per question, which is why **none of this runs in
+CI** and why it is not part of `npm test`.
+
+Read [`eval/README.md`](eval/README.md) before quoting a number from it. It
+states the method, what is deterministic versus judged, and what would disprove
+the whole thing — including that the generator and judge are currently the same
+model family, and that the fixtures are this repo's own code and therefore an
+upper bound.
+
+Results go in `eval/results/` as one dated Markdown file per run; the raw JSON
+each run writes is gitignored scratch. A result file that does not say what
+would make it wrong is not finished.
+
+**A change to the pedagogy in `skills/tutor/` is the change this exists for.**
+Run it before and after.
 
 ## Releasing
 

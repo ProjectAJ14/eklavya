@@ -1,0 +1,32 @@
+{
+  "id": "wal-and-busy-retry",
+  "title": "Two writers on one SQLite file",
+  "source": "mcp/src/db.ts, mcp/src/concurrency.ts",
+  "diff": "db.pragma('journal_mode = WAL');\ndb.pragma('foreign_keys = ON');\ndb.pragma('busy_timeout = 5000');\n\n/**\n * A busy transaction has already rolled back, so retrying is safe for writes\n * as well as reads.\n */\nexport function retryOnBusy<T>(fn: () => T, attempts = 5): T {\n  let lastError: unknown;\n  for (let i = 0; i < attempts; i++) {\n    try {\n      return fn();\n    } catch (err) {\n      if (!isBusy(err)) throw err;\n      lastError = err;\n      sleepBriefly(i);\n    }\n  }\n  throw lastError;\n}",
+  "concepts": [
+    {
+      "slug": "wal-journal-mode",
+      "domain": "node-backend",
+      "tier": 3,
+      "description": "Write-ahead logging lets readers continue while a writer is active, at the cost of extra files and a checkpointing step.",
+      "context": "several Claude sessions plus the git hook share one knowledge.db, so WAL is what keeps a read from blocking behind a write",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "busy-timeout-versus-retry",
+      "domain": "node-backend",
+      "tier": 4,
+      "description": "A busy timeout waits for a lock to clear; it does not help when two writers try to upgrade to a write transaction at the same instant, which fails immediately instead.",
+      "context": "retryOnBusy exists because busy_timeout = 5000 does not cover the simultaneous-upgrade case",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "idempotency-and-safe-retries",
+      "domain": "node-backend",
+      "tier": 4,
+      "description": "A retry is only safe if the failed attempt left no partial effect; transaction rollback is what provides that guarantee here.",
+      "context": "the comment argues the retry is safe for writes because a busy transaction has already rolled back",
+      "prerequisite_of": []
+    }
+  ]
+}

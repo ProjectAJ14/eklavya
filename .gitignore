@@ -23,3 +23,7 @@ coverage/
 
 # editor config, per-machine
 .idea/
+
+# raw eval runs: one directory per invocation, timestamped. The dated summaries
+# in eval/results/*.md are the record; the JSON behind them is scratch.
+eval/results/*/
