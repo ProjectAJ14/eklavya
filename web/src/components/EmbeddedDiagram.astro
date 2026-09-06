@@ -1,0 +1,179 @@
+---
+// A generated archify diagram, shown as a still picture inside a fixed box.
+// The frame is inert; the way in is the link at the top right.
+interface Props {
+  src: string;
+  title: string;
+  caption: string;
+}
+const { src, title, caption } = Astro.props;
+---
+
+<figure class="ed not-content">
+  <div class="ed__card" data-embedded-diagram>
+    <div class="ed__head">
+      <p class="ed__label">Still picture</p>
+      <a
+        class="ed__open"
+        href={src}
+        target="_blank"
+        rel="noreferrer"
+        title="Opens in a new tab — pan, zoom, follow one path, switch theme, or export it for a slide"
+      >
+        Open interactive view
+        <svg class="ed__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M6.5 3h-3A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-3" />
+          <path d="M9.5 2H14v4.5M14 2 7.5 8.5" />
+        </svg>
+      </a>
+    </div>
+    <iframe
+      class="ed__frame"
+      src={`${src}?embed=1`}
+      title={title}
+      scrolling="no"
+      loading="lazy"
+    ></iframe>
+  </div>
+  <figcaption class="ed__caption">{caption}</figcaption>
+</figure>
+
+<style>
+  .ed { margin: var(--space-6) 0; }
+
+  .ed__card {
+    border: 1px solid var(--line-2);
+    background: var(--bg);
+    border-radius: var(--radius-none);
+  }
+
+  .ed__head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--line-2);
+    background: var(--panel);
+  }
+
+  .ed__label {
+    margin: 0; font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: var(--tracking-caps); text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* the landing page's outline button, on the manual's ground */
+  .ed__open {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    flex: none;
+    font-family: var(--font-body); font-weight: 700; font-size: 13px;
+    padding: 7px 12px;
+    color: var(--ink); border: 1px solid var(--line-2);
+    text-decoration: none;
+    transition: background var(--duration-fast) var(--ease),
+                border-color var(--duration-fast) var(--ease);
+  }
+  .ed__open:hover { background: var(--mass); color: var(--ink); }
+
+  .ed__icon {
+    width: 13px; height: 13px; flex: none;
+    fill: none; stroke: currentColor; stroke-width: 1.5;
+    stroke-linecap: square;
+  }
+
+  /* A bounded box, not one measured to the picture: a wide diagram fitted into
+     the manual's column is limited by width, so a flat 500px would letterbox a
+     third of the card. */
+  .ed__frame {
+    display: block; width: 100%;
+    aspect-ratio: 2 / 1; max-height: 500px;
+    border: 0; pointer-events: none;
+  }
+
+  .ed__caption {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm); line-height: var(--lh-sm);
+    color: var(--dim);
+  }
+
+  @media (max-width: 560px) {
+    .ed__open { font-size: 12px; padding: 6px 10px; }
+  }
+</style>
+
+<script>
+  // The viewer sizes its SVG `width: 100%; height: auto`, so a short frame would
+  // only crop it. Inject the fit into the generated document rather than editing
+  // it — the HTML is regenerated, and hand-edits die with the next build.
+  const FIT = `body{height:100vh;overflow:hidden}
+.container,.diagram-container{height:100%}
+.diagram-container svg{width:100%;height:100%;min-width:0}`;
+
+  function crop(svg: SVGSVGElement) {
+    try {
+      const vb = svg.viewBox.baseVal;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const el of Array.from(svg.children)) {
+        const box = el as SVGGraphicsElement;
+        if (el.tagName === 'defs' || typeof box.getBBox !== 'function') continue;
+        const b = box.getBBox();
+        if (!b.width || !b.height) continue;
+        // the background rect covers the whole canvas; measuring it is a no-op
+        if (b.width >= vb.width - 1 && b.height >= vb.height - 1) continue;
+        x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y);
+        x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+      }
+      if (!isFinite(x0)) return;
+      const p = 12;
+      svg.setAttribute('viewBox', `${x0 - p} ${y0 - p} ${x1 - x0 + 2 * p} ${y1 - y0 + 2 * p}`);
+    } catch {
+      /* a diagram we cannot measure renders exactly as generated */
+    }
+  }
+
+  // the viewer reads light/dark off its own <html>; the manual's ground toggle
+  // writes exactly those two values, so the picture follows the page
+  function paint(doc: Document) {
+    doc.documentElement.setAttribute(
+      'data-theme',
+      document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',
+    );
+  }
+
+  function fit(frame: HTMLIFrameElement) {
+    try {
+      const doc = frame.contentDocument;
+      if (!doc) return;
+      paint(doc);
+      const style = doc.createElement('style');
+      style.textContent = FIT;
+      doc.head.appendChild(style);
+      const svg = doc.querySelector('.diagram-container svg') as SVGSVGElement | null;
+      if (!svg) return;
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      // text measures narrow before its face loads, and an early crop clips the
+      // widest labels
+      const ready = doc.fonts ? doc.fonts.ready : Promise.resolve();
+      ready.then(() => crop(svg));
+    } catch {
+      /* cross-origin or otherwise unreachable: leave it as generated */
+    }
+  }
+
+  const frames: HTMLIFrameElement[] = [];
+  for (const card of document.querySelectorAll('[data-embedded-diagram]')) {
+    const frame = card.querySelector('iframe') as HTMLIFrameElement | null;
+    if (!frame) continue;
+    frames.push(frame);
+    frame.addEventListener('load', () => fit(frame));
+  }
+
+  if (frames.length) {
+    new MutationObserver(() => {
+      for (const frame of frames) {
+        try {
+          if (frame.contentDocument) paint(frame.contentDocument);
+        } catch { /* not ours to paint */ }
+      }
+    }).observe(document.documentElement, { attributeFilter: ['data-theme'] });
+  }
+</script>

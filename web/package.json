@@ -6,7 +6,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "predev": "cp ../docs/eklavya-runtime.html public/",
     "dev": "astro dev",
+    "prebuild": "cp ../docs/eklavya-runtime.html public/",
     "build": "astro build",
     "preview": "astro preview"
   },

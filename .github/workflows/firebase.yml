@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'web/**'
+      - 'docs/eklavya-runtime.html'
       - 'firebase.json'
       - '.firebaserc'
       - '.github/workflows/firebase.yml'

@@ -1,3 +1,6 @@
 dist/
 node_modules/
 .astro/
+
+# copied from docs/ by prebuild — the source of truth stays in docs/
+public/eklavya-runtime.html
