@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/ProjectAJ14/eklavya/compare/v1.12.0...v1.13.0) (2026-09-06)
+
+
+### Features
+
+* **doctor:** check the install and name the repair when it has broken ([e36fff6](https://github.com/ProjectAJ14/eklavya/commit/e36fff61d0971582714eb694b7f6f60a80bf68b2))
+
 # [1.12.0](https://github.com/ProjectAJ14/eklavya/compare/v1.11.1...v1.12.0) (2026-09-06)
 
 
