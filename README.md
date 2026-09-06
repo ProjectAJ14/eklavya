@@ -8,6 +8,12 @@
 
 *Named for Ekalavya, who mastered archery practicing before a silent statue of his guru. Here, the statue talks back.*
 
+<img src="assets/checkpoint.gif" alt="A checkpoint question arriving in the middle of a task, answered in two keystrokes, and the work carrying straight on" width="760">
+
+[![npm](https://img.shields.io/npm/v/eklavya?style=flat-square&color=0A5751&labelColor=16150f)](https://www.npmjs.com/package/eklavya)
+[![license](https://img.shields.io/npm/l/eklavya?style=flat-square&color=0A5751&labelColor=16150f)](LICENSE)
+[![node](https://img.shields.io/node/v/eklavya?style=flat-square&color=0A5751&labelColor=16150f)](https://nodejs.org)
+
 </div>
 
 Eklavya is a Claude Code plugin that turns agent generation time into learning
@@ -74,6 +80,12 @@ so a codebase you have just met starts easy however senior you are.
 For tutoring that runs *during* generation in a second pane — one session
 teaching while the other builds, sharing one database — see
 [`docs/parallel-tutoring.md`](docs/parallel-tutoring.md).
+
+## Stars
+
+<a href="https://star-history.com/#ProjectAJ14/eklavya&Date">
+  <img src="https://api.star-history.com/svg?repos=ProjectAJ14/eklavya&type=Date" width="600" alt="Star history for ProjectAJ14/eklavya">
+</a>
 
 ## Contributing
 
