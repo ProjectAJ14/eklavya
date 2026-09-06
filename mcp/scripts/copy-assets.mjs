@@ -16,11 +16,16 @@ for (const dir of ['migrations', 'seed']) {
 // The tutor pedagogy has to travel with the npm package: `eklavya export-rules`
 // derives the Cursor rules file from it, and a standalone install has no
 // skills/ directory. Copied at build time so SKILL.md stays the single source.
-const skill = path.join(path.dirname(root), 'skills', 'tutor', 'SKILL.md');
+//
+// The whole directory, not just SKILL.md: the pedagogy is split across
+// references/, which Claude Code loads on demand and export-rules inlines.
+// Copying only the entry point would silently ship Cursor a skill whose
+// required reading does not exist.
+const skill = path.join(path.dirname(root), 'skills', 'tutor');
 const assets = path.join(root, 'dist', 'assets');
 await mkdir(assets, { recursive: true });
 try {
-  await cp(skill, path.join(assets, 'tutor-skill.md'));
+  await cp(skill, path.join(assets, 'tutor'), { recursive: true });
 } catch (err) {
   console.warn(`warning: could not bundle the tutor skill (${err.code ?? err.message})`);
 }

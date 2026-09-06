@@ -58,8 +58,9 @@ by what it is, not loaded by trigger.
   `eklavya` CLI and the read/write config tools; it does not teach or quiz.
 - **`agents/tutor.md`** is the subagent. It has the Eklavya MCP tools and
   read-only file access — and **no `AskUserQuestion`** — so it renders the four
-  options as lettered text. Any change to the *Multiple choice* section of
-  `skills/tutor/SKILL.md` has to hold for a plain-text renderer too.
+  options as lettered text. Any change to
+  `skills/tutor/references/writing-mcq.md` has to hold for a plain-text
+  renderer too.
 
 ## A skill is a prompt, but it is also an API client
 
@@ -148,23 +149,67 @@ cadence, so a tier there would sometimes name the previous question's
 difficulty, and a stale readout is worse than none. `level` covers what the tier
 was explaining: `easy` already means tiers 1-2.
 
-## `skills/tutor/SKILL.md` has two readers
+## The tutor skill is an entry point plus references
 
-`mcp/scripts/copy-assets.mjs` bundles it to `mcp/dist/assets/tutor-skill.md`,
-and `eklavya export-rules` (`mcp/src/cli.ts`) strips the frontmatter and wraps
-it as a Cursor rules file. So that file is consumed by two editors.
+`skills/tutor/SKILL.md` was 5,296 words in one file, loaded whole whenever the
+model decided a task was non-trivial. It is now the part that decides *whether
+to act* — the log loop, checkpoint versus sweep, the shared budget, the tier
+ladder, the plan's authoritative fields, and a Red Flags table of the
+rationalizations that have each shipped a worse session — with the craft in
+three siblings:
 
-Consequence: **no Claude-Code-only instructions in its body.** Slash-command
-names, plugin paths and hook mechanics belong in the command skills, not in
-the pedagogy. `AskUserQuestion` is the one unavoidable exception, and
-`agents/tutor.md` already carries the fallback for renderers that lack it.
+| File | Holds |
+|---|---|
+| `references/writing-mcq.md` | the four-option shape, `answer_position`, distractors, plain language, the second question about a concept, `prereqs_unmet`, and how to record a stem |
+| `references/grading.md` | both scales, the mcq cap, feedback length, the four-step sequence a blank earns, `already_taught` |
+| `references/focus-and-level.md` | the three focuses, the earned level bands, the cadence contract, the enforced-mode gate retry |
+
+Two rules keep that split working.
+
+**Mark a reference REQUIRED at the point of use, never as an `@`-link.** An
+`@`-path is resolved eagerly by the host, which pulls the whole file into
+context and undoes the split. "Read `references/grading.md` before you grade",
+written where grading comes up, is what makes the model open it exactly when it
+needs it.
+
+**The entry point does not grow back.** `test/packaging.test.ts` fails above
+2,000 words, and separately asserts that every `references/<file>` named in
+SKILL.md exists in the repo, in `dist/assets/tutor/references/` and in the
+plugin payload. A pointer to a file that did not ship is the worst failure
+available here: the model is told the rules are elsewhere, cannot find them,
+and improvises, while nothing errors.
+
+## The tutor skill has two readers
+
+`mcp/scripts/copy-assets.mjs` bundles the whole `skills/tutor/` directory to
+`mcp/dist/assets/tutor/`, and `eklavya export-rules` (`mcp/src/cli.ts`) strips
+the frontmatter and wraps it as a Cursor rules file. So the pedagogy is
+consumed by two editors.
+
+**Cursor has no progressive disclosure**, and that is the reason `export-rules`
+concatenates SKILL.md with every `references/*.md` in alphabetical order and
+says so in its preamble. A rules file is one document with `alwaysApply: true`,
+so "read `references/grading.md`" there is a pointer to nothing. Had the split
+shipped without the inlining, Cursor would have got the dispatch logic and none
+of the craft — and every test would still have passed. `test/cli.test.ts` now
+asserts a line from each reference reaches the output.
+
+Alphabetical rather than a hand-kept order: in an always-apply document the
+whole thing is in context at once, so order carries no meaning, and a listed
+order is one more place a new reference gets forgotten.
+
+Consequence of the two readers: **no Claude-Code-only instructions in any of
+the four files.** Slash-command names, plugin paths and hook mechanics belong
+in the command skills, not in the pedagogy. `AskUserQuestion` is the one
+unavoidable exception, and `agents/tutor.md` already carries the fallback for
+renderers that lack it.
 
 ## Consistency
 
 The same behaviour described in two skills has drifted apart before — that is
 how `focus: project` got into three files. The four dials appear in
 `skills/mode/SKILL.md` and `user-skill/eklavya/SKILL.md`; the level bands
-appear in `skills/level/SKILL.md` and the *Level* section of `tutor`; the
-cadence cap appears in `mode`, `quiz` and `tutor`. **When you change one, grep
-the others for the same claim.** Where any of them disagrees with the code,
+appear in `skills/level/SKILL.md` and `tutor/references/focus-and-level.md`;
+the cadence cap appears in `mode`, `quiz` and that same reference. **When you
+change one, grep the others for the same claim.** Where any of them disagrees with the code,
 `mcp/src/config.ts` and the tool file are right and the skill is wrong.

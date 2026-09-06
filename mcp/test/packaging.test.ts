@@ -89,6 +89,43 @@ describe('what ships to npm', () => {
     expect(fs.existsSync(path.join(mcpRoot, 'dist', 'plugin', 'skills', 'eklavya'))).toBe(false);
   });
 
+  it('carries every reference file the tutor skill tells the model to read', () => {
+    // The pedagogy is split: SKILL.md says "read references/grading.md before
+    // you grade" and the model opens the file. A pointer to a file that did not
+    // ship is the worst-shaped failure available here -- the model is told the
+    // rules exist elsewhere, cannot find them, and improvises, while nothing
+    // errors. So the pointers and the files are checked against each other.
+    const tutor = path.join(repoRoot, 'skills', 'tutor');
+    // agents/tutor.md cites them by the same relative path, and it is the file
+    // that already went stale once this way -- it pointed at a section of
+    // SKILL.md that the split had moved out.
+    const citing = [path.join(tutor, 'SKILL.md'), path.join(repoRoot, 'agents', 'tutor.md')];
+    const named = citing.flatMap((f) =>
+      [...fs.readFileSync(f, 'utf8').matchAll(/references\/([a-z0-9-]+\.md)/g)].map((m) => m[1]),
+    );
+
+    expect(named.length).toBeGreaterThan(0);
+    for (const name of new Set(named)) {
+      // In the repo, in the npm asset copy `export-rules` reads, and in the
+      // plugin payload Claude Code loads from.
+      for (const dir of [
+        path.join(tutor, 'references'),
+        path.join(mcpRoot, 'dist', 'assets', 'tutor', 'references'),
+        path.join(mcpRoot, 'dist', 'plugin', 'skills', 'tutor', 'references'),
+      ]) {
+        expect(fs.existsSync(path.join(dir, name)), `missing ${dir}/${name}`).toBe(true);
+      }
+    }
+  });
+
+  it('keeps the tutor entry point small enough to load on every task', () => {
+    // It was 5,296 words in one file, loaded whole whenever the model decided a
+    // task was non-trivial. The split is the point of the references above, and
+    // this is the only thing stopping the entry point growing back into them.
+    const skill = fs.readFileSync(path.join(repoRoot, 'skills', 'tutor', 'SKILL.md'), 'utf8');
+    expect(skill.trim().split(/\s+/).length).toBeLessThan(2000);
+  });
+
   it('does not ship the shell hooks it replaced', () => {
     // They were unreliable on Windows, which is why they are gone. A stale copy
     // shipping alongside the Node ones is how they come back.

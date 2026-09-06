@@ -13,7 +13,7 @@ working in this repo.
 | `mcp/src/hooks/` | the hook logic, in TypeScript — one file per hook, plus the shared `lib.ts` |
 | `mcp/test/` | the vitest suite: `cd mcp && npm test` |
 | `hooks/` | `hooks.json` and `run.mjs`, the one cross-platform entry point. Five hooks: SessionStart, UserPromptSubmit (the log-directive nudge), PreToolUse (`Bash`, the commit gate), PostToolUse (the log-concepts checkpoint), Stop. Every one dispatches into `mcp/src/hooks/` |
-| `skills/` | the prompt-side behaviour; each skill with `disable-model-invocation: true` is also a `/eklavya:<name>` slash command |
+| `skills/` | the prompt-side behaviour; each skill with `disable-model-invocation: true` is also a `/eklavya:<name>` slash command. `tutor/` is the pedagogy, split into a short `SKILL.md` and `tutor/references/*.md` the model reads on demand |
 | `user-skill/` | the one skill installed to `~/.claude/skills/`, not shipped in the plugin — it drives the CLI from plain chat. Must never be under `skills/`, or it registers twice |
 | `agents/` | the tutor subagent |
 | `cli/`, `scripts/` | the editor-agnostic commit gate: `cli/eklavya-gate` is a POSIX script (no Node startup cost in a git hook), `scripts/install-git-hook.sh` installs it. `scripts/bump-version.sh` is the release's version bump |

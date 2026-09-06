@@ -17,7 +17,7 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | `eklavya dashboard [--port <n>] [--no-open]` | Serves your learning history as a local web page and opens it in your browser. `--no-open` serves it and prints the URL instead. See [The dashboard](/docs/dashboard/). |
 | `eklavya statusline` | Prints your dials as one line for a status bar, or nothing at all. See [below](#eklavya-statusline). |
 | `eklavya db-path` | Prints the database location. Useful in scripts. |
-| `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
+| `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. Claude Code loads the pedagogy in pieces, on demand; a rules file is a single always-applied document, so every piece is inlined into it. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
 
 ### `eklavya statusline`
 

@@ -94,6 +94,22 @@ describe('eklavya export-rules', () => {
     expect(res.stdout).not.toMatch(/disable-model-invocation/);
   });
 
+  it('inlines the reference files, because Cursor cannot open one on demand', () => {
+    // The pedagogy lives in SKILL.md plus references/. Claude Code follows a
+    // "read references/grading.md" pointer; a Cursor rules file is one
+    // always-apply document where that pointer resolves to nothing. If this
+    // breaks, Cursor gets the dispatch logic and none of the craft -- and every
+    // other test still passes.
+    const out = eklavya(['export-rules']).stdout;
+    expect(out).toMatch(/Distractors are the whole question/);   // writing-mcq
+    expect(out).toMatch(/A blank is not a skip/);                 // grading
+    expect(out).toMatch(/reused on a different project/);         // focus-and-level
+  });
+
+  it('tells that editor the references are further down the same file', () => {
+    expect(eklavya(['export-rules']).stdout).toMatch(/further down this\s+file/);
+  });
+
   it('says where it came from, so nobody hand-edits the generated file', () => {
     expect(eklavya(['export-rules']).stdout).toMatch(/skills\/tutor\/SKILL\.md/);
   });
