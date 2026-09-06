@@ -1,3 +1,11 @@
+# [1.16.0](https://github.com/ProjectAJ14/eklavya/compare/v1.15.0...v1.16.0) (2026-09-06)
+
+
+### Features
+
+* concept packs, so the graph can come from outside this repo ([2bc4a5f](https://github.com/ProjectAJ14/eklavya/commit/2bc4a5fb57d28865d4668201860cf79a451d31ac))
+* log delegated work with a SubagentStart hook ([c323fc2](https://github.com/ProjectAJ14/eklavya/commit/c323fc223d9869857bc8da34d2a84a66d41b5187))
+
 # [1.15.0](https://github.com/ProjectAJ14/eklavya/compare/v1.14.0...v1.15.0) (2026-09-06)
 
 
