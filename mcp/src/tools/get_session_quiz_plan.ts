@@ -21,6 +21,7 @@ import {
   type AskedQuestion,
   type ConceptRow,
 } from '../store.js';
+import { withSurfaceNote } from '../surface.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
 interface PlanItem {
@@ -111,8 +112,14 @@ function minutesSince(iso: string | null, now: Date): number {
 export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
-  description:
+  // Surface-noted for the same reason `log_session_concepts` is: this text says
+  // '"project" plans from the diff', and the returned `framing` it points at is
+  // already re-pointed on Cowork. A description that still promised a diff
+  // while the framing said otherwise would set the two against each other.
+  description: withSurfaceNote(
     'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Ask the stem on its own: the dials this question was pitched from (mode, focus, cadence, level) are shown in the status bar, so what you pass is the question and nothing else. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking.',
+    ' ',
+  ),
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -478,8 +485,10 @@ export const getSessionQuizPlan: ToolDef = {
       questions_needed: picked.length,
       focus,
       // Stated with every plan so the pedagogy cannot drift from the setting:
-      // the tutor should not have to remember what `concept` implies.
-      framing: FRAMING[focus],
+      // the tutor should not have to remember what `concept` implies. On Cowork
+      // it also carries the surface note, because every string in `FRAMING`
+      // names a diff and a Cowork session has none.
+      framing: withSurfaceNote(FRAMING[focus], ' '),
       ...(focus === 'learn' && config.focus_topic ? { topic: config.focus_topic } : {}),
       level: standing.level,
       level_framing: LEVEL_FRAMING[standing.level],

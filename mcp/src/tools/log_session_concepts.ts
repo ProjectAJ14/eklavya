@@ -13,6 +13,7 @@ import {
   sessionConcepts,
   syncGate,
 } from '../store.js';
+import { withSurfaceNote } from '../surface.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
 const DEFAULT_DOMAIN = 'general';
@@ -21,8 +22,14 @@ const DEFAULT_TIER = 2;
 export const logSessionConcepts: ToolDef = {
   name: 'log_session_concepts',
   title: 'Log session concepts',
-  description:
+  // Evaluated once, when this module is imported, so the surface is read from
+  // the environment the server was started in. That is the right moment: the
+  // host sets `CLAUDE_CODE_ENTRYPOINT` before spawning us and a session cannot
+  // change surface halfway through.
+  description: withSurfaceNote(
     'Record the concepts the current task genuinely exercises, each with a one-line context pointing at the real code you wrote. Call this while implementing, batched, 3-8 concepts per task. Unknown slugs are created automatically, but bare — when the response carries next_action, do what it says before quizzing.',
+    ' ',
+  ),
   inputSchema: {
     session_id: z.string().optional().describe(SESSION_HINT),
     cwd: z.string().optional().describe(CWD_HINT),

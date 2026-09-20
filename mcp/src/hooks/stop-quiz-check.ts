@@ -25,6 +25,7 @@
  * ignored us entirely. Only genuinely new logged work re-arms it, and
  * `block_count` caps even that.
  */
+import { isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
 
 await run(async (input) => {
@@ -188,9 +189,17 @@ come back for. The plan returns a "framing" field. Follow it.`
       : `Use the eklavya MCP server and the tutor skill: call get_session_quiz_plan, ask
 ONE question at a time at each concept's tier_to_ask, and grade each answer with
 record_attempt. The plan returns a "framing" field. Follow it.`;
+  // The enforced line names the commit gate as the reason to press, which is
+  // true everywhere the gate can fire. On Cowork it cannot — it matches `git
+  // commit`, and Cowork does not commit — and session-start has already told
+  // this session that nothing is blocked. Saying both things in one session
+  // teaches the learner that Eklavya's warnings need not be read carefully, so
+  // the enforced framing drops to why the quiz still matters there.
   const tone =
     mode === 'enforced'
-      ? 'This session is in enforced mode: the commit gate needs this quiz.'
+      ? isCowork()
+        ? 'This session is in enforced mode. Nothing is blocked here — Cowork does not commit — but the gate still records what was answered, so ask properly.'
+        : 'This session is in enforced mode: the commit gate needs this quiz.'
       : 'If they say skip, record it as grade 0 and let them go — do not ask twice.';
 
   process.stderr.write(`Eklavya: before finishing, quiz the developer on what this task just taught.

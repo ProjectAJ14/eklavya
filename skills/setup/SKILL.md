@@ -12,7 +12,9 @@ Get Eklavya working on this machine. Be brief; this should take one exchange.
 
 Optionally run `eklavya doctor`, which reports the same thing plus the runtime, the SQLite driver, the plugin's registration, the chat skill, the database and the effective config. It exits non-zero and names the repair — `eklavya install` — if any of those has broken. That is also the command to reach for later, whenever Eklavya has gone quiet: the hooks never fail loudly, so a broken install looks exactly like a quiet one.
 
-**2. Confirm the database.** Call `get_config` and report `global_path`, then check the DB:
+**2. Confirm the database.** Call `get_config` and report `global_path`. If that same call reports `surface: "cowork"`, stop there — `global_path` came back, so the server is running and the database is behind it; that is the confirmation. **Do not run the shell check below in Cowork.** It runs in a sandbox VM with its own filesystem, finds no `~/.eklavya/knowledge.db`, and would have you report a broken install on a healthy one.
+
+Everywhere else, check the DB:
 
 ```bash
 sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'
@@ -36,7 +38,9 @@ Then `set_config` with their choice. Use `scope: "repo"` if they want it to appl
 
 `set_config` with `focus`, plus `focus_topic` if they chose `learn` — that combination is useless without one. If they have no preference, say concept is the default and move on; this should not become an interview. `/eklavya:mode` changes it later.
 
-**4. If they chose enforced, install the git hook.** The `PreToolUse` hook only covers commits made inside Claude Code. The git `pre-commit` hook covers every other path — a bare terminal, VS Code, Cursor:
+**4. If they chose enforced, install the git hook.** Skip this entire step when `get_config` reports `surface: "cowork"` — Cowork does not commit, so there is nothing to gate and no repo to install into. Say once that enforced mode will ask its questions but block nothing here, and move on; everything else in this setup applies unchanged. Trust that field rather than checking the environment yourself: a shell command in Cowork runs inside a sandbox VM and cannot see the variable this is read from.
+
+The `PreToolUse` hook only covers commits made inside Claude Code — which includes the Code tab in Claude Desktop, the same engine on the same config. The git `pre-commit` hook covers every other path — a bare terminal, VS Code, Cursor:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/scripts/install-git-hook.sh

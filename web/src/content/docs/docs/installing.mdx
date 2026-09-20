@@ -6,7 +6,24 @@ sidebar:
 
 import { Steps } from '@astrojs/starlight/components';
 
-Two routes, and they end up in the same place. Pick either.
+### Where Eklavya runs
+
+Eklavya loads in three places. Two of them are one install; the third is its own.
+
+| Where | How it gets there |
+|---|---|
+| **Claude Code**, in a terminal | Route A or B below |
+| **Claude Code in Claude Desktop** — the Code tab | Nothing extra: it is the same engine reading the same `~/.claude`, so A or B covers it too |
+| **Cowork**, in Claude Desktop | [Route D](#d-in-cowork), from Claude Desktop's own Plugins page |
+
+All three write to the same `~/.eklavya/knowledge.db`. You are one learner with
+one knowledge graph whichever you are working in, and a concept you were quizzed
+on in the terminal comes back for review in Cowork.
+
+Ordinary Claude Desktop **chat** is the exception — chat does not load plugins,
+so Eklavya is not there.
+
+Routes A and B are for Claude Code, and they end up in the same place. Pick either.
 
 ### A. One command, from a terminal
 
@@ -117,6 +134,44 @@ claude --plugin-dir "$(pwd)"
 
 `--plugin-dir` tells Claude Code to load the plugin from a folder instead of a marketplace, and sets `CLAUDE_PLUGIN_ROOT` so the MCP server can find itself. Use it rather than relying on the repository's `.mcp.json` as project config, which has no plugin root to expand. The launcher prefers your local `mcp/dist/` build when one exists, so a rebuild is all it takes to see a change.
 
+### D. In Cowork
+
+Cowork keeps its own list of plugins, separate from Claude Code's, so it needs
+its own install even if you already have Eklavya in the terminal. It is the same
+plugin from the same repository.
+
+<Steps>
+
+1. #### Open the Plugins page
+
+   In Claude Desktop, **Customize** in the sidebar, then **Plugins**.
+2. #### Add the marketplace
+
+   **Add marketplace**, then `ProjectAJ14/eklavya`. That is the same GitHub repository route B uses; Cowork accepts the `owner/repo` shorthand or the full `https://github.com/…` URL.
+3. #### Install
+
+   Find **Eklavya** in the list and select **Install**. Open it afterwards to see its skills, connector and hooks, which you can switch on and off individually.
+4. #### Run first-time setup
+
+   `/eklavya:setup`, the same as anywhere else.
+
+</Steps>
+
+If you would rather not add a marketplace, you can build the package yourself —
+`zip -r eklavya.plugin .` from a checkout — and use the upload option on the
+same page. The marketplace route is better, because it is the one that gets
+updates.
+
+:::note
+**What is different in Cowork.** The loop is the same — concepts are logged
+while the work happens, questions arrive at the seams — but Cowork produces
+documents and analysis rather than code, so Eklavya asks about the work you
+produced rather than about a diff. Two things do not carry over:
+
+- **The commit gate does nothing.** It holds `git commit`, and Cowork does not commit. `enforced` mode still records the gate and still asks the questions; it just has nothing to block, and says so at session start.
+- **Delegated work is not logged.** Cowork does not fire the `SubagentStart` event, so a subagent is never told to log what it exercised. Concepts from the main thread are logged as normal.
+:::
+
 ### Uninstalling
 
 ```bash
@@ -125,6 +180,8 @@ npx eklavya uninstall --purge   # removes ~/.eklavya as well
 ```
 
 Without `--purge` your knowledge graph stays at `~/.eklavya/knowledge.db`, so reinstalling picks up exactly where you left off. That is deliberate: months of spaced repetition should not disappear because you removed a plugin.
+
+This covers Claude Code and the Code tab in Claude Desktop. Cowork holds its own copy, so remove that one where you installed it — **Customize → Plugins → Eklavya → Uninstall**.
 
 ### The `eklavya` command
 

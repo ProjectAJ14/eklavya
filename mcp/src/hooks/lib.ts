@@ -20,6 +20,7 @@ import Database from 'better-sqlite3';
 import { dbPath } from '../paths.js';
 import { loadConfig, type ResolvedConfig } from '../config.js';
 import { readStdinBounded, stripBom, HOOK_STDIN } from '../stdin.js';
+import { withSurfaceNote } from '../surface.js';
 
 export type DB = Database.Database;
 
@@ -175,8 +176,21 @@ export function nowIso(): string {
  * The skill is model-invoked: it competes with every other skill on the machine
  * and may never load. Without this line an ambient session teaches whatever the
  * default is rather than what the developer configured.
+ *
+ * Every branch below is written in code — "the diff", "a different codebase" —
+ * because on the two Claude Code surfaces that is what there is. On Cowork
+ * there is not, so the surface note is appended rather than the strings being
+ * restated; `surface.ts` says why.
  */
 export function framingFor(
+  focus: string,
+  topic: string | null | undefined,
+  where: 'checkpoint' | 'stop',
+): string {
+  return withSurfaceNote(focusFraming(focus, topic, where), ' ');
+}
+
+function focusFraming(
   focus: string,
   topic: string | null | undefined,
   where: 'checkpoint' | 'stop',

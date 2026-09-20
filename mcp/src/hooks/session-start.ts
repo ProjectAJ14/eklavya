@@ -6,6 +6,7 @@
  */
 import { setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
+import { isCowork, withSurfaceNote } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, clearNudgeState, type DB } from './lib.js';
 
 /**
@@ -127,13 +128,25 @@ await run(async (input) => {
     banner(db, out, { mode, focusLabel, cadence, levelLabel, overrides: resolved.overrides });
   }
 
+  // Said even when `quiet` is set, and said before the directive, because it is
+  // not a greeting: a lead who pinned enforced mode has been promised commits
+  // are held, and in Cowork nothing holds them. The gate matches `git commit` in
+  // a Bash call, and Cowork sessions do not commit. Better to say so once per
+  // session than to let someone believe an unenforceable setting is enforcing.
+  if (mode === 'enforced' && isCowork()) {
+    out.push(
+      '[Eklavya] Mode is enforced, but this is a Cowork session: the commit gate holds `git commit`, ' +
+        'and there are no commits here. Questions still come and the gate still records — nothing is blocked.',
+    );
+  }
+
   // The directive is on screen again, so the nudge's clock starts again. This
   // hook fires on resume and after a compaction, not only at startup, and both
   // reuse the session id -- without this the first prompt of a resumed session
   // restates what was printed seconds ago.
   if (sid) clearNudgeState(db, sid);
 
-  out.push(DIRECTIVE);
+  out.push(withSurfaceNote(DIRECTIVE));
   process.stdout.write(`${out.join('\n')}\n`);
   return 0;
 });

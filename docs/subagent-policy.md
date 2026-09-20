@@ -15,6 +15,32 @@ So there are three roles, and each one does exactly one thing.
 | An implementer subagent | yes | **no** | `SubagentStart` directive (`mcp/src/hooks/subagent-start.ts`) |
 | The `eklavya-tutor` subagent | **no** | yes | `agents/tutor.md`, its own brief — no hook speaks to it |
 
+## None of this reaches Cowork
+
+The table above is true on Claude Code — the CLI and the Code tab in Claude
+Desktop, which are the same engine. It is not true in Cowork.
+
+Cowork fires nine hook events: `PreToolUse`, `PostToolUse`, `Stop`,
+`SubagentStop`, `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreCompact`
+and `Notification`. `SubagentStart` is not among them. So in a Cowork session
+the middle row simply does not happen: an implementer subagent is never told to
+log, and whatever it exercised is lost. The parent thread still logs and still
+quizzes, because `SessionStart` and `Stop` both fire.
+
+There is nothing to do about it from this side — a hook that is never invoked
+cannot be worked around — so it is recorded here rather than fixed. Two
+consequences worth holding on to:
+
+- A Cowork session that delegates most of its work will have thin sessions. That
+  is the known cost, not a bug to chase.
+- `subagent-start.ts` still applies the Cowork surface note to its directive.
+  Nothing delivers that today; it means the day Cowork does fire the event, the
+  wording is already right and no release is needed to catch up.
+
+`SubagentStop` **does** fire in Cowork, and is the obvious place to close this if
+it ever becomes worth closing — but it arrives after the subagent is gone, with
+no context to log from, so it is not a drop-in replacement.
+
 ## The implementer logs, because it is the one that knows
 
 `SessionStart` fires once, in the parent thread. Its standing directive never

@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import path from 'node:path';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from '../config.js';
+import { currentSurface } from '../surface.js';
 import { CWD_HINT, type ToolDef } from './types.js';
 
 export const getConfig: ToolDef = {
   name: 'get_config',
   title: 'Get config',
   description:
-    'The effective Eklavya config: global ~/.eklavya/config.json merged with the repo .eklavya.json, repo winning.',
+    'The effective Eklavya config: global ~/.eklavya/config.json merged with the repo .eklavya.json, repo winning. Also reports surface — "code" for Claude Code (a terminal or the Code tab in Claude Desktop) or "cowork" — which is the only reliable way to tell: in Cowork a shell command runs in a sandbox VM and cannot see the host environment this is read from.',
   inputSchema: { cwd: z.string().optional().describe(CWD_HINT) },
   handler: (args: { cwd?: string }) => {
     const resolved = loadConfig(args.cwd);
@@ -16,6 +17,14 @@ export const getConfig: ToolDef = {
       global_path: resolved.globalPath,
       repo_path: resolved.repoPath,
       repo_root: resolved.repoRoot,
+      /**
+       * Which Claude surface this is. Reported here because the server is the
+       * one part of Eklavya that runs on the host in every case: Cowork
+       * executes shell commands inside a sandbox VM, so a skill that tried to
+       * read `CLAUDE_CODE_ENTRYPOINT` with `echo` would be reading the VM's
+       * environment and getting the wrong answer, or nothing at all.
+       */
+      surface: currentSurface(),
       // Which of the learner's own settings this repo is overriding. Say it
       // rather than let a personal focus silently stop applying.
       overridden_by_repo: resolved.overrides,

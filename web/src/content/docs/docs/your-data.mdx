@@ -33,6 +33,23 @@ export EKLAVYA_HOME=/tmp/eklavya-test   # whole directory
 export EKLAVYA_DB=/tmp/test.db          # just the database
 ```
 
+A third changes wording rather than data. Eklavya works out whether it is in a
+Claude Code session or a Cowork one from the entrypoint the app sets, and words
+its questions accordingly — code and diffs in the first, the work you produced
+in the second. `EKLAVYA_SURFACE` pins it:
+
+```text
+export EKLAVYA_SURFACE=cowork   # or: code
+```
+
+This one only reaches a process that inherits your shell — the `eklavya` CLI, or
+Claude Code started from a terminal. It does **not** reach a Cowork session:
+Claude Desktop composes the environment for the hooks and the server itself, and
+the shell you can reach there belongs to the sandbox VM, which they are not
+started from. So it is a testing and CLI knob rather than a fix for a
+misdetected Cowork session — if you ever hit one of those, it is a bug worth
+[reporting](https://github.com/ProjectAJ14/eklavya/issues) with your app version.
+
 ### Deleting it
 
 ```text
