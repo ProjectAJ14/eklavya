@@ -37,17 +37,18 @@ function sh(cmd: string, args: string[], opts: { input?: string; cwd?: string; e
   return { status: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
 }
 
-const preToolGate = (command: string, extra: Record<string, unknown> = {}) =>
-  sh(process.execPath, [PRE_TOOL_GATE], {
-    input: JSON.stringify({
-      session_id: SESSION,
-      cwd: repo,
-      hook_event_name: 'PreToolUse',
-      tool_name: 'Bash',
-      tool_input: { command },
-      ...extra,
-    }),
+const gateInput = (command: string, extra: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    session_id: SESSION,
+    cwd: repo,
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_input: { command },
+    ...extra,
   });
+
+const preToolGate = (command: string, extra: Record<string, unknown> = {}) =>
+  sh(process.execPath, [PRE_TOOL_GATE], { input: gateInput(command, extra) });
 
 const gateCli = (cwd = repo) => sh('/bin/sh', [GATE_CLI], { cwd });
 
@@ -156,9 +157,20 @@ describe('PreToolUse gate — getting out of the way', () => {
   it('is fast enough to sit on every Bash call', () => {
     repoConfig({ mode: 'enforced' });
     openGate({ required: 2 });
-    const started = Date.now();
-    for (let i = 0; i < 5; i += 1) preToolGate('npm run build');
-    expect((Date.now() - started) / 5).toBeLessThan(150);
+
+    // Measured ABOVE a bare node process, not as a wall-clock absolute. Node's
+    // own startup is most of the number and this repo cannot regress it, while a
+    // busy laptop or a shared CI runner triples it -- a fixed 150ms budget for
+    // the whole spawn made this test fail whenever the machine was loaded, which
+    // is a flake reporting nothing. What the gate can regress is its own work:
+    // read the config, open the database, run the query. That is what is bounded.
+    const per = (args: string[]) => {
+      const started = Date.now();
+      for (let i = 0; i < 5; i += 1) sh(process.execPath, args, { input: gateInput('npm run build') });
+      return (Date.now() - started) / 5;
+    };
+    const overhead = per([PRE_TOOL_GATE]) - per(['-e', 'process.stdin.resume()']);
+    expect(overhead).toBeLessThan(150);
   });
 });
 

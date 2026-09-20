@@ -29,7 +29,8 @@ No questions, no checkpoints, no banner, no status bar, until the session ends �
 and nothing on disk changes, so the next session is configured exactly as it was.
 Ask for it back in the same words (**"turn Eklavya back on"**) and the session
 picks up where it left off; concepts logged while it was silent are not lost,
-they stay unmastered and come back as review.
+they stay unmastered and a later session offers them again once its own work and
+review debt are covered.
 
 One thing it deliberately does not do: **it does not open the commit gate.** In a
 repo running `enforced` mode, the [git hook](/docs/commit-gate/) reads
@@ -53,8 +54,8 @@ only a repo or global `mode` change is the second one.
 | `level_up_accuracy` | `0.7` | Minimum accuracy over every answer at that band, not only the passing ones. Declines are excluded from both halves of the fraction. |
 | `pass_threshold` | `0.7` | The fraction of a session's required concepts you must answer correctly — grade 3 or better — before the commit gate opens, rounded up. `required` never exceeds `max_questions_per_task`, so at both defaults that is three of four. |
 | `max_questions_per_task` | `4` | A budget for the **whole session**, shared between mid-task checkpoints and the end-of-task sweep. Not a batch size — on the default cadence a quiz asks one question, so the budget is spent one at a time or not at all. |
-| `min_minutes_between_quizzes` | `20` | Floor between whole quizzes. This is the anti-nagging dial. It applies in `ambient` mode only — `enforced` ignores it, or a cooldown could make a commit gate unpassable. |
-| `min_minutes_between_checkpoints` | `4` | Floor between single mid-task questions, so logging eight concepts at once cannot become eight questions in a row. `0` asks at every seam. |
+| `min_minutes_between_quizzes` | `20` | Floor between whole quizzes, and the anti-nagging dial for the `end` cadence. It applies in `ambient` mode only — `enforced` ignores it, or a cooldown could make a commit gate unpassable. On `interleaved` nothing it paces exists: every quiz there is one question, so `min_minutes_between_checkpoints` is the dial that applies. |
+| `min_minutes_between_checkpoints` | `4` | Floor between single questions on the `interleaved` cadence — both the mid-task checkpoint and the end-of-task sweep. It is what stops eight logged concepts becoming eight questions in a row, and it is what re-arms the sweep, so lowering it asks more often and raising it asks less. `0` asks at every seam; the end-of-task sweep still keeps a one-minute floor, since there this clock is its only loop guard. |
 | `max_new_concepts_per_session` | `8` | Cap on concepts Claude may invent per session, against slug sprawl. |
 | `max_stop_blocks_per_session` | `3` | Hard backstop on how many times the end-of-task hook may hold a session open. |
 | `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |

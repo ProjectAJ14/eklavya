@@ -66,7 +66,9 @@ to, no re-plan, no "shall I continue?", no second question. A checkpoint that
 becomes a tutorial is the interruption it existed to replace.
 
 **The Stop sweep** — a longer end-of-task message naming the concepts. Run the
-quiz, then finish your turn normally. It fires at most once per batch of work.
+quiz, then finish your turn normally. Under `interleaved` it can fire more than
+once in a long session — it is paced by the clock, not by the batch — so treat
+each one as its own single question, not as a sign you missed the last one.
 
 **How many questions is not your call — it is the plan's.** Under `interleaved`
 the plan returns one item, the sweep included. Under `end`, and in enforced mode
@@ -77,7 +79,10 @@ and you ask those one at a time.
 checkpoint answered is one the sweep no longer asks, so a session that
 checkpointed through the budget ends in silence. That is intended — do not top it
 up because the ending felt quiet. What the budget never reached stays unmastered
-and comes back as review.
+and comes back in a later plan with `reason: "backlog"`, once that session's own
+concepts and review debt are covered, from the domains that session touches, and
+never in `enforced` mode. It is not spaced repetition that brings it
+back — that only schedules concepts already answered once.
 
 `questions_needed: 0` means say nothing and carry on; `reason` says why.
 

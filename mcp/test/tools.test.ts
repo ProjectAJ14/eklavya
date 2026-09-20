@@ -402,6 +402,101 @@ describe('get_session_quiz_plan', () => {
     expect(plan.concepts.find((c: any) => c.slug === 'pkce').reason).toBe('domain_review');
   });
 
+  // --- the backlog: work that was logged and never asked about ---------------
+  // Spaced repetition cannot reach these. (c) above joins `mastery`, and a
+  // mastery row is written only by record_attempt -- so a concept the budget
+  // never got to has no next_review to come due on and would be offered again
+  // never. That is the leak this source closes.
+
+  it('offers work an earlier session logged and no question ever reached', () => {
+    call(logSessionConcepts, {
+      session_id: 'earlier-session',
+      concepts: [{ slug: 'pkce', context: 'added the code_verifier in login.ts' }],
+    });
+
+    logAuthWork();
+    master('httponly-cookies');
+    master('jwt-structure');
+    master('csrf');
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.map((c: any) => c.slug)).toContain('pkce');
+    expect(plan.concepts.find((c: any) => c.slug === 'pkce').reason).toBe('backlog');
+  });
+
+  it('never re-offers backlog that some earlier session did ask about', () => {
+    call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'pkce' }] });
+    // Asked and answered there, which is the whole difference. `alreadyAsked` is
+    // scoped to the current session, so the source carries its own global filter.
+    call(recordAttempt, {
+      session_id: 'earlier-session',
+      slug: 'pkce',
+      question: 'about pkce',
+      answer: 'a',
+      grade: 4,
+      difficulty: 2,
+    });
+
+    logAuthWork();
+    master('httponly-cookies');
+    master('jwt-structure');
+    master('csrf');
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('pkce');
+  });
+
+  it('puts the session the developer is actually in ahead of the backlog', () => {
+    configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 2 });
+    call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'pkce' }] });
+    logAuthWork();
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts).toHaveLength(2);
+    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('pkce');
+    expect(plan.concepts.every((c: any) => c.reason === 'unmastered')).toBe(true);
+  });
+
+  it('keeps the backlog inside the domains this session touched', () => {
+    // One database serves every project, and `session_concepts` has no repo
+    // column, so without this scope a web-auth session gets asked about the git
+    // work it logged last month -- while `framing` still tells the tutor to ground
+    // the question in this session's diff, which that concept is not in.
+    call(logSessionConcepts, {
+      session_id: 'earlier-session',
+      concepts: [{ slug: 'git-commit' }, { slug: 'pkce' }],
+    });
+
+    logAuthWork();
+    master('httponly-cookies');
+    master('jwt-structure');
+    master('csrf');
+
+    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map(
+      (c: any) => c.slug,
+    );
+    expect(slugs).toContain('pkce');
+    expect(slugs).not.toContain('git-commit');
+  });
+
+  it('falls back to the whole backlog when this session logged nothing', () => {
+    // No diff to contradict, so there is nothing for the scope to protect and the
+    // debt is the only thing worth asking about.
+    call(logSessionConcepts, {
+      session_id: 'earlier-session',
+      concepts: [{ slug: 'git-commit' }],
+    });
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.map((c: any) => c.slug)).toContain('git-commit');
+  });
+
+  it('does not treat this session\'s own unasked concepts as backlog', () => {
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.some((c: any) => c.reason === 'backlog')).toBe(false);
+  });
+
   it('goes quiet in ambient mode during the cooldown (G5)', () => {
     configure({ min_minutes_between_quizzes: 30, mode: 'ambient' });
     logAuthWork();
@@ -417,6 +512,54 @@ describe('get_session_quiz_plan', () => {
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.questions_needed).toBe(0);
     expect(plan.reason).toBe('cooldown');
+  });
+
+  // The clock the cooldown reads has to be the one the Stop hook paces on, or the
+  // hook clears its 4-minute checkpoint gap, blocks the turn, and this function
+  // then refuses on a 20-minute quiz gap -- which reads to the model as being told
+  // to teach and handed nothing to teach.
+  it('paces interleaved on the checkpoint clock, never the quiz clock', () => {
+    configure({
+      mode: 'ambient',
+      cadence: 'interleaved',
+      min_minutes_between_quizzes: 0,
+      min_minutes_between_checkpoints: 30,
+    });
+    logAuthWork();
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'q',
+      answer: 'a',
+      grade: 4,
+      difficulty: 2,
+    });
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.reason).toBe('cooldown');
+    expect(plan.minutes_remaining).toBeGreaterThan(20);
+  });
+
+  it('paces the end cadence on the quiz clock, never the checkpoint one', () => {
+    configure({
+      mode: 'ambient',
+      cadence: 'end',
+      min_minutes_between_quizzes: 30,
+      min_minutes_between_checkpoints: 0,
+    });
+    logAuthWork();
+    call(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'q',
+      answer: 'a',
+      grade: 4,
+      difficulty: 2,
+    });
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.reason).toBe('cooldown');
+    expect(plan.minutes_remaining).toBeGreaterThan(20);
   });
 
   it('ignores the cooldown in enforced mode, or the gate could never be passed', () => {
@@ -817,6 +960,25 @@ describe('enforced-mode gate retry', () => {
       });
     }
   };
+
+  // The retry pass is guarded on `picked.length === 0`, so anything that fills
+  // `picked` suppresses it. The backlog source would have, on every real database:
+  // it runs immediately before, and a backlog answer is recorded with
+  // `origin = 'review'` while the gate counts only `origin = 'work'` -- so it
+  // cannot open the commit it just displaced the way out of.
+  it('is not starved by a backlog of unasked work from other sessions', () => {
+    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    call(logSessionConcepts, {
+      session_id: 'earlier-session',
+      concepts: [{ slug: 'pkce' }, { slug: 'oauth2-authorization-code' }],
+    });
+    blankEverything();
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.questions_needed).toBeGreaterThan(0);
+    expect(plan.concepts.every((c: any) => c.reason === 'gate_retry')).toBe(true);
+    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('pkce');
+  });
 
   it('re-offers taught concepts once the gate is otherwise unreachable', () => {
     configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });

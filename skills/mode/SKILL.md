@@ -59,7 +59,7 @@ It takes `mode` and nothing else. Any other value of `mode` at that scope brings
 
 Say one line back — including *which* session it acted on if `set_config` reports a `session_id` you did not pass — and say the limit in it when the effective mode is `enforced`: the questions are silenced, but the commit gate reads `.eklavya.json` and never sees a session id, so a commit still waits for the quiz, and it keeps growing while you work in silence. Someone who wants that gone wants a repo or global `mode` change, and that is a different, deliberate decision — `set_config` returns a `note` saying so.
 
-Nothing is lost while a session is silent: concepts logged stay unmastered and come back as review later.
+Nothing is lost while a session is silent: concepts logged stay unmastered, and a later session offers them again once its own work and review debt are covered.
 
 ## Confirm
 
