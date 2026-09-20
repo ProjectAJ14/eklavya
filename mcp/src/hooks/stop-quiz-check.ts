@@ -140,9 +140,19 @@ await run(async (input) => {
   // cooldown from the last *answer*; this hook stamps the last *block*. Checking
   // only the block would let us block a turn that the quiz plan then refuses as
   // too soon, which reads to the model as being told to teach and given nothing to
-  // teach. Whichever happened more recently wins.
+  // teach. Whichever happened more recently wins. The plan reads whichever of the
+  // two keys this line does, keyed on the same cadence, so the pair cannot desync.
+  //
+  // Floored at one minute under `interleaved`, because there the clock is the only
+  // loop guard left (see below) and `min_minutes_between_checkpoints: 0` is a
+  // supported value -- it means "ask at every seam" for the PostToolUse checkpoint,
+  // which has a logged concept behind each firing. A Stop sweep has no such event:
+  // at a gap of 0 a model that ignores the instruction and stops again immediately
+  // gets blocked again immediately, three times in a row with no pause.
   if (mode === 'ambient') {
-    const gap = interleaved ? min_minutes_between_checkpoints : min_minutes_between_quizzes;
+    const gap = interleaved
+      ? Math.max(1, min_minutes_between_checkpoints)
+      : min_minutes_between_quizzes;
     if (minutesSince(stats.last_blocked) < gap) return 0;
     if (minutesSince(stats.last_answer) < gap) return 0;
   }

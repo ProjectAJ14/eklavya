@@ -105,6 +105,24 @@ function answer(slug: string, grade: number, session = SESSION): void {
   });
 }
 
+/**
+ * Push both pacing clocks back, so a test about the loop guard or the message body
+ * is not also a test of the gap. `min_minutes_between_checkpoints: 0` used to do
+ * this job, but the interleaved sweep floors its gap at one minute -- there the
+ * clock is the only loop guard, and without a floor a model that ignores the
+ * instruction gets blocked again on the very next Stop.
+ */
+function ageClocks(minutes = 60, session = SESSION): void {
+  db.prepare(
+    `UPDATE stop_markers SET last_blocked_at = strftime('%Y-%m-%dT%H:%M:%fZ','now',@off)
+      WHERE session_id = @sid`,
+  ).run({ sid: session, off: `-${minutes} minutes` });
+  db.prepare(`UPDATE attempts SET ts = datetime('now',@off) WHERE session_id = @sid`).run({
+    sid: session,
+    off: `-${minutes} minutes`,
+  });
+}
+
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-home-'));
   cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-cwd-'));
@@ -333,13 +351,30 @@ describe('Stop hook — the loop guard (P0)', () => {
     configure({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['csrf', 'jwt-structure']);
 
-    // No new work logged between any of these, which is the point.
+    // No new work logged between any of these, which is the point: it is time
+    // that re-arms the sweep, not a fresh log_session_concepts call.
     expect(stop().status).toBe(2);
+    ageClocks();
     expect(stop().status).toBe(2);
+    ageClocks();
     expect(stop().status).toBe(2);
 
     // And max_stop_blocks_per_session still ends it.
+    ageClocks();
     expect(stop().status).toBe(0);
+  });
+
+  it('floors the interleaved gap at a minute, so a gap of 0 is not a loop', () => {
+    // `0` is a supported value and means "every seam" for the PostToolUse
+    // checkpoint, which has a logged concept behind each firing. A Stop sweep has
+    // no such event, so at 0 a model that ignores the instruction and stops again
+    // immediately would be blocked again immediately, three times over.
+    configure({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf', 'jwt-structure']);
+
+    expect(stop().status).toBe(2);
+    expect(stop().status, 'blocked twice inside the floor').toBe(0);
+    expect(stop().status, 'blocked twice inside the floor').toBe(0);
   });
 
   it('does not loop under interleaved: repeat Stops inside the pacing gap pass', () => {
@@ -363,6 +398,9 @@ describe('Stop hook — the loop guard (P0)', () => {
     logConcepts(['csrf', 'jwt-structure']);
 
     expect(stop().status).toBe(2);
+    // Two minutes on: past the checkpoint clock (floored at one), nowhere near the
+    // 600-minute quiz clock. Blocking here is the whole claim.
+    ageClocks(2);
     expect(stop().status).toBe(2);
   });
 
@@ -469,6 +507,7 @@ describe('Stop hook — when not to fire', () => {
     logConcepts(['csrf']);
     answer('csrf', 3);
     logConcepts(['jwt-structure']);
+    ageClocks(2);
     const res = stop();
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/jwt-structure/);
@@ -565,6 +604,7 @@ describe('Stop hook — what it tells Claude', () => {
 
     configure({ mode: 'ambient', min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['jwt-structure']);
+    ageClocks();
     expect(stop().stderr).toMatch(/say skip/);
   });
 });
@@ -773,6 +813,7 @@ describe('The budget is shared: checkpoints spend what the Stop sweep would have
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
 
     answer('csrf', 3);
+    ageClocks(2);
 
     const res = stop();
     expect(res.status).toBe(2);

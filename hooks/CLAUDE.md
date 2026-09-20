@@ -240,7 +240,12 @@ cadence is `interleaved`, since a sweep is one question there.
 `min_minutes_between_quizzes` (default 20) paces a **whole quiz**, which only the
 `end` cadence produces. Both apply **in `ambient` only**, and both are measured
 against the last block *and* the last answer — checking only one would let the
-hook block a turn the quiz plan then refuses as too soon.
+hook block a turn the quiz plan then refuses as too soon. That is why
+`get_session_quiz_plan` picks between the same two keys on the same cadence: the
+hook's clock and the plan's cooldown have to be the same number, or the hook
+blocks a turn and the plan hands back `questions_needed: 0`. Under `interleaved`
+the Stop sweep floors its gap at one minute, because there the clock is the whole
+loop guard and `0` is a legal value for the checkpoint it borrows.
 `max_questions_per_task` (default 4) is a session allowance shared by both hooks:
 every `attempts` row spends it, so the Stop hook asks for whatever the checkpoints
 left. The two hooks' candidate queries share a WHERE clause verbatim; if you

@@ -134,7 +134,17 @@ describe('the full teaching loop over the real transport', () => {
       path.join(home, 'config.json'),
       // `project` focus: this test asserts the loop over exactly the two concepts
       // it logged. The shipped default widens beyond them by design.
-      JSON.stringify({ min_minutes_between_quizzes: 0, max_questions_per_task: 4, focus: 'project' }),
+      //
+      // Both clocks at 0, because the loop below asks, answers and asks again in
+      // the same millisecond. On the shipped `interleaved` cadence the plan's
+      // cooldown reads `min_minutes_between_checkpoints`, not the quiz clock --
+      // zeroing only the latter leaves a 4-minute floor that step 5 would trip.
+      JSON.stringify({
+        min_minutes_between_quizzes: 0,
+        min_minutes_between_checkpoints: 0,
+        max_questions_per_task: 4,
+        focus: 'project',
+      }),
     );
 
     try {
