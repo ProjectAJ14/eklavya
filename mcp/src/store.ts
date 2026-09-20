@@ -14,7 +14,7 @@ import {
   SCORE_WINDOW,
   START_LEVEL,
 } from './srs.js';
-import type { EklavyaConfig } from './config.js';
+import { mainRepoRoot, type EklavyaConfig } from './config.js';
 import { stripAskHeader } from './ask.js';
 
 export interface ConceptRow {
@@ -637,7 +637,50 @@ export function unmetPrereqs(db: DB, conceptId: number, now: Date): string[] {
 export const GLOBAL_PROJECT = '*';
 
 export function projectKey(repoRoot: string | null | undefined): string {
-  return repoRoot && repoRoot.trim() ? repoRoot : GLOBAL_PROJECT;
+  if (!repoRoot || !repoRoot.trim()) return GLOBAL_PROJECT;
+  // A worktree is a branch of the same codebase, not a new one to start over in.
+  return mainRepoRoot(repoRoot);
+}
+
+/** Set once `mergeWorktreeProjects` has folded pre-existing worktree rows in. */
+const WORKTREE_MERGE_KEY = 'worktree_projects_merged';
+
+/**
+ * One-shot repair for rows written while every worktree was its own project.
+ *
+ * Runs on the first open after upgrading, then never again. Only worktrees that
+ * still exist on disk can be resolved -- a deleted one leaves its rows where
+ * they are, which is the honest outcome, since nothing on disk says what it was
+ * a worktree of.
+ */
+export function mergeWorktreeProjects(db: DB): void {
+  if (db.prepare('SELECT 1 FROM meta WHERE key = ?').get(WORKTREE_MERGE_KEY)) return;
+
+  const repos = db
+    .prepare(
+      `SELECT repo FROM attempts WHERE repo IS NOT NULL AND trim(repo) <> ''
+       UNION SELECT repo FROM project_levels`,
+    )
+    .all() as { repo: string }[];
+  const moves = repos
+    .map((r) => ({ from: r.repo, to: mainRepoRoot(r.repo) }))
+    .filter((m) => m.from !== m.to);
+
+  db.transaction(() => {
+    for (const { from, to } of moves) {
+      db.prepare('UPDATE attempts SET repo = ? WHERE repo = ?').run(to, from);
+      // `repo` is the primary key, so a collision has to be resolved rather than
+      // updated over: the main checkout's own band is the one that counts.
+      db.prepare(
+        'DELETE FROM project_levels WHERE repo = ? AND EXISTS (SELECT 1 FROM project_levels WHERE repo = ?)',
+      ).run(from, to);
+      db.prepare('UPDATE project_levels SET repo = ? WHERE repo = ?').run(to, from);
+    }
+    db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(
+      WORKTREE_MERGE_KEY,
+      new Date().toISOString(),
+    );
+  })();
 }
 
 export interface ProjectLevelRow {

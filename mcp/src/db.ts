@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import { dbPath } from './paths.js';
 import { runMigrations } from './migrate.js';
 import { seedIfNeeded } from './seed.js';
+import { mergeWorktreeProjects } from './store.js';
 import { applyPacksIfNeeded } from './packs.js';
 
 export type DB = Database.Database;
@@ -26,6 +27,9 @@ export function openDb(file: string = dbPath()): DB {
   db.pragma('busy_timeout = 5000');
 
   runMigrations(db);
+  // Before anything reads a project key, so old worktree rows fold into the
+  // checkout they branched from rather than lingering as phantom projects.
+  mergeWorktreeProjects(db);
   seedIfNeeded(db);
   // After the seed, because packs are merged over it. A re-seed undoes whatever
   // a pack had overridden, and `applyPacksIfNeeded` knows that: SEED_VERSION is
