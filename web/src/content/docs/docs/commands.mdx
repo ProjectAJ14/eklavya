@@ -67,13 +67,15 @@ Reports your effective settings in two lines — mode, focus, cadence, difficult
 /eklavya:mode concept           # change the focus dial
 /eklavya:mode end               # change the cadence dial
 /eklavya:mode learn caching     # focus learn, with its required topic
+/eklavya:mode off --session     # silence this session only, nothing written
 ```
 
 The value tells Eklavya which dial you mean, so you never have to name the dial. The values are unambiguous across mode, focus and cadence; difficulty is the exception, and has its own command below.
 
 #### Worth knowing
 
-- It asks which scope you mean when it is ambiguous: **global** (you, everywhere) or **repo** (this project, for everyone).
+- It asks which scope you mean when it is ambiguous: **global** (you, everywhere), **repo** (this project, for everyone) or **session** (this session only, and only for `off`).
+- **"Turn Eklavya off for this session"** — in those words, or `--session` — silences everything until the session ends without writing to either config file. It does not open the commit gate: an `enforced` repo still holds the commit. See [Configuration](/docs/configuration/#turning-it-off-for-one-session).
 - It warns you before writing `focus` at repo scope, because that overrides every contributor's personal choice there.
 - Moving *to* `enforced` prompts you to install the git hook — without it, only commits made inside Claude Code are gated.
 - For difficulty, it sends you to `/eklavya:level` rather than explaining the ladder twice.

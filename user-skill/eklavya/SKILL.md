@@ -78,6 +78,28 @@ eklavya config set mode enforced          # global: ~/.eklavya/config.json
 eklavya config set difficulty easy --repo # this project only: .eklavya.json
 ```
 
+### "Turn it off for this session"
+
+A third scope, and it needs the `set_config` **tool** — the CLI has no session
+of its own to name. Hear "for now", "for this session", "I'm in the middle of
+something urgent", and call `set_config` with `scope: "session"` and
+`mode: "off"`. It takes `mode` and nothing else, writes no file, silences every
+hook until the session ends, and forgets by itself; any other `mode` at that
+scope brings the session back.
+
+Do **not** reach for global scope for this. It is a file, it outlives the
+afternoon that wanted quiet, and it is how someone ends up having turned the
+tool off for good by accident.
+
+Say the limit when the effective mode is `enforced`: the questions stop, the
+commit gate does not — it reads `.eklavya.json` and never sees a session id.
+`set_config` returns a `note` saying so; pass it on rather than letting them
+discover it at `git commit`.
+
+Where the tools are not available, there is no session scope: offer
+`eklavya config set mode off` and be explicit that it stays off until they set
+it back.
+
 `focus learn` is useless without a topic, so pass both at once:
 
 ```bash

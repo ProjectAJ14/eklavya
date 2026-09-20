@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb, type DB } from '../src/db.js';
 import { loadConfig } from '../src/config.js';
 import { conceptBySlug, gradeConcept, logSessionConcept, syncGate } from '../src/store.js';
+import { setSessionOff } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 const root = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
@@ -164,6 +165,18 @@ describe('PreToolUse gate — getting out of the way', () => {
 describe('PreToolUse gate — holding a commit', () => {
   beforeEach(() => {
     repoConfig({ mode: 'enforced', pass_threshold: 1 });
+  });
+
+  // The per-session off switch silences questions. If it also opened the gate it
+  // would stop being a convenience and start being a one-sentence bypass of the
+  // thing a lead pinned enforced mode for.
+  it('still holds a commit in a session the developer silenced', () => {
+    setSessionOff(db, SESSION, true);
+    openGate({ required: 2 });
+
+    const payload = JSON.parse(preToolGate('git commit -m "add auth"').stdout);
+    expect(payload.hookSpecificOutput.permissionDecision).toBe('deny');
+    expect(gateCli().status).not.toBe(0);
   });
 
   it('denies the commit with an instructive reason', () => {

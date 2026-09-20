@@ -167,8 +167,9 @@ reads rather than output anyone sees.
 That was a bug for a while, and a bad one: `session-start` returned before
 pushing the directive, so a developer who turned the greeting off logged
 nothing, was never quizzed, and saw `mode: ambient` in `get_config` the whole
-time. Two tests encoded it as intended behaviour. `mode: off` is the off switch,
-and it is the only one.
+time. Two tests encoded it as intended behaviour. `mode: off` is the off switch
+— along with its session-scoped twin below, which is the same switch with a
+shorter life.
 
 ## The Stop hook blocks in `ambient` too
 
@@ -179,6 +180,22 @@ commit gate unpassable — decision G5); the one-question cap under `interleaved
 is lifted, so the sweep asks for the whole remaining budget; and `pre-tool-gate`
 plus `cli/eklavya-gate` start holding commits. Only `mode === 'off'` silences
 everything.
+
+## The per-session off switch
+
+`isSessionOff(db, sessionId)` (`mcp/src/session.ts`) is a `meta` row written by
+`set_config` at `scope: "session"`, and **every hook checks it right after its
+`mode` check**. It exists because the file-backed `off` outlives the urgent
+afternoon that wanted it, and a developer who silences one hour by editing a
+config file has quietly turned the product off for good.
+
+Two rules it is easy to get wrong:
+
+- It silences, it does not exempt. `cli/eklavya-gate` reads `.eklavya.json` and
+  never sees a session id, so an enforced repo still holds the commit. Making
+  the gate honour it would turn a per-session convenience into a gate bypass.
+- Enforced mode is **not** the exception here that it is for the cooldown. The
+  cooldown is pacing Eklavya chose; this is the developer saying stop, in words.
 
 ## The loop guard
 

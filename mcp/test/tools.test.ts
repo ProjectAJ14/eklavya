@@ -1318,6 +1318,58 @@ describe('config tools', () => {
     expect(call<any>(setConfig, {}).error).toBe('nothing_to_set');
   });
 
+  // The urgent-afternoon switch. The bug it prevents is the one a file-scoped
+  // `off` creates: silence that outlives the reason for it.
+  describe('session scope', () => {
+    it('silences one session without touching either config file', () => {
+      const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      expect(res.session_off).toBe(true);
+      expect(res.session_id).toBe(SESSION);
+
+      // The file-backed mode is exactly what it was.
+      expect(call<any>(getConfig).config.mode).toBe('ambient');
+      expect(call<any>(getConfig, { session_id: SESSION }).session_off).toBe(true);
+
+      logAuthWork();
+      const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+      expect(plan.reason).toBe('session_off');
+      expect(plan.questions_needed).toBe(0);
+    });
+
+    it('silences only the session it was asked about', () => {
+      call(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      logAuthWork('other-session');
+      expect(call<any>(getSessionQuizPlan, { session_id: 'other-session' }).reason).not.toBe(
+        'session_off',
+      );
+    });
+
+    it('brings the session back on any other mode', () => {
+      call(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      const back = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'ambient' });
+      expect(back.session_off).toBe(false);
+
+      logAuthWork();
+      expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).reason).not.toBe('session_off');
+    });
+
+    it('says the commit gate still holds in an enforced repo', () => {
+      configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+      const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      expect(res.note).toMatch(/commit gate/);
+    });
+
+    it('takes only mode — a vanishing difficulty would be a dial that unset itself', () => {
+      expect(
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, difficulty: 'hard' }).error,
+      ).toBe('session_scope_is_mode_only');
+      expect(
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off', focus: 'project' })
+          .error,
+      ).toBe('session_scope_is_mode_only');
+    });
+  });
+
   // The setup skill branches on this field, and it is the only channel that can
   // carry the answer: a shell command in Cowork runs inside a sandbox VM and
   // cannot read the host environment the surface is derived from.

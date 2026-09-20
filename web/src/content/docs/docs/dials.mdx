@@ -25,6 +25,8 @@ They combine freely. `enforced` + `learn` is an intern who must pass a gate on a
 | `enforced` | The session quiz must be passed before `git commit` succeeds — inside Claude Code automatically, and from a bare terminal once you install the [git hook](/docs/commit-gate/). | Onboarding, interns, a codebase where shipping unread code is expensive. |
 | `off` | Installed but dormant. No questions, no gate, no banner. | A demo, a deadline, a repo you are only passing through. |
 
+`off` written to a config file stays off until you remember to change it back. For an urgent hour, say **"turn Eklavya off for this session"** instead — same silence, scoped to the session, and no file is touched. It silences the questions only: an `enforced` repo still holds the commit. See [Configuration](/docs/configuration/#turning-it-off-for-one-session).
+
 ### `focus` — what it teaches
 
 | Value | Asks about | Good for |
@@ -57,6 +59,7 @@ Two ways, both equivalent:
 ```text title="In Claude Code"
 /eklavya:mode              # show all four, then change any of them
 /eklavya:mode project      # set focus to project
+/eklavya:mode off --session # silence this session only, nothing written
 /eklavya:level medium      # pin this project's difficulty band
 ```
 

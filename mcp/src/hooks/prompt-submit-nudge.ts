@@ -51,6 +51,7 @@ import {
   type DB,
 } from './lib.js';
 import { withSurfaceNote } from '../surface.js';
+import { isSessionOff } from '../session.js';
 
 /**
  * Long enough that the session-start directive has had a fair chance, short
@@ -141,6 +142,7 @@ await run(async (input) => {
 
   const sid = sessionId(input, db);
   if (!sid) return 0;
+  if (isSessionOff(db, sid)) return 0;
 
   // The fast path, and the one that runs on almost every prompt: a session that
   // is logging needs nothing said to it.

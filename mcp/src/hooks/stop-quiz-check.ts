@@ -27,6 +27,7 @@
  */
 import { attributionRule, isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
+import { isSessionOff } from '../session.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -48,6 +49,9 @@ await run(async (input) => {
   const cwd = cwdOf(input);
   const sid = sessionId(input, db);
   if (!sid) return 0;
+  // Silenced sessions are never blocked, enforced mode included: the commit gate
+  // is what enforced mode is for, and it reads .eklavya.json rather than this.
+  if (isSessionOff(db, sid)) return 0;
 
   const {
     mode,

@@ -14,6 +14,7 @@ import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from '.
 import { loadPacks, applyPacks } from './packs.js';
 import { levelStanding } from './store.js';
 import { statusLine } from './statusline.js';
+import { isSessionOff, resolveSessionId } from './session.js';
 import { START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
 import { startDashboard, openInBrowser } from './dashboard.js';
@@ -355,6 +356,7 @@ async function statuslineCommand(argv: string[]): Promise<void> {
     const raw = await readStdinBounded(STATUSLINE_STDIN);
 
     let cwd = process.cwd();
+    let sid: string | null = null;
     // Parsed in its own try: input we cannot read is a reason to fall back to
     // the working directory, not a reason to show the developer nothing. The
     // dials are still true; only the choice of .eklavya.json was in doubt.
@@ -363,8 +365,13 @@ async function statuslineCommand(argv: string[]): Promise<void> {
         // Strip a BOM: some Windows shells prepend one, and JSON.parse throws
         // on input that looks perfectly well-formed.
         const parsed: unknown = JSON.parse(stripBom(raw));
-        const input = (parsed ?? {}) as { cwd?: string; workspace?: { current_dir?: string } };
+        const input = (parsed ?? {}) as {
+          cwd?: string;
+          session_id?: string;
+          workspace?: { current_dir?: string };
+        };
         cwd = input.workspace?.current_dir ?? input.cwd ?? cwd;
+        sid = input.session_id ?? sid;
       }
     } catch {
       /* Unreadable stdin: process.cwd() it is. */
@@ -374,13 +381,17 @@ async function statuslineCommand(argv: string[]): Promise<void> {
     const pinned = resolved.config.difficulty !== 'auto';
 
     let level: Level = pinned ? (resolved.config.difficulty as Level) : START_LEVEL;
-    if (!pinned && fs.existsSync(dbPath())) {
+    if (fs.existsSync(dbPath())) {
       // `levelStanding` rather than a query of our own: the banner learned this
       // the hard way, and a second implementation of the band rules is a second
       // thing to keep in step with the planner.
       const db = new Database(dbPath(), { readonly: true });
       try {
-        level = levelStanding(db, resolved.config, resolved.repoRoot).level;
+        // A silenced session shows no bar. It says the same thing `mode: off`
+        // says, and a bar still reciting the dials of a session that will not
+        // ask anything is the kind of small lie that costs a bug report.
+        if (isSessionOff(db, sid ?? resolveSessionId(db))) return;
+        if (!pinned) level = levelStanding(db, resolved.config, resolved.repoRoot).level;
       } finally {
         db.close();
       }

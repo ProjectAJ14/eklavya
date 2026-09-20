@@ -2,18 +2,31 @@ import { z } from 'zod';
 import path from 'node:path';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from '../config.js';
 import { currentSurface } from '../surface.js';
-import { CWD_HINT, type ToolDef } from './types.js';
+import { isSessionOff, resolveSessionId, setSessionOff } from '../session.js';
+import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
 export const getConfig: ToolDef = {
   name: 'get_config',
   title: 'Get config',
   description:
     'The effective Eklavya config: global ~/.eklavya/config.json merged with the repo .eklavya.json, repo winning. Also reports surface — "code" for Claude Code (a terminal or the Code tab in Claude Desktop) or "cowork" — which is the only reliable way to tell: in Cowork a shell command runs in a sandbox VM and cannot see the host environment this is read from.',
-  inputSchema: { cwd: z.string().optional().describe(CWD_HINT) },
-  handler: (args: { cwd?: string }) => {
+  inputSchema: {
+    cwd: z.string().optional().describe(CWD_HINT),
+    session_id: z.string().optional().describe(SESSION_HINT),
+  },
+  handler: (args: { cwd?: string; session_id?: string }, ctx) => {
     const resolved = loadConfig(args.cwd);
+    const session = resolveSessionId(ctx.db, args.session_id);
     return {
       config: resolved.config,
+      /**
+       * Whether this one session has been silenced with `scope: "session"`.
+       * Reported next to `config` because it is not in either config file and
+       * would otherwise be invisible: a session that is off looks identically
+       * configured to one that is not.
+       */
+      session_off: isSessionOff(ctx.db, session),
+      session_id: session,
       global_path: resolved.globalPath,
       repo_path: resolved.repoPath,
       repo_root: resolved.repoRoot,
@@ -36,10 +49,14 @@ export const setConfig: ToolDef = {
   name: 'set_config',
   title: 'Set config',
   description:
-    'Update Eklavya config. Scope "global" writes ~/.eklavya/config.json; scope "repo" writes .eklavya.json at the repo root, which is how a team lead pins enforced mode — or a difficulty level — for one project.',
+    'Update Eklavya config. Scope "global" writes ~/.eklavya/config.json; scope "repo" writes .eklavya.json at the repo root, which is how a team lead pins enforced mode — or a difficulty level — for one project. Scope "session" writes no file at all: it takes only `mode`, silences this one session when that is "off", and un-silences it for any other value. Use it whenever someone asks to turn Eklavya off "for now" or "for this session" — writing off to a file instead leaves the tool off long after the afternoon that needed it.',
   inputSchema: {
-    scope: z.enum(['global', 'repo']).optional().describe('Defaults to global.'),
+    scope: z
+      .enum(['global', 'repo', 'session'])
+      .optional()
+      .describe('Defaults to global. "session" lasts until this session ends and takes only mode.'),
     cwd: z.string().optional().describe(CWD_HINT),
+    session_id: z.string().optional().describe(SESSION_HINT),
     mode: z
       .enum(['ambient', 'enforced', 'off'])
       .optional()
@@ -89,8 +106,8 @@ export const setConfig: ToolDef = {
     quiet: z.boolean().optional(),
     domains_enabled: z.array(z.string()).optional(),
   },
-  handler: (args: Record<string, unknown>) => {
-    const scope = (args.scope as 'global' | 'repo' | undefined) ?? 'global';
+  handler: (args: Record<string, unknown>, ctx) => {
+    const scope = (args.scope as 'global' | 'repo' | 'session' | undefined) ?? 'global';
     const cwd = args.cwd as string | undefined;
     const resolved = loadConfig(cwd);
 
@@ -106,6 +123,40 @@ export const setConfig: ToolDef = {
 
     if (Object.keys(patch).length === 0) {
       return { error: 'nothing_to_set', detail: 'Pass at least one setting to change.' };
+    }
+
+    if (scope === 'session') {
+      // Only `mode` is session-scoped. The rest are settings, not an
+      // interruption someone wants to stop right now, and a per-session
+      // `difficulty` that vanished at the end of the day would be a dial that
+      // silently un-set itself.
+      const extra = Object.keys(patch).filter((key) => key !== 'mode');
+      if (extra.length > 0 || patch.mode === undefined) {
+        return {
+          error: 'session_scope_is_mode_only',
+          detail: 'Scope "session" takes only mode: "off" to silence this session, any other value to bring it back. Everything else needs global or repo scope.',
+        };
+      }
+
+      const session = resolveSessionId(ctx.db, args.session_id as string | undefined);
+      const off = patch.mode === 'off';
+      setSessionOff(ctx.db, session, off);
+
+      return {
+        scope,
+        session_id: session,
+        session_off: off,
+        // The file-backed mode is untouched, so say what it still is: turning a
+        // session back on restores this, not whatever was passed here.
+        config: resolved.config,
+        // Honest about the one thing a session cannot turn off. The git
+        // pre-commit hook reads .eklavya.json and never sees a session id, so a
+        // silenced session in an enforced repo still meets the gate at commit.
+        note:
+          off && resolved.config.mode === 'enforced'
+            ? 'Questions are silenced for this session, but the repo is in enforced mode and the commit gate still holds — the quiz has to happen before a commit lands.'
+            : undefined,
+      };
     }
 
     let target: string;

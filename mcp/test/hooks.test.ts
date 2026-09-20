@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, type DB } from '../src/db.js';
 import { conceptBySlug, gradeConcept, logSessionConcept } from '../src/store.js';
+import { setSessionOff } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 // The built hooks, not the sources: these are what the plugin actually runs,
@@ -981,7 +982,7 @@ describe('the SubagentStart directive', () => {
     expect(additionalContext(subagent())).toContain('log_session_concepts');
   });
 
-  it('speaks on a fresh install with no database yet (it reads no database)', () => {
+  it('speaks on a fresh install with no database yet', () => {
     // A delegated task may be the first thing in a session to touch Eklavya.
     const res = runHook(
       SUBAGENT,
@@ -999,5 +1000,80 @@ describe('the SubagentStart directive', () => {
       env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
     });
     expect(res.status).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * "Turn Eklavya off, just for this session."
+ *
+ * The switch exists because the alternative people reach for — `mode: off` in
+ * the global config — is silence that outlives the urgent afternoon that
+ * wanted it. Every hook has to honour it or it is not an off switch, so every
+ * hook is asserted here rather than the one that happened to be interesting.
+ */
+describe('the per-session off switch', () => {
+  const nudge = () =>
+    runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit' });
+  const subagent = () =>
+    runHook(SUBAGENT, {
+      session_id: SESSION,
+      cwd,
+      hook_event_name: 'SubagentStart',
+      agent_type: 'general-purpose',
+    });
+
+  beforeEach(() => setSessionOff(db, SESSION, true));
+
+  it('does not block the Stop hook, even in enforced mode', () => {
+    // Enforced mode is the interesting case: this silences the interruption,
+    // and the commit gate — which reads .eklavya.json, not this — still holds.
+    configure({ mode: 'enforced' });
+    logConcepts(['csrf']);
+    expect(stop().status).toBe(0);
+  });
+
+  it('asks no mid-work checkpoint question', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+    expect(checkpointContext(checkpoint())).toBeNull();
+  });
+
+  it('prints no banner on a resume', () => {
+    expect(sessionStart({ session_start_reason: 'resume' }).stdout).toBe('');
+  });
+
+  it('sends no logging nudge', () => {
+    // Past the grace window with nothing logged: the one state in which this
+    // hook does speak, so silence here is the switch and not the clock.
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(
+      `prompt_nudge:${SESSION}`,
+      `${new Date(Date.now() - 30 * 60_000).toISOString()}||0`,
+    );
+    expect(nudge().stdout).toBe('');
+  });
+
+  it('sends no directive to a delegated subagent', () => {
+    const res = subagent();
+    expect(res.status).toBe(0);
+    expect(res.stdout).toBe('');
+  });
+
+  it('silences that session only', () => {
+    logConcepts(['csrf'], 'other-session');
+    const res = runHook(STOP_CHECK, {
+      session_id: 'other-session',
+      cwd,
+      hook_event_name: 'Stop',
+      stop_reason: 'end_turn',
+    });
+    expect(res.status).toBe(2);
+  });
+
+  it('comes back when the switch is cleared', () => {
+    setSessionOff(db, SESSION, false);
+    logConcepts(['csrf']);
+    expect(stop().status).toBe(2);
   });
 });

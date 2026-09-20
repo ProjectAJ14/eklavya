@@ -4,7 +4,7 @@
  * Hard rule: this must never break a session. Every failure path
  * exits 0 with no output — `run()` enforces it.
  */
-import { setCurrentSession } from '../session.js';
+import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, clearNudgeState, type DB } from './lib.js';
@@ -99,6 +99,9 @@ await run(async (input) => {
   const resolved = config(cwd);
   const { mode, focus, focus_topic, cadence, difficulty, quiet } = resolved.config;
   if (mode === 'off') return 0;
+  // Fires on resume and after a compaction too, with the same session id, so a
+  // session silenced an hour ago stays silent rather than greeting its way back.
+  if (isSessionOff(db, sid)) return 0;
 
   const focusLabel = focus === 'learn' && focus_topic ? `learn (${focus_topic})` : focus;
 
