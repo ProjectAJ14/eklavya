@@ -6,6 +6,7 @@ import {
   initialMastery,
   isKnown,
   type Level,
+  LEVELS,
   type LevelCounts,
   type MasteryState,
   type PromotionBlocker,
@@ -14,7 +15,7 @@ import {
   SCORE_WINDOW,
   START_LEVEL,
 } from './srs.js';
-import type { EklavyaConfig } from './config.js';
+import { mainRepoRoot, type EklavyaConfig } from './config.js';
 import { stripAskHeader } from './ask.js';
 
 export interface ConceptRow {
@@ -637,7 +638,66 @@ export function unmetPrereqs(db: DB, conceptId: number, now: Date): string[] {
 export const GLOBAL_PROJECT = '*';
 
 export function projectKey(repoRoot: string | null | undefined): string {
-  return repoRoot && repoRoot.trim() ? repoRoot : GLOBAL_PROJECT;
+  if (!repoRoot || !repoRoot.trim()) return GLOBAL_PROJECT;
+  // A worktree is a branch of the same codebase, not a new one to start over in.
+  return mainRepoRoot(repoRoot);
+}
+
+/** Set once `mergeWorktreeProjects` has folded pre-existing worktree rows in. */
+const WORKTREE_MERGE_KEY = 'worktree_projects_merged';
+
+/**
+ * One-shot repair for rows written while every worktree was its own project.
+ *
+ * Runs on the first open after upgrading, then never again. Only worktrees that
+ * still exist on disk can be resolved -- a deleted one leaves its rows where
+ * they are, which is the honest outcome, since nothing on disk says what it was
+ * a worktree of.
+ */
+export function mergeWorktreeProjects(db: DB): void {
+  if (db.prepare('SELECT 1 FROM meta WHERE key = ?').get(WORKTREE_MERGE_KEY)) return;
+
+  const repos = db
+    .prepare(
+      `SELECT repo FROM attempts WHERE repo IS NOT NULL AND trim(repo) <> ''
+       UNION SELECT repo FROM project_levels`,
+    )
+    .all() as { repo: string }[];
+  const moves = repos
+    .map((r) => ({ from: r.repo, to: mainRepoRoot(r.repo) }))
+    .filter((m) => m.from !== m.to);
+
+  // Every source that folds into one checkout, resolved together: `repo` is the
+  // primary key on `project_levels`, so several rows have to become one, and
+  // which one is not a detail. Nothing demotes a learner, here least of all --
+  // the furthest band anyone reached on this codebase is the band it keeps.
+  const merged = new Map<string, string[]>();
+  for (const { from, to } of moves) merged.set(to, [...(merged.get(to) ?? []), from]);
+
+  db.transaction(() => {
+    for (const { from, to } of moves) {
+      db.prepare('UPDATE attempts SET repo = ? WHERE repo = ?').run(to, from);
+    }
+    for (const [to, sources] of merged) {
+      const rows = db
+        .prepare(
+          `SELECT * FROM project_levels WHERE repo IN (${['?', ...sources.map(() => '?')].join(', ')})`,
+        )
+        .all(to, ...sources) as ProjectLevelRow[];
+      if (!rows.length) continue;
+      const best = rows.reduce((a, b) => (LEVELS.indexOf(b.level) > LEVELS.indexOf(a.level) ? b : a));
+      db.prepare(`DELETE FROM project_levels WHERE repo IN (${rows.map(() => '?').join(', ')})`).run(
+        ...rows.map((r) => r.repo),
+      );
+      db.prepare(
+        'INSERT INTO project_levels (repo, level, promoted_at, updated_at) VALUES (?, ?, ?, ?)',
+      ).run(to, best.level, best.promoted_at, best.updated_at);
+    }
+    db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(
+      WORKTREE_MERGE_KEY,
+      new Date().toISOString(),
+    );
+  })();
 }
 
 export interface ProjectLevelRow {

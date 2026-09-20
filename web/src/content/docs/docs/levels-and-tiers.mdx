@@ -46,6 +46,8 @@ Declining a question costs nothing: a decline counts on neither side of the accu
 
 "How hard should this be" is a question about a codebase, not about a person. The same developer is a different learner on their fourth Node service and their first Rust one — so a new repository starts at `easy` even when three others are on `hard`.
 
+A project is the git checkout you are in, resolved to its main one: a [git worktree](https://git-scm.com/docs/git-worktree) is a branch of the same codebase, so its answers, level and progress all count towards the repository it was created from rather than starting a fresh `easy` runway per branch. Two separate clones of the same repository are still two projects — they are two places on disk with nothing linking them.
+
 ### Pinning a level
 
 ```text
