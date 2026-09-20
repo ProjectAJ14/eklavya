@@ -1,3 +1,12 @@
+## [1.18.1](https://github.com/ProjectAJ14/eklavya/compare/v1.18.0...v1.18.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **hooks:** spend the question budget the interleaved cadence promises ([755a5f1](https://github.com/ProjectAJ14/eklavya/commit/755a5f16e62138f1c4cced97540464951e9f753d))
+* **quiz:** sync the plan's cooldown to the cadence's clock, and keep the backlog out of the gate's way ([5e1c9a2](https://github.com/ProjectAJ14/eklavya/commit/5e1c9a245290929fefefdc67bc8271267156ba7e))
+* **test:** measure the gate's cost above node startup, not on the wall clock ([4a23310](https://github.com/ProjectAJ14/eklavya/commit/4a23310ec55cdd6b2102cff896246b94792269c9))
+
 # [1.18.0](https://github.com/ProjectAJ14/eklavya/compare/v1.17.1...v1.18.0) (2026-09-20)
 
 
