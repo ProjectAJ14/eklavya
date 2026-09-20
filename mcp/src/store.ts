@@ -6,6 +6,7 @@ import {
   initialMastery,
   isKnown,
   type Level,
+  LEVELS,
   type LevelCounts,
   type MasteryState,
   type PromotionBlocker,
@@ -666,15 +667,31 @@ export function mergeWorktreeProjects(db: DB): void {
     .map((r) => ({ from: r.repo, to: mainRepoRoot(r.repo) }))
     .filter((m) => m.from !== m.to);
 
+  // Every source that folds into one checkout, resolved together: `repo` is the
+  // primary key on `project_levels`, so several rows have to become one, and
+  // which one is not a detail. Nothing demotes a learner, here least of all --
+  // the furthest band anyone reached on this codebase is the band it keeps.
+  const merged = new Map<string, string[]>();
+  for (const { from, to } of moves) merged.set(to, [...(merged.get(to) ?? []), from]);
+
   db.transaction(() => {
     for (const { from, to } of moves) {
       db.prepare('UPDATE attempts SET repo = ? WHERE repo = ?').run(to, from);
-      // `repo` is the primary key, so a collision has to be resolved rather than
-      // updated over: the main checkout's own band is the one that counts.
+    }
+    for (const [to, sources] of merged) {
+      const rows = db
+        .prepare(
+          `SELECT * FROM project_levels WHERE repo IN (${['?', ...sources.map(() => '?')].join(', ')})`,
+        )
+        .all(to, ...sources) as ProjectLevelRow[];
+      if (!rows.length) continue;
+      const best = rows.reduce((a, b) => (LEVELS.indexOf(b.level) > LEVELS.indexOf(a.level) ? b : a));
+      db.prepare(`DELETE FROM project_levels WHERE repo IN (${rows.map(() => '?').join(', ')})`).run(
+        ...rows.map((r) => r.repo),
+      );
       db.prepare(
-        'DELETE FROM project_levels WHERE repo = ? AND EXISTS (SELECT 1 FROM project_levels WHERE repo = ?)',
-      ).run(from, to);
-      db.prepare('UPDATE project_levels SET repo = ? WHERE repo = ?').run(to, from);
+        'INSERT INTO project_levels (repo, level, promoted_at, updated_at) VALUES (?, ?, ?, ?)',
+      ).run(to, best.level, best.promoted_at, best.updated_at);
     }
     db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(
       WORKTREE_MERGE_KEY,

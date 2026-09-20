@@ -226,7 +226,12 @@ export function mainRepoRoot(repoRoot: string): string {
     const resolved = path.resolve(repoRoot, gitdir[1]!.trim());
     const marker = `${path.sep}.git${path.sep}worktrees${path.sep}`;
     const cut = resolved.indexOf(marker);
-    // A worktree of a bare repo has no main checkout to fold into; keep it.
+    // Only the ordinary `<root>/.git/worktrees/<name>` layout resolves by path.
+    // A bare repo has no main checkout to fold into, and a `--separate-git-dir`
+    // or submodule git dir does not say where its main checkout is -- those keep
+    // their own key, which is what they had before any of this existed. Asking
+    // `git rev-parse --git-common-dir` would cover them, at a process spawn per
+    // call on the SessionStart path and per project row on the dashboard.
     return cut === -1 ? repoRoot : realPath(resolved.slice(0, cut));
   } catch {
     // A deleted or unreadable worktree keeps whatever key it already had.

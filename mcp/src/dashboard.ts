@@ -25,7 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
 import { decayedScore, isDue, isKnown, MS_PER_DAY } from './srs.js';
-import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE } from './store.js';
+import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
 import { loadConfig, DEFAULT_CONFIG, type EklavyaConfig } from './config.js';
 import { dbPath } from './paths.js';
 
@@ -292,7 +292,15 @@ export function dashboardState(db: DB): Record<string, unknown> {
        LEFT JOIN gates g ON g.session_id = sc.session_id
        ORDER BY sc.ts DESC`,
     )
-    .all() as Record<string, unknown>[];
+    .all()
+    // `gates.repo` stays the worktree path -- the POSIX gate matches it against
+    // `git rev-parse --show-toplevel`. Every other repo on this page comes from
+    // `attempts`, already folded, so fold this one too or a project filter drops
+    // every context line a worktree session logged.
+    .map((r) => {
+      const row = r as Record<string, unknown>;
+      return { ...row, repo: row.repo ? projectKey(row.repo as string) : null };
+    }) as Record<string, unknown>[];
 
   const allTime = db
     .prepare(

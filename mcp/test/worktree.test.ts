@@ -6,6 +6,7 @@ import path from 'node:path';
 import { findRepoConfig, mainRepoRoot } from '../src/config.js';
 import { GLOBAL_PROJECT, mergeWorktreeProjects, projectKey } from '../src/store.js';
 import { openDb } from '../src/db.js';
+import { dashboardState } from '../src/dashboard.js';
 
 const trees: string[] = [];
 
@@ -25,7 +26,9 @@ function repoWithWorktree(): { main: string; worktree: string } {
   git(['commit', '-qm', 'init']);
   const worktree = path.join(root, 'wt');
   git(['worktree', 'add', '-q', '-b', 'feature', worktree]);
-  return { main, worktree };
+  const second = path.join(root, 'wt2');
+  git(['worktree', 'add', '-q', '-b', 'other', second]);
+  return { main, worktree, second };
 }
 
 afterEach(() => {
@@ -69,6 +72,43 @@ describe('worktrees are the same project', () => {
     expect(
       (db.prepare('SELECT COUNT(*) AS n FROM attempts WHERE repo = ?').get(main) as { n: number }).n,
     ).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it('keeps the furthest band when several worktrees fold into one checkout', () => {
+    // Nothing demotes a learner. Merging must not either, whatever order the
+    // rows come back in, and whether or not the main checkout has a row of its own.
+    const { main, worktree, second } = repoWithWorktree();
+    const db = openDb(':memory:');
+    const level = db.prepare(
+      'INSERT INTO project_levels (repo, level, promoted_at, updated_at) VALUES (?, ?, ?, ?)',
+    );
+    level.run(worktree, 'easy', null, '2026-01-01T00:00:00Z');
+    level.run(second, 'hard', '2026-02-02T00:00:00Z', '2026-02-02T00:00:00Z');
+    db.prepare('DELETE FROM meta WHERE key = ?').run('worktree_projects_merged');
+
+    mergeWorktreeProjects(db);
+
+    expect(db.prepare('SELECT repo, level, promoted_at FROM project_levels').all()).toEqual([
+      { repo: main, level: 'hard', promoted_at: '2026-02-02T00:00:00Z' },
+    ]);
+    db.close();
+  });
+
+  it('shows a worktree session\'s logged concepts under the main checkout', () => {
+    // `gates.repo` stays the worktree path on purpose, so the dashboard has to
+    // fold it on read or a project filter hides every context line.
+    const { main, worktree } = repoWithWorktree();
+    const db = openDb(':memory:');
+    db.prepare('INSERT INTO gates (session_id, mode, repo) VALUES (?, ?, ?)').run('s1', 'ambient', worktree);
+    db.prepare(
+      'INSERT INTO session_concepts (session_id, concept_id, context, ts) SELECT ?, id, ?, ? FROM concepts LIMIT 1',
+    ).run('s1', 'wrote the thing', '2026-01-01T00:00:00Z');
+
+    const logged = dashboardState(db).logged as { repo: string }[];
+
+    expect(logged).toHaveLength(1);
+    expect(logged[0]!.repo).toBe(main);
     db.close();
   });
 });
