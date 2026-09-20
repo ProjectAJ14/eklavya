@@ -28,7 +28,8 @@
  * reason; this hook must not undo it by asking for one in prose.
  */
 import { withSurfaceNote } from '../surface.js';
-import { run, config, cwdOf } from './lib.js';
+import { run, config, cwdOf, openExisting, sessionId } from './lib.js';
+import { isSessionOff } from '../session.js';
 
 /**
  * Two sentences, because a subagent's context is its whole budget and this is
@@ -71,12 +72,17 @@ function isTutor(agentType: string | undefined): boolean {
 }
 
 await run(async (input) => {
-  // No database read at all. Whether to speak depends only on `mode`, and a
-  // subagent may well be the first thing in a session to touch Eklavya — a hook
-  // that bailed on a missing database would stay silent on exactly the fresh
-  // install that most needs the directive. (`lib.js` still pulls in the SQLite
-  // driver at import, so this is one query fewer, not a free hook.)
+  // Config first, and a missing database is never a reason to stay quiet: a
+  // subagent may well be the first thing in a session to touch Eklavya, and a
+  // hook that bailed on `openExisting() === null` would be silent on exactly
+  // the fresh install that most needs the directive.
   if (config(cwdOf(input)).config.mode === 'off') return 0;
+
+  // The one query this hook makes, and only past the `mode` gate: a session the
+  // developer silenced should not be handed the directive through the back door
+  // of delegated work.
+  const db = openExisting();
+  if (db && isSessionOff(db, sessionId(input, db))) return 0;
 
   // Fail OPEN on an absent or unrecognised agent_type: speak. A host that does
   // not send the field is a host where failing closed would kill the feature

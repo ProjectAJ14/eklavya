@@ -12,7 +12,7 @@ import { upsertConcepts } from '../src/tools/upsert_concepts.js';
 import { getConceptGraph } from '../src/tools/get_concept_graph.js';
 import { gateRetryConcepts } from '../src/store.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
-import { resolveSessionId, setCurrentSession, FALLBACK_SESSION_ID } from '../src/session.js';
+import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 let dbFile = '';
@@ -1316,6 +1316,83 @@ describe('config tools', () => {
 
   it('says so when asked to change nothing', () => {
     expect(call<any>(setConfig, {}).error).toBe('nothing_to_set');
+  });
+
+  // The urgent-afternoon switch. The bug it prevents is the one a file-scoped
+  // `off` creates: silence that outlives the reason for it.
+  describe('session scope', () => {
+    it('silences one session without touching either config file', () => {
+      const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      expect(res.session_off).toBe(true);
+      expect(res.session_id).toBe(SESSION);
+
+      // The file-backed mode is exactly what it was.
+      expect(call<any>(getConfig).config.mode).toBe('ambient');
+      expect(call<any>(getConfig, { session_id: SESSION }).session_off).toBe(true);
+
+      logAuthWork();
+      const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+      expect(plan.reason).toBe('session_off');
+      expect(plan.questions_needed).toBe(0);
+    });
+
+    it('silences only the session it was asked about', () => {
+      call(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      logAuthWork('other-session');
+      expect(call<any>(getSessionQuizPlan, { session_id: 'other-session' }).reason).not.toBe(
+        'session_off',
+      );
+    });
+
+    it('brings the session back on any other mode', () => {
+      call(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      const back = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'ambient' });
+      expect(back.session_off).toBe(false);
+
+      logAuthWork();
+      expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).reason).not.toBe('session_off');
+    });
+
+    it('says the commit gate still holds in an enforced repo', () => {
+      configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+      const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      expect(res.note).toMatch(/commit gate/);
+    });
+
+    it('refuses when no real session id can be resolved', () => {
+      // `resolveSessionId` falls back to the literal "default" where no hook has
+      // ever stamped a session. A row under that key would silence every future
+      // session that lands on the same fallback, with nothing to notice it by —
+      // the exact "off outlives its reason" failure this scope exists to avoid.
+      expect(resolveSessionId(db)).toBe(FALLBACK_SESSION_ID);
+      expect(call<any>(setConfig, { scope: 'session', mode: 'off' }).error).toBe('no_session');
+      expect(isSessionOff(db, FALLBACK_SESSION_ID)).toBe(false);
+    });
+
+    it('acts on the session the hooks last stamped when none was passed', () => {
+      setCurrentSession(db, 'sess-from-hook');
+      expect(call<any>(setConfig, { scope: 'session', mode: 'off' }).session_id).toBe(
+        'sess-from-hook',
+      );
+      expect(isSessionOff(db, 'sess-from-hook')).toBe(true);
+    });
+
+    it('warns that an enforced gate grows while the session is silent', () => {
+      configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+      expect(
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' }).note,
+      ).toMatch(/keeps growing/);
+    });
+
+    it('takes only mode — a vanishing difficulty would be a dial that unset itself', () => {
+      expect(
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, difficulty: 'hard' }).error,
+      ).toBe('session_scope_is_mode_only');
+      expect(
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off', focus: 'project' })
+          .error,
+      ).toBe('session_scope_is_mode_only');
+    });
   });
 
   // The setup skill branches on this field, and it is the only channel that can

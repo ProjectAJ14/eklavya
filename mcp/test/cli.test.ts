@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tempDbPath, cleanup } from './helpers.js';
+import { openDb } from '../src/db.js';
+import { setCurrentSession, setSessionOff } from '../src/session.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cliPath = path.join(mcpRoot, 'dist', 'cli.js');
@@ -15,9 +17,10 @@ let repo = '';
 let claudeDir = '';
 let runtimeDir = '';
 
-function eklavya(args: string[], cwd = repo) {
+function eklavya(args: string[], cwd = repo, input?: string) {
   const res = spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
+    input,
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -371,5 +374,47 @@ describe('eklavya doctor reports the difficulty level', () => {
   it('says when a pin is switching progression off', () => {
     eklavya(['config', 'set', 'difficulty', 'hard']);
     expect(eklavya(['doctor']).stdout).toMatch(/level:\s+hard \(pinned by config/);
+  });
+});
+
+describe('eklavya statusline', () => {
+  const bar = (sessionId: string) =>
+    eklavya(['statusline', '--no-color'], repo, JSON.stringify({ cwd: repo, session_id: sessionId }))
+      .stdout;
+
+  it('shows the dials', () => {
+    openDb(dbFile).close();
+    expect(bar('sess-1')).toMatch(/\[EKLAVYA ambient/);
+  });
+
+  it('still shows the dials when the database cannot be read', () => {
+    // The session check needs the database; the bar does not. Before this, a
+    // corrupt file threw past the level lookup and the line vanished entirely.
+    fs.writeFileSync(dbFile, 'this is not a sqlite file at all');
+    expect(bar('sess-1')).toMatch(/\[EKLAVYA ambient/);
+  });
+
+  it('keeps the bar when the host names no session', () => {
+    // The fallback would be the shared current_session pointer, so suppressing
+    // on a guess blanks every other terminal the moment one session goes quiet.
+    const db = openDb(dbFile);
+    setSessionOff(db, 'sess-1', true);
+    setCurrentSession(db, 'sess-1');
+    db.close();
+
+    expect(
+      eklavya(['statusline', '--no-color'], repo, JSON.stringify({ cwd: repo })).stdout,
+    ).toMatch(/\[EKLAVYA ambient/);
+  });
+
+  it('goes dark for a session that was turned off', () => {
+    // A bar still reciting the dials of a session that will not ask anything is
+    // the small lie that becomes a bug report.
+    const db = openDb(dbFile);
+    setSessionOff(db, 'sess-1', true);
+    db.close();
+
+    expect(bar('sess-1')).toBe('');
+    expect(bar('sess-2')).toMatch(/\[EKLAVYA ambient/);
   });
 });

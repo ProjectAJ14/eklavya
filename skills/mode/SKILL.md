@@ -4,7 +4,7 @@ description: Show or change how Eklavya teaches — the focus (project, concept,
 disable-model-invocation: true
 ---
 
-# /eklavya:mode [project|concept|learn|ambient|enforced|off|interleaved|end] [topic]
+# /eklavya:mode [project|concept|learn|ambient|enforced|off|interleaved|end] [topic] [--session]
 
 Eklavya has **four independent dials**, and conflating them is the most common confusion. Say which one you are changing.
 
@@ -50,6 +50,16 @@ Warn before writing `focus` at repo scope: it overrides every contributor's pers
 ## Changing mode
 
 Same tool, `mode` key. Follow `/eklavya:setup` step 4 if they move **to** `enforced` — the git `pre-commit` hook is what covers commits made outside Claude Code, and enforced mode without it only gates half the ways to commit.
+
+## "Turn it off for this session"
+
+**Hear this phrasing — "for now", "for this session", "I'm in the middle of something", `--session` — and use `set_config` with `scope: "session"` and `mode: "off"`.** Not global scope. Global is a file, the file outlives the afternoon, and a developer who silenced one urgent hour in April finds out in June that they turned the tool off for good. Session scope writes nothing: every question, checkpoint, banner and status bar stops until this session ends, and it forgets by itself.
+
+It takes `mode` and nothing else. Any other value of `mode` at that scope brings the session back — that is what "turn Eklavya back on" does — and the file-backed dials are whatever they always were.
+
+Say one line back — including *which* session it acted on if `set_config` reports a `session_id` you did not pass — and say the limit in it when the effective mode is `enforced`: the questions are silenced, but the commit gate reads `.eklavya.json` and never sees a session id, so a commit still waits for the quiz, and it keeps growing while you work in silence. Someone who wants that gone wants a repo or global `mode` change, and that is a different, deliberate decision — `set_config` returns a `note` saying so.
+
+Nothing is lost while a session is silent: concepts logged stay unmastered and come back as review later.
 
 ## Confirm
 

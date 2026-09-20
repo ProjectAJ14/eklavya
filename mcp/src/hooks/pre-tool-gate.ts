@@ -5,6 +5,7 @@
  * is none of its business and get out of the way.
  */
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
+import { isSessionOff } from '../session.js';
 
 /**
  * `git commit` only counts at a command position: after the start of the line or
@@ -39,9 +40,19 @@ await run(async (input) => {
   if (!gate) return 0;
   if (gate.passed === 1) return 0;
 
+  // The gate does not honour the per-session off switch, deliberately — that
+  // would make it a one-sentence bypass. But the instruction below tells the
+  // model to run a quiz, and in a silenced session the planner returns
+  // `session_off` and no questions, which is a dead end with no stated exit.
+  // So: say the exit. Read, never acted on.
+  const silenced = isSessionOff(db, sid);
+
   const reason =
     `Eklavya gate: this session's quiz has not been passed yet (${gate.answered} of ${gate.required} concepts answered). ` +
-    'Run the quiz first — get_session_quiz_plan, ask one question at a time, grade each answer with record_attempt — ' +
+    (silenced
+      ? 'Eklavya is off for this session, so the quiz cannot run until it is back on: set_config with scope "session" and mode "ambient", then run the quiz — '
+      : 'Run the quiz first — ') +
+    'get_session_quiz_plan, ask one question at a time, grade each answer with record_attempt — ' +
     'then retry the commit. Nothing else is blocked.';
 
   process.stdout.write(

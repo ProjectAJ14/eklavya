@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { loadConfig, type Focus } from '../config.js';
 import { clampToLevel, decayedScore, isDue, isKnown, nextTierToAsk, type Level } from '../srs.js';
 import { answerPosition } from '../mcq.js';
-import { resolveSessionId } from '../session.js';
+import { isSessionOff, resolveSessionId } from '../session.js';
 import {
   attemptedConceptIds,
   domainSiblings,
@@ -215,6 +215,20 @@ export const getSessionQuizPlan: ToolDef = {
 
     if (config.mode === 'off') {
       return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'mode_off' };
+    }
+
+    // The session-scoped off switch. Unlike the cooldown below it has no
+    // `ignore_cooldown` escape and is not waived for enforced mode: the
+    // developer asked for silence in so many words, and an explicit
+    // `/eklavya:quiz` is served by turning the session back on first.
+    if (isSessionOff(db, sessionId)) {
+      return {
+        session_id: sessionId,
+        questions_needed: 0,
+        concepts: [],
+        reason: 'session_off',
+        detail: 'Eklavya is off for this session. set_config scope "session" with mode "ambient" brings it back; nothing was lost, the concepts stay unmastered and resurface later.',
+      };
     }
 
     // Cooldown keeps ambient mode from nagging. It must never apply in enforced

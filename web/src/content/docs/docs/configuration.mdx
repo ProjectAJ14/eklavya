@@ -13,8 +13,32 @@ import { Badge } from '@astrojs/starlight/components';
 | Defaults | built in | Everything, until something overrides it. |
 | Global | `~/.eklavya/config.json` | You, on every project. |
 | Repo <Badge text="wins" variant="tip" size="small" /> | `.eklavya.json` at a repository root | Everyone working in that project. |
+| Session <Badge text="mode only" variant="tip" size="small" /> | no file — held in the database until the session ends | This one session, on any project. |
 
 Later layers win key by key, not file by file: a repo file setting only `mode` leaves your personal `focus` alone. The search for a repo file walks up from your working directory and **stops at the git root** (or at your home directory, whichever comes first), so a stray config above the repository never leaks in. A missing or malformed file is ignored rather than fatal — defaults win and your session keeps working.
+
+### Turning it off for one session
+
+Both files outlive the afternoon that made you want silence, which is how a
+"just for now" `mode: off` becomes a tool you turned off in April and noticed in
+June. So there is a third scope that takes `mode` and nothing else:
+
+> **"Turn Eklavya off for this session."**
+
+No questions, no checkpoints, no banner, no status bar, until the session ends —
+and nothing on disk changes, so the next session is configured exactly as it was.
+Ask for it back in the same words (**"turn Eklavya back on"**) and the session
+picks up where it left off; concepts logged while it was silent are not lost,
+they stay unmastered and come back as review.
+
+One thing it deliberately does not do: **it does not open the commit gate.** In a
+repo running `enforced` mode, the [git hook](/docs/commit-gate/) reads
+`.eklavya.json` and has never heard of a session, so a commit still waits for the
+quiz — and the gate keeps *growing* while you are silent, because the work still
+gets logged and the quiz that would have drained it is the thing you switched
+off. Silence an enforced session for an hour and the quiz waiting at `git commit`
+is a longer one. Silencing the questions and skipping the gate are different requests, and
+only a repo or global `mode` change is the second one.
 
 ### Every key
 

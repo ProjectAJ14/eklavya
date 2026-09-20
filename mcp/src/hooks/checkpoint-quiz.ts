@@ -32,6 +32,7 @@
  */
 import { attributionRule } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
+import { isSessionOff } from '../session.js';
 
 await run(async (input) => {
   // Fast path. `agent_id` is present only inside a subagent, and a subagent
@@ -54,6 +55,7 @@ await run(async (input) => {
 
   const sid = sessionId(input, db);
   if (!sid) return 0;
+  if (isSessionOff(db, sid)) return 0;
 
   // One query for every number this decision needs.
   //
