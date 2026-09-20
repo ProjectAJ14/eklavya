@@ -20,6 +20,32 @@ describe('version pinning', () => {
     expect(packageVersion).toBe(pluginVersion);
   });
 
+  it('the lockfile agrees too, and the release is configured to keep it that way', () => {
+    const packageVersion = readJson(path.join(mcpRoot, 'package.json')).version;
+    const lock = readJson(path.join(mcpRoot, 'package-lock.json'));
+
+    // `npm version` writes all three of these, so they only drift when the
+    // release forgets to commit one. This one sat at 1.7.0 through eleven
+    // releases because .releaserc.json did not list it: the bump happened on
+    // the runner and went in the bin. The second assertion is the one that
+    // actually prevents a repeat -- the first would only notice afterwards.
+    expect(lock.version).toBe(packageVersion);
+    expect(lock.packages[''].version).toBe(packageVersion);
+
+    const release = readJson(path.join(repoRoot, '.releaserc.json'));
+    const git = release.plugins.find(
+      (p: unknown) => Array.isArray(p) && p[0] === '@semantic-release/git',
+    );
+    expect(git[1].assets).toContain('mcp/package-lock.json');
+  });
+
+  it('the lockfile does not advertise a bin the package dropped', () => {
+    // It listed `eklavya-mcp` long after package.json stopped shipping it.
+    const pkg = readJson(path.join(mcpRoot, 'package.json'));
+    const lock = readJson(path.join(mcpRoot, 'package-lock.json'));
+    expect(Object.keys(lock.packages[''].bin ?? {})).toEqual(Object.keys(pkg.bin ?? {}));
+  });
+
   it('the launcher reads the version instead of carrying its own copy', () => {
     // There used to be a third place to keep in step -- PINNED_VERSION in a
     // shell launcher -- and keeping it in step was a manual step that a release

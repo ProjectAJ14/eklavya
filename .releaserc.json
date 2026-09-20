@@ -29,7 +29,8 @@
         "assets": [
           "CHANGELOG.md",
           ".claude-plugin/plugin.json",
-          "mcp/package.json"
+          "mcp/package.json",
+          "mcp/package-lock.json"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
