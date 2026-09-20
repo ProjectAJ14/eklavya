@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/ProjectAJ14/eklavya/compare/v1.16.0...v1.17.0) (2026-09-20)
+
+
+### Features
+
+* support Claude Desktop — the Code tab and Cowork ([2381f76](https://github.com/ProjectAJ14/eklavya/commit/2381f7601eb48d9eb210464b58a8d6be4470fc1c))
+
 # [1.16.0](https://github.com/ProjectAJ14/eklavya/compare/v1.15.0...v1.16.0) (2026-09-06)
 
 
