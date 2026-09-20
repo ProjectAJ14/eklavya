@@ -170,6 +170,7 @@ produced rather than about a diff. Two things do not carry over:
 
 - **The commit gate does nothing.** It holds `git commit`, and Cowork does not commit. `enforced` mode still records the gate and still asks the questions; it just has nothing to block, and says so at session start.
 - **Delegated work is not logged.** Cowork does not fire the `SubagentStart` event, so a subagent is never told to log what it exercised. Concepts from the main thread are logged as normal.
+- **Questions are signed in the stem.** Cowork draws a question card with no header chip and has no status bar, so the question opens with `[Eklavya]` on its own line instead. The same is true of the Code tab. See [your first session](/docs/first-session/).
 :::
 
 ### Uninstalling

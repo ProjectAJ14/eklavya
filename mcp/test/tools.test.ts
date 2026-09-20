@@ -924,6 +924,31 @@ describe('enforced-mode gate retry', () => {
   });
 });
 
+/**
+ * Every ask path calls the planner first -- both hooks, the quiz command and
+ * the tutor subagent -- so this is the one place that can state a host-specific
+ * rule to all of them. `writing-mcq.md` is a static file and cannot.
+ */
+describe('ask_attribution travels with the plan', () => {
+  const ENTRYPOINT = 'CLAUDE_CODE_ENTRYPOINT';
+  afterEach(() => delete process.env[ENTRYPOINT]);
+
+  it('carries the chip rule in a terminal', () => {
+    process.env[ENTRYPOINT] = 'cli';
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.ask_attribution).toContain('Header "Eklavya"');
+    expect(plan.ask_attribution).not.toContain('[Eklavya]');
+  });
+
+  it('carries the stem prefix on a Claude Desktop host', () => {
+    process.env[ENTRYPOINT] = 'claude-desktop';
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.ask_attribution).toContain('[Eklavya]');
+  });
+});
+
 // `mode` is how hard Eklavya pushes; `focus` is what it teaches. The two dials
 // are independent, and these pin that they stay that way.
 describe('focus', () => {

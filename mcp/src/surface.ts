@@ -118,3 +118,87 @@ export const COWORK_NOTE =
 export function withSurfaceNote(text: string, separator = '\n'): string {
   return isCowork() ? `${text}${separator}${COWORK_NOTE}` : text;
 }
+
+/**
+ * Whether the host paints the `header` chip — a different question from `Surface`.
+ *
+ * `Surface` says what kind of work a session produces. This says what the host
+ * draws, and the two do not line up: the Code tab in Claude Desktop is `code`
+ * by every measure that matters to the pedagogy — same engine, same
+ * `~/.claude`, same diff — and still renders a question card rather than a
+ * terminal. `header` is a field every client receives and each one paints as it
+ * likes; Claude Desktop's card has no chip in it, so the attribution is
+ * dropped on the floor.
+ *
+ * That leaves a Desktop learner with no attribution at all, because the *other*
+ * signal is terminal-only too. 1.14 moved the dials out of the stem and into
+ * `eklavya statusline` (see `ask.ts`), which was right for a terminal and
+ * silently correct-by-accident everywhere else until Desktop support landed:
+ * Claude Desktop has no status bar to run it in. Chip and bar were the two
+ * places attribution lived, and Desktop has neither, so a question arrives
+ * unsigned mid-task and reads as Claude going off-piste.
+ *
+ * So the stem gets a prefix back, on those hosts only. This is a partial
+ * reversal of 1.14 and worth naming as one: the argument then was that a field
+ * with no dim, no weight and no colour is a poor place for a readout. It still
+ * is. The difference is that four dials of ambient state are a readout, and
+ * three characters of "who is asking" are not — and a poor place beats no place.
+ */
+const HEADERLESS_HOSTS = /desktop/i;
+
+/**
+ * True when the host renders a question card instead of a terminal.
+ *
+ * Matched as a substring for the reason the Cowork test is: `claude-desktop`
+ * and `claude-desktop-3p` are what the app stamps today, and the app treats its
+ * entrypoint names as prefix families rather than a fixed list, so an allowlist
+ * of the two known on the day this was written would go stale the first time a
+ * third appeared. `remote_desktop` is caught by the same pattern and should be
+ * — it is the desktop app driving a remote session, with the same card and the
+ * same missing chip.
+ *
+ * Cowork is included outright. It is Claude Desktop too, and its agentic
+ * workspace has no terminal and no status bar either.
+ *
+ * `claude-vscode` is deliberately *not* matched: the extension runs Claude Code
+ * in an integrated terminal, which paints the chip like any other.
+ *
+ * `EKLAVYA_SURFACE` deliberately does not reach this. That override says what
+ * kind of work a session produces, and this asks what the host draws: setting
+ * it to `code` on a Claude Desktop session is a statement about the work, not a
+ * claim that a terminal appeared. It still reaches the Cowork half, because a
+ * session forced to Cowork is one whose host draws a card by definition.
+ *
+ * Unknown entrypoints resolve to "paints the chip", which is the direction to
+ * be wrong in *for this session's most common host* — the terminal, where a
+ * prefix beside a chip that already says Eklavya is pure noise on every
+ * question. A host we have never heard of loses attribution until someone adds
+ * it; a terminal that gains a redundant prefix annoys every user every time.
+ */
+export function needsInlineAttribution(): boolean {
+  return isCowork() || HEADERLESS_HOSTS.test(process.env.CLAUDE_CODE_ENTRYPOINT ?? '');
+}
+
+/**
+ * The attribution rule, composed for whichever host is asking.
+ *
+ * One function rather than a sentence pasted into each caller, because the two
+ * hooks and the plan all have to say the same thing and a rule stated in three
+ * places is a rule that drifts. The terminal branch is what both hooks said
+ * verbatim before this existed.
+ *
+ * The prefix is a separate line rather than an inline `[Eklavya] What does…`
+ * because newlines survive the `question` field intact (verified — see
+ * `docs/verified-schemas.md`) and a signature on its own row is the closest the
+ * stem can get to a chip. `stripAskHeader` handles either shape regardless,
+ * since what the model actually does with an instruction is its own business.
+ */
+export function attributionRule(): string {
+  return needsInlineAttribution()
+    ? 'Header "Eklavya", and — because this host draws a question card with no chip in it — ' +
+        'open the stem with "[Eklavya]" on its own line, then the question. That line is the only ' +
+        'thing on screen saying who is asking. Nothing else goes in the stem: the dials are not ' +
+        'shown here either, and they are not what the prefix is for.'
+    : 'Header "Eklavya", so it is clear who is asking. Ask the stem on its own — the dials that ' +
+        'chose this question live in the status bar, so what you ask is the question and nothing else.';
+}

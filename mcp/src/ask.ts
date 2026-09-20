@@ -1,5 +1,12 @@
 /**
- * The settings line: gone from the question, still stripped from the record.
+ * Presentation that reaches the stem, taken back off before the stem is stored.
+ *
+ * Two things have ever been pasted into the `question` field of
+ * `AskUserQuestion` without being part of the question: the settings line,
+ * which is history, and the `[Eklavya]` attribution prefix, which is current
+ * and only appears on hosts that do not paint the `header` chip
+ * (`surface.ts`). Both are stripped here, for the same reason -- see
+ * `questionFingerprint` in `store.ts`.
  *
  * Eklavya used to print a bracketed line above every question naming the dials
  * that chose it -- `[mode: ambient · focus: concept · level: easy · tier: 2
@@ -23,6 +30,27 @@
  * change fingerprint at once, and the whole back catalogue would come back round
  * as brand-new questions.
  */
+
+/**
+ * The attribution prefix, matched exactly as `attributionRule` asks for it.
+ *
+ * On a host that draws a question card the `header` chip is never painted, so
+ * the stem opens with `[Eklavya]` instead (`surface.ts`). That is presentation,
+ * exactly as the settings line was, and it has to come back off before the stem
+ * is stored: `questionFingerprint` hashes this text, and a learner who works in
+ * a terminal and in Claude Desktop would otherwise fingerprint one question two
+ * ways and be asked it twice.
+ *
+ * Both shapes are matched because an instruction is not a guarantee. The rule
+ * asks for the prefix on its own line; a model that puts it inline ahead of the
+ * stem has followed the spirit of it, and a strip that only knew the tidy shape
+ * would leave the untidy one baked into the record forever.
+ *
+ * Strict about the literal, and only at the start: nothing else in a stem opens
+ * with this word in square brackets, and matching anything looser would eat the
+ * first line of a real question about Eklavya itself.
+ */
+const ATTRIBUTION_PREFIX = /^[ \t]*\[eklavya\][ \t]*(?:\n+|(?=\S))/i;
 
 /**
  * The settings line, matched exactly as Eklavya used to compose it.
@@ -51,5 +79,9 @@ const LEADING_LINE = new RegExp(String.raw`^[ \t]*${SETTINGS_LINE_BODY}\n+`, 'i'
 const TRAILING_LINE = new RegExp(String.raw`\n[ \t]*${SETTINGS_LINE_BODY}$`, 'i');
 
 export function stripAskHeader(question: string): string {
-  return question.replace(LEADING_LINE, '').replace(TRAILING_LINE, '').trim();
+  return question
+    .replace(ATTRIBUTION_PREFIX, '')
+    .replace(LEADING_LINE, '')
+    .replace(TRAILING_LINE, '')
+    .trim();
 }

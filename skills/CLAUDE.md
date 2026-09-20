@@ -142,7 +142,30 @@ Two consequences for anyone editing a skill:
   hashes that text. Delete the stripper and the entire back catalogue changes
   fingerprint at once, so *never the same question twice* breaks for every
   question ever asked. It is now a guard for history, plus a model that invents
-  a line anyway.
+  a line anyway — plus the one thing that is still allowed above a stem, below.
+
+### The one exception: who is asking
+
+The status bar carries the dials, and the `header` chip carries the
+attribution. Both are terminal paint. Claude Desktop draws a question card with
+no chip in it and has no status bar to run `eklavya statusline` in, so a
+question there arrived signed by nobody — which is the thing the chip existed
+to prevent, failing silently on a whole host.
+
+So `[Eklavya]` goes back above the stem, **on those hosts only**, and only that.
+`needsInlineAttribution` in `mcp/src/surface.ts` decides, `attributionRule`
+composes the sentence, and the plan returns it as `ask_attribution`. That field
+is why this is not a re-run of `ask_header`: the rule is composed once on the
+server, where the host is visible, rather than assembled by a skill that cannot
+see one.
+
+A third consequence follows from the two above:
+
+- **A skill file must not state the rule itself.** `writing-mcq.md` and
+  `SKILL.md` point at `ask_attribution` and stop. A skill is static and a host
+  is not, so a skill that spells out "set `header` and nothing else" is correct
+  in a terminal and wrong in Claude Desktop, with no way to tell which it is
+  being read in.
 
 The tier is deliberately nowhere on screen. A status bar refreshes on the host's
 cadence, so a tier there would sometimes name the previous question's

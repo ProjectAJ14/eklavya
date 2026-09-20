@@ -52,9 +52,16 @@ right answer first nearly every time, and a learner needs only a handful of
 questions to notice that and start picking A without reading; the quiz keeps
 looking fine and stops measuring anything.
 
-**6. `header`.** Set it to `Eklavya`. That chip is the only thing on screen
-saying who is asking. A question arriving mid-task with no attribution reads as
-Claude going off-piste, and the developer answers a stranger.
+**6. `header`.** Set it to `Eklavya`, and then **do what the plan's
+`ask_attribution` says** — it is the rule for the host you are actually running
+on, and this file cannot be.
+
+In a terminal the chip is the only thing on screen saying who is asking, and the
+stem stays clean. Claude Desktop draws a question card with no chip in it, so
+there `ask_attribution` asks for `[Eklavya]` on its own line above the stem
+instead; the status bar that carries the dials does not exist there either.
+Either way a question arriving mid-task with no attribution reads as Claude
+going off-piste, and the developer answers a stranger.
 
 The tool appends an **"Other"** choice of its own, and that is the route for
 *"I don't know"* — which `grading.md` treats as the clearest request for
@@ -68,7 +75,9 @@ the tool accepts up to four, and four at once is a test rather than teaching.
 Use `preview` when the options are *code* — four snippets side by side is a far
 better question than four sentences describing snippets. A renderer without
 `AskUserQuestion` lays the same four options out as lettered text; everything
-here still holds, only the rendering changes.
+here still holds, only the rendering changes. A renderer that *has* the tool and
+quietly drops one of its fields is the other case, and it is what
+`ask_attribution` exists for.
 
 ## What a finished question looks like
 
