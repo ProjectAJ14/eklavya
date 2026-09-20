@@ -2,7 +2,7 @@ import { z } from 'zod';
 import path from 'node:path';
 import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from '../config.js';
 import { currentSurface } from '../surface.js';
-import { isSessionOff, resolveSessionId, setSessionOff } from '../session.js';
+import { FALLBACK_SESSION_ID, isSessionOff, resolveSessionId, setSessionOff } from '../session.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
 
 export const getConfig: ToolDef = {
@@ -139,6 +139,21 @@ export const setConfig: ToolDef = {
       }
 
       const session = resolveSessionId(ctx.db, args.session_id as string | undefined);
+
+      // No real session id to key on. `resolveSessionId` falls back to the
+      // literal "default" when no SessionStart hook has ever run — Cursor
+      // through `export-rules`, a host without hooks — and a row under that key
+      // silences every future session that lands on the same fallback, with no
+      // file to notice and no session end to clear it. Refusing is the whole
+      // point of a switch whose promise is that it forgets by itself.
+      if (session === FALLBACK_SESSION_ID) {
+        return {
+          error: 'no_session',
+          detail:
+            'No Claude Code session is registered, so there is nothing to scope this to — the hooks are what stamp the session id, and they have not run. Use scope "global" (and set mode back afterwards) or pass session_id explicitly.',
+        };
+      }
+
       const off = patch.mode === 'off';
       setSessionOff(ctx.db, session, off);
 
@@ -154,7 +169,7 @@ export const setConfig: ToolDef = {
         // silenced session in an enforced repo still meets the gate at commit.
         note:
           off && resolved.config.mode === 'enforced'
-            ? 'Questions are silenced for this session, but the repo is in enforced mode and the commit gate still holds — the quiz has to happen before a commit lands.'
+            ? 'Questions are silenced for this session, but the repo is in enforced mode and the commit gate still holds — and it keeps growing, because work logged while you are silent still counts toward it. The quiz has to happen before a commit lands.'
             : undefined,
       };
     }

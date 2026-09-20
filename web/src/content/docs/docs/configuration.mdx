@@ -34,7 +34,10 @@ they stay unmastered and come back as review.
 One thing it deliberately does not do: **it does not open the commit gate.** In a
 repo running `enforced` mode, the [git hook](/docs/commit-gate/) reads
 `.eklavya.json` and has never heard of a session, so a commit still waits for the
-quiz. Silencing the questions and skipping the gate are different requests, and
+quiz — and the gate keeps *growing* while you are silent, because the work still
+gets logged and the quiz that would have drained it is the thing you switched
+off. Silence an enforced session for an hour and the quiz waiting at `git commit`
+is a longer one. Silencing the questions and skipping the gate are different requests, and
 only a repo or global `mode` change is the second one.
 
 ### Every key

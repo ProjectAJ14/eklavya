@@ -51,7 +51,7 @@ import {
   type DB,
 } from './lib.js';
 import { withSurfaceNote } from '../surface.js';
-import { isSessionOff } from '../session.js';
+import { isSessionOff, setCurrentSession } from '../session.js';
 
 /**
  * Long enough that the session-start directive has had a fair chance, short
@@ -142,6 +142,16 @@ await run(async (input) => {
 
   const sid = sessionId(input, db);
   if (!sid) return 0;
+
+  // Re-stamp the session pointer the MCP tools resolve against (decision G1).
+  // `session-start` sets it once, so with two sessions open it names whichever
+  // started last — and the model, which cannot see its own session id, would
+  // then silence, un-silence or log to the wrong one. Restamping here makes it
+  // "the session whose developer most recently typed", which is the session
+  // whose model is about to call a tool. One indexed upsert, on a hook that has
+  // already opened the database.
+  setCurrentSession(db, sid);
+
   if (isSessionOff(db, sid)) return 0;
 
   // The fast path, and the one that runs on almost every prompt: a session that

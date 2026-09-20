@@ -177,6 +177,10 @@ describe('PreToolUse gate — holding a commit', () => {
     const payload = JSON.parse(preToolGate('git commit -m "add auth"').stdout);
     expect(payload.hookSpecificOutput.permissionDecision).toBe('deny');
     expect(gateCli().status).not.toBe(0);
+
+    // ...and the refusal names the way out. Telling a silenced session to run a
+    // quiz is a dead end: the planner returns session_off and no questions.
+    expect(payload.hookSpecificOutput.permissionDecisionReason).toMatch(/off for this session/);
   });
 
   it('denies the commit with an instructive reason', () => {

@@ -14,7 +14,7 @@ import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from '.
 import { loadPacks, applyPacks } from './packs.js';
 import { levelStanding } from './store.js';
 import { statusLine } from './statusline.js';
-import { isSessionOff, resolveSessionId } from './session.js';
+import { isSessionOff } from './session.js';
 import { START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
 import { startDashboard, openInBrowser } from './dashboard.js';
@@ -339,10 +339,11 @@ function doctor(): void {
  * prints one line or nothing at all, and exits 0 either way — a status bar is
  * not a place to report that Eklavya is unwell.
  *
- * Only the earned level needs the database. The dials themselves come from
- * `.eklavya.json`, and a pinned difficulty *is* the level, so a pinned setup
- * never opens the file at all and an install with no database yet still shows
- * its dials rather than nothing.
+ * Only the earned level and the per-session off switch need the database. The
+ * dials themselves come from `.eklavya.json`, so an install with no database
+ * yet — or one that cannot be opened — still shows its dials rather than
+ * nothing. The database is consulted in its own try/catch for exactly that
+ * reason: a locked or corrupt file costs the level, never the bar.
  */
 async function statuslineCommand(argv: string[]): Promise<void> {
   try {
@@ -381,19 +382,29 @@ async function statuslineCommand(argv: string[]): Promise<void> {
     const pinned = resolved.config.difficulty !== 'auto';
 
     let level: Level = pinned ? (resolved.config.difficulty as Level) : START_LEVEL;
-    if (fs.existsSync(dbPath())) {
-      // `levelStanding` rather than a query of our own: the banner learned this
-      // the hard way, and a second implementation of the band rules is a second
-      // thing to keep in step with the planner.
-      const db = new Database(dbPath(), { readonly: true });
+    // Nothing the database says is worth losing the bar over, so its own catch:
+    // before this, a corrupt or locked file threw past the level lookup and the
+    // whole line vanished on every refresh.
+    if ((sid || !pinned) && fs.existsSync(dbPath())) {
+      let db: Database.Database | null = null;
       try {
+        db = new Database(dbPath(), { readonly: true });
         // A silenced session shows no bar. It says the same thing `mode: off`
         // says, and a bar still reciting the dials of a session that will not
         // ask anything is the kind of small lie that costs a bug report.
-        if (isSessionOff(db, sid ?? resolveSessionId(db))) return;
+        //
+        // Only when the host named the session. The fallback would be the
+        // shared `current_session` pointer, and suppressing on a guess blanks
+        // the bar in every other terminal the moment one session goes quiet.
+        if (sid && isSessionOff(db, sid)) return;
+        // `levelStanding` rather than a query of our own: the banner learned
+        // this the hard way, and a second implementation of the band rules is a
+        // second thing to keep in step with the planner.
         if (!pinned) level = levelStanding(db, resolved.config, resolved.repoRoot).level;
+      } catch {
+        /* Unreadable database: show the dials, skip what it would have said. */
       } finally {
-        db.close();
+        db?.close();
       }
     }
 

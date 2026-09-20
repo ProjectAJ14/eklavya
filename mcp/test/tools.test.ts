@@ -12,7 +12,7 @@ import { upsertConcepts } from '../src/tools/upsert_concepts.js';
 import { getConceptGraph } from '../src/tools/get_concept_graph.js';
 import { gateRetryConcepts } from '../src/store.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
-import { resolveSessionId, setCurrentSession, FALLBACK_SESSION_ID } from '../src/session.js';
+import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 let dbFile = '';
@@ -1357,6 +1357,31 @@ describe('config tools', () => {
       configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
       const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
       expect(res.note).toMatch(/commit gate/);
+    });
+
+    it('refuses when no real session id can be resolved', () => {
+      // `resolveSessionId` falls back to the literal "default" where no hook has
+      // ever stamped a session. A row under that key would silence every future
+      // session that lands on the same fallback, with nothing to notice it by —
+      // the exact "off outlives its reason" failure this scope exists to avoid.
+      expect(resolveSessionId(db)).toBe(FALLBACK_SESSION_ID);
+      expect(call<any>(setConfig, { scope: 'session', mode: 'off' }).error).toBe('no_session');
+      expect(isSessionOff(db, FALLBACK_SESSION_ID)).toBe(false);
+    });
+
+    it('acts on the session the hooks last stamped when none was passed', () => {
+      setCurrentSession(db, 'sess-from-hook');
+      expect(call<any>(setConfig, { scope: 'session', mode: 'off' }).session_id).toBe(
+        'sess-from-hook',
+      );
+      expect(isSessionOff(db, 'sess-from-hook')).toBe(true);
+    });
+
+    it('warns that an enforced gate grows while the session is silent', () => {
+      configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+      expect(
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' }).note,
+      ).toMatch(/keeps growing/);
     });
 
     it('takes only mode — a vanishing difficulty would be a dial that unset itself', () => {

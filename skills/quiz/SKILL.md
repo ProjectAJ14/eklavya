@@ -23,6 +23,7 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
    - `nothing_logged` → "Nothing logged this session yet, so there's nothing grounded to ask about."
    - `no_candidates` (topic mode) → that topic is fully mastered and nothing is due; name the closest domain that is not.
    - `mode_off` → "Eklavya is off. `/eklavya:setup` to turn it back on."
+   - `session_off` → they turned Eklavya off for this session, and then asked for a quiz. Say so and offer the one step back: "Eklavya is off for this session — say the word and I'll turn it back on." Turn it back on with `set_config`, `scope: "session"`, `mode: "ambient"` if they agree, then run the quiz.
    - `no_topic` → focus is `learn` with nothing set; ask what they want to learn, then `/eklavya:mode learn <topic>`.
    - `topic_unknown` → the graph has nothing matching their topic; offer the closest domain rather than inventing questions.
 

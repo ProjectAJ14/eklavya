@@ -83,16 +83,18 @@ eklavya config set difficulty easy --repo # this project only: .eklavya.json
 A third scope, and it needs the `set_config` **tool** — the CLI has no session
 of its own to name. Hear "for now", "for this session", "I'm in the middle of
 something urgent", and call `set_config` with `scope: "session"` and
-`mode: "off"`. It takes `mode` and nothing else, writes no file, silences every
-hook until the session ends, and forgets by itself; any other `mode` at that
-scope brings the session back.
+`mode: "off"`. It takes `mode` and nothing else, writes no file, stops every
+question, checkpoint, banner and status bar until the session ends, and forgets
+by itself; any other `mode` at that scope brings the session back.
 
 Do **not** reach for global scope for this. It is a file, it outlives the
 afternoon that wanted quiet, and it is how someone ends up having turned the
 tool off for good by accident.
 
 Say the limit when the effective mode is `enforced`: the questions stop, the
-commit gate does not — it reads `.eklavya.json` and never sees a session id.
+commit gate does not — it reads `.eklavya.json` and never sees a session id, and
+it keeps growing, because work logged while you are silent still counts toward
+it.
 `set_config` returns a `note` saying so; pass it on rather than letting them
 discover it at `git commit`.
 

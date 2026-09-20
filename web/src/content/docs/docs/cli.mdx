@@ -48,10 +48,11 @@ in, so the dials are not on screen there; questions there are signed with an
 `[Eklavya]` line above the stem instead, and [the dashboard](/docs/dashboard/)
 carries the settings.
 
-It stays silent when `mode` is `off` or `quiet` is `true`, so a bar you have
-stopped reading is a bar Eklavya is not writing to. `enforced` mode is printed
-in amber, because that is the one dial value with a consequence attached: your
-commits are gated. Pass `--no-color`, or set `NO_COLOR`, for plain text.
+It stays silent when `mode` is `off`, when `quiet` is `true`, or when you have
+turned Eklavya off for this session, so a bar you have stopped reading is a bar
+Eklavya is not writing to. `enforced` mode is printed in amber, because that is
+the one dial value with a consequence attached: your commits are gated. Pass
+`--no-color`, or set `NO_COLOR`, for plain text.
 
 The bar never shows the tier of the question in front of you. A status bar
 refreshes when Claude Code decides to, not when a question appears, so a tier

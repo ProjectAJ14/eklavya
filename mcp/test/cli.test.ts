@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tempDbPath, cleanup } from './helpers.js';
 import { openDb } from '../src/db.js';
-import { setSessionOff } from '../src/session.js';
+import { setCurrentSession, setSessionOff } from '../src/session.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cliPath = path.join(mcpRoot, 'dist', 'cli.js');
@@ -385,6 +385,26 @@ describe('eklavya statusline', () => {
   it('shows the dials', () => {
     openDb(dbFile).close();
     expect(bar('sess-1')).toMatch(/\[EKLAVYA ambient/);
+  });
+
+  it('still shows the dials when the database cannot be read', () => {
+    // The session check needs the database; the bar does not. Before this, a
+    // corrupt file threw past the level lookup and the line vanished entirely.
+    fs.writeFileSync(dbFile, 'this is not a sqlite file at all');
+    expect(bar('sess-1')).toMatch(/\[EKLAVYA ambient/);
+  });
+
+  it('keeps the bar when the host names no session', () => {
+    // The fallback would be the shared current_session pointer, so suppressing
+    // on a guess blanks every other terminal the moment one session goes quiet.
+    const db = openDb(dbFile);
+    setSessionOff(db, 'sess-1', true);
+    setCurrentSession(db, 'sess-1');
+    db.close();
+
+    expect(
+      eklavya(['statusline', '--no-color'], repo, JSON.stringify({ cwd: repo })).stdout,
+    ).toMatch(/\[EKLAVYA ambient/);
   });
 
   it('goes dark for a session that was turned off', () => {

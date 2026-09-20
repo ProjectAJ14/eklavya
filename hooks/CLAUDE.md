@@ -184,8 +184,10 @@ everything.
 ## The per-session off switch
 
 `isSessionOff(db, sessionId)` (`mcp/src/session.ts`) is a `meta` row written by
-`set_config` at `scope: "session"`, and **every hook checks it right after its
-`mode` check**. It exists because the file-backed `off` outlives the urgent
+`set_config` at `scope: "session"`. **Every hook that speaks to the developer
+checks it right after its `mode` check** — session-start, the nudge, the
+checkpoint, Stop, subagent-start. `pre-tool-gate` is the deliberate exception
+and reads it only to word its refusal; see below. It exists because the file-backed `off` outlives the urgent
 afternoon that wanted it, and a developer who silences one hour by editing a
 config file has quietly turned the product off for good.
 
@@ -194,6 +196,10 @@ Two rules it is easy to get wrong:
 - It silences, it does not exempt. `cli/eklavya-gate` reads `.eklavya.json` and
   never sees a session id, so an enforced repo still holds the commit. Making
   the gate honour it would turn a per-session convenience into a gate bypass.
+  `pre-tool-gate` reads `isSessionOff` for one reason only: its refusal tells
+  the model to run a quiz, and in a silenced session the planner returns
+  `session_off` and nothing to ask, so the refusal has to name the way out.
+  Reading it to word the message is not the same as acting on it.
 - Enforced mode is **not** the exception here that it is for the cooldown. The
   cooldown is pacing Eklavya chose; this is the developer saying stop, in words.
 

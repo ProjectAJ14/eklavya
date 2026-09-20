@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, type DB } from '../src/db.js';
 import { conceptBySlug, gradeConcept, logSessionConcept } from '../src/store.js';
-import { setSessionOff } from '../src/session.js';
+import { getCurrentSession, setCurrentSession, setSessionOff } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 // The built hooks, not the sources: these are what the plugin actually runs,
@@ -1058,6 +1058,17 @@ describe('the per-session off switch', () => {
     const res = subagent();
     expect(res.status).toBe(0);
     expect(res.stdout).toBe('');
+  });
+
+  it('leaves the session pointer naming this session, so it can be turned back on', () => {
+    // The model cannot see its own session id, so set_config resolves it from
+    // `current_session`. session-start stamps that once — whichever session
+    // started last wins — and with two open sessions the model would silence
+    // the wrong one. Every prompt re-stamps it.
+    setSessionOff(db, SESSION, false);
+    setCurrentSession(db, 'some-other-session');
+    runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit' });
+    expect(getCurrentSession(db)).toBe(SESSION);
   });
 
   it('silences that session only', () => {
