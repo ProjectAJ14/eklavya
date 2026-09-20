@@ -41,6 +41,12 @@ the task did not touch directly. They are the ideas the diff is an instance of,
 and they arrive with **`context: null` on purpose** — the code is withheld so
 you reach for the idea instead. Ask about them on their own terms.
 
+Items with `reason: "backlog"` are older work — a concept an earlier session
+logged that no question ever reached, offered once this session's own concepts
+and review debt are covered. They also arrive with `context: null`, and for a
+blunter reason: the code that taught them is not on screen and may not even be
+on this branch. Ask about the concept, never about the diff.
+
 Items the session *did* touch keep their `context` even in this focus. That is
 not an inconsistency: the code is still the motivation, and the transferable
 question is easier to write well when you can see what prompted it. Read

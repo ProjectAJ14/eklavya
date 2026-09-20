@@ -87,8 +87,11 @@ event — but nothing in this repo has verified that, and the cost of being wron
 is an agent with no `AskUserQuestion` told to run a quiz, repeatedly, in a
 transcript nobody reads. This hook is what made that reachable: before it a
 subagent logged nothing, so the Stop hook's `logged > last_logged` predicate
-could never arm. What the subagent logged is still there for the parent's own
-Stop sweep, which is where it belongs.
+could never arm. That is history, not a reason the guard could go: under the
+`interleaved` cadence the sweep re-arms on a clock rather than on newly logged
+work, so the `agent_id` check is now the only thing keeping a subagent out of it.
+What the subagent logged is still there for the parent's own Stop sweep, which is
+where it belongs.
 
 ## The tutor is told nothing, on purpose
 

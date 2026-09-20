@@ -402,6 +402,67 @@ describe('get_session_quiz_plan', () => {
     expect(plan.concepts.find((c: any) => c.slug === 'pkce').reason).toBe('domain_review');
   });
 
+  // --- the backlog: work that was logged and never asked about ---------------
+  // Spaced repetition cannot reach these. (c) above joins `mastery`, and a
+  // mastery row is written only by record_attempt -- so a concept the budget
+  // never got to has no next_review to come due on and would be offered again
+  // never. That is the leak this source closes.
+
+  it('offers work an earlier session logged and no question ever reached', () => {
+    call(logSessionConcepts, {
+      session_id: 'earlier-session',
+      concepts: [{ slug: 'pkce', context: 'added the code_verifier in login.ts' }],
+    });
+
+    logAuthWork();
+    master('httponly-cookies');
+    master('jwt-structure');
+    master('csrf');
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.map((c: any) => c.slug)).toContain('pkce');
+    expect(plan.concepts.find((c: any) => c.slug === 'pkce').reason).toBe('backlog');
+  });
+
+  it('never re-offers backlog that some earlier session did ask about', () => {
+    call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'pkce' }] });
+    // Asked and answered there, which is the whole difference. `alreadyAsked` is
+    // scoped to the current session, so the source carries its own global filter.
+    call(recordAttempt, {
+      session_id: 'earlier-session',
+      slug: 'pkce',
+      question: 'about pkce',
+      answer: 'a',
+      grade: 4,
+      difficulty: 2,
+    });
+
+    logAuthWork();
+    master('httponly-cookies');
+    master('jwt-structure');
+    master('csrf');
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('pkce');
+  });
+
+  it('puts the session the developer is actually in ahead of the backlog', () => {
+    configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 2 });
+    call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'pkce' }] });
+    logAuthWork();
+
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts).toHaveLength(2);
+    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('pkce');
+    expect(plan.concepts.every((c: any) => c.reason === 'unmastered')).toBe(true);
+  });
+
+  it('does not treat this session\'s own unasked concepts as backlog', () => {
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.concepts.some((c: any) => c.reason === 'backlog')).toBe(false);
+  });
+
   it('goes quiet in ambient mode during the cooldown (G5)', () => {
     configure({ min_minutes_between_quizzes: 30, mode: 'ambient' });
     logAuthWork();

@@ -77,7 +77,9 @@ and you ask those one at a time.
 checkpoint answered is one the sweep no longer asks, so a session that
 checkpointed through the budget ends in silence. That is intended — do not top it
 up because the ending felt quiet. What the budget never reached stays unmastered
-and comes back as review.
+and comes back in a later plan with `reason: "backlog"`, once that session's own
+concepts and review debt are covered. It is not spaced repetition that brings it
+back — that only schedules concepts already answered once.
 
 `questions_needed: 0` means say nothing and carry on; `reason` says why.
 

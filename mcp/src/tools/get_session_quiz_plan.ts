@@ -69,7 +69,8 @@ interface PlanItem {
     | 'topic'
     | 'gate_retry'
     | 'concept_widening'
-    | 'learn_topic';
+    | 'learn_topic'
+    | 'backlog';
 }
 
 /**
@@ -117,7 +118,7 @@ export const getSessionQuizPlan: ToolDef = {
   // already re-pointed on Cowork. A description that still promised a diff
   // while the framing said otherwise would set the two against each other.
   description: withSurfaceNote(
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. When this session\'s own concepts and its review debt run out, it falls back to work an earlier session logged but never asked about, oldest first, with reason "backlog" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking.',
     ' ',
   ),
   inputSchema: {
@@ -437,6 +438,40 @@ export const getSessionQuizPlan: ToolDef = {
           )
           .all(...domains, now.toISOString()) as ConceptRow[];
         for (const c of rows) add(c, null, 'domain_review');
+      }
+
+      // (d) work an earlier session logged and no question ever reached.
+      //
+      // This is review debt that spaced repetition cannot see. (c) above joins
+      // `mastery`, and a mastery row is written only by record_attempt -- so a
+      // concept that was logged, never asked, and left behind when the budget ran
+      // out has no next_review to come due on and would never be offered again.
+      // It was logged because the work exercised it, which is the same evidence
+      // any other pick here rests on, so it belongs in the plan rather than in a
+      // table nobody reads.
+      //
+      // Last, deliberately: it must never displace a concept from the session the
+      // developer is actually in. Oldest debt first, and the global attempts
+      // filter is its own -- `alreadyAsked` is scoped to this session.
+      //
+      // The LIMIT is why this differs from (c) above, which has none: review debt
+      // grows only as fast as questions get answered, while this grows every time
+      // a session logs more than the budget can ask about -- which is most of
+      // them. `add` stops at `max` anyway; the limit is on what gets read.
+      if (picked.length < max) {
+        const rows = db
+          .prepare(
+            `SELECT c.* FROM session_concepts sc
+             JOIN concepts c ON c.id = sc.concept_id
+             WHERE sc.session_id <> ?
+               AND COALESCE(sc.origin, 'work') = 'work'
+               AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)
+             GROUP BY c.id
+             ORDER BY min(sc.ts) ASC
+             LIMIT 50`,
+          )
+          .all(sessionId) as ConceptRow[];
+        for (const c of rows) add(c, null, 'backlog');
       }
     }
 

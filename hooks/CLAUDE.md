@@ -71,7 +71,10 @@ and for a stronger reason: it blocks with exit 2. `Stop` is believed to be
 parent-only, since `SubagentStop` is a separate event — but nothing here has
 verified that, and this hook is what made the path reachable, because before it
 a subagent logged nothing and the Stop hook's `logged > last_logged` predicate
-could never arm.
+could never arm. Do not read that as making the guard optional now: under
+`interleaved` the clock arms the sweep whether or not anything was logged, so the
+`agent_id` check is the only thing standing between a subagent and a quiz it
+cannot ask.
 
 **And it pays the stdin cost on every delegated task.** It needs `agent_type`,
 so it cannot keep ponytail's stdin-independent fast path; on a host that
@@ -206,22 +209,38 @@ Two rules it is easy to get wrong:
 ## The loop guard
 
 A Stop hook that blocks on every Stop blocks forever, and `stop_hook_active` is
-no longer a documented input. So the rule is: block only when the count of
-`origin = 'work'` rows in `session_concepts` has **grown** since the last block.
-Blocking stamps that count into `stop_markers` (`last_logged_count`,
-`last_blocked_at`, `block_count`), *before* the block — a failure after it costs
-a missed quiz, never a loop. `max_stop_blocks_per_session` (default 3) caps even
-genuinely new work. Counting review-origin rows here would let answering a
-question re-arm the block that asked it; don't. `checkpoint-quiz.ts` has the
-mirror-image guard for mid-turn bursts, stamping `checkpoints` before it emits.
+no longer a documented input. What bounds it depends on the cadence, because the
+two cadences block for different reasons.
+
+Under **`end`**: block only when the count of `origin = 'work'` rows in
+`session_concepts` has **grown** since the last block. That cadence delivers the
+whole budget in one sweep, so a second sweep needs new work behind it.
+
+Under **`interleaved`**: the pacing clock is the guard. The `logged > last_logged`
+rule cannot work here — the model logs its whole batch in one call at the start
+of a task, so "new work since the last block" is false for the rest of the
+session and the sweep fired exactly once, ever. That capped a session at two
+questions against a budget of four. Time re-arms it instead.
+
+Either way, blocking stamps into `stop_markers` (`last_logged_count`,
+`last_blocked_at`, `block_count`) *before* the block — a failure after it costs
+a missed quiz, never a loop — and three caps bound every block: the pacing clock,
+`max_stop_blocks_per_session` (default 3), and the remaining session budget.
+Counting review-origin rows here would let answering a question re-arm the block
+that asked it; don't. `checkpoint-quiz.ts` has the mirror-image guard for
+mid-turn bursts, stamping `checkpoints` before it emits.
 
 ## Pacing
 
-Two different keys, one hook each (`mcp/src/config.ts` is the source of truth):
-`min_minutes_between_checkpoints` (default 4) paces the single mid-task question
-and is read by `checkpoint-quiz.ts`, against both the last checkpoint and the
-last answer; `min_minutes_between_quizzes` (default 20) paces a whole Stop quiz,
-is read by `stop-quiz-check.ts`, and applies **in `ambient` only**.
+Two keys, and which one applies depends on what is being paced, not on which
+hook is asking (`mcp/src/config.ts` is the source of truth).
+`min_minutes_between_checkpoints` (default 4) paces a **single question**: the
+mid-task checkpoint in `checkpoint-quiz.ts`, and the Stop sweep too whenever the
+cadence is `interleaved`, since a sweep is one question there.
+`min_minutes_between_quizzes` (default 20) paces a **whole quiz**, which only the
+`end` cadence produces. Both apply **in `ambient` only**, and both are measured
+against the last block *and* the last answer — checking only one would let the
+hook block a turn the quiz plan then refuses as too soon.
 `max_questions_per_task` (default 4) is a session allowance shared by both hooks:
 every `attempts` row spends it, so the Stop hook asks for whatever the checkpoints
 left. The two hooks' candidate queries share a WHERE clause verbatim; if you

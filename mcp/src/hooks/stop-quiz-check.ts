@@ -14,16 +14,25 @@
  *
  * THE LOOP GUARD IS THE POINT OF THIS FILE.
  * `stop_hook_active` is no longer a documented input (deviation D2), so nothing
- * here may depend on the harness noticing we already blocked. The rule that keeps
- * this finite:
+ * here may depend on the harness noticing we already blocked. What keeps this
+ * finite depends on the cadence, because the two cadences block for different
+ * reasons:
  *
- *   block only when the number of concepts logged for this session has GROWN
- *   since the last block.
+ *   `end`      block only when the number of concepts logged for this session
+ *              has GROWN since the last block. Blocking stamps the current
+ *              count, so a Stop that follows with the same count does not
+ *              block, whatever happened in between — quiz answered, quiz
+ *              skipped, model ignored us entirely.
  *
- * Blocking stamps the current count. A Stop that follows with the same count does
- * not block, whatever happened in between — quiz answered, quiz skipped, model
- * ignored us entirely. Only genuinely new logged work re-arms it, and
- * `block_count` caps even that.
+ *   `interleaved`  block whenever the pacing clock has elapsed. This cadence
+ *              asks one question per block and means to ask several across a
+ *              task, and the `end` rule cannot deliver that: the model logs its
+ *              whole batch in one call, so "new work since the last block" is
+ *              false for the rest of the session and the sweep fired once, ever.
+ *
+ * Neither can run away. Three caps bound every block: the pacing clock
+ * (`min_minutes_between_checkpoints` here, `min_minutes_between_quizzes` under
+ * `end`), `max_stop_blocks_per_session`, and the remaining session budget.
  */
 import { attributionRule, isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
@@ -61,6 +70,7 @@ await run(async (input) => {
     max_questions_per_task,
     max_stop_blocks_per_session,
     min_minutes_between_quizzes,
+    min_minutes_between_checkpoints,
   } = config(cwd).config;
 
   if (mode === 'off') return 0;
@@ -109,12 +119,22 @@ await run(async (input) => {
   // "asked me the same thing twice" failure this tool exists to avoid.
   if (stats.unmastered <= 0) return 0;
 
-  // --- the loop guard --------------------------------------------------------
-  if (!(stats.logged > stats.last_logged)) return 0;
-  if (stats.blocks >= max_stop_blocks_per_session) return 0;
+  // Under `interleaved` this sweep asks exactly ONE question (see `take` below),
+  // so it is paced by the single-question clock rather than the whole-quiz one.
+  // Enforced mode is exempt from both, as it always was (decision G5).
+  const interleaved = cadence === 'interleaved' && mode !== 'enforced';
 
+  // --- the pacing clock ------------------------------------------------------
   // Ambient mode respects the quiz cadence. Enforced mode must not, or a cooldown
   // could make a commit gate unpassable (decision G5).
+  //
+  // Which clock depends on what is being paced. `min_minutes_between_quizzes` is
+  // the anti-nagging floor between whole quizzes, and under `end` that is exactly
+  // what a sweep is. Under `interleaved` a sweep is one question, so gating it on
+  // the quiz clock is a category error -- and it was the bug: a 20-minute floor
+  // measured from the last *answer* meant the checkpoint question the learner had
+  // just answered silenced the sweep for the rest of a typical task, so a session
+  // that logged eight concepts was asked one.
   //
   // Both clocks matter, and for the same reason. get_session_quiz_plan applies its
   // cooldown from the last *answer*; this hook stamps the last *block*. Checking
@@ -122,9 +142,25 @@ await run(async (input) => {
   // too soon, which reads to the model as being told to teach and given nothing to
   // teach. Whichever happened more recently wins.
   if (mode === 'ambient') {
-    if (minutesSince(stats.last_blocked) < min_minutes_between_quizzes) return 0;
-    if (minutesSince(stats.last_answer) < min_minutes_between_quizzes) return 0;
+    const gap = interleaved ? min_minutes_between_checkpoints : min_minutes_between_quizzes;
+    if (minutesSince(stats.last_blocked) < gap) return 0;
+    if (minutesSince(stats.last_answer) < gap) return 0;
   }
+  // ---------------------------------------------------------------------------
+
+  // --- the loop guard --------------------------------------------------------
+  // Under `interleaved` the clock above IS this guard, and it has to be: the
+  // `logged > last_logged` rule re-arms only on newly logged work, and the model
+  // logs its whole batch in one call at the start of a task. That made the sweep
+  // a once-per-session event no matter how long the session ran -- a ceiling of
+  // two questions against a budget of four. Time re-arms it instead, and three
+  // existing caps keep it finite: `gap` minutes between blocks,
+  // `max_stop_blocks_per_session`, and `remaining` below.
+  //
+  // Under `end` the original rule stands. That cadence delivers the whole budget
+  // in one sweep, so a second sweep genuinely does need new work behind it.
+  if (!interleaved && !(stats.logged > stats.last_logged)) return 0;
+  if (stats.blocks >= max_stop_blocks_per_session) return 0;
   // ---------------------------------------------------------------------------
 
   // --- what is left of the session budget ------------------------------------
@@ -143,12 +179,13 @@ await run(async (input) => {
   // that cadence promises a question at a time, at the seam where the concept was
   // logged, and a sweep that ends the task with three questions in a row is the
   // thing it was sold as replacing. What the sweep leaves unasked is not lost --
-  // the concept stays unmastered and comes back as review in a later session,
-  // which is what spaced repetition is for. Under `end`, a batch is the setting.
-  // Enforced mode is exempt, as it is from the cooldown (decision G5): the gate
-  // needs several passing answers and this hook only re-arms when new work is
-  // logged, so pacing it to one would leave a commit that cannot be made.
-  const take = cadence === 'interleaved' && mode !== 'enforced' ? 1 : remaining;
+  // the plan's `backlog` source offers it again in a later session. Note that
+  // spaced repetition does NOT cover it: `mastery` rows are written only by
+  // record_attempt, so a concept never asked has no next_review to come due on.
+  // Under `end`, a batch is the setting. Enforced mode is exempt, as it is from
+  // the cooldown (decision G5): the gate needs several passing answers, so pacing
+  // it to one would leave a commit that cannot be made.
+  const take = interleaved ? 1 : remaining;
 
   const rows = db
     .prepare(

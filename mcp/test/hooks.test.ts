@@ -258,6 +258,7 @@ describe('Stop hook — the loop guard (P0)', () => {
   });
 
   it('blocks exactly once for one batch of work, however many times Claude stops', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure']);
 
     const first = stop();
@@ -292,6 +293,7 @@ describe('Stop hook — the loop guard (P0)', () => {
   });
 
   it('arms again only when genuinely new work is logged', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf']);
     expect(stop().status).toBe(2);
     expect(stop().status).toBe(0);
@@ -302,6 +304,7 @@ describe('Stop hook — the loop guard (P0)', () => {
   });
 
   it('re-logging the same concepts does not re-arm it', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure']);
     expect(stop().status).toBe(2);
 
@@ -310,13 +313,104 @@ describe('Stop hook — the loop guard (P0)', () => {
   });
 
   it('stops blocking entirely after the per-session cap, even with new work', () => {
-    configure({ min_minutes_between_quizzes: 0, max_stop_blocks_per_session: 2 });
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end', max_stop_blocks_per_session: 2 });
 
     logConcepts(['csrf']);
     expect(stop().status).toBe(2);
     logConcepts(['jwt-structure']);
     expect(stop().status).toBe(2);
     logConcepts(['pkce']);
+    expect(stop().status).toBe(0);
+  });
+
+  // --- interleaved: the clock is the guard ----------------------------------
+  // The `logged > last_logged` rule above re-arms only on newly logged work, and
+  // the model logs its whole batch in one call at the start of a task. Under
+  // `interleaved` that made the sweep a once-per-session event: a session that
+  // logged eight concepts was asked one question against a budget of four.
+
+  it('re-arms on the clock under interleaved: one batch of work is more than one question', () => {
+    configure({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf', 'jwt-structure']);
+
+    // No new work logged between any of these, which is the point.
+    expect(stop().status).toBe(2);
+    expect(stop().status).toBe(2);
+    expect(stop().status).toBe(2);
+
+    // And max_stop_blocks_per_session still ends it.
+    expect(stop().status).toBe(0);
+  });
+
+  it('does not loop under interleaved: repeat Stops inside the pacing gap pass', () => {
+    // The default min_minutes_between_checkpoints of 4, left alone. This is the
+    // interleaved counterpart of "blocks exactly once for one batch of work":
+    // what bounds it is the clock rather than the logged count.
+    configure({ min_minutes_between_quizzes: 0 });
+    logConcepts(['csrf', 'jwt-structure']);
+
+    expect(stop().status).toBe(2);
+    for (let i = 0; i < 5; i += 1) {
+      expect(stop().status, `stop #${i + 2} blocked inside the gap`).toBe(0);
+    }
+  });
+
+  it('paces interleaved on the checkpoint clock, never the quiz clock', () => {
+    // A whole-quiz cooldown gating a one-question sweep was the bug: the
+    // checkpoint question the learner had just answered silenced the sweep for
+    // the rest of a normal-length task.
+    configure({ min_minutes_between_quizzes: 600, min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf', 'jwt-structure']);
+
+    expect(stop().status).toBe(2);
+    expect(stop().status).toBe(2);
+  });
+
+  it('an answered question paces the next block, not just the block itself', () => {
+    configure({ min_minutes_between_quizzes: 0 });
+    logConcepts(['csrf', 'jwt-structure']);
+    expect(stop().status).toBe(2);
+
+    // Age the block out, so the block clock alone would let the next one through.
+    db.prepare(
+      `UPDATE stop_markers SET last_blocked_at = strftime('%Y-%m-%dT%H:%M:%fZ','now','-60 minutes')
+        WHERE session_id = ?`,
+    ).run(SESSION);
+
+    // Now only the answer is recent. Answering is what the block asked for, and
+    // the gap has to run from it too, or the developer is asked again the moment
+    // they finish typing.
+    answer('csrf', 3);
+    expect(stop().status).toBe(0);
+
+    // And once that ages out too, it comes back -- the concept is still unasked.
+    db.prepare(`UPDATE attempts SET ts = datetime('now','-60 minutes') WHERE session_id = ?`).run(SESSION);
+    expect(stop().status).toBe(2);
+  });
+
+  it('stops at the session budget, with blocks still to spare', () => {
+    configure({
+      min_minutes_between_quizzes: 0,
+      min_minutes_between_checkpoints: 0,
+      max_questions_per_task: 1,
+    });
+    logConcepts(['csrf', 'jwt-structure']);
+
+    // One question is the whole budget and it is already spent -- by a checkpoint,
+    // a manual quiz, an earlier sweep, it does not matter which. Every attempts
+    // row counts against the same allowance.
+    answer('csrf', 3);
+    expect(stop().status).toBe(0);
+  });
+
+  it('leaves enforced mode on the original rule, clock and all', () => {
+    // Enforced is exempt from the pacing clock (decision G5), so the clock cannot
+    // be its guard -- it keeps `logged > last_logged` or it would block on every
+    // single Stop until the cap.
+    configure({ mode: 'enforced', cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+    logConcepts(['csrf']);
+
+    expect(stop().status).toBe(2);
     expect(stop().status).toBe(0);
   });
 
@@ -345,7 +439,7 @@ describe('Stop hook — when not to fire', () => {
   });
 
   it('respects the ambient cooldown', () => {
-    configure({ mode: 'ambient', min_minutes_between_quizzes: 60 });
+    configure({ mode: 'ambient', cadence: 'end', min_minutes_between_quizzes: 60 });
     logConcepts(['csrf']);
     expect(stop().status).toBe(2);
 
@@ -371,6 +465,7 @@ describe('Stop hook — when not to fire', () => {
   });
 
   it('still fires for concepts logged after the quiz', () => {
+    configure({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['csrf']);
     answer('csrf', 3);
     logConcepts(['jwt-structure']);
@@ -384,7 +479,7 @@ describe('Stop hook — when not to fire', () => {
     // A manual /eklavya:quiz just happened; the cooldown is measured from the
     // answer, not only from the last block, or Claude is told to teach and then
     // handed questions_needed: 0.
-    configure({ mode: 'ambient', min_minutes_between_quizzes: 60 });
+    configure({ mode: 'ambient', cadence: 'end', min_minutes_between_quizzes: 60 });
     logConcepts(['csrf']);
     answer('csrf', 3);
     logConcepts(['jwt-structure']);
@@ -468,7 +563,7 @@ describe('Stop hook — what it tells Claude', () => {
     logConcepts(['csrf']);
     expect(stop().stderr).toMatch(/enforced mode/);
 
-    configure({ mode: 'ambient', min_minutes_between_quizzes: 0 });
+    configure({ mode: 'ambient', min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['jwt-structure']);
     expect(stop().stderr).toMatch(/say skip/);
   });
@@ -670,7 +765,11 @@ describe('The budget is shared: checkpoints spend what the Stop sweep would have
   });
 
   it('sweeps up only the remainder', () => {
-    configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 2 });
+    configure({
+      min_minutes_between_quizzes: 0,
+      min_minutes_between_checkpoints: 0,
+      max_questions_per_task: 2,
+    });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
 
     answer('csrf', 3);
