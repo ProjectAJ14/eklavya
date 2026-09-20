@@ -13,12 +13,18 @@ on:
     branches-ignore: [main]
   workflow_dispatch:
 
-# One run per branch. `head_ref` is the source branch on a pull_request and
-# empty on a push, so `head_ref || ref_name` resolves to the same group for
-# both events — which is what stops a same-repo PR running the suite twice,
-# and cancels the stale run when you push again a minute later.
+# One run per branch PER EVENT, and the event is in the group on purpose.
+# `head_ref` is the source branch on a pull_request and empty on a push, so
+# `head_ref || ref_name` alone resolved both events to one group — which did not
+# stop a same-repo PR running the suite twice, it started both and cancelled
+# whichever lost the race. GitHub renders a cancelled run as a failed check, so a
+# PR whose suite passed carried a red X and sat at mergeStateStatus UNSTABLE.
+# A duplicate 30-second run is the cheaper of the two problems.
+#
+# `cancel-in-progress` still does the job it was added for: push again a minute
+# later and the stale run for that same event is dropped.
 concurrency:
-  group: test-${{ github.head_ref || github.ref_name }}
+  group: test-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
