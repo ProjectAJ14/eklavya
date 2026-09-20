@@ -1,3 +1,15 @@
+# [1.18.0](https://github.com/ProjectAJ14/eklavya/compare/v1.17.1...v1.18.0) (2026-09-20)
+
+
+### Bug Fixes
+
+* **config:** key the session switch on the right session, and keep the bar honest ([28e849f](https://github.com/ProjectAJ14/eklavya/commit/28e849fa5dff0af9c7b52a3d97ab9cdc951028ac))
+
+
+### Features
+
+* **config:** turn Eklavya off for one session ([7e15955](https://github.com/ProjectAJ14/eklavya/commit/7e1595545ebe4767772d50e2123fdb1e9970329f))
+
 ## [1.17.1](https://github.com/ProjectAJ14/eklavya/compare/v1.17.0...v1.17.1) (2026-09-20)
 
 
