@@ -1,3 +1,12 @@
+## [1.17.1](https://github.com/ProjectAJ14/eklavya/compare/v1.17.0...v1.17.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* **dashboard:** fold the gate-side repo, and merge levels by the furthest band ([005ba7c](https://github.com/ProjectAJ14/eklavya/commit/005ba7ce23430417b4802170274fad2147080d75))
+* sign questions in Claude Desktop, where the header chip is never painted ([9d4a5de](https://github.com/ProjectAJ14/eklavya/commit/9d4a5de6b4c852f3784811ad1914e7bff83dd127))
+* **store:** treat a git worktree as the project it branched from ([3ce81f4](https://github.com/ProjectAJ14/eklavya/commit/3ce81f4255d981c13cbf6b2273602ea2564fa847))
+
 # [1.17.0](https://github.com/ProjectAJ14/eklavya/compare/v1.16.0...v1.17.0) (2026-09-20)
 
 
