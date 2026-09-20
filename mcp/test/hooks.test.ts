@@ -475,6 +475,70 @@ describe('Stop hook — what it tells Claude', () => {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Both hooks spell out how to sign a question, and the answer depends on a host
+ * only the hook process can see. These run the real scripts with the entrypoint
+ * Claude Desktop stamps, because a unit test of `attributionRule` proves the
+ * sentence is composed and not that either hook reached for it.
+ */
+describe('Both hooks sign the question for the host they are running on', () => {
+  const desktop = { CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' };
+  const terminal = { CLAUDE_CODE_ENTRYPOINT: 'cli' };
+
+  const stopOn = (env: Record<string, string>) =>
+    runHook(STOP_CHECK, { session_id: SESSION, cwd, hook_event_name: 'Stop', stop_reason: 'end_turn' }, env);
+
+  const checkpointOn = (env: Record<string, string>) =>
+    checkpointContext(
+      runHook(
+        CHECKPOINT,
+        {
+          session_id: SESSION,
+          cwd,
+          hook_event_name: 'PostToolUse',
+          tool_name: 'mcp__eklavya__log_session_concepts',
+          tool_input: { concepts: [{ slug: 'csrf' }] },
+        },
+        env,
+      ),
+    );
+
+  it('asks the Stop sweep for a stem prefix on Desktop and for the chip alone in a terminal', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
+    logConcepts(['csrf']);
+    expect(stopOn(desktop).stderr).toMatch(/\[Eklavya\]/);
+
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
+    logConcepts(['jwt-structure']);
+    const plain = stopOn(terminal).stderr;
+    expect(plain).toMatch(/Header "Eklavya"/);
+    expect(plain).not.toMatch(/\[Eklavya\]/);
+  });
+
+  it('does the same at the mid-work checkpoint', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+    expect(checkpointOn(desktop)).toMatch(/\[Eklavya\]/);
+
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['jwt-structure']);
+    const plain = checkpointOn(terminal)!;
+    expect(plain).toMatch(/Header "Eklavya"/);
+    expect(plain).not.toMatch(/\[Eklavya\]/);
+  });
+
+  // The status bar is the terminal's half of the same job. Telling a Desktop
+  // learner the dials are in a bar they do not have is how the first version of
+  // this went wrong.
+  it('never points a Desktop session at a status bar it does not have', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+    expect(checkpointOn(desktop)).not.toMatch(/status bar/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 describe('PostToolUse checkpoint — asking while the agent still works', () => {
   it('asks about the concept that was just logged, not the oldest one', () => {
     configure({ min_minutes_between_checkpoints: 0 });

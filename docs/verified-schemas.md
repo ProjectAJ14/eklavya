@@ -333,6 +333,34 @@ from prose. Raw ANSI was not tried and should not be — it would have to surviv
 the JSON hop through the MCP response, and it means nothing to a non-terminal
 renderer.
 
+## Verified — what Claude Desktop does with `header` (2026-09-20)
+
+Observed by comparing one question in a terminal against one in the Claude
+Desktop app, from the same plugin build:
+
+- **The terminal paints the `header` chip** above the stem, and appends its own
+  `Chat about this` row below the options.
+- **Claude Desktop paints no chip.** Its card is a chevron and a close button,
+  the stem in bold, numbered option rows with descriptions, an `Other` row with
+  a free-text box, and Skip/Submit. There is no slot in that design for a
+  header, and `Eklavya` appeared nowhere on screen.
+- **Claude Desktop has no status bar**, so the `statusLine` half of the same job
+  is missing there too.
+
+`header` is a field every client receives and each one renders as it likes, so
+this is not something the plugin can fix by setting it differently. Both places
+Eklavya's attribution lived were terminal paint, and a Desktop learner got a
+question signed by nobody.
+
+`needsInlineAttribution` (`mcp/src/surface.ts`) is the answer: on a host that
+draws a card, the plan's `ask_attribution` asks for `[Eklavya]` on its own line
+above the stem instead. It is a separate axis from `Surface` — the Code tab is
+still `code` for every pedagogical decision — and `stripAskHeader` takes the
+prefix back off before the stem is stored, or the same question would
+fingerprint two ways for a learner who works on both.
+
+---
+
 **In 1.14 the line left the question entirely.** The findings above are the
 reason: a field with no dim, no weight and no colour is a poor place to put a
 readout, and the readout in question was ambient session state rather than part

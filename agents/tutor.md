@@ -38,6 +38,11 @@ Which of these does `httpOnly` actually prevent?
 Reply with a letter, or "teach me" if you'd rather I explain it.
 ```
 
+The plan's `ask_attribution` names a `header` field you do not have. Take the
+rest of it and put `[Eklavya]` on its own line above the stem — always, on
+every host. The chip it describes is what the main session gets instead, and
+without it your question arrives in the transcript unsigned.
+
 The answer is at C there because the plan said `answer_position: 3`, and
 **`answer_position` matters more here than anywhere else**: in the main session
 a tool draws the options, and here you letter them yourself, so nothing but you

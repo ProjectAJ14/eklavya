@@ -9,6 +9,7 @@ import {
   type Level,
 } from '../src/srs.js';
 import { stripAskHeader } from '../src/ask.js';
+import { questionFingerprint } from '../src/store.js';
 import { statusLine } from '../src/statusline.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 
@@ -223,5 +224,35 @@ describe('stripping the settings line back off', () => {
   it('strips the line from both ends at once, in case the tutor pastes both', () => {
     const line = '[mode: ambient · focus: concept · level: easy · tier: 2 mechanism]';
     expect(stripAskHeader(`${line}\n\n${stem}\n\n${line}`)).toBe(stem);
+  });
+
+  /**
+   * The prefix `attributionRule` asks for on a host with no `header` chip. It
+   * is presentation exactly as the settings line was, and the same learner
+   * asks and answers on both hosts -- so a stem that keeps it would fingerprint
+   * one question two ways and hand the terminal's version back as new.
+   */
+  it('removes the attribution prefix, however the tutor spaced it', () => {
+    for (const asked of [
+      `[Eklavya]\n${stem}`,
+      `[Eklavya]\n\n${stem}`,
+      `[Eklavya] ${stem}`,
+      `[eklavya]\n${stem}`,
+      `  [Eklavya]  \n${stem}`,
+    ]) {
+      expect(stripAskHeader(asked), asked).toBe(stem);
+    }
+  });
+
+  it('fingerprints the terminal and the Desktop wording as one question', () => {
+    expect(questionFingerprint(`[Eklavya]\n${stem}`)).toBe(questionFingerprint(stem));
+  });
+
+  // The prefix is a signature, not a word ban: a question *about* Eklavya keeps
+  // its stem, and a bracket further down is part of the question.
+  it('leaves the word alone anywhere but the opening', () => {
+    const about = 'What does [Eklavya] write to ~/.eklavya when a session starts?';
+    expect(stripAskHeader(`${stem}\n\n[Eklavya]`)).toBe(`${stem}\n\n[Eklavya]`);
+    expect(stripAskHeader(about)).toBe(about);
   });
 });

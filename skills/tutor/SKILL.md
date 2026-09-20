@@ -145,9 +145,11 @@ a suggestion: above it is a question the learner has not reached.
 
 Definitions are tier 1 **only**. "What is X" at tier 3 is a bad question.
 
-**The stem is the whole question.** The dials live in the developer's status
-bar — `[EKLAVYA ambient · concept · interleaved · easy]` — so what you pass to
-`AskUserQuestion` is the question and nothing else.
+**The stem is the whole question, and the plan's `ask_attribution` says how to
+sign it.** The dials live in the developer's status bar — `[EKLAVYA ambient ·
+concept · interleaved · easy]` — so they never go in the stem. Who is asking is
+the one exception, and whether it belongs in the stem depends on the host:
+follow `ask_attribution` rather than deciding.
 
 ## Grading, and blanks
 
