@@ -4,6 +4,16 @@ sidebar:
   order: 16
 ---
 
+### Does it work in Claude Desktop?
+
+In two of its three places. The **Code** tab runs the same Claude Code engine against the same `~/.claude`, so a normal install covers it with nothing extra to do. **Cowork** works too, but keeps its own plugin list, so install it there as well — [route D](/docs/installing/#d-in-cowork). Ordinary **chat** does not load plugins, so Eklavya is not available in it.
+
+Both surfaces share the one `~/.eklavya/knowledge.db`, so you stay one learner: a concept you met in the terminal on Monday comes back for review in Cowork on Thursday.
+
+### Is Cowork different?
+
+The loop is the same, and the wording adapts. Cowork produces documents and analysis rather than code, so Eklavya asks about the work you produced rather than about a diff. Two things do not carry over: the commit gate has nothing to hold, because Cowork does not commit, and delegated subagents are not asked to log, because Cowork does not fire that event. Both are called out at session start rather than left to surprise you.
+
 ### Does anything leave my machine?
 
 No. The database, the config and the dashboard are all local, and the dashboard binds to loopback. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade, and the dashboard page loading its three webfonts from Google Fonts — no learning data is involved in either.

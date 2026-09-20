@@ -49,6 +49,11 @@ You can also install from the plugin marketplace inside Claude Code, with one
 caveat about what a slash command is allowed to do — both routes and the caveat
 are in **[Installing](https://eklavya-run.web.app/docs/installing/)**.
 
+That covers Claude Code in a terminal and the Code tab in Claude Desktop, which
+are the same engine on the same config. **Cowork** works too and keeps its own
+plugin list, so install it there as well: Customize → Plugins → Add marketplace
+→ `ProjectAJ14/eklavya`. All of them share one knowledge graph.
+
 ## How it works
 
 You ask for something. Claude logs what the work touches, and that logging call

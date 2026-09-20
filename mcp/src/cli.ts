@@ -221,6 +221,18 @@ function doctor(): void {
     lines.push(`${`${check.name}:`.padEnd(10)}${check.ok ? '' : 'FAILED — '}${check.detail}`);
   }
 
+  // Which surfaces the checks above actually cover. The `plugin` check reads
+  // Claude Code's registry under `~/.claude`, which the Code tab in Claude
+  // Desktop shares — so one OK covers both. Cowork keeps its own registry
+  // inside the app's data directory and is installed from its own UI, so a
+  // green doctor says nothing about it. Someone whose Cowork sessions are
+  // silent needs to be told that here, not left reading a clean report.
+  lines.push('surfaces: Claude Code CLI and the Code tab in Claude Desktop (checked above).');
+  lines.push(
+    '          Cowork keeps a separate plugin list — install it there from Customize → Plugins;',
+  );
+  lines.push('          this command cannot see it. Your learning history is shared either way.');
+
   lines.push(`database: ${file}${fs.existsSync(file) ? '' : '   (not created yet)'}`);
 
   let edgesDropped = 0;

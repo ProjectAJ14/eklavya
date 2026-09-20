@@ -27,6 +27,7 @@
  * audience, and `checkpoint-quiz.ts` already returns on `agent_id` for that
  * reason; this hook must not undo it by asking for one in prose.
  */
+import { withSurfaceNote } from '../surface.js';
 import { run, config, cwdOf } from './lib.js';
 
 /**
@@ -39,6 +40,14 @@ import { run, config, cwdOf } from './lib.js';
  * is available" hedge — `skills/CLAUDE.md` measured that shape of clause
  * turning a reliable recipe into a noisy one, and the exemption that matters is
  * the guard's job below, not a condition the model is invited to weigh.
+ *
+ * Cowork never delivers this. `SubagentStart` is not among the nine hook events
+ * Cowork fires, so a Cowork session that delegates logs nothing from the
+ * delegate — the same silent hole this hook was written to close on Claude
+ * Code, reopened one surface over. There is nothing to do about it from here;
+ * `docs/subagent-policy.md` records it so it is a known gap rather than a bug
+ * someone rediscovers. The surface note is applied anyway, so the day Cowork
+ * does fire the event this reads correctly without another release.
  */
 const DIRECTIVE = `[Eklavya] Call log_session_concepts once you know what this task involves — the 3-8 concepts the code genuinely exercises, each with a context line naming the real code you wrote.
 Do not ask the developer anything here: nobody is watching this transcript, and the parent session is what asks the questions.`;
@@ -83,7 +92,7 @@ await run(async (input) => {
     `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'SubagentStart',
-        additionalContext: DIRECTIVE,
+        additionalContext: withSurfaceNote(DIRECTIVE),
       },
     })}\n`,
   );

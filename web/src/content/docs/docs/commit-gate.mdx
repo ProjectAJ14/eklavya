@@ -18,10 +18,19 @@ Each session gets a gate with a **required** number of concepts: how many of the
 
 | Where you commit | What stops it | Installed by |
 | --- | --- | --- |
-| Inside Claude Code | A `PreToolUse` hook that inspects every Bash command and denies the ones that are really a `git commit`. | The plugin, automatically. |
+| Inside Claude Code — the CLI or the Code tab in Claude Desktop | A `PreToolUse` hook that inspects every Bash command and denies the ones that are really a `git commit`. | The plugin, automatically. |
 | A terminal, or any other editor | A git `pre-commit` hook in the repository. | You, with the script below. |
 
 Install both, or enforced mode only gates half the ways to commit.
+
+:::note
+**Neither path exists in Cowork.** The gate is built on `git commit`, and Cowork
+produces documents rather than commits. `enforced` still applies there in every
+other respect — the gate is recorded, the questions are asked, the counts go up
+— but nothing is ever blocked, and the session banner says so rather than
+leaving you to assume otherwise. If you need enforcement, it has to be on a
+surface that commits.
+:::
 
 ### Installing the git hook
 

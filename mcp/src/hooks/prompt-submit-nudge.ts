@@ -50,6 +50,7 @@ import {
   NUDGE_KEY_PREFIX,
   type DB,
 } from './lib.js';
+import { withSurfaceNote } from '../surface.js';
 
 /**
  * Long enough that the session-start directive has had a fair chance, short
@@ -170,8 +171,16 @@ await run(async (input) => {
     `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'UserPromptSubmit',
-        additionalContext:
+        // Surface-noted like the two directives this restates. Cowork *does*
+        // fire `UserPromptSubmit`, and a session that has logged nothing is
+        // exactly the state this hook exists to catch — so without the note
+        // this is the one string still telling the model to name "the real
+        // code" in work that has none, on the only path that reaches a session
+        // already going wrong.
+        additionalContext: withSurfaceNote(
           '[Eklavya] Nothing logged this session. Once you know what the current task involves, call log_session_concepts with the 3-8 concepts it genuinely exercises, each with a context line naming the real code — without it there is nothing to quiz on.',
+          ' ',
+        ),
       },
     })}\n`,
   );

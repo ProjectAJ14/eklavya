@@ -635,7 +635,10 @@ export function install(args: string[]): void {
   }
 
   register(version);
-  say('  registered  eklavya@eklavya, enabled for Claude Code');
+  // "and the Code tab" is not padding: that tab runs the same engine against
+  // the same `~/.claude`, so this one registration covers it and someone who
+  // only ever opens Claude Desktop should not go looking for a second install.
+  say('  registered  eklavya@eklavya, enabled for Claude Code (CLI and the Code tab in Claude Desktop)');
 
   // Creating the DB here rather than on first server start means `eklavya
   // doctor` and the dashboard work before Claude Code has ever been opened.
@@ -648,6 +651,18 @@ export function install(args: string[]): void {
     say('  note: git was not found. Eklavya still works — the per-project difficulty');
     say('        level falls back to a shared bucket, and the commit gate needs git.');
   }
+
+  // Cowork is the one surface this installer cannot reach. Its plugin list lives
+  // inside Claude Desktop's own data directory, keyed by account and space, and
+  // writing there would be reaching into private state on a guess — the same
+  // objection `register()` raises about Claude Code's three files, with none of
+  // the mitigation, because there is no documented shape to write. So: say where
+  // the door is, and say the part people actually worry about, which is whether
+  // they end up with two separate learning histories. They do not.
+  say('');
+  say('  note: Cowork installs separately — in Claude Desktop, Customize → Plugins →');
+  say('        Add marketplace → ProjectAJ14/eklavya, then Install. It shares this');
+  say(`        database (${dbPath()}), so it is one learner, not two.`);
 
   say('');
   if (payload === 'dirty' || payload === 'failed') {

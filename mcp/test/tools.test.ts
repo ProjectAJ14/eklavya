@@ -1292,6 +1292,29 @@ describe('config tools', () => {
   it('says so when asked to change nothing', () => {
     expect(call<any>(setConfig, {}).error).toBe('nothing_to_set');
   });
+
+  // The setup skill branches on this field, and it is the only channel that can
+  // carry the answer: a shell command in Cowork runs inside a sandbox VM and
+  // cannot read the host environment the surface is derived from.
+  //
+  // Both branches pin `EKLAVYA_SURFACE` rather than letting either read the
+  // ambient environment. The first assertion used to be bare, which made the
+  // suite fail for anyone running it from inside a Cowork session — the very
+  // surface this change adds, and a test that fails by where you ran it is
+  // worse than no test.
+  it('reports the surface, because a shell probe cannot', () => {
+    const before = process.env.EKLAVYA_SURFACE;
+    try {
+      process.env.EKLAVYA_SURFACE = 'code';
+      expect(call<any>(getConfig).surface).toBe('code');
+
+      process.env.EKLAVYA_SURFACE = 'cowork';
+      expect(call<any>(getConfig).surface).toBe('cowork');
+    } finally {
+      if (before === undefined) delete process.env.EKLAVYA_SURFACE;
+      else process.env.EKLAVYA_SURFACE = before;
+    }
+  });
 });
 
 describe('difficulty levels, earned per project', () => {
