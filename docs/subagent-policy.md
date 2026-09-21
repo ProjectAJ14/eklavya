@@ -83,8 +83,8 @@ Two things enforce it, and both have to stay:
   model that has read the tutor skill will helpfully do in prose what the guard
   above prevents by mechanism.
 
-`stop-quiz-check.ts` has the same guard, and needs it more, because it blocks
-with exit 2. `Stop` is believed to be parent-only — `SubagentStop` is a separate
+`stop-quiz-check.ts` has the same guard, and needs it more, because it keeps the
+turn going. `Stop` is believed to be parent-only — `SubagentStop` is a separate
 event — but nothing in this repo has verified that, and the cost of being wrong
 is an agent with no `AskUserQuestion` told to run a quiz, repeatedly, in a
 transcript nobody reads. This hook is what made that reachable: before it a

@@ -219,9 +219,9 @@ function focusFraming(
  * Runs a hook body and guarantees the session survives it.
  *
  * Every failure path exits 0 with no output — a missed question is nothing, a
- * hook that errors on every tool call is a plugin nobody keeps. The one
- * deliberate exception is the Stop hook, which blocks with exit 2 by returning
- * an explicit code; anything thrown still lands here and still exits 0.
+ * hook that errors on every tool call is a plugin nobody keeps. Every hook here
+ * exits 0 and speaks through JSON on stdout, the Stop sweep included; anything
+ * thrown still lands here and still exits 0.
  */
 export async function run(body: (input: HookInput) => Promise<number | void>): Promise<void> {
   let code = 0;

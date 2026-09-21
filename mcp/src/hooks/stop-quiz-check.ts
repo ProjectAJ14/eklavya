@@ -8,9 +8,13 @@
  * enforced mode where the gate needs a quiz it can actually pass, it asks for
  * whatever is left of the budget.
  *
- * Blocking is exit 2 with the reason on stderr (deviation D1) — the current hooks
- * reference documents no Stop-specific JSON envelope, but does document that
- * exit 2 prevents stopping and uses stderr as the message.
+ * Continuing the turn is `hookSpecificOutput.additionalContext` on stdout, at
+ * exit 0 (deviation D1). Exit 2 does the same job, but the harness renders it as
+ * a hook *error*: a wall of red naming run.mjs and a stack of instructions
+ * addressed to the model, for a feature that is working exactly as designed.
+ * `additionalContext` runs through the same loop protections — `stop_hook_active`
+ * and the harness's 8-continuation cap — and the transcript labels it
+ * "Stop hook feedback" with no error notification.
  *
  * THE LOOP GUARD IS THE POINT OF THIS FILE.
  * `stop_hook_active` is no longer a documented input (deviation D2), so nothing
@@ -40,7 +44,7 @@ import { isSessionOff } from '../session.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
-  // blocks with exit 2. `Stop` is believed to be parent-only -- `SubagentStop`
+  // continues the turn. `Stop` is believed to be parent-only -- `SubagentStop`
   // is a separate event -- but nothing in this repo has verified that, and the
   // cost of being wrong is a subagent told to run a quiz it has no
   // AskUserQuestion to ask, in a transcript nobody reads, up to
@@ -253,7 +257,7 @@ record_attempt. The plan returns a "framing" field. Follow it.`;
         : 'This session is in enforced mode: the commit gate needs this quiz.'
       : 'If they say skip, record it as grade 0 and let them go — do not ask twice.';
 
-  process.stderr.write(`Eklavya: before finishing, quiz the developer on what this task just taught.
+  const context = `Eklavya: before finishing, quiz the developer on what this task just taught.
 
 Concepts: ${concepts}
 
@@ -269,7 +273,16 @@ Record with format "mcq", the labels in "options", and only the stem in
 "question".
 ${framing}
 ${tone}
-`);
+`;
 
-  return 2;
+  // exit 0 + JSON, not exit 2 + stderr. Both continue the turn and both pass
+  // through the same loop protections; only one of them tells the developer
+  // their session just hit an error. No `systemMessage` -- that field is a
+  // warning banner too, and the hook already has a `statusMessage`.
+  process.stdout.write(
+    `${JSON.stringify({
+      hookSpecificOutput: { hookEventName: 'Stop', additionalContext: context },
+    })}\n`,
+  );
+  return 0;
 });
