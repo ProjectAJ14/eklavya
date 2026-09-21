@@ -67,7 +67,7 @@ is a host where failing closed would turn the feature off with nothing to
 report. `docs/subagent-policy.md` is the policy in full; keep the two in step.
 
 `stop-quiz-check.ts` carries the same `agent_id` guard as `checkpoint-quiz.ts`,
-and for a stronger reason: it blocks with exit 2. `Stop` is believed to be
+and for a stronger reason: it keeps the turn going. `Stop` is believed to be
 parent-only, since `SubagentStop` is a separate event — but nothing here has
 verified that, and this hook is what made the path reachable, because before it
 a subagent logged nothing and the Stop hook's `logged > last_logged` predicate
@@ -90,8 +90,10 @@ goes inside `await run(async (input) => { ... })` and returns an exit code; it
 never calls `process.exit` itself. Helpers follow the same rule —
 `openExisting()` returns `null` rather than throwing on a missing or corrupt
 database, and deliberately does not migrate or seed (several hooks racing a
-migration on session start is a corruption story). The one non-zero code is the
-Stop hook's `return 2`, which is how Stop blocks; the reason goes on stderr.
+migration on session start is a corruption story). Every hook returns 0 — the
+Stop sweep included. It keeps the turn going with
+`hookSpecificOutput.additionalContext` rather than exit 2, because exit 2 renders
+to the developer as a hook error; `docs/verified-schemas.md` D1 has the table.
 
 ## A hook must never *wait*, either
 

@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "db9d7b4b23eab89ea9785646a2602f9ef547a230"
+      "revision": "1ed22ead391197955faf9ef79a9d9339e7088a0d"
     },
     "views": [
       {
@@ -505,7 +505,7 @@
         "SessionStart — stdout; SubagentStart — the JSON form only",
         "UserPromptSubmit — one line, only when a session logged nothing",
         "PostToolUse — exit 0 + JSON; skipped inside subagents",
-        "Stop — exit 2 + stderr is what actually blocks the turn",
+        "Stop — additionalContext continues the turn, quietly",
         "PreToolUse(Bash) — permissionDecision \"deny\" on git commit"
       ]
     },

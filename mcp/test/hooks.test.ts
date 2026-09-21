@@ -30,6 +30,11 @@ interface HookResult {
   status: number;
   stdout: string;
   stderr: string;
+  /** `hookSpecificOutput.additionalContext`: what the model was handed, if anything. */
+  context: string;
+  /** Whether the hook said anything at all. Every hook here exits 0, so the exit
+   *  code no longer distinguishes "stayed quiet" from "asked for a quiz". */
+  spoke: boolean;
 }
 
 function runHook(script: string, input: Record<string, unknown>, env: Record<string, string> = {}): HookResult {
@@ -38,7 +43,26 @@ function runHook(script: string, input: Record<string, unknown>, env: Record<str
     encoding: 'utf8',
     env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home, ...env },
   });
-  return { status: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  const stdout = res.stdout ?? '';
+  const context = additionalContext(stdout);
+  return {
+    status: res.status ?? -1,
+    stdout,
+    stderr: res.stderr ?? '',
+    context: context ?? '',
+    spoke: context !== null,
+  };
+}
+
+/** The `additionalContext` a hook wrote, or null when it wrote none. */
+function additionalContext(stdout: string): string | null {
+  if (!stdout.trim().startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(stdout) as { hookSpecificOutput?: { additionalContext?: string } };
+    return parsed.hookSpecificOutput?.additionalContext ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -46,8 +70,8 @@ function runHook(script: string, input: Record<string, unknown>, env: Record<str
  * contain a semicolon, and matching on that made these asserts something they
  * did not mean.
  */
-const conceptsLine = (stderr: string): string =>
-  stderr.split('\n').find((l) => l.startsWith('Concepts:')) ?? '';
+const conceptsLine = (message: string): string =>
+  message.split('\n').find((l) => l.startsWith('Concepts:')) ?? '';
 
 const stop = (extra: Record<string, unknown> = {}) =>
   runHook(STOP_CHECK, { session_id: SESSION, cwd, hook_event_name: 'Stop', stop_reason: 'end_turn', ...extra });
@@ -68,11 +92,7 @@ const checkpoint = (extra: Record<string, unknown> = {}) =>
 
 /** The instruction the model actually receives, or null when the hook stayed quiet. */
 function checkpointContext(res: HookResult): string | null {
-  if (!res.stdout.trim()) return null;
-  const parsed = JSON.parse(res.stdout) as {
-    hookSpecificOutput?: { additionalContext?: string };
-  };
-  return parsed.hookSpecificOutput?.additionalContext ?? null;
+  return res.spoke ? res.context : null;
 }
 
 const sessionStart = (extra: Record<string, unknown> = {}) =>
@@ -270,9 +290,9 @@ describe('Stop hook — the loop guard (P0)', () => {
     // subagent-start.ts a subagent logged nothing, so the `logged > last_logged`
     // predicate could not arm; that hook is what made this path reachable.
     logConcepts(['csrf', 'jwt-structure']);
-    expect(stop({ agent_id: 'sub-1' }).status).toBe(0);
+    expect(stop({ agent_id: 'sub-1' }).spoke).toBe(false);
     // And the work is still there for the parent's own Stop to pick up.
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
   });
 
   it('blocks exactly once for one batch of work, however many times Claude stops', () => {
@@ -280,65 +300,65 @@ describe('Stop hook — the loop guard (P0)', () => {
     logConcepts(['csrf', 'jwt-structure']);
 
     const first = stop();
-    expect(first.status).toBe(2);
-    expect(first.stderr).toMatch(/csrf/);
+    expect(first.spoke).toBe(true);
+    expect(first.context).toMatch(/csrf/);
 
     // Every subsequent Stop must pass. This is the difference between a quiz
     // and an infinite loop.
     for (let i = 0; i < 5; i += 1) {
-      expect(stop().status, `stop #${i + 2} blocked again`).toBe(0);
+      expect(stop().spoke, `stop #${i + 2} blocked again`).toBe(false);
     }
   });
 
   it('does not re-block after the developer skips', () => {
     logConcepts(['csrf', 'jwt-structure']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
 
     answer('csrf', 0);
     answer('jwt-structure', 0);
 
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('does not re-block after the quiz is answered well', () => {
     logConcepts(['csrf']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
 
     answer('csrf', 5);
     answer('csrf', 5);
 
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('arms again only when genuinely new work is logged', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf']);
-    expect(stop().status).toBe(2);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(true);
+    expect(stop().spoke).toBe(false);
 
     logConcepts(['jwt-structure']);
-    expect(stop().status).toBe(2);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(true);
+    expect(stop().spoke).toBe(false);
   });
 
   it('re-logging the same concepts does not re-arm it', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
 
     logConcepts(['csrf', 'jwt-structure']);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('stops blocking entirely after the per-session cap, even with new work', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end', max_stop_blocks_per_session: 2 });
 
     logConcepts(['csrf']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
     logConcepts(['jwt-structure']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
     logConcepts(['pkce']);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   // --- interleaved: the clock is the guard ----------------------------------
@@ -353,15 +373,15 @@ describe('Stop hook — the loop guard (P0)', () => {
 
     // No new work logged between any of these, which is the point: it is time
     // that re-arms the sweep, not a fresh log_session_concepts call.
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
     ageClocks();
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
     ageClocks();
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
 
     // And max_stop_blocks_per_session still ends it.
     ageClocks();
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('floors the interleaved gap at a minute, so a gap of 0 is not a loop', () => {
@@ -372,9 +392,9 @@ describe('Stop hook — the loop guard (P0)', () => {
     configure({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['csrf', 'jwt-structure']);
 
-    expect(stop().status).toBe(2);
-    expect(stop().status, 'blocked twice inside the floor').toBe(0);
-    expect(stop().status, 'blocked twice inside the floor').toBe(0);
+    expect(stop().spoke).toBe(true);
+    expect(stop().spoke, 'blocked twice inside the floor').toBe(false);
+    expect(stop().spoke, 'blocked twice inside the floor').toBe(false);
   });
 
   it('does not loop under interleaved: repeat Stops inside the pacing gap pass', () => {
@@ -384,9 +404,9 @@ describe('Stop hook — the loop guard (P0)', () => {
     configure({ min_minutes_between_quizzes: 0 });
     logConcepts(['csrf', 'jwt-structure']);
 
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
     for (let i = 0; i < 5; i += 1) {
-      expect(stop().status, `stop #${i + 2} blocked inside the gap`).toBe(0);
+      expect(stop().spoke, `stop #${i + 2} blocked inside the gap`).toBe(false);
     }
   });
 
@@ -397,17 +417,17 @@ describe('Stop hook — the loop guard (P0)', () => {
     configure({ min_minutes_between_quizzes: 600, min_minutes_between_checkpoints: 0 });
     logConcepts(['csrf', 'jwt-structure']);
 
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
     // Two minutes on: past the checkpoint clock (floored at one), nowhere near the
     // 600-minute quiz clock. Blocking here is the whole claim.
     ageClocks(2);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
   });
 
   it('an answered question paces the next block, not just the block itself', () => {
     configure({ min_minutes_between_quizzes: 0 });
     logConcepts(['csrf', 'jwt-structure']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
 
     // Age the block out, so the block clock alone would let the next one through.
     db.prepare(
@@ -419,11 +439,11 @@ describe('Stop hook — the loop guard (P0)', () => {
     // the gap has to run from it too, or the developer is asked again the moment
     // they finish typing.
     answer('csrf', 3);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
 
     // And once that ages out too, it comes back -- the concept is still unasked.
     db.prepare(`UPDATE attempts SET ts = datetime('now','-60 minutes') WHERE session_id = ?`).run(SESSION);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
   });
 
   it('stops at the session budget, with blocks still to spare', () => {
@@ -438,7 +458,7 @@ describe('Stop hook — the loop guard (P0)', () => {
     // a manual quiz, an earlier sweep, it does not matter which. Every attempts
     // row counts against the same allowance.
     answer('csrf', 3);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('leaves enforced mode on the original rule, clock and all', () => {
@@ -448,50 +468,50 @@ describe('Stop hook — the loop guard (P0)', () => {
     configure({ mode: 'enforced', cadence: 'interleaved', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf']);
 
-    expect(stop().status).toBe(2);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(true);
+    expect(stop().spoke).toBe(false);
   });
 
   it('honors stop_hook_active if the harness still sends it', () => {
     logConcepts(['csrf']);
-    expect(stop({ stop_hook_active: true }).status).toBe(0);
+    expect(stop({ stop_hook_active: true }).spoke).toBe(false);
   });
 });
 
 describe('Stop hook — when not to fire', () => {
   it('passes when the session touched nothing', () => {
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('passes when every touched concept is already mastered', () => {
     logConcepts(['csrf']);
     answer('csrf', 5);
     answer('csrf', 5);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('passes when the mode is off', () => {
     configure({ mode: 'off' });
     logConcepts(['csrf']);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('respects the ambient cooldown', () => {
     configure({ mode: 'ambient', cadence: 'end', min_minutes_between_quizzes: 60 });
     logConcepts(['csrf']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
 
     logConcepts(['jwt-structure']);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('ignores the cooldown in enforced mode, or the gate could never be passed', () => {
     configure({ mode: 'enforced', min_minutes_between_quizzes: 60 });
     logConcepts(['csrf']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
 
     logConcepts(['jwt-structure']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
   });
 
   it('passes when every touched concept has already been asked about', () => {
@@ -499,7 +519,7 @@ describe('Stop hook — when not to fire', () => {
     // Grade 3 leaves it unmastered, so only the already-asked filter stops this.
     answer('csrf', 3);
     logConcepts(['csrf']);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('still fires for concepts logged after the quiz', () => {
@@ -509,9 +529,9 @@ describe('Stop hook — when not to fire', () => {
     logConcepts(['jwt-structure']);
     ageClocks(2);
     const res = stop();
-    expect(res.status).toBe(2);
-    expect(res.stderr).toMatch(/jwt-structure/);
-    expect(res.stderr).not.toMatch(/csrf/);
+    expect(res.spoke).toBe(true);
+    expect(res.context).toMatch(/jwt-structure/);
+    expect(res.context).not.toMatch(/csrf/);
   });
 
   it('does not block a turn the quiz plan would then refuse as too soon', () => {
@@ -522,7 +542,7 @@ describe('Stop hook — when not to fire', () => {
     logConcepts(['csrf']);
     answer('csrf', 3);
     logConcepts(['jwt-structure']);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('exits 0 when the database is missing', () => {
@@ -537,8 +557,8 @@ describe('Stop hook — when not to fire', () => {
       { session_id: 'this-panes-own-id', cwd, hook_event_name: 'Stop' },
       { EKLAVYA_SESSION_ID: 'shared-pane-session' },
     );
-    expect(res.status).toBe(2);
-    expect(res.stderr).toMatch(/csrf/);
+    expect(res.spoke).toBe(true);
+    expect(res.context).toMatch(/csrf/);
   });
 
   it('falls back to the stamped session when the input has no session_id', () => {
@@ -546,7 +566,7 @@ describe('Stop hook — when not to fire', () => {
     db.prepare("INSERT INTO meta (key, value) VALUES ('current_session', 'stamped-session')").run();
 
     const res = runHook(STOP_CHECK, { cwd, hook_event_name: 'Stop' });
-    expect(res.status).toBe(2);
+    expect(res.spoke).toBe(true);
   });
 });
 
@@ -555,9 +575,9 @@ describe('Stop hook — what it tells Claude', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure']);
     const res = stop();
-    expect(res.stderr).toMatch(/csrf \(touched csrf in auth\.ts\)/);
-    expect(res.stderr).toMatch(/get_session_quiz_plan/);
-    expect(res.stderr).toMatch(/ONE question at a time/);
+    expect(res.context).toMatch(/csrf \(touched csrf in auth\.ts\)/);
+    expect(res.context).toMatch(/get_session_quiz_plan/);
+    expect(res.context).toMatch(/ONE question at a time/);
   });
 
   // The cadence decides the size of the sweep, and this is the failure it was
@@ -567,24 +587,24 @@ describe('Stop hook — what it tells Claude', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
-    const line = conceptsLine(res.stderr);
+    const line = conceptsLine(res.context);
     expect(line).toMatch(/csrf/);
     expect(line.match(/;/g) ?? []).toHaveLength(0);
-    expect(res.stderr).toMatch(/One question, then let them finish/);
-    expect(res.stderr).not.toMatch(/ONE question at a time/);
+    expect(res.context).toMatch(/One question, then let them finish/);
+    expect(res.context).not.toMatch(/ONE question at a time/);
   });
 
   it('sweeps the whole remaining budget in enforced mode, cadence notwithstanding', () => {
     // Decision G5 again: the gate has to stay passable inside the session.
     configure({ mode: 'enforced', cadence: 'interleaved', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
-    expect(conceptsLine(stop().stderr).match(/;/g) ?? []).toHaveLength(2);
+    expect(conceptsLine(stop().context).match(/;/g) ?? []).toHaveLength(2);
   });
 
   it('sweeps the whole remaining budget under the end cadence', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
-    const line = conceptsLine(stop().stderr);
+    const line = conceptsLine(stop().context);
     expect(line.match(/;/g) ?? []).toHaveLength(2);
   });
 
@@ -592,7 +612,7 @@ describe('Stop hook — what it tells Claude', () => {
     configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 1 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
-    const line = conceptsLine(res.stderr);
+    const line = conceptsLine(res.context);
     expect(line).toMatch(/csrf/);
     expect(line.match(/;/g) ?? []).toHaveLength(0);
   });
@@ -600,12 +620,12 @@ describe('Stop hook — what it tells Claude', () => {
   it('says the gate needs it in enforced mode, and offers the skip in ambient', () => {
     configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf']);
-    expect(stop().stderr).toMatch(/enforced mode/);
+    expect(stop().context).toMatch(/enforced mode/);
 
     configure({ mode: 'ambient', min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['jwt-structure']);
     ageClocks();
-    expect(stop().stderr).toMatch(/say skip/);
+    expect(stop().context).toMatch(/say skip/);
   });
 });
 
@@ -642,11 +662,11 @@ describe('Both hooks sign the question for the host they are running on', () => 
   it('asks the Stop sweep for a stem prefix on Desktop and for the chip alone in a terminal', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf']);
-    expect(stopOn(desktop).stderr).toMatch(/\[Eklavya\]/);
+    expect(stopOn(desktop).context).toMatch(/\[Eklavya\]/);
 
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['jwt-structure']);
-    const plain = stopOn(terminal).stderr;
+    const plain = stopOn(terminal).context;
     expect(plain).toMatch(/Header "Eklavya"/);
     expect(plain).not.toMatch(/\[Eklavya\]/);
   });
@@ -801,7 +821,7 @@ describe('The budget is shared: checkpoints spend what the Stop sweep would have
 
     // Two questions already asked mid-task, budget of two. The end of the task
     // is exactly as quiet as it would have been without Eklavya installed.
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('sweeps up only the remainder', () => {
@@ -816,9 +836,9 @@ describe('The budget is shared: checkpoints spend what the Stop sweep would have
     ageClocks(2);
 
     const res = stop();
-    expect(res.status).toBe(2);
+    expect(res.spoke).toBe(true);
     // One left in the budget, so one concept named -- not the other two.
-    const named = ['jwt-structure', 'pkce'].filter((slug) => res.stderr.includes(slug));
+    const named = ['jwt-structure', 'pkce'].filter((slug) => res.context.includes(slug));
     expect(named).toHaveLength(1);
   });
 });
@@ -1171,7 +1191,7 @@ describe('the per-session off switch', () => {
     // and the commit gate — which reads .eklavya.json, not this — still holds.
     configure({ mode: 'enforced' });
     logConcepts(['csrf']);
-    expect(stop().status).toBe(0);
+    expect(stop().spoke).toBe(false);
   });
 
   it('asks no mid-work checkpoint question', () => {
@@ -1268,12 +1288,12 @@ describe('the per-session off switch', () => {
       hook_event_name: 'Stop',
       stop_reason: 'end_turn',
     });
-    expect(res.status).toBe(2);
+    expect(res.spoke).toBe(true);
   });
 
   it('comes back when the switch is cleared', () => {
     setSessionOff(db, SESSION, false);
     logConcepts(['csrf']);
-    expect(stop().status).toBe(2);
+    expect(stop().spoke).toBe(true);
   });
 });

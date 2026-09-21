@@ -244,8 +244,8 @@ mechanism behind interleaved quizzing.
 ```
 
 Exit 2 also surfaces stderr to the model here, but as a *warning* — an error face
-on a working feature. `checkpoint-quiz` therefore uses exit 0 + JSON, unlike
-the Stop hook, which has something to actually prevent (deviation D1).
+on a working feature. `checkpoint-quiz` therefore uses exit 0 + JSON, and since
+2026-09-22 so does the Stop sweep, for the same reason (deviation D1).
 
 ### UserPromptSubmit output (in use since 1.15)
 
@@ -375,10 +375,18 @@ it and `questionFingerprint` hashes that text.
 Each of these overrides what Eklavya was first designed against, because the
 schema moved after the design was written.
 
-### D1 — Stop hook blocks via exit 2 + stderr, not `{"decision":"block"}`
-The original design specified `{"decision": "block", "reason": "..."}` on stdout. The current hooks reference documents no Stop-specific JSON output shape; what it *does* document unambiguously is that **exit 2 prevents stopping and continues the conversation, using stderr as the blocking message**.
+### D1 — Stop hook continues the turn with `additionalContext`, not exit 2 and not `{"decision":"block"}` (revised 2026-09-22)
+The original design specified `{"decision": "block", "reason": "..."}` on stdout. For several releases this was exit 2 + stderr instead, because the hooks reference then documented no Stop-specific JSON shape. It documents three now, and the difference between them is what the developer sees:
 
-**Decision:** `stop-quiz-check` writes the tutor instruction to **stderr and exits 2**. This is schema-stable and needs no guessing at a JSON envelope. Revisit if a documented Stop JSON shape reappears.
+| Form | Effect | How it renders |
+|---|---|---|
+| exit 2 + stderr | continues the turn | **hook error** — the command line, in red, with the whole instruction under it |
+| `{"decision":"block","reason":…}` | continues the turn | hook error, same face |
+| `hookSpecificOutput.additionalContext` | continues the turn | `Stop hook feedback`, no error notification |
+
+All three pass through the same loop protections: the `stop_hook_active` input and the harness's cap of 8 consecutive continuations.
+
+**Decision:** `stop-quiz-check` writes the tutor instruction to **`hookSpecificOutput.additionalContext` on stdout and exits 0**. Eklavya asking its question is the feature working, not the session erroring, and a page of model-facing instructions addressed to the developer in red is the opposite of what an ambient tool should look like. Every hook in `mcp/src/hooks/` now exits 0.
 
 ### D2 — `stop_hook_active` is not documented; the loop guard must be entirely ours
 The original design leaned on `stop_hook_active` to avoid re-blocking. That field is absent from the current stdin field list.

@@ -152,12 +152,11 @@ ONE question. Not two, not the whole plan. ${remaining} left in this session's b
 ${framing}
 If they pick Other or say skip, record it as grade 0, teach the answer in two lines, and carry on. Do not ask again.`;
 
-  // exit 0 + JSON, not exit 2 + stderr. The Stop hook uses exit 2 because it has
-  // to *prevent* something; this hook has nothing to prevent, and exit 2 renders
-  // to the developer as a hook warning -- an error face on a feature that is
-  // working. So: additionalContext carries the instruction to the model,
-  // systemMessage tells the human why their agent just stopped to ask them
-  // something.
+  // exit 0 + JSON, not exit 2 + stderr: exit 2 renders to the developer as a hook
+  // warning -- an error face on a feature that is working. The Stop sweep reached
+  // the same conclusion later and by the same route. So: additionalContext
+  // carries the instruction to the model, systemMessage tells the human why their
+  // agent just stopped to ask them something.
   process.stdout.write(
     `${JSON.stringify({
       hookSpecificOutput: {
