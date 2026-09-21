@@ -1,28 +1,24 @@
 name: Test
 
-# The release workflow also runs this suite, but only on a push to `main` —
-# by which point a failing test reports a bug that has already landed. This
-# workflow is the same suite moved to where it can still prevent something:
-# every pull request, and every push to a branch that is not `main`.
+# Every pull request, and every push to `main`. Nothing else: a push to a
+# feature branch that has a PR open would otherwise run this suite twice, once
+# per event, and put two "Test / test" checks on the same PR.
 #
-# `main` is deliberately excluded rather than tested twice: Release already
-# installs and tests before it publishes, and that step is load-bearing there.
+# Release also installs and tests before it publishes, so `main` is covered
+# twice. That is deliberate — the release step is load-bearing there, and this
+# one is the check branch protection can point at.
 on:
   pull_request:
   push:
-    branches-ignore: [main]
+    branches: [main]
   workflow_dispatch:
 
-# One run per branch PER EVENT, and the event is in the group on purpose.
-# `head_ref` is the source branch on a pull_request and empty on a push, so
-# `head_ref || ref_name` alone resolved both events to one group — which did not
-# stop a same-repo PR running the suite twice, it started both and cancelled
-# whichever lost the race. GitHub renders a cancelled run as a failed check, so a
-# PR whose suite passed carried a red X and sat at mergeStateStatus UNSTABLE.
-# A duplicate 30-second run is the cheaper of the two problems.
+# One run per branch per event. `head_ref` is the source branch on a
+# pull_request and empty on a push, so the event stays in the group: a PR
+# merged to `main` would otherwise collide with its own merge push and get
+# cancelled, and GitHub renders a cancelled run as a failed check.
 #
-# `cancel-in-progress` still does the job it was added for: push again a minute
-# later and the stale run for that same event is dropped.
+# `cancel-in-progress` drops the stale run when you push again a minute later.
 concurrency:
   group: test-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
