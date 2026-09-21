@@ -1,3 +1,10 @@
+## [1.18.2](https://github.com/ProjectAJ14/eklavya/compare/v1.18.1...v1.18.2) (2026-09-21)
+
+
+### Bug Fixes
+
+* **session:** key the session pointer by checkout, not globally ([0f085b1](https://github.com/ProjectAJ14/eklavya/commit/0f085b1de9d0cf573a433f6316d7e00d092f780e))
+
 ## [1.18.1](https://github.com/ProjectAJ14/eklavya/compare/v1.18.0...v1.18.1) (2026-09-20)
 
 
