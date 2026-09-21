@@ -21,6 +21,7 @@ import { dbPath } from '../paths.js';
 import { loadConfig, type ResolvedConfig } from '../config.js';
 import { readStdinBounded, stripBom, HOOK_STDIN } from '../stdin.js';
 import { withSurfaceNote } from '../surface.js';
+import { getCurrentSession } from '../session.js';
 
 export type DB = Database.Database;
 
@@ -128,10 +129,9 @@ export function sessionId(input: HookInput, db: DB | null): string | null {
   if (input.session_id) return input.session_id;
   if (!db) return null;
   try {
-    const row = db.prepare("SELECT value FROM meta WHERE key = 'current_session'").get() as
-      | { value?: string }
-      | undefined;
-    return row?.value ?? null;
+    // This checkout's pointer, not the global one: another repo's live session
+    // is the wrong answer here for the same reason it is wrong in the tools.
+    return getCurrentSession(db, cwdOf(input));
   } catch {
     return null;
   }

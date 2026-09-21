@@ -16,7 +16,7 @@ export const getConfig: ToolDef = {
   },
   handler: (args: { cwd?: string; session_id?: string }, ctx) => {
     const resolved = loadConfig(args.cwd);
-    const session = resolveSessionId(ctx.db, args.session_id);
+    const session = resolveSessionId(ctx.db, args.session_id, args.cwd);
     return {
       config: resolved.config,
       /**
@@ -138,7 +138,7 @@ export const setConfig: ToolDef = {
         };
       }
 
-      const session = resolveSessionId(ctx.db, args.session_id as string | undefined);
+      const session = resolveSessionId(ctx.db, args.session_id as string | undefined, cwd);
 
       // No real session id to key on. `resolveSessionId` falls back to the
       // literal "default" when no SessionStart hook has ever run — Cursor

@@ -156,7 +156,7 @@ export const getSessionQuizPlan: ToolDef = {
   ) => {
     const now = new Date();
     const { config, repoRoot } = loadConfig(args.cwd);
-    const sessionId = resolveSessionId(db, args.session_id);
+    const sessionId = resolveSessionId(db, args.session_id, args.cwd);
     const focus: Focus = args.focus ?? config.focus;
     // The band this project is on. Every tier below is clamped into it, so a
     // learner three sessions in cannot be handed a tier-4 question by an

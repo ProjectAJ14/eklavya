@@ -55,7 +55,7 @@ export const logSessionConcepts: ToolDef = {
   ) => {
     const now = new Date();
     const { config, repoRoot } = loadConfig(args.cwd);
-    const sessionId = resolveSessionId(db, args.session_id);
+    const sessionId = resolveSessionId(db, args.session_id, args.cwd);
 
     const created: string[] = [];
     const matched: { requested: string; resolved: string }[] = [];

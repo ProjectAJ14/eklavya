@@ -94,7 +94,7 @@ await run(async (input) => {
 
   // Stamp the session so MCP tools resolve the same id the hooks will use later
   // (decision G1). This happens even when the banner is suppressed.
-  if (sid) setCurrentSession(db, sid);
+  if (sid) setCurrentSession(db, sid, cwd);
 
   const resolved = config(cwd);
   const { mode, focus, focus_topic, cadence, difficulty, quiet } = resolved.config;

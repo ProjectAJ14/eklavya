@@ -61,10 +61,12 @@ agent never asked to say so.
   needs it.
 
 The subagent does not have to know which session it belongs to.
-`log_session_concepts` resolves the id from `meta.current_session`, which
+`log_session_concepts` resolves the id from the session pointer
 `session-start.ts` stamped for the parent — so a subagent's concepts land in the
 parent's session, count toward the same mastery history, and spend the same
-commit gate. That is why the directive never mentions `session_id`.
+commit gate. That is why the directive never mentions `session_id`. The pointer
+is keyed by git root, and a subagent inherits the parent's cwd, so it resolves to
+the parent and not to whatever session is running in another checkout.
 
 ## Nothing quizzes inside a subagent
 

@@ -44,6 +44,10 @@ Yes: commit `.eklavya.json` at the repository root. That is how a lead pins `enf
 
 Yes — one pane building while another teaches, sharing a single database. Set the same `EKLAVYA_SESSION_ID` in both. See `docs/parallel-tutoring.md` in the repository.
 
+### I work in two repositories at once. Will they mix?
+
+No. There is one database for every project, but the session Eklavya files your work under is keyed by repository, so a question asked in one checkout is about that checkout's work. Two sessions in the *same* checkout still share one — that is the mechanism the question above relies on.
+
 ### How do I upgrade?
 
 Run `/plugin` and update Eklavya from the menu, or run `eklavya install` again — every step of it is safe to repeat, and it moves the whole install forward: the runtime, the chat skill, the registration, and the plugin files themselves (by pulling the git clone, if you installed through the marketplace). Either way, restart Claude Code afterwards: hooks and MCP servers are wired up when a session starts, so the running one keeps the old build.

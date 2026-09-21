@@ -109,6 +109,30 @@ describe('session resolution (G1)', () => {
     setCurrentSession(db, 'from-hook');
     expect(resolveSessionId(db, '   ')).toBe('from-hook');
   });
+
+  it('resolves per checkout, so a tool call cannot land in another repo\'s session', () => {
+    // The pointer is global state in a database every checkout shares, and the
+    // tools tell the model to omit `session_id`. Before this was keyed on the
+    // checkout, a model still working in one repo resolved to whichever session
+    // its developer had most recently typed in — so its log_session_concepts
+    // call filed that repo's work under the other repo's session, and the other
+    // session then quizzed its developer on code from a project they were not in.
+    const a = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-repo-a-'));
+    const b = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-repo-b-'));
+    fs.mkdirSync(path.join(a, '.git'));
+    fs.mkdirSync(path.join(b, '.git'));
+    try {
+      setCurrentSession(db, 'session-in-a', a);
+      // b types last — which used to be all it took to capture a's tool calls.
+      setCurrentSession(db, 'session-in-b', b);
+
+      expect(resolveSessionId(db, undefined, a)).toBe('session-in-a');
+      expect(resolveSessionId(db, undefined, b)).toBe('session-in-b');
+    } finally {
+      fs.rmSync(a, { recursive: true, force: true });
+      fs.rmSync(b, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('log_session_concepts', () => {
@@ -1532,7 +1556,8 @@ describe('config tools', () => {
     });
 
     it('acts on the session the hooks last stamped when none was passed', () => {
-      setCurrentSession(db, 'sess-from-hook');
+      // Stamped for the same cwd `call` passes: the pointer is per checkout.
+      setCurrentSession(db, 'sess-from-hook', cwd);
       expect(call<any>(setConfig, { scope: 'session', mode: 'off' }).session_id).toBe(
         'sess-from-hook',
       );

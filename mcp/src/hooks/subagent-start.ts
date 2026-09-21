@@ -35,9 +35,10 @@ import { isSessionOff } from '../session.js';
  * Two sentences, because a subagent's context is its whole budget and this is
  * spent before it has read its task.
  *
- * `session_id` is not mentioned: `log_session_concepts` resolves it from
- * `meta.current_session`, which `session-start.ts` stamped, so a subagent lands
- * in the parent's session without being told how. Nor is there an "if the tool
+ * `session_id` is not mentioned: `log_session_concepts` resolves it from the
+ * pointer `session-start.ts` stamped for this checkout
+ * (`meta.current_session:<repo root>`), and a subagent inherits the parent's
+ * cwd, so it lands in the parent's session without being told how. Nor is there an "if the tool
  * is available" hedge — `skills/CLAUDE.md` measured that shape of clause
  * turning a reliable recipe into a noisy one, and the exemption that matters is
  * the guard's job below, not a condition the model is invited to weigh.
