@@ -1,3 +1,10 @@
+## [1.18.3](https://github.com/ProjectAJ14/eklavya/compare/v1.18.2...v1.18.3) (2026-09-21)
+
+
+### Bug Fixes
+
+* **hooks:** stop the Stop sweep rendering as a hook error ([d45b223](https://github.com/ProjectAJ14/eklavya/commit/d45b223db84f4f7dfe7c97cf447c4d25d12a3891))
+
 ## [1.18.2](https://github.com/ProjectAJ14/eklavya/compare/v1.18.1...v1.18.2) (2026-09-21)
 
 
