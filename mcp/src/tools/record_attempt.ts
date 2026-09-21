@@ -81,7 +81,7 @@ export const recordAttempt: ToolDef = {
   ) => {
     const now = new Date();
     const { config, repoRoot } = loadConfig(args.cwd);
-    const sessionId = resolveSessionId(db, args.session_id);
+    const sessionId = resolveSessionId(db, args.session_id, args.cwd);
 
     const slug = normalizeSlug(args.slug);
     const concept = conceptBySlug(db, slug);

@@ -1202,13 +1202,62 @@ describe('the per-session off switch', () => {
 
   it('leaves the session pointer naming this session, so it can be turned back on', () => {
     // The model cannot see its own session id, so set_config resolves it from
-    // `current_session`. session-start stamps that once — whichever session
-    // started last wins — and with two open sessions the model would silence
-    // the wrong one. Every prompt re-stamps it.
+    // the session pointer. session-start stamps that once — whichever session
+    // started last in this checkout wins — and with two open sessions the model
+    // would silence the wrong one. Every prompt re-stamps it.
     setSessionOff(db, SESSION, false);
-    setCurrentSession(db, 'some-other-session');
+    setCurrentSession(db, 'some-other-session', cwd);
     runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit' });
-    expect(getCurrentSession(db)).toBe(SESSION);
+    expect(getCurrentSession(db, cwd)).toBe(SESSION);
+  });
+
+  it('does not bind a checkout to a session id it only read from elsewhere', () => {
+    // `sessionId()` falls through to the pointer when the harness sends no
+    // `session_id`, and the hook then stamps what it read. If that read could
+    // reach another checkout's row, the hook would write a foreign session id
+    // into its own pointer — where it wins from then on, outliving the session
+    // it names, so this repo's work would file under a dead id for good.
+    const mine = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-repo-c-'));
+    fs.mkdirSync(path.join(mine, '.git'));
+    try {
+      setCurrentSession(db, 'a-live-session-in-another-repo', cwd);
+
+      runHook(SESSION_START, {
+        cwd: mine,
+        hook_event_name: 'SessionStart',
+        session_start_reason: 'startup',
+      });
+
+      expect(getCurrentSession(db, mine)).toBe(null);
+    } finally {
+      fs.rmSync(mine, { recursive: true, force: true });
+    }
+  });
+
+  it('re-stamps only its own checkout, so a prompt here cannot hijack another repo', () => {
+    // The bug this prevents: two sessions, two repos, one database. A model that
+    // churns for ten minutes calls its tools long after the developer typed in
+    // the other window, and with a single global pointer every one of those
+    // calls — log_session_concepts included — lands in the other session. A
+    // talea session asked about D-Pilot's `app.use('/d-pilot', router)` this way.
+    // Two checkouts, because the pointer is keyed on the git root: `cwd` itself
+    // has no `.git` and would share the unkeyed row with everything else.
+    const mine = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-repo-a-'));
+    const theirs = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-repo-b-'));
+    fs.mkdirSync(path.join(mine, '.git'));
+    fs.mkdirSync(path.join(theirs, '.git'));
+    try {
+      setCurrentSession(db, 'other-repo-session', theirs);
+      setCurrentSession(db, 'this-repo-session', mine);
+
+      runHook(NUDGE, { session_id: SESSION, cwd: mine, hook_event_name: 'UserPromptSubmit' });
+
+      expect(getCurrentSession(db, mine)).toBe(SESSION);
+      expect(getCurrentSession(db, theirs)).toBe('other-repo-session');
+    } finally {
+      fs.rmSync(mine, { recursive: true, force: true });
+      fs.rmSync(theirs, { recursive: true, force: true });
+    }
   });
 
   it('silences that session only', () => {

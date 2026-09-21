@@ -34,8 +34,8 @@ else.
 
 | Event | Matcher | Timeout | Script | Job |
 |---|---|---|---|---|
-| SessionStart | — | 10s | `session-start` | stamp `meta.current_session`, print the profile banner and the standing log directive |
-| UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
+| SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), print the profile banner and the standing log directive |
+| UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-stamp this checkout's session pointer, then re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
 | SubagentStart | — | 10s | `subagent-start` | give a delegated agent the log directive the parent's SessionStart never reached it with |
 | PreToolUse | `Bash` | 10s | `pre-tool-gate` | in `enforced` mode only, deny a `git commit` whose session gate has not passed |
 | PostToolUse | `mcp__.*log_session_concepts` | 10s | `checkpoint-quiz` | one mid-task question, `interleaved` cadence only |

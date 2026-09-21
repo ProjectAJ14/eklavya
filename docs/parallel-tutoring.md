@@ -42,9 +42,21 @@ Right pane: `/eklavya:learn <topic>` or `/eklavya:quiz`. It teaches from what th
 
 Claude Code gives every session its own id, and the hooks use the one they are handed on stdin — so without the override the two panes' hooks are two unrelated sessions, and answering questions in the right pane would not satisfy the gate holding the left pane's commit.
 
-The MCP tools are messier still. A tool call that carries no `session_id` falls back to `meta.current_session`, a single row that the SessionStart hook stamps with the *starting* pane's id — so the second pane to start overwrites it, and both panes' tools then disagree with both panes' hooks about which session the work belongs to.
+The MCP tools are messier still. A tool call that carries no `session_id` falls back to the session pointer the hooks stamp in `meta` — and both panes are one checkout, so they share one pointer row and the later stamp wins. Both panes' tools then disagree with both panes' hooks about which session the work belongs to.
+
+That pointer is keyed by git root (`current_session:<repo root>`, `sessionKeyFor` in `mcp/src/session.ts`), which is what keeps two sessions in *different* repos from mixing their work — see [the cross-checkout note](#one-database-many-checkouts) below. Inside one checkout it does nothing, which is exactly the tmux case here, so the override is still required.
 
 `EKLAVYA_SESSION_ID` overrides session resolution in both the MCP server (`resolveSessionId`, `mcp/src/session.ts`) and the hooks (`sessionId`, `mcp/src/hooks/lib.ts`), ahead of the harness id and ahead of that `meta` row, so both panes write to one session. In normal single-pane use it is unset and the harness's own session id is authoritative. The one asymmetry: in the server an explicit `session_id` argument still beats the variable; in the hooks nothing does.
+
+### One database, many checkouts
+
+Panes aside, the ordinary case is two Claude Code sessions in two repos. They share one `~/.eklavya/knowledge.db`, the model cannot see its own session id, and the tools tell it to omit `session_id` — so every tool call in both sessions resolves through the same `meta` pointer. `prompt-submit-nudge` re-stamps that pointer on every prompt, which makes it name whichever developer typed last, not whichever model is calling: a session that churns for ten minutes while the other window is in use logs its concepts into the other session, and that session then quizzes its developer on a project they are not in.
+
+The pointer is therefore keyed on the git root, and both the hooks (`sessionId`, `mcp/src/hooks/lib.ts`) and the tools (`resolveSessionId`) resolve against the key for the cwd they were given. Worktrees keep their own key on purpose: unlike `projectKey`, which folds them into the main checkout so a branch does not mint a fresh project at `easy`, here a worktree is usually what a concurrent session *is*. Two sessions in one checkout still share a pointer — that is what `EKLAVYA_SESSION_ID` is for when it is deliberate, and the known limit when it is not.
+
+There is deliberately no fallback to a shared row. A checkout with no pointer of its own resolves to the literal `default`, which is what `set_config` needs in order to refuse a host that has no hooks at all (`FALLBACK_SESSION_ID`, `mcp/src/tools/config_tools.ts`) rather than silence a live session somewhere else. It matters more than it looks: a hook handed no `session_id` resolves through the same read and then stamps what it read, so a shared fallback would not merely mislead one call — it would freeze another repo's session id into this checkout permanently.
+
+Work outside any git repository has no root to key on and shares one pointer, the same way it shares the `*` project bucket. Two sessions there still mix; there is nothing to tell them apart by.
 
 ### What is shared, and what is not
 

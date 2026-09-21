@@ -144,13 +144,18 @@ await run(async (input) => {
   if (!sid) return 0;
 
   // Re-stamp the session pointer the MCP tools resolve against (decision G1).
-  // `session-start` sets it once, so with two sessions open it names whichever
-  // started last — and the model, which cannot see its own session id, would
-  // then silence, un-silence or log to the wrong one. Restamping here makes it
-  // "the session whose developer most recently typed", which is the session
-  // whose model is about to call a tool. One indexed upsert, on a hook that has
-  // already opened the database.
-  setCurrentSession(db, sid);
+  // `session-start` sets it once, so within one checkout it names whichever
+  // session started last — and the model, which cannot see its own session id,
+  // would then silence, un-silence or log to the wrong one. Restamping here
+  // makes it "the session whose developer most recently typed", which is the
+  // session whose model is about to call a tool. One indexed upsert, on a hook
+  // that has already opened the database.
+  //
+  // Across checkouts that reasoning fails, which is why the pointer is keyed by
+  // one: a model churning for ten minutes while its developer works in another
+  // repo calls its tools long after that other window typed. `cwd` is what keeps
+  // the two apart — see `sessionKeyFor`.
+  setCurrentSession(db, sid, cwdOf(input));
 
   if (isSessionOff(db, sid)) return 0;
 

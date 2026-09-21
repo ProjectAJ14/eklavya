@@ -1,20 +1,59 @@
 import type { DB } from './db.js';
+import { findRepoConfig } from './config.js';
 
 const CURRENT_SESSION_KEY = 'current_session';
 export const FALLBACK_SESSION_ID = 'default';
 
-export function getCurrentSession(db: DB): string | null {
-  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(CURRENT_SESSION_KEY) as
+/**
+ * The session pointer, keyed by checkout.
+ *
+ * One global pointer is not enough. Two Claude Code sessions in two repos share
+ * this database, the model cannot see its own session id, and the tools tell it
+ * to omit `session_id` -- so every tool call in both sessions resolves through
+ * the same row. `prompt-submit-nudge` re-stamps that row on every prompt, which
+ * means the pointer names whichever developer typed last, not whichever model is
+ * calling. A model that churns for ten minutes while the other window is in use
+ * logs its concepts into the other session: a talea session asked its developer
+ * about D-Pilot's `app.use('/d-pilot', router)` exactly this way.
+ *
+ * Keying on the git root is what makes the two not collide. Worktrees keep their
+ * own key on purpose -- unlike `projectKey`, which folds them into the main
+ * checkout for level-keeping, here they are what concurrent sessions usually
+ * are, and folding them back would re-create the collision this prevents. Two
+ * sessions in one checkout still share a pointer, but then the work they mix is
+ * at least from the same codebase.
+ */
+/*
+ * The bare `current_session` row a pre-1.18 install left behind is dead once
+ * this ships: nothing reads it and nothing writes it, and the first prompt in
+ * each checkout stamps the keyed row that replaces it. It is one row of a few
+ * bytes, and clearing it would cost a migration to save them.
+ */
+function sessionKeyFor(cwd?: string | null): string {
+  const { repoRoot } = findRepoConfig(cwd ?? process.cwd());
+  return repoRoot ? `${CURRENT_SESSION_KEY}:${repoRoot}` : CURRENT_SESSION_KEY;
+}
+
+export function getCurrentSession(db: DB, cwd?: string | null): string | null {
+  // This checkout's row and nothing else. Falling back to a shared row would
+  // hand back another repo's live session, which is the whole failure above --
+  // and it would defeat the `default` that `set_config` relies on to refuse a
+  // hookless host (`FALLBACK_SESSION_ID`, `tools/config_tools.ts`): a Cursor
+  // session with no hooks would silence a real session in another repo instead.
+  // Worse, a hook handed no `session_id` resolves through here and then stamps
+  // what it read, so a shared fallback would freeze the foreign id into this
+  // checkout for good.
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(sessionKeyFor(cwd)) as
     | { value: string }
     | undefined;
   return row?.value ?? null;
 }
 
-export function setCurrentSession(db: DB, sessionId: string): void {
+export function setCurrentSession(db: DB, sessionId: string, cwd?: string | null): void {
   db.prepare(
     `INSERT INTO meta (key, value) VALUES (?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-  ).run(CURRENT_SESSION_KEY, sessionId);
+  ).run(sessionKeyFor(cwd), sessionId);
 }
 
 /**
@@ -23,11 +62,11 @@ export function setCurrentSession(db: DB, sessionId: string): void {
  * order or the hooks query rows that were written under a different key
  * (phase-1 decision G1).
  */
-export function resolveSessionId(db: DB, explicit?: string | null): string {
+export function resolveSessionId(db: DB, explicit?: string | null, cwd?: string | null): string {
   const candidate =
     (explicit && explicit.trim()) ||
     (process.env.EKLAVYA_SESSION_ID && process.env.EKLAVYA_SESSION_ID.trim()) ||
-    getCurrentSession(db) ||
+    getCurrentSession(db, cwd) ||
     FALLBACK_SESSION_ID;
 
   return candidate;
