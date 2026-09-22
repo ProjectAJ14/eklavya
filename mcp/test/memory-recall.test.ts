@@ -188,3 +188,38 @@ describe('learning counts', () => {
     expect(learningCounts(db, PROJECT)).toEqual({ learning: 2, mastered: 0, due: 0 });
   });
 });
+
+describe('learning counts and the worktree spelling', () => {
+  it('counts work recorded in a worktree against the checkout it branched from', async () => {
+    // The learning half stores the checkout it was in and folds worktrees at
+    // read time; the memory half stores the folded key. Comparing the two
+    // directly is right in an ordinary checkout and silently zero in a
+    // worktree — which is exactly the developer most likely to have several.
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const { projectKey } = await import('../src/store.js');
+    const { conceptBySlug } = await import('../src/store.js');
+
+    const main = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-main-')));
+    fs.mkdirSync(path.join(main, '.git', 'worktrees', 'feature'), { recursive: true });
+    const tree = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-tree-')));
+    // A linked worktree's `.git` is a file pointing back at the main checkout.
+    fs.writeFileSync(path.join(tree, '.git'), `gitdir: ${path.join(main, '.git', 'worktrees', 'feature')}\n`);
+
+    expect(projectKey(tree)).toBe(main);
+
+    const concept = conceptBySlug(db, 'csrf')!;
+    // Recorded as `record_attempt` writes it: the checkout it happened in.
+    db.prepare(
+      `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, repo, level)
+       VALUES (?, 'w1', 'q', 'a', 5, 2, ?, 'easy')`,
+    ).run(concept.id, tree);
+
+    const counts = learningCounts(db, main);
+    expect(counts.learning + counts.mastered).toBe(1);
+
+    fs.rmSync(main, { recursive: true, force: true });
+    fs.rmSync(tree, { recursive: true, force: true });
+  });
+});

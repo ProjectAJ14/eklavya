@@ -1,6 +1,7 @@
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isDue, isKnown } from '../srs.js';
+import { projectKey } from '../store.js';
 import { ESTIMATOR, estimateTokens, savingsFrom, savingsLine, type Savings } from './tokens.js';
 import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
 import { entryEvents, recordReceipt, timeline, type EntryRow } from './store.js';
@@ -226,16 +227,16 @@ export function learningCounts(db: DB, project: string, now = new Date()): Learn
        FROM concepts c
        LEFT JOIN mastery m ON m.concept_id = c.id
        WHERE c.id IN (
-         SELECT concept_id FROM attempts WHERE repo = ?
+         SELECT concept_id FROM attempts WHERE repo IN (SELECT value FROM json_each(?))
          UNION
          SELECT sc.concept_id FROM session_concepts sc
            JOIN gates g ON g.session_id = sc.session_id
-           WHERE g.repo = ?
+           WHERE g.repo IN (SELECT value FROM json_each(?))
          UNION
          SELECT concept_id FROM learning_sources WHERE project = ? AND status = 'accepted' AND concept_id IS NOT NULL
        )`,
     )
-    .all(project, project, project) as {
+    .all(JSON.stringify(reposFor(db, project)), JSON.stringify(reposFor(db, project)), project) as {
     id: number;
     score: number | null;
     reps: number | null;
@@ -255,6 +256,36 @@ export function learningCounts(db: DB, project: string, now = new Date()): Learn
     if (isDue(row.next_review, now)) due++;
   }
   return { learning, mastered, due };
+}
+
+/**
+ * Every raw `repo` value in the learning tables that belongs to this project.
+ *
+ * The learning half stores the checkout it was in and folds worktrees with
+ * `projectKey` at *read* time; the memory half stores the folded key. Comparing
+ * one against the other is correct in an ordinary checkout, where they are the
+ * same string, and silently wrong in a worktree — every count would read zero
+ * for someone whose branch lives in one, which is precisely the developer most
+ * likely to have several open.
+ *
+ * A handful of distinct values per database, folded once per call.
+ */
+function reposFor(db: DB, project: string): string[] {
+  const seen = new Set<string>();
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT repo FROM attempts WHERE repo IS NOT NULL
+       UNION
+       SELECT DISTINCT repo FROM gates WHERE repo IS NOT NULL`,
+    )
+    .all() as { repo: string }[];
+  for (const row of rows) {
+    if (projectKey(row.repo) === project) seen.add(row.repo);
+  }
+  // The folded key itself, for rows already written in the memory half's
+  // spelling and for a project with no history yet.
+  seen.add(project);
+  return [...seen];
 }
 
 export interface StartupDisplay {
