@@ -63,6 +63,69 @@ export type Cadence = 'interleaved' | 'end';
  */
 export type Difficulty = Level | 'auto';
 
+/**
+ * The memory namespace (PRD CFG-01).
+ *
+ * Nested, unlike the learning dials, which stay flat because every
+ * `.eklavya.json` already written uses them at the top level. New settings get
+ * namespaces; old ones keep their names. The compatibility adapter is simply
+ * that `coerce` reads both shapes.
+ *
+ * `enabled` is deliberately independent of `mode`. Someone who set
+ * `mode: "off"` asked for no quizzes, not for their project history to stop
+ * being recorded -- and the reverse, a learner who wants quizzes but no
+ * capture, is just as legitimate.
+ */
+export interface MemoryConfig {
+  enabled: boolean;
+  /**
+   * What the capture path accepts. `minimal` keeps prompts and session seams --
+   * enough for "what was I doing last week" -- without recording every read.
+   */
+  capture: 'full' | 'minimal' | 'off';
+  /** Events per observation batch; the seam flushes whatever is left. */
+  batch_max_events: number;
+  /** Days of raw evidence to keep. `null` keeps it until deleted by hand. */
+  retention_days: number | null;
+}
+
+/** What never reaches storage, a log, a provider, an embedding or an export. */
+export interface PrivacyConfig {
+  exclude_paths: string[];
+  exclude_tools: string[];
+  /** Extra regex sources, applied on top of the built-in secret shapes. */
+  redact_patterns: string[];
+}
+
+export interface RetrievalConfig {
+  mode: 'keyword' | 'semantic' | 'hybrid';
+  /** Entries offered at a session seam before any detail fetch. */
+  max_items: number;
+  /** Budget for the whole injected block, estimated tokens. */
+  max_tokens: number;
+  /** Off by default: another repository's work is noise, not context. */
+  cross_project: boolean;
+}
+
+/**
+ * Outbound model access, and the reason it is its own namespace: every key here
+ * is a decision to send this machine's work somewhere else. Both default to
+ * `null`, so an upgrade cannot turn a local install into a networked one
+ * (PRD CFG-02) -- the local summariser and the local embedder handle both jobs
+ * until someone configures otherwise.
+ */
+export interface ProviderConfig {
+  kind: 'anthropic';
+  model: string;
+  /** Environment variable holding the key. Never the key itself. */
+  api_key_env: string;
+}
+
+export interface ProvidersConfig {
+  observer: ProviderConfig | null;
+  embeddings: ProviderConfig | null;
+}
+
 export interface EklavyaConfig {
   mode: Mode;
   /**
@@ -112,6 +175,10 @@ export interface EklavyaConfig {
   max_new_concepts_per_session: number;
   /** Hard backstop on the Stop hook's loop guard, read by the stop-quiz-check hook. */
   max_stop_blocks_per_session: number;
+  memory: MemoryConfig;
+  privacy: PrivacyConfig;
+  retrieval: RetrievalConfig;
+  providers: ProvidersConfig;
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
@@ -130,6 +197,27 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   quiet: false,
   max_new_concepts_per_session: 8,
   max_stop_blocks_per_session: 3,
+  memory: {
+    enabled: true,
+    capture: 'full',
+    batch_max_events: 40,
+    retention_days: null,
+  },
+  privacy: {
+    exclude_paths: [],
+    exclude_tools: [],
+    redact_patterns: [],
+  },
+  retrieval: {
+    mode: 'hybrid',
+    max_items: 6,
+    max_tokens: 1200,
+    cross_project: false,
+  },
+  providers: {
+    observer: null,
+    embeddings: null,
+  },
 };
 
 export const REPO_CONFIG_FILE = '.eklavya.json';
@@ -300,7 +388,83 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
     out.max_stop_blocks_per_session = Math.floor(raw.max_stop_blocks_per_session);
   }
 
+  coerceNamespaces(raw, out);
+
   return out;
+}
+
+function stringArray(value: unknown): string[] | null {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string') ? (value as string[]) : null;
+}
+
+function provider(value: unknown): ProviderConfig | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  if (v.kind !== 'anthropic') return null;
+  if (typeof v.model !== 'string' || !v.model.trim()) return null;
+  // A key in the config file would end up in every export, log and dashboard
+  // payload that ever prints configuration (PRD SEC-01). Only the name of the
+  // variable holding it lives here.
+  const keyEnv = typeof v.api_key_env === 'string' && v.api_key_env.trim() ? v.api_key_env.trim() : 'ANTHROPIC_API_KEY';
+  return { kind: 'anthropic', model: v.model.trim(), api_key_env: keyEnv };
+}
+
+/**
+ * The namespaced half. Unknown keys are left alone rather than dropped: the
+ * resolved `raw` still carries them, so `eklavya doctor` can report a typo
+ * instead of the setting silently doing nothing.
+ */
+function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): void {
+  const memory = raw.memory as Record<string, unknown> | undefined;
+  if (memory && typeof memory === 'object') {
+    out.memory = { ...out.memory };
+    if (typeof memory.enabled === 'boolean') out.memory.enabled = memory.enabled;
+    if (memory.capture === 'full' || memory.capture === 'minimal' || memory.capture === 'off') {
+      out.memory.capture = memory.capture;
+    }
+    if (typeof memory.batch_max_events === 'number' && memory.batch_max_events > 0) {
+      out.memory.batch_max_events = Math.floor(memory.batch_max_events);
+    }
+    if (typeof memory.retention_days === 'number' && memory.retention_days > 0) {
+      out.memory.retention_days = Math.floor(memory.retention_days);
+    } else if (memory.retention_days === null) {
+      out.memory.retention_days = null;
+    }
+  }
+
+  const privacy = raw.privacy as Record<string, unknown> | undefined;
+  if (privacy && typeof privacy === 'object') {
+    out.privacy = { ...out.privacy };
+    const paths = stringArray(privacy.exclude_paths);
+    if (paths) out.privacy.exclude_paths = paths;
+    const tools = stringArray(privacy.exclude_tools);
+    if (tools) out.privacy.exclude_tools = tools;
+    const patterns = stringArray(privacy.redact_patterns);
+    if (patterns) out.privacy.redact_patterns = patterns;
+  }
+
+  const retrieval = raw.retrieval as Record<string, unknown> | undefined;
+  if (retrieval && typeof retrieval === 'object') {
+    out.retrieval = { ...out.retrieval };
+    if (retrieval.mode === 'keyword' || retrieval.mode === 'semantic' || retrieval.mode === 'hybrid') {
+      out.retrieval.mode = retrieval.mode;
+    }
+    if (typeof retrieval.max_items === 'number' && retrieval.max_items > 0) {
+      out.retrieval.max_items = Math.floor(retrieval.max_items);
+    }
+    if (typeof retrieval.max_tokens === 'number' && retrieval.max_tokens > 0) {
+      out.retrieval.max_tokens = Math.floor(retrieval.max_tokens);
+    }
+    if (typeof retrieval.cross_project === 'boolean') out.retrieval.cross_project = retrieval.cross_project;
+  }
+
+  const providers = raw.providers as Record<string, unknown> | undefined;
+  if (providers && typeof providers === 'object') {
+    out.providers = {
+      observer: provider(providers.observer),
+      embeddings: provider(providers.embeddings),
+    };
+  }
 }
 
 /** Global config merged with the repo's, repo winning. */
