@@ -80,7 +80,7 @@ checkpoint answered is one the sweep no longer asks, so a session that
 checkpointed through the budget ends in silence. That is intended — do not top it
 up because the ending felt quiet. What the budget never reached stays unmastered
 and comes back in a later plan with `reason: "backlog"`, once that session's own
-concepts and review debt are covered, from the domains that session touches, and
+concepts and review debt are covered, from that project and the domains it touches, and
 never when `quiz.enforced` is set. It is not spaced repetition that brings it
 back — that only schedules concepts already answered once.
 

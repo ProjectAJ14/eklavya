@@ -27,6 +27,8 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
    - `no_topic` → focus is `learn` with nothing set; ask what they want to learn, then `/eklavya:mode learn <topic>`.
    - `topic_unknown` → the graph has nothing matching their topic; offer the closest domain rather than inventing questions.
 
+   If the plan carries `pending_elsewhere`, add one line after the reason naming those projects by folder name with their counts, most first: "Pending in other projects: eklavya (12), PiDom (3) — run `/eklavya:quiz` there." Say nothing about other projects when the field is absent.
+
 **A named topic overrides the configured focus for this quiz only.** Someone who types `/eklavya:quiz caching` wants caching now; it is not a request to change their standing setting. Do not call `set_config` — `/eklavya:mode` is for that.
 
 Then ask one question at a time at each concept's `tier_to_ask`, following the plan's `framing` field, never repeating anything in `asked_before`, grade every answer with `record_attempt`, and close with one line: what moved, and what comes back for review when.

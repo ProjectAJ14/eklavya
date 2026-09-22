@@ -650,6 +650,80 @@ export function projectKey(repoRoot: string | null | undefined): string {
   return mainRepoRoot(repoRoot);
 }
 
+/**
+ * Every session that logged work in this project.
+ *
+ * `session_concepts` has no repo column, but every `log_session_concepts` call
+ * writes the session's gate row with one, so the gate is where a session's
+ * project is recorded. Folded through `projectKey` so a worktree's sessions count
+ * as its checkout's. Sessions from before the gate carried a repo land in
+ * `GLOBAL_PROJECT`.
+ */
+export function projectSessionIds(db: DB, repoRoot: string | null | undefined): string[] {
+  const key = projectKey(repoRoot);
+  const rows = db.prepare('SELECT session_id, repo FROM gates').all() as {
+    session_id: string;
+    repo: string | null;
+  }[];
+  const keys = new Map<string | null, string>();
+  return rows
+    .filter((r) => {
+      if (!keys.has(r.repo)) keys.set(r.repo, projectKey(r.repo));
+      return keys.get(r.repo) === key;
+    })
+    .map((r) => r.session_id);
+}
+
+/**
+ * Other projects with something a quiz there would ask: concepts logged and never
+ * asked about, plus review that has come due. Most first. What an empty plan
+ * points at, so "nothing here" also says where to go.
+ */
+export function pendingElsewhere(
+  db: DB,
+  repoRoot: string | null | undefined,
+  now: Date,
+  limit = 3,
+): { project: string; pending: number }[] {
+  const here = projectKey(repoRoot);
+  const byProject = new Map<string, Set<number>>();
+  const add = (project: string, conceptId: number) => {
+    if (project === here || project === GLOBAL_PROJECT) return;
+    if (!byProject.has(project)) byProject.set(project, new Set());
+    byProject.get(project)!.add(conceptId);
+  };
+
+  const keys = new Map<string | null, string>();
+  const keyOf = (repo: string | null) => {
+    if (!keys.has(repo)) keys.set(repo, projectKey(repo));
+    return keys.get(repo)!;
+  };
+
+  const backlog = db
+    .prepare(
+      `SELECT g.repo, sc.concept_id FROM session_concepts sc
+         JOIN gates g ON g.session_id = sc.session_id
+        WHERE COALESCE(sc.origin, 'work') = 'work'
+          AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)`,
+    )
+    .all() as { repo: string | null; concept_id: number }[];
+  for (const r of backlog) add(keyOf(r.repo), r.concept_id);
+
+  const due = db
+    .prepare(
+      `SELECT DISTINCT a.repo, a.concept_id FROM attempts a
+         JOIN mastery m ON m.concept_id = a.concept_id
+        WHERE a.repo IS NOT NULL AND m.next_review IS NOT NULL AND m.next_review <= ?`,
+    )
+    .all(now.toISOString()) as { repo: string; concept_id: number }[];
+  for (const r of due) add(r.repo, r.concept_id);
+
+  return [...byProject]
+    .map(([project, ids]) => ({ project, pending: ids.size }))
+    .sort((a, b) => b.pending - a.pending)
+    .slice(0, limit);
+}
+
 /** Set once `mergeWorktreeProjects` has folded pre-existing worktree rows in. */
 const WORKTREE_MERGE_KEY = 'worktree_projects_merged';
 

@@ -415,11 +415,20 @@ describe('get_session_quiz_plan', () => {
     master('jwt-structure');
     master('csrf');
 
-    // An unrelated web-auth concept that fell overdue.
+    // An unrelated web-auth concept, answered in this project, that fell overdue.
+    call(recordAttempt, {
+      session_id: 'earlier-session',
+      slug: 'pkce',
+      question: 'about pkce',
+      answer: 'a',
+      grade: 2,
+      difficulty: 2,
+    });
     const id = (db.prepare('SELECT id FROM concepts WHERE slug = ?').get('pkce') as { id: number }).id;
-    db.prepare(
-      'INSERT INTO mastery (concept_id, score, ease, interval_d, reps, next_review) VALUES (?, 0.5, 2.5, 1, 1, ?)',
-    ).run(id, new Date(Date.now() - 86_400_000).toISOString());
+    db.prepare('UPDATE mastery SET next_review = ? WHERE concept_id = ?').run(
+      new Date(Date.now() - 86_400_000).toISOString(),
+      id,
+    );
 
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.concepts.map((c: any) => c.slug)).toContain('pkce');
@@ -503,7 +512,7 @@ describe('get_session_quiz_plan', () => {
     expect(slugs).not.toContain('git-commit');
   });
 
-  it('falls back to the whole backlog when this session logged nothing', () => {
+  it('falls back to the whole project backlog when this session logged nothing', () => {
     // No diff to contradict, so there is nothing for the scope to protect and the
     // debt is the only thing worth asking about.
     call(logSessionConcepts, {
@@ -513,6 +522,42 @@ describe('get_session_quiz_plan', () => {
 
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.concepts.map((c: any) => c.slug)).toContain('git-commit');
+  });
+
+  it('never offers backlog or review debt from another project', () => {
+    // One database serves every checkout. A quiz run in this one must not ask
+    // about work logged in another, even when this session logged nothing.
+    const other = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-other-'));
+    fs.mkdirSync(path.join(other, '.git'));
+    try {
+      call(logSessionConcepts, { cwd: other, session_id: 'other-session', concepts: [{ slug: 'git-commit' }] });
+      call(logSessionConcepts, { cwd: other, session_id: 'other-reviewed', concepts: [{ slug: 'pkce' }] });
+      call(recordAttempt, {
+        cwd: other,
+        session_id: 'other-reviewed',
+        slug: 'pkce',
+        question: 'about pkce',
+        answer: 'a',
+        grade: 4,
+        difficulty: 2,
+      });
+      db.prepare("UPDATE mastery SET next_review = '2000-01-01T00:00:00Z'").run();
+
+      const empty = call<any>(getSessionQuizPlan, { session_id: SESSION });
+      expect(empty.questions_needed).toBe(0);
+      // ...but it says where the work is waiting: git-commit logged, pkce due.
+      expect(empty.pending_elsewhere).toEqual([{ project: fs.realpathSync(other), pending: 2 }]);
+
+      logAuthWork();
+      master('httponly-cookies');
+      master('jwt-structure');
+      master('csrf');
+      const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map((c: any) => c.slug);
+      expect(slugs).not.toContain('git-commit');
+      expect(slugs).not.toContain('pkce');
+    } finally {
+      fs.rmSync(other, { recursive: true, force: true });
+    }
   });
 
   it('does not treat this session\'s own unasked concepts as backlog', () => {
