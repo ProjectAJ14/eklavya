@@ -13,7 +13,7 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | 4 | Capture pipeline: hooks, spool, replay | 2 | done |
 | 5 | Observation jobs + provider adapter + local summarizer | 2 | done |
 | 6 | Retrieval: keyword + semantic + hybrid, scoping | 3 | done |
-| 7 | Context receipts, savings arithmetic, startup display | 3 | not started |
+| 7 | Context receipts, savings arithmetic, startup display | 3 | done |
 | 8 | MCP memory tools + CLI subcommands | 3/5 | not started |
 | 9 | Learning links: evidence to concept candidates | 4 | not started |
 | 10 | Dashboard memory surfaces | 4 | not started |
@@ -35,3 +35,7 @@ increment lands. Phase names map to [delivery.md](delivery.md).
   the batch at the seam; SessionStart replays the spool, drains the queue and
   injects recalled evidence. All four do their memory work before their `mode`
   check, because `memory.enabled` is a separate decision.
+- 2026-09-22: the SessionStart greeting is the UX-01 three-line display —
+  heading, reuse saving, this project's counts with the level runway folded in.
+  The dials moved to the status bar and the weak list to the dashboard; the
+  hero terminal, `installing.mdx` and `first-session.mdx` are re-quoted.

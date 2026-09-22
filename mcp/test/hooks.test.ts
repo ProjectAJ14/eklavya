@@ -206,10 +206,14 @@ describe('SessionStart output', () => {
     expect(row.value).toBe(SESSION);
   });
 
-  it('reports having no history yet on a fresh install', () => {
+  it('greets in three lines and says nothing has been reused yet on a fresh install', () => {
+    // PRD UX-01: a heading, what reuse saved, where this project stands. No
+    // scoreboard, no dials, no URL -- somebody has just sat down to work.
     const res = sessionStart();
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/No learning history yet/);
+    expect(res.stdout).toMatch(/^Eklavya$/m);
+    expect(res.stdout).toMatch(/Your savings: — no context reused yet/);
+    expect(res.stdout).toMatch(/This project: Learning \d+ · Mastered \d+ · Due \d+/);
   });
 
   it('tells the model to log concepts on a fresh install, where nothing else will', () => {
@@ -223,7 +227,7 @@ describe('SessionStart output', () => {
     answer('csrf', 5);
     answer('csrf', 5);
     const res = sessionStart();
-    expect(res.stdout).toMatch(/Learner profile/);
+    expect(res.stdout).toMatch(/This project: Learning/);
     expect(res.stdout).toMatch(/log_session_concepts/);
   });
 
@@ -235,30 +239,41 @@ describe('SessionStart output', () => {
     configure({ quiet: true });
     const res = sessionStart();
     expect(res.stdout).toMatch(/log_session_concepts/);
-    expect(res.stdout).not.toMatch(/Learner profile/);
+    expect(res.stdout).not.toMatch(/This project: Learning/);
   });
 
-  it('reports per-domain progress once something is known', () => {
+  it('counts a mastered concept against this project, not against the shipped catalogue', () => {
+    // Stamped with a project, as `record_attempt` writes them. The hook's cwd is
+    // not a git repository, so that project is the shared `*` bucket.
     logConcepts(['csrf']);
+    const csrf = conceptBySlug(db, 'csrf')!;
+    db.prepare(
+      `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, repo, level)
+       VALUES (?, ?, 'q', 'a', 5, 2, '*', 'easy')`,
+    ).run(csrf.id, SESSION);
     answer('csrf', 5);
     answer('csrf', 5);
 
     const res = sessionStart();
-    expect(res.stdout).toMatch(/web-auth 1\/\d+ known/);
-    expect(res.stdout).toMatch(/Mode: ambient/);
+    // One concept touched here; the seed's other 86 are not this project's.
+    expect(res.stdout).toMatch(/This project: Learning 0 · Mastered 1 · Due \d+/);
   });
 
-  it('names weak concepts and counts what is due', () => {
+  it('keeps concept names and the dials out of the greeting', () => {
+    // Both moved on purpose: the dials to the status bar, the weak list and the
+    // profile to the dashboard. A greeting naming concepts is a greeting that
+    // grows with the learner until it scrolls.
     logConcepts(['csrf']);
     answer('csrf', 1);
     const res = sessionStart();
-    expect(res.stdout).toMatch(/Weak: csrf/);
+    expect(res.stdout).not.toMatch(/Weak: csrf/);
+    expect(res.stdout).not.toMatch(/Mode: ambient/);
   });
 
   it('prints no banner when quiet is set, and still stamps the session', () => {
     configure({ quiet: true });
     const res = sessionStart();
-    expect(res.stdout).not.toMatch(/Learner profile|No learning history|Mode: /);
+    expect(res.stdout).not.toMatch(/^Eklavya$|This project: Learning|Your savings:/m);
     expect(res.stdout).toMatch(/Standing instruction/);
     expect(db.prepare("SELECT value FROM meta WHERE key='current_session'").get()).toBeTruthy();
   });
@@ -861,22 +876,22 @@ describe('SessionStart says which level the project is on', () => {
     answerIn('*', 'httponly-cookies', 1);
     const res = sessionStart();
     expect(res.status).toBe(0);
-    expect(res.stdout).toContain('Level: easy (2/100 on this project)');
+    expect(res.stdout).toContain('Level easy (2/100)');
   });
 
   it('starts at easy with nothing answered', () => {
-    expect(sessionStart().stdout).toContain('Level: easy (0/100 on this project)');
+    expect(sessionStart().stdout).toContain('Level easy (0/100)');
   });
 
   it('follows a shortened runway', () => {
     configure({ min_minutes_between_quizzes: 0, level_up_after: 20 });
     answerIn('*', 'csrf', 5);
-    expect(sessionStart().stdout).toContain('Level: easy (1/20 on this project)');
+    expect(sessionStart().stdout).toContain('Level easy (1/20)');
   });
 
   it('says so when the level is pinned, rather than showing a runway nobody is on', () => {
     configure({ min_minutes_between_quizzes: 0, difficulty: 'hard' });
-    expect(sessionStart().stdout).toContain('Level: hard (pinned)');
+    expect(sessionStart().stdout).toContain('Level hard (pinned)');
   });
 
   it('reads the level a promotion wrote', () => {
@@ -884,7 +899,7 @@ describe('SessionStart says which level the project is on', () => {
       `INSERT INTO project_levels (repo, level, promoted_at) VALUES ('*', 'medium', datetime('now','-1 day'))`,
     ).run();
     answerIn('*', 'csrf', 4); // easy-band evidence, spent with the old level
-    expect(sessionStart().stdout).toContain('Level: medium (0/100 on this project)');
+    expect(sessionStart().stdout).toContain('Level medium (0/100)');
   });
 
   it('names difficulty when a repo pins it over the learner’s own setting', () => {

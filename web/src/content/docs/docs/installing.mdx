@@ -111,13 +111,17 @@ If you would rather not touch a terminal:
 
 #### Check that it worked
 
-Run `/plugin` and confirm **eklavya** is listed with no errors. The first thing a healthy session prints is a one-line learner profile, like this:
+Run `/plugin` and confirm **eklavya** is listed with no errors. The first thing a healthy session prints is three lines, like this:
 
 ```text title="Session start"
-[Eklavya] No learning history yet. Mode: ambient. Focus: concept. Cadence: interleaved. Level: easy (0/100 on this project).
+Eklavya
+Your savings: — no context reused yet
+This project: Learning 0 · Mastered 0 · Due 0 · Level easy (0/100)
 ```
 
-If you see that line, you are done. If you see nothing at all, jump to [Troubleshooting](/docs/troubleshooting/).
+The savings line fills in once Eklavya has something to recall; the counts are this project's, not the size of the shipped catalogue. Your dials are in the status bar, and everything longer than three lines is in `eklavya dashboard`.
+
+If you see those lines, you are done. If you see nothing at all, jump to [Troubleshooting](/docs/troubleshooting/).
 
 ### C. From a checkout (contributors)
 

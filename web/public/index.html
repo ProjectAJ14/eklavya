@@ -190,11 +190,14 @@
               </div>
             </div>
 
-            <!-- What the SessionStart hook puts in front of the model. One line
-                 in the real hook (mcp/src/hooks/session-start.ts), wrapped over
-                 two rows here exactly as a terminal wraps it. -->
-            <div class="ln ln--hook" data-line="hook1" hidden>[Eklavya] Learner profile: web-auth 12/34 known, node-backend 9/26 known. Weak: cors-preflight, refresh-rotation. 37 concept(s) due for review.</div>
-            <div class="ln ln--hook" data-line="hook2" hidden>Mode: ambient. Focus: concept. Cadence: interleaved. Level: easy (4/100 on this project).</div>
+            <!-- The three lines the SessionStart hook prints, verbatim from
+                 mcp/src/hooks/session-start.ts. Three, not a scoreboard: the
+                 dials are in the status bar and the profile is in the
+                 dashboard. Re-quote both here and in
+                 web/src/content/docs/docs/installing.mdx when that hook changes. -->
+            <div class="ln ln--hook" data-line="hook1" hidden>Eklavya</div>
+            <div class="ln ln--hook" data-line="hook2" hidden>Your savings: 71% less context from reuse (estimated)</div>
+            <div class="ln ln--hook" data-line="hook3" hidden>This project: Learning 9 &middot; Mastered 12 &middot; Due 3 &middot; Level easy (4/100)</div>
 
             <!-- ...and how it looks once sent -->
             <div class="ln ln--user" data-line="sent" hidden><span class="ln__p">&gt;</span><span data-sent>add JWT auth to the Express API</span></div>

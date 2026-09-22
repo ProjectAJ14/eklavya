@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { findRepoConfig, mainRepoRoot } from '../config.js';
+import { GLOBAL_PROJECT } from '../store.js';
 
 /**
  * Identity for captured evidence (PRD CAP-01).
@@ -23,7 +24,11 @@ export interface EvidenceIdentity {
   host: string;
 }
 
-export const GLOBAL_PROJECT = '(global)';
+// Re-exported rather than redeclared: the learning half already has a spelling
+// for "no repository" (`*`), and a second one here would silently split the
+// counts -- work outside a checkout would be filed under a project nothing else
+// ever reads.
+export { GLOBAL_PROJECT };
 
 export function identityFor(opts: {
   cwd?: string | null;
