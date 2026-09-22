@@ -23,7 +23,7 @@ Nothing below requires you to type an Eklavya command. This is the plugin workin
    As it implements, Claude calls the `log_session_concepts` tool with three to eight concepts — say `jwt-structure`, `httponly-cookies`, `middleware-order-auth` — each with one line naming the real code it wrote. This is what everything else is grounded in: no logging, nothing to ask about.
 4. #### A question lands at the seam
 
-   That logging call fires the **PostToolUse** checkpoint hook. If the cadence is `interleaved` (the default), you get *one* question right there, while the code is still on your screen:
+   That logging call fires the **PostToolUse** checkpoint hook. If the cadence is `interleaved` (the default), you get *one* question right there, while the code is still on your screen. As the work goes on, the same hook checks again after Claude's shell commands and edits, and asks the next concept once `min_minutes_between_checkpoints` (four minutes) has passed:
 
    ```text title="Checkpoint"
    Why is httpOnly set on the refresh cookie here but not on the access token?

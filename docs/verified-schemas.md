@@ -181,6 +181,17 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
             "statusMessage": "Eklavya: checking if it is time to ask"
           }
         ]
+      },
+      {
+        "matcher": "^(Bash|Edit|Write|MultiEdit|NotebookEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "checkpoint-quiz"],
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [
@@ -202,7 +213,11 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
 
 Seven hooks over six events, one command. `PostToolUse` carries two of them: an
 unmatched `capture-tool`, which records every tool call as memory evidence, and
-the matched `checkpoint-quiz`. Registering two handler groups on one event is
+the matched `checkpoint-quiz`, registered twice — on the logging call, and on the
+work tools so it re-arms while the task runs (the model logs once per task). The
+second matcher is anchored because it is a regex: unanchored, `Write` would also
+match any tool name that merely contains it. It carries no `statusMessage`, which
+would flash on every shell command. Registering two handler groups on one event is
 how the two jobs keep their own matchers — a single group would force the
 capture hook to inherit the checkpoint's regex and capture nothing but Eklavya's
 own tool calls.

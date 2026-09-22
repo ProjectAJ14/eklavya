@@ -43,6 +43,7 @@ import { run, openExisting, config, cwdOf, sessionId, minutesSince } from './lib
 import { isSessionOff } from '../session.js';
 import { flushAtSeam, identityOf, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
+import { backlogConcepts, sessionConcepts } from '../store.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -96,11 +97,13 @@ await run(async (input) => {
   const {
     quiz,
     cadence,
+    focus,
     max_questions_per_task,
     max_stop_blocks_per_session,
     min_minutes_between_quizzes,
     min_minutes_between_checkpoints,
-  } = config(cwd).config;
+  } = stopConfig.config;
+  const { repoRoot } = stopConfig;
 
   if (!quiz.enabled) return 0;
 
@@ -143,10 +146,25 @@ await run(async (input) => {
 
   if (!stats) return 0;
 
-  // Nothing worth asking about. Concepts already answered in this session are
-  // excluded above: they have had their turn, and re-offering them is exactly the
-  // "asked me the same thing twice" failure this tool exists to avoid.
-  if (stats.unmastered <= 0) return 0;
+  // Nothing of this session's own worth asking about. Concepts already answered
+  // in this session are excluded above: they have had their turn, and
+  // re-offering them is exactly the "asked me the same thing twice" failure this
+  // tool exists to avoid.
+  //
+  // Then fall back to this project's backlog -- work an earlier session logged
+  // that no question reached. Without this the backlog was reachable only by
+  // `/eklavya:quiz`: the plan serves it, but no hook ever called the plan for a
+  // session with nothing of its own, so a project's leftovers sat unasked for
+  // good. Same helper, same domain scope as the plan, so a block here is a plan
+  // there. Never under `quiz.enforced`, where the plan never serves backlog, nor
+  // under `learn` focus, where the plan asks from the topic instead.
+  let backlog: string[] = [];
+  if (stats.unmastered <= 0) {
+    if (quiz.enforced || focus === 'learn') return 0;
+    const domains = [...new Set(sessionConcepts(db, sid).map((c) => c.domain))];
+    backlog = backlogConcepts(db, sid, repoRoot, domains, max_questions_per_task).map((c) => c.slug);
+    if (backlog.length === 0) return 0;
+  }
 
   // Under `interleaved` this sweep asks exactly ONE question (see `take` below),
   // so it is paced by the single-question clock rather than the whole-quiz one.
@@ -242,7 +260,7 @@ await run(async (input) => {
     )
     .all({ sid, take }) as Array<{ line: string }>;
 
-  const concepts = rows.map((r) => r.line).join('; ');
+  const concepts = (backlog.length ? backlog.slice(0, take) : rows.map((r) => r.line)).join('; ');
 
   // Stamp the guard BEFORE blocking. If anything below fails, the worst case is a
   // missed quiz — never a loop.
@@ -289,7 +307,12 @@ await run(async (input) => {
   // rest. It already returns `framing`, `ask_attribution`, `answer_position` and
   // `tier_to_ask` with every plan, and the next thing the model does is call it,
   // so repeating any of that here buys nothing and costs the developer a screen.
-  const context = `Eklavya: quiz the developer on what this task taught. ${ask}
+  // Backlog has no code on screen, and the plan's `framing` still says to ground
+  // the question in the diff -- so say which one this is.
+  const what = backlog.length
+    ? `Eklavya: quiz the developer on work from an earlier session in this project -- ask about the idea itself, the code is not on screen. ${ask}`
+    : `Eklavya: quiz the developer on what this task taught. ${ask}`;
+  const context = `${what}
 Concepts: ${concepts}
 get_session_quiz_plan, then AskUserQuestion, then record_attempt (format "mcq", labels in "options", stem alone in "question"). The plan's framing, ask_attribution, answer_position and tier_to_ask are the rules — follow them. ${tone}`;
 

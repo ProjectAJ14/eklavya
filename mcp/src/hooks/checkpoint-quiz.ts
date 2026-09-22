@@ -27,6 +27,15 @@
  * an `attempts` row, and stop-quiz-check.ts subtracts those from its own budget.
  * Answer the lot while the agent works and the Stop hook says nothing at all.
  *
+ * It fires on the work tools too (Bash, Edit, Write, MultiEdit, NotebookEdit),
+ * not only on the logging call. The model logs its whole batch in one call at the
+ * start of a task, so a checkpoint that re-armed only on logging asked once per
+ * task however long the task ran: two real 25-minute Flutter sessions each got
+ * one mid-work question out of seven and five logged concepts. The work tools
+ * are the "still working" signal, and the clock in rule 2 does the pacing.
+ * That is also why the config is read before the database: this now runs on
+ * most tool calls, and a session with quizzing off should not pay for SQLite.
+ *
  * Failure is always silent: exit 0, no output. A missed question is nothing; a
  * hook that errors on every tool call is a plugin nobody keeps.
  */
@@ -41,9 +50,6 @@ await run(async (input) => {
   // burn a question from the budget on a prompt nobody ever sees.
   if (input.agent_id) return 0;
 
-  const db = openExisting();
-  if (!db) return 0;
-
   const cwd = cwdOf(input);
   const { quiz, cadence, focus, focus_topic, max_questions_per_task, min_minutes_between_checkpoints } =
     config(cwd).config;
@@ -52,6 +58,9 @@ await run(async (input) => {
   // The whole feature behind one switch. `end` is the pre-1.4 behaviour: silence
   // until Stop.
   if (cadence !== 'interleaved') return 0;
+
+  const db = openExisting();
+  if (!db) return 0;
 
   const sid = sessionId(input, db);
   if (!sid) return 0;
@@ -137,7 +146,15 @@ await run(async (input) => {
   const remaining = max_questions_per_task - stats.spent;
   const framing = framingFor(focus, focus_topic, 'checkpoint');
 
-  const context = `[Eklavya checkpoint] You just logged a concept. Before writing another line, ask the developer ONE question about it -- this is the whole point of the tool: they learn while you work, not in a pile at the end.
+  // Which seam this is. Right after logging, the concept is the one just named;
+  // on a work tool it was named earlier in the task, and "you just logged" would
+  // be a false statement the model then repeats to the developer.
+  const justLogged = /log_session_concepts$/.test(input.tool_name ?? '');
+  const lead = justLogged
+    ? 'You just logged a concept. Before writing another line, ask'
+    : 'The work has moved on since the last question. Before the next step, ask';
+
+  const context = `[Eklavya checkpoint] ${lead} the developer ONE question about it -- this is the whole point of the tool: they learn while you work, not in a pile at the end.
 
 Concept: ${row.concept}
 
