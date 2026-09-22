@@ -1,3 +1,10 @@
+# [1.22.0](https://github.com/ProjectAJ14/eklavya/compare/v1.21.1...v1.22.0) (2026-09-22)
+
+
+### Features
+
+* **install:** walk the dials on every install ([60f6f1d](https://github.com/ProjectAJ14/eklavya/commit/60f6f1d593c4685b37bad979079202221d0570eb))
+
 ## [1.21.1](https://github.com/ProjectAJ14/eklavya/compare/v1.21.0...v1.21.1) (2026-09-22)
 
 
