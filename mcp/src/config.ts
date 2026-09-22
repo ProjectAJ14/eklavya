@@ -603,6 +603,12 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   };
 }
 
+/** One config file's raw contents, or `{}`. Exported so a caller building a
+ *  patch can merge against what is actually in the file it is about to write. */
+export function readConfigFile(file: string): Record<string, unknown> {
+  return readJson(file) ?? {};
+}
+
 /** Writes via temp file + rename: the git hook may be reading mid-write. */
 export function writeConfigFile(file: string, patch: Record<string, unknown>): Record<string, unknown> {
   const existing = readJson(file) ?? {};

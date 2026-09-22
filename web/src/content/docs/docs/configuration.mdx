@@ -61,6 +61,29 @@ only a repo or global `mode` change is the second one.
 | `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
 | `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `mode: off` for that. |
 
+### Setting a namespaced key
+
+`eklavya config set` takes a dotted path, and so does asking in chat:
+
+```bash
+eklavya config set memory.capture minimal
+eklavya config set retrieval.cross_project true
+eklavya config set privacy.exclude_paths "/internal/, /vendor/"
+eklavya config set providers.observer null
+```
+
+Only the key you name changes; the rest of its namespace is left alone. A list
+takes either a comma-separated string or JSON, and a value is read as the type
+the setting actually has — so `focus_topic 2` stays the string `"2"` while
+`memory.batch_max_events 40` becomes the number `40`.
+
+The one thing that needs JSON is setting a whole object, because there is no
+sensible shorthand for one:
+
+```bash
+eklavya config set providers.observer '{"kind":"anthropic","model":"<model-id>"}'
+```
+
 ### The memory namespaces
 
 The keys above are flat because every `.eklavya.json` already written uses them that way. The memory half's keys are nested under five namespaces instead, and they merge the same way: a repo file setting `retrieval.mode` leaves your personal `memory.capture` alone.

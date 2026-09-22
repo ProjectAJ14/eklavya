@@ -68,16 +68,9 @@ observations built from it.
 To stop one without the other:
 
 ```bash
-eklavya config set mode off        # no questions; history keeps recording
+eklavya config set mode off               # no questions; history keeps recording
+eklavya config set memory.enabled false   # no history; questions keep coming
 ```
-
-```json title="~/.eklavya/config.json"
-{ "memory": { "enabled": false } }
-```
-
-The flat learning dials are settable from the command line; the nested
-namespaces are edited in the file. Both files are read the same way, so it
-makes no difference which route a setting arrived by.
 
 ### Deleting it
 

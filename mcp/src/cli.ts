@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
-import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG, findRepoConfig } from './config.js';
+import { loadConfig, writeConfigFile, readConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG, findRepoConfig } from './config.js';
+import { isKnownKey, knownKeys, parseValue, patchFor } from './config-path.js';
 import { loadPacks, applyPacks } from './packs.js';
 import { levelStanding, projectKey } from './store.js';
 import { statusLine } from './statusline.js';
@@ -215,8 +216,8 @@ function configCommand(args: string[]): void {
 
   if (action !== 'set') fail(`Unknown config action "${action}".`);
   if (!key || value === undefined) fail('Usage: eklavya config set <key> <value>');
-  if (!(key in DEFAULT_CONFIG)) {
-    fail(`Unknown setting "${key}". Known: ${Object.keys(DEFAULT_CONFIG).join(', ')}`);
+  if (!isKnownKey(key)) {
+    fail(`Unknown setting "${key}". Known: ${knownKeys().join(', ')}`);
   }
 
   // `focus learn` is useless without a topic, so let one call say both rather
@@ -231,16 +232,10 @@ function configCommand(args: string[]): void {
     fail('focus "learn" needs a topic: eklavya config set focus learn --topic <topic>');
   }
 
-  // A topic is always a string. Number-parsing it would turn a topic like "html5"
-  // -- or worse, "2" -- into something `coerce` then silently drops.
-  const isTopicKey = key === 'focus_topic';
-  let parsed: unknown = value;
-  if (isTopicKey) parsed = value;
-  else if (value === 'true' || value === 'false') parsed = value === 'true';
-  else if (value !== '' && !Number.isNaN(Number(value))) parsed = Number(value);
-
-  const patch: Record<string, unknown> = { [key]: parsed };
-  if (topic !== undefined && key === 'focus') patch.focus_topic = topic;
+  // Typed by the schema at that path rather than guessed from the text. A
+  // topic of "2" is a topic; `memory.batch_max_events` of "40" is a number,
+  // and only the default sitting there knows which is which.
+  const parsed = parseValue(key, value);
 
   let target: string;
   if (scopeRepo) {
@@ -249,6 +244,13 @@ function configCommand(args: string[]): void {
   } else {
     target = resolved.globalPath;
   }
+
+  // Built against the file being written, not against nothing: the two config
+  // files merge with a shallow spread, so a patch that replaced a whole
+  // namespace would drop every other key already set in it.
+  const existing = readConfigFile(target);
+  const patch: Record<string, unknown> = patchFor(existing, key, parsed);
+  if (topic !== undefined && key === 'focus') patch.focus_topic = topic;
 
   writeConfigFile(target, patch);
   for (const [k, v] of Object.entries(patch)) {
