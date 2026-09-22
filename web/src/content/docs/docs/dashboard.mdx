@@ -173,7 +173,16 @@ Enter.
 
 ## What it is, underneath
 
-One static page and three read-only JSON endpoints on loopback. `/api/state`
+One static page and three read-only JSON endpoints on loopback — and loopback
+is not by itself the protection it sounds like. A web page you happen to have
+open can point a hostname it controls at `127.0.0.1` and fetch from a local
+server, and the browser's same-origin rule does not stop it, because the page's
+origin *is* that hostname. So the dashboard checks that the request was
+addressed to loopback **by name** and refuses anything else with a 403. Nothing
+here writes, so the risk was never that someone changes a setting; it is that
+this page now carries your prompts, your code and your project history.
+
+`/api/state`
 ships flat rows — every attempt, every logged context, one row per day, plus the
 memory, reuse and health summaries — and the page derives the views, so nothing
 on screen is a number the database does not hold.

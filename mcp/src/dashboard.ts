@@ -783,6 +783,26 @@ function send(res: http.ServerResponse, status: number, type: string, body: stri
  * server; falling back to an ephemeral port beats failing with EADDRINUSE
  * when the caller does not care which port it gets.
  */
+/** `127.0.0.1`, `[::1]` and `localhost`, with or without a port, and nothing else. */
+const LOOPBACK_HOST = /^(?:127\.0\.0\.1|\[::1\]|::1|localhost)(?::\d+)?$/i;
+
+export function fromLoopback(hostHeader?: string, originHeader?: string): boolean {
+  // A request with no Host is HTTP/1.0 or a hand-rolled client, not a browser,
+  // and a browser is the only attacker this check has. Allow it.
+  if (hostHeader !== undefined && !LOOPBACK_HOST.test(hostHeader)) return false;
+  // An `Origin` only appears on a cross-origin or scripted request. If one is
+  // present it has to be a loopback origin too -- `null` included, which is
+  // what a sandboxed iframe or a `file://` page sends.
+  if (originHeader !== undefined && originHeader !== 'null') {
+    try {
+      if (!LOOPBACK_HOST.test(new URL(originHeader).host)) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function startDashboard(
   db: DB,
   opts: { port?: number; host?: string } = {},
@@ -792,6 +812,19 @@ export function startDashboard(
   const assets = path.join(moduleDir, 'assets');
 
   const server = http.createServer((req, res) => {
+    // Loopback is not an authorisation boundary for a browser (PRD DASH-03).
+    // A page the developer happens to have open can point a hostname it
+    // controls at 127.0.0.1 and fetch from here -- DNS rebinding -- and the
+    // same-origin policy does not help, because the page's origin *is* that
+    // hostname. Nothing here mutates, so the risk is not a write; it is that
+    // this payload now contains the developer's prompts, code and project
+    // history, and a hostile page would be reading all of it.
+    //
+    // The check is the standard one: the request has to have been addressed to
+    // loopback by name, which a rebound hostname never is.
+    if (!fromLoopback(req.headers.host, req.headers.origin)) {
+      return send(res, 403, 'text/plain', 'Eklavya serves loopback only.\n');
+    }
     const url = new URL(req.url ?? '/', `http://${host}`);
     try {
       if (url.pathname === '/api/state') {

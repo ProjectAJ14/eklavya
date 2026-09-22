@@ -1,9 +1,10 @@
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
-import { dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand } from '../src/dashboard.js';
+import { dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback } from '../src/dashboard.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { appendEvent, insertEntry, recordReceipt, supersedeEntry, deleteEntry, addCandidate } from '../src/memory/store.js';
@@ -412,6 +413,68 @@ describe('the memory endpoints', () => {
       const state = (await (await fetch(`${url}/api/state`)).json()) as any;
       expect(state.totals.catalogue).toBeGreaterThan(0);
       expect(state.memory.entries).toBe(1);
+    } finally {
+      close();
+    }
+  });
+});
+
+describe('the dashboard is loopback-only, and says so to a browser', () => {
+  it('accepts the addresses a browser on this machine actually uses', () => {
+    for (const host of ['127.0.0.1:41729', 'localhost:41729', '[::1]:41729', '127.0.0.1', 'LOCALHOST:41729']) {
+      expect(fromLoopback(host), host).toBe(true);
+    }
+    // No Host header at all is HTTP/1.0 or a hand-rolled client, not a
+    // browser — and a browser is the only attacker this check has.
+    expect(fromLoopback(undefined)).toBe(true);
+  });
+
+  it('refuses a hostname pointed at 127.0.0.1 by its own DNS', () => {
+    // The attack this exists for. A page the developer has open resolves a
+    // hostname it controls to loopback and fetches from here; the same-origin
+    // policy does not help, because the page's origin *is* that hostname. The
+    // request still carries the attacker's name in Host, which is what gives
+    // it away.
+    for (const host of ['evil.example', 'rebind.attacker.test:41729', '127.0.0.1.nip.io', 'localhost.evil.com']) {
+      expect(fromLoopback(host), host).toBe(false);
+    }
+  });
+
+  it('refuses a cross-origin request even when Host looks right', () => {
+    expect(fromLoopback('127.0.0.1:41729', 'https://evil.example')).toBe(false);
+    expect(fromLoopback('127.0.0.1:41729', 'http://localhost:3000')).toBe(true);
+    // A sandboxed iframe or a `file://` page sends `null`, and neither is the
+    // developer's own dashboard tab.
+    expect(fromLoopback('127.0.0.1:41729', 'null')).toBe(true);
+    expect(fromLoopback('127.0.0.1:41729', 'not a url')).toBe(false);
+  });
+
+  it('answers 403 over the wire rather than serving the payload', async () => {
+    const { url, close } = await startDashboard(db, { port: 0 });
+    const port = Number(new URL(url).port);
+
+    /** Raw `http.request`: `fetch` refuses to let a caller set `Host`. */
+    const get = (headers: Record<string, string>) =>
+      new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const req = http.request(
+          { host: '127.0.0.1', port, path: '/api/state', method: 'GET', headers },
+          (res) => {
+            let body = '';
+            res.on('data', (c) => (body += String(c)));
+            res.on('end', () => resolve({ status: res.statusCode ?? 0, body }));
+          },
+        );
+        req.on('error', reject);
+        req.end();
+      });
+
+    try {
+      expect((await get({ host: `127.0.0.1:${port}` })).status).toBe(200);
+
+      // The Host a rebound page sends: its own name, resolved to loopback.
+      const rebound = await get({ host: 'evil.example' });
+      expect(rebound.status).toBe(403);
+      expect(rebound.body).toContain('loopback');
     } finally {
       close();
     }
