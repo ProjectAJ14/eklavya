@@ -8,7 +8,9 @@ import {
   domainSiblings,
   gateRetryConcepts,
   gateRow,
+  pendingElsewhere,
   prereqsOf,
+  projectSessionIds,
   resolveTopic,
   lastAttempt,
   lastAttemptAt,
@@ -118,7 +120,7 @@ export const getSessionQuizPlan: ToolDef = {
   // already re-pointed on Cowork. A description that still promised a diff
   // while the framing said otherwise would set the two against each other.
   description: withSurfaceNote(
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. When this session\'s own concepts and its review debt run out, it falls back to work an earlier session logged but never asked about, oldest first and within the domains this session touched, with reason "backlog" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Never in enforced mode, where only this session\'s own work can open the gate. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. When this session\'s own concepts and its review debt run out, it falls back to work an earlier session logged but never asked about, oldest first, only from this project and within the domains this session touched, with reason "backlog" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Never in enforced mode, where only this session\'s own work can open the gate. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts wait there) when any do.',
     ' ',
   ),
   inputSchema: {
@@ -444,7 +446,15 @@ export const getSessionQuizPlan: ToolDef = {
         }
       }
 
-      // (c) anything else due in the same domains, so review debt gets paid down
+      // One database serves every project, so the review debt and backlog below
+      // are read through this checkout -- without it, `/eklavya:quiz` in a
+      // Flutter repo asks about the LLM API work logged in another project.
+      // Review debt is scoped by where it was answered (`attempts.repo`, already
+      // a project key), backlog by where it was logged.
+      const projectSessions = projectSessionIds(db, repoRoot);
+
+      // (c) anything else due in the same domains, answered in this project, so
+      // review debt gets paid down
       if (picked.length < max && domains.size > 0) {
         const placeholders = [...domains].map(() => '?').join(',');
         const rows = db
@@ -452,9 +462,10 @@ export const getSessionQuizPlan: ToolDef = {
             `SELECT c.* FROM concepts c
              JOIN mastery m ON m.concept_id = c.id
              WHERE c.domain IN (${placeholders}) AND m.next_review IS NOT NULL AND m.next_review <= ?
+               AND c.id IN (SELECT concept_id FROM attempts WHERE repo = ?)
              ORDER BY m.next_review ASC`,
           )
-          .all(...domains, now.toISOString()) as ConceptRow[];
+          .all(...domains, now.toISOString(), standing.repo) as ConceptRow[];
         for (const c of rows) add(c, null, 'domain_review');
       }
 
@@ -477,13 +488,12 @@ export const getSessionQuizPlan: ToolDef = {
       // a session logs more than the budget can ask about -- which is most of
       // them. `add` stops at `max` anyway; the limit is on what gets read.
       //
-      // Scoped to this session's domains when it has any. `session_concepts` has
-      // no repo column and there is one database for every project, so without
-      // this a Flutter session gets asked about the Terraform it logged last
-      // month -- while `framing` is still telling the tutor to ground the
-      // question in this session's diff, which the debt is not in. The unscoped
-      // fallback is for a session that logged nothing at all: there is no diff to
-      // contradict, and offering the debt beats saying there is nothing to ask.
+      // Always scoped to this project's sessions, and to this session's domains
+      // when it has any -- otherwise a web-auth session gets asked about the git
+      // work logged last month, while `framing` still tells the tutor to ground
+      // the question in this session's diff. A session that logged nothing drops
+      // the domain scope but never the project one: there is no diff to
+      // contradict, but a quiz run from this checkout is about this checkout.
       //
       // Never in enforced mode. A backlog answer is recorded with
       // `origin = 'review'` and `countAnswered` credits only `origin = 'work'`
@@ -491,7 +501,7 @@ export const getSessionQuizPlan: ToolDef = {
       // `picked`, and a non-empty `picked` is exactly what suppresses the
       // `gate_retry` escape hatch below. That would trade a deadlock the retry
       // pass exists to break for four questions that cannot break it.
-      if (picked.length < max && !config.quiz.enforced) {
+      if (picked.length < max && !config.quiz.enforced && projectSessions.length > 0) {
         const scoped = domains.size > 0;
         const rows = db
           .prepare(
@@ -500,12 +510,13 @@ export const getSessionQuizPlan: ToolDef = {
              WHERE sc.session_id <> ?
                AND COALESCE(sc.origin, 'work') = 'work'
                AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)
+               AND sc.session_id IN (${projectSessions.map(() => '?').join(',')})
                ${scoped ? `AND c.domain IN (${[...domains].map(() => '?').join(',')})` : ''}
              GROUP BY c.id
              ORDER BY min(sc.ts) ASC
              LIMIT 50`,
           )
-          .all(sessionId, ...(scoped ? [...domains] : [])) as ConceptRow[];
+          .all(sessionId, ...projectSessions, ...(scoped ? [...domains] : [])) as ConceptRow[];
         for (const c of rows) add(c, null, 'backlog');
       }
     }
@@ -546,6 +557,12 @@ export const getSessionQuizPlan: ToolDef = {
     if (picked.length === 0) {
       // Distinguish "nothing left to ask" from "nothing to ask about" — they
       // need different things said to the developer.
+      //
+      // A session quiz is scoped to this project, so an empty one also says
+      // where the work is waiting -- otherwise "nothing to ask" reads as
+      // "nothing anywhere". Topic mode already spans every project.
+      const elsewhere = topicMode ? [] : pendingElsewhere(db, repoRoot, now);
+      const extra = elsewhere.length > 0 ? { pending_elsewhere: elsewhere } : {};
       return skippedAsked > 0
         ? {
             session_id: sessionId,
@@ -554,6 +571,7 @@ export const getSessionQuizPlan: ToolDef = {
             focus,
             reason: 'already_covered',
             detail: `${skippedAsked} concept(s) were already asked about in this session.`,
+            ...extra,
           }
         : {
             session_id: sessionId,
@@ -561,6 +579,7 @@ export const getSessionQuizPlan: ToolDef = {
             concepts: [],
             focus,
             reason: topicMode ? 'no_candidates' : 'nothing_logged',
+            ...extra,
           };
     }
 

@@ -72,9 +72,10 @@ you reach for the idea instead. Ask about them on their own terms.
 
 Items with `reason: "backlog"` are older work — a concept an earlier session
 logged that no question ever reached, offered once this session's own concepts
-and review debt are covered, and only from the domains this session touched --
-there is one database for every project, so the scope is what keeps a Flutter
-session off last month's Terraform. Never when `quiz.enforced` is set: a backlog answer
+and review debt are covered, and only from this project and the domains this
+session touched -- there is one database for every project, so the scope is what
+keeps a Flutter session off last month's Terraform. Review debt is scoped to this
+project the same way. Never when `quiz.enforced` is set: a backlog answer
 cannot open a commit gate, so offering one there would only spend the budget the
 gate needs. They also arrive with `context: null`, and for a
 blunter reason: the code that taught them is not on screen and may not even be
