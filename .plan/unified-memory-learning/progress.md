@@ -19,7 +19,7 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | 10 | Dashboard memory surfaces | 4 | done |
 | 11 | Import from the pinned Claude Mem fork | 4 | done |
 | 12 | Code search/outline + collections | 5 | done — the three tools were built and left out of the registry; fixed, with a test that reads the source rather than the array |
-| 13 | Host adapters + workflows breadth | 5 | replay + capability descriptors done; Claude Code is the only proven host, and one of twenty workflows ships |
+| 13 | Host adapters + workflows breadth | 5 | replay + capability descriptors done; Claude Code is the only proven host, and one of twenty workflows ships — the other nineteen declined (ADR-10) |
 | 14 | Optional remote (server, sync, notifications) | 6 | notifications and directory sync done; the hosted server declined (ADR-09) |
 | 15 | Cutover, soak, release docs | 7 | runbook, export/restore and the PR body written; the cutover against real data and the soak still need a human |
 
@@ -76,10 +76,29 @@ says which without being asked.
   endpoints; the importer reads the real pinned schema (version 52); the CLI
   gained `eklavya memory`; the site, manual and README say all of it. A ninth
   slash command, `/eklavya:memory`, is on the landing page and in the manual.
+- 2026-09-22: recall stopped being a session-start-only thing — a prompt that
+  changes the subject gets its own recall, behind a relevance gate and
+  deduplicated per session.
+- 2026-09-22: the three tools that were written and never wired into `TOOLS`
+  are registered, with a `packaging.test.ts` guard that reads the source files
+  rather than the array.
+- 2026-09-22: the three gaps the parity audit found are closed — raw evidence
+  on `memory_get`, memory in `eklavya doctor`, and `eklavya memory restore` so
+  the export is a backup rather than a file nothing opens. The six rows with
+  no decision behind them are now ADR-10.
+- 2026-09-22: the suite is green — 836 tests, 37 files, nothing skipped. The
+  four that used to fail were reading the contributor's own `.eklavya.json`
+  because they ran in the checkout; they run in a scratch directory now.
+- 2026-09-22: PR body in [pr-body.md](pr-body.md), with an unedited runtime
+  transcript through the built hooks. The acceptance test in `CONTRIBUTING.md`
+  still needs a real interactive session before merge — the model asking the
+  question mid-task is the part no fixture can stand in for.
+- 2026-09-22: the installer puts the dials in the status bar, into an empty
+  slot only, and removes on uninstall only a line that is exactly its own.
 
 ## Release readiness
 
-Written at `a94d6ad` against the source, not against this tracker.
+Written at `067a570` against the source, not against this tracker.
 [parity.md](parity.md)'s status table is the row-by-row version; this is the
 part a maintainer has to decide on.
 
@@ -89,16 +108,20 @@ Eklavya remembers the project, not just the learner. Every tool call, every
 prompt and every session boundary is captured as typed evidence through one
 privacy filter, batched, and distilled into entries by a local summariser that
 needs no credentials and makes no network call. At the next session start the
-relevant ones come back as model context, with a receipt that says how many
-tokens the index cost against what reading the same history would have cost —
-so the saving figure on the dashboard is checkable rather than asserted.
+relevant ones come back as model context — and again mid-session, when a prompt
+changes the subject to something the project already knows about — with a
+receipt that says how many tokens the index cost against what reading the same
+history would have cost, so the saving figure on the dashboard is checkable
+rather than asserted.
 
 Concretely, and all of it new on this branch:
 
-- **Ask what happened.** `/eklavya:memory`, eight `memory_*` MCP tools, and
+- **Ask what happened.** `/eklavya:memory`, eleven memory MCP tools (nine
+  `memory_*` plus `code_outline` and `code_find_symbol`), and
   `eklavya memory search|timeline|show` outside a session. Search is keyword,
   semantic or hybrid; everything is scoped to the project unless asked
-  otherwise.
+  otherwise. `memory_get` will hydrate the raw evidence behind one entry on
+  request — off by default, capped, and charged to the receipt.
 - **Correct the record.** `memory_write`, `memory_correct` and `memory_delete`
   — a superseded entry leaves retrieval and stays in the timeline, so the audit
   trail survives the correction.
@@ -108,6 +131,9 @@ Concretely, and all of it new on this branch:
   database at the pinned schema, with `--dry-run`, `--resume` and project
   mapping, never mutates the source, and files imported concepts as unassessed
   candidates rather than as mastery somebody did not earn.
+- **Back it up and put it back.** `eklavya memory export` writes a versioned
+  JSON, and `eklavya memory restore` reads it in again — additive, idempotent, a
+  second restore adding nothing, and no attempt, mastery or gate row written.
 - **Recover what hooks never saw.** Transcript replay captures sessions from
   before the install, or from a misconfigured hook, converging with live
   capture by content instead of double-recording it.
@@ -128,8 +154,9 @@ notification sink, no egress.
 
 ### What is explicitly not built
 
-Three things are declined with an ADR behind them, and a maintainer should be
-able to say so out loud:
+Every declined row now has an ADR behind it — seven of the thirty-four, and no
+row left in "not built, nobody decided". A maintainer should be able to say all
+of it out loud. The architectural three first:
 
 - **The hosted team server** (PAR-27, ADR-09). Not built, and not deferred to a
   later sprint — a hosted service is an operation, not a module. Team-shared
@@ -145,20 +172,27 @@ able to say so out loud:
   second one found by measurement: the semantic scan is bounded to the 5,000
   most recent vectors per query.
 
-Five more are **not built and have no ADR**, which is a different thing and
-should not be read as closed scope: the dashboard configuration editor
-(PAR-19), the presentation surface (PAR-20), memory profiles (PAR-22), managed
-`CLAUDE.md`/`AGENTS.md` blocks (PAR-25), and scoped host caches (PAR-30).
-Nineteen of the twenty mapped assistant workflows (PAR-31) are in the same
-position. If the intent is to decline them, they need an ADR before release,
-not a silence.
+Five more were not built with no decision recorded against them, plus one built
+at a twentieth. **They are now ADR-10**, which is the difference between closed
+scope and an oversight: the dashboard configuration editor (PAR-19) is a
+mutation surface on a loopback page bought for a fourth way to change a setting;
+the presentation surface (PAR-20) would project what somebody does not know onto
+an office wall; memory profiles (PAR-22) are configuration for a problem no user
+has reported; managed `CLAUDE.md`/`AGENTS.md` blocks (PAR-25) are forbidden by
+the PRD's own RET-03 and unnecessary while the host has a hook channel; scoped
+host caches (PAR-30) are a second retrieval system for hosts that have no
+fixture yet. Nineteen of the twenty mapped assistant workflows (PAR-31) are
+declined because they are general agent workflows with no memory or learning
+content in them — each reverses per workflow, on that test rather than on the
+count.
 
-**One thing is a bug rather than a gap, and it should not ship as-is.**
-`TOOLS` in `mcp/src/tools/index.ts` imports `codeOutline`, `codeFindSymbol` and
-`memoryCollections` and never adds them to the array, so the server registers
-seventeen tools while the manual and `skills/memory/SKILL.md` document twenty.
-`server.integration.test.ts` compares the advertised list against `TOOLS`
-itself, so it cannot catch this. Three identifiers fix it.
+**The registration bug is fixed** (`7652333`). `TOOLS` in
+`mcp/src/tools/index.ts` had imported `codeOutline`, `codeFindSymbol` and
+`memoryCollections` without adding them to the array, so the server registered
+seventeen tools while the manual and `skills/memory/SKILL.md` documented twenty.
+`server.integration.test.ts` compares the advertised list against `TOOLS` itself
+and could not catch it; `packaging.test.ts` now reads every file under
+`mcp/src/tools/` and asserts the registry holds every exported `ToolDef`.
 
 ### What still needs a human
 
@@ -194,37 +228,14 @@ None of these can be done in CI, and none of them should be waved through.
    design (ADR-04). The `anthropic` provider path — including its `auth` and
    `quota` pause classes — has not been exercised against the real API.
 
-### The four failing tests are not regressions
+### The suite is green
 
-`cd mcp && npm test` at `a94d6ad` reports **4 failed, 812 passed (816)** across
-37 files — the pass count moves as tests land, the failure count does not. All
-four are caused by an **untracked `.eklavya.json` at the repository root**
-containing `{"mode": "off"}`.
+`cd mcp && npm test` at `067a570` reports **840 passed (37 files), 0 failed**,
+nothing skipped.
 
-| File | Failing test |
-|---|---|
-| `test/stdin.test.ts` | still does its work, rather than degrading to an empty input |
-| `test/stdin.test.ts` | survives a byte-order mark, which some Windows shells prepend |
-| `test/stdin.test.ts` | exits, rather than printing and lingering forever |
-| `test/server.integration.test.ts` | logs work, quizzes it, grades it, and stops asking once it is known |
-
-The three `stdin` cases assert that a hook prints its `[Eklavya]` banner and
-that `eklavya statusline` prints and exits; `mode: off` is the documented off
-switch for exactly those, so the hooks correctly print nothing and the
-assertions correctly fail. The integration case fails for the same reason one
-layer up. Verified by moving the file aside and re-running the two files: **14
-passed, 0 failed**, then moving it back.
-
-It is a repo-local config a developer left behind, not a tracked file and not
-part of this branch. Delete it or move it aside before reading a test run.
-- 2026-09-22: the three gaps the parity audit found are closed — raw evidence
-  on `memory_get`, memory in `eklavya doctor`, and `eklavya memory restore` so
-  the export is a backup rather than a file nothing opens. The six rows with
-  no decision behind them are now ADR-10.
-- 2026-09-22: the suite is green — 836 tests, 37 files, nothing skipped. The
-  four that used to fail were reading the contributor's own `.eklavya.json`
-  because they ran in the checkout; they run in a scratch directory now.
-- 2026-09-22: PR body in [pr-body.md](pr-body.md), with an unedited runtime
-  transcript through the built hooks. The acceptance test in `CONTRIBUTING.md`
-  still needs a real interactive session before merge — the model asking the
-  question mid-task is the part no fixture can stand in for.
+The four that used to fail — three in `test/stdin.test.ts`, one in
+`test/server.integration.test.ts` — were never regressions: they ran in the
+checkout and so read the contributor's own untracked `.eklavya.json` containing
+`{"mode": "off"}`, which is the documented off switch for exactly the banners
+they assert. They run in a scratch directory now (`0745d54`), so a repo-local
+config a developer left behind no longer changes what a test run says.
