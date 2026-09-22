@@ -211,3 +211,92 @@ that needs an operator.
 **Reversal.** The sync use cases are written against a `SyncTarget` port with
 one implementation. A hosted backend is a second implementation plus the
 operational commitment; nothing in the domain or the schema assumes a directory.
+
+## ADR-10 — What is deliberately not built, and why
+
+The parity ledger closed with five rows implemented by nothing and no decision
+recorded against them, plus one implemented at one twentieth. A gap with no
+reasoning is indistinguishable from an oversight, and the next person to read
+the ledger cannot tell which they are looking at. This ADR makes them
+decisions. Each is reversible, and each says what would reverse it.
+
+### PAR-19 — no settings editor on the dashboard
+
+**Decline.** The dashboard stays read-only: it handles no `POST` and inspects
+no request method.
+
+Writing configuration from a loopback page is not a form, it is a mutation
+surface reachable by any web page the developer has open — `DASH-03` already
+requires origin validation and authenticated local mutations for exactly that
+reason, and DNS rebinding turns "bound to 127.0.0.1" into a weaker promise
+than it sounds. Making that safe is real work, and it buys a fourth way to
+change a setting that is already changeable from the CLI, from chat, and by
+editing two JSON files.
+
+**Reverses when** someone actually wants it, at which point the cost is the
+security work and not the UI.
+
+### PAR-20 — no presentation or TV surface
+
+**Decline.** A wall display of one developer's learning history is a niche
+feature with a privacy surface: the whole point of a TV view is that other
+people can see it, and everything Eklavya holds is about how much somebody
+does not yet know. That is not a thing to project onto an office wall by
+default, and getting the controls right is more design than the feature is
+worth today.
+
+**Reverses when** a team asks for it and can say what should and should not be
+on the screen.
+
+### PAR-22 — no memory profiles or multilingual modes
+
+**Decline for now.** `memory.capture` (`full` / `minimal` / `off`) plus the
+privacy exclusions are the shape controls. A profile system — inheritance,
+validation, localisation, a catalogue of shipped profiles — is configuration
+built for a problem nobody using this has reported, and a profile with an
+inheritance cycle is a support burden the whole feature has to earn first.
+
+**Reverses when** two real users want materially different observation
+vocabularies. The `Summarizer` port is where a profile would be applied, and
+it already exists.
+
+### PAR-25 — Eklavya does not write into `CLAUDE.md` or `AGENTS.md`
+
+**Decline, and this one is close to a principle.** The PRD already says memory
+must not "continuously rewrite user-owned instruction files" (RET-03).
+
+Eklavya delivers context through the host's documented hook channel, which
+needs no ownership of a file the developer wrote, and every managed-block
+scheme eventually meets the same three failures: a merge conflict in somebody's
+committed instructions, a block that survives uninstall, and an edit inside
+the markers that is silently overwritten. `eklavya export-rules` remains the
+answer for a host that reads only a rules file — it writes once, where the
+developer asks, and never touches it again.
+
+**Reverses only** for a host with no context channel at all, and then as an
+explicit opt-in with a reversible removal path.
+
+### PAR-30 — no scoped host caches
+
+**Decline for now.** The capability descriptors in `memory/hosts.ts` record
+what each host can deliver; a per-host cache hierarchy with its own exclusion
+marks is a second retrieval system for hosts none of which has a fixture yet
+(ADR-06). Build the host support first, then find out whether it needs a
+cache.
+
+**Reverses when** a second host is proven and measurably slow.
+
+### PAR-31 — one shipped workflow, not twenty
+
+**Decline nineteen.** `/eklavya:memory` ships, because it is the memory half
+of a learning tool. Most of the rest — plan, implement, watch a PR, run a
+standup, triage issues, present — are general agent workflows with no memory
+or learning content in them. Shipping them would make Eklavya a workflow suite
+that happens to quiz you, and every one of them is prompt surface loaded into
+sessions that did not ask for it.
+
+Parity is equivalent *supported user outcomes*, and the outcome those
+workflows serve is not the outcome this tool exists for.
+
+**Reverses per workflow**, if one turns out to need memory or learning to work
+— that is the test, not the count.
