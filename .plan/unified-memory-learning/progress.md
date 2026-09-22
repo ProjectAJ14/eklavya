@@ -37,7 +37,7 @@ them rather than trusting this table.
 | Recall at a seam | 0.15ms median, flat | same |
 | Recall per prompt, 20k entries | 5.7ms median | same. The one cost paid every time the developer presses Enter, and the reason `recallForPrompt` hands its ranking to `recall` instead of letting it search again — that was 25ms before |
 | Hybrid search, 20k entries | 17ms median | same; on an agent's path, not a human's |
-| Retrieval quality | hybrid ahead of keyword on top-1 and recall; both miss the synonym query, as ADR-03 predicts | `node eval/retrieval-harness.mjs` |
+| Retrieval quality | on the 110-query corpus: hybrid 0.755 top-1 / 0.898 recall@5, keyword 0.691 / 0.774. Three weak categories, measured rather than guessed — stale facts 0.375 (an outdated note that was never superseded outranks its correction), CJK 0.533 (0.200 on keyword alone), synonyms 0.000, as ADR-03 predicts. On the held-out 30, semantic beats hybrid on top-1 while hybrid keeps recall | `node eval/retrieval-harness.mjs` |
 
 The first two rows together are the honest shape of the savings claim: it is
 large once there is history and negative when there is not, and the product

@@ -220,10 +220,44 @@ on every change to `mcp/src/memory/search.ts` or to the embedder.
 
 ```bash
 cd mcp && npm run build && cd ..
-node eval/retrieval-harness.mjs            # all three modes
-node eval/retrieval-harness.mjs --k 3      # at a tighter budget
-node eval/retrieval-harness.mjs --json     # for a results file
+node eval/retrieval-harness.mjs                # all three modes
+node eval/retrieval-harness.mjs --k 3          # at a tighter budget
+node eval/retrieval-harness.mjs --split dev    # while changing the retriever
+node eval/retrieval-harness.mjs --json         # for a results file
 ```
+
+### The corpus
+
+78 invented entries across five projects, and 110 labelled queries in fourteen
+categories. `quality.md` asks for at least 100 queries spanning decisions,
+fixes, files, dates, CJK and mixed-language search, worktrees, adversarial
+stale facts and explicit cross-project recall, and those are the categories —
+plus the `exact`, `morphology`, `typo`, `paraphrase`, `scope` and `synonym`
+shapes the first twelve queries measured, kept with their ids so the
+2026-09-22 baseline stays comparable.
+
+Every entry is fiction. Nothing in the fixture is read from, copied out of or
+paraphrased from a real memory database, an import, or this repo's history.
+
+**The entries exist to be wrong, not only to be right.** An eval where each
+query has exactly one plausible answer measures nothing, so the corpus is
+built out of near-misses: two checkout latency bugs six months apart, three
+projects that each solved idempotency differently, an English note and its
+Japanese twin on the same hook, two worktrees whose entries both mention a
+retry, and four pairs where one entry contradicts the other. Queries that have
+a tempting wrong answer name it in `forbidden`, and the harness counts how
+often it came back — the *leak rate*, which is the number a precision average
+is least able to show.
+
+**The split is a discipline, not an enforcement.** 30 of the 110 queries are
+`heldout`. They were assigned before the first run against this corpus and
+were not revised after its numbers were read. `--split dev` is what to use
+while changing the retriever; a gain on `dev` that does not reproduce on
+`heldout` is noise. Nothing stops a reader from looking at the held-out set,
+and this file is the only thing that records that they should not tune against
+it.
+
+### What the numbers mean
 
 **Top-1 is the headline, and precision@k is not.** Most queries in the corpus
 have one right answer, so precision@5 measures how many results a mode
@@ -234,25 +268,183 @@ beside it and never blended in, because omitting useful evidence is the
 failure a savings percentage cannot see (PRD MET-01): a recall of zero looks
 like an excellent saving.
 
-**It exists to hold `ADR-03` honest.** That decision says the local embedder
-generalises over morphology and typos but not over meaning. The corpus has a
-query of each kind, and the synonym query is labelled `expectedMiss`:
+**Recall@20 on this corpus is close to meaningless**, and it is the number the
+plan's 0.90 goal is written against. A project scope here holds between six and
+thirty entries, so a slate of twenty is most of the scope: hybrid measures
+0.968 at k=20, and would measure well over 0.9 with almost any ranking at all.
+The plan's reference fixture is 100,000 entries, and until the corpus is that
+size the recall@20 target is not testable here. Recall@5 (0.898) is the version
+of that number this corpus can support.
 
-- if a morphology query starts missing, the embedder has regressed and the
-  ADR's claim is no longer true — the harness exits non-zero;
-- if the synonym query starts being found, the ceiling has moved and the ADR
-  and the manual should say so — the harness says `NEWS` and exits zero,
-  because being better than documented is not a build failure.
+### What fails the build
 
-Writing that query took three attempts, which is itself the lesson. The first
-two shared vocabulary with the note they were meant to reach by meaning alone
-(`cookie`/`replay`, then `use`/`used`), so they passed — and were measuring
-lexical overlap while claiming to measure synonymy. The fixture records all
-three wordings in its `why` field.
+Two things, because on a corpus built to be hard most misses are a measurement
+rather than a defect, and a gate that fires on every hard query is a gate
+nobody reads.
 
-The run at `results/2026-09-22-retrieval.json` is the baseline this branch
-shipped with: hybrid ahead of keyword on top-1 and recall, both missing the
-synonym query.
+- `mustFind` — the query names something the product documents as guaranteed:
+  an exact term, the ADR-03 morphology claim, a project filter that is a SQL
+  clause. Missing one exits non-zero.
+- `noLeak` — the query's `forbidden` entries are excluded by SQL rather than by
+  ranking: another project's rows, a superseded correction, a row outside a
+  date window. One of those in the results means a filter was not applied, and
+  exits non-zero.
+
+Everything else is reported and nothing else is enforced: per category, per
+split, and as a leak rate.
+
+**`expectedMiss` still holds `ADR-03` honest.** That decision says the local
+embedder generalises over morphology and typos but not over meaning. A query
+beyond that ceiling is labelled `expectedMiss`, and if hybrid starts answering
+one the harness says `NEWS` and exits zero — being better than documented is
+not a build failure, but the ADR and the manual would need to say so.
+
+"Answering" means top-1, and that got stricter in this version after a run
+showed why. Semantic search keeps anything above a cosine of 0.05, so in a
+project holding eight entries the slate fills almost regardless of the query,
+and "it came back fourth of five" is a fact about the project's size rather
+than about the embedder bridging meaning. The weaker reading is still reported,
+as `expected_miss_in_slate`, because a criterion that quietly gets stricter is
+one nobody can audit. Note the direction: this change makes surprises rarer and
+the documented ceiling look *more* solid, which is the direction to be
+suspicious of — it is recorded here for exactly that reason.
+
+### Writing a synonym query is harder than it looks
+
+Three attempts went into the first one, and growing the corpus produced three
+more of the same mistake in one sitting. A query meant to be reachable only by
+meaning kept sharing vocabulary with its target:
+
+- `q-synonym` (v1) leaked `cookie`/`replay`, then `use`/`used`;
+- `q-syn-fraud-budget` said "slow service" against a note titled "…from a slow
+  fraud check", and keyword search put it first;
+- `q-cjk-cross-en-zh-pool` and `q-cjk-cross-en-zh-mon` were labelled
+  `expectedMiss` as cross-lingual queries, and both were found — because the
+  Chinese notes carry `src/db/pool.ts` and `deploy/monitoring/`, and a file path
+  is written in Latin script whatever language the prose is in.
+
+The last one is worth more than the label it broke: **an identifier bridges
+languages when nothing else does.** Both queries kept their place in the corpus
+with the `expectedMiss` label removed and the reason written into their `why`.
+
+### Measured, 2026-09-22
+
+`results/2026-09-22-retrieval-v2.json`, k=5, against
+`results/2026-09-22-retrieval.json` (18 entries, 12 queries) as the v1 baseline.
+
+| | v1 top-1 | v2 top-1 | v1 recall@5 | v2 recall@5 | v1 prec@5 | v2 prec@5 |
+|---|---|---|---|---|---|---|
+| keyword | 0.833 | 0.691 | 0.833 | 0.774 | 0.683 | 0.479 |
+| semantic | 0.917 | 0.755 | 0.917 | 0.862 | 0.183 | 0.238 |
+| hybrid | 0.917 | 0.755 | 0.917 | 0.898 | 0.183 | 0.247 |
+
+Every headline got worse, which was the point of the exercise. Hybrid still
+beats keyword (+0.064 top-1, +0.124 recall) on a corpus with nine times the
+queries and four times the entries, so the comparison the default mode rests on
+survives the harder corpus. What does not survive is stated two paragraphs
+down.
+
+Precision@5 of 0.247 against the plan's proposed 0.80 is the same renegotiation
+this file already made at 0.183: on a corpus where most queries have one right
+answer, 0.20 is the arithmetic ceiling for a mode that fills the slate, and the
+target was written for a corpus of answerable queries with several sources
+each. It is not a target this eval can be passed against, and it should be
+restated as recall@5 with a leak rate before anyone signs up to it.
+
+Per category, hybrid, with the keyword column beside it because the gap between
+them is the whole argument for the hybrid:
+
+| category | n | keyword top-1 | hybrid top-1 | hybrid recall@5 | leaks |
+|---|---|---|---|---|---|
+| exact | 7 | 1.000 | 1.000 | 1.000 | — |
+| decision | 9 | 1.000 | 1.000 | 1.000 | — |
+| fix | 9 | 1.000 | 1.000 | 1.000 | — |
+| file | 8 | 1.000 | 1.000 | 1.000 | — |
+| date | 8 | 1.000 | 1.000 | 1.000 | 2/6 |
+| morphology | 7 | 0.857 | 0.857 | 1.000 | — |
+| scope | 6 | 0.833 | 0.833 | 0.917 | 0/3 |
+| worktree | 6 | 0.833 | 0.833 | 1.000 | 2/5 |
+| typo | 7 | 0.571 | 0.714 | 1.000 | — |
+| cross-project | 8 | 0.625 | 0.625 | 0.792 | — |
+| paraphrase | 8 | 0.500 | 0.625 | 0.750 | — |
+| cjk | 15 | 0.200 | 0.533 | 0.733 | — |
+| stale | 8 | 0.375 | 0.375 | 1.000 | 4/8 |
+| synonym | 4 | 0.000 | 0.000 | 0.250 | — |
+
+dev 0.800 top-1 / 0.879 recall, heldout 0.633 / 0.950. The held-out set is
+materially harder on top-1 and it was not written to be — the same hands wrote
+both, one after the other. Read the 0.633 as the honest number and the 0.800 as
+the one that has been looked at.
+
+**And the held-out split disagrees about the hybrid.** On those 30 queries
+semantic alone scores 0.733 top-1 against hybrid's 0.633, while hybrid keeps
+the recall lead (0.950 against 0.883). Over the whole corpus the two tie on
+top-1 and hybrid leads on recall, which is also what v1 found — so the
+defensible claim is *hybrid over keyword*, and *hybrid for recall*. "Hybrid is
+the best mode" is not a claim these numbers support, and the manual should not
+make it. Reciprocal rank fusion moves a result that one mode ranked first and
+the other ranked fourth down the slate, and on a query only the embedder can
+answer that is a cost rather than a hedge.
+
+### The three categories the retriever is bad at
+
+**Stale facts: 0.375 top-1, and the stale row came back in four of eight.**
+This is the worst result in the run and the most useful. Two of the four pairs
+were corrected properly — the old entry is superseded, and `search` excludes it
+in SQL, so nothing leaks. The other two are the realistic case: a note from
+February says sessions live in Redis, a note from August says they were moved
+to Postgres, and nobody marked the first one wrong. Ranking is all that stands
+between the developer and the stale answer, and ranking has no opinion about
+time. `q-stale-staging-copy` is the sharpest version: asked in the stale note's
+own words, the wrong answer is the best lexical match in the corpus, and it
+wins. Nothing in `search.ts` reads `occurred_at` unless a filter names it. A
+recency prior would be a change to `mcp/src/memory/search.ts` and is out of
+scope for this eval, which exists to say the number, not to fix it.
+
+**CJK: 0.533 top-1, and keyword alone manages 0.200.** FTS5's `unicode61`
+tokenizer has no word boundary in Japanese or Chinese, so a whole title is one
+token and no substring of it can match. Korean does use spaces, and one of its
+two queries is the only CJK query keyword search answers without a Latin token
+in it — the other asks for `키보드 입력란` against a note that writes both words
+with a particle attached, which is the same boundary problem one level down.
+The character n-grams in `local-hash-v1` recover about a third of the
+gap — the entire argument for running semantic search beside keyword shows up
+in this category and nowhere else — but two queries return nothing relevant at
+all (`q-cjk-rotation-ja`, `q-cjk-db-zh`), both of them substrings from the
+middle of a long token. Cross-lingual queries fail outright unless a Latin
+identifier bridges them. A CJK-aware tokenizer is the fix, and it is a schema
+change: the FTS table names its tokenizer in `009_memory.sql`.
+
+**Meaning: 0.000 top-1 on four synonym queries.** ADR-03 said so, and the
+corpus now says it four times instead of once. Paraphrase at 0.625 is the same
+ceiling seen at a shallower angle: a query sharing two content words with its
+target usually lands, one content word usually does not.
+
+Two smaller ones worth naming: **cross-project at 0.625** is the ranking
+problem the widened scope creates — the right entry is in the slate (recall
+0.792) and something from another project is above it. And the **date**
+category splits cleanly: with a `since`/`until` filter every query is answered
+and nothing leaks, while the two queries that write the month into the sentence
+both return the wrong month's twin alongside the right answer. Nothing in the
+retriever reads `march` as a time, and the category's clean 1.000 top-1 hides
+that — which is exactly why the leak count is printed next to it.
+
+### What would disprove the retrieval numbers
+
+- **The labels are one person's reading**, and some near-misses are defensible
+  answers. `q-stale-deploys` asks how deploys run and is labelled with the
+  CI-only change; the blue-green decision outranks it and is not credited.
+  Widening those labels would raise the score without changing the product,
+  which is the reason not to do it after seeing the run.
+- **The corpus is synthetic and small.** 78 entries in five projects is not
+  100,000 in one, and several scores are affected by how few candidates a
+  project scope holds. The `heldout` gap is the only estimate here of how much
+  of the dev number is familiarity.
+- **A category with seven queries moves 0.143 per query.** Nothing in the
+  per-category table is significant on its own; the three named above are
+  reported because they fail by margins wider than that, and the rest are
+  reported because hiding them would be the failure mode this table exists to
+  prevent.
 
 ## Not built yet
 
