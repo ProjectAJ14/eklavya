@@ -176,7 +176,8 @@ export const getLearnerProfile: ToolDef = {
     known.sort((a, b) => b.score - a.score);
 
     return {
-      mode: config.mode,
+      quiz_enabled: config.quiz.enabled,
+      quiz_enforced: config.quiz.enforced,
       domains: [...domains.values()].sort((a, b) => a.domain.localeCompare(b.domain)),
       known: known.slice(0, KNOWN_CAP).map((k) => k.slug),
       known_total: known.length,

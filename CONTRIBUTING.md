@@ -17,10 +17,12 @@ One sentence, and every pull request that changes behaviour has to pass it:
 
 Set it up so that a failure means something. Build first (`cd mcp && npm test`,
 which is also what puts `mcp/dist` where the plugin can find it), use a scratch
-repo with no `.eklavya.json`, and check `eklavya doctor` reports mode `ambient`,
+repo with no settings of its own, and check `eklavya doctor` reports quiz `on`,
 focus `concept`, cadence `interleaved` before you start — the Phase 3 script
-below deliberately writes `mode: enforced` into a repo, and reusing that repo
-quietly changes the answer.
+below deliberately sets `quiz.enforced` for a project, and reusing that checkout
+quietly changes the answer. Those settings live at
+`~/.eklavya/projects/<checkout>/config.json`, so clearing them means deleting
+that directory, not a file in the repo.
 
 ```bash
 cd /some/scratch/repo
@@ -97,7 +99,7 @@ Expect every table in `EXPECTED_TABLES` (`mcp/test/migrate.test.ts` composes it 
 
 ```bash
 cd /some/test/repo
-eklavya config set mode enforced --repo
+eklavya config set quiz.enforced true --project
 /path/to/eklavya/scripts/install-git-hook.sh
 ```
 
@@ -105,8 +107,10 @@ eklavya config set mode enforced --repo
 2. From a bare terminal: `git commit -m x` → blocked with the same reasoning.
 3. `/eklavya:quiz`, answer properly, `/eklavya:gate` shows passed.
 4. Both commit paths now succeed.
-5. In a repo *without* `.eklavya.json`, nothing is gated. Confirm it.
-6. `scripts/install-git-hook.sh --uninstall` restores any hook you had before.
+5. In a checkout with no project settings, nothing is gated. Confirm it.
+6. Confirm the repo itself is untouched: `git status` shows no new file, and
+   `.eklavya.json` does not exist. Settings never land in a checkout.
+7. `scripts/install-git-hook.sh --uninstall` restores any hook you had before.
 </details>
 
 <details>

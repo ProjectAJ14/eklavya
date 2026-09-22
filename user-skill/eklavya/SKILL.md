@@ -1,6 +1,6 @@
 ---
 name: eklavya
-description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its mode, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, or find where their data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
+description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, or find where their data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
 ---
 
 # Eklavya
@@ -15,9 +15,12 @@ Both halves are local by default: the summariser and the search index run on
 this machine and nothing leaves it unless `providers.observer` has been
 configured, which is an explicit choice with its own key.
 
-The two halves are switched separately. `mode: off` stops the questions and
-leaves memory recording; `memory.enabled: false` stops the recording and leaves
-the questions. Someone asking for one has not asked for the other.
+The two halves are switched separately, and their names now say so.
+`quiz.enabled: false` stops the questions and leaves memory recording;
+`memory.enabled: false` stops the recording and leaves the questions. Someone
+asking for one has not asked for the other — and when they say "turn Eklavya
+off", ask which they meant, or turn off the questions and say plainly that
+memory is still running.
 
 This skill is for *operating* Eklavya: reading its state and changing its
 settings on request. Teaching is a different job, and the `tutor` skill has it.
@@ -57,21 +60,29 @@ The CLI is the fallback for everywhere else — a plain terminal, Cursor, a
 session where the plugin is not enabled. The two write the same files, so it
 never matters which one a given change went through.
 
-## The four dials
+## The dials
 
 Independent, and conflating them is the usual confusion. Say which one is
 changing.
 
-| Dial | Question it answers | Values | Default |
+| Setting | Question it answers | Values | Default |
 |---|---|---|---|
-| `mode` | How hard does Eklavya push? | `ambient`, `enforced`, `off` | `ambient` |
+| `quiz.enabled` | Does it ask at all? | `true`, `false` | `true` |
+| `quiz.enforced` | Do questions hold commits? | `true`, `false` | `false` |
 | `focus` | What does it teach? | `project`, `concept`, `learn` | `concept` |
 | `cadence` | When do the questions land? | `interleaved`, `end` | `interleaved` |
 | `difficulty` | How hard may they get? | `auto`, `easy`, `medium`, `hard` | `auto` |
+| `memory.enabled` | Is the work recorded? | `true`, `false` | `true` |
 
-- `ambient` offers questions and respects the quiz cooldown; `enforced` ignores
-  that cooldown, asks a full round rather than one question, and gates commits;
-  `off` is dormant and `focus` is never read.
+These replaced a single `mode` dial (`ambient`, `enforced`, `off`). Config files
+still using it keep working everywhere — `off` reads as `quiz.enabled: false`,
+`enforced` as `quiz.enforced: true` — but write the new names.
+
+- Unenforced quizzing offers questions and respects the quiz cooldown;
+  `quiz.enforced` ignores that cooldown, asks a full round rather than one
+  question, and gates commits; `quiz.enabled: false` is dormant, `focus` is
+  never read, and enforcement is forced off with it, since a gate nothing asks
+  questions for could never be passed.
 - `project` quizzes the code just written. `concept` asks the transferable
   version of the same idea. `learn` follows `focus_topic`.
 - `interleaved` asks one question mid-task, at the seam where a concept was
@@ -83,8 +94,8 @@ changing.
 Set one:
 
 ```bash
-eklavya config set mode enforced          # global: ~/.eklavya/config.json
-eklavya config set difficulty easy --repo # this project only: .eklavya.json
+eklavya config set quiz.enforced true     # global: ~/.eklavya/config.json
+eklavya config set difficulty easy --project # this codebase only, in your home dir
 ```
 
 ### "Turn it off for this session"
@@ -92,24 +103,26 @@ eklavya config set difficulty easy --repo # this project only: .eklavya.json
 A third scope, and it needs the `set_config` **tool** — the CLI has no session
 of its own to name. Hear "for now", "for this session", "I'm in the middle of
 something urgent", and call `set_config` with `scope: "session"` and
-`mode: "off"`. It takes `mode` and nothing else, writes no file, stops every
-question, checkpoint, banner and status bar until the session ends, and forgets
-by itself; any other `mode` at that scope brings the session back.
+`quiz: { enabled: false }`. It takes `quiz` and nothing else, writes no file,
+stops every question, checkpoint, banner and status bar until the session ends,
+and forgets by itself; `quiz: { enabled: true }` at that scope brings the
+session back. Memory has no session scope at all — a day nobody recorded is a
+day nobody can look up, and the request was for quiet.
 
 Do **not** reach for global scope for this. It is a file, it outlives the
 afternoon that wanted quiet, and it is how someone ends up having turned the
 tool off for good by accident.
 
-Say the limit when the effective mode is `enforced`: the questions stop, the
-commit gate does not — it reads `.eklavya.json` and never sees a session id, and
+Say the limit when `quiz.enforced` is set: the questions stop, the
+commit gate does not — it reads the project config and never sees a session id, and
 it keeps growing, because work logged while you are silent still counts toward
 it.
 `set_config` returns a `note` saying so; pass it on rather than letting them
 discover it at `git commit`.
 
 Where the tools are not available, there is no session scope: offer
-`eklavya config set mode off` and be explicit that it stays off until they set
-it back.
+`eklavya config set quiz.enabled false` and be explicit that it stays off until
+they set it back.
 
 `focus learn` is useless without a topic, so pass both at once:
 
@@ -256,8 +269,9 @@ skill, not this one.
   later session asks about; ask first.
 - Report a dial change in one line — the key, the new value, and which file it
   landed in. Do not re-explain the dial they just set.
-- A repo-scoped change writes `.eklavya.json` at the repo root, which is a
-  tracked file in most projects. Say so when you write one.
+- A project-scoped change writes `~/.eklavya/projects/<checkout>/config.json`,
+  in the developer's own home directory. Nothing goes into the repository, so it
+  reaches nobody else — say so if they expected to be configuring their team.
 - `memory_delete` without `hard` is reversible in the audit trail; with it, the
   entry and its vectors are gone. Confirm before the hard one, and never offer
   it as a tidying-up suggestion.

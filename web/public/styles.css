@@ -361,7 +361,7 @@ a { color: inherit; text-decoration: none; }
 .term__dock.is-busy { opacity: .4; pointer-events: none; }
 
 /* tmux-style status line: it uses the extra width the hero now has, and it
-   is where the four dials actually live. */
+   is where the dials actually live. */
 .term__status {
   display: flex; align-items: center; gap: 14px;
   padding: 7px 14px; border-top: 1px solid var(--neutral-800);

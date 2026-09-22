@@ -23,7 +23,7 @@ await run(async (input) => {
   if (!COMMIT.test(command)) return 0;
 
   const cwd = cwdOf(input);
-  if (config(cwd).config.mode !== 'enforced') return 0;
+  if (!config(cwd).config.quiz.enforced) return 0;
 
   const db = openExisting();
   if (!db) return 0;
@@ -50,7 +50,7 @@ await run(async (input) => {
   const reason =
     `Eklavya gate: this session's quiz has not been passed yet (${gate.answered} of ${gate.required} concepts answered). ` +
     (silenced
-      ? 'Eklavya is off for this session, so the quiz cannot run until it is back on: set_config with scope "session" and mode "ambient", then run the quiz — '
+      ? 'Questions are off for this session, so the quiz cannot run until they are back on: set_config with scope "session" and quiz {enabled: true}, then run the quiz — '
       : 'Run the quiz first — ') +
     'get_session_quiz_plan, ask one question at a time, grade each answer with record_attempt — ' +
     'then retry the commit. Nothing else is blocked.';

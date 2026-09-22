@@ -49,7 +49,7 @@ npm install -g eklavya && eklavya install
 ```
 
 That gives you the plugin and the `eklavya` command. Then run `/eklavya:setup`
-inside Claude Code to choose a mode.
+inside Claude Code to choose how hard it pushes.
 
 You can also install from the plugin marketplace inside Claude Code, with one
 caveat about what a slash command is allowed to do — both routes and the caveat
@@ -80,12 +80,12 @@ so a codebase you have just met starts easy however senior you are.
 | | |
 |---|---|
 | [Installing](https://eklavya-run.web.app/docs/installing/) | Both routes, prerequisites, uninstalling |
-| [The four dials](https://eklavya-run.web.app/docs/dials/) | `mode`, `focus`, `cadence`, `difficulty` — what each one changes |
+| [The dials](https://eklavya-run.web.app/docs/dials/) | `quiz`, `focus`, `cadence`, `difficulty`, `memory` — what each one changes |
 | [Memory](https://eklavya-run.web.app/docs/memory/) | What is captured, what never is, how recall works, and what the savings number means |
 | [Levels and tiers](https://eklavya-run.web.app/docs/levels-and-tiers/) | How difficulty is earned, and what each tier asks |
 | [Command reference](https://eklavya-run.web.app/docs/commands/) | Every `/eklavya:*` command — or just ask in plain English |
 | [Configuration](https://eklavya-run.web.app/docs/configuration/) | Every key, its default, and which file wins |
-| [The commit gate](https://eklavya-run.web.app/docs/commit-gate/) | Enforced mode, and the git hook that works outside Claude Code |
+| [The commit gate](https://eklavya-run.web.app/docs/commit-gate/) | `quiz.enforced`, and the git hook that works outside Claude Code |
 | [Your data](https://eklavya-run.web.app/docs/your-data/) | Where the database lives and what never leaves the machine |
 | [Troubleshooting](https://eklavya-run.web.app/docs/troubleshooting/) | When the loop is silent, and how to check why |
 

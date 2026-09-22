@@ -13,9 +13,9 @@ Two things can change that, and neither is on unless you turn it on: `providers.
 | `~/.eklavya/knowledge.db` | SQLite, WAL mode. The learning half: concepts and their prerequisite edges, your mastery per concept, every attempt, what each session logged, the gates, each project's level, and the pacing state that stops it asking twice in a row. The memory half, in the same file: the raw evidence of what each session did, the observations distilled from it, the search index and its vectors, the reuse receipts, saved collections, and the concept candidates evidence proposed. |
 | `~/.eklavya/spool/events.jsonl` | Evidence captured while the database was unreachable, waiting to be replayed. Sanitised before it is written, and emptied on the next healthy session. Usually absent. |
 | `~/.eklavya/config.json` | Your global settings. |
-| `<repo>/.eklavya.json` | Per-project settings, checked into the repository if you want them shared. |
+| `~/.eklavya/projects/<checkout>/config.json` | Your settings for one codebase, named after its path with the separators as dashes. Outside the repository, so they are yours rather than your team's. |
 | `~/.eklavya/packs/*.json` | Your own [concept packs](/docs/packs/) — extra domains Eklavya can quiz on. |
-| `<repo>/.eklavya/packs/*.json` | The repository's packs, checked in and applied for everyone working in it. |
+| `~/.eklavya/projects/<checkout>/packs/*.json` | Your [concept packs](/docs/packs/) for one codebase. |
 
 ### Looking inside
 
@@ -81,5 +81,7 @@ rm -rf ~/.eklavya
 That is the whole uninstall of your data. Eklavya forgets you entirely.
 
 :::caution
-**Never commit a learner's database.** `knowledge.db` and anything under `~/.eklavya/` is personal. The two Eklavya files meant to be checked in are `.eklavya.json` and a repository's own `.eklavya/packs/` — neither holds anything about you.
+**Never commit a learner's database.** `knowledge.db` and anything under `~/.eklavya/` is personal.
+
+**Eklavya writes nothing into your repository.** Not settings, not packs, nothing — everything above is under your home directory. Two things used to be in a checkout and no longer are: `<repo>/.eklavya.json`, which is moved into `~/.eklavya/projects/` automatically on the next session there, and `<repo>/.eklavya/packs/`, which is still read if you have one but is never written to. The one thing Eklavya still touches inside a repository is `.git/hooks/pre-commit`, and only if you run `scripts/install-git-hook.sh` yourself — git has nowhere else to put a hook, and `.git/` is never committed.
 :::

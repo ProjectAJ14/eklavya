@@ -11,7 +11,7 @@ Render the learning map. Read-only: do not quiz, do not teach.
 1. `get_learner_profile` (no domain — you want everything).
 2. `get_concept_graph` with `include_mastery: true` only if you need a domain's
    shape to explain something the profile already flagged. Usually you do not.
-3. `get_gate_status` if the mode is `enforced`.
+3. `get_gate_status` if `quiz.enforced` is set.
 
 ## What the report has to answer
 

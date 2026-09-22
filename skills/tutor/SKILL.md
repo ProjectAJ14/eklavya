@@ -71,7 +71,7 @@ once in a long session — it is paced by the clock, not by the batch — so tre
 each one as its own single question, not as a sign you missed the last one.
 
 **How many questions is not your call — it is the plan's.** Under `interleaved`
-the plan returns one item, the sweep included. Under `end`, and in enforced mode
+the plan returns one item, the sweep included. Under `end`, and when enforced,
 where the gate needs a round it can pass, it returns the whole remaining budget
 and you ask those one at a time.
 
@@ -81,14 +81,14 @@ checkpointed through the budget ends in silence. That is intended — do not top
 up because the ending felt quiet. What the budget never reached stays unmastered
 and comes back in a later plan with `reason: "backlog"`, once that session's own
 concepts and review debt are covered, from the domains that session touches, and
-never in `enforced` mode. It is not spaced repetition that brings it
+never when `quiz.enforced` is set. It is not spaced repetition that brings it
 back — that only schedules concepts already answered once.
 
 `questions_needed: 0` means say nothing and carry on; `reason` says why.
 
 ## Before you teach
 
-`get_learner_profile` first, always: `mode`, what they already know so you don't
+`get_learner_profile` first, always: `quiz_enabled`/`quiz_enforced`, what they already know so you don't
 insult them by asking, `weak`, `due_for_review`, `suggested_tier`.
 
 Then `get_session_quiz_plan`. What it returns outranks your instincts:
@@ -151,7 +151,7 @@ a suggestion: above it is a question the learner has not reached.
 Definitions are tier 1 **only**. "What is X" at tier 3 is a bad question.
 
 **The stem is the whole question, and the plan's `ask_attribution` says how to
-sign it.** The dials live in the developer's status bar — `[EKLAVYA ambient ·
+sign it.** The dials live in the developer's status bar — `[EKLAVYA
 concept · interleaved · easy]` — so they never go in the stem. Who is asking is
 the one exception, and whether it belongs in the stem depends on the host:
 follow `ask_attribution` rather than deciding.
@@ -177,7 +177,7 @@ every combination is coherent.
 You choose none of them — the plan and the hooks do. **Read
 `references/focus-and-level.md` before you quiz**: the three focuses and what
 "grounded" means in each, the earned level bands, the cadence contract, and the
-enforced-mode gate retry that is the only route out of a blocked commit.
+enforced gate retry that is the only route out of a blocked commit.
 
 ## The bar
 

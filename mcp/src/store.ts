@@ -287,7 +287,8 @@ function countAnswered(db: DB, sessionId: string): { answered: number; passedCou
 }
 
 export interface GateStatus {
-  mode: string;
+  /** Whether this gate actually holds a commit, or only records. */
+  enforced: boolean;
   required: number;
   answered: number;
   /**
@@ -333,10 +334,16 @@ export function syncGate(
        mode = excluded.mode, required = excluded.required,
        answered = excluded.answered, passed = excluded.passed,
        updated_at = excluded.updated_at, repo = excluded.repo`,
-  ).run(sessionId, config.mode, required, answered, passed ? 1 : 0, repo);
+    // `gates.mode` is a text column from migration 001 and migrations are
+    // forward-only, so it keeps its name and keeps taking the old vocabulary:
+    // it is a record of how a *past* gate was configured, and rewriting the
+    // history of every row to match a renamed dial would be a lie about what
+    // was in force at the time. The two words still map cleanly onto the one
+    // flag that decides whether a gate holds.
+  ).run(sessionId, config.quiz.enforced ? 'enforced' : 'ambient', required, answered, passed ? 1 : 0, repo);
 
   return {
-    mode: config.mode,
+    enforced: config.quiz.enforced,
     required,
     answered,
     passed_count: passedCount,

@@ -77,9 +77,9 @@ await run(async (input) => {
   // subagent may well be the first thing in a session to touch Eklavya, and a
   // hook that bailed on `openExisting() === null` would be silent on exactly
   // the fresh install that most needs the directive.
-  if (config(cwdOf(input)).config.mode === 'off') return 0;
+  if (!config(cwdOf(input)).config.quiz.enabled) return 0;
 
-  // The one query this hook makes, and only past the `mode` gate: a session the
+  // The one query this hook makes, and only past that gate: a session the
   // developer silenced should not be handed the directive through the back door
   // of delegated work.
   const db = openExisting();

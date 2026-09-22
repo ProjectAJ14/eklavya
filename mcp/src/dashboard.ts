@@ -706,7 +706,8 @@ export function dashboardState(db: DB): Record<string, unknown> {
     attempts_shown: attempts.length,
     attempts_total: allTime.answers,
     config: {
-      mode: config.mode,
+      quiz_enabled: config.quiz.enabled,
+      quiz_enforced: config.quiz.enforced,
       focus: config.focus,
       focus_topic: config.focus_topic,
       cadence: config.cadence,

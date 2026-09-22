@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_CONFIG, loadConfig, writeConfigFile, findRepoConfig, isDomainEnabled } from '../src/config.js';
+import { projectConfigPath } from '../src/paths.js';
 
 let home = '';
 let repo = '';
@@ -10,7 +11,7 @@ const originalHome = process.env.EKLAVYA_HOME;
 
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-home-'));
-  repo = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-repo-'));
+  repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-repo-')));
   fs.mkdirSync(path.join(repo, '.git'));
   process.env.EKLAVYA_HOME = home;
 });
@@ -23,7 +24,15 @@ afterEach(() => {
 });
 
 const writeGlobal = (o: unknown) => fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(o));
-const writeRepo = (o: unknown, dir = repo) => fs.writeFileSync(path.join(dir, '.eklavya.json'), JSON.stringify(o));
+/**
+ * Settings for a checkout, written where they actually live: outside it, under
+ * `<home>/projects/<slug>/`. Nothing this suite does puts a file in a repo.
+ */
+const writeRepo = (o: Record<string, unknown>, dir = repo) => {
+  const target = projectConfigPath(dir);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, JSON.stringify({ ...o, project: dir }));
+};
 
 describe('config precedence', () => {
   it('falls back to defaults when nothing is configured', () => {
@@ -31,35 +40,38 @@ describe('config precedence', () => {
   });
 
   it('reads global config', () => {
-    writeGlobal({ mode: 'enforced', max_questions_per_task: 6 });
+    writeGlobal({ quiz: { enforced: true }, max_questions_per_task: 6 });
     const { config } = loadConfig(repo);
-    expect(config.mode).toBe('enforced');
+    expect(config.quiz.enforced).toBe(true);
     expect(config.max_questions_per_task).toBe(6);
   });
 
-  it('lets the repo override the global — this is how a lead pins a mode', () => {
-    writeGlobal({ mode: 'ambient', pass_threshold: 0.5 });
-    writeRepo({ mode: 'enforced' });
+  it('lets the repo override the global — this is how a lead pins the gate', () => {
+    writeGlobal({ quiz: { enforced: false }, pass_threshold: 0.5 });
+    writeRepo({ quiz: { enforced: true } });
     const { config } = loadConfig(repo);
-    expect(config.mode).toBe('enforced');
+    expect(config.quiz.enforced).toBe(true);
     // Keys the repo did not mention still come from global.
     expect(config.pass_threshold).toBe(0.5);
   });
 
   it('finds a repo config from a nested directory', () => {
-    writeRepo({ mode: 'enforced' });
+    writeRepo({ quiz: { enforced: true } });
     const nested = path.join(repo, 'src', 'deep');
     fs.mkdirSync(nested, { recursive: true });
-    expect(loadConfig(nested).config.mode).toBe('enforced');
+    expect(loadConfig(nested).config.quiz.enforced).toBe(true);
   });
 
-  it('does not escape the git root when looking for a repo config', () => {
-    const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-outer-'));
+  it('stops the walk at the git root, so an enclosing directory is not this project', () => {
+    const outer = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-outer-')));
     try {
       const inner = path.join(outer, 'inner');
       fs.mkdirSync(path.join(inner, '.git'), { recursive: true });
-      writeRepo({ mode: 'enforced' }, outer);
-      expect(loadConfig(inner).repoPath).toBeNull();
+      // The checkout is `inner`, so that is what settings are keyed by --
+      // `outer` is somebody else's directory that happens to contain it.
+      const resolved = loadConfig(inner);
+      expect(resolved.repoRoot).toBe(inner);
+      expect(resolved.projectPath).toBe(projectConfigPath(inner));
     } finally {
       fs.rmSync(outer, { recursive: true, force: true });
     }
@@ -73,12 +85,12 @@ describe('cadence — the third dial', () => {
   });
 
   it('can be turned off per repo without touching the other dials', () => {
-    writeGlobal({ mode: 'enforced', focus: 'learn', focus_topic: 'caching' });
+    writeGlobal({ quiz: { enforced: true }, focus: 'learn', focus_topic: 'caching' });
     writeRepo({ cadence: 'end' });
 
     const resolved = loadConfig(repo);
     expect(resolved.config.cadence).toBe('end');
-    expect(resolved.config.mode).toBe('enforced');
+    expect(resolved.config.quiz.enforced).toBe(true);
     expect(resolved.config.focus).toBe('learn');
   });
 
@@ -100,14 +112,14 @@ describe('focus — the second dial', () => {
   it('defaults to concept — understanding that outlives the current diff', () => {
     expect(DEFAULT_CONFIG.focus).toBe('concept');
     expect(DEFAULT_CONFIG.focus_topic).toBe(null);
-    writeGlobal({ mode: 'enforced' });
+    writeGlobal({ quiz: { enforced: true } });
     expect(loadConfig(repo).config.focus).toBe('concept');
   });
 
-  it('is independent of mode — enforced plus learn is a real combination', () => {
-    writeGlobal({ mode: 'enforced', focus: 'learn', focus_topic: 'caching' });
+  it('is independent of quiz — enforced plus learn is a real combination', () => {
+    writeGlobal({ quiz: { enforced: true }, focus: 'learn', focus_topic: 'caching' });
     const { config } = loadConfig(repo);
-    expect(config.mode).toBe('enforced');
+    expect(config.quiz.enforced).toBe(true);
     expect(config.focus).toBe('learn');
     expect(config.focus_topic).toBe('caching');
   });
@@ -123,16 +135,16 @@ describe('focus — the second dial', () => {
   });
 
   it('names what the repo is overriding, so a personal focus cannot vanish silently', () => {
-    writeGlobal({ mode: 'ambient', focus: 'learn', focus_topic: 'caching' });
-    writeRepo({ mode: 'enforced', focus: 'project' });
+    writeGlobal({ quiz: { enforced: false }, focus: 'learn', focus_topic: 'caching' });
+    writeRepo({ quiz: { enforced: true }, focus: 'project' });
 
     const resolved = loadConfig(repo);
     expect(resolved.config.focus).toBe('project'); // repo still wins
-    expect(resolved.overrides.sort()).toEqual(['focus', 'mode']);
+    expect(resolved.overrides.sort()).toEqual(['focus', 'quiz']);
   });
 
   it('does not report a repo setting the global never had as an override', () => {
-    writeGlobal({ mode: 'ambient' });
+    writeGlobal({ quiz: { enforced: false } });
     writeRepo({ focus: 'concept' });
 
     const resolved = loadConfig(repo);
@@ -147,9 +159,58 @@ describe('focus — the second dial', () => {
   });
 });
 
+describe('quiz — the dial that replaced `mode`', () => {
+  it('defaults to questions on and nothing gated', () => {
+    expect(DEFAULT_CONFIG.quiz).toEqual({ enabled: true, enforced: false });
+  });
+
+  // The compatibility promise. `.eklavya.json` is committed, so a repo written
+  // against the old dial outlives the rename by years; dropping the alias would
+  // not error, it would silently revert a lead's pinned gate to the default.
+  it.each([
+    ['ambient', { enabled: true, enforced: false }],
+    ['enforced', { enabled: true, enforced: true }],
+    ['off', { enabled: false, enforced: false }],
+  ])('reads the retired `mode: %s` as its quiz equivalent', (mode, expected) => {
+    writeGlobal({ mode });
+    expect(loadConfig(repo).config.quiz).toEqual(expected);
+  });
+
+  it('lets an explicit quiz win over a mode left behind in the same file', () => {
+    writeGlobal({ mode: 'off', quiz: { enabled: true, enforced: true } });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: true, enforced: true });
+  });
+
+  it('reads a repo `mode` over a global `quiz`, like any other repo override', () => {
+    writeGlobal({ quiz: { enabled: true, enforced: false } });
+    writeRepo({ mode: 'enforced' });
+    expect(loadConfig(repo).config.quiz.enforced).toBe(true);
+  });
+
+  it('takes one flag without resetting the other', () => {
+    writeGlobal({ quiz: { enforced: true } });
+    const { quiz } = loadConfig(repo).config;
+    expect(quiz).toEqual({ enabled: true, enforced: true });
+  });
+
+  // The one combination the flags can express and the enum could not. A gate
+  // needs passed questions; with questions off nothing would ever ask one, so
+  // enforcement here is a commit hook nobody can ever get past.
+  it('refuses to enforce a gate that has no questions behind it', () => {
+    writeGlobal({ quiz: { enabled: false, enforced: true } });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false });
+  });
+
+  it('applies that rule across the file boundary too', () => {
+    writeGlobal({ quiz: { enforced: true } });
+    writeRepo({ quiz: { enabled: false } });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false });
+  });
+});
+
 describe('config validation', () => {
   it('ignores malformed values rather than adopting them', () => {
-    writeGlobal({ mode: 'chaos', pass_threshold: 7, max_questions_per_task: -3 });
+    writeGlobal({ mode: 'chaos', quiz: { enabled: 'yes' }, pass_threshold: 7, max_questions_per_task: -3 });
     expect(loadConfig(repo).config).toEqual(DEFAULT_CONFIG);
   });
 
@@ -162,9 +223,9 @@ describe('config validation', () => {
 describe('writeConfigFile', () => {
   it('merges into the existing file instead of replacing it', () => {
     const file = path.join(home, 'config.json');
-    writeConfigFile(file, { mode: 'enforced' });
+    writeConfigFile(file, { quiz: { enforced: true } });
     writeConfigFile(file, { quiet: true });
-    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ mode: 'enforced', quiet: true });
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ quiz: { enforced: true }, quiet: true });
   });
 
   it('preserves keys Eklavya does not know about', () => {

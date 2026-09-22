@@ -78,4 +78,5 @@ EOF
 
 chmod +x "$HOOK"
 printf 'Installed the Eklavya commit gate in %s\n' "$HOOK"
-printf 'It only acts on repositories whose .eklavya.json sets "mode": "enforced".\n'
+printf 'It only acts on projects whose config sets quiz.enforced. That config lives at\n'
+printf '~/.eklavya/projects/<checkout>/config.json, never inside the repository.\n'

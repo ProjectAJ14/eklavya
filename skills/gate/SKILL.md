@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Call `get_gate_status` and report it in a few lines:
 
-- Mode. If it is not `enforced`, say that nothing is gated and stop.
+- Whether `quiz.enforced` is set. If it is not, say that nothing is gated and stop.
 - `passed_count` of `needed` passing answers, out of `required` concepts.
 - Passed or not.
 

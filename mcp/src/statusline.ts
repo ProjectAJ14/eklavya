@@ -34,8 +34,8 @@
  * that text.
  *
  * Labels are dropped here, and that is a real difference from `ask_header`,
- * which argued for them: four bare values only read as a settings line to
- * someone who already knows there are four dials. That argument holds for a
+ * which argued for them: a row of bare values only reads as a settings line to
+ * someone who already knows what the dials are. That argument holds for a
  * line seen once beside a question — every appearance might be a first — and
  * dissolves for a bar that is always there. You learn it once, and 47 characters
  * fits beside a directory and a branch where 74 does not.
@@ -68,11 +68,16 @@ function paint(text: string, code: number, color: boolean): string {
  * The bar segment, or `null` when Eklavya should say nothing at all.
  *
  * Two suppressors, and both mean the same thing as everywhere else in the
- * codebase: `mode: off` is dormant, and `quiet` is someone who turned the
- * narration off and has already answered this question.
+ * codebase: `quiz.enabled: false` is dormant, and `quiet` is someone who turned
+ * the narration off and has already answered this question.
+ *
+ * Note that neither says anything about memory, which keeps recording either
+ * way. The bar is the quiz half's runway indicator; an absent bar has never
+ * meant an absent Eklavya, and under the old `mode` dial that was a difference
+ * nothing on screen made visible.
  */
 export function statusLine({ config, level, pinned, color = true }: StatusLineInput): string | null {
-  if (config.mode === 'off' || config.quiet) return null;
+  if (!config.quiz.enabled || config.quiet) return null;
 
   // `learn (topic)` rather than `learn: topic` — a colon in a bar reads as a
   // key, and the topic is a value with no key of its own here.
@@ -81,12 +86,21 @@ export function statusLine({ config, level, pinned, color = true }: StatusLineIn
       ? `learn (${config.focus_topic})`
       : config.focus;
 
-  const parts = [config.mode, focus, config.cadence, pinned ? `${level} (pinned)` : level];
+  // `enforced` earns a word; unenforced quizzing does not. Under the old dial
+  // this slot always held one, and three sessions in four it held `ambient` --
+  // the default, restating that nothing unusual was set. A segment that is
+  // present only when something is in force is the thing worth glancing at.
+  const parts = [
+    ...(config.quiz.enforced ? ['enforced'] : []),
+    focus,
+    config.cadence,
+    pinned ? `${level} (pinned)` : level,
+  ];
 
-  // `enforced` is the one dial value with a consequence attached — commits are
+  // `enforced` is the one setting with a consequence attached — commits are
   // gated — so the whole segment takes the warning colour rather than the
   // accent. The word is still there, so colour is a redundant cue and not the
   // only one: a bar rendered without ANSI loses nothing but the emphasis.
-  const code = config.mode === 'enforced' ? AMBER : VERDIGRIS;
+  const code = config.quiz.enforced ? AMBER : VERDIGRIS;
   return paint(`[EKLAVYA ${parts.join(' · ')}]`, code, color);
 }

@@ -45,10 +45,10 @@ await run(async (input) => {
   if (!db) return 0;
 
   const cwd = cwdOf(input);
-  const { mode, cadence, focus, focus_topic, max_questions_per_task, min_minutes_between_checkpoints } =
+  const { quiz, cadence, focus, focus_topic, max_questions_per_task, min_minutes_between_checkpoints } =
     config(cwd).config;
 
-  if (mode === 'off') return 0;
+  if (!quiz.enabled) return 0;
   // The whole feature behind one switch. `end` is the pre-1.4 behaviour: silence
   // until Stop.
   if (cadence !== 'interleaved') return 0;

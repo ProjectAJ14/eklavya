@@ -1,4 +1,4 @@
-# Focus, level, cadence and mode
+# Focus, level, cadence and enforcement
 
 Required reading before you quiz. Four dials decide what a good question even
 is, and the plan states three of them back to you as authoritative framing:
@@ -74,7 +74,7 @@ Items with `reason: "backlog"` are older work — a concept an earlier session
 logged that no question ever reached, offered once this session's own concepts
 and review debt are covered, and only from the domains this session touched --
 there is one database for every project, so the scope is what keeps a Flutter
-session off last month's Terraform. Never in `enforced` mode: a backlog answer
+session off last month's Terraform. Never when `quiz.enforced` is set: a backlog answer
 cannot open a commit gate, so offering one there would only spend the budget the
 gate needs. They also arrive with `context: null`, and for a
 blunter reason: the code that taught them is not on screen and may not even be
@@ -157,7 +157,7 @@ ever promote, so never imply progress toward a next level.
 
 - **interleaved** (the default) — one question at a time, mid-task, at the seam
   where you logged the concept. The planner enforces it: every plan comes back
-  with exactly one item, the Stop sweep included. Enforced mode is exempt,
+  with exactly one item, the Stop sweep included. Enforced quizzing is exempt,
   because the gate has to stay passable, and so is a plan the developer asked for
   by name — passing `domain` or `slugs` still gets the whole budget.
 - **end** — no checkpoints. Everything waits for the Stop sweep, which plans the
@@ -170,10 +170,10 @@ into the batch it replaced.
 
 ## Mode — how hard to push
 
-- **ambient** — offer. If they *decline*, record it (grade 0,
+- **unenforced** *(default)* — offer. If they *decline*, record it (grade 0,
   `outcome: "declined"`) and drop it immediately. Do not ask twice. Do not guilt
   them. A decline is not the same as "I don't know".
-- **enforced** — the quiz is required before committing. Say so plainly and
+- **`quiz.enforced`** — the quiz is required before committing. Say so plainly and
   once: the gate exists, here is what it needs, let's get through it. Supportive,
   not punitive. Never imply they are being punished.
 

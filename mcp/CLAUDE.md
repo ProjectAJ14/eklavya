@@ -8,16 +8,16 @@ what an agent editing code in this directory has to know before it does.
 
 | Module | Owns | Deliberately does not |
 |---|---|---|
-| `src/config.ts` | the four dials, defaults, global+repo merge, `coerce()` | never touches the db |
-| `src/paths.ts` | every path and env override; nothing else may join `~/.eklavya` by hand | |
+| `src/config.ts` | the dials, defaults, global+repo merge, `coerce()`, and `normalizeLegacyKeys()` — the `mode` → `quiz` alias, applied per file *before* the merge | never touches the db |
+| `src/paths.ts` | every path and env override, including `projectConfigPath` — per-project settings, keyed by checkout, **outside** the repository; nothing else may join `~/.eklavya` by hand | |
 | `src/srs.ts` | SM-2, mastery scoring, decay, tier selection, level bands, promotion rules | no db, no clock |
 | `src/store.ts` | every query. Gates, level standing, question history, graph walks | no MCP, no config decisions beyond what it is handed |
 | `src/db.ts`, `src/migrate.ts`, `src/migrations/` | `openDb()` — pragmas, then migrate, then seed; forward-only numbered SQL with the version in `meta` | |
 | `src/seed.ts`, `src/seed/` | the shipped concept graphs, validated on load | never touches `mastery` — a learner's history survives every seed update |
-| `src/packs.ts` | concept packs from `~/.eklavya/packs/` and `<repo>/.eklavya/packs/`, applied over the seed. Reads never throw: one bad file costs one pack, not `openDb()` | never removes anything — deleting a pack's concepts would delete the attempts pointing at them |
+| `src/packs.ts` | concept packs from `~/.eklavya/packs/` and `~/.eklavya/projects/<slug>/packs/`, applied over the seed. `<repo>/.eklavya/packs/` is still **read** as the pre-move home and never written. Reads never throw: one bad file costs one pack, not `openDb()` | never removes anything — deleting a pack's concepts would delete the attempts pointing at them |
 | `src/stdin.ts` | the bounded stdin read shared by the hooks and `eklavya statusline` — idle timer, total cap, `error` handler, `unref`, BOM strip. A hook that waits is worse than one that throws | never rejects; a caller that cannot read its input has a fallback |
 | `src/session.ts`, `src/slug.ts`, `src/concurrency.ts` | session-id resolution; slug normalization and fuzzy matching; `retryOnBusy` | |
-| `src/statusline.ts` | `[EKLAVYA ambient · concept · interleaved · easy]` — the dials, for `eklavya statusline` and the host's status bar | never per-question: no tier, no counter |
+| `src/statusline.ts` | `[EKLAVYA concept · interleaved · easy]` — the dials, for `eklavya statusline` and the host's status bar, with `enforced` prepended only when set | never per-question: no tier, no counter |
 | `src/ask.ts`, `src/mcq.ts` | stripping a settings line back out of a recorded stem (history only — nothing composes one now); the deterministic `answerPosition` | |
 | `src/server.ts` | stdio MCP wiring only. **stdout is the protocol** — diagnostics go to stderr | |
 | `src/tools/*.ts` | one file per tool, registered in `tools/index.ts` | |
@@ -35,22 +35,38 @@ startup cost. The names invite the mistake; check which one you are in.
 
 ## Two halves, one database, one rule between them
 
-`memory.enabled` is not governed by `mode`, and nothing in `src/memory/` may
+`memory.enabled` is not governed by `quiz`, and nothing in `src/memory/` may
 touch `attempts`, `mastery` or `gates`. The one bridge is `learning_sources`:
 evidence proposes a **candidate**, and only an answered question moves mastery.
 An observation is not an assessment, and every test in `memory-learning.test.ts`
 exists to keep it that way.
 
 The practical consequence when editing a hook: the memory work goes **before**
-the `mode` check, and the learning work after it. `hooks/memory-lib.ts` holds
+the `quiz.enabled` check, and the learning work after it. `hooks/memory-lib.ts` holds
 the shared helpers and every one of them swallows its own failures — capture
 runs after every tool call, so a throw there is a throw on every tool call.
 
 ## `config.ts` is the source of truth for the dials
 
-Four of them: `mode` (`ambient`), `focus` (`concept`), `cadence` (`interleaved`),
-`difficulty` (`auto`). Everything else — the site, the manual, the skills, the
-tool descriptions — is a copy that drifts.
+`quiz` (`{enabled: true, enforced: false}`), `focus` (`concept`), `cadence`
+(`interleaved`), `difficulty` (`auto`). Everything else — the site, the manual,
+the skills, the tool descriptions — is a copy that drifts.
+
+**`quiz` replaced a `mode` dial (`ambient` | `enforced` | `off`) and the old
+spelling is still read, for ever.** A config written against `mode` outlives the
+rename by years — and dropping the alias would not error, it would silently
+revert a pinned gate to the default. `normalizeLegacyKeys` does the
+rewrite **per file, before `mergeConfigs`**; resolving it on the merged object
+instead lets a global `quiz` outrank a repo `mode`, which is the repo losing a
+fight it is supposed to win. `cli/eklavya-gate` duplicates the same alias in jq,
+and `test/gate.test.ts` runs both parsers over one set of configs.
+
+`quiz.enabled: false` with `quiz.enforced: true` is the one incoherent
+combination the flags can express and the enum could not — a gate whose
+questions are never asked. `coerceNamespaces` drops the enforcement rather than
+the silence (locking somebody out of `git commit` is the worse way to be wrong),
+and `eklavya doctor` reports it, because a silently-resolved contradiction is a
+lead believing commits are held when they are not.
 
 **`focus` defaults to `concept`, not `project`.** "Defaults to project" is the
 single most-repeated drift in this repo: it was once wrong in three skills and a
@@ -59,20 +75,49 @@ the server framed them another. Before shipping anything that touches `focus`,
 `grep -rin "defaults to project"` and `grep -rniE "focus.{0,12}default"` across
 `skills/`, `user-skill/`, `web/` and `mcp/src/`.
 
-**Four settings are global-only, and the rule is a security boundary rather
-than a preference.** `.eklavya.json` wins over the global config — that is what
-makes a lead's pinned mode work — and it is also a file you get by cloning. A
-dial is safe to inherit from a stranger; a setting with an effect *outside* the
-session is not. `notifications` runs a command, `sync` writes files,
-`providers` sends work to an API, and `retrieval.cross_project` widens what the
-model sees. `REPO_FORBIDDEN_KEYS` is the list, `loadConfig` enforces it on read
-and both writers enforce it on write, and `test/config-trust.test.ts` is the
-regression: a checked-in `command` sink plus the Stop hook's automatic wrap-up
-was arbitrary code execution on `git clone`.
+**No Eklavya configuration is written into a checkout, and `REPO_FORBIDDEN_KEYS`
+is gone with the file that needed it.** Settings were at `<repo>/.eklavya.json`,
+committed, so every clone handed Eklavya a config file written by a stranger — a
+checked-in `notifications` sink of `/bin/sh` plus the Stop hook's automatic
+wrap-up was arbitrary code execution on `git clone`. Four settings were
+therefore global-only. Project settings now live at
+`~/.eklavya/projects/<slug>/config.json` (`projectConfigPath` in `paths.ts`),
+written only by the person at the machine, so nothing arrives by clone and there
+is nothing to refuse. The list was deleted rather than left in place implying a
+protection with no threat behind it.
 
-Six namespaces now sit beside the flat dials — `memory`, `privacy`,
+`test/config-trust.test.ts` still exists and now asserts the replacement
+invariant: a file in a checkout configures nothing, a slug collision is detected
+via the `project` field rather than silently applied to the wrong repository, and
+a leftover `.eklavya.json` is lifted out and deleted.
+
+**`migrateLegacyRepoConfig` is never called from `loadConfig`.** That was the
+first shape and it was wrong: `loadConfig` runs from every hook, every tool call
+and the statusline on every prompt render, so a write behind it made a read
+function mutate the filesystem from a dozen call sites. The test suite caught it
+by scattering thirty directories through the *real* `~/.eklavya/projects/`,
+because only spawned children had `EKLAVYA_HOME` pointed somewhere safe. It is
+called from the SessionStart hook (**before** the `openExisting()` guard — it has
+nothing to do with the database, and behind that guard it never ran on a fresh
+install), `eklavya doctor`, and `eklavya config`. `loadConfig` reads the legacy
+file as a fallback meanwhile, so settings never stop applying in the window
+before the move.
+
+**Nothing Eklavya writes lands in a checkout — packs included.** Packs were the
+last exception and lost it: `packDirs` now writes to
+`~/.eklavya/projects/<slug>/packs/` and keeps `<repo>/.eklavya/packs/` as a
+read-only legacy source, ordered *between* global and project so a pack moved
+out of a checkout is not outranked by the copy left behind. Nothing deletes an
+in-repo pack — unlike a settings file, it is authored content somebody reviewed
+— and `eklavya doctor` names any it is still loading from there.
+
+The only path left inside a repository is `.git/hooks/pre-commit`, written by
+`scripts/install-git-hook.sh` when the developer runs it. Git has nowhere else
+to put a hook, and `.git/` is machine-local and never committed.
+
+Seven namespaces now sit beside the flat dials — `quiz`, `memory`, `privacy`,
 `retrieval`, `providers`, `notifications`, `sync` — and they are nested because
-every `.eklavya.json` already written uses the dials flat. `config-path.ts`
+every config already written uses the dials flat. `config-path.ts`
 derives the settable key list from `DEFAULT_CONFIG` itself, so a nested key
 needs no list edit; a *nullable* one does need a line in its `NULLABLE` map,
 because `null` is the one default that cannot say what type it is.
@@ -176,15 +221,15 @@ releases learners already past it.
 Not in the config. `src/tools/get_session_quiz_plan.ts`:
 
 ```ts
-const capped = config.cadence === 'interleaved' && config.mode !== 'enforced' && !explicitTopic;
+const capped = config.cadence === 'interleaved' && !config.quiz.enforced && !explicitTopic;
 const max = args.max ?? (capped ? 1 : config.max_questions_per_task);
 ```
 
 `explicitTopic` is `Boolean(args.domain || args.slugs?.length)` and is computed
 *before* `learn` focus resolves `focus_topic` into a domain or slugs — so a
 `learn` plan is still capped, while a developer who asked for a domain is not.
-An explicit `max` bypasses the cap entirely, whatever the cadence. Enforced mode
-is exempt for the same reason it ignores the cooldown: the gate needs
+An explicit `max` bypasses the cap entirely, whatever the cadence.
+`quiz.enforced` is exempt for the same reason it ignores the cooldown: the gate needs
 `ceil(required * pass_threshold)` passes, and one-at-a-time cannot deliver them.
 
 ## Return shapes are capped — callers must not assume otherwise
@@ -234,7 +279,7 @@ version in marks **every** scope stale, so each repository re-applies its own
 packs the next time it is opened. There is one fingerprint row per set of pack
 directories (`packs_fingerprint:<hash of the dirs>`), not one per install — a
 single global row had two repositories overwriting each other's hash on every
-`openDb()`, which is a write on every CLI invocation for anyone with a repo pack
+`openDb()`, which is a write on every CLI invocation for anyone with a project pack
 and more than one project. The write on the way out happens even when nothing
 was applied: it is what records that this scope has seen this state, and
 skipping it for the empty set means the next open finds no row and applies
@@ -248,7 +293,7 @@ blanket remedy `doctor` prints is `eklavya install`, which never touches
 `~/.eklavya/packs/`.
 
 `concepts.source` says where a row came from: `seed`, `pack`, or `llm` from
-`upsert_concepts`. There is no repository column, so a repo pack's override of a
+`upsert_concepts`. There is no repository column, so a project pack's override of a
 shipped slug is global to that learner — `web/src/content/docs/docs/packs.mdx`
 says so, and a real fix means a per-repo overlay, which is a design change.
 

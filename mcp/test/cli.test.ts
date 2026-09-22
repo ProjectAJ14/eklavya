@@ -168,13 +168,27 @@ describe('eklavya config', () => {
   it('prints the effective config and where it came from', () => {
     const res = eklavya(['config', 'get']);
     expect(res.status).toBe(0);
-    expect(JSON.parse(res.stdout.slice(0, res.stdout.indexOf('\n\n'))).mode).toBe('ambient');
-    expect(res.stdout).toMatch(/repo:\s+\(none\)/);
+    expect(JSON.parse(res.stdout.slice(0, res.stdout.indexOf('\n\n'))).quiz).toEqual({
+      enabled: true,
+      enforced: false,
+    });
+    expect(res.stdout).toMatch(/project: .+projects./);
   });
 
   it('sets a global value and reads it back', () => {
-    expect(eklavya(['config', 'set', 'mode', 'enforced']).status).toBe(0);
-    expect(eklavya(['config', 'get']).stdout).toMatch(/"mode": "enforced"/);
+    expect(eklavya(['config', 'set', 'quiz.enforced', 'true']).status).toBe(0);
+    expect(eklavya(['config', 'get']).stdout).toMatch(/"enforced": true/);
+  });
+
+  // `mode` is not a settable key any more, but people have it in their fingers
+  // and in every doc written before the rename. Translating and saying so beats
+  // a dead-end "unknown setting" for a word that still works in config files.
+  it('translates a legacy `config set mode` rather than refusing it', () => {
+    const res = eklavya(['config', 'set', 'mode', 'off']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/quiz\.enabled false/);
+    expect(res.stdout).toMatch(/memory keeps recording/);
+    expect(eklavya(['config', 'get']).stdout).toMatch(/"enabled": false/);
   });
 
   it('coerces numbers and booleans rather than storing strings', () => {
@@ -185,11 +199,13 @@ describe('eklavya config', () => {
     expect(written.quiet).toBe(true);
   });
 
-  it('scopes to the repo with --repo, and the repo wins', () => {
-    eklavya(['config', 'set', 'mode', 'ambient']);
-    expect(eklavya(['config', 'set', 'mode', 'enforced', '--repo']).status).toBe(0);
-    expect(fs.existsSync(path.join(repo, '.eklavya.json'))).toBe(true);
-    expect(eklavya(['config', 'get']).stdout).toMatch(/"mode": "enforced"/);
+  it('scopes to the project with --repo, and the project wins', () => {
+    eklavya(['config', 'set', 'quiz.enforced', 'false']);
+    expect(eklavya(['config', 'set', 'quiz.enforced', 'true', '--repo']).status).toBe(0);
+    // Outside the checkout, keyed by it. Nothing lands in the working tree.
+    expect(fs.existsSync(path.join(repo, '.eklavya.json'))).toBe(false);
+    expect(fs.existsSync(path.join(home, 'projects', repo.replace(/[/\\:]/g, '-'), 'config.json'))).toBe(true);
+    expect(eklavya(['config', 'get']).stdout).toMatch(/"enforced": true/);
   });
 
   it('refuses an unknown setting instead of writing junk', () => {
@@ -212,7 +228,7 @@ describe('eklavya doctor', () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toMatch(/journal:\s+wal/);
     expect(res.stdout).toMatch(/concepts: 8\d/);
-    expect(res.stdout).toMatch(/mode:\s+ambient/);
+    expect(res.stdout).toMatch(/quiz:\s+on/);
   });
 
   it('creates the database if it does not exist yet', () => {
@@ -388,7 +404,7 @@ describe('eklavya doctor checks the install', () => {
     fs.rmSync(path.join(runtimeDir, 'node_modules'), { recursive: true, force: true });
     const res = eklavya(['doctor']);
     expect(res.status).toBe(1);
-    expect(res.stdout).toMatch(/mode:\s+ambient/);
+    expect(res.stdout).toMatch(/quiz:\s+on/);
     expect(res.stdout).toMatch(/level:\s+easy/);
   });
 });
@@ -932,14 +948,14 @@ describe('eklavya statusline', () => {
 
   it('shows the dials', () => {
     openDb(dbFile).close();
-    expect(bar('sess-1')).toMatch(/\[EKLAVYA ambient/);
+    expect(bar('sess-1')).toMatch(/\[EKLAVYA concept/);
   });
 
   it('still shows the dials when the database cannot be read', () => {
     // The session check needs the database; the bar does not. Before this, a
     // corrupt file threw past the level lookup and the line vanished entirely.
     fs.writeFileSync(dbFile, 'this is not a sqlite file at all');
-    expect(bar('sess-1')).toMatch(/\[EKLAVYA ambient/);
+    expect(bar('sess-1')).toMatch(/\[EKLAVYA concept/);
   });
 
   it('keeps the bar when the host names no session', () => {
@@ -952,7 +968,7 @@ describe('eklavya statusline', () => {
 
     expect(
       eklavya(['statusline', '--no-color'], repo, JSON.stringify({ cwd: repo })).stdout,
-    ).toMatch(/\[EKLAVYA ambient/);
+    ).toMatch(/\[EKLAVYA concept/);
   });
 
   it('goes dark for a session that was turned off', () => {
@@ -963,42 +979,76 @@ describe('eklavya statusline', () => {
     db.close();
 
     expect(bar('sess-1')).toBe('');
-    expect(bar('sess-2')).toMatch(/\[EKLAVYA ambient/);
+    expect(bar('sess-2')).toMatch(/\[EKLAVYA concept/);
   });
 });
 
-describe('what the CLI says about a repo config it refused', () => {
-  it('names the ignored keys in doctor and in config get, rather than staying quiet', () => {
-    const hostile = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-refused-'));
-    fs.mkdirSync(path.join(hostile, '.git'), { recursive: true });
+// The suite that used to live here tested a forbidden-key list: settings lived
+// at <repo>/.eklavya.json, so a clone handed Eklavya a config file written by
+// somebody else, and `notifications`, `sync`, `providers` and
+// `retrieval.cross_project` had to be refused from it. Project settings are
+// outside the checkout now and only you write them, so there is nothing to
+// refuse. What is left to prove is that the old file stops mattering.
+describe('a checkout that still has an .eklavya.json', () => {
+  it('has it moved out, silently, by an ordinary command', () => {
+    const legacy = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-legacy-')));
+    fs.mkdirSync(path.join(legacy, '.git'), { recursive: true });
     fs.writeFileSync(
-      path.join(hostile, '.eklavya.json'),
-      JSON.stringify({
-        mode: 'enforced',
-        notifications: { enabled: true, sinks: [{ kind: 'file', target: '/tmp/x' }] },
-      }),
+      path.join(legacy, '.eklavya.json'),
+      JSON.stringify({ quiz: { enforced: true }, notifications: { enabled: true, sinks: [] } }),
     );
 
-    const doctor = eklavya(['doctor'], hostile);
-    expect(doctor.stdout).toMatch(/IGNORED:.*notifications/);
-    // The dial it was allowed to set still applies — the refusal is narrow.
-    expect(doctor.stdout).toMatch(/mode:\s+enforced/);
+    const get = eklavya(['config', 'get'], legacy);
+    expect(get.status).toBe(0);
+    // Gone from the working tree, with nothing said about it.
+    expect(fs.existsSync(path.join(legacy, '.eklavya.json'))).toBe(false);
+    expect(get.stdout).not.toMatch(/migrat|\.eklavya\.json/i);
+    // And its settings are in force from where they landed.
+    expect(get.stdout).toMatch(/"enforced": true/);
+    expect(get.stdout).toMatch(new RegExp(`project: ${home.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
 
-    const get = eklavya(['config', 'get'], hostile);
-    expect(get.stdout).toMatch(/ignored from the repo config: notifications/);
+    // Including the keys a cloned file was never allowed to set, which are
+    // ordinary settings now that no config arrives from anybody else.
+    expect(get.stdout).toMatch(/"notifications"/);
 
-    fs.rmSync(hostile, { recursive: true, force: true });
+    fs.rmSync(legacy, { recursive: true, force: true });
   });
 
-  it('refuses to write one with --repo instead of writing a setting that is then ignored', () => {
-    const hostile = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-refused-write-'));
-    fs.mkdirSync(path.join(hostile, '.git'), { recursive: true });
+  it('writes project settings outside the checkout, never into it', () => {
+    const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-fresh-')));
+    fs.mkdirSync(path.join(fresh, '.git'), { recursive: true });
 
-    const res = eklavya(['config', 'set', 'sync.enabled', 'true', '--repo'], hostile);
-    expect(res.status).not.toBe(0);
-    expect(res.stderr).toMatch(/only be set globally/);
-    expect(fs.existsSync(path.join(hostile, '.eklavya.json'))).toBe(false);
+    const res = eklavya(['config', 'set', 'sync.enabled', 'true', '--repo'], fresh);
+    expect(res.status).toBe(0);
+    expect(fs.existsSync(path.join(fresh, '.eklavya.json'))).toBe(false);
+    expect(fs.readdirSync(fresh).filter((f) => f.startsWith('.eklavya'))).toEqual([]);
+    expect(eklavya(['config', 'get'], fresh).stdout).toMatch(/"enabled": true/);
 
-    fs.rmSync(hostile, { recursive: true, force: true });
+    fs.rmSync(fresh, { recursive: true, force: true });
+  });
+});
+
+describe('config set scope flags', () => {
+  // `--project` was documented before it was parsed, and the CLI silently wrote
+  // to the global config instead — a setting landing somewhere nobody asked for,
+  // with a zero exit code saying it worked.
+  it.each(['--project', '--repo'])('%s writes this codebase, not the global config', (flag) => {
+    const res = eklavya(['config', 'set', 'difficulty', 'hard', flag]);
+    expect(res.status).toBe(0);
+
+    const projectFile = path.join(home, 'projects', repo.replace(/[/\\:]/g, '-'), 'config.json');
+    expect(fs.existsSync(projectFile)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(projectFile, 'utf8'))).toMatchObject({ difficulty: 'hard' });
+
+    // And not into the global file — which in this test does not exist at all,
+    // because nothing has written one. That absence is the assertion.
+    const globalFile = path.join(home, 'config.json');
+    const global = fs.existsSync(globalFile)
+      ? (JSON.parse(fs.readFileSync(globalFile, 'utf8')) as Record<string, unknown>)
+      : {};
+    expect(global.difficulty).toBeUndefined();
+    expect(fs.readdirSync(repo).filter((f) => f.startsWith('.eklavya'))).toEqual([]);
+
+    fs.rmSync(projectFile, { force: true });
   });
 });

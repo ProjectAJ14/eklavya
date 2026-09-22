@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "73eb43b54fbb5ac243d7b072aa44564caa8aabd4"
+      "revision": "c507451092bda9951354bb8e1f2ae8303b7deb9a"
     },
     "views": [
       {
@@ -36,7 +36,7 @@
           "store",
           "mcp"
         ],
-        "note": "Four dials pick the framing; SM-2 and the project level pick the concept and the tier."
+        "note": "The dials pick the framing; SM-2 and the project level pick the concept and tier. Settings live outside the repository."
       },
       {
         "id": "readers",
@@ -127,7 +127,7 @@
       "id": "config",
       "type": "database",
       "label": "Config files",
-      "sublabel": ".eklavya.json → config.json",
+      "sublabel": "config.json + projects/<repo>/",
       "tag": "server + hooks",
       "pos": [
         554,
@@ -147,9 +147,8 @@
           "label": "hook side"
         },
         {
-          "path": "mcp/src/config.ts",
-          "line": 693,
-          "label": "REPO_FORBIDDEN_KEYS"
+          "path": "mcp/src/paths.ts",
+          "label": "projectConfigPath"
         }
       ]
     },
@@ -593,9 +592,9 @@
       "items": [
         "stdout is the protocol; diagnostics are forced to stderr",
         "retryOnBusy wraps handlers; openDb seeds, then packs",
-        "Two gates, session and repo (.eklavya.json only); fail open",
+        "Two gates, session and project (project config only); fail open",
         "A failed memory job backs off; auth or quota pauses the queue",
-        "A cloned repo sets dials only; never a sink, sync or provider"
+        "No config in a checkout; settings are per developer, not committed"
       ]
     }
   ]

@@ -6,7 +6,7 @@ sidebar:
 
 Eklavya has two halves. The learning half asks you questions about the code your agent writes. The memory half records what the work *was* — what you asked for, what changed, what failed — so that next week's session starts knowing what last week's session did, instead of asking you to explain your own repository again.
 
-Both halves live in one database, one config file and one set of hooks. Memory is on by default and is governed by its own key: **`memory.enabled` is independent of `mode`**. `mode: off` means no questions; it does not mean no history.
+Both halves live in one database, one config file and one set of hooks. Memory is on by default and is governed by its own key: **`memory.enabled` is independent of `quiz`**. `quiz.enabled: false` means no questions; it does not mean no history — which is exactly why the setting is no longer called `mode: off`.
 
 ### What gets captured
 

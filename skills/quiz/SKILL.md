@@ -22,8 +22,8 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
    - `already_covered` → "Everything from this session has already been asked about. `/eklavya:quiz <topic>` to go wider."
    - `nothing_logged` → "Nothing logged this session yet, so there's nothing grounded to ask about."
    - `no_candidates` (topic mode) → that topic is fully mastered and nothing is due; name the closest domain that is not.
-   - `mode_off` → "Eklavya is off. `/eklavya:setup` to turn it back on."
-   - `session_off` → they turned Eklavya off for this session, and then asked for a quiz. Say so and offer the one step back: "Eklavya is off for this session — say the word and I'll turn it back on." Turn it back on with `set_config`, `scope: "session"`, `mode: "ambient"` if they agree, then run the quiz.
+   - `quiz_disabled` → "Questions are off for this project. Memory is still recording — `/eklavya:mode` turns the questions back on." Do not say "Eklavya is off": it is not, and saying so is what sent people hunting for a bug that was a setting.
+   - `session_off` → they silenced the questions for this session, and then asked for a quiz. Say so and offer the one step back: "Questions are off for this session — say the word and I'll turn them back on." Turn them back on with `set_config`, `scope: "session"`, `quiz: { enabled: true }` if they agree, then run the quiz.
    - `no_topic` → focus is `learn` with nothing set; ask what they want to learn, then `/eklavya:mode learn <topic>`.
    - `topic_unknown` → the graph has nothing matching their topic; offer the closest domain rather than inventing questions.
 

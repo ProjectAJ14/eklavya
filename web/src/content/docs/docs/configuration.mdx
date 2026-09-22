@@ -12,18 +12,33 @@ import { Badge } from '@astrojs/starlight/components';
 | --- | --- | --- |
 | Defaults | built in | Everything, until something overrides it. |
 | Global | `~/.eklavya/config.json` | You, on every project. |
-| Repo <Badge text="wins" variant="tip" size="small" /> | `.eklavya.json` at a repository root | Everyone working in that project. |
-| Session <Badge text="mode only" variant="tip" size="small" /> | no file — held in the database until the session ends | This one session, on any project. |
+| Project <Badge text="wins" variant="tip" size="small" /> | `~/.eklavya/projects/<checkout>/config.json` | You, on one codebase. |
+| Session <Badge text="quiz only" variant="tip" size="small" /> | no file — held in the database until the session ends | This one session, on any project. |
 
-Later layers win key by key, not file by file: a repo file setting only `mode` leaves your personal `focus` alone. The search for a repo file walks up from your working directory and **stops at the git root** (or at your home directory, whichever comes first), so a stray config above the repository never leaks in. A missing or malformed file is ignored rather than fatal — defaults win and your session keeps working.
+**Both files are in your home directory.** Nothing Eklavya configures is written into a repository, so your settings never reach your teammates and theirs never reach you — see [below](#nothing-eklavya-configures-lives-in-your-repository).
+
+The project directory is named after the checkout's absolute path with the separators turned into dashes, the way `~/.claude/projects/` names its own:
+
+```text
+~/.eklavya/
+  config.json                                        you, everywhere
+  projects/
+    -Users-you-code-api/config.json                  you, on ~/code/api
+    -Users-you-code-web/config.json                  you, on ~/code/web
+```
+
+A git worktree shares its main checkout's settings — a branch parked in a worktree is the same codebase, not a new one to configure from scratch.
+
+Later layers win key by key, not file by file: a project file setting only `quiz` leaves your personal `focus` alone. Which project you are in is found by walking up from your working directory to the **git root**, so a directory that merely contains a checkout is never mistaken for it. A missing or malformed file is ignored rather than fatal — defaults win and your session keeps working.
 
 ### Turning it off for one session
 
 Both files outlive the afternoon that made you want silence, which is how a
-"just for now" `mode: off` becomes a tool you turned off in April and noticed in
-June. So there is a third scope that takes `mode` and nothing else:
+"just for now" `quiz.enabled: false` becomes questions you switched off in April
+and noticed in June. So there is a third scope that takes `quiz` and nothing
+else:
 
-> **"Turn Eklavya off for this session."**
+> **"Turn the questions off for this session."**
 
 No questions, no checkpoints, no banner, no status bar, until the session ends —
 and nothing on disk changes, so the next session is configured exactly as it was.
@@ -32,34 +47,43 @@ picks up where it left off; concepts logged while it was silent are not lost,
 they stay unmastered and a later session offers them again once its own work and
 review debt are covered.
 
-One thing it deliberately does not do: **it does not open the commit gate.** In a
-repo running `enforced` mode, the [git hook](/docs/commit-gate/) reads
-`.eklavya.json` and has never heard of a session, so a commit still waits for the
+Two things it deliberately does not do.
+
+**It does not stop memory.** Recording has no session scope at all: a day of work
+nobody recorded is a day nobody can look up later, and asking for quiet is not
+asking for a hole in your history. If you want the recording stopped too, that is
+`memory.enabled: false`, and it is a file.
+
+**It does not open the commit gate.** In a
+project running `quiz.enforced`, the [git hook](/docs/commit-gate/) reads that
+project's config and has never heard of a session, so a commit still waits for the
 quiz — and the gate keeps *growing* while you are silent, because the work still
 gets logged and the quiz that would have drained it is the thing you switched
 off. Silence an enforced session for an hour and the quiz waiting at `git commit`
 is a longer one. Silencing the questions and skipping the gate are different requests, and
-only a repo or global `mode` change is the second one.
+only a repo or global change to `quiz.enforced` is the second one.
 
 ### Every key
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `mode` | `"ambient"` | How hard Eklavya pushes: `ambient`, `enforced`, `off`. |
+| `quiz.enabled` | `true` | Whether questions happen at all. `false` stops every question, checkpoint, gate and banner — and stops **nothing else**: memory keeps recording, under `memory.enabled`. |
+| `quiz.enforced` | `false` | Whether the session quiz must pass before `git commit` succeeds. Setting it also exempts quizzing from the cooldown and the one-question cap, so the gate stays passable. Ignored when `quiz.enabled` is `false` — a gate nothing asks questions for could never be opened, and `eklavya doctor` reports the contradiction. |
+| `mode` <Badge text="retired" variant="caution" size="small" /> | — | The dial `quiz` replaced. Still read wherever it appears, for ever: `ambient` → `{enabled: true, enforced: false}`, `enforced` → `{enabled: true, enforced: true}`, `off` → `{enabled: false}`. A `quiz` in the same file wins over it. Do not write it in new configuration. |
 | `focus` | `"concept"` | What it teaches: `concept`, `project`, `learn`. |
 | `focus_topic` | `null` | The topic for `learn` focus. Ignored by the other two, required by that one. |
-| `cadence` | `"interleaved"` | When it asks, and how many at once: `interleaved` asks mid-task, one question per quiz (`enforced` mode and quizzes you ask for excepted); `end` waits and asks the remaining budget. |
+| `cadence` | `"interleaved"` | When it asks, and how many at once: `interleaved` asks mid-task, one question per quiz (`quiz.enforced` and quizzes you ask for excepted); `end` waits and asks the remaining budget. |
 | `difficulty` | `"auto"` | The tier band: `auto` earns it per project; `easy`/`medium`/`hard` pin it and stop progression. |
 | `level_up_after` | `100` | Passing answers needed at the current band, in one project, before it moves up. Answers earned before a promotion are spent. The distinct-concept floor scales with this, so shortening it keeps the runway reachable. |
 | `level_up_accuracy` | `0.7` | Minimum accuracy over every answer at that band, not only the passing ones. Declines are excluded from both halves of the fraction. |
 | `pass_threshold` | `0.7` | The fraction of a session's required concepts you must answer correctly — grade 3 or better — before the commit gate opens, rounded up. `required` never exceeds `max_questions_per_task`, so at both defaults that is three of four. |
 | `max_questions_per_task` | `4` | A budget for the **whole session**, shared between mid-task checkpoints and the end-of-task sweep. Not a batch size — on the default cadence a quiz asks one question, so the budget is spent one at a time or not at all. |
-| `min_minutes_between_quizzes` | `20` | Floor between whole quizzes, and the anti-nagging dial for the `end` cadence. It applies in `ambient` mode only — `enforced` ignores it, or a cooldown could make a commit gate unpassable. On `interleaved` nothing it paces exists: every quiz there is one question, so `min_minutes_between_checkpoints` is the dial that applies. |
+| `min_minutes_between_quizzes` | `20` | Floor between whole quizzes, and the anti-nagging dial for the `end` cadence. It applies when quizzing is unenforced only — `quiz.enforced` ignores it, or a cooldown could make a commit gate unpassable. On `interleaved` nothing it paces exists: every quiz there is one question, so `min_minutes_between_checkpoints` is the dial that applies. |
 | `min_minutes_between_checkpoints` | `4` | Floor between single questions on the `interleaved` cadence — both the mid-task checkpoint and the end-of-task sweep. It is what stops eight logged concepts becoming eight questions in a row, and it is what re-arms the sweep, so lowering it asks more often and raising it asks less. `0` asks at every seam; the end-of-task sweep still keeps a one-minute floor, since there this clock is its only loop guard. |
 | `max_new_concepts_per_session` | `8` | Cap on concepts Claude may invent per session, against slug sprawl. |
 | `max_stop_blocks_per_session` | `3` | Hard backstop on how many times the end-of-task hook may hold a session open. |
 | `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
-| `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `mode: off` for that. |
+| `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `quiz.enabled: false` for that. |
 
 ### Setting a namespaced key
 
@@ -86,7 +110,7 @@ eklavya config set providers.observer '{"kind":"anthropic","model":"<model-id>"}
 
 ### The memory namespaces
 
-The keys above are flat because every `.eklavya.json` already written uses them that way. The memory half's keys are nested under six namespaces instead, and they merge the same way: a repo file setting `retrieval.mode` leaves your personal `memory.capture` alone.
+The keys above are flat because every config already written uses them that way. The memory half's keys are nested under six namespaces instead, and they merge the same way: a project file setting `retrieval.mode` leaves your global `memory.capture` alone.
 
 #### `memory`
 
@@ -98,7 +122,7 @@ The keys above are flat because every `.eklavya.json` already written uses them 
 | `memory.retention_days` | `null` | Days of raw evidence to keep. Observations built from it survive its deletion. `null` keeps it until you delete it. |
 
 :::note
-**`memory.enabled` is independent of `mode`.** `mode: off` means no quizzes, no checkpoints and no gate — it does not mean no history. Someone who silenced the questions did not ask for their project's record to stop, and the reverse (quizzes, no capture) is just as legitimate: that is `memory.enabled: false`.
+**`memory.enabled` is independent of `quiz`.** `quiz.enabled: false` means no quizzes, no checkpoints and no gate — it does not mean no history. Someone who silenced the questions did not ask for their project's record to stop, and the reverse (quizzes, no capture) is just as legitimate: that is `memory.enabled: false`. This was always how it worked; the settings are named `quiz` and `memory` now so that it is legible from the configuration file rather than only from this paragraph.
 :::
 
 #### `privacy`
@@ -131,7 +155,7 @@ Both are `null`, and **nothing turns them on for you** — not an upgrade, not a
 
 Each takes an object of three fields: `kind` (only `"anthropic"` today), `model`, and `api_key_env` — the **name of the environment variable** holding the key, defaulting to `ANTHROPIC_API_KEY`. The key itself never goes in the config file, because a config file ends up in every export, log line and dashboard payload that prints configuration.
 
-```json title=".eklavya.json"
+```json title="~/.eklavya/config.json"
 {
   "providers": {
     "observer": {
@@ -143,27 +167,42 @@ Each takes an object of three fields: `kind` (only `"anthropic"` today), `model`
 }
 ```
 
-### What a repository is not allowed to set
+### Nothing Eklavya configures lives in your repository
 
-`.eklavya.json` beats your global config, and that is the point: a lead pins
-enforced mode on an onboarding codebase and it applies to everyone working in
-it. It is also a file you get by **cloning**, which is fine for a dial — the
-worst a hostile one can do is ask you a question — and not fine for a setting
-with an effect outside the session.
+Project settings are **yours**, not your team's. They sit in your home
+directory, keyed by the checkout's path, and no Eklavya configuration file is
+ever written into a working tree.
 
-So four settings are yours alone, read from `~/.eklavya/config.json` and never
-from a repository:
+That used to be the other way round: settings lived at `<repo>/.eklavya.json`
+and were committed, so a lead could pin the gate for everyone who cloned. Two
+problems with that, and the second is the serious one. Everyone on a team gets
+taught differently — the level you have earned in a codebase is not the level
+your new teammate has — so one file could never be right for all of them. And
+a committed config is a configuration file **written by somebody else**: a
+checked-in `notifications` sink pointing at `/bin/sh` plus the automatic
+end-of-session wrap-up meant that cloning a repository and working in it for
+ten minutes ran that command. Containing this needed a list of settings a
+repository was not allowed to touch.
 
-| Setting | Why it is not the repository's to make |
-| --- | --- |
-| `notifications` | Runs a command, or posts somewhere |
-| `sync` | Writes files into a directory |
-| `providers` | Sends this machine's work to an API |
-| `retrieval.cross_project` | Puts another project's history into this session |
+Moving the file out removes the whole class: nothing arrives by clone, so
+there is nothing to refuse, and the restriction is gone rather than left in
+place implying a protection that no longer has a threat. `notifications`,
+`sync`, `providers` and `retrieval.cross_project` are ordinary settings you can
+now set per project.
 
-A repository that tries is ignored, and `eklavya config get` and
-`eklavya doctor` say so rather than leaving you to wonder. Writing one with
-`--repo` is refused at the point of writing.
+:::note
+**An `.eklavya.json` left in a checkout is moved for you.** The next session
+that starts there lifts it into `~/.eklavya/projects/` and deletes it from the
+working tree, keeping every setting it held. Nothing is printed and nothing is
+asked — a settings file in a repository was a mistake to undo, not a decision
+to confirm. If project settings already exist, they win and the old file's
+extra keys are merged underneath them, so nothing is lost either way.
+
+Concept packs are the deliberate exception and still live at
+`<repo>/.eklavya/packs/`. A pack is a shared concept graph for the codebase,
+the same for everyone by design — content rather than configuration. See
+[Packs](/docs/packs/).
+:::
 
 #### `notifications` — what gets sent out
 
@@ -231,11 +270,11 @@ machine that still had the entry cannot put it back.
 
 ### A complete file
 
-Every key is optional — write only the ones you want to change. This example is a repo file for an onboarding codebase: enforced, grounded in the project, held at easy for everyone.
+Every key is optional — write only the ones you want to change. This example is a project file for a codebase you are new to: gated, grounded in the project, held at easy.
 
-```json title=".eklavya.json"
+```json title="~/.eklavya/projects/-Users-you-code-api/config.json"
 {
-  "mode": "enforced",
+  "quiz": { "enabled": true, "enforced": true },
   "focus": "project",
   "cadence": "interleaved",
   "difficulty": "easy",

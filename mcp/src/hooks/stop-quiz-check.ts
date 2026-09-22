@@ -88,12 +88,13 @@ await run(async (input) => {
     // on it. Gating memory on an announcement channel means nobody ever gets one.
     await wrapUpAtSeam(db, stopConfig, identity);
   }
-  // Silenced sessions are never blocked, enforced mode included: the commit gate
-  // is what enforced mode is for, and it reads .eklavya.json rather than this.
+  // Silenced sessions are never blocked, enforced quizzing included: the commit
+  // gate is what `quiz.enforced` is for, and it reads the project config rather
+  // than this.
   if (isSessionOff(db, sid)) return 0;
 
   const {
-    mode,
+    quiz,
     cadence,
     focus,
     focus_topic,
@@ -103,7 +104,7 @@ await run(async (input) => {
     min_minutes_between_checkpoints,
   } = config(cwd).config;
 
-  if (mode === 'off') return 0;
+  if (!quiz.enabled) return 0;
 
   const stats = db
     .prepare(
@@ -151,11 +152,11 @@ await run(async (input) => {
 
   // Under `interleaved` this sweep asks exactly ONE question (see `take` below),
   // so it is paced by the single-question clock rather than the whole-quiz one.
-  // Enforced mode is exempt from both, as it always was (decision G5).
-  const interleaved = cadence === 'interleaved' && mode !== 'enforced';
+  // Enforced quizzing is exempt from both, as it always was (decision G5).
+  const interleaved = cadence === 'interleaved' && !quiz.enforced;
 
   // --- the pacing clock ------------------------------------------------------
-  // Ambient mode respects the quiz cadence. Enforced mode must not, or a cooldown
+  // Unenforced quizzing respects the cadence. Enforced must not, or a cooldown
   // could make a commit gate unpassable (decision G5).
   //
   // Which clock depends on what is being paced. `min_minutes_between_quizzes` is
@@ -179,7 +180,7 @@ await run(async (input) => {
   // which has a logged concept behind each firing. A Stop sweep has no such event:
   // at a gap of 0 a model that ignores the instruction and stops again immediately
   // gets blocked again immediately, three times in a row with no pause.
-  if (mode === 'ambient') {
+  if (!quiz.enforced) {
     const gap = interleaved
       ? Math.max(1, min_minutes_between_checkpoints)
       : min_minutes_between_quizzes;
@@ -277,10 +278,10 @@ record_attempt. The plan returns a "framing" field. Follow it.`;
   // teaches the learner that Eklavya's warnings need not be read carefully, so
   // the enforced framing drops to why the quiz still matters there.
   const tone =
-    mode === 'enforced'
+    quiz.enforced
       ? isCowork()
-        ? 'This session is in enforced mode. Nothing is blocked here — Cowork does not commit — but the gate still records what was answered, so ask properly.'
-        : 'This session is in enforced mode: the commit gate needs this quiz.'
+        ? 'Quizzing is enforced in this session. Nothing is blocked here — Cowork does not commit — but the gate still records what was answered, so ask properly.'
+        : 'Quizzing is enforced in this session: the commit gate needs this quiz.'
       : 'If they say skip, record it as grade 0 and let them go — do not ask twice.';
 
   const context = `Eklavya: before finishing, quiz the developer on what this task just taught.

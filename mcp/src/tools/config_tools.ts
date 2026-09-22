@@ -4,8 +4,6 @@ import {
   loadConfig,
   writeConfigFile,
   readConfigFile,
-  REPO_CONFIG_FILE,
-  REPO_FORBIDDEN_KEYS,
   DEFAULT_CONFIG,
 } from '../config.js';
 import { currentSurface } from '../surface.js';
@@ -16,7 +14,7 @@ export const getConfig: ToolDef = {
   name: 'get_config',
   title: 'Get config',
   description:
-    'The effective Eklavya config: global ~/.eklavya/config.json merged with the repo .eklavya.json, repo winning. Also reports surface — "code" for Claude Code (a terminal or the Code tab in Claude Desktop) or "cowork" — which is the only reliable way to tell: in Cowork a shell command runs in a sandbox VM and cannot see the host environment this is read from.',
+    'The effective Eklavya config: global ~/.eklavya/config.json merged with this project\'s ~/.eklavya/projects/<checkout>/config.json, the project winning. Nothing Eklavya configures lives inside the checkout — settings are per developer, not committed. Also reports surface — "code" for Claude Code (a terminal or the Code tab in Claude Desktop) or "cowork" — which is the only reliable way to tell: in Cowork a shell command runs in a sandbox VM and cannot see the host environment this is read from.',
   inputSchema: {
     cwd: z.string().optional().describe(CWD_HINT),
     session_id: z.string().optional().describe(SESSION_HINT),
@@ -35,7 +33,7 @@ export const getConfig: ToolDef = {
       session_off: isSessionOff(ctx.db, session),
       session_id: session,
       global_path: resolved.globalPath,
-      repo_path: resolved.repoPath,
+      project_path: resolved.projectPath,
       repo_root: resolved.repoRoot,
       /**
        * Which Claude surface this is. Reported here because the server is the
@@ -45,9 +43,9 @@ export const getConfig: ToolDef = {
        * environment and getting the wrong answer, or nothing at all.
        */
       surface: currentSurface(),
-      // Which of the learner's own settings this repo is overriding. Say it
+      // Which of the learner's own global settings this project is overriding. Say it
       // rather than let a personal focus silently stop applying.
-      overridden_by_repo: resolved.overrides,
+      overridden_by_project: resolved.overrides,
     };
   },
 };
@@ -62,18 +60,29 @@ export const setConfig: ToolDef = {
   name: 'set_config',
   title: 'Set config',
   description:
-    'Update Eklavya config. Scope "global" writes ~/.eklavya/config.json; scope "repo" writes .eklavya.json at the repo root, which is how a team lead pins enforced mode — or a difficulty level — for one project. Scope "session" writes no file at all: it takes only `mode`, silences this one session when that is "off", and un-silences it for any other value. Use it whenever someone asks to turn Eklavya off "for now" or "for this session" — writing off to a file instead leaves the tool off long after the afternoon that needed it.',
+    'Update Eklavya config. Scope "global" writes ~/.eklavya/config.json; scope "project" writes ~/.eklavya/projects/<checkout>/config.json, which is how you set the commit gate — or a difficulty level — for one codebase without putting a file in it. Nothing is ever written into the repository, so these settings are yours and not your teammates\'. ("repo" is accepted as the older name for "project".) Scope "session" writes no file at all: it takes only `quiz`, silences this one session when `quiz.enabled` is false, and un-silences it when true. Use it whenever someone asks to turn the questions off "for now" or "for this session" — writing it to a file instead leaves them off long after the afternoon that needed it. Note that silencing questions never stops memory: `memory.enabled` is a separate switch, and someone asking for quiet has not asked to stop recording their work.',
   inputSchema: {
     scope: z
-      .enum(['global', 'repo', 'session'])
+      .enum(['global', 'project', 'repo', 'session'])
       .optional()
-      .describe('Defaults to global. "session" lasts until this session ends and takes only mode.'),
+      .describe('Defaults to global. "project" is this checkout, stored outside it under ~/.eklavya/projects/. "session" lasts until this session ends and takes only quiz.'),
     cwd: z.string().optional().describe(CWD_HINT),
     session_id: z.string().optional().describe(SESSION_HINT),
+    quiz: z
+      .object({
+        enabled: z.boolean().optional(),
+        enforced: z.boolean().optional(),
+      })
+      .optional()
+      .describe(
+        'Whether questions happen (`enabled`, default true) and whether they gate commits (`enforced`, default false). These are the quiz half only — memory keeps recording either way, under `memory.enabled`. Setting enabled:false forces enforced:false, since a gate with no questions can never be passed.',
+      ),
     mode: z
       .enum(['ambient', 'enforced', 'off'])
       .optional()
-      .describe('How hard Eklavya pushes: ambient offers, enforced gates commits, off is dormant.'),
+      .describe(
+        'Deprecated alias for `quiz`, still honoured so older configs keep working: ambient = {enabled:true,enforced:false}, enforced = {enabled:true,enforced:true}, off = {enabled:false}. Prefer `quiz` — "off" is what made developers think it stopped memory too.',
+      ),
     focus: z
       .enum(['project', 'concept', 'learn'])
       .optional()
@@ -91,7 +100,7 @@ export const setConfig: ToolDef = {
       .enum(['auto', 'easy', 'medium', 'hard'])
       .optional()
       .describe(
-        'How hard questions on a project may get. "auto" (default) earns the level per project: everyone starts at easy (tiers 1-2), then medium (2-4), then hard (3-5). A literal level pins it and stops progression — "easy" on a repo keeps an onboarding codebase gentle for everyone, "hard" globally skips the runway.',
+        'How hard questions on a project may get. "auto" (default) earns the level per project: everyone starts at easy (tiers 1-2), then medium (2-4), then hard (3-5). A literal level pins it and stops progression — "easy" at project scope keeps an onboarding codebase gentle, "hard" globally skips the runway.',
       ),
     level_up_after: z
       .number()
@@ -131,7 +140,7 @@ export const setConfig: ToolDef = {
       })
       .optional()
       .describe(
-        'Recording what each session did. Independent of mode: mode "off" means no questions, not no history. Turn capture off with enabled:false, or thin it with capture:"minimal" (prompts and session seams only).',
+        'Recording what each session did. Independent of `quiz`: silencing questions means no questions, not no history. Turn capture off with enabled:false, or thin it with capture:"minimal" (prompts and session seams only).',
       ),
     retrieval: z
       .object({
@@ -199,7 +208,10 @@ export const setConfig: ToolDef = {
       ),
   },
   handler: (args: Record<string, unknown>, ctx) => {
-    const scope = (args.scope as 'global' | 'repo' | 'session' | undefined) ?? 'global';
+    // `repo` is the older spelling of `project`, kept working because it is in
+    // every skill and doc written before the settings file left the checkout.
+    const rawScope = (args.scope as 'global' | 'project' | 'repo' | 'session' | undefined) ?? 'global';
+    const scope = rawScope === 'repo' ? 'project' : rawScope;
     const cwd = args.cwd as string | undefined;
     const resolved = loadConfig(cwd);
 
@@ -208,6 +220,21 @@ export const setConfig: ToolDef = {
     // the schema accepts the key, the tool reports success, and the setting is
     // silently dropped on the floor. `scope` and `cwd` are not config keys, so
     // they cannot leak into the file.
+    // `mode` folded into `quiz` before anything reads the patch. The patch is
+    // built from `Object.keys(DEFAULT_CONFIG)` and `mode` is not a key there any
+    // more, so without this the schema would go on accepting the word and then
+    // drop it on the floor -- the exact silent-no-op failure that building the
+    // patch from the defaults was introduced to prevent.
+    //
+    // An explicit `quiz` wins, matching `coerce()`: the new spelling is never
+    // overridden by a legacy one sent in the same call.
+    const modeArg = args.mode as string | undefined;
+    if (modeArg && args.quiz === undefined) {
+      if (modeArg === 'ambient') args.quiz = { enabled: true, enforced: false };
+      else if (modeArg === 'enforced') args.quiz = { enabled: true, enforced: true };
+      else if (modeArg === 'off') args.quiz = { enabled: false, enforced: false };
+    }
+
     const patch: Record<string, unknown> = {};
     for (const key of Object.keys(DEFAULT_CONFIG)) {
       if (args[key] !== undefined) patch[key] = args[key];
@@ -223,15 +250,19 @@ export const setConfig: ToolDef = {
     const namespaced = Object.keys(patch).filter((key) => isNamespace(key));
 
     if (scope === 'session') {
-      // Only `mode` is session-scoped. The rest are settings, not an
+      // Only the quiz switch is session-scoped. The rest are settings, not an
       // interruption someone wants to stop right now, and a per-session
       // `difficulty` that vanished at the end of the day would be a dial that
-      // silently un-set itself.
-      const extra = Object.keys(patch).filter((key) => key !== 'mode');
-      if (extra.length > 0 || patch.mode === undefined) {
+      // silently un-set itself. `mode` is still accepted here for the same
+      // reason `coerce` still reads it.
+      const extra = Object.keys(patch).filter((key) => key !== 'quiz');
+      const quizPatch = patch.quiz as Record<string, unknown> | undefined;
+      const silencing = typeof quizPatch?.enabled === 'boolean' ? !quizPatch.enabled : undefined;
+      if (extra.length > 0 || silencing === undefined) {
         return {
-          error: 'session_scope_is_mode_only',
-          detail: 'Scope "session" takes only mode: "off" to silence this session, any other value to bring it back. Everything else needs global or repo scope.',
+          error: 'session_scope_is_quiz_only',
+          detail:
+            'Scope "session" takes only quiz.enabled: false to silence this session, true to bring it back. Everything else needs global or project scope. Memory is unaffected either way — it has no session-scoped switch, because a session nobody records is a day of work nobody can look up.',
         };
       }
 
@@ -247,61 +278,47 @@ export const setConfig: ToolDef = {
         return {
           error: 'no_session',
           detail:
-            'No Claude Code session is registered, so there is nothing to scope this to — the hooks are what stamp the session id, and they have not run. Use scope "global" (and set mode back afterwards) or pass session_id explicitly.',
+            'No Claude Code session is registered, so there is nothing to scope this to — the hooks are what stamp the session id, and they have not run. Use scope "global" (and set quiz.enabled back afterwards) or pass session_id explicitly.',
         };
       }
 
-      const off = patch.mode === 'off';
+      const off = silencing;
       setSessionOff(ctx.db, session, off);
 
       return {
         scope,
         session_id: session,
         session_off: off,
-        // The file-backed mode is untouched, so say what it still is: turning a
-        // session back on restores this, not whatever was passed here.
+        // The file-backed config is untouched, so say what it still is: turning
+        // a session back on restores this, not whatever was passed here.
         config: resolved.config,
         // Honest about the one thing a session cannot turn off. The git
-        // pre-commit hook reads .eklavya.json and never sees a session id, so a
-        // silenced session in an enforced repo still meets the gate at commit.
+        // pre-commit hook reads the project config and never sees a session id,
+        // so a silenced session still meets an enforced gate at commit.
         note:
-          off && resolved.config.mode === 'enforced'
-            ? 'Questions are silenced for this session, but the repo is in enforced mode and the commit gate still holds — and it keeps growing, because work logged while you are silent still counts toward it. The quiz has to happen before a commit lands.'
+          off && resolved.config.quiz.enforced
+            ? 'Questions are silenced for this session, but this project sets quiz.enforced and the commit gate still holds — and it keeps growing, because work logged while you are silent still counts toward it. The quiz has to happen before a commit lands.'
             : undefined,
       };
     }
 
-    if (scope === 'repo') {
-      // The same rule `loadConfig` enforces on read, enforced on write so the
-      // refusal is visible rather than a setting that lands in the file and is
-      // then ignored for ever.
-      const forbidden = Object.keys(patch).filter((key) => REPO_FORBIDDEN_KEYS.includes(key));
-      if (forbidden.length) {
-        return {
-          error: 'not_repo_scoped',
-          detail: `${forbidden.join(', ')} can only be set globally. A repository config is a file you get by cloning, and these run a command, write files or send work off the machine.`,
-        };
-      }
-      const crossProject = (patch.retrieval as Record<string, unknown> | undefined)?.cross_project;
-      if (crossProject !== undefined) {
-        return {
-          error: 'not_repo_scoped',
-          detail:
-            'retrieval.cross_project can only be set globally: it decides whether another project\'s history is visible here, which is not this project\'s decision to make.',
-        };
-      }
-    }
-
+    // There is no forbidden-key list any more. It existed because a project's
+    // settings were a file you got by cloning, so a stranger's `.eklavya.json`
+    // could aim a notification sink at a shell command and the Stop hook would
+    // fire it. Project settings live under ~/.eklavya/projects/ now, written
+    // only by you, so nothing arrives from anybody else and there is nothing to
+    // refuse. Keeping the check would be dead code implying a protection that
+    // no longer has a threat to protect against.
     let target: string;
-    if (scope === 'repo') {
-      const root = resolved.repoRoot;
-      if (!root) {
+    if (scope === 'project') {
+      if (!resolved.projectPath) {
         return {
           error: 'no_repo_root',
-          detail: 'No git repository found from this directory, so there is nowhere to write .eklavya.json.',
+          detail:
+            'No git repository found from this directory, so there is no project to scope this to. Project settings are keyed by the checkout\'s path and kept under ~/.eklavya/projects/ — nothing is written into the repository itself.',
         };
       }
-      target = resolved.repoPath ?? path.join(root, REPO_CONFIG_FILE);
+      target = resolved.projectPath;
     } else {
       target = resolved.globalPath;
     }

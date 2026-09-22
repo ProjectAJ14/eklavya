@@ -68,7 +68,7 @@ Both record as grade 0. What separates them is `outcome`, and what you do next.
 **They are not interchangeable, and the asymmetry is worth knowing.** A concept
 recorded as `declined` is never offered again — deliberately, because "leave me
 alone" is a choice. So labelling a blank as a decline removes that concept from
-the gate-retry path, which in enforced mode is the only route out of a blocked
+the gate-retry path, which when enforced is the only route out of a blocked
 commit. If you explained it, it was a blank: `dont_know`. `record_attempt`
 returns `outcome_conflict` when it is given `declined` together with feedback,
 because a decline you dropped immediately has nothing to explain.

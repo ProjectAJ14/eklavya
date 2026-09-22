@@ -1,32 +1,73 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { globalConfigPath } from './paths.js';
+import { globalConfigPath, projectConfigPath } from './paths.js';
 import type { Level } from './srs.js';
 
-export type Mode = 'ambient' | 'enforced' | 'off';
+/**
+ * The quiz half of Eklavya, and nothing else.
+ *
+ * This replaced the `mode` dial (`ambient` | `enforced` | `off`), which read as
+ * a master switch for the product and was not one. `mode: off` meant "no
+ * questions"; it never meant "stop recording my work" -- but nobody could tell
+ * that from the word, so a developer who wanted quiet read it as *Eklavya is
+ * off* and then reasonably concluded the plugin was broken when a session went
+ * silent. A dial whose name has to be corrected by a paragraph of documentation
+ * is the wrong dial.
+ *
+ * So the two decisions `mode` was carrying now say their own names, next to the
+ * `memory.enabled` that was already independent of both:
+ *
+ *   quiz.enabled    do questions happen at all
+ *   quiz.enforced   does the commit gate hold, and is quizzing insistent
+ *   memory.enabled  is the work recorded and recalled
+ *
+ * They are *not* fully independent, which is the one thing a flag pair hides
+ * and an enum did not: `enabled: false` with `enforced: true` is a gate
+ * demanding passes for questions that are never asked -- an unopenable door.
+ * `coerceNamespaces` resolves it rather than letting it reach the gate; see
+ * there for which way it falls and why.
+ *
+ * Every config already written against `mode` keeps working:
+ * `normalizeLegacyKeys` rewrites it, forever.
+ */
+export interface QuizConfig {
+  enabled: boolean;
+  /**
+   * The commit gate, plus the insistence that makes it passable.
+   *
+   * It is one flag rather than two because the gate is unshippable without the
+   * rest: `get_session_quiz_plan` exempts it from the cooldown, refuses to pad
+   * a plan with weaker picks, overrides an `interleaved` cadence and guarantees
+   * at least one question -- all so that a commit being held is always a commit
+   * the developer has been *given a way through*. A `gate.enabled` that did not
+   * carry those would block commits behind questions the planner had already
+   * decided not to ask.
+   */
+  enforced: boolean;
+}
 
 /**
- * The second dial, and deliberately not part of `Mode`.
+ * The dial for *what* is taught, deliberately separate from whether and how
+ * hard.
  *
- * `mode` answers "how hard does Eklavya push?" -- it governs whether the Stop
- * hook blocks, whether commits are gated, whether the cooldown applies. `focus`
- * answers "what does it teach?". They are orthogonal: enforced+learn (an intern
- * must pass, on a topic they chose) and ambient+project (gentle, grounded in
- * today's diff) are both coherent. Folding them into one enum would make those
- * mutually exclusive for no reason, and would break every `.eklavya.json`
- * already written against 1.0.
+ * `quiz.enforced` governs whether the Stop hook blocks, whether commits are
+ * gated, whether the cooldown applies. `focus` answers "what does it teach?".
+ * They are orthogonal: enforced+learn (an intern must pass, on a topic they
+ * chose) and gentle+project (grounded in today's diff) are both coherent.
+ * Folding them into one enum would make those mutually exclusive for no reason.
  *
- * `off` is the one interaction: it wins outright and `focus` is never read.
+ * `quiz.enabled: false` is the one interaction: it wins outright and `focus` is
+ * never read.
  */
 export type Focus = 'project' | 'concept' | 'learn';
 
 /**
  * The third dial: *when* the questions land.
  *
- * `mode` is how hard Eklavya pushes, `focus` is what it teaches, and this is
- * when it asks. Kept separate for the same reason `focus` was: every
- * combination is coherent. ambient+interleaved is the default experience --
+ * `quiz.enforced` is how hard Eklavya pushes, `focus` is what it teaches, and
+ * this is when it asks. Kept separate for the same reason `focus` was: every
+ * combination is coherent. unenforced+interleaved is the default experience --
  * one question at the seam where a concept was logged, while the agent works --
  * and enforced+end is a team lead who wants the gate but not the interruption.
  *
@@ -40,7 +81,7 @@ export type Focus = 'project' | 'concept' | 'learn';
  * planner caps it, so "one at a time" is a property of the data rather than an
  * instruction the tutor has to remember -- and the Stop sweep asks one too.
  * Concepts the budget never reaches are not lost: they stay unmastered and
- * resurface as review in a later session. Enforced mode is the exception, for the
+ * resurface as review in a later session. Enforced quizzing is the exception, for the
  * reason it is exempt from the cooldown: the gate has to stay passable.
  *
  * `end` is the pre-1.4 behaviour, unchanged: nothing until Stop, then a batch of
@@ -67,14 +108,15 @@ export type Difficulty = Level | 'auto';
  * The memory namespace (PRD CFG-01).
  *
  * Nested, unlike the learning dials, which stay flat because every
- * `.eklavya.json` already written uses them at the top level. New settings get
- * namespaces; old ones keep their names. The compatibility adapter is simply
- * that `coerce` reads both shapes.
+ * config already written uses them at the top level. New settings get
+ * namespaces; old ones keep their names -- `quiz` is the one exception, and it
+ * carries `normalizeLegacyKeys` to pay for itself.
  *
- * `enabled` is deliberately independent of `mode`. Someone who set
- * `mode: "off"` asked for no quizzes, not for their project history to stop
+ * `enabled` is deliberately independent of `quiz.enabled`. Someone who silenced
+ * the questions asked for no quizzes, not for their project history to stop
  * being recorded -- and the reverse, a learner who wants quizzes but no
- * capture, is just as legitimate.
+ * capture, is just as legitimate. This was always true; it used to be true of
+ * the `mode` dial and invisible, which is why that dial is now `quiz`.
  */
 export interface MemoryConfig {
   enabled: boolean;
@@ -175,9 +217,8 @@ export interface SyncConfig {
    *
    * The real device id is generated once and kept in the `meta` table of
    * `knowledge.db`, because that file is per-install while config files travel:
-   * `.eklavya.json` is committed to a repository and `~/.eklavya/config.json`
-   * is exactly the sort of thing a dotfile manager copies to the second
-   * machine. Two devices sharing an id would interleave one revision stream and
+   * `~/.eklavya/config.json` is exactly the sort of thing a dotfile manager
+   * copies to the second machine. Two devices sharing an id would interleave one revision stream and
    * each would treat the other's writes as its own -- so the identity lives
    * where an import is already forbidden to copy it (PRD MIG-01). This key
    * exists to pin it deliberately, which is what tests and a restored backup
@@ -187,7 +228,12 @@ export interface SyncConfig {
 }
 
 export interface EklavyaConfig {
-  mode: Mode;
+  /**
+   * Whether questions happen, and whether they are enforced. Replaced the
+   * `mode` dial; see `QuizConfig` for why, and `coerce` for the alias that
+   * keeps every config written against `mode` working.
+   */
+  quiz: QuizConfig;
   /**
    * What to teach. Defaults to `concept`: the point of Eklavya is understanding
    * that survives the current task, and a question answerable only against this
@@ -244,7 +290,7 @@ export interface EklavyaConfig {
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
-  mode: 'ambient',
+  quiz: { enabled: true, enforced: false },
   focus: 'concept',
   focus_topic: null,
   cadence: 'interleaved',
@@ -291,30 +337,32 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   },
 };
 
-export const REPO_CONFIG_FILE = '.eklavya.json';
+/**
+ * The file Eklavya used to keep inside the checkout, and no longer does.
+ *
+ * Still named here for one reason: `migrateLegacyRepoConfig` has to recognise
+ * it, lift it out and delete it. Nothing reads it as configuration any more.
+ */
+export const LEGACY_REPO_CONFIG_FILE = '.eklavya.json';
 
 export interface ResolvedConfig {
   config: EklavyaConfig;
   /** Every key present in either file, including ones Eklavya does not know about. */
   raw: Record<string, unknown>;
   globalPath: string;
-  repoPath: string | null;
+  /** `~/.eklavya/projects/<slug>/config.json`, or null outside a checkout. */
+  projectPath: string | null;
   repoRoot: string | null;
   /**
-   * Keys the repo config set to something the global config had set differently.
+   * Keys the project config set to something the global config had set
+   * differently.
    *
-   * Repo-wins is right -- it is how a lead pins enforced mode on one codebase --
-   * but silence about it is not. A repo pinning `focus: project` switches off a
-   * `learn` topic someone set for themselves, and without this they have no way
-   * to know why their own setting stopped applying.
+   * Project-wins is right -- it is how you teach yourself differently in a
+   * codebase you are new to -- but silence about it is not. A project pinning
+   * `focus: project` switches off a `learn` topic you set for yourself, and
+   * without this there is no way to know why your own setting stopped applying.
    */
   overrides: string[];
-  /**
-   * Settings the repo config tried to set and was not allowed to. Empty almost
-   * always; when it is not, somebody should look at why a checked-in file is
-   * trying to turn on a notification sink.
-   */
-  refusedRepoKeys: string[];
 }
 
 function realPath(p: string): string {
@@ -339,36 +387,27 @@ function readJson(file: string): Record<string, unknown> | null {
 }
 
 /**
- * Walks up from `cwd` looking for a repo-level config, stopping at the git root
- * or the filesystem root. Returns the directory holding it, plus the git root if
- * one was passed on the way (Phase 3 stamps that onto gate rows).
+ * Walks up from `cwd` to the git root, which is the only thing a checkout still
+ * tells us: settings themselves live outside it, under `~/.eklavya/projects/`.
+ *
+ * Keeps its name because it is on the call path of every hook, the packs loader
+ * and the session pointer, and because "find the repo this config belongs to"
+ * is still exactly what it does.
  */
 export function findRepoConfig(cwd: string = process.cwd()): {
-  repoPath: string | null;
   repoRoot: string | null;
 } {
   // Resolve symlinks: `git rev-parse --show-toplevel` reports the real path, and
   // the git pre-commit hook matches gate rows on it. On macOS /tmp is a symlink
   // to /private/tmp, so without this the two sides silently never match.
   let dir = realPath(path.resolve(cwd));
-  let repoPath: string | null = null;
-  let repoRoot: string | null = null;
 
   for (;;) {
-    if (!repoPath && fs.existsSync(path.join(dir, REPO_CONFIG_FILE))) {
-      repoPath = path.join(dir, REPO_CONFIG_FILE);
-    }
-    if (!repoRoot && fs.existsSync(path.join(dir, '.git'))) {
-      repoRoot = dir;
-      // The git root is the boundary: a config above it belongs to another project.
-      break;
-    }
+    if (fs.existsSync(path.join(dir, '.git'))) return { repoRoot: dir };
     const parent = path.dirname(dir);
-    if (parent === dir || dir === os.homedir()) break;
+    if (parent === dir || dir === os.homedir()) return { repoRoot: null };
     dir = parent;
   }
-
-  return { repoPath, repoRoot };
 }
 
 /**
@@ -376,8 +415,8 @@ export function findRepoConfig(cwd: string = process.cwd()): {
  *
  * A linked worktree's `.git` is a file reading `gitdir: <main>/.git/worktrees/<name>`,
  * so `findRepoConfig` stops there and reports the worktree as the git root. That
- * is right for finding `.eklavya.json` -- the worktree has its own checkout of it
- * -- and wrong for identity: a branch parked in a worktree is the same codebase,
+ * is right for finding the checkout you are standing in, and wrong for
+ * identity: a branch parked in a worktree is the same codebase,
  * and keying a project on the worktree path mints a fresh project, at `easy`,
  * every time someone starts a branch.
  */
@@ -407,7 +446,6 @@ export function mainRepoRoot(repoRoot: string): string {
 function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfig {
   const out: EklavyaConfig = { ...base };
 
-  if (raw.mode === 'ambient' || raw.mode === 'enforced' || raw.mode === 'off') out.mode = raw.mode;
   if (raw.focus === 'project' || raw.focus === 'concept' || raw.focus === 'learn') out.focus = raw.focus;
   if (raw.cadence === 'interleaved' || raw.cadence === 'end') out.cadence = raw.cadence;
   if (
@@ -505,6 +543,26 @@ function provider(value: unknown): ProviderConfig | null {
  * instead of the setting silently doing nothing.
  */
 function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): void {
+  const quiz = raw.quiz as Record<string, unknown> | undefined;
+  if (quiz && typeof quiz === 'object') {
+    out.quiz = { ...out.quiz };
+    if (typeof quiz.enabled === 'boolean') out.quiz.enabled = quiz.enabled;
+    if (typeof quiz.enforced === 'boolean') out.quiz.enforced = quiz.enforced;
+  }
+  // The one combination the flag pair can express and the old enum could not:
+  // a gate holding commits until questions are passed, with the questions
+  // switched off. Nothing would ever ask, so nothing would ever pass, and the
+  // developer would be locked out of `git commit` in their own repository with
+  // no message explaining which setting did it.
+  //
+  // `enabled` wins. The alternative -- honouring `enforced` by turning
+  // questions back on -- overrides an explicit request for silence in order to
+  // start interrupting someone, which is the worse way to be wrong. It also
+  // fails safe: the cost here is a gate that does not hold, and `eklavya doctor`
+  // reports the contradiction rather than leaving it to be discovered at the
+  // first blocked commit.
+  if (!out.quiz.enabled) out.quiz.enforced = false;
+
   const memory = raw.memory as Record<string, unknown> | undefined;
   if (memory && typeof memory === 'object') {
     out.memory = { ...out.memory };
@@ -585,58 +643,105 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
   }
 }
 
-/** Global config merged with the repo's, repo winning. */
 /**
- * Settings a repository may not set, whatever its `.eklavya.json` says.
+ * A `<repo>/.eklavya.json` lifted out of the checkout, then deleted.
  *
- * `.eklavya.json` is a file you get by cloning. Repo-wins is right for the
- * dials -- a lead pinning enforced mode on an onboarding codebase is the whole
- * point -- because a dial only decides how hard Eklavya pushes *you*, and the
- * worst a hostile one can do is ask you a question.
+ * Silent and automatic, by decision: a settings file in a repository was a
+ * mistake to be undone, not a choice to be confirmed every session. Prompting
+ * would put the mistake on screen once per project per developer for ever.
  *
- * These are different in kind. Each one has an effect outside the session:
+ * **The two roots differ in a linked worktree**, and both matter. `.eklavya.json`
+ * was a *committed* file, so a worktree has its own checked-out copy of it: the
+ * file to delete is the one in the checkout you are standing in, while the
+ * settings belong to the main checkout's key, since a worktree is a branch of
+ * the same codebase rather than a project to configure again. Reading from the
+ * main root instead left every worktree's copy sitting in its working tree for
+ * ever — the file the whole change exists to remove.
  *
- *   notifications  runs a command, or POSTs somewhere
- *   sync           writes files into a directory
- *   providers      sends this machine's work to an API
- *   retrieval.cross_project  puts another project's history in this session
+ * **It is never called from `loadConfig`.** That was the first shape and it was
+ * wrong: `loadConfig` runs from every hook, every tool call and the statusline
+ * on every prompt render, so putting a write behind it made a read function
+ * mutate the filesystem from a dozen call sites that had no business doing so.
+ * The test suite found it the honest way -- a run scattered thirty directories
+ * through the real `~/.eklavya/projects/`, because only spawned children had
+ * `EKLAVYA_HOME` pointed somewhere safe. A read that writes is a read nobody can
+ * reason about.
  *
- * A checked-in config that could set the first of those was arbitrary code
- * execution on `git clone` plus one session: the Stop hook fires the wrap-up
- * by itself, and a `command` sink of `/bin/sh -c '...'` is whatever the
- * attacker wrote. `shell: false` does not help when the command *is* a shell.
+ * So it is called from the three places that are genuinely a moment of work:
+ * the SessionStart hook, `eklavya doctor`, and `eklavya config`. SessionStart is
+ * what makes it feel automatic -- the move happens on the next session, with
+ * nothing on screen -- and `loadConfig` reads the legacy file as a fallback in
+ * the meantime, so settings never stop applying in the window before it runs.
  *
- * So these are read from the global config only, and anything a repo tried to
- * set is reported rather than dropped in silence -- a setting that quietly
- * does nothing is its own kind of bug (CFG-01).
+ * Three properties still matter, because sessions start in parallel:
+ *
+ *   It never throws. A read-only checkout, a file owned by somebody else, a
+ *   home directory that will not take a write -- all of them fall through to
+ *   returning `false`, and the caller reads the legacy file this one time
+ *   rather than losing the settings.
+ *
+ *   It never loses a setting. When project config already exists the legacy
+ *   keys are merged *underneath* it, so the newer file still wins and nothing
+ *   in the old one is dropped on the floor.
+ *
+ *   It is safe to lose a race. The write is temp-file-plus-rename, and the
+ *   unlink tolerates a file another process already removed.
  */
-const GLOBAL_ONLY = ['notifications', 'sync', 'providers'] as const;
-const GLOBAL_ONLY_KEYS = ['retrieval.cross_project'] as const;
-
-function withoutRepoOnlyGlobals(repoRaw: Record<string, unknown>): {
-  allowed: Record<string, unknown>;
-  refused: string[];
-} {
-  const allowed: Record<string, unknown> = {};
-  const refused: string[] = [];
-
-  for (const [key, value] of Object.entries(repoRaw)) {
-    if ((GLOBAL_ONLY as readonly string[]).includes(key)) {
-      refused.push(key);
-      continue;
+export function migrateLegacyRepoConfig(
+  checkoutRoot: string,
+  projectRoot: string = checkoutRoot,
+): boolean {
+  const legacyPath = path.join(checkoutRoot, LEGACY_REPO_CONFIG_FILE);
+  try {
+    if (!fs.existsSync(legacyPath)) return false;
+    const legacy = readJson(legacyPath);
+    // Unreadable or malformed: there is nothing to carry over, and leaving the
+    // file in the checkout would leave a thing that looks like configuration
+    // and is not. Delete it and move on.
+    if (legacy) {
+      const target = projectConfigPath(projectRoot);
+      const existing = readJson(target) ?? {};
+      writeConfigFile(target, { ...legacy, ...existing, project: projectRoot });
     }
-    if (key === 'retrieval' && value && typeof value === 'object' && !Array.isArray(value)) {
-      // One key of this namespace is global-only; the rest of it is not, so the
-      // namespace is copied without that key rather than refused whole.
-      const { cross_project, ...rest } = value as Record<string, unknown>;
-      if (cross_project !== undefined) refused.push('retrieval.cross_project');
-      allowed[key] = rest;
-      continue;
-    }
-    allowed[key] = value;
+    fs.rmSync(legacyPath, { force: true });
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  return { allowed, refused };
+/**
+ * `mode` rewritten to the `quiz` namespace that replaced it, one file at a time.
+ *
+ * This stays forever. A config written against `mode` outlives the rename by
+ * years, and dropping the alias would not error -- `coerce` ignores keys it does
+ * not know, so the dial would silently revert to the default.
+ *
+ * It runs **per file, before `mergeConfigs`**, and that is the whole subtlety.
+ * Resolving the alias on the merged object instead makes the two precedence
+ * rules fight: within one file an explicit `quiz` should beat a `mode` left
+ * lying beside it, and across files the project should beat the global whichever
+ * spelling each one used. Merged first, a global `quiz` silently outranked a
+ * project `mode`.
+ */
+function normalizeLegacyKeys(raw: Record<string, unknown>): Record<string, unknown> {
+  const fromMode =
+    raw.mode === 'ambient'
+      ? { enabled: true, enforced: false }
+      : raw.mode === 'enforced'
+        ? { enabled: true, enforced: true }
+        : raw.mode === 'off'
+          ? { enabled: false, enforced: false }
+          : null;
+  if (!fromMode) return raw;
+
+  // `mode` is dropped rather than carried along, so `overrides` compares the one
+  // key that now means something and nothing downstream sees two spellings.
+  const { mode: _mode, ...rest } = raw;
+  const explicit = raw.quiz && typeof raw.quiz === 'object' && !Array.isArray(raw.quiz)
+    ? (raw.quiz as Record<string, unknown>)
+    : {};
+  return { ...rest, quiz: { ...fromMode, ...explicit } };
 }
 
 /**
@@ -666,31 +771,71 @@ function mergeConfigs(
 
 export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   const globalPath = globalConfigPath();
-  const { repoPath, repoRoot } = findRepoConfig(cwd);
+  const { repoRoot } = findRepoConfig(cwd);
 
-  const globalRaw = readJson(globalPath) ?? {};
-  const repoRawAll = repoPath ? (readJson(repoPath) ?? {}) : {};
-  const { allowed: repoRaw, refused } = withoutRepoOnlyGlobals(repoRawAll);
-  const raw = mergeConfigs(globalRaw, repoRaw);
+  // A worktree is a branch of the same codebase, not a new project to configure
+  // from scratch -- the same fold `projectKey` applies to levels and mastery.
+  const projectRoot = repoRoot ? mainRepoRoot(repoRoot) : null;
+  const projectPath = projectRoot ? projectConfigPath(projectRoot) : null;
 
-  const overrides = Object.keys(repoRaw).filter(
+  // Read-only, deliberately and permanently: see `migrateLegacyRepoConfig`.
+  let projectRaw: Record<string, unknown> = {};
+  if (repoRoot && projectRoot && projectPath) {
+    const onDisk = readJson(projectPath);
+    if (onDisk && belongsTo(onDisk, projectRoot)) {
+      projectRaw = onDisk;
+    } else if (!onDisk) {
+      // Nothing outside the checkout yet. A legacy file still sitting in the
+      // repo is read until the next session moves it, so settings never stop
+      // applying in the window before the migration runs. A file that *is*
+      // there but belongs to another checkout falls through to global instead:
+      // that is a slug collision, and the legacy file is not the answer to it.
+      // From the checkout you are standing in: in a worktree that is where the
+      // committed copy actually is, and the main root may already be migrated.
+      projectRaw = readJson(path.join(repoRoot, LEGACY_REPO_CONFIG_FILE)) ?? {};
+    }
+  }
+
+  const globalRaw = normalizeLegacyKeys(readJson(globalPath) ?? {});
+  const projectNormalized = normalizeLegacyKeys(withoutBookkeeping(projectRaw));
+  const raw = mergeConfigs(globalRaw, projectNormalized);
+
+  const overrides = Object.keys(projectNormalized).filter(
     (key) =>
-      key in globalRaw && JSON.stringify(globalRaw[key]) !== JSON.stringify(repoRaw[key]),
+      key in globalRaw &&
+      JSON.stringify(globalRaw[key]) !== JSON.stringify(projectNormalized[key]),
   );
 
   return {
     config: coerce(raw, DEFAULT_CONFIG),
     raw,
     globalPath,
-    repoPath,
+    projectPath,
     repoRoot,
     overrides,
-    refusedRepoKeys: refused,
   };
 }
 
-/** The settings a repository is not allowed to set. Exported for the docs and the CLI. */
-export const REPO_FORBIDDEN_KEYS: readonly string[] = [...GLOBAL_ONLY, ...GLOBAL_ONLY_KEYS];
+/**
+ * Whether a project config file is about the checkout we are asking about.
+ *
+ * `projectSlug` folds `/` and `-` together, so `/a/b-c` and `/a-b/c` land in
+ * one directory. The slug stays readable -- that is what it is for -- and this
+ * catches the collision instead: a file that names a different checkout is not
+ * this project's configuration, so it is ignored rather than applied to the
+ * wrong repository. A file written before `project` was recorded has nothing to
+ * disagree with and is trusted, which is what makes the field safe to add.
+ */
+function belongsTo(raw: Record<string, unknown>, repoRoot: string): boolean {
+  return typeof raw.project !== 'string' || raw.project === repoRoot;
+}
+
+/** `project` is bookkeeping for `belongsTo`, never a setting. */
+function withoutBookkeeping(raw: Record<string, unknown>): Record<string, unknown> {
+  if (!('project' in raw)) return raw;
+  const { project: _project, ...rest } = raw;
+  return rest;
+}
 
 /** One config file's raw contents, or `{}`. Exported so a caller building a
  *  patch can merge against what is actually in the file it is about to write. */

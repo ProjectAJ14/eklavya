@@ -63,7 +63,7 @@ not a follow-up ticket — they ship in the same commit as the code.
 That applies to:
 
 - a new or renamed config key, or a changed default
-- a new value for `mode`, `focus`, `cadence` or `difficulty` — or a fifth dial
+- a new value for `quiz`, `focus`, `cadence` or `difficulty` — or another dial
 - a new, renamed or removed slash command, or a change to what `user-skill/` can do
 - a change to the concept graph's shape — a new seed domain, or anything about
   the pack format in `mcp/src/packs.ts`
@@ -73,7 +73,10 @@ That applies to:
 
 The page went stale exactly this way once: it shipped describing `mode` alone,
 then `focus` and `cadence` landed and the page kept promising two dials and
-five commands. Treat it like a test that has to be updated with the code.
+five commands. It happened a second way too — the `#dials` card called
+`mode: off` "installed but dormant" when memory went on recording, and the
+manual said the opposite on the same deploy. Treat the page like a test that has
+to be updated with the code.
 
 Concretely, when you change behaviour, check these against the diff:
 
@@ -81,7 +84,7 @@ Concretely, when you change behaviour, check these against the diff:
 |---|---|
 | hero terminal script | the real loop for the default config |
 | `#how` steps and tier ladder | the actual sequence and tier meanings |
-| `#dials` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts`, defaults included |
+| `#dials` | `QuizConfig`, `Focus`, `Cadence`, `Difficulty`, `MemoryConfig` in `mcp/src/config.ts`, defaults included |
 | `#commands` | the user-invocable skills under `skills/`, plus `user-skill/` |
 | data card, install/CTA blocks | `paths.ts`, the setup skill's requirements |
 
