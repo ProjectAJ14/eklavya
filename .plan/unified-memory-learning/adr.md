@@ -156,3 +156,43 @@ genuine emptying, and the two are indistinguishable at the moment of the write
 did empty could never be corrected).
 
 **Rollback.** One conditional.
+
+## ADR-09 — Sync is a shared directory. The hosted team server is not built.
+
+**Choice.** Multi-device synchronisation ships as a **transport-agnostic
+directory target**: each device writes revision records and tombstones into a
+folder both devices can see, and pulls what the others wrote. Dropbox, iCloud
+Drive, Syncthing, a mounted share, or a git repository all work, because none of
+them is a dependency — the target is a path.
+
+The hosted, multi-tenant, authenticated team server in the PRD's Phase 6 is
+**not built**, and this ADR is where that is recorded rather than left to be
+discovered as a missing feature.
+
+**Evidence for the directory.** It is the shape that is testable here and now:
+the whole protocol is files on disk, so conflict quarantine, tombstone
+propagation and offline recovery all have deterministic tests against two
+temporary directories. It also covers what "sync my two machines" actually
+means for the developer this tool is for, which is the requirement behind the
+parity row.
+
+**Evidence against building the server now.** A hosted service is not a module,
+it is an operation: accounts, tenancy, key rotation, backups, an availability
+promise, a security boundary that is somebody's job on a Sunday, and a
+deployment target none of which exists. Written speculatively it would be
+several thousand lines that nobody can run, nobody can test against a real
+tenant, and nobody has agreed to operate — the PRD itself says Eklavya "does
+not acquire or operate another company's SaaS by copying its client", and
+writing one from scratch with no operator is the same mistake in the other
+direction.
+
+**What this costs, stated plainly.** Team-shared project memory, scoped API
+tokens and server-side job administration are **not** available. The parity
+ledger records them as a declined scope item, not as done. A team that wants
+shared memory today can point every member's sync target at one shared
+directory, which gives sharing without giving tenancy — and tenancy is the part
+that needs an operator.
+
+**Reversal.** The sync use cases are written against a `SyncTarget` port with
+one implementation. A hosted backend is a second implementation plus the
+operational commitment; nothing in the domain or the schema assumes a directory.
