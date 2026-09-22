@@ -263,17 +263,46 @@ own data was never written to. It passed:
 | Source renamed away | a fresh session still recalls — no dependency on Claude Mem's file |
 | Export → restore | 23MB out, 4,377 entries + 1,692 evidence back, learning untouched |
 
-**One real gap it found.** The import creates **zero** `memory_entry_events`
-links, so an imported observation has no drill-down to the imported evidence:
-`memory_get` with `include_evidence` and the dashboard's raw-evidence view are
-both empty for imported rows. The restore is not at fault — it faithfully
-restored the zero.
+**One real gap it found, now closed.** The import created **zero**
+`memory_entry_events` links, so an imported observation had no drill-down to the
+imported evidence: `memory_get` with `include_evidence` and the dashboard's
+raw-evidence view were both empty for imported rows. The restore was not at
+fault — it faithfully restored the zero.
 
-The join exists in the source and the importer is not using it:
-`tool_uses.observation_id` is a direct key, with
-`(memory_session_id, prompt_number)` as the fallback where it is null. Next step
-is to measure how many rows actually carry each on real data, then link them
-during the import and add a test.
+Both candidate joins were measured on the real source before either was built:
+
+| Join | Coverage |
+|---|---|
+| `tool_uses.observation_id` (direct key) | 842 of 1,146 tool uses — but only **220 of 4,036** distinct observations |
+| `(memory_session_id, prompt_number)`, prompts → observations | **4,036 of 4,036**, one prompt each, no fan-out |
+| The same pair applied to tool uses | recovers **0** of the 304 keyless rows — every one is missing `prompt_number` too — and would fan 842 precise links out to 2,598 fuzzy ones |
+
+So: direct key for tool uses, the pair for prompts, and no fallback for tool
+uses at all. `user_prompts` carries no `memory_session_id`, so a prompt's
+session resolves through `sdk_sessions` — the same hop the importer already
+makes for a prompt's project. Both sides go through `import_id_map`, so a
+resumed import links correctly and an unmapped row is skipped rather than
+written dangling; `INSERT OR IGNORE` keeps a second import at zero new links.
+
+Verified on the real copy again: **4,878 links**, every one of the 4,036
+observation entries now carrying evidence, 1,121 of 1,691 events linked — the
+570 left over are the 304 orphan tool uses and 266 prompts whose turn produced
+no observation. Four new tests; suite at 862 across 38 files (`bbbcefc`).
 
 `/tmp/ek-cutover/` held the rehearsal and can be deleted; nothing in it is
 needed again.
+
+## What is left
+
+Two things, and neither can be done from an agent session:
+
+1. **The acceptance test `CONTRIBUTING.md` defines** — a live interactive
+   session where the model asks its question mid-task. A transcript of it goes
+   in the PR body.
+2. **The real cutover** — the same import, against the developer's actual
+   `~/.claude-mem/claude-mem.db`, writing to their actual `~/.eklavya/`. The
+   rehearsal is the evidence that it will work; it is not a substitute for
+   running it.
+
+The PR body is written and waiting at `.plan/unified-memory-learning/pr-body.md`;
+the PR itself is not opened.
