@@ -70,11 +70,14 @@ what keeps the scan linear and predictable: at 20,000 entries a hybrid query is
 17ms with it, and would climb without it. It is documented in the manual rather
 than hidden, and the number to change if it ever bites is that one constant.
 
-**Measured.** `eval/memory-perf.mjs`, baselines in `eval/results/`. At 20,000
-entries on an M-series laptop: capture 0.03ms, the startup display 0.03ms and
-recall 0.14ms — all three constant in corpus size, which matters because all
-three sit on the path of a human action. Hybrid search is 17ms, on an agent's
-path where it is invisible.
+**Measured.** `eval/memory-perf.mjs`, baselines in `eval/results/`. At **100,000
+entries and 1,000,000 evidence events** on an M-series laptop: capture 0.03ms,
+the startup display 0.05ms and seam recall 0.15ms — all constant in corpus size
+across 50x, which matters because all three sit on the path of a human action.
+Semantic search is flat at 5.3ms, which is the 5,000-vector bound in this ADR
+doing exactly what it was chosen for; keyword is 51ms and hybrid 58ms, on an
+agent's path, and slightly worse than linear against a fixture whose small
+vocabulary makes nearly every entry match nearly every query.
 
 **Rollback.** `embedder_id` is stored per vector; switching re-embeds in a
 background job and the old vectors are ignored, then deleted.
@@ -353,12 +356,21 @@ its job.
   it. The cutover rehearsal against a real 30MB database is the evidence that
   actually mattered, and it was run. *Reverses* if a parity dispute comes up
   that row counts and spot searches cannot settle.
-- **The performance fixture at its stated scale.** quality.md names 100,000
-  entries, 1,000,000 evidence events and 10 concurrent sessions; the committed
-  results are single-session at 2k and 20k. The 20k numbers are real and the
-  shape they show is flat, but they are **not** the agreed fixture and this
-  ledger should not have implied otherwise. *Reverses* — and should — before
-  anyone claims a performance guarantee at team scale.
+- **The performance fixture's concurrency axis only.** The entry axis is now
+  closed: the fixture was run at 100,000 entries and 1,000,000 evidence events
+  (`eval/results/2026-09-22-memory-perf-100k*.json`), and it earned its keep by
+  finding a defect rather than a number — `evidence_events` had no index on
+  `batch_id`, so summarising one fixed-size batch scanned every event ever
+  captured, 613ms at a million of them, quadratic over a database's life.
+  Migration 014 fixes it; 613ms became 1ms. The four numbers on a human's path
+  are flat across 50x the corpus.
+
+  What stays undone is **10 concurrent sessions**, which needs a harness that
+  does not exist. *Reverses* before anyone claims a guarantee at team scale —
+  and the entry-axis result is the argument for doing it: the 2k and 20k runs
+  pinned the evidence-event axis, reported a comfortable 1.1ms, and hid a
+  quadratic. A baseline that holds an axis still is not a baseline, it is a
+  shape someone chose.
 
 **Evidence.** The audit itself: 84 requirements, each checked against a
 `file:line` rather than against this document's own claims. The three false
