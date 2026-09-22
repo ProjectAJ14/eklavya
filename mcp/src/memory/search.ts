@@ -22,6 +22,13 @@ export interface SearchFilter {
   since?: string | null;
   until?: string | null;
   limit?: number;
+  /**
+   * Skip the OR widening below. For a browsing search, widening is right —
+   * something is better than nothing. For a gate deciding whether to interrupt
+   * a developer mid-turn, it is the opposite: a match on one incidental word
+   * is not a reason to spend their context.
+   */
+  strict?: boolean;
 }
 
 export interface SearchHit {
@@ -93,8 +100,8 @@ export function keywordSearch(db: DB, query: string, filter: SearchFilter = {}):
 
   const andQuery = ftsQuery(query, 'AND');
   if (!andQuery) return [];
-  const strict = run(andQuery);
-  if (strict.length) return strict;
+  const exact = run(andQuery);
+  if (exact.length || filter.strict) return exact;
   // Nothing matched every term. Widen rather than return nothing: a developer
   // searching "refresh cookie rotation" wants the rotation note even if the
   // wording differs.

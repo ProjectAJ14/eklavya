@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { dashboardState } from '../src/dashboard.js';
-import { countEntries, receiptTotals, timeline } from '../src/memory/store.js';
+import { countEntries, insertEntry, receiptTotals, timeline } from '../src/memory/store.js';
 import { savingsFrom } from '../src/memory/tokens.js';
 import { projectKey } from '../src/store.js';
 
@@ -168,5 +168,53 @@ describe('the memory loop, end to end through the real hooks', () => {
         expect(hook(script, input).status).toBe(0);
       }
     }
+  });
+});
+
+describe('recall mid-session, on a change of subject', () => {
+  function recalledFrom(stdout: string): string | null {
+    if (!stdout.trim().startsWith('{')) return null;
+    try {
+      const parsed = JSON.parse(stdout) as { hookSpecificOutput?: { additionalContext?: string } };
+      return parsed.hookSpecificOutput?.additionalContext ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Straight into the store: this is about retrieval, not about capture. */
+  function remember(title: string, narrative: string) {
+    insertEntry(db, { project, title, narrative });
+  }
+
+  it('hands back what the project knows about the thing just asked for', () => {
+    remember('Rotated the refresh cookie on every use', 'The jti is stored so a replayed cookie is rejected once.');
+    const res = prompt('s1', 'Why does the refresh cookie rotation store a jti rather than the token itself?');
+    const context = recalledFrom(res.stdout);
+    expect(context).toContain('<eklavya-memory');
+    expect(context).toContain('refresh cookie');
+  });
+
+  it('says nothing twice about the same entry, so a recall is not a per-turn tax', () => {
+    remember('Rotated the refresh cookie on every use', 'The jti is stored per refresh.');
+    const first = recalledFrom(prompt('s1', 'Why does the refresh cookie rotation store a jti rather than the token?').stdout);
+    expect(first).toContain('refresh cookie');
+    const second = recalledFrom(prompt('s1', 'And why does the refresh cookie rotation store a jti at all?').stdout);
+    expect(second).toBeNull();
+  });
+
+  it('stays silent on a prompt too short to be about anything', () => {
+    remember('Rotated the refresh cookie on every use', 'The jti is stored per refresh.');
+    // "carry on" matches whatever happens to share a word, and a recall on
+    // that is pure cost.
+    expect(recalledFrom(prompt('s1', 'carry on').stdout)).toBeNull();
+    expect(recalledFrom(prompt('s1', 'yes do that').stdout)).toBeNull();
+  });
+
+  it('stays silent when nothing in the project matches', () => {
+    remember('Rotated the refresh cookie on every use', 'The jti is stored per refresh.');
+    expect(
+      recalledFrom(prompt('s1', 'Set up a kubernetes horizontal pod autoscaler for the worker deployment').stdout),
+    ).toBeNull();
   });
 });

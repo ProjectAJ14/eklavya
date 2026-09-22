@@ -92,6 +92,19 @@ Three retrieval modes, set by `retrieval.mode` and overridable per search:
 
 **What "semantic" honestly means here.** The default embedder is `local-hash-v1`: a dependency-free 256-dimension vector of hashed tokens and hashed character 4-grams, L2-normalised and compared by cosine. The n-grams are what make it more than keyword matching — `migrations`, `migration` and `migrating` land in overlapping buckets, and so do typos. It does **not** know that `cookie` and `session token` are about the same thing. That needs a trained model. Set `providers.embeddings` if you want one; every vector records the embedder that produced it, so vectors from two different models are never compared.
 
+**Recall happens twice, and the second time is fussier.** At the start of a
+session Eklavya hands the agent the project's recent history — at a seam,
+offering recent work is right whatever you type next. Then, on a prompt long
+enough to be about something, it looks again for what bears on *that* prompt
+specifically, which is what catches a change of subject mid-session.
+
+The second one is silent far more often than it speaks, deliberately. It has a
+third of the budget, it never re-sends an entry this session has already been
+given, and an entry has to clear a relevance bar rather than merely rank
+highest among few — either every word of your prompt appears in it, or its
+vector is close enough to mean the same subject rather than the same general
+area. A prompt that matches nothing costs nothing.
+
 **Japanese, Chinese and other unspaced scripts need the default mode.** SQLite's
 full-text tokenizer has no word boundaries for them, so `セッション管理` inside a
 longer run of kana and kanji is one token and `keyword` mode will not find it.

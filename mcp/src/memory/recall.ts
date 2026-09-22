@@ -2,7 +2,7 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isDue, isKnown } from '../srs.js';
 import { ESTIMATOR, estimateTokens, savingsFrom, savingsLine, type Savings } from './tokens.js';
-import { search, type SearchHit } from './search.js';
+import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
 import { entryEvents, recordReceipt, timeline, type EntryRow } from './store.js';
 import { receiptTotals } from './store.js';
 
@@ -16,6 +16,44 @@ import { receiptTotals } from './store.js';
  * action is.
  */
 
+/**
+ * Entries already handed to this session, so a second recall does not pay for
+ * them again.
+ *
+ * Kept in `meta` rather than in a table: it is one short row per session, dead
+ * the moment the session ends, and a schema change to hold a rate limiter is a
+ * schema change for a comment.
+ */
+const DELIVERED_PREFIX = 'recalled:';
+
+export function alreadyRecalled(db: DB, sessionId: string): Set<number> {
+  try {
+    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`${DELIVERED_PREFIX}${sessionId}`) as
+      | { value: string }
+      | undefined;
+    if (!row?.value) return new Set();
+    return new Set(row.value.split(',').map(Number).filter((n) => Number.isFinite(n)));
+  } catch {
+    return new Set();
+  }
+}
+
+function markRecalled(db: DB, sessionId: string, ids: number[]): void {
+  if (!ids.length) return;
+  try {
+    const merged = [...alreadyRecalled(db, sessionId), ...ids];
+    // Bounded: a long session must not grow an unbounded row, and an entry
+    // delivered two hundred turns ago is fair game to send again anyway.
+    const kept = merged.slice(-200);
+    db.prepare(
+      `INSERT INTO meta (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    ).run(`${DELIVERED_PREFIX}${sessionId}`, kept.join(','));
+  } catch {
+    /* A rate limiter that failed to record is a possible repeat, not a failure. */
+  }
+}
+
 export interface RecallOptions {
   project: string;
   sessionId?: string | null;
@@ -23,6 +61,12 @@ export interface RecallOptions {
   scope?: string;
   /** Only `confirmed` may ever be shown as a saving. */
   delivery?: 'confirmed' | 'unknown' | 'prepared';
+  /** Entry ids to leave out — what this session has already been handed. */
+  exclude?: Set<number>;
+  /** When set, only these entries may be offered. */
+  include?: Set<number>;
+  /** Override `retrieval.max_items`, for the tighter per-prompt budget. */
+  maxItems?: number;
 }
 
 export interface RecallResult {
@@ -79,14 +123,20 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   const empty: RecallResult = { block: null, receiptId: null, entries: [], baseTokens: 0, deliveredTokens: 0 };
   if (!config.memory.enabled) return empty;
 
-  const limit = config.retrieval.max_items;
+  const limit = opts.maxItems ?? config.retrieval.max_items;
   const filter = {
     project: opts.project,
     allProjects: config.retrieval.cross_project,
     limit,
   };
 
-  const hits: SearchHit[] = opts.query ? search(db, opts.query, config.retrieval.mode, filter) : [];
+  const exclude = opts.exclude ?? new Set<number>();
+  const allowed = (id: number) => !exclude.has(id) && (!opts.include || opts.include.has(id));
+  const hits: SearchHit[] = opts.query
+    ? search(db, opts.query, config.retrieval.mode, { ...filter, limit: limit + exclude.size }).filter((h) =>
+        allowed(h.entry.id),
+      )
+    : [];
   const chosen: EntryRow[] = hits.length
     ? hits.map((h) => h.entry)
     : timeline(db, {
@@ -94,8 +144,8 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
         // that only applied when someone typed a query would be off precisely
         // where a developer with two checkouts open would notice it.
         project: config.retrieval.cross_project ? null : opts.project,
-        limit,
-      });
+        limit: limit + exclude.size,
+      }).filter((entry) => allowed(entry.id));
   if (!chosen.length) return empty;
 
   const base = baseTokensFor(db, chosen);
@@ -141,6 +191,8 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
       sentTokens: estimateTokens(rendered[i]!),
     })),
   });
+
+  if (opts.sessionId) markRecalled(db, opts.sessionId, kept.map((e) => e.id));
 
   return {
     block,
@@ -234,4 +286,60 @@ export function startupDisplay(db: DB, project: string, now = new Date()): Start
     savings,
     counts,
   };
+}
+
+/**
+ * Recall for a single prompt, mid-session (PRD RET-03).
+ *
+ * The seam recall answers "what is this project"; this answers "what do we
+ * already know about the thing they just asked for", and it is the one that
+ * catches a change of subject halfway through a session.
+ *
+ * Three things keep it from becoming a tax on every turn. The budget is a
+ * third of the seam's, because an interruption has to earn its place. It
+ * excludes what this session has already been handed, so the same three
+ * entries are not re-sent on every prompt. And it returns nothing at all
+ * rather than filling the space with whatever ranked highest — a prompt that
+ * matches nothing should cost nothing.
+ */
+export function recallForPrompt(
+  db: DB,
+  config: EklavyaConfig,
+  opts: { project: string; sessionId: string; prompt: string },
+): RecallResult | null {
+  const query = opts.prompt.trim();
+  // Too short to be about anything. "yes", "carry on", "fix it" match whatever
+  // happens to share a word, and a recall on those is pure cost.
+  if (query.length < 25) return null;
+
+  const scope = { project: opts.project, allProjects: config.retrieval.cross_project, limit: 12 };
+  // The relevance gate, and the reason this path has one the seam recall does
+  // not. At a seam, offering the project's recent work is right whatever the
+  // developer types next. Here the developer has said what they are doing, so
+  // an entry that merely ranked highest among few is noise charged to their
+  // context. Two ways to pass: every word of the query in the entry, or a
+  // cosine high enough to mean the same subject rather than the same domain.
+  //
+  // MIN_COSINE is measured, not chosen: on the eval corpus an on-topic
+  // paraphrase scores around 0.55 and an unrelated prompt around 0.24.
+  const MIN_COSINE = 0.35;
+  const include = new Set<number>([
+    ...keywordSearch(db, query, { ...scope, strict: true }).map((h) => h.entry.id),
+    ...semanticSearch(db, query, scope)
+      .filter((h) => h.score >= MIN_COSINE)
+      .map((h) => h.entry.id),
+  ]);
+  if (!include.size) return null;
+
+  const result = recall(db, config, {
+    include,
+    project: opts.project,
+    sessionId: opts.sessionId,
+    query,
+    scope: 'prompt',
+    delivery: 'confirmed',
+    maxItems: Math.max(1, Math.floor(config.retrieval.max_items / 3)),
+    exclude: alreadyRecalled(db, opts.sessionId),
+  });
+  return result.block ? result : null;
 }

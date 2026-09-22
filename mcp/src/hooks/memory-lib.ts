@@ -12,7 +12,7 @@ import { identityFor, type EvidenceIdentity } from '../memory/identity.js';
 import { capture, drainSpool, type HostEvent } from '../memory/capture.js';
 import { batchSession, pendingEventCount } from '../memory/store.js';
 import { processPending } from '../memory/worker.js';
-import { recall } from '../memory/recall.js';
+import { recall, recallForPrompt } from '../memory/recall.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
 import { countEntries } from '../memory/store.js';
 import { queueDepth } from '../memory/worker.js';
@@ -115,6 +115,32 @@ export function recallBlock(db: DB, resolved: ResolvedConfig, identity: Evidence
       delivery: 'confirmed',
     });
     return result.block;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recall for one prompt, mid-session, or null.
+ *
+ * Silent far more often than not: too short a prompt, nothing relevant, or
+ * nothing this session has not already been handed. That is the design — a
+ * recall on every turn is a tax on every turn.
+ */
+export function promptRecall(
+  db: DB,
+  resolved: ResolvedConfig,
+  identity: EvidenceIdentity,
+  prompt: string,
+): string | null {
+  try {
+    if (!resolved.config.memory.enabled) return null;
+    const result = recallForPrompt(db, resolved.config, {
+      project: identity.project,
+      sessionId: identity.sessionId,
+      prompt,
+    });
+    return result?.block ?? null;
   } catch {
     return null;
   }
