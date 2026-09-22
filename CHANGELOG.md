@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/ProjectAJ14/eklavya/compare/v1.19.2...v1.20.0) (2026-09-22)
+
+
+### Features
+
+* **hooks:** glanceable session-start banner ([b3599f7](https://github.com/ProjectAJ14/eklavya/commit/b3599f7afc64096ad3d4a0e4be4a6a2d33db1ee3))
+
 ## [1.19.2](https://github.com/ProjectAJ14/eklavya/compare/v1.19.1...v1.19.2) (2026-09-22)
 
 
