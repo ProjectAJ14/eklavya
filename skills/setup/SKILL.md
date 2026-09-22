@@ -28,7 +28,7 @@ The server creates and seeds it on first start, and `npx eklavya install` create
 - **enforced** — the session quiz must pass before a commit goes through; for interns and onboarding
 - **no questions** — `quiz.enabled: false`. Say in the same breath that this stops the questions only: memory keeps recording, and `memory.enabled` is the separate switch for that. People choose this one meaning "off" and are surprised either way if nobody tells them which half stopped.
 
-Then `set_config` with their choice — `quiz: { enforced: true }` for the gate, `quiz: { enabled: false }` for silence. Use `scope: "project"` if they want it to apply to this codebase only — that writes `~/.eklavya/projects/<checkout>/config.json`, in their own home directory. Nothing is written into the repository, so the setting is theirs and not their team's. Otherwise global.
+Then `set_config` with their choice — `quiz: { enforced: true }` for the gate, `quiz: { enabled: false }` for silence. Always global: **do not ask whether it should apply to this project only.** Setup configures the learner, not a codebase. If they say unprompted that they want a per-project setting, use `scope: "project"` for that key; it writes `~/.eklavya/projects/<checkout>/config.json`, in their home directory, never the repository.
 
 **3b. Choose a focus.** One more question, because it changes every quiz. The setting above is how hard Eklavya pushes; focus is what it teaches.
 

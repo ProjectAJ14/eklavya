@@ -894,6 +894,11 @@ function withoutBookkeeping(raw: Record<string, unknown>): Record<string, unknow
   return rest;
 }
 
+/** The global file alone, coerced: what `eklavya install` shows and writes. */
+export function loadGlobalConfig(): EklavyaConfig {
+  return coerce(normalizeLegacyKeys(readJson(globalConfigPath()) ?? {}), DEFAULT_CONFIG);
+}
+
 /** One config file's raw contents, or `{}`. Exported so a caller building a
  *  patch can merge against what is actually in the file it is about to write. */
 export function readConfigFile(file: string): Record<string, unknown> {

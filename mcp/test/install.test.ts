@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { buildSource } from './claude-mem-fixture.js';
+import { pick } from '../src/onboard.js';
 
 /**
  * `eklavya install` writes three files that belong to Claude Code, not to us:
@@ -28,9 +29,10 @@ let claudeMemHome = '';
 
 const readJson = (p: string) => JSON.parse(fs.readFileSync(p, 'utf8'));
 
-function run(args: string[]) {
+function run(args: string[], cwd?: string) {
   const res = spawnSync(process.execPath, [CLI, ...args], {
     encoding: 'utf8',
+    cwd,
     env: {
       ...process.env,
       CLAUDE_CONFIG_DIR: claudeHome,
@@ -334,6 +336,14 @@ describe('install with Claude Mem present', () => {
     const projects = db.prepare('SELECT DISTINCT project FROM memory_entries').all() as { project: string }[];
     db.close();
     expect(projects.map((p) => p.project)).toContain(checkout);
+
+    // The move is finished: a later install, with no terminal to ask, must not
+    // see the switched-off plugin as Claude Mem still recording -- that path
+    // picks "keep Claude Mem" and would turn Eklavya's memory back off.
+    const later = install();
+    expect(later.stdout).not.toMatch(/claude-mem/i);
+    expect(later.stdout).toMatch(/memory\s+on/);
+    expect(memoryEnabled()).toBeUndefined();
   });
 
   it('choosing Claude Mem turns Eklavya memory off and touches nothing of Claude Mem', () => {
@@ -381,6 +391,56 @@ describe('install with no Claude Mem', () => {
   });
 });
 
+describe('install walks the dials', () => {
+  it('without a terminal, shows every setting and writes nothing', () => {
+    const res = install();
+    for (const row of [/quiz\s+on/, /focus\s+concept/, /cadence\s+interleaved/, /difficulty\s+auto/, /memory\s+on/]) {
+      expect(res.stdout).toMatch(row);
+    }
+    expect(res.stdout).toContain('unchanged');
+    expect(fs.existsSync(path.join(eklavyaHome, 'config.json'))).toBe(false);
+  });
+
+  it('shows what was chosen before, not the defaults', () => {
+    fs.writeFileSync(
+      path.join(eklavyaHome, 'config.json'),
+      JSON.stringify({ quiz: { enabled: true, enforced: true }, focus: 'learn', focus_topic: 'oauth', cadence: 'end' }),
+    );
+    const out = install().stdout;
+    expect(out).toMatch(/quiz\s+enforced/);
+    expect(out).toMatch(/focus\s+learn · oauth/);
+    expect(out).toMatch(/cadence\s+end/);
+    expect(out).toContain('install-git-hook.sh');
+  });
+
+  it('says when the checkout it runs in overrides the global settings', () => {
+    const repo = path.join(eklavyaHome, 'repo');
+    fs.mkdirSync(repo);
+    spawnSync('git', ['init', '-q'], { cwd: repo });
+    expect(run(['config', 'set', 'focus', 'project', '--project'], repo).status).toBe(0);
+    const out = run(['install', '--skip-runtime'], repo).stdout;
+    expect(out).toMatch(/focus\s+concept/);
+    expect(out).toMatch(/this checkout overrides focus/);
+    expect(install().stdout).not.toContain('overrides');
+  });
+
+  it('refuses a --memory value it does not know, before touching anything', () => {
+    const res = run(['install', '--skip-runtime', '--memory', 'both']);
+    expect(res.status).toBe(1);
+    expect(fs.existsSync(path.join(claudeHome, 'settings.json'))).toBe(false);
+  });
+
+  it('reads Enter and "next" as keep, a number or a unique prefix as a change', () => {
+    const step = { current: 'concept', options: [{ value: 'concept' }, { value: 'project' }, { value: 'learn' }] } as Parameters<typeof pick>[0];
+    expect(pick(step, '')).toBe('concept');
+    expect(pick(step, 'next')).toBe('concept');
+    expect(pick(step, '2')).toBe('project');
+    expect(pick(step, 'LE')).toBe('learn');
+    expect(pick(step, '9')).toBeUndefined();
+    expect(pick(step, 'x')).toBeUndefined();
+  });
+});
+
 describe('what install says about the eklavya command', () => {
   // `npx eklavya install` leaves no `eklavya` on PATH, so promising one sends
   // the reader straight into `command not found` — which is exactly what it
@@ -397,7 +457,7 @@ describe('what install says about the eklavya command', () => {
     const name = process.platform === 'win32' ? 'eklavya.cmd' : 'eklavya';
     fs.writeFileSync(path.join(binDir, name), '');
     const out = installWithPath([binDir]);
-    expect(out).toContain('`eklavya doctor` here');
+    expect(out).toContain('`eklavya doctor` checks the wiring');
     expect(out).not.toContain('not on your PATH');
   });
 });
