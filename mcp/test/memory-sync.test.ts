@@ -437,3 +437,35 @@ describe('off by default', () => {
     expect(syncStatus(laptop, LAPTOP)).toMatchObject({ pending: 0, local_revision: 2 });
   });
 });
+
+describe('a device id names a directory, so it has to be one', () => {
+  it('refuses a pinned device id that would write outside the target', () => {
+    // `path.join(target, 'devices', '../../../../tmp/evil')` resolves happily,
+    // and `mkdirSync(..., { recursive: true })` creates whatever it names.
+    const db = openDb(':memory:');
+    try {
+      // Not the empty string: an empty pin means "not pinned", and mints one.
+      for (const bad of ['../../../../tmp/evil', 'a/b', 'has space', '.', '..', 'x'.repeat(65)]) {
+        const config = {
+          ...DEFAULT_CONFIG,
+          sync: { enabled: true, target: '/tmp/whatever', device_id: bad },
+        };
+        expect(() => deviceId(db, config), JSON.stringify(bad)).toThrow(/device_id|unsafe/i);
+      }
+    } finally {
+      db.close();
+    }
+  });
+
+  it('accepts the shape it mints for itself', () => {
+    const db = openDb(':memory:');
+    try {
+      const minted = deviceId(db, DEFAULT_CONFIG);
+      expect(minted).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+      const pinned = { ...DEFAULT_CONFIG, sync: { enabled: true, target: '/tmp/x', device_id: 'laptop-2' } };
+      expect(deviceId(db, pinned)).toBe('laptop-2');
+    } finally {
+      db.close();
+    }
+  });
+});

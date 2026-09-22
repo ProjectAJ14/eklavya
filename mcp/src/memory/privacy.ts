@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+
 /**
  * The privacy filter every capture path runs through (PRD CAP-02, SEC-01).
  *
@@ -95,10 +97,33 @@ export function redact(text: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): R
   return { text: out, redacted: kinds.length > 0, kinds: [...new Set(kinds)] };
 }
 
-/** True when this path must never be captured at all. */
+/**
+ * True when this path must never be captured at all.
+ *
+ * Case-insensitive, and it follows a symlink where one exists. Both matter for
+ * the same reason: the list is a list of *files*, and a match that depends on
+ * how the path happened to be spelled is not an exclusion. On macOS and Windows
+ * `/repo/.ENV` is the same file as `/repo/.env`, and `notes.txt -> ../.env` is
+ * the same file again by another name.
+ *
+ * The realpath only runs when the literal comparison has already failed, so the
+ * common case costs nothing, and a path that does not exist keeps the answer
+ * the literal comparison gave.
+ */
 export function pathExcluded(file: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): boolean {
-  const normalised = file.replace(/\\/g, '/');
-  return policy.excludePaths.some((fragment) => normalised.includes(fragment));
+  const matches = (candidate: string): boolean => {
+    const normalised = candidate.replace(/\\/g, '/').toLowerCase();
+    return policy.excludePaths.some((fragment) => normalised.includes(fragment.toLowerCase()));
+  };
+
+  if (matches(file)) return true;
+  try {
+    const resolved = fs.realpathSync(file);
+    return resolved !== file && matches(resolved);
+  } catch {
+    // Not on disk, or not readable. The literal answer stands.
+    return false;
+  }
 }
 
 export function toolExcluded(tool: string | null | undefined, policy: PrivacyPolicy = DEFAULT_PRIVACY): boolean {

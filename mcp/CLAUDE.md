@@ -59,6 +59,17 @@ the server framed them another. Before shipping anything that touches `focus`,
 `grep -rin "defaults to project"` and `grep -rniE "focus.{0,12}default"` across
 `skills/`, `user-skill/`, `web/` and `mcp/src/`.
 
+**Four settings are global-only, and the rule is a security boundary rather
+than a preference.** `.eklavya.json` wins over the global config — that is what
+makes a lead's pinned mode work — and it is also a file you get by cloning. A
+dial is safe to inherit from a stranger; a setting with an effect *outside* the
+session is not. `notifications` runs a command, `sync` writes files,
+`providers` sends work to an API, and `retrieval.cross_project` widens what the
+model sees. `REPO_FORBIDDEN_KEYS` is the list, `loadConfig` enforces it on read
+and both writers enforce it on write, and `test/config-trust.test.ts` is the
+regression: a checked-in `command` sink plus the Stop hook's automatic wrap-up
+was arbitrary code execution on `git clone`.
+
 Six namespaces now sit beside the flat dials — `memory`, `privacy`,
 `retrieval`, `providers`, `notifications`, `sync` — and they are nested because
 every `.eklavya.json` already written uses the dials flat. `config-path.ts`

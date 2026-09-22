@@ -6,6 +6,7 @@ import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import { capture, prepare } from '../src/memory/capture.js';
+import { pathExcluded } from '../src/memory/privacy.js';
 import { identityFor } from '../src/memory/identity.js';
 import { insertEntry, timeline } from '../src/memory/store.js';
 import { hybridSearch, keywordSearch, semanticSearch } from '../src/memory/search.js';
@@ -215,5 +216,40 @@ describe('Q07 — a secret must not reach any sink', () => {
     };
     expect(prepare(strict, identity, { kind: 'file_edit', tool: 'Edit', body: 'x', files: ['/repo/internal/plan.md'] })).toBeNull();
     expect(prepare(strict, identity, { kind: 'tool_use', tool: 'WebFetch', body: 'https://example.com' })).toBeNull();
+  });
+});
+
+describe('the spellings an exclusion list has to survive', () => {
+  it('excludes a secret path whatever case it is reported in', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    // On macOS and Windows `/repo/.ENV` is the same file as `/repo/.env`, so a
+    // case-sensitive check excludes one spelling of a file and captures the other.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-case-'));
+    for (const name of ['.ENV', 'ID_RSA', 'SERVER.PEM']) {
+      const file = path.join(dir, name);
+      fs.writeFileSync(file, 'secret');
+      expect(pathExcluded(file), name).toBe(true);
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('follows a symlink, because a link to a secret is the secret', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-link-'));
+    fs.writeFileSync(path.join(dir, '.env'), 'API_KEY=x');
+    fs.symlinkSync(path.join(dir, '.env'), path.join(dir, 'notes.txt'));
+
+    expect(pathExcluded(path.join(dir, 'notes.txt'))).toBe(true);
+    // An ordinary file is still ordinary, and a path that is not on disk keeps
+    // the answer the literal comparison gave.
+    fs.writeFileSync(path.join(dir, 'real.ts'), 'x');
+    expect(pathExcluded(path.join(dir, 'real.ts'))).toBe(false);
+    expect(pathExcluded(path.join(dir, 'gone.ts'))).toBe(false);
+
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

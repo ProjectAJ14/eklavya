@@ -10,7 +10,15 @@ import { fileURLToPath } from 'node:url';
 import { openDb, type DB } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
-import { loadConfig, writeConfigFile, readConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG, findRepoConfig } from './config.js';
+import {
+  loadConfig,
+  writeConfigFile,
+  readConfigFile,
+  REPO_CONFIG_FILE,
+  REPO_FORBIDDEN_KEYS,
+  DEFAULT_CONFIG,
+  findRepoConfig,
+} from './config.js';
 import { isKnownKey, knownKeys, parseValue, patchFor } from './config-path.js';
 import { loadPacks, applyPacks } from './packs.js';
 import { levelStanding, projectKey } from './store.js';
@@ -248,6 +256,13 @@ function configCommand(args: string[]): void {
 
   let target: string;
   if (scopeRepo) {
+    // Same rule as `loadConfig` applies on read: refuse at the point of writing
+    // rather than let a setting land in the file and be ignored for ever.
+    if (REPO_FORBIDDEN_KEYS.some((k) => key === k || key.startsWith(`${k}.`))) {
+      fail(
+        `"${key}" can only be set globally. A repository config is a file you get by cloning, and this one runs a command, writes files or sends work off the machine.`,
+      );
+    }
     if (!resolved.repoRoot) fail('Not inside a git repository, so there is nowhere to write .eklavya.json.');
     target = resolved.repoPath ?? path.join(resolved.repoRoot, REPO_CONFIG_FILE);
   } else {

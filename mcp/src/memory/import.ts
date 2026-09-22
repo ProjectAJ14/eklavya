@@ -279,9 +279,24 @@ function sourceSchemaVersion(src: Database.Database, tables: Set<string>): numbe
  * seconds. Distinguishing them by magnitude is safe for any date this century
  * and costs nothing; guessing wrong would file a 2024 observation in 1970.
  */
+/**
+ * The largest instant a JS `Date` can represent. An epoch past it makes an
+ * Invalid Date, and `toISOString()` on one *throws*.
+ *
+ * That matters more than it looks: this runs per row, inside the import loop,
+ * and each row commits in its own transaction — so a single absurd timestamp
+ * in a source database would abort the run partway through with a raw stack
+ * trace, leaving the rows before it committed and nothing saying so. A source
+ * database is a file somebody hands us; it does not get to end the process.
+ */
+const MAX_EPOCH_MS = 8.64e15;
+
 function isoFromEpoch(epoch: number | null, fallback: string | null): string {
   if (typeof epoch === 'number' && Number.isFinite(epoch) && epoch > 0) {
-    return new Date(epoch < 1e12 ? epoch * 1000 : epoch).toISOString();
+    const ms = epoch < 1e12 ? epoch * 1000 : epoch;
+    if (Math.abs(ms) <= MAX_EPOCH_MS) return new Date(ms).toISOString();
+    // Out of range: fall through to the fallback, then to now. An unusable
+    // timestamp is worth losing; the observation it belongs to is not.
   }
   if (fallback) {
     const parsed = new Date(fallback);

@@ -309,6 +309,12 @@ export interface ResolvedConfig {
    * to know why their own setting stopped applying.
    */
   overrides: string[];
+  /**
+   * Settings the repo config tried to set and was not allowed to. Empty almost
+   * always; when it is not, somebody should look at why a checked-in file is
+   * trying to turn on a notification sink.
+   */
+  refusedRepoKeys: string[];
 }
 
 function realPath(p: string): string {
@@ -580,13 +586,92 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
 }
 
 /** Global config merged with the repo's, repo winning. */
+/**
+ * Settings a repository may not set, whatever its `.eklavya.json` says.
+ *
+ * `.eklavya.json` is a file you get by cloning. Repo-wins is right for the
+ * dials -- a lead pinning enforced mode on an onboarding codebase is the whole
+ * point -- because a dial only decides how hard Eklavya pushes *you*, and the
+ * worst a hostile one can do is ask you a question.
+ *
+ * These are different in kind. Each one has an effect outside the session:
+ *
+ *   notifications  runs a command, or POSTs somewhere
+ *   sync           writes files into a directory
+ *   providers      sends this machine's work to an API
+ *   retrieval.cross_project  puts another project's history in this session
+ *
+ * A checked-in config that could set the first of those was arbitrary code
+ * execution on `git clone` plus one session: the Stop hook fires the wrap-up
+ * by itself, and a `command` sink of `/bin/sh -c '...'` is whatever the
+ * attacker wrote. `shell: false` does not help when the command *is* a shell.
+ *
+ * So these are read from the global config only, and anything a repo tried to
+ * set is reported rather than dropped in silence -- a setting that quietly
+ * does nothing is its own kind of bug (CFG-01).
+ */
+const GLOBAL_ONLY = ['notifications', 'sync', 'providers'] as const;
+const GLOBAL_ONLY_KEYS = ['retrieval.cross_project'] as const;
+
+function withoutRepoOnlyGlobals(repoRaw: Record<string, unknown>): {
+  allowed: Record<string, unknown>;
+  refused: string[];
+} {
+  const allowed: Record<string, unknown> = {};
+  const refused: string[] = [];
+
+  for (const [key, value] of Object.entries(repoRaw)) {
+    if ((GLOBAL_ONLY as readonly string[]).includes(key)) {
+      refused.push(key);
+      continue;
+    }
+    if (key === 'retrieval' && value && typeof value === 'object' && !Array.isArray(value)) {
+      // One key of this namespace is global-only; the rest of it is not, so the
+      // namespace is copied without that key rather than refused whole.
+      const { cross_project, ...rest } = value as Record<string, unknown>;
+      if (cross_project !== undefined) refused.push('retrieval.cross_project');
+      allowed[key] = rest;
+      continue;
+    }
+    allowed[key] = value;
+  }
+
+  return { allowed, refused };
+}
+
+/**
+ * Global then repo, one level deep for the namespaces.
+ *
+ * A flat spread is right for the dials and wrong for the namespaces: a repo
+ * setting `memory.capture` would replace the whole `memory` object and take
+ * the developer's `memory.enabled` with it. One level is all the schema has,
+ * so one level is all this does.
+ */
+function mergeConfigs(
+  base: Record<string, unknown>,
+  over: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(over)) {
+    const existing = merged[key];
+    const bothObjects =
+      value !== null && typeof value === 'object' && !Array.isArray(value) &&
+      existing !== null && typeof existing === 'object' && !Array.isArray(existing);
+    merged[key] = bothObjects
+      ? { ...(existing as Record<string, unknown>), ...(value as Record<string, unknown>) }
+      : value;
+  }
+  return merged;
+}
+
 export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   const globalPath = globalConfigPath();
   const { repoPath, repoRoot } = findRepoConfig(cwd);
 
   const globalRaw = readJson(globalPath) ?? {};
-  const repoRaw = repoPath ? (readJson(repoPath) ?? {}) : {};
-  const raw = { ...globalRaw, ...repoRaw };
+  const repoRawAll = repoPath ? (readJson(repoPath) ?? {}) : {};
+  const { allowed: repoRaw, refused } = withoutRepoOnlyGlobals(repoRawAll);
+  const raw = mergeConfigs(globalRaw, repoRaw);
 
   const overrides = Object.keys(repoRaw).filter(
     (key) =>
@@ -600,8 +685,12 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
     repoPath,
     repoRoot,
     overrides,
+    refusedRepoKeys: refused,
   };
 }
+
+/** The settings a repository is not allowed to set. Exported for the docs and the CLI. */
+export const REPO_FORBIDDEN_KEYS: readonly string[] = [...GLOBAL_ONLY, ...GLOBAL_ONLY_KEYS];
 
 /** One config file's raw contents, or `{}`. Exported so a caller building a
  *  patch can merge against what is actually in the file it is about to write. */

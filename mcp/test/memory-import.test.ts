@@ -566,3 +566,29 @@ describe('restoreExport', () => {
     expect(() => restoreExport(db, path.join(snapshotDir, 'nope.json'))).toThrow(/No export file at/);
   });
 });
+
+describe('a source database does not get to end the process', () => {
+  it('survives a timestamp no Date can represent, and imports the row anyway', () => {
+    // Each observation commits in its own transaction, so an unguarded
+    // `new Date(...).toISOString()` throwing partway through would leave the
+    // rows before it committed and nothing saying so — a silent partial import
+    // with a stack trace where the report should be.
+    buildSource();
+    const src = new Database(sourcePath);
+    src.prepare("UPDATE observations SET created_at_epoch = 100000000000000000 WHERE id = 1").run();
+    src.close();
+
+    let report: ReturnType<typeof importFrom>;
+    expect(() => {
+      report = importFrom(db, sourcePath, {});
+    }).not.toThrow();
+
+    expect(report!.imported.observations).toBeGreaterThan(0);
+    expect(report!.validation.ok).toBe(true);
+    // The unusable timestamp is what was lost, not the observation.
+    const row = db.prepare('SELECT occurred_at FROM memory_entries ORDER BY id LIMIT 1').get() as {
+      occurred_at: string;
+    };
+    expect(Number.isNaN(Date.parse(row.occurred_at))).toBe(false);
+  });
+});

@@ -143,6 +143,28 @@ Each takes an object of three fields: `kind` (only `"anthropic"` today), `model`
 }
 ```
 
+### What a repository is not allowed to set
+
+`.eklavya.json` beats your global config, and that is the point: a lead pins
+enforced mode on an onboarding codebase and it applies to everyone working in
+it. It is also a file you get by **cloning**, which is fine for a dial — the
+worst a hostile one can do is ask you a question — and not fine for a setting
+with an effect outside the session.
+
+So four settings are yours alone, read from `~/.eklavya/config.json` and never
+from a repository:
+
+| Setting | Why it is not the repository's to make |
+| --- | --- |
+| `notifications` | Runs a command, or posts somewhere |
+| `sync` | Writes files into a directory |
+| `providers` | Sends this machine's work to an API |
+| `retrieval.cross_project` | Puts another project's history into this session |
+
+A repository that tries is ignored, and `eklavya config get` and
+`eklavya doctor` say so rather than leaving you to wonder. Writing one with
+`--repo` is refused at the point of writing.
+
 #### `notifications` — what gets sent out
 
 Off by default, and separately from everything else, because a notification

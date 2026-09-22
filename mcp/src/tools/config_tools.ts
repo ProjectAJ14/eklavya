@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import path from 'node:path';
-import { loadConfig, writeConfigFile, readConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from '../config.js';
+import {
+  loadConfig,
+  writeConfigFile,
+  readConfigFile,
+  REPO_CONFIG_FILE,
+  REPO_FORBIDDEN_KEYS,
+  DEFAULT_CONFIG,
+} from '../config.js';
 import { currentSurface } from '../surface.js';
 import { FALLBACK_SESSION_ID, isSessionOff, resolveSessionId, setSessionOff } from '../session.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
@@ -262,6 +269,27 @@ export const setConfig: ToolDef = {
             ? 'Questions are silenced for this session, but the repo is in enforced mode and the commit gate still holds — and it keeps growing, because work logged while you are silent still counts toward it. The quiz has to happen before a commit lands.'
             : undefined,
       };
+    }
+
+    if (scope === 'repo') {
+      // The same rule `loadConfig` enforces on read, enforced on write so the
+      // refusal is visible rather than a setting that lands in the file and is
+      // then ignored for ever.
+      const forbidden = Object.keys(patch).filter((key) => REPO_FORBIDDEN_KEYS.includes(key));
+      if (forbidden.length) {
+        return {
+          error: 'not_repo_scoped',
+          detail: `${forbidden.join(', ')} can only be set globally. A repository config is a file you get by cloning, and these run a command, write files or send work off the machine.`,
+        };
+      }
+      const crossProject = (patch.retrieval as Record<string, unknown> | undefined)?.cross_project;
+      if (crossProject !== undefined) {
+        return {
+          error: 'not_repo_scoped',
+          detail:
+            'retrieval.cross_project can only be set globally: it decides whether another project\'s history is visible here, which is not this project\'s decision to make.',
+        };
+      }
     }
 
     let target: string;

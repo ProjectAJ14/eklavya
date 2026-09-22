@@ -131,9 +131,25 @@ const DEVICE_ID_KEY = 'sync_device_id';
  *
  * `sync.device_id` in the config overrides it when someone means to pin it.
  */
+/**
+ * A device id becomes a directory name under the sync target, so it has to be
+ * one path segment and nothing else. Without this, a pinned
+ * `device_id: "../../../../tmp/evil"` writes outside the target — `path.join`
+ * resolves it happily and `mkdirSync(..., {recursive: true})` creates whatever
+ * it names.
+ */
+const DEVICE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
 export function deviceId(db: DB, config: EklavyaConfig): string {
   const pinned = config.sync.device_id?.trim();
-  if (pinned) return pinned;
+  if (pinned) {
+    if (!DEVICE_ID.test(pinned)) {
+      throw new Error(
+        `sync.device_id must be 1-64 characters of letters, digits, "-" or "_" (got ${JSON.stringify(pinned)}). It names a directory under the sync target.`,
+      );
+    }
+    return pinned;
+  }
 
   const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(DEVICE_ID_KEY) as
     | { value: string }
@@ -310,6 +326,11 @@ function scanLocal(db: DB): Staged[] {
 // ---------------------------------------------------------------------------
 
 function deviceDir(target: string, device: string): string {
+  // Belt and braces with the check in `deviceId`: every path built here is one
+  // segment under `<target>/devices`, and a peer's directory name arrives from
+  // `readdirSync` rather than from a record, but a single assertion at the one
+  // place paths are built is cheaper than trusting both.
+  if (!DEVICE_ID.test(device)) throw new Error(`unsafe device id: ${JSON.stringify(device)}`);
   return path.join(target, 'devices', device);
 }
 
