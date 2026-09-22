@@ -22,6 +22,11 @@ import { loadConfig, type ResolvedConfig } from '../config.js';
 import { readStdinBounded, stripBom, HOOK_STDIN } from '../stdin.js';
 import { withSurfaceNote } from '../surface.js';
 import { getCurrentSession } from '../session.js';
+import { minutesSince, NEVER, nowIso } from '../time.js';
+
+// The clock policy moved to `time.ts` so the memory half shares it; hooks and
+// tests still import these three from here.
+export { minutesSince, NEVER, nowIso };
 
 export type DB = Database.Database;
 
@@ -135,39 +140,6 @@ export function sessionId(input: HookInput, db: DB | null): string | null {
   } catch {
     return null;
   }
-}
-
-/** Minutes since a timestamp, or a number large enough to never gate. */
-export const NEVER = 999_999;
-
-/**
- * Minutes since a timestamp written by SQLite.
- *
- * This schema stores two shapes, and the difference is a trap. `strftime(...Z)`
- * is explicitly UTC, but `datetime('now')` — the default on `session_concepts.ts`
- * and `attempts.ts` — produces "2026-09-05 18:04:09": UTC, with nothing saying
- * so. `Date.parse` reads that as LOCAL time, so every cooldown came out wrong by
- * the machine's UTC offset, and west of UTC the elapsed time was negative and no
- * cooldown ever passed. The shell version never had this bug because `julianday`
- * assumes UTC for exactly this format.
- *
- * So: normalise to UTC before parsing, and never return a negative — a clock
- * that has moved backwards should read as "just now", not as "never".
- */
-export function minutesSince(ts: string | null | undefined): number {
-  if (!ts) return NEVER;
-
-  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(ts);
-  const normalised = hasZone ? ts : `${ts.replace(' ', 'T')}Z`;
-
-  const then = Date.parse(normalised);
-  if (Number.isNaN(then)) return NEVER;
-  return Math.max(0, Math.floor((Date.now() - then) / 60_000));
-}
-
-/** The timestamp format every table in this schema stores. */
-export function nowIso(): string {
-  return new Date().toISOString().replace(/(\.\d{3})Z$/, '$1Z');
 }
 
 /**

@@ -9,9 +9,9 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 8;
+const LATEST_SCHEMA_VERSION = 9;
 
-const EXPECTED_TABLES = [
+const LEARNING_TABLES = [
   'attempts',
   'checkpoints',
   'concepts',
@@ -23,6 +23,37 @@ const EXPECTED_TABLES = [
   'session_concepts',
   'stop_markers',
 ];
+
+/**
+ * The memory half (migration 009). Listed separately from the learning tables
+ * because the one guarantee worth asserting here is that adding memory did not
+ * rename or drop anything learning depends on.
+ *
+ * `memory_fts_*` are FTS5's own shadow tables. They are named rather than
+ * filtered out so that swapping the index implementation shows up as a failing
+ * test rather than as a silent change of on-disk shape.
+ */
+const MEMORY_TABLES = [
+  'context_receipt_items',
+  'context_receipts',
+  'evidence_events',
+  'learning_sources',
+  'memory_batches',
+  'memory_collection_items',
+  'memory_collections',
+  'memory_entries',
+  'memory_entry_events',
+  'memory_entry_tags',
+  'memory_fts',
+  'memory_fts_config',
+  'memory_fts_data',
+  'memory_fts_docsize',
+  'memory_fts_idx',
+  'memory_jobs',
+  'memory_vectors',
+];
+
+const EXPECTED_TABLES = [...LEARNING_TABLES, ...MEMORY_TABLES].sort();
 
 let dbFile = '';
 afterEach(() => {
@@ -80,6 +111,7 @@ describe('migrations', () => {
         '006_attempt_format.sql',
         '007_checkpoints.sql',
         '008_difficulty_levels.sql',
+        '009_memory.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);

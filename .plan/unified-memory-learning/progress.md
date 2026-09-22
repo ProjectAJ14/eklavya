@@ -8,8 +8,8 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | # | Increment | Phase | Status |
 |---|---|---|---|
 | 1 | Architecture decisions (ADR) | 0 | done |
-| 2 | Memory schema + numbered migration | 1/2 | not started |
-| 3 | Memory store, identity/time policy, privacy filter | 1/2 | not started |
+| 2 | Memory schema + numbered migration | 1/2 | done |
+| 3 | Memory store, identity/time policy, privacy filter | 1/2 | done |
 | 4 | Capture pipeline: hooks, spool, replay | 2 | not started |
 | 5 | Observation jobs + provider adapter + local summarizer | 2 | not started |
 | 6 | Retrieval: keyword + semantic + hybrid, scoping | 3 | not started |
@@ -26,3 +26,7 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 ## Log
 
 - 2026-09-22: tracker created; Phase 0 decisions recorded in [adr.md](adr.md).
+- 2026-09-22: migration 009 adds the memory half of the schema — evidence,
+  batches, jobs, entries, FTS5 + vectors, receipts, candidates, collections.
+  `mcp/src/memory/` gains identity, privacy, tokens, embeddings, store and
+  search; the clock policy moves to `mcp/src/time.ts` so both halves share it.
