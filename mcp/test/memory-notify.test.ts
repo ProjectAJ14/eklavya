@@ -113,6 +113,74 @@ describe('outbound notifications', () => {
     expect(results[0]!.sink).toBe('command');
   });
 
+  it('delivers on a later pass to a sink that was down, instead of losing the notification', async () => {
+    // A webhook down for thirty seconds, or a file sink on a full disk. The
+    // event is raised once; the delivery has to survive the outage.
+    const blocked = path.join(dir, 'busy');
+    fs.writeFileSync(blocked, 'not a directory');
+    const config = configWith({ enabled: true, sinks: [{ kind: 'file', target: path.join(blocked, 'events.jsonl') }] });
+
+    const first = await notify(db, config, { ...EVENT, id: 'evt-outage' });
+    expect(first[0]!.ok).toBe(false);
+
+    fs.unlinkSync(blocked);
+    const second = await notify(db, config, { ...EVENT, id: 'evt-outage' });
+    expect(second[0]!.ok).toBe(true);
+    expect(fs.readFileSync(path.join(blocked, 'events.jsonl'), 'utf8').trim().split('\n')).toHaveLength(1);
+  });
+
+  it('does not re-send to a sink that already accepted it while retrying the one that did not', async () => {
+    // The whole point of keying per sink: a retry must not be a second copy
+    // for everyone else on the list.
+    const blocked = path.join(dir, 'busy');
+    fs.writeFileSync(blocked, 'not a directory');
+    const config = configWith({
+      enabled: true,
+      sinks: [
+        { kind: 'file', target: sinkFile },
+        { kind: 'file', target: path.join(blocked, 'events.jsonl') },
+      ],
+    });
+
+    expect((await notify(db, config, { ...EVENT, id: 'evt-mixed' })).map((r) => r.ok)).toEqual([true, false]);
+    fs.unlinkSync(blocked);
+    expect(await notify(db, config, { ...EVENT, id: 'evt-mixed' })).toEqual([{ sink: 'file', ok: true }]);
+    expect(readSink()).toHaveLength(1);
+  });
+
+  it('gives up on a sink that keeps failing rather than retrying it forever', async () => {
+    const config = configWith({
+      enabled: true,
+      sinks: [{ kind: 'command', target: '/nonexistent/eklavya-notify-hook' }],
+    });
+    const event = { ...EVENT, id: 'evt-hopeless' };
+    for (let i = 0; i < 3; i += 1) expect(await notify(db, config, event)).toHaveLength(1);
+    // The fourth pass makes no attempt at all.
+    expect(await notify(db, config, event)).toEqual([]);
+  });
+
+  it('drops a notification that has aged out instead of retrying it', async () => {
+    // A queue that paused two days ago is noise by the time the sink is back.
+    const blocked = path.join(dir, 'busy');
+    fs.writeFileSync(blocked, 'not a directory');
+    const config = configWith({ enabled: true, sinks: [{ kind: 'file', target: path.join(blocked, 'events.jsonl') }] });
+    await notify(db, config, { ...EVENT, id: 'evt-stale' });
+
+    const row = db.prepare("SELECT key, value FROM meta WHERE key LIKE 'notified:evt-stale:%'").get() as {
+      key: string;
+      value: string;
+    };
+    const aged = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run(
+      JSON.stringify({ ...JSON.parse(row.value), first: aged }),
+      row.key,
+    );
+
+    fs.unlinkSync(blocked);
+    expect(await notify(db, config, { ...EVENT, id: 'evt-stale' })).toEqual([]);
+    expect(fs.existsSync(path.join(blocked, 'events.jsonl'))).toBe(false);
+  });
+
   it('keys a session wrap-up on the session, so one session is one message', () => {
     const a = sessionWrapUp({ project: '/work/repo', sessionId: 's1', entries: 3, questions: 2, passed: 2 });
     const b = sessionWrapUp({ project: '/work/repo', sessionId: 's1', entries: 9, questions: 4, passed: 1 });

@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import type { DB } from '../db.js';
 import type { EklavyaConfig, NotificationSink } from '../config.js';
-import { nowIso } from '../time.js';
+import { nowIso, parseStamp } from '../time.js';
 import { DEFAULT_PRIVACY, redact } from './privacy.js';
 
 /**
@@ -17,9 +18,11 @@ import { DEFAULT_PRIVACY, redact } from './privacy.js';
  *    one (CFG-02).
  * 2. **Redact before send, not before display.** Every payload goes through the
  *    same filter capture uses, because the sink is the last boundary.
- * 3. **Deliver once.** Delivery is recorded before the attempt and keyed by the
- *    event's own identity, so a retried hook, a resumed session or a second
- *    worker cannot send the same wrap-up twice.
+ * 3. **Deliver once, but do deliver.** The ledger is keyed by the event's
+ *    identity *and the sink's*, so a retried hook, a resumed session or a
+ *    second worker cannot send the same wrap-up twice down the same pipe —
+ *    while a sink that was down still gets it on a later pass, and a sibling
+ *    sink that already accepted it does not get it again.
  */
 
 export interface NotificationEvent {
@@ -40,28 +43,72 @@ export interface DeliveryResult {
 
 const DELIVERED_PREFIX = 'notified:';
 const TIMEOUT_MS = 4000;
+/** Retries are for a sink that is briefly down, not for one that is gone. */
+const MAX_ATTEMPTS = 3;
+/** A wrap-up or a paused-queue alert from yesterday is noise, not news. */
+const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-function alreadySent(db: DB, id: string): boolean {
+/** One row per (event, sink). `n` counts attempts *started*, not ones that reported back. */
+interface DeliveryState {
+  ok: boolean;
+  n: number;
+  first: string;
+  detail?: string;
+}
+
+function ledgerKey(eventId: string, sink: NotificationSink): string {
+  // The target is hashed, not stored: a webhook URL is frequently the whole
+  // credential, and a delivery ledger is not a place to keep one.
+  const fingerprint = createHash('sha256').update(`${sink.kind}\u0000${sink.target}`).digest('hex').slice(0, 16);
+  return `${DELIVERED_PREFIX}${eventId}:${fingerprint}`;
+}
+
+/** `null` means nothing has been tried yet. */
+function readState(db: DB, key: string): DeliveryState | null {
   try {
-    const row = db.prepare('SELECT 1 AS hit FROM meta WHERE key = ?').get(`${DELIVERED_PREFIX}${id}`) as
-      | { hit: number }
-      | undefined;
-    return Boolean(row);
+    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
+    return row ? (JSON.parse(row.value) as DeliveryState) : null;
   } catch {
-    // A database that cannot answer "have I sent this" must not be taken as
-    // "no". Sending twice is the worse of the two mistakes here.
-    return true;
+    // A database that cannot answer "have I sent this" — or a row that no
+    // longer parses — must not be taken as "no". Sending twice is the worse of
+    // the two mistakes, so report a state that is already spent.
+    return { ok: true, n: MAX_ATTEMPTS, first: nowIso() };
   }
 }
 
-function markSent(db: DB, id: string, note: string): void {
+function writeState(db: DB, key: string, state: DeliveryState): void {
   try {
     db.prepare(
       `INSERT INTO meta (key, value) VALUES (?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    ).run(`${DELIVERED_PREFIX}${id}`, `${nowIso()}|${note}`);
+    ).run(key, JSON.stringify(state));
   } catch {
     /* A recorded delivery that failed to record is a possible duplicate, not a lost session. */
+  }
+}
+
+function retriable(state: DeliveryState | null, now: number): boolean {
+  if (!state) return true;
+  if (state.ok || state.n >= MAX_ATTEMPTS) return false;
+  const first = parseStamp(state.first);
+  // An unparseable stamp stops the retries rather than granting them forever.
+  return first !== null && now - first < MAX_AGE_MS;
+}
+
+/**
+ * Rows this version does not write, left by a version that keyed the whole
+ * event rather than each sink. Treated as delivered so an upgrade does not
+ * re-send every alert whose id is still live.
+ *
+ * ponytail: never cleaned up. These are a handful of `meta` rows that stop
+ * mattering once their events age out; a migration to drop them is not worth
+ * the forward-only schema bump.
+ */
+function sentBeforeUpgrade(db: DB, id: string): boolean {
+  try {
+    return Boolean(db.prepare('SELECT 1 FROM meta WHERE key = ?').get(`${DELIVERED_PREFIX}${id}`));
+  } catch {
+    return true;
   }
 }
 
@@ -70,11 +117,15 @@ function wants(sink: NotificationSink, kind: string): boolean {
 }
 
 /**
- * Sends one event to every configured sink that wants it.
+ * Sends one event to every configured sink that wants it and has not already
+ * taken it.
  *
- * Marks delivery *before* attempting it. A sink that fails is a missed
- * notification; a sink that succeeded and was not recorded is a duplicate on
- * every later run, and the second is the one people notice.
+ * The attempt is written *before* the send and only flipped to `ok` after the
+ * sink accepted. Recording first is what stops a crash between the send and the
+ * write from resending for ever, which is why the ordering was chosen; the flag
+ * is what stops a sink that was down for thirty seconds from losing the
+ * notification permanently. A crash in that window costs a duplicate, bounded
+ * by MAX_ATTEMPTS — the one outcome neither ordering can rule out.
  */
 export async function notify(
   db: DB,
@@ -82,9 +133,18 @@ export async function notify(
   event: NotificationEvent,
 ): Promise<DeliveryResult[]> {
   if (!config.notifications.enabled) return [];
-  const sinks = config.notifications.sinks.filter((s) => wants(s, event.kind));
-  if (!sinks.length) return [];
-  if (alreadySent(db, event.id)) return [];
+  const wanted = config.notifications.sinks.filter((s) => wants(s, event.kind));
+  if (!wanted.length) return [];
+  if (sentBeforeUpgrade(db, event.id)) return [];
+
+  const now = Date.now();
+  const pending = wanted
+    .map((sink) => {
+      const key = ledgerKey(event.id, sink);
+      return { sink, key, state: readState(db, key) };
+    })
+    .filter((p) => retriable(p.state, now));
+  if (!pending.length) return [];
 
   const policy = {
     ...DEFAULT_PRIVACY,
@@ -101,14 +161,15 @@ export async function notify(
     data: event.data ?? {},
   };
 
-  markSent(db, event.id, sinks.map((s) => s.kind).join(','));
-
-  const results = await Promise.all(sinks.map((sink) => deliver(sink, payload)));
-  const failed = results.filter((r) => !r.ok);
-  if (failed.length) {
-    markSent(db, event.id, `failed:${failed.map((f) => f.detail ?? f.sink).join(';').slice(0, 120)}`);
-  }
-  return results;
+  return await Promise.all(
+    pending.map(async ({ sink, key, state }) => {
+      const attempt: DeliveryState = { ok: false, n: (state?.n ?? 0) + 1, first: state?.first ?? nowIso() };
+      writeState(db, key, attempt);
+      const result = await deliver(sink, payload);
+      writeState(db, key, { ...attempt, ok: result.ok, detail: result.detail?.slice(0, 120) });
+      return result;
+    }),
+  );
 }
 
 async function deliver(sink: NotificationSink, payload: unknown): Promise<DeliveryResult> {
