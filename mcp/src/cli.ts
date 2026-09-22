@@ -90,7 +90,8 @@ Memory:
   eklavya memory show <id>              One entry, with the evidence it was built from
   eklavya memory replay [--limit <n>]   Backfill from this checkout's Claude Code transcripts
                                         Covers sessions from before the install, and any a hook missed
-  eklavya memory process [--max <n>]    Drain the observation queue now
+  eklavya memory process [--max <n>] [--no-resume]
+                                         Drain the observation queue now
                                         Resumes jobs paused on a credential or quota — run it once you have fixed one
   eklavya memory prune                  Delete raw evidence past memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
@@ -955,7 +956,9 @@ function memoryProcess(argv: string[]): void {
   // tell the developer nothing happened while the queue quietly went back to
   // spending a credential that may still be rejected.
   const maxJobs = numberFlag(argv, '--max', 10);
-  const resumed = resumePaused(db);
+  // The hooks' background drain passes --no-resume: a hook that resumed by
+  // itself is exactly the retry loop the comment above rules out.
+  const resumed = argv.includes('--no-resume') ? 0 : resumePaused(db);
   processPending(db, config, { maxJobs }).then(
     (result) => {
       process.stdout.write(

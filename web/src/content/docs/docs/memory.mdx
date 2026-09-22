@@ -72,7 +72,7 @@ Raw evidence is not memory. At a seam — a session start or stop, or whenever `
 
 The default summariser is `local-v1`, and it makes **no network call**. It is *extractive*: it quotes and counts what the evidence already says — what you asked for, how many edits landed across how many files, what failed — rather than writing prose about it. That ceiling is real and it is why every observation it writes carries a confidence of 0.5: it cannot explain *why* a change was made unless you said so in a prompt. It is also why it can run inside a hook with no key, no budget and no waiting.
 
-Setting `providers.observer` swaps it for a model that writes richer narratives, and that is the one setting that makes memory send your work off the machine. It is `null` by default and no upgrade turns it on.
+Setting `providers.observer` swaps it for a model that writes richer narratives, and that is the one setting that makes memory send your work off the machine. It is `null` by default and no upgrade turns it on. The model runs through Claude Code (`claude -p`) on your subscription. A model takes seconds per batch, so the hook doesn't wait for it. At each seam it starts a background worker and returns straight away, and the observations arrive a few seconds later.
 
 Observations are typed by what the evidence looks like: `bugfix`, `refactor`, `decision`, `feature`, `discovery`, or `change` when nothing else fits. `note` is the type for anything you wrote down yourself.
 

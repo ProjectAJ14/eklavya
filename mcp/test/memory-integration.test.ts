@@ -36,11 +36,13 @@ let home = '';
 let repo = '';
 let project = '';
 
+let extraEnv: Record<string, string> = {};
+
 function hook(script: string, input: Record<string, unknown>): { status: number; stdout: string } {
   const res = spawnSync(process.execPath, [script], {
     input: JSON.stringify(input),
     encoding: 'utf8',
-    env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
+    env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home, ...extraEnv },
   });
   return { status: res.status ?? -1, stdout: res.stdout ?? '' };
 }
@@ -77,6 +79,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  extraEnv = {};
   db.close();
   cleanup(dbFile);
   fs.rmSync(home, { recursive: true, force: true });
@@ -84,6 +87,43 @@ afterEach(() => {
 });
 
 describe('the memory loop, end to end through the real hooks', () => {
+  it('with a model configured, the seam returns at once and a detached worker summarises through claude -p', async () => {
+    // A stand-in `claude` that answers like `claude -p --output-format json`.
+    const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-e2e-bin-'));
+    const envelope = {
+      subtype: 'success',
+      is_error: false,
+      structured_output: {
+        observations: [
+          { title: 'Rotated refresh tokens', type: 'feature', narrative: 'n', facts: [], files: [], tags: [] },
+        ],
+      },
+    };
+    fs.writeFileSync(path.join(bin, 'claude'), `#!/bin/sh\ncat >/dev/null\necho '${JSON.stringify(envelope)}'\n`, {
+      mode: 0o755,
+    });
+    extraEnv = { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+    fs.writeFileSync(
+      path.join(home, 'config.json'),
+      JSON.stringify({ min_minutes_between_quizzes: 0, providers: { observer: { kind: 'anthropic', model: 'm' } } }),
+    );
+    try {
+      start('bg');
+      prompt('bg', 'Add refresh token rotation to the auth middleware');
+      expect(stop('bg').status).toBe(0);
+
+      let entry;
+      for (let i = 0; i < 100 && !entry; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        entry = timeline(db, { project, kind: 'observation', limit: 1 })[0];
+      }
+      expect(entry?.title).toBe('Rotated refresh tokens');
+      expect(entry?.generator).toBe('anthropic:m');
+    } finally {
+      fs.rmSync(bin, { recursive: true, force: true });
+    }
+  });
+
   it('captures a session, summarises it at the seam, and recalls it in the next one', () => {
     start('day-one');
     prompt('day-one', 'Add refresh token rotation to the auth middleware');
