@@ -192,6 +192,15 @@ fixture `quality.md` agreed to.
       ran in the checkout and read it. They run in a scratch directory now,
       which is what they always meant.
 - [ ] The acceptance test in `CONTRIBUTING.md` still passes, and its transcript is above
+      — **partly done, and honestly short.** Driven headless against the real
+      built hooks in a scratch repo (`.plan/unified-memory-learning/acceptance-run.md`),
+      the **memory half passes end to end**: 6 evidence events captured, batched
+      at the seam, summarised into one entry, batch provenance populated, all 6
+      events linked. The **mid-task question is unverified** — two runs, both
+      inconclusive by the contract's own rule (run 1 the model logged and the
+      harness denied the call; run 2 it did not log, and no logging means no
+      checkpoint). Not re-run to green, which `CONTRIBUTING.md` forbids. Needs
+      the interactive run before merge.
 - [ ] Behaviour changed → the manual, the landing page and `README.md` all say
       the same thing. The landing page gained the memory half and a ninth slash
       command; the manual gained `memory.mdx`, `migrating.mdx`, and the memory
