@@ -21,7 +21,7 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | 12 | Code search/outline + collections | 5 | done — the three tools were built and left out of the registry; fixed, with a test that reads the source rather than the array |
 | 13 | Host adapters + workflows breadth | 5 | replay + capability descriptors done; Claude Code is the only proven host, and one of twenty workflows ships |
 | 14 | Optional remote (server, sync, notifications) | 6 | notifications and directory sync done; the hosted server declined (ADR-09) |
-| 15 | Cutover, soak, release docs | 7 | runbook written (`migrating.mdx`); the cutover and the soak still need a human |
+| 15 | Cutover, soak, release docs | 7 | runbook, export/restore and the PR body written; the cutover against real data and the soak still need a human |
 
 ## Measured, not asserted
 
@@ -217,3 +217,14 @@ passed, 0 failed**, then moving it back.
 
 It is a repo-local config a developer left behind, not a tracked file and not
 part of this branch. Delete it or move it aside before reading a test run.
+- 2026-09-22: the three gaps the parity audit found are closed — raw evidence
+  on `memory_get`, memory in `eklavya doctor`, and `eklavya memory restore` so
+  the export is a backup rather than a file nothing opens. The six rows with
+  no decision behind them are now ADR-10.
+- 2026-09-22: the suite is green — 836 tests, 37 files, nothing skipped. The
+  four that used to fail were reading the contributor's own `.eklavya.json`
+  because they ran in the checkout; they run in a scratch directory now.
+- 2026-09-22: PR body in [pr-body.md](pr-body.md), with an unedited runtime
+  transcript through the built hooks. The acceptance test in `CONTRIBUTING.md`
+  still needs a real interactive session before merge — the model asking the
+  question mid-task is the part no fixture can stand in for.
