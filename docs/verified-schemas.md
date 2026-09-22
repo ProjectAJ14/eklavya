@@ -399,7 +399,7 @@ each audience on its own channel:
 
 ```json
 {
-  "systemMessage": "Eklavya\nYour savings: …\nThis project: Learning 7 · …",
+  "systemMessage": "Eklavya active · concept · …\n\u001b[38;5;114m84% less context …\nLearning 7 · …",
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
     "additionalContext": "<eklavya-memory …>…\n[Eklavya] Standing instruction …"

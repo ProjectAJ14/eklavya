@@ -60,7 +60,7 @@ const AMBER = 172;
 // source is invisible in an editor and does not survive every copy-paste.
 const ESC = '\u001b';
 
-function paint(text: string, code: number, color: boolean): string {
+export function paint(text: string, code: number, color: boolean): string {
   return color ? `${ESC}[38;5;${code}m${text}${ESC}[0m` : text;
 }
 
@@ -79,6 +79,22 @@ function paint(text: string, code: number, color: boolean): string {
 export function statusLine({ config, level, pinned, color = true }: StatusLineInput): string | null {
   if (!config.quiz.enabled || config.quiet) return null;
 
+  const parts = dialParts(config, pinned ? `${level} (pinned)` : level);
+
+  // `enforced` is the one setting with a consequence attached — commits are
+  // gated — so the whole segment takes the warning colour rather than the
+  // accent. The word is still there, so colour is a redundant cue and not the
+  // only one: a bar rendered without ANSI loses nothing but the emphasis.
+  const code = config.quiz.enforced ? AMBER : VERDIGRIS;
+  return paint(`[EKLAVYA ${parts.join(' · ')}]`, code, color);
+}
+
+/**
+ * The dial values, bare, in bar order. Shared with the session-start banner so
+ * the two readouts of the same state cannot drift; the caller supplies the
+ * level label because the banner adds the runway and the bar does not.
+ */
+export function dialParts(config: EklavyaConfig, levelLabel: string): string[] {
   // `learn (topic)` rather than `learn: topic` — a colon in a bar reads as a
   // key, and the topic is a value with no key of its own here.
   const focus =
@@ -90,17 +106,10 @@ export function statusLine({ config, level, pinned, color = true }: StatusLineIn
   // this slot always held one, and three sessions in four it held `ambient` --
   // the default, restating that nothing unusual was set. A segment that is
   // present only when something is in force is the thing worth glancing at.
-  const parts = [
+  return [
     ...(config.quiz.enforced ? ['enforced'] : []),
     focus,
     config.cadence,
-    pinned ? `${level} (pinned)` : level,
+    levelLabel,
   ];
-
-  // `enforced` is the one setting with a consequence attached — commits are
-  // gated — so the whole segment takes the warning colour rather than the
-  // accent. The word is still there, so colour is a redundant cue and not the
-  // only one: a bar rendered without ANSI loses nothing but the emphasis.
-  const code = config.quiz.enforced ? AMBER : VERDIGRIS;
-  return paint(`[EKLAVYA ${parts.join(' · ')}]`, code, color);
 }

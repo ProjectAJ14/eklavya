@@ -11,6 +11,10 @@ import { isCowork, withSurfaceNote } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, clearNudgeState, type DB } from './lib.js';
 import { flushAtSeam, identityOf, recallBlock, record, replaySpool } from './memory-lib.js';
 import { startupDisplay } from '../memory/recall.js';
+import { savingsLine } from '../memory/tokens.js';
+import { dialParts, paint } from '../statusline.js';
+import { DEFAULT_PORT } from '../dashboard.js';
+import net from 'node:net';
 
 /**
  * The whole tutoring loop starts at log_session_concepts: it is the only writer
@@ -98,12 +102,17 @@ await run(async (input) => {
     // recording the entire time, with no way to tell from the outside. One line
     // costs nothing and answers the question before it is asked.
     const shown: string[] = [];
-    if (!quiet) {
-      shown.push(
-        memoryEnabled
-          ? '[Eklavya] Questions are off for this project (`quiz.enabled: false`). Memory is still recording and recalling — `memory.enabled: false` is the dial for that.'
-          : '[Eklavya] Questions and memory are both off for this project. Nothing is being recorded.',
-      );
+    if (!quiet && memoryEnabled) {
+      banner(db, shown, {
+        project: identity.project,
+        memory: true,
+        dials: ['memory on', 'questions off'],
+        overrides: resolved.overrides,
+        dashboard: await dashboardLive(),
+        quiz: false,
+      });
+    } else if (!quiet) {
+      shown.push('Eklavya off · no questions, nothing recorded');
     }
     return emit(shown, memoryContext);
   }
@@ -137,8 +146,10 @@ await run(async (input) => {
     banner(db, shown, {
       project: identity.project,
       memory: resolved.config.memory.enabled,
-      levelLabel,
+      dials: dialParts(resolved.config, levelLabel),
       overrides: resolved.overrides,
+      dashboard: await dashboardLive(),
+      quiz: true,
     });
   }
 
@@ -196,40 +207,70 @@ function emit(shown: string[], context: string[]): number {
 interface BannerParts {
   project: string;
   memory: boolean;
-  levelLabel: string;
+  dials: string[];
   overrides: string[];
+  /** True when `eklavya dashboard` is already serving on its default port. */
+  dashboard: boolean;
+  /** False with `quiz.enabled: false`: no learning counts to report. */
+  quiz: boolean;
 }
 
 /**
  * The developer-facing greeting, and everything `quiet` is about.
  *
- * Three lines (PRD UX-01): a heading, what reuse saved, and where this project
- * stands. Deliberately short. It used to print the learner profile, the weakest
- * concepts, the due count and every dial — a scoreboard at the moment
- * somebody sat down to work, none of which they had asked for. The dials live
- * in the status bar (`eklavya statusline`), the profile and the weak list live
- * in the dashboard, and both are there when they are wanted.
+ * Read in a glance, not studied: is it on, what are the dials, what did it
+ * save me, where do I look for more. Four lines at most. It used to print the
+ * learner profile, the weakest concepts and the due list -- a scoreboard at the
+ * moment somebody sat down to work -- and those live in the dashboard.
  *
  * Every number here is already committed to the database. Nothing waits on a
  * provider call or an index rebuild to greet somebody.
  */
 function banner(db: DB, out: string[], parts: BannerParts): void {
-  const display = startupDisplay(db, parts.project);
-  const [heading, savings, counts] = display.lines as [string, string, string];
-  out.push(heading);
-  // With memory off there is no reuse to report, and a line saying so every
-  // morning is noise about a feature the developer turned off on purpose.
-  if (parts.memory) out.push(savings);
-  // The runway rides on the counts line rather than taking one of its own: it
-  // is the same subject -- where this project stands -- and UX-01's budget is
-  // three lines, not three subjects spread over five.
-  out.push(`${counts} · Level ${parts.levelLabel}`);
+  // Inside the function, not at module scope: the hook body above runs at the
+  // top-level `await`, before any later `const` is initialised.
+  // NO_COLOR is the cross-tool convention; the host renders ANSI in systemMessage.
+  const color = !process.env.NO_COLOR;
+  const dim = (text: string) => (color ? `\u001b[2m${text}\u001b[0m` : text);
+  const { savings, counts } = startupDisplay(db, parts.project);
+  out.push(`Eklavya active · ${parts.dials.join(' · ')}`);
+  // Only a real saving earns a line. "Nothing reused yet" every morning of a
+  // first week is words about nothing; an overhead is rare and worth admitting.
+  if (parts.memory && savings.kind === 'saving') {
+    out.push(paint(`${savings.percent}% less context from memory reuse`, 114, color));
+  } else if (parts.memory && savings.kind === 'overhead') {
+    out.push(savingsLine(savings));
+  }
+  if (parts.quiz) out.push(`Learning ${counts.learning} · Mastered ${counts.mastered} · Due ${counts.due}`);
 
   if (parts.overrides.length > 0) {
     // A warning, not a scoreboard: a repo silently overriding a personal
     // setting is the one thing worth interrupting for.
-    out.push(
-      `Your settings for this project override your global ones for: ${parts.overrides.join(' ')}.`,
-    );
+    out.push(`Project settings override global: ${parts.overrides.join(' ')}`);
   }
+
+  // A link only when something answers it; the dashboard runs on demand, and a
+  // dead URL in the greeting is a small lie.
+  const url = `http://127.0.0.1:${DEFAULT_PORT}`;
+  out.push(
+    dim(
+      parts.dashboard
+        ? `Dashboard ${url} · Observations ${url}/#/memory`
+        : 'Dashboard & observations: eklavya dashboard',
+    ),
+  );
+}
+
+/** A 150ms loopback probe: refused is instant, and a silent port is not waited on. */
+function dashboardLive(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = net.connect({ host: '127.0.0.1', port: DEFAULT_PORT });
+    const done = (up: boolean) => {
+      sock.destroy();
+      resolve(up);
+    };
+    sock.setTimeout(150, () => done(false));
+    sock.once('connect', () => done(true));
+    sock.once('error', () => done(false));
+  });
 }
