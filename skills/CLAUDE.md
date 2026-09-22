@@ -11,9 +11,9 @@ One directory, one `SKILL.md`, YAML frontmatter with `name` and `description`.
 `/eklavya:<name>` slash command** — the model can no longer load it on its own,
 and the developer types it. Without that line the skill is model-invocable only.
 
-Eight have it, and they are the eight slash commands:
+Nine have it, and they are the nine slash commands:
 
-`gate`, `learn`, `level`, `mode`, `pack`, `progress`, `quiz`, `setup`.
+`gate`, `learn`, `level`, `memory`, `mode`, `pack`, `progress`, `quiz`, `setup`.
 
 `skills/tutor/SKILL.md` deliberately does not. It is the pedagogy — one
 question at a time, honest grading, never the same question twice — and every
@@ -64,10 +64,18 @@ by what it is, not loaded by trigger.
 
 ## A skill is a prompt, but it is also an API client
 
-Nine tools, all in `mcp/src/tools/`: `get_learner_profile`,
-`log_session_concepts`, `get_session_quiz_plan`, `record_attempt`,
-`get_gate_status`, `upsert_concepts`, `get_concept_graph`, `get_config`,
-`set_config`.
+Twenty tools, all in `mcp/src/tools/`. Nine for learning:
+`get_learner_profile`, `log_session_concepts`, `get_session_quiz_plan`,
+`record_attempt`, `get_gate_status`, `upsert_concepts`, `get_concept_graph`,
+`get_config`, `set_config`. Eleven for memory: `memory_search`, `memory_get`,
+`memory_timeline`, `memory_file_history`, `memory_status`, `memory_write`,
+`memory_correct`, `memory_delete`, `memory_collections`, `code_outline`,
+`code_find_symbol`.
+
+The memory tools are two-stage on purpose: the index tools return identifiers
+and titles, and `memory_get` is the only one that returns a narrative. A skill
+that tells the model to hydrate everything a search returned spends exactly
+the context the feature exists to save. Say "search, choose, then get".
 
 **Before you write "call `X` with `Y`", open `mcp/src/tools/<X>.ts`.** Check
 `Y` is in the `inputSchema`, and check the field you are telling the model to
@@ -75,7 +83,9 @@ read is in what the handler returns. A skill that names a field the server
 never returns fails silently — the model improvises a plausible value and the
 developer sees a confident number nobody computed.
 
-`config_tools.ts` holds `get_config` and `set_config`; the rest are one file
+`config_tools.ts` holds `get_config` and `set_config`, and the memory tools are
+grouped the same way — `memory_read_tools.ts`, `memory_write_tools.ts`,
+`code_tools.ts`, `collection_tools.ts`. The nine learning tools are one file
 per tool name.
 
 ### Not every tool takes `session_id`
