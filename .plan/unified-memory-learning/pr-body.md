@@ -148,7 +148,7 @@ Stated so a reviewer does not go looking for it:
 
 ## Checks
 
-- [x] `cd mcp && npm test` — **840 passed, 37 files, nothing skipped**, and
+- [x] `cd mcp && npm test` — **844 passed, 37 files, nothing skipped**, and
       verified the way CI runs it: a clean clone of this branch, `npm ci`, then
       `npm test`. Four
       tests used to fail for anyone with an `.eklavya.json` at the repository
@@ -173,6 +173,20 @@ Stated so a reviewer does not go looking for it:
       `meta.repository.revision` bumped
 - [ ] Conventional Commit subject — `feat:` and `fix:` cut a release, `docs:`
       and `chore:` do not
+
+## One security fix worth reading on its own
+
+`ec41158`. The dashboard bound to 127.0.0.1 and checked nothing else, which is
+not an authorisation boundary for a browser: a page the developer has open can
+point a hostname it controls at loopback and fetch from it, and the same-origin
+policy does not help because the page's origin *is* that hostname. Nothing on
+the dashboard writes, so this was never about changing a setting — it is that
+the payload now carries the developer's prompts, their code and their project
+history. It was reachable before this branch too; what this branch changed is
+how much it was worth reading.
+
+The dashboard now requires a loopback `Host`, which a rebound hostname never
+has. `DASH-03` named this and the implementation had not caught up.
 
 ## Reviewer's reading order
 
