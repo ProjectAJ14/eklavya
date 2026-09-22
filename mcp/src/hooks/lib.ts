@@ -37,7 +37,14 @@ export interface HookInput {
   stop_hook_active?: boolean;
   agent_id?: string;
   agent_type?: string;
-  tool_input?: { command?: string };
+  /** `PreToolUse`/`PostToolUse`. Widened past `command` for memory capture. */
+  tool_input?: { command?: string } & Record<string, unknown>;
+  /** The rest are memory capture's: the host sends them, nothing read them before. */
+  hook_event_name?: string;
+  prompt?: string;
+  tool_name?: string;
+  tool_response?: unknown;
+  source?: string;
 }
 
 /**

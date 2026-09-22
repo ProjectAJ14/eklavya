@@ -10,9 +10,9 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | 1 | Architecture decisions (ADR) | 0 | done |
 | 2 | Memory schema + numbered migration | 1/2 | done |
 | 3 | Memory store, identity/time policy, privacy filter | 1/2 | done |
-| 4 | Capture pipeline: hooks, spool, replay | 2 | not started |
-| 5 | Observation jobs + provider adapter + local summarizer | 2 | not started |
-| 6 | Retrieval: keyword + semantic + hybrid, scoping | 3 | not started |
+| 4 | Capture pipeline: hooks, spool, replay | 2 | done |
+| 5 | Observation jobs + provider adapter + local summarizer | 2 | done |
+| 6 | Retrieval: keyword + semantic + hybrid, scoping | 3 | done |
 | 7 | Context receipts, savings arithmetic, startup display | 3 | not started |
 | 8 | MCP memory tools + CLI subcommands | 3/5 | not started |
 | 9 | Learning links: evidence to concept candidates | 4 | not started |
@@ -30,3 +30,8 @@ increment lands. Phase names map to [delivery.md](delivery.md).
   batches, jobs, entries, FTS5 + vectors, receipts, candidates, collections.
   `mcp/src/memory/` gains identity, privacy, tokens, embeddings, store and
   search; the clock policy moves to `mcp/src/time.ts` so both halves share it.
+- 2026-09-22: capture is wired into the hooks. A seventh hook, `capture-tool`,
+  records every tool use; the nudge captures the prompt; the Stop hook closes
+  the batch at the seam; SessionStart replays the spool, drains the queue and
+  injects recalled evidence. All four do their memory work before their `mode`
+  check, because `memory.enabled` is a separate decision.

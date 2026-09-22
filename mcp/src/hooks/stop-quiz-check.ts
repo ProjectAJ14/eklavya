@@ -41,6 +41,7 @@
 import { attributionRule, isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
 import { isSessionOff } from '../session.js';
+import { flushAtSeam, identityOf } from './memory-lib.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -62,6 +63,16 @@ await run(async (input) => {
   const cwd = cwdOf(input);
   const sid = sessionId(input, db);
   if (!sid) return 0;
+
+  // The end of a turn is the natural seam: close the open batch and summarise
+  // it. Before every learning gate below, because memory is not governed by
+  // them, and before the block decision, because whether a question is asked
+  // must not change what gets remembered. With a provider configured this only
+  // queues -- a Stop hook does not wait on an API call (PRD LRN-04).
+  const stopConfig = config(cwd);
+  if (stopConfig.config.memory.enabled) {
+    await flushAtSeam(db, stopConfig, identityOf(input, cwd, sid));
+  }
   // Silenced sessions are never blocked, enforced mode included: the commit gate
   // is what enforced mode is for, and it reads .eklavya.json rather than this.
   if (isSessionOff(db, sid)) return 0;

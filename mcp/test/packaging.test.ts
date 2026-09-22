@@ -264,7 +264,9 @@ describe('hooks run on every platform', () => {
     );
     const sources = fs
       .readdirSync(path.join(mcpRoot, 'src', 'hooks'))
-      .filter((f) => f.endsWith('.ts') && f !== 'lib.ts')
+      // `lib.ts` and `memory-lib.ts` are shared helpers, not hooks. The suffix
+      // is the rule rather than a list, so a third helper needs no edit here.
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('lib.ts'))
       .map((f) => f.replace(/\.ts$/, ''));
 
     expect(sources.length).toBeGreaterThan(0);

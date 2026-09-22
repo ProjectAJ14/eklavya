@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { findRepoConfig, mainRepoRoot } from '../config.js';
 
@@ -88,5 +89,17 @@ export function receiptUid(): string {
 export function relativeToProject(file: string, project: string): string {
   if (!path.isAbsolute(file) || project === GLOBAL_PROJECT) return file;
   const rel = path.relative(project, file);
-  return rel && !rel.startsWith('..') ? rel : file;
+  if (rel && !rel.startsWith('..')) return rel;
+  // The project key is a realpath (`findRepoConfig` resolves symlinks so the
+  // git hook can match on it), and a host may report the unresolved path --
+  // on macOS every repo under /tmp is really under /private/tmp. Only tried
+  // when the cheap comparison already failed, so it costs nothing in the
+  // ordinary case.
+  try {
+    const resolved = path.relative(project, fs.realpathSync(path.dirname(file)));
+    if (resolved && !resolved.startsWith('..')) return path.join(resolved, path.basename(file));
+  } catch {
+    /* A path that no longer exists keeps the spelling the host gave. */
+  }
+  return file;
 }

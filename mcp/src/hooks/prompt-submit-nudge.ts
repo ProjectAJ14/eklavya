@@ -52,6 +52,7 @@ import {
 } from './lib.js';
 import { withSurfaceNote } from '../surface.js';
 import { isSessionOff, setCurrentSession } from '../session.js';
+import { batchIfFull, identityOf, record } from './memory-lib.js';
 
 /**
  * Long enough that the session-start directive has had a fair chance, short
@@ -127,8 +128,13 @@ await run(async (input) => {
   // prompt the developer types, so a dormant or quiet session should not pay to
   // open SQLite before finding out it had nothing to do. Reading one or two
   // small JSON files is the cheaper question, so it is asked first.
-  const { mode } = config(cwdOf(input)).config;
-  if (mode === 'off') return 0;
+  const cwd = cwdOf(input);
+  const resolved = config(cwd);
+  const { mode } = resolved.config;
+  // `mode: off` silences the learning half. It does not stop memory capture --
+  // someone who asked for no quizzes did not ask for their project history to
+  // stop being recorded (PRD CFG-01) -- so the early return needs both to be off.
+  if (mode === 'off' && !resolved.config.memory.enabled) return 0;
   // `quiet` is deliberately NOT consulted. It suppresses the banner and the
   // status bar -- things the developer looks at -- and this is an
   // additionalContext line the model reads, exactly like the session-start
@@ -155,7 +161,17 @@ await run(async (input) => {
   // one: a model churning for ten minutes while its developer works in another
   // repo calls its tools long after that other window typed. `cwd` is what keeps
   // the two apart — see `sessionKeyFor`.
-  setCurrentSession(db, sid, cwdOf(input));
+  setCurrentSession(db, sid, cwd);
+
+  // The prompt is the single most useful thing a session produces for recall:
+  // it is the only place the developer says what they were trying to do. It is
+  // captured before every learning gate below, for the reason above.
+  if (resolved.config.memory.enabled && typeof input.prompt === 'string' && input.prompt.trim()) {
+    const identity = identityOf(input, cwd, sid);
+    record(db, resolved, identity, { kind: 'prompt', title: 'prompt', body: input.prompt });
+    batchIfFull(db, resolved, identity);
+  }
+  if (mode === 'off') return 0;
 
   if (isSessionOff(db, sid)) return 0;
 

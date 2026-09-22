@@ -30,18 +30,40 @@ triple in here, even in a comment, fails that test on purpose.
 `scripts/bump-version.sh` bumps `plugin.json` and `mcp/package.json`, nothing
 else.
 
-## The six hooks, out of `hooks.json`
+## The seven hooks, out of `hooks.json`
 
 | Event | Matcher | Timeout | Script | Job |
 |---|---|---|---|---|
-| SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), print the profile banner and the standing log directive |
+| SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), replay the spool, summarise the last session's batch, recall this project's memory, print the profile banner and the standing log directive |
 | UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-stamp this checkout's session pointer, then re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
 | SubagentStart | — | 10s | `subagent-start` | give a delegated agent the log directive the parent's SessionStart never reached it with |
 | PreToolUse | `Bash` | 10s | `pre-tool-gate` | in `enforced` mode only, deny a `git commit` whose session gate has not passed |
+| PostToolUse | — | 10s | `capture-tool` | record the tool use as memory evidence |
 | PostToolUse | `mcp__.*log_session_concepts` | 10s | `checkpoint-quiz` | one mid-task question, `interleaved` cadence only |
 | Stop | — | 15s | `stop-quiz-check` | block the turn and demand a quiz |
 
-The PostToolUse matcher is a regex over the MCP tool name, not a literal, because
+## Memory capture is not governed by `mode`
+
+`capture-tool` has no matcher, so it runs after **every** tool call — it is the
+hook that fires most often in a session, and it does the least: resolve
+identity, normalise one event, one insert, exit. It never quizzes, summarises
+or calls a provider.
+
+Four hooks now carry memory work, and all four do it **before** their `mode`
+check, because `memory.enabled` is a separate decision from the learning dials
+(PRD CFG-01): `mode: off` means no quizzes, not no project history.
+`session-start` replays the spool and recalls; `prompt-submit-nudge` captures
+the prompt; `capture-tool` captures the tool use; `stop-quiz-check` closes the
+batch at the seam. `mcp/src/hooks/memory-lib.ts` holds the shared helpers, and
+every one of them swallows its own failures — a capture path that throws is a
+throw on every tool call.
+
+The seam never waits on inference. With `providers.observer` configured,
+`flushAtSeam` queues the batch and returns; the next session start, or
+`eklavya memory process`, drains it. A Stop hook that waits on an API call is
+exactly what PRD LRN-04 forbids.
+
+The PostToolUse matcher on `checkpoint-quiz` is a regex over the MCP tool name, not a literal, because
 the prefix depends on how the plugin was installed —
 `mcp__eklavya__log_session_concepts` standalone,
 `mcp__plugin_eklavya_eklavya__log_session_concepts` via `/plugin`. `mcp__.*`

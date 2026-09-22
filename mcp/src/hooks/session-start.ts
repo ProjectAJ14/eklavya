@@ -8,6 +8,7 @@ import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, clearNudgeState, type DB } from './lib.js';
+import { flushAtSeam, identityOf, recallBlock, record, replaySpool } from './memory-lib.js';
 
 /**
  * The whole tutoring loop starts at log_session_concepts: it is the only writer
@@ -98,7 +99,34 @@ await run(async (input) => {
 
   const resolved = config(cwd);
   const { mode, focus, focus_topic, cadence, difficulty, quiet } = resolved.config;
-  if (mode === 'off') return 0;
+
+  // The memory half runs before every learning gate below, because it is not
+  // governed by them (PRD CFG-01): `mode: off` means no quizzes, not no
+  // history. Three jobs, all silent on failure -- replay whatever the spool
+  // holds, mark the seam, and drain any batch the last session left queued.
+  const identity = identityOf(input, cwd, sid);
+  const memoryContext: string[] = [];
+  if (resolved.config.memory.enabled) {
+    replaySpool(db);
+    // Drain first, then mark the seam. The other order batches the lifecycle
+    // event on its own and summarises "session started" into an observation of
+    // nothing.
+    await flushAtSeam(db, resolved, identity);
+    record(db, resolved, identity, {
+      kind: 'lifecycle',
+      title: input.source === 'resume' ? 'session resumed' : 'session started',
+      body: `source=${input.source ?? 'startup'} cwd=${cwd}`,
+    });
+    const block = recallBlock(db, resolved, identity, 'session_start');
+    if (block) memoryContext.push(block);
+  }
+
+  if (mode === 'off') {
+    // Recall still has a job here: the developer turned quizzing off, not
+    // project memory. Nothing else this hook says applies.
+    if (memoryContext.length) process.stdout.write(`${memoryContext.join('\n')}\n`);
+    return 0;
+  }
   // Fires on resume and after a compaction too, with the same session id, so a
   // session silenced an hour ago stays silent rather than greeting its way back.
   if (isSessionOff(db, sid)) return 0;
@@ -149,6 +177,9 @@ await run(async (input) => {
   // restates what was printed seconds ago.
   if (sid) clearNudgeState(db, sid);
 
+  // Before the directive: it is what the session is *about*, and the directive
+  // is what to do about it.
+  out.push(...memoryContext);
   out.push(withSurfaceNote(DIRECTIVE));
   process.stdout.write(`${out.join('\n')}\n`);
   return 0;

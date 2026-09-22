@@ -107,6 +107,10 @@ export class LocalSummarizer implements Summarizer {
   async summarize(input: SummarizeInput): Promise<EntryDraft[]> {
     const { events } = input;
     if (!events.length) return [];
+    // A batch of nothing but session markers is a session in which nothing
+    // happened. Recording "session started" as a memory is how a corpus fills
+    // with rows that push real work out of a bounded recall.
+    if (events.every((e) => e.kind === 'lifecycle')) return [];
 
     const prompts = events.filter((e) => e.kind === 'prompt');
     const errors = events.filter((e) => e.kind === 'tool_error');
