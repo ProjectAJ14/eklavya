@@ -1,3 +1,10 @@
+## [1.21.1](https://github.com/ProjectAJ14/eklavya/compare/v1.21.0...v1.21.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **quiz:** keep asking while the agent works, and reach the backlog ([2661c32](https://github.com/ProjectAJ14/eklavya/commit/2661c329f56ec653ad57e7be6091843e21df0c3c))
+
 # [1.21.0](https://github.com/ProjectAJ14/eklavya/compare/v1.20.1...v1.21.0) (2026-09-22)
 
 
