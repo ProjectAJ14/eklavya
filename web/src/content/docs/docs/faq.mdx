@@ -16,7 +16,21 @@ The loop is the same, and the wording adapts. Cowork produces documents and anal
 
 ### Does anything leave my machine?
 
-No. The database, the config and the dashboard are all local, and the dashboard binds to loopback. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade, and the dashboard page loading its three webfonts from Google Fonts — no learning data is involved in either.
+Not with the default configuration. The database, the config and the dashboard are all local, the dashboard binds to loopback, and both halves of the product run locally: the summariser that writes observations is extractive and needs no model, and the search index is built by an embedder that runs here. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade, and the dashboard page loading its three webfonts from Google Fonts — no learning or memory data is involved in either.
+
+Three settings change that, none of them on unless you turn it on, and each says what leaves before it does:
+
+- `providers.observer` and `providers.embeddings` send captured work to a model API so it can write richer observations or better vectors. They need a model and a key you supply.
+- `notifications` sends session wrap-ups to a webhook, a command or a file you name.
+- `sync` writes memory entries into a directory you name, for your other machines to read.
+
+An upgrade never enables any of them. If none is configured, the promise above is the whole story.
+
+### Does it remember my code?
+
+It remembers *about* your code. Every tool call is recorded as evidence — what the tool was, the arguments, the files, and the error if it failed — and those are distilled into short observations. It deliberately does not store tool *results*, so a successful `Read` of a file does not put that file in the database; the corpus would otherwise become a second copy of your repository.
+
+Paths that usually hold secrets — `.env` files, `~/.ssh/`, `.pem`, `.npmrc` and others — are never captured at all, and about ten shapes of API key, token and private key are redacted before anything is written. [The memory page](/docs/memory/) has the full list and how to add your own.
 
 ### Will it slow down my work?
 
