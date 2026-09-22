@@ -114,3 +114,45 @@ pin 22. Advertising 12 hosts without fixtures is exactly the staleness
 **Rejected.** Claiming the reference's full host list at ship time.
 
 **Rollback.** Adding a host is a fixture plus an adapter.
+
+## ADR-07 — Code exploration: a declaration scanner, not a parser
+
+**Choice.** `memory/code.ts` finds declarations with per-language line patterns
+and reports them with line numbers. `code_outline`, `code_find_symbol` and the
+line expansion are built on it. Every tool description states the ceiling.
+
+**Evidence.** The job an outline does is *choosing which file to open* — and a
+line-oriented scanner does that as well as a parser for the languages a
+declaration is conventionally written on one line. The alternative,
+`web-tree-sitter` plus a wasm grammar per language, is roughly 10MB of install
+weight for every user, most of whom never call these tools, against an
+install budget the PRD asks to keep small.
+
+**Ceiling, stated rather than hidden.** No cross-file resolution, no
+re-exports, no distinction between a declaration and one written inside a
+string. A language with no pattern reports *no* symbols rather than wrong
+ones, and the tool descriptions tell the model that an empty result does not
+prove a symbol is absent — otherwise it reads silence as evidence.
+
+**Rejected.** tree-sitter now; an LSP client; shelling out to `ctags`, which is
+a dependency on a binary that is absent on most machines.
+
+**Rollback.** One module behind three functions. A parser becomes a second
+implementation of `outline()`.
+
+## ADR-08 — A collection rebuild that would empty it is refused
+
+**Choice.** `rebuildCollection` keeps the last good membership and marks the
+collection `failed` when the filter now returns nothing and it previously had
+members. `force` overrides.
+
+**Evidence.** The reference's reported failure was a rebuild silently replacing
+a good collection with an empty one. A rebuild finding nothing where there used
+to be something is far more often a broken index or an edited filter than a
+genuine emptying, and the two are indistinguishable at the moment of the write
+— so the safe default is the one that loses nothing.
+
+**Rejected.** Always overwriting; never overwriting (a collection that really
+did empty could never be corrected).
+
+**Rollback.** One conditional.
