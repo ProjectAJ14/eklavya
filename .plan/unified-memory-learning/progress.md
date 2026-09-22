@@ -377,18 +377,17 @@ and anchor resolving; the runtime diagram is regenerated at HEAD.
 
 Two things remain, and they are different in kind.
 
-**1. The acceptance test's mid-task question — unverified, and narrowed.**
-`.plan/unified-memory-learning/acceptance-run.md` has the detail. Every
-*mechanism* in the loop is now proven by direct test: the session-start
-directive, the nudge past its grace window (and its cooldown, its cap, and its
-permanent silence once a session logs), the checkpoint returning the contract's
-own "Eklavya: quick question on what you just built" mid-task, and capture
-through to a summarised entry with provenance and links. What is unproven is
-whether a model volunteers `log_session_concepts` in a short session: four
-headless runs, one spontaneous log. Reported rather than re-run to green, which
-`CONTRIBUTING.md` forbids. A single `-p` run structurally *cannot* exercise the
-nudge — it submits one prompt, at minute zero, before the grace window — so a
-resumed session is the only headless shape that can.
+**1. The acceptance test — the loop runs; only a human answering is left.**
+`.plan/unified-memory-learning/acceptance-run.md` has the detail. In a resumed
+live session the model logged 7 concepts mid-work, the checkpoint fired
+(`checkpoints.count = 1`, before the task finished), and the work resumed and
+completed in the same turn. The one step that did not happen is the question
+being *asked*: `AskUserQuestion` does not exist in a non-interactive run, and
+the model correctly refused to record an attempt that never happened. Every
+mechanism is separately proven by direct test as well — the directive, the nudge
+with its cooldown and cap, the checkpoint's exact contract wording, and capture
+through to a summarised entry. What is left is a person seeing the question and
+answering it, which is not a mechanism and cannot be simulated.
 
 **2. The real cutover — the developer's, not an agent's.** The rehearsal against
 a copy of the real 30MB database passed every criterion and is recorded above.

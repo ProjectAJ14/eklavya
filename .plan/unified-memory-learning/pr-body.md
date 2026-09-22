@@ -192,7 +192,17 @@ fixture `quality.md` agreed to.
       ran in the checkout and read it. They run in a scratch directory now,
       which is what they always meant.
 - [ ] The acceptance test in `CONTRIBUTING.md` still passes, and its transcript is above
-      — **partly done, and honestly short.** Driven headless against the real
+      — **the loop is demonstrated; one step needs a human.**
+      In a resumed live session (`.plan/unified-memory-learning/acceptance-run.md`)
+      the model logged 7 concepts mid-work, the checkpoint fired before the task
+      finished (`checkpoints.count = 1`), and the work resumed and completed in
+      the same turn. The memory half passes end to end: 6 evidence events
+      captured, batched, summarised, with provenance and links. The question was
+      not *asked* only because `AskUserQuestion` does not exist in a
+      non-interactive run, and the model declined to record an attempt that
+      never happened. Every mechanism is also proven by direct hook test. Paste
+      an interactive transcript here before merge.
+      — the superseded "partly done" note: Driven headless against the real
       built hooks in a scratch repo (`.plan/unified-memory-learning/acceptance-run.md`),
       the **memory half passes end to end**: 6 evidence events captured, batched
       at the seam, summarised into one entry, batch provenance populated, all 6
