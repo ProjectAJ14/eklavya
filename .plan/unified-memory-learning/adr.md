@@ -101,9 +101,15 @@ a config default change.
 
 **Choice.** Jobs are processed by a short-lived worker the hooks and CLI start
 on demand, guarded by a SQLite claim lease, rather than by a resident daemon.
-`OPS-01`'s single-lifecycle rule is satisfied by one `runtime/lifecycle.ts` that
-every caller uses; the daemon form arrives only if measurement shows the
-on-demand worker is too slow.
+`OPS-01`'s single-lifecycle rule is satisfied by there being exactly one entry
+point into the work — `processPending` in `mcp/src/memory/worker.ts`, reached
+from precisely two places, `mcp/src/hooks/memory-lib.ts:84` and
+`mcp/src/cli.ts:819` — and by the claim lease in `mcp/src/memory/store.ts`
+being what makes two of them at once safe. This ADR originally named a
+`runtime/lifecycle.ts` that was never written: with no process to own, a
+lifecycle manager had nothing to manage, and one exported function reached from
+two call sites is the smaller thing that holds the same rule. The daemon form
+arrives only if measurement shows the on-demand worker is too slow.
 
 **Evidence.** The reference's worst incident classes — orphaned workers, port
 theft, self-healing that undoes an uninstall — are all properties of a resident
