@@ -69,7 +69,7 @@ That does the whole job, in this order:
    `~/.eklavya/knowledge.db`, migrated and seeded, so `eklavya doctor` works before you have opened Claude Code even once.
 6. #### Walks your settings
 
-   Five dials, one step each: `quiz`, `focus`, `cadence`, `difficulty` and `memory`. Each step marks what is set now (`▣`) and starts the cursor on it. Move with ↑ and ↓, and choose with Enter, Space or →; a digit jumps straight to that option. On a first install that is five Enters to the defaults:
+   Five dials, one step each: `quiz`, `focus`, `cadence`, `difficulty` and `memory`. Each step marks what is set now (`▣`) and starts the cursor on it. Move with ↑ and ↓, and choose with Enter, Space or →; a digit jumps straight to that option. When memory is on, a sixth step follows it, `model`. On a first install that is six Enters to the defaults:
 
    ```text
    2/5  focus  what it teaches
@@ -77,6 +77,18 @@ That does the whole job, in this order:
        ◌  project  this codebase — the code just written
        ◌  learn    a topic you name, taught through your code
    ```
+
+   The `model` step picks what writes your memories, which is `providers.observer`:
+
+   ```text
+     ↳  model  which model writes the memories
+     → ▣  local             extractive, no model — nothing leaves this machine
+       ◌  claude-haiku-4-5  recommended — fast; runs on your Claude subscription
+       ◌  claude-sonnet-5   richer summaries, uses more of your plan
+       ◌  claude-opus-5-5   the most capable, uses the most
+   ```
+
+   `local` is the default. Pick a Claude model and the session batches are summarised by that model through Claude Code (`claude -p`), on your Claude subscription. Nothing else to set up, and the batches do go to Anthropic. Haiku is the recommended model: summarising is a light job, so a bigger model mostly uses more of your plan. A model you set by hand with `eklavya config set` shows up as an extra option, so pressing Enter keeps it. Choosing `off` or `claude-mem` at the memory step skips this step.
 
    Once chosen, the step folds to one line, so the walk stays a screen tall. `learn` then asks for its topic, the one answer you type. Ctrl-D ends the walk early and keeps whatever you had not reached.
 

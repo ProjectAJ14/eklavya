@@ -1,3 +1,5 @@
+import { execFile } from 'node:child_process';
+import os from 'node:os';
 import { z } from 'zod';
 import type { ProviderConfig } from '../config.js';
 import type { EntryDraft, SummarizeInput, Summarizer } from './summarize.js';
@@ -5,11 +7,9 @@ import type { EntryDraft, SummarizeInput, Summarizer } from './summarize.js';
 /**
  * The configured observer (ADR-04, PRD MEM-02, CFG-02).
  *
- * Off unless `providers.observer` names a model, and the SDK is imported lazily
- * so an install that never configures one never loads it. The key is read from
- * the environment variable the configuration names, never from the
- * configuration itself — a key in `config.json` ends up in every export and
- * dashboard payload that prints settings (SEC-01).
+ * Off unless `providers.observer` names a model. The model runs through Claude
+ * Code on the developer's subscription — never an API key, so there is no
+ * credential for Eklavya to store, print or leak (SEC-01).
  */
 
 /** Distinguishing these is what stops a retry loop paid for by the developer. */
@@ -90,6 +90,88 @@ function renderEvidence(input: SummarizeInput): string {
     .join('\n');
 }
 
+/** Five minutes: a summary that takes longer is a hung child, not a slow model. */
+const TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * The flags that make `claude -p` a summariser and nothing else: no tools, no
+ * MCP servers, no hooks — this plugin's hooks included, or the summariser's own
+ * session would be captured, batched and summarised in turn — and no transcript
+ * left behind.
+ */
+export function claudeArgs(model: string): string[] {
+  return [
+    '-p',
+    '--model', model,
+    '--output-format', 'json',
+    '--json-schema', JSON.stringify(OUTPUT_SCHEMA),
+    '--system-prompt', SYSTEM,
+    '--tools', '',
+    '--strict-mcp-config',
+    '--no-session-persistence',
+    '--settings', JSON.stringify({ disableAllHooks: true }),
+  ];
+}
+
+/**
+ * The structured output out of `claude -p --output-format json`, or the
+ * ProviderError that says why there is none. Pure, so the error classes are
+ * testable without a model.
+ */
+export function readResult(stdout: string): unknown {
+  let envelope: Record<string, unknown>;
+  try {
+    envelope = JSON.parse(stdout) as Record<string, unknown>;
+  } catch {
+    throw new ProviderError('malformed', 'claude -p printed something that is not JSON');
+  }
+  if (envelope.is_error || envelope.subtype !== 'success') {
+    const message = String(envelope.result ?? envelope.subtype ?? 'claude -p failed');
+    throw new ProviderError(classifyMessage(message, envelope.api_error_status), message);
+  }
+  if (envelope.structured_output === undefined) {
+    throw new ProviderError('malformed', 'claude -p returned no structured output');
+  }
+  return envelope.structured_output;
+}
+
+function classifyMessage(message: string, status: unknown): ProviderErrorClass {
+  if (status === 401 || status === 403 || /log ?in|auth|credential/i.test(message)) return 'auth';
+  if (status === 429 || /usage limit|rate limit|quota/i.test(message)) return 'quota';
+  if (/context|too long|max.*token/i.test(message)) return 'overflow';
+  if (/refus|declin/i.test(message)) return 'permanent';
+  return 'transient';
+}
+
+/**
+ * Runs the configured Claude model through Claude Code (`claude -p`), on the
+ * developer's own subscription. `ANTHROPIC_API_KEY` is stripped from the
+ * child's environment so a stray key in the shell can never turn this into
+ * metered API traffic.
+ */
+function runClaude(model: string, prompt: string): Promise<string> {
+  const env = { ...process.env };
+  delete env.ANTHROPIC_API_KEY;
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      'claude',
+      claudeArgs(model),
+      { env, cwd: os.tmpdir(), timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+      (error, stdout) => {
+        const code = (error as NodeJS.ErrnoException | null)?.code;
+        if (code === 'ENOENT') {
+          return reject(new ProviderError('auth', 'claude is not on PATH — memory summaries need Claude Code'));
+        }
+        // A failed run still prints its JSON envelope; that says more than the exit code.
+        if (stdout.trim()) return resolve(stdout);
+        if (error) return reject(new ProviderError('transient', error.message));
+        resolve(stdout);
+      },
+    );
+    child.stdin?.end(prompt);
+  });
+}
+
 export class ProviderSummarizer implements Summarizer {
   readonly id: string;
 
@@ -99,52 +181,11 @@ export class ProviderSummarizer implements Summarizer {
 
   async summarize(input: SummarizeInput): Promise<EntryDraft[]> {
     if (!input.events.length) return [];
-    const apiKey = process.env[this.config.api_key_env];
-    if (!apiKey) {
-      throw new ProviderError('auth', `${this.config.api_key_env} is not set`);
-    }
-
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey });
-
-    let response;
-    try {
-      response = await client.messages.create({
-        model: this.config.model,
-        max_tokens: 16000,
-        system: SYSTEM,
-        output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
-        messages: [
-          {
-            role: 'user',
-            content: `<evidence project="${input.project}" session="${input.sessionId}">\n${renderEvidence(input)}\n</evidence>`,
-          },
-        ],
-      });
-    } catch (error) {
-      throw new ProviderError(classify(error, Anthropic), error instanceof Error ? error.message : String(error));
-    }
-
-    if (response.stop_reason === 'refusal') {
-      // A refusal is a deliberate, final no. Retrying spends money to be told
-      // the same thing, so it is terminal rather than transient.
-      throw new ProviderError('permanent', 'the provider declined to summarise this batch');
-    }
-    if (response.stop_reason === 'max_tokens') {
-      throw new ProviderError('overflow', 'the summary was truncated by max_tokens');
-    }
-
-    const text = response.content
-      .map((block) => (block.type === 'text' ? block.text : ''))
-      .join('');
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      throw new ProviderError('malformed', 'the provider returned text that is not JSON');
-    }
-    const result = ResultSchema.safeParse(parsed);
+    const stdout = await runClaude(
+      this.config.model,
+      `<evidence project="${input.project}" session="${input.sessionId}">\n${renderEvidence(input)}\n</evidence>`,
+    );
+    const result = ResultSchema.safeParse(readResult(stdout));
     if (!result.success) {
       throw new ProviderError('malformed', `the provider output failed validation: ${result.error.message.slice(0, 200)}`);
     }
@@ -163,15 +204,4 @@ export class ProviderSummarizer implements Summarizer {
       concepts: o.concepts,
     }));
   }
-}
-
-function classify(error: unknown, sdk: typeof import('@anthropic-ai/sdk').default): ProviderErrorClass {
-  if (error instanceof sdk.AuthenticationError || error instanceof sdk.PermissionDeniedError) return 'auth';
-  if (error instanceof sdk.RateLimitError) return 'quota';
-  if (error instanceof sdk.BadRequestError) {
-    return /context|too long|max.*token/i.test(error.message) ? 'overflow' : 'permanent';
-  }
-  if (error instanceof sdk.APIConnectionError) return 'transient';
-  if (error instanceof sdk.APIError) return error.status && error.status >= 500 ? 'transient' : 'permanent';
-  return 'transient';
 }

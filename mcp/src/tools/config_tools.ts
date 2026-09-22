@@ -195,17 +195,17 @@ export const setConfig: ToolDef = {
     providers: z
       .object({
         observer: z
-          .object({ kind: z.literal('anthropic'), model: z.string(), api_key_env: z.string().optional() })
+          .object({ kind: z.literal('anthropic'), model: z.string() })
           .nullable()
           .optional(),
         embeddings: z
-          .object({ kind: z.literal('anthropic'), model: z.string(), api_key_env: z.string().optional() })
+          .object({ kind: z.literal('anthropic'), model: z.string() })
           .nullable()
           .optional(),
       })
       .optional()
       .describe(
-        'Outbound model access, and the only setting that sends captured work off this machine. `api_key_env` names the environment variable holding the key, never the key. Requires the developer to say yes; do not set it on their behalf.',
+        'Outbound model access, and the only setting that sends captured work off this machine. The model runs through Claude Code on the developer\'s subscription. Requires the developer to say yes; do not set it on their behalf.',
       ),
   },
   handler: (args: Record<string, unknown>, ctx) => {

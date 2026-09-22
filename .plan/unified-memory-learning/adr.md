@@ -100,6 +100,12 @@ an inference provider by default (unbounded cost, unproven availability).
 **Rollback.** The port has two implementations from day one; removing either is
 a config default change.
 
+**Amended (2026-09-23).** The configured provider now runs through the host CLI
+(`claude -p`) on the developer's subscription, never an API key. It is still
+opt-in and still off by default, so the rejection above — the CLI *by default* —
+stands. The child runs with no tools, no MCP servers and every hook disabled, so
+the summariser's own session is never captured.
+
 ## ADR-05 — No long-lived background service in the first local milestone
 
 **Choice.** Jobs are processed by a short-lived worker the hooks and CLI start

@@ -158,9 +158,8 @@ export interface RetrievalConfig {
  */
 export interface ProviderConfig {
   kind: 'anthropic';
+  /** Run through Claude Code on the developer's subscription, never an API key. */
   model: string;
-  /** Environment variable holding the key. Never the key itself. */
-  api_key_env: string;
 }
 
 export interface ProvidersConfig {
@@ -530,11 +529,9 @@ function provider(value: unknown): ProviderConfig | null {
   const v = value as Record<string, unknown>;
   if (v.kind !== 'anthropic') return null;
   if (typeof v.model !== 'string' || !v.model.trim()) return null;
-  // A key in the config file would end up in every export, log and dashboard
-  // payload that ever prints configuration (PRD SEC-01). Only the name of the
-  // variable holding it lives here.
-  const keyEnv = typeof v.api_key_env === 'string' && v.api_key_env.trim() ? v.api_key_env.trim() : 'ANTHROPIC_API_KEY';
-  return { kind: 'anthropic', model: v.model.trim(), api_key_env: keyEnv };
+  // An `api_key_env` left by an older version is ignored: the model runs on
+  // the subscription, so there is no key to name.
+  return { kind: 'anthropic', model: v.model.trim() };
 }
 
 /**

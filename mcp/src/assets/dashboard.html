@@ -1803,8 +1803,8 @@ function viewHealth() {
             <div><b>Embeddings</b><span>${H.providers.embeddings ? esc(H.providers.embeddings.kind + ' · ' + H.providers.embeddings.model) : 'local embedder'}</span></div>
             <div><b>Retrieval</b><span>${esc(H.providers.retrieval_mode)}</span></div>
           </div>
-          <p class="slug" style="margin:var(--space-4) 0 0">API keys are read from the environment and never
-            stored, logged or shown here.</p>`)}
+          <p class="slug" style="margin:var(--space-4) 0 0">A configured model runs through Claude Code on
+            your subscription.</p>`)}
      </div>`,
 
     card('Stalled jobs', 'Grouped by why they stopped. Transient retries on its own; auth and quota need you.',
