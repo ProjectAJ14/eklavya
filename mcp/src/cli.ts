@@ -91,8 +91,8 @@ Memory:
   eklavya memory replay [--limit <n>]   Backfill from this checkout's Claude Code transcripts
                                         Covers sessions from before the install, and any a hook missed
   eklavya memory process [--max <n>] [--no-resume]
-                                         Drain the observation queue now
-                                        Resumes jobs paused on a credential or quota — run it once you have fixed one
+                                        Drain the observation queue now
+                                        Resumes jobs paused on a login or usage limit — run it once that is sorted
   eklavya memory prune                  Delete raw evidence past memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
                                         --dry-run reads the source and reports; it writes nothing
