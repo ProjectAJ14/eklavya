@@ -36,6 +36,7 @@ import {
   entryTags,
   pendingEventCount,
   receiptTotals,
+  resumePaused,
   timeline,
 } from './memory/store.js';
 import { search, type SearchMode } from './memory/search.js';
@@ -85,6 +86,7 @@ Memory:
   eklavya memory replay [--limit <n>]   Backfill from this checkout's Claude Code transcripts
                                         Covers sessions from before the install, and any a hook missed
   eklavya memory process [--max <n>]    Drain the observation queue now
+                                        Resumes jobs paused on a credential or quota — run it once you have fixed one
   eklavya memory prune                  Delete raw evidence past memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
                                         --dry-run reads the source and reports; it writes nothing
@@ -816,10 +818,15 @@ function memoryShow(argv: string[]): void {
 function memoryProcess(argv: string[]): void {
   const db = openDb();
   const { config } = loadConfig();
+  // Running this command *is* the "I have fixed the credential" signal: it is
+  // what `doctor` tells the developer to run, and nothing else takes a job off
+  // 'paused'. Resuming here rather than in the worker keeps it an explicit act
+  // — a hook that resumed by itself would spend a rejected key every session.
+  const resumed = resumePaused(db);
   processPending(db, config, { maxJobs: numberFlag(argv, '--max', 10) }).then(
     (result) => {
       process.stdout.write(
-        `processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}\n`,
+        `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}\n`,
       );
       db.close();
     },

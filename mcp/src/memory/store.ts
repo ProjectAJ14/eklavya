@@ -166,6 +166,7 @@ export interface JobRow {
   lease_until: string | null;
   last_error: string | null;
   error_class: string | null;
+  next_attempt: string | null;
 }
 
 /**
@@ -175,6 +176,10 @@ export interface JobRow {
  * crashed worker's lease expires and the job becomes claimable again; a worker
  * that merely hangs cannot corrupt anything, because completion is a conditional
  * update on the lease it still holds.
+ *
+ * `next_attempt` is the second gate: a job that just failed transiently is
+ * still `pending`, and without it the next hook — seconds later — would claim
+ * it again and spend another attempt on a provider that has not recovered.
  */
 export function claimJob(db: DB, owner: string, leaseSeconds = 120): JobRow | null {
   const now = nowIso();
@@ -183,10 +188,11 @@ export function claimJob(db: DB, owner: string, leaseSeconds = 120): JobRow | nu
     const job = db
       .prepare(
         `SELECT * FROM memory_jobs
-         WHERE status = 'pending' OR (status = 'claimed' AND (lease_until IS NULL OR lease_until < ?))
+         WHERE (next_attempt IS NULL OR next_attempt <= ?)
+           AND (status = 'pending' OR (status = 'claimed' AND (lease_until IS NULL OR lease_until < ?)))
          ORDER BY id LIMIT 1`,
       )
-      .get(now) as JobRow | undefined;
+      .get(now, now) as JobRow | undefined;
     if (!job) return null;
     db.prepare(
       `UPDATE memory_jobs
@@ -204,12 +210,24 @@ export function finishJob(db: DB, jobId: number, owner: string): void {
   ).run(nowIso(), jobId, owner);
 }
 
+/** First retry floor, doubled per attempt up to `RETRY_CEILING_MS`. */
+const RETRY_BASE_MS = 30_000;
+/** Five minutes. Past that the queue is waiting on a human, not on a blip. */
+const RETRY_CEILING_MS = 300_000;
+
 /**
- * Records a failure and decides whether the job may run again.
+ * Records a failure and decides whether — and when — the job may run again.
  *
  * The classification is the point. A timeout should be retried; a rejected API
  * key should not be retried a thousand times at the developer's expense, and a
  * batch whose provider output will never parse should stop rather than spin.
+ *
+ * A retryable failure carries a floor as well as a verdict. `processPending`
+ * runs at every session seam, so "pending" alone means "claimable by whatever
+ * happens next", and a provider having a bad minute would take all five
+ * attempts inside it. Half the window is fixed and half is jitter, because
+ * several checkouts sharing one database and one dead provider otherwise wake
+ * up in the same second and retry as a group.
  */
 export function failJob(
   db: DB,
@@ -218,6 +236,7 @@ export function failJob(
   errorClass: 'transient' | 'auth' | 'quota' | 'overflow' | 'malformed' | 'permanent',
   message: string,
   maxAttempts = 5,
+  random: () => number = Math.random,
 ): void {
   const row = db.prepare('SELECT attempts FROM memory_jobs WHERE id = ?').get(jobId) as
     | { attempts: number }
@@ -225,18 +244,47 @@ export function failJob(
   const attempts = row?.attempts ?? 0;
   const terminal = errorClass === 'permanent' || errorClass === 'malformed' || attempts >= maxAttempts;
   const paused = errorClass === 'auth' || errorClass === 'quota';
+  const window = Math.min(RETRY_CEILING_MS, RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1));
   db.prepare(
     `UPDATE memory_jobs
-     SET status = ?, last_error = ?, error_class = ?, lease_owner = NULL, lease_until = NULL, updated_at = ?
+     SET status = ?, last_error = ?, error_class = ?, next_attempt = ?,
+         lease_owner = NULL, lease_until = NULL, updated_at = ?
      WHERE id = ? AND lease_owner = ?`,
   ).run(
     terminal ? 'failed' : paused ? 'paused' : 'pending',
     message.slice(0, 500),
     errorClass,
+    terminal || paused
+      ? null
+      : new Date(Date.now() + window / 2 + random() * (window / 2)).toISOString(),
     nowIso(),
     jobId,
     owner,
   );
+}
+
+/**
+ * Puts every paused job back in the queue, and returns how many moved.
+ *
+ * `failJob` parks an auth or quota failure at 'paused' and nothing else ever
+ * moves it, so this is the only way out — deliberately, and deliberately not
+ * automatic. Running `eklavya memory process` is the developer saying they have
+ * repaired the credential; a hook doing it on their behalf would re-spend a
+ * rejected key at every session seam and never say why it stopped again.
+ *
+ * The attempt count resets with it: a queue paused on its fifth attempt is one
+ * that would otherwise be marked permanently failed by the first call after the
+ * repair, which is the same dead end with a different label.
+ */
+export function resumePaused(db: DB): number {
+  return db
+    .prepare(
+      `UPDATE memory_jobs
+       SET status = 'pending', attempts = 0, next_attempt = NULL,
+           lease_owner = NULL, lease_until = NULL, updated_at = ?
+       WHERE status = 'paused'`,
+    )
+    .run(nowIso()).changes;
 }
 
 export function batchEvents(db: DB, batchId: number): EvidenceRow[] {

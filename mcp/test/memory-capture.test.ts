@@ -198,9 +198,14 @@ describe('the job worker', () => {
     expect(result).toEqual({ processed: 0, entries: 0, failed: 1, skipped: 0 });
 
     // A transient failure must not consume the work: the batch is still there
-    // and the job is claimable again.
+    // and the job is queued. It is held back for a cooldown first — the next
+    // caller is usually the next hook, seconds away, and reclaiming it there
+    // would spend every attempt inside one bad minute.
     expect((db.prepare('SELECT COUNT(*) AS n FROM memory_entries').get() as { n: number }).n).toBe(0);
     expect((db.prepare('SELECT status FROM memory_jobs').get() as { status: string }).status).toBe('pending');
+    expect(claimJob(db, 'someone-else')).toBeNull();
+
+    db.prepare("UPDATE memory_jobs SET next_attempt = '2000-01-01T00:00:00.000Z'").run();
     expect(claimJob(db, 'someone-else')).not.toBeNull();
   });
 });

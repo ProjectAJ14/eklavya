@@ -17,6 +17,7 @@ import {
   pendingEventCount,
   receiptTotals,
   recordReceipt,
+  resumePaused,
   supersedeEntry,
   timeline,
 } from '../src/memory/store.js';
@@ -99,6 +100,45 @@ describe('jobs', () => {
     const again = claimJob(db, 'w')!;
     failJob(db, again.id, 'w', 'malformed', 'bad json');
     expect((db.prepare('SELECT status FROM memory_jobs WHERE id = ?').get(job.id) as { status: string }).status).toBe('failed');
+  });
+
+  it('hides a paused job from the worker until the documented resume runs', () => {
+    event('a');
+    batchSession(db, { project: PROJECT, sessionId: 's1', reason: 'manual' });
+    const job = claimJob(db, 'w')!;
+    failJob(db, job.id, 'w', 'auth', 'rejected key');
+
+    // The auto path — every hook seam — must leave it alone, whatever the
+    // attempt count, or a dead credential is re-spent once per session.
+    expect(claimJob(db, 'hook')).toBeNull();
+    db.prepare('UPDATE memory_jobs SET attempts = 5').run();
+
+    // `eklavya memory process` is what doctor tells the developer to run.
+    expect(resumePaused(db)).toBe(1);
+    const resumed = claimJob(db, 'w2');
+    expect(resumed?.id).toBe(job.id);
+    // Reset, not carried: one claim of a five-attempt job fails it outright.
+    expect(resumed?.attempts).toBe(1);
+    expect(resumePaused(db)).toBe(0);
+  });
+
+  it('holds a transient failure back until its cooldown passes', () => {
+    event('a');
+    batchSession(db, { project: PROJECT, sessionId: 's1', reason: 'manual' });
+    const job = claimJob(db, 'w')!;
+    failJob(db, job.id, 'w', 'transient', 'timeout', 5, () => 0);
+
+    const row = db.prepare('SELECT status, next_attempt FROM memory_jobs WHERE id = ?').get(job.id) as {
+      status: string;
+      next_attempt: string | null;
+    };
+    expect(row.status).toBe('pending');
+    // First attempt, zero jitter: half of the 30s window.
+    expect(Date.parse(row.next_attempt!) - Date.now()).toBeGreaterThan(10_000);
+    expect(claimJob(db, 'hook')).toBeNull();
+
+    db.prepare("UPDATE memory_jobs SET next_attempt = '2000-01-01T00:00:00.000Z'").run();
+    expect(claimJob(db, 'hook')?.id).toBe(job.id);
   });
 });
 

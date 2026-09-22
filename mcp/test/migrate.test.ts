@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 11;
+const LATEST_SCHEMA_VERSION = 12;
 
 const LEARNING_TABLES = [
   'attempts',
@@ -131,6 +131,7 @@ describe('migrations', () => {
         '009_memory.sql',
         '010_import.sql',
         '011_sync.sql',
+        '012_job_backoff.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -138,6 +139,13 @@ describe('migrations', () => {
       // And the upgraded table really has the new column.
       const cols = (db.prepare('PRAGMA table_info(gates)').all() as { name: string }[]).map((c) => c.name);
       expect(cols).toContain('repo');
+
+      // 012 adds a column to a table 009 created, so it only survives if the
+      // two ran in order on the same database rather than each from scratch.
+      const jobCols = (db.prepare('PRAGMA table_info(memory_jobs)').all() as { name: string }[]).map(
+        (c) => c.name,
+      );
+      expect(jobCols).toContain('next_attempt');
       db.close();
     } finally {
       fs.rmSync(oldDir, { recursive: true, force: true });

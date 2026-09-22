@@ -1,0 +1,13 @@
+-- Retry backoff for the observation queue.
+--
+-- A transient provider failure returned the job straight to 'pending', which
+-- the very next hook reclaimed -- so a job failing against a timing-out or
+-- rate-limited provider spun against it once per tool call until it burned its
+-- five attempts, turning one bad minute into a permanent loss. `next_attempt`
+-- is the floor under the next claim: `failJob` sets it, `claimJob` skips a job
+-- whose floor is still in the future (quality.md, "Failure containment").
+--
+-- Nullable, and NULL means claimable now: every job that already exists was
+-- claimable when this ran, and a migration that invented a cooldown for them
+-- would stall a healthy queue on upgrade.
+ALTER TABLE memory_jobs ADD COLUMN next_attempt TEXT;
