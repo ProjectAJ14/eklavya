@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "1ed22ead391197955faf9ef79a9d9339e7088a0d"
+      "revision": "73eb43b54fbb5ac243d7b072aa44564caa8aabd4"
     },
     "views": [
       {
@@ -47,7 +47,18 @@
           "db",
           "dashboard"
         ],
-        "note": "Everything that opens knowledge.db from outside a Claude Code session."
+        "note": "Everything that opens knowledge.db from outside a Claude Code session. The page polls a change cursor and admits when it is stale."
+      },
+      {
+        "id": "memory-path",
+        "label": "What gets remembered",
+        "focus": [
+          "hooks",
+          "memory",
+          "db",
+          "session"
+        ],
+        "note": "Captured per tool call, redacted before storage, summarised at the seam into one entry rewritten in place — evidence, never instruction."
       }
     ]
   },
@@ -92,7 +103,7 @@
       "id": "skills",
       "type": "frontend",
       "label": "Skills & Tutor Agent",
-      "sublabel": "8 slash commands + tutor",
+      "sublabel": "9 slash commands + tutor",
       "pos": [
         268,
         40
@@ -104,7 +115,7 @@
       "sources": [
         {
           "path": "skills/quiz/SKILL.md",
-          "label": "9 skills"
+          "label": "10 skills"
         },
         {
           "path": "agents/tutor.md",
@@ -134,6 +145,11 @@
         {
           "path": "mcp/src/hooks/lib.ts",
           "label": "hook side"
+        },
+        {
+          "path": "mcp/src/config.ts",
+          "line": 693,
+          "label": "REPO_FORBIDDEN_KEYS"
         }
       ]
     },
@@ -182,7 +198,7 @@
       "id": "mcp",
       "type": "backend",
       "label": "Eklavya MCP Server",
-      "sublabel": "stdio · 9 tools",
+      "sublabel": "stdio · 20 tools",
       "tag": "local dist, else npx",
       "pos": [
         554,
@@ -227,7 +243,7 @@
       "id": "hooks",
       "type": "backend",
       "label": "Hook Scripts",
-      "sublabel": "6 lifecycle events · Node",
+      "sublabel": "7 lifecycle hooks · Node",
       "tag": "exit 0 on failure",
       "pos": [
         268,
@@ -245,6 +261,10 @@
         {
           "path": "mcp/src/hooks/checkpoint-quiz.ts",
           "label": "mid-task checkpoint"
+        },
+        {
+          "path": "mcp/src/hooks/capture-tool.ts",
+          "label": "every tool call"
         }
       ]
     },
@@ -252,7 +272,7 @@
       "id": "db",
       "type": "database",
       "label": "knowledge.db",
-      "sublabel": "SQLite WAL · migrated on open",
+      "sublabel": "SQLite WAL · learning + memory",
       "pos": [
         840,
         440
@@ -268,7 +288,7 @@
         },
         {
           "path": "mcp/src/migrations/001_init.sql",
-          "label": "8 migrations"
+          "label": "13 migrations"
         }
       ]
     },
@@ -290,6 +310,39 @@
         {
           "path": "mcp/src/dashboard.ts",
           "label": "http server"
+        },
+        {
+          "path": "mcp/src/assets/dashboard.html",
+          "label": "one payload, polled"
+        }
+      ]
+    },
+    {
+      "id": "memory",
+      "type": "backend",
+      "label": "Memory Pipeline",
+      "sublabel": "capture · summarise · recall",
+      "tag": "local by default",
+      "pos": [
+        1126,
+        240
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "mcp/src/memory/capture.ts",
+          "label": "one capture path"
+        },
+        {
+          "path": "mcp/src/memory/recall.ts",
+          "label": "recall + receipts"
+        },
+        {
+          "path": "mcp/src/memory/worker.ts",
+          "label": "queue · session summary"
         }
       ]
     }
@@ -304,7 +357,8 @@
         "srs",
         "session",
         "mcp",
-        "store"
+        "store",
+        "memory"
       ],
       "pad": 26
     },
@@ -484,6 +538,30 @@
         520,
         553
       ]
+    },
+    {
+      "id": "evidence",
+      "from": "store",
+      "to": "memory",
+      "label": "evidence in, entries out",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        1081,
+        225
+      ]
+    },
+    {
+      "id": "memory-persist",
+      "from": "memory",
+      "to": "db",
+      "label": "vectors · receipts",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "labelAt": [
+        1120,
+        392
+      ]
     }
   ],
   "cards": [
@@ -500,12 +578,12 @@
     },
     {
       "dot": "amber",
-      "title": "Six hooks, six mechanisms",
+      "title": "Seven hooks, seven mechanisms",
       "items": [
         "SessionStart — stdout; SubagentStart — the JSON form only",
         "UserPromptSubmit — one line, only when a session logged nothing",
-        "PostToolUse — exit 0 + JSON; skipped inside subagents",
-        "Stop — additionalContext continues the turn, quietly",
+        "PostToolUse — twice: unmatched captures, matched may quiz",
+        "Stop — additionalContext continues it; the seam summarises",
         "PreToolUse(Bash) — permissionDecision \"deny\" on git commit"
       ]
     },
@@ -515,9 +593,9 @@
       "items": [
         "stdout is the protocol; diagnostics are forced to stderr",
         "retryOnBusy wraps handlers; openDb seeds, then packs",
-        "Repo gate reads .eklavya.json only, never global config",
-        "Two commit gates, session and repo; both fail open",
-        "run.mjs prefers mcp/dist; npx at the pinned version"
+        "Two gates, session and repo (.eklavya.json only); fail open",
+        "A failed memory job backs off; auth or quota pauses the queue",
+        "A cloned repo sets dials only; never a sink, sync or provider"
       ]
     }
   ]

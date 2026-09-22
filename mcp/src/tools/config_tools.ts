@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import path from 'node:path';
-import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from '../config.js';
+import {
+  loadConfig,
+  writeConfigFile,
+  readConfigFile,
+  REPO_CONFIG_FILE,
+  REPO_FORBIDDEN_KEYS,
+  DEFAULT_CONFIG,
+} from '../config.js';
 import { currentSurface } from '../surface.js';
 import { FALLBACK_SESSION_ID, isSessionOff, resolveSessionId, setSessionOff } from '../session.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
@@ -44,6 +51,12 @@ export const getConfig: ToolDef = {
     };
   },
 };
+
+/** A namespace is a config key whose default is an object. */
+function isNamespace(key: string): boolean {
+  const value = (DEFAULT_CONFIG as unknown as Record<string, unknown>)[key];
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export const setConfig: ToolDef = {
   name: 'set_config',
@@ -105,6 +118,85 @@ export const setConfig: ToolDef = {
     max_stop_blocks_per_session: z.number().int().min(0).max(20).optional(),
     quiet: z.boolean().optional(),
     domains_enabled: z.array(z.string()).optional(),
+    // The namespaced half. Passed as objects rather than as dotted keys because
+    // the schema is what the model reads: a `memory` object with named fields
+    // tells it what exists, where a free-form `key`/`value` pair would not.
+    // Only the fields given are changed -- the rest of the namespace is kept.
+    memory: z
+      .object({
+        enabled: z.boolean().optional(),
+        capture: z.enum(['full', 'minimal', 'off']).optional(),
+        batch_max_events: z.number().int().min(1).max(500).optional(),
+        retention_days: z.number().int().min(1).nullable().optional(),
+      })
+      .optional()
+      .describe(
+        'Recording what each session did. Independent of mode: mode "off" means no questions, not no history. Turn capture off with enabled:false, or thin it with capture:"minimal" (prompts and session seams only).',
+      ),
+    retrieval: z
+      .object({
+        mode: z.enum(['keyword', 'semantic', 'hybrid']).optional(),
+        max_items: z.number().int().min(1).max(50).optional(),
+        max_tokens: z.number().int().min(100).max(20000).optional(),
+        cross_project: z.boolean().optional(),
+      })
+      .optional()
+      .describe(
+        'How memory is searched and how much is handed back at a session seam. "hybrid" (default) is keyword and vectors fused; "keyword" alone cannot match a morphological variant or an unspaced script.',
+      ),
+    privacy: z
+      .object({
+        exclude_paths: z.array(z.string()).optional(),
+        exclude_tools: z.array(z.string()).optional(),
+        redact_patterns: z.array(z.string()).optional(),
+      })
+      .optional()
+      .describe(
+        'What is never captured, on top of the built-in secret shapes and credential paths. Additive, not a replacement.',
+      ),
+    notifications: z
+      .object({
+        enabled: z.boolean().optional(),
+        sinks: z
+          .array(
+            z.object({
+              kind: z.enum(['webhook', 'command', 'file']),
+              target: z.string(),
+              args: z.array(z.string()).optional(),
+              events: z.array(z.string()).optional(),
+            }),
+          )
+          .optional(),
+      })
+      .optional()
+      .describe(
+        'Where session wrap-ups go. Off by default. A send cannot be recalled, so do not configure one without being asked to.',
+      ),
+    sync: z
+      .object({
+        enabled: z.boolean().optional(),
+        target: z.string().nullable().optional(),
+        device_id: z.string().nullable().optional(),
+      })
+      .optional()
+      .describe(
+        'Multi-device sync through a shared directory. Off by default. Memory entries cross; attempts, mastery and gates never do.',
+      ),
+    providers: z
+      .object({
+        observer: z
+          .object({ kind: z.literal('anthropic'), model: z.string(), api_key_env: z.string().optional() })
+          .nullable()
+          .optional(),
+        embeddings: z
+          .object({ kind: z.literal('anthropic'), model: z.string(), api_key_env: z.string().optional() })
+          .nullable()
+          .optional(),
+      })
+      .optional()
+      .describe(
+        'Outbound model access, and the only setting that sends captured work off this machine. `api_key_env` names the environment variable holding the key, never the key. Requires the developer to say yes; do not set it on their behalf.',
+      ),
   },
   handler: (args: Record<string, unknown>, ctx) => {
     const scope = (args.scope as 'global' | 'repo' | 'session' | undefined) ?? 'global';
@@ -124,6 +216,11 @@ export const setConfig: ToolDef = {
     if (Object.keys(patch).length === 0) {
       return { error: 'nothing_to_set', detail: 'Pass at least one setting to change.' };
     }
+
+    // A namespace arrives as a partial object, and the two config files merge
+    // with a shallow spread -- so writing it as given would drop every other
+    // key the file already had in it. Merge over what is there instead.
+    const namespaced = Object.keys(patch).filter((key) => isNamespace(key));
 
     if (scope === 'session') {
       // Only `mode` is session-scoped. The rest are settings, not an
@@ -174,6 +271,27 @@ export const setConfig: ToolDef = {
       };
     }
 
+    if (scope === 'repo') {
+      // The same rule `loadConfig` enforces on read, enforced on write so the
+      // refusal is visible rather than a setting that lands in the file and is
+      // then ignored for ever.
+      const forbidden = Object.keys(patch).filter((key) => REPO_FORBIDDEN_KEYS.includes(key));
+      if (forbidden.length) {
+        return {
+          error: 'not_repo_scoped',
+          detail: `${forbidden.join(', ')} can only be set globally. A repository config is a file you get by cloning, and these run a command, write files or send work off the machine.`,
+        };
+      }
+      const crossProject = (patch.retrieval as Record<string, unknown> | undefined)?.cross_project;
+      if (crossProject !== undefined) {
+        return {
+          error: 'not_repo_scoped',
+          detail:
+            'retrieval.cross_project can only be set globally: it decides whether another project\'s history is visible here, which is not this project\'s decision to make.',
+        };
+      }
+    }
+
     let target: string;
     if (scope === 'repo') {
       const root = resolved.repoRoot;
@@ -186,6 +304,17 @@ export const setConfig: ToolDef = {
       target = resolved.repoPath ?? path.join(root, REPO_CONFIG_FILE);
     } else {
       target = resolved.globalPath;
+    }
+
+    if (namespaced.length) {
+      const existing = readConfigFile(target);
+      for (const key of namespaced) {
+        const current = existing[key];
+        patch[key] = {
+          ...(current && typeof current === 'object' && !Array.isArray(current) ? current : {}),
+          ...(patch[key] as Record<string, unknown>),
+        };
+      }
     }
 
     writeConfigFile(target, patch);

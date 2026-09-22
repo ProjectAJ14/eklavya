@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-09-22T07:54:36.480Z",
+  "node": "v26.7.0",
+  "platform": "darwin-arm64",
+  "corpus": {
+    "entries": 100000,
+    "fill_ms": 18480,
+    "events": 1000000,
+    "events_fill_ms": 10706,
+    "db_bytes": 752824320
+  },
+  "worker_local_summarizer_ms": 1,
+  "measurements": [
+    {
+      "label": "capture.prepare (pure: exclusion + redaction)",
+      "iterations": 2000,
+      "median_ms": 0.004,
+      "p95_ms": 0.005,
+      "max_ms": 0.201
+    },
+    {
+      "label": "capture append (one indexed insert)",
+      "iterations": 2000,
+      "median_ms": 0.033,
+      "p95_ms": 0.049,
+      "max_ms": 1.097
+    },
+    {
+      "label": "search keyword (100000 entries)",
+      "iterations": 60,
+      "median_ms": 52.753,
+      "p95_ms": 53.683,
+      "max_ms": 53.825
+    },
+    {
+      "label": "search semantic (100000 entries)",
+      "iterations": 60,
+      "median_ms": 5.462,
+      "p95_ms": 8.679,
+      "max_ms": 10.187
+    },
+    {
+      "label": "search hybrid (100000 entries)",
+      "iterations": 60,
+      "median_ms": 59.542,
+      "p95_ms": 62.473,
+      "max_ms": 63.302
+    },
+    {
+      "label": "recall at a session seam",
+      "iterations": 60,
+      "median_ms": 0.153,
+      "p95_ms": 0.202,
+      "max_ms": 0.297
+    },
+    {
+      "label": "recall per prompt (every turn)",
+      "iterations": 40,
+      "median_ms": 6.51,
+      "p95_ms": 9.526,
+      "max_ms": 9.538
+    },
+    {
+      "label": "startup display",
+      "iterations": 200,
+      "median_ms": 0.054,
+      "p95_ms": 0.065,
+      "max_ms": 0.11
+    }
+  ]
+}

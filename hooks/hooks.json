@@ -52,6 +52,16 @@
     ],
     "PostToolUse": [
       {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "capture-tool"],
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "mcp__.*log_session_concepts",
         "hooks": [
           {

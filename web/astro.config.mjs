@@ -62,6 +62,7 @@ export default defineConfig({
           items: [
             { slug: 'docs/dials' },
             { slug: 'docs/levels-and-tiers' },
+            { slug: 'docs/memory' },
             { slug: 'docs/commands' },
             { slug: 'docs/cli' },
           ],
@@ -81,6 +82,7 @@ export default defineConfig({
             { slug: 'docs/how-it-works' },
             { slug: 'docs/grading-engine' },
             { slug: 'docs/your-data' },
+            { slug: 'docs/migrating' },
             { slug: 'docs/troubleshooting' },
             { slug: 'docs/faq' },
           ],

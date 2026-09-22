@@ -11,6 +11,16 @@ import { getGateStatus } from './get_gate_status.js';
 import { upsertConcepts } from './upsert_concepts.js';
 import { getConceptGraph } from './get_concept_graph.js';
 import { getConfig, setConfig } from './config_tools.js';
+import { codeFindSymbol, codeOutline } from './code_tools.js';
+import { memoryCollections } from './collection_tools.js';
+import {
+  memoryFileHistory,
+  memoryGet,
+  memorySearch,
+  memoryStatus,
+  memoryTimeline,
+} from './memory_read_tools.js';
+import { memoryCorrect, memoryDelete, memoryWrite } from './memory_write_tools.js';
 
 export const TOOLS: ToolDef[] = [
   getLearnerProfile,
@@ -22,6 +32,17 @@ export const TOOLS: ToolDef[] = [
   getConceptGraph,
   getConfig,
   setConfig,
+  memorySearch,
+  memoryGet,
+  memoryTimeline,
+  memoryFileHistory,
+  memoryStatus,
+  memoryWrite,
+  memoryCorrect,
+  memoryDelete,
+  codeOutline,
+  codeFindSymbol,
+  memoryCollections,
 ];
 
 /** Tool results are JSON text: compact, and small enough to live in context (decision G7). */

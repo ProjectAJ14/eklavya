@@ -13,7 +13,7 @@ Two files, and there is deliberately nothing else:
 
 | File | What it is |
 |---|---|
-| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — and `startDashboard`, a loopback `http.createServer` with three routes: `/api/state`, `/tokens.css`, `/`. |
+| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `memoryPage(db, q)` and `memoryEntry(db, id)` for the paged memory resource, and `startDashboard`, a loopback `http.createServer` with five read-only routes: `/api/state`, `/api/memory`, `/api/memory/entry`, `/tokens.css`, `/`. |
 | `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, router, views, charts. One file, no framework, no build step. |
 | `mcp/test/dashboard.test.ts` | The payload's contract. |
 | `web/src/content/docs/docs/dashboard.mdx` | The manual page. It is a **test of this code**, not prose about it. |
@@ -42,6 +42,23 @@ card is a query that has to change when the card moves. Aggregate in SQL only fo
 what the page cannot honestly derive — all-time totals, which must stay right
 even though `attempts` is capped at `ATTEMPT_LIMIT` rows.
 
+**The memory corpus is the one exception, and it is a resource, not a card.** An
+observation carries a narrative and the tool output it was distilled from, so a
+year of them is megabytes and shipping it on every load is what PRD DASH-02
+forbids. `/api/memory` is one paged, filtered endpoint over `memory_entries`
+(`project`, `session`, `type`, `tag`, `q`, `since`, `until`, `page`, `per`) and
+`/api/memory/entry?id=` is one observation with its tags, its raw evidence, its
+candidates and its receipts. Both are *resources* — a filter added to them is a
+parameter, never a second endpoint. Everything else about memory (the counts, the
+facets, the receipts ledger, the health block) still rides in `/api/state`.
+
+That makes exactly three views asynchronous — `memory`, `entry` and the memory
+half of `session`. They go through `fill(id, url, draw)`, which queues on `AFTER`
+exactly as `chart()` does and drops a response that lands after the reader has
+navigated away. `draw` is a pure function of the response; keep it that way.
+
+**`/api/state` is append-only.** Add keys; never rename or remove one.
+
 | Key | Shape |
 |---|---|
 | `config` | the four dials plus the thresholds the Projects page reports against |
@@ -52,6 +69,10 @@ even though `attempts` is capped at `ATTEMPT_LIMIT` rows.
 | `concepts` | the whole catalogue: `seen`, decayed `score` and `stored_score`, ease, interval, reps, `due`, `overdue_days`, last context, `prereqs` / `unlocks` / `related` as slugs |
 | `attempts` | newest `ATTEMPT_LIMIT`: question, options JSON, answer, feedback, grade, tier, outcome, format, repo, level, session id |
 | `logged` | every `session_concepts` row: slug, context, origin, ts, session id, repo |
+| `memory` | counts, not rows: captured / processed / indexed / reused / exposed / assessed, entries live vs superseded vs deleted, candidate statuses, and the type / tag / project facets the filters are built from |
+| `reuse` | `receiptTotals` (confirmed rows only), the `savingsFrom` verdict and `savingsLine`, the estimator's name, counts by delivery, and the newest `RECEIPT_LIMIT` receipts with their index/detail split |
+| `health` | capture heartbeat and mode, `queueDepth`, stalled jobs grouped by `error_class`, the spool's drop count, and whether a provider is configured |
+| `memory_sessions` | one row per session that captured evidence: events, entries, candidates, first/last — what lets the Sessions view line the two halves up |
 
 Two things that have bitten this file already:
 
@@ -157,6 +178,30 @@ contract is `web/CLAUDE.md`. The parts this page is strict about:
 - Both grounds are the product. `data-mode` is applied by the head script before
   paint and re-applied on boot (the toggle does not exist yet when the head runs).
 
+## Loopback is not the boundary it looks like
+
+`startDashboard` refuses any request whose `Host` is not a loopback name, and
+any cross-origin `Origin` that is not loopback either. Do not remove that check
+and do not widen it to "starts with 127.": a page the developer has open can
+point a hostname it controls at loopback and fetch from here, and the browser's
+same-origin rule does not stop it because the page's origin *is* that hostname.
+
+Two consequences for anything added here. A new endpoint inherits the check
+because it sits behind the same handler — keep it that way rather than
+registering a second server. And if a mutating endpoint is ever added, this
+check is necessary and not sufficient: it would also need a token the page
+holds and a hostile origin cannot read.
+
+## Escaping is not optional
+
+Learning rows are written by the tutor. **Memory rows are arbitrary tool output
+and developer prose**, and this page is served on loopback from the same origin
+as everything else on the machine — one unescaped `${e.title}` is stored XSS.
+Every stored string goes through `esc()` on its way into a template, including
+inside `data-*` attributes, and `dashboard.test.ts` has a case that scans this
+file for a stored field interpolated without it. Raw evidence bodies go in a
+`<pre class="raw">`, escaped, capped server-side, and marked when truncated.
+
 ## Honesty rules
 
 The page is a record of someone's learning; it does not get to flatter them.
@@ -173,12 +218,24 @@ The page is a record of someone's learning; it does not get to flatter them.
 - Scope is *activity*, not mastery: the project selector narrows attempts,
   sessions and the concept list, but a concept you know is a concept you know, so
   scores and review dates never change with it.
+- **Captured is not assessed.** Six words for six different things, never one
+  "memories" number: evidence can be captured and never processed, an entry
+  indexed and never retrieved, retrieved and never delivered, delivered and
+  never asked about. Only `assessed` required the developer to answer something.
+- **An unconfirmed receipt is never a saving.** `savingsFrom` in
+  `memory/tokens.ts` is the only place the percentage is computed and it refuses
+  to divide unless the delivery was `confirmed`; the page shows `unknown` and
+  `prepared` rows in the ledger with no verdict beside them. Say "estimated
+  context volume", never a cost or a bill.
+- **Superseded and deleted rows stay visible, marked.** The timeline is the
+  audit trail — a correction that erases what it corrected is not one. Strike
+  the title as well as labelling it: colour alone is not a marker.
 
 ## Before you call it done
 
 ```bash
 cd mcp && npm run build && npx vitest run          # 392+ tests, dashboard.test.ts included
-node dist/cli.js dashboard --port 41799
+node dist/cli.js dashboard --port 41799 --no-open
 ```
 
 1. Every section and both detail levels, at **1280, 900 and 560**, in **both

@@ -628,6 +628,7 @@ kbd {
 .steps__n--solid { background: var(--spot); border-color: var(--spot); color: var(--spot-ink); }
 .steps h3 { margin: 8px 0 6px; font-family: var(--font-disp); font-size: 19px; font-weight: var(--weight-bold); letter-spacing: var(--tracking-snug); }
 .steps p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--dim); }
+.steps p a { color: var(--spot); border-bottom: 1px solid var(--spot); }
 .steps p.has-chips { margin-bottom: 10px; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {
@@ -709,6 +710,17 @@ kbd {
 }
 .modes .code-inline { background: var(--mass); color: var(--spot); }
 .modes .dial__opt--default .code-inline { background: var(--bg); }
+/* The namespaced half of the config, in the same section as the dials it is
+   not part of: they are settings, not dials, and the heading says so. The
+   table is the commands table — same shape, key plus one line. */
+.modes__sub {
+  margin: 64px 0 0; font-family: var(--font-disp); font-size: 22px;
+  font-weight: var(--weight-extra); letter-spacing: var(--tracking-tight); color: var(--ink);
+}
+.modes__sub + .dials__sub { margin-top: 12px; }
+.modes .cmd-table { margin-top: 24px; }
+.cmd-row b { font-family: var(--font-mono); font-weight: 600; color: var(--ink); }
+.dials__sub a { color: var(--spot); border-bottom: 1px solid var(--spot); }
 .modes__foot { margin: 28px 0 0; font-size: 14px; line-height: 1.6; color: var(--faint); max-width: 860px; }
 .modes__foot .code-inline { color: var(--spot); padding: 2px 8px; }
 
@@ -746,6 +758,8 @@ kbd {
 .data-card p { margin: 0; font-size: 15px; line-height: 1.65; color: var(--dim); }
 .data-card p + p { margin-top: 16px; }
 .data-card code { font-family: var(--font-mono); font-size: 13px; color: var(--spot); }
+.data-card b { color: var(--ink); font-weight: 700; }
+.data-card a { color: var(--spot); border-bottom: 1px solid var(--spot); }
 
 /* ============================================================
    DASHBOARD

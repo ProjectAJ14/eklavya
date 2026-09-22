@@ -16,8 +16,76 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | `eklavya doctor` | Checks that everything is wired up: the runtime, the SQLite driver, the plugin's registration with Claude Code, the chat skill, then the database, counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. It also **applies your [concept packs](/docs/packs/)** — the only command that does so unconditionally — and names any that failed to load. Exits non-zero if a check fails, and names the command that repairs it; a broken pack is reported but does not fail the run, because `eklavya install` cannot repair one. |
 | `eklavya dashboard [--port <n>] [--no-open]` | Serves your learning history as a local web page and opens it in your browser. `--no-open` serves it and prints the URL instead. See [The dashboard](/docs/dashboard/). |
 | `eklavya statusline` | Prints your dials as one line for a status bar, or nothing at all. See [below](#eklavya-statusline). |
+| `eklavya memory <sub>` | Drives the memory half from a terminal: `status`, `search`, `timeline`, `show`, `process`, `prune`, `import`, `export` and `restore`. See [below](#eklavya-memory). |
 | `eklavya db-path` | Prints the database location. Useful in scripts. |
 | `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. Claude Code loads the pedagogy in pieces, on demand; a rules file is a single always-applied document, so every piece is inlined into it. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
+
+### `eklavya memory`
+
+The memory half, for a terminal. Inside a Claude Code session the MCP tools
+are better — they scope to the project on their own — but these work anywhere,
+and two of them have no equivalent as a tool.
+
+| Subcommand | What it does |
+| --- | --- |
+| `status` | Is capture healthy: entries, evidence waiting to be summarised, the job queue, whether a provider is configured, spool drops, and the reuse totals with the saving or overhead spelled out. This is the command for *"why does Eklavya remember nothing?"* — it tells apart switched off, queued, a provider refusing, and evidence dropped while the database was unreachable. |
+| `search <query>` | `--mode keyword\|semantic\|hybrid`, `--limit`, `--all-projects`. Titles and ids, not narratives. |
+| `timeline` | Recent entries, newest first. `--limit`, `--since <iso date>`. |
+| `show <id>` | One entry in full, with the raw evidence it was built from. |
+| `process` | Drains the observation queue now, rather than waiting for the next session seam. `--max <n>`. It is also the repair for a queue that has **paused**: a provider refusing on auth or quota parks its jobs rather than spending a dead credential once per tool call, and nothing automatic picks them up again. Running this is how you say you have fixed it — it puts the paused jobs back and says how many. |
+| `prune` | Deletes raw evidence older than `memory.retention_days`, keeping the observations built from it. Does nothing when retention is unset. |
+| `import <source.db>` | Imports a Claude Mem database. See below. |
+| `export <file>` | A versioned JSON file of entries, tags, evidence links and receipts. |
+| `restore <file>` | Reads that file back in. See below. |
+
+`export` and `restore` are one pair: the file is your backup, and `restore` is
+how you undo. Take an export before anything irreversible — an import, a
+version upgrade, a `--purge` — and if it goes wrong, restore it.
+
+```bash
+eklavya memory export ~/eklavya-backup.json
+eklavya memory restore ~/eklavya-backup.json
+```
+
+A restore is **additive and idempotent**: it adds what is missing, matches what
+is already there by identity rather than by row number, and running it twice
+adds nothing the second time. It never writes an attempt, a mastery row or a
+gate — restoring memory cannot alter what you have been assessed on. It rebuilds
+the search index and the embeddings for everything it brought back, so restored
+entries are findable immediately. A file written by a newer version stops with
+the version it found and the version this build understands, rather than
+guessing at a shape it has never seen.
+
+#### Importing an existing Claude Mem history
+
+```bash
+eklavya memory import ~/.claude-mem/claude-mem.db --dry-run
+eklavya memory import ~/.claude-mem/claude-mem.db --map-here eklavya
+```
+
+The dry run is worth doing first. It opens the source **read-only**, prints the
+schema version, the row counts, the projects it found, and a field-by-field
+report of what maps where, what is deliberately dropped and why, and which
+columns the importer has never seen — and writes nothing.
+
+Three things worth knowing before the real run:
+
+- **It never touches your learning history.** Imported observations arrive
+  unassessed. Concepts the source had attached become candidates, not concepts:
+  no mastery, no attempts, no gate is affected.
+- **It maps projects only when you tell it to.** Claude Mem names a project
+  with a bare string; Eklavya keys one by the checkout's absolute path.
+  `--map-here <name>` files that source project under the checkout you are
+  standing in, and `--map <name>=<path>` under any other. Anything left
+  unmapped is still imported, and still searchable — but only with
+  `--all-projects`, and the report says which names those were.
+- **It is resumable and it does not duplicate.** Run it twice and the second
+  run imports nothing. `--resume` reuses the snapshot an interrupted run left
+  rather than copying the source again.
+
+A source database newer than this importer understands stops with the version
+it found and the version supported, rather than guessing at a schema it has
+never seen.
 
 ### `eklavya statusline`
 
@@ -28,7 +96,11 @@ question are on screen when it arrives:
 ~/eklavya · main · Opus 5 · [EKLAVYA ambient · concept · interleaved · easy]
 ```
 
-Add it to `~/.claude/settings.json`:
+`eklavya install` sets this up for you, **but only into an empty slot**.
+`statusLine` holds one command, so installing ours and keeping yours cannot
+both happen, and between the two, yours wins: a status bar is a thing people
+build deliberately. If you already have one, nothing is touched and the block
+below is the manual route.
 
 ```json title="~/.claude/settings.json"
 {
@@ -39,9 +111,10 @@ Add it to `~/.claude/settings.json`:
 }
 ```
 
-Already have a status line? Call `eklavya statusline` from your own script and
-append the output — it prints one line and exits 0, and prints nothing when it
-has nothing to say.
+Already have a status line and want both? Call `eklavya statusline` from your
+own script and append the output — it prints one line and exits 0, and prints
+nothing when it has nothing to say. An uninstall removes the line only when it
+is exactly the one the installer wrote, so a composed one survives.
 
 This is a terminal feature. The Claude Desktop app has no status bar to run it
 in, so the dials are not on screen there; questions there are signed with an

@@ -52,6 +52,7 @@ import {
 } from './lib.js';
 import { withSurfaceNote } from '../surface.js';
 import { isSessionOff, setCurrentSession } from '../session.js';
+import { batchIfFull, identityOf, promptRecall, record } from './memory-lib.js';
 
 /**
  * Long enough that the session-start directive has had a fair chance, short
@@ -127,8 +128,13 @@ await run(async (input) => {
   // prompt the developer types, so a dormant or quiet session should not pay to
   // open SQLite before finding out it had nothing to do. Reading one or two
   // small JSON files is the cheaper question, so it is asked first.
-  const { mode } = config(cwdOf(input)).config;
-  if (mode === 'off') return 0;
+  const cwd = cwdOf(input);
+  const resolved = config(cwd);
+  const { mode } = resolved.config;
+  // `mode: off` silences the learning half. It does not stop memory capture --
+  // someone who asked for no quizzes did not ask for their project history to
+  // stop being recorded (PRD CFG-01) -- so the early return needs both to be off.
+  if (mode === 'off' && !resolved.config.memory.enabled) return 0;
   // `quiet` is deliberately NOT consulted. It suppresses the banner and the
   // status bar -- things the developer looks at -- and this is an
   // additionalContext line the model reads, exactly like the session-start
@@ -155,16 +161,37 @@ await run(async (input) => {
   // one: a model churning for ten minutes while its developer works in another
   // repo calls its tools long after that other window typed. `cwd` is what keeps
   // the two apart — see `sessionKeyFor`.
-  setCurrentSession(db, sid, cwdOf(input));
+  setCurrentSession(db, sid, cwd);
 
-  if (isSessionOff(db, sid)) return 0;
+  // The prompt is the single most useful thing a session produces for recall:
+  // it is the only place the developer says what they were trying to do. It is
+  // captured before every learning gate below, for the reason above.
+  // Anything the model should be handed this turn. At most one JSON envelope
+  // leaves this hook, so the recall block and the nudge line share it.
+  const context: string[] = [];
+
+  if (resolved.config.memory.enabled && typeof input.prompt === 'string' && input.prompt.trim()) {
+    const identity = identityOf(input, cwd, sid);
+    record(db, resolved, identity, { kind: 'prompt', title: 'prompt', body: input.prompt });
+    batchIfFull(db, resolved, identity);
+    // The session seam answers "what is this project". This answers "what do
+    // we already know about the thing they just asked for", which is the one
+    // that catches a change of subject halfway through a session. It returns
+    // nothing far more often than not, on purpose.
+    const recalled = promptRecall(db, resolved, identity, input.prompt);
+    if (recalled) context.push(recalled);
+  }
+
+  if (mode === 'off') return emit(context);
+
+  if (isSessionOff(db, sid)) return emit(context);
 
   // The fast path, and the one that runs on almost every prompt: a session that
   // is logging needs nothing said to it.
   const logged = db
     .prepare('SELECT count(*) AS n FROM session_concepts WHERE session_id = ?')
     .get(sid) as { n: number } | undefined;
-  if ((logged?.n ?? 0) > 0) return 0;
+  if ((logged?.n ?? 0) > 0) return emit(context);
 
   const key = `${NUDGE_KEY_PREFIX}${sid}`;
   const now = new Date().toISOString();
@@ -175,31 +202,43 @@ await run(async (input) => {
   if (!state) {
     prune(db);
     writeState(db, key, now, null, 0);
-    return 0;
+    return emit(context);
   }
 
-  if (state.count >= MAX_NUDGES) return 0;
-  if (minutesSince(state.first) < GRACE_MINUTES) return 0;
-  if (state.nudged && minutesSince(state.nudged) < COOLDOWN_MINUTES) return 0;
+  if (state.count >= MAX_NUDGES) return emit(context);
+  if (minutesSince(state.first) < GRACE_MINUTES) return emit(context);
+  if (state.nudged && minutesSince(state.nudged) < COOLDOWN_MINUTES) return emit(context);
 
   writeState(db, key, state.first, now, state.count + 1);
 
+  // Surface-noted like the two directives this restates. Cowork *does* fire
+  // `UserPromptSubmit`, and a session that has logged nothing is exactly the
+  // state this hook exists to catch — so without the note this is the one
+  // string still telling the model to name "the real code" in work that has
+  // none, on the only path that reaches a session already going wrong.
+  context.push(
+    withSurfaceNote(
+      '[Eklavya] Nothing logged this session. Once you know what the current task involves, call log_session_concepts with the 3-8 concepts it genuinely exercises, each with a context line naming the real code — without it there is nothing to quiz on.',
+      ' ',
+    ),
+  );
+  return emit(context);
+});
+
+/**
+ * One envelope or silence.
+ *
+ * A hook may write a single JSON object, so every exit from the body above
+ * goes through here rather than printing its own — two writes would be one
+ * malformed document, and a malformed document is a hook that runs, exits 0
+ * and is ignored.
+ */
+function emit(context: string[]): number {
+  if (!context.length) return 0;
   process.stdout.write(
     `${JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: 'UserPromptSubmit',
-        // Surface-noted like the two directives this restates. Cowork *does*
-        // fire `UserPromptSubmit`, and a session that has logged nothing is
-        // exactly the state this hook exists to catch — so without the note
-        // this is the one string still telling the model to name "the real
-        // code" in work that has none, on the only path that reaches a session
-        // already going wrong.
-        additionalContext: withSurfaceNote(
-          '[Eklavya] Nothing logged this session. Once you know what the current task involves, call log_session_concepts with the 3-8 concepts it genuinely exercises, each with a context line naming the real code — without it there is nothing to quiz on.',
-          ' ',
-        ),
-      },
+      hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context.join('\n') },
     })}\n`,
   );
   return 0;
-});
+}

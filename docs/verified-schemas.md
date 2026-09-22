@@ -66,6 +66,38 @@ The bare form `mcp__eklavya__<tool>` is still correct when the server comes from
 and how a Cursor user wires it up. `agents/tutor.md` therefore lists both, and
 whichever install it lands in, one set resolves.
 
+### The tool inventory
+
+Twenty tool definitions live under `mcp/src/tools/`, in two halves. The learning
+half is the original nine; the memory half is eleven more, added by the memory
+program.
+
+| Tool | Half | Defined in |
+|---|---|---|
+| `get_learner_profile` | learning | `get_learner_profile.ts` |
+| `log_session_concepts` | learning | `log_session_concepts.ts` |
+| `get_session_quiz_plan` | learning | `get_session_quiz_plan.ts` |
+| `record_attempt` | learning | `record_attempt.ts` |
+| `get_gate_status` | learning | `get_gate_status.ts` |
+| `upsert_concepts` | learning | `upsert_concepts.ts` |
+| `get_concept_graph` | learning | `get_concept_graph.ts` |
+| `get_config`, `set_config` | learning | `config_tools.ts` |
+| `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` | memory | `memory_read_tools.ts` |
+| `memory_write`, `memory_correct`, `memory_delete` | memory | `memory_write_tools.ts` |
+| `memory_collections` | memory | `collection_tools.ts` |
+| `code_outline`, `code_find_symbol` | memory | `code_tools.ts` |
+
+**Only seventeen of them are registered.** `TOOLS` in `mcp/src/tools/index.ts`
+imports `codeOutline`, `codeFindSymbol` and `memoryCollections` but never lists
+them in the array, so the server advertises the nine learning tools and the
+eight `memory_*` read/write tools and nothing else. The three missing ones are
+described in `web/src/content/docs/docs/memory.mdx` and in
+`skills/memory/SKILL.md` as though they were available, and
+`server.integration.test.ts` compares the advertised names against `TOOLS`
+rather than against a fixed list, so it agrees with whatever the array happens
+to hold. Adding the three names to the array is the whole fix; until then the
+manual is ahead of the server.
+
 This is also why the `PostToolUse` matcher is the regex `mcp__.*log_session_concepts`
 rather than either literal name: the checkpoint hook has to fire whether Eklavya
 was installed as a plugin or wired up through a project-level `.mcp.json`. A
@@ -129,6 +161,16 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
     ],
     "PostToolUse": [
       {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "capture-tool"],
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "mcp__.*log_session_concepts",
         "hooks": [
           {
@@ -158,7 +200,14 @@ unanchored regex, so the `.` and `*` are what select that behaviour.
 }
 ```
 
-Six events, one command. Every hook is exec form — `"command": "node"` plus
+Seven hooks over six events, one command. `PostToolUse` carries two of them: an
+unmatched `capture-tool`, which records every tool call as memory evidence, and
+the matched `checkpoint-quiz`. Registering two handler groups on one event is
+how the two jobs keep their own matchers — a single group would force the
+capture hook to inherit the checkpoint's regex and capture nothing but Eklavya's
+own tool calls.
+
+Every hook is exec form — `"command": "node"` plus
 `args` — and every one of them dispatches through the same `hooks/run.mjs`, which
 resolves a runtime and imports `dist/hooks/<name>.js`. The logic lives in
 `mcp/src/hooks/*.ts`; there are no `.sh` files under `hooks/` any more, and the
@@ -191,7 +240,38 @@ Common: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, 
 - `PostToolUse`: `tool_name`, `tool_input`, `tool_use_id`, `tool_output`
 - `Stop`: `stop_reason`, `last_assistant_message`
 - `SessionStart`: `session_start_reason` (`startup|resume|clear|compact|fork`), `model`
-- `UserPromptSubmit`: `prompt` (the text the developer just submitted; Eklavya does not read it)
+- `UserPromptSubmit`: `prompt` (the text the developer just submitted)
+
+Three of those descriptions moved when memory capture landed, and two of them
+are places where the field the docs name and the field the payload carries are
+not the same word. `HookInput` in `mcp/src/hooks/lib.ts` is the list of what
+Eklavya actually reads.
+
+- **`PostToolUse` results arrive as `tool_response`, not `tool_output`.**
+  `capture-tool.ts` reads `tool_name`, `tool_input` and `tool_response`; the
+  last of these is what tells it whether the call failed (`success: false`, an
+  `error` string, or `is_error`), and a failure is the one case where the result
+  rather than the arguments is worth storing. `tool_output` is what the
+  reference page calls it and nothing in this repo has observed a payload under
+  that key, so `lib.ts` declares `tool_response` and leaves `tool_output`
+  unread. If a host sends only `tool_output`, every tool call is recorded as a
+  success — which is the failure mode `hosts.ts` describes as `toolOutcomes:
+  false` rather than something to paper over.
+- **`UserPromptSubmit`'s `prompt` is now read.** It used to say "Eklavya does
+  not read it". `prompt-submit-nudge.ts` captures it as a `prompt` event
+  whenever `memory.enabled`, before its `mode` check, through the same privacy
+  filter as everything else. It is the single most useful thing a session
+  produces for recall, and it is also the most sensitive, which is why it goes
+  through `redact` and the path exclusions on the way in rather than on the way
+  out.
+- **`SessionStart`'s reason arrives as `source`.** `session-start.ts` reads
+  `input.source` and records `startup` when it is absent; it uses it only to
+  word the lifecycle event (`session resumed` versus `session started`). The
+  docs name the field `session_start_reason`. Both spellings are declared
+  nowhere together, so if the payload ever carries only
+  `session_start_reason` the lifecycle line degrades to `source=startup` on a
+  resume — cosmetic, and deliberately not defended against with a fallback that
+  nothing has confirmed is needed.
 
 - `SubagentStart`: `agent_type` — the agent's name, bare when it is a user-level
   agent and `<plugin>:<name>` through `/plugin`. Contract rather than

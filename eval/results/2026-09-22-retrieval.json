@@ -1,0 +1,422 @@
+{
+  "generated_at": "2026-09-22T02:17:33.032Z",
+  "k": 5,
+  "corpus": {
+    "entries": 18,
+    "queries": 12
+  },
+  "modes": {
+    "keyword": {
+      "queries": 12,
+      "k": 5,
+      "top1": 0.833,
+      "precision": 0.683,
+      "recall": 0.833,
+      "mrr": 0.833,
+      "misses": [
+        "q-clock",
+        "q-synonym"
+      ]
+    },
+    "semantic": {
+      "queries": 12,
+      "k": 5,
+      "top1": 0.917,
+      "precision": 0.183,
+      "recall": 0.917,
+      "mrr": 0.917,
+      "misses": [
+        "q-synonym"
+      ]
+    },
+    "hybrid": {
+      "queries": 12,
+      "k": 5,
+      "top1": 0.917,
+      "precision": 0.183,
+      "recall": 0.917,
+      "mrr": 0.917,
+      "misses": [
+        "q-synonym"
+      ]
+    }
+  },
+  "keyword_vs_hybrid": {
+    "better": "hybrid",
+    "top1Delta": 0.084,
+    "recallDelta": 0.084
+  },
+  "expected_misses": [
+    "q-synonym"
+  ],
+  "unexpected_hits": [],
+  "regressions": [],
+  "per_query": {
+    "keyword": [
+      {
+        "query": "q-refresh",
+        "relevant": 1,
+        "retrieved": 2,
+        "hits": 1,
+        "precision": 0.5,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-rotating",
+        "relevant": 1,
+        "retrieved": 2,
+        "hits": 1,
+        "precision": 0.5,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-checkpoint",
+        "relevant": 1,
+        "retrieved": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-typo",
+        "relevant": 1,
+        "retrieved": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-clock",
+        "relevant": 1,
+        "retrieved": 0,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "rr": 0,
+        "top1": 0
+      },
+      {
+        "query": "q-pagination",
+        "relevant": 1,
+        "retrieved": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-nplusone",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-hashing",
+        "relevant": 1,
+        "retrieved": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-cleanup",
+        "relevant": 1,
+        "retrieved": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-bundle",
+        "relevant": 1,
+        "retrieved": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-migrations",
+        "relevant": 1,
+        "retrieved": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-synonym",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "rr": 0,
+        "top1": 0
+      }
+    ],
+    "semantic": [
+      {
+        "query": "q-refresh",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-rotating",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-checkpoint",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-typo",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-clock",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-pagination",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-nplusone",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-hashing",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-cleanup",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-bundle",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-migrations",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-synonym",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "rr": 0,
+        "top1": 0
+      }
+    ],
+    "hybrid": [
+      {
+        "query": "q-refresh",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-rotating",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-checkpoint",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-typo",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-clock",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-pagination",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-nplusone",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-hashing",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-cleanup",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-bundle",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-migrations",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 1,
+        "precision": 0.2,
+        "recall": 1,
+        "rr": 1,
+        "top1": 1
+      },
+      {
+        "query": "q-synonym",
+        "relevant": 1,
+        "retrieved": 5,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "rr": 0,
+        "top1": 0
+      }
+    ]
+  }
+}

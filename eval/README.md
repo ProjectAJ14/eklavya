@@ -209,9 +209,407 @@ scoring every unmatched slug as wrong would grade the model against one person's
 reading of a diff. Only the unmatched ones go to a judge, and the report gives
 precision both ways — strict, and counting judge-confirmed concepts as right.
 
+## The retrieval eval
+
+`eval/retrieval-harness.mjs` measures the other half of the product: whether
+the evidence handed to the model was the right evidence. It costs nothing —
+no model call anywhere, a fixed synthetic corpus in
+`fixtures/retrieval-corpus.json`, and a pure scorer in
+`mcp/src/eval/retrieval-score.ts` — so unlike the question eval it can be run
+on every change to `mcp/src/memory/search.ts` or to the embedder.
+
+```bash
+cd mcp && npm run build && cd ..
+node eval/retrieval-harness.mjs                # all three modes
+node eval/retrieval-harness.mjs --k 3          # at a tighter budget
+node eval/retrieval-harness.mjs --split dev    # while changing the retriever
+node eval/retrieval-harness.mjs --json         # for a results file
+```
+
+### The corpus
+
+78 invented entries across five projects, and 110 labelled queries in fourteen
+categories. `quality.md` asks for at least 100 queries spanning decisions,
+fixes, files, dates, CJK and mixed-language search, worktrees, adversarial
+stale facts and explicit cross-project recall, and those are the categories —
+plus the `exact`, `morphology`, `typo`, `paraphrase`, `scope` and `synonym`
+shapes the first twelve queries measured, kept with their ids so the
+2026-09-22 baseline stays comparable.
+
+Every entry is fiction. Nothing in the fixture is read from, copied out of or
+paraphrased from a real memory database, an import, or this repo's history.
+
+**The entries exist to be wrong, not only to be right.** An eval where each
+query has exactly one plausible answer measures nothing, so the corpus is
+built out of near-misses: two checkout latency bugs six months apart, three
+projects that each solved idempotency differently, an English note and its
+Japanese twin on the same hook, two worktrees whose entries both mention a
+retry, and four pairs where one entry contradicts the other. Queries that have
+a tempting wrong answer name it in `forbidden`, and the harness counts how
+often it came back — the *leak rate*, which is the number a precision average
+is least able to show.
+
+**The split is a discipline, not an enforcement.** 30 of the 110 queries are
+`heldout`. They were assigned before the first run against this corpus and
+were not revised after its numbers were read. `--split dev` is what to use
+while changing the retriever; a gain on `dev` that does not reproduce on
+`heldout` is noise. Nothing stops a reader from looking at the held-out set,
+and this file is the only thing that records that they should not tune against
+it.
+
+### What the numbers mean
+
+**Top-1 is the headline, and precision@k is not.** Most queries in the corpus
+have one right answer, so precision@5 measures how many results a mode
+returned rather than whether they were good: a mode that always fills the
+slate scores 0.2 however perfect its ranking. Top-1 asks what the developer
+asks — was the first thing it showed me the right thing. Recall is reported
+beside it and never blended in, because omitting useful evidence is the
+failure a savings percentage cannot see (PRD MET-01): a recall of zero looks
+like an excellent saving.
+
+**Recall@20 on this corpus is close to meaningless**, and it is the number the
+plan's 0.90 goal is written against. A project scope here holds between six and
+thirty entries, so a slate of twenty is most of the scope: hybrid measures
+0.968 at k=20, and would measure well over 0.9 with almost any ranking at all.
+The plan's reference fixture is 100,000 entries, and until the corpus is that
+size the recall@20 target is not testable here. Recall@5 (0.898) is the version
+of that number this corpus can support.
+
+### What fails the build
+
+Two things, because on a corpus built to be hard most misses are a measurement
+rather than a defect, and a gate that fires on every hard query is a gate
+nobody reads.
+
+- `mustFind` — the query names something the product documents as guaranteed:
+  an exact term, the ADR-03 morphology claim, a project filter that is a SQL
+  clause. Missing one exits non-zero.
+- `noLeak` — the query's `forbidden` entries are excluded by SQL rather than by
+  ranking: another project's rows, a superseded correction, a row outside a
+  date window. One of those in the results means a filter was not applied, and
+  exits non-zero.
+
+Everything else is reported and nothing else is enforced: per category, per
+split, and as a leak rate.
+
+**`expectedMiss` still holds `ADR-03` honest.** That decision says the local
+embedder generalises over morphology and typos but not over meaning. A query
+beyond that ceiling is labelled `expectedMiss`, and if hybrid starts answering
+one the harness says `NEWS` and exits zero — being better than documented is
+not a build failure, but the ADR and the manual would need to say so.
+
+"Answering" means top-1, and that got stricter in this version after a run
+showed why. Semantic search keeps anything above a cosine of 0.05, so in a
+project holding eight entries the slate fills almost regardless of the query,
+and "it came back fourth of five" is a fact about the project's size rather
+than about the embedder bridging meaning. The weaker reading is still reported,
+as `expected_miss_in_slate`, because a criterion that quietly gets stricter is
+one nobody can audit. Note the direction: this change makes surprises rarer and
+the documented ceiling look *more* solid, which is the direction to be
+suspicious of — it is recorded here for exactly that reason.
+
+### Writing a synonym query is harder than it looks
+
+Three attempts went into the first one, and growing the corpus produced three
+more of the same mistake in one sitting. A query meant to be reachable only by
+meaning kept sharing vocabulary with its target:
+
+- `q-synonym` (v1) leaked `cookie`/`replay`, then `use`/`used`;
+- `q-syn-fraud-budget` said "slow service" against a note titled "…from a slow
+  fraud check", and keyword search put it first;
+- `q-cjk-cross-en-zh-pool` and `q-cjk-cross-en-zh-mon` were labelled
+  `expectedMiss` as cross-lingual queries, and both were found — because the
+  Chinese notes carry `src/db/pool.ts` and `deploy/monitoring/`, and a file path
+  is written in Latin script whatever language the prose is in.
+
+The last one is worth more than the label it broke: **an identifier bridges
+languages when nothing else does.** Both queries kept their place in the corpus
+with the `expectedMiss` label removed and the reason written into their `why`.
+
+### Measured, 2026-09-22
+
+`results/2026-09-22-retrieval-v2.json`, k=5, against
+`results/2026-09-22-retrieval.json` (18 entries, 12 queries) as the v1 baseline.
+
+| | v1 top-1 | v2 top-1 | v1 recall@5 | v2 recall@5 | v1 prec@5 | v2 prec@5 |
+|---|---|---|---|---|---|---|
+| keyword | 0.833 | 0.691 | 0.833 | 0.774 | 0.683 | 0.479 |
+| semantic | 0.917 | 0.755 | 0.917 | 0.862 | 0.183 | 0.238 |
+| hybrid | 0.917 | 0.755 | 0.917 | 0.898 | 0.183 | 0.247 |
+
+Every headline got worse, which was the point of the exercise. Hybrid still
+beats keyword (+0.064 top-1, +0.124 recall) on a corpus with nine times the
+queries and four times the entries, so the comparison the default mode rests on
+survives the harder corpus. What does not survive is stated two paragraphs
+down.
+
+Precision@5 of 0.247 against the plan's proposed 0.80 is the same renegotiation
+this file already made at 0.183: on a corpus where most queries have one right
+answer, 0.20 is the arithmetic ceiling for a mode that fills the slate, and the
+target was written for a corpus of answerable queries with several sources
+each. It is not a target this eval can be passed against, and it should be
+restated as recall@5 with a leak rate before anyone signs up to it.
+
+Per category, hybrid, with the keyword column beside it because the gap between
+them is the whole argument for the hybrid:
+
+| category | n | keyword top-1 | hybrid top-1 | hybrid recall@5 | leaks |
+|---|---|---|---|---|---|
+| exact | 7 | 1.000 | 1.000 | 1.000 | — |
+| decision | 9 | 1.000 | 1.000 | 1.000 | — |
+| fix | 9 | 1.000 | 1.000 | 1.000 | — |
+| file | 8 | 1.000 | 1.000 | 1.000 | — |
+| date | 8 | 1.000 | 1.000 | 1.000 | 2/6 |
+| morphology | 7 | 0.857 | 0.857 | 1.000 | — |
+| scope | 6 | 0.833 | 0.833 | 0.917 | 0/3 |
+| worktree | 6 | 0.833 | 0.833 | 1.000 | 2/5 |
+| typo | 7 | 0.571 | 0.714 | 1.000 | — |
+| cross-project | 8 | 0.625 | 0.625 | 0.792 | — |
+| paraphrase | 8 | 0.500 | 0.625 | 0.750 | — |
+| cjk | 15 | 0.200 | 0.533 | 0.733 | — |
+| stale | 8 | 0.375 | 0.375 | 1.000 | 4/8 |
+| synonym | 4 | 0.000 | 0.000 | 0.250 | — |
+
+dev 0.800 top-1 / 0.879 recall, heldout 0.633 / 0.950. The held-out set is
+materially harder on top-1 and it was not written to be — the same hands wrote
+both, one after the other. Read the 0.633 as the honest number and the 0.800 as
+the one that has been looked at.
+
+**And the held-out split disagrees about the hybrid.** On those 30 queries
+semantic alone scores 0.733 top-1 against hybrid's 0.633, while hybrid keeps
+the recall lead (0.950 against 0.883). Over the whole corpus the two tie on
+top-1 and hybrid leads on recall, which is also what v1 found — so the
+defensible claim is *hybrid over keyword*, and *hybrid for recall*. "Hybrid is
+the best mode" is not a claim these numbers support, and the manual should not
+make it. Reciprocal rank fusion moves a result that one mode ranked first and
+the other ranked fourth down the slate, and on a query only the embedder can
+answer that is a cost rather than a hedge.
+
+### The three categories the retriever is bad at
+
+**Stale facts: 0.375 top-1, and the stale row came back in four of eight.**
+This is the worst result in the run and the most useful. Two of the four pairs
+were corrected properly — the old entry is superseded, and `search` excludes it
+in SQL, so nothing leaks. The other two are the realistic case: a note from
+February says sessions live in Redis, a note from August says they were moved
+to Postgres, and nobody marked the first one wrong. Ranking is all that stands
+between the developer and the stale answer, and ranking has no opinion about
+time. `q-stale-staging-copy` is the sharpest version: asked in the stale note's
+own words, the wrong answer is the best lexical match in the corpus, and it
+wins. Nothing in `search.ts` reads `occurred_at` unless a filter names it. A
+recency prior would be a change to `mcp/src/memory/search.ts` and is out of
+scope for this eval, which exists to say the number, not to fix it.
+
+**CJK: 0.533 top-1, and keyword alone manages 0.200.** FTS5's `unicode61`
+tokenizer has no word boundary in Japanese or Chinese, so a whole title is one
+token and no substring of it can match. Korean does use spaces, and one of its
+two queries is the only CJK query keyword search answers without a Latin token
+in it — the other asks for `키보드 입력란` against a note that writes both words
+with a particle attached, which is the same boundary problem one level down.
+The character n-grams in `local-hash-v1` recover about a third of the
+gap — the entire argument for running semantic search beside keyword shows up
+in this category and nowhere else — but two queries return nothing relevant at
+all (`q-cjk-rotation-ja`, `q-cjk-db-zh`), both of them substrings from the
+middle of a long token. Cross-lingual queries fail outright unless a Latin
+identifier bridges them. A CJK-aware tokenizer is the fix, and it is a schema
+change: the FTS table names its tokenizer in `009_memory.sql`.
+
+**Meaning: 0.000 top-1 on four synonym queries.** ADR-03 said so, and the
+corpus now says it four times instead of once. Paraphrase at 0.625 is the same
+ceiling seen at a shallower angle: a query sharing two content words with its
+target usually lands, one content word usually does not.
+
+Two smaller ones worth naming: **cross-project at 0.625** is the ranking
+problem the widened scope creates — the right entry is in the slate (recall
+0.792) and something from another project is above it. And the **date**
+category splits cleanly: with a `since`/`until` filter every query is answered
+and nothing leaks, while the two queries that write the month into the sentence
+both return the wrong month's twin alongside the right answer. Nothing in the
+retriever reads `march` as a time, and the category's clean 1.000 top-1 hides
+that — which is exactly why the leak count is printed next to it.
+
+### What would disprove the retrieval numbers
+
+- **The labels are one person's reading**, and some near-misses are defensible
+  answers. `q-stale-deploys` asks how deploys run and is labelled with the
+  CI-only change; the blue-green decision outranks it and is not credited.
+  Widening those labels would raise the score without changing the product,
+  which is the reason not to do it after seeing the run.
+- **The corpus is synthetic and small.** 78 entries in five projects is not
+  100,000 in one, and several scores are affected by how few candidates a
+  project scope holds. The `heldout` gap is the only estimate here of how much
+  of the dev number is familiarity.
+- **A category with seven queries moves 0.143 per query.** Nothing in the
+  per-category table is significant on its own; the three named above are
+  reported because they fail by margins wider than that, and the rest are
+  reported because hiding them would be the failure mode this table exists to
+  prevent.
+
+## The performance baseline
+
+`eval/memory-perf.mjs` measures the machinery rather than the product: how long
+the memory paths take on a corpus of a given size. Four of its numbers sit on
+the path of a human action — the capture append after every tool call, the
+startup display, the seam recall and the per-prompt recall — and those are the
+only ones a developer can feel. The rest are on an agent's path, measured so a
+regression has somewhere to show up. No model call, nothing in CI: timings on a
+shared runner are noise.
+
+```bash
+cd mcp && npm run build && cd ..
+node eval/memory-perf.mjs                                     # 2,000 entries
+node eval/memory-perf.mjs --entries 20000                     # the first size that found a cliff
+node eval/memory-perf.mjs --entries 100000 --events 1000000   # quality.md's fixture, entry axis
+```
+
+`--events` was added for the 100k run and defaults to 0, which is what the 2k
+and 20k baselines ran with. It pre-loads `evidence_events` before anything is
+timed, in one transaction through the product's own `appendEvent`, so the rows
+and indexes are the ones a hook writes and only the per-row fsync is dropped.
+Nothing measured runs inside that transaction.
+
+### Measured, 2026-09-22 — 100,000 entries and 1,000,000 events
+
+`results/2026-09-22-memory-perf-100k.json`, against `-20k.json` and `-2k.json`
+on the same laptop (M-series, Node v26.7.0). Medians in ms.
+
+| | 2k entries | 20k entries | 100k entries |
+|---|---|---|---|
+| capture.prepare | 0.004 | 0.004 | 0.003 |
+| capture append | 0.028 | 0.030 | 0.029 |
+| search keyword | 0.861 | 7.974 | **51.069** |
+| search semantic | 2.472 | 5.803 | 5.296 |
+| search hybrid | 3.278 | 16.823 | **57.980** |
+| recall at a session seam | 0.161 | 0.160 | 0.155 |
+| recall per prompt | 2.496 | 5.981 | 5.753 |
+| startup display | 0.055 | 0.054 | 0.054 |
+| worker, one 40-event batch (one sample) | 1.2 | 1.1 | **612.6** |
+| corpus fill | 285ms | 3,157ms | 17,657ms |
+| database | 6MB | 50MB | 743MB |
+
+Every row but the worker is a median over 40–2,000 iterations with p95 and max
+in the JSON. The worker runs once per invocation, so its figure is a single
+sample and moves: a second 100k run measured 836ms. Read it as "hundreds of
+milliseconds", not as 612.6.
+
+The whole run takes 36 seconds, 28 of them building the corpus. Whatever kept
+the fixture from being run at its stated size, it was not the cost of running
+it.
+
+**The four human-path numbers are flat across fifty times the corpus**, which is
+the claim ADR-03 makes and the only one this fixture had to settle. Capture is
+0.03ms whether the database holds 2,000 entries or 100,000 alongside a million
+events; the startup banner is 0.05ms; both recalls are unchanged from 20k. Every
+budget in quality.md is met with three orders of magnitude to spare.
+
+**Semantic search is flat and keyword search is not.** The 5,000-vector scan
+bound holds exactly as ADR-03 says it does — 5.8ms at 20k, 5.3ms at 100k, and
+the extra 80,000 entries cost nothing because they are never read. Keyword
+search grows with the corpus and slightly faster than it — 6.4x for 5x the
+entries — and hybrid inherits the whole of it, so the mode a developer gets by
+default went from 17ms to 58ms. Still well inside the 300ms budget, but the same
+slope puts half a million entries in the hundreds of milliseconds, and the bound
+that keeps semantic search flat has no counterpart on the keyword side.
+
+Read the keyword number with the fixture in mind. The corpus is generated from a
+twenty-word vocabulary, so nearly every entry matches nearly every query and
+bm25 ranks the entire corpus on every search. That is a worst case, not a
+typical one — real vocabulary is far larger and the match set far smaller. It is
+the same worst case at all three sizes, so the curve between them is honest;
+the absolute number is pessimistic.
+
+### The one thing that degraded badly: the worker
+
+Summarising one 40-event batch costs 1.2ms at 2k events, 26ms at 200k
+(`results/2026-09-22-memory-perf-20k-events.json`, a control run at 20k entries
+with the evidence scaled and everything else held) and 613ms at 1,000,000. Five
+hundred times slower for five hundred times the evidence, to write one entry
+from forty rows: the batch's own input never grew. The cause is two full scans
+per batch: `batchEvents` reads `SELECT * FROM evidence_events WHERE batch_id = ?`
+and the worker closes with `UPDATE evidence_events SET status = 'summarized'
+WHERE batch_id = ?`, and `009_memory.sql` indexes `evidence_events` on
+`(project, occurred_at)`, `(session_id, occurred_at)` and `(status, project)` —
+not on `batch_id`. `EXPLAIN QUERY PLAN` says `SCAN evidence_events` for both.
+
+The cost is per batch and linear in the whole evidence table, so the total work
+of summarising a database grows with the square of what has been captured. It
+also never shrinks on its own: `memory.retention_days` defaults to null, so
+nothing prunes evidence unless the developer asks for it.
+
+This is on the worker's path, not a human's — it runs at the session seam, after
+the Stop hook, and 613ms there is not felt the way 613ms before a prompt would
+be. It is reported as the run's most valuable result because it is the only
+measured thing whose cost grows while its own input stays the same, and because
+the fix is one index on `batch_id` in a new forward-only migration.
+Naming the fix is not making it: this eval says the number.
+
+The control run is also the proof that it is the evidence table and not the
+entries: at 20k entries, scaling events from 2k to 200k left every search and
+recall number inside noise and moved the worker alone, from 1.1ms to 26ms.
+
+### Whether 20k was representative
+
+For the four human-path numbers and for semantic search, yes — the flat lines at
+20k stayed flat at 100k, and nothing the plan leaned on those for has changed.
+
+For the worker, no, and the reason is worth stating plainly: **the 2k and 20k
+runs never scaled the evidence table.** Both wrote about 2,000 events whatever
+the entry count, so the 20k run measured a worker against 1/100th of the
+fixture's evidence and reported 1.1ms. The quadratic was invisible at both
+sizes, not because it was small but because the axis that drives it was pinned.
+A fixture that grows one dimension and holds the other flat will keep reporting
+that the held dimension is free.
+
+That is also why `--events` fills before the capture timings rather than after:
+had it filled after, `capture append` would have been measured against an empty
+evidence table at every size, and the one write on every tool call would have
+been the next number to look better than it is. It does not — 0.029ms against a
+million rows — but the run had to be able to say so.
+
+### What this run does not close
+
+The entry-count axis only. quality.md's fixture is 100,000 entries, 1,000,000
+evidence events **and 10 simultaneous coding sessions**, and the concurrency
+half was not attempted: it needs a harness that does not exist — several
+processes on one WAL database, contending writes, `busy_timeout` under real
+pressure — and ADR-11 keeps it declined. Nothing here says anything about what
+happens when ten sessions write at once, and no performance claim at team scale
+should be read out of this table.
+
+### The scan the fixture found, and the index that fixed it
+
+Running the fixture `quality.md` actually asks for — 100,000 entries and
+1,000,000 evidence events — turned up a real defect rather than a number.
+`evidence_events` carried no index on `batch_id`, and both queries the worker
+uses to read and retire a batch key on exactly that, so `EXPLAIN QUERY PLAN`
+reported `SCAN evidence_events`. Summarising one forty-event batch cost a pass
+over every event ever captured: **1.2ms at 2,000 events, 26ms at 200,000,
+613ms at 1,000,000**, for input that never grew. Total summarising work over a
+database's life was quadratic in its own history, and `memory.retention_days`
+defaults to null, so nothing flattened the curve.
+
+Migration `014_batch_events_index.sql` adds the index. Measured after, same
+harness, same machine:
+
+| events | worker, one 40-event batch |
+|---|---|
+| 200,000 | 26ms → **0.9ms** |
+| 1,000,000 | 613ms → **1ms** |
+
+`migrate.test.ts` asserts the query plan rather than the index name, because the
+failure to prevent is the scan, not the spelling.
+
+Worth naming why this hid for so long: the 2k and 20k runs wrote a fixed ~2,000
+events whatever the entry count — a hundredth of the fixture's 10:1 ratio — so
+they measured the worker against an evidence table two orders of magnitude too
+small and reported 1.1ms. The quadratic was invisible because the axis driving
+it was pinned, not because it was absent. A baseline that holds one axis still
+is not a baseline; it is a shape you chose.
+
 ## Not built yet
 
-The board lists three harnesses. Two are built.
+The board lists four harnesses. Three are built.
 
 - **Loop behaviour** — headless `claude -p` against a pinned public repo,
   asserting one checkpoint per task, exactly one question, and the work resuming

@@ -14,7 +14,7 @@ Nothing below requires you to type an Eklavya command. This is the plugin workin
 
 1. #### You open Claude Code
 
-   The **SessionStart** hook prints one line: your learner profile, the current mode, focus, cadence and level. Claude reads that line too, so it is calibrated from your very first message. `quiet: true` turns the banner off.
+   The **SessionStart** hook prints three lines: a heading, what reusing your project's memory saved, and where this project stands — concepts you are learning, concepts you have mastered, concepts due for review, and the level you are working through. Your dials are in the status bar and anything longer lives in `eklavya dashboard`. Claude receives more than you see: the same hook hands it the relevant history of this project, framed as evidence to check rather than instructions to follow. `quiet: true` turns the three lines off and leaves the rest working.
 2. #### You ask for something
 
    For example: *"Add JWT auth to the Express API."* Claude starts working.

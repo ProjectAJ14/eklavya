@@ -172,6 +172,16 @@
   .ctx { color:var(--dim); }
   .empty { color:var(--faint); padding:var(--space-5) 0; font-size:13.5px; }
 
+  /* A bar above the view, not a banner over it: the reader is mid-page and the
+     notice must not move what they are reading. */
+  .stale { display:block; width:100%; text-align:left; margin-bottom:var(--space-6);
+           font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em;
+           text-transform:uppercase; background:none; border:1px solid var(--spot);
+           color:var(--spot); padding:7px 10px; cursor:pointer;
+           transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
+  .stale:hover { background:var(--spot); color:var(--spot-ink); }
+  .stale[hidden] { display:none; }
+
   /* ---------- controls ---------- */
   .filters { display:flex; gap:var(--space-3); flex-wrap:wrap; align-items:center;
              margin-bottom:var(--space-4); }
@@ -280,6 +290,24 @@
   .link:hover { text-decoration:underline; }
   .tags { display:flex; gap:var(--space-2); flex-wrap:wrap; }
 
+  /* ---------- memory ---------- */
+  /* A superseded or deleted row stays in the list — it is the audit trail — but
+     it must never read as current, so the title is struck through as well as
+     labelled. Colour alone is not a marker. */
+  tr.gone .title, .gone-title { text-decoration:line-through; color:var(--faint); }
+  .pill.gone { color:var(--faint); border:1px dashed var(--line-2); background:none; }
+  /* A <details> is the drill-down: native, keyboard-operable, no JS. */
+  summary.qa__meta { cursor:pointer; list-style:none; }
+  summary.qa__meta::-webkit-details-marker { display:none; }
+  summary.qa__meta::before { content:'▸'; color:var(--faint); }
+  details[open] > summary.qa__meta::before { content:'▾'; color:var(--spot); }
+  summary.qa__meta:focus-visible { outline:none; box-shadow:var(--ring); }
+  .raw { font-family:var(--font-mono); font-size:12px; line-height:1.55; white-space:pre-wrap;
+         word-break:break-word; color:var(--dim); background:var(--mass); padding:var(--space-3);
+         max-height:320px; overflow:auto; margin:var(--space-3) 0 0; }
+  .facts { margin:var(--space-3) 0 0; padding-left:var(--space-5); color:var(--dim); font-size:13.5px; }
+  .facts li + li { margin-top:var(--space-1); }
+
   .banner { border:1px solid var(--line-2); border-left:2px solid var(--spot); padding:var(--space-4) var(--space-5);
             background:var(--panel); display:flex; gap:var(--space-4); align-items:center; flex-wrap:wrap; }
   .banner p { margin:0; color:var(--dim); font-size:13.5px; }
@@ -353,6 +381,9 @@
   </aside>
 
   <main>
+    <button type="button" class="stale inner" id="stale" hidden aria-live="polite">
+      New activity since this page loaded — refresh
+    </button>
     <div class="inner stack" id="view">
       <p class="empty">Loading your learning history…</p>
     </div>
@@ -428,6 +459,8 @@ const T = {
   domain:   { page:1 },
   concept:  { page:1 },
   session:  { page:1 },
+  memory:   { page:1, q:'', tag:'all', since:'', until:'' },
+  reuse:    { page:1, only:'all' },
 };
 const PER = 20;
 
@@ -496,17 +529,33 @@ function streaks(map) {
 function sessions() {
   const m = new Map();
   const get = (id) => {
-    if (!m.has(id)) m.set(id, { id, repo:null, logged:[], asked:[], first:null, last:null });
+    if (!m.has(id)) m.set(id, { id, repo:null, logged:[], asked:[], mem:null, first:null, last:null });
     return m.get(id);
   };
+  /* Two timestamp shapes meet here: SQLite's `2026-09-05 21:04:00` from
+     attempts, and the ISO string evidence carries. Compared as text, 'T' sorts
+     after ' ', so the same instant from the two halves would order wrongly —
+     flatten both to one shape before comparing. */
+  const flat = (ts) => String(ts ?? '').replace('T', ' ').replace('Z', '');
   const touch = (s, ts) => {
-    if (!s.first || ts < s.first) s.first = ts;
-    if (!s.last || ts > s.last) s.last = ts;
+    const t = flat(ts);
+    if (!t) return;
+    if (!s.first || t < s.first) s.first = t;
+    if (!s.last || t > s.last) s.last = t;
   };
   for (const l of loggedInScope()) { const s = get(l.session_id); s.logged.push(l); s.repo = s.repo ?? l.repo; touch(s, l.ts); }
   for (const a of attemptsInScope()) {
     if (!a.session_id) continue;
     const s = get(a.session_id); s.asked.push(a); s.repo = s.repo ?? a.repo; touch(s, a.ts);
+  }
+  // A session that captured evidence but logged no concept is still a session:
+  // leaving it out would make the memory half invisible in the one place the
+  // two halves are supposed to line up.
+  for (const mem of S.memory_sessions ?? []) {
+    if (!inScope(mem.project)) continue;
+    const s = get(mem.session_id);
+    s.mem = mem; s.repo = s.repo ?? mem.project;
+    touch(s, mem.first); touch(s, mem.last);
   }
   return [...m.values()]
     .map((s) => ({ ...s, passed: s.asked.filter((a) => a.grade >= 3).length }))
@@ -525,7 +574,9 @@ function sessionLabel(s) {
   if (ctx) return ctx.context;
   const names = s.logged.map((l) => l.name);
   if (names.length) return names.slice(0, 4).join(' · ') + (names.length > 4 ? ` +${names.length - 4}` : '');
-  return s.asked.length ? plural(s.asked.length, 'question') + ' answered' : s.id;
+  if (s.asked.length) return plural(s.asked.length, 'question') + ' answered';
+  if (s.mem) return plural(s.mem.events, 'evidence event') + ' captured';
+  return s.id;
 }
 
 /* ============================================================
@@ -775,6 +826,76 @@ function segbar(parts) {
 const chart = (id, fn) => { AFTER.push(() => { const el = $(id); if (el) fn(el); }); };
 
 /* ============================================================
+   The memory half
+
+   Everything above is derived from one payload. The corpus is the exception:
+   an observation carries a narrative and the tool output behind it, so the
+   timeline is paged over `/api/memory` instead of shipped whole on every load.
+   That makes exactly two views asynchronous, and both go through `fill()`.
+   ============================================================ */
+
+/** Monotonic token: a response that lands after the reader has moved on is dropped. */
+let SEQ = 0;
+
+/**
+ * Renders a placeholder now and the real markup when the fetch lands. Queued
+ * through `AFTER` like a chart, for the same reason — the target element does
+ * not exist until `render()` has written the view's `innerHTML`.
+ */
+function fill(id, url, draw) {
+  const seq = ++SEQ;
+  AFTER.push(() => {
+    fetch(url).then((r) => r.json()).then((d) => {
+      const el = $(id);
+      if (!el || seq !== SEQ) return;
+      el.innerHTML = draw(d);
+      el.querySelectorAll('tr.row').forEach((r) => { r.tabIndex = 0; });
+    }).catch((e) => {
+      const el = $(id);
+      if (el && seq === SEQ) el.innerHTML = `<p class="empty">Could not load: ${esc(e.message)}</p>`;
+    });
+  });
+}
+
+/** Everything stored is untrusted text: a title is whatever a tool printed. */
+const tagPills = (tags) => (tags ?? []).map((t) => `<span class="pill">${esc(t)}</span>`).join(' ');
+const jsonList = (raw) => { try { const v = JSON.parse(raw || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+
+/** The visible marker on a row that is no longer the current claim. */
+function entryMark(e) {
+  if (e.deleted_at) return '<span class="pill gone">deleted</span>';
+  if (e.superseded_by) return '<span class="pill gone">superseded</span>';
+  return '';
+}
+
+/** Project scope as a query parameter; `~` (unattributed) predates memory entirely. */
+function memScope(params) {
+  if (FILTER !== '*' && FILTER !== '~') params.set('project', FILTER);
+  return params;
+}
+
+const deliveryPill = (d) =>
+  d === 'confirmed' ? '<span class="pill ok">confirmed</span>'
+  : d === 'prepared' ? '<span class="pill due">prepared</span>'
+  : '<span class="pill">unknown</span>';
+
+/**
+ * The one sentence that says what a savings verdict means, in words, not a bare
+ * percentage. `none` has two readings and they are not the same story: nothing
+ * was ever reused, or plenty was and none of it was ever confirmed delivered —
+ * which is why the receipt count is part of the sentence.
+ */
+function savingsText(s, receipts) {
+  if (!s) return 'No receipts yet.';
+  if (s.kind === 'saving') return `${s.percent}% less context than reading the same material from source (estimated).`;
+  if (s.kind === 'overhead') return `${s.tokens} tokens more than reading from source — reuse cost more than it saved.`;
+  if (s.kind === 'unavailable') return 'No confirmed delivery yet, so there is no saving to report.';
+  return receipts
+    ? `${plural(receipts, 'receipt')}, none of them a confirmed delivery — so there is no saving to report.`
+    : 'No context has been reused yet.';
+}
+
+/* ============================================================
    Views
    ============================================================ */
 
@@ -818,6 +939,36 @@ function viewOverview() {
           Run <code>/eklavya:quiz</code> in Claude Code, or open the
           <a class="link" data-go="#/review">review queue</a> to see what is waiting.</p></div>`
       : '',
+
+    // The memory half, in two summaries. Both are all-project: the timeline is
+    // paged on the server, so narrowing these to a scope the page cannot
+    // recount would be a number nobody could check.
+    `<div class="g2">
+       ${card('Context reuse', 'B is what the same material would have cost read from source; D is what was delivered instead.',
+         `<div class="kv">
+            <div><b>B — from source</b><span>${S.reuse.base}</span></div>
+            <div><b>D — delivered</b><span>${S.reuse.delivered}</span></div>
+            <div><b>Net</b><span>${S.reuse.base - S.reuse.delivered}</span></div>
+            <div><b>Verdict</b><span>${S.reuse.savings.kind === 'saving' ? S.reuse.savings.percent + '%'
+              : S.reuse.savings.kind === 'overhead' ? '+' + S.reuse.savings.tokens + ' tokens' : '—'}</span></div>
+          </div>
+          <p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">${esc(savingsText(S.reuse.savings, S.reuse.receipts))}
+            Estimated with <code class="slug">${esc(S.reuse.estimator)}</code> on both sides of the subtraction —
+            a reduction in context volume, not a bill.
+            <a class="link" data-go="#/reuse">Every receipt →</a></p>`)}
+       ${card('Memory', 'Captured is not assessed. Each of these is a different thing that happened to one piece of evidence.',
+         `<div class="kv">
+            <div><b>Observations</b><span>${S.memory.entries}</span></div>
+            <div><b>Evidence captured</b><span>${S.memory.captured}</span></div>
+            <div><b>Pending</b><span>${S.memory.pending}</span></div>
+            <div><b>Queue</b><span>${S.health.queue.pending}</span></div>
+          </div>
+          <p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">
+            ${S.memory.processed} distilled · ${S.memory.indexed} indexed · ${S.memory.reused} reused ·
+            ${S.memory.exposed} delivered · ${S.memory.assessed} assessed.
+            <a class="link" data-go="#/memory">The timeline →</a>
+            <a class="link" data-go="#/health">Health →</a></p>`)}
+     </div>`,
 
     card('Answers over the last 30 days', 'Right, missed and skipped, per day. Empty days are shown as empty.',
       `<div class="legend">
@@ -1107,6 +1258,8 @@ function viewSessions() {
     return `<tr class="row" data-go="#/session/${encodeURIComponent(s.id)}">
       <td style="min-width:260px"><span class="title">${esc(base(s.repo))}</span>
         <div class="slug">${esc(sessionLabel(s).slice(0, 120))}</div></td>
+      <td class="num">${s.mem ? s.mem.events : '—'}</td>
+      <td class="num">${s.mem ? s.mem.entries : '—'}</td>
       <td class="num">${s.logged.length}</td>
       <td class="num">${s.asked.length}</td>
       <td style="min-width:96px">${acc === null ? '<span class="slug">—</span>'
@@ -1118,17 +1271,19 @@ function viewSessions() {
   return [
     `<div>
        <h1 class="page__title">Sessions</h1>
-       <p class="page__sub">One row per Claude Code session that logged something. Open one to see what the
-         agent built, what it said each concept was for, and what you were asked about it.</p>
+       <p class="page__sub">One row per Claude Code session that captured or logged something. Open one for the
+         whole thread: the evidence it captured, what it remembered, the concepts that came out of it, and every
+         question you were asked.</p>
      </div>`,
     tiles([
-      ['Sessions', all.length, 'that logged a concept'],
+      ['Sessions', all.length, 'with captured or logged work'],
       ['With questions', withQuestions, `${pct(withQuestions, all.length)}% of sessions`],
+      ['Evidence', all.reduce((a, s) => a + (s.mem ? s.mem.events : 0), 0), 'events captured'],
       ['Concepts logged', all.reduce((a, s) => a + s.logged.length, 0), 'context lines recorded'],
       ['Answers', all.reduce((a, s) => a + s.asked.length, 0), 'across every session'],
     ]),
     card(null, null,
-      table([{t:'Session'},{t:'Logged',n:1},{t:'Asked',n:1},{t:'Accuracy'},{t:'When',n:1}], rows)
+      table([{t:'Session'},{t:'Captured',n:1},{t:'Remembered',n:1},{t:'Logged',n:1},{t:'Asked',n:1},{t:'Accuracy'},{t:'When',n:1}], rows)
       + pager('sessions', all.length, p)),
   ].join('');
 }
@@ -1168,6 +1323,32 @@ function viewSession(id) {
     </article>`;
   }).join('');
 
+  // The memory half of this session, in the order it happened: evidence in,
+  // observations out, candidates proposed — then the questions above.
+  if (s.mem) {
+    fill('sess-mem', '/api/memory?per=100&session=' + encodeURIComponent(id), (d) => {
+      const entries = d.rows.map((e) => `
+        <tr class="row${e.deleted_at || e.superseded_by ? ' gone' : ''}" data-go="#/entry/${e.id}">
+          <td class="slug" style="white-space:nowrap">${esc(stamp(e.occurred_at))}</td>
+          <td style="min-width:260px"><span class="title">${esc(e.title)}</span>
+            <div class="ctx">${esc(e.snippet ?? '')}</div></td>
+          <td><span class="pill">${esc(e.type ?? e.kind)}</span></td>
+          <td class="num">${e.event_count}</td>
+          <td>${entryMark(e)}</td></tr>`);
+      const cands = (d.candidates ?? []).map((c) => {
+        const go = c.concept_slug ? ` class="row" data-go="#/concept/${encodeURIComponent(c.concept_slug)}"` : '';
+        return `<tr${go}><td><span class="title">${esc(c.name ?? c.slug)}</span><div class="slug">${esc(c.slug)}</div></td>
+          <td><span class="pill">${esc(c.domain ?? '—')}</span></td>
+          <td class="num">${Math.round((c.confidence ?? 0) * 100)}%</td>
+          <td><span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span></td></tr>`;
+      });
+      return card('What the session remembered', 'Observations distilled from the evidence this session captured.',
+          table([{t:'When'},{t:'Observation'},{t:'Type'},{t:'Evidence',n:1},{t:''}], entries))
+        + card('Concepts it proposed', 'Derived from evidence, and still only a proposal — nothing here moved mastery.',
+          table([{t:'Candidate'},{t:'Domain'},{t:'Confidence',n:1},{t:'Status'}], cands));
+    });
+  }
+
   return [
     `<div>
        <a class="page__back" data-go="#/sessions">← Sessions</a>
@@ -1175,12 +1356,15 @@ function viewSession(id) {
        <p class="page__sub">${esc(stamp(s.first))} → ${esc(stamp(s.last))} · <code class="slug">${esc(s.id)}</code></p>
      </div>`,
     tiles([
+      ['Captured', s.mem ? s.mem.events : 0, s.mem && s.mem.redacted ? `${s.mem.redacted} redacted` : 'evidence events'],
+      ['Remembered', s.mem ? s.mem.entries : 0, 'observations written'],
       ['Logged', s.logged.length, 'concepts the work touched'],
       ['Asked', s.asked.length, s.asked.length ? `${s.passed} right` : 'no questions in this one'],
       ['Accuracy', s.asked.length ? pct(s.passed, s.asked.length) + '%' : '—', 'in this session',
         s.asked.length && pct(s.passed, s.asked.length) >= 70 ? 'good' : ''],
       ['Review pulled in', review.length, 'from earlier work'],
     ]),
+    s.mem ? `<div class="stack" id="sess-mem"><p class="empty">Loading what this session remembered…</p></div>` : '',
     card('What the work taught', 'Each line is what the agent said the concept was for, in the code it wrote.',
       table([{t:'Concept'},{t:'What you did'},{t:'State now'}], work.map(conceptRow))),
     review.length
@@ -1337,6 +1521,304 @@ function viewDomain(name) {
   ].join('');
 }
 
+/* ---------- Memory: the timeline, paged over /api/memory ---------- */
+
+function memoryQuery(type) {
+  const t = T.memory;
+  const p = memScope(new URLSearchParams());
+  if (type && type !== 'all') p.set('type', type);
+  if (t.tag !== 'all') p.set('tag', t.tag);
+  if (t.q.trim()) p.set('q', t.q.trim());
+  // A date input is a day, not an instant, and `occurred_at` is an ISO string —
+  // so the bounds have to be ISO too, or the text comparison puts `T` after the
+  // space in `23:59:59` and the last day of the range drops out.
+  if (t.since) p.set('since', t.since + 'T00:00:00.000Z');
+  if (t.until) p.set('until', t.until + 'T23:59:59.999Z');
+  p.set('page', t.page);
+  p.set('per', S.memory.per_page || 25);
+  return p.toString();
+}
+
+function drawMemory(d) {
+  T.memory.page = d.page;   // the server clamps a page number a filter shrank
+  const rows = d.rows.map((e) => {
+    const gone = e.deleted_at || e.superseded_by;
+    const more = e.narrative_length > String(e.snippet ?? '').length;
+    return `<tr class="row${gone ? ' gone' : ''}" data-go="#/entry/${e.id}">
+      <td class="slug" style="white-space:nowrap">${esc(stamp(e.occurred_at))}</td>
+      <td style="min-width:280px"><span class="title">${esc(e.title)}</span>
+        <div class="ctx">${esc(e.snippet ?? '')}${more ? '…' : ''}</div></td>
+      <td><span class="pill">${esc(e.type ?? e.kind)}</span></td>
+      <td style="min-width:120px"><div class="tags">${tagPills(e.tags)}</div></td>
+      <td class="slug">${esc(base(e.project))}</td>
+      <td class="num">${e.event_count}</td>
+      <td>${entryMark(e)}</td>
+    </tr>`;
+  });
+  return table([{t:'When'},{t:'Observation'},{t:'Type'},{t:'Tags'},{t:'Project'},{t:'Evidence',n:1},{t:''}], rows)
+    + pager('memory', d.total, d.page, d.per);
+}
+
+function viewMemory(param) {
+  const t = T.memory;
+  const M = S.memory;
+  const types = M.types ?? [];
+  const type = types.some((x) => x.type === param) ? param : 'all';
+  fill('mem-rows', '/api/memory?' + memoryQuery(type), drawMemory);
+
+  const chip = (k, label, n) =>
+    `<button class="chip" data-mtype="${esc(k)}" aria-pressed="${type === k}">${esc(label)}${n === undefined ? '' : ' ' + n}</button>`;
+
+  return [
+    `<div>
+       <h1 class="page__title">Memory</h1>
+       <p class="page__sub">What your sessions actually did, distilled into observations and kept with the raw
+         evidence behind each one. Corrections supersede rather than overwrite and deletions are marked, so what
+         you see is the audit trail and not a tidied version of it.</p>
+     </div>`,
+
+    tiles([
+      ['Observations', M.entries, `${M.entries_total} written, ${M.superseded} superseded, ${M.deleted} deleted`],
+      ['Evidence', M.captured, `${M.processed} distilled · ${M.pending} still pending`, M.pending ? 'warn' : '', '#/health'],
+      ['Indexed', M.indexed, 'reachable by semantic search'],
+      ['Reused', M.reused, `${M.exposed} actually delivered`, '', '#/reuse'],
+      ['Assessed', M.assessed, 'evidence concepts you were asked about', '', '#/concepts'],
+    ]),
+
+    card(null, null,
+      `<div class="filters">
+         <div class="grow"><input type="search" id="mq" value="${esc(t.q)}" placeholder="Search titles, narrative, facts and files…" aria-label="Search memory"></div>
+         <select id="mtag" aria-label="Tag">
+           <option value="all">All tags</option>
+           ${(M.tags ?? []).map((x) => `<option value="${esc(x.tag)}"${t.tag === x.tag ? ' selected' : ''}>${esc(x.tag)} (${x.n})</option>`).join('')}
+         </select>
+         <input type="date" id="mfrom" value="${esc(t.since)}" aria-label="From date">
+         <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">
+       </div>
+       <div class="chips" id="mtypes">
+         ${chip('all', 'All')}${types.map((x) => chip(x.type, x.type, x.n)).join('')}
+       </div>
+       <div style="margin-top:var(--space-4)" id="mem-rows"><p class="empty">Loading the timeline…</p></div>`),
+  ].join('');
+}
+
+function drawEntry(d) {
+  const e = d.entry;
+  const gone = e.deleted_at || e.superseded_by;
+  const facts = jsonList(e.facts);
+  const files = jsonList(e.files);
+  const link = (x) => `<a class="link" data-go="#/entry/${x.id}">${esc(x.title)}</a> <span class="slug">${esc(fmtDate(x.occurred_at))}</span>`;
+
+  const evidence = d.events.map((ev) => `
+    <details class="qa">
+      <summary class="qa__meta">
+        <span>${esc(ev.kind)}</span>${ev.tool ? `<span>${esc(ev.tool)}</span>` : ''}
+        <span>${esc(stamp(ev.occurred_at))}</span><span>${esc(ev.source)}</span>
+        ${ev.redacted ? '<span class="pill due">redacted</span>' : ''}
+        <span class="sp slug">${esc(ev.title ?? ev.event_uid.slice(0, 12))}</span>
+      </summary>
+      <pre class="raw">${esc(ev.body)}${ev.body_length > String(ev.body ?? '').length ? '\n… truncated' : ''}</pre>
+      ${jsonList(ev.files).length ? `<div class="tags" style="margin-top:var(--space-3)">${jsonList(ev.files).map((f) => `<span class="pill">${esc(f)}</span>`).join('')}</div>` : ''}
+    </details>`).join('');
+
+  return [
+    `<div>
+       <p class="page__eyebrow">${esc(e.type ?? e.kind)}</p>
+       <h1 class="page__title${gone ? ' gone-title' : ''}">${esc(e.title)}</h1>
+       <p class="page__sub">${esc(stamp(e.occurred_at))} · ${esc(base(e.project))} ·
+         written by <code class="slug">${esc(e.generator)}</code>
+         ${e.import_source ? ` · imported from ${esc(e.import_source)}` : ''}
+         ${e.session_id ? ` · <a class="link" data-go="#/session/${encodeURIComponent(e.session_id)}">that session</a>` : ''}</p>
+     </div>`,
+
+    e.deleted_at
+      ? `<div class="banner"><p><strong>Deleted ${esc(ago(e.deleted_at))}.</strong> It is kept here so the record
+           stays checkable, and it is excluded from search and recall.</p></div>` : '',
+    d.replaced_by
+      ? `<div class="banner"><p><strong>Superseded.</strong> A later observation corrected this one:
+           ${link(d.replaced_by)}. Recall prefers the replacement; this row is the audit trail.</p></div>` : '',
+
+    tiles([
+      ['Confidence', e.confidence == null ? '—' : Math.round(e.confidence * 100) + '%', 'the summariser’s own, not a score'],
+      ['Evidence', d.events.length, 'raw events behind this claim'],
+      ['Candidates', d.candidates.length, 'concepts it proposed'],
+      ['Reused', d.receipts.length, d.receipts.length ? 'times it was selected for context' : 'never selected yet', '', '#/reuse'],
+    ]),
+
+    card('What happened', 'The observation, as written.',
+      `<p class="qa__q">${esc(e.narrative) || '<span class="empty">No narrative.</span>'}</p>
+       ${facts.length ? `<ul class="facts">${facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+       ${files.length ? `<div class="tags" style="margin-top:var(--space-4)">${files.map((f) => `<span class="pill">${esc(f)}</span>`).join('')}</div>` : ''}
+       ${d.tags.length ? `<div class="tags" style="margin-top:var(--space-3)">${tagPills(d.tags)}</div>` : ''}`),
+
+    d.candidates.length
+      ? card('Concepts it proposed', 'A candidate is a proposal, not a concept — and never a passing answer. Only a question you answered moves mastery.',
+          table([{t:'Slug'},{t:'Domain'},{t:'Confidence',n:1},{t:'Status'}], d.candidates.map((c) => {
+            const go = c.concept_slug ? ` class="row" data-go="#/concept/${encodeURIComponent(c.concept_slug)}"` : '';
+            return `<tr${go}><td><span class="title">${esc(c.name ?? c.slug)}</span><div class="slug">${esc(c.slug)}</div></td>
+              <td><span class="pill">${esc(c.domain ?? '—')}</span></td>
+              <td class="num">${Math.round((c.confidence ?? 0) * 100)}%</td>
+              <td><span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span></td></tr>`;
+          })))
+      : '',
+
+    d.replaces.length
+      ? card('What this replaced', 'Earlier claims this observation corrected.',
+          `<div class="list">${d.replaces.map((x) => `<div>${link(x)}</div>`).join('')}</div>`)
+      : '',
+
+    card('The raw evidence', 'Every event this was distilled from, exactly as captured. Open one to read it.',
+      evidence || '<p class="empty">No evidence is linked — this entry was written by hand or imported.</p>'),
+
+    d.receipts.length
+      ? card('Where it was reused', 'Each time this entry was selected for a context injection.',
+          table([{t:'When'},{t:'Scope'},{t:'Stage'},{t:'From source',n:1},{t:'Sent',n:1},{t:'Delivery'}],
+            d.receipts.map((r) => `<tr><td class="slug">${esc(stamp(r.created_at))}</td>
+              <td>${esc(r.scope)}</td><td class="slug">${esc(r.stage)}</td>
+              <td class="num">${r.source_tokens}</td><td class="num">${r.sent_tokens}</td>
+              <td>${deliveryPill(r.delivery)}</td></tr>`)))
+      : '',
+  ].join('');
+}
+
+function viewEntry(id) {
+  fill('entry-body', '/api/memory/entry?id=' + encodeURIComponent(id), (d) =>
+    d && d.entry ? drawEntry(d) : `<p class="empty">No observation <code>${esc(id)}</code>.</p>`);
+  return `<div><a class="page__back" data-go="#/memory">← Memory</a></div>
+    <div class="stack" id="entry-body"><p class="empty">Loading the observation…</p></div>`;
+}
+
+/* ---------- Reuse: the savings ledger, receipt by receipt ---------- */
+
+function viewReuse() {
+  const R = S.reuse;
+  const rows = R.rows.filter((r) => FILTER === '*' || FILTER === '~' || r.project === FILTER);
+  const p = page('reuse', rows.length);
+  const net = R.base - R.delivered;
+  const verdict = R.savings.kind === 'saving' ? R.savings.percent + '%'
+    : R.savings.kind === 'overhead' ? '+' + R.savings.tokens : '—';
+
+  const body = slice(rows, p).map((r) => {
+    // A saving is only a saving when the delivery was confirmed. An unknown or
+    // prepared receipt has a B and a D but no verdict, and printing one would
+    // be counting context that may never have reached the model.
+    const saved = r.delivery === 'confirmed' && r.base_tokens > 0
+      ? Math.round((100 * (r.base_tokens - r.delivered_tokens)) / r.base_tokens) + '%'
+      : '—';
+    return `<tr>
+      <td class="slug" style="white-space:nowrap">${esc(stamp(r.created_at))}</td>
+      <td><span class="title">${esc(r.scope)}</span><div class="slug">${esc(base(r.project))}</div></td>
+      <td class="num">${r.base_tokens}</td>
+      <td class="num">${r.delivered_tokens}</td>
+      <td class="num">${saved}</td>
+      <td class="num">${r.item_count}</td>
+      <td class="num">${r.detail_tokens ? '+' + r.detail_tokens : '—'}</td>
+      <td>${deliveryPill(r.delivery)}</td>
+      <td class="slug">${esc(r.method)}</td>
+    </tr>`;
+  });
+
+  return [
+    `<div>
+       <h1 class="page__title">Context reuse</h1>
+       <p class="page__sub"><strong>B</strong> is what the same material would have cost to read from source.
+         <strong>D</strong> is what was actually delivered instead. Both are counted with the same estimator
+         (<code class="slug">${esc(R.estimator)}</code>), and the percentage is an estimate of how much
+         <em>context volume</em> was avoided — not a bill, not a price, and not a measure of model spend.</p>
+     </div>`,
+
+    tiles([
+      ['B — from source', R.base, 'estimated tokens, confirmed receipts'],
+      ['D — delivered', R.delivered, 'estimated tokens actually injected'],
+      ['Net', net, net >= 0 ? 'fewer tokens of context' : 'more tokens than reading source', net < 0 ? 'warn' : ''],
+      ['Verdict', verdict, 'estimated, all projects', R.savings.kind === 'saving' ? 'good' : R.savings.kind === 'overhead' ? 'warn' : ''],
+      ['Receipts', R.receipts, `${R.confirmed} confirmed of ${R.receipts}`],
+    ]),
+
+    `<div class="banner"><p>${esc(savingsText(R.savings, R.receipts))}
+       Receipts whose delivery is <code>unknown</code> or <code>prepared</code> are counted in the ledger below
+       but never in the verdict — an injection that may not have reached the model is not a saving.</p></div>`,
+
+    card('Every receipt', `${plural(rows.length, 'receipt')} in scope. One row per injection.`,
+      table([{t:'When'},{t:'Scope'},{t:'B',n:1},{t:'D',n:1},{t:'Saved',n:1},{t:'Items',n:1},{t:'Detail fetch',n:1},{t:'Delivery'},{t:'Method'}], body)
+      + pager('reuse', rows.length, p)
+      + (R.receipts > R.receipts_shown
+        ? `<p class="slug" style="margin:var(--space-4) 0 0">Showing the most recent ${R.receipts_shown} of ${R.receipts} receipts. The totals above cover all of them.</p>`
+        : '')),
+  ].join('');
+}
+
+/* ---------- Health: is capture actually working? ---------- */
+
+function viewHealth() {
+  const H = S.health, M = S.memory, Q = H.queue;
+  const ladder = [
+    ['Captured', M.captured, 'evidence events the hooks accepted'],
+    ['Processed', M.processed, 'distilled into an observation'],
+    ['Indexed', M.indexed, 'reachable by semantic search'],
+    ['Reused', M.reused, 'selected for a context injection'],
+    ['Exposed', M.exposed, 'in a confirmed delivery'],
+    ['Assessed', M.assessed, 'concepts you were actually asked about'],
+  ];
+  const oldest = Q.oldest ? ago(Q.oldest) : '—';
+
+  return [
+    `<div>
+       <h1 class="page__title">Health</h1>
+       <p class="page__sub">Where memory stops, when it stops. Capture, processing, indexing, retrieval and
+         delivery fail in different ways and this page keeps them apart. Error classes only — no log dumps,
+         no keys, no raw request bodies.</p>
+     </div>`,
+
+    tiles([
+      ['Last capture', H.capture.newest_event ? ago(H.capture.newest_event) : 'never',
+        H.capture.enabled ? `capture is ${H.capture.mode}` : 'memory is disabled',
+        H.capture.enabled && H.capture.newest_event ? '' : 'warn'],
+      ['Queued', Q.pending, Q.pending ? `oldest ${oldest}` : 'nothing waiting', Q.pending ? 'warn' : 'good'],
+      ['Paused', Q.paused, 'waiting on a decision', Q.paused ? 'warn' : ''],
+      ['Failed', Q.failed, 'gave up after retries', Q.failed ? 'warn' : ''],
+      ['Dropped', H.spool_dropped, 'events the spool could not keep', H.spool_dropped ? 'warn' : ''],
+    ]),
+
+    card('Captured is not assessed', 'Each step is a place the pipeline can stop. A number that falls off between two rows is where to look.',
+      `<div class="checks">` + ladder.map(([label, n, note]) => `
+        <div><span class="${n ? 'mark-ok' : 'mark-no'}">${n ? '✓' : '○'}</span>
+          <span style="min-width:110px">${esc(label)}</span>
+          <span class="bar">${meter(pct(n, ladder[0][1] || 1), n ? '' : 'mute')}</span>
+          <span class="slug" style="white-space:nowrap">${n} — ${esc(note)}</span></div>`).join('') + `</div>`),
+
+    `<div class="g2">
+       ${card('Capture', 'What the hooks are allowed to record, and how long it is kept.',
+         `<div class="kv">
+            <div><b>Memory</b><span>${H.capture.enabled ? 'on' : 'off'}</span></div>
+            <div><b>Capture mode</b><span>${esc(H.capture.mode)}</span></div>
+            <div><b>Newest event</b><span>${esc(H.capture.newest_event ? stamp(H.capture.newest_event) : 'never')}</span></div>
+            <div><b>Redacted</b><span>${M.redacted}</span></div>
+            <div><b>Retention</b><span>${H.capture.retention_days ? plural(H.capture.retention_days, 'day') : 'kept until deleted'}</span></div>
+            <div><b>Last prune</b><span>${esc(H.capture.pruned_at ? ago(H.capture.pruned_at) : 'never')}</span></div>
+          </div>`)}
+       ${card('Providers', 'Nothing leaves this machine unless a provider is configured here.',
+         `<div class="kv">
+            <div><b>Observer</b><span>${H.providers.observer ? esc(H.providers.observer.kind + ' · ' + H.providers.observer.model) : 'local summariser'}</span></div>
+            <div><b>Embeddings</b><span>${H.providers.embeddings ? esc(H.providers.embeddings.kind + ' · ' + H.providers.embeddings.model) : 'local embedder'}</span></div>
+            <div><b>Retrieval</b><span>${esc(H.providers.retrieval_mode)}</span></div>
+          </div>
+          <p class="slug" style="margin:var(--space-4) 0 0">API keys are read from the environment and never
+            stored, logged or shown here.</p>`)}
+     </div>`,
+
+    card('Stalled jobs', 'Grouped by why they stopped. Transient retries on its own; auth and quota need you.',
+      H.stalled.length
+        ? table([{t:'Status'},{t:'Why'},{t:'Jobs',n:1},{t:'Attempts',n:1},{t:'Last',n:1}],
+            H.stalled.map((j) => `<tr>
+              <td><span class="pill due">${esc(j.status)}</span></td>
+              <td><code class="slug">${esc(j.error_class)}</code></td>
+              <td class="num">${j.n}</td><td class="num">${j.attempts}</td>
+              <td class="num slug">${esc(ago(j.last))}</td></tr>`))
+        : '<p class="empty">No job has failed or paused.</p>'),
+  ].join('');
+}
+
 /* ============================================================
    Router
    ============================================================ */
@@ -1347,6 +1829,9 @@ const NAV = [
   ['sessions', 'Sessions', '<rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M8 4v16"/>'],
   ['projects', 'Projects', '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>'],
   ['domains',  'Domains',  '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M9 6h6a3 3 0 0 1 3 3v6"/>'],
+  ['memory',   'Memory',   '<path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/>'],
+  ['reuse',    'Reuse',    '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>'],
+  ['health',   'Health',   '<path d="M3 12h4l2-6 3 12 2-6h7"/>'],
 ];
 
 const VIEWS = {
@@ -1359,6 +1844,10 @@ const VIEWS = {
   projects: viewProjects,
   domains: viewDomains,
   domain: viewDomain,
+  memory: viewMemory,
+  entry: viewEntry,
+  reuse: viewReuse,
+  health: viewHealth,
 };
 
 function route() {
@@ -1375,6 +1864,10 @@ function renderNav(active) {
     sessions: sessions().length,
     projects: S.projects.filter((p) => inScope(p.repo)).length,
     domains: new Set(conceptsInScope().map((c) => c.domain)).size,
+    // Memory counts are all-project: the timeline is paged on the server, so
+    // the page cannot honestly narrow a total it was never sent.
+    memory: S.memory.entries,
+    reuse: S.reuse.receipts,
   };
   $('nav').innerHTML = NAV.map(([key, label, icon]) => `
     <a href="#/${key}"${key === active ? ' aria-current="page"' : ''}>
@@ -1386,8 +1879,7 @@ function renderNav(active) {
 
 function render(keepFocus) {
   const { name, param } = route();
-  const root = name === 'concept' || name === 'session' || name === 'domain'
-    ? { concept:'concepts', session:'sessions', domain:'domains' }[name] : name;
+  const root = { concept:'concepts', session:'sessions', domain:'domains', entry:'memory' }[name] ?? name;
   renderNav(root);
 
   AFTER.length = 0;
@@ -1423,6 +1915,11 @@ function onActivate(e) {
   }
   const tab = e.target.closest('[data-tab]');
   if (tab) { T.review.page = 1; return goTo(tab.dataset.tab === 'due' ? '#/review' : '#/review/' + tab.dataset.tab); }
+  const mtype = e.target.closest('[data-mtype]');
+  if (mtype) {
+    T.memory.page = 1;
+    return goTo(mtype.dataset.mtype === 'all' ? '#/memory' : '#/memory/' + encodeURIComponent(mtype.dataset.mtype));
+  }
   const go = e.target.closest('[data-go]');
   if (go) return goTo(go.dataset.go);
 }
@@ -1438,15 +1935,24 @@ $('view').addEventListener('keydown', (e) => {
 });
 
 $('view').addEventListener('input', (e) => {
-  if (e.target.id !== 'q') return;
-  T.concepts.q = e.target.value;
-  T.concepts.page = 1;
-  render({ id:'q', pos:e.target.selectionStart });
+  if (e.target.id === 'q') {
+    T.concepts.q = e.target.value;
+    T.concepts.page = 1;
+    render({ id:'q', pos:e.target.selectionStart });
+  }
+  if (e.target.id === 'mq') {
+    T.memory.q = e.target.value;
+    T.memory.page = 1;
+    render({ id:'mq', pos:e.target.selectionStart });
+  }
 });
 
 $('view').addEventListener('change', (e) => {
   if (e.target.id === 'dom') { T.concepts.domain = e.target.value; T.concepts.page = 1; render(); }
   if (e.target.id === 'sort') { T.concepts.sort = e.target.value; T.concepts.page = 1; render(); }
+  if (e.target.id === 'mtag') { T.memory.tag = e.target.value; T.memory.page = 1; render(); }
+  if (e.target.id === 'mfrom') { T.memory.since = e.target.value; T.memory.page = 1; render(); }
+  if (e.target.id === 'mto') { T.memory.until = e.target.value; T.memory.page = 1; render(); }
 });
 
 addEventListener('hashchange', () => render());
@@ -1460,6 +1966,45 @@ addEventListener('resize', () => {
 document.querySelectorAll('[data-ground]').forEach((b) => {
   b.addEventListener('click', () => { window.eklavyaGround.set(b.dataset.ground); render(); });
 });
+
+/* ---------- staying honest about how old this page is ---------- */
+// ponytail: a poll, not SSE. Ceiling: a change shows up to POLL_MS late, and
+// each tick rebuilds the whole payload server-side to read one field off it.
+// Both are nothing for one reader over loopback once a minute. The upgrade is
+// SSE over an event cursor (PRD DASH-01) — `s.cursor` is already the cursor,
+// so that swap is this function, not the page.
+const POLL_MS = 60000;
+let polling = false;
+
+/**
+ * Announced, never silent, and that is the whole design.
+ *
+ * A silent re-render moves the table the reader is halfway down, scrolls them
+ * back to the top and drops the caret out of the search box — the page would
+ * be fighting the person reading it. So the poll touches nothing but a button:
+ * the view keeps rendering from the payload it booted with until the reader
+ * asks for the new one. That also means there is no live state to reconcile
+ * with a view derived from the old snapshot; the reload does that.
+ */
+function poll() {
+  // Nothing to do if we never loaded, a request is already out, the notice is
+  // already up, or nobody is looking — a background tab must not poll at all.
+  if (!S || polling || !$('stale').hidden || document.visibilityState !== 'visible') return;
+  polling = true;
+  fetch('/api/state')
+    .then((r) => r.json())
+    .then((s) => { if (s.cursor !== S.cursor) $('stale').hidden = false; })
+    // A failed poll changes nothing: the page keeps working on the data it has.
+    // One unreachable server must not blank a dashboard that is merely stale.
+    .catch(() => {})
+    .then(() => { polling = false; });
+}
+
+setInterval(poll, POLL_MS);
+// Coming back to a tab left open all afternoon should not mean waiting out the
+// interval before the page admits it is stale.
+addEventListener('visibilitychange', poll);
+$('stale').addEventListener('click', () => location.reload());
 
 /* ---------- boot ---------- */
 // The head script runs before the toggle exists, so its aria-pressed state has

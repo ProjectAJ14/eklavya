@@ -51,6 +51,7 @@ Every `.mdx` under `src/content/docs/docs/` has a row here, in sidebar order.
 | `first-session.mdx` | `hooks/hooks.json` and the six hooks in `mcp/src/hooks/` |
 | `dials.mdx` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` — **and** `mcp/src/tools/get_session_quiz_plan.ts`, because the `interleaved` one-question cap and its exemptions live in the planner, not in the config |
 | `levels-and-tiers.mdx` | `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts`; the tier labels are `TIER` in `mcp/src/assets/dashboard.html` and the tier table in `skills/tutor/SKILL.md` — `TIER_LABEL` left `ask.ts` with the settings line in 1.14 |
+| `memory.mdx` | `mcp/src/memory/` — `privacy.ts` for the exclusion list and the secret shapes, `summarize.ts` for the local summariser and its ceiling, `embed.ts` and `search.ts` for what "semantic" means here, `tokens.ts` for what the savings percentage measures, `code.ts` for the scanner's ceiling. The tool arguments are `mcp/src/tools/memory_read_tools.ts`, `memory_write_tools.ts`, `code_tools.ts` and `collection_tools.ts`; the honesty constraints are ADR-03 and ADR-07. Privacy lives here rather than on its own page |
 | `commands.mdx` | one `###` per slash command — the skills under `skills/` carrying `disable-model-invocation: true`, eight of them; `skills/tutor/` is model-invocable only and gets no heading. Plus one for `user-skill/` |
 | `cli.mdx` | the `USAGE` string in `mcp/src/cli.ts` |
 | `configuration.mdx` | `DEFAULT_CONFIG` in `mcp/src/config.ts` — every key, no omissions |
@@ -60,6 +61,7 @@ Every `.mdx` under `src/content/docs/docs/` has a row here, in sidebar order.
 | `how-it-works.mdx` | the `mcp/` / `hooks/` / `skills/` split in the root `CLAUDE.md`, `mcp/package.json` `engines` and its `better-sqlite3` dependency, and `cli/eklavya-gate` for the one place `jq` and `sqlite3` are still needed. This is where architecture and rationale trimmed off `index.mdx` belongs. It also embeds the runtime diagram — see below |
 | `grading-engine.mdx` | `mcp/src/srs.ts` constants; the `get_session_quiz_plan` and `record_attempt` tool descriptions; `mcp/src/mcq.ts` and `skills/tutor/SKILL.md` for the option count, the "Other" escape hatch and the MCQ grade ceiling — none of which are in `srs.ts` |
 | `your-data.mdx` | `mcp/src/paths.ts`, `mcp/src/migrations/` |
+| `migrating.mdx` | `mcp/src/memory/import.ts` and the `memory import` handler in `mcp/src/cli.ts` — the flags and the field-disposition report are quoted from there |
 | `troubleshooting.mdx` | `doctor` in `mcp/src/cli.ts`, and the fail-open paths — `mcp/src/hooks/lib.ts`, `cli/eklavya-gate` |
 | `faq.mdx` | `mcp/src/paths.ts`, the `AttemptOutcome` handling in `mcp/src/store.ts` (what a decline does), `uninstall` in `mcp/src/install.ts`, and the `<link>` tags at the top of `mcp/src/assets/dashboard.html` — the dashboard fetches three webfonts from Google Fonts, so "nothing leaves your machine" needs that carve-out |
 

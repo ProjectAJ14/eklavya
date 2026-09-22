@@ -4,7 +4,7 @@
 
 # Eklavya
 
-**Learn while your agent works.**
+**Learn while your agent works — and never explain your own repo twice.**
 
 *Named for Ekalavya, who mastered archery practicing before a silent statue of his guru. Here, the statue talks back.*
 
@@ -28,7 +28,13 @@ teaching moment there is — the concepts are concrete, the code is on your scre
 and your hands are free. So Eklavya asks you about it, once per task, never the
 same question twice, and harder each time you get it right.
 
-Everything is local. No accounts, no sync, no telemetry.
+It also **remembers** the work — what you asked for, what changed, what failed —
+and hands the relevant history back at the start of the next session, so the
+agent begins knowing what this project has already been through. That half is on
+by default and runs separately from the questions.
+
+Everything is local: with the default configuration the summariser and the
+embedder both run on your machine. No accounts, no sync, no telemetry.
 
 ### **[→ Read the docs](https://eklavya-run.web.app/docs/)**
 
@@ -75,6 +81,7 @@ so a codebase you have just met starts easy however senior you are.
 |---|---|
 | [Installing](https://eklavya-run.web.app/docs/installing/) | Both routes, prerequisites, uninstalling |
 | [The four dials](https://eklavya-run.web.app/docs/dials/) | `mode`, `focus`, `cadence`, `difficulty` — what each one changes |
+| [Memory](https://eklavya-run.web.app/docs/memory/) | What is captured, what never is, how recall works, and what the savings number means |
 | [Levels and tiers](https://eklavya-run.web.app/docs/levels-and-tiers/) | How difficulty is earned, and what each tier asks |
 | [Command reference](https://eklavya-run.web.app/docs/commands/) | Every `/eklavya:*` command — or just ask in plain English |
 | [Configuration](https://eklavya-run.web.app/docs/configuration/) | Every key, its default, and which file wins |

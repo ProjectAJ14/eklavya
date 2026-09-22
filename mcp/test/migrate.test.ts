@@ -9,9 +9,9 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 8;
+const LATEST_SCHEMA_VERSION = 14;
 
-const EXPECTED_TABLES = [
+const LEARNING_TABLES = [
   'attempts',
   'checkpoints',
   'concepts',
@@ -23,6 +23,54 @@ const EXPECTED_TABLES = [
   'session_concepts',
   'stop_markers',
 ];
+
+/**
+ * The memory half (migration 009). Listed separately from the learning tables
+ * because the one guarantee worth asserting here is that adding memory did not
+ * rename or drop anything learning depends on.
+ *
+ * `memory_fts_*` are FTS5's own shadow tables. They are named rather than
+ * filtered out so that swapping the index implementation shows up as a failing
+ * test rather than as a silent change of on-disk shape.
+ */
+const MEMORY_TABLES = [
+  'context_receipt_items',
+  'context_receipts',
+  'evidence_events',
+  'learning_sources',
+  'memory_batches',
+  'memory_collection_items',
+  'memory_collections',
+  'memory_entries',
+  'memory_entry_events',
+  'memory_entry_tags',
+  'memory_fts',
+  'memory_fts_config',
+  'memory_fts_data',
+  'memory_fts_docsize',
+  'memory_fts_idx',
+  'memory_jobs',
+  'memory_vectors',
+];
+
+/** Migration 010: the importer's durable id map (PRD MIG-02). */
+const IMPORT_TABLES = ['import_id_map'];
+
+/**
+ * Migration 011: multi-device sync through a shared directory (ADR-09).
+ *
+ * Listed apart from the memory tables for the reason SEC-02 gives: what syncs
+ * is memory, and a learning table appearing in this list would be the first
+ * sign that a developer's assessment history had started crossing machines.
+ */
+const SYNC_TABLES = ['sync_conflicts', 'sync_records', 'sync_state'];
+
+const EXPECTED_TABLES = [
+  ...LEARNING_TABLES,
+  ...MEMORY_TABLES,
+  ...IMPORT_TABLES,
+  ...SYNC_TABLES,
+].sort();
 
 let dbFile = '';
 afterEach(() => {
@@ -80,6 +128,12 @@ describe('migrations', () => {
         '006_attempt_format.sql',
         '007_checkpoints.sql',
         '008_difficulty_levels.sql',
+        '009_memory.sql',
+        '010_import.sql',
+        '011_sync.sql',
+        '012_job_backoff.sql',
+        '013_batch_provenance.sql',
+        '014_batch_events_index.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -87,6 +141,29 @@ describe('migrations', () => {
       // And the upgraded table really has the new column.
       const cols = (db.prepare('PRAGMA table_info(gates)').all() as { name: string }[]).map((c) => c.name);
       expect(cols).toContain('repo');
+
+      // 012 adds a column to a table 009 created, so it only survives if the
+      // two ran in order on the same database rather than each from scratch.
+      const jobCols = (db.prepare('PRAGMA table_info(memory_jobs)').all() as { name: string }[]).map(
+        (c) => c.name,
+      );
+      expect(jobCols).toContain('next_attempt');
+
+      // 013 does the same to memory_batches: the run identity MEM-01 asks for.
+      const batchCols = (db.prepare('PRAGMA table_info(memory_batches)').all() as { name: string }[]).map(
+        (c) => c.name,
+      );
+      expect(batchCols).toContain('summarizer');
+      expect(batchCols).toContain('config_digest');
+
+      // 014 indexes the key the worker retires a batch by. Asserting the plan
+      // rather than the index name, because the failure it prevents is the scan:
+      // without it, summarising one fixed-size batch costs a pass over every
+      // event ever captured, which is 613ms at a million of them.
+      const plan = db
+        .prepare("EXPLAIN QUERY PLAN SELECT * FROM evidence_events WHERE batch_id = ?")
+        .all(1) as { detail: string }[];
+      expect(plan.map((r) => r.detail).join(' ')).toContain('idx_events_batch');
       db.close();
     } finally {
       fs.rmSync(oldDir, { recursive: true, force: true });

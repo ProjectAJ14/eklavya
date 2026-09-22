@@ -137,6 +137,7 @@
           at(240, function () { show(lines.welcome); });
           at(700, function () { show(lines.hook1); });
           at(880, function () { show(lines.hook2); });
+          at(1000, function () { show(lines.hook3); });
           at(1240, function () {
             show(dock);
             at(340, function () { type(echo, TASK, 32, arm); });
@@ -151,7 +152,7 @@
       stop();
       boot.textContent = 'claude';
       bootCur.hidden = true;
-      ['welcome', 'hook1', 'hook2'].forEach(function (k) { show(lines[k]); });
+      ['welcome', 'hook1', 'hook2', 'hook3'].forEach(function (k) { show(lines[k]); });
       show(dock);
       echo.textContent = TASK;
       arm();

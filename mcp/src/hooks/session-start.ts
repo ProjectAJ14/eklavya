@@ -8,6 +8,8 @@ import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, clearNudgeState, type DB } from './lib.js';
+import { flushAtSeam, identityOf, recallBlock, record, replaySpool } from './memory-lib.js';
+import { startupDisplay } from '../memory/recall.js';
 
 /**
  * The whole tutoring loop starts at log_session_concepts: it is the only writer
@@ -32,59 +34,6 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
     interruption is the product -- learning while the work happens, not a pile of questions after
     it. One question, no summary, no re-plan, no second question.`;
 
-/**
- * "seen" is a mastery row, which only exists once a concept has been attempted.
- * Gated on that rather than on anything being mastered yet, or a learner three
- * attempts in is told they have no history.
- */
-function domainSummary(db: DB): string {
-  const rows = db
-    .prepare(
-      `SELECT c.domain AS domain,
-              sum(CASE WHEN m.score >= 0.7 AND m.reps >= 2 THEN 1 ELSE 0 END) AS known,
-              count(*) AS total,
-              sum(CASE WHEN m.concept_id IS NOT NULL THEN 1 ELSE 0 END) AS seen
-         FROM concepts c LEFT JOIN mastery m ON m.concept_id = c.id
-        GROUP BY c.domain
-       HAVING seen > 0
-        ORDER BY known DESC, seen DESC
-        LIMIT 3`,
-    )
-    .all() as Array<{ domain: string; known: number; total: number }>;
-
-  return rows.map((r) => `${r.domain} ${r.known}/${r.total} known`).join(', ');
-}
-
-/**
- * Not "reps > 0": a failing grade resets reps to 0, so that filter would hide
- * precisely the concepts the learner is struggling with. A mastery row at all
- * means it has been attempted.
- */
-function weakest(db: DB): string {
-  const rows = db
-    .prepare(
-      `SELECT c.slug AS slug FROM concepts c
-         JOIN mastery m ON m.concept_id = c.id
-        WHERE m.score < 0.5
-        ORDER BY m.score ASC
-        LIMIT 3`,
-    )
-    .all() as Array<{ slug: string }>;
-
-  return rows.map((r) => r.slug).join(', ');
-}
-
-function dueCount(db: DB): number {
-  const row = db
-    .prepare(
-      `SELECT count(*) AS n FROM mastery
-        WHERE next_review IS NOT NULL
-          AND next_review <= strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
-    )
-    .get() as { n: number } | undefined;
-  return row?.n ?? 0;
-}
-
 await run(async (input) => {
   const db = openExisting();
   if (!db) return 0;
@@ -97,22 +46,39 @@ await run(async (input) => {
   if (sid) setCurrentSession(db, sid, cwd);
 
   const resolved = config(cwd);
-  const { mode, focus, focus_topic, cadence, difficulty, quiet } = resolved.config;
-  if (mode === 'off') return 0;
+  const { mode, difficulty, quiet } = resolved.config;
+
+  // The memory half runs before every learning gate below, because it is not
+  // governed by them (PRD CFG-01): `mode: off` means no quizzes, not no
+  // history. Three jobs, all silent on failure -- replay whatever the spool
+  // holds, mark the seam, and drain any batch the last session left queued.
+  const identity = identityOf(input, cwd, sid);
+  const memoryContext: string[] = [];
+  if (resolved.config.memory.enabled) {
+    replaySpool(db);
+    // Drain first, then mark the seam. The other order batches the lifecycle
+    // event on its own and summarises "session started" into an observation of
+    // nothing.
+    await flushAtSeam(db, resolved, identity);
+    record(db, resolved, identity, {
+      kind: 'lifecycle',
+      title: input.source === 'resume' ? 'session resumed' : 'session started',
+      body: `source=${input.source ?? 'startup'} cwd=${cwd}`,
+    });
+    const block = recallBlock(db, resolved, identity, 'session_start');
+    if (block) memoryContext.push(block);
+  }
+
+  if (mode === 'off') {
+    // Recall still has a job here: the developer turned quizzing off, not
+    // project memory. Nothing else this hook says applies.
+    if (memoryContext.length) process.stdout.write(`${memoryContext.join('\n')}\n`);
+    return 0;
+  }
   // Fires on resume and after a compaction too, with the same session id, so a
   // session silenced an hour ago stays silent rather than greeting its way back.
   if (isSessionOff(db, sid)) return 0;
 
-  const focusLabel = focus === 'learn' && focus_topic ? `learn (${focus_topic})` : focus;
-
-  // The level, and how far into it they are. This is the one number that makes
-  // the runway visible: without it, week one and week ten look identical from
-  // the outside, and a learner on `easy` reads tier-2 questions as Eklavya being
-  // shallow rather than as a band they are working through.
-  //
-  // `levelStanding` is the server's own function, so the banner cannot drift
-  // from what the quiz planner actually does — the shell version reimplemented
-  // this query and had to keep it in step by hand.
   const out: string[] = [];
 
   // `quiet` suppresses the banner, and only the banner. It used to return here,
@@ -123,12 +89,22 @@ await run(async (input) => {
   // this key "suppresses the session-start banner and the statusline output",
   // and `mode: off` is the documented way to stop Eklavya doing anything.
   if (!quiet) {
+    // The runway, and the one place it is visible: without it week one and week
+    // ten look identical from the outside, and a learner on `easy` reads a
+    // tier-2 question as Eklavya being shallow rather than as a band they are
+    // working through. `levelStanding` is the planner's own function, so the
+    // greeting cannot drift from what the quiz actually does.
     let levelLabel = `${difficulty} (pinned)`;
     if (difficulty === 'auto') {
       const standing = levelStanding(db, resolved.config, resolved.repoRoot);
-      levelLabel = `${standing.level} (${standing.counts.passed}/${standing.needed.answers} on this project)`;
+      levelLabel = `${standing.level} (${standing.counts.passed}/${standing.needed.answers})`;
     }
-    banner(db, out, { mode, focusLabel, cadence, levelLabel, overrides: resolved.overrides });
+    banner(db, out, {
+      project: identity.project,
+      memory: resolved.config.memory.enabled,
+      levelLabel,
+      overrides: resolved.overrides,
+    });
   }
 
   // Said even when `quiet` is set, and said before the directive, because it is
@@ -149,43 +125,51 @@ await run(async (input) => {
   // restates what was printed seconds ago.
   if (sid) clearNudgeState(db, sid);
 
+  // Before the directive: it is what the session is *about*, and the directive
+  // is what to do about it.
+  out.push(...memoryContext);
   out.push(withSurfaceNote(DIRECTIVE));
   process.stdout.write(`${out.join('\n')}\n`);
   return 0;
 });
 
 interface BannerParts {
-  mode: string;
-  focusLabel: string;
-  cadence: string;
+  project: string;
+  memory: boolean;
   levelLabel: string;
   overrides: string[];
 }
 
-/** The developer-facing greeting. Everything `quiet` is about. */
+/**
+ * The developer-facing greeting, and everything `quiet` is about.
+ *
+ * Three lines (PRD UX-01): a heading, what reuse saved, and where this project
+ * stands. Deliberately short. It used to print the learner profile, the weakest
+ * concepts, the due count and all four dials — a scoreboard at the moment
+ * somebody sat down to work, none of which they had asked for. The dials live
+ * in the status bar (`eklavya statusline`), the profile and the weak list live
+ * in the dashboard, and both are there when they are wanted.
+ *
+ * Every number here is already committed to the database. Nothing waits on a
+ * provider call or an index rebuild to greet somebody.
+ */
 function banner(db: DB, out: string[], parts: BannerParts): void {
-  const { mode, focusLabel, cadence, levelLabel, overrides } = parts;
-  const domains = domainSummary(db);
+  const display = startupDisplay(db, parts.project);
+  const [heading, savings, counts] = display.lines as [string, string, string];
+  out.push(heading);
+  // With memory off there is no reuse to report, and a line saying so every
+  // morning is noise about a feature the developer turned off on purpose.
+  if (parts.memory) out.push(savings);
+  // The runway rides on the counts line rather than taking one of its own: it
+  // is the same subject -- where this project stands -- and UX-01's budget is
+  // three lines, not three subjects spread over five.
+  out.push(`${counts} · Level ${parts.levelLabel}`);
 
-  if (!domains) {
-    // Nothing learned yet — say the useful thing instead of an empty scoreboard.
+  if (parts.overrides.length > 0) {
+    // A warning, not a scoreboard: a repo silently overriding a personal
+    // setting is the one thing worth interrupting for.
     out.push(
-      `[Eklavya] No learning history yet. Mode: ${mode}. Focus: ${focusLabel}. Cadence: ${cadence}. Level: ${levelLabel}.`,
-    );
-  } else {
-    let line = `[Eklavya] Learner profile: ${domains}.`;
-    const weak = weakest(db);
-    if (weak) line += ` Weak: ${weak}.`;
-    const due = dueCount(db);
-    if (due > 0) line += ` ${due} concept(s) due for review.`;
-    out.push(
-      `${line} Mode: ${mode}. Focus: ${focusLabel}. Cadence: ${cadence}. Level: ${levelLabel}.`,
-    );
-  }
-
-  if (overrides.length > 0) {
-    out.push(
-      `[Eklavya] This repo overrides your global setting for: ${overrides.join(' ')} (.eklavya.json wins).`,
+      `This repo overrides your global setting for: ${parts.overrides.join(' ')} (.eklavya.json wins).`,
     );
   }
 }

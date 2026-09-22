@@ -28,6 +28,10 @@ import { decayedScore, isDue, isKnown, MS_PER_DAY } from './srs.js';
 import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
 import { loadConfig, DEFAULT_CONFIG, type EklavyaConfig } from './config.js';
 import { dbPath } from './paths.js';
+import { receiptTotals } from './memory/store.js';
+import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
+import { queueDepth } from './memory/worker.js';
+import { droppedCount } from './memory/spool.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 /**
@@ -53,6 +57,29 @@ const TIMELINE_DAYS = 365;
  * history list, never make a number wrong.
  */
 const ATTEMPT_LIMIT = 2000;
+/**
+ * The memory corpus does not travel in `/api/state`.
+ *
+ * Attempts are short rows with a bounded question on them; an observation
+ * carries a narrative and the tool output it was distilled from, and a year of
+ * them is megabytes. So the overview gets counts — aggregated in SQL, because
+ * the page cannot honestly derive a total it was never sent — and the timeline
+ * itself is paged over `/api/memory` (PRD DASH-02). One resource endpoint with
+ * filters, not one query per card.
+ */
+const MEMORY_PER = 25;
+/** Hard ceiling on one page of the memory resource, whatever `per` asks for. */
+const MEMORY_PER_MAX = 200;
+/**
+ * Receipts are one row per injection and the arithmetic has to be checkable
+ * line by line, so they do travel — capped like `attempts`, with the total
+ * alongside so a truncated ledger cannot read as the whole one.
+ */
+const RECEIPT_LIMIT = 200;
+/** One row per session that captured evidence, newest first. */
+const MEMORY_SESSION_LIMIT = 500;
+/** Longest narrative excerpt a timeline row carries; the detail page has it all. */
+const SNIPPET = 150;
 
 interface DayRow {
   day: string;
@@ -119,6 +146,324 @@ function readConfig(): EklavyaConfig {
   } catch {
     return DEFAULT_CONFIG;
   }
+}
+
+const one = <T>(db: DB, sql: string, ...args: unknown[]): T => db.prepare(sql).get(...args) as T;
+const many = <T>(db: DB, sql: string, ...args: unknown[]): T[] => db.prepare(sql).all(...args) as T[];
+
+/**
+ * The memory half of the overview, as counts rather than rows.
+ *
+ * Six numbers that a single "memories" figure would conflate, and the
+ * conflation is the dishonest part: evidence can be captured and never
+ * processed, an entry can be indexed and never retrieved, retrieved and never
+ * delivered, and delivered without anyone ever being asked about it. Exposure
+ * is not assessment (PRD LRN-02) — `assessed` is the only one of these that
+ * required the developer to answer something.
+ */
+function memorySummary(db: DB): Record<string, unknown> {
+  const entries = one<{ total: number; live: number; superseded: number; deleted: number; notes: number }>(
+    db,
+    `SELECT count(*) AS total,
+            COALESCE(SUM(deleted_at IS NULL AND superseded_by IS NULL), 0) AS live,
+            COALESCE(SUM(superseded_by IS NOT NULL), 0) AS superseded,
+            COALESCE(SUM(deleted_at IS NOT NULL), 0) AS deleted,
+            COALESCE(SUM(kind = 'note'), 0) AS notes
+     FROM memory_entries`,
+  );
+  const events = one<{ captured: number; processed: number; pending: number; redacted: number; newest: string | null }>(
+    db,
+    `SELECT count(*) AS captured,
+            COALESCE(SUM(status = 'summarized'), 0) AS processed,
+            COALESCE(SUM(status <> 'summarized'), 0) AS pending,
+            COALESCE(SUM(redacted), 0) AS redacted,
+            max(occurred_at) AS newest
+     FROM evidence_events`,
+  );
+  const candidates = many<{ status: string; n: number }>(
+    db,
+    'SELECT status, count(*) AS n FROM learning_sources GROUP BY status',
+  );
+
+  return {
+    // What the hooks accepted from the host.
+    captured: events.captured,
+    // How much of that an observation job has already distilled.
+    processed: events.processed,
+    pending: events.pending,
+    redacted: events.redacted,
+    newest_event: events.newest,
+    entries: entries.live,
+    entries_total: entries.total,
+    superseded: entries.superseded,
+    deleted: entries.deleted,
+    notes: entries.notes,
+    // Live entries carrying a vector: what semantic recall can actually reach.
+    indexed: one<{ n: number }>(
+      db,
+      `SELECT count(DISTINCT v.entry_id) AS n FROM memory_vectors v
+       JOIN memory_entries e ON e.id = v.entry_id WHERE e.deleted_at IS NULL`,
+    ).n,
+    // Entries a receipt ever selected …
+    reused: one<{ n: number }>(db, 'SELECT count(DISTINCT entry_id) AS n FROM context_receipt_items').n,
+    // … and the subset that a *confirmed* delivery actually put in front of the agent.
+    exposed: one<{ n: number }>(
+      db,
+      `SELECT count(DISTINCT i.entry_id) AS n FROM context_receipt_items i
+       JOIN context_receipts r ON r.id = i.receipt_id WHERE r.delivery = 'confirmed'`,
+    ).n,
+    // Concepts that came out of evidence and were then actually answered on.
+    assessed: one<{ n: number }>(
+      db,
+      `SELECT count(DISTINCT ls.concept_id) AS n FROM learning_sources ls
+       JOIN attempts a ON a.concept_id = ls.concept_id
+       WHERE ls.concept_id IS NOT NULL`,
+    ).n,
+    candidates: Object.fromEntries(candidates.map((c) => [c.status, c.n])),
+    types: many(db, `SELECT COALESCE(type, 'untyped') AS type, count(*) AS n FROM memory_entries
+                     WHERE deleted_at IS NULL GROUP BY type ORDER BY n DESC`),
+    tags: many(db, `SELECT t.tag, count(*) AS n FROM memory_entry_tags t
+                    JOIN memory_entries e ON e.id = t.entry_id AND e.deleted_at IS NULL
+                    GROUP BY t.tag ORDER BY n DESC, t.tag LIMIT 60`),
+    projects: many(db, `SELECT project, count(*) AS n FROM memory_entries GROUP BY project ORDER BY n DESC`),
+    per_page: MEMORY_PER,
+  };
+}
+
+/**
+ * The savings ledger, receipt by receipt.
+ *
+ * `B` is what the same material would have cost read from source; `D` is what
+ * was actually delivered. Only a *confirmed* delivery contributes to the
+ * headline — `receiptTotals` sums the confirmed rows alone, and `savingsFrom`
+ * refuses to divide at all unless the delivery was confirmed, so an optimistic
+ * "prepared" receipt can never be shown as a saving.
+ */
+function reuseSummary(db: DB): Record<string, unknown> {
+  const totals = receiptTotals(db);
+  const savings = savingsFrom({
+    baseTokens: totals.base,
+    deliveredTokens: totals.delivered,
+    delivery: totals.confirmed > 0 ? 'confirmed' : 'unknown',
+  });
+  return {
+    ...totals,
+    savings,
+    line: savingsLine(savings),
+    estimator: ESTIMATOR,
+    by_delivery: many(
+      db,
+      `SELECT delivery, count(*) AS n,
+              COALESCE(SUM(base_tokens), 0) AS base,
+              COALESCE(SUM(delivered_tokens), 0) AS delivered
+       FROM context_receipts GROUP BY delivery`,
+    ),
+    receipts_shown: Math.min(totals.receipts, RECEIPT_LIMIT),
+    rows: many(
+      db,
+      `SELECT r.id, r.receipt_uid, r.project, r.session_id, r.scope, r.method,
+              r.base_tokens, r.delivered_tokens, r.item_count, r.delivery, r.created_at,
+              (SELECT COALESCE(SUM(sent_tokens), 0) FROM context_receipt_items i
+                WHERE i.receipt_id = r.id AND i.stage = 'index') AS index_tokens,
+              (SELECT COALESCE(SUM(sent_tokens), 0) FROM context_receipt_items i
+                WHERE i.receipt_id = r.id AND i.stage = 'detail') AS detail_tokens,
+              (SELECT count(*) FROM context_receipt_items i
+                WHERE i.receipt_id = r.id AND i.stage = 'detail') AS detail_items
+       FROM context_receipts r ORDER BY r.id DESC LIMIT ?`,
+      RECEIPT_LIMIT,
+    ),
+  };
+}
+
+/**
+ * Capture heartbeat, queue, failures and provider state.
+ *
+ * Bounded and redacted by construction: error *classes* and counts, never
+ * `last_error`, never a key, never a log dump (PRD DASH-03). A class is what
+ * tells the reader whether to re-authenticate or wait.
+ */
+function healthSummary(db: DB, config: EklavyaConfig): Record<string, unknown> {
+  const beat = one<{ newest: string | null; received: string | null }>(
+    db,
+    'SELECT max(occurred_at) AS newest, max(received_at) AS received FROM evidence_events',
+  );
+  return {
+    capture: {
+      enabled: config.memory.enabled,
+      mode: config.memory.capture,
+      newest_event: beat.newest,
+      newest_received: beat.received,
+      retention_days: config.memory.retention_days,
+      pruned_at: one<{ value: string } | undefined>(db, "SELECT value FROM meta WHERE key = 'memory_pruned_at'")?.value ?? null,
+    },
+    queue: queueDepth(db),
+    stalled: many(
+      db,
+      `SELECT status, COALESCE(error_class, 'unclassified') AS error_class, count(*) AS n, max(updated_at) AS last,
+              max(attempts) AS attempts
+       FROM memory_jobs WHERE status IN ('failed', 'paused')
+       GROUP BY status, error_class ORDER BY n DESC`,
+    ),
+    spool_dropped: droppedCount(),
+    // Whether a provider exists and which model it names. The key never appears
+    // here — only the environment variable it is read from is configured at all,
+    // and even that name stays out of the payload.
+    providers: {
+      observer: config.providers.observer
+        ? { kind: config.providers.observer.kind, model: config.providers.observer.model }
+        : null,
+      embeddings: config.providers.embeddings
+        ? { kind: config.providers.embeddings.kind, model: config.providers.embeddings.model }
+        : null,
+      retrieval_mode: config.retrieval.mode,
+    },
+  };
+}
+
+/** One row per session that captured evidence, so a session page can link the two halves. */
+function memorySessions(db: DB): Record<string, unknown>[] {
+  return many(
+    db,
+    `SELECT e.session_id, e.project, count(*) AS events,
+            COALESCE(SUM(e.redacted), 0) AS redacted,
+            min(e.occurred_at) AS first, max(e.occurred_at) AS last,
+            (SELECT count(*) FROM memory_entries m WHERE m.session_id = e.session_id) AS entries,
+            (SELECT count(*) FROM learning_sources ls JOIN memory_entries m ON m.id = ls.entry_id
+              WHERE m.session_id = e.session_id) AS candidates
+     FROM evidence_events e
+     GROUP BY e.session_id, e.project
+     ORDER BY last DESC LIMIT ?`,
+    MEMORY_SESSION_LIMIT,
+  );
+}
+
+export interface MemoryQuery {
+  project?: string | null;
+  session?: string | null;
+  type?: string | null;
+  tag?: string | null;
+  q?: string | null;
+  since?: string | null;
+  until?: string | null;
+  page?: number;
+  per?: number;
+}
+
+/**
+ * One page of the memory timeline (PRD DASH-02).
+ *
+ * Deleted and superseded rows are *included* — the dashboard is the audit
+ * trail, and an entry that vanished when it was corrected is an entry nobody
+ * can check. They travel with `deleted_at` and `superseded_by` set so the page
+ * can mark them.
+ */
+export function memoryPage(db: DB, q: MemoryQuery = {}): Record<string, unknown> {
+  const per = Math.min(MEMORY_PER_MAX, Math.max(1, Math.floor(q.per || MEMORY_PER)));
+  const page = Math.max(1, Math.floor(q.page || 1));
+  const where: string[] = [];
+  const args: unknown[] = [];
+  const eq = (sql: string, v: unknown) => {
+    if (v === undefined || v === null || v === '') return;
+    where.push(sql);
+    args.push(v);
+  };
+  eq('e.project = ?', q.project);
+  eq('e.session_id = ?', q.session);
+  eq("COALESCE(e.type, 'untyped') = ?", q.type);
+  eq('e.occurred_at >= ?', q.since);
+  eq('e.occurred_at <= ?', q.until);
+  if (q.tag) {
+    where.push('EXISTS (SELECT 1 FROM memory_entry_tags t WHERE t.entry_id = e.id AND t.tag = ?)');
+    args.push(String(q.tag).toLowerCase());
+  }
+  // A search box is not FTS5 query syntax, and the corpus is small enough that
+  // a LIKE over the stored columns beats explaining a MATCH parse error to
+  // someone who typed `fix: auth (retry?)`.
+  if (q.q && String(q.q).trim()) {
+    where.push('(e.title LIKE ? OR e.narrative LIKE ? OR e.facts LIKE ? OR e.files LIKE ?)');
+    const like = `%${String(q.q).trim().replace(/[\\%_]/g, '\\$&')}%`;
+    args.push(like, like, like, like);
+  }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const total = one<{ n: number }>(db, `SELECT count(*) AS n FROM memory_entries e ${clause}`, ...args).n;
+  const pages = Math.max(1, Math.ceil(total / per));
+  const p = Math.min(page, pages);
+
+  const rows = many<Record<string, unknown>>(
+    db,
+    `SELECT e.id, e.entry_uid, e.project, e.session_id, e.kind, e.type, e.title,
+            substr(e.narrative, 1, ${SNIPPET}) AS snippet, length(e.narrative) AS narrative_length,
+            e.files, e.generator, e.confidence, e.occurred_at, e.created_at,
+            e.superseded_by, e.deleted_at, e.import_source,
+            (SELECT count(*) FROM memory_entry_events me WHERE me.entry_id = e.id) AS event_count,
+            (SELECT group_concat(t.tag, ',') FROM memory_entry_tags t WHERE t.entry_id = e.id) AS tag_list
+     FROM memory_entries e ${clause}
+     ORDER BY e.occurred_at DESC, e.id DESC LIMIT ? OFFSET ?`,
+    ...args,
+    per,
+    (p - 1) * per,
+  ).map((r) => ({ ...r, tags: r.tag_list ? String(r.tag_list).split(',') : [] }));
+
+  // Asking for one session is asking for that session's whole memory story, so
+  // the candidates it proposed ride along rather than costing a second round
+  // trip from the session page.
+  const candidates = q.session
+    ? many(
+        db,
+        `SELECT ls.id, ls.slug, ls.name, ls.domain, ls.confidence, ls.status, c.slug AS concept_slug
+         FROM learning_sources ls
+         JOIN memory_entries e ON e.id = ls.entry_id
+         LEFT JOIN concepts c ON c.id = ls.concept_id
+         WHERE e.session_id = ? ORDER BY ls.confidence DESC`,
+        q.session,
+      )
+    : undefined;
+
+  return { total, page: p, pages, per, rows, ...(candidates ? { candidates } : {}) };
+}
+
+/** One entry with its tags, its raw evidence and the candidates it proposed. */
+export function memoryEntry(db: DB, id: number): Record<string, unknown> | null {
+  const entry = one<Record<string, unknown> | undefined>(db, 'SELECT * FROM memory_entries WHERE id = ?', id);
+  if (!entry) return null;
+  return {
+    entry,
+    tags: many<{ tag: string }>(db, 'SELECT tag FROM memory_entry_tags WHERE entry_id = ? ORDER BY tag', id).map(
+      (t) => t.tag,
+    ),
+    // The raw evidence behind the claim. `body` is capped: an observation can be
+    // distilled from a 200KB tool dump and the drill-down is a check, not an export.
+    events: many(
+      db,
+      `SELECT ev.id, ev.event_uid, ev.kind, ev.tool, ev.title, ev.source, ev.host, ev.agent_id,
+              substr(ev.body, 1, 4000) AS body, length(ev.body) AS body_length,
+              ev.files, ev.occurred_at, ev.redacted, ev.status
+       FROM evidence_events ev
+       JOIN memory_entry_events me ON me.event_id = ev.id
+       WHERE me.entry_id = ? ORDER BY ev.occurred_at, ev.id`,
+      id,
+    ),
+    candidates: many(
+      db,
+      `SELECT ls.id, ls.slug, ls.name, ls.domain, ls.confidence, ls.status, ls.concept_id,
+              c.slug AS concept_slug
+       FROM learning_sources ls LEFT JOIN concepts c ON c.id = ls.concept_id
+       WHERE ls.entry_id = ? ORDER BY ls.confidence DESC`,
+      id,
+    ),
+    // The row that replaced this one, and the rows this one replaced.
+    replaced_by: entry.superseded_by
+      ? one(db, 'SELECT id, title, occurred_at FROM memory_entries WHERE id = ?', entry.superseded_by)
+      : null,
+    replaces: many(db, 'SELECT id, title, occurred_at FROM memory_entries WHERE superseded_by = ?', id),
+    receipts: many(
+      db,
+      `SELECT r.id, r.scope, r.delivery, r.created_at, i.stage, i.source_tokens, i.sent_tokens
+       FROM context_receipt_items i JOIN context_receipts r ON r.id = i.receipt_id
+       WHERE i.entry_id = ? ORDER BY r.id DESC LIMIT 20`,
+      id,
+    ),
+  };
 }
 
 export function dashboardState(db: DB): Record<string, unknown> {
@@ -325,9 +670,38 @@ export function dashboardState(db: DB): Record<string, unknown> {
     db.prepare('SELECT count(DISTINCT session_id) AS n FROM session_concepts').get() as { n: number }
   ).n;
 
+  const memory = memorySummary(db);
+  const reuse = reuseSummary(db);
+
   return {
     generated_at: now.toISOString(),
     db_path: dbPath(),
+    /**
+     * What an open page polls to notice that work landed while it was reading
+     * it (PRD DASH-01). Counts of rows the payload already carries, so it costs
+     * no extra query and moves exactly when the page's content does.
+     *
+     * Deliberately not `generated_at`, and not a hash of the payload: both
+     * change on every call — scores are decayed against the clock — and a page
+     * that announces new activity every minute is a page whose banner is
+     * ignored inside a day.
+     *
+     * Ceiling: counts cannot see an edit that leaves the counts alone. Every
+     * such edit here (a superseded entry, a deleted one) moves a *different*
+     * count in this list, so the gap is theoretical today; a real event cursor
+     * is the upgrade if that stops being true.
+     */
+    cursor: [
+      allTime.answers,
+      logged.length,
+      sessionCount,
+      memory.captured,
+      memory.processed,
+      memory.entries_total,
+      memory.superseded,
+      memory.deleted,
+      reuse.receipts,
+    ].join(':'),
     timeline_days: TIMELINE_DAYS,
     attempts_shown: attempts.length,
     attempts_total: allTime.answers,
@@ -377,6 +751,12 @@ export function dashboardState(db: DB): Record<string, unknown> {
     concepts,
     attempts,
     logged,
+    // The memory half. Additive: every key above kept its name and its shape,
+    // because `/api/state` is a contract an older page still reads.
+    memory,
+    reuse,
+    health: healthSummary(db, config),
+    memory_sessions: memorySessions(db),
   };
 }
 
@@ -432,6 +812,26 @@ function send(res: http.ServerResponse, status: number, type: string, body: stri
  * server; falling back to an ephemeral port beats failing with EADDRINUSE
  * when the caller does not care which port it gets.
  */
+/** `127.0.0.1`, `[::1]` and `localhost`, with or without a port, and nothing else. */
+const LOOPBACK_HOST = /^(?:127\.0\.0\.1|\[::1\]|::1|localhost)(?::\d+)?$/i;
+
+export function fromLoopback(hostHeader?: string, originHeader?: string): boolean {
+  // A request with no Host is HTTP/1.0 or a hand-rolled client, not a browser,
+  // and a browser is the only attacker this check has. Allow it.
+  if (hostHeader !== undefined && !LOOPBACK_HOST.test(hostHeader)) return false;
+  // An `Origin` only appears on a cross-origin or scripted request. If one is
+  // present it has to be a loopback origin too -- `null` included, which is
+  // what a sandboxed iframe or a `file://` page sends.
+  if (originHeader !== undefined && originHeader !== 'null') {
+    try {
+      if (!LOOPBACK_HOST.test(new URL(originHeader).host)) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function startDashboard(
   db: DB,
   opts: { port?: number; host?: string } = {},
@@ -441,10 +841,51 @@ export function startDashboard(
   const assets = path.join(moduleDir, 'assets');
 
   const server = http.createServer((req, res) => {
+    // Loopback is not an authorisation boundary for a browser (PRD DASH-03).
+    // A page the developer happens to have open can point a hostname it
+    // controls at 127.0.0.1 and fetch from here -- DNS rebinding -- and the
+    // same-origin policy does not help, because the page's origin *is* that
+    // hostname. Nothing here mutates, so the risk is not a write; it is that
+    // this payload now contains the developer's prompts, code and project
+    // history, and a hostile page would be reading all of it.
+    //
+    // The check is the standard one: the request has to have been addressed to
+    // loopback by name, which a rebound hostname never is.
+    if (!fromLoopback(req.headers.host, req.headers.origin)) {
+      return send(res, 403, 'text/plain', 'Eklavya serves loopback only.\n');
+    }
     const url = new URL(req.url ?? '/', `http://${host}`);
     try {
       if (url.pathname === '/api/state') {
         return send(res, 200, 'application/json', JSON.stringify(dashboardState(db)));
+      }
+      // The memory timeline is a paged resource rather than part of the state
+      // payload: the corpus is the one thing here that grows without bound.
+      if (url.pathname === '/api/memory') {
+        const g = (k: string) => url.searchParams.get(k);
+        return send(
+          res,
+          200,
+          'application/json',
+          JSON.stringify(
+            memoryPage(db, {
+              project: g('project'),
+              session: g('session'),
+              type: g('type'),
+              tag: g('tag'),
+              q: g('q'),
+              since: g('since'),
+              until: g('until'),
+              page: Number(g('page')) || 1,
+              per: Number(g('per')) || MEMORY_PER,
+            }),
+          ),
+        );
+      }
+      if (url.pathname === '/api/memory/entry') {
+        const entry = memoryEntry(db, Number(url.searchParams.get('id')));
+        if (!entry) return send(res, 404, 'application/json', '{"error":"no such entry"}');
+        return send(res, 200, 'application/json', JSON.stringify(entry));
       }
       if (url.pathname === '/tokens.css') {
         return send(res, 200, 'text/css', fs.readFileSync(path.join(assets, 'tokens.css')));

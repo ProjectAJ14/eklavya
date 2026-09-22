@@ -63,6 +63,129 @@ export type Cadence = 'interleaved' | 'end';
  */
 export type Difficulty = Level | 'auto';
 
+/**
+ * The memory namespace (PRD CFG-01).
+ *
+ * Nested, unlike the learning dials, which stay flat because every
+ * `.eklavya.json` already written uses them at the top level. New settings get
+ * namespaces; old ones keep their names. The compatibility adapter is simply
+ * that `coerce` reads both shapes.
+ *
+ * `enabled` is deliberately independent of `mode`. Someone who set
+ * `mode: "off"` asked for no quizzes, not for their project history to stop
+ * being recorded -- and the reverse, a learner who wants quizzes but no
+ * capture, is just as legitimate.
+ */
+export interface MemoryConfig {
+  enabled: boolean;
+  /**
+   * What the capture path accepts. `minimal` keeps prompts and session seams --
+   * enough for "what was I doing last week" -- without recording every read.
+   */
+  capture: 'full' | 'minimal' | 'off';
+  /** Events per observation batch; the seam flushes whatever is left. */
+  batch_max_events: number;
+  /** Days of raw evidence to keep. `null` keeps it until deleted by hand. */
+  retention_days: number | null;
+}
+
+/** What never reaches storage, a log, a provider, an embedding or an export. */
+export interface PrivacyConfig {
+  exclude_paths: string[];
+  exclude_tools: string[];
+  /** Extra regex sources, applied on top of the built-in secret shapes. */
+  redact_patterns: string[];
+}
+
+export interface RetrievalConfig {
+  mode: 'keyword' | 'semantic' | 'hybrid';
+  /** Entries offered at a session seam before any detail fetch. */
+  max_items: number;
+  /** Budget for the whole injected block, estimated tokens. */
+  max_tokens: number;
+  /** Off by default: another repository's work is noise, not context. */
+  cross_project: boolean;
+}
+
+/**
+ * Outbound model access, and the reason it is its own namespace: every key here
+ * is a decision to send this machine's work somewhere else. Both default to
+ * `null`, so an upgrade cannot turn a local install into a networked one
+ * (PRD CFG-02) -- the local summariser and the local embedder handle both jobs
+ * until someone configures otherwise.
+ */
+export interface ProviderConfig {
+  kind: 'anthropic';
+  model: string;
+  /** Environment variable holding the key. Never the key itself. */
+  api_key_env: string;
+}
+
+export interface ProvidersConfig {
+  observer: ProviderConfig | null;
+  embeddings: ProviderConfig | null;
+}
+
+/**
+ * Outbound wrap-ups and alerts (PRD EXT-01, CFG-02).
+ *
+ * Off by default and separately from everything else, because every sink here
+ * sends this machine's work somewhere it cannot be recalled from. A session
+ * summary posted to a team channel is a session summary that team has, whatever
+ * the developer does with their database afterwards -- so enabling one is an
+ * explicit decision, and the manual says what leaves.
+ *
+ * `command` exists because the interesting integrations are all somebody's
+ * script: a desktop notification, a note in a journal, a message posted by a
+ * CLI that already holds the credentials. A webhook URL in a config file does
+ * not hold credentials, which is the other half of why this shape was chosen.
+ */
+export interface NotificationSink {
+  kind: 'webhook' | 'command' | 'file';
+  /** `webhook`: the URL. `command`: the executable. `file`: the path. */
+  target: string;
+  /** `command` only. The event JSON arrives on stdin regardless. */
+  args?: string[];
+  /** Which events this sink wants. Empty means all of them. */
+  events?: string[];
+}
+
+export interface NotificationsConfig {
+  enabled: boolean;
+  sinks: NotificationSink[];
+}
+
+/**
+ * Multi-device sync (ADR-09). A shared directory, not a server.
+ *
+ * Off by default with no target, and both are load-bearing rather than
+ * cautious: `enabled` alone does nothing, because a sync with nowhere to write
+ * is a silent no-op that looks like a broken feature, and a target alone does
+ * nothing, because a path left in a config file from a machine that has since
+ * been wiped must not start publishing this one's memory. Turning it on is two
+ * explicit decisions, and what crosses is memory only -- never attempts,
+ * mastery, gates or receipts (PRD SEC-02).
+ */
+export interface SyncConfig {
+  enabled: boolean;
+  /** A folder both devices can see: Dropbox, iCloud, Syncthing, a mounted share. */
+  target: string | null;
+  /**
+   * Normally `null`, and normally left that way.
+   *
+   * The real device id is generated once and kept in the `meta` table of
+   * `knowledge.db`, because that file is per-install while config files travel:
+   * `.eklavya.json` is committed to a repository and `~/.eklavya/config.json`
+   * is exactly the sort of thing a dotfile manager copies to the second
+   * machine. Two devices sharing an id would interleave one revision stream and
+   * each would treat the other's writes as its own -- so the identity lives
+   * where an import is already forbidden to copy it (PRD MIG-01). This key
+   * exists to pin it deliberately, which is what tests and a restored backup
+   * want.
+   */
+  device_id: string | null;
+}
+
 export interface EklavyaConfig {
   mode: Mode;
   /**
@@ -112,6 +235,12 @@ export interface EklavyaConfig {
   max_new_concepts_per_session: number;
   /** Hard backstop on the Stop hook's loop guard, read by the stop-quiz-check hook. */
   max_stop_blocks_per_session: number;
+  memory: MemoryConfig;
+  privacy: PrivacyConfig;
+  retrieval: RetrievalConfig;
+  providers: ProvidersConfig;
+  notifications: NotificationsConfig;
+  sync: SyncConfig;
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
@@ -130,6 +259,36 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   quiet: false,
   max_new_concepts_per_session: 8,
   max_stop_blocks_per_session: 3,
+  memory: {
+    enabled: true,
+    capture: 'full',
+    batch_max_events: 40,
+    retention_days: null,
+  },
+  privacy: {
+    exclude_paths: [],
+    exclude_tools: [],
+    redact_patterns: [],
+  },
+  retrieval: {
+    mode: 'hybrid',
+    max_items: 6,
+    max_tokens: 1200,
+    cross_project: false,
+  },
+  providers: {
+    observer: null,
+    embeddings: null,
+  },
+  notifications: {
+    enabled: false,
+    sinks: [],
+  },
+  sync: {
+    enabled: false,
+    target: null,
+    device_id: null,
+  },
 };
 
 export const REPO_CONFIG_FILE = '.eklavya.json';
@@ -150,6 +309,12 @@ export interface ResolvedConfig {
    * to know why their own setting stopped applying.
    */
   overrides: string[];
+  /**
+   * Settings the repo config tried to set and was not allowed to. Empty almost
+   * always; when it is not, somebody should look at why a checked-in file is
+   * trying to turn on a notification sink.
+   */
+  refusedRepoKeys: string[];
 }
 
 function realPath(p: string): string {
@@ -300,17 +465,213 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
     out.max_stop_blocks_per_session = Math.floor(raw.max_stop_blocks_per_session);
   }
 
+  coerceNamespaces(raw, out);
+
   return out;
 }
 
+function stringArray(value: unknown): string[] | null {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string') ? (value as string[]) : null;
+}
+
+function sinkOf(value: unknown): NotificationSink | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  if (v.kind !== 'webhook' && v.kind !== 'command' && v.kind !== 'file') return null;
+  if (typeof v.target !== 'string' || !v.target.trim()) return null;
+  return {
+    kind: v.kind,
+    target: v.target.trim(),
+    args: stringArray(v.args) ?? undefined,
+    events: stringArray(v.events) ?? undefined,
+  };
+}
+
+function provider(value: unknown): ProviderConfig | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  if (v.kind !== 'anthropic') return null;
+  if (typeof v.model !== 'string' || !v.model.trim()) return null;
+  // A key in the config file would end up in every export, log and dashboard
+  // payload that ever prints configuration (PRD SEC-01). Only the name of the
+  // variable holding it lives here.
+  const keyEnv = typeof v.api_key_env === 'string' && v.api_key_env.trim() ? v.api_key_env.trim() : 'ANTHROPIC_API_KEY';
+  return { kind: 'anthropic', model: v.model.trim(), api_key_env: keyEnv };
+}
+
+/**
+ * The namespaced half. Unknown keys are left alone rather than dropped: the
+ * resolved `raw` still carries them, so `eklavya doctor` can report a typo
+ * instead of the setting silently doing nothing.
+ */
+function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): void {
+  const memory = raw.memory as Record<string, unknown> | undefined;
+  if (memory && typeof memory === 'object') {
+    out.memory = { ...out.memory };
+    if (typeof memory.enabled === 'boolean') out.memory.enabled = memory.enabled;
+    if (memory.capture === 'full' || memory.capture === 'minimal' || memory.capture === 'off') {
+      out.memory.capture = memory.capture;
+    }
+    if (typeof memory.batch_max_events === 'number' && memory.batch_max_events > 0) {
+      out.memory.batch_max_events = Math.floor(memory.batch_max_events);
+    }
+    if (typeof memory.retention_days === 'number' && memory.retention_days > 0) {
+      out.memory.retention_days = Math.floor(memory.retention_days);
+    } else if (memory.retention_days === null) {
+      out.memory.retention_days = null;
+    }
+  }
+
+  const privacy = raw.privacy as Record<string, unknown> | undefined;
+  if (privacy && typeof privacy === 'object') {
+    out.privacy = { ...out.privacy };
+    const paths = stringArray(privacy.exclude_paths);
+    if (paths) out.privacy.exclude_paths = paths;
+    const tools = stringArray(privacy.exclude_tools);
+    if (tools) out.privacy.exclude_tools = tools;
+    const patterns = stringArray(privacy.redact_patterns);
+    if (patterns) out.privacy.redact_patterns = patterns;
+  }
+
+  const retrieval = raw.retrieval as Record<string, unknown> | undefined;
+  if (retrieval && typeof retrieval === 'object') {
+    out.retrieval = { ...out.retrieval };
+    if (retrieval.mode === 'keyword' || retrieval.mode === 'semantic' || retrieval.mode === 'hybrid') {
+      out.retrieval.mode = retrieval.mode;
+    }
+    if (typeof retrieval.max_items === 'number' && retrieval.max_items > 0) {
+      out.retrieval.max_items = Math.floor(retrieval.max_items);
+    }
+    if (typeof retrieval.max_tokens === 'number' && retrieval.max_tokens > 0) {
+      out.retrieval.max_tokens = Math.floor(retrieval.max_tokens);
+    }
+    if (typeof retrieval.cross_project === 'boolean') out.retrieval.cross_project = retrieval.cross_project;
+  }
+
+  const notifications = raw.notifications as Record<string, unknown> | undefined;
+  if (notifications && typeof notifications === 'object') {
+    out.notifications = { ...out.notifications };
+    if (typeof notifications.enabled === 'boolean') out.notifications.enabled = notifications.enabled;
+    if (Array.isArray(notifications.sinks)) {
+      out.notifications.sinks = notifications.sinks.flatMap((entry) => {
+        const sink = sinkOf(entry);
+        return sink ? [sink] : [];
+      });
+    }
+  }
+
+  const providers = raw.providers as Record<string, unknown> | undefined;
+  if (providers && typeof providers === 'object') {
+    out.providers = {
+      observer: provider(providers.observer),
+      embeddings: provider(providers.embeddings),
+    };
+  }
+
+  const sync = raw.sync as Record<string, unknown> | undefined;
+  if (sync && typeof sync === 'object') {
+    out.sync = { ...out.sync };
+    if (typeof sync.enabled === 'boolean') out.sync.enabled = sync.enabled;
+    if (typeof sync.target === 'string' && sync.target.trim()) {
+      out.sync.target = sync.target.trim();
+    } else if (sync.target === null) {
+      out.sync.target = null;
+    }
+    if (typeof sync.device_id === 'string' && sync.device_id.trim()) {
+      out.sync.device_id = sync.device_id.trim();
+    } else if (sync.device_id === null) {
+      out.sync.device_id = null;
+    }
+  }
+}
+
 /** Global config merged with the repo's, repo winning. */
+/**
+ * Settings a repository may not set, whatever its `.eklavya.json` says.
+ *
+ * `.eklavya.json` is a file you get by cloning. Repo-wins is right for the
+ * dials -- a lead pinning enforced mode on an onboarding codebase is the whole
+ * point -- because a dial only decides how hard Eklavya pushes *you*, and the
+ * worst a hostile one can do is ask you a question.
+ *
+ * These are different in kind. Each one has an effect outside the session:
+ *
+ *   notifications  runs a command, or POSTs somewhere
+ *   sync           writes files into a directory
+ *   providers      sends this machine's work to an API
+ *   retrieval.cross_project  puts another project's history in this session
+ *
+ * A checked-in config that could set the first of those was arbitrary code
+ * execution on `git clone` plus one session: the Stop hook fires the wrap-up
+ * by itself, and a `command` sink of `/bin/sh -c '...'` is whatever the
+ * attacker wrote. `shell: false` does not help when the command *is* a shell.
+ *
+ * So these are read from the global config only, and anything a repo tried to
+ * set is reported rather than dropped in silence -- a setting that quietly
+ * does nothing is its own kind of bug (CFG-01).
+ */
+const GLOBAL_ONLY = ['notifications', 'sync', 'providers'] as const;
+const GLOBAL_ONLY_KEYS = ['retrieval.cross_project'] as const;
+
+function withoutRepoOnlyGlobals(repoRaw: Record<string, unknown>): {
+  allowed: Record<string, unknown>;
+  refused: string[];
+} {
+  const allowed: Record<string, unknown> = {};
+  const refused: string[] = [];
+
+  for (const [key, value] of Object.entries(repoRaw)) {
+    if ((GLOBAL_ONLY as readonly string[]).includes(key)) {
+      refused.push(key);
+      continue;
+    }
+    if (key === 'retrieval' && value && typeof value === 'object' && !Array.isArray(value)) {
+      // One key of this namespace is global-only; the rest of it is not, so the
+      // namespace is copied without that key rather than refused whole.
+      const { cross_project, ...rest } = value as Record<string, unknown>;
+      if (cross_project !== undefined) refused.push('retrieval.cross_project');
+      allowed[key] = rest;
+      continue;
+    }
+    allowed[key] = value;
+  }
+
+  return { allowed, refused };
+}
+
+/**
+ * Global then repo, one level deep for the namespaces.
+ *
+ * A flat spread is right for the dials and wrong for the namespaces: a repo
+ * setting `memory.capture` would replace the whole `memory` object and take
+ * the developer's `memory.enabled` with it. One level is all the schema has,
+ * so one level is all this does.
+ */
+function mergeConfigs(
+  base: Record<string, unknown>,
+  over: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(over)) {
+    const existing = merged[key];
+    const bothObjects =
+      value !== null && typeof value === 'object' && !Array.isArray(value) &&
+      existing !== null && typeof existing === 'object' && !Array.isArray(existing);
+    merged[key] = bothObjects
+      ? { ...(existing as Record<string, unknown>), ...(value as Record<string, unknown>) }
+      : value;
+  }
+  return merged;
+}
+
 export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   const globalPath = globalConfigPath();
   const { repoPath, repoRoot } = findRepoConfig(cwd);
 
   const globalRaw = readJson(globalPath) ?? {};
-  const repoRaw = repoPath ? (readJson(repoPath) ?? {}) : {};
-  const raw = { ...globalRaw, ...repoRaw };
+  const repoRawAll = repoPath ? (readJson(repoPath) ?? {}) : {};
+  const { allowed: repoRaw, refused } = withoutRepoOnlyGlobals(repoRawAll);
+  const raw = mergeConfigs(globalRaw, repoRaw);
 
   const overrides = Object.keys(repoRaw).filter(
     (key) =>
@@ -324,7 +685,17 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
     repoPath,
     repoRoot,
     overrides,
+    refusedRepoKeys: refused,
   };
+}
+
+/** The settings a repository is not allowed to set. Exported for the docs and the CLI. */
+export const REPO_FORBIDDEN_KEYS: readonly string[] = [...GLOBAL_ONLY, ...GLOBAL_ONLY_KEYS];
+
+/** One config file's raw contents, or `{}`. Exported so a caller building a
+ *  patch can merge against what is actually in the file it is about to write. */
+export function readConfigFile(file: string): Record<string, unknown> {
+  return readJson(file) ?? {};
 }
 
 /** Writes via temp file + rename: the git hook may be reading mid-write. */

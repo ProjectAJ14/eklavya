@@ -1,0 +1,180 @@
+---
+title: "Moving from Claude Mem"
+sidebar:
+  order: 12
+---
+
+Eklavya's memory half exists so that one plugin can do what two were doing. This
+page is the sequence for moving across without losing anything, and it is
+deliberately cautious: every step before the last one is reversible, and the
+last one does not delete your old history.
+
+:::note
+You do not have to migrate to use Eklavya's memory. A fresh install starts
+recording from today and needs none of this. Read on only if you have a Claude
+Mem history you want to keep.
+:::
+
+## Before you start
+
+Find the source database. On a default install it is
+`~/.claude-mem/claude-mem.db`. If you are not sure:
+
+```bash
+ls -la ~/.claude-mem/
+```
+
+Nothing below writes to it. The importer opens it read-only and works from a
+snapshot, so the source is untouched whatever happens — but take your own copy
+first anyway, because the one guaranteed way to be relaxed about a migration is
+to have a backup you did not need.
+
+```bash
+cp ~/.claude-mem/claude-mem.db ~/claude-mem-backup.db
+```
+
+## 1. Look before you leap
+
+```bash
+eklavya memory import ~/.claude-mem/claude-mem.db --dry-run
+```
+
+This writes nothing. It prints the schema version it found, the row counts per
+table, the projects in the history, and a field-by-field report: what maps to
+what, what is deliberately dropped and why, and any column the importer has
+never seen.
+
+Read the dropped list. It is short and each line says why. In summary: device
+identities and sync bookkeeping from your other machines, the live worker
+queue, notifications that were already sent, and opaque metadata. None of it is
+history; all of it is state belonging to a service you are leaving.
+
+If the source is newer than this importer understands, the dry run stops and
+tells you the version it found and the version it supports, rather than
+guessing at a schema nobody has read.
+
+## 2. Turn off the old capture, before you import
+
+Disable the Claude Mem plugin now, not after:
+
+```text
+/plugin
+```
+
+…and disable **claude-mem** there.
+
+This is deliberately before the import, and it is the one ordering in this page
+that matters. The importer is safe to re-run — you will want to, to map a
+project you left unmapped — but if Claude Mem keeps recording after the import,
+everything between then and the day you disable it gets captured twice: live by
+Eklavya, and again by the next import. One recorder from here on means a
+re-import can never duplicate a session.
+
+Nothing is lost by doing it first. The import reads Claude Mem's database file,
+not the running plugin, so every step below works with it switched off — and if
+the import disappoints you, re-enabling it is the same two keystrokes.
+
+Leave its database where it is. It costs nothing, and it is your rollback.
+
+## 3. Import, and say where the projects live
+
+Claude Mem names a project with a bare string — `eklavya`, `storefront`.
+Eklavya keys a project by the checkout's absolute path, because two
+repositories can share a folder name and must never share a history. The
+importer cannot work out which checkout `storefront` meant, so you tell it:
+
+```bash
+cd ~/work/storefront
+eklavya memory import ~/.claude-mem/claude-mem.db --map-here storefront
+```
+
+`--map-here <name>` files that source project under the checkout you are
+standing in. `--map <name>=<path>` does the same for a checkout you are not in,
+and you can pass either flag as many times as you have projects.
+
+Anything you leave unmapped is still imported and still searchable — but only
+with `--all-projects`, because it is filed under a project key no session ever
+queries. The report names those, so you can come back and map them later by
+re-running the import; a second run imports nothing it already has.
+
+What arrives:
+
+- observations and session summaries become memory entries, with their
+  **original** timestamps, so last March's work sits in last March;
+- prompts and tool uses become evidence, marked as imported, and are linked
+  back to the entry they belong to — so the drill-down from an imported entry
+  to the raw prompt and tool calls behind it works the same as for anything
+  captured live. Evidence belonging to no entry still arrives, just unlinked;
+- concepts the source had attached become **candidates**, not concepts. Nothing
+  imported grants you mastery, records an attempt, clears review debt or opens
+  a gate. History is not proof of understanding, and an import is history.
+
+An interrupted run resumes with `--resume`, which reuses the snapshot rather
+than copying the database again.
+
+## 4. Check it came across
+
+```bash
+eklavya memory status
+cd ~/work/storefront && eklavya memory search "something you remember"
+```
+
+Then open the dashboard and look at the Memory view, which has the imported
+entries with their dates and the evidence behind each one:
+
+```bash
+eklavya dashboard
+```
+
+Compare a handful of searches against what Claude Mem would have said. This is
+the step people skip, and it is the only one that actually establishes the
+import worked.
+
+## 5. Work for a day under Eklavya alone
+
+Not an afternoon. Use it for real work across at least one full day and several
+sessions, including a restart, so you find out what you actually rely on.
+
+Things worth checking on purpose:
+
+- a new session recalls the right things at startup, and the three-line greeting
+  looks right;
+- `eklavya memory status` shows evidence being captured and the queue draining;
+- a question still arrives mid-task, and the commit gate still behaves the way
+  your `mode` says it should.
+
+## 6. Then, and only then
+
+If you want the disk back:
+
+```bash
+mv ~/.claude-mem ~/.claude-mem.retired
+```
+
+A move, not a delete. Give it a month.
+
+## If you want to go back
+
+Nothing above removed anything. Re-enable the plugin in `/plugin` and your old
+history is exactly where it was. Anything Eklavya captured in the meantime
+stays in Eklavya's database, and the pair
+
+```bash
+eklavya memory export ~/eklavya-memory.json
+eklavya memory restore ~/eklavya-memory.json
+```
+
+is the backup and the way back. The restore is additive and idempotent: it
+never touches your learning history, it adds nothing on a second run, and it
+rebuilds the search index for what it brought in.
+
+## What does not come across
+
+Two things, deliberately:
+
+- **Team or multi-device sync state.** Eklavya syncs through a shared directory
+  rather than a hosted service ([the reasoning is
+  recorded](https://github.com/ProjectAJ14/eklavya/blob/main/.plan/unified-memory-learning/adr.md)),
+  so another device's identity is not something it can meaningfully adopt.
+- **Anything already sent.** Notifications that went out cannot be re-sent, and
+  are not imported as though they were history.

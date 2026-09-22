@@ -11,6 +11,18 @@ const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const runner = path.join(mcpRoot, 'dist', 'hooks', 'session-start.js');
 
 /**
+ * A scratch directory to run the hook in, and never this repository.
+ *
+ * These cases assert that a hook *speaks*, which makes them the two tests most
+ * sensitive to configuration — and pointing them at the checkout meant they
+ * read whatever `.eklavya.json` a contributor had put at its root. A
+ * maintainer who set `{"mode": "off"}` for their own sessions, which is the
+ * documented way to do it, got three failures that look exactly like a broken
+ * stdin bound and have nothing to do with one.
+ */
+const scratchCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-stdin-cwd-'));
+
+/**
  * Spawn a hook, write `payload`, and deliberately never close stdin.
  *
  * This is the failure the bound exists for. On Windows the host may run a hook
@@ -53,7 +65,7 @@ function hookWithoutEof(payload: string, timeoutMs = 12000) {
 
 describe('a hook whose stdin never ends', () => {
   it('still exits, and exits 0', async () => {
-    const res = await hookWithoutEof(JSON.stringify({ session_id: 'no-eof', cwd: mcpRoot }));
+    const res = await hookWithoutEof(JSON.stringify({ session_id: 'no-eof', cwd: scratchCwd }));
     expect(res.timedOut, 'the hook hung — this is the bug the bound exists for').toBe(false);
     expect(res.code).toBe(0);
   }, 20000);
@@ -61,14 +73,14 @@ describe('a hook whose stdin never ends', () => {
   it('still does its work, rather than degrading to an empty input', async () => {
     // The bound is on silence, not on total time. The payload arrived; only the
     // EOF never did, so the hook should behave exactly as it always does.
-    const res = await hookWithoutEof(JSON.stringify({ session_id: 'no-eof-2', cwd: mcpRoot }));
+    const res = await hookWithoutEof(JSON.stringify({ session_id: 'no-eof-2', cwd: scratchCwd }));
     expect(res.stdout).toContain('[Eklavya]');
   }, 20000);
 
   it('survives a byte-order mark, which some Windows shells prepend', async () => {
     // JSON.parse throws on input that looks perfectly well-formed everywhere
     // else, and a hook that cannot parse its input silently does nothing.
-    const res = await hookWithoutEof(`﻿${JSON.stringify({ session_id: 'bom', cwd: mcpRoot })}`);
+    const res = await hookWithoutEof(`﻿${JSON.stringify({ session_id: 'bom', cwd: scratchCwd })}`);
     expect(res.code).toBe(0);
     expect(res.stdout).toContain('[Eklavya]');
   }, 20000);
@@ -89,13 +101,13 @@ describe('a caller with no process.exit behind it', () => {
     return new Promise<{ exited: boolean; printed: boolean; ms: number }>((resolve) => {
       const started = Date.now();
       const child = spawn(process.execPath, [path.join(mcpRoot, 'dist', 'cli.js'), 'statusline'], {
-        cwd: mcpRoot,
+        cwd: scratchCwd,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       let printed = false;
       child.stdout.on('data', () => (printed = true));
       child.stdin.on('error', () => {});
-      child.stdin.write(JSON.stringify({ cwd: mcpRoot }));
+      child.stdin.write(JSON.stringify({ cwd: scratchCwd }));
       // Never child.stdin.end().
 
       const killer = setTimeout(() => {

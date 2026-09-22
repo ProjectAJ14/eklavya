@@ -61,6 +61,174 @@ only a repo or global `mode` change is the second one.
 | `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
 | `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `mode: off` for that. |
 
+### Setting a namespaced key
+
+`eklavya config set` takes a dotted path, and so does asking in chat:
+
+```bash
+eklavya config set memory.capture minimal
+eklavya config set retrieval.cross_project true
+eklavya config set privacy.exclude_paths "/internal/, /vendor/"
+eklavya config set providers.observer null
+```
+
+Only the key you name changes; the rest of its namespace is left alone. A list
+takes either a comma-separated string or JSON, and a value is read as the type
+the setting actually has — so `focus_topic 2` stays the string `"2"` while
+`memory.batch_max_events 40` becomes the number `40`.
+
+The one thing that needs JSON is setting a whole object, because there is no
+sensible shorthand for one:
+
+```bash
+eklavya config set providers.observer '{"kind":"anthropic","model":"<model-id>"}'
+```
+
+### The memory namespaces
+
+The keys above are flat because every `.eklavya.json` already written uses them that way. The memory half's keys are nested under six namespaces instead, and they merge the same way: a repo file setting `retrieval.mode` leaves your personal `memory.capture` alone.
+
+#### `memory`
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `memory.enabled` | `true` | Whether this project's work is recorded and recalled at all. |
+| `memory.capture` | `"full"` | What the capture path accepts. `full` records prompts, tool calls, failures, edits and reads; `minimal` keeps prompts, assistant messages, session seams and notes, and drops the per-file traffic that is most of the volume; `off` stops capture and leaves what is already stored searchable. |
+| `memory.batch_max_events` | `40` | Events per observation batch. A session seam flushes whatever is left, so a short session is still summarised. |
+| `memory.retention_days` | `null` | Days of raw evidence to keep. Observations built from it survive its deletion. `null` keeps it until you delete it. |
+
+:::note
+**`memory.enabled` is independent of `mode`.** `mode: off` means no quizzes, no checkpoints and no gate — it does not mean no history. Someone who silenced the questions did not ask for their project's record to stop, and the reverse (quizzes, no capture) is just as legitimate: that is `memory.enabled: false`.
+:::
+
+#### `privacy`
+
+Every entry here is *added* to Eklavya's built-in rules, never replaces them. [Memory](/docs/memory/#what-is-never-captured) lists what the built-in rules already cover.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `privacy.exclude_paths` | `[]` | Extra path fragments that are never captured, on top of the built-in list (`.env`, `/.ssh/`, `.pem`, `credentials.json` and the rest). Matched as a substring of the path. |
+| `privacy.exclude_tools` | `[]` | Tool names never captured, when a tool's arguments are usually secrets. |
+| `privacy.redact_patterns` | `[]` | Extra regular expressions, applied on top of the built-in secret shapes. A match becomes `[redacted:configured]`. A pattern that does not compile is skipped rather than breaking capture. |
+
+#### `retrieval`
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `retrieval.mode` | `"hybrid"` | How memory is searched: `keyword` (FTS5, BM25), `semantic` (cosine over local vectors), or `hybrid` — both, fused. A single search may override it. |
+| `retrieval.max_items` | `6` | Entries offered at a session seam before any detail is fetched, and the default `limit` for a search. |
+| `retrieval.max_tokens` | `1200` | Estimated-token budget for the whole recalled block, wrapper included. It fills to the budget rather than to `max_items`, because six short notes and six long ones are not the same amount of context. |
+| `retrieval.cross_project` | `false` | `true` widens both search and the session-start block to every project on this machine. Off by default: another repository's work is usually noise. |
+
+#### `providers`
+
+Both are `null`, and **nothing turns them on for you** — not an upgrade, not a command. With them unset, the summariser and the embedder are both local and nothing about your code leaves the machine.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `providers.observer` | `null` | A model that writes observation narratives instead of the local extractive summariser. Setting it is the one thing that sends captured work off this machine. |
+| `providers.embeddings` | `null` | A model that produces the vectors `semantic` retrieval compares, instead of the local `local-hash-v1` embedder. Each vector records which embedder made it, so two models' vectors are never compared. |
+
+Each takes an object of three fields: `kind` (only `"anthropic"` today), `model`, and `api_key_env` — the **name of the environment variable** holding the key, defaulting to `ANTHROPIC_API_KEY`. The key itself never goes in the config file, because a config file ends up in every export, log line and dashboard payload that prints configuration.
+
+```json title=".eklavya.json"
+{
+  "providers": {
+    "observer": {
+      "kind": "anthropic",
+      "model": "<model-id>",
+      "api_key_env": "ANTHROPIC_API_KEY"
+    }
+  }
+}
+```
+
+### What a repository is not allowed to set
+
+`.eklavya.json` beats your global config, and that is the point: a lead pins
+enforced mode on an onboarding codebase and it applies to everyone working in
+it. It is also a file you get by **cloning**, which is fine for a dial — the
+worst a hostile one can do is ask you a question — and not fine for a setting
+with an effect outside the session.
+
+So four settings are yours alone, read from `~/.eklavya/config.json` and never
+from a repository:
+
+| Setting | Why it is not the repository's to make |
+| --- | --- |
+| `notifications` | Runs a command, or posts somewhere |
+| `sync` | Writes files into a directory |
+| `providers` | Sends this machine's work to an API |
+| `retrieval.cross_project` | Puts another project's history into this session |
+
+A repository that tries is ignored, and `eklavya config get` and
+`eklavya doctor` say so rather than leaving you to wonder. Writing one with
+`--repo` is refused at the point of writing.
+
+#### `notifications` — what gets sent out
+
+Off by default, and separately from everything else, because a notification
+cannot be recalled: once a session summary is in a team channel, deleting your
+local database changes nothing.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `notifications.enabled` | `false` | The master switch. With no sinks configured nothing is sent either way. |
+| `notifications.sinks` | `[]` | Where wrap-ups go. Each is an object: `kind` (`"webhook"`, `"command"` or `"file"`), `target`, optional `args` (for `command`), and optional `events` to take only some kinds. |
+
+Two event kinds today: `session_summary` when a session ends, and
+`queue_paused` when observation processing has stopped and will not restart by
+itself. Every payload goes through the same redaction as capture, and each
+event is delivered once however many times the session seam fires.
+
+`command` exists because the interesting integrations are all somebody's
+script — a desktop notification, a line in a journal, a message posted by a CLI
+that already holds the credentials. The event JSON arrives on the command's
+standard input, and no shell is involved, so nothing in `target` is expanded on
+the way.
+
+```json title="~/.eklavya/config.json"
+{
+  "notifications": {
+    "enabled": true,
+    "sinks": [
+      { "kind": "file", "target": "~/eklavya-wrapups.jsonl" },
+      { "kind": "command", "target": "/usr/local/bin/notify-me", "events": ["queue_paused"] }
+    ]
+  }
+}
+```
+
+#### `sync` — memory across your machines
+
+Off by default. The target is a directory both machines can see — a synced
+folder, a mounted share, a git repository — so there is no account and no
+service to depend on.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `sync.enabled` | `false` | The master switch. A target alone does nothing, deliberately: a stale path left by a wiped machine should not quietly start publishing. |
+| `sync.target` | `null` | The shared directory. Each machine writes its own numbered records into it and reads the others'. |
+| `sync.device_id` | `null` | Pin this machine's identity. Normally leave it: an id is minted once and kept in the database, never in a config file, because config files travel and two machines sharing an id would interleave one stream irrecoverably. |
+
+What crosses: memory entries, their tags, and deletions. What never crosses:
+your attempts, your mastery, your review schedule, gates, reuse receipts, and
+the raw evidence behind an observation. Shared project memory is not shared
+learner history.
+
+```bash
+eklavya config set sync.target ~/Dropbox/eklavya-sync
+eklavya config set sync.enabled true
+eklavya memory sync push
+eklavya memory sync status
+```
+
+Two machines editing the same entry between syncs is a conflict, and a
+conflict is **quarantined rather than merged**: your local version stays live,
+the incoming one is kept intact, and `eklavya memory sync status` says there is
+one to resolve. A deletion propagates as a tombstone and stays deleted — the
+machine that still had the entry cannot put it back.
+
 ### A complete file
 
 Every key is optional — write only the ones you want to change. This example is a repo file for an onboarding codebase: enforced, grounded in the project, held at easy for everyone.

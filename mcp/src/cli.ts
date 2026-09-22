@@ -7,18 +7,54 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDb } from './db.js';
+import { openDb, type DB } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
-import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
+import {
+  loadConfig,
+  writeConfigFile,
+  readConfigFile,
+  REPO_CONFIG_FILE,
+  REPO_FORBIDDEN_KEYS,
+  DEFAULT_CONFIG,
+  findRepoConfig,
+} from './config.js';
+import { isKnownKey, knownKeys, parseValue, patchFor } from './config-path.js';
 import { loadPacks, applyPacks } from './packs.js';
-import { levelStanding } from './store.js';
+import { levelStanding, projectKey } from './store.js';
 import { statusLine } from './statusline.js';
 import { isSessionOff } from './session.js';
 import { START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
 import { startDashboard, openInBrowser } from './dashboard.js';
 import { install, uninstall, health } from './install.js';
+import { identityFor } from './memory/identity.js';
+import {
+  countEntries,
+  entryById,
+  entryEvents,
+  entryTags,
+  pendingEventCount,
+  receiptTotals,
+  resumePaused,
+  timeline,
+} from './memory/store.js';
+import { search, type SearchMode } from './memory/search.js';
+import { pull, push, syncStatus } from './memory/sync.js';
+import { processPending, pruneEvidence, queueDepth, summarizerFor } from './memory/worker.js';
+import { replayProject, transcriptDirFor, transcriptsFor } from './memory/replay.js';
+import { droppedCount } from './memory/spool.js';
+import { savingsFrom, savingsLine } from './memory/tokens.js';
+import {
+  importFrom,
+  inventory,
+  exportPayload,
+  restoreExport,
+  EXPORT_SCHEMA_VERSION,
+  ImportError,
+  IMPORTED_TABLES,
+  type FieldDisposition,
+} from './memory/import.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,10 +77,45 @@ Usage:
   eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
 
+Memory:
+  eklavya memory status                 Entries, pending evidence, queue depth, provider and savings
+  eklavya memory search <query>         Search this project's memory
+                                        [--mode keyword|semantic|hybrid] [--limit <n>] [--all-projects]
+  eklavya memory timeline               Recent entries, newest first [--limit <n>] [--since <iso date>]
+  eklavya memory show <id>              One entry, with the evidence it was built from
+  eklavya memory replay [--limit <n>]   Backfill from this checkout's Claude Code transcripts
+                                        Covers sessions from before the install, and any a hook missed
+  eklavya memory process [--max <n>]    Drain the observation queue now
+                                        Resumes jobs paused on a credential or quota — run it once you have fixed one
+  eklavya memory prune                  Delete raw evidence past memory.retention_days
+  eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
+                                        --dry-run reads the source and reports; it writes nothing
+                                        --map <source>=<path>  file that source project under a checkout
+                                        --map-here <source>    the same, for the checkout you are in
+  eklavya memory export <file>          Versioned JSON of entries, tags, evidence links and receipts
+  eklavya memory restore <file>         Read that file back in. Additive and idempotent — a second
+                                        restore adds nothing, and no attempt, mastery or gate row is
+                                        touched. Refuses a schema version it does not understand
+  eklavya memory sync <push|pull|status>  Exchange memory with your other devices through a shared
+                                        folder [--target <dir>]. Memory entries, tags and tombstones
+                                        only — attempts, mastery, gates and receipts never leave.
+                                        Needs sync.enabled and sync.target; does nothing without both
+
 Config keys: mode, focus, focus_topic, cadence, difficulty, level_up_after,
              level_up_accuracy, pass_threshold, max_questions_per_task,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
              max_new_concepts_per_session, max_stop_blocks_per_session, quiet
+Config namespaces (nested; edit ~/.eklavya/config.json or .eklavya.json directly):
+  memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days}
+  privacy.{exclude_paths, exclude_tools, redact_patterns}
+  retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project}
+  providers.{observer, embeddings} — each null or {kind, model, api_key_env};
+             api_key_env names the variable holding the key, never the key itself
+  notifications.{enabled, sinks} — sinks are {kind: webhook|command|file, target,
+             args, events}; off by default, and a send cannot be recalled
+  sync.{enabled, target, device_id} — target is a folder both devices can see
+             (Dropbox, iCloud, Syncthing, a share); off and unset by default.
+             device_id is normally left null: it is generated once per install
 `;
 
 function fail(message: string): never {
@@ -159,13 +230,23 @@ function configCommand(args: string[]): void {
     process.stdout.write(`${JSON.stringify(resolved.config, null, 2)}\n`);
     process.stdout.write(`\nglobal: ${resolved.globalPath}\n`);
     process.stdout.write(`repo:   ${resolved.repoPath ?? '(none)'}\n`);
+    if (resolved.refusedRepoKeys.length) {
+      // Loud rather than silent: a checked-in config trying to set one of
+      // these is worth somebody looking at.
+      process.stdout.write(
+        `\nignored from the repo config: ${resolved.refusedRepoKeys.join(', ')}\n` +
+          '  These are read from your global config only — they run a command, write files,\n' +
+          '  send work off the machine, or widen what the model can see, and a repository\n' +
+          '  config is a file you get by cloning.\n',
+      );
+    }
     return;
   }
 
   if (action !== 'set') fail(`Unknown config action "${action}".`);
   if (!key || value === undefined) fail('Usage: eklavya config set <key> <value>');
-  if (!(key in DEFAULT_CONFIG)) {
-    fail(`Unknown setting "${key}". Known: ${Object.keys(DEFAULT_CONFIG).join(', ')}`);
+  if (!isKnownKey(key)) {
+    fail(`Unknown setting "${key}". Known: ${knownKeys().join(', ')}`);
   }
 
   // `focus learn` is useless without a topic, so let one call say both rather
@@ -180,28 +261,45 @@ function configCommand(args: string[]): void {
     fail('focus "learn" needs a topic: eklavya config set focus learn --topic <topic>');
   }
 
-  // A topic is always a string. Number-parsing it would turn a topic like "html5"
-  // -- or worse, "2" -- into something `coerce` then silently drops.
-  const isTopicKey = key === 'focus_topic';
-  let parsed: unknown = value;
-  if (isTopicKey) parsed = value;
-  else if (value === 'true' || value === 'false') parsed = value === 'true';
-  else if (value !== '' && !Number.isNaN(Number(value))) parsed = Number(value);
-
-  const patch: Record<string, unknown> = { [key]: parsed };
-  if (topic !== undefined && key === 'focus') patch.focus_topic = topic;
+  // Typed by the schema at that path rather than guessed from the text. A
+  // topic of "2" is a topic; `memory.batch_max_events` of "40" is a number,
+  // and only the default sitting there knows which is which.
+  const parsed = parseValue(key, value);
 
   let target: string;
   if (scopeRepo) {
+    // Same rule as `loadConfig` applies on read: refuse at the point of writing
+    // rather than let a setting land in the file and be ignored for ever.
+    if (REPO_FORBIDDEN_KEYS.some((k) => key === k || key.startsWith(`${k}.`))) {
+      fail(
+        `"${key}" can only be set globally. A repository config is a file you get by cloning, and this one runs a command, writes files or sends work off the machine.`,
+      );
+    }
     if (!resolved.repoRoot) fail('Not inside a git repository, so there is nowhere to write .eklavya.json.');
     target = resolved.repoPath ?? path.join(resolved.repoRoot, REPO_CONFIG_FILE);
   } else {
     target = resolved.globalPath;
   }
 
+  // Built against the file being written, not against nothing: the two config
+  // files merge with a shallow spread, so a patch that replaced a whole
+  // namespace would drop every other key already set in it.
+  const existing = readConfigFile(target);
+  const patch: Record<string, unknown> = patchFor(existing, key, parsed);
+  if (topic !== undefined && key === 'focus') patch.focus_topic = topic;
+
   writeConfigFile(target, patch);
   for (const [k, v] of Object.entries(patch)) {
     process.stdout.write(`${k} = ${JSON.stringify(v)}  ->  ${target}\n`);
+  }
+}
+
+/** Never throws: `doctor` is also what someone runs on a half-built database. */
+function safely<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch {
+    return fallback;
   }
 }
 
@@ -210,6 +308,10 @@ function doctor(): void {
   const resolved = loadConfig();
   const lines: string[] = [];
   let ok = true;
+  // Kept apart from `ok` so the blanket remedy below stays true: `eklavya
+  // install` repairs a broken install and cannot do a thing about a paused
+  // queue. A memory failure still exits non-zero; it just names its own fix.
+  let memoryOk = true;
 
   lines.push(`home:     ${eklavyaHome()}`);
 
@@ -237,8 +339,12 @@ function doctor(): void {
   lines.push(`database: ${file}${fs.existsSync(file) ? '' : '   (not created yet)'}`);
 
   let edgesDropped = 0;
+  // Held open past the try so the memory section below can read it, and can
+  // still report when it is null -- the spool drop count is exactly the number
+  // that matters when the database is the thing that is broken.
+  let db: DB | null = null;
   try {
-    const db = openDb(file);
+    db = openDb(file);
     // Applied here, on the connection `doctor` already has, and unconditionally
     // -- every other path skips when the fingerprint matches, which leaves no
     // recovery for the edit a fingerprint cannot see (a same-size write that
@@ -264,11 +370,94 @@ function doctor(): void {
           : ` (${standing.counts.passed}/${standing.needed.answers} passing answers in ${standing.repo})`
       }`,
     );
-    db.close();
   } catch (err) {
     ok = false;
     lines.push(`database error: ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  // The memory half. `eklavya memory status` says more, but it is scoped to one
+  // project and nobody runs it when the question is "is anything broken" — so
+  // the two failures that are otherwise completely silent, a queue paused on a
+  // provider and evidence dropped before it reached the database, are reported
+  // here. Every read degrades rather than throws.
+  const memory = resolved.config.memory;
+  lines.push(
+    `memory:   ${memory.enabled ? `on · capture ${memory.capture}` : 'off (memory.enabled is false)'}`,
+  );
+
+  if (db) {
+    const entries = safely(() => countEntries(db!), 0);
+    const evidence = safely(
+      () => (db!.prepare('SELECT count(*) n FROM evidence_events').get() as { n: number }).n,
+      0,
+    );
+    const waiting = safely(() => pendingEventCount(db!), 0);
+    lines.push(`memory:   ${entries} entries, ${evidence} evidence events (${waiting} not yet summarised)`);
+
+    const queue = safely(() => queueDepth(db!), { pending: 0, paused: 0, failed: 0, oldest: null });
+    lines.push(`memory:   queue ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`);
+
+    // The class, never the message. `last_error` is the provider's own prose
+    // and has carried a URL with a token in it; the class is what tells someone
+    // whether to fix a key or a quota, and it is a fixed vocabulary.
+    const classes = (status: string): string =>
+      safely(
+        () =>
+          (
+            db!
+              .prepare(
+                "SELECT DISTINCT error_class FROM memory_jobs WHERE status = ? AND error_class IS NOT NULL ORDER BY error_class",
+              )
+              .all(status) as { error_class: string }[]
+          )
+            .map((r) => r.error_class)
+            .join(', '),
+        '',
+      ) || 'unclassified';
+
+    if (queue.paused > 0) {
+      memoryOk = false;
+      lines.push(`memory:   FAILED — ${queue.paused} job(s) paused (${classes('paused')}); nothing is being summarised`);
+      lines.push('memory:   fix the credentials or quota behind providers.observer, then: eklavya memory process');
+    }
+    if (queue.failed > 0) {
+      // Not a failure: a permanently failed job is a batch that will never
+      // summarise, and no command repairs it. Saying so beats a clean report.
+      lines.push(`memory:   ${queue.failed} job(s) failed permanently (${classes('failed')})`);
+    }
+
+    // The capture heartbeat: memory that is "on" with nothing arriving is the
+    // failure the entry count alone cannot show.
+    const newest = safely(
+      () => (db!.prepare('SELECT MAX(occurred_at) AS at FROM evidence_events').get() as { at: string | null }).at,
+      null as string | null,
+    );
+    lines.push(`memory:   last evidence ${newest ?? '— none captured yet'}`);
+
+    const sync = safely(() => syncStatus(db!, resolved.config), null);
+    lines.push(
+      `memory:   sync ${
+        sync?.enabled ? `on -> ${sync.target ?? '(no target set — set sync.target)'}` : 'off'
+      }`,
+    );
+  }
+
+  const dropped = safely(() => droppedCount(), 0);
+  if (dropped > 0) {
+    // Dropped, not spooled: these events never reached the database *or* the
+    // spool file, so nothing replays them on its own. The transcripts are the
+    // only remaining copy.
+    memoryOk = false;
+    lines.push(`memory:   FAILED — ${dropped} event(s) dropped before they reached the database`);
+    lines.push('memory:   recover them from this checkout’s transcripts with: eklavya memory replay');
+  }
+  lines.push(
+    `memory:   provider ${
+      resolved.config.providers.observer ? 'configured — batches leave this machine' : 'none — nothing leaves this machine'
+    }`,
+  );
+
+  db?.close();
 
   const fromRepo = resolved.repoPath ? ' (from this repo)' : '';
   lines.push(`mode:     ${resolved.config.mode}${fromRepo}`);
@@ -284,6 +473,14 @@ function doctor(): void {
         : ' (all questions at the end of the task)'
     }${fromRepo}`,
   );
+  if (resolved.refusedRepoKeys.length > 0) {
+    // Not a failure — the setting was correctly ignored — but the loudest
+    // thing `doctor` can say short of one, because a repository trying to
+    // install a notification sink is worth a look.
+    lines.push(
+      `IGNORED:  the repo config sets ${resolved.refusedRepoKeys.join(', ')}, which only your global config may set`,
+    );
+  }
   if (resolved.overrides.length > 0) {
     lines.push(`overridden by repo: ${resolved.overrides.join(', ')}`);
   }
@@ -328,7 +525,7 @@ function doctor(): void {
   }
 
   process.stdout.write(`${lines.join('\n')}\n`);
-  if (!ok) process.exit(1);
+  if (!ok || !memoryOk) process.exit(1);
 }
 
 /**
@@ -447,6 +644,561 @@ function dashboardCommand(argv: string[]): void {
   );
 }
 
+/**
+ * `eklavya memory <subcommand>` — the memory half, outside a session.
+ *
+ * Project-scoped by default on every read, like the retrieval layer it sits on:
+ * another repository's work is noise, and `--all-projects` is the explicit way
+ * to ask for it.
+ */
+const MEMORY_USAGE =
+  'Usage: eklavya memory status|search|timeline|show|replay|process|prune|import|export|restore|sync\n' +
+  '       run `eklavya --help` for the full list\n';
+
+function flag(argv: string[], name: string, fallback?: string): string | undefined {
+  const i = argv.indexOf(name);
+  if (i === -1) return fallback;
+  const value = argv[i + 1];
+  if (value === undefined || value.startsWith('--')) fail(`${name} needs a value.`);
+  return value;
+}
+
+function numberFlag(argv: string[], name: string, fallback: number): number {
+  const raw = flag(argv, name);
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) fail(`${name} needs a positive number.`);
+  return Math.floor(n);
+}
+
+/** The project key the memory tables use — the same one the hooks record under. */
+function currentProject(): string {
+  return identityFor({ cwd: process.cwd(), sessionId: 'cli' }).project;
+}
+
+function memoryStatus(): void {
+  const db = openDb();
+  try {
+    const { config } = loadConfig();
+    const project = currentProject();
+    const queue = queueDepth(db);
+    const totals = receiptTotals(db);
+    const savings = savingsFrom({
+      baseTokens: totals.base,
+      deliveredTokens: totals.delivered,
+      delivery: totals.confirmed > 0 ? 'confirmed' : 'unknown',
+    });
+
+    const lines = [
+      `project:    ${project}`,
+      `capture:    ${config.memory.enabled ? config.memory.capture : 'off (memory.enabled is false)'}`,
+      `entries:    ${countEntries(db, project)} here, ${countEntries(db)} in total`,
+      `pending:    ${pendingEventCount(db, project)} evidence events here, ${pendingEventCount(db)} in total`,
+      `queue:      ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`,
+      `oldest job: ${queue.oldest ?? '—'}`,
+      // Named separately from the summarizer because they answer different
+      // questions: one is "will anything leave this machine", the other is
+      // "what is actually writing the observations right now".
+      `provider:   ${
+        config.providers.observer
+          ? `${config.providers.observer.kind}:${config.providers.observer.model} (key from $${config.providers.observer.api_key_env})`
+          : 'none — nothing leaves this machine'
+      }`,
+      `summarizer: ${summarizerFor(config).id}`,
+      `spool drops: ${droppedCount()}`,
+      `receipts:   ${totals.receipts} (${totals.confirmed} confirmed) · base ${totals.base} → delivered ${totals.delivered} tokens`,
+      savingsLine(savings),
+    ];
+    process.stdout.write(`${lines.join('\n')}\n`);
+  } finally {
+    db.close();
+  }
+}
+
+function memorySearch(argv: string[]): void {
+  const query = argv.filter((a, i) => !a.startsWith('--') && !argv[i - 1]?.match(/^--(mode|limit)$/)).join(' ');
+  if (!query.trim()) fail('Usage: eklavya memory search <query> [--mode keyword|semantic|hybrid] [--limit <n>] [--all-projects]');
+
+  const { config } = loadConfig();
+  const mode = (flag(argv, '--mode', config.retrieval.mode) ?? 'hybrid') as SearchMode;
+  if (mode !== 'keyword' && mode !== 'semantic' && mode !== 'hybrid') {
+    fail('--mode must be keyword, semantic or hybrid.');
+  }
+
+  const db = openDb();
+  try {
+    const hits = search(db, query, mode, {
+      project: currentProject(),
+      allProjects: argv.includes('--all-projects'),
+      limit: numberFlag(argv, '--limit', 10),
+    });
+    if (!hits.length) {
+      process.stdout.write('No matches.\n');
+      return;
+    }
+    for (const hit of hits) {
+      process.stdout.write(
+        `#${hit.entry.id}  ${hit.entry.occurred_at.slice(0, 16).replace('T', ' ')}  ${hit.entry.title}\n` +
+          `     ${hit.entry.type ?? hit.entry.kind} · score ${hit.score.toFixed(3)} · ${hit.via}${
+            hit.entry.import_source ? ` · imported from ${hit.entry.import_source}` : ''
+          }\n`,
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+function memoryTimeline(argv: string[]): void {
+  const db = openDb();
+  try {
+    const rows = timeline(db, {
+      project: currentProject(),
+      limit: numberFlag(argv, '--limit', 20),
+      since: flag(argv, '--since') ?? null,
+    });
+    if (!rows.length) {
+      process.stdout.write('Nothing recorded for this project yet.\n');
+      return;
+    }
+    for (const row of rows) {
+      process.stdout.write(
+        `#${row.id}  ${row.occurred_at.slice(0, 16).replace('T', ' ')}  ${row.kind}  ${row.title}\n`,
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+function memoryShow(argv: string[]): void {
+  const id = Number(argv[0]);
+  if (!Number.isInteger(id)) fail('Usage: eklavya memory show <id>');
+
+  const db = openDb();
+  try {
+    const entry = entryById(db, id);
+    if (!entry) fail(`No memory entry #${id}.`);
+
+    const tags = entryTags(db, id);
+    const lines = [
+      `#${entry.id}  ${entry.title}`,
+      `kind:      ${entry.kind}${entry.type ? ` / ${entry.type}` : ''}`,
+      `project:   ${entry.project}`,
+      `occurred:  ${entry.occurred_at}`,
+      `generator: ${entry.generator}`,
+      ...(entry.import_source ? [`imported:  from ${entry.import_source} (unassessed — no mastery, no attempts)`] : []),
+      ...(entry.superseded_by ? [`superseded by #${entry.superseded_by}`] : []),
+      ...(tags.length ? [`tags:      ${tags.join(', ')}`] : []),
+      ...(entry.files ? [`files:     ${(JSON.parse(entry.files) as string[]).join(', ')}`] : []),
+      '',
+      entry.narrative || '(no narrative)',
+    ];
+
+    const facts = entry.facts ? (JSON.parse(entry.facts) as string[]) : [];
+    if (facts.length) lines.push('', 'Facts:', ...facts.map((f) => `  - ${f}`));
+
+    const events = entryEvents(db, id);
+    lines.push('', `Evidence (${events.length}):`);
+    for (const event of events) {
+      lines.push(
+        `  ${event.occurred_at.slice(0, 16).replace('T', ' ')}  ${event.kind}${
+          event.tool ? `/${event.tool}` : ''
+        }  ${event.body.slice(0, 120).replace(/\s+/g, ' ')}`,
+      );
+    }
+    if (!events.length) lines.push('  (none linked — imported or hand-written entries carry no local evidence)');
+
+    process.stdout.write(`${lines.join('\n')}\n`);
+  } finally {
+    db.close();
+  }
+}
+
+function memoryProcess(argv: string[]): void {
+  const db = openDb();
+  const { config } = loadConfig();
+  // Running this command *is* the "I have fixed the credential" signal: it is
+  // what `doctor` tells the developer to run, and nothing else takes a job off
+  // 'paused'. Resuming here rather than in the worker keeps it an explicit act
+  // — a hook that resumed by itself would spend a rejected key every session.
+  // Validate before resuming. `numberFlag` exits on a bad value, and resuming
+  // is not undoable: a refused run that had already emptied the pause would
+  // tell the developer nothing happened while the queue quietly went back to
+  // spending a credential that may still be rejected.
+  const maxJobs = numberFlag(argv, '--max', 10);
+  const resumed = resumePaused(db);
+  processPending(db, config, { maxJobs }).then(
+    (result) => {
+      process.stdout.write(
+        `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}\n`,
+      );
+      db.close();
+    },
+    (err: Error) => {
+      db.close();
+      fail(`eklavya memory process: ${err.message}`);
+    },
+  );
+}
+
+/**
+ * Backfills from Claude Code's own transcripts.
+ *
+ * The hooks only see sessions that happened after Eklavya was installed. This
+ * is for the ones before it, and for a session where a hook was misconfigured:
+ * the transcript is on disk either way, and it goes through the same privacy
+ * filter and converges with whatever the hooks already captured.
+ */
+function memoryReplay(argv: string[]): void {
+  const db = openDb();
+  try {
+    const { config } = loadConfig();
+    if (!config.memory.enabled) {
+      process.stdout.write('memory.enabled is false, so there is nowhere to replay into.\n');
+      return;
+    }
+    const cwd = process.cwd();
+    const files = transcriptsFor(cwd);
+    if (!files.length) {
+      process.stdout.write(
+        `No Claude Code transcripts found for this checkout.\nLooked in: ${transcriptDirFor(cwd)}\n`,
+      );
+      return;
+    }
+    const limit = Number(flag(argv, '--limit', '20'));
+    const results = replayProject(db, config, cwd, { limit });
+    const total = results.reduce(
+      (sum, r) => ({
+        read: sum.read + r.read,
+        captured: sum.captured + r.captured,
+        duplicates: sum.duplicates + r.duplicates,
+        excluded: sum.excluded + r.excluded,
+      }),
+      { read: 0, captured: 0, duplicates: 0, excluded: 0 },
+    );
+    process.stdout.write(
+      [
+        `transcripts: ${results.length} of ${files.length}`,
+        `lines read:  ${total.read}`,
+        `captured:    ${total.captured}`,
+        `already had: ${total.duplicates}`,
+        `excluded:    ${total.excluded}  (privacy filter, or capture set to minimal)`,
+        '',
+        'Run `eklavya memory process` to summarise what was captured.',
+        '',
+      ].join('\n'),
+    );
+  } finally {
+    db.close();
+  }
+}
+
+function memoryPrune(): void {
+  const db = openDb();
+  try {
+    const { config } = loadConfig();
+    if (!config.memory.retention_days) {
+      process.stdout.write('memory.retention_days is not set, so raw evidence is kept until deleted by hand.\n');
+      return;
+    }
+    const removed = pruneEvidence(db, config);
+    process.stdout.write(`Deleted ${removed} raw evidence events older than ${config.memory.retention_days} days.\n`);
+  } finally {
+    db.close();
+  }
+}
+
+/** The field-disposition report, printed before anything is written. */
+function dispositionReport(fields: FieldDisposition[]): string {
+  const lines: string[] = [];
+  for (const kind of ['mapped', 'dropped', 'unrecognised'] as const) {
+    const group = fields.filter((f) => f.kind === kind);
+    if (!group.length) continue;
+    lines.push('', `${kind} (${group.length}):`);
+    for (const f of group) {
+      lines.push(`  ${f.table}.${f.field}${f.to ? ` -> ${f.to}` : ''}${f.reason ? `  — ${f.reason}` : ''}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Reads `--map source=/path` and `--map-here source` into a project map.
+ *
+ * Eklavya keys a project by the checkout's absolute realpath; Claude Mem keys
+ * it by a bare name. Without a mapping the import is honest and useless at the
+ * moment it matters -- every row lands in a scope no session queries, so a
+ * search in the very repository the history came from finds nothing. The
+ * importer cannot guess which checkout `eklavya` meant, so this is a flag.
+ */
+function projectMapFrom(argv: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--map') {
+      const pair = argv[i + 1] ?? '';
+      const eq = pair.indexOf('=');
+      if (eq <= 0) fail('Usage: --map <source-project>=<path-to-checkout>');
+      map[pair.slice(0, eq)] = projectKey(findRepoConfig(pair.slice(eq + 1)).repoRoot ?? pair.slice(eq + 1));
+      i++;
+    } else if (argv[i] === '--map-here') {
+      const name = argv[i + 1];
+      if (!name || name.startsWith('--')) fail('Usage: --map-here <source-project>');
+      const here = findRepoConfig(process.cwd()).repoRoot;
+      // "Here" has to be somewhere. Without a checkout `projectKey` answers with
+      // the global bucket, so the flag would file every row under a scope no
+      // session queries -- silently, permanently, and to say it had mapped them.
+      if (!here) fail(`--map-here needs a checkout: ${process.cwd()} is not inside a git repository.`);
+      map[name] = projectKey(here);
+      i++;
+    }
+  }
+  return map;
+}
+
+function memoryImport(argv: string[]): void {
+  const flagValues = new Set(
+    argv.flatMap((a, i) => (a === '--map' || a === '--map-here' ? [argv[i + 1] ?? ''] : [])),
+  );
+  const source = argv.find((a) => !a.startsWith('--') && !flagValues.has(a));
+  if (!source) fail('Usage: eklavya memory import <path-to-claude-mem.db> [--dry-run] [--resume] [--map <src>=<path>]');
+  const dryRun = argv.includes('--dry-run');
+  const projectMap = projectMapFrom(argv);
+
+  try {
+    const found = inventory(source);
+    const lines = [
+      `source:  ${found.sourcePath}`,
+      `schema:  ${found.schemaVersion ?? 'unversioned'} (this importer understands up to ${found.supportedMax})`,
+      `range:   ${found.dateRange.from?.slice(0, 10) ?? '—'} … ${found.dateRange.to?.slice(0, 10) ?? '—'}`,
+      'tables:',
+      ...found.tables.map((t) => `  ${t.rows.toString().padStart(7)}  ${t.name}${t.known ? '' : '   (unrecognised)'}`),
+      'projects:',
+      ...found.projects.map((p) => `  ${p.entries.toString().padStart(7)}  ${p.project}`),
+      dispositionReport(found.fields),
+    ];
+    process.stdout.write(`${lines.join('\n')}\n`);
+
+    if (!found.supported) fail(`\n${found.problem ?? 'Unsupported source database.'}`);
+    if (dryRun) {
+      const planned = Object.entries(projectMap);
+      const unmapped = found.projects.map((p) => p.project).filter((p) => !(p in projectMap));
+      process.stdout.write(
+        [
+          '',
+          ...planned.map(([from, to]) => `would map: ${from} -> ${to}`),
+          ...(unmapped.length ? [`would keep as-is: ${unmapped.join(', ')}`] : []),
+          'Dry run: nothing was written, and the source was opened read-only.',
+          '',
+        ].join('\n'),
+      );
+      return;
+    }
+
+    const db = openDb();
+    try {
+      const report = importFrom(db, source, { resume: argv.includes('--resume'), projectMap });
+      const rows = IMPORTED_TABLES.map(
+        (t) =>
+          `  ${t.padEnd(18)} read ${report.read[t]} · imported ${report.imported[t]} · already present ${report.skipped[t]}`,
+      );
+      process.stdout.write(
+        [
+          '',
+          `snapshot: ${report.snapshot}`,
+          ...rows,
+          `  concept candidates: ${report.candidates} (all unassessed — no mastery, no attempts, no gate touched)`,
+          `  evidence links: ${report.links} (drill-down from an entry to the prompts and tool uses behind it)`,
+          `  re-indexed: ${report.reindexed} entries`,
+          `  validation: ${report.validation.ok ? 'ok' : `FAILED — ${report.validation.notes.join('; ')}`}`,
+          ...report.projectsMapped.map((p) => `  mapped: ${p.from} -> ${p.to}`),
+          // The unmapped list is the useful half: those rows only ever surface
+          // under --all-projects until somebody maps them.
+          ...(report.projectsKept.length
+            ? [
+                `  kept as-is: ${report.projectsKept.join(', ')}`,
+                '  (unmapped projects are searchable only with --all-projects; re-run with --map to file them under a checkout)',
+              ]
+            : []),
+          '',
+        ].join('\n'),
+      );
+      if (!report.validation.ok) process.exit(1);
+    } finally {
+      db.close();
+    }
+  } catch (err) {
+    if (err instanceof ImportError) fail(err.message);
+    // The source is a hand-typed path, so pointing it at the wrong file is the
+    // likeliest mistake there is. The missing-file case was already handled and
+    // `restore` says "is not readable JSON" for the same mistake; only this path
+    // let a driver error out with a stack through node_modules.
+    fail(`eklavya memory import: cannot read ${source} — ${(err as Error).message}`);
+  }
+}
+
+function memoryExport(argv: string[]): void {
+  const out = argv.find((a) => !a.startsWith('--'));
+  if (!out) fail('Usage: eklavya memory export <path>');
+
+  const db = openDb();
+  try {
+    const payload = exportPayload(db);
+    fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
+    fs.writeFileSync(out, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+    process.stdout.write(
+      `Wrote ${out} — ${(payload.entries as unknown[]).length} entries, schema version ${EXPORT_SCHEMA_VERSION}\n`,
+    );
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * `eklavya memory restore <file>` — the other half of the backup pair.
+ *
+ * Without it `export` writes a file nothing on the machine can read, which
+ * makes the rollback drill in the migration guide unrunnable. It is additive
+ * and idempotent, so it is also how a second device is brought up to date from
+ * a file rather than a shared folder.
+ */
+function memoryRestore(argv: string[]): void {
+  const from = argv.find((a) => !a.startsWith('--'));
+  if (!from) fail('Usage: eklavya memory restore <file>');
+
+  const db = openDb();
+  try {
+    const r = restoreExport(db, path.resolve(from));
+    process.stdout.write(
+      [
+        `Restored ${from} (export schema version ${r.schemaVersion}):`,
+        `  entries:   ${r.entries.restored} restored, ${r.entries.skipped} already here`,
+        `  evidence:  ${r.evidence.restored} restored, ${r.evidence.skipped} already here`,
+        `  links:     ${r.tags} tag(s), ${r.links} evidence link(s)`,
+        `  receipts:  ${r.receipts.restored} restored, ${r.receipts.skipped} already here (${r.receiptItems} item(s))`,
+        `  reindexed: ${r.reindexed} entries — search index and vectors rebuilt`,
+        'Learning history was not touched: no attempt, mastery or gate row is written by a restore.',
+        '',
+      ].join('\n'),
+    );
+  } catch (err) {
+    if (err instanceof ImportError) fail(err.message);
+    throw err;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * `eklavya memory sync push|pull|status [--target <dir>]` (ADR-09).
+ *
+ * The directory is the whole protocol, so the command has no host, no token and
+ * no network error to report — only what it wrote and what it read back.
+ * `--target` overrides `sync.target` for one run; it does not override
+ * `sync.enabled`, because "point it somewhere for a second" is still a decision
+ * to publish this machine's memory.
+ */
+function memorySync(argv: string[]): void {
+  const [sub] = argv;
+  if (sub !== 'push' && sub !== 'pull' && sub !== 'status') {
+    fail('Usage: eklavya memory sync <push|pull|status> [--target <dir>]');
+  }
+  const target = flag(argv, '--target') ?? null;
+
+  const db = openDb();
+  try {
+    const { config } = loadConfig();
+
+    if (sub === 'status') {
+      const s = syncStatus(db, config, { target });
+      const lines = [
+        `sync:       ${s.enabled ? 'on' : 'off (set sync.enabled)'}`,
+        `target:     ${s.target ?? '— (set sync.target, or pass --target)'}`,
+        `device:     ${s.device_id ?? '—'}`,
+        `revision:   ${s.local_revision}`,
+        `pending:    ${s.pending} local change${s.pending === 1 ? '' : 's'} to push`,
+        `conflicts:  ${s.open_conflicts} quarantined`,
+        `peers:      ${
+          s.peers.length
+            ? s.peers.map((p) => `${p.device_id}@${p.last_revision}`).join(', ')
+            : 'none seen yet'
+        }`,
+      ];
+      process.stdout.write(`${lines.join('\n')}\n`);
+      return;
+    }
+
+    const result = sub === 'push' ? push(db, config, { target }) : pull(db, config, { target });
+    if (!result.ok) {
+      fail(
+        result.reason === 'disabled'
+          ? 'Sync is off. Set sync.enabled to true in ~/.eklavya/config.json.'
+          : 'No sync target. Set sync.target to a folder your devices share, or pass --target.',
+      );
+    }
+
+    if (sub === 'push') {
+      const r = result as ReturnType<typeof push>;
+      process.stdout.write(
+        `Pushed to ${r.target} as ${r.device_id}: ${r.staged} new revision${
+          r.staged === 1 ? '' : 's'
+        }, ${r.written} record${r.written === 1 ? '' : 's'} written, ${r.already} already there.\n`,
+      );
+      return;
+    }
+
+    const r = result as ReturnType<typeof pull>;
+    process.stdout.write(
+      `Pulled from ${r.target}: ${r.applied} applied (${r.tombstones} deletion${
+        r.tombstones === 1 ? '' : 's'
+      }), ${r.skipped} already known, ${r.conflicts} quarantined.\n`,
+    );
+    if (r.conflicts) {
+      process.stdout.write(
+        'Quarantined versions are kept whole in sync_conflicts — nothing was overwritten.\n',
+      );
+    }
+    if (r.stalled.length) {
+      process.stdout.write(
+        `Stopped early on an unreadable record from: ${r.stalled.join(', ')} — likely still being written. Try again.\n`,
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+function memoryCommand(argv: string[]): void {
+  const [sub, ...rest] = argv;
+  switch (sub) {
+    case 'status':
+      return memoryStatus();
+    case 'search':
+      return memorySearch(rest);
+    case 'timeline':
+      return memoryTimeline(rest);
+    case 'show':
+      return memoryShow(rest);
+    case 'replay':
+      return memoryReplay(rest);
+    case 'process':
+      return memoryProcess(rest);
+    case 'prune':
+      return memoryPrune();
+    case 'import':
+      return memoryImport(rest);
+    case 'export':
+      return memoryExport(rest);
+    case 'restore':
+      return memoryRestore(rest);
+    case 'sync':
+      return memorySync(rest);
+    default:
+      process.stderr.write(MEMORY_USAGE);
+      process.exit(1);
+  }
+}
+
 function main(): void {
   const [command, ...rest] = process.argv.slice(2);
 
@@ -473,6 +1225,8 @@ function main(): void {
       return;
     case 'dashboard':
       return dashboardCommand(rest);
+    case 'memory':
+      return memoryCommand(rest);
     case 'doctor':
       return doctor();
     case 'db-path':

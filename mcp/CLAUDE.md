@@ -25,11 +25,26 @@ what an agent editing code in this directory has to know before it does.
 | `src/eval/*.ts` | the offline half of the eval — `question-checks.ts` (question shape), `extraction-score.ts` (are the logged concepts right, scored with `slug.ts`'s own matcher), `history-stats.ts` (repeat rate, tier calibration) and `extract-json.ts`. Pure, like `srs.ts`. Driven by `eval/harness.mjs` at the repo root | no model, no I/O; anything needing a judge stays out |
 | `src/install.ts` | `eklavya install/uninstall` — Node check, runtime, plugin payload, registry files, db | |
 | `src/dashboard.ts` + `src/assets/dashboard.html` | the local page on loopback (default port 41729). Read `.claude/skills/eklavya-dashboard/SKILL.md` first | |
+| `src/memory/` | the other half: `capture.ts` (the one intake), `privacy.ts` (redaction, before persistence), `spool.ts` (the degraded path), `store.ts` (every memory query), `search.ts` (keyword/semantic/hybrid), `embed.ts` (`local-hash-v1`), `summarize.ts` + `provider.ts` (the `Summarizer` port and its two implementations), `worker.ts` (leased jobs, no daemon), `recall.ts` (what the model is handed, and the receipt that proves it), `replay.ts`, `learning.ts` (evidence → candidates), `collections.ts`, `code.ts`, `notify.ts`, `sync.ts`, `import.ts`, `hosts.ts`, `identity.ts`, `tokens.ts` | no MCP, no hooks; `domain`-style purity is not enforced, but nothing here reaches for a host API |
+| `src/time.ts`, `src/config-path.ts` | the one clock policy both halves parse with; dotted config keys derived from `DEFAULT_CONFIG` | |
 
 `src/cli.ts` is the `eklavya` binary — it builds to `dist/cli.js`, which is
 `package.json`'s `bin`. The top-level `cli/` directory is **not** this: it holds
 `eklavya-gate`, a POSIX script, because a git pre-commit hook must not pay Node's
 startup cost. The names invite the mistake; check which one you are in.
+
+## Two halves, one database, one rule between them
+
+`memory.enabled` is not governed by `mode`, and nothing in `src/memory/` may
+touch `attempts`, `mastery` or `gates`. The one bridge is `learning_sources`:
+evidence proposes a **candidate**, and only an answered question moves mastery.
+An observation is not an assessment, and every test in `memory-learning.test.ts`
+exists to keep it that way.
+
+The practical consequence when editing a hook: the memory work goes **before**
+the `mode` check, and the learning work after it. `hooks/memory-lib.ts` holds
+the shared helpers and every one of them swallows its own failures — capture
+runs after every tool call, so a throw there is a throw on every tool call.
 
 ## `config.ts` is the source of truth for the dials
 
@@ -43,6 +58,24 @@ tool description at the same time, and the hooks framed questions one way while
 the server framed them another. Before shipping anything that touches `focus`,
 `grep -rin "defaults to project"` and `grep -rniE "focus.{0,12}default"` across
 `skills/`, `user-skill/`, `web/` and `mcp/src/`.
+
+**Four settings are global-only, and the rule is a security boundary rather
+than a preference.** `.eklavya.json` wins over the global config — that is what
+makes a lead's pinned mode work — and it is also a file you get by cloning. A
+dial is safe to inherit from a stranger; a setting with an effect *outside* the
+session is not. `notifications` runs a command, `sync` writes files,
+`providers` sends work to an API, and `retrieval.cross_project` widens what the
+model sees. `REPO_FORBIDDEN_KEYS` is the list, `loadConfig` enforces it on read
+and both writers enforce it on write, and `test/config-trust.test.ts` is the
+regression: a checked-in `command` sink plus the Stop hook's automatic wrap-up
+was arbitrary code execution on `git clone`.
+
+Six namespaces now sit beside the flat dials — `memory`, `privacy`,
+`retrieval`, `providers`, `notifications`, `sync` — and they are nested because
+every `.eklavya.json` already written uses the dials flat. `config-path.ts`
+derives the settable key list from `DEFAULT_CONFIG` itself, so a nested key
+needs no list edit; a *nullable* one does need a line in its `NULLABLE` map,
+because `null` is the one default that cannot say what type it is.
 
 Adding or changing a config key means all of:
 
@@ -182,8 +215,9 @@ avoid the real learner's data), `EKLAVYA_DB` (the file itself),
 see `resolveSessionId`).
 
 Migrations are forward-only. Adding one means bumping, in the same change,
-`LATEST_SCHEMA_VERSION` (currently 8), the file list in the "upgrades an older
-install" case, and `EXPECTED_TABLES` (currently 10) in `test/migrate.test.ts`.
+`LATEST_SCHEMA_VERSION` (currently 14), the file list in the "upgrades an older
+install" case, and the table list `EXPECTED_TABLES` is built from — `LEARNING_TABLES`,
+`MEMORY_TABLES`, `IMPORT_TABLES` or `SYNC_TABLES` — in `test/migrate.test.ts`.
 
 The seed catalogue is **87 concepts** across four files in `src/seed/` — git 19,
 node-backend 17, react 18, web-auth 33. Recount when a seed file changes, fix any

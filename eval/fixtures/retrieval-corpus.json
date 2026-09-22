@@ -1,0 +1,1946 @@
+{
+  "note": "A synthetic corpus and labelled queries for the retrieval eval. Every entry is invented fiction: nothing here is read, copied or paraphrased from a real memory, a real import, or this repo's history. Ids are stable and referenced by `queries[].relevant` and `queries[].forbidden`.",
+  "version": 2,
+  "changed": "Grown from 18 entries / 12 queries to the corpus .plan/unified-memory-learning/quality.md asks for: at least 100 queries across decisions, fixes, files, dates, CJK and mixed-language search, worktrees, adversarial stale facts and explicit cross-project recall, with a held-back split. The v1 entries and query ids are unchanged so the 2026-09-22 baseline stays comparable.",
+  "splits": {
+    "dev": "Look at these while changing the retriever.",
+    "heldout": "Assigned before the first v2 run and not revised after reading its numbers. A gain that shows on dev and not here is noise."
+  },
+  "projects": {
+    "api": "/work/orders-api",
+    "web": "/work/storefront",
+    "infra": "/work/platform",
+    "mobile": "/work/checkout-mobile",
+    "data": "/work/ledger-pipeline"
+  },
+  "entries": [
+    {
+      "id": 1,
+      "project": "api",
+      "type": "feature",
+      "occurredAt": "2026-02-03T10:14:00Z",
+      "title": "Rotate the refresh cookie on every use",
+      "narrative": "Each refresh mints a new token and stores the jti so a replayed cookie is rejected once.",
+      "facts": ["httpOnly and sameSite=strict on the refresh cookie"],
+      "files": ["src/auth/refresh.ts"],
+      "tags": ["auth", "cookies"]
+    },
+    {
+      "id": 2,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-02-18T16:02:00Z",
+      "title": "Refresh loop when the clock skewed",
+      "narrative": "The access token expiry was compared against local time, so a machine two minutes ahead refreshed forever.",
+      "facts": ["Compare expiry in UTC"],
+      "files": ["src/auth/token.ts"],
+      "tags": ["auth", "time"]
+    },
+    {
+      "id": 3,
+      "project": "api",
+      "type": "decision",
+      "occurredAt": "2026-01-22T11:45:00Z",
+      "title": "Chose argon2id over bcrypt for password hashing",
+      "narrative": "Memory-hard beats cost-factor tuning on the hardware we actually run on. bcrypt stays for verifying old hashes.",
+      "facts": ["Legacy bcrypt hashes are upgraded on next login"],
+      "files": ["src/auth/password.ts"],
+      "tags": ["auth", "crypto"]
+    },
+    {
+      "id": 4,
+      "project": "api",
+      "type": "discovery",
+      "occurredAt": "2026-05-07T09:30:00Z",
+      "title": "SQLite WAL checkpoint starvation under constant readers",
+      "narrative": "A reader open at all times means the WAL never checkpoints and grows without bound.",
+      "facts": ["wal_autocheckpoint does nothing while a read transaction is open"],
+      "files": ["src/db.ts"],
+      "tags": ["sqlite", "database"]
+    },
+    {
+      "id": 5,
+      "project": "api",
+      "type": "refactor",
+      "occurredAt": "2026-03-24T14:20:00Z",
+      "title": "Extracted the order state machine out of the controller",
+      "narrative": "Transitions were spread across four route handlers and two of them disagreed about cancellation.",
+      "facts": ["Cancelled is terminal"],
+      "files": ["src/orders/state.ts"],
+      "tags": ["orders", "state"]
+    },
+    {
+      "id": 6,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-04-09T08:55:00Z",
+      "title": "Idempotency key collision across tenants",
+      "narrative": "The key was unique per key, not per tenant, so two customers reusing the same string saw each other's response.",
+      "facts": ["Primary key is now (tenant_id, idempotency_key)"],
+      "files": ["src/orders/idempotency.ts"],
+      "tags": ["orders", "multitenancy"]
+    },
+    {
+      "id": 7,
+      "project": "api",
+      "type": "change",
+      "occurredAt": "2026-04-21T13:10:00Z",
+      "title": "Paginate the orders list with a keyset cursor",
+      "narrative": "Offset pagination drifted whenever an order was inserted mid-scan.",
+      "facts": ["Cursor is (created_at, id)"],
+      "files": ["src/orders/list.ts"],
+      "tags": ["orders", "pagination"]
+    },
+    {
+      "id": 8,
+      "project": "api",
+      "type": "discovery",
+      "occurredAt": "2026-05-15T17:40:00Z",
+      "title": "N+1 query behind the order detail endpoint",
+      "narrative": "Each line item loaded its product separately; 40 items meant 41 queries.",
+      "facts": ["Batched into one IN query"],
+      "files": ["src/orders/detail.ts"],
+      "tags": ["orders", "performance"]
+    },
+    {
+      "id": 9,
+      "project": "api",
+      "type": "feature",
+      "occurredAt": "2026-01-29T12:05:00Z",
+      "title": "Rate limit login attempts per account and per IP",
+      "narrative": "Per-IP alone let a botnet spread attempts; per-account alone let one IP lock every account out.",
+      "facts": ["Both limits apply; the stricter wins"],
+      "files": ["src/auth/ratelimit.ts"],
+      "tags": ["auth", "abuse"]
+    },
+    {
+      "id": 10,
+      "project": "api",
+      "type": "decision",
+      "occurredAt": "2026-01-14T15:30:00Z",
+      "title": "Forward-only migrations, no down scripts",
+      "narrative": "A down script is only ever run in an emergency and is never the one that was tested.",
+      "facts": ["Roll forward with a new migration"],
+      "files": ["migrations/"],
+      "tags": ["database", "migrations"]
+    },
+    {
+      "id": 11,
+      "project": "web",
+      "type": "bugfix",
+      "occurredAt": "2026-03-05T10:00:00Z",
+      "title": "Effect cleanup missing on the cart subscription",
+      "narrative": "Navigating away left the socket handler attached, so the second visit double-counted every update.",
+      "facts": ["Return the unsubscribe from useEffect"],
+      "files": ["src/cart/useCart.ts"],
+      "tags": ["react", "hooks"]
+    },
+    {
+      "id": 12,
+      "project": "web",
+      "type": "feature",
+      "occurredAt": "2026-03-19T11:25:00Z",
+      "title": "Optimistic quantity updates in the cart",
+      "narrative": "The row updates immediately and rolls back on a failed request.",
+      "facts": ["Rollback restores the previous quantity, not zero"],
+      "files": ["src/cart/Row.tsx"],
+      "tags": ["react", "ux"]
+    },
+    {
+      "id": 13,
+      "project": "web",
+      "type": "discovery",
+      "occurredAt": "2026-06-02T09:15:00Z",
+      "title": "Hydration mismatch from a locale-formatted price",
+      "narrative": "The server formatted in en-GB and the browser in the visitor's locale, so React discarded the markup.",
+      "facts": ["Format prices on the client only"],
+      "files": ["src/product/Price.tsx"],
+      "tags": ["react", "ssr"]
+    },
+    {
+      "id": 14,
+      "project": "web",
+      "type": "refactor",
+      "occurredAt": "2026-06-18T14:50:00Z",
+      "title": "Moved checkout validation out of the component",
+      "narrative": "The same rules were in the component and on the server and had already drifted on postcode.",
+      "facts": ["One shared schema"],
+      "files": ["src/checkout/schema.ts"],
+      "tags": ["react", "validation"]
+    },
+    {
+      "id": 15,
+      "project": "web",
+      "type": "change",
+      "occurredAt": "2026-07-22T16:35:00Z",
+      "title": "Lazy-load the product image gallery",
+      "narrative": "The gallery was 60% of the initial bundle on a page most visitors scroll past.",
+      "facts": ["Dynamic import behind an intersection observer"],
+      "files": ["src/product/Gallery.tsx"],
+      "tags": ["react", "performance"]
+    },
+    {
+      "id": 16,
+      "project": "infra",
+      "type": "decision",
+      "occurredAt": "2026-02-26T13:00:00Z",
+      "title": "Blue-green deploys instead of rolling restarts",
+      "narrative": "A rolling restart ran two schema versions at once, which the order state machine could not survive.",
+      "facts": ["Migrations run before the green cutover"],
+      "files": ["deploy/"],
+      "tags": ["deploy", "migrations"]
+    },
+    {
+      "id": 17,
+      "project": "infra",
+      "type": "bugfix",
+      "occurredAt": "2026-05-28T08:20:00Z",
+      "title": "Health check passed while the database was unreachable",
+      "narrative": "The probe only checked the HTTP listener, so a pod with no database stayed in the load balancer.",
+      "facts": ["Readiness now runs a real query"],
+      "files": ["src/health.ts"],
+      "tags": ["deploy", "observability"]
+    },
+    {
+      "id": 18,
+      "project": "infra",
+      "type": "discovery",
+      "occurredAt": "2026-08-06T15:05:00Z",
+      "title": "Log volume tripled after adding request bodies",
+      "narrative": "Bodies were logged at info, including a base64 image upload.",
+      "facts": ["Bodies at debug, truncated to 2KB"],
+      "files": ["src/logging.ts"],
+      "tags": ["observability", "cost"]
+    },
+
+    {
+      "id": 19,
+      "project": "api",
+      "type": "decision",
+      "occurredAt": "2026-02-12T10:40:00Z",
+      "title": "Chose Redis for session storage",
+      "narrative": "Sessions are short-lived and never need a join, so an in-memory store beat a table.",
+      "facts": ["Session TTL is 12 hours"],
+      "files": ["src/auth/session.ts"],
+      "tags": ["auth", "storage"],
+      "stale": "Contradicted by 20 and never superseded — the adversarial case."
+    },
+    {
+      "id": 20,
+      "project": "api",
+      "type": "change",
+      "occurredAt": "2026-08-14T11:20:00Z",
+      "title": "Sessions moved out of Redis and into Postgres",
+      "narrative": "One fewer service to run, and the eviction under memory pressure was logging people out at random.",
+      "facts": ["Redis is gone from the deployment entirely"],
+      "files": ["src/auth/session.ts"],
+      "tags": ["auth", "storage"]
+    },
+    {
+      "id": 21,
+      "project": "api",
+      "type": "note",
+      "occurredAt": "2026-01-20T09:05:00Z",
+      "title": "Login rate limit is 100 requests a minute",
+      "narrative": "The number came from a guess at peak traffic plus headroom.",
+      "files": ["src/auth/ratelimit.ts"],
+      "tags": ["auth", "abuse"],
+      "supersededBy": 22
+    },
+    {
+      "id": 22,
+      "project": "api",
+      "type": "change",
+      "occurredAt": "2026-06-05T14:15:00Z",
+      "title": "Login rate limit raised to 500 requests a minute",
+      "narrative": "The old ceiling threw 429s at a single office behind one NAT during the sale rehearsal.",
+      "facts": ["Per-account limit is unchanged at 10 a minute"],
+      "files": ["src/auth/ratelimit.ts"],
+      "tags": ["auth", "abuse"]
+    },
+    {
+      "id": 23,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-06-26T10:55:00Z",
+      "title": "Rate limit counters reset on every deploy",
+      "narrative": "The counters lived in process memory, so a deploy handed an attacker a fresh budget.",
+      "facts": ["Counters moved to a shared store with a sliding window"],
+      "files": ["src/auth/ratelimit.ts"],
+      "tags": ["auth", "abuse"]
+    },
+    {
+      "id": 24,
+      "project": "api",
+      "type": "decision",
+      "occurredAt": "2026-03-30T13:45:00Z",
+      "title": "Money is stored in integer minor units",
+      "narrative": "A float cent survives arithmetic until it meets a third-party total and then it does not.",
+      "facts": ["Currency travels with every amount; there is no implicit GBP"],
+      "files": ["src/money.ts"],
+      "tags": ["orders", "money"]
+    },
+    {
+      "id": 25,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-07-15T12:30:00Z",
+      "title": "Partial refunds rounded against the customer",
+      "narrative": "Three-way splits truncated instead of distributing the remainder, so a penny went missing on every third refund.",
+      "facts": ["The remainder goes to the first line, not nowhere"],
+      "files": ["src/orders/refund.ts"],
+      "tags": ["orders", "money"]
+    },
+    {
+      "id": 26,
+      "project": "api",
+      "type": "discovery",
+      "occurredAt": "2026-04-02T16:10:00Z",
+      "title": "The payment provider redelivers webhooks",
+      "narrative": "A 200 that arrives after their five-second timeout counts as a failure and the hook comes again.",
+      "facts": ["Acknowledge first, process from a queue"],
+      "files": ["src/payments/webhook.ts"],
+      "tags": ["payments", "idempotency"]
+    },
+    {
+      "id": 27,
+      "project": "api",
+      "type": "feature",
+      "occurredAt": "2026-07-28T09:40:00Z",
+      "title": "Split a payment across two cards",
+      "narrative": "The first authorisation is held until the second succeeds, and both are voided together if it does not.",
+      "facts": ["A partial capture is never left standing"],
+      "files": ["src/payments/split.ts"],
+      "tags": ["payments", "orders"]
+    },
+    {
+      "id": 28,
+      "project": "api",
+      "type": "refactor",
+      "occurredAt": "2026-08-20T15:25:00Z",
+      "title": "Order events publish from an outbox table",
+      "narrative": "Writing the row and publishing the event were two systems and one of them was allowed to fail.",
+      "facts": ["The outbox row and the order row share a transaction"],
+      "files": ["src/orders/outbox.ts"],
+      "tags": ["orders", "messaging"]
+    },
+    {
+      "id": 29,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-05-21T11:00:00Z",
+      "title": "Migration 012 locked the orders table for nine minutes",
+      "narrative": "Adding a column with a default rewrote every row on the version of Postgres staging was pinned to.",
+      "facts": ["Add nullable, backfill in batches, then set the default"],
+      "files": ["migrations/012_order_channel.sql"],
+      "tags": ["database", "migrations"]
+    },
+    {
+      "id": 30,
+      "project": "api",
+      "type": "decision",
+      "occurredAt": "2026-01-09T10:20:00Z",
+      "title": "SQLite for the local cache, Postgres for the system of record",
+      "narrative": "The cache is per-process and disposable; treating it as a second source of truth is how they drift.",
+      "facts": ["The cache is dropped on boot, never migrated"],
+      "files": ["src/cache/local.ts"],
+      "tags": ["sqlite", "database"]
+    },
+    {
+      "id": 31,
+      "project": "api",
+      "type": "discovery",
+      "occurredAt": "2026-06-11T14:05:00Z",
+      "title": "The (tenant_id, created_at) index was never used",
+      "narrative": "The query cast created_at to a date, so the planner could not touch the index and scanned instead.",
+      "facts": ["Range on the raw column, do the casting in the projection"],
+      "files": ["src/orders/reports.ts"],
+      "tags": ["database", "performance"]
+    },
+    {
+      "id": 32,
+      "project": "api",
+      "type": "note",
+      "occurredAt": "2026-01-08T08:45:00Z",
+      "title": "Staging is a nightly copy of production",
+      "narrative": "The dump runs at 02:00 and takes about forty minutes.",
+      "files": ["ops/staging-refresh.sh"],
+      "tags": ["staging", "data"],
+      "stale": "Contradicted by 33 and never superseded."
+    },
+    {
+      "id": 33,
+      "project": "api",
+      "type": "change",
+      "occurredAt": "2026-05-19T13:35:00Z",
+      "title": "Staging runs on synthetic data only",
+      "narrative": "The nightly production copy was stopped after a support agent found a real customer address in a test order.",
+      "facts": ["A generator seeds staging from a fixed seed"],
+      "files": ["ops/staging-seed.ts"],
+      "tags": ["staging", "data", "privacy"]
+    },
+    {
+      "id": 34,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-03-11T09:20:00Z",
+      "title": "Checkout latency spike from a cold connection pool",
+      "narrative": "The pool was sized for steady state, so the first minute after a deploy opened connections one request at a time.",
+      "facts": ["Warm the pool before the readiness probe passes"],
+      "files": ["src/db/pool.ts"],
+      "tags": ["performance", "database"]
+    },
+    {
+      "id": 35,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-09-03T15:45:00Z",
+      "title": "Checkout latency spike from a slow fraud check",
+      "narrative": "The vendor's p99 moved from 200ms to four seconds and we waited on it inline.",
+      "facts": ["The check now runs with a 800ms budget and fails open to review"],
+      "files": ["src/payments/fraud.ts"],
+      "tags": ["performance", "payments"]
+    },
+    {
+      "id": 36,
+      "project": "api",
+      "type": "refactor",
+      "occurredAt": "2026-08-27T10:10:00Z",
+      "title": "Split src/auth/refresh.ts into refresh and rotate",
+      "narrative": "One file held the endpoint and the jti bookkeeping, and the tests could not reach the second without the first.",
+      "files": ["src/auth/refresh.ts", "src/auth/rotate.ts"],
+      "tags": ["auth", "refactor"]
+    },
+
+    {
+      "id": 37,
+      "project": "web",
+      "type": "bugfix",
+      "occurredAt": "2026-04-14T11:30:00Z",
+      "title": "Cart total wrong after switching currency",
+      "narrative": "The line prices re-fetched and the total did not, so the page showed euros summed at sterling.",
+      "facts": ["The total is derived, never stored"],
+      "files": ["src/cart/Total.tsx"],
+      "tags": ["react", "money"]
+    },
+    {
+      "id": 38,
+      "project": "web",
+      "type": "decision",
+      "occurredAt": "2026-02-20T14:00:00Z",
+      "title": "CSS modules over a runtime styling library",
+      "narrative": "The runtime cost landed on first paint on exactly the pages that matter, and the theming we needed is four variables.",
+      "facts": ["Design tokens live in one stylesheet"],
+      "files": ["src/styles/tokens.css"],
+      "tags": ["react", "styling"]
+    },
+    {
+      "id": 39,
+      "project": "web",
+      "type": "discovery",
+      "occurredAt": "2026-05-09T09:55:00Z",
+      "title": "A third-party script blocked first paint for 1.4 seconds",
+      "narrative": "The consent banner loaded synchronously from a domain with no CDN in Europe.",
+      "facts": ["Deferred, with the banner rendered locally first"],
+      "files": ["src/app/head.tsx"],
+      "tags": ["react", "performance"]
+    },
+    {
+      "id": 40,
+      "project": "web",
+      "type": "feature",
+      "occurredAt": "2026-06-24T13:20:00Z",
+      "title": "Debounced address autocomplete",
+      "narrative": "Every keystroke was a billable lookup; a 250ms debounce cut the bill by nine tenths and nobody noticed.",
+      "facts": ["The last request wins, earlier ones are aborted"],
+      "files": ["src/checkout/AddressInput.tsx"],
+      "tags": ["react", "cost"]
+    },
+    {
+      "id": 41,
+      "project": "web",
+      "type": "refactor",
+      "occurredAt": "2026-07-08T10:45:00Z",
+      "title": "Checkout split into three routes",
+      "narrative": "One page held address, payment and review, and a validation error on any of them reset the other two.",
+      "files": ["src/checkout/"],
+      "tags": ["react", "checkout"]
+    },
+    {
+      "id": 42,
+      "project": "web",
+      "type": "bugfix",
+      "occurredAt": "2026-08-12T16:00:00Z",
+      "title": "Focus escaped the payment modal",
+      "narrative": "Tabbing past the last field landed on the page behind, so a keyboard user filled in a form they could not see.",
+      "facts": ["The focus trap cycles and Escape closes"],
+      "files": ["src/checkout/PaymentModal.tsx"],
+      "tags": ["react", "a11y"]
+    },
+    {
+      "id": 43,
+      "project": "web",
+      "type": "change",
+      "occurredAt": "2026-09-01T09:10:00Z",
+      "title": "Gallery.tsx moved into the product folder",
+      "narrative": "It was the last component under src/shared that only one page used.",
+      "files": ["src/product/Gallery.tsx"],
+      "tags": ["react", "refactor"]
+    },
+    {
+      "id": 44,
+      "project": "web",
+      "type": "bugfix",
+      "occurredAt": "2026-07-30T11:50:00Z",
+      "title": "Header collapsed at 900px",
+      "narrative": "On the wt/design-refresh worktree the new breakpoint dropped the nav before the burger menu appeared, leaving nothing.",
+      "facts": ["The burger appears at the same width the nav leaves"],
+      "files": ["src/app/Header.tsx"],
+      "tags": ["react", "layout"]
+    },
+    {
+      "id": 45,
+      "project": "web",
+      "type": "feature",
+      "occurredAt": "2026-07-31T15:15:00Z",
+      "title": "New primary navigation",
+      "narrative": "Also on the wt/design-refresh worktree: four top-level sections instead of nine, with the rest behind a single more menu.",
+      "files": ["src/app/Nav.tsx"],
+      "tags": ["react", "layout"]
+    },
+
+    {
+      "id": 46,
+      "project": "infra",
+      "type": "decision",
+      "occurredAt": "2026-03-17T10:30:00Z",
+      "title": "Terraform over the console for the staging account",
+      "narrative": "Nobody could say what staging was made of, and the drift was only ever discovered during an incident.",
+      "facts": ["Console access to staging is read-only"],
+      "files": ["terraform/staging/"],
+      "tags": ["deploy", "iac"]
+    },
+    {
+      "id": 47,
+      "project": "infra",
+      "type": "bugfix",
+      "occurredAt": "2026-04-28T08:15:00Z",
+      "title": "Certificate renewal failed silently for six weeks",
+      "narrative": "The renewal job wrote its failure to a log stream with no alert attached to it.",
+      "facts": ["Renewal failure pages; expiry under 14 days pages louder"],
+      "files": ["deploy/certs.tf"],
+      "tags": ["deploy", "observability"]
+    },
+    {
+      "id": 48,
+      "project": "infra",
+      "type": "discovery",
+      "occurredAt": "2026-06-30T14:40:00Z",
+      "title": "A restored backup left the sequences behind",
+      "narrative": "The restore drill produced a working database that issued primary keys already in use.",
+      "facts": ["The drill now inserts a row and reads it back"],
+      "files": ["ops/restore.sh"],
+      "tags": ["database", "backup"]
+    },
+    {
+      "id": 49,
+      "project": "infra",
+      "type": "change",
+      "occurredAt": "2026-08-19T13:05:00Z",
+      "title": "Log retention cut from 90 days to 30",
+      "narrative": "Nothing older than a fortnight had been queried in a year, and the bill was the third largest line.",
+      "facts": ["Audit logs keep the 90 days; they are a separate stream"],
+      "files": ["terraform/logging.tf"],
+      "tags": ["observability", "cost"]
+    },
+    {
+      "id": 50,
+      "project": "infra",
+      "type": "decision",
+      "occurredAt": "2026-05-02T11:15:00Z",
+      "title": "Per-service dashboards over one god dashboard",
+      "narrative": "The single board had forty panels and the one that mattered was never on screen.",
+      "facts": ["Every service owns its board and its alerts"],
+      "files": ["dashboards/"],
+      "tags": ["observability"]
+    },
+    {
+      "id": 51,
+      "project": "infra",
+      "type": "note",
+      "occurredAt": "2026-02-02T09:00:00Z",
+      "title": "Deploys go out from a developer laptop",
+      "narrative": "Whoever merged runs the script; there is a shared credential in the team vault.",
+      "files": ["deploy/release.sh"],
+      "tags": ["deploy"],
+      "supersededBy": 52
+    },
+    {
+      "id": 52,
+      "project": "infra",
+      "type": "change",
+      "occurredAt": "2026-04-16T12:20:00Z",
+      "title": "Deploys run from CI only",
+      "narrative": "The shared credential was rotated into CI and removed from the vault, so a laptop cannot reach production.",
+      "facts": ["A break-glass path exists and pages when used"],
+      "files": [".ci/deploy.yml"],
+      "tags": ["deploy", "security"]
+    },
+    {
+      "id": 53,
+      "project": "infra",
+      "type": "bugfix",
+      "occurredAt": "2026-09-08T10:25:00Z",
+      "title": "Readiness probe timeout raised to 5 seconds",
+      "narrative": "The real query the probe now runs takes longer than the old listener check, and pods were restarting under load.",
+      "files": ["src/health.ts"],
+      "tags": ["deploy", "observability"]
+    },
+
+    {
+      "id": 54,
+      "project": "mobile",
+      "type": "decision",
+      "occurredAt": "2026-01-16T13:40:00Z",
+      "title": "One React Native codebase instead of two native apps",
+      "narrative": "Two developers cannot keep two platforms in step, and the screens are forms over an API.",
+      "facts": ["Native modules only for biometrics and the card reader"],
+      "files": ["docs/adr/001-react-native.md"],
+      "tags": ["mobile", "architecture"]
+    },
+    {
+      "id": 55,
+      "project": "mobile",
+      "type": "bugfix",
+      "occurredAt": "2026-05-23T09:35:00Z",
+      "title": "Idempotency key regenerated on retry",
+      "narrative": "The client made a new key each attempt, so a retry after a timeout placed a second order.",
+      "facts": ["The key is generated once per checkout, not per request"],
+      "files": ["src/api/client.ts"],
+      "tags": ["mobile", "idempotency"]
+    },
+    {
+      "id": 56,
+      "project": "mobile",
+      "type": "feature",
+      "occurredAt": "2026-06-14T15:00:00Z",
+      "title": "Biometric unlock for a saved card",
+      "narrative": "The card token never leaves the keystore; the prompt releases it for one authorisation.",
+      "facts": ["A failed prompt falls back to the full card entry, not to a PIN"],
+      "files": ["src/wallet/biometric.ts"],
+      "tags": ["mobile", "security"]
+    },
+    {
+      "id": 57,
+      "project": "mobile",
+      "type": "discovery",
+      "occurredAt": "2026-07-19T11:10:00Z",
+      "title": "A deep link opened a second copy of the app",
+      "narrative": "The launch mode created a new task, so the back button walked through two navigation stacks.",
+      "facts": ["singleTask, and the link is routed into the live stack"],
+      "files": ["android/AndroidManifest.xml"],
+      "tags": ["mobile", "navigation"]
+    },
+    {
+      "id": 58,
+      "project": "mobile",
+      "type": "bugfix",
+      "occurredAt": "2026-08-25T14:30:00Z",
+      "title": "The offline queue replayed orders after reconnecting",
+      "narrative": "Queued requests were flushed before the acknowledgements from the previous flush had been recorded.",
+      "facts": ["The queue is drained one item at a time and only clears on a 2xx"],
+      "files": ["src/api/queue.ts"],
+      "tags": ["mobile", "idempotency"]
+    },
+    {
+      "id": 59,
+      "project": "mobile",
+      "type": "change",
+      "occurredAt": "2026-09-05T10:05:00Z",
+      "title": "Refresh token rotation on the mobile client",
+      "narrative": "The app now expects a new refresh token on every call and replaces the stored one before using it.",
+      "facts": ["A rotation the app misses logs the user out rather than looping"],
+      "files": ["src/auth/session.ts"],
+      "tags": ["mobile", "auth"]
+    },
+
+    {
+      "id": 60,
+      "project": "data",
+      "type": "bugfix",
+      "occurredAt": "2026-03-08T08:30:00Z",
+      "title": "Timezone drift in the daily ledger rollup",
+      "narrative": "The job bucketed by the warehouse's local day while the source stamped UTC, so an hour of takings landed on the wrong date.",
+      "facts": ["Everything is bucketed in UTC and rendered locally"],
+      "files": ["jobs/rollup_daily.py"],
+      "tags": ["data", "time"]
+    },
+    {
+      "id": 61,
+      "project": "data",
+      "type": "decision",
+      "occurredAt": "2026-02-06T14:45:00Z",
+      "title": "Parquet over CSV for the nightly export",
+      "narrative": "The types survive the round trip, and a month of exports fits in a sixth of the space.",
+      "facts": ["One file per partition, snappy compressed"],
+      "files": ["jobs/export_parquet.py"],
+      "tags": ["data", "export"]
+    },
+    {
+      "id": 62,
+      "project": "data",
+      "type": "discovery",
+      "occurredAt": "2026-04-24T16:20:00Z",
+      "title": "Late events broke yesterday's totals",
+      "narrative": "A payment settled three days after the order, and the rollup had already closed that day for good.",
+      "facts": ["The last seven days are recomputed every night"],
+      "files": ["jobs/rollup_daily.py"],
+      "tags": ["data", "correctness"]
+    },
+    {
+      "id": 63,
+      "project": "data",
+      "type": "feature",
+      "occurredAt": "2026-06-08T10:50:00Z",
+      "title": "Backfill runs in bounded windows",
+      "narrative": "The first backfill read four years in one query and was killed by the scheduler twice before anyone looked.",
+      "facts": ["One day per task, resumable from the last committed window"],
+      "files": ["jobs/backfill.py"],
+      "tags": ["data", "jobs"]
+    },
+    {
+      "id": 64,
+      "project": "data",
+      "type": "refactor",
+      "occurredAt": "2026-07-11T13:15:00Z",
+      "title": "Pipeline split into extract, normalise and load",
+      "narrative": "One script did all three, so a vendor format change meant re-running the extract against a rate-limited API.",
+      "files": ["jobs/extract.py", "jobs/normalise.py", "jobs/load.py"],
+      "tags": ["data", "jobs"]
+    },
+    {
+      "id": 65,
+      "project": "data",
+      "type": "decision",
+      "occurredAt": "2026-05-30T11:40:00Z",
+      "title": "No personal data in the warehouse at all",
+      "narrative": "Analysts asked for emails to join on; a hashed customer id answers the same questions and cannot be leaked.",
+      "facts": ["The hash is salted per environment so staging cannot be joined to production"],
+      "files": ["jobs/normalise.py"],
+      "tags": ["data", "privacy"]
+    },
+
+    {
+      "id": 66,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-07-02T09:45:00Z",
+      "title": "Raised the upstream timeout to 30 seconds",
+      "narrative": "On the hotfix/checkout-timeout worktree: the carrier's quote call occasionally takes 20 seconds and we were cutting it off at 10.",
+      "facts": ["The customer sees a spinner with a written-out wait, not an error"],
+      "files": ["src/shipping/quote.ts"],
+      "tags": ["orders", "worktree"]
+    },
+    {
+      "id": 67,
+      "project": "api",
+      "type": "feature",
+      "occurredAt": "2026-07-04T14:10:00Z",
+      "title": "Two-card authorisation flow",
+      "narrative": "On the feature/split-payments worktree: the second card is authorised while the first is held, and the order is not created until both clear.",
+      "files": ["src/payments/split.ts"],
+      "tags": ["payments", "worktree"]
+    },
+    {
+      "id": 68,
+      "project": "api",
+      "type": "refactor",
+      "occurredAt": "2026-07-09T11:35:00Z",
+      "title": "Extracted the authorisation retry",
+      "narrative": "Still on the feature/split-payments worktree: both cards needed the same backoff and the second copy had already drifted.",
+      "files": ["src/payments/retry.ts"],
+      "tags": ["payments", "worktree"]
+    },
+    {
+      "id": 69,
+      "project": "api",
+      "type": "bugfix",
+      "occurredAt": "2026-07-11T16:25:00Z",
+      "title": "The retry made the timeout worse",
+      "narrative": "Back on the hotfix/checkout-timeout worktree: three attempts at 30 seconds meant a 90-second wait before the failure the customer was always going to get.",
+      "facts": ["One retry, and the budget is shared across attempts"],
+      "files": ["src/shipping/quote.ts"],
+      "tags": ["orders", "worktree"]
+    },
+
+    {
+      "id": 70,
+      "project": "api",
+      "type": "feature",
+      "occurredAt": "2026-02-25T10:00:00Z",
+      "title": "リフレッシュトークンの自動ローテーション",
+      "narrative": "更新のたびに新しいトークンを発行し、古いトークンはその場で無効にする。使い回しを検出したらセッションごと破棄する。",
+      "facts": ["jti を保存して再利用を検出する"],
+      "files": ["src/auth/rotate.ts"],
+      "tags": ["auth", "i18n"]
+    },
+    {
+      "id": 71,
+      "project": "web",
+      "type": "bugfix",
+      "occurredAt": "2026-03-13T15:30:00Z",
+      "title": "カートの数量が二重に更新される不具合",
+      "narrative": "購読の解除を忘れていたため、二回目の訪問で同じ更新が二度適用されていた。",
+      "files": ["src/cart/useCart.ts"],
+      "tags": ["react", "i18n"]
+    },
+    {
+      "id": 72,
+      "project": "api",
+      "type": "discovery",
+      "occurredAt": "2026-05-12T09:20:00Z",
+      "title": "高并发下数据库连接池耗尽",
+      "narrative": "每个请求都新建连接，压测到八百并发时连接池被占满，后面的请求全部排队超时。",
+      "facts": ["上限设为五十，并加上排队超时"],
+      "files": ["src/db/pool.ts"],
+      "tags": ["database", "i18n"]
+    },
+    {
+      "id": 73,
+      "project": "infra",
+      "type": "decision",
+      "occurredAt": "2026-06-20T13:50:00Z",
+      "title": "选择自建监控而不是托管服务",
+      "narrative": "托管方案按指标条数计费，而我们的指标基数本身就是要调查的问题，账单会跟着故障一起涨。",
+      "facts": ["保留期三十天，超出部分按天聚合"],
+      "files": ["deploy/monitoring/"],
+      "tags": ["observability", "i18n"]
+    },
+    {
+      "id": 74,
+      "project": "mobile",
+      "type": "bugfix",
+      "occurredAt": "2026-07-25T11:05:00Z",
+      "title": "결제 화면에서 키보드가 보안 코드 입력란을 가림",
+      "narrative": "작은 화면에서 키보드가 올라오면 마지막 입력란이 가려져서 사용자가 무엇을 입력하는지 볼 수 없었다.",
+      "facts": ["포커스가 이동하면 입력란까지 스크롤한다"],
+      "files": ["src/checkout/CardForm.tsx"],
+      "tags": ["mobile", "i18n"]
+    },
+    {
+      "id": 75,
+      "project": "api",
+      "type": "change",
+      "occurredAt": "2026-08-30T12:40:00Z",
+      "title": "src/auth/token.ts の有効期限チェックを UTC に統一",
+      "narrative": "ローカル時刻で比較していた箇所が残っていたため、時計の進んだ端末で更新が止まらなかった。",
+      "files": ["src/auth/token.ts"],
+      "tags": ["auth", "i18n"]
+    },
+    {
+      "id": 76,
+      "project": "data",
+      "type": "discovery",
+      "occurredAt": "2026-09-10T10:15:00Z",
+      "title": "Parquet 导出在空分区上失败",
+      "narrative": "分区没有数据时写出的文件缺少 schema，下游读取直接报错。",
+      "facts": ["空分区写出一个带 schema 的零行文件"],
+      "files": ["jobs/export_parquet.py"],
+      "tags": ["data", "i18n"]
+    },
+    {
+      "id": 77,
+      "project": "web",
+      "type": "discovery",
+      "occurredAt": "2026-09-12T14:20:00Z",
+      "title": "画像の遅延読み込みでレイアウトがずれる",
+      "narrative": "高さを指定していない画像が読み込まれるたびに本文が下に押し出され、読んでいる位置が飛んでいた。",
+      "facts": ["幅と高さを属性で指定する"],
+      "files": ["src/product/Media.tsx"],
+      "tags": ["react", "i18n"]
+    },
+    {
+      "id": 78,
+      "project": "data",
+      "type": "bugfix",
+      "occurredAt": "2026-08-02T09:50:00Z",
+      "title": "Replayed batches double-counted the ledger",
+      "narrative": "The job key was the run timestamp, so a manual re-run of a failed batch was a second, legitimate-looking load.",
+      "facts": ["The job key is the window, not the run time"],
+      "files": ["jobs/load.py"],
+      "tags": ["data", "idempotency"]
+    }
+  ],
+  "queries": [
+    {
+      "id": "q-refresh",
+      "category": "exact",
+      "split": "dev",
+      "mustFind": true,
+      "project": "api",
+      "text": "refresh cookie rotation",
+      "relevant": [1],
+      "why": "The plain case: the words are in the title."
+    },
+    {
+      "id": "q-pagination",
+      "category": "exact",
+      "split": "dev",
+      "mustFind": true,
+      "project": "api",
+      "text": "keyset cursor pagination",
+      "relevant": [7],
+      "why": "Exact terminology."
+    },
+    {
+      "id": "q-hashing",
+      "category": "exact",
+      "split": "heldout",
+      "mustFind": true,
+      "project": "api",
+      "text": "argon2id",
+      "relevant": [3],
+      "why": "Single rare token."
+    },
+    {
+      "id": "q-exact-outbox",
+      "category": "exact",
+      "split": "dev",
+      "mustFind": true,
+      "project": "api",
+      "text": "outbox table",
+      "relevant": [28],
+      "why": "Two title words, one of them rare."
+    },
+    {
+      "id": "q-exact-focus-trap",
+      "category": "exact",
+      "split": "dev",
+      "mustFind": true,
+      "project": "web",
+      "text": "focus trap payment modal",
+      "relevant": [42],
+      "why": "Title words plus a term that only appears in the narrative."
+    },
+    {
+      "id": "q-exact-backfill",
+      "category": "exact",
+      "split": "heldout",
+      "mustFind": true,
+      "project": "data",
+      "text": "bounded backfill window",
+      "relevant": [63],
+      "why": "Exact terminology in a project with one plausible answer."
+    },
+    {
+      "id": "q-exact-cert",
+      "category": "exact",
+      "split": "dev",
+      "mustFind": true,
+      "project": "infra",
+      "text": "certificate renewal",
+      "relevant": [47],
+      "why": "Exact, with a neighbouring entry (49) about the same alerting."
+    },
+
+    {
+      "id": "q-rotating",
+      "category": "morphology",
+      "split": "dev",
+      "mustFind": true,
+      "project": "api",
+      "text": "rotating refresh cookies",
+      "relevant": [1],
+      "why": "Morphology. Keyword search on the stemless index should miss `rotating`; the n-gram embedder should not. Gating, because it is the ADR-03 claim."
+    },
+    {
+      "id": "q-checkpoint",
+      "category": "morphology",
+      "split": "dev",
+      "mustFind": true,
+      "project": "api",
+      "text": "wal checkpointing starved",
+      "relevant": [4],
+      "why": "Morphology again, on a different word shape. Gating for the same reason."
+    },
+    {
+      "id": "q-morph-rounding",
+      "category": "morphology",
+      "split": "dev",
+      "project": "api",
+      "text": "rounding refunds",
+      "relevant": [25],
+      "why": "`rounded`/`refunds` against `rounded`/`refund`, with a money decision (24) as the near neighbour."
+    },
+    {
+      "id": "q-morph-renewals",
+      "category": "morphology",
+      "split": "heldout",
+      "project": "infra",
+      "text": "renewals failing silently",
+      "relevant": [47],
+      "why": "Plural of a noun that appears once, in the title."
+    },
+    {
+      "id": "q-morph-normalising",
+      "category": "morphology",
+      "split": "dev",
+      "project": "data",
+      "text": "normalising the pipeline stages",
+      "relevant": [64],
+      "why": "The entry says `normalise`; a distractor (65) also touches normalise.py."
+    },
+    {
+      "id": "q-morph-replays",
+      "category": "morphology",
+      "split": "dev",
+      "project": "mobile",
+      "text": "replays of queued orders",
+      "relevant": [58],
+      "why": "`replayed`/`queue` in the note, `replays`/`queued` in the query."
+    },
+    {
+      "id": "q-morph-locking",
+      "category": "morphology",
+      "split": "heldout",
+      "project": "api",
+      "text": "locking the orders table",
+      "relevant": [29],
+      "why": "`locked` in the title. `orders` is the most common word in this project, so the morphology has to carry it."
+    },
+
+    {
+      "id": "q-typo",
+      "category": "typo",
+      "split": "dev",
+      "project": "api",
+      "text": "idempotencies key colision",
+      "relevant": [6],
+      "why": "A typo and a plural. Nobody types cleanly into a search box."
+    },
+    {
+      "id": "q-typo-webhook",
+      "category": "typo",
+      "split": "dev",
+      "project": "api",
+      "text": "webhook redelivary",
+      "relevant": [26],
+      "why": "One clean word, one misspelling of the word the note is about."
+    },
+    {
+      "id": "q-typo-address",
+      "category": "typo",
+      "split": "heldout",
+      "project": "web",
+      "text": "autocompelte adress",
+      "relevant": [40],
+      "why": "Both words wrong. Neither is recoverable from the other."
+    },
+    {
+      "id": "q-typo-cert",
+      "category": "typo",
+      "split": "dev",
+      "project": "infra",
+      "text": "certifcate renewl",
+      "relevant": [47],
+      "why": "Dropped letters rather than transposed ones — a different failure for a character n-gram."
+    },
+    {
+      "id": "q-typo-parquet",
+      "category": "typo",
+      "split": "dev",
+      "project": "data",
+      "text": "parqeut export",
+      "relevant": [61, 76],
+      "why": "Transposition, and two entries are genuinely about the Parquet export — one a decision, one a failure."
+    },
+    {
+      "id": "q-typo-biometric",
+      "category": "typo",
+      "split": "heldout",
+      "project": "mobile",
+      "text": "biometrc unlok",
+      "relevant": [56],
+      "why": "Two dropped letters in a project with few entries."
+    },
+    {
+      "id": "q-typo-pool",
+      "category": "typo",
+      "split": "dev",
+      "project": "api",
+      "text": "conection pool cold start",
+      "relevant": [34],
+      "why": "One typo against two entries about connection pools, one of them in Chinese (72)."
+    },
+
+    {
+      "id": "q-clock",
+      "category": "paraphrase",
+      "split": "dev",
+      "project": "api",
+      "text": "why did tokens keep refreshing",
+      "relevant": [2],
+      "why": "Question-shaped, with only one content word in common. Harder in v2: entry 75 is the same fix written in Japanese and shares `token`."
+    },
+    {
+      "id": "q-nplusone",
+      "category": "paraphrase",
+      "split": "dev",
+      "project": "api",
+      "text": "too many queries on the detail page",
+      "relevant": [8],
+      "why": "Describes the symptom, not the term the note uses."
+    },
+    {
+      "id": "q-bundle",
+      "category": "paraphrase",
+      "split": "heldout",
+      "project": "web",
+      "text": "initial bundle size",
+      "relevant": [15],
+      "why": "Paraphrase."
+    },
+    {
+      "id": "q-para-penny",
+      "category": "paraphrase",
+      "split": "dev",
+      "project": "api",
+      "text": "the money was off by a penny",
+      "relevant": [25],
+      "why": "The symptom in the developer's words; `penny` is in the narrative, nothing else matches."
+    },
+    {
+      "id": "q-para-https",
+      "category": "paraphrase",
+      "split": "dev",
+      "project": "infra",
+      "text": "nobody noticed the job had been failing",
+      "relevant": [47],
+      "why": "The shape of the failure rather than its subject."
+    },
+    {
+      "id": "q-para-slow-paint",
+      "category": "paraphrase",
+      "split": "heldout",
+      "project": "web",
+      "text": "page took ages to show anything",
+      "relevant": [39],
+      "why": "Plain English for first paint. Two other web entries are about performance."
+    },
+    {
+      "id": "q-para-double-app",
+      "category": "paraphrase",
+      "split": "dev",
+      "project": "mobile",
+      "text": "the app opened twice from a link",
+      "relevant": [57],
+      "why": "`deep link` and `second copy` said differently."
+    },
+    {
+      "id": "q-para-numbers-changed",
+      "category": "paraphrase",
+      "split": "dev",
+      "project": "data",
+      "text": "yesterday's figures changed after the fact",
+      "relevant": [62],
+      "why": "`totals` against `figures`, with the timezone bug (60) as the obvious wrong answer."
+    },
+
+    {
+      "id": "q-dec-hashing",
+      "category": "decision",
+      "split": "dev",
+      "project": "api",
+      "text": "why argon2id and not bcrypt",
+      "relevant": [3],
+      "why": "A decision asked as a question, both options named."
+    },
+    {
+      "id": "q-dec-migrations",
+      "category": "decision",
+      "split": "dev",
+      "project": "api",
+      "text": "why are there no down migrations",
+      "relevant": [10],
+      "why": "The decision is stated as a rule, not as a choice between two things."
+    },
+    {
+      "id": "q-dec-css",
+      "category": "decision",
+      "split": "heldout",
+      "project": "web",
+      "text": "why not a runtime styling library",
+      "relevant": [38],
+      "why": "The rejected option is what the developer remembers."
+    },
+    {
+      "id": "q-dec-bluegreen",
+      "category": "decision",
+      "split": "dev",
+      "project": "infra",
+      "text": "why blue-green instead of rolling restarts",
+      "relevant": [16],
+      "why": "Both options in the title."
+    },
+    {
+      "id": "q-dec-rn",
+      "category": "decision",
+      "split": "dev",
+      "project": "mobile",
+      "text": "why one codebase instead of two native apps",
+      "relevant": [54],
+      "why": "Paraphrased decision with the reason, not the technology, in the query."
+    },
+    {
+      "id": "q-dec-parquet",
+      "category": "decision",
+      "split": "heldout",
+      "project": "data",
+      "text": "why parquet and not csv",
+      "relevant": [61],
+      "why": "Entry 76 is also about Parquet and is not a decision; the type is the discriminator and the query does not name it."
+    },
+    {
+      "id": "q-dec-money",
+      "category": "decision",
+      "split": "dev",
+      "project": "api",
+      "text": "how do we represent money",
+      "relevant": [24],
+      "why": "A decision asked without any of the words it was written with — `integer`, `minor units`."
+    },
+    {
+      "id": "q-dec-dashboards",
+      "category": "decision",
+      "split": "dev",
+      "project": "infra",
+      "text": "who owns the dashboards",
+      "relevant": [50],
+      "why": "The consequence of the decision rather than the decision."
+    },
+    {
+      "id": "q-dec-pii",
+      "category": "decision",
+      "split": "heldout",
+      "project": "data",
+      "text": "can analysts join on email",
+      "relevant": [65],
+      "why": "The question a person actually asks; the answer is a decision that says no."
+    },
+
+    {
+      "id": "q-fix-webhook",
+      "category": "fix",
+      "split": "dev",
+      "project": "api",
+      "text": "webhook delivered twice",
+      "relevant": [26],
+      "why": "Symptom in the query, cause in the note."
+    },
+    {
+      "id": "q-fix-currency",
+      "category": "fix",
+      "split": "dev",
+      "project": "web",
+      "text": "cart total wrong after changing currency",
+      "relevant": [37],
+      "why": "Nearly the title, against three other cart entries."
+    },
+    {
+      "id": "q-fix-offline",
+      "category": "fix",
+      "split": "heldout",
+      "project": "mobile",
+      "text": "orders duplicated after going back online",
+      "relevant": [58],
+      "why": "Two mobile entries are about duplicate orders; only one is about reconnecting."
+    },
+    {
+      "id": "q-fix-sequences",
+      "category": "fix",
+      "split": "dev",
+      "project": "infra",
+      "text": "primary keys already in use after a restore",
+      "relevant": [48],
+      "why": "The symptom is in the narrative, the cause in the title."
+    },
+    {
+      "id": "q-fix-rollup",
+      "category": "fix",
+      "split": "dev",
+      "project": "data",
+      "text": "takings landed on the wrong day",
+      "relevant": [60],
+      "why": "Two entries move numbers between days; one is a timezone bug and the other is late arrival."
+    },
+    {
+      "id": "q-fix-migration-lock",
+      "category": "fix",
+      "split": "heldout",
+      "project": "api",
+      "text": "the migration took the table offline",
+      "relevant": [29],
+      "why": "`locked` said as `offline`, in a project with two other migration entries."
+    },
+    {
+      "id": "q-fix-header",
+      "category": "fix",
+      "split": "dev",
+      "project": "web",
+      "text": "nav disappeared on a narrow screen",
+      "relevant": [44],
+      "why": "The fix lives on a worktree, but the query is an ordinary bug search."
+    },
+    {
+      "id": "q-fix-ratelimit-reset",
+      "category": "fix",
+      "split": "dev",
+      "project": "api",
+      "text": "rate limit forgotten after a deploy",
+      "relevant": [23],
+      "why": "Three rate-limit entries, two of which are about the number rather than the counter."
+    },
+    {
+      "id": "q-fix-health",
+      "category": "fix",
+      "split": "heldout",
+      "project": "infra",
+      "text": "the health check lied about the database",
+      "relevant": [17],
+      "why": "Entry 53 touches the same file and is the wrong answer."
+    },
+
+    {
+      "id": "q-file-refresh",
+      "category": "file",
+      "split": "dev",
+      "project": "api",
+      "text": "src/auth/refresh.ts",
+      "relevant": [1, 36],
+      "why": "A path typed verbatim. Two entries touch it, so recall is the metric that matters."
+    },
+    {
+      "id": "q-file-gallery",
+      "category": "file",
+      "split": "dev",
+      "project": "web",
+      "text": "Gallery.tsx",
+      "relevant": [15, 43],
+      "why": "A bare basename, which is how a file is usually named out loud."
+    },
+    {
+      "id": "q-file-health",
+      "category": "file",
+      "split": "heldout",
+      "project": "infra",
+      "text": "src/health.ts",
+      "relevant": [17, 53],
+      "why": "Two entries months apart on the same file; the second only makes sense with the first."
+    },
+    {
+      "id": "q-file-idempotency",
+      "category": "file",
+      "split": "dev",
+      "project": "api",
+      "text": "src/orders/idempotency.ts",
+      "relevant": [6],
+      "why": "A path whose components are also ordinary search words in this project."
+    },
+    {
+      "id": "q-file-export",
+      "category": "file",
+      "split": "dev",
+      "project": "data",
+      "text": "jobs/export_parquet.py",
+      "relevant": [61, 76],
+      "why": "An underscore path — the tokenizer keeps `_` inside a word, so this is one term and not two."
+    },
+    {
+      "id": "q-file-token",
+      "category": "file",
+      "split": "heldout",
+      "project": "api",
+      "text": "src/auth/token.ts",
+      "relevant": [2, 75],
+      "why": "One of the two entries on this file is written in Japanese, so a file query is also a mixed-language query."
+    },
+    {
+      "id": "q-file-usecart",
+      "category": "file",
+      "split": "dev",
+      "project": "web",
+      "text": "src/cart/useCart.ts",
+      "relevant": [11, 71],
+      "why": "Same shape, other direction: the English and Japanese notes on one hook."
+    },
+    {
+      "id": "q-file-migrations",
+      "category": "file",
+      "split": "dev",
+      "project": "api",
+      "text": "what happened under migrations/",
+      "relevant": [10, 29],
+      "why": "A directory rather than a file, which is what `files` actually holds for entry 10."
+    },
+
+    {
+      "id": "q-date-march-latency",
+      "category": "date",
+      "split": "dev",
+      "project": "api",
+      "text": "checkout latency spike",
+      "filter": { "since": "2026-03-01", "until": "2026-04-01" },
+      "relevant": [34],
+      "forbidden": [35],
+      "noLeak": true,
+      "why": "Two entries with nearly the same title six months apart. With the date filter the wrong one is excluded in SQL, so a leak here is a scoping bug, not a ranking one."
+    },
+    {
+      "id": "q-date-march-text",
+      "category": "date",
+      "split": "dev",
+      "project": "api",
+      "text": "checkout latency spike in march",
+      "relevant": [34],
+      "forbidden": [35],
+      "why": "The same question with the date written in the sentence and no filter. Nothing in the retriever reads `march` as a time, and this is the query that says so out loud."
+    },
+    {
+      "id": "q-date-retention",
+      "category": "date",
+      "split": "heldout",
+      "project": "infra",
+      "text": "log retention",
+      "filter": { "since": "2026-08-10" },
+      "relevant": [49],
+      "forbidden": [18],
+      "noLeak": true,
+      "why": "An open-ended since. Entry 18 is the older log entry and is outside the window — by nine days, after the first run caught the window at 2026-08-01, which included it."
+    },
+    {
+      "id": "q-date-sessions-before",
+      "category": "date",
+      "split": "dev",
+      "project": "api",
+      "text": "session storage",
+      "filter": { "until": "2026-03-01" },
+      "relevant": [19],
+      "forbidden": [20],
+      "noLeak": true,
+      "why": "What was true in February. The stale answer is the correct one once the window says so — which is the only reading under which entry 19 is ever right."
+    },
+    {
+      "id": "q-date-worktree-week",
+      "category": "date",
+      "split": "dev",
+      "project": "web",
+      "text": "header and navigation",
+      "filter": { "since": "2026-07-01", "until": "2026-08-01" },
+      "relevant": [44, 45],
+      "why": "A week of work recalled by its month rather than by its branch."
+    },
+    {
+      "id": "q-date-july-pipeline",
+      "category": "date",
+      "split": "heldout",
+      "project": "data",
+      "text": "what did I change in the pipeline in july",
+      "relevant": [64],
+      "forbidden": [63],
+      "why": "Text-only again, and the June entry is the trap. Expected to be weak for the same reason as q-date-march-text."
+    },
+    {
+      "id": "q-date-recent-latency",
+      "category": "date",
+      "split": "dev",
+      "project": "api",
+      "text": "latency",
+      "filter": { "since": "2026-09-01" },
+      "relevant": [35],
+      "forbidden": [34],
+      "noLeak": true,
+      "why": "One vague word plus a tight window: the filter is doing all the work, and it should be enough."
+    },
+    {
+      "id": "q-date-june-card",
+      "category": "date",
+      "split": "dev",
+      "project": "mobile",
+      "text": "card",
+      "filter": { "since": "2026-06-01", "until": "2026-07-01" },
+      "relevant": [56],
+      "why": "Three mobile entries mention a card; one is in the window."
+    },
+
+    {
+      "id": "q-cjk-refresh-ja",
+      "category": "cjk",
+      "split": "dev",
+      "project": "api",
+      "text": "リフレッシュトークン",
+      "relevant": [70],
+      "why": "A substring of a Japanese title. FTS5's unicode61 tokenizer has no word boundary in Japanese, so the whole title is one token and keyword search cannot match a prefix of it. The n-gram embedder can."
+    },
+    {
+      "id": "q-cjk-rotation-ja",
+      "category": "cjk",
+      "split": "dev",
+      "project": "api",
+      "text": "自動ローテーション",
+      "relevant": [70],
+      "why": "The other half of the same title, so a hit on one and a miss on the other would say something about where in a token the n-grams land."
+    },
+    {
+      "id": "q-cjk-cart-ja",
+      "category": "cjk",
+      "split": "heldout",
+      "project": "web",
+      "text": "カートの数量",
+      "relevant": [71],
+      "why": "Katakana and kanji in one query, against an English cart entry (12) about the same quantity."
+    },
+    {
+      "id": "q-cjk-pool-zh",
+      "category": "cjk",
+      "split": "dev",
+      "project": "api",
+      "text": "连接池耗尽",
+      "relevant": [72],
+      "why": "Chinese has no spaces either. The query is a contiguous substring of the title."
+    },
+    {
+      "id": "q-cjk-db-zh",
+      "category": "cjk",
+      "split": "dev",
+      "project": "api",
+      "text": "数据库连接池",
+      "relevant": [72],
+      "why": "A substring that straddles the middle of the title rather than its end."
+    },
+    {
+      "id": "q-cjk-monitoring-zh",
+      "category": "cjk",
+      "split": "heldout",
+      "project": "infra",
+      "text": "自建监控",
+      "relevant": [73],
+      "why": "Four characters against a project whose other entries are all English."
+    },
+    {
+      "id": "q-cjk-keyboard-ko",
+      "category": "cjk",
+      "split": "dev",
+      "project": "mobile",
+      "text": "키보드 입력란",
+      "relevant": [74],
+      "why": "Korean does use spaces, so this is two tokens — and both appear in the note. Keyword search has a chance here and not in Japanese."
+    },
+    {
+      "id": "q-cjk-payment-ko",
+      "category": "cjk",
+      "split": "dev",
+      "project": "mobile",
+      "text": "결제 화면",
+      "relevant": [74],
+      "why": "The same shape with words taken from the title instead of the narrative."
+    },
+    {
+      "id": "q-cjk-mixed-token",
+      "category": "cjk",
+      "split": "dev",
+      "project": "api",
+      "text": "token.ts 有効期限",
+      "relevant": [75],
+      "why": "Mixed script in one query, which is how a bilingual team actually searches. Entry 2 is the English note on the same file and the same bug."
+    },
+    {
+      "id": "q-cjk-mixed-parquet",
+      "category": "cjk",
+      "split": "heldout",
+      "project": "data",
+      "text": "Parquet 空分区",
+      "relevant": [76],
+      "why": "One Latin token and one Chinese one. The Latin token alone would also return entry 61."
+    },
+    {
+      "id": "q-cjk-layout-ja",
+      "category": "cjk",
+      "split": "dev",
+      "project": "web",
+      "text": "レイアウトがずれる",
+      "relevant": [77],
+      "why": "A phrase from the title including a particle, which is the case a fixed n-gram window handles worst."
+    },
+    {
+      "id": "q-cjk-cross-ja-en",
+      "category": "cjk",
+      "split": "dev",
+      "expectedMiss": true,
+      "project": "api",
+      "text": "冪等キーの衝突",
+      "relevant": [6],
+      "why": "A Japanese query for an English note. local-hash-v1 has no shared subword between 冪等 and idempotency, so ADR-03's ceiling says this cannot work. Finding it would be news about the embedder."
+    },
+    {
+      "id": "q-cjk-cross-en-zh-pool",
+      "category": "cjk",
+      "split": "dev",
+      "project": "api",
+      "text": "database connection pool exhausted under load",
+      "relevant": [72],
+      "why": "An English query for a Chinese note. Labelled `expectedMiss` at first and it was wrong: the note's file is `src/db/pool.ts`, so `pool` and `db` are in the index in Latin script and keyword search ranked it second. A file path is a bridge between languages, which is worth knowing and is not what an `expectedMiss` label would have said."
+    },
+    {
+      "id": "q-cjk-cross-en-zh-mon",
+      "category": "cjk",
+      "split": "heldout",
+      "project": "infra",
+      "text": "why do we run our own monitoring instead of a hosted service",
+      "relevant": [73],
+      "why": "Cross-lingual and a decision at once. Same correction as q-cjk-cross-en-zh-pool: `deploy/monitoring/` carries the query's strongest word in Latin script, so the label was wrong rather than the retriever surprising."
+    },
+    {
+      "id": "q-cjk-cross-en-ko",
+      "category": "cjk",
+      "split": "dev",
+      "expectedMiss": true,
+      "project": "mobile",
+      "text": "the keyboard hides the security code field",
+      "relevant": [74],
+      "why": "English for a Korean note whose only shared string is the file path, which the query does not name."
+    },
+
+    {
+      "id": "q-wt-hotfix",
+      "category": "worktree",
+      "split": "dev",
+      "project": "api",
+      "text": "hotfix/checkout-timeout worktree",
+      "relevant": [66, 69],
+      "forbidden": [67, 68],
+      "why": "Worktrees fold into one project key, so the branch survives only in the text. This is the plain case: the branch named exactly."
+    },
+    {
+      "id": "q-wt-split",
+      "category": "worktree",
+      "split": "dev",
+      "project": "api",
+      "text": "feature/split-payments worktree",
+      "relevant": [67, 68],
+      "forbidden": [66, 69],
+      "why": "The other branch. Entry 27 is the same feature on the main checkout and is a legitimate distractor."
+    },
+    {
+      "id": "q-wt-hotfix-loose",
+      "category": "worktree",
+      "split": "heldout",
+      "project": "api",
+      "text": "what did I do on the timeout hotfix branch",
+      "relevant": [66, 69],
+      "forbidden": [67, 68],
+      "why": "The branch remembered rather than copied, which is the realistic version."
+    },
+    {
+      "id": "q-wt-design",
+      "category": "worktree",
+      "split": "dev",
+      "project": "web",
+      "text": "wt/design-refresh",
+      "relevant": [44, 45],
+      "why": "A branch name that is not made of ordinary words — `wt` and `refresh` both appear elsewhere in the corpus."
+    },
+    {
+      "id": "q-wt-retry",
+      "category": "worktree",
+      "split": "dev",
+      "project": "api",
+      "text": "the retry I added on the split payments worktree",
+      "relevant": [68],
+      "forbidden": [69],
+      "why": "The trap: the other worktree also has an entry about a retry, and it is the more dramatic one."
+    },
+    {
+      "id": "q-wt-other-branch",
+      "category": "worktree",
+      "split": "heldout",
+      "project": "api",
+      "text": "timeout change on the other branch",
+      "relevant": [66],
+      "forbidden": [67, 68],
+      "why": "`the other branch` names nothing. Expected to be weak; it is here because it is what people type."
+    },
+
+    {
+      "id": "q-stale-sessions",
+      "category": "stale",
+      "split": "dev",
+      "project": "api",
+      "text": "where are sessions stored",
+      "relevant": [20],
+      "forbidden": [19],
+      "why": "Two entries answer this and only the newer one is true. Neither was superseded, so nothing in the store excludes the wrong answer — the retriever has no recency prior and this is where that shows."
+    },
+    {
+      "id": "q-stale-redis",
+      "category": "stale",
+      "split": "dev",
+      "project": "api",
+      "text": "session storage",
+      "relevant": [20],
+      "forbidden": [19],
+      "why": "The same pair with fewer words, so ranking decides it outright."
+    },
+    {
+      "id": "q-stale-ratelimit",
+      "category": "stale",
+      "split": "dev",
+      "noLeak": true,
+      "mustFind": true,
+      "project": "api",
+      "text": "login rate limit",
+      "relevant": [22],
+      "forbidden": [21],
+      "why": "Here the correction was recorded properly: 21 is superseded by 22 and the store excludes it in SQL. A leak is a broken guarantee, not a bad ranking, which is why this one gates."
+    },
+    {
+      "id": "q-stale-ratelimit-number",
+      "category": "stale",
+      "split": "heldout",
+      "noLeak": true,
+      "project": "api",
+      "text": "how many login attempts a minute are allowed",
+      "relevant": [22],
+      "forbidden": [21],
+      "why": "The same guarantee asked as a question, where the superseded note is the better lexical match."
+    },
+    {
+      "id": "q-stale-staging",
+      "category": "stale",
+      "split": "dev",
+      "project": "api",
+      "text": "what data is in staging",
+      "relevant": [33],
+      "forbidden": [32],
+      "why": "An unsuperseded contradiction where believing the stale note means believing staging holds real customer data."
+    },
+    {
+      "id": "q-stale-staging-copy",
+      "category": "stale",
+      "split": "dev",
+      "project": "api",
+      "text": "is staging a copy of production",
+      "relevant": [33],
+      "forbidden": [32],
+      "why": "The question phrased in the stale note's own words. The adversarial case: the wrong answer is the best lexical match there is."
+    },
+    {
+      "id": "q-stale-deploys",
+      "category": "stale",
+      "split": "dev",
+      "noLeak": true,
+      "project": "infra",
+      "text": "how do deploys run",
+      "relevant": [52],
+      "forbidden": [51],
+      "why": "Superseded, so the exclusion is the store's job."
+    },
+    {
+      "id": "q-stale-laptop",
+      "category": "stale",
+      "split": "heldout",
+      "noLeak": true,
+      "project": "infra",
+      "text": "can I deploy from my laptop",
+      "relevant": [52],
+      "forbidden": [51],
+      "why": "The word `laptop` appears only in the superseded note, so the only way to answer is to have excluded it and still find the replacement."
+    },
+
+    {
+      "id": "q-xp-idempotency",
+      "category": "cross-project",
+      "split": "dev",
+      "project": "api",
+      "filter": { "allProjects": true },
+      "text": "idempotency key",
+      "relevant": [6, 55, 78],
+      "why": "Three projects solved the same problem three ways. Cross-project recall exists precisely for this and it is the only query shape where a result from another repo is correct."
+    },
+    {
+      "id": "q-xp-rotation",
+      "category": "cross-project",
+      "split": "dev",
+      "project": "web",
+      "filter": { "allProjects": true },
+      "text": "refresh token rotation",
+      "relevant": [1, 59, 70],
+      "why": "Asked from a third project that has no answer of its own, and one of the three answers is in Japanese."
+    },
+    {
+      "id": "q-xp-clock",
+      "category": "cross-project",
+      "split": "heldout",
+      "project": "api",
+      "filter": { "allProjects": true },
+      "text": "timezone and clock bugs",
+      "relevant": [2, 60],
+      "why": "The same class of bug in a backend and a batch job, described in different vocabulary."
+    },
+    {
+      "id": "q-xp-pool",
+      "category": "cross-project",
+      "split": "dev",
+      "project": "infra",
+      "filter": { "allProjects": true },
+      "text": "connection pool",
+      "relevant": [34, 72],
+      "why": "Cross-project and cross-lingual at once: the recall ceiling is the sum of both."
+    },
+    {
+      "id": "q-xp-lazy",
+      "category": "cross-project",
+      "split": "dev",
+      "project": "api",
+      "filter": { "allProjects": true },
+      "text": "lazy loading",
+      "relevant": [15, 77],
+      "why": "Both answers are in one project, which is the case where widening the scope buys nothing and should cost nothing."
+    },
+    {
+      "id": "q-xp-deploys",
+      "category": "cross-project",
+      "split": "heldout",
+      "project": "api",
+      "filter": { "allProjects": true },
+      "text": "what did we decide about deploys",
+      "relevant": [16, 52],
+      "why": "Two decisions in one other project, with a third (46) about the same account that is not about deploying."
+    },
+    {
+      "id": "q-xp-replay",
+      "category": "cross-project",
+      "split": "dev",
+      "project": "web",
+      "filter": { "allProjects": true },
+      "text": "work replayed twice",
+      "relevant": [26, 58, 78],
+      "why": "The same failure in a webhook, a mobile queue and a batch job. None of the three shares a word with the other two beyond `replay`."
+    },
+    {
+      "id": "q-xp-cart",
+      "category": "cross-project",
+      "split": "dev",
+      "project": "api",
+      "filter": { "allProjects": true },
+      "text": "cart quantity counted twice",
+      "relevant": [11, 71],
+      "why": "An English note and its Japanese twin on the same hook, reached from a project that has no cart at all."
+    },
+
+    {
+      "id": "q-cleanup",
+      "category": "scope",
+      "split": "dev",
+      "mustFind": true,
+      "project": "web",
+      "text": "useEffect cleanup",
+      "relevant": [11],
+      "why": "Scoped to the other project: an `api` result would be a scope bug."
+    },
+    {
+      "id": "q-migrations",
+      "category": "scope",
+      "split": "dev",
+      "mustFind": true,
+      "project": "api",
+      "text": "migrations",
+      "relevant": [10],
+      "why": "One word matching several notes across projects; scope must hold."
+    },
+    {
+      "id": "q-scope-mobile-rotation",
+      "category": "scope",
+      "split": "dev",
+      "mustFind": true,
+      "noLeak": true,
+      "project": "mobile",
+      "text": "refresh token rotation",
+      "relevant": [59],
+      "forbidden": [1, 70, 36],
+      "why": "Three better-matching entries live in `api`. Project scope is a SQL clause, so a leak here means the filter was not applied at all."
+    },
+    {
+      "id": "q-scope-data-replay",
+      "category": "scope",
+      "split": "heldout",
+      "noLeak": true,
+      "project": "data",
+      "text": "replayed twice",
+      "relevant": [78],
+      "forbidden": [26, 58],
+      "why": "Same shape, scoped to the project with the least distinctive vocabulary."
+    },
+    {
+      "id": "q-scope-api-idempotency",
+      "category": "scope",
+      "split": "dev",
+      "mustFind": true,
+      "noLeak": true,
+      "project": "api",
+      "text": "idempotency key collision",
+      "relevant": [6],
+      "forbidden": [55, 78],
+      "why": "The default-scope counterpart of q-xp-idempotency: the same words, and now the other two answers are wrong."
+    },
+    {
+      "id": "q-scope-web-lazy",
+      "category": "scope",
+      "split": "dev",
+      "project": "web",
+      "text": "lazy loading images",
+      "relevant": [15, 77],
+      "why": "Both answers in scope, one of them Japanese — a scope query that is not also a rejection test."
+    },
+
+    {
+      "id": "q-synonym",
+      "category": "synonym",
+      "split": "dev",
+      "expectedMiss": true,
+      "project": "api",
+      "text": "stop an attacker reusing an intercepted sign-in credential",
+      "relevant": [1],
+      "why": "Synonymy with no shared vocabulary at all: the note says rotate, refresh, cookie, jti, replayed, and this query says none of them. ADR-03 says local-hash-v1 bridges morphology and typos but not meaning, and this is the query that measures that rather than asserting it. Two earlier wordings of this query leaked shared tokens (cookie/replay, then use/used) and quietly measured lexical overlap instead."
+    },
+    {
+      "id": "q-syn-padlock",
+      "category": "synonym",
+      "split": "dev",
+      "expectedMiss": true,
+      "project": "infra",
+      "text": "browsers started warning visitors the site was unsafe",
+      "relevant": [47],
+      "why": "The same ceiling from the other side: not one of `browser`, `warning`, `visitor` or `unsafe` appears in the certificate note, and the note never says `expired`."
+    },
+    {
+      "id": "q-syn-morning-numbers",
+      "category": "synonym",
+      "split": "heldout",
+      "expectedMiss": true,
+      "project": "data",
+      "text": "the report people read at breakfast disagreed with the source system",
+      "relevant": [62],
+      "why": "Meaning-only again. `report`, `breakfast` and `source system` share nothing with `late events` or `totals`."
+    },
+    {
+      "id": "q-syn-fraud-budget",
+      "category": "synonym",
+      "split": "dev",
+      "expectedMiss": true,
+      "project": "api",
+      "text": "customers watched a spinner while a third party made up its mind",
+      "relevant": [35],
+      "why": "Describes the fix in ordinary words. The note says fraud, vendor, p99, inline, budget; the query says none of them. The first wording said `slow service`, and `slow` is in the note's title — keyword search put it first, and the query was measuring one shared adjective. That is the third time this trap has been walked into in this file."
+    }
+  ]
+}

@@ -41,6 +41,8 @@
 import { attributionRule, isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
 import { isSessionOff } from '../session.js';
+import { flushAtSeam, identityOf, wrapUpAtSeam } from './memory-lib.js';
+import { fillOmissions } from '../memory/learning.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -62,6 +64,30 @@ await run(async (input) => {
   const cwd = cwdOf(input);
   const sid = sessionId(input, db);
   if (!sid) return 0;
+
+  // The end of a turn is the natural seam: close the open batch and summarise
+  // it. Before every learning gate below, because memory is not governed by
+  // them, and before the block decision, because whether a question is asked
+  // must not change what gets remembered. With a provider configured this only
+  // queues -- a Stop hook does not wait on an API call (PRD LRN-04).
+  const stopConfig = config(cwd);
+  if (stopConfig.config.memory.enabled) {
+    const identity = identityOf(input, cwd, sid);
+    await flushAtSeam(db, stopConfig, identity);
+    // Only for a session that logged nothing at all. A session that logged
+    // properly is left alone: the model's own account of what it wrote beats
+    // anything derived from tool arguments, and adding guesses to it would
+    // quiz the developer on the shape of the evidence rather than on the work.
+    try {
+      fillOmissions(db, stopConfig.config, sid, identity.project);
+    } catch {
+      /* A session with nothing to ask about is the status quo, not a failure. */
+    }
+    // Writes the session's summary entry, then announces the wrap-up if a sink
+    // is configured -- which is not the default, and the summary must not wait
+    // on it. Gating memory on an announcement channel means nobody ever gets one.
+    await wrapUpAtSeam(db, stopConfig, identity);
+  }
   // Silenced sessions are never blocked, enforced mode included: the commit gate
   // is what enforced mode is for, and it reads .eklavya.json rather than this.
   if (isSessionOff(db, sid)) return 0;
