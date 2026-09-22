@@ -246,3 +246,34 @@ config a developer left behind no longer changes what a test run says.
   `notifications` command sink, which the Stop hook spawns by itself — code
   execution on `git clone` plus one session. Four settings with effects outside
   the session are global-only now, and `doctor` says when a repo tried.
+
+## Open thread, picked up next
+
+The cutover rehearsal (PAR-34) was run against a **copy** of the real
+`~/.claude-mem/claude-mem.db` into a **temp** Eklavya database — the developer's
+own data was never written to. It passed:
+
+| Step | Result |
+|---|---|
+| Dry run, read-only | schema 52, 4,036 observations, 12 projects, 2026-08-13 … 2026-09-22 |
+| Import, `--map-here eklavya` | 6,068 rows in 2.4s, validation ok, 4,377 re-indexed |
+| Second import | 0 imported, all "already present" — idempotent on real data |
+| Learning tables after | 0 attempts, 0 mastery, 0 gates; 6,796 candidates, all unassessed |
+| Search | finds real history from a month earlier |
+| Source renamed away | a fresh session still recalls — no dependency on Claude Mem's file |
+| Export → restore | 23MB out, 4,377 entries + 1,692 evidence back, learning untouched |
+
+**One real gap it found.** The import creates **zero** `memory_entry_events`
+links, so an imported observation has no drill-down to the imported evidence:
+`memory_get` with `include_evidence` and the dashboard's raw-evidence view are
+both empty for imported rows. The restore is not at fault — it faithfully
+restored the zero.
+
+The join exists in the source and the importer is not using it:
+`tool_uses.observation_id` is a direct key, with
+`(memory_session_id, prompt_number)` as the fallback where it is null. Next step
+is to measure how many rows actually carry each on real data, then link them
+during the import and add a test.
+
+`/tmp/ek-cutover/` held the rehearsal and can be deleted; nothing in it is
+needed again.
