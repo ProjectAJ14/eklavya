@@ -14,8 +14,8 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | 5 | Observation jobs + provider adapter + local summarizer | 2 | done |
 | 6 | Retrieval: keyword + semantic + hybrid, scoping | 3 | done |
 | 7 | Context receipts, savings arithmetic, startup display | 3 | done |
-| 8 | MCP memory tools + CLI subcommands | 3/5 | not started |
-| 9 | Learning links: evidence to concept candidates | 4 | not started |
+| 8 | MCP memory tools + CLI subcommands | 3/5 | tools done, CLI in progress |
+| 9 | Learning links: evidence to concept candidates | 4 | done |
 | 10 | Dashboard memory surfaces | 4 | not started |
 | 11 | Import from the pinned Claude Mem fork | 4 | not started |
 | 12 | Code search/outline + collections | 5 | not started |
@@ -39,3 +39,9 @@ increment lands. Phase names map to [delivery.md](delivery.md).
   heading, reuse saving, this project's counts with the level runway folded in.
   The dials moved to the status bar and the weak list to the dashboard; the
   hero terminal, `installing.mdx` and `first-session.mdx` are re-quoted.
+- 2026-09-22: eight memory MCP tools (`memory_search`, `_get`, `_timeline`,
+  `_file_history`, `_status`, `_write`, `_correct`, `_delete`) landed inside
+  the previous commit by accident — a parallel `git add -A` swept them in.
+- 2026-09-22: evidence produces concept candidates, and the Stop hook fills in
+  for a session that logged nothing. An observation still never records an
+  attempt, moves mastery, or opens a gate.
