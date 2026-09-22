@@ -86,7 +86,7 @@ const SESSION_OFF_PREFIX = 'session_off:';
  * ends. A row per silenced session accumulates, at a few bytes each; cleaning
  * them up would need a session lifetime the schema does not have.
  *
- * It silences, it does not exempt: the commit gate reads `.eklavya.json` and
+ * It silences, it does not exempt: the commit gate reads the project config and
  * knows nothing about sessions, so an enforced repo still holds the commit.
  */
 export function sessionOffKey(sessionId: string): string {

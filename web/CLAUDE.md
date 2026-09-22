@@ -49,7 +49,7 @@ Every `.mdx` under `src/content/docs/docs/` has a row here, in sidebar order.
 | `installing.mdx` | `mcp/src/install.ts` (its numbered steps are the numbered steps on the page), `.mcp.json`, `hooks/run.mjs`. `README.md` points here rather than repeating it — keep it that way |
 | `first-run.mdx` | `skills/setup/SKILL.md` |
 | `first-session.mdx` | `hooks/hooks.json` and the six hooks in `mcp/src/hooks/` |
-| `dials.mdx` | `Mode`, `Focus`, `Cadence`, `Difficulty` in `mcp/src/config.ts` — **and** `mcp/src/tools/get_session_quiz_plan.ts`, because the `interleaved` one-question cap and its exemptions live in the planner, not in the config |
+| `dials.mdx` | `QuizConfig`, `Focus`, `Cadence`, `Difficulty`, `MemoryConfig` in `mcp/src/config.ts` — **and** `mcp/src/tools/get_session_quiz_plan.ts`, because the `interleaved` one-question cap and its exemptions live in the planner, not in the config |
 | `levels-and-tiers.mdx` | `LEVEL_BANDS`, `LEVEL_UP_MIN_CONCEPTS`, `checkPromotion` in `mcp/src/srs.ts`; the tier labels are `TIER` in `mcp/src/assets/dashboard.html` and the tier table in `skills/tutor/SKILL.md` — `TIER_LABEL` left `ask.ts` with the settings line in 1.14 |
 | `memory.mdx` | `mcp/src/memory/` — `privacy.ts` for the exclusion list and the secret shapes, `summarize.ts` for the local summariser and its ceiling, `embed.ts` and `search.ts` for what "semantic" means here, `tokens.ts` for what the savings percentage measures, `code.ts` for the scanner's ceiling. The tool arguments are `mcp/src/tools/memory_read_tools.ts`, `memory_write_tools.ts`, `code_tools.ts` and `collection_tools.ts`; the honesty constraints are ADR-03 and ADR-07. Privacy lives here rather than on its own page |
 | `commands.mdx` | one `###` per slash command — the skills under `skills/` carrying `disable-model-invocation: true`, eight of them; `skills/tutor/` is model-invocable only and gets no heading. Plus one for `user-skill/` |
@@ -116,7 +116,8 @@ whole picture in sentences.
 ## The landing page quotes real output
 
 `public/index.html` is the half that went stale once: it shipped promising two
-dials when four had landed. The root `CLAUDE.md` carries the section-by-section
+dials when four had landed, and later described `mode: off` as "installed but
+dormant" for as long as that dial existed — memory was recording the whole time. The root `CLAUDE.md` carries the section-by-section
 map. What that table hides is that the hero terminal is not a mock-up — it
 quotes **three separate pieces of real output**, each from its own file, and
 each has to be re-quoted when that file changes:
@@ -124,7 +125,7 @@ each has to be re-quoted when that file changes:
 | Terminal line | Where the string is built |
 |---|---|
 | the `[Eklavya] Learner profile: …` banner | `mcp/src/hooks/session-start.ts` — one line in the real hook, wrapped over two rows here the way a terminal wraps it |
-| the `[EKLAVYA ambient · concept · interleaved · easy]` status bar | `statusLine` in `mcp/src/statusline.ts`, composed centrally so it cannot drift. There is no settings line above a question any more — do not draw one |
+| the `[EKLAVYA concept · interleaved · easy]` status bar | `statusLine` in `mcp/src/statusline.ts`, composed centrally so it cannot drift. There is no settings line above a question any more — do not draw one |
 | the checkpoint instruction | `mcp/src/hooks/checkpoint-quiz.ts` |
 
 `public/styles.css` holds a **no-JS fallback copy** of the terminal's grade,

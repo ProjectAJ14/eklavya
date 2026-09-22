@@ -150,8 +150,8 @@
          `claude`, then types the task), then stops and hands the keyboard
          over: the visitor sends the prompt, watches the tools run, and
          answers the checkpoint question with the arrows the real picker
-         takes. Everything printed here is the default config — ambient,
-         concept, interleaved, easy — and the grades and intervals are the
+         takes. Everything printed here is the default config — questions on
+         and unenforced, concept, interleaved, easy — and the grades and intervals are the
          ones in mcp/src/srs.ts. -->
     <div class="term-shell fade-up fade-up--term">
       <div class="term" data-term>
@@ -291,7 +291,7 @@
           <span class="term__st">~/my-express-api</span>
           <span class="term__st dim">node v22.3.0</span>
           <span class="term__gap"></span>
-          <span class="term__st term__st--ek">[EKLAVYA ambient &middot; concept &middot; interleaved &middot; easy]</span>
+          <span class="term__st term__st--ek">[EKLAVYA concept &middot; interleaved &middot; easy]</span>
         </div>
       </div>
     </div>
@@ -543,20 +543,20 @@
   <span id="modes" class="anchor-alias" aria-hidden="true"></span>
   <div class="wrap section">
     <p class="eyebrow eyebrow--dark" data-reveal>The dials</p>
-    <h2 class="h2" id="dials-title" data-reveal data-delay="100">Four independent dials</h2>
+    <h2 class="h2" id="dials-title" data-reveal data-delay="100">Independent dials</h2>
     <p class="dials__sub" data-reveal data-delay="200">
-      <code class="code-inline">mode</code> is how hard it pushes, <code class="code-inline">focus</code> is what it teaches, <code class="code-inline">cadence</code> is when it asks, <code class="code-inline">difficulty</code> is how hard the questions may get. They combine freely — <code class="code-inline">enforced</code> + <code class="code-inline">learn</code> is an intern who must pass a gate on a topic they chose.
+      <code class="code-inline">quiz</code> is whether it asks and whether it insists, <code class="code-inline">focus</code> is what it teaches, <code class="code-inline">cadence</code> is when it asks, <code class="code-inline">difficulty</code> is how hard the questions may get. They combine freely — <code class="code-inline">quiz.enforced</code> + <code class="code-inline">learn</code> is an intern who must pass a gate on a topic they chose. Memory is its own switch and none of these touch it.
     </p>
 
     <div class="dials">
       <div class="dial" data-reveal>
         <div class="dial__head">
-          <code class="dial__key">mode</code>
-          <span class="dial__q">How hard does it push?</span>
+          <code class="dial__key">quiz</code>
+          <span class="dial__q">Does it ask, and does it insist?</span>
         </div>
         <div class="dial__opt dial__opt--default">
           <span class="dial__pill">default</span>
-          <code class="dial__val">ambient</code>
+          <code class="dial__val">enabled</code>
           <p>Questions offered, always skippable, no nagging. For anyone learning a new stack.</p>
         </div>
         <div class="dial__opt">
@@ -564,8 +564,8 @@
           <p>The session quiz must pass before <code class="code-inline">git commit</code> — inside Claude Code, and from a bare terminal once you install the git hook. For interns and onboarding.</p>
         </div>
         <div class="dial__opt">
-          <code class="dial__val">off</code>
-          <p>Installed but dormant. Nothing fires, and <code class="code-inline">focus</code> is never read. For one urgent afternoon, say <em>“turn it off for this session”</em> instead — same silence, nothing written to disk.</p>
+          <code class="dial__val">enabled: false</code>
+          <p>No questions, no gate, no banner, and <code class="code-inline">focus</code> is never read. <strong>Memory keeps recording</strong> — that is <code class="code-inline">memory.enabled</code>, a separate switch. For one urgent afternoon, say <em>“turn the questions off for this session”</em> instead — same silence, nothing written to disk.</p>
         </div>
       </div>
 
@@ -620,7 +620,7 @@
         </div>
         <div class="dial__opt">
           <code class="dial__val">easy</code> <span class="dial__sep">·</span> <code class="dial__val">medium</code> <span class="dial__sep">·</span> <code class="dial__val">hard</code>
-          <p>Pinned there, and nothing promotes. <code class="code-inline">easy</code> on a repo keeps an onboarding codebase gentle for everyone; <code class="code-inline">hard</code> globally skips the runway.</p>
+          <p>Pinned there, and nothing promotes. <code class="code-inline">easy</code> on one project keeps a codebase you are new to gentle; <code class="code-inline">hard</code> globally skips the runway.</p>
         </div>
         <div class="dial__opt dial__opt--note">
           <p>Per project, because "how hard should this be" is a question about a codebase. A new repo starts at <code class="code-inline">easy</code> even when three others are on <code class="code-inline">hard</code>.</p>
@@ -628,13 +628,13 @@
       </div>
     </div>
 
-    <h3 class="modes__sub" data-reveal>&hellip;and six namespaces for the memory half</h3>
+    <h3 class="modes__sub" data-reveal>&hellip;and the namespaces for the memory half</h3>
     <p class="dials__sub" data-reveal data-delay="100">
       The dials are flat keys because every config file already written uses them that way. Memory's settings are nested, and merge the same way — key by key, repo over global. Defaults shown.
       <a href="/docs/memory/">What memory does</a>
     </p>
     <div class="cmd-table" data-reveal data-delay="150">
-      <div class="cmd-row"><code>memory.enabled</code><span><b>true</b> — whether the work is recorded and recalled. Independent of the mode dial — <code class="code-inline">mode: off</code> means no questions, not no history.</span></div>
+      <div class="cmd-row"><code>memory.enabled</code><span><b>true</b> — whether the work is recorded and recalled. Independent of <code class="code-inline">quiz</code> — <code class="code-inline">quiz.enabled: false</code> means no questions, not no history.</span></div>
       <div class="cmd-row"><code>memory.capture</code><span><b>full</b> — or <code class="code-inline">minimal</code> for prompts and session seams without the file-by-file traffic, or <code class="code-inline">off</code>.</span></div>
       <div class="cmd-row"><code>memory.batch_max_events</code><span><b>40</b> — events per observation. A session seam flushes whatever is left.</span></div>
       <div class="cmd-row"><code>memory.retention_days</code><span><b>null</b> — keep raw evidence until you delete it. A number prunes it; the observations built from it survive.</span></div>
@@ -652,7 +652,7 @@
     </div>
 
     <p class="modes__foot" data-reveal data-delay="300">
-      Repo settings beat global ones — <code class="code-inline">eklavya config set mode enforced --repo</code> pins enforced mode on one codebase without touching anyone's machine-wide setup. Because that also overrides a contributor's personal <code class="code-inline">focus</code>, the session banner names whatever the repo is overriding rather than letting it change silently.
+      Project settings beat global ones — <code class="code-inline">eklavya config set quiz.enforced true --project</code> pins the commit gate on one codebase without changing how Eklavya treats you everywhere else. They live at <code class="code-inline">~/.eklavya/projects/&lt;checkout&gt;/config.json</code>, in your home directory: <strong>Eklavya writes no configuration into a repository</strong>, so your settings are yours and never reach a teammate. The session banner names whatever a project is overriding rather than letting it change silently.
     </p>
   </div>
 </section>
@@ -664,14 +664,14 @@
       <h2 class="h2" id="commands-title" data-reveal>Nine commands</h2>
       <div class="cmd-table" data-reveal data-delay="100">
         <div class="cmd-row"><code>/eklavya:quiz [topic]</code><span>Quiz now — on this session's work, or a named topic</span></div>
-        <div class="cmd-row"><code>/eklavya:mode [value]</code><span>Show or change the mode, focus, cadence and difficulty dials</span></div>
+        <div class="cmd-row"><code>/eklavya:mode [value]</code><span>Show or change the quiz, focus, cadence and difficulty dials</span></div>
         <div class="cmd-row"><code>/eklavya:learn &lt;topic&gt;</code><span>A structured lesson, prerequisite-ordered, calibrated to what you know</span></div>
         <div class="cmd-row"><code>/eklavya:level [value]</code><span>This project's difficulty band and the runway into it — or pin one</span></div>
         <div class="cmd-row"><code>/eklavya:pack [domain]</code><span>Write a concept pack — a domain Eklavya has never heard of, or this codebase</span></div>
         <div class="cmd-row"><code>/eklavya:progress</code><span>The mastery map: which projects, what they taught, what you skipped, what's due</span></div>
         <div class="cmd-row"><code>/eklavya:memory</code><span>What this project's history says — past decisions, fixes, unfinished work</span></div>
         <div class="cmd-row"><code>/eklavya:gate</code><span>Commit-gate status</span></div>
-        <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node, then picks your mode and focus</span></div>
+        <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node, then picks how hard it pushes and what it teaches</span></div>
       </div>
       <p class="cmd-ask" data-reveal data-delay="150">
         Or don't learn any of them. <code>npm install -g eklavya &amp;&amp; eklavya install</code> also puts a skill in your

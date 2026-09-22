@@ -9,10 +9,24 @@
 # bricks commits when a dependency is absent gets uninstalled, and an unpassable
 # gate teaches nothing.
 #
-# It reads the repo's .eklavya.json and nothing else -- never ~/.eklavya/config.json.
-# That is deliberate: a git hook installed once must not start blocking commits
-# because someone flipped a global setting. Gating a repo is a per-repo decision,
-# stated in a file the repo can see.
+# Enforcement is read from this project's config only -- never from
+# ~/.eklavya/config.json. That is deliberate: a git hook installed once must not
+# start blocking commits because someone flipped a global setting. Gating a
+# codebase is a per-project decision, stated in that project's own file. The
+# global file is consulted for one thing: a `quiz.enabled: false` there switches
+# the questions off, and a gate nothing can pass must not hold.
+#
+# That file used to be <repo>/.eklavya.json, committed. It is not any more: a
+# project's settings say how *you* want to be taught in that codebase, and a
+# committed file made one person's choice everybody's. They now live at
+# ~/.eklavya/projects/<checkout path with separators as dashes>/config.json,
+# alongside the global config and keyed the way ~/.claude/projects/ keys its own.
+# Nothing Eklavya writes lands in a checkout.
+#
+# The node half migrates a leftover .eklavya.json out of the repo automatically.
+# This script does not -- a git pre-commit hook is the wrong place to start
+# rewriting somebody's working tree -- so it reads the legacy file as a fallback
+# and lets the next ordinary session do the move.
 
 set -u
 
@@ -22,8 +36,37 @@ eklavya_db()   { printf '%s' "${EKLAVYA_DB:-$(eklavya_home)/knowledge.db}"; }
 REPO=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 [ -n "$REPO" ] || exit 0
 
-# Only repos that explicitly opt in are gated.
-CONFIG="$REPO/.eklavya.json"
+# A linked worktree is a branch of the same codebase, not a project to configure
+# again -- the same fold `mainRepoRoot` applies on the node side. `--git-common-dir`
+# points at the main checkout's .git for a worktree and at this one's otherwise,
+# so stripping the trailing /.git yields the checkout that owns the settings.
+#
+# `--path-format=absolute` would be the obvious way to ask, and is deliberately
+# not used: it needs git >= 2.31, and on anything older the whole `rev-parse`
+# fails, the slug misses, and the gate fails open in every linked worktree --
+# enforcement somebody was promised, silently not happening. Plain
+# `--git-common-dir` has been there for years and answers relative to the
+# current directory, so the relative case is resolved by hand.
+#
+# Resolved with `pwd -P`, never `$(pwd)/...`: in a hook `pwd` echoes the `PWD`
+# the shell handed down, which is the symlinked spelling when the repo was
+# reached through one (macOS's /tmp, a symlinked ~/code). The node side keys on
+# the real path, so a symlinked prefix misses the slug and the gate fails open.
+PROJECT="$REPO"
+COMMON=$(git rev-parse --git-common-dir 2>/dev/null) || COMMON=''
+[ -n "$COMMON" ] && COMMON=$(cd "$COMMON" 2>/dev/null && pwd -P) || COMMON=''
+case "$COMMON" in
+  */.git) CANDIDATE=${COMMON%/.git}; [ -d "$CANDIDATE" ] && PROJECT="$CANDIDATE" ;;
+esac
+
+# The slug `projectSlug` builds: the absolute path with separators as dashes.
+SLUG=$(printf '%s' "$PROJECT" | tr '/\\:' '-')
+CONFIG="$(eklavya_home)/projects/$SLUG/config.json"
+
+# The pre-move location, read only while a checkout still has one.
+[ -f "$CONFIG" ] || CONFIG="$REPO/.eklavya.json"
+
+# Only projects that explicitly opt in are gated.
 [ -f "$CONFIG" ] || exit 0
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -35,8 +78,36 @@ if ! command -v sqlite3 >/dev/null 2>&1; then
   exit 0
 fi
 
-MODE=$(jq -r '.mode // "ambient"' "$CONFIG" 2>/dev/null) || exit 0
-[ "$MODE" = "enforced" ] || exit 0
+# `quiz.enforced`, with the retired `mode` dial honoured as a fallback -- this
+# script meets configs written years before it.
+#
+# Spelled out with if/elif rather than jq's `//`, which is an alternative
+# operator and not a null-coalescing one: `false // X` evaluates to X, so the
+# obvious `.quiz.enforced // (.mode == "enforced")` would read an explicit
+# `"enforced": false` as unset and fall through to a stale `mode` left in the
+# same file. That is a gate holding commits after somebody switched it off.
+#
+ENFORCED=$(jq -r '
+  if .quiz.enforced != null then .quiz.enforced
+  else (.mode == "enforced") end
+' "$CONFIG" 2>/dev/null) || exit 0
+[ "$ENFORCED" = "true" ] || exit 0
+
+# `quiz.enabled`, resolved the way `coerce()` resolves it: project over global,
+# `mode` per file. A gate with no questions behind it can never be passed, so
+# it must not hold -- and the switch that silences the questions may well be in
+# the global file. This is the one thing read from there: the global config can
+# release this gate, never impose one.
+QUIZ_ENABLED='
+  if .quiz.enabled != null then .quiz.enabled
+  elif .mode == "off" then false
+  elif .mode == "ambient" or .mode == "enforced" then true
+  else null end'
+ENABLED=$(jq -r "$QUIZ_ENABLED" "$CONFIG" 2>/dev/null) || exit 0
+if [ "$ENABLED" = "null" ] && [ -f "$(eklavya_home)/config.json" ]; then
+  ENABLED=$(jq -r "$QUIZ_ENABLED" "$(eklavya_home)/config.json" 2>/dev/null) || exit 0
+fi
+[ "$ENABLED" = "false" ] && exit 0
 
 DB=$(eklavya_db)
 [ -f "$DB" ] || exit 0
@@ -70,7 +141,7 @@ cat >&2 <<EOF
   Open Claude Code in this repo and run /eklavya:quiz to finish, then commit again.
 
   To see what is outstanding:  /eklavya:gate
-  To turn this off for the repo, set "mode" to "ambient" in .eklavya.json
+  To turn this off:  eklavya config set quiz.enforced false --project
 
 EOF
 exit 1

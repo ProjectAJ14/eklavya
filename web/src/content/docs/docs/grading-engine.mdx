@@ -46,7 +46,7 @@ Three separate mechanisms enforce this, because a prompt asking nicely is not en
 
 - **Mastered concepts are not asked about.** The learner profile hands Claude the actual list of what you know. Only spaced repetition brings one back, and it comes back harder.
 - **Every question you have been asked is on record**, and the plan hands the most recent of them back with the tier and grade each got. A question already asked is spent: same concept, different angle.
-- **A concept answered this session is done for the session.** Getting something half-right no longer puts it straight back in the queue five minutes later. The one exception is enforced mode's [gate retry](/docs/commit-gate/), which re-opens a concept you blanked on — a tier lower, and as a different question.
+- **A concept answered this session is done for the session.** Getting something half-right no longer puts it straight back in the queue five minutes later. The one exception is the [gate retry](/docs/commit-gate/) under `quiz.enforced`, which re-opens a concept you blanked on — a tier lower, and as a different question.
 
 ### Where each hook fits
 
@@ -56,7 +56,7 @@ Three separate mechanisms enforce this, because a prompt asking nicely is not en
 | `UserPromptSubmit` | On a message you send | Nothing, almost always. In a session that has logged nothing at all after about twelve minutes, restates the one-line instruction to log concepts — at most three times, and never while logging is working. |
 | `SubagentStart` | When Claude delegates work to a subagent | Gives that subagent the same instruction to log concepts — the session-start one never reaches it. It logs into your session; it never asks you anything, because nobody is watching that transcript. |
 | `PostToolUse` | Right after Claude logs concepts | Decides whether to ask one mid-task question. Respects the cadence, the budget and the checkpoint spacing. |
-| `Stop` | When a task finishes | Asks about what the checkpoints did not reach — one question on the `interleaved` cadence, the remaining budget on `end` or in `enforced` mode. On `interleaved` it can ask again on a later turn, never sooner than `min_minutes_between_checkpoints`; on `end` only genuinely new logged work re-arms it. Either way it stops at `max_stop_blocks_per_session` blocks, or when the session budget runs out. |
-| `PreToolUse` | Before every Bash command | In enforced mode, denies the ones that are really a `git commit` while the gate is unmet. Everything else passes through untouched. |
+| `Stop` | When a task finishes | Asks about what the checkpoints did not reach — one question on the `interleaved` cadence, the remaining budget on `end` or under `quiz.enforced`. On `interleaved` it can ask again on a later turn, never sooner than `min_minutes_between_checkpoints`; on `end` only genuinely new logged work re-arms it. Either way it stops at `max_stop_blocks_per_session` blocks, or when the session budget runs out. |
+| `PreToolUse` | Before every Bash command | With `quiz.enforced`, denies the ones that are really a `git commit` while the gate is unmet. Everything else passes through untouched. |
 
 Every one of these exits cleanly on any failure. A hook that breaks your session is worse than a hook that misses a question.

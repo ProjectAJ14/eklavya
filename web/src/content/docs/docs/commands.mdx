@@ -33,7 +33,7 @@ Quizzes this session's work: the concepts Claude logged while building, minus an
 | `already_covered` | Everything from this session has been asked. Try a topic. |
 | `nothing_logged` | No concepts logged yet, so there is nothing grounded to ask about. |
 | `no_candidates` | That topic is fully mastered and nothing is due. |
-| `mode_off` | Eklavya is off. Run `/eklavya:setup` to turn it back on. |
+| `quiz_disabled` | Questions are off for this project (`quiz.enabled: false`). Memory is still recording. `/eklavya:mode` turns them back on. |
 | `session_off` | You turned Eklavya off for this session. Ask for it back and the quiz runs. |
 | `no_topic` | Focus is `learn` with no topic set. |
 | `topic_unknown` | Nothing in the graph matches that topic; the closest domain is offered instead. |
@@ -64,7 +64,7 @@ Reports your effective settings in two lines — mode, focus, cadence, difficult
 #### With an argument
 
 ```text
-/eklavya:mode enforced          # change the mode dial
+/eklavya:mode enforced          # turn on the commit gate
 /eklavya:mode concept           # change the focus dial
 /eklavya:mode end               # change the cadence dial
 /eklavya:mode learn caching     # focus learn, with its required topic
@@ -75,10 +75,10 @@ The value tells Eklavya which dial you mean, so you never have to name the dial.
 
 #### Worth knowing
 
-- It asks which scope you mean when it is ambiguous: **global** (you, everywhere), **repo** (this project, for everyone) or **session** (this session only, and only for `off`).
-- **"Turn Eklavya off for this session"** — in those words, or `--session` — silences everything until the session ends without writing to either config file. It does not open the commit gate: an `enforced` repo still holds the commit. See [Configuration](/docs/configuration/#turning-it-off-for-one-session).
-- It warns you before writing `focus` at repo scope, because that overrides every contributor's personal choice there.
-- Moving *to* `enforced` prompts you to install the git hook — without it, only commits made inside Claude Code are gated.
+- It asks which scope you mean when it is ambiguous: **global** (you, everywhere), **project** (you, on this codebase) or **session** (this session only, and only for `off`). Neither file is in the repository, so a project setting is yours and not your team's.
+- **"Turn Eklavya off for this session"** — in those words, or `--session` — silences the questions until the session ends without writing to either config file. It does not stop memory recording, and it does not open the commit gate: a repo with `quiz.enforced` still holds the commit. See [Configuration](/docs/configuration/#turning-it-off-for-one-session).
+- A project setting overrides your own global one in that codebase, and the session banner names which, so a `learn` topic never stops applying silently.
+- Turning on `quiz.enforced` prompts you to install the git hook — without it, only commits made inside Claude Code are gated.
 - For difficulty, it sends you to `/eklavya:level` rather than explaining the ladder twice.
 
 ### `/eklavya:learn <topic>`
@@ -126,7 +126,7 @@ If the level is pinned it says so, names the file that pinned it, and does not r
 
 #### Worth knowing
 
-- Pinning at repo scope overrides every contributor's personal setting in that project.
+- Pinning at project scope overrides your own global setting in that codebase, and nobody else's.
 - If the questions feel trivial, check the level before pinning up — you may simply be close to a promotion.
 - Pinning `hard` on a codebase you have just met is the exact failure levels exist to prevent.
 
@@ -134,7 +134,7 @@ If the level is pinned it says so, names the file that pinned it, and does not r
 
 *Add a domain Eklavya has never heard of, or teach it this codebase.*
 
-Writes a [concept pack](/docs/packs/) — concepts, tiers and prerequisites as JSON — either into `~/.eklavya/packs/` for you alone or into `<repo>/.eklavya/packs/`, checked in for everyone working in that repository. It asks which before it writes, reads what Eklavya already knows about the domain so the pack extends the shipped graph rather than colliding with it, and finishes by running `eklavya doctor` so you can see it loaded.
+Writes a [concept pack](/docs/packs/) — concepts, tiers and prerequisites as JSON — either into `~/.eklavya/packs/` for every project or into `~/.eklavya/projects/<checkout>/packs/` for one codebase. Both are in your home directory: Eklavya writes no files into a repository. It asks which before it writes, reads what Eklavya already knows about the domain so the pack extends the shipped graph rather than colliding with it, and finishes by running `eklavya doctor` so you can see it loaded.
 
 ```text
 /eklavya:pack rust
@@ -203,7 +203,7 @@ your agent was working.
 
 #### What it shows
 
-- The mode. If it is not `enforced`, it says nothing is gated and stops.
+- Whether `quiz.enforced` is set. If it is not, it says nothing is gated and stops.
 - How many passing answers you have, out of the number the gate needs — `required` concepts multiplied by `pass_threshold`, rounded up.
 - Whether the gate has passed.
 
@@ -215,7 +215,7 @@ The count of concepts *answered* can be higher than the count that *counts*: rev
 
 *First run on this machine.*
 
-Checks prerequisites, confirms the database, asks for a mode and a focus, and installs the git hook if you chose enforced. Walked through step by step in [First run](/docs/first-run/). Safe to run again any time.
+Checks prerequisites, confirms the database, asks how hard it should push and what it should teach, and installs the git hook if you chose enforcement. Walked through step by step in [First run](/docs/first-run/). Safe to run again any time.
 
 ### Or just ask
 
@@ -226,7 +226,7 @@ Checks prerequisites, confirms the database, asks for a mode and a focus, and in
 `npx eklavya install` also installs a skill at `~/.claude/skills/eklavya/SKILL.md`. It teaches Claude how to read and change Eklavya's settings, so these all work in ordinary conversation:
 
 - “Eklavya is quizzing me too much — space it out.”
-- “Put Eklavya in enforced mode for this repo only.”
+- “Turn on Eklavya's commit gate for this repo only.”
 - “Have Eklavya teach me database indexing from now on.”
 - “Open my Eklavya dashboard.”
 - “Where does Eklavya keep my data?”

@@ -192,7 +192,7 @@ export const getSessionQuizPlan: ToolDef = {
     // re-arms when new work is logged. A pacing rule must never be the thing
     // that makes a commit impossible.
     const capped =
-      config.cadence === 'interleaved' && config.mode !== 'enforced' && !explicitTopic;
+      config.cadence === 'interleaved' && !config.quiz.enforced && !explicitTopic;
     const max = args.max ?? (capped ? 1 : config.max_questions_per_task);
 
     if (!explicitTopic && focus === 'learn') {
@@ -214,12 +214,16 @@ export const getSessionQuizPlan: ToolDef = {
 
     const topicMode = Boolean(effDomain || (effSlugs && effSlugs.length > 0));
 
-    if (config.mode === 'off') {
-      return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'mode_off' };
+    if (!config.quiz.enabled) {
+      // Renamed from `mode_off`, which the quiz skill rendered to the developer
+      // as "Eklavya is off" -- untrue whenever memory was still recording, which
+      // is the default. A reason code is read aloud by the model, so a wrong one
+      // is a wrong sentence on screen rather than a wrong field in a payload.
+      return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'quiz_disabled' };
     }
 
     // The session-scoped off switch. Unlike the cooldown below it has no
-    // `ignore_cooldown` escape and is not waived for enforced mode: the
+    // `ignore_cooldown` escape and is not waived for enforced quizzing: the
     // developer asked for silence in so many words, and an explicit
     // `/eklavya:quiz` is served by turning the session back on first.
     if (isSessionOff(db, sessionId)) {
@@ -228,7 +232,7 @@ export const getSessionQuizPlan: ToolDef = {
         questions_needed: 0,
         concepts: [],
         reason: 'session_off',
-        detail: 'Eklavya is off for this session. set_config scope "session" with mode "ambient" brings it back; nothing was lost, the concepts stay unmastered and resurface later.',
+        detail: 'Questions are off for this session. set_config scope "session" with quiz {enabled: true} brings them back; nothing was lost, the concepts stay unmastered and resurface later, and memory kept recording throughout.',
       };
     }
 
@@ -243,7 +247,9 @@ export const getSessionQuizPlan: ToolDef = {
     // the Stop hook would clear its 4-minute checkpoint clock, block the turn,
     // and then this function would refuse on a 20-minute floor, which reads to
     // the model as being told to teach and handed nothing to teach.
-    if (config.mode === 'ambient' && !args.ignore_cooldown) {
+    // `quiz.enabled` is a given by here -- the disabled case returned above --
+    // so the only question left is whether the gate exempts this from the clock.
+    if (!config.quiz.enforced && !args.ignore_cooldown) {
       const gap =
         config.cadence === 'interleaved'
           ? config.min_minutes_between_checkpoints
@@ -485,7 +491,7 @@ export const getSessionQuizPlan: ToolDef = {
       // `picked`, and a non-empty `picked` is exactly what suppresses the
       // `gate_retry` escape hatch below. That would trade a deadlock the retry
       // pass exists to break for four questions that cannot break it.
-      if (picked.length < max && config.mode !== 'enforced') {
+      if (picked.length < max && !config.quiz.enforced) {
         const scoped = domains.size > 0;
         const rows = db
           .prepare(
@@ -511,10 +517,10 @@ export const getSessionQuizPlan: ToolDef = {
     // telling the developer to run a quiz that has nothing left to ask. That is
     // a dead end with no route out inside the session.
     //
-    // Ambient mode is deliberately left alone. It has no gate to deadlock, and
+    // Unenforced quizzing is deliberately left alone. It has no gate to deadlock, and
     // re-offering a concept there would be the nagging the cooldown exists to
     // prevent.
-    if (!topicMode && picked.length === 0 && config.mode === 'enforced') {
+    if (!topicMode && picked.length === 0 && config.quiz.enforced) {
       const gate = gateRow(db, sessionId);
       if (gate && gate.required > 0 && !gate.passed) {
         // `seen` carries two meanings: "already picked" and "considered and

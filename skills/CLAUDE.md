@@ -106,16 +106,16 @@ Check every one of these against the code when you touch a skill.
   write it: `grep -rn 'focus' skills/ user-skill/ agents/`.
 - **The `interleaved` one-question cap has exemptions.** In
   `mcp/src/tools/get_session_quiz_plan.ts`:
-  `capped = cadence === 'interleaved' && mode !== 'enforced' && !explicitTopic`,
+  `capped = cadence === 'interleaved' && !quiz.enforced && !explicitTopic`,
   and then `max = args.max ?? (capped ? 1 : max_questions_per_task)`.
-  So `enforced` mode is exempt, an explicit `domain` or `slugs` is exempt, and
+  So `quiz.enforced` is exempt, an explicit `domain` or `slugs` is exempt, and
   an explicit `max` wins outright because it is read first. Read that code
   rather than trusting prose about it — including this paragraph.
-- **The Stop hook blocks in `ambient` too.** `mcp/src/hooks/stop-quiz-check.ts`
-  blocks in both modes; what `enforced` changes is that it skips the
+- **The Stop hook blocks when unenforced too.** `mcp/src/hooks/stop-quiz-check.ts`
+  blocks either way; what `quiz.enforced` changes is that it skips the
   `min_minutes_between_quizzes` cooldown, takes the whole remaining budget
-  instead of one question, and gates commits. Do not write "ambient never
-  interrupts".
+  instead of one question, and gates commits. Do not write "it never
+  interrupts unless enforced".
 - **`get_learner_profile`'s lists are capped, and `known` is ordered by score.**
   `LIST_CAP = 8` covers `weak`, `due_for_review`, `projects`,
   `recent_concepts` and `skipped`; `KNOWN_CAP = 30` covers `known`, with the
@@ -130,14 +130,16 @@ Check every one of these against the code when you touch a skill.
 
 Until 1.14 every plan item carried `ask_header` and the tutor printed it above
 the question: `[mode: ambient · focus: concept · level: easy · tier: 2
-mechanism]`. It existed for a real reason — on `concept` focus a deliberately
+mechanism]` — in the vocabulary of the day, when a single `mode` dial still
+existed. It existed for a real reason — on `concept` focus a deliberately
 transferable question reads as a vague one, and on `easy` a tier-2 question
 reads as shallow rather than as a runway — but it spent four settings' worth of
 screen above *every* stem to say something that is true for the whole session.
 
 Ambient state belongs somewhere ambient. `statusLine` in `mcp/src/statusline.ts`
-composes `[EKLAVYA ambient · concept · interleaved · easy]` for
-`eklavya statusline`, which the host's status bar runs. `askHeader` is deleted,
+composes `[EKLAVYA concept · interleaved · easy]` for `eklavya statusline`,
+which the host's status bar runs — with `enforced` prepended only when it is
+set, since a segment that is always there is a segment nobody reads. `askHeader` is deleted,
 the plan no longer carries `ask_header`, and both hooks now say *ask the stem on
 its own*.
 
@@ -287,7 +289,7 @@ renderers that lack it.
 ## Consistency
 
 The same behaviour described in two skills has drifted apart before — that is
-how `focus: project` got into three files. The four dials appear in
+how `focus: project` got into three files. The dials appear in
 `skills/mode/SKILL.md` and `user-skill/eklavya/SKILL.md`; the level bands
 appear in `skills/level/SKILL.md` and `tutor/references/focus-and-level.md`;
 the cadence cap appears in `mode`, `quiz` and that same reference. **When you

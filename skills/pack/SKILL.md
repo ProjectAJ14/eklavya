@@ -12,16 +12,20 @@ Two places, and the difference is the whole decision:
 
 | Where | Who it is for |
 |---|---|
-| `~/.eklavya/packs/*.json` | this developer, on every project |
-| `<repo>/.eklavya/packs/*.json` | everyone who works in this repository, versioned with it |
+| `~/.eklavya/packs/*.json` | them, on every project |
+| `~/.eklavya/projects/<checkout>/packs/*.json` | them, on this codebase |
 
-The repo one is the interesting half. A codebase that ships its own concepts and prerequisites is describing itself to whoever joins next, and that is onboarding rather than quizzing. Ask which one they want before writing anything, and say what the repo scope means: it is committed, and it applies to every contributor.
+The project one is the interesting half. A pack that describes a codebase's own concepts and prerequisites is onboarding rather than quizzing. Ask which one they want before writing anything.
+
+**Never write into the checkout.** Both directories are under the developer's home, and Eklavya creates no files in a project — not settings, not packs. A pack used to go to `<repo>/.eklavya/packs/`, committed; that directory is still **read**, so a repository that already ships one keeps working, but nothing writes there any more and nothing deletes what is there.
+
+If they ask for a pack the whole team gets: say plainly that this no longer exists. A pack is theirs, on their machine. What a team can still do is keep the JSON in the repository as a file they each install — but Eklavya will not pick it up from there unless it is in the legacy directory, and it will not put it there.
 
 ## Build the pack in this order
 
 1. **Read before you write.** `get_concept_graph` for the domain they named. If Eklavya already seeds it, the pack is an *extension* — new concepts, retiered old ones — not a replacement.
 2. **Name it.** `pack` is an identifier (`eklavya-pack-rust`, `acme-billing`), `version` is a string you bump when you edit it, `domain` is the one word that groups these concepts in a learner profile.
-3. **List the concepts, from the code.** For a repo pack, read the codebase: the modules, the invariants, the decisions someone new gets wrong. Each concept is `{ slug, name, tier, description }`. A slug is lowercase, hyphenated, and names the *idea* — `event-sourcing-replay`, not `fixed-the-replay-bug`.
+3. **List the concepts, from the code.** For a project pack, read the codebase: the modules, the invariants, the decisions someone new gets wrong. Each concept is `{ slug, name, tier, description }`. A slug is lowercase, hyphenated, and names the *idea* — `event-sourcing-replay`, not `fixed-the-replay-bug`.
 4. **Set each tier honestly.** 1 is what a thing is; 3 is why this choice here; 5 is when the architecture is wrong. A pack where everything is tier 3 teaches nothing about order.
 5. **Add the prerequisites.** `{ from, to, relation }`, relation one of `prerequisite_of`, `related_to`, `part_of`. An edge may point at a concept Eklavya already seeds — that is how a pack hangs itself off the shipped graph. `from` is the thing that comes first.
 6. **Write the file** into the directory the scope chose, and run `eklavya doctor`. It names every pack that loaded and every one that did not, with the reason.

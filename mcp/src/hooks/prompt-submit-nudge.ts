@@ -130,11 +130,12 @@ await run(async (input) => {
   // small JSON files is the cheaper question, so it is asked first.
   const cwd = cwdOf(input);
   const resolved = config(cwd);
-  const { mode } = resolved.config;
-  // `mode: off` silences the learning half. It does not stop memory capture --
-  // someone who asked for no quizzes did not ask for their project history to
-  // stop being recorded (PRD CFG-01) -- so the early return needs both to be off.
-  if (mode === 'off' && !resolved.config.memory.enabled) return 0;
+  const { quiz } = resolved.config;
+  // `quiz.enabled: false` silences the learning half. It does not stop memory
+  // capture -- someone who asked for no quizzes did not ask for their project
+  // history to stop being recorded (PRD CFG-01) -- so the early return needs
+  // both switches off, which is exactly the pair of names the config now uses.
+  if (!quiz.enabled && !resolved.config.memory.enabled) return 0;
   // `quiet` is deliberately NOT consulted. It suppresses the banner and the
   // status bar -- things the developer looks at -- and this is an
   // additionalContext line the model reads, exactly like the session-start
@@ -182,7 +183,7 @@ await run(async (input) => {
     if (recalled) context.push(recalled);
   }
 
-  if (mode === 'off') return emit(context);
+  if (!quiz.enabled) return emit(context);
 
   if (isSessionOff(db, sid)) return emit(context);
 

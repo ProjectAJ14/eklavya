@@ -136,38 +136,51 @@ describe('the status-bar dials', () => {
   const plain = (patch = {}, level: Level = 'easy', pinned = false) =>
     statusLine({ config: config(patch), level, pinned, color: false });
 
-  it('shows all four dials, unlabelled — a bar you learn once, not a line you decode', () => {
-    expect(plain({ focus: 'concept' })).toBe('[EKLAVYA ambient · concept · interleaved · easy]');
+  it('shows the dials, unlabelled — a bar you learn once, not a line you decode', () => {
+    expect(plain({ focus: 'concept' })).toBe('[EKLAVYA concept · interleaved · easy]');
+  });
+
+  // The slot that used to hold `ambient` on three bars out of four, restating
+  // the default. A segment earns its place by appearing only when something is
+  // actually in force.
+  it('names enforcement only when it is on', () => {
+    expect(plain({ quiz: { enabled: true, enforced: true } })).toBe(
+      '[EKLAVYA enforced · concept · interleaved · easy]',
+    );
   });
 
   it('carries the topic in learn focus, so a question about caching says so', () => {
     // Parenthesised rather than `learn: caching`: a colon in a bar reads as a
     // key, and the topic has no key of its own here.
     expect(plain({ focus: 'learn', focus_topic: 'caching' }, 'medium')).toBe(
-      '[EKLAVYA ambient · learn (caching) · interleaved · medium]',
+      '[EKLAVYA learn (caching) · interleaved · medium]',
     );
   });
 
   it('says when the level is pinned — otherwise questions just stop getting harder', () => {
-    expect(plain({}, 'hard', true)).toBe('[EKLAVYA ambient · concept · interleaved · hard (pinned)]');
+    expect(plain({}, 'hard', true)).toBe('[EKLAVYA concept · interleaved · hard (pinned)]');
   });
 
   it('includes cadence, which the old question-line deliberately left out', () => {
     // The old argument was that the question's arrival already said when
     // Eklavya asks. A bar is on screen before any question arrives, so the
     // dial has to name itself.
-    expect(plain({ cadence: 'end' })).toBe('[EKLAVYA ambient · concept · end · easy]');
+    expect(plain({ cadence: 'end' })).toBe('[EKLAVYA concept · end · easy]');
   });
 
   it('paints enforced amber and everything else verdigris, with the word still there', () => {
     // Colour is a redundant cue, never the only one: strip the ANSI and the
-    // mode is still spelled out.
-    const enforced = statusLine({ config: config({ mode: 'enforced' }), level: 'easy', pinned: false });
+    // word is still spelled out.
+    const enforced = statusLine({
+      config: config({ quiz: { enabled: true, enforced: true } }),
+      level: 'easy',
+      pinned: false,
+    });
     expect(enforced).toContain('[38;5;172m');
     expect(enforced).toContain('enforced');
 
-    const ambient = statusLine({ config: config(), level: 'easy', pinned: false });
-    expect(ambient).toContain('[38;5;116m');
+    const unenforced = statusLine({ config: config(), level: 'easy', pinned: false });
+    expect(unenforced).toContain('[38;5;116m');
   });
 
   it('emits no escape codes when colour is off, for a bar that renders literally', () => {
@@ -176,7 +189,7 @@ describe('the status-bar dials', () => {
 
   it('says nothing at all when Eklavya is dormant or quiet', () => {
     // A bar that always says something is a bar you stop reading.
-    expect(plain({ mode: 'off' })).toBeNull();
+    expect(plain({ quiz: { enabled: false, enforced: false } })).toBeNull();
     expect(plain({ quiet: true })).toBeNull();
   });
 });

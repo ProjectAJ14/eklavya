@@ -99,7 +99,7 @@ describe('gate status — what remains', () => {
   // computable if the status carries the bar and the passing count, not just the
   // boolean. Regressing either field silently turns that command into a shrug.
   it('reports the bar and the passing count, not just passed', () => {
-    repoConfig({ mode: 'enforced' });
+    repoConfig({ quiz: { enforced: true } });
     openGate({ required: 4, answeredWell: 2 });
 
     const { config, repoRoot } = loadConfig(repo);
@@ -113,7 +113,7 @@ describe('gate status — what remains', () => {
   });
 
   it('opens once passed_count reaches needed', () => {
-    repoConfig({ mode: 'enforced' });
+    repoConfig({ quiz: { enforced: true } });
     openGate({ required: 4, answeredWell: 3 });
 
     const { config, repoRoot } = loadConfig(repo);
@@ -132,30 +132,30 @@ describe('PreToolUse gate — getting out of the way', () => {
     'git log --oneline',
     'git add .',
   ])('ignores %s', (cmd) => {
-    repoConfig({ mode: 'enforced' });
+    repoConfig({ quiz: { enforced: true } });
     openGate({ required: 2 });
     expect(preToolGate(cmd).stdout).toBe('');
   });
 
   it('does not block a command that merely mentions committing', () => {
-    repoConfig({ mode: 'enforced' });
+    repoConfig({ quiz: { enforced: true } });
     openGate({ required: 2 });
     expect(preToolGate('echo "git commit -m hi"').stdout).toBe('');
   });
 
-  it('says nothing in ambient mode', () => {
-    repoConfig({ mode: 'ambient' });
+  it('says nothing when quizzing is not enforced', () => {
+    repoConfig({ quiz: { enforced: false } });
     openGate({ required: 2 });
     expect(preToolGate('git commit -m "wip"').stdout).toBe('');
   });
 
   it('says nothing when there is no gate for the session', () => {
-    repoConfig({ mode: 'enforced' });
+    repoConfig({ quiz: { enforced: true } });
     expect(preToolGate('git commit -m "wip"').stdout).toBe('');
   });
 
   it('is fast enough to sit on every Bash call', () => {
-    repoConfig({ mode: 'enforced' });
+    repoConfig({ quiz: { enforced: true } });
     openGate({ required: 2 });
 
     // Measured ABOVE a bare node process, not as a wall-clock absolute. Node's
@@ -174,14 +174,44 @@ describe('PreToolUse gate — getting out of the way', () => {
   });
 });
 
+// The gate is read twice, by two different parsers: `pre-tool-gate.ts` through
+// `loadConfig`, and `cli/eklavya-gate` through jq in a shell. Both have to agree
+// about every spelling of the same setting, or a commit is held in Claude Code
+// and waved through by the git hook.
+describe('what the gate reads out of .eklavya.json', () => {
+  it.each([
+    ['the retired mode dial', { mode: 'enforced' }],
+    ['the quiz flag', { quiz: { enforced: true } }],
+    ['both, with quiz winning', { mode: 'ambient', quiz: { enforced: true } }],
+  ])('holds a commit for %s, on both paths', (_label, cfg) => {
+    repoConfig(cfg);
+    openGate({ required: 2 });
+    expect(preToolGate('git commit -m "wip"').stdout).not.toBe('');
+    expect(gateCli().status).toBe(1);
+  });
+
+  it.each([
+    ['an explicit quiz.enforced false beside a stale mode', { mode: 'enforced', quiz: { enforced: false } }],
+    // jq's `//` is an alternative operator, not a null-coalescing one, so the
+    // obvious one-liner would read this `false` as unset and fall back to the
+    // stale `mode` above -- holding commits after somebody switched the gate off.
+    ['questions switched off entirely', { quiz: { enabled: false, enforced: true } }],
+  ])('lets a commit through for %s, on both paths', (_label, cfg) => {
+    repoConfig(cfg);
+    openGate({ required: 2 });
+    expect(preToolGate('git commit -m "wip"').stdout).toBe('');
+    expect(gateCli().status).toBe(0);
+  });
+});
+
 describe('PreToolUse gate — holding a commit', () => {
   beforeEach(() => {
-    repoConfig({ mode: 'enforced', pass_threshold: 1 });
+    repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
   });
 
   // The per-session off switch silences questions. If it also opened the gate it
   // would stop being a convenience and start being a one-sentence bypass of the
-  // thing a lead pinned enforced mode for.
+  // thing a lead pinned `quiz.enforced` for.
   it('still holds a commit in a session the developer silenced', () => {
     setSessionOff(db, SESSION, true);
     openGate({ required: 2 });
@@ -251,13 +281,13 @@ describe('eklavya-gate CLI (the editor-agnostic half)', () => {
   });
 
   it('allows commits in an ambient repo', () => {
-    repoConfig({ mode: 'ambient' });
+    repoConfig({ quiz: { enforced: false } });
     openGate({ required: 2 });
     expect(gateCli().status).toBe(0);
   });
 
   it('blocks an unpassed gate in an enforced repo', () => {
-    repoConfig({ mode: 'enforced', pass_threshold: 1 });
+    repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
     openGate({ required: 2 });
 
     const res = gateCli();
@@ -268,18 +298,18 @@ describe('eklavya-gate CLI (the editor-agnostic half)', () => {
   });
 
   it('allows the commit once the gate passes', () => {
-    repoConfig({ mode: 'enforced', pass_threshold: 1 });
+    repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
     openGate({ required: 2, answeredWell: 2 });
     expect(gateCli().status).toBe(0);
   });
 
   it('allows commits when the repo has no gate history at all', () => {
-    repoConfig({ mode: 'enforced' });
+    repoConfig({ quiz: { enforced: true } });
     expect(gateCli().status).toBe(0);
   });
 
   it('fails open when the database is missing', () => {
-    repoConfig({ mode: 'enforced' });
+    repoConfig({ quiz: { enforced: true } });
     expect(sh('/bin/sh', [GATE_CLI], { cwd: repo, env: { EKLAVYA_DB: '/nonexistent/x.db' } }).status).toBe(0);
   });
 
@@ -292,14 +322,52 @@ describe('eklavya-gate CLI (the editor-agnostic half)', () => {
     }
   });
 
+  // `coerce()` drops enforcement when questions are off, and the off switch can
+  // be the global file. Without this the terminal holds a gate no quiz clears.
+  it('lets the commit through when the global config switches questions off', () => {
+    repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
+    openGate({ required: 2 });
+    expect(gateCli().status).toBe(1);
+
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ quiz: { enabled: false } }));
+    expect(gateCli().status).toBe(0);
+
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ mode: 'off' }));
+    expect(gateCli().status).toBe(0);
+
+    // ...unless the project turns them back on, which is project-over-global.
+    repoConfig({ quiz: { enabled: true, enforced: true }, pass_threshold: 1 });
+    expect(gateCli().status).toBe(1);
+  });
+
+  // In a hook `pwd` is the inherited PWD, the symlinked spelling. The node side
+  // slugs the real path, so a symlinked prefix used to miss and fail open.
+  it('finds the project file when the checkout is reached through a symlink', () => {
+    const slug = repo.replace(/[/\\:]/g, '-');
+    const target = path.join(home, 'projects', slug, 'config.json');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify({ quiz: { enforced: true }, pass_threshold: 1, project: repo }));
+    openGate({ required: 2 });
+
+    const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-link-'));
+    const link = path.join(linkDir, 'repo');
+    fs.symlinkSync(repo, link);
+    try {
+      const res = sh('/bin/sh', [GATE_CLI], { cwd: link, env: { PWD: link } });
+      expect(res.status).toBe(1);
+    } finally {
+      fs.rmSync(linkDir, { recursive: true, force: true });
+    }
+  });
+
   it('does not confuse one repo\'s gate with another\'s', () => {
-    repoConfig({ mode: 'enforced', pass_threshold: 1 });
+    repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
     openGate({ required: 2 });
 
     const other = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-other-')));
     try {
       spawnSync('git', ['init', '-q'], { cwd: other });
-      fs.writeFileSync(path.join(other, '.eklavya.json'), JSON.stringify({ mode: 'enforced' }));
+      fs.writeFileSync(path.join(other, '.eklavya.json'), JSON.stringify({ quiz: { enforced: true } }));
       expect(gateCli(other).status).toBe(0);
       expect(gateCli(repo).status).toBe(1);
     } finally {
@@ -360,7 +428,7 @@ describe('end to end: a real git commit', () => {
   }
 
   it('is blocked from a bare terminal, then allowed once the quiz passes', () => {
-    repoConfig({ mode: 'enforced', pass_threshold: 1 });
+    repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
     sh('/bin/sh', [INSTALLER, repo]);
     openGate({ required: 2 });
     stageSomething();
@@ -389,7 +457,7 @@ describe('end to end: a real git commit', () => {
   });
 
   it('never interferes in an ambient repo', () => {
-    repoConfig({ mode: 'ambient' });
+    repoConfig({ quiz: { enforced: false } });
     sh('/bin/sh', [INSTALLER, repo]);
     openGate({ required: 2 });
     stageSomething();

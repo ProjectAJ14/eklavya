@@ -141,7 +141,7 @@ export function withSurfaceNote(text: string, separator = '\n'): string {
  * So the stem gets a prefix back, on those hosts only. This is a partial
  * reversal of 1.14 and worth naming as one: the argument then was that a field
  * with no dim, no weight and no colour is a poor place for a readout. It still
- * is. The difference is that four dials of ambient state are a readout, and
+ * is. The difference is that a line of ambient state is a readout, and
  * three characters of "who is asking" are not — and a poor place beats no place.
  */
 const HEADERLESS_HOSTS = /desktop/i;

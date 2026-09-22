@@ -4,6 +4,7 @@
  * Hard rule: this must never break a session. Every failure path
  * exits 0 with no output — `run()` enforces it.
  */
+import { findRepoConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
 import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
@@ -35,10 +36,25 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
     it. One question, no summary, no re-plan, no second question.`;
 
 await run(async (input) => {
+  const cwd = cwdOf(input);
+
+  // Lift a leftover `<repo>/.eklavya.json` out of the checkout, silently. This
+  // is the moment that makes the move automatic: settings files stopped living
+  // in repositories, and nobody should have to be told so or do anything about
+  // it. `loadConfig` reads the legacy file until this lands, so the session it
+  // runs in is configured identically either way. It never throws.
+  //
+  // **Before the database check below**, and that ordering is the whole point:
+  // this has nothing to do with the database, and behind that guard it never ran
+  // on a fresh install -- the one case where the file is most likely to be a
+  // just-cloned repo's, and where the next thing to happen is `openDb` creating
+  // the database and every later session finding the move already done.
+  const { repoRoot } = findRepoConfig(cwd);
+  if (repoRoot) migrateLegacyRepoConfig(repoRoot, mainRepoRoot(repoRoot));
+
   const db = openExisting();
   if (!db) return 0;
 
-  const cwd = cwdOf(input);
   const sid = sessionId(input, db);
 
   // Stamp the session so MCP tools resolve the same id the hooks will use later
@@ -46,15 +62,17 @@ await run(async (input) => {
   if (sid) setCurrentSession(db, sid, cwd);
 
   const resolved = config(cwd);
-  const { mode, difficulty, quiet } = resolved.config;
+  const { quiz, difficulty, quiet } = resolved.config;
 
   // The memory half runs before every learning gate below, because it is not
-  // governed by them (PRD CFG-01): `mode: off` means no quizzes, not no
-  // history. Three jobs, all silent on failure -- replay whatever the spool
+  // governed by them (PRD CFG-01): `quiz.enabled: false` means no quizzes, not
+  // no history. Three jobs, all silent on failure -- replay whatever the spool
   // holds, mark the seam, and drain any batch the last session left queued.
   const identity = identityOf(input, cwd, sid);
   const memoryContext: string[] = [];
-  if (resolved.config.memory.enabled) {
+  const dormant: string[] = [];
+  const memoryEnabled = resolved.config.memory.enabled;
+  if (memoryEnabled) {
     replaySpool(db);
     // Drain first, then mark the seam. The other order batches the lifecycle
     // event on its own and summarises "session started" into an observation of
@@ -69,10 +87,26 @@ await run(async (input) => {
     if (block) memoryContext.push(block);
   }
 
-  if (mode === 'off') {
+  if (!quiz.enabled) {
     // Recall still has a job here: the developer turned quizzing off, not
     // project memory. Nothing else this hook says applies.
-    if (memoryContext.length) process.stdout.write(`${memoryContext.join('\n')}\n`);
+    //
+    // The line below it is the whole reason the `mode` dial was retired. With
+    // quizzing off and nothing yet recalled -- a first session in a repo, which
+    // is exactly when somebody is deciding whether this tool works -- this hook
+    // used to print nothing whatsoever, and a plugin that greets you with
+    // silence is a plugin you conclude is broken. It was not: memory was
+    // recording the entire time, with no way to tell from the outside. One line
+    // costs nothing and answers the question before it is asked.
+    if (!quiet) {
+      dormant.push(
+        memoryEnabled
+          ? '[Eklavya] Questions are off for this project (`quiz.enabled: false`). Memory is still recording and recalling — `memory.enabled: false` is the dial for that.'
+          : '[Eklavya] Questions and memory are both off for this project. Nothing is being recorded.',
+      );
+    }
+    dormant.push(...memoryContext);
+    if (dormant.length) process.stdout.write(`${dormant.join('\n')}\n`);
     return 0;
   }
   // Fires on resume and after a compaction too, with the same session id, so a
@@ -85,9 +119,9 @@ await run(async (input) => {
   // which also dropped the directive below -- so a developer who turned the
   // greeting off silently turned the whole product off: nothing was logged, so
   // the Stop hook found no candidates, so no question was ever asked, while
-  // `get_config` went on reporting `mode: ambient`. The manual has always said
+  // `get_config` went on reporting quizzing as enabled. The manual has always said
   // this key "suppresses the session-start banner and the statusline output",
-  // and `mode: off` is the documented way to stop Eklavya doing anything.
+  // and `quiz.enabled: false` is the documented way to stop the questions.
   if (!quiet) {
     // The runway, and the one place it is visible: without it week one and week
     // ten look identical from the outside, and a learner on `easy` reads a
@@ -108,13 +142,13 @@ await run(async (input) => {
   }
 
   // Said even when `quiet` is set, and said before the directive, because it is
-  // not a greeting: a lead who pinned enforced mode has been promised commits
+  // not a greeting: a lead who pinned `quiz.enforced` has been promised commits
   // are held, and in Cowork nothing holds them. The gate matches `git commit` in
   // a Bash call, and Cowork sessions do not commit. Better to say so once per
   // session than to let someone believe an unenforceable setting is enforcing.
-  if (mode === 'enforced' && isCowork()) {
+  if (quiz.enforced && isCowork()) {
     out.push(
-      '[Eklavya] Mode is enforced, but this is a Cowork session: the commit gate holds `git commit`, ' +
+      '[Eklavya] Quizzing is enforced, but this is a Cowork session: the commit gate holds `git commit`, ' +
         'and there are no commits here. Questions still come and the gate still records — nothing is blocked.',
     );
   }
@@ -145,7 +179,7 @@ interface BannerParts {
  *
  * Three lines (PRD UX-01): a heading, what reuse saved, and where this project
  * stands. Deliberately short. It used to print the learner profile, the weakest
- * concepts, the due count and all four dials — a scoreboard at the moment
+ * concepts, the due count and every dial — a scoreboard at the moment
  * somebody sat down to work, none of which they had asked for. The dials live
  * in the status bar (`eklavya statusline`), the profile and the weak list live
  * in the dashboard, and both are there when they are wanted.
@@ -169,7 +203,7 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
     // A warning, not a scoreboard: a repo silently overriding a personal
     // setting is the one thing worth interrupting for.
     out.push(
-      `This repo overrides your global setting for: ${parts.overrides.join(' ')} (.eklavya.json wins).`,
+      `Your settings for this project override your global ones for: ${parts.overrides.join(' ')}.`,
     );
   }
 }

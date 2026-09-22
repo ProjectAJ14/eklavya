@@ -8,15 +8,23 @@
  * mid-session. A pack is the same file shape, loaded from two places Eklavya
  * does not own:
  *
- *   ~/.eklavya/packs/*.json        the learner's own, and anything installed
- *   <repo>/.eklavya/packs/*.json   a team's, versioned with the codebase
+ *   ~/.eklavya/packs/*.json                      yours, everywhere
+ *   ~/.eklavya/projects/<slug>/packs/*.json      yours, on one codebase
+ *   <repo>/.eklavya/packs/*.json                 read-only, the pre-move home
  *
- * The second is the interesting one. A repository that ships its own concepts
- * and prerequisites is describing itself to a new joiner, which is onboarding
- * rather than quizzing.
+ * The second is the interesting one. A pack that describes a codebase's own
+ * concepts and prerequisites is onboarding rather than quizzing.
+ *
+ * It used to be the third, committed alongside the code, and that was the last
+ * thing Eklavya wrote into a repository. The argument for it was real — unlike
+ * settings, a concept graph genuinely is the same for everyone — but it lost to
+ * a simpler rule: Eklavya creates no files in your project. The old directory is
+ * still **read**, so a repository that already ships a pack keeps working, and
+ * nothing deletes it: a committed pack is authored content somebody reviewed,
+ * which is not ours to relocate. Only the writers moved.
  *
  * Packs are applied AFTER the seed and merged over it, so a pack may retier or
- * rename a shipped concept, and a repo pack wins over a global one. Nothing
+ * rename a shipped concept, and a project pack wins over a global one. Nothing
  * here touches `mastery`: the seed's rule is the pack's rule, and a learner's
  * history survives any pack being installed, edited or deleted.
  */
@@ -24,8 +32,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { Database } from 'better-sqlite3';
-import { eklavyaHome } from './paths.js';
-import { findRepoConfig } from './config.js';
+import { eklavyaHome, projectPacksDir } from './paths.js';
+import { findRepoConfig, mainRepoRoot } from './config.js';
 import { applySeedGraph, validateSeedGraph, SEED_VERSION, type SeedGraph } from './seed.js';
 
 /** A pack is a seed graph that says who it is. */
@@ -34,9 +42,16 @@ export interface Pack extends SeedGraph {
   version?: string;
 }
 
+/**
+ * `repo` is the pre-move in-repo directory, still read and never written. It
+ * keeps its name rather than being folded into `project` so `eklavya doctor`
+ * can say which packs are still sitting in a checkout.
+ */
+export type PackScope = 'global' | 'repo' | 'project';
+
 export interface LoadedPack {
   file: string;
-  scope: 'global' | 'repo';
+  scope: PackScope;
   pack?: Pack;
   error?: string;
 }
@@ -54,16 +69,23 @@ export function packFingerprintKey(dirs: string[]): string {
 }
 
 /**
- * Global first, repo second, because later wins. `packs/` under both, so the
- * rule is one sentence: packs live in a `packs/` directory next to Eklavya's
- * state, whether that state is yours or the repository's.
+ * Global first, then the project's, because later wins.
+ *
+ * The legacy in-repo directory sits between them: after global, so a pack a
+ * repository already ships still overrides your own, and before the project
+ * directory, so moving a pack out of the checkout takes effect rather than
+ * being silently outranked by the copy left behind.
  */
-export function packDirs(cwd: string = process.cwd()): Array<{ dir: string; scope: 'global' | 'repo' }> {
-  const dirs: Array<{ dir: string; scope: 'global' | 'repo' }> = [
+export function packDirs(cwd: string = process.cwd()): Array<{ dir: string; scope: PackScope }> {
+  const dirs: Array<{ dir: string; scope: PackScope }> = [
     { dir: path.join(eklavyaHome(), 'packs'), scope: 'global' },
   ];
   const { repoRoot } = findRepoConfig(cwd);
-  if (repoRoot) dirs.push({ dir: path.join(repoRoot, '.eklavya', 'packs'), scope: 'repo' });
+  if (repoRoot) {
+    const project = mainRepoRoot(repoRoot);
+    dirs.push({ dir: path.join(repoRoot, '.eklavya', 'packs'), scope: 'repo' });
+    dirs.push({ dir: projectPacksDir(project), scope: 'project' });
+  }
   return dirs;
 }
 

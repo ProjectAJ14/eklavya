@@ -37,21 +37,23 @@ else.
 | SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), replay the spool, summarise the last session's batch, recall this project's memory, print the profile banner and the standing log directive |
 | UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-stamp this checkout's session pointer, then re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
 | SubagentStart | — | 10s | `subagent-start` | give a delegated agent the log directive the parent's SessionStart never reached it with |
-| PreToolUse | `Bash` | 10s | `pre-tool-gate` | in `enforced` mode only, deny a `git commit` whose session gate has not passed |
+| PreToolUse | `Bash` | 10s | `pre-tool-gate` | with `quiz.enforced` only, deny a `git commit` whose session gate has not passed |
 | PostToolUse | — | 10s | `capture-tool` | record the tool use as memory evidence |
 | PostToolUse | `mcp__.*log_session_concepts` | 10s | `checkpoint-quiz` | one mid-task question, `interleaved` cadence only |
 | Stop | — | 15s | `stop-quiz-check` | block the turn and demand a quiz |
 
-## Memory capture is not governed by `mode`
+## Memory capture is not governed by `quiz`
 
 `capture-tool` has no matcher, so it runs after **every** tool call — it is the
 hook that fires most often in a session, and it does the least: resolve
 identity, normalise one event, one insert, exit. It never quizzes, summarises
 or calls a provider.
 
-Four hooks now carry memory work, and all four do it **before** their `mode`
+Four hooks now carry memory work, and all four do it **before** their `quiz`
 check, because `memory.enabled` is a separate decision from the learning dials
-(PRD CFG-01): `mode: off` means no quizzes, not no project history.
+(PRD CFG-01): `quiz.enabled: false` means no quizzes, not no project history.
+That separation is why the `mode` dial was retired — it was always true and the
+word `off` denied it, so `session-start` now says on screen which half stopped.
 `session-start` replays the spool and recalls; `prompt-submit-nudge` captures
 the prompt; `capture-tool` captures the tool use; `stop-quiz-check` closes the
 batch at the seam. `mcp/src/hooks/memory-lib.ts` holds the shared helpers, and
@@ -193,20 +195,21 @@ reads rather than output anyone sees.
 
 That was a bug for a while, and a bad one: `session-start` returned before
 pushing the directive, so a developer who turned the greeting off logged
-nothing, was never quizzed, and saw `mode: ambient` in `get_config` the whole
-time. Two tests encoded it as intended behaviour. `mode: off` is the off switch
-— along with its session-scoped twin below, which is the same switch with a
-shorter life.
+nothing, was never quizzed, and saw quizzing reported as enabled in
+`get_config` the whole time. Two tests encoded it as intended behaviour.
+`quiz.enabled: false` is the off switch — along with its session-scoped twin
+below, which is the same switch with a shorter life.
 
-## The Stop hook blocks in `ambient` too
+## The Stop hook blocks when unenforced too
 
-Commonly got wrong. `ambient` is not "never interrupts" — `stop-quiz-check.ts`
-returns 2 in ambient as readily as in enforced. `enforced` changes three things:
-the `min_minutes_between_quizzes` cooldown is skipped (a cooldown could make a
-commit gate unpassable — decision G5); the one-question cap under `interleaved`
-is lifted, so the sweep asks for the whole remaining budget; and `pre-tool-gate`
-plus `cli/eklavya-gate` start holding commits. Only `mode === 'off'` silences
-everything.
+Commonly got wrong. Unenforced is not "never interrupts" — `stop-quiz-check.ts`
+returns 2 without the gate as readily as with it. `quiz.enforced` changes three
+things: the `min_minutes_between_quizzes` cooldown is skipped (a cooldown could
+make a commit gate unpassable — decision G5); the one-question cap under
+`interleaved` is lifted, so the sweep asks for the whole remaining budget; and
+`pre-tool-gate` plus `cli/eklavya-gate` start holding commits. Only
+`quiz.enabled: false` silences the questions — and it silences only those, not
+the memory half.
 
 ## The per-session off switch
 
@@ -220,7 +223,7 @@ config file has quietly turned the product off for good.
 
 Two rules it is easy to get wrong:
 
-- It silences, it does not exempt. `cli/eklavya-gate` reads `.eklavya.json` and
+- It silences, it does not exempt. `cli/eklavya-gate` reads the project config and
   never sees a session id, so an enforced repo still holds the commit. Making
   the gate honour it would turn a per-session convenience into a gate bypass.
   `pre-tool-gate` reads `isSessionOff` for one reason only: its refusal tells

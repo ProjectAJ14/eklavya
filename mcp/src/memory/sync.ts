@@ -122,7 +122,7 @@ const DEVICE_ID_KEY = 'sync_device_id';
  * This install's identity, generated once.
  *
  * Kept in `meta` rather than in the config file, and the difference matters.
- * Config travels: `.eklavya.json` is committed, and `~/.eklavya/config.json` is
+ * Config travels: `~/.eklavya/config.json` is
  * what a dotfile manager copies to the second machine. Two devices sharing an id
  * would interleave one revision stream and each would read the other's writes as
  * its own already-applied history -- a silent, unrecoverable merge. `meta` lives

@@ -102,6 +102,30 @@ function configure(patch: Record<string, unknown>): void {
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(patch));
 }
 
+/**
+ * Make `cwd` a checkout. Project settings are keyed by one, so only the tests
+ * that need project scope opt in -- a blanket `.git` would also re-key the
+ * session pointer, which `sessionKeyFor` scopes per checkout on purpose.
+ */
+function checkout(): void {
+  fs.mkdirSync(path.join(cwd, '.git'), { recursive: true });
+}
+
+const projectConfigDir = () => path.join(home, 'projects', cwd.replace(/[/\\:]/g, '-'));
+
+/**
+ * Settings for the checkout the hooks run in. They live **outside** it, under
+ * `<home>/projects/<slug>/`, which is why this writes nothing into `cwd`.
+ */
+function configureProject(patch: Record<string, unknown>): void {
+  checkout();
+  fs.mkdirSync(projectConfigDir(), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectConfigDir(), 'config.json'),
+    JSON.stringify({ ...patch, project: cwd }),
+  );
+}
+
 /** Log concepts for the session the way the MCP tool would. */
 function logConcepts(slugs: string[], session = SESSION): void {
   for (const slug of slugs) {
@@ -145,7 +169,7 @@ function ageClocks(minutes = 60, session = SESSION): void {
 
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-home-'));
-  cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-cwd-'));
+  cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-cwd-')));
   dbFile = tempDbPath('hooks');
   db = openDb(dbFile);
   configure({ min_minutes_between_quizzes: 0 });
@@ -278,21 +302,83 @@ describe('SessionStart output', () => {
     expect(db.prepare("SELECT value FROM meta WHERE key='current_session'").get()).toBeTruthy();
   });
 
-  it('says nothing at all only when the mode is off', () => {
-    // The one setting that means "do nothing". `quiet` is not a second one.
-    configure({ mode: 'off', quiet: false });
+  it('drops the banner and the directive when questions are off', () => {
+    configure({ quiz: { enabled: false, enforced: false }, quiet: false });
+    const out = sessionStart().stdout;
+    expect(out).not.toMatch(/Standing instruction/);
+    expect(out).not.toMatch(/This project: Learning/);
+  });
+
+  // The regression for the bug that retired the `mode` dial. Questions off and
+  // nothing recalled yet -- a first session in a repo -- used to print nothing
+  // whatsoever, so the only available reading was that the plugin was broken.
+  // Memory had been recording the whole time.
+  it('still says memory is running when questions are off', () => {
+    configure({ quiz: { enabled: false, enforced: false } });
+    const out = sessionStart().stdout;
+    expect(out).toMatch(/Questions are off/);
+    expect(out).toMatch(/Memory is still recording/);
+  });
+
+  it('says so plainly when both halves are off, and only then', () => {
+    configure({ quiz: { enabled: false, enforced: false }, memory: { enabled: false } });
+    const out = sessionStart().stdout;
+    expect(out).toMatch(/Questions and memory are both off/);
+    expect(out).not.toMatch(/Memory is still recording/);
+  });
+
+  it('honours quiet for that line too — it is a banner, not a warning', () => {
+    configure({ quiz: { enabled: false, enforced: false }, quiet: true });
     expect(sessionStart().stdout).toBe('');
   });
 
-  it('stays silent when the mode is off', () => {
-    configure({ mode: 'off' });
-    expect(sessionStart().stdout).toBe('');
+  it('lets a project config override the global quiz setting', () => {
+    configure({ quiz: { enabled: true, enforced: false } });
+    configureProject({ quiz: { enabled: false } });
+    expect(sessionStart().stdout).not.toMatch(/Standing instruction/);
   });
 
-  it('lets a repo config override the global mode', () => {
-    configure({ mode: 'ambient' });
-    fs.writeFileSync(path.join(cwd, '.eklavya.json'), JSON.stringify({ mode: 'off' }));
-    expect(sessionStart().stdout).toBe('');
+  // The retired spelling, still arriving from a config written years ago.
+  it('reads a project `mode: off` as the same thing', () => {
+    configure({ quiz: { enabled: true, enforced: false } });
+    configureProject({ mode: 'off' });
+    expect(sessionStart().stdout).not.toMatch(/Standing instruction/);
+  });
+
+  // The automatic, silent move. A settings file in a checkout was a mistake to
+  // undo, not a choice to confirm, so nothing is printed and nothing is asked.
+  it('lifts a leftover .eklavya.json out of the checkout, saying nothing', () => {
+    configure({ quiz: { enabled: true, enforced: false } });
+    checkout();
+    const legacy = path.join(cwd, '.eklavya.json');
+    fs.writeFileSync(legacy, JSON.stringify({ quiz: { enabled: false } }));
+
+    const out = sessionStart().stdout;
+    expect(fs.existsSync(legacy)).toBe(false);
+    expect(out).not.toMatch(/\.eklavya\.json|migrat/i);
+
+    // And the settings it held are in force from the very session that moved it.
+    const moved = path.join(projectConfigDir(), 'config.json');
+    expect(JSON.parse(fs.readFileSync(moved, 'utf8'))).toMatchObject({
+      quiz: { enabled: false },
+      project: cwd,
+    });
+    expect(out).not.toMatch(/Standing instruction/);
+  });
+
+  it('keeps the newer project config when both exist, and still removes the old file', () => {
+    configureProject({ focus: 'concept' });
+    const legacy = path.join(cwd, '.eklavya.json');
+    fs.writeFileSync(legacy, JSON.stringify({ focus: 'project', cadence: 'end' }));
+
+    sessionStart();
+    expect(fs.existsSync(legacy)).toBe(false);
+    const moved = path.join(projectConfigDir(), 'config.json');
+    const merged = JSON.parse(fs.readFileSync(moved, 'utf8')) as Record<string, unknown>;
+    // The file that was already outside the checkout wins...
+    expect(merged.focus).toBe('concept');
+    // ...and nothing the old one held is dropped on the floor.
+    expect(merged.cadence).toBe('end');
   });
 });
 
@@ -476,11 +562,11 @@ describe('Stop hook — the loop guard (P0)', () => {
     expect(stop().spoke).toBe(false);
   });
 
-  it('leaves enforced mode on the original rule, clock and all', () => {
+  it('leaves enforced quizzing on the original rule, clock and all', () => {
     // Enforced is exempt from the pacing clock (decision G5), so the clock cannot
     // be its guard -- it keeps `logged > last_logged` or it would block on every
     // single Stop until the cap.
-    configure({ mode: 'enforced', cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, cadence: 'interleaved', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf']);
 
     expect(stop().spoke).toBe(true);
@@ -505,14 +591,14 @@ describe('Stop hook — when not to fire', () => {
     expect(stop().spoke).toBe(false);
   });
 
-  it('passes when the mode is off', () => {
-    configure({ mode: 'off' });
+  it('passes when questions are off', () => {
+    configure({ quiz: { enabled: false, enforced: false } });
     logConcepts(['csrf']);
     expect(stop().spoke).toBe(false);
   });
 
-  it('respects the ambient cooldown', () => {
-    configure({ mode: 'ambient', cadence: 'end', min_minutes_between_quizzes: 60 });
+  it('respects the unenforced cooldown', () => {
+    configure({ quiz: { enabled: true, enforced: false }, cadence: 'end', min_minutes_between_quizzes: 60 });
     logConcepts(['csrf']);
     expect(stop().spoke).toBe(true);
 
@@ -611,7 +697,7 @@ describe('Stop hook — what it tells Claude', () => {
 
   it('sweeps the whole remaining budget in enforced mode, cadence notwithstanding', () => {
     // Decision G5 again: the gate has to stay passable inside the session.
-    configure({ mode: 'enforced', cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, cadence: 'interleaved', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     expect(conceptsLine(stop().context).match(/;/g) ?? []).toHaveLength(2);
   });
@@ -632,12 +718,12 @@ describe('Stop hook — what it tells Claude', () => {
     expect(line.match(/;/g) ?? []).toHaveLength(0);
   });
 
-  it('says the gate needs it in enforced mode, and offers the skip in ambient', () => {
-    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+  it('says the gate needs it when enforced, and offers the skip when not', () => {
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     logConcepts(['csrf']);
-    expect(stop().context).toMatch(/enforced mode/);
+    expect(stop().context).toMatch(/Quizzing is enforced/);
 
-    configure({ mode: 'ambient', min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
+    configure({ quiz: { enabled: true, enforced: false }, min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['jwt-structure']);
     ageClocks();
     expect(stop().context).toMatch(/say skip/);
@@ -652,7 +738,7 @@ describe('Stop hook — what it tells Claude', () => {
  * Claude Desktop stamps, because a unit test of `attributionRule` proves the
  * sentence is composed and not that either hook reached for it.
  */
-describe('Both hooks sign the question for the host they are running on', () => {
+describe('Signing the question for the host it is running on', () => {
   const desktop = { CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' };
   const terminal = { CLAUDE_CODE_ENTRYPOINT: 'cli' };
 
@@ -674,16 +760,24 @@ describe('Both hooks sign the question for the host they are running on', () => 
       ),
     );
 
-  it('asks the Stop sweep for a stem prefix on Desktop and for the chip alone in a terminal', () => {
-    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
-    logConcepts(['csrf']);
-    expect(stopOn(desktop).context).toMatch(/\[Eklavya\]/);
-
-    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
-    logConcepts(['jwt-structure']);
-    const plain = stopOn(terminal).context;
-    expect(plain).toMatch(/Header "Eklavya"/);
-    expect(plain).not.toMatch(/\[Eklavya\]/);
+  // The Stop sweep is the one path that does NOT spell the rule out, and that is
+  // deliberate: its `additionalContext` is printed to the developer verbatim, so
+  // it points at `ask_attribution` -- which `get_session_quiz_plan` returns, host
+  // branch and all -- instead of reciting it on their screen. Same rule, one
+  // copy, and the copy lives where the model reads it rather than where the
+  // learner does.
+  it('sends the Stop sweep to the plan for the attribution rule, on either host', () => {
+    for (const [env, slug] of [
+      [desktop, 'csrf'],
+      [terminal, 'jwt-structure'],
+    ] as const) {
+      configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
+      logConcepts([slug]);
+      const ctx = stopOn(env).context;
+      expect(ctx).toMatch(/ask_attribution/);
+      expect(ctx).not.toMatch(/Header "Eklavya"/);
+      expect(ctx).not.toMatch(/\[Eklavya\]/);
+    }
   });
 
   it('does the same at the mid-work checkpoint', () => {
@@ -801,7 +895,7 @@ describe('PostToolUse checkpoint — the burst guard', () => {
 
   it('lets a repo config turn checkpoints off for one project', () => {
     configure({ min_minutes_between_checkpoints: 0 });
-    fs.writeFileSync(path.join(cwd, '.eklavya.json'), JSON.stringify({ cadence: 'end' }));
+    configureProject({ cadence: 'end' });
     logConcepts(['csrf']);
     expect(checkpoint().stdout).toBe('');
   });
@@ -902,10 +996,10 @@ describe('SessionStart says which level the project is on', () => {
     expect(sessionStart().stdout).toContain('Level medium (0/100)');
   });
 
-  it('names difficulty when a repo pins it over the learner’s own setting', () => {
+  it('names difficulty when this project pins it over the learner’s own setting', () => {
     configure({ difficulty: 'auto' });
-    fs.writeFileSync(path.join(cwd, '.eklavya.json'), JSON.stringify({ difficulty: 'easy' }));
-    expect(sessionStart().stdout).toContain('overrides your global setting for: difficulty');
+    configureProject({ difficulty: 'easy' });
+    expect(sessionStart().stdout).toContain('override your global ones for: difficulty');
   });
 });
 
@@ -1203,7 +1297,7 @@ describe('the per-session off switch', () => {
 
   it('does not block the Stop hook, even in enforced mode', () => {
     // Enforced mode is the interesting case: this silences the interruption,
-    // and the commit gate — which reads .eklavya.json, not this — still holds.
+    // and the commit gate — which reads the project config, not this — still holds.
     configure({ mode: 'enforced' });
     logConcepts(['csrf']);
     expect(stop().spoke).toBe(false);

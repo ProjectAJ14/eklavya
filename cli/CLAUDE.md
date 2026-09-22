@@ -20,10 +20,22 @@ between the `# >>> eklavya gate >>>` markers, and if a `pre-commit` already
 existed it moves it to `pre-commit.local` and chains it first. `--uninstall`
 restores it.
 
-Then the script itself only acts on a repo whose `.eklavya.json` sets
-`"mode": "enforced"`. Note that it reads **only** the repo file — not
-`~/.eklavya/config.json` — so a globally enforced mode does not gate a bare
-terminal. Any doc claiming a terminal commit is gated has to attach the installer
+Then the script itself only acts on a project whose config sets `quiz.enforced`
+(or the retired `"mode": "enforced"`, which it still reads). That config is at
+`~/.eklavya/projects/<slug>/config.json` — the script rebuilds the slug itself,
+in shell, from `git rev-parse --show-toplevel` folded to the main checkout via
+`--git-common-dir`, because a worktree shares its parent's settings. Note that it
+reads enforcement from **only** the project file — not `~/.eklavya/config.json` —
+so a globally set gate does not hold a bare terminal. The global file is read for
+one thing: a `quiz.enabled: false` (or `mode: off`) there, not overridden by the
+project, releases the gate, exactly as `coerce()` does — otherwise a terminal
+commit is held by a gate no quiz will ever run to clear. The slug path is built
+with `pwd -P` so a checkout reached through a symlink still finds its file.
+
+It reads `<repo>/.eklavya.json` as a fallback and does **not** migrate it. The
+node half moves that file out automatically; a git pre-commit hook is the wrong
+place to start rewriting somebody's working tree, so it reads the old location
+and lets the next ordinary session do the move. Any doc claiming a terminal commit is gated has to attach the installer
 step and the repo config; `web/src/content/docs/docs/commit-gate.mdx` and
 `skills/setup/SKILL.md` are where that lives.
 
@@ -33,10 +45,12 @@ A learning tool that bricks commits gets uninstalled, and an unpassable gate
 teaches nothing. Every one of these exits 0:
 
 - not inside a git repo, or `git rev-parse` fails;
-- no `.eklavya.json` in the repo root;
+- no config for this project, at either the current or the legacy location;
 - `jq` not on PATH (warns on stderr) — **or** `sqlite3` not on PATH (warns too).
   It needs both, not just `jq`;
-- `mode` is anything but `enforced`;
+- the config does not ask for enforcement — `quiz.enforced` false or absent with
+  no `mode: enforced` behind it, or `quiz.enabled` false — in the project file,
+  or in the global one when the project does not say;
 - the database file does not exist;
 - the `sqlite3` query errors, or returns no gate row for this repo.
 
@@ -51,8 +65,18 @@ SQL and duplicates things it cannot import. Keep it in step with:
 - the `gates` table shape — it selects `passed, required, answered` and picks the
   repo's most recent row by `updated_at`. `syncGate` in `mcp/src/store.ts` is the
   only writer; a renamed or added column lands here in the same commit.
-- `DEFAULT_CONFIG.mode` in `mcp/src/config.ts` — the script hardcodes `"ambient"`
-  as jq's fallback for a `.eklavya.json` with no `mode`.
+- `DEFAULT_CONFIG.quiz` in `mcp/src/config.ts` — the script defaults a config
+  with neither `quiz` nor `mode` to unenforced.
+- `projectSlug` in `mcp/src/paths.ts` — the script rebuilds it with
+  `tr '/\\:' '-'`, and `test/gate.test.ts` runs both parsers over one set of
+  configs so the two cannot drift apart silently.
+- the `mode` → `quiz` alias in `normalizeLegacyKeys`, and the rule that
+  `quiz.enabled: false` forces `enforced` off. Both are duplicated here in jq,
+  spelled out with `if`/`elif` rather than `//`: jq's `//` is an alternative
+  operator, so `.quiz.enforced // (.mode == "enforced")` reads an explicit
+  `false` as unset and falls back to a stale `mode` in the same file — a gate
+  that keeps holding commits after somebody switched it off.
+  `test/gate.test.ts` runs both parsers over the same five configs.
 
 The pass/fail arithmetic itself (`PASSING_GRADE`, `pass_threshold`,
 `ceil(required * pass_threshold)`) is **not** duplicated here — the script trusts

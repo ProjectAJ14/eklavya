@@ -3,7 +3,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { findRepoConfig, mainRepoRoot } from '../src/config.js';
+import { findRepoConfig, loadConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../src/config.js';
+import { projectConfigPath } from '../src/paths.js';
 import { GLOBAL_PROJECT, mergeWorktreeProjects, projectKey } from '../src/store.js';
 import { openDb } from '../src/db.js';
 import { dashboardState } from '../src/dashboard.js';
@@ -110,5 +111,49 @@ describe('worktrees are the same project', () => {
     expect(logged).toHaveLength(1);
     expect(logged[0]!.repo).toBe(main);
     db.close();
+  });
+});
+
+/**
+ * `.eklavya.json` was a *committed* file, so a linked worktree has its own
+ * checked-out copy of it. Both roots matter, and they are not the same one:
+ * the file to delete is in the checkout you are standing in, while the settings
+ * belong to the main checkout's key, because a worktree is a branch of the same
+ * codebase rather than a project to configure again.
+ *
+ * Reading from the main root for both left every worktree's copy sitting in its
+ * working tree for ever -- the exact file the move exists to remove.
+ */
+describe('a worktree with a leftover .eklavya.json', () => {
+  it('has its own copy removed, and its settings keyed to the main checkout', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-wt-home-'));
+    const prior = process.env.EKLAVYA_HOME;
+    process.env.EKLAVYA_HOME = home;
+    try {
+      const { main, worktree } = repoWithWorktree();
+      // A committed file is checked out into both.
+      for (const dir of [main, worktree]) {
+        fs.writeFileSync(path.join(dir, '.eklavya.json'), JSON.stringify({ focus: 'project' }));
+      }
+
+      migrateLegacyRepoConfig(worktree, mainRepoRoot(worktree));
+
+      // The copy in the worktree is gone...
+      expect(fs.existsSync(path.join(worktree, '.eklavya.json'))).toBe(false);
+      // ...and the settings landed under the MAIN checkout's key, not the
+      // worktree's, so a branch does not start over on a fresh config.
+      expect(fs.existsSync(projectConfigPath(main))).toBe(true);
+      expect(fs.existsSync(projectConfigPath(worktree))).toBe(false);
+      expect(loadConfig(worktree).config.focus).toBe('project');
+
+      // Visiting the main checkout clears its copy too.
+      migrateLegacyRepoConfig(main, mainRepoRoot(main));
+      expect(fs.existsSync(path.join(main, '.eklavya.json'))).toBe(false);
+      expect(loadConfig(main).config.focus).toBe('project');
+    } finally {
+      if (prior === undefined) delete process.env.EKLAVYA_HOME;
+      else process.env.EKLAVYA_HOME = prior;
+      fs.rmSync(home, { recursive: true, force: true });
+    }
   });
 });

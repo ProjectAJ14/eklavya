@@ -2022,7 +2022,17 @@ fetch('/api/state').then((r) => r.json()).then((s) => {
       ` Question histories show the most recent ${s.attempts_shown} of ${s.attempts_total} answers.`;
   }
   const c = s.config;
-  $('dials').innerHTML = `<span class="mono">${esc(c.mode)} · ${esc(c.focus)} · ${esc(c.cadence)} · ${esc(c.difficulty)}</span>`;
+  // Same rule as the status bar in `statusline.ts`: `enforced` is a word worth
+  // a slot, unenforced quizzing is not -- it was the default on three bars in
+  // four and said nothing. Questions off is its own state and says so, because
+  // an empty-looking dial line is what sent people looking for a broken plugin.
+  const dials = [
+    c.quiz_enabled ? (c.quiz_enforced ? 'enforced' : null) : 'questions off',
+    c.focus,
+    c.cadence,
+    c.difficulty,
+  ].filter(Boolean);
+  $('dials').innerHTML = `<span class="mono">${dials.map(esc).join(' · ')}</span>`;
 
   const sel = $('proj');
   for (const p of s.projects) {

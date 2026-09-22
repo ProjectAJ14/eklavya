@@ -29,7 +29,7 @@ Report it in three lines or fewer:
 - **The runway** — `passed`/`needed` passing answers, plus whichever other condition is still short (accuracy, or distinct concepts). Say the number; a progress bar nobody can total is not progress.
 - **What is next** — the band above, and what changes about the questions when they reach it. If they are on `hard`, say that this is the top and the tier ladder keeps working inside it.
 
-If `pinned` is set, say who pinned it (global config or this repo's `.eklavya.json`) and that nothing will promote while it stands. Do not report a runway toward a level a pin makes unreachable.
+If `pinned` is set, say where it was pinned (their global config or their settings for this project) and that nothing will promote while it stands. Do not report a runway toward a level a pin makes unreachable.
 
 ## With an argument
 
@@ -41,11 +41,11 @@ If `pinned` is set, say who pinned it (global config or this repo's `.eklavya.js
 Scope, and ask when it is ambiguous:
 
 - **global** (default) — their own setting on every project. `hard` here is a senior saying they do not want the runway.
-- **repo** — `.eklavya.json` at the root, and it beats global for **everyone** working in that project. `easy` here is an onboarding codebase that stays gentle whoever opens it.
+- **project** — `~/.eklavya/projects/<checkout>/config.json`, and it beats global whenever *they* work in that codebase. `easy` here is a codebase they are new to and want kept gentle. It is in their home directory, not the repository, so it reaches nobody else.
 
 Two things to say plainly before writing:
 
-- Pinning at repo scope overrides every contributor's personal setting in that project.
+- Pinning at project scope overrides their own global setting in that codebase, and nobody else's.
 - Pinning `hard` on a codebase someone has just met is the failure levels exist to prevent. If they are pinning up because the questions feel trivial, check the level first — they may simply be near a promotion.
 
 ## Confirm

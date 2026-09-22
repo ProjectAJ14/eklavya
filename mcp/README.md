@@ -59,7 +59,7 @@ eklavya install                     # install into Claude Code, runtime included
 eklavya uninstall [--purge]         # remove it; --purge also deletes your history
 eklavya doctor                      # check the install
 eklavya config get
-eklavya config set mode enforced [--repo]     # how hard it pushes
+eklavya config set quiz.enforced true [--project]  # gate commits on one codebase
 eklavya config set focus concept              # what it teaches
 eklavya config set focus learn --topic caching
 eklavya export-rules --out rules.md              # the tutor pedagogy as Markdown

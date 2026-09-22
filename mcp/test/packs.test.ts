@@ -19,10 +19,19 @@ let db: DB;
 let home = '';
 let repo = '';
 
-/** A pack on disk, in whichever scope. `packs/` under both, by design. */
-function writePack(scope: 'global' | 'repo', name: string, body: unknown): string {
+/**
+ * A pack on disk. `packs/` under all three, by design.
+ *
+ * `repo` is the pre-move in-repo directory: still read, never written by
+ * Eklavya, and here only so the tests can prove it still loads.
+ */
+function writePack(scope: 'global' | 'repo' | 'project', name: string, body: unknown): string {
   const dir =
-    scope === 'global' ? path.join(home, 'packs') : path.join(repo, '.eklavya', 'packs');
+    scope === 'global'
+      ? path.join(home, 'packs')
+      : scope === 'repo'
+        ? path.join(repo, '.eklavya', 'packs')
+        : path.join(home, 'projects', fs.realpathSync(repo).replace(/[/\\:]/g, '-'), 'packs');
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${name}.json`);
   fs.writeFileSync(file, typeof body === 'string' ? body : JSON.stringify(body));
@@ -64,19 +73,47 @@ afterEach(() => {
 });
 
 describe('where packs come from', () => {
-  it('reads the global directory and the repository, global first', () => {
-    // Order is the merge order: later wins, so the repo's pack is applied last.
+  it('reads global, then the checkout, then the project, in merge order', () => {
+    // Order is the merge order: later wins. The in-repo directory sits in the
+    // middle -- after global so a pack a repository already ships still
+    // overrides yours, and before the project directory so moving a pack out of
+    // the checkout takes effect instead of being outranked by the copy left there.
     const dirs = packDirs(repo);
-    expect(dirs.map((d) => d.scope)).toEqual(['global', 'repo']);
+    expect(dirs.map((d) => d.scope)).toEqual(['global', 'repo', 'project']);
     expect(dirs[0].dir).toBe(path.join(home, 'packs'));
     // findRepoConfig resolves symlinks, and /var is one on macOS.
-    expect(dirs[1].dir).toBe(path.join(fs.realpathSync(repo), '.eklavya', 'packs'));
+    const real = fs.realpathSync(repo);
+    expect(dirs[1].dir).toBe(path.join(real, '.eklavya', 'packs'));
+    // The one Eklavya writes to: outside the checkout, keyed by it.
+    expect(dirs[2].dir).toBe(path.join(home, 'projects', real.replace(/[/\\:]/g, '-'), 'packs'));
+    expect(dirs[2].dir.startsWith(home)).toBe(true);
   });
 
-  it('has no repo scope outside a repository', () => {
+  it('has no project scope outside a repository', () => {
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-bare-'));
     expect(packDirs(outside).map((d) => d.scope)).toEqual(['global']);
     fs.rmSync(outside, { recursive: true, force: true });
+  });
+
+  it('still loads a pack a repository already ships, and leaves it there', () => {
+    const real = fs.realpathSync(repo);
+    const inRepo = path.join(real, '.eklavya', 'packs');
+    fs.mkdirSync(inRepo, { recursive: true });
+    const file = path.join(inRepo, 'team.json');
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        pack: 'team',
+        domain: 'team',
+        concepts: [{ slug: 'team-thing', name: 'Team thing', tier: 1, domain: 'team' }],
+      }),
+    );
+
+    const loaded = loadPacks(repo).filter((p) => p.pack);
+    expect(loaded.map((p) => p.pack!.pack)).toContain('team');
+    expect(loaded.find((p) => p.pack!.pack === 'team')!.scope).toBe('repo');
+    // Read, never rewritten and never deleted: it is authored content.
+    expect(fs.existsSync(file)).toBe(true);
   });
 
   it('treats a missing packs directory as no packs, not as an error', () => {
@@ -113,7 +150,41 @@ describe('applying a pack', () => {
     expect(total.n).toBeGreaterThan(80);
   });
 
-  it('lets the repository win over the global pack', () => {
+  it('lets a project pack win over the global one', () => {
+    writePack('global', 'a', {
+      pack: 'global-one',
+      domain: 'rust',
+      concepts: [{ slug: 'rust-ownership', name: 'Global name', tier: 1 }],
+    });
+    writePack('project', 'b', {
+      pack: 'project-one',
+      domain: 'rust',
+      concepts: [{ slug: 'rust-ownership', name: 'Project name', tier: 3 }],
+    });
+    applyPacks(db, repo);
+
+    expect(conceptRow('rust-ownership')).toMatchObject({ name: 'Project name', tier: 3 });
+  });
+
+  // Moving a pack out of a checkout has to take effect, rather than being
+  // silently outranked by the copy still sitting in the repository.
+  it('lets a project pack win over one still in the checkout', () => {
+    writePack('repo', 'old', {
+      pack: 'stale',
+      domain: 'rust',
+      concepts: [{ slug: 'rust-ownership', name: 'Left in the repo', tier: 1 }],
+    });
+    writePack('project', 'new', {
+      pack: 'moved',
+      domain: 'rust',
+      concepts: [{ slug: 'rust-ownership', name: 'Moved out', tier: 4 }],
+    });
+    applyPacks(db, repo);
+
+    expect(conceptRow('rust-ownership')).toMatchObject({ name: 'Moved out', tier: 4 });
+  });
+
+  it('lets a pack still in the checkout win over the global one', () => {
     writePack('global', 'a', {
       pack: 'global-one',
       domain: 'rust',

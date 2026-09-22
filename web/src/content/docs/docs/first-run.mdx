@@ -28,8 +28,9 @@ Run this once per machine. It takes one exchange. Here is exactly what happens, 
 
    How hard Eklavya should push. If you are not sure, take the default.
 
-   - **ambient** (default) — questions arrive as you work and are always skippable.
+   - **questions, unenforced** (default) — they arrive as you work and are always skippable.
    - **enforced** — you must pass the session quiz before a commit goes through. For interns and onboarding.
+   - **no questions** — `quiz.enabled: false`. This stops the questions only; memory keeps recording, and `memory.enabled` is the separate switch for that.
    - **off** — installed but dormant.
 4. #### It asks you to choose a focus
 
@@ -39,14 +40,14 @@ Run this once per machine. It takes one exchange. Here is exactly what happens, 
    - **project** — the code that was just written: this file, this line, this decision. Best when you are learning a codebase.
    - **learn** — a topic you name, taught in prerequisite order. Requires a topic.
 
-   Both answers are written to `~/.eklavya/config.json` — or to `.eklavya.json` at the repository root if you say you want them to apply to this project only. You can change them any time with [`/eklavya:mode`](/docs/commands/#eklavyamode-value).
+   Both answers are written to `~/.eklavya/config.json` — or to `~/.eklavya/projects/<checkout>/config.json` if you say you want them to apply to this project only. Either way the file is in your home directory: Eklavya writes nothing into the repository. You can change them any time with [`/eklavya:mode`](/docs/commands/#eklavyamode-value).
 5. #### If you chose enforced, it installs the git hook
 
    ```text
    "${CLAUDE_PLUGIN_ROOT}"/scripts/install-git-hook.sh
    ```
 
-   Without this, only commits made inside Claude Code are gated. See [the commit gate](/docs/commit-gate/). Skip this step for ambient or off.
+   Without this, only commits made inside Claude Code are gated. See [the commit gate](/docs/commit-gate/). Skipped unless you chose enforcement.
 
 </Steps>
 

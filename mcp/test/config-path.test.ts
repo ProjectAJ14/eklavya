@@ -7,7 +7,8 @@ describe('dotted configuration keys', () => {
     // A hand-written list is a place a new key gets accepted and then silently
     // discarded, which is the failure mcp/CLAUDE.md warns about.
     const keys = knownKeys();
-    expect(keys).toContain('mode');
+    expect(keys).toContain('quiz.enabled');
+    expect(keys).toContain('quiz.enforced');
     expect(keys).toContain('memory');
     expect(keys).toContain('memory.enabled');
     expect(keys).toContain('retrieval.mode');
@@ -62,11 +63,14 @@ describe('dotted configuration keys', () => {
   });
 
   it('leaves a flat key flat', () => {
-    expect(patchFor({ mode: 'ambient' }, 'mode', 'off')).toEqual({ mode: 'off' });
+    expect(patchFor({ quiz: { enforced: true } }, 'quiz.enabled', false)).toEqual({
+      quiz: { enforced: true, enabled: false },
+    });
   });
 
   it('reads the effective value back out at either depth', () => {
-    expect(valueAt(DEFAULT_CONFIG, 'mode')).toBe('ambient');
+    expect(valueAt(DEFAULT_CONFIG, 'quiz.enabled')).toBe(true);
+    expect(valueAt(DEFAULT_CONFIG, 'quiz.enforced')).toBe(false);
     expect(valueAt(DEFAULT_CONFIG, 'retrieval.mode')).toBe('hybrid');
     expect(valueAt(DEFAULT_CONFIG, 'memory.nope')).toBeUndefined();
     expect(defaultAt('memory.capture')).toBe('full');
@@ -82,15 +86,15 @@ describe('setting a namespaced key end to end', () => {
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-cfg-'));
     const file = path.join(dir, 'config.json');
-    writeConfigFile(file, { memory: { enabled: true, capture: 'minimal' }, mode: 'enforced' });
+    writeConfigFile(file, { memory: { enabled: true, capture: 'minimal' }, quiz: { enforced: true } });
 
     const patch = patchFor(readConfigFile(file), 'memory.enabled', parseValue('memory.enabled', 'false'));
     writeConfigFile(file, patch);
 
-    const written = readConfigFile(file) as { memory: Record<string, unknown>; mode: string };
+    const written = readConfigFile(file) as { memory: Record<string, unknown>; quiz: Record<string, unknown> };
     expect(written.memory).toEqual({ enabled: false, capture: 'minimal' });
     // The other namespaces and the flat dials are untouched by a namespaced write.
-    expect(written.mode).toBe('enforced');
+    expect(written.quiz).toEqual({ enforced: true });
 
     // And the value survives `coerce`, which is the half that silently drops a
     // key nobody wired up.

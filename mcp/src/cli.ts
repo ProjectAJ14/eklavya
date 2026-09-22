@@ -14,10 +14,10 @@ import {
   loadConfig,
   writeConfigFile,
   readConfigFile,
-  REPO_CONFIG_FILE,
-  REPO_FORBIDDEN_KEYS,
   DEFAULT_CONFIG,
   findRepoConfig,
+  mainRepoRoot,
+  migrateLegacyRepoConfig,
 } from './config.js';
 import { isKnownKey, knownKeys, parseValue, patchFor } from './config-path.js';
 import { loadPacks, applyPacks } from './packs.js';
@@ -66,9 +66,10 @@ Usage:
   eklavya uninstall [--purge]           Remove it (--purge also deletes your learning history)
   eklavya export-rules [--out <file>]   Write the tutor pedagogy as a Cursor rules file
   eklavya config get                    Show the effective configuration
-  eklavya config set <key> <value>      Change a setting (add --repo to scope it to this repo)
-                                        e.g. mode ambient|enforced|off, focus project|concept|learn,
-                                        cadence interleaved|end,
+  eklavya config set <key> <value>      Change a setting (--project scopes it to this codebase,
+                                        stored under ~/.eklavya/projects/, never in the repo)
+                                        e.g. quiz.enabled true|false, quiz.enforced true|false,
+                                        focus project|concept|learn, cadence interleaved|end,
                                         difficulty auto|easy|medium|hard
                                         add --topic <topic> when setting focus to "learn"
   eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser
@@ -101,11 +102,15 @@ Memory:
                                         only — attempts, mastery, gates and receipts never leave.
                                         Needs sync.enabled and sync.target; does nothing without both
 
-Config keys: mode, focus, focus_topic, cadence, difficulty, level_up_after,
+Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              level_up_accuracy, pass_threshold, max_questions_per_task,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
              max_new_concepts_per_session, max_stop_blocks_per_session, quiet
-Config namespaces (nested; edit ~/.eklavya/config.json or .eklavya.json directly):
+Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
+  quiz.{enabled, enforced} — whether questions happen, and whether they gate
+             commits. Separate from memory: silencing questions never stops
+             recording. (mode: ambient|enforced|off is the retired spelling,
+             still read so older configs keep working)
   memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days}
   privacy.{exclude_paths, exclude_tools, redact_patterns}
   retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project}
@@ -222,24 +227,55 @@ ${tutorSections().join('\n\n')}
 }
 
 function configCommand(args: string[]): void {
-  const [action, key, value] = args;
-  const scopeRepo = args.includes('--repo');
+  // Before reading or writing anything: a leftover `.eklavya.json` in the
+  // checkout is moved out first, so `config get` reports one source of truth
+  // and `config set --project` cannot leave settings split across two files.
+  const here = findRepoConfig().repoRoot;
+  if (here) migrateLegacyRepoConfig(here, mainRepoRoot(here));
+
+  const [action, rawKey, rawValue] = args;
+  // `mode` is read from config files forever, but it is no longer written to
+  // one. A `config set` is somebody typing today, so it is the moment to hand
+  // them the names that replaced it -- translating and saying so beats both a
+  // dead-end "unknown setting" and silently writing a key that nothing lists.
+  let key = rawKey;
+  let value = rawValue;
+  let modeNote: string | null = null;
+  // Both flags, never one. `mode` named a *pair* of states, so translating it
+  // to a single dotted key left the other flag standing: `mode ambient` wrote
+  // `quiz.enabled true` over an existing `quiz.enforced: true` and reported
+  // success while commits stayed gated -- and `mode enforced` against an
+  // existing `quiz.enabled: false` was a silent no-op that `coerceNamespaces`
+  // undid and `doctor` then reported as a contradiction. `set_config` always
+  // wrote the pair; this is the CLI catching up.
+  let modeQuiz: { enabled: boolean; enforced: boolean } | null = null;
+  if (rawKey === 'mode') {
+    if (rawValue !== 'ambient' && rawValue !== 'enforced' && rawValue !== 'off') {
+      fail('`mode` was replaced by `quiz.enabled` and `quiz.enforced`. Set those directly: eklavya config set quiz.enabled false');
+    }
+    key = 'quiz';
+    modeQuiz = {
+      enabled: rawValue !== 'off',
+      enforced: rawValue === 'enforced',
+    };
+    value = JSON.stringify(modeQuiz);
+    modeNote =
+      `note:     \`mode ${rawValue}\` is now \`quiz.enabled ${modeQuiz.enabled}, quiz.enforced ${modeQuiz.enforced}\`. ` +
+      (rawValue === 'off'
+        ? 'This stops the questions only — memory keeps recording; `memory.enabled false` is that switch.'
+        : 'Memory is governed separately by `memory.enabled`.');
+  }
+  // `--project` is the name; `--repo` is what it was called when the file lived
+  // in the repository, kept because it is in every doc and shell history written
+  // before the move. Accepting only one of them silently wrote to the global
+  // config instead, which is a setting landing somewhere nobody asked for.
+  const scopeRepo = args.includes('--project') || args.includes('--repo');
   const resolved = loadConfig();
 
   if (!action || action === 'get') {
     process.stdout.write(`${JSON.stringify(resolved.config, null, 2)}\n`);
     process.stdout.write(`\nglobal: ${resolved.globalPath}\n`);
-    process.stdout.write(`repo:   ${resolved.repoPath ?? '(none)'}\n`);
-    if (resolved.refusedRepoKeys.length) {
-      // Loud rather than silent: a checked-in config trying to set one of
-      // these is worth somebody looking at.
-      process.stdout.write(
-        `\nignored from the repo config: ${resolved.refusedRepoKeys.join(', ')}\n` +
-          '  These are read from your global config only — they run a command, write files,\n' +
-          '  send work off the machine, or widen what the model can see, and a repository\n' +
-          '  config is a file you get by cloning.\n',
-      );
-    }
+    process.stdout.write(`project: ${resolved.projectPath ?? '(none — not in a git repository)'}\n`);
     return;
   }
 
@@ -264,19 +300,19 @@ function configCommand(args: string[]): void {
   // Typed by the schema at that path rather than guessed from the text. A
   // topic of "2" is a topic; `memory.batch_max_events` of "40" is a number,
   // and only the default sitting there knows which is which.
-  const parsed = parseValue(key, value);
+  const parsed = modeQuiz ?? parseValue(key, value);
 
+  // Nothing here writes into the checkout. `--project` (and its older spelling
+  // `--repo`) means "this project", not "this repository's working tree": the
+  // file lands under ~/.eklavya/projects/, keyed by the checkout's path. There
+  // is no forbidden-key list any more, because there is no longer such a thing
+  // as a config file that arrived from somebody else.
   let target: string;
   if (scopeRepo) {
-    // Same rule as `loadConfig` applies on read: refuse at the point of writing
-    // rather than let a setting land in the file and be ignored for ever.
-    if (REPO_FORBIDDEN_KEYS.some((k) => key === k || key.startsWith(`${k}.`))) {
-      fail(
-        `"${key}" can only be set globally. A repository config is a file you get by cloning, and this one runs a command, writes files or sends work off the machine.`,
-      );
+    if (!resolved.projectPath) {
+      fail('Not inside a git repository, so there is no project to scope this to.');
     }
-    if (!resolved.repoRoot) fail('Not inside a git repository, so there is nowhere to write .eklavya.json.');
-    target = resolved.repoPath ?? path.join(resolved.repoRoot, REPO_CONFIG_FILE);
+    target = resolved.projectPath!;
   } else {
     target = resolved.globalPath;
   }
@@ -287,11 +323,19 @@ function configCommand(args: string[]): void {
   const existing = readConfigFile(target);
   const patch: Record<string, unknown> = patchFor(existing, key, parsed);
   if (topic !== undefined && key === 'focus') patch.focus_topic = topic;
+  // Which checkout this file is about, so a slug collision is detected rather
+  // than applied to the wrong repository. See `belongsTo` in config.ts.
+  if (scopeRepo && resolved.repoRoot) patch.project = mainRepoRoot(resolved.repoRoot);
 
-  writeConfigFile(target, patch);
+  try {
+    writeConfigFile(target, patch);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+  }
   for (const [k, v] of Object.entries(patch)) {
     process.stdout.write(`${k} = ${JSON.stringify(v)}  ->  ${target}\n`);
   }
+  if (modeNote) process.stdout.write(`${modeNote}\n`);
 }
 
 /** Never throws: `doctor` is also what someone runs on a half-built database. */
@@ -305,6 +349,11 @@ function safely<T>(fn: () => T, fallback: T): T {
 
 function doctor(): void {
   const file = dbPath();
+  // `doctor` is where somebody goes when something is not taking effect, so it
+  // is the second place the legacy move runs -- a settings file still sitting
+  // in the checkout is exactly that complaint.
+  const repoHere = findRepoConfig().repoRoot;
+  if (repoHere) migrateLegacyRepoConfig(repoHere, mainRepoRoot(repoHere));
   const resolved = loadConfig();
   const lines: string[] = [];
   let ok = true;
@@ -380,6 +429,23 @@ function doctor(): void {
   // the two failures that are otherwise completely silent, a queue paused on a
   // provider and evidence dropped before it reached the database, are reported
   // here. Every read degrades rather than throws.
+  // The contradiction `coerce()` silently resolves, said out loud exactly once,
+  // here. `quiz.enabled: false` with `quiz.enforced: true` is a gate whose
+  // questions never get asked; `coerce` drops the enforcement so nobody is
+  // locked out of their own repository, but a lead who wrote that line believes
+  // commits are being held and they are not. `doctor` is where somebody goes to
+  // find out why -- so it has to be findable here rather than only in a comment.
+  const rawQuiz = resolved.raw.quiz as Record<string, unknown> | undefined;
+  if (rawQuiz?.enabled === false && rawQuiz?.enforced === true) {
+    ok = false;
+    lines.push(
+      'conflict: FAILED — quiz.enabled is false and quiz.enforced is true. A gate needs ' +
+        'passed questions and nothing will ask any, so the enforcement is being ignored ' +
+        'rather than blocking every commit. Set quiz.enabled true to gate commits, or drop ' +
+        'quiz.enforced to accept the silence.',
+    );
+  }
+
   const memory = resolved.config.memory;
   lines.push(
     `memory:   ${memory.enabled ? `on · capture ${memory.capture}` : 'off (memory.enabled is false)'}`,
@@ -459,31 +525,37 @@ function doctor(): void {
 
   db?.close();
 
-  const fromRepo = resolved.repoPath ? ' (from this repo)' : '';
-  lines.push(`mode:     ${resolved.config.mode}${fromRepo}`);
+  // Per key, not per file. A project config that sets only `quiz` must not make
+  // `focus` and `cadence` claim they came from it -- they came from the
+  // defaults, and a line that names the wrong source is the same class of bug
+  // as the dial this release renamed. `projectPath` is a path Eklavya *would*
+  // write to, so the file is read rather than assumed to exist.
+  const projectKeys = new Set(
+    resolved.projectPath ? Object.keys(readConfigFile(resolved.projectPath)) : [],
+  );
+  const from = (key: string) => (projectKeys.has(key) ? ' (set for this project)' : '');
+  const q = resolved.config.quiz;
+  lines.push(
+    `quiz:     ${q.enabled ? 'on' : 'off — memory is unaffected'}${
+      q.enforced ? ' · enforced (commits gated)' : ''
+    }${from('quiz')}`,
+  );
   lines.push(
     `focus:    ${resolved.config.focus}${
       resolved.config.focus === 'learn' ? ` (${resolved.config.focus_topic ?? 'no topic set'})` : ''
-    }${fromRepo}`,
+    }${from('focus')}`,
   );
   lines.push(
     `cadence:  ${resolved.config.cadence}${
       resolved.config.cadence === 'interleaved'
         ? ` (one question mid-task, min ${resolved.config.min_minutes_between_checkpoints}m apart)`
         : ' (all questions at the end of the task)'
-    }${fromRepo}`,
+    }${from('cadence')}`,
   );
-  if (resolved.refusedRepoKeys.length > 0) {
-    // Not a failure — the setting was correctly ignored — but the loudest
-    // thing `doctor` can say short of one, because a repository trying to
-    // install a notification sink is worth a look.
-    lines.push(
-      `IGNORED:  the repo config sets ${resolved.refusedRepoKeys.join(', ')}, which only your global config may set`,
-    );
-  }
   if (resolved.overrides.length > 0) {
-    lines.push(`overridden by repo: ${resolved.overrides.join(', ')}`);
+    lines.push(`overridden for this project: ${resolved.overrides.join(', ')}`);
   }
+  if (resolved.projectPath) lines.push(`project:  ${resolved.projectPath}`);
 
   // Packs, and the one place a broken one is visible. `loadPacks` never throws
   // -- a malformed file in ~/.eklavya/packs/ makes one pack unavailable, not
@@ -505,6 +577,20 @@ function doctor(): void {
       // prerequisite it was meant to hang off simply is not there.
       lines.push(
         `packs:    ${edgesDropped} edge(s) dropped — an endpoint named a slug that does not exist`,
+      );
+    }
+    // The one remaining way an Eklavya file ends up in a checkout, and it only
+    // ever got there before the move. Named rather than fixed: a committed pack
+    // is authored content somebody reviewed, so relocating it is their call.
+    const inRepo = good.filter((p) => p.scope === 'repo');
+    if (inRepo.length > 0) {
+      lines.push(
+        `packs:    ${inRepo.length} still inside the checkout (${inRepo
+          .map((p) => p.pack!.pack)
+          .join(', ')}) — they load, but Eklavya no longer writes there;`,
+      );
+      lines.push(
+        `packs:    move them to ~/.eklavya/projects/<checkout>/packs/ to keep the repo clean`,
       );
     }
     for (const bad of packs.filter((p) => !p.pack)) {
@@ -537,7 +623,7 @@ function doctor(): void {
  * not a place to report that Eklavya is unwell.
  *
  * Only the earned level and the per-session off switch need the database. The
- * dials themselves come from `.eklavya.json`, so an install with no database
+ * dials themselves come from the config files, so an install with no database
  * yet — or one that cannot be opened — still shows its dials rather than
  * nothing. The database is consulted in its own try/catch for exactly that
  * reason: a locked or corrupt file costs the level, never the bar.
@@ -545,7 +631,7 @@ function doctor(): void {
 async function statuslineCommand(argv: string[]): Promise<void> {
   try {
     // Claude Code writes a JSON blob to stdin (cwd, model, session). We want
-    // the cwd, so the repo-scoped .eklavya.json is the one that answers.
+    // the cwd, so this project's config is the one that answers.
     //
     // Bounded deliberately. On Windows the host may wrap a command in a
     // PowerShell block that swallows the pipe, so `end` never fires and a naive
@@ -557,7 +643,7 @@ async function statuslineCommand(argv: string[]): Promise<void> {
     let sid: string | null = null;
     // Parsed in its own try: input we cannot read is a reason to fall back to
     // the working directory, not a reason to show the developer nothing. The
-    // dials are still true; only the choice of .eklavya.json was in doubt.
+    // dials are still true; only which project's config applies was in doubt.
     try {
       if (raw.trim()) {
         // Strip a BOM: some Windows shells prepend one, and JSON.parse throws
@@ -586,8 +672,9 @@ async function statuslineCommand(argv: string[]): Promise<void> {
       let db: Database.Database | null = null;
       try {
         db = new Database(dbPath(), { readonly: true });
-        // A silenced session shows no bar. It says the same thing `mode: off`
-        // says, and a bar still reciting the dials of a session that will not
+        // A silenced session shows no bar. It says the same thing
+        // `quiz.enabled: false` says, and a bar still reciting the dials of a
+        // session that will not
         // ask anything is the kind of small lie that costs a bug report.
         //
         // Only when the host named the session. The fallback would be the

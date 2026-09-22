@@ -38,8 +38,8 @@
  * (`min_minutes_between_checkpoints` here, `min_minutes_between_quizzes` under
  * `end`), `max_stop_blocks_per_session`, and the remaining session budget.
  */
-import { attributionRule, isCowork } from '../surface.js';
-import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
+import { isCowork } from '../surface.js';
+import { run, openExisting, config, cwdOf, sessionId, minutesSince } from './lib.js';
 import { isSessionOff } from '../session.js';
 import { flushAtSeam, identityOf, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
@@ -88,22 +88,21 @@ await run(async (input) => {
     // on it. Gating memory on an announcement channel means nobody ever gets one.
     await wrapUpAtSeam(db, stopConfig, identity);
   }
-  // Silenced sessions are never blocked, enforced mode included: the commit gate
-  // is what enforced mode is for, and it reads .eklavya.json rather than this.
+  // Silenced sessions are never blocked, enforced quizzing included: the commit
+  // gate is what `quiz.enforced` is for, and it reads the project config rather
+  // than this.
   if (isSessionOff(db, sid)) return 0;
 
   const {
-    mode,
+    quiz,
     cadence,
-    focus,
-    focus_topic,
     max_questions_per_task,
     max_stop_blocks_per_session,
     min_minutes_between_quizzes,
     min_minutes_between_checkpoints,
   } = config(cwd).config;
 
-  if (mode === 'off') return 0;
+  if (!quiz.enabled) return 0;
 
   const stats = db
     .prepare(
@@ -151,11 +150,11 @@ await run(async (input) => {
 
   // Under `interleaved` this sweep asks exactly ONE question (see `take` below),
   // so it is paced by the single-question clock rather than the whole-quiz one.
-  // Enforced mode is exempt from both, as it always was (decision G5).
-  const interleaved = cadence === 'interleaved' && mode !== 'enforced';
+  // Enforced quizzing is exempt from both, as it always was (decision G5).
+  const interleaved = cadence === 'interleaved' && !quiz.enforced;
 
   // --- the pacing clock ------------------------------------------------------
-  // Ambient mode respects the quiz cadence. Enforced mode must not, or a cooldown
+  // Unenforced quizzing respects the cadence. Enforced must not, or a cooldown
   // could make a commit gate unpassable (decision G5).
   //
   // Which clock depends on what is being paced. `min_minutes_between_quizzes` is
@@ -179,7 +178,7 @@ await run(async (input) => {
   // which has a logged concept behind each firing. A Stop sweep has no such event:
   // at a gap of 0 a model that ignores the instruction and stops again immediately
   // gets blocked again immediately, three times in a row with no pause.
-  if (mode === 'ambient') {
+  if (!quiz.enforced) {
     const gap = interleaved
       ? Math.max(1, min_minutes_between_checkpoints)
       : min_minutes_between_quizzes;
@@ -256,20 +255,14 @@ await run(async (input) => {
        block_count       = stop_markers.block_count + 1`,
   ).run({ sid, logged: stats.logged });
 
-  const framing = framingFor(focus, focus_topic, 'stop');
   // What the model is being asked for, in the words of the cadence it is running
   // under. `interleaved` gets a hard singular -- the plan will hand back exactly
   // one item, and prose that still says "each question" reads as licence to go
   // looking for more.
   const ask =
     take === 1
-      ? `Use the eklavya MCP server and the tutor skill: call get_session_quiz_plan,
-ask the ONE question it returns at that concept's tier_to_ask, and grade it with
-record_attempt. One question, then let them finish -- there is no second one to
-come back for. The plan returns a "framing" field. Follow it.`
-      : `Use the eklavya MCP server and the tutor skill: call get_session_quiz_plan, ask
-ONE question at a time at each concept's tier_to_ask, and grade each answer with
-record_attempt. The plan returns a "framing" field. Follow it.`;
+      ? 'One question, then let them finish -- there is no second one to come back for.'
+      : `Ask ONE question at a time, up to ${take}.`;
   // The enforced line names the commit gate as the reason to press, which is
   // true everywhere the gate can fire. On Cowork it cannot — it matches `git
   // commit`, and Cowork does not commit — and session-start has already told
@@ -277,29 +270,28 @@ record_attempt. The plan returns a "framing" field. Follow it.`;
   // teaches the learner that Eklavya's warnings need not be read carefully, so
   // the enforced framing drops to why the quiz still matters there.
   const tone =
-    mode === 'enforced'
+    quiz.enforced
       ? isCowork()
-        ? 'This session is in enforced mode. Nothing is blocked here — Cowork does not commit — but the gate still records what was answered, so ask properly.'
-        : 'This session is in enforced mode: the commit gate needs this quiz.'
-      : 'If they say skip, record it as grade 0 and let them go — do not ask twice.';
+        ? 'Quizzing is enforced here. Nothing is blocked — Cowork does not commit — but the gate still records what was answered.'
+        : 'Quizzing is enforced in this session: the commit gate needs this quiz.'
+      : 'If they say skip, record grade 0 and let them go — do not ask twice.';
 
-  const context = `Eklavya: before finishing, quiz the developer on what this task just taught.
-
+  // EVERY LINE BELOW IS PRINTED TO THE DEVELOPER, VERBATIM.
+  // The harness renders a Stop hook's `additionalContext` under "Ran N stop
+  // hooks" in gold, wrapped and effectively untruncated (`stop_hook_summary` in
+  // the 2.1.278 bundle), and there is no field that hides it — `suppressOutput`
+  // does not reach this path. So length is the only lever there is, and the page
+  // of model-facing instructions this used to be was Eklavya reciting its own
+  // prompt at the person it is meant to be teaching, every single task.
+  //
+  // Say only what this hook alone knows -- which concepts, how big the sweep,
+  // whether the gate is pressing -- and let `get_session_quiz_plan` carry the
+  // rest. It already returns `framing`, `ask_attribution`, `answer_position` and
+  // `tier_to_ask` with every plan, and the next thing the model does is call it,
+  // so repeating any of that here buys nothing and costs the developer a screen.
+  const context = `Eklavya: quiz the developer on what this task taught. ${ask}
 Concepts: ${concepts}
-
-${ask}
-
-Ask each question as MULTIPLE CHOICE via the AskUserQuestion tool: four options,
-one correct and three plausible, the correct one in the slot answer_position
-names.
-${attributionRule()}
-The tool's own "Other" choice is the escape hatch for "I don't know". They are
-mid-task -- a blank prompt gets skipped whether or not they knew the answer.
-Record with format "mcq", the labels in "options", and only the stem in
-"question".
-${framing}
-${tone}
-`;
+get_session_quiz_plan, then AskUserQuestion, then record_attempt (format "mcq", labels in "options", stem alone in "question"). The plan's framing, ask_attribution, answer_position and tier_to_ask are the rules — follow them. ${tone}`;
 
   // exit 0 + JSON, not exit 2 + stderr. Both continue the turn and both pass
   // through the same loop protections; only one of them tells the developer

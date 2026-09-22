@@ -258,9 +258,9 @@ describe('get_session_quiz_plan', () => {
 
     // Decision G5: a pacing rule must not be the thing that makes a commit
     // impossible. The gate needs several passing answers and the Stop hook only
-    // re-arms on new work, so enforced mode keeps the whole plan.
-    it('plans the whole budget in enforced mode, cadence notwithstanding', () => {
-      configure({ mode: 'enforced', cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+    // re-arms on new work, so enforced quizzing keeps the whole plan.
+    it('plans the whole budget when enforced, cadence notwithstanding', () => {
+      configure({ quiz: { enabled: true, enforced: true }, cadence: 'interleaved', min_minutes_between_quizzes: 0 });
       logAuthWork();
       expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(3);
     });
@@ -369,7 +369,7 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('honors an explicit request during the cooldown', () => {
-    configure({ min_minutes_between_quizzes: 30, mode: 'ambient' });
+    configure({ min_minutes_between_quizzes: 30, quiz: { enabled: true, enforced: false } });
     logAuthWork();
     call(recordAttempt, {
       session_id: SESSION,
@@ -521,8 +521,8 @@ describe('get_session_quiz_plan', () => {
     expect(plan.concepts.some((c: any) => c.reason === 'backlog')).toBe(false);
   });
 
-  it('goes quiet in ambient mode during the cooldown (G5)', () => {
-    configure({ min_minutes_between_quizzes: 30, mode: 'ambient' });
+  it('goes quiet during the cooldown when unenforced (G5)', () => {
+    configure({ min_minutes_between_quizzes: 30, quiz: { enabled: true, enforced: false } });
     logAuthWork();
     call(recordAttempt, {
       session_id: SESSION,
@@ -544,7 +544,7 @@ describe('get_session_quiz_plan', () => {
   // to teach and handed nothing to teach.
   it('paces interleaved on the checkpoint clock, never the quiz clock', () => {
     configure({
-      mode: 'ambient',
+      quiz: { enabled: true, enforced: false },
       cadence: 'interleaved',
       min_minutes_between_quizzes: 0,
       min_minutes_between_checkpoints: 30,
@@ -566,7 +566,7 @@ describe('get_session_quiz_plan', () => {
 
   it('paces the end cadence on the quiz clock, never the checkpoint one', () => {
     configure({
-      mode: 'ambient',
+      quiz: { enabled: true, enforced: false },
       cadence: 'end',
       min_minutes_between_quizzes: 30,
       min_minutes_between_checkpoints: 0,
@@ -586,8 +586,8 @@ describe('get_session_quiz_plan', () => {
     expect(plan.minutes_remaining).toBeGreaterThan(20);
   });
 
-  it('ignores the cooldown in enforced mode, or the gate could never be passed', () => {
-    configure({ min_minutes_between_quizzes: 30, mode: 'enforced' });
+  it('ignores the cooldown when enforced, or the gate could never be passed', () => {
+    configure({ min_minutes_between_quizzes: 30, quiz: { enabled: true, enforced: true } });
     logAuthWork();
     call(recordAttempt, {
       session_id: SESSION,
@@ -601,12 +601,12 @@ describe('get_session_quiz_plan', () => {
     expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBeGreaterThan(0);
   });
 
-  it('asks nothing at all when the mode is off', () => {
-    configure({ mode: 'off' });
+  it('asks nothing at all when questions are off', () => {
+    configure({ quiz: { enabled: false, enforced: false } });
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.questions_needed).toBe(0);
-    expect(plan.reason).toBe('mode_off');
+    expect(plan.reason).toBe('quiz_disabled');
   });
 });
 
@@ -969,7 +969,7 @@ describe('gate arithmetic (G8)', () => {
 // entirely with "I don't know" used to leave the gate permanently unmet: the
 // planner had nothing left to offer and the commit hook denied forever, while
 // telling the developer to run a quiz that would refuse. These pin the way out.
-describe('enforced-mode gate retry', () => {
+describe('enforced gate retry', () => {
   const blankEverything = () => {
     logAuthWork();
     for (const slug of ['httponly-cookies', 'jwt-structure', 'csrf']) {
@@ -991,7 +991,7 @@ describe('enforced-mode gate retry', () => {
   // `origin = 'review'` while the gate counts only `origin = 'work'` -- so it
   // cannot open the commit it just displaced the way out of.
   it('is not starved by a backlog of unasked work from other sessions', () => {
-    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     call(logSessionConcepts, {
       session_id: 'earlier-session',
       concepts: [{ slug: 'pkce' }, { slug: 'oauth2-authorization-code' }],
@@ -1005,7 +1005,7 @@ describe('enforced-mode gate retry', () => {
   });
 
   it('re-offers taught concepts once the gate is otherwise unreachable', () => {
-    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     blankEverything();
     expect(call<any>(getGateStatus, { session_id: SESSION }).passed).toBe(false);
 
@@ -1026,7 +1026,7 @@ describe('enforced-mode gate retry', () => {
   });
 
   it('lets a retried answer actually pass the gate', () => {
-    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     blankEverything();
 
     for (const slug of ['httponly-cookies', 'jwt-structure', 'csrf']) {
@@ -1044,7 +1044,7 @@ describe('enforced-mode gate retry', () => {
   });
 
   it('does not re-offer a concept the learner declined', () => {
-    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     logAuthWork();
     call(recordAttempt, {
       session_id: SESSION,
@@ -1082,8 +1082,8 @@ describe('enforced-mode gate retry', () => {
     expect(slugs).not.toContain('csrf');
   });
 
-  it('leaves ambient mode alone — no gate to deadlock, and re-offering is nagging', () => {
-    configure({ mode: 'ambient', min_minutes_between_quizzes: 0 });
+  it('leaves unenforced quizzing alone — no gate to deadlock, and re-offering is nagging', () => {
+    configure({ quiz: { enabled: true, enforced: false }, min_minutes_between_quizzes: 0 });
     blankEverything();
 
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
@@ -1092,7 +1092,7 @@ describe('enforced-mode gate retry', () => {
   });
 
   it('does not retry once the gate is passed', () => {
-    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     logAuthWork();
     for (const slug of ['httponly-cookies', 'jwt-structure', 'csrf']) {
       call(recordAttempt, {
@@ -1135,7 +1135,7 @@ describe('ask_attribution travels with the plan', () => {
   });
 });
 
-// `mode` is how hard Eklavya pushes; `focus` is what it teaches. The two dials
+// `quiz` is whether and how hard Eklavya pushes; `focus` is what it teaches. The two
 // are independent, and these pin that they stay that way.
 describe('focus', () => {
   it('ships with concept as the default, not project', () => {
@@ -1238,9 +1238,9 @@ describe('focus', () => {
     expect(call<any>(getConfig, {}).config.focus).toBe('project');
   });
 
-  it('stays dormant when mode is off, whatever the focus says', () => {
-    configure({ mode: 'off', focus: 'learn', focus_topic: 'web-auth' });
-    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).reason).toBe('mode_off');
+  it('stays dormant when questions are off, whatever the focus says', () => {
+    configure({ quiz: { enabled: false, enforced: false }, focus: 'learn', focus_topic: 'web-auth' });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).reason).toBe('quiz_disabled');
   });
 });
 
@@ -1370,9 +1370,11 @@ describe('get_learner_profile', () => {
     expect(profile.known_total).toBe(1);
   });
 
-  it('reports the mode so the tutor knows how hard to push', () => {
-    configure({ mode: 'enforced' });
-    expect(call<any>(getLearnerProfile, {}).mode).toBe('enforced');
+  it('reports the quiz settings so the tutor knows how hard to push', () => {
+    configure({ quiz: { enabled: true, enforced: true } });
+    const profile = call<any>(getLearnerProfile, {});
+    expect(profile.quiz_enabled).toBe(true);
+    expect(profile.quiz_enforced).toBe(true);
   });
 
   it('answers which project, what was learned there, and what was skipped', () => {
@@ -1481,17 +1483,30 @@ describe('get_concept_graph', () => {
 
 describe('config tools', () => {
   it('reads the effective config', () => {
-    configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
-    expect(call<any>(getConfig, {}).config.mode).toBe('enforced');
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
+    expect(call<any>(getConfig, {}).config.quiz.enforced).toBe(true);
   });
 
   it('writes global config', () => {
+    call(setConfig, { quiz: { enabled: true, enforced: true } });
+    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true });
+  });
+
+  // The schema still takes the retired word, so it still has to land somewhere.
+  // The patch is built from the keys of DEFAULT_CONFIG and `mode` is not one any
+  // more -- without the fold, set_config would accept it and drop it silently.
+  it('folds a legacy `mode` write onto the quiz flags', () => {
     call(setConfig, { mode: 'enforced' });
-    expect(call<any>(getConfig, {}).config.mode).toBe('enforced');
+    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true });
+  });
+
+  it('lets an explicit quiz win when a call sends both', () => {
+    call(setConfig, { mode: 'off', quiz: { enabled: true, enforced: false } });
+    expect(call<any>(getConfig, {}).config.quiz.enabled).toBe(true);
   });
 
   it('refuses a repo write with no repo to write to', () => {
-    expect(call<any>(setConfig, { scope: 'repo', mode: 'enforced' }).error).toBe('no_repo_root');
+    expect(call<any>(setConfig, { scope: 'repo', quiz: { enabled: true, enforced: true } }).error).toBe('no_repo_root');
   });
 
   it('exposes the Stop-hook block cap that the hook actually reads', () => {
@@ -1508,12 +1523,12 @@ describe('config tools', () => {
   // `off` creates: silence that outlives the reason for it.
   describe('session scope', () => {
     it('silences one session without touching either config file', () => {
-      const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, quiz: { enabled: false, enforced: false } });
       expect(res.session_off).toBe(true);
       expect(res.session_id).toBe(SESSION);
 
-      // The file-backed mode is exactly what it was.
-      expect(call<any>(getConfig).config.mode).toBe('ambient');
+      // The file-backed config is exactly what it was.
+      expect(call<any>(getConfig).config.quiz).toEqual({ enabled: true, enforced: false });
       expect(call<any>(getConfig, { session_id: SESSION }).session_off).toBe(true);
 
       logAuthWork();
@@ -1523,7 +1538,7 @@ describe('config tools', () => {
     });
 
     it('silences only the session it was asked about', () => {
-      call(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      call(setConfig, { scope: 'session', session_id: SESSION, quiz: { enabled: false, enforced: false } });
       logAuthWork('other-session');
       expect(call<any>(getSessionQuizPlan, { session_id: 'other-session' }).reason).not.toBe(
         'session_off',
@@ -1531,8 +1546,8 @@ describe('config tools', () => {
     });
 
     it('brings the session back on any other mode', () => {
-      call(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
-      const back = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'ambient' });
+      call(setConfig, { scope: 'session', session_id: SESSION, quiz: { enabled: false, enforced: false } });
+      const back = call<any>(setConfig, { scope: 'session', session_id: SESSION, quiz: { enabled: true, enforced: false } });
       expect(back.session_off).toBe(false);
 
       logAuthWork();
@@ -1540,8 +1555,8 @@ describe('config tools', () => {
     });
 
     it('says the commit gate still holds in an enforced repo', () => {
-      configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
-      const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' });
+      configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
+      const res = call<any>(setConfig, { scope: 'session', session_id: SESSION, quiz: { enabled: false, enforced: false } });
       expect(res.note).toMatch(/commit gate/);
     });
 
@@ -1551,34 +1566,40 @@ describe('config tools', () => {
       // session that lands on the same fallback, with nothing to notice it by —
       // the exact "off outlives its reason" failure this scope exists to avoid.
       expect(resolveSessionId(db)).toBe(FALLBACK_SESSION_ID);
-      expect(call<any>(setConfig, { scope: 'session', mode: 'off' }).error).toBe('no_session');
+      expect(call<any>(setConfig, { scope: 'session', quiz: { enabled: false, enforced: false } }).error).toBe('no_session');
       expect(isSessionOff(db, FALLBACK_SESSION_ID)).toBe(false);
     });
 
     it('acts on the session the hooks last stamped when none was passed', () => {
       // Stamped for the same cwd `call` passes: the pointer is per checkout.
       setCurrentSession(db, 'sess-from-hook', cwd);
-      expect(call<any>(setConfig, { scope: 'session', mode: 'off' }).session_id).toBe(
+      expect(call<any>(setConfig, { scope: 'session', quiz: { enabled: false, enforced: false } }).session_id).toBe(
         'sess-from-hook',
       );
       expect(isSessionOff(db, 'sess-from-hook')).toBe(true);
     });
 
     it('warns that an enforced gate grows while the session is silent', () => {
-      configure({ mode: 'enforced', min_minutes_between_quizzes: 0 });
+      configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
       expect(
-        call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' }).note,
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, quiz: { enabled: false, enforced: false } }).note,
       ).toMatch(/keeps growing/);
     });
 
-    it('takes only mode — a vanishing difficulty would be a dial that unset itself', () => {
+    it('takes only quiz — a vanishing difficulty would be a dial that unset itself', () => {
       expect(
         call<any>(setConfig, { scope: 'session', session_id: SESSION, difficulty: 'hard' }).error,
-      ).toBe('session_scope_is_mode_only');
+      ).toBe('session_scope_is_quiz_only');
       expect(
-        call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off', focus: 'project' })
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, quiz: { enabled: false, enforced: false }, focus: 'project' })
           .error,
-      ).toBe('session_scope_is_mode_only');
+      ).toBe('session_scope_is_quiz_only');
+    });
+
+    it('still silences a session for a caller that sends the retired `mode`', () => {
+      expect(
+        call<any>(setConfig, { scope: 'session', session_id: SESSION, mode: 'off' }).session_off,
+      ).toBe(true);
     });
   });
 
@@ -1800,7 +1821,7 @@ describe('difficulty levels, earned per project', () => {
 
 describe('the settings line, end to end', () => {
   it('never ships one — the dials are in the status bar now', () => {
-    configure({ min_minutes_between_quizzes: 0, focus: 'project', mode: 'enforced' });
+    configure({ min_minutes_between_quizzes: 0, focus: 'project', quiz: { enabled: true, enforced: true } });
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.concepts.length).toBeGreaterThan(0);
@@ -1903,5 +1924,30 @@ describe('a decline that was explained anyway', () => {
       outcome: 'declined',
     });
     expect(gateRetryConcepts(db, SESSION).map((c) => c.slug)).not.toContain('csrf');
+  });
+});
+
+describe('set_config project scope stamps the checkout', () => {
+  // `belongsTo` compares this field to tell two slug-colliding checkouts apart.
+  // Written without it, the file is trusted by whichever checkout reads it --
+  // and a file the CLI had stamped for another checkout would be mutated here
+  // while this project's own read discarded it, success reported either way.
+  it('writes the project key, like the CLI does', () => {
+    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-stamp-')));
+    fs.mkdirSync(path.join(dir, '.git'));
+    try {
+      const res = call<any>(setConfig, { scope: 'project', cwd: dir, difficulty: 'hard' });
+      expect(res.error).toBeUndefined();
+      expect(res.written_to.startsWith(home)).toBe(true);
+
+      const written = JSON.parse(fs.readFileSync(res.written_to, 'utf8')) as Record<string, unknown>;
+      expect(written.project).toBe(dir);
+      expect(written.difficulty).toBe('hard');
+
+      // And the file is honoured, which is what the stamp has to not break.
+      expect(call<any>(getConfig, { cwd: dir }).config.difficulty).toBe('hard');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

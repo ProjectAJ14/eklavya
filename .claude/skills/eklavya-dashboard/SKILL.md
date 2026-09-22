@@ -61,7 +61,7 @@ navigated away. `draw` is a pure function of the response; keep it that way.
 
 | Key | Shape |
 |---|---|
-| `config` | the four dials plus the thresholds the Projects page reports against |
+| `config` | `quiz_enabled`, `quiz_enforced`, `focus`, `focus_topic`, `cadence`, `difficulty`, plus the thresholds the Projects page reports against. The two `quiz_*` booleans replaced a single `mode` string — the dial line renders `enforced` only when set, and `questions off` when `quiz_enabled` is false |
 | `totals` | all-time answers/passed/missed/skipped, mastered, due, touched, catalogue, sessions, active days |
 | `daily` | `{day, repo, passed, missed, skipped}`, one row per day **per project**, 365 days |
 | `projects` | answers, accuracy, concepts, first/last active, plus `levelStanding` — level, next, counts, needed, unmet |
