@@ -61,6 +61,21 @@ of parity with a neural embedder is made until the eval shows it.
 **Rejected.** Neural embeddings as a required dependency; provider-only
 embeddings; keyword-only retrieval (fails PRD RET-01).
 
+**A second ceiling, found by measurement.** The semantic scan is bounded at the
+5,000 most recent vectors per query (`semanticSearch`'s `scanLimit`). Past that
+size, semantic retrieval sees only the newest 5,000 entries of a project while
+keyword search still sees all of them — so on a large corpus the two modes are
+answering slightly different questions, and hybrid inherits both. The bound is
+what keeps the scan linear and predictable: at 20,000 entries a hybrid query is
+17ms with it, and would climb without it. It is documented in the manual rather
+than hidden, and the number to change if it ever bites is that one constant.
+
+**Measured.** `eval/memory-perf.mjs`, baselines in `eval/results/`. At 20,000
+entries on an M-series laptop: capture 0.03ms, the startup display 0.03ms and
+recall 0.14ms — all three constant in corpus size, which matters because all
+three sit on the path of a human action. Hybrid search is 17ms, on an agent's
+path where it is invisible.
+
 **Rollback.** `embedder_id` is stored per vector; switching re-embeds in a
 background job and the old vectors are ignored, then deleted.
 

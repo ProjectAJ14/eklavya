@@ -92,6 +92,19 @@ Three retrieval modes, set by `retrieval.mode` and overridable per search:
 
 **What "semantic" honestly means here.** The default embedder is `local-hash-v1`: a dependency-free 256-dimension vector of hashed tokens and hashed character 4-grams, L2-normalised and compared by cosine. The n-grams are what make it more than keyword matching — `migrations`, `migration` and `migrating` land in overlapping buckets, and so do typos. It does **not** know that `cookie` and `session token` are about the same thing. That needs a trained model. Set `providers.embeddings` if you want one; every vector records the embedder that produced it, so vectors from two different models are never compared.
 
+**And one more limit, found by measuring rather than by reading the code.**
+Semantic search scans the 5,000 most recent entries of a project, not all of
+them. Below that size the bound never applies. Above it, semantic and hybrid
+see only the newest 5,000 while keyword search still sees everything — so on a
+very large project an old entry may be findable by its exact words and not by a
+paraphrase. The bound is what keeps a query predictable: at 20,000 entries a
+hybrid query takes about 17ms with it.
+
+The numbers behind that sentence, and the ones that matter more — capture,
+the session-start display and recall are all about a tenth of a millisecond and
+stay flat as the corpus grows — come from `eval/memory-perf.mjs`, with baselines
+committed in `eval/results/`.
+
 Search is scoped to the current project. `retrieval.cross_project` (false) widens both search and the session-start block to every project on this machine; a single search can also opt in with `all_projects`.
 
 ### What the savings percentage measures

@@ -1,0 +1,62 @@
+{
+  "generated_at": "2026-09-22T02:29:27.628Z",
+  "node": "v26.7.0",
+  "platform": "darwin-arm64",
+  "corpus": {
+    "entries": 20000,
+    "fill_ms": 3288,
+    "db_bytes": 49766400
+  },
+  "worker_local_summarizer_ms": 1.1,
+  "measurements": [
+    {
+      "label": "capture.prepare (pure: exclusion + redaction)",
+      "iterations": 2000,
+      "median_ms": 0.004,
+      "p95_ms": 0.006,
+      "max_ms": 0.228
+    },
+    {
+      "label": "capture append (one indexed insert)",
+      "iterations": 2000,
+      "median_ms": 0.029,
+      "p95_ms": 0.043,
+      "max_ms": 1.117
+    },
+    {
+      "label": "search keyword (20000 entries)",
+      "iterations": 60,
+      "median_ms": 7.852,
+      "p95_ms": 8.263,
+      "max_ms": 8.748
+    },
+    {
+      "label": "search semantic (20000 entries)",
+      "iterations": 60,
+      "median_ms": 5.506,
+      "p95_ms": 8.137,
+      "max_ms": 9.192
+    },
+    {
+      "label": "search hybrid (20000 entries)",
+      "iterations": 60,
+      "median_ms": 16.676,
+      "p95_ms": 18.921,
+      "max_ms": 20.29
+    },
+    {
+      "label": "recall at a session seam",
+      "iterations": 60,
+      "median_ms": 0.142,
+      "p95_ms": 0.164,
+      "max_ms": 0.236
+    },
+    {
+      "label": "startup display",
+      "iterations": 200,
+      "median_ms": 0.031,
+      "p95_ms": 0.036,
+      "max_ms": 0.141
+    }
+  ]
+}
