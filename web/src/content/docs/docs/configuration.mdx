@@ -61,6 +61,65 @@ only a repo or global `mode` change is the second one.
 | `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
 | `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `mode: off` for that. |
 
+### The memory namespaces
+
+The keys above are flat because every `.eklavya.json` already written uses them that way. The memory half's keys are nested under four namespaces instead, and they merge the same way: a repo file setting `retrieval.mode` leaves your personal `memory.capture` alone.
+
+#### `memory`
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `memory.enabled` | `true` | Whether this project's work is recorded and recalled at all. |
+| `memory.capture` | `"full"` | What the capture path accepts. `full` records prompts, tool calls, failures, edits and reads; `minimal` keeps prompts, assistant messages, session seams and notes, and drops the per-file traffic that is most of the volume; `off` stops capture and leaves what is already stored searchable. |
+| `memory.batch_max_events` | `40` | Events per observation batch. A session seam flushes whatever is left, so a short session is still summarised. |
+| `memory.retention_days` | `null` | Days of raw evidence to keep. Observations built from it survive its deletion. `null` keeps it until you delete it. |
+
+:::note
+**`memory.enabled` is independent of `mode`.** `mode: off` means no quizzes, no checkpoints and no gate — it does not mean no history. Someone who silenced the questions did not ask for their project's record to stop, and the reverse (quizzes, no capture) is just as legitimate: that is `memory.enabled: false`.
+:::
+
+#### `privacy`
+
+Every entry here is *added* to Eklavya's built-in rules, never replaces them. [Memory](/docs/memory/#what-is-never-captured) lists what the built-in rules already cover.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `privacy.exclude_paths` | `[]` | Extra path fragments that are never captured, on top of the built-in list (`.env`, `/.ssh/`, `.pem`, `credentials.json` and the rest). Matched as a substring of the path. |
+| `privacy.exclude_tools` | `[]` | Tool names never captured, when a tool's arguments are usually secrets. |
+| `privacy.redact_patterns` | `[]` | Extra regular expressions, applied on top of the built-in secret shapes. A match becomes `[redacted:configured]`. A pattern that does not compile is skipped rather than breaking capture. |
+
+#### `retrieval`
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `retrieval.mode` | `"hybrid"` | How memory is searched: `keyword` (FTS5, BM25), `semantic` (cosine over local vectors), or `hybrid` — both, fused. A single search may override it. |
+| `retrieval.max_items` | `6` | Entries offered at a session seam before any detail is fetched, and the default `limit` for a search. |
+| `retrieval.max_tokens` | `1200` | Estimated-token budget for the whole recalled block, wrapper included. It fills to the budget rather than to `max_items`, because six short notes and six long ones are not the same amount of context. |
+| `retrieval.cross_project` | `false` | `true` widens both search and the session-start block to every project on this machine. Off by default: another repository's work is usually noise. |
+
+#### `providers`
+
+Both are `null`, and **nothing turns them on for you** — not an upgrade, not a command. With them unset, the summariser and the embedder are both local and nothing about your code leaves the machine.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `providers.observer` | `null` | A model that writes observation narratives instead of the local extractive summariser. Setting it is the one thing that sends captured work off this machine. |
+| `providers.embeddings` | `null` | A model that produces the vectors `semantic` retrieval compares, instead of the local `local-hash-v1` embedder. Each vector records which embedder made it, so two models' vectors are never compared. |
+
+Each takes an object of three fields: `kind` (only `"anthropic"` today), `model`, and `api_key_env` — the **name of the environment variable** holding the key, defaulting to `ANTHROPIC_API_KEY`. The key itself never goes in the config file, because a config file ends up in every export, log line and dashboard payload that prints configuration.
+
+```json title=".eklavya.json"
+{
+  "providers": {
+    "observer": {
+      "kind": "anthropic",
+      "model": "<model-id>",
+      "api_key_env": "ANTHROPIC_API_KEY"
+    }
+  }
+}
+```
+
 ### A complete file
 
 Every key is optional — write only the ones you want to change. This example is a repo file for an onboarding codebase: enforced, grounded in the project, held at easy for everyone.

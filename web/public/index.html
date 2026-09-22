@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eklavya — learn while your agent works</title>
-<meta name="description" content="Eklavya is a Claude Code plugin that turns agent generation time into learning time. While Claude implements your task, it teaches you the concepts behind that exact work — Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph.">
+<meta name="description" content="Eklavya is a Claude Code plugin that turns agent generation time into learning time. While Claude implements your task, it teaches you the concepts behind that exact work — and remembers the work itself, so the next session starts knowing what this project has already been through. Everything local by default.">
 <link rel="canonical" href="https://eklavya-run.web.app/">
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="Eklavya — learn while your agent works">
-<meta property="og:description" content="A Claude Code plugin that turns agent generation time into learning time. Never the same question twice.">
+<meta property="og:description" content="A Claude Code plugin that teaches you the code your agent writes — and remembers the work. Never the same question twice.">
 <meta property="og:url" content="https://eklavya-run.web.app/">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#17171a">
@@ -51,7 +51,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="tokens.css?v=2">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 <div class="frame">
@@ -125,7 +125,7 @@
       <h1 class="hero__title fade-up fade-up--1">Learn while your<br>agent <em>works.</em></h1>
 
       <p class="hero__lede pretty fade-up fade-up--2">
-        Eklavya turns agent generation time into learning time. While Claude Code implements your task, it teaches you the concepts behind that exact work — Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph.
+        Eklavya turns agent generation time into learning time. While Claude Code implements your task, it teaches you the concepts behind that exact work — Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph. And it remembers the work: what you asked for, what changed, what failed, recalled at the start of the next session so you never explain your own repository twice.
       </p>
 
       <!-- No commands in the hero. The install has two routes and a Node
@@ -491,9 +491,14 @@
         <p>One question about a concept the checkpoints did not reach — never a row of them at the moment you wanted to be done. A session that answered its budget while the agent worked finishes in silence, which is the entire point.</p>
       </li>
       <li data-reveal data-delay="500">
-        <span class="steps__n steps__n--solid">6</span>
-        <h3>Next session starts calibrated</h3>
-        <p>A one-line learner profile, so Claude calibrates from your first message. Shaky concepts come back later, at a higher tier.</p>
+        <span class="steps__n">6</span>
+        <h3>And all of it is remembered</h3>
+        <p>Every tool call leaves one row of evidence — what ran, what changed, what failed — and at each seam a local summariser turns the batch into a short observation. No network call, no key: the default summariser quotes what the evidence already says. Secrets and excluded paths are filtered out before anything is written. <a href="/docs/memory/">How memory works</a></p>
+      </li>
+      <li data-reveal data-delay="600">
+        <span class="steps__n steps__n--solid">7</span>
+        <h3>Next session starts calibrated — and briefed</h3>
+        <p>A one-line learner profile, so Claude calibrates from your first message, plus this project's relevant history, handed over as evidence to verify rather than instructions to follow. Shaky concepts come back later, at a higher tier.</p>
       </li>
     </ol>
   </div>
@@ -623,6 +628,27 @@
       </div>
     </div>
 
+    <h3 class="modes__sub" data-reveal>&hellip;and four namespaces for the memory half</h3>
+    <p class="dials__sub" data-reveal data-delay="100">
+      The dials are flat keys because every config file already written uses them that way. Memory's settings are nested, and merge the same way — key by key, repo over global. Defaults shown.
+      <a href="/docs/memory/">What memory does</a>
+    </p>
+    <div class="cmd-table" data-reveal data-delay="150">
+      <div class="cmd-row"><code>memory.enabled</code><span><b>true</b> — whether the work is recorded and recalled. Independent of the mode dial — <code class="code-inline">mode: off</code> means no questions, not no history.</span></div>
+      <div class="cmd-row"><code>memory.capture</code><span><b>full</b> — or <code class="code-inline">minimal</code> for prompts and session seams without the file-by-file traffic, or <code class="code-inline">off</code>.</span></div>
+      <div class="cmd-row"><code>memory.batch_max_events</code><span><b>40</b> — events per observation. A session seam flushes whatever is left.</span></div>
+      <div class="cmd-row"><code>memory.retention_days</code><span><b>null</b> — keep raw evidence until you delete it. A number prunes it; the observations built from it survive.</span></div>
+      <div class="cmd-row"><code>privacy.exclude_paths</code><span><b>[]</b> — added to the built-in list, never replacing it: <code class="code-inline">.env</code>, <code class="code-inline">/.ssh/</code>, <code class="code-inline">.pem</code>, <code class="code-inline">credentials.json</code> and the rest.</span></div>
+      <div class="cmd-row"><code>privacy.exclude_tools</code><span><b>[]</b> — tools whose calls are never captured.</span></div>
+      <div class="cmd-row"><code>privacy.redact_patterns</code><span><b>[]</b> — your own regexes, on top of the built-in secret shapes. Redaction happens before anything is written.</span></div>
+      <div class="cmd-row"><code>retrieval.mode</code><span><b>hybrid</b> — <code class="code-inline">keyword</code> is FTS5 and BM25, <code class="code-inline">semantic</code> is cosine over local vectors, hybrid fuses both.</span></div>
+      <div class="cmd-row"><code>retrieval.max_items</code><span><b>6</b> — entries offered at a session seam before any detail is fetched.</span></div>
+      <div class="cmd-row"><code>retrieval.max_tokens</code><span><b>1200</b> — estimated-token budget for the recalled block. It fills to the budget, not to the item count.</span></div>
+      <div class="cmd-row"><code>retrieval.cross_project</code><span><b>false</b> — another repository's work is noise by default. <code class="code-inline">true</code> widens search and recall to every project here.</span></div>
+      <div class="cmd-row"><code>providers.observer</code><span><b>null</b> — a model that writes richer observations instead of the local summariser. The one setting that sends captured work off the machine.</span></div>
+      <div class="cmd-row"><code>providers.embeddings</code><span><b>null</b> — a model for the search vectors instead of the local embedder. Each vector records which model made it.</span></div>
+    </div>
+
     <p class="modes__foot" data-reveal data-delay="300">
       Repo settings beat global ones — <code class="code-inline">eklavya config set mode enforced --repo</code> pins enforced mode on one codebase without touching anyone's machine-wide setup. Because that also overrides a contributor's personal <code class="code-inline">focus</code>, the session banner names whatever the repo is overriding rather than letting it change silently.
     </p>
@@ -657,7 +683,9 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
       </span>
       <h3>Your data stays yours</h3>
-      <p><code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. Delete the directory and Eklavya forgets you entirely.</p>
+      <p>One file: <code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. It holds what you have been asked and how you answered, and the memory half's evidence and observations. Delete the directory and Eklavya forgets you entirely.</p>
+      <p><b>With the default config, nothing leaves the machine.</b> The summariser that writes observations and the embedder that makes them searchable both run locally — no key, no account, no telemetry. Setting <code>providers.observer</code> is the only thing that changes that, and nothing sets it for you.</p>
+      <p>Secrets never get that far. Paths like <code>.env</code> and <code>~/.ssh</code> are excluded before capture, known key shapes are redacted before the write, and Eklavya's own traffic is never recorded. <a href="/docs/memory/#what-is-never-captured">The full list</a></p>
       <p>The commit gate is editor-agnostic: one script installs a plain git <code>pre-commit</code> hook that runs the same check, so a commit from a bare terminal is held exactly like one made inside Claude Code.</p>
     </div>
   </div>

@@ -62,6 +62,7 @@ export default defineConfig({
           items: [
             { slug: 'docs/dials' },
             { slug: 'docs/levels-and-tiers' },
+            { slug: 'docs/memory' },
             { slug: 'docs/commands' },
             { slug: 'docs/cli' },
           ],
