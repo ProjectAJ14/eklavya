@@ -52,7 +52,7 @@ Three separate mechanisms enforce this, because a prompt asking nicely is not en
 
 | Hook | Fires | Does |
 | --- | --- | --- |
-| `SessionStart` | When a session opens | Stamps the session id and prints your one-line learner profile. |
+| `SessionStart` | When a session opens | Stamps the session id, shows you a three-line profile, and hands Claude this project's memory and the instruction to log concepts. |
 | `UserPromptSubmit` | On a message you send | Nothing, almost always. In a session that has logged nothing at all after about twelve minutes, restates the one-line instruction to log concepts — at most three times, and never while logging is working. |
 | `SubagentStart` | When Claude delegates work to a subagent | Gives that subagent the same instruction to log concepts — the session-start one never reaches it. It logs into your session; it never asks you anything, because nobody is watching that transcript. |
 | `PostToolUse` | Right after Claude logs concepts | Decides whether to ask one mid-task question. Respects the cadence, the budget and the checkpoint spacing. |

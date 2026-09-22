@@ -34,7 +34,7 @@ else.
 
 | Event | Matcher | Timeout | Script | Job |
 |---|---|---|---|---|
-| SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), replay the spool, summarise the last session's batch, recall this project's memory, print the profile banner and the standing log directive |
+| SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), replay the spool, summarise the last session's batch, recall this project's memory, show the developer the profile banner (`systemMessage`) and hand the model the recall and the standing log directive (`additionalContext`) |
 | UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-stamp this checkout's session pointer, then re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
 | SubagentStart | — | 10s | `subagent-start` | give a delegated agent the log directive the parent's SessionStart never reached it with |
 | PreToolUse | `Bash` | 10s | `pre-tool-gate` | with `quiz.enforced` only, deny a `git commit` whose session gate has not passed |
@@ -72,9 +72,25 @@ the prefix depends on how the plugin was installed —
 catches both; anchoring it to one spelling silently disables the checkpoint for
 half the installs.
 
+## Two audiences, two channels
+
+Every line a hook writes is for the developer or for the model, and each has
+exactly one channel: top-level `systemMessage` is rendered to the developer,
+`hookSpecificOutput.additionalContext` is read by the model. Plain stdout is
+never used. On `SessionStart` it is accepted, but as context only — the banner
+went out that way for months and every session opened in apparent silence while
+the model read three lines meant for a person. And `systemMessage` is **top
+level**: nested inside `hookSpecificOutput` the harness drops it, which is how
+the checkpoint's one line to the developer went unseen for just as long.
+`docs/verified-schemas.md` has the per-hook table; `mcp/test/hooks.test.ts`
+asserts on `shown` and `context` separately, and its `systemMessage()` helper
+throws on the nested placement, so a new hook cannot repeat either mistake
+without a test saying so.
+
 ## SubagentStart needs the JSON form, and skips the tutor
 
-`SessionStart` may print its context as raw stdout. `SubagentStart` may not: it
+`SessionStart` accepts raw stdout as context (Eklavya no longer uses it — see
+above). `SubagentStart` does not: it
 reads `hookSpecificOutput.additionalContext` and drops anything else in silence,
 so the wrong form is a hook that runs, exits 0, and does nothing. That is the
 one thing `subagent-start.ts` cannot get wrong, and `mcp/test/hooks.test.ts`

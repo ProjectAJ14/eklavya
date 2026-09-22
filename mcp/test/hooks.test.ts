@@ -32,6 +32,8 @@ interface HookResult {
   stderr: string;
   /** `hookSpecificOutput.additionalContext`: what the model was handed, if anything. */
   context: string;
+  /** Top-level `systemMessage`: the only thing the developer is shown, if anything. */
+  shown: string;
   /** Whether the hook said anything at all. Every hook here exits 0, so the exit
    *  code no longer distinguishes "stayed quiet" from "asked for a quiz". */
   spoke: boolean;
@@ -50,6 +52,7 @@ function runHook(script: string, input: Record<string, unknown>, env: Record<str
     stdout,
     stderr: res.stderr ?? '',
     context: context ?? '',
+    shown: systemMessage(stdout) ?? '',
     spoke: context !== null,
   };
 }
@@ -62,6 +65,23 @@ function additionalContext(stdout: string): string | null {
     return parsed.hookSpecificOutput?.additionalContext ?? null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * The top-level `systemMessage`, or null. Top level, not inside
+ * `hookSpecificOutput`: the harness drops it there, which is how the checkpoint's
+ * one line to the developer went unseen.
+ */
+function systemMessage(stdout: string): string | null {
+  if (!stdout.trim().startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(stdout) as { systemMessage?: string; hookSpecificOutput?: { systemMessage?: unknown } };
+    if (parsed.hookSpecificOutput?.systemMessage !== undefined) throw new Error('systemMessage nested in hookSpecificOutput is dropped by the harness');
+    return parsed.systemMessage ?? null;
+  } catch (e) {
+    if (e instanceof SyntaxError) return null;
+    throw e;
   }
 }
 
@@ -235,15 +255,28 @@ describe('SessionStart output', () => {
     // scoreboard, no dials, no URL -- somebody has just sat down to work.
     const res = sessionStart();
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/^Eklavya$/m);
-    expect(res.stdout).toMatch(/Your savings: — no context reused yet/);
-    expect(res.stdout).toMatch(/This project: Learning \d+ · Mastered \d+ · Due \d+/);
+    expect(res.shown).toMatch(/^Eklavya$/m);
+    expect(res.shown).toMatch(/Your savings: — no context reused yet/);
+    expect(res.shown).toMatch(/This project: Learning \d+ · Mastered \d+ · Due \d+/);
+  });
+
+  // The bug this pins: everything used to go out as plain stdout, which on
+  // SessionStart reaches the model and never the developer, so every session
+  // opened in silence. Each audience gets its own channel and nothing else.
+  it('shows the banner to the developer and hands the directive to the model', () => {
+    const res = sessionStart();
+    const parsed = JSON.parse(res.stdout) as Record<string, unknown>;
+    expect(parsed.hookSpecificOutput).toMatchObject({ hookEventName: 'SessionStart' });
+    expect(res.shown).toMatch(/^Eklavya$/m);
+    expect(res.shown).not.toMatch(/Standing instruction|log_session_concepts/);
+    expect(res.context).toMatch(/Standing instruction/);
+    expect(res.context).not.toMatch(/^Eklavya$|This project: Learning|Your savings:/m);
   });
 
   it('tells the model to log concepts on a fresh install, where nothing else will', () => {
     const res = sessionStart();
-    expect(res.stdout).toMatch(/Standing instruction/);
-    expect(res.stdout).toMatch(/log_session_concepts/);
+    expect(res.context).toMatch(/Standing instruction/);
+    expect(res.context).toMatch(/log_session_concepts/);
   });
 
   it('repeats the logging instruction once there is history — the loop still needs feeding', () => {
@@ -251,8 +284,8 @@ describe('SessionStart output', () => {
     answer('csrf', 5);
     answer('csrf', 5);
     const res = sessionStart();
-    expect(res.stdout).toMatch(/This project: Learning/);
-    expect(res.stdout).toMatch(/log_session_concepts/);
+    expect(res.shown).toMatch(/This project: Learning/);
+    expect(res.context).toMatch(/log_session_concepts/);
   });
 
   it('still gives the logging instruction when quiet is set', () => {
@@ -262,7 +295,7 @@ describe('SessionStart output', () => {
     // tests encoded that as intended behaviour; this is the corrected pair.
     configure({ quiet: true });
     const res = sessionStart();
-    expect(res.stdout).toMatch(/log_session_concepts/);
+    expect(res.context).toMatch(/log_session_concepts/);
     expect(res.stdout).not.toMatch(/This project: Learning/);
   });
 
@@ -280,7 +313,7 @@ describe('SessionStart output', () => {
 
     const res = sessionStart();
     // One concept touched here; the seed's other 86 are not this project's.
-    expect(res.stdout).toMatch(/This project: Learning 0 · Mastered 1 · Due \d+/);
+    expect(res.shown).toMatch(/This project: Learning 0 · Mastered 1 · Due \d+/);
   });
 
   it('keeps concept names and the dials out of the greeting', () => {
@@ -298,7 +331,7 @@ describe('SessionStart output', () => {
     configure({ quiet: true });
     const res = sessionStart();
     expect(res.stdout).not.toMatch(/^Eklavya$|This project: Learning|Your savings:/m);
-    expect(res.stdout).toMatch(/Standing instruction/);
+    expect(res.context).toMatch(/Standing instruction/);
     expect(db.prepare("SELECT value FROM meta WHERE key='current_session'").get()).toBeTruthy();
   });
 
@@ -315,14 +348,17 @@ describe('SessionStart output', () => {
   // Memory had been recording the whole time.
   it('still says memory is running when questions are off', () => {
     configure({ quiz: { enabled: false, enforced: false } });
-    const out = sessionStart().stdout;
-    expect(out).toMatch(/Questions are off/);
-    expect(out).toMatch(/Memory is still recording/);
+    const res = sessionStart();
+    // On screen, not in context: the line exists so a quiet install does not
+    // look broken, and plain SessionStart stdout is something only the model reads.
+    expect(res.shown).toMatch(/Questions are off/);
+    expect(res.shown).toMatch(/Memory is still recording/);
+    expect(res.context).not.toMatch(/Questions are off/);
   });
 
   it('says so plainly when both halves are off, and only then', () => {
     configure({ quiz: { enabled: false, enforced: false }, memory: { enabled: false } });
-    const out = sessionStart().stdout;
+    const out = sessionStart().shown;
     expect(out).toMatch(/Questions and memory are both off/);
     expect(out).not.toMatch(/Memory is still recording/);
   });
@@ -836,6 +872,14 @@ describe('PostToolUse checkpoint — asking while the agent still works', () => 
     expect(JSON.parse(res.stdout).hookSpecificOutput.hookEventName).toBe('PostToolUse');
   });
 
+  it('tells the developer why their agent stopped, at the top level where it renders', () => {
+    // It sat inside `hookSpecificOutput`, where the harness drops it; `shown`
+    // throws on that placement, so this cannot quietly regress.
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+    expect(checkpoint().shown).toBe('Eklavya: quick question on what you just built');
+  });
+
   it('carries the configured focus, because the tutor skill may never have loaded', () => {
     configure({ min_minutes_between_checkpoints: 0, focus: 'project' });
     logConcepts(['csrf']);
@@ -970,22 +1014,22 @@ describe('SessionStart says which level the project is on', () => {
     answerIn('*', 'httponly-cookies', 1);
     const res = sessionStart();
     expect(res.status).toBe(0);
-    expect(res.stdout).toContain('Level easy (2/100)');
+    expect(res.shown).toContain('Level easy (2/100)');
   });
 
   it('starts at easy with nothing answered', () => {
-    expect(sessionStart().stdout).toContain('Level easy (0/100)');
+    expect(sessionStart().shown).toContain('Level easy (0/100)');
   });
 
   it('follows a shortened runway', () => {
     configure({ min_minutes_between_quizzes: 0, level_up_after: 20 });
     answerIn('*', 'csrf', 5);
-    expect(sessionStart().stdout).toContain('Level easy (1/20)');
+    expect(sessionStart().shown).toContain('Level easy (1/20)');
   });
 
   it('says so when the level is pinned, rather than showing a runway nobody is on', () => {
     configure({ min_minutes_between_quizzes: 0, difficulty: 'hard' });
-    expect(sessionStart().stdout).toContain('Level hard (pinned)');
+    expect(sessionStart().shown).toContain('Level hard (pinned)');
   });
 
   it('reads the level a promotion wrote', () => {
@@ -993,13 +1037,13 @@ describe('SessionStart says which level the project is on', () => {
       `INSERT INTO project_levels (repo, level, promoted_at) VALUES ('*', 'medium', datetime('now','-1 day'))`,
     ).run();
     answerIn('*', 'csrf', 4); // easy-band evidence, spent with the old level
-    expect(sessionStart().stdout).toContain('Level medium (0/100)');
+    expect(sessionStart().shown).toContain('Level medium (0/100)');
   });
 
   it('names difficulty when this project pins it over the learner’s own setting', () => {
     configure({ difficulty: 'auto' });
     configureProject({ difficulty: 'easy' });
-    expect(sessionStart().stdout).toContain('override your global ones for: difficulty');
+    expect(sessionStart().shown).toContain('override your global ones for: difficulty');
   });
 });
 

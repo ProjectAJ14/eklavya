@@ -70,7 +70,6 @@ await run(async (input) => {
   // holds, mark the seam, and drain any batch the last session left queued.
   const identity = identityOf(input, cwd, sid);
   const memoryContext: string[] = [];
-  const dormant: string[] = [];
   const memoryEnabled = resolved.config.memory.enabled;
   if (memoryEnabled) {
     replaySpool(db);
@@ -98,22 +97,24 @@ await run(async (input) => {
     // silence is a plugin you conclude is broken. It was not: memory was
     // recording the entire time, with no way to tell from the outside. One line
     // costs nothing and answers the question before it is asked.
+    const shown: string[] = [];
     if (!quiet) {
-      dormant.push(
+      shown.push(
         memoryEnabled
           ? '[Eklavya] Questions are off for this project (`quiz.enabled: false`). Memory is still recording and recalling — `memory.enabled: false` is the dial for that.'
           : '[Eklavya] Questions and memory are both off for this project. Nothing is being recorded.',
       );
     }
-    dormant.push(...memoryContext);
-    if (dormant.length) process.stdout.write(`${dormant.join('\n')}\n`);
-    return 0;
+    return emit(shown, memoryContext);
   }
   // Fires on resume and after a compaction too, with the same session id, so a
   // session silenced an hour ago stays silent rather than greeting its way back.
   if (isSessionOff(db, sid)) return 0;
 
-  const out: string[] = [];
+  // Two audiences, two channels. `shown` is for the developer; `context` is for
+  // the model. See `emit` for why they cannot share one.
+  const shown: string[] = [];
+  const context: string[] = [];
 
   // `quiet` suppresses the banner, and only the banner. It used to return here,
   // which also dropped the directive below -- so a developer who turned the
@@ -133,7 +134,7 @@ await run(async (input) => {
       const standing = levelStanding(db, resolved.config, resolved.repoRoot);
       levelLabel = `${standing.level} (${standing.counts.passed}/${standing.needed.answers})`;
     }
-    banner(db, out, {
+    banner(db, shown, {
       project: identity.project,
       memory: resolved.config.memory.enabled,
       levelLabel,
@@ -147,7 +148,7 @@ await run(async (input) => {
   // a Bash call, and Cowork sessions do not commit. Better to say so once per
   // session than to let someone believe an unenforceable setting is enforcing.
   if (quiz.enforced && isCowork()) {
-    out.push(
+    shown.push(
       '[Eklavya] Quizzing is enforced, but this is a Cowork session: the commit gate holds `git commit`, ' +
         'and there are no commits here. Questions still come and the gate still records — nothing is blocked.',
     );
@@ -161,11 +162,36 @@ await run(async (input) => {
 
   // Before the directive: it is what the session is *about*, and the directive
   // is what to do about it.
-  out.push(...memoryContext);
-  out.push(withSurfaceNote(DIRECTIVE));
-  process.stdout.write(`${out.join('\n')}\n`);
-  return 0;
+  context.push(...memoryContext);
+  context.push(withSurfaceNote(DIRECTIVE));
+  return emit(shown, context);
 });
+
+/**
+ * One envelope, split by audience.
+ *
+ * This hook used to print everything as plain stdout, and on SessionStart plain
+ * stdout is context: the model reads it and the developer never sees it. So the
+ * banner -- three lines written for a person, and the "questions are off, memory
+ * is still recording" line that exists precisely so a quiet install does not
+ * look broken -- went to the one reader it was not for, and every session opened
+ * in silence. `systemMessage` is the only field the harness renders to the
+ * developer (top level, not inside `hookSpecificOutput`, where it is dropped);
+ * `additionalContext` is the model's. Nothing is sent to both: the model has
+ * `get_config` and `get_learner_profile` for anything the banner says.
+ */
+function emit(shown: string[], context: string[]): number {
+  if (!shown.length && !context.length) return 0;
+  process.stdout.write(
+    `${JSON.stringify({
+      ...(shown.length > 0 && { systemMessage: shown.join('\n') }),
+      ...(context.length > 0 && {
+        hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context.join('\n') },
+      }),
+    })}\n`,
+  );
+  return 0;
+}
 
 interface BannerParts {
   project: string;
