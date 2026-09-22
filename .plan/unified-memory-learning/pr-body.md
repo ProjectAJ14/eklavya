@@ -148,7 +148,7 @@ Stated so a reviewer does not go looking for it:
 
 ## Checks
 
-- [x] `cd mcp && npm test` — **844 passed, 37 files, nothing skipped**, and
+- [x] `cd mcp && npm test` — **858 passed, 38 files, nothing skipped**, and
       verified the way CI runs it: a clean clone of this branch, `npm ci`, then
       `npm test`. Four
       tests used to fail for anyone with an `.eklavya.json` at the repository
@@ -174,7 +174,32 @@ Stated so a reviewer does not go looking for it:
 - [ ] Conventional Commit subject — `feat:` and `fix:` cut a release, `docs:`
       and `chore:` do not
 
-## One security fix worth reading on its own
+## Two security fixes worth reading on their own
+
+`6607635`. **A cloned repository could run an arbitrary command.** `.eklavya.json`
+wins over the global config — that is what makes a lead's pinned mode work —
+and this branch gave it the `notifications` namespace, whose `command` sink the
+Stop hook spawns by itself at the end of an ordinary session. A repository
+containing a sink of `/bin/sh -c '...'` executed it on `git clone` plus ten
+minutes of work. `shell: false` is no help when the command *is* a shell. I
+reproduced it before fixing and the regression test is the same payload.
+
+The rule now: a dial is safe to inherit from a stranger, because the worst a
+hostile one can do is ask you a question. `notifications`, `sync`, `providers`
+and `retrieval.cross_project` are not, and are read from the global config
+only — ignored, reported by `doctor` and `config get`, and refused at write
+time.
+
+Three smaller findings from the same review, each with a test: a `sync.device_id`
+of `../../..` wrote outside the sync target; an out-of-range timestamp in a
+source database crashed an import partway through and left the earlier rows
+committed; and `pathExcluded` was case-sensitive and symlink-blind, so
+`/repo/.ENV` was captured on the filesystems where it is the same file as
+`.env`. Plus one latent bug found while fixing the first: config namespaces
+merged with a flat spread, so a repo setting `memory.capture` took the
+developer's `memory.enabled` with it.
+
+
 
 `ec41158`. The dashboard bound to 127.0.0.1 and checked nothing else, which is
 not an authorisation boundary for a browser: a page the developer has open can

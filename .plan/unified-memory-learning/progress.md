@@ -240,3 +240,9 @@ checkout and so read the contributor's own untracked `.eklavya.json` containing
 `{"mode": "off"}`, which is the documented off switch for exactly the banners
 they assert. They run in a scratch directory now (`0745d54`), so a repo-local
 config a developer left behind no longer changes what a test run says.
+- 2026-09-22: a security review of the new surfaces found four issues, all
+  fixed with regression tests. The serious one was mine and was reproduced
+  before it was fixed: a cloned repository's `.eklavya.json` could install a
+  `notifications` command sink, which the Stop hook spawns by itself — code
+  execution on `git clone` plus one session. Four settings with effects outside
+  the session are global-only now, and `doctor` says when a repo tried.
