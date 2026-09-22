@@ -48,6 +48,15 @@ function indexRow(entry: EntryRow) {
 const SEARCH_LIMIT_CAP = 50;
 const GET_ID_CAP = 20;
 const TIMELINE_LIMIT_CAP = 100;
+/**
+ * How much of one raw event body `include_evidence` will hand back.
+ *
+ * Raw evidence is the thing the two-stage read exists to avoid sending: a
+ * single tool result can be tens of kilobytes of diff. The cap keeps one
+ * over-eager fetch from costing the whole saving, and a truncated body says so
+ * rather than ending mid-sentence and being quoted as if it were complete.
+ */
+const EVIDENCE_BODY_CAP = 1500;
 
 /** The one line every read tool repeats, because the model reads one tool at a time. */
 const EVIDENCE_RULE =
@@ -119,13 +128,19 @@ export const memoryGet: ToolDef = {
   name: 'memory_get',
   title: 'Get memory entries',
   description:
-    `Read the full entries behind ids from memory_search or memory_timeline: narrative, facts, files, tags and the evidence events each claim came from. Pass the receipt_id a recall block carried so the saving stays honest. ${SCOPE_RULE} ${EVIDENCE_RULE}`,
+    `Read the full entries behind ids from memory_search or memory_timeline: narrative, facts, files, tags and the evidence events each claim came from. Pass the receipt_id a recall block carried so the saving stays honest. Set include_evidence only to check one specific claim against the raw events it was built from — it is expensive, and browsing with it spends the context this two-stage read exists to save. ${SCOPE_RULE} ${EVIDENCE_RULE}`,
   inputSchema: {
     ids: z
       .array(z.number().int())
       .min(1)
       .max(GET_ID_CAP)
       .describe(`Entry ids, at most ${GET_ID_CAP}. Ask for the ones you will actually read.`),
+    include_evidence: z
+      .boolean()
+      .optional()
+      .describe(
+        `Defaults to false. True adds each entry's raw evidence events — kind, tool, time, files and body, each body capped at ${EVIDENCE_BODY_CAP} characters. Expensive: ask for one entry you have a specific question about, never for a list you are still skimming.`,
+      ),
     receipt_id: z
       .number()
       .int()
@@ -133,38 +148,58 @@ export const memoryGet: ToolDef = {
       .describe('The receipt from the recall block that proposed these entries; charges this fetch against it.'),
     cwd: z.string().optional().describe(CWD_HINT),
   },
-  handler: (args: { ids: number[]; receipt_id?: number; cwd?: string }, { db }) => {
+  handler: (args: { ids: number[]; include_evidence?: boolean; receipt_id?: number; cwd?: string }, { db }) => {
     const ids = args.ids.slice(0, GET_ID_CAP);
     const byId = new Map(entriesByIds(db, ids).map((e) => [e.id, e]));
 
     const entries = ids
       .map((id) => byId.get(id))
       .filter((e): e is EntryRow => Boolean(e))
-      .map((entry) => ({
-        id: entry.id,
-        project: entry.project,
-        kind: entry.kind,
-        type: entry.type,
-        title: entry.title,
-        narrative: entry.narrative,
-        facts: parseList(entry.facts),
-        files: parseList(entry.files),
-        tags: entryTags(db, entry.id),
-        generator: entry.generator,
-        confidence: entry.confidence,
-        occurred_at: entry.occurred_at,
-        // Said rather than filtered: a superseded or deleted row is out of
-        // retrieval but still answerable by id, and the model has to know which
-        // it is holding before it quotes it.
-        superseded_by: entry.superseded_by,
-        deleted_at: entry.deleted_at,
-        event_ids: entryEvents(db, entry.id).map((e) => e.id),
-      }));
+      .map((entry) => {
+        const events = entryEvents(db, entry.id);
+        return {
+          id: entry.id,
+          project: entry.project,
+          kind: entry.kind,
+          type: entry.type,
+          title: entry.title,
+          narrative: entry.narrative,
+          facts: parseList(entry.facts),
+          files: parseList(entry.files),
+          tags: entryTags(db, entry.id),
+          generator: entry.generator,
+          confidence: entry.confidence,
+          occurred_at: entry.occurred_at,
+          // Said rather than filtered: a superseded or deleted row is out of
+          // retrieval but still answerable by id, and the model has to know
+          // which it is holding before it quotes it.
+          superseded_by: entry.superseded_by,
+          deleted_at: entry.deleted_at,
+          event_ids: events.map((e) => e.id),
+          // Only on request. `event_ids` alone left the model able to see that
+          // a claim rested on four events and unable to read one of them —
+          // the dashboard and `eklavya memory show` could, the model could not.
+          ...(args.include_evidence
+            ? {
+                evidence_events: events.map((e) => ({
+                  id: e.id,
+                  kind: e.kind,
+                  tool: e.tool,
+                  occurred_at: e.occurred_at,
+                  files: parseList(e.files),
+                  body: e.body.slice(0, EVIDENCE_BODY_CAP),
+                  truncated: e.body.length > EVIDENCE_BODY_CAP,
+                })),
+              }
+            : {}),
+        };
+      });
 
     if (args.receipt_id) {
-      // Charged per entry with the cost of what was actually returned: the
-      // index stage's optimistic figure is only honest if the detail fetch it
-      // led to is added to the same receipt (PRD MET-01).
+      // Charged per entry with the cost of what was actually returned — which
+      // is why the evidence bodies are folded in above rather than appended
+      // after: the index stage's optimistic figure is only honest if the whole
+      // detail fetch it led to is added to the same receipt (PRD MET-01).
       for (const entry of entries) {
         chargeDetail(db, args.receipt_id, entry.id, estimateTokens(JSON.stringify(entry)));
       }

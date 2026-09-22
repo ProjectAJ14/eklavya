@@ -16,7 +16,7 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | `eklavya doctor` | Checks that everything is wired up: the runtime, the SQLite driver, the plugin's registration with Claude Code, the chat skill, then the database, counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. It also **applies your [concept packs](/docs/packs/)** — the only command that does so unconditionally — and names any that failed to load. Exits non-zero if a check fails, and names the command that repairs it; a broken pack is reported but does not fail the run, because `eklavya install` cannot repair one. |
 | `eklavya dashboard [--port <n>] [--no-open]` | Serves your learning history as a local web page and opens it in your browser. `--no-open` serves it and prints the URL instead. See [The dashboard](/docs/dashboard/). |
 | `eklavya statusline` | Prints your dials as one line for a status bar, or nothing at all. See [below](#eklavya-statusline). |
-| `eklavya memory <sub>` | Drives the memory half from a terminal: `status`, `search`, `timeline`, `show`, `process`, `prune`, `import` and `export`. See [below](#eklavya-memory). |
+| `eklavya memory <sub>` | Drives the memory half from a terminal: `status`, `search`, `timeline`, `show`, `process`, `prune`, `import`, `export` and `restore`. See [below](#eklavya-memory). |
 | `eklavya db-path` | Prints the database location. Useful in scripts. |
 | `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. Claude Code loads the pedagogy in pieces, on demand; a rules file is a single always-applied document, so every piece is inlined into it. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
 
@@ -36,6 +36,25 @@ and two of them have no equivalent as a tool.
 | `prune` | Deletes raw evidence older than `memory.retention_days`, keeping the observations built from it. Does nothing when retention is unset. |
 | `import <source.db>` | Imports a Claude Mem database. See below. |
 | `export <file>` | A versioned JSON file of entries, tags, evidence links and receipts. |
+| `restore <file>` | Reads that file back in. See below. |
+
+`export` and `restore` are one pair: the file is your backup, and `restore` is
+how you undo. Take an export before anything irreversible — an import, a
+version upgrade, a `--purge` — and if it goes wrong, restore it.
+
+```bash
+eklavya memory export ~/eklavya-backup.json
+eklavya memory restore ~/eklavya-backup.json
+```
+
+A restore is **additive and idempotent**: it adds what is missing, matches what
+is already there by identity rather than by row number, and running it twice
+adds nothing the second time. It never writes an attempt, a mastery row or a
+gate — restoring memory cannot alter what you have been assessed on. It rebuilds
+the search index and the embeddings for everything it brought back, so restored
+entries are findable immediately. A file written by a newer version stops with
+the version it found and the version this build understands, rather than
+guessing at a shape it has never seen.
 
 #### Importing an existing Claude Mem history
 

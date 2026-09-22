@@ -254,6 +254,48 @@ describe('eklavya doctor', () => {
   });
 });
 
+describe('eklavya doctor reports the memory half', () => {
+  it('answers on an empty database without throwing or inventing numbers', () => {
+    const res = eklavya(['doctor']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/memory:\s+on · capture full/);
+    expect(res.stdout).toMatch(/memory:\s+0 entries, 0 evidence events \(0 not yet summarised\)/);
+    expect(res.stdout).toMatch(/memory:\s+queue 0 pending · 0 paused · 0 failed/);
+    expect(res.stdout).toMatch(/memory:\s+last evidence — none captured yet/);
+    expect(res.stdout).toMatch(/memory:\s+sync off/);
+    expect(res.stdout).toMatch(/memory:\s+provider none — nothing leaves this machine/);
+  });
+
+  it('fails on a paused queue and names the fix, with the class and never the message', () => {
+    const db = openDb(dbFile);
+    db.prepare("INSERT INTO memory_batches (project, session_id, reason) VALUES (?, 's1', 'manual')").run(repo);
+    db.prepare(
+      `INSERT INTO memory_jobs (batch_id, status, error_class, last_error)
+       VALUES (1, 'paused', 'auth', 'https://api.example.com?key=sk-do-not-print-me')`,
+    ).run();
+    db.close();
+
+    const res = eklavya(['doctor']);
+    expect(res.status).toBe(1);
+    expect(res.stdout).toMatch(/memory:\s+FAILED — 1 job\(s\) paused \(auth\)/);
+    expect(res.stdout).toMatch(/eklavya memory process/);
+    // `last_error` is the provider's own prose and has carried a token in it.
+    expect(res.stdout).not.toContain('sk-do-not-print-me');
+    // The blanket remedy is for a broken install; it cannot repair a queue.
+    expect(res.stdout).not.toMatch(/Something is broken/);
+  });
+
+  it('fails on dropped events and points at the only remaining copy', () => {
+    fs.mkdirSync(path.join(home, 'spool'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'spool', 'dropped.json'), JSON.stringify({ count: 3 }));
+
+    const res = eklavya(['doctor']);
+    expect(res.status).toBe(1);
+    expect(res.stdout).toMatch(/memory:\s+FAILED — 3 event\(s\) dropped/);
+    expect(res.stdout).toMatch(/eklavya memory replay/);
+  });
+});
+
 describe('eklavya doctor checks the install', () => {
   it('passes and stays silent when everything is wired up', () => {
     const res = eklavya(['doctor']);
@@ -393,6 +435,44 @@ describe('eklavya memory', () => {
 
   it('exits non-zero on an unknown memory subcommand', () => {
     expect(eklavya(['memory', 'nonsense']).status).toBe(1);
+  });
+
+  it('exports and restores: the pair is the backup, and either half alone is not', () => {
+    const db = openDb(dbFile);
+    insertEntry(db, {
+      project: repo,
+      title: 'Refresh token rotation',
+      narrative: 'The old token is revoked when a new one is issued.',
+      tags: ['auth'],
+    });
+    db.close();
+
+    const file = path.join(home, 'backup.json');
+    expect(eklavya(['memory', 'export', file]).status).toBe(0);
+
+    // The drill the migration guide describes: lose the database, restore it.
+    fs.rmSync(dbFile, { force: true });
+    const first = eklavya(['memory', 'restore', file]);
+    expect(first.status).toBe(0);
+    expect(first.stdout).toMatch(/entries:\s+1 restored, 0 already here/);
+    expect(first.stdout).toMatch(/reindexed: 1 entries/);
+    expect(eklavya(['memory', 'search', 'refresh']).stdout).toMatch(/Refresh token rotation/);
+
+    // Additive, so running it twice is not a way to double your history.
+    const second = eklavya(['memory', 'restore', file]);
+    expect(second.status).toBe(0);
+    expect(second.stdout).toMatch(/entries:\s+0 restored, 1 already here/);
+    expect(eklavya(['memory', 'status']).stdout).toMatch(/entries:\s+1 here, 1 in total/);
+  });
+
+  it('refuses an export version it does not understand, naming both versions', () => {
+    const file = path.join(home, 'from-the-future.json');
+    fs.writeFileSync(file, JSON.stringify({ schema_version: 99, entries: [] }));
+
+    const res = eklavya(['memory', 'restore', file]);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/version 99/);
+    expect(res.stderr).toMatch(/understands version 1/);
   });
 });
 

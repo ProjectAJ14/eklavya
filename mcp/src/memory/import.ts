@@ -889,3 +889,217 @@ function validate(db: DB, report: ImportReport): { ok: boolean; notes: string[] 
   if (vectorless > 0) notes.push(`${vectorless} imported entries have no vector`);
   return { ok: notes.length === 0, notes };
 }
+
+/**
+ * The export format version `eklavya memory export` stamps and
+ * `restoreExport` refuses to guess past. Bump it when the payload shape below
+ * changes.
+ */
+export const EXPORT_SCHEMA_VERSION = 1;
+
+export interface RestoreReport {
+  file: string;
+  schemaVersion: number;
+  entries: { restored: number; skipped: number };
+  evidence: { restored: number; skipped: number };
+  receipts: { restored: number; skipped: number };
+  tags: number;
+  links: number;
+  receiptItems: number;
+  reindexed: number;
+}
+
+type Row = Record<string, unknown>;
+
+/** Columns are listed rather than spread: an export carries ids and a
+ *  `batch_id` that mean nothing in the destination database, and binding them
+ *  would either collide with a live row or point a foreign key at nothing. */
+const EVENT_COLUMNS = [
+  'event_uid', 'project', 'checkout', 'session_id', 'agent_id', 'host', 'source', 'kind', 'tool',
+  'title', 'body', 'files', 'occurred_at', 'received_at', 'redacted', 'status',
+];
+const ENTRY_COLUMNS = [
+  'entry_uid', 'project', 'session_id', 'kind', 'type', 'title', 'narrative', 'facts', 'files',
+  'generator', 'confidence', 'occurred_at', 'created_at', 'deleted_at', 'import_source',
+];
+const RECEIPT_COLUMNS = [
+  'receipt_uid', 'project', 'session_id', 'scope', 'method', 'base_tokens', 'delivered_tokens',
+  'item_count', 'delivery', 'created_at',
+];
+
+function values(row: Row, columns: string[]): unknown[] {
+  return columns.map((c) => row[c] ?? null);
+}
+
+function rows(payload: Row, key: string): Row[] {
+  const value = payload[key];
+  return Array.isArray(value) ? (value as Row[]) : [];
+}
+
+/**
+ * Restores a `eklavya memory export` file (the other half of the backup pair).
+ *
+ * Shares the importer's three rules next door, because the invariants are the
+ * same: nothing outside the memory tables is written, so attempts, mastery and
+ * gates are untouched; a schema version this build does not know stops with
+ * both versions named rather than guessing; and identity is the `*_uid`
+ * columns, so a second restore of the same file adds nothing.
+ *
+ * Ids are remapped rather than reused. An export's primary keys belong to the
+ * database it came from, and the destination may already have rows at those
+ * numbers — restoring them verbatim would either collide or, worse, silently
+ * attach one machine's evidence to another machine's observation.
+ */
+export function restoreExport(db: DB, file: string): RestoreReport {
+  if (!fs.existsSync(file)) {
+    throw new ImportError(`No export file at ${file}. Pass the file \`eklavya memory export\` wrote.`);
+  }
+
+  let payload: Row;
+  try {
+    payload = JSON.parse(fs.readFileSync(file, 'utf8')) as Row;
+  } catch {
+    throw new ImportError(`${file} is not readable JSON. Pass the file \`eklavya memory export\` wrote.`);
+  }
+
+  const found = payload?.schema_version;
+  if (found !== EXPORT_SCHEMA_VERSION) {
+    throw new ImportError(
+      `${file} is export schema version ${found === undefined ? 'unstated' : String(found)}; ` +
+        `this build understands version ${EXPORT_SCHEMA_VERSION}. ` +
+        'Restore it with the Eklavya version that wrote it, or export again from that version.',
+    );
+  }
+
+  const report: RestoreReport = {
+    file,
+    schemaVersion: EXPORT_SCHEMA_VERSION,
+    entries: { restored: 0, skipped: 0 },
+    evidence: { restored: 0, skipped: 0 },
+    receipts: { restored: 0, skipped: 0 },
+    tags: 0,
+    links: 0,
+    receiptItems: 0,
+    reindexed: 0,
+  };
+  const restoredEntryIds: number[] = [];
+
+  db.transaction(() => {
+    const insert = (table: string, columns: string[]) =>
+      db.prepare(
+        `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
+      );
+
+    // Evidence first: entries link to it, and the link table needs both sides
+    // mapped before it can be written.
+    const eventIds = new Map<number, number>();
+    const findEvent = db.prepare('SELECT id FROM evidence_events WHERE event_uid = ?');
+    const insEvent = insert('evidence_events', EVENT_COLUMNS);
+    for (const row of rows(payload, 'evidence')) {
+      const existing = findEvent.get(row.event_uid) as { id: number } | undefined;
+      if (existing) {
+        eventIds.set(Number(row.id), existing.id);
+        report.evidence.skipped++;
+        continue;
+      }
+      eventIds.set(Number(row.id), Number(insEvent.run(...values(row, EVENT_COLUMNS)).lastInsertRowid));
+      report.evidence.restored++;
+    }
+
+    const entryIds = new Map<number, number>();
+    const findEntry = db.prepare('SELECT id FROM memory_entries WHERE entry_uid = ?');
+    const insEntry = insert('memory_entries', ENTRY_COLUMNS);
+    for (const row of rows(payload, 'entries')) {
+      const existing = findEntry.get(row.entry_uid) as { id: number } | undefined;
+      if (existing) {
+        entryIds.set(Number(row.id), existing.id);
+        report.entries.skipped++;
+        continue;
+      }
+      const id = Number(insEntry.run(...values(row, ENTRY_COLUMNS)).lastInsertRowid);
+      entryIds.set(Number(row.id), id);
+      restoredEntryIds.push(id);
+      report.entries.restored++;
+    }
+
+    // Second pass, because a correction can supersede a row that had not been
+    // inserted yet when its own turn came.
+    const supersede = db.prepare('UPDATE memory_entries SET superseded_by = ? WHERE id = ?');
+    for (const row of rows(payload, 'entries')) {
+      const target = entryIds.get(Number(row.superseded_by));
+      const self = entryIds.get(Number(row.id));
+      if (row.superseded_by != null && target && self) supersede.run(target, self);
+    }
+
+    const insTag = db.prepare('INSERT OR IGNORE INTO memory_entry_tags (entry_id, tag) VALUES (?, ?)');
+    for (const row of rows(payload, 'tags')) {
+      const entryId = entryIds.get(Number(row.entry_id));
+      if (entryId) report.tags += insTag.run(entryId, row.tag).changes;
+    }
+
+    const insLink = db.prepare('INSERT OR IGNORE INTO memory_entry_events (entry_id, event_id) VALUES (?, ?)');
+    for (const row of rows(payload, 'entry_events')) {
+      const entryId = entryIds.get(Number(row.entry_id));
+      const eventId = eventIds.get(Number(row.event_id));
+      if (entryId && eventId) report.links += insLink.run(entryId, eventId).changes;
+    }
+
+    const receiptIds = new Map<number, number>();
+    const findReceipt = db.prepare('SELECT id FROM context_receipts WHERE receipt_uid = ?');
+    const insReceipt = insert('context_receipts', RECEIPT_COLUMNS);
+    for (const row of rows(payload, 'receipts')) {
+      const existing = findReceipt.get(row.receipt_uid) as { id: number } | undefined;
+      if (existing) {
+        receiptIds.set(Number(row.id), existing.id);
+        report.receipts.skipped++;
+        continue;
+      }
+      receiptIds.set(Number(row.id), Number(insReceipt.run(...values(row, RECEIPT_COLUMNS)).lastInsertRowid));
+      report.receipts.restored++;
+    }
+
+    const insItem = db.prepare(
+      `INSERT OR IGNORE INTO context_receipt_items (receipt_id, entry_id, source_tokens, sent_tokens, stage)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
+    for (const row of rows(payload, 'receipt_items')) {
+      const receiptId = receiptIds.get(Number(row.receipt_id));
+      const entryId = entryIds.get(Number(row.entry_id));
+      if (receiptId && entryId) {
+        report.receiptItems += insItem.run(
+          receiptId, entryId, row.source_tokens ?? 0, row.sent_tokens ?? 0, row.stage ?? 'index',
+        ).changes;
+      }
+    }
+
+    // FTS keeps itself in step through the insert trigger; the vectors do not,
+    // so a restore without this is a restore nothing can find semantically.
+    report.reindexed = reindex(db, restoredEntryIds);
+  })();
+
+  return report;
+}
+
+/**
+ * The payload `eklavya memory export` writes and `restoreExport` reads.
+ *
+ * Here rather than in the CLI so the two halves of the backup pair cannot
+ * drift: a column added to the export and not to the restore is a column that
+ * silently does not survive a round trip.
+ */
+export function exportPayload(db: DB): Row {
+  const all = (sql: string): Row[] => db.prepare(sql).all() as Row[];
+  return {
+    schema_version: EXPORT_SCHEMA_VERSION,
+    exported_at: nowIso(),
+    db_schema_version: (db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as
+      | { value: string }
+      | undefined)?.value,
+    entries: all('SELECT * FROM memory_entries ORDER BY id'),
+    tags: all('SELECT * FROM memory_entry_tags ORDER BY entry_id, tag'),
+    entry_events: all('SELECT * FROM memory_entry_events ORDER BY entry_id, event_id'),
+    evidence: all('SELECT * FROM evidence_events ORDER BY id'),
+    receipts: all('SELECT * FROM context_receipts ORDER BY id'),
+    receipt_items: all('SELECT * FROM context_receipt_items ORDER BY receipt_id, entry_id, stage'),
+  };
+}

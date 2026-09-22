@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDb } from './db.js';
+import { openDb, type DB } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
 import { loadConfig, writeConfigFile, readConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG, findRepoConfig } from './config.js';
@@ -33,11 +33,15 @@ import {
 import { search, type SearchMode } from './memory/search.js';
 import { pull, push, syncStatus } from './memory/sync.js';
 import { processPending, pruneEvidence, queueDepth, summarizerFor } from './memory/worker.js';
+import { replayProject, transcriptDirFor, transcriptsFor } from './memory/replay.js';
 import { droppedCount } from './memory/spool.js';
 import { savingsFrom, savingsLine } from './memory/tokens.js';
 import {
   importFrom,
   inventory,
+  exportPayload,
+  restoreExport,
+  EXPORT_SCHEMA_VERSION,
   ImportError,
   IMPORTED_TABLES,
   type FieldDisposition,
@@ -79,6 +83,9 @@ Memory:
                                         --map <source>=<path>  file that source project under a checkout
                                         --map-here <source>    the same, for the checkout you are in
   eklavya memory export <file>          Versioned JSON of entries, tags, evidence links and receipts
+  eklavya memory restore <file>         Read that file back in. Additive and idempotent — a second
+                                        restore adds nothing, and no attempt, mastery or gate row is
+                                        touched. Refuses a schema version it does not understand
   eklavya memory sync <push|pull|status>  Exchange memory with your other devices through a shared
                                         folder [--target <dir>]. Memory entries, tags and tombstones
                                         only — attempts, mastery, gates and receipts never leave.
@@ -260,11 +267,24 @@ function configCommand(args: string[]): void {
   }
 }
 
+/** Never throws: `doctor` is also what someone runs on a half-built database. */
+function safely<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
+}
+
 function doctor(): void {
   const file = dbPath();
   const resolved = loadConfig();
   const lines: string[] = [];
   let ok = true;
+  // Kept apart from `ok` so the blanket remedy below stays true: `eklavya
+  // install` repairs a broken install and cannot do a thing about a paused
+  // queue. A memory failure still exits non-zero; it just names its own fix.
+  let memoryOk = true;
 
   lines.push(`home:     ${eklavyaHome()}`);
 
@@ -292,8 +312,12 @@ function doctor(): void {
   lines.push(`database: ${file}${fs.existsSync(file) ? '' : '   (not created yet)'}`);
 
   let edgesDropped = 0;
+  // Held open past the try so the memory section below can read it, and can
+  // still report when it is null -- the spool drop count is exactly the number
+  // that matters when the database is the thing that is broken.
+  let db: DB | null = null;
   try {
-    const db = openDb(file);
+    db = openDb(file);
     // Applied here, on the connection `doctor` already has, and unconditionally
     // -- every other path skips when the fingerprint matches, which leaves no
     // recovery for the edit a fingerprint cannot see (a same-size write that
@@ -319,11 +343,94 @@ function doctor(): void {
           : ` (${standing.counts.passed}/${standing.needed.answers} passing answers in ${standing.repo})`
       }`,
     );
-    db.close();
   } catch (err) {
     ok = false;
     lines.push(`database error: ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  // The memory half. `eklavya memory status` says more, but it is scoped to one
+  // project and nobody runs it when the question is "is anything broken" — so
+  // the two failures that are otherwise completely silent, a queue paused on a
+  // provider and evidence dropped before it reached the database, are reported
+  // here. Every read degrades rather than throws.
+  const memory = resolved.config.memory;
+  lines.push(
+    `memory:   ${memory.enabled ? `on · capture ${memory.capture}` : 'off (memory.enabled is false)'}`,
+  );
+
+  if (db) {
+    const entries = safely(() => countEntries(db!), 0);
+    const evidence = safely(
+      () => (db!.prepare('SELECT count(*) n FROM evidence_events').get() as { n: number }).n,
+      0,
+    );
+    const waiting = safely(() => pendingEventCount(db!), 0);
+    lines.push(`memory:   ${entries} entries, ${evidence} evidence events (${waiting} not yet summarised)`);
+
+    const queue = safely(() => queueDepth(db!), { pending: 0, paused: 0, failed: 0, oldest: null });
+    lines.push(`memory:   queue ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`);
+
+    // The class, never the message. `last_error` is the provider's own prose
+    // and has carried a URL with a token in it; the class is what tells someone
+    // whether to fix a key or a quota, and it is a fixed vocabulary.
+    const classes = (status: string): string =>
+      safely(
+        () =>
+          (
+            db!
+              .prepare(
+                "SELECT DISTINCT error_class FROM memory_jobs WHERE status = ? AND error_class IS NOT NULL ORDER BY error_class",
+              )
+              .all(status) as { error_class: string }[]
+          )
+            .map((r) => r.error_class)
+            .join(', '),
+        '',
+      ) || 'unclassified';
+
+    if (queue.paused > 0) {
+      memoryOk = false;
+      lines.push(`memory:   FAILED — ${queue.paused} job(s) paused (${classes('paused')}); nothing is being summarised`);
+      lines.push('memory:   fix the credentials or quota behind providers.observer, then: eklavya memory process');
+    }
+    if (queue.failed > 0) {
+      // Not a failure: a permanently failed job is a batch that will never
+      // summarise, and no command repairs it. Saying so beats a clean report.
+      lines.push(`memory:   ${queue.failed} job(s) failed permanently (${classes('failed')})`);
+    }
+
+    // The capture heartbeat: memory that is "on" with nothing arriving is the
+    // failure the entry count alone cannot show.
+    const newest = safely(
+      () => (db!.prepare('SELECT MAX(occurred_at) AS at FROM evidence_events').get() as { at: string | null }).at,
+      null as string | null,
+    );
+    lines.push(`memory:   last evidence ${newest ?? '— none captured yet'}`);
+
+    const sync = safely(() => syncStatus(db!, resolved.config), null);
+    lines.push(
+      `memory:   sync ${
+        sync?.enabled ? `on -> ${sync.target ?? '(no target set — set sync.target)'}` : 'off'
+      }`,
+    );
+  }
+
+  const dropped = safely(() => droppedCount(), 0);
+  if (dropped > 0) {
+    // Dropped, not spooled: these events never reached the database *or* the
+    // spool file, so nothing replays them on its own. The transcripts are the
+    // only remaining copy.
+    memoryOk = false;
+    lines.push(`memory:   FAILED — ${dropped} event(s) dropped before they reached the database`);
+    lines.push('memory:   recover them from this checkout’s transcripts with: eklavya memory replay');
+  }
+  lines.push(
+    `memory:   provider ${
+      resolved.config.providers.observer ? 'configured — batches leave this machine' : 'none — nothing leaves this machine'
+    }`,
+  );
+
+  db?.close();
 
   const fromRepo = resolved.repoPath ? ' (from this repo)' : '';
   lines.push(`mode:     ${resolved.config.mode}${fromRepo}`);
@@ -383,7 +490,7 @@ function doctor(): void {
   }
 
   process.stdout.write(`${lines.join('\n')}\n`);
-  if (!ok) process.exit(1);
+  if (!ok || !memoryOk) process.exit(1);
 }
 
 /**
@@ -510,7 +617,7 @@ function dashboardCommand(argv: string[]): void {
  * to ask for it.
  */
 const MEMORY_USAGE =
-  'Usage: eklavya memory status|search|timeline|show|replay|process|prune|import|export|sync\n' +
+  'Usage: eklavya memory status|search|timeline|show|replay|process|prune|import|export|restore|sync\n' +
   '       run `eklavya --help` for the full list\n';
 
 function flag(argv: string[], name: string, fallback?: string): string | undefined {
@@ -875,32 +982,53 @@ function memoryImport(argv: string[]): void {
   }
 }
 
-/** The export format version. Bump it when the shape below changes. */
-const EXPORT_SCHEMA_VERSION = 1;
-
 function memoryExport(argv: string[]): void {
   const out = argv.find((a) => !a.startsWith('--'));
   if (!out) fail('Usage: eklavya memory export <path>');
 
   const db = openDb();
   try {
-    const all = <T>(sql: string): T[] => db.prepare(sql).all() as T[];
-    const payload = {
-      schema_version: EXPORT_SCHEMA_VERSION,
-      exported_at: new Date().toISOString(),
-      db_schema_version: (db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as
-        | { value: string }
-        | undefined)?.value,
-      entries: all('SELECT * FROM memory_entries ORDER BY id'),
-      tags: all('SELECT * FROM memory_entry_tags ORDER BY entry_id, tag'),
-      entry_events: all('SELECT * FROM memory_entry_events ORDER BY entry_id, event_id'),
-      evidence: all('SELECT * FROM evidence_events ORDER BY id'),
-      receipts: all('SELECT * FROM context_receipts ORDER BY id'),
-      receipt_items: all('SELECT * FROM context_receipt_items ORDER BY receipt_id, entry_id, stage'),
-    };
+    const payload = exportPayload(db);
     fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
     fs.writeFileSync(out, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-    process.stdout.write(`Wrote ${out} — ${payload.entries.length} entries, schema version ${EXPORT_SCHEMA_VERSION}\n`);
+    process.stdout.write(
+      `Wrote ${out} — ${(payload.entries as unknown[]).length} entries, schema version ${EXPORT_SCHEMA_VERSION}\n`,
+    );
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * `eklavya memory restore <file>` — the other half of the backup pair.
+ *
+ * Without it `export` writes a file nothing on the machine can read, which
+ * makes the rollback drill in the migration guide unrunnable. It is additive
+ * and idempotent, so it is also how a second device is brought up to date from
+ * a file rather than a shared folder.
+ */
+function memoryRestore(argv: string[]): void {
+  const from = argv.find((a) => !a.startsWith('--'));
+  if (!from) fail('Usage: eklavya memory restore <file>');
+
+  const db = openDb();
+  try {
+    const r = restoreExport(db, path.resolve(from));
+    process.stdout.write(
+      [
+        `Restored ${from} (export schema version ${r.schemaVersion}):`,
+        `  entries:   ${r.entries.restored} restored, ${r.entries.skipped} already here`,
+        `  evidence:  ${r.evidence.restored} restored, ${r.evidence.skipped} already here`,
+        `  links:     ${r.tags} tag(s), ${r.links} evidence link(s)`,
+        `  receipts:  ${r.receipts.restored} restored, ${r.receipts.skipped} already here (${r.receiptItems} item(s))`,
+        `  reindexed: ${r.reindexed} entries — search index and vectors rebuilt`,
+        'Learning history was not touched: no attempt, mastery or gate row is written by a restore.',
+        '',
+      ].join('\n'),
+    );
+  } catch (err) {
+    if (err instanceof ImportError) fail(err.message);
+    throw err;
   } finally {
     db.close();
   }
@@ -1006,6 +1134,8 @@ function memoryCommand(argv: string[]): void {
       return memoryImport(rest);
     case 'export':
       return memoryExport(rest);
+    case 'restore':
+      return memoryRestore(rest);
     case 'sync':
       return memorySync(rest);
     default:

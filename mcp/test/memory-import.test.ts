@@ -5,9 +5,17 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
-import { importFrom, inventory, ImportError, SUPPORTED_SCHEMA_VERSION } from '../src/memory/import.js';
+import {
+  importFrom,
+  inventory,
+  exportPayload,
+  restoreExport,
+  ImportError,
+  EXPORT_SCHEMA_VERSION,
+  SUPPORTED_SCHEMA_VERSION,
+} from '../src/memory/import.js';
 import { keywordSearch, semanticSearch } from '../src/memory/search.js';
-import { countEntries, timeline } from '../src/memory/store.js';
+import { appendEvent, countEntries, entryEvents, entryTags, insertEntry, timeline } from '../src/memory/store.js';
 
 /**
  * Every row below is invented. The real Claude Mem database on a developer's
@@ -443,5 +451,118 @@ describe('filing imported history under a local checkout', () => {
     const report = importFrom(db, sourcePath, {});
     expect(report.projectsMapped).toEqual([]);
     expect(report.projectsKept).toContain(PROJECT);
+  });
+});
+
+/**
+ * The other half of the backup pair. `export` writing a file nothing can read
+ * is not a backup, and the rollback drill in the migration guide depends on
+ * this half existing.
+ */
+describe('restoreExport', () => {
+  let backupFile = '';
+
+  /** A second Eklavya database, exported to a file — what a real backup is. */
+  function backup(fill: (source: DB) => void): string {
+    const file = tempDbPath('eklavya-export-source');
+    const source = openDb(file);
+    try {
+      fill(source);
+      fs.writeFileSync(backupFile, JSON.stringify(exportPayload(source)), 'utf8');
+    } finally {
+      source.close();
+      cleanup(file);
+    }
+    return backupFile;
+  }
+
+  /** One entry with a tag and a linked evidence event, so every table is used. */
+  function oneOfEach(source: DB): void {
+    const event = appendEvent(source, {
+      eventUid: 'restore-event-1',
+      project: PROJECT,
+      sessionId: SESSION,
+      kind: 'tool_use',
+      tool: 'Edit',
+      body: 'Rewrote the cookie handler.',
+      files: ['src/auth.ts'],
+      occurredAt: new Date(OCT).toISOString(),
+    });
+    insertEntry(source, {
+      project: PROJECT,
+      title: 'Refresh cookie rotation',
+      narrative: 'Every use rotates the cookie because reuse detection needs a one-shot token.',
+      facts: ['reuse detection needs a one-shot token'],
+      files: ['src/auth.ts'],
+      tags: ['auth'],
+      eventIds: [event.id],
+      occurredAt: new Date(OCT).toISOString(),
+    });
+  }
+
+  beforeEach(() => {
+    backupFile = path.join(snapshotDir, 'backup.json');
+  });
+
+  it('round-trips an export into an empty database, evidence links included', () => {
+    const report = restoreExport(db, backup(oneOfEach));
+
+    expect(report.entries).toEqual({ restored: 1, skipped: 0 });
+    expect(report.evidence).toEqual({ restored: 1, skipped: 0 });
+    expect(report.tags).toBe(1);
+    expect(report.links).toBe(1);
+
+    const [entry] = timeline(db, {});
+    expect(entry.title).toBe('Refresh cookie rotation');
+    expect(entry.occurred_at).toBe(new Date(OCT).toISOString());
+    expect(entryTags(db, entry.id)).toEqual(['auth']);
+    expect(entryEvents(db, entry.id).map((e) => e.body)).toEqual(['Rewrote the cookie handler.']);
+  });
+
+  it('rebuilds the search index and the vectors for what it restored', () => {
+    restoreExport(db, backup(oneOfEach));
+    // Both halves of retrieval, because only one of them is trigger-maintained.
+    expect(keywordSearch(db, 'cookie', {}).length).toBe(1);
+    expect(semanticSearch(db, 'cookie rotation', {}).length).toBe(1);
+  });
+
+  it('adds nothing on a second restore', () => {
+    const file = backup(oneOfEach);
+    restoreExport(db, file);
+    const after = countEntries(db);
+
+    const again = restoreExport(db, file);
+    expect(again.entries).toEqual({ restored: 0, skipped: 1 });
+    expect(again.evidence).toEqual({ restored: 0, skipped: 1 });
+    expect(again.reindexed).toBe(0);
+    expect(countEntries(db)).toBe(after);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM memory_entry_tags').get() as { n: number }).n).toBe(1);
+  });
+
+  it('leaves the learning tables untouched', () => {
+    // Rows to lose, so the assertion is about preservation rather than emptiness.
+    db.prepare("INSERT INTO attempts (concept_id, question, grade, difficulty) VALUES (1, 'q', 5, 1)").run();
+    db.prepare('INSERT INTO mastery (concept_id, score, reps) VALUES (1, 0.9, 4)').run();
+    const before = learningCounts();
+
+    restoreExport(db, backup(oneOfEach));
+
+    expect(learningCounts()).toEqual(before);
+    expect((db.prepare('SELECT score FROM mastery WHERE concept_id = 1').get() as { score: number }).score).toBe(0.9);
+  });
+
+  it('refuses a schema version it does not understand, naming both', () => {
+    fs.writeFileSync(backupFile, JSON.stringify({ schema_version: EXPORT_SCHEMA_VERSION + 1, entries: [] }));
+    expect(() => restoreExport(db, backupFile)).toThrow(ImportError);
+    expect(() => restoreExport(db, backupFile)).toThrow(
+      new RegExp(`version ${EXPORT_SCHEMA_VERSION + 1}.*understands version ${EXPORT_SCHEMA_VERSION}`, 's'),
+    );
+    expect(countEntries(db)).toBe(0);
+  });
+
+  it('says so rather than throwing a parser error on a file that is not an export', () => {
+    fs.writeFileSync(backupFile, 'not json at all');
+    expect(() => restoreExport(db, backupFile)).toThrow(/not readable JSON/);
+    expect(() => restoreExport(db, path.join(snapshotDir, 'nope.json'))).toThrow(/No export file at/);
   });
 });

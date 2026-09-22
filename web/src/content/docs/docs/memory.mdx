@@ -153,7 +153,7 @@ Claude calls these; you do not have to. They are two-stage on purpose — the se
 | Tool | Arguments | What it does |
 | --- | --- | --- |
 | `memory_search` | `query`, `mode`, `type`, `tag`, `since`, `until`, `limit`, `all_projects` | Finds past work. Returns ids, titles, types, dates and files — no narrative. Defaults to `retrieval.mode` and `retrieval.max_items`, capped at 50. |
-| `memory_get` | `ids` (max 20), `receipt_id` | The full entries: narrative, facts, files, tags, confidence, and the evidence events behind each. `receipt_id` charges the fetch to the recall that proposed it. |
+| `memory_get` | `ids` (max 20), `include_evidence`, `receipt_id` | The full entries: narrative, facts, files, tags, confidence, and the ids of the evidence events behind each. `include_evidence` adds those events in full — kind, tool, time, files and body, each body capped at 1500 characters and marked when it was cut. It is expensive by design: raw evidence is what the two-stage read exists to avoid sending, so it is for one specific question about one entry, never for browsing. `receipt_id` charges the fetch — evidence included — to the recall that proposed it. |
 | `memory_timeline` | `limit`, `offset`, `type`, `since`, `until`, `session_id` | This project, newest first. Includes superseded entries, so it is the audit trail rather than the retrieval view. Default 20, capped at 100. |
 | `memory_file_history` | `file`, `limit` | Every entry that touched a file, newest first. Matches a path fragment, so `auth.ts` finds `src/auth.ts`. |
 | `memory_status` | — | Is memory working: entries, evidence still waiting, queue depth, the savings totals, which summariser is running, whether a provider is configured. |

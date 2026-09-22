@@ -7,7 +7,7 @@ import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { findRepoConfig } from '../src/config.js';
 import { projectKey } from '../src/store.js';
-import { insertEntry, recordReceipt } from '../src/memory/store.js';
+import { appendEvent, insertEntry, recordReceipt } from '../src/memory/store.js';
 import { ESTIMATOR } from '../src/memory/tokens.js';
 import {
   memoryFileHistory,
@@ -117,6 +117,74 @@ describe('memory_get', () => {
     // The index stage's optimistic figure is only honest once the detail it led
     // to is added to the same receipt.
     expect(delivered()).toBeGreaterThan(before);
+  });
+
+  it('hands back the raw evidence bodies only when asked, capped and marked', () => {
+    const long = 'x'.repeat(2000);
+    const event = appendEvent(db, {
+      eventUid: 'evidence-hydration-1',
+      project,
+      sessionId: 'session-1',
+      kind: 'tool_use',
+      tool: 'Edit',
+      body: long,
+      files: ['src/auth.ts'],
+      occurredAt: '2025-10-04T11:30:00.000Z',
+    });
+    const id = insertEntry(db, {
+      project,
+      title: 'Cookie rotation',
+      narrative: 'Rotated on every use.',
+      eventIds: [event.id],
+    });
+
+    // The index exists to avoid sending this, so the default has to stay quiet.
+    const plain = call<any>(memoryGet, { ids: [id] });
+    expect(plain.entries[0].event_ids).toEqual([event.id]);
+    expect(plain.entries[0].evidence_events).toBeUndefined();
+
+    const hydrated = call<any>(memoryGet, { ids: [id], include_evidence: true }).entries[0];
+    expect(hydrated.evidence_events).toHaveLength(1);
+    const [got] = hydrated.evidence_events;
+    expect(got).toMatchObject({
+      id: event.id,
+      kind: 'tool_use',
+      tool: 'Edit',
+      occurred_at: '2025-10-04T11:30:00.000Z',
+      files: ['src/auth.ts'],
+      truncated: true,
+    });
+    expect(got.body).toHaveLength(1500);
+  });
+
+  it('charges the receipt for the evidence it hydrated, not only for the entry', () => {
+    const event = appendEvent(db, {
+      eventUid: 'evidence-charge-1',
+      project,
+      sessionId: 'session-1',
+      kind: 'tool_use',
+      body: 'y'.repeat(1200),
+    });
+    const id = insertEntry(db, { project, title: 'Charged', eventIds: [event.id] });
+
+    const receipt = () =>
+      recordReceipt(db, {
+        project,
+        scope: 'test',
+        method: ESTIMATOR,
+        delivery: 'confirmed',
+        items: [{ entryId: id, sourceTokens: 500, sentTokens: 20 }],
+      });
+    const delivered = (receiptId: number) =>
+      (db.prepare('SELECT delivered_tokens AS n FROM context_receipts WHERE id = ?').get(receiptId) as { n: number }).n;
+
+    const lean = receipt();
+    call<any>(memoryGet, { ids: [id], receipt_id: lean });
+    const fat = receipt();
+    call<any>(memoryGet, { ids: [id], receipt_id: fat, include_evidence: true });
+
+    // A saving that does not count the evidence it sent is not a saving.
+    expect(delivered(fat)).toBeGreaterThan(delivered(lean));
   });
 
   it('names the ids it could not find rather than silently shortening the list', () => {
