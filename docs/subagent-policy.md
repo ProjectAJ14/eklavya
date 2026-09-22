@@ -9,11 +9,15 @@ the budget on a prompt nobody will ever see.
 
 So there are three roles, and each one does exactly one thing.
 
-| Role | Logs | Quizzes | How it is told |
-|---|---|---|---|
-| The parent thread | yes | yes | `SessionStart` directive, re-stated by `UserPromptSubmit` when a session has logged nothing |
-| An implementer subagent | yes | **no** | `SubagentStart` directive (`mcp/src/hooks/subagent-start.ts`) |
-| The `eklavya-tutor` subagent | **no** | yes | `agents/tutor.md`, its own brief — no hook speaks to it |
+| Role | Logs | Quizzes | Captured | How it is told |
+|---|---|---|---|---|
+| The parent thread | yes | yes | tool uses, prompts, lifecycle | `SessionStart` directive, re-stated by `UserPromptSubmit` when a session has logged nothing |
+| An implementer subagent | yes | **no** | tool uses only | `SubagentStart` directive (`mcp/src/hooks/subagent-start.ts`) |
+| The `eklavya-tutor` subagent | **no** | yes | tool uses only | `agents/tutor.md`, its own brief — no hook speaks to it |
+
+The fourth column is memory's, and it is the one addition the memory half makes
+to this policy. It is not a fourth role: nothing about who logs or who quizzes
+changed. See [what memory capture does inside a subagent](#what-memory-capture-does-inside-a-subagent).
 
 ## None of this reaches Cowork
 
@@ -94,6 +98,60 @@ could never arm. That is history, not a reason the guard could go: under the
 work, so the `agent_id` check is now the only thing keeping a subagent out of it.
 What the subagent logged is still there for the parent's own Stop sweep, which is
 where it belongs.
+
+## What memory capture does inside a subagent
+
+Capture and quizzing take opposite decisions here, and both are right. A
+question asked inside a subagent is spent on a transcript nobody reads; a tool
+call made inside a subagent is work that happened to the codebase, and losing it
+would make delegated work invisible to recall — which is exactly the session a
+developer most needs their memory for, because they did not watch it happen.
+
+So `capture-tool` has **no `agent_id` guard**. It runs after every tool call in
+every thread, and `identityOf` (`mcp/src/hooks/memory-lib.ts`) carries
+`input.agent_id` into the evidence row's `agent_id` column and into the
+`event_uid` fingerprint. Three consequences, all deliberate:
+
+- **A subagent's evidence lands in the parent's session and the parent's
+  project.** The identity's `sessionId` comes from the same session pointer
+  `log_session_concepts` resolves through, so an implementer's edits and the
+  parent's edits are one history. `agent_id` says which thread did it without
+  splitting the record.
+- **`agent_id` is part of the deduplication key**, so the parent and a subagent
+  doing the identical thing are two events rather than one. That is the right
+  answer for the same reason the `origin` column exists on the learning side:
+  two agents doing the same work twice is a fact about the session, not a
+  duplicate to collapse. `memory-hardening.test.ts` holds this one down:
+  *"records a subagent under its own identity, so delegated work is
+  attributable"*.
+- **The other three memory-carrying hooks stay parent-only.**
+  `prompt-submit-nudge` and `stop-quiz-check` both return on `agent_id` before
+  they touch memory at all. A subagent's "prompt" is the parent's instruction to
+  it, not the developer saying what they were trying to do, and a seam flush
+  from a subagent would close the parent's batch halfway through the parent's
+  turn.
+
+## Transcript replay skips sidechains, on purpose
+
+`mcp/src/memory/replay.ts` reads a Claude Code transcript and captures what the
+hooks never saw — a session from before the install, a host with a misconfigured
+hook, a host with no hooks. It drops every line with `isSidechain` set, which is
+how the transcript marks a subagent's own thread.
+
+That is not a gap left by capture. The parent's transcript already records the
+delegation and its result, and the subagent's tool uses were captured live by
+`capture-tool` if hooks were running. Replaying the sidechain too would record
+the same work a second time under a different identity — and it would slip past
+deduplication precisely *because* `agent_id` is in the fingerprint, since the
+replay path does not reconstruct it. Replay converges with hook capture by
+content rather than by identity (`memory-replay.test.ts`, "converges with hook
+capture instead of recording the same work twice"), and content convergence
+cannot save you from two records of one event that genuinely differ in wording.
+
+The cost, stated: on a host where hooks never ran, a replayed transcript keeps
+the parent thread's account of what a subagent did and loses the subagent's own
+tool-by-tool detail. That is the same thin-session cost Cowork pays above, and
+it is bounded the same way — the delegation and its outcome survive.
 
 ## The tutor is told nothing, on purpose
 

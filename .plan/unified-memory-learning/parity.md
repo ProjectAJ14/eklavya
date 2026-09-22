@@ -2,7 +2,9 @@
 
 Reference: Claude Mem fork 13.25.3,
 `e04a091f822c90b69fa19bc52f7f3cf80674b1ae`. Eklavya baseline: 1.18.3.
-All rows below are requirements, not assertions of completed implementation.
+The capability inventory below is the **requirements** list, unchanged since it
+was written. [Status at `a94d6ad`](#status-at-a94d6ad) is where each row's
+actual state is recorded, with the file or test that proves it.
 
 "Required, optional activation" means the capability ships but needs configuration
 or opt-in. It must not become a permanent scope exclusion. Phases are defined in
@@ -139,6 +141,98 @@ a claim of tested support. Remote credentials are optional. Every shipped adapte
 runs the same generation/failure/usage contract suite. Memory profile inventory
 covers all pinned `plugin/modes/*.json`, including localized coding and noncoding
 profiles; preserve semantic outcomes rather than importing unvalidated prompts.
+
+## Status at `a94d6ad`
+
+Read on 2026-09-22 against `docs/unified-memory-learning` at commit `a94d6ad`,
+by opening the source rather than the plan. Every "done" below names a test in
+`mcp/test/` that fails if the capability regresses; a row with no such test is
+not marked done however finished the code looks.
+
+**The four markers, used precisely:**
+
+- **done** — implemented, and covered by a named test.
+- **partial** — implemented with a stated ceiling. The ceiling is named on the
+  row, and where an ADR decided it, the ADR is cited.
+- **declined** — deliberately not built, with the ADR that records the decision.
+- **not done** — not built, and **no ADR records that choice**. These are open
+  scope, not closed scope, and they are the rows a reader should not mistake
+  for either of the two above.
+
+Two caveats on the whole table. The branch was moving while it was written:
+every row was read at `a94d6ad`, and PAR-26 was re-read at `25d08bf` after sync
+landed mid-pass. And four tests fail on a clean checkout for a reason that has
+nothing to do with this branch; see [progress.md](progress.md)'s
+release-readiness section.
+
+| ID | State | Evidence, or why not |
+|---|---|---|
+| PAR-01 | done | `capture-tool` (no matcher) plus prompt and lifecycle capture at the other three seams; `mcp/src/memory/capture.ts`. `memory-capture.test.ts` covers gating, minimal mode and Eklavya's own traffic; `memory-integration.test.ts` drives the real built hooks end to end. |
+| PAR-02 | done | `memory/worker.ts` leases jobs from `memory_jobs`, `memory/summarize.ts` is the local default and `memory/provider.ts` the configured one; failure classes are provider-independent (`auth`/`quota` pause, malformed output gives up). `memory-capture.test.ts` "the job worker", `memory-store.test.ts` "jobs". |
+| PAR-03 | done | `memory/replay.ts` reads the transcript directory, applies the privacy filter, is idempotent, and converges with hook capture by content. `memory-replay.test.ts`, nine cases. |
+| PAR-04 | done | `session-start.ts` replays the spool, flushes the seam, records the lifecycle event and injects `recallBlock` before any `mode` gate; the human display is the three-line UX-01 banner. `memory-recall.test.ts` "the startup display", `hooks.test.ts` "SessionStart output". Compaction and resume arrive on the same event, read from `input.source`. |
+| PAR-05 | **partial** | Per-file context is done: `memory_file_history` (`memory-tools.test.ts`). **Prompt-relevant context is not.** `recallBlock` is called from exactly one place — session start — so a mid-session prompt that changes the subject gets no fresh recall. `prompt-submit-nudge` captures the prompt but never retrieves against it. Nothing decided this; it is the cheapest remaining win. |
+| PAR-06 | **partial** | `memory_search` → `memory_get` → `memory_timeline` is the progressive path, all project-scoped and tested (`memory-tools.test.ts`). The ceiling is **raw evidence over MCP**: `memory_get` returns `event_ids` but no evidence bodies, so the reference's `get_tool_uses` has no tool equivalent. Raw evidence is reachable only through `eklavya memory show` and the dashboard's `/api/memory/entry` (`dashboard.test.ts` "drills from an entry down to the raw evidence behind it"). |
+| PAR-07 | **partial** | Keyword (FTS5/BM25), semantic and hybrid all ship and are selectable per query (`memory/search.ts`, `memory-store.test.ts` "entries and retrieval"); recall is measured by `eval/retrieval-harness.mjs` with `eval/results/2026-09-22-retrieval.json`, and the scorer is unit-tested (`retrieval-score.test.ts`). **Two ceilings, both ADR-03**: the embedder is `local-hash-v1`, which generalises over morphology and typos but not synonymy; and the semantic scan is bounded to the 5,000 most recent vectors per query, so on a large corpus keyword and semantic are answering different questions. |
+| PAR-08 | **partial** | Browse (dashboard `#/memory`, `eklavya memory timeline`), manual add (`memory_write`), correct-by-supersede and soft/hard delete (`memory_correct`, `memory_delete`) all ship and are tested (`memory-tools.test.ts`). Provenance and the audit trail hold: a superseded row leaves retrieval and stays in the timeline. **No bulk management** — every write tool takes one id. |
+| PAR-09 | done | `evidence_events` rows are linked to entries through `memory_entry_events`; retention never ages out evidence an entry still points at, and the privacy filter runs before the insert rather than before the read. `memory-capture.test.ts` "retention", `memory-store.test.ts` "privacy filter". |
+| PAR-10 | **partial** | `memory/code.ts` implements outline, cross-tree symbol search and line expansion, tested in `memory-code.test.ts` including the honest-empty case for an unknown language. Two ceilings. It is a **declaration scanner, not a parser** (ADR-07): no cross-file resolution, no re-exports, no string/declaration distinction. And **the two tools are not registered** — see the note under the MCP mapping below. |
+| PAR-11 | **partial** | `memory/collections.ts` saves a filter, materialises members, rebuilds, and refuses a rebuild that would empty a collection that had members (ADR-08); `memory-code.test.ts` "saved collections". Same registration gap: `memory_collections` is defined and not exposed. No prime/query-the-collection behaviour — a collection is a saved filter, not a corpus an agent is primed with. |
+| PAR-12 | **partial** | Import from the pinned fork is thorough: `memory/import.ts`, schema version 52, provenance, `--dry-run`, `--resume`, project mapping, WAL-inclusive snapshot, refusal on an unknown newer schema — 22 cases in `memory-import.test.ts`. Export is `eklavya memory export`, a versioned JSON of entries, tags, evidence links and receipts. **There is no import of that export**, so "backup" is one-directional and the restore drill the row asks for cannot be run. |
+| PAR-13 | done | `memory/privacy.ts` filters on the way in, at every sink: capture, replay, manual write and notification delivery all call it. Negative leak tests exist in `memory-capture.test.ts` ("stores a redacted body", "never lets an excluded path back in through the event body") and `memory-hardening.test.ts`. |
+| PAR-14 | done | `eventUid` hashes host, session, agent, kind, tool, timestamp and body, so replay cannot duplicate a live capture and two legitimate identical edits stay two events. `memory-store.test.ts` "is idempotent on event_uid", `memory-replay.test.ts` "is idempotent". |
+| PAR-15 | done | One resolver: `memory/identity.ts`, reconciled with the learning half's `projectKey` in `hooks/memory-lib.ts` so a memory row and a mastery row cannot disagree about the codebase. Worktree semantics unchanged (`worktree.test.ts`); cross-project access is explicit (`all_projects`, `cross_project`). `memory-hardening.test.ts` "Q04 — identity and isolation" covers two repositories with the same folder name, the no-repository bucket, cross-project leakage and subagent attribution. |
+| PAR-16 | **declined** | ADR-05. No resident daemon: jobs run in a short-lived worker the hooks and CLI start on demand, guarded by a SQLite claim lease. The reference's worst incidents — orphaned workers, port theft, self-healing that undoes an uninstall — are all daemon properties. The dashboard is an on-demand server, as before. |
+| PAR-17 | **partial** | `eklavya memory status` reports entries, pending evidence, queue depth, provider and savings; the dashboard's `#/health` route reports failed jobs **by class and never by message** (`dashboard.test.ts`); a paused queue raises the one interrupting alert (`memory-lib.ts`, `memory-notify.test.ts`). **`eklavya doctor` has no memory checks at all**, and there is no logs surface. A developer whose capture is broken has to know to run a different command. |
+| PAR-18 | done | Four memory routes (`#/memory`, `#/entry/:id`, `#/reuse`, `#/health`) beside the learning ones, two paged resource endpoints (`/api/memory`, `/api/memory/entry`), everything escaped. `dashboard.test.ts`, eleven memory cases including "still serves every learning route alongside the memory ones". |
+| PAR-19 | **not done** | The dashboard is read-only: `mcp/src/dashboard.ts` handles no `POST` and inspects no `req.method`. Configuration is edited through `eklavya config set`, `set_config` or the JSON files. No ADR records this as a decision. |
+| PAR-20 | **not done** | No presentation or TV surface exists. No ADR records the choice. |
+| PAR-21 | **partial** | `eklavya statusline` ships and is tested (`cli.test.ts`, `stdin.test.ts`), and `web/.../cli.mdx` shows the `settings.json` block. **The installer does not wire it up**: `mcp/src/install.ts` never touches `statusLine`, so there is no compose-with-an-existing-one behaviour and nothing to clobber or restore. That is safe, and it is not what the row asks for. |
+| PAR-22 | **not done** | No memory profiles, no inheritance, no localization. `memory.capture` (`full`/`minimal`/`off`) is the only shape control. No ADR records the choice. |
+| PAR-23 | **partial** | The `Summarizer` port has two implementations and nothing enables a provider on upgrade (ADR-04); failure classes are common to both and the local default keeps every test hermetic. **One provider family**: `ProviderConfig.kind` is the literal `'anthropic'`. No Gemini, OpenRouter, OpenAI-compatible endpoint or host-assisted observer. Credentials are named by env var, never stored. |
+| PAR-24 | **partial** | ADR-06. `memory/hosts.ts` records capabilities per host with an honest `status` axis, and `provenHosts()` returns only what a fixture has been run through — today, **Claude Code alone**. Cursor and Cowork are `unverified` descriptors; the other nine reference targets have no entry at all. `memory-replay.test.ts` "claims only the hosts a fixture has actually been run through" is what keeps that honest. |
+| PAR-25 | **not done** | Nothing writes a managed block into `CLAUDE.md` or `AGENTS.md`; `eklavya export-rules` writes a Cursor rules file the user places themselves, which is a different thing. No ADR records the choice. |
+| PAR-26 | **partial** | Landed at `25d08bf`. `memory/sync.ts` plus migration 011, `sync.{enabled, target, device_id}` in the config, `eklavya memory sync push\|pull\|status`, and 21 cases in `memory-sync.test.ts` — device identity, resumable push, tombstone propagation, conflict quarantine and repair in both directions, half-written and hash-mismatched records ignored, and an `ENTRY_COLUMNS` allowlist that keeps attempts, mastery, gates, receipts and raw evidence off the wire. Off in the shipped defaults, and `enabled` alone does nothing without a target. The ceiling is ADR-09's: it is a **directory target**, so there is one `SyncTarget` implementation and no identity, authentication or tenancy. Two real machines converging over a real cloud folder has not been done. |
+| PAR-27 | **declined** | ADR-09. The hosted, multi-tenant, authenticated team server is not built, and the ADR says why: a hosted service is an operation, not a module. Team-shared project memory, scoped API tokens and server-side job administration are **not available**. A shared directory gives sharing without tenancy. |
+| PAR-28 | done | `memory/notify.ts`: off unless configured, redact before send, deliver once keyed on the event's own identity, per-sink event filtering, and a failing sink reported rather than thrown. `memory-notify.test.ts`, eight cases including "sends nothing at all when nothing is configured". |
+| PAR-29 | **partial** | Local receipts are done and honest: base and delivered tokens, a detail fetch revised onto the same receipt, and an unconfirmed or negative result never dressed as a saving (`memory-store.test.ts` "savings receipts", `dashboard.test.ts` "never reports an unconfirmed receipt as a saving"). **Provider usage and cost are not recorded** — no token counts or spend come back off a provider call. Consent-based analytics are absent by design; nothing leaves the machine. |
+| PAR-30 | **not done** | No scoped host cache, no hierarchy or exclusion marks, no host-aware delivery beyond the capability descriptors of PAR-24. No ADR records the choice. |
+| PAR-31 | **partial** | One of the twenty mapped workflows ships: `skills/memory/` (`/eklavya:memory`), which is the `mem-search` → `memory` row. The other nineteen do not exist. Several of them (`plan`, `implement`, `watch-pr`, `standup`, `triage`, `present`) are general agent workflows with no memory or learning content, and shipping them would make Eklavya a workflow suite rather than a learning tool — but **no ADR records that reasoning**, so this is an open scope question, not a closed one. |
+| PAR-32 | done | Pre-existing and unchanged by this branch: `eklavya install` / `uninstall [--purge]`, one canonical install identity, `mcp/test/install.test.ts` and `packaging.test.ts`. The memory half adds migrations 009 and 010, forward-only, with the schema constants bumped in `migrate.test.ts`. |
+| PAR-33 | done | Every pre-existing learning test still passes; `memory/learning.ts` proposes candidates and never records an attempt, moves mastery, clears review debt, promotes a level or opens a gate. `memory-learning.test.ts`, twelve cases, including "still records no attempt and no mastery for what it filled in". |
+| PAR-34 | **partial** | The mechanism is there and tested — import, capture, recall, summary, teaching and dashboard all work with no Claude Mem present, and `memory-integration.test.ts` runs the loop through the real built hooks. The runbook is `web/src/content/docs/docs/migrating.mdx`. **The cutover itself has not been performed** against a real Claude Mem database on a real machine, and it cannot be: CI has no such file. This is the row that needs a human. |
+
+### Where the MCP mapping stands
+
+Eleven memory tool definitions exist against the reference's twenty. Eight of
+the eleven are registered.
+
+| Reference definition | Eklavya tool | State |
+|---|---|---|
+| `search`, `observation_search` | `memory_search` | done |
+| `timeline` | `memory_timeline` | done |
+| `get_observations` | `memory_get` | done |
+| `observation_generation_status` | `memory_status` | done |
+| `observation_add` | `memory_write` | done |
+| — (no reference equivalent) | `memory_correct`, `memory_delete`, `memory_file_history` | done |
+| `smart_outline` | `code_outline` | defined, **not registered** |
+| `smart_search`, `smart_unfold` | `code_find_symbol` | defined, **not registered** |
+| `build_corpus`, `list_corpora`, `rebuild_corpus` | `memory_collections` | defined, **not registered** |
+| `get_tool_uses` | — | not done; raw evidence is CLI- and dashboard-only (PAR-06) |
+| `session_start_context` | — | not done as a tool; the same builder runs in `session-start.ts` |
+| `observation_record_event` | — | not done; ingest is the hooks' job, not a tool's |
+| `observation_context` | — | not done |
+| `important_workflow` | — | not done; `skills/memory/SKILL.md` carries the routing instead |
+| `prime_corpus`, `query_corpus`, `reprime_corpus` | — | not done (PAR-11) |
+
+**The registration gap is a bug, not a decision.** `TOOLS` in
+`mcp/src/tools/index.ts` imports `codeOutline`, `codeFindSymbol` and
+`memoryCollections` and never adds them to the array, so the server advertises
+seventeen tools. `web/src/content/docs/docs/memory.mdx` and
+`skills/memory/SKILL.md` both document all three as available.
+`server.integration.test.ts` compares the advertised names against `TOOLS`
+itself, so it agrees with whatever the array holds and cannot catch this. Adding
+three identifiers to the array is the whole fix, and it belongs in this branch.
 
 ## Closure rules
 
