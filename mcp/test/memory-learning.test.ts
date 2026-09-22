@@ -4,7 +4,7 @@ import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import { insertEntry, pendingCandidates } from '../src/memory/store.js';
 import { fillOmissions, proposeFor, proposeForProject } from '../src/memory/learning.js';
-import { conceptBySlug, logSessionConcept } from '../src/store.js';
+import { conceptBySlug, gradeConcept, logSessionConcept, syncGate } from '../src/store.js';
 import { entryById } from '../src/memory/store.js';
 
 const PROJECT = '/tmp/learning-repo';
@@ -118,5 +118,48 @@ describe('filling in for a session that logged nothing', () => {
       .prepare("SELECT COUNT(*) AS n FROM learning_sources WHERE status = 'accepted'")
       .get() as { n: number };
     expect(accepted.n).toBeGreaterThan(0);
+  });
+
+  it('late candidate evidence must not reopen a passed gate or re-arm a completed task', () => {
+    // PRD LRN-04 / quality scenario Q14. The protection is structural rather
+    // than a guard, and this test is what says so if someone removes a link:
+    // the `already_logged` check is a check on the *whole* of `session_concepts`,
+    // and the only other two writers are `log_session_concepts` (which is what
+    // sets a gate's bar) and `record_attempt` (which writes a row before it
+    // grades). A session with a gate worth reopening therefore always has rows,
+    // and `fillOmissions` never reaches its write.
+    const csrf = conceptBySlug(db, 'csrf')!;
+    logSessionConcept(db, SESSION, csrf.id, 'the task actually touched this', 'work');
+    gradeConcept(db, {
+      conceptId: csrf.id,
+      sessionId: SESSION,
+      question: 'what is csrf?',
+      answer: 'a forged cross-site request',
+      grade: 5,
+      difficulty: 3,
+      feedback: null,
+      outcome: 'answered',
+      format: 'mcq',
+      options: null,
+      repo: PROJECT,
+      level: null,
+      now: new Date(),
+    });
+    const before = syncGate(db, SESSION, config, { requiredHint: 1, repo: PROJECT });
+    expect(before.passed).toBe(true);
+
+    // Evidence lands after the gate has already been cleared.
+    seedEntry('Set httponly cookies on the refresh path');
+    expect(fillOmissions(db, config, SESSION, PROJECT).reason).toBe('already_logged');
+
+    // Nothing new to raise the bar with, and nothing new for the Stop hook's
+    // `logged > last_logged` guard to read as fresh work.
+    expect(
+      (db.prepare('SELECT COUNT(*) AS n FROM session_concepts WHERE session_id = ?').get(SESSION) as {
+        n: number;
+      }).n,
+    ).toBe(1);
+    const after = syncGate(db, SESSION, config, { repo: PROJECT });
+    expect(after).toEqual(before);
   });
 });

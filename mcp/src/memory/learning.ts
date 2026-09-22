@@ -118,6 +118,15 @@ export interface FillResult {
  * arguments, and adding to it would inflate the gate's `required` with guesses.
  * A session that logged nothing had no candidates at all, and one plausible
  * question about real work beats silence.
+ *
+ * That same check is also what keeps late evidence from reopening a passed gate
+ * or re-arming a finished task (PRD LRN-04), and it is why no separate guard for
+ * it exists here. It counts the whole of `session_concepts`, and the only other
+ * writers are `log_session_concepts` — the one call that raises a gate's
+ * `required` — and `record_attempt`, which writes a row before it grades. A
+ * session with a gate worth reopening, or a quiz worth not repeating, therefore
+ * always has rows, and this returns before its first write. Narrow that count to
+ * one origin or one timestamp and the hazard becomes real.
  */
 export function fillOmissions(
   db: DB,
