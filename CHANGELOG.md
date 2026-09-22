@@ -1,3 +1,48 @@
+# [1.19.0](https://github.com/ProjectAJ14/eklavya/compare/v1.18.3...v1.19.0) (2026-09-22)
+
+
+### Bug Fixes
+
+* **cli:** three defects in the memory argument layer, found by testing it ([7d2e045](https://github.com/ProjectAJ14/eklavya/commit/7d2e045b903abf89c041609c0be27bccf209d6da))
+* **config:** a cloned repository must not be able to run a command ([6607635](https://github.com/ProjectAJ14/eklavya/commit/6607635fbe9d6efae507d06f4168d92ff0d5ed8d))
+* **dashboard:** refuse a request that was not addressed to loopback by name ([ec41158](https://github.com/ProjectAJ14/eklavya/commit/ec41158b8a3493f65ad8679037fad5ae9460bb5c))
+* **memory:** count a worktree's work against the checkout it branched from ([0172268](https://github.com/ProjectAJ14/eklavya/commit/0172268af2f5a03db87adb075920af31345b9adc))
+* **memory:** give a paused queue a way back, and stop retrying without a pause ([8366aa3](https://github.com/ProjectAJ14/eklavya/commit/8366aa3ff480ca7ff6a5b1d5aa704d6be9c2cd74))
+* **memory:** let an import file its history under a local checkout ([ff8786c](https://github.com/ProjectAJ14/eklavya/commit/ff8786c6bbb6740baf77e3cce5b8009b13e6c6a1))
+* **memory:** link imported evidence to the entry it belongs to ([bbbcefc](https://github.com/ProjectAJ14/eklavya/commit/bbbcefcf246792a3f838dccc9050f4d5ed9b90f9))
+* **memory:** retry a notification the sink refused, without sending it twice ([5821877](https://github.com/ProjectAJ14/eklavya/commit/582187763e4e0d2711ad50acc015634ca2dcf533))
+* **tools:** register the three tools that were written and never wired up ([7652333](https://github.com/ProjectAJ14/eklavya/commit/7652333a041ae5a4dfa872f6ec6de6d47ee6a0c1))
+
+
+### Features
+
+* **cli:** say which repo settings were ignored, rather than ignoring them quietly ([4ffdccd](https://github.com/ProjectAJ14/eklavya/commit/4ffdccd7956209265d98d1817086d31553586cea))
+* **config:** make the namespaced settings reachable ([25e1be7](https://github.com/ProjectAJ14/eklavya/commit/25e1be756fc329f8d691fdfa39722b7f13ef6689))
+* **dashboard:** give the dashboard its memory half ([db41b49](https://github.com/ProjectAJ14/eklavya/commit/db41b49a778376a4c0714fd4b561a9cec20ef725))
+* **dashboard:** notice when the page has gone stale, rather than lying quietly ([571b59f](https://github.com/ProjectAJ14/eklavya/commit/571b59fd21f87c7558437fbdb033d77df49b128e))
+* **hooks:** capture evidence and recall it at the session seams ([7bb50a6](https://github.com/ProjectAJ14/eklavya/commit/7bb50a6e49392140170fb815a017a5e075c0305d))
+* **hooks:** replace the session greeting with the compact startup display ([fd28c68](https://github.com/ProjectAJ14/eklavya/commit/fd28c68ff8899ebade0a341367c5a69e29071a1f))
+* **install:** put the dials in the status bar, into an empty slot only ([067a570](https://github.com/ProjectAJ14/eklavya/commit/067a5705e22ba6b26dead70c043cd4e6848b0b6a))
+* **learning:** derive concept candidates from evidence, for sessions that logged none ([764fd4a](https://github.com/ProjectAJ14/eklavya/commit/764fd4a74c07b7c08fe88aaee5edb5489ce9b9ac))
+* **memory:** add the evidence schema, store and retrieval core ([46f54c3](https://github.com/ProjectAJ14/eklavya/commit/46f54c3272a40f9525a329ced727e3b17f31c5e7))
+* **memory:** capture pipeline, observation jobs, recall and startup display ([6dbf92f](https://github.com/ProjectAJ14/eklavya/commit/6dbf92f472bc1102885324c90a5c85ef454927b4))
+* **memory:** configured wrap-ups and the one alert worth interrupting for ([a5b3fbf](https://github.com/ProjectAJ14/eklavya/commit/a5b3fbf48daef9158abd22391ff91c421e38b821))
+* **memory:** import from Claude Mem, and drive memory from the CLI ([e8d82ee](https://github.com/ProjectAJ14/eklavya/commit/e8d82ee9b69c3da7d12c9dff399e45cbb43c3e50))
+* **memory:** multi-device sync through a shared directory ([25d08bf](https://github.com/ProjectAJ14/eklavya/commit/25d08bf886b5877a4753263edfe65a2e9c15d15a)), closes [hi#water](https://github.com/hi/issues/water)
+* **memory:** raw evidence on demand, memory in doctor, and a restore ([33ecfcc](https://github.com/ProjectAJ14/eklavya/commit/33ecfccf33c44ce8256afec33c85215b858c153e))
+* **memory:** recall against the prompt, not only at the session seam ([8cf1bdd](https://github.com/ProjectAJ14/eklavya/commit/8cf1bdd5d338530f228570d3d0139bd4f0b1b713))
+* **memory:** replay transcripts, and record what each host can actually deliver ([5b0e1ff](https://github.com/ProjectAJ14/eklavya/commit/5b0e1ffa69ee5c3d80bc5616ab3d321f919d0fae))
+* **memory:** structured code exploration and saved collections ([c020b04](https://github.com/ProjectAJ14/eklavya/commit/c020b04e03d8d41fa78a15e5503f79fbfdc9e6ff))
+* **memory:** write a session summary at the seam, and record what produced it ([2bd7054](https://github.com/ProjectAJ14/eklavya/commit/2bd70541d4f066534852ddcdcce7c5f4449ef6dc))
+* **skills:** add /eklavya:memory and teach the user skill both halves ([eb95d7b](https://github.com/ProjectAJ14/eklavya/commit/eb95d7b4bfbf62de16fe71823935f799f7f02873))
+* **tutor:** let the tutor ground a question in what the project remembers ([e621abf](https://github.com/ProjectAJ14/eklavya/commit/e621abff838f52cdac71e340f014694c45cf706f))
+
+
+### Performance Improvements
+
+* **memory:** index the key the worker retires a batch by ([26aec54](https://github.com/ProjectAJ14/eklavya/commit/26aec544ce60a90b5f64a94d9d572167f26642ca))
+* **memory:** stop searching four times for one prompt ([66c4fb8](https://github.com/ProjectAJ14/eklavya/commit/66c4fb8c57784cdc0b2f4172b2709009075be8e1))
+
 ## [1.18.3](https://github.com/ProjectAJ14/eklavya/compare/v1.18.2...v1.18.3) (2026-09-21)
 
 
