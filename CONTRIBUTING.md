@@ -66,7 +66,7 @@ cd mcp && npm install && npm run build
 node dist/cli.js doctor
 sqlite3 ~/.eklavya/knowledge.db '.tables'
 ```
-Expect all ten tables (`EXPECTED_TABLES` in `mcp/test/migrate.test.ts` is the list) and 87 concepts across four domains.
+Expect every table in `EXPECTED_TABLES` (`mcp/test/migrate.test.ts` composes it from four lists — learning, memory, import and sync) and 87 concepts across four domains.
 </details>
 
 <details>
@@ -88,8 +88,8 @@ Expect all ten tables (`EXPECTED_TABLES` in `mcp/test/migrate.test.ts` is the li
 
 1. In a fresh session, ask for a small feature and let it finish. A quiz should arrive with no command from you.
 2. Say **skip**. It should accept it and stop — *and must not ask again for the same work*. This is the failure mode to watch for.
-3. Quit and restart Claude Code. The first line should be your learner profile.
-4. `eklavya config set quiet true` → restart → no banner.
+3. Quit and restart Claude Code. The first three lines should be the greeting: `Eklavya`, the reuse saving, and this project's counts with the level.
+4. `eklavya config set quiet true` → restart → no greeting, and the standing directive still injected.
 </details>
 
 <details>
@@ -107,6 +107,46 @@ eklavya config set mode enforced --repo
 4. Both commit paths now succeed.
 5. In a repo *without* `.eklavya.json`, nothing is gated. Confirm it.
 6. `scripts/install-git-hook.sh --uninstall` restores any hook you had before.
+</details>
+
+<details>
+<summary><b>Phase 5 — the memory loop</b></summary>
+
+The half that has to work with the questions switched off, so run it that way.
+
+```bash
+cd /some/scratch/repo && git init
+eklavya config set mode off
+```
+
+1. In Claude Code, ask for a small feature and let it finish.
+2. `eklavya memory status` — evidence captured, entries above zero once the
+   session ended. **Capture is not governed by `mode`**; if this is empty with
+   `mode: off`, that invariant has broken.
+3. `eklavya memory search <something from the work>` — the entry, by title.
+4. `eklavya memory show <id>` — the narrative, and the raw evidence behind it.
+5. Start a **new** session in the same repo. The first thing the model receives
+   is an `<eklavya-memory>` block naming that work.
+6. Ask a question about something from the previous session, in the middle of
+   the new one. A second, smaller recall should arrive — and asking the same
+   thing again should produce nothing, because an entry is handed over once.
+7. `eklavya config set memory.enabled false` → new session → nothing captured,
+   nothing recalled.
+
+Privacy, worth doing once by hand:
+
+```bash
+# in a scratch repo, with a fake key
+echo 'API_KEY=sk-ant-not-a-real-key-0000000000000000' > .env
+```
+
+Have the agent read `.env` and run `export TOKEN=ghp_<forty chars>`. Then:
+
+```bash
+sqlite3 ~/.eklavya/knowledge.db 'select body from evidence_events' | grep -c ghp_   # expect 0
+sqlite3 ~/.eklavya/knowledge.db "select count(*) from evidence_events where files like '%.env%'"  # expect 0
+```
+
 </details>
 
 <details>
