@@ -207,6 +207,9 @@ actually asked rather than the bare root:
 | what am I learning, search a concept | `/#/concepts` (or `/#/concepts/due`, `/mastered`, `/unseen`), `/#/concept/<slug>` for one |
 | what is due, what is scheduled, what I skipped | `/#/review`, `/#/review/upcoming`, `/#/review/skipped` |
 | what did that session teach me | `/#/sessions` |
+| what does this project remember | `/#/memory`, `/#/entry/<id>` for one observation and its evidence |
+| what has recall actually saved | `/#/reuse` |
+| is capture healthy | `/#/health` |
 | how hard is this repo allowed to get | `/#/projects` |
 | where are the gaps | `/#/domains` |
 

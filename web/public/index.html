@@ -659,7 +659,7 @@
 <section class="commands seam" id="commands" aria-labelledby="commands-title">
   <div class="wrap commands__grid">
     <div>
-      <h2 class="h2" id="commands-title" data-reveal>Eight commands</h2>
+      <h2 class="h2" id="commands-title" data-reveal>Nine commands</h2>
       <div class="cmd-table" data-reveal data-delay="100">
         <div class="cmd-row"><code>/eklavya:quiz [topic]</code><span>Quiz now — on this session's work, or a named topic</span></div>
         <div class="cmd-row"><code>/eklavya:mode [value]</code><span>Show or change the mode, focus, cadence and difficulty dials</span></div>
@@ -667,6 +667,7 @@
         <div class="cmd-row"><code>/eklavya:level [value]</code><span>This project's difficulty band and the runway into it — or pin one</span></div>
         <div class="cmd-row"><code>/eklavya:pack [domain]</code><span>Write a concept pack — a domain Eklavya has never heard of, or this codebase</span></div>
         <div class="cmd-row"><code>/eklavya:progress</code><span>The mastery map: which projects, what they taught, what you skipped, what's due</span></div>
+        <div class="cmd-row"><code>/eklavya:memory</code><span>What this project's history says — past decisions, fixes, unfinished work</span></div>
         <div class="cmd-row"><code>/eklavya:gate</code><span>Commit-gate status</span></div>
         <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node, then picks your mode and focus</span></div>
       </div>
@@ -698,9 +699,10 @@
       <p class="eyebrow" data-reveal>The long view</p>
       <h2 class="h2" id="dash-title" data-reveal data-delay="100">Am I actually getting better?</h2>
       <p class="dash__sub" data-reveal data-delay="150">
-        A terminal report has twenty lines and answers <em>what now</em>. The long view needs
-        more room, so it gets a local page: six sections behind a sidebar, and every concept,
-        session and question you have been asked two clicks away.
+        A terminal report has three lines and answers <em>what now</em>. The long view needs
+        more room, so it gets a local page: what you have learned and what the project
+        remembers, side by side, with every concept, session, observation and question you
+        have been asked two clicks away.
       </p>
       <div class="dash__cmd" data-reveal data-delay="200">
         <div><span>$</span> eklavya dashboard</div>
@@ -711,6 +713,8 @@
         <li>Overview: accuracy, streak, thirty days of answers, a year as a calendar heatmap</li>
         <li>Concepts: searchable and paged — open one for every question you were asked on it</li>
         <li>Review: what is due, what is scheduled for the next fortnight, what you skipped</li>
+        <li>Memory: every observation, filterable, down to the raw evidence behind each one</li>
+        <li>Reuse: what each recall actually saved, receipt by receipt, labelled as the estimate it is</li>
         <li>Sessions and Projects: what each piece of work taught, and the runway to the next level</li>
       </ul>
       <p class="dash__note" data-reveal data-delay="300">

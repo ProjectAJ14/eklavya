@@ -63,7 +63,7 @@ only a repo or global `mode` change is the second one.
 
 ### The memory namespaces
 
-The keys above are flat because every `.eklavya.json` already written uses them that way. The memory half's keys are nested under four namespaces instead, and they merge the same way: a repo file setting `retrieval.mode` leaves your personal `memory.capture` alone.
+The keys above are flat because every `.eklavya.json` already written uses them that way. The memory half's keys are nested under five namespaces instead, and they merge the same way: a repo file setting `retrieval.mode` leaves your personal `memory.capture` alone.
 
 #### `memory`
 
@@ -116,6 +116,40 @@ Each takes an object of three fields: `kind` (only `"anthropic"` today), `model`
       "model": "<model-id>",
       "api_key_env": "ANTHROPIC_API_KEY"
     }
+  }
+}
+```
+
+#### `notifications` — what gets sent out
+
+Off by default, and separately from everything else, because a notification
+cannot be recalled: once a session summary is in a team channel, deleting your
+local database changes nothing.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `notifications.enabled` | `false` | The master switch. With no sinks configured nothing is sent either way. |
+| `notifications.sinks` | `[]` | Where wrap-ups go. Each is an object: `kind` (`"webhook"`, `"command"` or `"file"`), `target`, optional `args` (for `command`), and optional `events` to take only some kinds. |
+
+Two event kinds today: `session_summary` when a session ends, and
+`queue_paused` when observation processing has stopped and will not restart by
+itself. Every payload goes through the same redaction as capture, and each
+event is delivered once however many times the session seam fires.
+
+`command` exists because the interesting integrations are all somebody's
+script — a desktop notification, a line in a journal, a message posted by a CLI
+that already holds the credentials. The event JSON arrives on the command's
+standard input, and no shell is involved, so nothing in `target` is expanded on
+the way.
+
+```json title="~/.eklavya/config.json"
+{
+  "notifications": {
+    "enabled": true,
+    "sinks": [
+      { "kind": "file", "target": "~/eklavya-wrapups.jsonl" },
+      { "kind": "command", "target": "/usr/local/bin/notify-me", "events": ["queue_paused"] }
+    ]
   }
 }
 ```

@@ -162,6 +162,41 @@ It does not quiz on what it just wrote — nothing has been logged yet. `/eklavy
 - The seeded catalogue is large on purpose — the "not yet seen" count is not a gap to close, and nobody is expected to learn every concept in it.
 - With no history at all, it says so in two lines and suggests building something first.
 
+### `/eklavya:memory`
+
+*What does this project's history say? Read-only unless you ask for a change.*
+
+The other half of the plugin. `/eklavya:progress` is about you; this is about
+the codebase — the decisions, fixes and unfinished work Eklavya recorded while
+your agent was working.
+
+#### What to ask it
+
+| You say | It does |
+|---|---|
+| a topic, a file, a question about past work | searches, then reads the two or three entries that answer it |
+| *"what happened last week"* | the timeline |
+| *"what has changed in `src/auth.ts`"* | that file's history |
+| *"is it even recording?"* | the health check |
+| *"remember that we chose argon2id because…"* | writes a note |
+| *"that's wrong, actually…"* | records a correction |
+
+#### Worth knowing
+
+- Answers are scoped to this project. Another codebase is reachable, but only
+  if you name it.
+- What it reads back is **evidence, not truth**. It quotes entries with their
+  dates and checks them against the code rather than asserting them, because an
+  observation can be stale or simply wrong.
+- A correction supersedes rather than overwrites: the older claim keeps its
+  place in the audit trail and stops appearing in searches.
+- If it looks empty, the health check tells apart the four reasons that look
+  identical from the outside — switched off, queued and not yet summarised, a
+  provider refusing, or evidence dropped while the database was unreachable.
+  It will not tell you nothing was recorded when the truth is that nothing has
+  been summarised yet.
+- For browsing rather than asking, it points you at [the dashboard](/docs/dashboard/).
+
 ### `/eklavya:gate`
 
 *Why is my commit blocked, and what is left?*
@@ -200,7 +235,7 @@ Claude makes the change through the same MCP tools and the same [`eklavya` CLI](
 
 #### How it differs from the commands
 
-The eight commands above come from the plugin, so they exist only where the plugin is loaded. This skill is installed for your user account, so it also works in projects where you have not enabled the plugin, and in a plain terminal session. What it will not do is teach or quiz — for that it points you at [`/eklavya:learn`](/docs/commands/#eklavyalearn-topic) or [`/eklavya:quiz`](/docs/commands/#eklavyaquiz-topic).
+The nine commands above come from the plugin, so they exist only where the plugin is loaded. This skill is installed for your user account, so it also works in projects where you have not enabled the plugin, and in a plain terminal session. What it will not do is teach or quiz — for that it points you at [`/eklavya:learn`](/docs/commands/#eklavyalearn-topic) or [`/eklavya:quiz`](/docs/commands/#eklavyaquiz-topic).
 
 :::tip
 It only wakes up when you mention Eklavya or its settings by name. Asking Claude an ordinary coding question does not load it.

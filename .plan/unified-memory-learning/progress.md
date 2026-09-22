@@ -14,13 +14,13 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | 5 | Observation jobs + provider adapter + local summarizer | 2 | done |
 | 6 | Retrieval: keyword + semantic + hybrid, scoping | 3 | done |
 | 7 | Context receipts, savings arithmetic, startup display | 3 | done |
-| 8 | MCP memory tools + CLI subcommands | 3/5 | tools done, CLI in progress |
+| 8 | MCP memory tools + CLI subcommands | 3/5 | done |
 | 9 | Learning links: evidence to concept candidates | 4 | done |
-| 10 | Dashboard memory surfaces | 4 | not started |
-| 11 | Import from the pinned Claude Mem fork | 4 | not started |
+| 10 | Dashboard memory surfaces | 4 | done |
+| 11 | Import from the pinned Claude Mem fork | 4 | done |
 | 12 | Code search/outline + collections | 5 | done |
 | 13 | Host adapters + workflows breadth | 5 | replay + capability descriptors done |
-| 14 | Optional remote (server, sync, notifications) | 6 | not started |
+| 14 | Optional remote (server, sync, notifications) | 6 | notifications done; server and sync outstanding |
 | 15 | Cutover, soak, release docs | 7 | not started |
 
 ## Log
@@ -53,3 +53,7 @@ increment lands. Phase names map to [delivery.md](delivery.md).
   privacy filter, converging with hook capture by content rather than by
   identity. Host capability descriptors record what each host can actually
   deliver; only Claude Code is claimed as proven.
+- 2026-09-22: the dashboard gained four memory routes and two paged resource
+  endpoints; the importer reads the real pinned schema (version 52); the CLI
+  gained `eklavya memory`; the site, manual and README say all of it. A ninth
+  slash command, `/eklavya:memory`, is on the landing page and in the manual.
