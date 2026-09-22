@@ -991,6 +991,7 @@ function memoryImport(argv: string[]): void {
           `snapshot: ${report.snapshot}`,
           ...rows,
           `  concept candidates: ${report.candidates} (all unassessed — no mastery, no attempts, no gate touched)`,
+          `  evidence links: ${report.links} (drill-down from an entry to the prompts and tool uses behind it)`,
           `  re-indexed: ${report.reindexed} entries`,
           `  validation: ${report.validation.ok ? 'ok' : `FAILED — ${report.validation.notes.join('; ')}`}`,
           ...report.projectsMapped.map((p) => `  mapped: ${p.from} -> ${p.to}`),

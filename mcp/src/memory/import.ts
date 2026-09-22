@@ -89,7 +89,7 @@ const DISPOSITIONS: FieldDisposition[] = [
   m('observations', 'generated_by_model', 'memory_entries.generator', 'recorded as the generator, prefixed with the importer'),
   m('observations', 'agent_type', 'memory_entry_tags', 'kept as a tag'),
   d('observations', 'agent_id', 'a foreign run identity with nothing on this machine to join to'),
-  d('observations', 'prompt_number', 'an ordering hint inside a source session; occurred_at already orders'),
+  m('observations', 'prompt_number', 'memory_entry_events.entry_id', 'with memory_session_id, the pair that finds the prompt an observation came from'),
   d('observations', 'discovery_tokens', "the source's own provider accounting, not a saving Eklavya can attest to"),
   d('observations', 'content_hash', "the source's dedupe key; Eklavya keys on its own deterministic entry_uid"),
   d('observations', 'relevance_count', 'a usage counter for the source ranker, meaningless to a different ranker'),
@@ -151,7 +151,7 @@ const DISPOSITIONS: FieldDisposition[] = [
   d('tool_uses', 'session_db_id', 'an internal source row id with no meaning here'),
   d('tool_uses', 'platform_source', "always 'claude' in practice; Eklavya records host on the event"),
   d('tool_uses', 'prompt_number', 'an ordering hint; occurred_at already orders'),
-  d('tool_uses', 'observation_id', 'the link is rebuilt from the id map, not trusted from the source'),
+  m('tool_uses', 'observation_id', 'memory_entry_events.event_id', 'the direct key to the observation, remapped through import_id_map rather than carried over'),
   d('tool_uses', 'or_generation_id', 'provider request correlation for a provider Eklavya did not call'),
   d('tool_uses', 'or_session_id', 'provider request correlation'),
   d('tool_uses', 'content_hash', "the source's dedupe key"),
@@ -230,6 +230,8 @@ export interface ImportReport {
   imported: ImportCounts;
   skipped: ImportCounts;
   candidates: number;
+  /** `memory_entry_events` rows written: the drill-down from an entry to its evidence. */
+  links: number;
   reindexed: number;
   unsupportedFields: FieldDisposition[];
   validation: { ok: boolean; notes: string[] };
@@ -612,6 +614,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
     imported: EMPTY_COUNTS(),
     skipped: EMPTY_COUNTS(),
     candidates: 0,
+    links: 0,
     reindexed: 0,
     unsupportedFields: found.fields.filter((f) => f.kind !== 'mapped'),
     validation: { ok: true, notes: [] },
@@ -792,6 +795,12 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
       }
     }
 
+    // An entry with no evidence behind it is an entry nobody can check:
+    // `memory_get --include-evidence` returns nothing and the dashboard's raw
+    // evidence block is empty. Both sides are in the id map by now, so the
+    // link is rebuilt from the source's own joins rather than guessed.
+    report.links = linkEvidence(db, src, tables, ids);
+
     // Rebuild the vectors for everything imported (MIG-02). `insertEntry`
     // indexes as it goes, so this is a backstop for a run resumed after a crash
     // between the insert and its vector -- and it is what makes "the index was
@@ -863,6 +872,70 @@ function appendImportedEvent(
         nowIso(),
       ).lastInsertRowid,
   );
+}
+
+/**
+ * Rebuilds `memory_entry_events` for imported rows.
+ *
+ * Two joins, and which one is worth running was measured rather than assumed
+ * (a real source: 4036 observations, 1146 tool uses, 545 prompts):
+ *
+ * - `tool_uses.observation_id` is a direct key and covered 842 of 1146 tool
+ *   uses. The remaining 304 carry no `prompt_number` either, so the pair
+ *   fallback recovers *none* of them — it is not run for tool uses, where it
+ *   would only fan one tool use out across every observation of its turn.
+ * - `user_prompts` has no `observation_id` column at all, so the pair
+ *   `(memory_session_id, prompt_number)` is the only join there is. It matched
+ *   every one of the 4036 observations to the prompt that produced it, which is
+ *   what makes the drill-down useful at all: the direct key alone reached only
+ *   220 distinct observations.
+ *
+ * A prompt carries no `memory_session_id`, so it is resolved through
+ * `sdk_sessions` the same way its project is.
+ */
+function linkEvidence(
+  db: DB,
+  src: Database.Database,
+  tables: Set<string>,
+  ids: ReturnType<typeof mapper>,
+): number {
+  if (!tables.has('observations')) return 0;
+
+  const joins: { table: string; sql: string }[] = [];
+  if (tables.has('tool_uses')) {
+    joins.push({
+      table: 'tool_uses',
+      sql: 'SELECT id AS event_src, observation_id AS obs FROM tool_uses WHERE observation_id IS NOT NULL',
+    });
+  }
+  if (tables.has('user_prompts') && tables.has('sdk_sessions')) {
+    joins.push({
+      table: 'user_prompts',
+      sql: `SELECT p.id AS event_src, o.id AS obs
+              FROM user_prompts p
+              JOIN sdk_sessions s ON s.id = p.session_db_id
+              JOIN observations o
+                ON o.memory_session_id = COALESCE(s.memory_session_id, s.content_session_id)
+               AND o.prompt_number = p.prompt_number
+             WHERE p.prompt_number IS NOT NULL`,
+    });
+  }
+
+  const link = db.prepare('INSERT OR IGNORE INTO memory_entry_events (entry_id, event_id) VALUES (?, ?)');
+  return db.transaction(() => {
+    let written = 0;
+    for (const { table, sql } of joins) {
+      for (const row of src.prepare(sql).iterate() as Iterable<{ event_src: number; obs: number }>) {
+        // Only where both sides were imported: a source row the importer
+        // skipped has no target to point at, and a dangling link is worse
+        // than a missing one.
+        const entryId = ids.get('observations', row.obs);
+        const eventId = ids.get(table, row.event_src);
+        if (entryId !== null && eventId !== null) written += link.run(entryId, eventId).changes;
+      }
+    }
+    return written;
+  })();
 }
 
 function reindex(db: DB, entryIds: number[]): number {

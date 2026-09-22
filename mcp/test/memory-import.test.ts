@@ -16,6 +16,7 @@ import {
 } from '../src/memory/import.js';
 import { keywordSearch, semanticSearch } from '../src/memory/search.js';
 import { appendEvent, countEntries, entryEvents, entryTags, insertEntry, timeline } from '../src/memory/store.js';
+import { memoryGet } from '../src/tools/memory_read_tools.js';
 
 /**
  * Every row below is invented. The real Claude Mem database on a developer's
@@ -95,9 +96,9 @@ function buildSource(schemaVersion: number = SUPPORTED_SCHEMA_VERSION): void {
     .prepare(
       `INSERT INTO observations
          (memory_session_id, project, text, type, title, subtitle, facts, narrative, concepts,
-          files_read, files_modified, created_at, created_at_epoch, generated_by_model, agent_type,
+          files_read, files_modified, prompt_number, created_at, created_at_epoch, generated_by_model, agent_type,
           metadata, origin_device_id, origin_local_id, discovery_tokens)
-       VALUES (?, ?, ?, 'bugfix', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sonnet-test', 'general',
+       VALUES (?, ?, ?, 'bugfix', ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 'sonnet-test', 'general',
                '{"secret":"do-not-import"}', 'device-abc', 'local-9', 4242)`,
     )
     .run(
@@ -118,8 +119,8 @@ function buildSource(schemaVersion: number = SUPPORTED_SCHEMA_VERSION): void {
   src
     .prepare(
       `INSERT INTO observations
-         (memory_session_id, project, type, title, narrative, created_at, created_at_epoch, merged_into_project)
-       VALUES (?, 'old-name', 'refactor', 'Split the migration runner', 'One guarded runner instead of three.', ?, ?, ?)`,
+         (memory_session_id, project, type, title, narrative, prompt_number, created_at, created_at_epoch, merged_into_project)
+       VALUES (?, 'old-name', 'refactor', 'Split the migration runner', 'One guarded runner instead of three.', 2, ?, ?, ?)`,
     )
     .run(SESSION, new Date(OCT + 3_600_000).toISOString(), OCT + 3_600_000, PROJECT);
 
@@ -150,10 +151,21 @@ function buildSource(schemaVersion: number = SUPPORTED_SCHEMA_VERSION): void {
   src
     .prepare(
       `INSERT INTO tool_uses (tool_use_id, content_session_id, memory_session_id, project, tool_name,
-                              tool_input, tool_response, cwd, created_at, created_at_epoch, or_generation_id)
-       VALUES ('tu-1', 'content-1', ?, ?, 'Edit', '{"file":"src/auth/refresh.ts"}', 'ok', '/work/demo-repo', ?, ?, 'gen-1')`,
+                              tool_input, tool_response, cwd, prompt_number, observation_id,
+                              created_at, created_at_epoch, or_generation_id)
+       VALUES ('tu-1', 'content-1', ?, ?, 'Edit', '{"file":"src/auth/refresh.ts"}', 'ok', '/work/demo-repo', 1, 1, ?, ?, 'gen-1')`,
     )
     .run(SESSION, PROJECT, new Date(OCT).toISOString(), OCT);
+
+  // A tool use belonging to no observation at all — the source has plenty, and
+  // they must still import, just without a link.
+  src
+    .prepare(
+      `INSERT INTO tool_uses (tool_use_id, content_session_id, memory_session_id, project, tool_name,
+                              tool_input, tool_response, cwd, created_at, created_at_epoch)
+       VALUES ('tu-orphan', 'content-1', ?, ?, 'Read', '{"file":"README.md"}', 'ok', '/work/demo-repo', ?, ?)`,
+    )
+    .run(SESSION, PROJECT, new Date(OCT + 120_000).toISOString(), OCT + 120_000);
 
   // Runtime state that must never be copied into Eklavya (PRD MIG-01).
   src
@@ -206,7 +218,7 @@ describe('inventory', () => {
       observations: 2,
       session_summaries: 1,
       user_prompts: 1,
-      tool_uses: 1,
+      tool_uses: 2,
       pending_messages: 1,
     });
     // `merged_into_project` already folded the renamed project, so both
@@ -256,7 +268,7 @@ describe('importFrom', () => {
       observations: 2,
       session_summaries: 1,
       user_prompts: 1,
-      tool_uses: 1,
+      tool_uses: 2,
     });
     expect(report.validation.ok).toBe(true);
 
@@ -365,7 +377,7 @@ describe('importFrom', () => {
       observations: 2,
       session_summaries: 1,
       user_prompts: 1,
-      tool_uses: 1,
+      tool_uses: 2,
     });
     expect(second.validation.ok).toBe(true);
     expect(countEntries(db)).toBe(entriesAfterFirst);
@@ -393,9 +405,62 @@ describe('importFrom', () => {
     const events = db
       .prepare('SELECT kind, source, host, occurred_at FROM evidence_events ORDER BY kind')
       .all() as { kind: string; source: string; host: string; occurred_at: string }[];
-    expect(events.map((e) => e.kind)).toEqual(['prompt', 'tool_use']);
+    expect(events.map((e) => e.kind)).toEqual(['prompt', 'tool_use', 'tool_use']);
     expect(events.every((e) => e.source === 'import' && e.host === 'claude-mem')).toBe(true);
     expect(events[0]?.occurred_at).toBe(new Date(OCT).toISOString());
+  });
+
+  it('links an imported observation to the evidence behind it', () => {
+    buildSource();
+    const report = importFrom(db, sourcePath, { snapshotDir });
+    // The direct key (tool use -> observation) and the session+prompt pair
+    // (prompt -> observation) for the one observation that has both.
+    expect(report.links).toBe(2);
+
+    const fix = timeline(db, { project: PROJECT, limit: 50 }).find((e) => e.title.startsWith('Fixed the refresh'))!;
+    const events = entryEvents(db, fix.id);
+    expect(events.map((e) => e.kind).sort()).toEqual(['prompt', 'tool_use']);
+    expect(events.find((e) => e.kind === 'prompt')?.body).toBe('why do I keep getting logged out?');
+    expect(events.find((e) => e.kind === 'tool_use')?.tool).toBe('Edit');
+  });
+
+  it('imports evidence that belongs to no observation, and simply does not link it', () => {
+    buildSource();
+    importFrom(db, sourcePath, { snapshotDir });
+
+    // `tu-orphan` carries neither observation_id nor prompt_number, which is
+    // 304 of 1146 tool uses in a real source. It is history either way.
+    const orphan = db.prepare("SELECT id FROM evidence_events WHERE body LIKE 'tu-orphan%'").get() as { id: number };
+    expect(orphan).toBeDefined();
+    expect(
+      (db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events WHERE event_id = ?').get(orphan.id) as { n: number }).n,
+    ).toBe(0);
+  });
+
+  it('adds no duplicate links on a second import', () => {
+    buildSource();
+    importFrom(db, sourcePath, { snapshotDir });
+    const links = () =>
+      (db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get() as { n: number }).n;
+    const after = links();
+
+    const second = importFrom(db, sourcePath, { snapshotDir, resume: true });
+    expect(second.links).toBe(0);
+    expect(links()).toBe(after);
+  });
+
+  it('hands an imported entry its raw evidence through memory_get', () => {
+    buildSource();
+    importFrom(db, sourcePath, { snapshotDir });
+    const fix = timeline(db, { project: PROJECT, limit: 50 }).find((e) => e.title.startsWith('Fixed the refresh'))!;
+
+    // The bug this exists for: imported rows returned an empty evidence block,
+    // so the drill-down worked for freshly captured entries and nothing else.
+    const entry = memoryGet.handler({ ids: [fix.id], include_evidence: true }, { db } as never) as {
+      entries: { evidence_events: { kind: string; body: string }[] }[];
+    };
+    expect(entry.entries[0].evidence_events).toHaveLength(2);
+    expect(entry.entries[0].evidence_events.every((e) => e.body.length > 0)).toBe(true);
   });
 
   it('writes nothing on a dry run', () => {
