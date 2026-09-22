@@ -92,6 +92,13 @@ Three retrieval modes, set by `retrieval.mode` and overridable per search:
 
 **What "semantic" honestly means here.** The default embedder is `local-hash-v1`: a dependency-free 256-dimension vector of hashed tokens and hashed character 4-grams, L2-normalised and compared by cosine. The n-grams are what make it more than keyword matching — `migrations`, `migration` and `migrating` land in overlapping buckets, and so do typos. It does **not** know that `cookie` and `session token` are about the same thing. That needs a trained model. Set `providers.embeddings` if you want one; every vector records the embedder that produced it, so vectors from two different models are never compared.
 
+**Japanese, Chinese and other unspaced scripts need the default mode.** SQLite's
+full-text tokenizer has no word boundaries for them, so `セッション管理` inside a
+longer run of kana and kanji is one token and `keyword` mode will not find it.
+The character n-gram embedder has no such problem, so `semantic` and `hybrid`
+both do — and `hybrid` is the default. If you have set `retrieval.mode` to
+`keyword` and you write in one of those scripts, set it back.
+
 **And one more limit, found by measuring rather than by reading the code.**
 Semantic search scans the 5,000 most recent entries of a project, not all of
 them. Below that size the bound never applies. Above it, semantic and hybrid
