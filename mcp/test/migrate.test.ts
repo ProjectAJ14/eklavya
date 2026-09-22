@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 9;
+const LATEST_SCHEMA_VERSION = 10;
 
 const LEARNING_TABLES = [
   'attempts',
@@ -53,7 +53,10 @@ const MEMORY_TABLES = [
   'memory_vectors',
 ];
 
-const EXPECTED_TABLES = [...LEARNING_TABLES, ...MEMORY_TABLES].sort();
+/** Migration 010: the importer's durable id map (PRD MIG-02). */
+const IMPORT_TABLES = ['import_id_map'];
+
+const EXPECTED_TABLES = [...LEARNING_TABLES, ...MEMORY_TABLES, ...IMPORT_TABLES].sort();
 
 let dbFile = '';
 afterEach(() => {
@@ -112,6 +115,7 @@ describe('migrations', () => {
         '007_checkpoints.sql',
         '008_difficulty_levels.sql',
         '009_memory.sql',
+        '010_import.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);

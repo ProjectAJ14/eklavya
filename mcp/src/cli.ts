@@ -19,6 +19,27 @@ import { START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
 import { startDashboard, openInBrowser } from './dashboard.js';
 import { install, uninstall, health } from './install.js';
+import { identityFor } from './memory/identity.js';
+import {
+  countEntries,
+  entryById,
+  entryEvents,
+  entryTags,
+  pendingEventCount,
+  receiptTotals,
+  timeline,
+} from './memory/store.js';
+import { search, type SearchMode } from './memory/search.js';
+import { processPending, pruneEvidence, queueDepth, summarizerFor } from './memory/worker.js';
+import { droppedCount } from './memory/spool.js';
+import { savingsFrom, savingsLine } from './memory/tokens.js';
+import {
+  importFrom,
+  inventory,
+  ImportError,
+  IMPORTED_TABLES,
+  type FieldDisposition,
+} from './memory/import.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,10 +62,28 @@ Usage:
   eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
 
+Memory:
+  eklavya memory status                 Entries, pending evidence, queue depth, provider and savings
+  eklavya memory search <query>         Search this project's memory
+                                        [--mode keyword|semantic|hybrid] [--limit <n>] [--all-projects]
+  eklavya memory timeline               Recent entries, newest first [--limit <n>] [--since <iso date>]
+  eklavya memory show <id>              One entry, with the evidence it was built from
+  eklavya memory process [--max <n>]    Drain the observation queue now
+  eklavya memory prune                  Delete raw evidence past memory.retention_days
+  eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
+                                        --dry-run reads the source and reports; it writes nothing
+  eklavya memory export <file>          Versioned JSON of entries, tags, evidence links and receipts
+
 Config keys: mode, focus, focus_topic, cadence, difficulty, level_up_after,
              level_up_accuracy, pass_threshold, max_questions_per_task,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
              max_new_concepts_per_session, max_stop_blocks_per_session, quiet
+Config namespaces (nested; edit ~/.eklavya/config.json or .eklavya.json directly):
+  memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days}
+  privacy.{exclude_paths, exclude_tools, redact_patterns}
+  retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project}
+  providers.{observer, embeddings} — each null or {kind, model, api_key_env};
+             api_key_env names the variable holding the key, never the key itself
 `;
 
 function fail(message: string): never {
@@ -447,6 +486,332 @@ function dashboardCommand(argv: string[]): void {
   );
 }
 
+/**
+ * `eklavya memory <subcommand>` — the memory half, outside a session.
+ *
+ * Project-scoped by default on every read, like the retrieval layer it sits on:
+ * another repository's work is noise, and `--all-projects` is the explicit way
+ * to ask for it.
+ */
+const MEMORY_USAGE =
+  'Usage: eklavya memory status|search|timeline|show|process|prune|import|export\n' +
+  '       run `eklavya --help` for the full list\n';
+
+function flag(argv: string[], name: string, fallback?: string): string | undefined {
+  const i = argv.indexOf(name);
+  if (i === -1) return fallback;
+  const value = argv[i + 1];
+  if (value === undefined || value.startsWith('--')) fail(`${name} needs a value.`);
+  return value;
+}
+
+function numberFlag(argv: string[], name: string, fallback: number): number {
+  const raw = flag(argv, name);
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) fail(`${name} needs a positive number.`);
+  return Math.floor(n);
+}
+
+/** The project key the memory tables use — the same one the hooks record under. */
+function currentProject(): string {
+  return identityFor({ cwd: process.cwd(), sessionId: 'cli' }).project;
+}
+
+function memoryStatus(): void {
+  const db = openDb();
+  try {
+    const { config } = loadConfig();
+    const project = currentProject();
+    const queue = queueDepth(db);
+    const totals = receiptTotals(db);
+    const savings = savingsFrom({
+      baseTokens: totals.base,
+      deliveredTokens: totals.delivered,
+      delivery: totals.confirmed > 0 ? 'confirmed' : 'unknown',
+    });
+
+    const lines = [
+      `project:    ${project}`,
+      `capture:    ${config.memory.enabled ? config.memory.capture : 'off (memory.enabled is false)'}`,
+      `entries:    ${countEntries(db, project)} here, ${countEntries(db)} in total`,
+      `pending:    ${pendingEventCount(db, project)} evidence events here, ${pendingEventCount(db)} in total`,
+      `queue:      ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`,
+      `oldest job: ${queue.oldest ?? '—'}`,
+      // Named separately from the summarizer because they answer different
+      // questions: one is "will anything leave this machine", the other is
+      // "what is actually writing the observations right now".
+      `provider:   ${
+        config.providers.observer
+          ? `${config.providers.observer.kind}:${config.providers.observer.model} (key from $${config.providers.observer.api_key_env})`
+          : 'none — nothing leaves this machine'
+      }`,
+      `summarizer: ${summarizerFor(config).id}`,
+      `spool drops: ${droppedCount()}`,
+      `receipts:   ${totals.receipts} (${totals.confirmed} confirmed) · base ${totals.base} → delivered ${totals.delivered} tokens`,
+      savingsLine(savings),
+    ];
+    process.stdout.write(`${lines.join('\n')}\n`);
+  } finally {
+    db.close();
+  }
+}
+
+function memorySearch(argv: string[]): void {
+  const query = argv.filter((a, i) => !a.startsWith('--') && !argv[i - 1]?.match(/^--(mode|limit)$/)).join(' ');
+  if (!query.trim()) fail('Usage: eklavya memory search <query> [--mode keyword|semantic|hybrid] [--limit <n>] [--all-projects]');
+
+  const { config } = loadConfig();
+  const mode = (flag(argv, '--mode', config.retrieval.mode) ?? 'hybrid') as SearchMode;
+  if (mode !== 'keyword' && mode !== 'semantic' && mode !== 'hybrid') {
+    fail('--mode must be keyword, semantic or hybrid.');
+  }
+
+  const db = openDb();
+  try {
+    const hits = search(db, query, mode, {
+      project: currentProject(),
+      allProjects: argv.includes('--all-projects'),
+      limit: numberFlag(argv, '--limit', 10),
+    });
+    if (!hits.length) {
+      process.stdout.write('No matches.\n');
+      return;
+    }
+    for (const hit of hits) {
+      process.stdout.write(
+        `#${hit.entry.id}  ${hit.entry.occurred_at.slice(0, 16).replace('T', ' ')}  ${hit.entry.title}\n` +
+          `     ${hit.entry.type ?? hit.entry.kind} · score ${hit.score.toFixed(3)} · ${hit.via}${
+            hit.entry.import_source ? ` · imported from ${hit.entry.import_source}` : ''
+          }\n`,
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+function memoryTimeline(argv: string[]): void {
+  const db = openDb();
+  try {
+    const rows = timeline(db, {
+      project: currentProject(),
+      limit: numberFlag(argv, '--limit', 20),
+      since: flag(argv, '--since') ?? null,
+    });
+    if (!rows.length) {
+      process.stdout.write('Nothing recorded for this project yet.\n');
+      return;
+    }
+    for (const row of rows) {
+      process.stdout.write(
+        `#${row.id}  ${row.occurred_at.slice(0, 16).replace('T', ' ')}  ${row.kind}  ${row.title}\n`,
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+function memoryShow(argv: string[]): void {
+  const id = Number(argv[0]);
+  if (!Number.isInteger(id)) fail('Usage: eklavya memory show <id>');
+
+  const db = openDb();
+  try {
+    const entry = entryById(db, id);
+    if (!entry) fail(`No memory entry #${id}.`);
+
+    const tags = entryTags(db, id);
+    const lines = [
+      `#${entry.id}  ${entry.title}`,
+      `kind:      ${entry.kind}${entry.type ? ` / ${entry.type}` : ''}`,
+      `project:   ${entry.project}`,
+      `occurred:  ${entry.occurred_at}`,
+      `generator: ${entry.generator}`,
+      ...(entry.import_source ? [`imported:  from ${entry.import_source} (unassessed — no mastery, no attempts)`] : []),
+      ...(entry.superseded_by ? [`superseded by #${entry.superseded_by}`] : []),
+      ...(tags.length ? [`tags:      ${tags.join(', ')}`] : []),
+      ...(entry.files ? [`files:     ${(JSON.parse(entry.files) as string[]).join(', ')}`] : []),
+      '',
+      entry.narrative || '(no narrative)',
+    ];
+
+    const facts = entry.facts ? (JSON.parse(entry.facts) as string[]) : [];
+    if (facts.length) lines.push('', 'Facts:', ...facts.map((f) => `  - ${f}`));
+
+    const events = entryEvents(db, id);
+    lines.push('', `Evidence (${events.length}):`);
+    for (const event of events) {
+      lines.push(
+        `  ${event.occurred_at.slice(0, 16).replace('T', ' ')}  ${event.kind}${
+          event.tool ? `/${event.tool}` : ''
+        }  ${event.body.slice(0, 120).replace(/\s+/g, ' ')}`,
+      );
+    }
+    if (!events.length) lines.push('  (none linked — imported or hand-written entries carry no local evidence)');
+
+    process.stdout.write(`${lines.join('\n')}\n`);
+  } finally {
+    db.close();
+  }
+}
+
+function memoryProcess(argv: string[]): void {
+  const db = openDb();
+  const { config } = loadConfig();
+  processPending(db, config, { maxJobs: numberFlag(argv, '--max', 10) }).then(
+    (result) => {
+      process.stdout.write(
+        `processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}\n`,
+      );
+      db.close();
+    },
+    (err: Error) => {
+      db.close();
+      fail(`eklavya memory process: ${err.message}`);
+    },
+  );
+}
+
+function memoryPrune(): void {
+  const db = openDb();
+  try {
+    const { config } = loadConfig();
+    if (!config.memory.retention_days) {
+      process.stdout.write('memory.retention_days is not set, so raw evidence is kept until deleted by hand.\n');
+      return;
+    }
+    const removed = pruneEvidence(db, config);
+    process.stdout.write(`Deleted ${removed} raw evidence events older than ${config.memory.retention_days} days.\n`);
+  } finally {
+    db.close();
+  }
+}
+
+/** The field-disposition report, printed before anything is written. */
+function dispositionReport(fields: FieldDisposition[]): string {
+  const lines: string[] = [];
+  for (const kind of ['mapped', 'dropped', 'unrecognised'] as const) {
+    const group = fields.filter((f) => f.kind === kind);
+    if (!group.length) continue;
+    lines.push('', `${kind} (${group.length}):`);
+    for (const f of group) {
+      lines.push(`  ${f.table}.${f.field}${f.to ? ` -> ${f.to}` : ''}${f.reason ? `  — ${f.reason}` : ''}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+function memoryImport(argv: string[]): void {
+  const source = argv.find((a) => !a.startsWith('--'));
+  if (!source) fail('Usage: eklavya memory import <path-to-claude-mem.db> [--dry-run] [--resume]');
+  const dryRun = argv.includes('--dry-run');
+
+  try {
+    const found = inventory(source);
+    const lines = [
+      `source:  ${found.sourcePath}`,
+      `schema:  ${found.schemaVersion ?? 'unversioned'} (this importer understands up to ${found.supportedMax})`,
+      `range:   ${found.dateRange.from?.slice(0, 10) ?? '—'} … ${found.dateRange.to?.slice(0, 10) ?? '—'}`,
+      'tables:',
+      ...found.tables.map((t) => `  ${t.rows.toString().padStart(7)}  ${t.name}${t.known ? '' : '   (unrecognised)'}`),
+      'projects:',
+      ...found.projects.map((p) => `  ${p.entries.toString().padStart(7)}  ${p.project}`),
+      dispositionReport(found.fields),
+    ];
+    process.stdout.write(`${lines.join('\n')}\n`);
+
+    if (!found.supported) fail(`\n${found.problem ?? 'Unsupported source database.'}`);
+    if (dryRun) {
+      process.stdout.write('\nDry run: nothing was written, and the source was opened read-only.\n');
+      return;
+    }
+
+    const db = openDb();
+    try {
+      const report = importFrom(db, source, { resume: argv.includes('--resume') });
+      const rows = IMPORTED_TABLES.map(
+        (t) =>
+          `  ${t.padEnd(18)} read ${report.read[t]} · imported ${report.imported[t]} · already present ${report.skipped[t]}`,
+      );
+      process.stdout.write(
+        [
+          '',
+          `snapshot: ${report.snapshot}`,
+          ...rows,
+          `  concept candidates: ${report.candidates} (all unassessed — no mastery, no attempts, no gate touched)`,
+          `  re-indexed: ${report.reindexed} entries`,
+          `  validation: ${report.validation.ok ? 'ok' : `FAILED — ${report.validation.notes.join('; ')}`}`,
+          '',
+        ].join('\n'),
+      );
+      if (!report.validation.ok) process.exit(1);
+    } finally {
+      db.close();
+    }
+  } catch (err) {
+    if (err instanceof ImportError) fail(err.message);
+    throw err;
+  }
+}
+
+/** The export format version. Bump it when the shape below changes. */
+const EXPORT_SCHEMA_VERSION = 1;
+
+function memoryExport(argv: string[]): void {
+  const out = argv.find((a) => !a.startsWith('--'));
+  if (!out) fail('Usage: eklavya memory export <path>');
+
+  const db = openDb();
+  try {
+    const all = <T>(sql: string): T[] => db.prepare(sql).all() as T[];
+    const payload = {
+      schema_version: EXPORT_SCHEMA_VERSION,
+      exported_at: new Date().toISOString(),
+      db_schema_version: (db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as
+        | { value: string }
+        | undefined)?.value,
+      entries: all('SELECT * FROM memory_entries ORDER BY id'),
+      tags: all('SELECT * FROM memory_entry_tags ORDER BY entry_id, tag'),
+      entry_events: all('SELECT * FROM memory_entry_events ORDER BY entry_id, event_id'),
+      evidence: all('SELECT * FROM evidence_events ORDER BY id'),
+      receipts: all('SELECT * FROM context_receipts ORDER BY id'),
+      receipt_items: all('SELECT * FROM context_receipt_items ORDER BY receipt_id, entry_id, stage'),
+    };
+    fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
+    fs.writeFileSync(out, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+    process.stdout.write(`Wrote ${out} — ${payload.entries.length} entries, schema version ${EXPORT_SCHEMA_VERSION}\n`);
+  } finally {
+    db.close();
+  }
+}
+
+function memoryCommand(argv: string[]): void {
+  const [sub, ...rest] = argv;
+  switch (sub) {
+    case 'status':
+      return memoryStatus();
+    case 'search':
+      return memorySearch(rest);
+    case 'timeline':
+      return memoryTimeline(rest);
+    case 'show':
+      return memoryShow(rest);
+    case 'process':
+      return memoryProcess(rest);
+    case 'prune':
+      return memoryPrune();
+    case 'import':
+      return memoryImport(rest);
+    case 'export':
+      return memoryExport(rest);
+    default:
+      process.stderr.write(MEMORY_USAGE);
+      process.exit(1);
+  }
+}
+
 function main(): void {
   const [command, ...rest] = process.argv.slice(2);
 
@@ -473,6 +838,8 @@ function main(): void {
       return;
     case 'dashboard':
       return dashboardCommand(rest);
+    case 'memory':
+      return memoryCommand(rest);
     case 'doctor':
       return doctor();
     case 'db-path':

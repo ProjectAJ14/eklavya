@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { tempDbPath, cleanup } from './helpers.js';
 import { openDb } from '../src/db.js';
 import { setCurrentSession, setSessionOff } from '../src/session.js';
+import { insertEntry } from '../src/memory/store.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cliPath = path.join(mcpRoot, 'dist', 'cli.js');
@@ -346,6 +347,52 @@ describe('eklavya doctor checks the install', () => {
     expect(res.status).toBe(1);
     expect(res.stdout).toMatch(/mode:\s+ambient/);
     expect(res.stdout).toMatch(/level:\s+easy/);
+  });
+});
+
+describe('eklavya memory', () => {
+  it('reports health on an empty database without inventing numbers', () => {
+    const res = eklavya(['memory', 'status']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/entries:\s+0 here, 0 in total/);
+    expect(res.stdout).toMatch(/queue:\s+0 pending · 0 paused · 0 failed/);
+    expect(res.stdout).toMatch(/oldest job:\s+—/);
+    // No provider configured is the default, and the line has to say what that
+    // means rather than just printing "null".
+    expect(res.stdout).toMatch(/provider:\s+none — nothing leaves this machine/);
+    expect(res.stdout).toMatch(/summarizer:\s+local-v1/);
+    expect(res.stdout).toMatch(/Your savings: — no context reused yet/);
+  });
+
+  it('searches, and says so plainly when there is nothing to find', () => {
+    const res = eklavya(['memory', 'search', 'refresh token']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toBe('No matches.\n');
+  });
+
+  it('finds an entry once one exists', () => {
+    const db = openDb(dbFile);
+    insertEntry(db, {
+      project: repo,
+      title: 'Refresh token rotation',
+      narrative: 'The old token is revoked when a new one is issued.',
+      occurredAt: '2025-10-04T11:30:00.000Z',
+    });
+    db.close();
+
+    const res = eklavya(['memory', 'search', 'refresh', '--limit', '5']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/Refresh token rotation/);
+  });
+
+  it('rejects a mode it cannot run instead of silently picking one', () => {
+    const res = eklavya(['memory', 'search', 'anything', '--mode', 'telepathy']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/keyword, semantic or hybrid/);
+  });
+
+  it('exits non-zero on an unknown memory subcommand', () => {
+    expect(eklavya(['memory', 'nonsense']).status).toBe(1);
   });
 });
 

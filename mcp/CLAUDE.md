@@ -182,8 +182,9 @@ avoid the real learner's data), `EKLAVYA_DB` (the file itself),
 see `resolveSessionId`).
 
 Migrations are forward-only. Adding one means bumping, in the same change,
-`LATEST_SCHEMA_VERSION` (currently 8), the file list in the "upgrades an older
-install" case, and `EXPECTED_TABLES` (currently 10) in `test/migrate.test.ts`.
+`LATEST_SCHEMA_VERSION` (currently 10), the file list in the "upgrades an older
+install" case, and the table list `EXPECTED_TABLES` is built from — `LEARNING_TABLES`,
+`MEMORY_TABLES` or `IMPORT_TABLES` — in `test/migrate.test.ts`.
 
 The seed catalogue is **87 concepts** across four files in `src/seed/` — git 19,
 node-backend 17, react 18, web-auth 33. Recount when a seed file changes, fix any
