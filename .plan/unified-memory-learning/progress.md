@@ -292,6 +292,46 @@ no observation. Four new tests; suite at 862 across 38 files (`bbbcefc`).
 `/tmp/ek-cutover/` held the rehearsal and can be deleted; nothing in it is
 needed again.
 
+## The audit, and what it found
+
+With the branch believed finished, the plan was audited against the tree —
+84 requirements (the parity rows, the quality scenarios, the PRD's lettered
+requirements), each checked against a `file:line` rather than against this
+document. Fourteen could not be verified as delivered. **Three of them were
+rows the ledger marked `done`.** That is the result worth keeping: a ledger
+checked only against itself will always agree with itself.
+
+Fixed, each with the test that would catch it coming back:
+
+| What | Was |
+|---|---|
+| **A paused queue could not be resumed** (`8366aa3`) | `doctor` told the developer to fix their credential and run `eklavya memory process`. Nothing in the codebase moved a job out of `paused`, so that command provably could not pick it up. A documented repair that was inert. |
+| **No cooldown on a transient failure** (`8366aa3`) | A failed job went straight back to `pending`, reclaimable by the very next hook, so one bad provider minute burned all five attempts inside it. Now 30s doubling to a five-minute ceiling, half jitter so several checkouts do not wake together. |
+| **Notifications were never retried** (`5821877`) | PAR-28 claimed "delivery retries and dedupe". Delivery was recorded *before* the attempt, so a webhook down for thirty seconds lost the notification permanently. Now a per-(event, sink) ledger: a refused delivery retries, a successful one still never goes twice. |
+| **The dashboard showed stale numbers silently** (`571b59f`) | PAR-18 claimed "replay-safe live updates". The page fetched `/api/state` once at load and never again — an hour later it showed hour-old numbers with nothing saying so, which looks exactly like the right answer. |
+| **The migration runbook had an overlap window** (`c27888b`) | Import at step 2, disable Claude Mem at step 4, and a documented reason to re-import later: everything in between arrived twice. Stopping the old capture first costs nothing and needs no watermark column. |
+| **ADR-05 cited a file that never existed** (`c27888b`) | `runtime/lifecycle.ts`. The rule it claimed is genuinely held, by one function reached from two call sites, so the ADR now names real code. |
+
+One audit finding turned out **not** to be a defect. LRN-04/Q14 — late candidate
+evidence reopening a passed gate — is structurally impossible: `fillOmissions`
+writes only when `session_concepts` is empty, and `gates.required` only rises
+through the call that writes the first row, so an empty table means there is no
+bar to reopen. A guard would have been dead code defending an unreachable
+state. What was missing was the regression test, which is there now and was
+confirmed by mutation (`875d52f`).
+
+The six requirements that stay undone are recorded as decisions in **ADR-11**,
+each with the condition that reverses it — including the one this ledger should
+not have glossed: the performance results are single-session at 20k, not the
+100k-entry, 10-session fixture quality.md agreed to.
+
+One process note, because it cost real work. Agents editing a shared tree in
+parallel is fine; one of them running `git stash` is not. A plain `git stash`
+intended to shelve two files swept every other agent's in-flight work, and one
+agent then reported, in detail and in good faith, changes that were not on disk.
+Recovered from `stash@{0}`. The lesson is not "do not parallelise" — it is that
+a report is a claim, and the tree is the evidence.
+
 ## What is left
 
 Two things, and neither can be done from an agent session:

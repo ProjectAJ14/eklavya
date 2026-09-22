@@ -306,3 +306,61 @@ workflows serve is not the outcome this tool exists for.
 
 **Reverses per workflow**, if one turns out to need memory or learning to work
 — that is the test, not the count.
+
+## ADR-11 — What an audit of this plan against the tree found, and what stays undone
+
+**Choice.** Late in the branch, the plan was audited requirement by requirement
+against the code, the tests and the docs — 84 of them: the parity rows, the
+quality scenarios, and the PRD's lettered requirements. Fourteen could not be
+verified as delivered, and **three of those were rows this ledger marked
+`done`**: PAR-03's session summaries, PAR-18's live updates, PAR-28's delivery
+retries. Those three are now corrected on their rows, and the two that were
+bugs are fixed.
+
+The rest are recorded here as decisions rather than left to be rediscovered.
+A plan that quietly drops a requirement teaches nobody anything; a plan that
+says which requirement it dropped and what would bring it back is still doing
+its job.
+
+**Not built, with the condition that reverses each:**
+
+- **SEC-02's per-class retention.** Only raw evidence expires
+  (`memory.retention_days`). There is deliberately no retention for generated
+  entries or receipts: the generated memory *is* the product, and a policy that
+  deletes it by age would delete the thing the developer came for. Raw evidence
+  is different — it is bulky, it is the most sensitive thing stored, and the
+  entry built from it survives its deletion. *Reverses* if a regulated user
+  needs a hard ceiling on total retention, at which point the classes need
+  separate dials rather than one.
+- **The PRD §6 layer map and the automated lint/boundary gates.** `mcp/src/` is
+  flat plus `memory/`, `hooks/`, `tools/`, `migrations/`; there is no
+  `domain/`/`application/`/`adapters/` split, no formatter, no cycle check. At
+  this size `tsc` and 870-odd tests catch what those would, and a boundary
+  checker for a tree this small is ceremony. *Reverses* the first time a real
+  import cycle survives review, or the package outgrows one person's head.
+- **MIG-03's cutover watermark.** Solved by sequencing instead: the runbook now
+  stops the old capture *before* the import, so there is one recorder from that
+  moment and a re-import cannot duplicate the window. No column needed.
+  *Reverses* if anyone needs to run both systems concurrently on purpose.
+- **Q09's browser-level accessibility evidence.** The XSS fixture is automated;
+  keyboard, screen-reader labelling, console cleanliness and 320px were checked
+  by hand and reported per change, because a browser harness is a dependency
+  and a CI surface for one loopback page. *Reverses* when the dashboard gets a
+  second interactive surface, where by-hand checking stops scaling.
+- **The reference-comparison harness** in quality.md — running identical
+  fixtures through Claude Mem and Eklavya and diffing. It requires keeping the
+  reference installed and runnable long after the cutover asks users to remove
+  it. The cutover rehearsal against a real 30MB database is the evidence that
+  actually mattered, and it was run. *Reverses* if a parity dispute comes up
+  that row counts and spot searches cannot settle.
+- **The performance fixture at its stated scale.** quality.md names 100,000
+  entries, 1,000,000 evidence events and 10 concurrent sessions; the committed
+  results are single-session at 2k and 20k. The 20k numbers are real and the
+  shape they show is flat, but they are **not** the agreed fixture and this
+  ledger should not have implied otherwise. *Reverses* — and should — before
+  anyone claims a performance guarantee at team scale.
+
+**Evidence.** The audit itself: 84 requirements, each checked against a
+`file:line` rather than against this document's own claims. The three false
+`done` rows are the argument for doing it — a ledger checked only against
+itself will agree with itself.
