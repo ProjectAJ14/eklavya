@@ -9,8 +9,9 @@ import { capture, captureOrSpool, drainSpool, prepare, type HostEvent } from '..
 import type { EvidenceIdentity } from '../src/memory/identity.js';
 import { spoolPath } from '../src/memory/spool.js';
 import { LocalSummarizer } from '../src/memory/summarize.js';
-import { processPending, pruneEvidence } from '../src/memory/worker.js';
-import { appendEvent, batchSession, claimJob, insertEntry } from '../src/memory/store.js';
+import { processPending, pruneEvidence, writeSessionSummary } from '../src/memory/worker.js';
+import { appendEvent, batchSession, claimJob, insertEntry, timeline, type EntryRow } from '../src/memory/store.js';
+import { search } from '../src/memory/search.js';
 
 const PROJECT = '/tmp/demo-repo';
 const SECRET = 'ghp_abcdefghijklmnopqrstuvwxyz0123';
@@ -207,6 +208,127 @@ describe('the job worker', () => {
 
     db.prepare("UPDATE memory_jobs SET next_attempt = '2000-01-01T00:00:00.000Z'").run();
     expect(claimJob(db, 'someone-else')).not.toBeNull();
+  });
+});
+
+describe('session summaries', () => {
+  /** One batch of real work, summarised. `at` keeps the ordering deterministic. */
+  async function observation(prompt: string, file: string, at: string, sessionId = 's1'): Promise<void> {
+    capture(db, config(), { ...IDENTITY, sessionId }, event({ kind: 'prompt', body: prompt, occurredAt: at }));
+    capture(
+      db,
+      config(),
+      { ...IDENTITY, sessionId },
+      event({ kind: 'file_edit', body: `edited ${file}`, files: [`${PROJECT}/${file}`], occurredAt: at }),
+    );
+    batchSession(db, { project: PROJECT, sessionId, reason: 'session_seam' });
+    await processPending(db, config(), { maxJobs: 1 });
+  }
+
+  function summaries(sessionId = 's1'): EntryRow[] {
+    return timeline(db, { project: PROJECT, sessionId, kind: 'session_summary' });
+  }
+
+  it('rolls a session of real work into exactly one summary entry at the seam', async () => {
+    await observation('add refresh token rotation', 'src/auth.ts', '2026-01-01T09:00:00.000Z');
+    await observation('fix the failing migration', 'src/migrations/013.sql', '2026-01-01T10:00:00.000Z');
+
+    expect(writeSessionSummary(db, PROJECT, 's1')).not.toBeNull();
+
+    const rows = summaries();
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.generator).toBe('session-rollup-v1');
+    // It names the work rather than restating one batch of it.
+    expect(rows[0]!.narrative).toContain('refresh token rotation');
+    expect(rows[0]!.narrative).toContain('failing migration');
+    // It sorts above the observations it covers, which is what makes it the
+    // first thing the next session's recall is handed.
+    expect(timeline(db, { project: PROJECT, sessionId: 's1' })[0]!.kind).toBe('session_summary');
+  });
+
+  it('refreshes the one row as the session grows instead of writing a summary per seam', async () => {
+    await observation('add refresh token rotation', 'src/auth.ts', '2026-01-01T09:00:00.000Z');
+    await observation('fix the failing migration', 'src/migrations/013.sql', '2026-01-01T10:00:00.000Z');
+    const first = writeSessionSummary(db, PROJECT, 's1');
+
+    await observation('rename the spool helper', 'src/memory/spool.ts', '2026-01-01T11:00:00.000Z');
+    const second = writeSessionSummary(db, PROJECT, 's1');
+
+    expect(second).toBe(first);
+    expect(summaries().length).toBe(1);
+    expect(summaries()[0]!.narrative).toContain('spool helper');
+    // And the derived indexes moved with it: a stale vector is a summary that
+    // semantic recall still answers with last hour's work.
+    const vectors = db.prepare('SELECT COUNT(*) AS n FROM memory_vectors WHERE entry_id = ?').get(first) as {
+      n: number;
+    };
+    expect(vectors.n).toBe(1);
+  });
+
+  it('is findable by search like any other entry', async () => {
+    await observation('add refresh token rotation', 'src/auth.ts', '2026-01-01T09:00:00.000Z');
+    await observation('fix the failing migration', 'src/migrations/013.sql', '2026-01-01T10:00:00.000Z');
+    writeSessionSummary(db, PROJECT, 's1');
+
+    for (const mode of ['keyword', 'semantic', 'hybrid'] as const) {
+      const hits = search(db, 'refresh token rotation', mode, { project: PROJECT });
+      expect(hits.some((h) => h.entry.kind === 'session_summary')).toBe(true);
+    }
+  });
+
+  it('writes nothing for a session with nothing worth summarising', async () => {
+    // Nothing at all.
+    expect(writeSessionSummary(db, PROJECT, 'empty')).toBeNull();
+
+    // And one observation is not a session worth summarising either: the
+    // summary would be that observation retyped, competing with its own source
+    // for a bounded recall budget for ever.
+    await observation('add refresh token rotation', 'src/auth.ts', '2026-01-01T09:00:00.000Z', 'solo');
+    expect(writeSessionSummary(db, PROJECT, 'solo')).toBeNull();
+    expect(summaries('solo').length).toBe(0);
+    expect((db.prepare('SELECT COUNT(*) AS n FROM memory_entries').get() as { n: number }).n).toBe(1);
+  });
+});
+
+describe('batch provenance', () => {
+  it('records which summariser and which configuration read a batch', async () => {
+    capture(db, config(), IDENTITY, event({ kind: 'prompt', body: 'add refresh token rotation' }));
+    const batchId = batchSession(db, { project: PROJECT, sessionId: 's1', reason: 'session_seam' })!.batchId;
+    await processPending(db, config(), { maxJobs: 1 });
+
+    const row = db
+      .prepare('SELECT summarizer, config_digest FROM memory_batches WHERE id = ?')
+      .get(batchId) as { summarizer: string | null; config_digest: string | null };
+    expect(row.summarizer).toBe('local-v1');
+    expect(row.config_digest).toMatch(/^[0-9a-f]{12}$/);
+  });
+
+  it('records the run even when the summariser fails, which is when it is asked for', async () => {
+    capture(db, config(), IDENTITY, event({ kind: 'prompt', body: 'add refresh token rotation' }));
+    const batchId = batchSession(db, { project: PROJECT, sessionId: 's1', reason: 'session_seam' })!.batchId;
+    vi.spyOn(LocalSummarizer.prototype, 'summarize').mockRejectedValue(new Error('summariser exploded'));
+
+    await processPending(db, config(), { maxJobs: 1 });
+    const row = db.prepare('SELECT summarizer FROM memory_batches WHERE id = ?').get(batchId) as {
+      summarizer: string | null;
+    };
+    expect(row.summarizer).toBe('local-v1');
+  });
+
+  it('changes the digest when a setting that shapes a summary changes', async () => {
+    const other = config();
+    other.privacy.redact_patterns = ['ACME-\\d{4}'];
+
+    const digests = new Set<string>();
+    for (const [i, cfg] of [config(), other].entries()) {
+      capture(db, config(), { ...IDENTITY, sessionId: `s${i}` }, event({ kind: 'prompt', body: `work ${i}` }));
+      const batchId = batchSession(db, { project: PROJECT, sessionId: `s${i}`, reason: 'manual' })!.batchId;
+      await processPending(db, cfg, { maxJobs: 1 });
+      digests.add(
+        (db.prepare('SELECT config_digest AS d FROM memory_batches WHERE id = ?').get(batchId) as { d: string }).d,
+      );
+    }
+    expect(digests.size).toBe(2);
   });
 });
 

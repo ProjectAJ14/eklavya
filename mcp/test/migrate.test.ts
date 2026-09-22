@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 12;
+const LATEST_SCHEMA_VERSION = 13;
 
 const LEARNING_TABLES = [
   'attempts',
@@ -132,6 +132,7 @@ describe('migrations', () => {
         '010_import.sql',
         '011_sync.sql',
         '012_job_backoff.sql',
+        '013_batch_provenance.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -146,6 +147,13 @@ describe('migrations', () => {
         (c) => c.name,
       );
       expect(jobCols).toContain('next_attempt');
+
+      // 013 does the same to memory_batches: the run identity MEM-01 asks for.
+      const batchCols = (db.prepare('PRAGMA table_info(memory_batches)').all() as { name: string }[]).map(
+        (c) => c.name,
+      );
+      expect(batchCols).toContain('summarizer');
+      expect(batchCols).toContain('config_digest');
       db.close();
     } finally {
       fs.rmSync(oldDir, { recursive: true, force: true });

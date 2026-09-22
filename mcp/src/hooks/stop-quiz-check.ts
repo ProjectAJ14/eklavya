@@ -83,7 +83,9 @@ await run(async (input) => {
     } catch {
       /* A session with nothing to ask about is the status quo, not a failure. */
     }
-    // No-op unless a sink is configured, which is the default.
+    // Writes the session's summary entry, then announces the wrap-up if a sink
+    // is configured -- which is not the default, and the summary must not wait
+    // on it. Gating memory on an announcement channel means nobody ever gets one.
     await wrapUpAtSeam(db, stopConfig, identity);
   }
   // Silenced sessions are never blocked, enforced mode included: the commit gate

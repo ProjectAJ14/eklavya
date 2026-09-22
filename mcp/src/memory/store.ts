@@ -390,8 +390,49 @@ export function insertEntry(db: DB, input: EntryInput): number {
     const link = db.prepare('INSERT OR IGNORE INTO memory_entry_events (entry_id, event_id) VALUES (?, ?)');
     for (const eventId of input.eventIds ?? []) link.run(id, eventId);
 
-    indexVector(db, id, [input.title, input.narrative ?? '', (input.facts ?? []).join(' '), (input.files ?? []).join(' ')].join('\n'));
+    indexVector(db, id, vectorText(input));
     return id;
+  })();
+}
+
+function vectorText(input: EntryInput): string {
+  return [input.title, input.narrative ?? '', (input.facts ?? []).join(' '), (input.files ?? []).join(' ')].join('\n');
+}
+
+/**
+ * Rewrites an entry's content in place and re-indexes it.
+ *
+ * The one entry that legitimately changes is the session summary: it rolls up a
+ * session that is still running, so every seam has more to say than the last.
+ * A correction still supersedes rather than edits (MEM-03) — this is not a
+ * correction, and neither of the other two options survives being done once a
+ * turn. Superseding leaves a dead row per turn in the timeline; hard deleting
+ * cascades away the `context_receipt_items` that record what a past recall
+ * already cost, rewriting a ledger after the fact.
+ *
+ * FTS keeps itself in step through the `memory_entries_au` trigger; the vector
+ * has no trigger, so it is refreshed here.
+ */
+export function replaceEntry(db: DB, id: number, input: EntryInput): void {
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE memory_entries
+       SET type = ?, title = ?, narrative = ?, facts = ?, files = ?, confidence = ?, occurred_at = ?
+       WHERE id = ?`,
+    ).run(
+      input.type ?? null,
+      input.title,
+      input.narrative ?? '',
+      input.facts?.length ? JSON.stringify(input.facts) : null,
+      input.files?.length ? JSON.stringify(input.files) : null,
+      input.confidence ?? null,
+      input.occurredAt ?? nowIso(),
+      id,
+    );
+    db.prepare('DELETE FROM memory_entry_tags WHERE entry_id = ?').run(id);
+    const tag = db.prepare('INSERT OR IGNORE INTO memory_entry_tags (entry_id, tag) VALUES (?, ?)');
+    for (const t of input.tags ?? []) tag.run(id, t.toLowerCase());
+    indexVector(db, id, vectorText(input));
   })();
 }
 
@@ -463,6 +504,8 @@ export function deleteEntry(db: DB, id: number, hard = false): void {
 export interface TimelineFilter {
   project?: string | null;
   sessionId?: string | null;
+  /** `observation` | `session_summary` | `note`. Unset means every kind. */
+  kind?: string | null;
   type?: string | null;
   since?: string | null;
   until?: string | null;
@@ -482,6 +525,10 @@ export function timeline(db: DB, filter: TimelineFilter = {}): EntryRow[] {
   if (filter.sessionId) {
     where.push('session_id = ?');
     args.push(filter.sessionId);
+  }
+  if (filter.kind) {
+    where.push('kind = ?');
+    args.push(filter.kind);
   }
   if (filter.type) {
     where.push('type = ?');

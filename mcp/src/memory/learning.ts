@@ -93,7 +93,11 @@ export function proposeFor(db: DB, entry: EntryRow, config: EklavyaConfig): numb
 
 /** Proposes for every entry of a project that has not been mined yet. */
 export function proposeForProject(db: DB, config: EklavyaConfig, project: string, limit = 10): number {
-  const entries = timeline(db, { project, limit }).filter((entry) => {
+  // Observations only. A session summary is a roll-up of observation titles
+  // this has already mined, so including it proposes the same slugs a second
+  // time -- harmless in itself, but it crowds the top five that `fillOmissions`
+  // accepts for a session that logged nothing.
+  const entries = timeline(db, { project, kind: 'observation', limit }).filter((entry) => {
     const row = db
       .prepare('SELECT 1 AS hit FROM learning_sources WHERE entry_id = ? LIMIT 1')
       .get(entry.id) as { hit: number } | undefined;

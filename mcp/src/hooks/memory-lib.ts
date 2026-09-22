@@ -11,7 +11,7 @@ import { projectKey } from '../store.js';
 import { identityFor, type EvidenceIdentity } from '../memory/identity.js';
 import { capture, drainSpool, type HostEvent } from '../memory/capture.js';
 import { batchSession, pendingEventCount } from '../memory/store.js';
-import { processPending } from '../memory/worker.js';
+import { processPending, writeSessionSummary } from '../memory/worker.js';
 import { recall, recallForPrompt } from '../memory/recall.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
 import { countEntries } from '../memory/store.js';
@@ -147,17 +147,27 @@ export function promptRecall(
 }
 
 /**
- * The session wrap-up, and the one alert worth interrupting for.
+ * Everything that happens once the seam's work has been flushed: the session
+ * summary, the wrap-up, and the one alert worth interrupting for.
  *
- * Both are no-ops unless a sink is configured, which is the default — so a
- * session that has not opted in pays one boolean. Failures are swallowed for
- * the usual reason: a dead webhook must not be how a turn ends.
+ * The summary is written first and outside the notifications gate, because it
+ * is memory rather than an announcement — gating it on `notifications.enabled`,
+ * which is off by default, would mean nobody ever gets one. The wrap-up and the
+ * alert below stay no-ops unless a sink is configured, so a session that has
+ * not opted in pays one boolean. Failures are swallowed for the usual reason: a
+ * dead webhook must not be how a turn ends.
  */
 export async function wrapUpAtSeam(
   db: DB,
   resolved: ResolvedConfig,
   identity: EvidenceIdentity,
 ): Promise<void> {
+  try {
+    writeSessionSummary(db, identity.project, identity.sessionId);
+  } catch {
+    /* A session without a summary still has its observations. */
+  }
+
   if (!resolved.config.notifications.enabled) return;
   try {
     const attempts = db

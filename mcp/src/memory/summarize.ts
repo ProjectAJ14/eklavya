@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EvidenceRow } from './store.js';
+import type { EntryRow, EvidenceRow } from './store.js';
 
 /**
  * The `Summarizer` port and its local implementation (ADR-04).
@@ -39,16 +39,20 @@ export interface Summarizer {
   summarize(input: SummarizeInput): Promise<EntryDraft[]>;
 }
 
-function filesOf(events: EvidenceRow[]): string[] {
-  const seen = new Set<string>();
-  for (const e of events) {
-    if (!e.files) continue;
-    try {
-      for (const f of JSON.parse(e.files) as string[]) seen.add(f);
-    } catch {
-      // A malformed files column is a bug elsewhere; here it is simply no files.
-    }
+function jsonList(value: string | null): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    // A malformed files column is a bug elsewhere; here it is simply no files.
+    return [];
   }
+}
+
+function filesOf(rows: { files: string | null }[]): string[] {
+  const seen = new Set<string>();
+  for (const row of rows) for (const f of jsonList(row.files)) seen.add(f);
   return [...seen];
 }
 
@@ -145,4 +149,68 @@ export class LocalSummarizer implements Summarizer {
       },
     ];
   }
+}
+
+/** How many observations a summary will name before it stops listing them. */
+const SUMMARY_MAX_LINES = 12;
+
+/**
+ * The session summary (PRD MEM-01, PAR-03).
+ *
+ * An observation answers "what happened in this batch". A session summary
+ * answers the only question the *next* session opens with — where did I leave
+ * off — and it exists because recall hands back the top of the timeline. Without
+ * one, a developer resuming on Monday is handed whichever ten tool calls
+ * happened to end Friday, rather than what Friday was about. Until now only the
+ * Claude Mem importer ever wrote `kind = 'session_summary'`, so an imported
+ * history had them and a natively captured one never did.
+ *
+ * It rolls up the session's own observations rather than re-reading the raw
+ * evidence. The evidence has already been read once: a second pass would mean a
+ * second provider request per session, which is exactly the wait LRN-04 keeps
+ * out of a seam, and evidence the summariser already judged not worth keeping
+ * should not come back in through a different door.
+ *
+ * Returns null when there is nothing to say, because an entry is forever and a
+ * summary of nothing is noise in every future recall. Two observations is the
+ * floor, deliberately: with one, the summary is that observation retyped, and a
+ * near-duplicate row competing with its own source for a bounded recall budget
+ * costs more than it tells anyone.
+ */
+export function summarizeSession(observations: EntryRow[]): EntryDraft | null {
+  if (observations.length < 2) return null;
+  const ordered = [...observations].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+
+  const files = filesOf(ordered);
+  const counts = new Map<string, number>();
+  for (const o of ordered) counts.set(o.type ?? 'change', (counts.get(o.type ?? 'change') ?? 0) + 1);
+  const commonest = [...counts].sort((a, b) => b[1] - a[1])[0]![0];
+
+  const listed = ordered.slice(0, SUMMARY_MAX_LINES);
+  const narrative = [
+    `${ordered.length} observations across ${files.length} file(s) in this session.`,
+    ...listed.map((o) => `- ${o.type ?? 'change'}: ${firstLine(o.title, 120)}`),
+    ordered.length > listed.length ? `- …and ${ordered.length - listed.length} more.` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    title: `Session: ${firstLine(ordered[0]!.title, 80)}`,
+    type: commonest,
+    narrative,
+    facts: files.slice(0, 10).map((f) => `Touched ${f}`),
+    files,
+    // `session` first so the tag survives the cap on a session that touched a
+    // deep tree, and so a summary is filterable as one.
+    tags: ['session', ...tagsFor(files, [])].slice(0, 12),
+    // No more reliable than the least reliable thing underneath it.
+    confidence: Math.min(...ordered.map((o) => o.confidence ?? 0.5)),
+    // Deliberately no event links. `pruneEvidence` keeps any event an entry
+    // still points at, so a summary citing a whole session would pin that
+    // session's raw evidence past `memory.retention_days` for ever — the one
+    // promise SEC-02 makes about raw capture. The price is a receipt that
+    // scores this row as pure overhead; the other trade is worse.
+    eventIds: [],
+  };
 }

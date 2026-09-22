@@ -215,7 +215,7 @@ avoid the real learner's data), `EKLAVYA_DB` (the file itself),
 see `resolveSessionId`).
 
 Migrations are forward-only. Adding one means bumping, in the same change,
-`LATEST_SCHEMA_VERSION` (currently 12), the file list in the "upgrades an older
+`LATEST_SCHEMA_VERSION` (currently 13), the file list in the "upgrades an older
 install" case, and the table list `EXPECTED_TABLES` is built from — `LEARNING_TABLES`,
 `MEMORY_TABLES`, `IMPORT_TABLES` or `SYNC_TABLES` — in `test/migrate.test.ts`.
 

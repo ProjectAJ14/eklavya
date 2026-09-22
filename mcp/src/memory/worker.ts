@@ -3,7 +3,7 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { nowIso } from '../time.js';
 import { ProviderError, ProviderSummarizer } from './provider.js';
-import { LocalSummarizer, type Summarizer } from './summarize.js';
+import { LocalSummarizer, summarizeSession, type Summarizer } from './summarize.js';
 import {
   addCandidate,
   batchById,
@@ -13,6 +13,8 @@ import {
   failJob,
   finishJob,
   insertEntry,
+  replaceEntry,
+  timeline,
 } from './store.js';
 
 /**
@@ -30,6 +32,84 @@ import {
 
 export function summarizerFor(config: EklavyaConfig): Summarizer {
   return config.providers.observer ? new ProviderSummarizer(config.providers.observer) : new LocalSummarizer();
+}
+
+/**
+ * What governed one summarisation run (PRD MEM-01: "a versioned input batch and
+ * prompt/config identity").
+ *
+ * `generator` on an entry names the summariser, but only after the fact and
+ * only for a batch that produced something — a batch that came out wrong, or
+ * empty, leaves no row to ask. Recorded on the batch, it is what makes "re-run
+ * this batch against the prompt that produced it" an answerable question.
+ *
+ * The digest covers the three settings that change what a summary comes out as:
+ * what capture accepted, what redaction removed from it, and which model read
+ * it. `ProviderConfig` names an environment variable rather than carrying a key
+ * (SEC-01), so nothing secret is hashed.
+ *
+ * ponytail: the provider's system prompt is versioned by `provider.ts` alone —
+ * `summarizer.id` carries the model, not the prompt. Fold a prompt version into
+ * `ProviderSummarizer.id` once that prompt starts changing between releases.
+ */
+function configDigest(config: EklavyaConfig): string {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify([config.memory, config.privacy, config.providers.observer]))
+    .digest('hex')
+    .slice(0, 12);
+}
+
+/**
+ * The roll-up's own generator id, versioned like any other summariser, so an
+ * entry always says which code wrote it.
+ */
+const SESSION_SUMMARY_GENERATOR = 'session-rollup-v1';
+
+/**
+ * Writes — or refreshes — this session's summary. Returns its entry id, or null
+ * when the session has nothing worth summarising.
+ *
+ * Called at the session seam, which fires at the end of every turn rather than
+ * once at the end of a session, so the row is rewritten in place as the session
+ * grows instead of one summary being written per turn.
+ *
+ * ponytail: with `providers.observer` set, the seam only *queues* the batch, so
+ * the last turn's observations land after this ran and the summary trails them
+ * by one turn until the next seam. Move the call after `processPending` if the
+ * provider path ever stops being asynchronous.
+ */
+export function writeSessionSummary(db: DB, project: string, sessionId: string): number | null {
+  // Bounded: the oldest observations of a day-long session are not where it
+  // left off, and an unbounded roll-up is an unbounded row in every recall.
+  const observations = timeline(db, { project, sessionId, kind: 'observation', limit: 24 });
+  const draft = summarizeSession(observations);
+  if (!draft) return null;
+
+  const fields = {
+    project,
+    sessionId,
+    kind: 'session_summary' as const,
+    type: draft.type,
+    title: draft.title,
+    narrative: draft.narrative,
+    facts: draft.facts,
+    files: draft.files,
+    tags: draft.tags,
+    generator: SESSION_SUMMARY_GENERATOR,
+    confidence: draft.confidence,
+    // The newest observation's time, so the summary sorts above the work it
+    // covers instead of below the session's first batch.
+    occurredAt: observations[0]!.occurred_at,
+    eventIds: draft.eventIds,
+  };
+
+  const existing = timeline(db, { project, sessionId, kind: 'session_summary', limit: 1 })[0];
+  if (existing) {
+    replaceEntry(db, existing.id, fields);
+    return existing.id;
+  }
+  return insertEntry(db, fields);
 }
 
 export interface WorkerResult {
@@ -61,6 +141,14 @@ export async function processPending(
       result.skipped++;
       continue;
     }
+
+    // Before the call, not after it: a batch that fails is the one whose
+    // provenance someone comes looking for.
+    db.prepare('UPDATE memory_batches SET summarizer = ?, config_digest = ? WHERE id = ?').run(
+      summarizer.id,
+      configDigest(config),
+      batch.id,
+    );
 
     try {
       const drafts = await summarizer.summarize({
