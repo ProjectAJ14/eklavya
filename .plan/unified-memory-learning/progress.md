@@ -370,6 +370,36 @@ They are listed here so the next person decides them on purpose.
 
 ## What is left
 
+Everything the plan asked for is built, and everything deliberately not built is
+in ADR-11 with the condition that reverses it. The suite is 931 across 38 files,
+green from a clean clone with `npm ci`; the site builds 20 pages with every link
+and anchor resolving; the runtime diagram is regenerated at HEAD.
+
+Two things remain, and they are different in kind.
+
+**1. The acceptance test's mid-task question — unverified, and narrowed.**
+`.plan/unified-memory-learning/acceptance-run.md` has the detail. Every
+*mechanism* in the loop is now proven by direct test: the session-start
+directive, the nudge past its grace window (and its cooldown, its cap, and its
+permanent silence once a session logs), the checkpoint returning the contract's
+own "Eklavya: quick question on what you just built" mid-task, and capture
+through to a summarised entry with provenance and links. What is unproven is
+whether a model volunteers `log_session_concepts` in a short session: four
+headless runs, one spontaneous log. Reported rather than re-run to green, which
+`CONTRIBUTING.md` forbids. A single `-p` run structurally *cannot* exercise the
+nudge — it submits one prompt, at minute zero, before the grace window — so a
+resumed session is the only headless shape that can.
+
+**2. The real cutover — the developer's, not an agent's.** The rehearsal against
+a copy of the real 30MB database passed every criterion and is recorded above.
+The cutover itself imports into the developer's actual `~/.eklavya/` and
+disables Claude Mem in their Claude config: irreversible changes to personal
+data and environment, which this branch's own runbook assigns to the developer.
+Step 4 of that runbook — comparing a handful of searches against what Claude Mem
+would have said — is a judgement only they can make. It is not blocked; it is
+theirs.
+
+
 Two things, and neither can be done from an agent session:
 
 1. **The acceptance test `CONTRIBUTING.md` defines** — a live interactive
