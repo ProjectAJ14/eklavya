@@ -460,7 +460,37 @@ function register(version: string): void {
   const enabled = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
   enabled['eklavya@eklavya'] = true;
   settings.enabledPlugins = enabled;
+  composeStatusLine(settings);
   writeJson(settingsPath, settings);
+}
+
+/** The status bar command this installer owns, and the only one it will remove. */
+const STATUS_LINE_COMMAND = `node ${path.join(runtimeHome(), 'node_modules', 'eklavya', 'dist', 'cli.js')} statusline`;
+
+/**
+ * Puts the dials in the status bar, and never over somebody else's.
+ *
+ * `statusLine` holds one command, so "install ours" and "keep yours" cannot
+ * both happen — and between the two, keeping theirs is obviously right: a
+ * status bar is a thing people build deliberately, often with a script that
+ * took an afternoon. So this writes only into an empty slot, and the manual
+ * keeps the by-hand instructions for anyone who wants to compose the two
+ * themselves.
+ *
+ * The removal in `deregister` matches on the command being exactly ours, which
+ * is what stops an uninstall taking a line it did not write.
+ */
+function composeStatusLine(settings: Record<string, unknown>): void {
+  const existing = settings.statusLine;
+  if (existing !== undefined && existing !== null) {
+    const command = (existing as { command?: unknown })?.command;
+    // Ours already, possibly from an older runtime path: refresh it.
+    if (typeof command === 'string' && /dist[\\/]cli\.js["']? statusline\b/.test(command)) {
+      settings.statusLine = { type: 'command', command: STATUS_LINE_COMMAND, padding: 0 };
+    }
+    return;
+  }
+  settings.statusLine = { type: 'command', command: STATUS_LINE_COMMAND, padding: 0 };
 }
 
 function deregister(): Array<Record<string, unknown>> {
@@ -494,6 +524,15 @@ function deregister(): Array<Record<string, unknown>> {
   const settingsPath = path.join(claudeHome(), 'settings.json');
   const settings = readJson(settingsPath);
   const enabled = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
+  // Only a status line that is exactly ours. Somebody else's stays, and so
+  // does one they composed by hand around ours -- this installer did not write
+  // it and has no business deciding what is left of it.
+  const line = (settings.statusLine as { command?: unknown } | undefined)?.command;
+  const ownsStatusLine = typeof line === 'string' && line === STATUS_LINE_COMMAND;
+  if (ownsStatusLine) {
+    delete settings.statusLine;
+    writeJson(settingsPath, settings);
+  }
   if ('eklavya@eklavya' in enabled) {
     delete enabled['eklavya@eklavya'];
     settings.enabledPlugins = enabled;

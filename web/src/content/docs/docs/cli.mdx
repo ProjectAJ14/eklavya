@@ -96,7 +96,11 @@ question are on screen when it arrives:
 ~/eklavya · main · Opus 5 · [EKLAVYA ambient · concept · interleaved · easy]
 ```
 
-Add it to `~/.claude/settings.json`:
+`eklavya install` sets this up for you, **but only into an empty slot**.
+`statusLine` holds one command, so installing ours and keeping yours cannot
+both happen, and between the two, yours wins: a status bar is a thing people
+build deliberately. If you already have one, nothing is touched and the block
+below is the manual route.
 
 ```json title="~/.claude/settings.json"
 {
@@ -107,9 +111,10 @@ Add it to `~/.claude/settings.json`:
 }
 ```
 
-Already have a status line? Call `eklavya statusline` from your own script and
-append the output — it prints one line and exits 0, and prints nothing when it
-has nothing to say.
+Already have a status line and want both? Call `eklavya statusline` from your
+own script and append the output — it prints one line and exits 0, and prints
+nothing when it has nothing to say. An uninstall removes the line only when it
+is exactly the one the installer wrote, so a composed one survives.
 
 This is a terminal feature. The Claude Desktop app has no status bar to run it
 in, so the dials are not on screen there; questions there are signed with an

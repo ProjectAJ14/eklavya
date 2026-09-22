@@ -85,6 +85,39 @@ describe('eklavya install', () => {
     expect(settings.enabledPlugins['eklavya@eklavya']).toBe(true);
   });
 
+  it('puts the dials in the status bar, into an empty slot only', () => {
+    install();
+    const settings = readJson(path.join(claudeHome, 'settings.json'));
+    expect(settings.statusLine.type).toBe('command');
+    expect(settings.statusLine.command).toMatch(/dist\/cli\.js statusline$/);
+  });
+
+  it('never writes over a status line somebody built themselves', () => {
+    // `statusLine` holds one command, so "install ours" and "keep yours" cannot
+    // both happen — and a status bar is a thing people build deliberately,
+    // often with a script that took an afternoon.
+    const settingsPath = path.join(claudeHome, 'settings.json');
+    fs.mkdirSync(claudeHome, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ statusLine: { type: 'command', command: 'my-own-bar' } }));
+
+    install();
+    expect(readJson(settingsPath).statusLine.command).toBe('my-own-bar');
+  });
+
+  it('refreshes its own status line when the runtime path has moved', () => {
+    const settingsPath = path.join(claudeHome, 'settings.json');
+    fs.mkdirSync(claudeHome, { recursive: true });
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({ statusLine: { type: 'command', command: 'node /somewhere/old/dist/cli.js statusline' } }),
+    );
+
+    install();
+    const after = readJson(settingsPath).statusLine.command as string;
+    expect(after).not.toContain('/somewhere/old/');
+    expect(after).toMatch(/statusline$/);
+  });
+
   it('copies a plugin Claude Code can actually load', () => {
     install();
     const dir = path.join(claudeHome, 'plugins', 'marketplaces', 'eklavya');
@@ -294,6 +327,19 @@ describe('the user-level skill', () => {
 });
 
 describe('eklavya uninstall', () => {
+
+  it('removes only the status line it wrote, and leaves anyone else\'s', () => {
+    install();
+    const settingsPath = path.join(claudeHome, 'settings.json');
+    expect(readJson(settingsPath).statusLine).toBeTruthy();
+    run(['uninstall']);
+    expect(readJson(settingsPath).statusLine).toBeUndefined();
+
+    // And the other way round: a line this installer did not write survives.
+    fs.writeFileSync(settingsPath, JSON.stringify({ statusLine: { type: 'command', command: 'my-own-bar' } }));
+    run(['uninstall']);
+    expect(readJson(settingsPath).statusLine.command).toBe('my-own-bar');
+  });
   it('removes every trace of the registration', () => {
     install();
     expect(run(['uninstall']).status).toBe(0);
