@@ -109,7 +109,7 @@ Three things in it are the point:
 
 | Area | Landed |
 |---|---|
-| Schema | migrations 009 (memory), 010 (import) and 011 (sync), forward-only; `migrate.test.ts` bumped |
+| Schema | migrations 009 (memory), 010 (import), 011 (sync), 012 (job backoff) and 013 (batch provenance), forward-only; schema 13, `migrate.test.ts` bumped |
 | Capture | a seventh hook, `capture-tool` (PostToolUse, no matcher), plus prompt, lifecycle and seam capture in three existing hooks — all four before their `mode` check |
 | Storage | `mcp/src/memory/` — store, identity, privacy, spool, tokens, embeddings, a leased job worker |
 | Retrieval | FTS5 keyword, `local-hash-v1` semantic, hybrid; project-scoped by default |
@@ -121,8 +121,8 @@ Three things in it are the point:
 | Config | six namespaces: `memory`, `privacy`, `retrieval`, `providers`, `notifications`, `sync` |
 | Backup | `eklavya memory export` and `eklavya memory restore` — additive, idempotent, learning history untouched |
 | Diagnostics | `eklavya doctor` reports capture, queue, heartbeat, spool drops, provider and sync; error classes only, never provider messages |
-| Evals | a retrieval eval and a performance baseline, both free and deterministic, with committed results |
-| Decisions | ADR-01..10 in `.plan/unified-memory-learning/adr.md` |
+| Evals | a retrieval eval — 78 entries, 110 labelled queries in fourteen categories, 30 held back — and a performance baseline, both free and deterministic, with committed results |
+| Decisions | ADR-01..11 in `.plan/unified-memory-learning/adr.md`; ADR-11 records what a late audit found undone and what stays undone, each with the condition that reverses it |
 
 ## What this does not do
 
@@ -146,9 +146,45 @@ Stated so a reviewer does not go looking for it:
   no per-host caches, and one shipped workflow rather than twenty. Each says
   what would reverse it.
 
+## The branch was audited against its own plan, and the plan was wrong in three places
+
+With the work believed finished, all 84 requirements — the parity rows, the
+quality scenarios, the PRD's lettered requirements — were checked against a
+`file:line` rather than against the ledger's own claims. Fourteen could not be
+verified. **Three were rows the ledger marked `done`**, and two of those were
+live defects:
+
+- **`doctor` named a repair that could not work.** A queue paused on auth or
+  quota told the developer to fix the credential and run `eklavya memory
+  process`. Nothing in the codebase moved a job out of `paused`, so the backlog
+  never came back.
+- **Notifications were never retried.** Delivery was recorded *before* the
+  attempt, so a sink down for thirty seconds lost the message permanently.
+- **The dashboard showed stale numbers silently** — it fetched `/api/state`
+  once at load and never again.
+- **Session summaries did not exist.** Only the importer wrote one, so a
+  migrated history had them and a natively captured one never would.
+
+Two more came out of the work that closed it. Testing the CLI argument layer —
+untested until then, though the functions beneath it were well covered — found
+three defects, **one of which this branch had introduced two hours earlier**:
+`memory process` validated `--max` after resuming paused jobs, so a refused run
+had already emptied the pause while telling the developer nothing happened.
+
+A requirement that looked like a defect turned out not to be one. LRN-04's
+hazard, late candidate evidence reopening a passed gate, is structurally
+impossible; a guard would have been dead code, so what landed was the
+regression test that fails if anyone narrows the condition that makes it
+impossible.
+
+The six requirements that stay undone are in ADR-11 with their reversal
+conditions, including one this ledger had glossed: the committed performance
+results are single-session at 20k entries, not the 100k-entry, ten-session
+fixture `quality.md` agreed to.
+
 ## Checks
 
-- [x] `cd mcp && npm test` — **858 passed, 38 files, nothing skipped**, and
+- [x] `cd mcp && npm test` — **931 passed, 38 files, nothing skipped**, and
       verified the way CI runs it: a clean clone of this branch, `npm ci`, then
       `npm test`. Four
       tests used to fail for anyone with an `.eklavya.json` at the repository
@@ -164,8 +200,8 @@ Stated so a reviewer does not go looking for it:
 - [ ] Changed `skills/tutor/` → eval evidence before and after. `focus-and-level.md`
       gained the rule for grounding a question in project memory; the tutor
       agent gained three read-only memory tools.
-- [ ] Added a migration → `LATEST_SCHEMA_VERSION`, `EXPECTED_TABLES` and the
-      migration file list bumped in `mcp/test/migrate.test.ts` for 009, 010 and 011
+- [x] Added a migration → `LATEST_SCHEMA_VERSION`, `EXPECTED_TABLES` and the
+      migration file list bumped in `mcp/test/migrate.test.ts` for 009 through 013
 - [x] `cd web && npm run build` — 20 pages; the link and anchor sweep from
       `web/CLAUDE.md` reports 22 pages, all resolving
 - [x] Diagram regenerated from the JSON: 9/9 artifact checks, visual-check
