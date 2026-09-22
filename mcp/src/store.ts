@@ -675,6 +675,41 @@ export function projectSessionIds(db: DB, repoRoot: string | null | undefined): 
 }
 
 /**
+ * Work an earlier session in this project logged and no question ever reached,
+ * oldest first. Scoped to `domains` when there are any.
+ *
+ * One query for two callers that must agree: `get_session_quiz_plan` serves
+ * these as `backlog`, and `stop-quiz-check` counts them to decide whether a
+ * session with nothing of its own left to ask should still ask. If the two
+ * disagreed, the hook would block a turn the plan then answers with nothing.
+ */
+export function backlogConcepts(
+  db: DB,
+  sessionId: string,
+  repoRoot: string | null | undefined,
+  domains: string[] = [],
+  limit = 50,
+): ConceptRow[] {
+  const projectSessions = projectSessionIds(db, repoRoot);
+  if (projectSessions.length === 0) return [];
+  const scoped = domains.length > 0;
+  return db
+    .prepare(
+      `SELECT c.* FROM session_concepts sc
+       JOIN concepts c ON c.id = sc.concept_id
+       WHERE sc.session_id <> ?
+         AND COALESCE(sc.origin, 'work') = 'work'
+         AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)
+         AND sc.session_id IN (${projectSessions.map(() => '?').join(',')})
+         ${scoped ? `AND c.domain IN (${domains.map(() => '?').join(',')})` : ''}
+       GROUP BY c.id
+       ORDER BY min(sc.ts) ASC
+       LIMIT ?`,
+    )
+    .all(sessionId, ...projectSessions, ...domains, limit) as ConceptRow[];
+}
+
+/**
  * Other projects with something a quiz there would ask: concepts logged and never
  * asked about, plus review that has come due. Most first. What an empty plan
  * points at, so "nothing here" also says where to go.

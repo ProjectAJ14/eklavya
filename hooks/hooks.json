@@ -72,6 +72,17 @@
             "statusMessage": "Eklavya: checking if it is time to ask"
           }
         ]
+      },
+      {
+        "matcher": "^(Bash|Edit|Write|MultiEdit|NotebookEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "checkpoint-quiz"],
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [

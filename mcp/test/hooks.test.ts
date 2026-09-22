@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, type DB } from '../src/db.js';
-import { conceptBySlug, gradeConcept, logSessionConcept } from '../src/store.js';
+import { conceptBySlug, gradeConcept, logSessionConcept, syncGate } from '../src/store.js';
+import { DEFAULT_CONFIG } from '../src/config.js';
 import { getCurrentSession, setCurrentSession, setSessionOff } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
@@ -18,6 +19,7 @@ const STOP_CHECK = path.join(hooksDir, 'stop-quiz-check.js');
 const CHECKPOINT = path.join(hooksDir, 'checkpoint-quiz.js');
 const NUDGE = path.join(hooksDir, 'prompt-submit-nudge.js');
 const SUBAGENT = path.join(hooksDir, 'subagent-start.js');
+const CAPTURE = path.join(hooksDir, 'capture-tool.js');
 
 const SESSION = 'hook-session';
 
@@ -966,6 +968,104 @@ describe('PostToolUse checkpoint — the burst guard', () => {
       env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
     });
     expect(res.status).toBe(0);
+  });
+});
+
+describe('PostToolUse checkpoint — re-armed by the work, not only by logging', () => {
+  // The model logs its whole batch in one call, so a checkpoint that fired only
+  // on that call asked once per task: 25-minute sessions logging seven concepts
+  // got one mid-work question. The work tools are the seam after that.
+  const onBash = () => checkpoint({ tool_name: 'Bash', tool_input: { command: 'flutter test' } });
+  const ageCheckpoint = (minutes: number) =>
+    db
+      .prepare(`UPDATE checkpoints SET last_checkpoint_at = strftime('%Y-%m-%dT%H:%M:%fZ','now',?) WHERE session_id = ?`)
+      .run(`-${minutes} minutes`, SESSION);
+
+  it('asks again on a work tool once the gap has passed', () => {
+    logConcepts(['csrf', 'jwt-structure', 'pkce']);
+    expect(checkpointContext(checkpoint())).toMatch(/You just logged/);
+    answer('pkce', 3);
+    ageCheckpoint(10);
+    ageClocks(10);
+
+    const ctx = checkpointContext(onBash())!;
+    expect(ctx).toMatch(/moved on/);
+    expect(ctx).not.toMatch(/just logged/);
+    expect(ctx).toMatch(/jwt-structure|csrf/);
+  });
+
+  it('keeps the gap: a work tool right after a checkpoint stays quiet', () => {
+    logConcepts(['csrf', 'jwt-structure']);
+    expect(checkpoint().spoke).toBe(true);
+    expect(onBash().stdout).toBe('');
+  });
+
+  it('stays quiet on a work tool before anything was logged', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    expect(onBash().stdout).toBe('');
+  });
+});
+
+describe('Stop hook — the project backlog', () => {
+  // An earlier session in this checkout logged work nobody asked about.
+  function earlierWork(slugs: string[]): void {
+    checkout();
+    logConcepts(slugs, 'earlier-session');
+    syncGate(db, 'earlier-session', DEFAULT_CONFIG, { repo: cwd });
+  }
+
+  it('asks about it when this session has nothing of its own', () => {
+    earlierWork(['pkce']);
+    const res = stop();
+    expect(res.spoke).toBe(true);
+    expect(res.context).toMatch(/earlier session/);
+    expect(conceptsLine(res.context)).toMatch(/pkce/);
+  });
+
+  it('asks this session\'s own work first', () => {
+    earlierWork(['pkce']);
+    logConcepts(['csrf']);
+    const res = stop();
+    expect(conceptsLine(res.context)).toMatch(/csrf/);
+    expect(res.context).not.toMatch(/earlier session/);
+  });
+
+  it('never serves backlog under quiz.enforced, where the plan will not either', () => {
+    configure({ quiz: { enabled: true, enforced: true } });
+    earlierWork(['pkce']);
+    expect(stop().spoke).toBe(false);
+  });
+
+  it('never serves backlog under learn focus, where the plan asks from the topic', () => {
+    configure({ focus: 'learn', focus_topic: 'auth' });
+    earlierWork(['pkce']);
+    expect(stop().spoke).toBe(false);
+  });
+
+  it('skips backlog some session already asked about', () => {
+    earlierWork(['pkce']);
+    answer('pkce', 3, 'earlier-session');
+    expect(stop().spoke).toBe(false);
+  });
+});
+
+describe('capture-tool keeps structured arguments readable', () => {
+  it('stores an AskUserQuestion as JSON, not [object Object]', () => {
+    checkout();
+    const res = runHook(CAPTURE, {
+      session_id: SESSION,
+      cwd,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'AskUserQuestion',
+      tool_input: { questions: [{ question: 'Why batch unstable cells?' }] },
+      tool_response: {},
+    });
+    expect(res.status).toBe(0);
+    const row = db.prepare(`SELECT body FROM evidence_events WHERE tool = 'AskUserQuestion'`).get() as
+      | { body: string }
+      | undefined;
+    expect(row?.body).toMatch(/Why batch unstable cells\?/);
+    expect(row?.body).not.toMatch(/object Object/);
   });
 });
 

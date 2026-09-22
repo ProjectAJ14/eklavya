@@ -65,8 +65,9 @@ plugin list, so install it there as well: Customize → Plugins → Add marketpl
 You ask for something. Claude logs what the work touches, and that logging call
 triggers a checkpoint: **one** multiple-choice question about the concept it just
 logged, asked while the code is still on your screen. You answer in a couple of
-seconds and Claude carries straight on. When the task finishes, at most one more
-question — never a pile.
+seconds and Claude carries straight on. As the work goes on, another question
+comes at most every four minutes, and when a turn finishes, at most one more —
+never a pile, and never more than four a session.
 
 Tier 1 asks what a thing is. Tier 5 asks when it is the wrong approach. You climb
 as you get things right, which is how "never ask the same question twice"

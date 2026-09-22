@@ -40,7 +40,8 @@ else.
 | PreToolUse | `Bash` | 10s | `pre-tool-gate` | with `quiz.enforced` only, deny a `git commit` whose session gate has not passed |
 | PostToolUse | — | 10s | `capture-tool` | record the tool use as memory evidence |
 | PostToolUse | `mcp__.*log_session_concepts` | 10s | `checkpoint-quiz` | one mid-task question, `interleaved` cadence only |
-| Stop | — | 15s | `stop-quiz-check` | block the turn and demand a quiz |
+| PostToolUse | `^(Bash\|Edit\|Write\|MultiEdit\|NotebookEdit)$` | 10s | `checkpoint-quiz` | the same hook, re-armed by the work: the model logs once per task, so without this the checkpoint asked once per task. No `statusMessage` — it would flash on every command |
+| Stop | — | 15s | `stop-quiz-check` | block the turn and demand a quiz — this session's concepts first, then this project's backlog (`backlogConcepts`, shared with the planner), never backlog under `quiz.enforced` |
 
 ## Memory capture is not governed by `quiz`
 

@@ -5,12 +5,12 @@ import { answerPosition } from '../mcq.js';
 import { isSessionOff, resolveSessionId } from '../session.js';
 import {
   attemptedConceptIds,
+  backlogConcepts,
   domainSiblings,
   gateRetryConcepts,
   gateRow,
   pendingElsewhere,
   prereqsOf,
-  projectSessionIds,
   resolveTopic,
   lastAttempt,
   lastAttemptAt,
@@ -450,8 +450,7 @@ export const getSessionQuizPlan: ToolDef = {
       // are read through this checkout -- without it, `/eklavya:quiz` in a
       // Flutter repo asks about the LLM API work logged in another project.
       // Review debt is scoped by where it was answered (`attempts.repo`, already
-      // a project key), backlog by where it was logged.
-      const projectSessions = projectSessionIds(db, repoRoot);
+      // a project key), backlog by where it was logged (`backlogConcepts`).
 
       // (c) anything else due in the same domains, answered in this project, so
       // review debt gets paid down
@@ -501,23 +500,8 @@ export const getSessionQuizPlan: ToolDef = {
       // `picked`, and a non-empty `picked` is exactly what suppresses the
       // `gate_retry` escape hatch below. That would trade a deadlock the retry
       // pass exists to break for four questions that cannot break it.
-      if (picked.length < max && !config.quiz.enforced && projectSessions.length > 0) {
-        const scoped = domains.size > 0;
-        const rows = db
-          .prepare(
-            `SELECT c.* FROM session_concepts sc
-             JOIN concepts c ON c.id = sc.concept_id
-             WHERE sc.session_id <> ?
-               AND COALESCE(sc.origin, 'work') = 'work'
-               AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)
-               AND sc.session_id IN (${projectSessions.map(() => '?').join(',')})
-               ${scoped ? `AND c.domain IN (${[...domains].map(() => '?').join(',')})` : ''}
-             GROUP BY c.id
-             ORDER BY min(sc.ts) ASC
-             LIMIT 50`,
-          )
-          .all(sessionId, ...projectSessions, ...(scoped ? [...domains] : [])) as ConceptRow[];
-        for (const c of rows) add(c, null, 'backlog');
+      if (picked.length < max && !config.quiz.enforced) {
+        for (const c of backlogConcepts(db, sessionId, repoRoot, [...domains])) add(c, null, 'backlog');
       }
     }
 

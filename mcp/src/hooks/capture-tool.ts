@@ -42,7 +42,11 @@ function bodyFor(input: HookInput, failed: boolean): string {
   }
   if (!parts.length) {
     const keys = Object.keys(toolInput).filter((k) => k !== 'content');
-    if (keys.length) parts.push(keys.map((k) => `${k}=${String(toolInput[k]).slice(0, 200)}`).join(' '));
+    // JSON for anything that is not a string: `String()` of an object is
+    // "[object Object]", which is how every AskUserQuestion was remembered as
+    // `questions=[object Object] answers=[object Object]`.
+    const text = (v: unknown) => (typeof v === 'string' ? v : (JSON.stringify(v) ?? String(v)));
+    if (keys.length) parts.push(keys.map((k) => `${k}=${text(toolInput[k]).slice(0, 200)}`).join(' '));
   }
   if (failed) parts.push(String(errorText(input.tool_response)).slice(0, 800));
   return parts.join('\n');
