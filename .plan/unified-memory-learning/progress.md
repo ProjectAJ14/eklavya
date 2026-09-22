@@ -18,10 +18,29 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | 9 | Learning links: evidence to concept candidates | 4 | done |
 | 10 | Dashboard memory surfaces | 4 | done |
 | 11 | Import from the pinned Claude Mem fork | 4 | done |
-| 12 | Code search/outline + collections | 5 | built, **not registered** as MCP tools — see Release readiness |
+| 12 | Code search/outline + collections | 5 | done — the three tools were built and left out of the registry; fixed, with a test that reads the source rather than the array |
 | 13 | Host adapters + workflows breadth | 5 | replay + capability descriptors done; Claude Code is the only proven host, and one of twenty workflows ships |
 | 14 | Optional remote (server, sync, notifications) | 6 | notifications and directory sync done; the hosted server declined (ADR-09) |
 | 15 | Cutover, soak, release docs | 7 | runbook written (`migrating.mdx`); the cutover and the soak still need a human |
+
+## Measured, not asserted
+
+Numbers this branch can back up, with the command that produces them. Re-run
+them rather than trusting this table.
+
+| What | Measured | How |
+|---|---|---|
+| Reuse saving on a realistic corpus | **89%** — 6,366 source tokens against 674 delivered, six entries | eight sessions of a prompt and ten edits each, summarised, then one seam recall |
+| Reuse saving on a trivial corpus | **overhead**, and reported as overhead | one tiny session: an observation is longer than the tool call it summarises. The arithmetic says so rather than clamping it to zero |
+| Capture, per tool call | 0.03ms median, flat from 2k to 20k entries | `node eval/memory-perf.mjs --entries 20000` |
+| Startup display | 0.03ms median, flat | same |
+| Recall at a seam | 0.14ms median, flat | same |
+| Hybrid search, 20k entries | 17ms median | same; on an agent's path, not a human's |
+| Retrieval quality | hybrid ahead of keyword on top-1 and recall; both miss the synonym query, as ADR-03 predicts | `node eval/retrieval-harness.mjs` |
+
+The first two rows together are the honest shape of the savings claim: it is
+large once there is history and negative when there is not, and the product
+says which without being asked.
 
 ## Log
 
