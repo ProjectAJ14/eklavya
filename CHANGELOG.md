@@ -1,3 +1,10 @@
+# [1.21.0](https://github.com/ProjectAJ14/eklavya/compare/v1.20.1...v1.21.0) (2026-09-22)
+
+
+### Features
+
+* **install:** pick one memory recorder when Claude Mem is present ([f994419](https://github.com/ProjectAJ14/eklavya/commit/f994419637eae91efc1aaf49a0027e31413268fb))
+
 ## [1.20.1](https://github.com/ProjectAJ14/eklavya/compare/v1.20.0...v1.20.1) (2026-09-22)
 
 
