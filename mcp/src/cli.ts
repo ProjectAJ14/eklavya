@@ -241,14 +241,26 @@ function configCommand(args: string[]): void {
   let key = rawKey;
   let value = rawValue;
   let modeNote: string | null = null;
+  // Both flags, never one. `mode` named a *pair* of states, so translating it
+  // to a single dotted key left the other flag standing: `mode ambient` wrote
+  // `quiz.enabled true` over an existing `quiz.enforced: true` and reported
+  // success while commits stayed gated -- and `mode enforced` against an
+  // existing `quiz.enabled: false` was a silent no-op that `coerceNamespaces`
+  // undid and `doctor` then reported as a contradiction. `set_config` always
+  // wrote the pair; this is the CLI catching up.
+  let modeQuiz: { enabled: boolean; enforced: boolean } | null = null;
   if (rawKey === 'mode') {
     if (rawValue !== 'ambient' && rawValue !== 'enforced' && rawValue !== 'off') {
       fail('`mode` was replaced by `quiz.enabled` and `quiz.enforced`. Set those directly: eklavya config set quiz.enabled false');
     }
-    key = rawValue === 'enforced' ? 'quiz.enforced' : 'quiz.enabled';
-    value = rawValue === 'off' ? 'false' : 'true';
+    key = 'quiz';
+    modeQuiz = {
+      enabled: rawValue !== 'off',
+      enforced: rawValue === 'enforced',
+    };
+    value = JSON.stringify(modeQuiz);
     modeNote =
-      `note:     \`mode ${rawValue}\` is now \`${key} ${value}\`. ` +
+      `note:     \`mode ${rawValue}\` is now \`quiz.enabled ${modeQuiz.enabled}, quiz.enforced ${modeQuiz.enforced}\`. ` +
       (rawValue === 'off'
         ? 'This stops the questions only — memory keeps recording; `memory.enabled false` is that switch.'
         : 'Memory is governed separately by `memory.enabled`.');
@@ -288,7 +300,7 @@ function configCommand(args: string[]): void {
   // Typed by the schema at that path rather than guessed from the text. A
   // topic of "2" is a topic; `memory.batch_max_events` of "40" is a number,
   // and only the default sitting there knows which is which.
-  const parsed = parseValue(key, value);
+  const parsed = modeQuiz ?? parseValue(key, value);
 
   // Nothing here writes into the checkout. `--project` (and its older spelling
   // `--repo`) means "this project", not "this repository's working tree": the
@@ -509,27 +521,32 @@ function doctor(): void {
 
   db?.close();
 
-  // Only when the file actually exists: `projectPath` is a path Eklavya would
-  // write to, not a promise that anything is there.
-  const fromRepo =
-    resolved.projectPath && fs.existsSync(resolved.projectPath) ? ' (set for this project)' : '';
+  // Per key, not per file. A project config that sets only `quiz` must not make
+  // `focus` and `cadence` claim they came from it -- they came from the
+  // defaults, and a line that names the wrong source is the same class of bug
+  // as the dial this release renamed. `projectPath` is a path Eklavya *would*
+  // write to, so the file is read rather than assumed to exist.
+  const projectKeys = new Set(
+    resolved.projectPath ? Object.keys(readConfigFile(resolved.projectPath)) : [],
+  );
+  const from = (key: string) => (projectKeys.has(key) ? ' (set for this project)' : '');
   const q = resolved.config.quiz;
   lines.push(
     `quiz:     ${q.enabled ? 'on' : 'off — memory is unaffected'}${
       q.enforced ? ' · enforced (commits gated)' : ''
-    }${fromRepo}`,
+    }${from('quiz')}`,
   );
   lines.push(
     `focus:    ${resolved.config.focus}${
       resolved.config.focus === 'learn' ? ` (${resolved.config.focus_topic ?? 'no topic set'})` : ''
-    }${fromRepo}`,
+    }${from('focus')}`,
   );
   lines.push(
     `cadence:  ${resolved.config.cadence}${
       resolved.config.cadence === 'interleaved'
         ? ` (one question mid-task, min ${resolved.config.min_minutes_between_checkpoints}m apart)`
         : ' (all questions at the end of the task)'
-    }${fromRepo}`,
+    }${from('cadence')}`,
   );
   if (resolved.overrides.length > 0) {
     lines.push(`overridden for this project: ${resolved.overrides.join(', ')}`);

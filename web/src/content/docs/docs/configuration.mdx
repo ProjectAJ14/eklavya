@@ -184,11 +184,16 @@ end-of-session wrap-up meant that cloning a repository and working in it for
 ten minutes ran that command. Containing this needed a list of settings a
 repository was not allowed to touch.
 
-Moving the file out removes the whole class: nothing arrives by clone, so
-there is nothing to refuse, and the restriction is gone rather than left in
-place implying a protection that no longer has a threat. `notifications`,
+Moving the file out removes the class where it was worst. `notifications`,
 `sync`, `providers` and `retrieval.cross_project` are ordinary settings you can
-now set per project.
+now set per project, because a file under your home directory is one only you
+wrote.
+
+The restriction survives in exactly one place: a **legacy `.eklavya.json` still
+sitting in a checkout**. That file did arrive by clone, and it applies until a
+session moves it, so those four settings are ignored when they come from it and
+are stripped rather than carried across when it is moved. A repository cannot
+hand you a notification sink, before or after the migration.
 
 :::note
 **An `.eklavya.json` left in a checkout is moved for you.** The next session

@@ -4,6 +4,7 @@ import {
   loadConfig,
   writeConfigFile,
   readConfigFile,
+  mainRepoRoot,
   DEFAULT_CONFIG,
 } from '../config.js';
 import { currentSurface } from '../surface.js';
@@ -302,13 +303,15 @@ export const setConfig: ToolDef = {
       };
     }
 
-    // There is no forbidden-key list any more. It existed because a project's
+    // No forbidden-key list on this path. It existed because a project's
     // settings were a file you got by cloning, so a stranger's `.eklavya.json`
     // could aim a notification sink at a shell command and the Stop hook would
-    // fire it. Project settings live under ~/.eklavya/projects/ now, written
-    // only by you, so nothing arrives from anybody else and there is nothing to
-    // refuse. Keeping the check would be dead code implying a protection that
-    // no longer has a threat to protect against.
+    // fire it. What this tool writes lives under ~/.eklavya/projects/ and comes
+    // from the developer, so there is nothing to refuse here.
+    //
+    // The filter still exists for the one path that reads a checkout: see
+    // `withoutUntrustedKeys` in config.ts, which guards the legacy
+    // `<repo>/.eklavya.json` both while it is read and as it is moved.
     let target: string;
     if (scope === 'project') {
       if (!resolved.projectPath) {
@@ -319,6 +322,13 @@ export const setConfig: ToolDef = {
         };
       }
       target = resolved.projectPath;
+      // Which checkout this file is about, exactly as the CLI writes it. Without
+      // it `belongsTo` has nothing to compare and trusts the file, so two
+      // checkouts whose slugs collide would silently share one config -- and a
+      // file the CLI had already stamped for another checkout would be mutated
+      // here while this project's own read discarded it, with the tool still
+      // reporting success for a setting that never applied.
+      patch.project = resolved.repoRoot ? mainRepoRoot(resolved.repoRoot) : undefined;
     } else {
       target = resolved.globalPath;
     }

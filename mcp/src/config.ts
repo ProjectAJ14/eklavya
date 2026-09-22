@@ -644,6 +644,48 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
 }
 
 /**
+ * Keys a file that arrived by `git clone` may not set, ever.
+ *
+ * `REPO_FORBIDDEN_KEYS` was deleted with the committed settings file, on the
+ * reasoning that nothing arrives from a stranger any more. That is true of
+ * `~/.eklavya/projects/`, and **not** true of the one path that still reads a
+ * checkout: a repository shipping a legacy `.eklavya.json` is still handing
+ * this machine a configuration file somebody else wrote, right up until a
+ * session moves it. Without this the removal reintroduced the exact RCE the old
+ * list existed to stop — a `command` notification sink of `/bin/sh -c ...`,
+ * fired by the Stop hook's automatic wrap-up, on `git clone` plus ten minutes —
+ * and `migrateLegacyRepoConfig` then laundered it into the trusted location, so
+ * it survived the file being deleted.
+ *
+ * Each one has an effect *outside* the session: `notifications` runs a command
+ * or posts somewhere, `sync` writes files, `providers` sends this machine's
+ * work to an API, and `retrieval.cross_project` widens what the model sees. A
+ * dial is safe to inherit from a stranger; these are not.
+ */
+const CLONED_FORBIDDEN = ['notifications', 'sync', 'providers'] as const;
+
+/**
+ * The same filter, applied to anything read out of a checkout. Dropped in
+ * silence rather than reported: the file is on its way to being deleted, and
+ * there is no setting to explain because it never applied.
+ */
+function withoutUntrustedKeys(raw: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if ((CLONED_FORBIDDEN as readonly string[]).includes(key)) continue;
+    if (key === 'retrieval' && value && typeof value === 'object' && !Array.isArray(value)) {
+      // One key of this namespace is the dangerous one; the rest of it is an
+      // ordinary preference, so the namespace is trimmed rather than dropped.
+      const { cross_project: _crossProject, ...rest } = value as Record<string, unknown>;
+      out[key] = rest;
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+/**
  * A `<repo>/.eklavya.json` lifted out of the checkout, then deleted.
  *
  * Silent and automatic, by decision: a settings file in a repository was a
@@ -701,7 +743,14 @@ export function migrateLegacyRepoConfig(
     if (legacy) {
       const target = projectConfigPath(projectRoot);
       const existing = readJson(target) ?? {};
-      writeConfigFile(target, { ...legacy, ...existing, project: projectRoot });
+      // Filtered on the way in. Everything under ~/.eklavya/projects/ is
+      // treated as written by the developer, so copying a cloned file's keys
+      // there verbatim would launder them into trust and outlive the deletion.
+      writeConfigFile(target, {
+        ...withoutUntrustedKeys(legacy),
+        ...existing,
+        project: projectRoot,
+      });
     }
     fs.rmSync(legacyPath, { force: true });
     return true;
@@ -792,7 +841,14 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
       // that is a slug collision, and the legacy file is not the answer to it.
       // From the checkout you are standing in: in a worktree that is where the
       // committed copy actually is, and the main root may already be migrated.
-      projectRaw = readJson(path.join(repoRoot, LEGACY_REPO_CONFIG_FILE)) ?? {};
+      //
+      // Filtered, because this is the one path left that reads a file which may
+      // have arrived by `git clone`. It applies for exactly as long as it takes
+      // a session to move the file, and that window is long enough to run a
+      // notification sink.
+      projectRaw = withoutUntrustedKeys(
+        readJson(path.join(repoRoot, LEGACY_REPO_CONFIG_FILE)) ?? {},
+      );
     }
   }
 

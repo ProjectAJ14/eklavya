@@ -1926,3 +1926,28 @@ describe('a decline that was explained anyway', () => {
     expect(gateRetryConcepts(db, SESSION).map((c) => c.slug)).not.toContain('csrf');
   });
 });
+
+describe('set_config project scope stamps the checkout', () => {
+  // `belongsTo` compares this field to tell two slug-colliding checkouts apart.
+  // Written without it, the file is trusted by whichever checkout reads it --
+  // and a file the CLI had stamped for another checkout would be mutated here
+  // while this project's own read discarded it, success reported either way.
+  it('writes the project key, like the CLI does', () => {
+    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-stamp-')));
+    fs.mkdirSync(path.join(dir, '.git'));
+    try {
+      const res = call<any>(setConfig, { scope: 'project', cwd: dir, difficulty: 'hard' });
+      expect(res.error).toBeUndefined();
+      expect(res.written_to.startsWith(home)).toBe(true);
+
+      const written = JSON.parse(fs.readFileSync(res.written_to, 'utf8')) as Record<string, unknown>;
+      expect(written.project).toBe(dir);
+      expect(written.difficulty).toBe('hard');
+
+      // And the file is honoured, which is what the stamp has to not break.
+      expect(call<any>(getConfig, { cwd: dir }).config.difficulty).toBe('hard');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

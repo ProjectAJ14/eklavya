@@ -82,9 +82,19 @@ checked-in `notifications` sink of `/bin/sh` plus the Stop hook's automatic
 wrap-up was arbitrary code execution on `git clone`. Four settings were
 therefore global-only. Project settings now live at
 `~/.eklavya/projects/<slug>/config.json` (`projectConfigPath` in `paths.ts`),
-written only by the person at the machine, so nothing arrives by clone and there
-is nothing to refuse. The list was deleted rather than left in place implying a
-protection with no threat behind it.
+written only by the person at the machine, so nothing arrives by clone for that
+path and there is nothing to refuse.
+
+**The list came back, narrowed, and the reason is worth reading before you touch
+either function.** Deleting it outright was wrong: `loadConfig` still reads
+`<repo>/.eklavya.json` as a fallback until a session moves it, and
+`migrateLegacyRepoConfig` then copied that file's keys into the trusted
+location. So the removal reinstated the original RCE for the migration window
+and made it permanent afterwards. `CLONED_FORBIDDEN` + `withoutUntrustedKeys`
+now filter **only** the legacy path — on the fallback read and again on the
+lift — while `~/.eklavya/projects/` stays unrestricted. A code review caught
+this; the regression tests are in `config-trust.test.ts` under *a legacy file is
+still a file from a stranger*.
 
 `test/config-trust.test.ts` still exists and now asserts the replacement
 invariant: a file in a checkout configures nothing, a slug collision is detected

@@ -56,7 +56,7 @@ Either it is not yet marked mastered — that needs two repetitions at a decent 
 
 No, and deliberately not. Eklavya writes no configuration into a repository: your settings for a codebase live in *your* home directory, at `~/.eklavya/projects/<checkout>/config.json`.
 
-That is a change from earlier versions, which read a committed `<repo>/.eklavya.json`. Two reasons it went. Everyone on a team is at a different point — the level you have earned in a codebase is not the level a new teammate has — so one committed file could never be right for all of them. And a committed config is a configuration file written by somebody else: a checked-in notification sink pointing at a shell plus the automatic end-of-session wrap-up made cloning a repository and working in it for ten minutes run that command.
+That is a change from earlier versions, which read a committed `<repo>/.eklavya.json`. Two reasons it went. Everyone on a team is at a different point — the level you have earned in a codebase is not the level a new teammate has — so one committed file could never be right for all of them. And a committed config is a configuration file written by somebody else: a checked-in notification sink pointing at a shell plus the automatic end-of-session wrap-up made cloning a repository and working in it for ten minutes run that command. A repository that still has one cannot do that: those settings are ignored when they come from a checkout, and stripped when the file is moved out.
 
 What a team can still share is a [concept pack](/docs/packs/) at `<repo>/.eklavya/packs/` — the concepts a codebase is about, which genuinely is the same for everyone.
 

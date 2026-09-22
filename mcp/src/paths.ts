@@ -44,10 +44,11 @@ export function seedDir(): string {
  *   ~/.eklavya/config.json                         you, everywhere
  *   ~/.eklavya/projects/<slug>/config.json         you, on one project
  *
- * Nothing Eklavya writes ever lands in a repository again. Concept packs are
- * the deliberate exception and stay at `<repo>/.eklavya/packs/` — a pack is a
- * shared concept graph for the codebase, the same for everyone by design, and
- * content rather than configuration.
+ * Nothing Eklavya writes ever lands in a repository again — concept packs
+ * included; see `projectPacksDir` below, which moved for the same reason. The
+ * pre-move directories are still *read* so nothing breaks on upgrade, and the
+ * settings file is deleted from the checkout while a pack is not, because a
+ * committed pack is authored content somebody reviewed.
  */
 export function projectsDir(): string {
   return path.join(eklavyaHome(), 'projects');

@@ -1052,3 +1052,44 @@ describe('config set scope flags', () => {
     fs.rmSync(projectFile, { force: true });
   });
 });
+
+describe('doctor names where each setting came from', () => {
+  // A project file that sets one key must not make the others claim they came
+  // from it. Saying the wrong source for a setting is the same class of bug as
+  // the dial this release renamed, and it showed up on a real install.
+  it('marks only the keys the project file actually sets', () => {
+    const dir = path.join(home, 'projects', repo.replace(/[/\\:]/g, '-'));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'config.json'),
+      JSON.stringify({ quiz: { enabled: false }, project: repo }),
+    );
+
+    const out = eklavya(['doctor']).stdout;
+    expect(out).toMatch(/quiz:.*\(set for this project\)/);
+    // focus and cadence are defaults here, and must say nothing.
+    expect(out).toMatch(/focus:\s+concept\s*$/m);
+    expect(out).toMatch(/cadence:\s+interleaved[^\n]*$/m);
+    expect(out).not.toMatch(/focus:.*set for this project/);
+    expect(out).not.toMatch(/cadence:.*set for this project/);
+  });
+});
+
+describe('the retired `mode` writes both flags', () => {
+  // `mode` named a *pair* of states. Translating it to one dotted key left the
+  // other flag standing: `mode ambient` over an existing `quiz.enforced: true`
+  // reported success while commits stayed gated.
+  it.each([
+    ['ambient', { enabled: true, enforced: false }],
+    ['enforced', { enabled: true, enforced: true }],
+    ['off', { enabled: false, enforced: false }],
+  ])('`config set mode %s` lands both', (mode, expected) => {
+    // Start from the state each case has to overwrite, not from the default.
+    eklavya(['config', 'set', 'quiz.enabled', String(mode === 'enforced' ? false : true)]);
+    eklavya(['config', 'set', 'quiz.enforced', String(mode !== 'enforced')]);
+
+    const res = eklavya(['config', 'set', 'mode', mode]);
+    expect(res.status).toBe(0);
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz).toEqual(expected);
+  });
+});

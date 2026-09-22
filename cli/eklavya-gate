@@ -38,8 +38,20 @@ REPO=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 # again -- the same fold `mainRepoRoot` applies on the node side. `--git-common-dir`
 # points at the main checkout's .git for a worktree and at this one's otherwise,
 # so stripping the trailing /.git yields the checkout that owns the settings.
+#
+# `--path-format=absolute` would be the obvious way to ask, and is deliberately
+# not used: it needs git >= 2.31, and on anything older the whole `rev-parse`
+# fails, the slug misses, and the gate fails open in every linked worktree --
+# enforcement somebody was promised, silently not happening. Plain
+# `--git-common-dir` has been there for years and answers relative to the
+# current directory, so the relative case is resolved by hand.
 PROJECT="$REPO"
-COMMON=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON=''
+COMMON=$(git rev-parse --git-common-dir 2>/dev/null) || COMMON=''
+case "$COMMON" in
+  '')  ;;
+  /*)  ;;
+  *)   COMMON="$(pwd)/$COMMON" ;;
+esac
 case "$COMMON" in
   */.git) CANDIDATE=${COMMON%/.git}; [ -d "$CANDIDATE" ] && PROJECT="$CANDIDATE" ;;
 esac
