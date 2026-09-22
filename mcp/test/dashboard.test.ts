@@ -362,6 +362,32 @@ describe('memoryPage', () => {
   });
 });
 
+describe('the change cursor', () => {
+  it('holds still while nothing is written', () => {
+    work();
+    call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q', answer: 'a', grade: 4, difficulty: 2 });
+    const first = (dashboardState(db) as any).cursor;
+    // This is the property the open page polls on. A cursor that drifted on its
+    // own -- a timestamp, or a hash over decayed scores -- would raise the "new
+    // activity" notice every minute, and a notice that always shows is ignored.
+    expect((dashboardState(db) as any).cursor).toBe(first);
+  });
+
+  it('moves when work lands, on either half', () => {
+    work();
+    const empty = (dashboardState(db) as any).cursor;
+
+    call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q', answer: 'a', grade: 4, difficulty: 2 });
+    const answered = (dashboardState(db) as any).cursor;
+    expect(answered).not.toBe(empty);
+
+    // The memory half moves it too: evidence captured by a hook is work the
+    // reader left this page open to watch for.
+    remember({ title: 'fixed the cookie flag' });
+    expect((dashboardState(db) as any).cursor).not.toBe(answered);
+  });
+});
+
 describe('the dashboard page', () => {
   const html = fs.readFileSync(
     path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/assets/dashboard.html'),
@@ -384,6 +410,24 @@ describe('the dashboard page', () => {
       raw.push(expr.trim());
     }
     expect(raw).toEqual([]);
+  });
+
+  it('polls for work that landed while it was open, without stomping the reader', () => {
+    // The browser half is only checkable statically here: this suite has no DOM
+    // and a browser harness is not worth one poll. What still needs a human is
+    // that the notice appears and that nothing on the page moves when it does.
+    const poll = html.slice(html.indexOf('function poll()'), html.indexOf('/* ---------- boot'));
+    expect(poll).toContain('s.cursor !== S.cursor');
+    // Never while the tab is hidden, and never two requests at once.
+    expect(poll).toContain("document.visibilityState !== 'visible'");
+    expect(poll).toMatch(/if \(!S \|\| polling/);
+    // A failed poll leaves the page on the data it has rather than blanking it.
+    expect(poll).toContain('.catch(() => {})');
+    expect(html).toContain("addEventListener('visibilitychange', poll)");
+    // The notice is a real <button>, so Tab and Enter reach it with no wiring —
+    // and it sits outside #view, which render() replaces wholesale.
+    expect(html).toMatch(/<button[^>]*id="stale"/);
+    expect(html.indexOf('id="stale"')).toBeLessThan(html.indexOf('id="view"'));
   });
 
   it('still serves every learning route alongside the memory ones', () => {

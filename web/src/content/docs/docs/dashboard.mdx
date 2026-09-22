@@ -171,6 +171,23 @@ row opens its detail page, and a stat tile whose number is a list — due, maste
 sessions — takes you to that list. Rows are reachable with Tab and open with
 Enter.
 
+## While you leave it open
+
+The page is a snapshot of the moment it loaded, and it tells you when that stops
+being true. Once a minute it checks whether anything has been written since —
+answers, logged work, captured evidence, receipts — and if something has, a bar
+appears above the view: **New activity since this page loaded — refresh**.
+
+It never refreshes itself. A page that redrew while you were reading would scroll
+you back to the top, move the table you were halfway down and drop the caret out
+of the search box, so the refresh is yours to click, and your filter, tab and
+section survive it. The check stops entirely while the tab is in the background
+and runs again the moment you come back to it, so a dashboard left open in a tab
+you are not looking at costs nothing.
+
+If the check itself fails — you stopped the server, say — the page keeps showing
+what it already has rather than blanking.
+
 ## What it is, underneath
 
 One static page and three read-only JSON endpoints on loopback — and loopback
@@ -185,7 +202,9 @@ this page now carries your prompts, your code and your project history.
 `/api/state`
 ships flat rows — every attempt, every logged context, one row per day, plus the
 memory, reuse and health summaries — and the page derives the views, so nothing
-on screen is a number the database does not hold.
+on screen is a number the database does not hold. It also carries a `cursor`,
+a count of the rows behind the page, and that is the only field the open page
+re-reads once a minute to decide whether to offer you a refresh.
 
 The one exception is the memory timeline. An observation carries a narrative and
 the tool output behind it, so shipping the whole corpus on every load would be

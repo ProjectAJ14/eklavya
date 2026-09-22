@@ -670,9 +670,38 @@ export function dashboardState(db: DB): Record<string, unknown> {
     db.prepare('SELECT count(DISTINCT session_id) AS n FROM session_concepts').get() as { n: number }
   ).n;
 
+  const memory = memorySummary(db);
+  const reuse = reuseSummary(db);
+
   return {
     generated_at: now.toISOString(),
     db_path: dbPath(),
+    /**
+     * What an open page polls to notice that work landed while it was reading
+     * it (PRD DASH-01). Counts of rows the payload already carries, so it costs
+     * no extra query and moves exactly when the page's content does.
+     *
+     * Deliberately not `generated_at`, and not a hash of the payload: both
+     * change on every call — scores are decayed against the clock — and a page
+     * that announces new activity every minute is a page whose banner is
+     * ignored inside a day.
+     *
+     * Ceiling: counts cannot see an edit that leaves the counts alone. Every
+     * such edit here (a superseded entry, a deleted one) moves a *different*
+     * count in this list, so the gap is theoretical today; a real event cursor
+     * is the upgrade if that stops being true.
+     */
+    cursor: [
+      allTime.answers,
+      logged.length,
+      sessionCount,
+      memory.captured,
+      memory.processed,
+      memory.entries_total,
+      memory.superseded,
+      memory.deleted,
+      reuse.receipts,
+    ].join(':'),
     timeline_days: TIMELINE_DAYS,
     attempts_shown: attempts.length,
     attempts_total: allTime.answers,
@@ -724,8 +753,8 @@ export function dashboardState(db: DB): Record<string, unknown> {
     logged,
     // The memory half. Additive: every key above kept its name and its shape,
     // because `/api/state` is a contract an older page still reads.
-    memory: memorySummary(db),
-    reuse: reuseSummary(db),
+    memory,
+    reuse,
     health: healthSummary(db, config),
     memory_sessions: memorySessions(db),
   };

@@ -172,6 +172,16 @@
   .ctx { color:var(--dim); }
   .empty { color:var(--faint); padding:var(--space-5) 0; font-size:13.5px; }
 
+  /* A bar above the view, not a banner over it: the reader is mid-page and the
+     notice must not move what they are reading. */
+  .stale { display:block; width:100%; text-align:left; margin-bottom:var(--space-6);
+           font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em;
+           text-transform:uppercase; background:none; border:1px solid var(--spot);
+           color:var(--spot); padding:7px 10px; cursor:pointer;
+           transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
+  .stale:hover { background:var(--spot); color:var(--spot-ink); }
+  .stale[hidden] { display:none; }
+
   /* ---------- controls ---------- */
   .filters { display:flex; gap:var(--space-3); flex-wrap:wrap; align-items:center;
              margin-bottom:var(--space-4); }
@@ -371,6 +381,9 @@
   </aside>
 
   <main>
+    <button type="button" class="stale inner" id="stale" hidden aria-live="polite">
+      New activity since this page loaded — refresh
+    </button>
     <div class="inner stack" id="view">
       <p class="empty">Loading your learning history…</p>
     </div>
@@ -1953,6 +1966,45 @@ addEventListener('resize', () => {
 document.querySelectorAll('[data-ground]').forEach((b) => {
   b.addEventListener('click', () => { window.eklavyaGround.set(b.dataset.ground); render(); });
 });
+
+/* ---------- staying honest about how old this page is ---------- */
+// ponytail: a poll, not SSE. Ceiling: a change shows up to POLL_MS late, and
+// each tick rebuilds the whole payload server-side to read one field off it.
+// Both are nothing for one reader over loopback once a minute. The upgrade is
+// SSE over an event cursor (PRD DASH-01) — `s.cursor` is already the cursor,
+// so that swap is this function, not the page.
+const POLL_MS = 60000;
+let polling = false;
+
+/**
+ * Announced, never silent, and that is the whole design.
+ *
+ * A silent re-render moves the table the reader is halfway down, scrolls them
+ * back to the top and drops the caret out of the search box — the page would
+ * be fighting the person reading it. So the poll touches nothing but a button:
+ * the view keeps rendering from the payload it booted with until the reader
+ * asks for the new one. That also means there is no live state to reconcile
+ * with a view derived from the old snapshot; the reload does that.
+ */
+function poll() {
+  // Nothing to do if we never loaded, a request is already out, the notice is
+  // already up, or nobody is looking — a background tab must not poll at all.
+  if (!S || polling || !$('stale').hidden || document.visibilityState !== 'visible') return;
+  polling = true;
+  fetch('/api/state')
+    .then((r) => r.json())
+    .then((s) => { if (s.cursor !== S.cursor) $('stale').hidden = false; })
+    // A failed poll changes nothing: the page keeps working on the data it has.
+    // One unreachable server must not blank a dashboard that is merely stale.
+    .catch(() => {})
+    .then(() => { polling = false; });
+}
+
+setInterval(poll, POLL_MS);
+// Coming back to a tab left open all afternoon should not mean waiting out the
+// interval before the page admits it is stale.
+addEventListener('visibilitychange', poll);
+$('stale').addEventListener('click', () => location.reload());
 
 /* ---------- boot ---------- */
 // The head script runs before the toggle exists, so its aria-pressed state has
