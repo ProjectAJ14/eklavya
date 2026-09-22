@@ -551,6 +551,18 @@ describe('restoreExport', () => {
 });
 
 describe('a source database does not get to end the process', () => {
+  it('gives each source its own default snapshot, so two imports at once cannot collide', () => {
+    // One fixed snapshot file for every import let a parallel run delete it
+    // under another ("disk I/O error") or hand it a stranger's rows to --resume.
+    buildSource();
+    const other = path.join(sourceDir, 'other.db');
+    fs.copyFileSync(sourcePath, other);
+    const a = importFrom(db, sourcePath, {}).snapshot!;
+    const b = importFrom(db, other, {}).snapshot!;
+    expect(path.dirname(a)).not.toBe(path.dirname(b));
+    expect(importFrom(db, sourcePath, {}).snapshot).toBe(a);
+  });
+
   it('survives a timestamp no Date can represent, and imports the row anyway', () => {
     // Each observation commits in its own transaction, so an unguarded
     // `new Date(...).toISOString()` throwing partway through would leave the

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -200,7 +201,7 @@ export interface ImportOptions {
   dryRun?: boolean;
   /** Reuse a snapshot left by an interrupted run rather than taking a new one. */
   resume?: boolean;
-  /** Where the snapshot goes. Defaults to a temp directory. */
+  /** Where the snapshot goes. Defaults to a temp directory of this source's own. */
   snapshotDir?: string;
   /**
    * Source project name -> Eklavya project key.
@@ -695,7 +696,12 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
     return report;
   }
 
-  const dir = opts.snapshotDir ?? path.join(os.tmpdir(), 'eklavya-import');
+  // One directory per source, not one for every import: two imports at once
+  // (two installs, a parallel test run) shared a single snapshot file, and one
+  // deleted it under the other or handed it a stranger's rows to --resume.
+  const dir =
+    opts.snapshotDir ??
+    path.join(os.tmpdir(), 'eklavya-import', createHash('sha256').update(sourceIdentity(sourceDb)).digest('hex').slice(0, 16));
   const snap = snapshot(sourceDb, dir, opts.resume ?? false);
   report.snapshot = snap;
 
