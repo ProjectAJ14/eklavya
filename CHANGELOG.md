@@ -1,3 +1,12 @@
+## [1.19.1](https://github.com/ProjectAJ14/eklavya/compare/v1.19.0...v1.19.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* close the review's five gaps in project-scoped config ([7f58255](https://github.com/ProjectAJ14/eklavya/commit/7f58255fe328e0a4ed332838c332ac2eb4e5c5b5))
+* keep the trust boundary on the one path that still reads a checkout ([7f5919c](https://github.com/ProjectAJ14/eklavya/commit/7f5919c11654cb509ba73cd3a98f786536210aed))
+* **test:** stop the unwritable-home test hanging CI on Linux ([72a6b05](https://github.com/ProjectAJ14/eklavya/commit/72a6b050671ec195f1f84384ff7f24ba517349cd))
+
 # [1.19.0](https://github.com/ProjectAJ14/eklavya/compare/v1.18.3...v1.19.0) (2026-09-22)
 
 
