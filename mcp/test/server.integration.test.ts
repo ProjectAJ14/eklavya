@@ -76,6 +76,7 @@ describe('eklavya-mcp over stdio', () => {
     dbFile = tempDbPath('server');
     proc = spawn(process.execPath, [serverEntry], {
       env: { ...process.env, EKLAVYA_DB: dbFile },
+      cwd: os.tmpdir(),
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
 
@@ -103,6 +104,7 @@ describe('eklavya-mcp over stdio', () => {
     dbFile = tempDbPath('server-db');
     proc = spawn(process.execPath, [serverEntry], {
       env: { ...process.env, EKLAVYA_DB: dbFile },
+      cwd: os.tmpdir(),
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
 
@@ -150,6 +152,13 @@ describe('the full teaching loop over the real transport', () => {
     try {
       proc = spawn(process.execPath, [serverEntry], {
         env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home, EKLAVYA_SESSION_ID: 'e2e' },
+        // A scratch cwd, and never the checkout. `loadConfig` walks up from the
+        // server's working directory, so leaving this at the test runner's own
+        // meant the run read whatever `.eklavya.json` a contributor had put at
+        // the repository root — and a maintainer who set `{"mode": "off"}` for
+        // their own sessions got a failure here that looks like a broken
+        // teaching loop and is a broken fixture.
+        cwd: home,
         stdio: ['pipe', 'pipe', 'pipe'],
       }) as ChildProcessWithoutNullStreams;
 

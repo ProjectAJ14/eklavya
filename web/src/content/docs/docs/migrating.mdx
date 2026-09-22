@@ -143,9 +143,17 @@ A move, not a delete. Give it a month.
 ## If you want to go back
 
 Nothing above removed anything. Re-enable the plugin in `/plugin` and your old
-history is exactly where it was. Anything Eklavya captured in the meantime stays
-in Eklavya's database, and `eklavya memory export <file>` writes it out as
-versioned JSON if you want it somewhere else.
+history is exactly where it was. Anything Eklavya captured in the meantime
+stays in Eklavya's database, and the pair
+
+```bash
+eklavya memory export ~/eklavya-memory.json
+eklavya memory restore ~/eklavya-memory.json
+```
+
+is the backup and the way back. The restore is additive and idempotent: it
+never touches your learning history, it adds nothing on a second run, and it
+rebuilds the search index for what it brought in.
 
 ## What does not come across
 
