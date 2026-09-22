@@ -178,6 +178,20 @@ contract is `web/CLAUDE.md`. The parts this page is strict about:
 - Both grounds are the product. `data-mode` is applied by the head script before
   paint and re-applied on boot (the toggle does not exist yet when the head runs).
 
+## Loopback is not the boundary it looks like
+
+`startDashboard` refuses any request whose `Host` is not a loopback name, and
+any cross-origin `Origin` that is not loopback either. Do not remove that check
+and do not widen it to "starts with 127.": a page the developer has open can
+point a hostname it controls at loopback and fetch from here, and the browser's
+same-origin rule does not stop it because the page's origin *is* that hostname.
+
+Two consequences for anything added here. A new endpoint inherits the check
+because it sits behind the same handler — keep it that way rather than
+registering a second server. And if a mutating endpoint is ever added, this
+check is necessary and not sufficient: it would also need a token the page
+holds and a hostile origin cannot read.
+
 ## Escaping is not optional
 
 Learning rows are written by the tutor. **Memory rows are arbitrary tool output
