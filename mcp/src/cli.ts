@@ -86,6 +86,8 @@ Config namespaces (nested; edit ~/.eklavya/config.json or .eklavya.json directly
   retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project}
   providers.{observer, embeddings} — each null or {kind, model, api_key_env};
              api_key_env names the variable holding the key, never the key itself
+  notifications.{enabled, sinks} — sinks are {kind: webhook|command|file, target,
+             args, events}; off by default, and a send cannot be recalled
 `;
 
 function fail(message: string): never {

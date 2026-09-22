@@ -13,6 +13,9 @@ import { capture, drainSpool, type HostEvent } from '../memory/capture.js';
 import { batchSession, pendingEventCount } from '../memory/store.js';
 import { processPending } from '../memory/worker.js';
 import { recall } from '../memory/recall.js';
+import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
+import { countEntries } from '../memory/store.js';
+import { queueDepth } from '../memory/worker.js';
 import type { DB, HookInput } from './lib.js';
 
 export function identityOf(input: HookInput, cwd: string, sid: string | null): EvidenceIdentity {
@@ -114,5 +117,57 @@ export function recallBlock(db: DB, resolved: ResolvedConfig, identity: Evidence
     return result.block;
   } catch {
     return null;
+  }
+}
+
+/**
+ * The session wrap-up, and the one alert worth interrupting for.
+ *
+ * Both are no-ops unless a sink is configured, which is the default — so a
+ * session that has not opted in pays one boolean. Failures are swallowed for
+ * the usual reason: a dead webhook must not be how a turn ends.
+ */
+export async function wrapUpAtSeam(
+  db: DB,
+  resolved: ResolvedConfig,
+  identity: EvidenceIdentity,
+): Promise<void> {
+  if (!resolved.config.notifications.enabled) return;
+  try {
+    const attempts = db
+      .prepare('SELECT COUNT(*) AS n, COALESCE(SUM(grade >= 3), 0) AS passed FROM attempts WHERE session_id = ?')
+      .get(identity.sessionId) as { n: number; passed: number };
+    await notify(
+      db,
+      resolved.config,
+      sessionWrapUp({
+        project: identity.project,
+        sessionId: identity.sessionId,
+        entries: countEntries(db, identity.project),
+        questions: attempts.n,
+        passed: attempts.passed,
+      }),
+    );
+
+    // A paused queue is capture that has stopped and will not restart by
+    // itself. Everything else about memory degrades quietly on purpose; this
+    // one is worth saying out loud, once per reason.
+    const queue = queueDepth(db);
+    if (queue.paused > 0) {
+      const reason = db
+        .prepare("SELECT error_class FROM memory_jobs WHERE status = 'paused' ORDER BY updated_at DESC LIMIT 1")
+        .get() as { error_class: string | null } | undefined;
+      await notify(
+        db,
+        resolved.config,
+        queuePausedAlert({
+          project: identity.project,
+          errorClass: reason?.error_class ?? 'unknown',
+          failed: queue.paused + queue.failed,
+        }),
+      );
+    }
+  } catch {
+    /* A wrap-up nobody received is a wrap-up. A thrown one is a broken session. */
   }
 }

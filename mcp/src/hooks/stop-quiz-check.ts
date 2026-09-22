@@ -41,7 +41,7 @@
 import { attributionRule, isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
 import { isSessionOff } from '../session.js';
-import { flushAtSeam, identityOf } from './memory-lib.js';
+import { flushAtSeam, identityOf, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
 
 await run(async (input) => {
@@ -83,6 +83,8 @@ await run(async (input) => {
     } catch {
       /* A session with nothing to ask about is the status quo, not a failure. */
     }
+    // No-op unless a sink is configured, which is the default.
+    await wrapUpAtSeam(db, stopConfig, identity);
   }
   // Silenced sessions are never blocked, enforced mode included: the commit gate
   // is what enforced mode is for, and it reads .eklavya.json rather than this.

@@ -126,6 +126,35 @@ export interface ProvidersConfig {
   embeddings: ProviderConfig | null;
 }
 
+/**
+ * Outbound wrap-ups and alerts (PRD EXT-01, CFG-02).
+ *
+ * Off by default and separately from everything else, because every sink here
+ * sends this machine's work somewhere it cannot be recalled from. A session
+ * summary posted to a team channel is a session summary that team has, whatever
+ * the developer does with their database afterwards -- so enabling one is an
+ * explicit decision, and the manual says what leaves.
+ *
+ * `command` exists because the interesting integrations are all somebody's
+ * script: a desktop notification, a note in a journal, a message posted by a
+ * CLI that already holds the credentials. A webhook URL in a config file does
+ * not hold credentials, which is the other half of why this shape was chosen.
+ */
+export interface NotificationSink {
+  kind: 'webhook' | 'command' | 'file';
+  /** `webhook`: the URL. `command`: the executable. `file`: the path. */
+  target: string;
+  /** `command` only. The event JSON arrives on stdin regardless. */
+  args?: string[];
+  /** Which events this sink wants. Empty means all of them. */
+  events?: string[];
+}
+
+export interface NotificationsConfig {
+  enabled: boolean;
+  sinks: NotificationSink[];
+}
+
 export interface EklavyaConfig {
   mode: Mode;
   /**
@@ -179,6 +208,7 @@ export interface EklavyaConfig {
   privacy: PrivacyConfig;
   retrieval: RetrievalConfig;
   providers: ProvidersConfig;
+  notifications: NotificationsConfig;
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
@@ -217,6 +247,10 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   providers: {
     observer: null,
     embeddings: null,
+  },
+  notifications: {
+    enabled: false,
+    sinks: [],
   },
 };
 
@@ -397,6 +431,19 @@ function stringArray(value: unknown): string[] | null {
   return Array.isArray(value) && value.every((v) => typeof v === 'string') ? (value as string[]) : null;
 }
 
+function sinkOf(value: unknown): NotificationSink | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  if (v.kind !== 'webhook' && v.kind !== 'command' && v.kind !== 'file') return null;
+  if (typeof v.target !== 'string' || !v.target.trim()) return null;
+  return {
+    kind: v.kind,
+    target: v.target.trim(),
+    args: stringArray(v.args) ?? undefined,
+    events: stringArray(v.events) ?? undefined,
+  };
+}
+
 function provider(value: unknown): ProviderConfig | null {
   if (!value || typeof value !== 'object') return null;
   const v = value as Record<string, unknown>;
@@ -456,6 +503,18 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
       out.retrieval.max_tokens = Math.floor(retrieval.max_tokens);
     }
     if (typeof retrieval.cross_project === 'boolean') out.retrieval.cross_project = retrieval.cross_project;
+  }
+
+  const notifications = raw.notifications as Record<string, unknown> | undefined;
+  if (notifications && typeof notifications === 'object') {
+    out.notifications = { ...out.notifications };
+    if (typeof notifications.enabled === 'boolean') out.notifications.enabled = notifications.enabled;
+    if (Array.isArray(notifications.sinks)) {
+      out.notifications.sinks = notifications.sinks.flatMap((entry) => {
+        const sink = sinkOf(entry);
+        return sink ? [sink] : [];
+      });
+    }
   }
 
   const providers = raw.providers as Record<string, unknown> | undefined;
