@@ -25,8 +25,8 @@
  *      API for "install this plugin" from outside a session, so this reproduces
  *      what `/plugin install` does. See the comment on `register()`.
  *   5. The database, created and seeded.
- *   6. Claude Mem, if it is here: one question, which of the two records
- *      memory. See `claude-mem.ts`.
+ *   6. The dials, walked one at a time on every run (`onboard.ts`) — and, if
+ *      Claude Mem is here, which of the two records memory. See `claude-mem.ts`.
  *
  * Every step is idempotent: running it twice is how you upgrade.
  */
@@ -37,13 +37,14 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { dbPath, eklavyaHome, globalConfigPath } from './paths.js';
-import { bold, check, dim, heading, paint, plain, verdict } from './theme.js';
-import { loadConfig, readConfigFile, writeConfigFile } from './config.js';
+import { check, dim, heading, paint, plain, verdict } from './theme.js';
+import { readConfigFile, writeConfigFile } from './config.js';
 import { ImportError, importFrom } from './memory/import.js';
+import { onboard, type MemoryOwner } from './onboard.js';
 import {
+  activeClaudeMemPluginIds,
   claudeMemDb,
   claudeMemDir,
-  claudeMemPluginIds,
   guessProjectMap,
   removeClaudeMemPlugin,
   retireClaudeMemDir,
@@ -555,21 +556,6 @@ function deregister(): Array<Record<string, unknown>> {
 
 // --- 6. Claude Mem ---------------------------------------------------------
 
-type MemoryOwner = 'eklavya' | 'claude-mem';
-
-/** One line from a terminal, or null when there is none to ask. */
-function ask(question: string): string | null {
-  if (!process.stdin.isTTY) return null;
-  process.stdout.write(question);
-  try {
-    const buf = Buffer.alloc(256);
-    const n = fs.readSync(0, buf, 0, buf.length, null);
-    return buf.toString('utf8', 0, n).trim();
-  } catch {
-    return null;
-  }
-}
-
 function setEklavyaMemory(enabled: boolean): void {
   const file = globalConfigPath();
   const memory = (readConfigFile(file).memory ?? {}) as Record<string, unknown>;
@@ -582,32 +568,9 @@ function setEklavyaMemory(enabled: boolean): void {
  * out of here ends with exactly one: a failed import keeps Claude Mem and
  * switches Eklavya's recording off, rather than leaving both half-on.
  */
-function resolveClaudeMem(args: string[]): void {
-  const ids = claudeMemPluginIds(claudeHome());
+function resolveClaudeMem(owner: MemoryOwner): void {
+  const ids = activeClaudeMemPluginIds(claudeHome());
   const haveDb = fs.existsSync(claudeMemDb());
-  if (!ids.length && !haveDb) return;
-  const flagAt = args.indexOf('--memory');
-  // Already answered "keep Claude Mem" on an earlier install; only the flag reopens it.
-  if (flagAt < 0 && !loadConfig().config.memory.enabled) return;
-
-  let owner: MemoryOwner | null = null;
-  if (flagAt >= 0) {
-    const v = args[flagAt + 1];
-    if (v !== 'eklavya' && v !== 'claude-mem') {
-      check('warn', 'claude-mem', `--memory takes eklavya or claude-mem ${dim('— left both as they are')}`);
-      return;
-    }
-    owner = v;
-  } else {
-    plain(`\n${bold('Claude Mem is installed. Both record every session, so only one should.')}`);
-    plain(`  ${paint.aged('1')}  Eklavya     ${dim('import its history, then uninstall Claude Mem')}  ${dim('(recommended)')}`);
-    plain(`  ${paint.aged('2')}  Claude Mem  ${dim('keep it; Eklavya turns its memory off, quizzes stay on')}`);
-    const answer = ask(`\n${dim('[1/2]')} `);
-    plain('');
-    // No terminal to ask: the choice that touches nothing of theirs.
-    if (answer === null) owner = 'claude-mem';
-    else owner = answer === '2' || /^claude/i.test(answer) ? 'claude-mem' : 'eklavya';
-  }
 
   if (owner === 'claude-mem') {
     setEklavyaMemory(false);
@@ -758,7 +721,13 @@ function pluginCheck(): Check {
 
 // --- commands ---------------------------------------------------------------
 
-export function install(args: string[]): void {
+export async function install(args: string[]): Promise<void> {
+  const flagAt = args.indexOf('--memory');
+  const memoryFlag = flagAt < 0 ? null : args[flagAt + 1];
+  if (memoryFlag !== null && memoryFlag !== 'eklavya' && memoryFlag !== 'claude-mem') {
+    process.stderr.write('--memory takes eklavya or claude-mem\n');
+    process.exit(1);
+  }
   const version = packageVersion();
   heading(`eklavya install ${dim(version)}`);
 
@@ -803,7 +772,13 @@ export function install(args: string[]): void {
   db.close();
   check('ok', 'database', dbPath());
 
-  resolveClaudeMem(args);
+  const claudeMem = activeClaudeMemPluginIds(claudeHome()).length > 0 || fs.existsSync(claudeMemDb());
+  const owner = await onboard({
+    claudeMem,
+    memoryFlag,
+    hookScript: path.join(marketplaceDir(), 'scripts', 'install-git-hook.sh'),
+  });
+  if (owner) resolveClaudeMem(owner);
 
   if (!checkGit()) {
     check('warn', 'git', `not found ${dim('— the per-project level falls back to a shared bucket, and the commit gate needs git')}`);
@@ -831,11 +806,11 @@ export function install(args: string[]): void {
   }
   verdict(null, 'DONE · restart Claude Code and Eklavya loads with it');
   if (cliOnPath()) {
-    plain(dim('Next: /eklavya:setup in Claude Code to choose a mode, or `eklavya doctor` here.'));
+    plain(dim('Next: build something in Claude Code — the questions follow. `eklavya doctor` checks the wiring.'));
   } else {
     // Ran through npx, most likely: the plugin is installed but no `eklavya`
     // command exists. Say so rather than suggesting one that is not there.
-    plain(dim('Next: /eklavya:setup in Claude Code to choose a mode.'));
+    plain(dim('Next: build something in Claude Code — the questions follow.'));
     plain('');
     plain(`The \`eklavya\` command is not on your PATH. For ${dim('doctor, dashboard, config')}:`);
     plain(`  ${paint.aged('npm install -g eklavya')}`);

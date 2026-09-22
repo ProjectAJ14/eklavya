@@ -40,7 +40,7 @@ Run this once per machine. It takes one exchange. Here is exactly what happens, 
    - **project** — the code that was just written: this file, this line, this decision. Best when you are learning a codebase.
    - **learn** — a topic you name, taught in prerequisite order. Requires a topic.
 
-   Both answers are written to `~/.eklavya/config.json` — or to `~/.eklavya/projects/<checkout>/config.json` if you say you want them to apply to this project only. Either way the file is in your home directory: Eklavya writes nothing into the repository. You can change them any time with [`/eklavya:mode`](/docs/commands/#eklavyamode-value).
+   Both answers are written to `~/.eklavya/config.json`, your global settings. Setup does not ask about per-project settings. If you want one project to differ, say so, or run `eklavya config set <key> <value> --project`. That writes `~/.eklavya/projects/<checkout>/config.json`, still in your home directory. Eklavya writes nothing into the repository. You can change them any time with [`/eklavya:mode`](/docs/commands/#eklavyamode-value).
 5. #### If you chose enforced, it installs the git hook
 
    ```text

@@ -53,6 +53,16 @@ export function claudeMemPluginIds(claudeHome: string): string[] {
 }
 
 /**
+ * The ids still recording: a plugin switched off in settings.json — this
+ * installer's own fallback when `claude` is not on PATH — records nothing, and
+ * asking about it on every later install would be asking about a finished move.
+ */
+export function activeClaudeMemPluginIds(claudeHome: string): string[] {
+  const enabled = (readJson(path.join(claudeHome, 'settings.json')).enabledPlugins ?? {}) as Record<string, unknown>;
+  return claudeMemPluginIds(claudeHome).filter((id) => enabled[id] !== false);
+}
+
+/**
  * Removes the plugin through Claude Code's own CLI, and falls back to switching
  * it off in settings.json when `claude` is not on PATH. Off is enough to stop
  * the double recording; the fallback just cannot delete the files.

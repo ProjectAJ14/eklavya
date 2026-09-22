@@ -67,25 +67,35 @@ That does the whole job, in this order:
 5. #### Creates the database
 
    `~/.eklavya/knowledge.db`, migrated and seeded, so `eklavya doctor` works before you have opened Claude Code even once.
-6. #### Asks about Claude Mem, if you have it
+6. #### Walks your settings
 
-   Claude Mem and Eklavya both record every session and recall it at the next one, so with both installed you would get everything twice. If the installer finds Claude Mem (its plugin, or `~/.claude-mem/claude-mem.db`), it asks one question:
+   Five dials, one step each: `quiz`, `focus`, `cadence`, `difficulty` and `memory`. Each step marks what is set now. Press Enter (or type `next`) to keep it, or type a number or a name to change it. On a first install that is five Enters to the defaults:
 
    ```text
-   Claude Mem is installed. Both record every session, so only one should.
-     1  Eklavya     import its history, then uninstall Claude Mem  (recommended)
-     2  Claude Mem  keep it; Eklavya turns its memory off, quizzes stay on
+   2/5  focus  what it teaches
+     ▣  1  concept  the transferable idea behind the code
+     ◌  2  project  this codebase — the code just written
+     ◌  3  learn    a topic you name, taught through your code
+     →
+   ```
 
-   [1/2]
+   There is no "already onboarded" state. Every run walks the same steps with your current choices marked, so re-running `eklavya install` is also how you review and tweak them. Answers go to `~/.eklavya/config.json`. The installer never asks about per-project settings; set those with `eklavya config set <key> <value> --project`. Without a terminal, it prints the settings and changes nothing.
+
+   **If you have Claude Mem**, the `memory` step asks a different question. Claude Mem and Eklavya both record every session and recall it at the next one, so with both installed you would get everything twice. If the installer finds Claude Mem (its plugin, or `~/.claude-mem/claude-mem.db`), the step asks which one records:
+
+   ```text
+   5/5  memory  Claude Mem is installed too — only one should record
+     ▣  1  eklavya     import Claude Mem's history, then uninstall it
+     ◌  2  claude-mem  keep it; Eklavya records nothing, quizzes stay on
    ```
 
    **Eklavya** imports your Claude Mem history, filing each project under its checkout. It works out which checkout from Claude Code's own session transcripts, so you do not have to name them. Then it uninstalls the Claude Mem plugin and moves `~/.claude-mem` to `~/.claude-mem.retired`. Nothing is deleted. **Claude Mem** sets `memory.enabled` to `false`. Questions, levels and the gate work as before. [Moving from Claude Mem](/docs/migrating/) has the details.
 
-   Pass `--memory eklavya` or `--memory claude-mem` to answer ahead of time. Without a terminal to ask, the installer picks Claude Mem, because that choice leaves your Claude Mem install and data untouched.
+   Pass `--memory eklavya` or `--memory claude-mem` to answer that step ahead of time. Without a terminal to ask, the installer picks Claude Mem, because that choice leaves your Claude Mem install and data untouched.
 
 </Steps>
 
-Then restart Claude Code and run `/eklavya:setup` to choose a mode. Running `eklavya install` again is how you upgrade — every step is safe to repeat, and it will not disturb your other plugins or your learning history.
+Then restart Claude Code and build something; the questions follow. Running `eklavya install` again is how you upgrade — every step is safe to repeat, and it will not disturb your other plugins or your learning history.
 
 ### B. In Claude Code, through the plugin marketplace
 

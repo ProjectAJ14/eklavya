@@ -24,6 +24,7 @@ what an agent editing code in this directory has to know before it does.
 | `src/hooks/*.ts` | one file per hook plus `lib.ts`; `run()` swallows everything and exits 0 | |
 | `src/eval/*.ts` | the offline half of the eval — `question-checks.ts` (question shape), `extraction-score.ts` (are the logged concepts right, scored with `slug.ts`'s own matcher), `history-stats.ts` (repeat rate, tier calibration) and `extract-json.ts`. Pure, like `srs.ts`. Driven by `eval/harness.mjs` at the repo root | no model, no I/O; anything needing a judge stays out |
 | `src/install.ts` | `eklavya install/uninstall` — Node check, runtime, plugin payload, registry files, db | |
+| `src/onboard.ts` | the settings walk `install` runs every time — one step per dial, current value marked, Enter keeps it; writes only the global config, only what changed | no onboarded flag, and never asks about project scope |
 | `src/claude-mem.ts` | install's Claude Mem question: detect it, place its projects from Claude Code's transcripts, uninstall its plugin, retire `~/.claude-mem` | never deletes Claude Mem's data — it is moved, and it is the rollback |
 | `src/theme.ts` | the look of every terminal byte the CLI prints — the verdigris palette, glyphs, `check` rows, `verdict`. Ported from talea's `theme.js`/`log.js`; change both together | not the status bar or session banner: the host draws those |
 | `src/dashboard.ts` + `src/assets/dashboard.html` | the local page on loopback (default port 41729). Read `.claude/skills/eklavya-dashboard/SKILL.md` first | |

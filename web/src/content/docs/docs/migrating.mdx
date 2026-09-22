@@ -12,16 +12,16 @@ twice and recalled twice. You only need one, and switching takes one command:
 eklavya install
 ```
 
-If it finds Claude Mem (its plugin, or `~/.claude-mem/claude-mem.db`), it asks
-which one should record:
+If it finds Claude Mem (its plugin, or `~/.claude-mem/claude-mem.db`), the
+`memory` step of its settings walk asks which one should record:
 
 ```text
-Claude Mem is installed. Both record every session, so only one should.
-  1  Eklavya     import its history, then uninstall Claude Mem  (recommended)
-  2  Claude Mem  keep it; Eklavya turns its memory off, quizzes stay on
-
-[1/2]
+5/5  memory  Claude Mem is installed too — only one should record
+  ▣  1  eklavya     import Claude Mem's history, then uninstall it
+  ◌  2  claude-mem  keep it; Eklavya records nothing, quizzes stay on
 ```
+
+Enter keeps the marked choice.
 
 To skip the question, pass `--memory eklavya` or `--memory claude-mem`. If
 there is no terminal to ask, the installer picks Claude Mem, because that
@@ -84,7 +84,7 @@ second import never duplicates anything it already brought in.
 
 Eklavya sets `memory.enabled` to `false` in `~/.eklavya/config.json`, and that
 is the only change. Questions, levels and the commit gate work as before.
-Nothing of Claude Mem's is touched, and later installs do not ask again.
+Nothing of Claude Mem's is touched. Later installs still show the step, with Claude Mem marked, so Enter keeps it.
 
 To switch later, run `eklavya install --memory eklavya`. It imports, switches
 Eklavya's memory back on, and retires Claude Mem as above.

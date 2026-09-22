@@ -1310,7 +1310,12 @@ function main(): void {
       });
       return;
     case 'install':
-      return install(rest);
+      // Async only because the settings walk waits on a terminal.
+      install(rest).catch((err: unknown) => {
+        process.stderr.write(`eklavya install: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(1);
+      });
+      return;
     case 'uninstall':
       return uninstall(rest);
     case 'export-rules':
