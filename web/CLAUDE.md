@@ -61,6 +61,7 @@ Every `.mdx` under `src/content/docs/docs/` has a row here, in sidebar order.
 | `how-it-works.mdx` | the `mcp/` / `hooks/` / `skills/` split in the root `CLAUDE.md`, `mcp/package.json` `engines` and its `better-sqlite3` dependency, and `cli/eklavya-gate` for the one place `jq` and `sqlite3` are still needed. This is where architecture and rationale trimmed off `index.mdx` belongs. It also embeds the runtime diagram — see below |
 | `grading-engine.mdx` | `mcp/src/srs.ts` constants; the `get_session_quiz_plan` and `record_attempt` tool descriptions; `mcp/src/mcq.ts` and `skills/tutor/SKILL.md` for the option count, the "Other" escape hatch and the MCQ grade ceiling — none of which are in `srs.ts` |
 | `your-data.mdx` | `mcp/src/paths.ts`, `mcp/src/migrations/` |
+| `migrating.mdx` | `mcp/src/memory/import.ts` and the `memory import` handler in `mcp/src/cli.ts` — the flags and the field-disposition report are quoted from there |
 | `troubleshooting.mdx` | `doctor` in `mcp/src/cli.ts`, and the fail-open paths — `mcp/src/hooks/lib.ts`, `cli/eklavya-gate` |
 | `faq.mdx` | `mcp/src/paths.ts`, the `AttemptOutcome` handling in `mcp/src/store.ts` (what a decline does), `uninstall` in `mcp/src/install.ts`, and the `<link>` tags at the top of `mcp/src/assets/dashboard.html` — the dashboard fetches three webfonts from Google Fonts, so "nothing leaves your machine" needs that carve-out |
 
