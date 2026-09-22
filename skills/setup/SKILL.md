@@ -1,6 +1,6 @@
 ---
 name: setup
-description: First-run Eklavya setup — check prerequisites, create the knowledge database, and choose a mode.
+description: First-run Eklavya setup — check prerequisites, create the database, choose a mode, and say what memory does.
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Get Eklavya working on this machine. Be brief; this should take one exchange.
 
-**1. Check prerequisites.** Run `node --version`. That is the whole list — the server, the CLI and all six hooks are Node, so nothing else has to be on `PATH`. Node must be 22+; below that the SQLite driver has no prebuilt binary and would need a C++ toolchain to install. If it is older, say so and how to upgrade on this platform, and stop: the rest of setup will not work.
+**1. Check prerequisites.** Run `node --version`. That is the whole list — the server, the CLI and all seven hooks are Node, so nothing else has to be on `PATH`. Node must be 22+; below that the SQLite driver has no prebuilt binary and would need a C++ toolchain to install. If it is older, say so and how to upgrade on this platform, and stop: the rest of setup will not work.
 
 Optionally run `eklavya doctor`, which reports the same thing plus the runtime, the SQLite driver, the plugin's registration, the chat skill, the database and the effective config. It exits non-zero and names the repair — `eklavya install` — if any of those has broken. That is also the command to reach for later, whenever Eklavya has gone quiet: the hooks never fail loudly, so a broken install looks exactly like a quiet one.
 
@@ -49,5 +49,19 @@ The `PreToolUse` hook only covers commits made inside Claude Code — which incl
 It chains to any existing `pre-commit` hook rather than replacing it, and only acts on repos whose `.eklavya.json` sets `"mode": "enforced"` — so installing it is safe even if they later switch to ambient. Mention `--uninstall` restores the previous hook.
 
 Skip this step for ambient or off.
+
+**4b. Say what memory does, in two sentences, and do not ask a question about it.**
+
+Eklavya also records what each session did — the prompts, the edits, the tool
+failures — and hands the relevant part back at the start of the next one, so
+next week's session starts knowing what last week's did. It is on by default,
+it is local (the summariser and the search index both run on this machine, no
+key and no account), and it is a separate switch from the mode they just
+chose: `mode: off` stops the questions and keeps the history.
+
+Say that and move on. It needs no decision now, and turning it into a fifth
+question makes setup an interview. If they ask where it goes or what is
+excluded, point at `/eklavya:memory` and the [memory page](https://eklavya.dev/docs/memory/)
+rather than reciting the exclusion list.
 
 **5. Say what happens next.** In ambient mode: build something, and questions will follow. Point at `/eklavya:progress` and `/eklavya:quiz`. In enforced mode, add that commits are held until the session quiz passes, and `/eklavya:gate` shows what is outstanding.
