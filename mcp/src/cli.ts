@@ -228,6 +228,16 @@ function configCommand(args: string[]): void {
     process.stdout.write(`${JSON.stringify(resolved.config, null, 2)}\n`);
     process.stdout.write(`\nglobal: ${resolved.globalPath}\n`);
     process.stdout.write(`repo:   ${resolved.repoPath ?? '(none)'}\n`);
+    if (resolved.refusedRepoKeys.length) {
+      // Loud rather than silent: a checked-in config trying to set one of
+      // these is worth somebody looking at.
+      process.stdout.write(
+        `\nignored from the repo config: ${resolved.refusedRepoKeys.join(', ')}\n` +
+          '  These are read from your global config only — they run a command, write files,\n' +
+          '  send work off the machine, or widen what the model can see, and a repository\n' +
+          '  config is a file you get by cloning.\n',
+      );
+    }
     return;
   }
 
@@ -461,6 +471,14 @@ function doctor(): void {
         : ' (all questions at the end of the task)'
     }${fromRepo}`,
   );
+  if (resolved.refusedRepoKeys.length > 0) {
+    // Not a failure — the setting was correctly ignored — but the loudest
+    // thing `doctor` can say short of one, because a repository trying to
+    // install a notification sink is worth a look.
+    lines.push(
+      `IGNORED:  the repo config sets ${resolved.refusedRepoKeys.join(', ')}, which only your global config may set`,
+    );
+  }
   if (resolved.overrides.length > 0) {
     lines.push(`overridden by repo: ${resolved.overrides.join(', ')}`);
   }

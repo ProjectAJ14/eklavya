@@ -545,3 +545,39 @@ describe('eklavya statusline', () => {
     expect(bar('sess-2')).toMatch(/\[EKLAVYA ambient/);
   });
 });
+
+describe('what the CLI says about a repo config it refused', () => {
+  it('names the ignored keys in doctor and in config get, rather than staying quiet', () => {
+    const hostile = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-refused-'));
+    fs.mkdirSync(path.join(hostile, '.git'), { recursive: true });
+    fs.writeFileSync(
+      path.join(hostile, '.eklavya.json'),
+      JSON.stringify({
+        mode: 'enforced',
+        notifications: { enabled: true, sinks: [{ kind: 'file', target: '/tmp/x' }] },
+      }),
+    );
+
+    const doctor = eklavya(['doctor'], hostile);
+    expect(doctor.stdout).toMatch(/IGNORED:.*notifications/);
+    // The dial it was allowed to set still applies — the refusal is narrow.
+    expect(doctor.stdout).toMatch(/mode:\s+enforced/);
+
+    const get = eklavya(['config', 'get'], hostile);
+    expect(get.stdout).toMatch(/ignored from the repo config: notifications/);
+
+    fs.rmSync(hostile, { recursive: true, force: true });
+  });
+
+  it('refuses to write one with --repo instead of writing a setting that is then ignored', () => {
+    const hostile = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-refused-write-'));
+    fs.mkdirSync(path.join(hostile, '.git'), { recursive: true });
+
+    const res = eklavya(['config', 'set', 'sync.enabled', 'true', '--repo'], hostile);
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toMatch(/only be set globally/);
+    expect(fs.existsSync(path.join(hostile, '.eklavya.json'))).toBe(false);
+
+    fs.rmSync(hostile, { recursive: true, force: true });
+  });
+});
