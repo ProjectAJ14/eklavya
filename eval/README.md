@@ -209,9 +209,54 @@ scoring every unmatched slug as wrong would grade the model against one person's
 reading of a diff. Only the unmatched ones go to a judge, and the report gives
 precision both ways — strict, and counting judge-confirmed concepts as right.
 
+## The retrieval eval
+
+`eval/retrieval-harness.mjs` measures the other half of the product: whether
+the evidence handed to the model was the right evidence. It costs nothing —
+no model call anywhere, a fixed synthetic corpus in
+`fixtures/retrieval-corpus.json`, and a pure scorer in
+`mcp/src/eval/retrieval-score.ts` — so unlike the question eval it can be run
+on every change to `mcp/src/memory/search.ts` or to the embedder.
+
+```bash
+cd mcp && npm run build && cd ..
+node eval/retrieval-harness.mjs            # all three modes
+node eval/retrieval-harness.mjs --k 3      # at a tighter budget
+node eval/retrieval-harness.mjs --json     # for a results file
+```
+
+**Top-1 is the headline, and precision@k is not.** Most queries in the corpus
+have one right answer, so precision@5 measures how many results a mode
+returned rather than whether they were good: a mode that always fills the
+slate scores 0.2 however perfect its ranking. Top-1 asks what the developer
+asks — was the first thing it showed me the right thing. Recall is reported
+beside it and never blended in, because omitting useful evidence is the
+failure a savings percentage cannot see (PRD MET-01): a recall of zero looks
+like an excellent saving.
+
+**It exists to hold `ADR-03` honest.** That decision says the local embedder
+generalises over morphology and typos but not over meaning. The corpus has a
+query of each kind, and the synonym query is labelled `expectedMiss`:
+
+- if a morphology query starts missing, the embedder has regressed and the
+  ADR's claim is no longer true — the harness exits non-zero;
+- if the synonym query starts being found, the ceiling has moved and the ADR
+  and the manual should say so — the harness says `NEWS` and exits zero,
+  because being better than documented is not a build failure.
+
+Writing that query took three attempts, which is itself the lesson. The first
+two shared vocabulary with the note they were meant to reach by meaning alone
+(`cookie`/`replay`, then `use`/`used`), so they passed — and were measuring
+lexical overlap while claiming to measure synonymy. The fixture records all
+three wordings in its `why` field.
+
+The run at `results/2026-09-22-retrieval.json` is the baseline this branch
+shipped with: hybrid ahead of keyword on top-1 and recall, both missing the
+synonym query.
+
 ## Not built yet
 
-The board lists three harnesses. Two are built.
+The board lists four harnesses. Three are built.
 
 - **Loop behaviour** — headless `claude -p` against a pinned public repo,
   asserting one checkpoint per task, exactly one question, and the work resuming

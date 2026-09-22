@@ -1,0 +1,427 @@
+{
+  "note": "A synthetic corpus and labelled queries for the retrieval eval. Invented, never a learner's real memory. Ids are stable and referenced by `queries[].relevant`.",
+  "projects": {
+    "api": "/work/orders-api",
+    "web": "/work/storefront",
+    "infra": "/work/platform"
+  },
+  "entries": [
+    {
+      "id": 1,
+      "project": "api",
+      "type": "feature",
+      "title": "Rotate the refresh cookie on every use",
+      "narrative": "Each refresh mints a new token and stores the jti so a replayed cookie is rejected once.",
+      "facts": [
+        "httpOnly and sameSite=strict on the refresh cookie"
+      ],
+      "files": [
+        "src/auth/refresh.ts"
+      ],
+      "tags": [
+        "auth",
+        "cookies"
+      ]
+    },
+    {
+      "id": 2,
+      "project": "api",
+      "type": "bugfix",
+      "title": "Refresh loop when the clock skewed",
+      "narrative": "The access token expiry was compared against local time, so a machine two minutes ahead refreshed forever.",
+      "facts": [
+        "Compare expiry in UTC"
+      ],
+      "files": [
+        "src/auth/token.ts"
+      ],
+      "tags": [
+        "auth",
+        "time"
+      ]
+    },
+    {
+      "id": 3,
+      "project": "api",
+      "type": "decision",
+      "title": "Chose argon2id over bcrypt for password hashing",
+      "narrative": "Memory-hard beats cost-factor tuning on the hardware we actually run on. bcrypt stays for verifying old hashes.",
+      "facts": [
+        "Legacy bcrypt hashes are upgraded on next login"
+      ],
+      "files": [
+        "src/auth/password.ts"
+      ],
+      "tags": [
+        "auth",
+        "crypto"
+      ]
+    },
+    {
+      "id": 4,
+      "project": "api",
+      "type": "discovery",
+      "title": "SQLite WAL checkpoint starvation under constant readers",
+      "narrative": "A reader open at all times means the WAL never checkpoints and grows without bound.",
+      "facts": [
+        "wal_autocheckpoint does nothing while a read transaction is open"
+      ],
+      "files": [
+        "src/db.ts"
+      ],
+      "tags": [
+        "sqlite",
+        "database"
+      ]
+    },
+    {
+      "id": 5,
+      "project": "api",
+      "type": "refactor",
+      "title": "Extracted the order state machine out of the controller",
+      "narrative": "Transitions were spread across four route handlers and two of them disagreed about cancellation.",
+      "facts": [
+        "Cancelled is terminal"
+      ],
+      "files": [
+        "src/orders/state.ts"
+      ],
+      "tags": [
+        "orders",
+        "state"
+      ]
+    },
+    {
+      "id": 6,
+      "project": "api",
+      "type": "bugfix",
+      "title": "Idempotency key collision across tenants",
+      "narrative": "The key was unique per key, not per tenant, so two customers reusing the same string saw each other's response.",
+      "facts": [
+        "Primary key is now (tenant_id, idempotency_key)"
+      ],
+      "files": [
+        "src/orders/idempotency.ts"
+      ],
+      "tags": [
+        "orders",
+        "multitenancy"
+      ]
+    },
+    {
+      "id": 7,
+      "project": "api",
+      "type": "change",
+      "title": "Paginate the orders list with a keyset cursor",
+      "narrative": "Offset pagination drifted whenever an order was inserted mid-scan.",
+      "facts": [
+        "Cursor is (created_at, id)"
+      ],
+      "files": [
+        "src/orders/list.ts"
+      ],
+      "tags": [
+        "orders",
+        "pagination"
+      ]
+    },
+    {
+      "id": 8,
+      "project": "api",
+      "type": "discovery",
+      "title": "N+1 query behind the order detail endpoint",
+      "narrative": "Each line item loaded its product separately; 40 items meant 41 queries.",
+      "facts": [
+        "Batched into one IN query"
+      ],
+      "files": [
+        "src/orders/detail.ts"
+      ],
+      "tags": [
+        "orders",
+        "performance"
+      ]
+    },
+    {
+      "id": 9,
+      "project": "api",
+      "type": "feature",
+      "title": "Rate limit login attempts per account and per IP",
+      "narrative": "Per-IP alone let a botnet spread attempts; per-account alone let one IP lock every account out.",
+      "facts": [
+        "Both limits apply; the stricter wins"
+      ],
+      "files": [
+        "src/auth/ratelimit.ts"
+      ],
+      "tags": [
+        "auth",
+        "abuse"
+      ]
+    },
+    {
+      "id": 10,
+      "project": "api",
+      "type": "decision",
+      "title": "Forward-only migrations, no down scripts",
+      "narrative": "A down script is only ever run in an emergency and is never the one that was tested.",
+      "facts": [
+        "Roll forward with a new migration"
+      ],
+      "files": [
+        "migrations/"
+      ],
+      "tags": [
+        "database",
+        "migrations"
+      ]
+    },
+    {
+      "id": 11,
+      "project": "web",
+      "type": "bugfix",
+      "title": "Effect cleanup missing on the cart subscription",
+      "narrative": "Navigating away left the socket handler attached, so the second visit double-counted every update.",
+      "facts": [
+        "Return the unsubscribe from useEffect"
+      ],
+      "files": [
+        "src/cart/useCart.ts"
+      ],
+      "tags": [
+        "react",
+        "hooks"
+      ]
+    },
+    {
+      "id": 12,
+      "project": "web",
+      "type": "feature",
+      "title": "Optimistic quantity updates in the cart",
+      "narrative": "The row updates immediately and rolls back on a failed request.",
+      "facts": [
+        "Rollback restores the previous quantity, not zero"
+      ],
+      "files": [
+        "src/cart/Row.tsx"
+      ],
+      "tags": [
+        "react",
+        "ux"
+      ]
+    },
+    {
+      "id": 13,
+      "project": "web",
+      "type": "discovery",
+      "title": "Hydration mismatch from a locale-formatted price",
+      "narrative": "The server formatted in en-GB and the browser in the visitor's locale, so React discarded the markup.",
+      "facts": [
+        "Format prices on the client only"
+      ],
+      "files": [
+        "src/product/Price.tsx"
+      ],
+      "tags": [
+        "react",
+        "ssr"
+      ]
+    },
+    {
+      "id": 14,
+      "project": "web",
+      "type": "refactor",
+      "title": "Moved checkout validation out of the component",
+      "narrative": "The same rules were in the component and on the server and had already drifted on postcode.",
+      "facts": [
+        "One shared schema"
+      ],
+      "files": [
+        "src/checkout/schema.ts"
+      ],
+      "tags": [
+        "react",
+        "validation"
+      ]
+    },
+    {
+      "id": 15,
+      "project": "web",
+      "type": "change",
+      "title": "Lazy-load the product image gallery",
+      "narrative": "The gallery was 60% of the initial bundle on a page most visitors scroll past.",
+      "facts": [
+        "Dynamic import behind an intersection observer"
+      ],
+      "files": [
+        "src/product/Gallery.tsx"
+      ],
+      "tags": [
+        "react",
+        "performance"
+      ]
+    },
+    {
+      "id": 16,
+      "project": "infra",
+      "type": "decision",
+      "title": "Blue-green deploys instead of rolling restarts",
+      "narrative": "A rolling restart ran two schema versions at once, which the order state machine could not survive.",
+      "facts": [
+        "Migrations run before the green cutover"
+      ],
+      "files": [
+        "deploy/"
+      ],
+      "tags": [
+        "deploy",
+        "migrations"
+      ]
+    },
+    {
+      "id": 17,
+      "project": "infra",
+      "type": "bugfix",
+      "title": "Health check passed while the database was unreachable",
+      "narrative": "The probe only checked the HTTP listener, so a pod with no database stayed in the load balancer.",
+      "facts": [
+        "Readiness now runs a real query"
+      ],
+      "files": [
+        "src/health.ts"
+      ],
+      "tags": [
+        "deploy",
+        "observability"
+      ]
+    },
+    {
+      "id": 18,
+      "project": "infra",
+      "type": "discovery",
+      "title": "Log volume tripled after adding request bodies",
+      "narrative": "Bodies were logged at info, including a base64 image upload.",
+      "facts": [
+        "Bodies at debug, truncated to 2KB"
+      ],
+      "files": [
+        "src/logging.ts"
+      ],
+      "tags": [
+        "observability",
+        "cost"
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "q-refresh",
+      "project": "api",
+      "text": "refresh cookie rotation",
+      "relevant": [
+        1
+      ],
+      "why": "The plain case: the words are in the title."
+    },
+    {
+      "id": "q-rotating",
+      "project": "api",
+      "text": "rotating refresh cookies",
+      "relevant": [
+        1
+      ],
+      "why": "Morphology. Keyword search on the stemless index should miss `rotating`; the n-gram embedder should not."
+    },
+    {
+      "id": "q-checkpoint",
+      "project": "api",
+      "text": "wal checkpointing starved",
+      "relevant": [
+        4
+      ],
+      "why": "Morphology again, on a different word shape."
+    },
+    {
+      "id": "q-typo",
+      "project": "api",
+      "text": "idempotencies key colision",
+      "relevant": [
+        6
+      ],
+      "why": "A typo and a plural. Nobody types cleanly into a search box."
+    },
+    {
+      "id": "q-clock",
+      "project": "api",
+      "text": "why did tokens keep refreshing",
+      "relevant": [
+        2
+      ],
+      "why": "Question-shaped, with only one content word in common."
+    },
+    {
+      "id": "q-pagination",
+      "project": "api",
+      "text": "keyset cursor pagination",
+      "relevant": [
+        7
+      ],
+      "why": "Exact terminology."
+    },
+    {
+      "id": "q-nplusone",
+      "project": "api",
+      "text": "too many queries on the detail page",
+      "relevant": [
+        8
+      ],
+      "why": "Describes the symptom, not the term the note uses."
+    },
+    {
+      "id": "q-hashing",
+      "project": "api",
+      "text": "argon2id",
+      "relevant": [
+        3
+      ],
+      "why": "Single rare token."
+    },
+    {
+      "id": "q-cleanup",
+      "project": "web",
+      "text": "useEffect cleanup",
+      "relevant": [
+        11
+      ],
+      "why": "Scoped to the other project: an `api` result would be a scope bug."
+    },
+    {
+      "id": "q-bundle",
+      "project": "web",
+      "text": "initial bundle size",
+      "relevant": [
+        15
+      ],
+      "why": "Paraphrase."
+    },
+    {
+      "id": "q-migrations",
+      "project": "api",
+      "text": "migrations",
+      "relevant": [
+        10
+      ],
+      "why": "One word matching several notes across projects; scope must hold."
+    },
+    {
+      "id": "q-synonym",
+      "project": "api",
+      "text": "stop an attacker reusing an intercepted sign-in credential",
+      "relevant": [
+        1
+      ],
+      "why": "Synonymy with no shared vocabulary at all: the note says rotate, refresh, cookie, jti, replayed, and this query says none of them. ADR-03 says local-hash-v1 bridges morphology and typos but not meaning, and this is the query that measures that rather than asserting it. Two earlier wordings of this query leaked shared tokens (cookie/replay, then use/used) and quietly measured lexical overlap instead.",
+      "expectedMiss": true
+    }
+  ]
+}
