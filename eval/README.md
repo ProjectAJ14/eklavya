@@ -446,6 +446,167 @@ that — which is exactly why the leak count is printed next to it.
   reported because hiding them would be the failure mode this table exists to
   prevent.
 
+## The performance baseline
+
+`eval/memory-perf.mjs` measures the machinery rather than the product: how long
+the memory paths take on a corpus of a given size. Four of its numbers sit on
+the path of a human action — the capture append after every tool call, the
+startup display, the seam recall and the per-prompt recall — and those are the
+only ones a developer can feel. The rest are on an agent's path, measured so a
+regression has somewhere to show up. No model call, nothing in CI: timings on a
+shared runner are noise.
+
+```bash
+cd mcp && npm run build && cd ..
+node eval/memory-perf.mjs                                     # 2,000 entries
+node eval/memory-perf.mjs --entries 20000                     # the first size that found a cliff
+node eval/memory-perf.mjs --entries 100000 --events 1000000   # quality.md's fixture, entry axis
+```
+
+`--events` was added for the 100k run and defaults to 0, which is what the 2k
+and 20k baselines ran with. It pre-loads `evidence_events` before anything is
+timed, in one transaction through the product's own `appendEvent`, so the rows
+and indexes are the ones a hook writes and only the per-row fsync is dropped.
+Nothing measured runs inside that transaction.
+
+### Measured, 2026-09-22 — 100,000 entries and 1,000,000 events
+
+`results/2026-09-22-memory-perf-100k.json`, against `-20k.json` and `-2k.json`
+on the same laptop (M-series, Node v26.7.0). Medians in ms.
+
+| | 2k entries | 20k entries | 100k entries |
+|---|---|---|---|
+| capture.prepare | 0.004 | 0.004 | 0.003 |
+| capture append | 0.028 | 0.030 | 0.029 |
+| search keyword | 0.861 | 7.974 | **51.069** |
+| search semantic | 2.472 | 5.803 | 5.296 |
+| search hybrid | 3.278 | 16.823 | **57.980** |
+| recall at a session seam | 0.161 | 0.160 | 0.155 |
+| recall per prompt | 2.496 | 5.981 | 5.753 |
+| startup display | 0.055 | 0.054 | 0.054 |
+| worker, one 40-event batch (one sample) | 1.2 | 1.1 | **612.6** |
+| corpus fill | 285ms | 3,157ms | 17,657ms |
+| database | 6MB | 50MB | 743MB |
+
+Every row but the worker is a median over 40–2,000 iterations with p95 and max
+in the JSON. The worker runs once per invocation, so its figure is a single
+sample and moves: a second 100k run measured 836ms. Read it as "hundreds of
+milliseconds", not as 612.6.
+
+The whole run takes 36 seconds, 28 of them building the corpus. Whatever kept
+the fixture from being run at its stated size, it was not the cost of running
+it.
+
+**The four human-path numbers are flat across fifty times the corpus**, which is
+the claim ADR-03 makes and the only one this fixture had to settle. Capture is
+0.03ms whether the database holds 2,000 entries or 100,000 alongside a million
+events; the startup banner is 0.05ms; both recalls are unchanged from 20k. Every
+budget in quality.md is met with three orders of magnitude to spare.
+
+**Semantic search is flat and keyword search is not.** The 5,000-vector scan
+bound holds exactly as ADR-03 says it does — 5.8ms at 20k, 5.3ms at 100k, and
+the extra 80,000 entries cost nothing because they are never read. Keyword
+search grows with the corpus and slightly faster than it — 6.4x for 5x the
+entries — and hybrid inherits the whole of it, so the mode a developer gets by
+default went from 17ms to 58ms. Still well inside the 300ms budget, but the same
+slope puts half a million entries in the hundreds of milliseconds, and the bound
+that keeps semantic search flat has no counterpart on the keyword side.
+
+Read the keyword number with the fixture in mind. The corpus is generated from a
+twenty-word vocabulary, so nearly every entry matches nearly every query and
+bm25 ranks the entire corpus on every search. That is a worst case, not a
+typical one — real vocabulary is far larger and the match set far smaller. It is
+the same worst case at all three sizes, so the curve between them is honest;
+the absolute number is pessimistic.
+
+### The one thing that degraded badly: the worker
+
+Summarising one 40-event batch costs 1.2ms at 2k events, 26ms at 200k
+(`results/2026-09-22-memory-perf-20k-events.json`, a control run at 20k entries
+with the evidence scaled and everything else held) and 613ms at 1,000,000. Five
+hundred times slower for five hundred times the evidence, to write one entry
+from forty rows: the batch's own input never grew. The cause is two full scans
+per batch: `batchEvents` reads `SELECT * FROM evidence_events WHERE batch_id = ?`
+and the worker closes with `UPDATE evidence_events SET status = 'summarized'
+WHERE batch_id = ?`, and `009_memory.sql` indexes `evidence_events` on
+`(project, occurred_at)`, `(session_id, occurred_at)` and `(status, project)` —
+not on `batch_id`. `EXPLAIN QUERY PLAN` says `SCAN evidence_events` for both.
+
+The cost is per batch and linear in the whole evidence table, so the total work
+of summarising a database grows with the square of what has been captured. It
+also never shrinks on its own: `memory.retention_days` defaults to null, so
+nothing prunes evidence unless the developer asks for it.
+
+This is on the worker's path, not a human's — it runs at the session seam, after
+the Stop hook, and 613ms there is not felt the way 613ms before a prompt would
+be. It is reported as the run's most valuable result because it is the only
+measured thing whose cost grows while its own input stays the same, and because
+the fix is one index on `batch_id` in a new forward-only migration.
+Naming the fix is not making it: this eval says the number.
+
+The control run is also the proof that it is the evidence table and not the
+entries: at 20k entries, scaling events from 2k to 200k left every search and
+recall number inside noise and moved the worker alone, from 1.1ms to 26ms.
+
+### Whether 20k was representative
+
+For the four human-path numbers and for semantic search, yes — the flat lines at
+20k stayed flat at 100k, and nothing the plan leaned on those for has changed.
+
+For the worker, no, and the reason is worth stating plainly: **the 2k and 20k
+runs never scaled the evidence table.** Both wrote about 2,000 events whatever
+the entry count, so the 20k run measured a worker against 1/100th of the
+fixture's evidence and reported 1.1ms. The quadratic was invisible at both
+sizes, not because it was small but because the axis that drives it was pinned.
+A fixture that grows one dimension and holds the other flat will keep reporting
+that the held dimension is free.
+
+That is also why `--events` fills before the capture timings rather than after:
+had it filled after, `capture append` would have been measured against an empty
+evidence table at every size, and the one write on every tool call would have
+been the next number to look better than it is. It does not — 0.029ms against a
+million rows — but the run had to be able to say so.
+
+### What this run does not close
+
+The entry-count axis only. quality.md's fixture is 100,000 entries, 1,000,000
+evidence events **and 10 simultaneous coding sessions**, and the concurrency
+half was not attempted: it needs a harness that does not exist — several
+processes on one WAL database, contending writes, `busy_timeout` under real
+pressure — and ADR-11 keeps it declined. Nothing here says anything about what
+happens when ten sessions write at once, and no performance claim at team scale
+should be read out of this table.
+
+### The scan the fixture found, and the index that fixed it
+
+Running the fixture `quality.md` actually asks for — 100,000 entries and
+1,000,000 evidence events — turned up a real defect rather than a number.
+`evidence_events` carried no index on `batch_id`, and both queries the worker
+uses to read and retire a batch key on exactly that, so `EXPLAIN QUERY PLAN`
+reported `SCAN evidence_events`. Summarising one forty-event batch cost a pass
+over every event ever captured: **1.2ms at 2,000 events, 26ms at 200,000,
+613ms at 1,000,000**, for input that never grew. Total summarising work over a
+database's life was quadratic in its own history, and `memory.retention_days`
+defaults to null, so nothing flattened the curve.
+
+Migration `014_batch_events_index.sql` adds the index. Measured after, same
+harness, same machine:
+
+| events | worker, one 40-event batch |
+|---|---|
+| 200,000 | 26ms → **0.9ms** |
+| 1,000,000 | 613ms → **1ms** |
+
+`migrate.test.ts` asserts the query plan rather than the index name, because the
+failure to prevent is the scan, not the spelling.
+
+Worth naming why this hid for so long: the 2k and 20k runs wrote a fixed ~2,000
+events whatever the entry count — a hundredth of the fixture's 10:1 ratio — so
+they measured the worker against an evidence table two orders of magnitude too
+small and reported 1.1ms. The quadratic was invisible because the axis driving
+it was pinned, not because it was absent. A baseline that holds one axis still
+is not a baseline; it is a shape you chose.
+
 ## Not built yet
 
 The board lists four harnesses. Three are built.

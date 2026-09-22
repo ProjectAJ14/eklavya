@@ -1,0 +1,18 @@
+-- The worker reads and retires a batch by `batch_id`, and nothing indexed it.
+--
+-- `batchEvents` (`SELECT … WHERE batch_id = ?`) and the worker's
+-- `UPDATE … SET status = 'summarized' WHERE batch_id = ?` both reported
+-- `SCAN evidence_events`, so summarising one forty-event batch cost a full scan
+-- of every event ever captured. The batch does not grow; the table does, which
+-- makes the total summarising work over a database's life quadratic in its own
+-- history. Measured at the fixture `quality.md` asks for: 1.2ms per batch at
+-- 2,000 events, 26ms at 200,000, 613ms at 1,000,000 -- for identical input.
+--
+-- It stayed hidden because the 2k and 20k perf runs wrote a fixed ~2,000 events
+-- whatever the entry count, pinning the one axis that drives it.
+--
+-- `memory.retention_days` defaults to null, so evidence never shrinks by itself
+-- and the curve has nothing to flatten it. This is on the worker's path, at a
+-- session seam, not on a human's -- which is why it was slow rather than
+-- visible.
+CREATE INDEX IF NOT EXISTS idx_events_batch ON evidence_events(batch_id);

@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 13;
+const LATEST_SCHEMA_VERSION = 14;
 
 const LEARNING_TABLES = [
   'attempts',
@@ -133,6 +133,7 @@ describe('migrations', () => {
         '011_sync.sql',
         '012_job_backoff.sql',
         '013_batch_provenance.sql',
+        '014_batch_events_index.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -154,6 +155,15 @@ describe('migrations', () => {
       );
       expect(batchCols).toContain('summarizer');
       expect(batchCols).toContain('config_digest');
+
+      // 014 indexes the key the worker retires a batch by. Asserting the plan
+      // rather than the index name, because the failure it prevents is the scan:
+      // without it, summarising one fixed-size batch costs a pass over every
+      // event ever captured, which is 613ms at a million of them.
+      const plan = db
+        .prepare("EXPLAIN QUERY PLAN SELECT * FROM evidence_events WHERE batch_id = ?")
+        .all(1) as { detail: string }[];
+      expect(plan.map((r) => r.detail).join(' ')).toContain('idx_events_batch');
       db.close();
     } finally {
       fs.rmSync(oldDir, { recursive: true, force: true });

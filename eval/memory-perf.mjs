@@ -13,9 +13,15 @@
  * hundred milliseconds is invisible. They are measured anyway so a regression
  * has somewhere to show up.
  *
- *   node eval/memory-perf.mjs                 # 2,000 entries
- *   node eval/memory-perf.mjs --entries 20000 # the size that finds the cliffs
+ *   node eval/memory-perf.mjs                            # 2,000 entries
+ *   node eval/memory-perf.mjs --entries 20000            # the size that finds the cliffs
+ *   node eval/memory-perf.mjs --entries 100000 --events 1000000   # the plan's fixture
  *   node eval/memory-perf.mjs --json
+ *
+ * `--events` pre-loads the evidence table before anything is timed, because the
+ * plan's fixture is ten events per entry and an empty `evidence_events` makes
+ * the capture append — the one write on every tool call — look better than it
+ * is. It defaults to 0, which is what the 2k and 20k baselines ran with.
  *
  * Costs nothing and calls no model. It is not in CI: timings on a shared
  * runner are noise, and a budget that fails on somebody else's load is a
@@ -44,6 +50,7 @@ const flag = (name, fallback) => {
   return i === -1 ? fallback : args[i + 1];
 };
 const ENTRIES = Number(flag('entries', 2000));
+const EVENTS = Number(flag('events', 0));
 const asJson = args.includes('--json');
 
 const { openDb } = await import(need('db.js'));
@@ -86,6 +93,27 @@ const WORDS = 'auth cookie refresh rotation token migration sqlite index cursor 
 const pick = (n, seed) => Array.from({ length: n }, (_, i) => WORDS[(seed * 7 + i * 13) % WORDS.length]).join(' ');
 
 const results = [];
+
+// The evidence corpus, before anything is timed. One transaction rather than a
+// million commits — the write path is the product's own `appendEvent`, so the
+// row, the indexes and the uid collision check are exactly what a hook writes;
+// only the fsync per row is dropped, and no measured operation runs inside it.
+const evidenceFill = process.hrtime.bigint();
+if (EVENTS) {
+  db.transaction(() => {
+    for (let i = 0; i < EVENTS; i++) {
+      appendEvent(db, {
+        eventUid: `perf-corpus-${i}`,
+        project: PROJECT,
+        sessionId: `s${i % 200}`,
+        kind: 'tool_use',
+        tool: 'Bash',
+        body: `npm test ${pick(12, i)}`,
+      });
+    }
+  })();
+}
+const evidenceFillMs = Number(process.hrtime.bigint() - evidenceFill) / 1e6;
 
 // Capture: the hook path, minus the database write, then with it.
 results.push(
@@ -171,7 +199,13 @@ const report = {
   generated_at: new Date().toISOString(),
   node: process.version,
   platform: `${process.platform}-${process.arch}`,
-  corpus: { entries: ENTRIES, fill_ms: Number(fillMs.toFixed(0)), db_bytes: dbBytes },
+  corpus: {
+    entries: ENTRIES,
+    fill_ms: Number(fillMs.toFixed(0)),
+    events: EVENTS,
+    events_fill_ms: Number(evidenceFillMs.toFixed(0)),
+    db_bytes: dbBytes,
+  },
   worker_local_summarizer_ms: Number(workerMs.toFixed(1)),
   measurements: results,
 };
@@ -187,6 +221,7 @@ if (asJson) {
     );
   }
   console.log(`\ncorpus fill: ${report.corpus.fill_ms}ms for ${ENTRIES} entries (insert + FTS + vector, one at a time)`);
+  if (EVENTS) console.log(`evidence fill: ${report.corpus.events_fill_ms}ms for ${EVENTS} events (one transaction)`);
   console.log(`local summariser on a 40-event batch: ${report.worker_local_summarizer_ms}ms`);
   console.log(
     "\nFour sit on a human's path: capture append (every tool call), the startup display,\nthe seam recall, and the per-prompt recall (every time they press Enter).\n",
