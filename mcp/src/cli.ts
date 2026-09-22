@@ -27,8 +27,10 @@ import { isSessionOff } from './session.js';
 import { START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
 import { startDashboard, openInBrowser } from './dashboard.js';
-import { install, uninstall, health } from './install.js';
-import { check, dim, heading, verdict, type Mark } from './theme.js';
+import { install, uninstall, health, claudeHome } from './install.js';
+import { guessProjectMap } from './claude-mem.js';
+import { check, dim, heading, spin, verdict, type Mark } from './theme.js';
+import { importOffThread } from './memory/import-worker.js';
 import { identityFor } from './memory/identity.js';
 import {
   countEntries,
@@ -47,13 +49,14 @@ import { replayProject, transcriptDirFor, transcriptsFor } from './memory/replay
 import { droppedCount } from './memory/spool.js';
 import { savingsFrom, savingsLine } from './memory/tokens.js';
 import {
-  importFrom,
   inventory,
   exportPayload,
   restoreExport,
   EXPORT_SCHEMA_VERSION,
   ImportError,
   IMPORTED_TABLES,
+  verifyImport,
+  type VerifyReport,
   type FieldDisposition,
 } from './memory/import.js';
 
@@ -773,6 +776,33 @@ function currentProject(): string {
   return identityFor({ cwd: process.cwd(), sessionId: 'cli' }).project;
 }
 
+/**
+ * How a migration is checked: what arrived here, and what arrived under a
+ * Claude Mem project name no checkout matches -- history that only surfaces
+ * under --all-projects until it is placed.
+ */
+function importedLines(db: DB, project: string): string[] {
+  const rows = db
+    .prepare(
+      `SELECT project, COUNT(*) AS n FROM memory_entries
+       WHERE import_source IS NOT NULL AND deleted_at IS NULL GROUP BY project`,
+    )
+    .all() as { project: string; n: number }[];
+  if (!rows.length) return [];
+  const here = rows.find((r) => r.project === project)?.n ?? 0;
+  const bare = rows.filter((r) => !path.isAbsolute(r.project));
+  const unplaced = bare.reduce((sum, r) => sum + r.n, 0);
+  return [
+    `imported:   ${here} here from Claude Mem`,
+    ...(unplaced
+      ? [
+          `unplaced:   ${unplaced} under ${bare.length} name(s) no checkout matches — ${bare.map((r) => r.project).slice(0, 5).join(', ')}${bare.length > 5 ? ', …' : ''}`,
+          '            place them: eklavya memory import ~/.claude-mem.retired/claude-mem.db [--map <name>=<checkout>]',
+        ]
+      : []),
+  ];
+}
+
 function memoryStatus(): void {
   const db = openDb();
   try {
@@ -790,6 +820,7 @@ function memoryStatus(): void {
       `project:    ${project}`,
       `capture:    ${config.memory.enabled ? config.memory.capture : 'off (memory.enabled is false)'}`,
       `entries:    ${countEntries(db, project)} here, ${countEntries(db)} in total`,
+      ...importedLines(db, project),
       `pending:    ${pendingEventCount(db, project)} evidence events here, ${pendingEventCount(db)} in total`,
       `queue:      ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`,
       `oldest job: ${queue.oldest ?? '—'}`,
@@ -1053,17 +1084,63 @@ function projectMapFrom(argv: string[]): Record<string, string> {
   return map;
 }
 
-function memoryImport(argv: string[]): void {
+/** The `--verify` report: every source row by id, then where each project landed. */
+function verifyLines(r: VerifyReport): string[] {
+  const missing = r.tables.reduce((n, t) => n + t.missing.length, 0);
+  const width = Math.max(0, ...r.projects.map((p) => p.project.length));
+  return [
+    `verify:  ${r.sourcePath}`,
+    ...r.tables.map(
+      (t) =>
+        `  ${t.table.padEnd(18)} ${String(t.source).padStart(6)} in source · ${String(t.present).padStart(6)} in Eklavya · ${t.missing.length} missing${
+          t.missing.length ? ` (ids ${t.missing.slice(0, 10).join(', ')}${t.missing.length > 10 ? ', …' : ''})` : ''
+        }`,
+    ),
+    `  changed since import: ${r.changed} entr${r.changed === 1 ? 'y' : 'ies'}`,
+    'placement:',
+    ...r.projects.flatMap((p) =>
+      Object.entries(p.filedUnder).map(([to, n]) => {
+        const placed = path.isAbsolute(to);
+        return `  ${String(n).padStart(6)}  ${p.project.padEnd(width)}  ${placed ? `→ ${to}` : 'not placed — searchable only with --all-projects; --map it to a checkout'}`;
+      }),
+    ),
+    missing
+      ? `INCOMPLETE: ${missing} source row(s) are not in Eklavya — re-run without --verify to import them.`
+      : 'complete: every source row is in Eklavya.',
+  ];
+}
+
+async function memoryImport(argv: string[]): Promise<void> {
   const flagValues = new Set(
     argv.flatMap((a, i) => (a === '--map' || a === '--map-here' ? [argv[i + 1] ?? ''] : [])),
   );
   const source = argv.find((a) => !a.startsWith('--') && !flagValues.has(a));
-  if (!source) fail('Usage: eklavya memory import <path-to-claude-mem.db> [--dry-run] [--resume] [--map <src>=<path>]');
+  if (!source) fail('Usage: eklavya memory import <path-to-claude-mem.db> [--dry-run] [--verify] [--resume] [--map <src>=<path>]');
   const dryRun = argv.includes('--dry-run');
-  const projectMap = projectMapFrom(argv);
+  const explicit = projectMapFrom(argv);
 
   try {
+    if (argv.includes('--verify')) {
+      const db = openDb();
+      try {
+        const report = verifyImport(db, source);
+        process.stdout.write(`${verifyLines(report).join('\n')}\n`);
+        if (report.tables.some((t) => t.missing.length)) process.exit(1);
+      } finally {
+        db.close();
+      }
+      return;
+    }
     const found = inventory(source);
+    // Placed the way `eklavya install` places them -- off Claude Code's
+    // transcripts -- so a re-run by hand files history where install would
+    // have. A --map names what the transcripts cannot, and wins.
+    const unsure: Record<string, string[]> = {};
+    const projectMap = { ...guessProjectMap(source, claudeHome(), unsure), ...explicit };
+    for (const name of Object.keys(explicit)) delete unsure[name];
+    const unsureLines = Object.entries(unsure).map(
+      ([name, paths]) => `  ${name}: ${paths.length} checkouts carry this name — pick one: --map ${name}=<path>  (${paths.join(', ')})`,
+    );
     const lines = [
       `source:  ${found.sourcePath}`,
       `schema:  ${found.schemaVersion ?? 'unversioned'} (this importer understands up to ${found.supportedMax})`,
@@ -1085,6 +1162,7 @@ function memoryImport(argv: string[]): void {
           '',
           ...planned.map(([from, to]) => `would map: ${from} -> ${to}`),
           ...(unmapped.length ? [`would keep as-is: ${unmapped.join(', ')}`] : []),
+          ...unsureLines,
           'Dry run: nothing was written, and the source was opened read-only.',
           '',
         ].join('\n'),
@@ -1092,9 +1170,11 @@ function memoryImport(argv: string[]): void {
       return;
     }
 
-    const db = openDb();
-    try {
-      const report = importFrom(db, source, { resume: argv.includes('--resume'), projectMap });
+    {
+      process.stdout.write('\n');
+      const { report, verified } = await spin('import', 'importing…', () =>
+        importOffThread({ dbFile: dbPath(), source, opts: { resume: argv.includes('--resume'), projectMap } }),
+      );
       const rows = IMPORTED_TABLES.map(
         (t) =>
           `  ${t.padEnd(18)} read ${report.read[t]} · imported ${report.imported[t]} · already present ${report.skipped[t]}`,
@@ -1107,6 +1187,7 @@ function memoryImport(argv: string[]): void {
           `  concept candidates: ${report.candidates} (all unassessed — no mastery, no attempts, no gate touched)`,
           `  evidence links: ${report.links} (drill-down from an entry to the prompts and tool uses behind it)`,
           `  re-indexed: ${report.reindexed} entries`,
+          ...(report.rehomed ? [`  re-homed: ${report.rehomed} entries an earlier run left under a bare project name`] : []),
           `  validation: ${report.validation.ok ? 'ok' : `FAILED — ${report.validation.notes.join('; ')}`}`,
           ...report.projectsMapped.map((p) => `  mapped: ${p.from} -> ${p.to}`),
           // The unmapped list is the useful half: those rows only ever surface
@@ -1120,9 +1201,12 @@ function memoryImport(argv: string[]): void {
           '',
         ].join('\n'),
       );
+      if (unsureLines.length) process.stdout.write(`${unsureLines.join('\n')}\n`);
       if (!report.validation.ok) process.exit(1);
-    } finally {
-      db.close();
+      // Counts agreeing is what validation proves; this proves every source
+      // row by id, and shows where each project's history is filed.
+      process.stdout.write(`\n${verifyLines(verified).join('\n')}\n`);
+      if (verified.tables.some((t) => t.missing.length)) process.exit(1);
     }
   } catch (err) {
     if (err instanceof ImportError) fail(err.message);
@@ -1283,7 +1367,9 @@ function memoryCommand(argv: string[]): void {
     case 'prune':
       return memoryPrune();
     case 'import':
-      return memoryImport(rest);
+      // Async only so the spinner turns: the import itself runs on a worker.
+      void memoryImport(rest);
+      return;
     case 'export':
       return memoryExport(rest);
     case 'restore':

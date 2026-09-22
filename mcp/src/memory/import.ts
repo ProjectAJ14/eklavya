@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -200,7 +201,7 @@ export interface ImportOptions {
   dryRun?: boolean;
   /** Reuse a snapshot left by an interrupted run rather than taking a new one. */
   resume?: boolean;
-  /** Where the snapshot goes. Defaults to a temp directory. */
+  /** Where the snapshot goes. Defaults to a temp directory of this source's own. */
   snapshotDir?: string;
   /**
    * Source project name -> Eklavya project key.
@@ -209,10 +210,11 @@ export interface ImportOptions {
    * the source names a project `eklavya` and Eklavya keys projects by the
    * checkout's absolute realpath, so every imported row lands in a project
    * scope that no session ever queries, and a search in the repo the history
-   * came from finds nothing. The importer cannot invent the path -- only the
-   * person running it knows which checkout `eklavya` meant -- so it is a flag
-   * rather than a guess, and the report says which names were mapped and which
-   * were left as they were.
+   * came from finds nothing. The importer itself never guesses: callers build
+   * the map (`guessProjectMap` off Claude Code's transcripts, plus any --map
+   * flags), and the report says which names were mapped and which were left
+   * as they were. A name mapped now also re-homes rows an earlier run filed
+   * under it -- see `rehome`.
    */
   projectMap?: Record<string, string>;
 }
@@ -233,6 +235,8 @@ export interface ImportReport {
   /** `memory_entry_events` rows written: the drill-down from an entry to its evidence. */
   links: number;
   reindexed: number;
+  /** Rows an earlier run imported under a bare name, now filed under its mapping. */
+  rehomed: number;
   unsupportedFields: FieldDisposition[];
   validation: { ok: boolean; notes: string[] };
   dryRun: boolean;
@@ -430,11 +434,73 @@ function newerSchemaMessage(version: number): string {
  * conservative answer (it re-imports rather than silently skipping).
  */
 function sourceIdentity(file: string): string {
+  let real: string;
   try {
-    return fs.realpathSync(file);
+    real = fs.realpathSync(file);
   } catch {
-    return path.resolve(file);
+    real = path.resolve(file);
   }
+  // `eklavya install` moves `~/.claude-mem` to `~/.claude-mem.retired` after
+  // importing it. Keyed on the moved path, a re-run from there would import
+  // every row a second time; folded back, it is the same source it always was.
+  const dir = path.dirname(real).replace(/\.retired(-\d+)?$/, '');
+  return path.join(dir, path.basename(real));
+}
+
+/**
+ * The source's identity, after claiming any earlier import of the same
+ * database made under another path.
+ *
+ * The path alone is the path of the day: a Claude Mem folder copied from an old
+ * machine, restored somewhere else, or retired twice is the same history under
+ * a new name, and keyed on the name every row comes in a second time. So each
+ * other identity this importer has written is checked against this source by
+ * content -- sampled rows' titles and timestamps, by source id -- and one that
+ * matches is renamed to this path -- or, with `write` off, simply read under
+ * its old name. A different database with overlapping ids does not match, and
+ * stays a separate source.
+ *
+ * ponytail: a copy that kept being written on two machines matches on its
+ * shared rows and diverges after; the diverged rows keep their first import,
+ * and `verifyImport` counts them as changed.
+ */
+function claimIdentity(db: DB, src: Database.Database, file: string, write = true): string {
+  const current = sourceIdentity(file);
+  if (!tableSet(src).has('observations')) return current;
+  const known = db.prepare('SELECT 1 FROM import_id_map WHERE source = ? AND source_db = ? LIMIT 1');
+  if (!write && known.get(IMPORT_SOURCE, current)) return current;
+  const others = (
+    db
+      .prepare('SELECT DISTINCT source_db FROM import_id_map WHERE source = ? AND source_db <> ?')
+      .all(IMPORT_SOURCE, current) as { source_db: string }[]
+  ).map((r) => r.source_db);
+  const sample = db.prepare(
+    `SELECT m.source_id AS id, e.title AS title, e.occurred_at AS at FROM import_id_map m
+     JOIN memory_entries e ON e.id = m.target_id
+     WHERE m.source = ? AND m.source_db = ? AND m.source_table = 'observations'
+     ORDER BY random() LIMIT 25`,
+  );
+  const row = src.prepare('SELECT * FROM observations WHERE id = ?');
+  for (const other of others) {
+    const rows = sample.all(IMPORT_SOURCE, other) as { id: string; title: string; at: string }[];
+    let same = 0;
+    for (const r of rows) {
+      const o = row.get(Number(r.id)) as ObservationRow | undefined;
+      if (!o) continue;
+      const title = (o.title ?? o.subtitle ?? o.text ?? 'Imported observation').slice(0, 200);
+      if (title === r.title && isoFromEpoch(o.created_at_epoch, o.created_at) === r.at) same++;
+    }
+    // Most of a random sample, not all: an entry corrected since keeps its id.
+    if (rows.length && same >= Math.ceil(rows.length * 0.8)) {
+      if (!write) return other;
+      db.prepare('UPDATE OR IGNORE import_id_map SET source_db = ? WHERE source = ? AND source_db = ?').run(
+        current,
+        IMPORT_SOURCE,
+        other,
+      );
+    }
+  }
+  return current;
 }
 
 /**
@@ -616,6 +682,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
     candidates: 0,
     links: 0,
     reindexed: 0,
+    rehomed: 0,
     unsupportedFields: found.fields.filter((f) => f.kind !== 'mapped'),
     validation: { ok: true, notes: [] },
     dryRun,
@@ -629,14 +696,20 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
     return report;
   }
 
-  const dir = opts.snapshotDir ?? path.join(os.tmpdir(), 'eklavya-import');
+  // One directory per source, not one for every import: two imports at once
+  // (two installs, a parallel test run) shared a single snapshot file, and one
+  // deleted it under the other or handed it a stranger's rows to --resume.
+  const dir =
+    opts.snapshotDir ??
+    path.join(os.tmpdir(), 'eklavya-import', createHash('sha256').update(sourceIdentity(sourceDb)).digest('hex').slice(0, 16));
   const snap = snapshot(sourceDb, dir, opts.resume ?? false);
   report.snapshot = snap;
 
   const src = new Database(snap, { readonly: true, fileMustExist: true });
   try {
     const tables = tableSet(src);
-    const ids = mapper(db, sourceIdentity(sourceDb));
+    const sourceId = claimIdentity(db, src, sourceDb);
+    const ids = mapper(db, sourceId);
     const entryIds: number[] = [];
 
     // sdk_sessions is read for lookup only — a prompt carries no project of its
@@ -800,6 +873,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
     // evidence block is empty. Both sides are in the id map by now, so the
     // link is rebuilt from the source's own joins rather than guessed.
     report.links = linkEvidence(db, src, tables, ids);
+    report.rehomed = rehome(db, sourceId, opts.projectMap ?? {});
 
     // Rebuild the vectors for everything imported (MIG-02). `insertEntry`
     // indexes as it goes, so this is a backstop for a run resumed after a crash
@@ -817,6 +891,116 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
     // reason to leave one sitting in a temp directory (PRD SEC-02).
     if (report.validation.ok) fs.rmSync(snap, { force: true });
   }
+}
+
+export interface VerifyReport {
+  sourcePath: string;
+  /** Per source table: rows there, rows Eklavya holds for them, and the ids it does not. */
+  tables: { table: ImportedTable; source: number; present: number; missing: number[] }[];
+  /** Imported entries whose title no longer matches the source row it came from. */
+  changed: number;
+  /** Per source project name: how many entries, and the Eklavya projects they are filed under. */
+  projects: { project: string; entries: number; filedUnder: Record<string, number> }[];
+}
+
+/**
+ * Checks an import against its source, row by row, and writes nothing.
+ *
+ * `validate` counts what one run read against what it wrote or skipped. This
+ * answers the question somebody asks weeks later: is every row of that
+ * database in here, and where did it go? By source id, through
+ * `import_id_map`, so a count that happens to match cannot hide a gap -- and
+ * placement per source project, because history filed under a bare name is
+ * there and still invisible to every session.
+ */
+export function verifyImport(db: DB, sourceDb: string): VerifyReport {
+  const src = openSource(sourceDb);
+  try {
+    const sourceId = claimIdentity(db, src, sourceDb, false);
+    const tables = tableSet(src);
+    const mapped = db.prepare(
+      `SELECT m.source_id AS id, COALESCE(e.project, v.project) AS project, e.title AS title,
+              (e.id IS NOT NULL OR v.id IS NOT NULL) AS present
+       FROM import_id_map m
+       LEFT JOIN memory_entries e ON m.target_table = 'memory_entries' AND e.id = m.target_id AND e.deleted_at IS NULL
+       LEFT JOIN evidence_events v ON m.target_table = 'evidence_events' AND v.id = m.target_id
+       WHERE m.source = ? AND m.source_db = ? AND m.source_table = ?`,
+    );
+    const report: VerifyReport = { sourcePath: sourceDb, tables: [], changed: 0, projects: [] };
+    const byProject = new Map<string, { entries: number; filedUnder: Record<string, number> }>();
+    for (const table of IMPORTED_TABLES) {
+      if (!tables.has(table)) continue;
+      const have = new Map(
+        (mapped.all(IMPORT_SOURCE, sourceId, table) as { id: string; project: string | null; title: string | null; present: number }[])
+          .filter((r) => r.present)
+          .map((r) => [r.id, r]),
+      );
+      const entry = table === 'observations' || table === 'session_summaries';
+      // The importer's own title expressions, in JS: SQL's substr counts
+      // characters where slice counts UTF-16 units, and an emoji would read
+      // as a changed row.
+      const titleOf = (r: Record<string, string | null>): string | null =>
+        table === 'observations'
+          ? (r.title ?? r.subtitle ?? r.text ?? 'Imported observation').slice(0, 200)
+          : table === 'session_summaries'
+            ? (r.request?.split('\n')[0] ?? 'Session summary').slice(0, 200)
+            : null;
+      const missing: number[] = [];
+      let rows = 0;
+      for (const raw of src.prepare(`SELECT * FROM "${table}" ORDER BY id`).iterate() as Iterable<
+        Record<string, string | null> & { id: number }
+      >) {
+        const row = { id: raw.id, project: raw.merged_into_project ?? raw.project ?? null, title: titleOf(raw) };
+        rows++;
+        const hit = have.get(String(row.id));
+        if (!hit) {
+          missing.push(row.id);
+          continue;
+        }
+        if (!entry) continue;
+        if (hit.title !== row.title) report.changed++;
+        const name = row.project ?? 'unknown';
+        const slot = byProject.get(name) ?? { entries: 0, filedUnder: {} };
+        slot.entries++;
+        slot.filedUnder[hit.project!] = (slot.filedUnder[hit.project!] ?? 0) + 1;
+        byProject.set(name, slot);
+      }
+      report.tables.push({ table, source: rows, present: rows - missing.length, missing });
+    }
+    report.projects = [...byProject]
+      .map(([project, v]) => ({ project, ...v }))
+      .sort((a, b) => b.entries - a.entries);
+    return report;
+  } finally {
+    src.close();
+  }
+}
+
+/**
+ * Files rows an earlier run already imported under the project the map names
+ * now. A skipped row keeps whatever project it was first written with, so an
+ * import run once without a map left its history under bare names no checkout
+ * queries — and re-running with the map, the documented fix, moved nothing.
+ * Only rows this source put there, and only from the bare name to its mapping.
+ */
+function rehome(db: DB, sourceId: string, map: Record<string, string>): number {
+  const imported = `SELECT target_id FROM import_id_map
+                    WHERE source = ? AND source_db = ? AND target_table = ?`;
+  const entries = db.prepare(`UPDATE memory_entries SET project = ? WHERE project = ? AND id IN (${imported})`);
+  const events = db.prepare(`UPDATE evidence_events SET project = ? WHERE project = ? AND id IN (${imported})`);
+  const candidates = db.prepare(
+    `UPDATE learning_sources SET project = ? WHERE project = ? AND entry_id IN (${imported})`,
+  );
+  let moved = 0;
+  db.transaction(() => {
+    for (const [from, to] of Object.entries(map)) {
+      if (from === to) continue;
+      moved += entries.run(to, from, IMPORT_SOURCE, sourceId, 'memory_entries').changes;
+      events.run(to, from, IMPORT_SOURCE, sourceId, 'evidence_events');
+      candidates.run(to, from, IMPORT_SOURCE, sourceId, 'memory_entries');
+    }
+  })();
+  return moved;
 }
 
 function appendImportedEvent(

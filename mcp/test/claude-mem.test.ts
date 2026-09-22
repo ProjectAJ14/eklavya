@@ -49,4 +49,22 @@ describe('guessProjectMap', () => {
     transcript(transcriptDir(path.join(tmp, 'gone')), path.join(tmp, 'gone'));
     expect(guessProjectMap(source, claudeHome)).toEqual({});
   });
+
+  it('finds a checkout moved outside Claude Code: old path and transcript dir both gone', () => {
+    // ~/Workspace/Personal/<p> copied to ~/Workspace/local/<p> on a new machine.
+    const moved = path.join(tmp, 'work', 'local', PROJECT);
+    fs.mkdirSync(path.join(moved, '.git'), { recursive: true });
+    transcript(transcriptDir(path.join(tmp, 'work', 'Personal', PROJECT)), path.join(tmp, 'work', 'Personal', PROJECT));
+    expect(guessProjectMap(source, claudeHome)).toEqual({ [PROJECT]: moved });
+  });
+
+  it('names both candidates rather than pick one when two checkouts carry the name', () => {
+    const a = path.join(tmp, 'work', 'local', PROJECT);
+    const b = path.join(tmp, 'work', 'other', PROJECT);
+    for (const d of [a, b]) fs.mkdirSync(path.join(d, '.git'), { recursive: true });
+    transcript(transcriptDir(path.join(tmp, 'work', 'Personal', PROJECT)), path.join(tmp, 'work', 'Personal', PROJECT));
+    const unsure: Record<string, string[]> = {};
+    expect(guessProjectMap(source, claudeHome, unsure)).toEqual({});
+    expect(unsure).toEqual({ [PROJECT]: [a, b] });
+  });
 });

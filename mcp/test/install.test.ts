@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { buildSource } from './claude-mem-fixture.js';
-import { pick } from '../src/onboard.js';
+import { press } from '../src/onboard.js';
 
 /**
  * `eklavya install` writes three files that belong to Claude Code, not to us:
@@ -324,7 +324,7 @@ describe('install with Claude Mem present', () => {
       },
     });
     expect(res.status, res.stderr).toBe(0);
-    expect(res.stdout).toContain('1 project(s) matched');
+    expect(res.stdout).toMatch(/claude-mem\s+\d+ rows, all here — \d+ imported/);
 
     const settings = readJson(path.join(claudeHome, 'settings.json'));
     expect(settings.enabledPlugins['claude-mem@thedotmack']).toBe(false);
@@ -339,9 +339,11 @@ describe('install with Claude Mem present', () => {
 
     // The move is finished: a later install, with no terminal to ask, must not
     // see the switched-off plugin as Claude Mem still recording -- that path
-    // picks "keep Claude Mem" and would turn Eklavya's memory back off.
+    // picks "keep Claude Mem" and would turn Eklavya's memory back off. It
+    // does re-check the retired copy, and finds nothing to add.
     const later = install();
-    expect(later.stdout).not.toMatch(/claude-mem/i);
+    expect(later.stdout).not.toMatch(/Claude Mem is installed too/);
+    expect(later.stdout).toMatch(/claude-mem\s+\d+ rows, all here — nothing new/);
     expect(later.stdout).toMatch(/memory\s+on/);
     expect(memoryEnabled()).toBeUndefined();
   });
@@ -430,14 +432,14 @@ describe('install walks the dials', () => {
     expect(fs.existsSync(path.join(claudeHome, 'settings.json'))).toBe(false);
   });
 
-  it('reads Enter and "next" as keep, a number or a unique prefix as a change', () => {
-    const step = { current: 'concept', options: [{ value: 'concept' }, { value: 'project' }, { value: 'learn' }] } as Parameters<typeof pick>[0];
-    expect(pick(step, '')).toBe('concept');
-    expect(pick(step, 'next')).toBe('concept');
-    expect(pick(step, '2')).toBe('project');
-    expect(pick(step, 'LE')).toBe('learn');
-    expect(pick(step, '9')).toBeUndefined();
-    expect(pick(step, 'x')).toBeUndefined();
+  it('moves with the arrows, wraps at the ends, chooses on Enter, Space, → or a digit', () => {
+    expect(press(0, 3, { name: 'down' })).toEqual({ at: 1, done: false });
+    expect(press(0, 3, { name: 'up' })).toEqual({ at: 2, done: false });
+    expect(press(2, 3, { name: 'down' })).toEqual({ at: 0, done: false });
+    for (const name of ['return', 'space', 'right']) expect(press(1, 3, { name })).toEqual({ at: 1, done: true });
+    expect(press(0, 3, { sequence: '3' })).toEqual({ at: 2, done: true });
+    expect(press(0, 3, { sequence: '9' })).toBeNull();
+    expect(press(0, 3, { name: 'x', sequence: 'x' })).toBeNull();
   });
 });
 
