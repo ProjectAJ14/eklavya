@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "7d2e045b903abf89c041609c0be27bccf209d6da"
+      "revision": "73eb43b54fbb5ac243d7b072aa44564caa8aabd4"
     },
     "views": [
       {
@@ -145,6 +145,11 @@
         {
           "path": "mcp/src/hooks/lib.ts",
           "label": "hook side"
+        },
+        {
+          "path": "mcp/src/config.ts",
+          "line": 693,
+          "label": "REPO_FORBIDDEN_KEYS"
         }
       ]
     },
@@ -590,7 +595,7 @@
         "retryOnBusy wraps handlers; openDb seeds, then packs",
         "Two gates, session and repo (.eklavya.json only); fail open",
         "A failed memory job backs off; auth or quota pauses the queue",
-        "run.mjs prefers mcp/dist; npx at the pinned version"
+        "A cloned repo sets dials only; never a sink, sync or provider"
       ]
     }
   ]
