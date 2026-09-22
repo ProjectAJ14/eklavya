@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "89729787e0f6ee39598e7f4d43c3128e73d35299"
+      "revision": "7d2e045b903abf89c041609c0be27bccf209d6da"
     },
     "views": [
       {
@@ -47,7 +47,7 @@
           "db",
           "dashboard"
         ],
-        "note": "Everything that opens knowledge.db from outside a Claude Code session."
+        "note": "Everything that opens knowledge.db from outside a Claude Code session. The page polls a change cursor and admits when it is stale."
       },
       {
         "id": "memory-path",
@@ -58,7 +58,7 @@
           "db",
           "session"
         ],
-        "note": "Captured after every tool call, redacted before storage, summarised at the seam, handed back as evidence — never as instruction."
+        "note": "Captured per tool call, redacted before storage, summarised at the seam into one entry rewritten in place — evidence, never instruction."
       }
     ]
   },
@@ -283,7 +283,7 @@
         },
         {
           "path": "mcp/src/migrations/001_init.sql",
-          "label": "11 migrations"
+          "label": "13 migrations"
         }
       ]
     },
@@ -305,6 +305,10 @@
         {
           "path": "mcp/src/dashboard.ts",
           "label": "http server"
+        },
+        {
+          "path": "mcp/src/assets/dashboard.html",
+          "label": "one payload, polled"
         }
       ]
     },
@@ -330,6 +334,10 @@
         {
           "path": "mcp/src/memory/recall.ts",
           "label": "recall + receipts"
+        },
+        {
+          "path": "mcp/src/memory/worker.ts",
+          "label": "queue · session summary"
         }
       ]
     }
@@ -570,7 +578,7 @@
         "SessionStart — stdout; SubagentStart — the JSON form only",
         "UserPromptSubmit — one line, only when a session logged nothing",
         "PostToolUse — twice: unmatched captures, matched may quiz",
-        "Stop — additionalContext continues the turn, quietly",
+        "Stop — additionalContext continues it; the seam summarises",
         "PreToolUse(Bash) — permissionDecision \"deny\" on git commit"
       ]
     },
@@ -580,8 +588,8 @@
       "items": [
         "stdout is the protocol; diagnostics are forced to stderr",
         "retryOnBusy wraps handlers; openDb seeds, then packs",
-        "Repo gate reads .eklavya.json only, never global config",
-        "Two commit gates, session and repo; both fail open",
+        "Two gates, session and repo (.eklavya.json only); fail open",
+        "A failed memory job backs off; auth or quota pauses the queue",
         "run.mjs prefers mcp/dist; npx at the pinned version"
       ]
     }
