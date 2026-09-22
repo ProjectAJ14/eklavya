@@ -31,7 +31,7 @@ You never interact with these directly, but knowing they exist makes the rest of
 <EmbeddedDiagram
   src="/eklavya-runtime.html"
   title="Eklavya runtime architecture"
-  caption="The whole runtime on one canvas. On the left you are at your terminal, with the opt-in git commit gate below you. Your Claude Code session runs the skills and the tutor subagent, and six lifecycle hooks fire around it — session start, prompt, subagent start, before a Bash commit, mid-task, and at the end of a task. Both the session and the hooks talk to the Eklavya MCP server over stdio, which reads the four dials out of your config files, asks the SM-2 engine which concept is due and at what tier, and writes every answer through the store into knowledge.db, a local SQLite file. The gate and the dashboard read that same file from outside a session."
+  caption="The whole runtime on one canvas. On the left you are at your terminal, with the opt-in git commit gate below you. Your Claude Code session runs the skills and the tutor subagent, and seven lifecycle hooks fire around it — session start, prompt, subagent start, before a Bash commit, after every tool call, at the log-concepts call, and at the end of a task. Both the session and the hooks talk to the Eklavya MCP server over stdio, which reads the four dials out of your config files, asks the SM-2 engine which concept is due and at what tier, and writes every answer through the store into knowledge.db, a local SQLite file. The memory pipeline sits beside the store and writes to the same file: it captures what each tool call did, distils it, and hands the relevant part back at the next session seam. The gate and the dashboard read that file from outside a session."
 />
 
 :::tip
