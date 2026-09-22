@@ -111,6 +111,46 @@ That closes every mechanism link:
 What is left is not a mechanism. It is whether a model volunteers the tool call
 in a short session, and no harness I can drive settles that.
 
+### Run 5 — resumed after the grace window: the loop runs, end to end
+
+A single `-p` run submits exactly one prompt, at minute zero, so it can never
+reach the nudge's twelve-minute grace. A **resumed** session can. Turn 1 did
+work and logged nothing; thirteen minutes later the session was resumed with a
+second task.
+
+What happened, read out of the database rather than the stream (plugin hooks
+other than `SessionStart` do not surface as stream events):
+
+| | |
+|---|---|
+| Concepts logged | **7**, mid-session, with context lines naming the real code — `lazy-ttl-expiry`, `monotonic-vs-wall-clock`, `amortised-complexity`, … |
+| `checkpoints` | `count = 1`, at `07:58:37.847Z` — **the checkpoint fired** |
+| `stop_markers` | `block_count = 1`, at `07:58:49.809Z`, `last_logged_count = 7` |
+| Task | finished afterwards, in the same turn: *"Task itself is done: per-key TTL in `store.js:19`, lazy expiry on read at `store.js:30`, self-checks pass."* |
+
+So the loop ran: the model logged, the checkpoint interrupted mid-task before
+the work was finished, and the work resumed and completed. The one step that did
+not happen is the question being **asked**, because `AskUserQuestion` does not
+exist in a non-interactive run — there is no one to ask. The model said so and
+refused to invent the rest:
+
+> No quiz possible — `AskUserQuestion` isn't available in this session
+> (non-interactive), and I won't record an attempt that never happened.
+> Concepts are logged, so the question will come up in an interactive session.
+
+Which is the right call, and `attempts` is correctly 0.
+
+One thing this run corrected. The nudge did **not** fire on the resume: `state`
+came back stamped `07:57:56`, because `session-start` deletes the row when it
+reprints the directive, re-arming the grace window — documented behaviour. The
+model logged from the reprinted directive, not from a nudge. So the earlier
+reading — that short sessions go silent — is narrower than it looked: a resume
+reprints the directive, and here that was enough on its own.
+
+**Status: everything an automated harness can reach is reached.** What remains
+is a human seeing the question and answering it, which is not a mechanism and
+cannot be simulated. The interactive run below is that, and only that.
+
 ### What still needs the interactive run
 
 ```bash
