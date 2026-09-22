@@ -1135,6 +1135,24 @@ describe('ask_attribution travels with the plan', () => {
   });
 });
 
+// The skip rule used to ride on the Stop sweep, which the developer reads
+// verbatim. It moved here, where only the model does.
+describe('on_skip travels with the plan', () => {
+  it('lets them go when quizzing is not enforced', () => {
+    configure({ min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.on_skip).toMatch(/say skip, record grade 0/);
+  });
+
+  it('names the gate when it is', () => {
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.on_skip).toMatch(/commit gate needs this quiz/);
+  });
+});
+
 // `quiz` is whether and how hard Eklavya pushes; `focus` is what it teaches. The two
 // are independent, and these pin that they stay that way.
 describe('focus', () => {

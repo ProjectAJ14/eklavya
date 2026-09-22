@@ -85,13 +85,9 @@ function systemMessage(stdout: string): string | null {
   }
 }
 
-/**
- * The concepts line, not the whole message: prose elsewhere may legitimately
- * contain a semicolon, and matching on that made these asserts something they
- * did not mean.
- */
-const conceptsLine = (message: string): string =>
-  message.split('\n').find((l) => l.startsWith('Concepts:')) ?? '';
+/** The slugs the Stop sweep named: the list between " on " and " before this turn ends". */
+const sweptConcepts = (message: string): string[] =>
+  /\bon (.+?) before this turn ends/.exec(message)?.[1].split(', ') ?? [];
 
 const stop = (extra: Record<string, unknown> = {}) =>
   runHook(STOP_CHECK, { session_id: SESSION, cwd, hook_event_name: 'Stop', stop_reason: 'end_turn', ...extra });
@@ -708,13 +704,18 @@ describe('Stop hook — when not to fire', () => {
 });
 
 describe('Stop hook — what it tells Claude', () => {
-  it('names the concepts and the code context behind them', () => {
+  // Every word of this is on the developer's screen: Claude Code renders a Stop
+  // hook's additionalContext under "Ran N stop hooks" and nothing hides it. So
+  // it is one line written for a person, and the instructions live in the plan.
+  it('is one line a developer can read, not the model\'s instructions', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure']);
     const res = stop();
-    expect(res.context).toMatch(/csrf \(touched csrf in auth\.ts\)/);
+    expect(res.context.split('\n')).toHaveLength(1);
+    expect(res.context).toMatch(/^Eklavya: up to \d+ questions, one at a time, on csrf, jwt-structure before this turn ends/);
     expect(res.context).toMatch(/get_session_quiz_plan/);
-    expect(res.context).toMatch(/ONE question at a time/);
+    // The context line, the MCQ mechanics and the skip rule are the plan's to say.
+    expect(res.context).not.toMatch(/touched csrf in auth\.ts|AskUserQuestion|record_attempt|answer_position|say skip/);
   });
 
   // The cadence decides the size of the sweep, and this is the failure it was
@@ -724,45 +725,38 @@ describe('Stop hook — what it tells Claude', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
-    const line = conceptsLine(res.context);
-    expect(line).toMatch(/csrf/);
-    expect(line.match(/;/g) ?? []).toHaveLength(0);
-    expect(res.context).toMatch(/One question, then let them finish/);
-    expect(res.context).not.toMatch(/ONE question at a time/);
+    expect(sweptConcepts(res.context)).toEqual(['csrf']);
+    expect(res.context).toMatch(/^Eklavya: one question on csrf/);
   });
 
   it('sweeps the whole remaining budget in enforced mode, cadence notwithstanding', () => {
     // Decision G5 again: the gate has to stay passable inside the session.
     configure({ quiz: { enabled: true, enforced: true }, cadence: 'interleaved', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
-    expect(conceptsLine(stop().context).match(/;/g) ?? []).toHaveLength(2);
+    expect(sweptConcepts(stop().context)).toHaveLength(3);
   });
 
   it('sweeps the whole remaining budget under the end cadence', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
-    const line = conceptsLine(stop().context);
-    expect(line.match(/;/g) ?? []).toHaveLength(2);
+    expect(sweptConcepts(stop().context)).toHaveLength(3);
   });
 
   it('caps the list at the configured questions per task', () => {
     configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 1 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
-    const res = stop();
-    const line = conceptsLine(res.context);
-    expect(line).toMatch(/csrf/);
-    expect(line.match(/;/g) ?? []).toHaveLength(0);
+    expect(sweptConcepts(stop().context)).toEqual(['csrf']);
   });
 
-  it('says the gate needs it when enforced, and offers the skip when not', () => {
+  it('says the gate needs it when enforced, and nothing about it when not', () => {
     configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     logConcepts(['csrf']);
-    expect(stop().context).toMatch(/Quizzing is enforced/);
+    expect(stop().context).toMatch(/The commit gate needs it/);
 
     configure({ quiz: { enabled: true, enforced: false }, min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['jwt-structure']);
     ageClocks();
-    expect(stop().context).toMatch(/say skip/);
+    expect(stop().context).not.toMatch(/gate/);
   });
 });
 
@@ -798,8 +792,8 @@ describe('Signing the question for the host it is running on', () => {
 
   // The Stop sweep is the one path that does NOT spell the rule out, and that is
   // deliberate: its `additionalContext` is printed to the developer verbatim, so
-  // it points at `ask_attribution` -- which `get_session_quiz_plan` returns, host
-  // branch and all -- instead of reciting it on their screen. Same rule, one
+  // it points at `get_session_quiz_plan` -- whose `ask_attribution` carries the
+  // host branch -- instead of reciting it on their screen. Same rule, one
   // copy, and the copy lives where the model reads it rather than where the
   // learner does.
   it('sends the Stop sweep to the plan for the attribution rule, on either host', () => {
@@ -810,7 +804,7 @@ describe('Signing the question for the host it is running on', () => {
       configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
       logConcepts([slug]);
       const ctx = stopOn(env).context;
-      expect(ctx).toMatch(/ask_attribution/);
+      expect(ctx).toMatch(/get_session_quiz_plan and follow it/);
       expect(ctx).not.toMatch(/Header "Eklavya"/);
       expect(ctx).not.toMatch(/\[Eklavya\]/);
     }

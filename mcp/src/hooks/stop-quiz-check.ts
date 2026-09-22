@@ -228,7 +228,7 @@ await run(async (input) => {
 
   const rows = db
     .prepare(
-      `SELECT c.slug || COALESCE(' (' || sc.context || ')', '') AS line
+      `SELECT c.slug AS line
          FROM session_concepts sc
          JOIN concepts c ON c.id = sc.concept_id
          LEFT JOIN mastery m ON m.concept_id = c.id
@@ -242,7 +242,7 @@ await run(async (input) => {
     )
     .all({ sid, take }) as Array<{ line: string }>;
 
-  const concepts = rows.map((r) => r.line).join('; ');
+  const concepts = rows.map((r) => r.line).join(', ');
 
   // Stamp the guard BEFORE blocking. If anything below fails, the worst case is a
   // missed quiz — never a loop.
@@ -255,43 +255,26 @@ await run(async (input) => {
        block_count       = stop_markers.block_count + 1`,
   ).run({ sid, logged: stats.logged });
 
-  // What the model is being asked for, in the words of the cadence it is running
-  // under. `interleaved` gets a hard singular -- the plan will hand back exactly
-  // one item, and prose that still says "each question" reads as licence to go
-  // looking for more.
-  const ask =
-    take === 1
-      ? 'One question, then let them finish -- there is no second one to come back for.'
-      : `Ask ONE question at a time, up to ${take}.`;
-  // The enforced line names the commit gate as the reason to press, which is
-  // true everywhere the gate can fire. On Cowork it cannot — it matches `git
-  // commit`, and Cowork does not commit — and session-start has already told
-  // this session that nothing is blocked. Saying both things in one session
-  // teaches the learner that Eklavya's warnings need not be read carefully, so
-  // the enforced framing drops to why the quiz still matters there.
-  const tone =
-    quiz.enforced
-      ? isCowork()
-        ? 'Quizzing is enforced here. Nothing is blocked — Cowork does not commit — but the gate still records what was answered.'
-        : 'Quizzing is enforced in this session: the commit gate needs this quiz.'
-      : 'If they say skip, record grade 0 and let them go — do not ask twice.';
-
-  // EVERY LINE BELOW IS PRINTED TO THE DEVELOPER, VERBATIM.
+  // EVERY WORD BELOW IS PRINTED TO THE DEVELOPER, VERBATIM.
   // The harness renders a Stop hook's `additionalContext` under "Ran N stop
-  // hooks" in gold, wrapped and effectively untruncated (`stop_hook_summary` in
-  // the 2.1.278 bundle), and there is no field that hides it — `suppressOutput`
-  // does not reach this path. So length is the only lever there is, and the page
-  // of model-facing instructions this used to be was Eklavya reciting its own
-  // prompt at the person it is meant to be teaching, every single task.
+  // hooks", unconditionally (`stop_hook_summary` in the 2.1.280 bundle: no
+  // verbose gate, and `suppressOutput` does not reach it), and a Stop hook has no
+  // model-only channel. So this is written for the person reading it, and says
+  // only what this hook alone knows: that a question is due, and on what.
   //
-  // Say only what this hook alone knows -- which concepts, how big the sweep,
-  // whether the gate is pressing -- and let `get_session_quiz_plan` carry the
-  // rest. It already returns `framing`, `ask_attribution`, `answer_position` and
-  // `tier_to_ask` with every plan, and the next thing the model does is call it,
-  // so repeating any of that here buys nothing and costs the developer a screen.
-  const context = `Eklavya: quiz the developer on what this task taught. ${ask}
-Concepts: ${concepts}
-get_session_quiz_plan, then AskUserQuestion, then record_attempt (format "mcq", labels in "options", stem alone in "question"). The plan's framing, ask_attribution, answer_position and tier_to_ask are the rules — follow them. ${tone}`;
+  // It used to be a page of instructions -- the MCQ shape, how to record, the
+  // skip rule, the context line behind each concept -- which put Eklavya's own
+  // prompt on the developer's screen above the very question it produced.
+  // `get_session_quiz_plan` carries all of it now (`framing`, `ask_attribution`,
+  // `answer_position`, `tier_to_ask`, `on_skip`, each item's `context`) and it
+  // is the next call the model makes, where only the model reads the result.
+  const what =
+    take === 1 ? `one question on ${concepts}` : `up to ${take} questions, one at a time, on ${concepts}`;
+  // The gate clause is true everywhere the gate can fire. On Cowork it cannot
+  // -- it matches `git commit`, and Cowork does not commit -- and session-start
+  // has already told this session that nothing is blocked.
+  const gate = quiz.enforced && !isCowork() ? ' The commit gate needs it.' : '';
+  const context = `Eklavya: ${what} before this turn ends -- call get_session_quiz_plan and follow it.${gate}`;
 
   // exit 0 + JSON, not exit 2 + stderr. Both continue the turn and both pass
   // through the same loop protections; only one of them tells the developer
