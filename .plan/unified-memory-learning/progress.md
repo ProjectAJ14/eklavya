@@ -332,6 +332,42 @@ agent then reported, in detail and in good faith, changes that were not on disk.
 Recovered from `stash@{0}`. The lesson is not "do not parallelise" — it is that
 a report is a claim, and the tree is the evidence.
 
+## After the audit: what closing it actually cost
+
+Everything ADR-11 did not decline is now built, and two of the five things
+built turned up defects nobody had looked for.
+
+- **Session summaries** (`2bd7054`) — PAR-03's missing half. A summary answers
+  the question the next session opens with, which an observation never does.
+  Rolled up from the session's own observations rather than a second pass over
+  raw evidence, rewritten in place per turn, skipped below two observations,
+  and deliberately linking no evidence events, because an entry that points at
+  an event pins that event past `memory.retention_days` for ever.
+- **Batch provenance** (`2bd7054`) — MEM-01's other half. `summarizer` and
+  `config_digest` on the batch, written *before* the summarise call: a batch
+  that failed is the one whose provenance someone comes looking for.
+- **The retrieval corpus** (`1eed3e9`) — 12 queries to 110, fourteen categories,
+  30 held back and assigned before the first run. Every score fell, which was
+  the point. Three weak categories now have a mechanism instead of a suspicion,
+  and one result does not flatter the design: on the held-out split, semantic
+  beats hybrid on top-1.
+- **The CLI argument layer** (`7d2e045`) — untested until now, and it held three
+  defects. **One of them was a regression introduced by this branch's own queue
+  fix two hours earlier**: `memory process` validated `--max` lazily, so a bad
+  value refused the run *after* `resumePaused` had already emptied the pause.
+  The developer is told nothing happened; the queue disagrees. Caught only
+  because somebody tested the parsing layer rather than the function beneath it.
+
+The suite is **931 across 38 files**, verified from a clean clone with
+`npm ci` — so nothing in it depends on a contributor's own `.eklavya.json`.
+The site builds 20 pages and every internal link and anchor resolves.
+
+Three CLI findings were reported and deliberately **not** changed, because each
+is a design decision rather than a defect: no memory subcommand rejects unknown
+flags (a typo'd `--dryrun` performs a real import), `--since` accepts any string
+and silently matches nothing, and `memory replay --limit` passes `NaN` through.
+They are listed here so the next person decides them on purpose.
+
 ## What is left
 
 Two things, and neither can be done from an agent session:
