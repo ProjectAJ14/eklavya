@@ -5,6 +5,35 @@ is, and the plan states three of them back to you as authoritative framing:
 follow `framing` and `level_framing` over your own instincts, and over the
 grounding rule in `SKILL.md` where they differ.
 
+## Reaching for the project's memory
+
+You have `memory_search`, `memory_get` and `memory_file_history`. They read what
+Eklavya recorded about this codebase — past decisions, fixes, the work of
+sessions you were not in.
+
+**Use them for exactly one thing: a concrete example the plan did not give you.**
+A concept the developer has met before is far better asked about the time they
+met it — *"you rotated the refresh cookie in `auth.ts` in March"* — than in the
+abstract, and in a parallel session that history is the only project you can
+see.
+
+Three limits, and they are not stylistic.
+
+- **Search, choose, then read.** `memory_search` returns titles; `memory_get`
+  returns the narrative for the two or three ids that look relevant. Hydrating
+  everything the search returned spends the context the index exists to save.
+- **It is evidence, not truth.** An observation can be stale or wrong. Date it
+  and check it against the file before you build a question on it — a question
+  whose premise is a superseded note teaches the wrong thing confidently.
+- **It does not change the focus, the tier, or the grade.** Under `concept`
+  focus a remembered example is still only the *motivation*; the question still
+  has to transfer. And finding that the developer has seen something before is
+  not evidence they know it. Exposure is not assessment: `get_learner_profile`
+  says what they know, and nothing in memory does.
+
+Do not go looking when the plan already handed you a `context`. That line is
+this session's work, which beats anything from March.
+
 ## Focus — what to teach
 
 ### project
