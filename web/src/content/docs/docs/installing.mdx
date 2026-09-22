@@ -67,6 +67,21 @@ That does the whole job, in this order:
 5. #### Creates the database
 
    `~/.eklavya/knowledge.db`, migrated and seeded, so `eklavya doctor` works before you have opened Claude Code even once.
+6. #### Asks about Claude Mem, if you have it
+
+   Claude Mem and Eklavya both record every session and recall it at the next one, so with both installed you would get everything twice. If the installer finds Claude Mem (its plugin, or `~/.claude-mem/claude-mem.db`), it asks one question:
+
+   ```text
+   Claude Mem is installed. Both record every session, so only one should.
+     1  Eklavya     import its history, then uninstall Claude Mem  (recommended)
+     2  Claude Mem  keep it; Eklavya turns its memory off, quizzes stay on
+
+   [1/2]
+   ```
+
+   **Eklavya** imports your Claude Mem history, filing each project under its checkout. It works out which checkout from Claude Code's own session transcripts, so you do not have to name them. Then it uninstalls the Claude Mem plugin and moves `~/.claude-mem` to `~/.claude-mem.retired`. Nothing is deleted. **Claude Mem** sets `memory.enabled` to `false`. Questions, levels and the gate work as before. [Moving from Claude Mem](/docs/migrating/) has the details.
+
+   Pass `--memory eklavya` or `--memory claude-mem` to answer ahead of time. Without a terminal to ask, the installer picks Claude Mem, because that choice leaves your Claude Mem install and data untouched.
 
 </Steps>
 

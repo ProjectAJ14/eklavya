@@ -25,6 +25,8 @@
  *      API for "install this plugin" from outside a session, so this reproduces
  *      what `/plugin install` does. See the comment on `register()`.
  *   5. The database, created and seeded.
+ *   6. Claude Mem, if it is here: one question, which of the two records
+ *      memory. See `claude-mem.ts`.
  *
  * Every step is idempotent: running it twice is how you upgrade.
  */
@@ -34,7 +36,18 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
-import { dbPath, eklavyaHome } from './paths.js';
+import { dbPath, eklavyaHome, globalConfigPath } from './paths.js';
+import { bold, check, dim, heading, paint, plain, verdict } from './theme.js';
+import { loadConfig, readConfigFile, writeConfigFile } from './config.js';
+import { ImportError, importFrom } from './memory/import.js';
+import {
+  claudeMemDb,
+  claudeMemDir,
+  claudeMemPluginIds,
+  guessProjectMap,
+  removeClaudeMemPlugin,
+  retireClaudeMemDir,
+} from './claude-mem.js';
 
 const MIN_NODE_MAJOR = 22;
 
@@ -71,8 +84,6 @@ export function marketplaceDir(): string {
 export function runtimeHome(): string {
   return process.env.EKLAVYA_RUNTIME ?? path.join(eklavyaHome(), 'runtime');
 }
-
-const say = (line: string) => process.stdout.write(`${line}\n`);
 
 // --- 1. prerequisites -------------------------------------------------------
 
@@ -542,6 +553,112 @@ function deregister(): Array<Record<string, unknown>> {
   return otherScopes;
 }
 
+// --- 6. Claude Mem ---------------------------------------------------------
+
+type MemoryOwner = 'eklavya' | 'claude-mem';
+
+/** One line from a terminal, or null when there is none to ask. */
+function ask(question: string): string | null {
+  if (!process.stdin.isTTY) return null;
+  process.stdout.write(question);
+  try {
+    const buf = Buffer.alloc(256);
+    const n = fs.readSync(0, buf, 0, buf.length, null);
+    return buf.toString('utf8', 0, n).trim();
+  } catch {
+    return null;
+  }
+}
+
+function setEklavyaMemory(enabled: boolean): void {
+  const file = globalConfigPath();
+  const memory = (readConfigFile(file).memory ?? {}) as Record<string, unknown>;
+  if (memory.enabled === enabled || (enabled && memory.enabled === undefined)) return;
+  writeConfigFile(file, { memory: { ...memory, enabled } });
+}
+
+/**
+ * Two recorders is the one outcome this must never leave behind, so every path
+ * out of here ends with exactly one: a failed import keeps Claude Mem and
+ * switches Eklavya's recording off, rather than leaving both half-on.
+ */
+function resolveClaudeMem(args: string[]): void {
+  const ids = claudeMemPluginIds(claudeHome());
+  const haveDb = fs.existsSync(claudeMemDb());
+  if (!ids.length && !haveDb) return;
+  const flagAt = args.indexOf('--memory');
+  // Already answered "keep Claude Mem" on an earlier install; only the flag reopens it.
+  if (flagAt < 0 && !loadConfig().config.memory.enabled) return;
+
+  let owner: MemoryOwner | null = null;
+  if (flagAt >= 0) {
+    const v = args[flagAt + 1];
+    if (v !== 'eklavya' && v !== 'claude-mem') {
+      check('warn', 'claude-mem', `--memory takes eklavya or claude-mem ${dim('— left both as they are')}`);
+      return;
+    }
+    owner = v;
+  } else {
+    plain(`\n${bold('Claude Mem is installed. Both record every session, so only one should.')}`);
+    plain(`  ${paint.aged('1')}  Eklavya     ${dim('import its history, then uninstall Claude Mem')}  ${dim('(recommended)')}`);
+    plain(`  ${paint.aged('2')}  Claude Mem  ${dim('keep it; Eklavya turns its memory off, quizzes stay on')}`);
+    const answer = ask(`\n${dim('[1/2]')} `);
+    plain('');
+    // No terminal to ask: the choice that touches nothing of theirs.
+    if (answer === null) owner = 'claude-mem';
+    else owner = answer === '2' || /^claude/i.test(answer) ? 'claude-mem' : 'eklavya';
+  }
+
+  if (owner === 'claude-mem') {
+    setEklavyaMemory(false);
+    check('skip', 'memory', `off ${dim('— Claude Mem keeps recording')}`);
+    check(null, '', dim('switch later: eklavya install --memory eklavya'));
+    return;
+  }
+
+  if (haveDb) {
+    const db = openDb();
+    try {
+      // Inside the try: a corrupt source fails here, and must take the same
+      // one-recorder exit as a failed import.
+      const projectMap = guessProjectMap(claudeMemDb(), claudeHome());
+      const report = importFrom(db, claudeMemDb(), { projectMap });
+      if (!report.validation.ok) throw new ImportError(report.validation.notes.join('; '));
+      const n = report.imported.observations + report.imported.session_summaries;
+      check('ok', 'imported', `${n} entries from Claude Mem, ${report.projectsMapped.length} project(s) matched to checkouts`);
+      if (report.projectsKept.length) {
+        const kept = report.projectsKept;
+        check('warn', 'unmatched', `${kept.length} project(s) ${dim(`— ${kept.slice(0, 4).join(', ')}${kept.length > 4 ? ', …' : ''}`)}`);
+        check(null, '', dim('searchable with --all-projects; place one with eklavya memory import --map'));
+      }
+    } catch (err) {
+      setEklavyaMemory(false);
+      check('fail', 'claude-mem', `import failed ${dim(`— ${(err as Error).message}`)}`);
+      check(null, '', dim('kept Claude Mem, turned Eklavya memory off. Retry: eklavya memory import'));
+      return;
+    } finally {
+      db.close();
+    }
+  }
+
+  setEklavyaMemory(true);
+  if (ids.length) {
+    const how = removeClaudeMemPlugin(claudeHome(), ids);
+    check('ok', 'claude-mem', `plugin ${how}`);
+  }
+  // ponytail: Claude Mem's background worker, if one is up, lives until its
+  // next restart; with no plugin left, nothing restarts it.
+  if (!fs.existsSync(claudeMemDir())) return;
+  try {
+    // Windows refuses to rename a directory with a file held open -- Claude
+    // Mem's worker, typically. The import already happened; the move is tidying.
+    if (haveDb) check('ok', 'claude-mem', `data moved to ${retireClaudeMemDir()} ${dim('— delete it once you are happy')}`);
+    else check('ok', 'claude-mem', `data left at ${claudeMemDir()}`);
+  } catch (err) {
+    check('warn', 'claude-mem', `data left at ${claudeMemDir()} ${dim(`— could not move it: ${(err as Error).message}`)}`);
+  }
+}
+
 // --- health -----------------------------------------------------------------
 
 export type Check = { name: string; ok: boolean; detail: string };
@@ -643,52 +760,53 @@ function pluginCheck(): Check {
 
 export function install(args: string[]): void {
   const version = packageVersion();
-  say(`Installing Eklavya ${version}`);
+  heading(`eklavya install ${dim(version)}`);
 
   checkNode();
-  say(`  node        ${process.versions.node}`);
+  check('ok', 'node', process.versions.node);
 
   if (!args.includes('--skip-runtime')) {
-    say('  runtime     installing (first run downloads the SQLite driver)…');
+    plain(`  ${dim('·')}  ${'runtime'.padEnd(11)} ${dim('installing (first run downloads the SQLite driver)…')}`);
     installRuntime(version);
     verifyRuntime();
-    say(`  runtime     ${runtimeHome()}`);
+    check('ok', 'runtime', runtimeHome());
   }
 
   const payload = copyPayload();
   const notes: Record<PayloadResult, string> = {
     copied: '',
-    updated: ' (git checkout — pulled)',
-    current: ' (git checkout — already current)',
-    dirty: ' (git checkout with local changes — left as it is)',
-    failed: ' (git checkout — could not pull, left as it is)',
+    updated: 'git checkout — pulled',
+    current: 'git checkout — already current',
+    dirty: 'git checkout with local changes — left as it is',
+    failed: 'git checkout — could not pull, left as it is',
   };
-  say(`  plugin      ${marketplaceDir()}${notes[payload]}`);
+  const stuck = payload === 'dirty' || payload === 'failed';
+  check(stuck ? 'warn' : 'ok', 'plugin', `${marketplaceDir()}${notes[payload] ? ` ${dim(`(${notes[payload]})`)}` : ''}`);
 
   if (!args.includes('--skip-skill')) {
     const skill = installSkill();
-    if (skill === 'installed') say(`  skill       ${userSkillDir()}`);
+    if (skill === 'installed') check('ok', 'skill', userSkillDir());
     else if (skill === 'foreign') {
-      say(`  skill       skipped — ${path.join(userSkillDir(), 'SKILL.md')} is not ours`);
-    } else say('  skill       not in this package (skipped)');
+      check('skip', 'skill', `skipped ${dim(`— ${path.join(userSkillDir(), 'SKILL.md')} is not ours`)}`);
+    } else check('skip', 'skill', dim('not in this package (skipped)'));
   }
 
   register(version);
   // "and the Code tab" is not padding: that tab runs the same engine against
   // the same `~/.claude`, so this one registration covers it and someone who
   // only ever opens Claude Desktop should not go looking for a second install.
-  say('  registered  eklavya@eklavya, enabled for Claude Code (CLI and the Code tab in Claude Desktop)');
+  check('ok', 'registered', `eklavya@eklavya ${dim('— Claude Code CLI and the Code tab in Claude Desktop')}`);
 
   // Creating the DB here rather than on first server start means `eklavya
   // doctor` and the dashboard work before Claude Code has ever been opened.
   const db = openDb();
   db.close();
-  say(`  database    ${dbPath()}`);
+  check('ok', 'database', dbPath());
+
+  resolveClaudeMem(args);
 
   if (!checkGit()) {
-    say('');
-    say('  note: git was not found. Eklavya still works — the per-project difficulty');
-    say('        level falls back to a shared bucket, and the commit gate needs git.');
+    check('warn', 'git', `not found ${dim('— the per-project level falls back to a shared bucket, and the commit gate needs git')}`);
   }
 
   // Cowork is the one surface this installer cannot reach. Its plugin list lives
@@ -698,76 +816,70 @@ export function install(args: string[]): void {
   // the mitigation, because there is no documented shape to write. So: say where
   // the door is, and say the part people actually worry about, which is whether
   // they end up with two separate learning histories. They do not.
-  say('');
-  say('  note: Cowork installs separately — in Claude Desktop, Customize → Plugins →');
-  say('        Add marketplace → ProjectAJ14/eklavya, then Install. It shares this');
-  say(`        database (${dbPath()}), so it is one learner, not two.`);
+  check('skip', 'cowork', `installs separately ${dim('— Claude Desktop → Customize → Plugins → ProjectAJ14/eklavya')}`);
+  check(null, '', dim('same database, so it is one learner, not two'));
 
-  say('');
-  if (payload === 'dirty' || payload === 'failed') {
+  if (stuck) {
     // Said plainly, because otherwise this install looks like it did nothing.
-    say('You added Eklavya through `/plugin marketplace add`, so the plugin files are');
-    say(payload === 'dirty'
+    plain('');
+    plain(dim('You added Eklavya through `/plugin marketplace add`, so the plugin files are'));
+    plain(dim(payload === 'dirty'
       ? 'that git checkout — and it has uncommitted changes, so this left it alone.'
-      : 'that git checkout, and pulling it failed — so this left it alone.');
-    say('The runtime and database above are installed and current.');
-    say('To move the plugin itself, commit or stash there and re-run this, or use');
-    say('`/plugin update eklavya` in Claude Code.');
-    say('');
+      : 'that git checkout, and pulling it failed — so this left it alone.'));
+    plain(dim('The runtime and database above are installed and current. To move the plugin'));
+    plain(dim('itself, commit or stash there and re-run this, or `/plugin update eklavya`.'));
   }
-  say('Done. Restart Claude Code (or start a session) and Eklavya loads with it.');
+  verdict(null, 'DONE · restart Claude Code and Eklavya loads with it');
   if (cliOnPath()) {
-    say('Next: run /eklavya:setup in Claude Code to choose a mode, or `eklavya doctor` here.');
+    plain(dim('Next: /eklavya:setup in Claude Code to choose a mode, or `eklavya doctor` here.'));
   } else {
     // Ran through npx, most likely: the plugin is installed but no `eklavya`
     // command exists. Say so rather than suggesting one that is not there.
-    say('Next: run /eklavya:setup in Claude Code to choose a mode.');
-    say('');
-    say('The `eklavya` command is not on your PATH. For the CLI — `doctor`,');
-    say('`dashboard`, `config` — install it once:');
-    say('');
-    say('  npm install -g eklavya');
+    plain(dim('Next: /eklavya:setup in Claude Code to choose a mode.'));
+    plain('');
+    plain(`The \`eklavya\` command is not on your PATH. For ${dim('doctor, dashboard, config')}:`);
+    plain(`  ${paint.aged('npm install -g eklavya')}`);
   }
 }
 
 export function uninstall(args: string[]): void {
   const purge = args.includes('--purge');
 
+  heading('eklavya uninstall');
   const otherScopes = deregister();
-  say('  registered  removed from Claude Code');
+  check('ok', 'registered', 'removed from Claude Code');
 
   // Removing the shared directory out from under a project-scoped install would
   // leave that project pointing at nothing, so it stays until those go too.
   if (otherScopes.length === 0) {
     fs.rmSync(marketplaceDir(), { recursive: true, force: true });
-    say('  plugin      removed');
+    check('ok', 'plugin', 'removed');
   } else {
-    say(`  plugin      kept — still installed in ${otherScopes.length} project(s)`);
+    check('skip', 'plugin', `kept ${dim(`— still installed in ${otherScopes.length} project(s)`)}`);
   }
 
-  if (removeSkill()) say('  skill       removed');
+  if (removeSkill()) check('ok', 'skill', 'removed');
 
   fs.rmSync(runtimeHome(), { recursive: true, force: true });
-  say('  runtime     removed');
+  check('ok', 'runtime', 'removed');
 
   if (purge) {
     // Only ever on an explicit flag. This is everything the learner has done —
     // months of spaced repetition — and an uninstall that silently deletes it is
     // not an uninstall, it is data loss.
     fs.rmSync(eklavyaHome(), { recursive: true, force: true });
-    say(`  data        removed (${eklavyaHome()})`);
+    check('ok', 'data', `removed ${dim(`(${eklavyaHome()})`)}`);
   } else {
-    say(`  data        kept (${dbPath()}) — pass --purge to delete your learning history`);
+    check('skip', 'data', `kept ${dbPath()} ${dim('— pass --purge to delete your learning history')}`);
   }
 
-  say('');
   if (otherScopes.length > 0) {
-    say('Removed for your user account. These project-scoped installs remain, and');
-    say('were not touched — remove them with `/plugin uninstall` in each project:');
+    plain('');
+    plain(dim('Removed for your user account. These project-scoped installs remain, and'));
+    plain(dim('were not touched — remove them with `/plugin uninstall` in each project:'));
     for (const entry of otherScopes) {
-      say(`  ${String(entry.projectPath ?? 'unknown project')} (${String(entry.version ?? '?')})`);
+      plain(`  ${String(entry.projectPath ?? 'unknown project')} ${dim(`(${String(entry.version ?? '?')})`)}`);
     }
-    say('');
   }
-  say('Eklavya is uninstalled. Restart Claude Code to unload it.');
+  verdict(null, 'UNINSTALLED · restart Claude Code to unload it');
 }

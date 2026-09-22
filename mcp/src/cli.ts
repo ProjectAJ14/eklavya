@@ -28,6 +28,7 @@ import { START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
 import { startDashboard, openInBrowser } from './dashboard.js';
 import { install, uninstall, health } from './install.js';
+import { check, dim, heading, verdict, type Mark } from './theme.js';
 import { identityFor } from './memory/identity.js';
 import {
   countEntries,
@@ -355,14 +356,15 @@ function doctor(): void {
   const repoHere = findRepoConfig().repoRoot;
   if (repoHere) migrateLegacyRepoConfig(repoHere, mainRepoRoot(repoHere));
   const resolved = loadConfig();
-  const lines: string[] = [];
+  const rows: Array<[Mark, string, string]> = [];
+  const add = (mark: Mark, label: string, detail: string) => rows.push([mark, label, detail]);
   let ok = true;
   // Kept apart from `ok` so the blanket remedy below stays true: `eklavya
   // install` repairs a broken install and cannot do a thing about a paused
   // queue. A memory failure still exits non-zero; it just names its own fix.
   let memoryOk = true;
 
-  lines.push(`home:     ${eklavyaHome()}`);
+  add('ok', 'home', eklavyaHome());
 
   // The install checks come first because they are what someone is looking for
   // when Eklavya has gone quiet. Everything below reads fine on an install that
@@ -370,7 +372,7 @@ function doctor(): void {
   const checks = health();
   for (const check of checks) {
     if (!check.ok) ok = false;
-    lines.push(`${`${check.name}:`.padEnd(10)}${check.ok ? '' : 'FAILED — '}${check.detail}`);
+    add(check.ok ? 'ok' : 'fail', check.name, `${check.ok ? '' : 'FAILED — '}${check.detail}`);
   }
 
   // Which surfaces the checks above actually cover. The `plugin` check reads
@@ -379,13 +381,11 @@ function doctor(): void {
   // inside the app's data directory and is installed from its own UI, so a
   // green doctor says nothing about it. Someone whose Cowork sessions are
   // silent needs to be told that here, not left reading a clean report.
-  lines.push('surfaces: Claude Code CLI and the Code tab in Claude Desktop (checked above).');
-  lines.push(
-    '          Cowork keeps a separate plugin list — install it there from Customize → Plugins;',
-  );
-  lines.push('          this command cannot see it. Your learning history is shared either way.');
+  add('ok', 'surfaces', 'Claude Code CLI and the Code tab in Claude Desktop (checked above)');
+  add('skip', 'cowork', dim('keeps a separate plugin list — install it there from Customize → Plugins;'));
+  add('skip', 'cowork', dim('this command cannot see it. Your learning history is shared either way.'));
 
-  lines.push(`database: ${file}${fs.existsSync(file) ? '' : '   (not created yet)'}`);
+  add(fs.existsSync(file) ? 'ok' : 'warn', 'database', `${file}${fs.existsSync(file) ? '' : dim('   (not created yet)')}`);
 
   let edgesDropped = 0;
   // Held open past the try so the memory section below can read it, and can
@@ -405,23 +405,25 @@ function doctor(): void {
     const known = (
       db.prepare('SELECT count(*) n FROM mastery WHERE score >= 0.7 AND reps >= 2').get() as { n: number }
     ).n;
-    lines.push(`concepts: ${concepts}`);
-    lines.push(`attempts: ${attempts}`);
-    lines.push(`mastered: ${known}`);
-    lines.push(`journal:  ${String(db.pragma('journal_mode', { simple: true }))}`);
+    add('ok', 'concepts', String(concepts));
+    add('ok', 'attempts', String(attempts));
+    add('ok', 'mastered', String(known));
+    add('ok', 'journal', String(db.pragma('journal_mode', { simple: true })));
     // The project's band, and the runway left in it. Read here because `doctor`
     // is where someone looks when the questions feel wrong for them.
     const standing = levelStanding(db, resolved.config, resolved.repoRoot);
-    lines.push(
-      `level:    ${standing.level}${
+    add(
+      'ok',
+      'level',
+      `${standing.level} ${dim(
         standing.pinned
-          ? ' (pinned by config — no progression)'
-          : ` (${standing.counts.passed}/${standing.needed.answers} passing answers in ${standing.repo})`
-      }`,
+          ? '(pinned by config — no progression)'
+          : `(${standing.counts.passed}/${standing.needed.answers} passing answers in ${standing.repo})`,
+      )}`,
     );
   } catch (err) {
     ok = false;
-    lines.push(`database error: ${err instanceof Error ? err.message : String(err)}`);
+    add('fail', 'database', `FAILED — ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // The memory half. `eklavya memory status` says more, but it is scoped to one
@@ -438,8 +440,10 @@ function doctor(): void {
   const rawQuiz = resolved.raw.quiz as Record<string, unknown> | undefined;
   if (rawQuiz?.enabled === false && rawQuiz?.enforced === true) {
     ok = false;
-    lines.push(
-      'conflict: FAILED — quiz.enabled is false and quiz.enforced is true. A gate needs ' +
+    add(
+      'fail',
+      'conflict',
+      'FAILED — quiz.enabled is false and quiz.enforced is true. A gate needs ' +
         'passed questions and nothing will ask any, so the enforcement is being ignored ' +
         'rather than blocking every commit. Set quiz.enabled true to gate commits, or drop ' +
         'quiz.enforced to accept the silence.',
@@ -447,9 +451,7 @@ function doctor(): void {
   }
 
   const memory = resolved.config.memory;
-  lines.push(
-    `memory:   ${memory.enabled ? `on · capture ${memory.capture}` : 'off (memory.enabled is false)'}`,
-  );
+  add(memory.enabled ? 'ok' : 'skip', 'memory', memory.enabled ? `on · capture ${memory.capture}` : 'off (memory.enabled is false)');
 
   if (db) {
     const entries = safely(() => countEntries(db!), 0);
@@ -458,10 +460,10 @@ function doctor(): void {
       0,
     );
     const waiting = safely(() => pendingEventCount(db!), 0);
-    lines.push(`memory:   ${entries} entries, ${evidence} evidence events (${waiting} not yet summarised)`);
+    add('ok', 'memory', `${entries} entries, ${evidence} evidence events ${dim(`(${waiting} not yet summarised)`)}`);
 
     const queue = safely(() => queueDepth(db!), { pending: 0, paused: 0, failed: 0, oldest: null });
-    lines.push(`memory:   queue ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`);
+    add('ok', 'memory', `queue ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`);
 
     // The class, never the message. `last_error` is the provider's own prose
     // and has carried a URL with a token in it; the class is what tells someone
@@ -483,13 +485,13 @@ function doctor(): void {
 
     if (queue.paused > 0) {
       memoryOk = false;
-      lines.push(`memory:   FAILED — ${queue.paused} job(s) paused (${classes('paused')}); nothing is being summarised`);
-      lines.push('memory:   fix the credentials or quota behind providers.observer, then: eklavya memory process');
+      add('fail', 'memory', `FAILED — ${queue.paused} job(s) paused (${classes('paused')}); nothing is being summarised`);
+      add('fail', 'memory', dim('fix the credentials or quota behind providers.observer, then: eklavya memory process'));
     }
     if (queue.failed > 0) {
       // Not a failure: a permanently failed job is a batch that will never
       // summarise, and no command repairs it. Saying so beats a clean report.
-      lines.push(`memory:   ${queue.failed} job(s) failed permanently (${classes('failed')})`);
+      add('warn', 'memory', `${queue.failed} job(s) failed permanently (${classes('failed')})`);
     }
 
     // The capture heartbeat: memory that is "on" with nothing arriving is the
@@ -498,14 +500,10 @@ function doctor(): void {
       () => (db!.prepare('SELECT MAX(occurred_at) AS at FROM evidence_events').get() as { at: string | null }).at,
       null as string | null,
     );
-    lines.push(`memory:   last evidence ${newest ?? '— none captured yet'}`);
+    add('ok', 'memory', `last evidence ${newest ?? '— none captured yet'}`);
 
     const sync = safely(() => syncStatus(db!, resolved.config), null);
-    lines.push(
-      `memory:   sync ${
-        sync?.enabled ? `on -> ${sync.target ?? '(no target set — set sync.target)'}` : 'off'
-      }`,
-    );
+    add('ok', 'memory', `sync ${sync?.enabled ? `on -> ${sync.target ?? '(no target set — set sync.target)'}` : 'off'}`);
   }
 
   const dropped = safely(() => droppedCount(), 0);
@@ -514,13 +512,13 @@ function doctor(): void {
     // spool file, so nothing replays them on its own. The transcripts are the
     // only remaining copy.
     memoryOk = false;
-    lines.push(`memory:   FAILED — ${dropped} event(s) dropped before they reached the database`);
-    lines.push('memory:   recover them from this checkout’s transcripts with: eklavya memory replay');
+    add('fail', 'memory', `FAILED — ${dropped} event(s) dropped before they reached the database`);
+    add('fail', 'memory', dim('recover them from this checkout’s transcripts with: eklavya memory replay'));
   }
-  lines.push(
-    `memory:   provider ${
-      resolved.config.providers.observer ? 'configured — batches leave this machine' : 'none — nothing leaves this machine'
-    }`,
+  add(
+    'ok',
+    'memory',
+    `provider ${resolved.config.providers.observer ? 'configured — batches leave this machine' : 'none — nothing leaves this machine'}`,
   );
 
   db?.close();
@@ -533,29 +531,35 @@ function doctor(): void {
   const projectKeys = new Set(
     resolved.projectPath ? Object.keys(readConfigFile(resolved.projectPath)) : [],
   );
-  const from = (key: string) => (projectKeys.has(key) ? ' (set for this project)' : '');
+  const from = (key: string) => (projectKeys.has(key) ? dim(' (set for this project)') : '');
   const q = resolved.config.quiz;
-  lines.push(
-    `quiz:     ${q.enabled ? 'on' : 'off — memory is unaffected'}${
+  add(
+    q.enabled ? 'ok' : 'skip',
+    'quiz',
+    `${q.enabled ? 'on' : 'off — memory is unaffected'}${
       q.enforced ? ' · enforced (commits gated)' : ''
     }${from('quiz')}`,
   );
-  lines.push(
-    `focus:    ${resolved.config.focus}${
+  add(
+    'ok',
+    'focus',
+    `${resolved.config.focus}${
       resolved.config.focus === 'learn' ? ` (${resolved.config.focus_topic ?? 'no topic set'})` : ''
     }${from('focus')}`,
   );
-  lines.push(
-    `cadence:  ${resolved.config.cadence}${
+  add(
+    'ok',
+    'cadence',
+    `${resolved.config.cadence} ${dim(
       resolved.config.cadence === 'interleaved'
-        ? ` (one question mid-task, min ${resolved.config.min_minutes_between_checkpoints}m apart)`
-        : ' (all questions at the end of the task)'
-    }${from('cadence')}`,
+        ? `(one question mid-task, min ${resolved.config.min_minutes_between_checkpoints}m apart)`
+        : '(all questions at the end of the task)',
+    )}${from('cadence')}`,
   );
   if (resolved.overrides.length > 0) {
-    lines.push(`overridden for this project: ${resolved.overrides.join(', ')}`);
+    add('warn', 'overrides', `for this project: ${resolved.overrides.join(', ')}`);
   }
-  if (resolved.projectPath) lines.push(`project:  ${resolved.projectPath}`);
+  if (resolved.projectPath) add('ok', 'project', resolved.projectPath);
 
   // Packs, and the one place a broken one is visible. `loadPacks` never throws
   // -- a malformed file in ~/.eklavya/packs/ makes one pack unavailable, not
@@ -564,8 +568,10 @@ function doctor(): void {
   const packs = loadPacks();
   if (packs.length > 0) {
     const good = packs.filter((p) => p.pack);
-    lines.push(
-      `packs:    ${good.length} loaded${
+    add(
+      'ok',
+      'packs',
+      `${good.length} loaded${
         good.length > 0
           ? ` — ${good.map((p) => `${p.pack!.pack}${p.pack!.version ? `@${p.pack!.version}` : ''} (${p.scope})`).join(', ')}`
           : ''
@@ -575,42 +581,46 @@ function doctor(): void {
       // An edge endpoint naming nothing is almost always a typo, and it is
       // silent everywhere else: the pack loads, the concept appears, and the
       // prerequisite it was meant to hang off simply is not there.
-      lines.push(
-        `packs:    ${edgesDropped} edge(s) dropped — an endpoint named a slug that does not exist`,
-      );
+      add('warn', 'packs', `${edgesDropped} edge(s) dropped — an endpoint named a slug that does not exist`);
     }
     // The one remaining way an Eklavya file ends up in a checkout, and it only
     // ever got there before the move. Named rather than fixed: a committed pack
     // is authored content somebody reviewed, so relocating it is their call.
     const inRepo = good.filter((p) => p.scope === 'repo');
     if (inRepo.length > 0) {
-      lines.push(
-        `packs:    ${inRepo.length} still inside the checkout (${inRepo
+      add(
+        'warn',
+        'packs',
+        `${inRepo.length} still inside the checkout (${inRepo
           .map((p) => p.pack!.pack)
           .join(', ')}) — they load, but Eklavya no longer writes there;`,
       );
-      lines.push(
-        `packs:    move them to ~/.eklavya/projects/<checkout>/packs/ to keep the repo clean`,
-      );
+      add('warn', 'packs', dim('move them to ~/.eklavya/projects/<checkout>/packs/ to keep the repo clean'));
     }
     for (const bad of packs.filter((p) => !p.pack)) {
       // Deliberately does NOT set `ok`. A bad pack costs that pack and nothing
       // else, and the blanket remedy below is `eklavya install`, which never
       // touches ~/.eklavya/packs/ and could not repair this if it wanted to.
-      lines.push(`packs:    FAILED — ${bad.file}: ${bad.error}`);
-      lines.push(`packs:    fix or delete that file; everything else is unaffected`);
+      add('fail', 'packs', `FAILED — ${bad.file}: ${bad.error}`);
+      add('fail', 'packs', dim('fix or delete that file; everything else is unaffected'));
     }
   }
 
   // One fix for all of them: `install` is idempotent, so re-running it is the
   // repair. Naming it here is the whole point of the checks above — a report
   // nobody can act on is worse than no report.
-  if (!ok) {
-    lines.push('');
-    lines.push('Something is broken. Run: eklavya install');
-  }
-
-  process.stdout.write(`${lines.join('\n')}\n`);
+  heading('eklavya doctor');
+  // A label is said once, and its glyph again only when the state changes: a run
+  // of rows under one label reads as a block, and a failure inside it still shows.
+  rows.forEach(([mark, label, detail], i) => {
+    const prev = rows[i - 1];
+    const same = prev?.[1] === label;
+    check(same && prev[0] === mark ? null : mark, same ? '' : label, detail);
+  });
+  verdict(
+    !ok ? 'Something is broken. Run: eklavya install' : !memoryOk ? 'Memory needs attention — see above' : null,
+    'ALL CLEAR · Eklavya is wired up',
+  );
   if (!ok || !memoryOk) process.exit(1);
 }
 

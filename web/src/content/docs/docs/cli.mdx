@@ -9,7 +9,7 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | Command | What it does |
 | --- | --- |
 | `eklavya serve` | Runs the MCP server on stdio. This is what Claude Code starts for you — you would only run it by hand to point another MCP client at Eklavya. |
-| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. Safe to re-run — that is how you upgrade, including for a marketplace install, where it pulls the plugin's git clone forward. |
+| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. If Claude Mem is installed it asks which of the two keeps recording memory; `--memory eklavya` or `--memory claude-mem` answers in advance ([details](/docs/migrating/)). Safe to re-run — that is how you upgrade, including for a marketplace install, where it pulls the plugin's git clone forward. |
 | `eklavya uninstall [--purge]` | Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`. |
 | `eklavya config get` | Prints the effective configuration as JSON, plus the paths of the global and repo files it came from. |
 | `eklavya config set <key> <value>` | Changes one setting. Add `--project` (or its older name `--repo`) to write this codebase's file under `~/.eklavya/projects/` instead of your global config — never into the repository. Add `--topic <topic>` when setting `focus learn`. |
@@ -137,27 +137,32 @@ dashboard](/docs/dashboard/).
 
 ### What `doctor` looks like
 
-```bash
+```text
 $ eklavya doctor
-home:     /Users/you/.eklavya
-runtime:  /Users/you/.eklavya/runtime
-driver:   better-sqlite3 loads on Node 22.14.0
-plugin:   /Users/you/.claude/plugins/marketplaces/eklavya — registered, enabled
-skill:    /Users/you/.claude/skills/eklavya
-database: /Users/you/.eklavya/knowledge.db
-concepts: 87
-attempts: 41
-mastered: 12
-journal:  wal
-level:    easy (23/100 passing answers in /Users/you/code/api)
-quiz:     on
-focus:    concept
-cadence:  interleaved (one question mid-task, min 4m apart)
+
+eklavya doctor
+
+  ▣  home        /Users/you/.eklavya
+  ▣  runtime     /Users/you/.eklavya/runtime
+  ▣  driver      better-sqlite3 loads on Node 22.14.0
+  ▣  plugin      /Users/you/.claude/plugins/marketplaces/eklavya — registered, enabled
+  ▣  skill       /Users/you/.claude/skills/eklavya
+  ...
+  ▣  concepts    87
+  ▣  attempts    41
+  ▣  mastered    12
+  ▣  journal     wal
+  ▣  level       easy (23/100 passing answers in /Users/you/code/api)
+  ▣  quiz        on
+  ▣  focus       concept
+  ▣  cadence     interleaved (one question mid-task, min 4m apart)
+
+▣ ALL CLEAR · Eklavya is wired up
 ```
 
 This is the first thing to run when something feels wrong.
 
-The first four lines are the install itself. They matter because Eklavya fails
+The first four checks after `home` are the install itself. ▣ is fine, ! wants a look, ◌ is something this command skipped or cannot see, and ▤ is broken. The glyph carries the state on its own, so nothing is lost with colour off (`NO_COLOR`) or in a pipe. They matter because Eklavya fails
 quietly by design — every hook exits successfully whatever happens, so it can
 never break a session you are in the middle of. The cost of that guarantee is
 that a broken install looks exactly like a quiet one: Eklavya simply stops
@@ -165,16 +170,19 @@ asking. These four checks are the only place that says which it is.
 
 When one fails, `doctor` says so and names the fix:
 
-```bash
+```text
 $ eklavya doctor
-home:     /Users/you/.eklavya
-runtime:  /Users/you/.eklavya/runtime
-driver:   FAILED — will not load on Node 24.0.0 — Error: dlopen: symbol not found
-plugin:   /Users/you/.claude/plugins/marketplaces/eklavya — registered, enabled
-skill:    /Users/you/.claude/skills/eklavya
-...
 
-Something is broken. Run: eklavya install
+eklavya doctor
+
+  ▣  home        /Users/you/.eklavya
+  ▣  runtime     /Users/you/.eklavya/runtime
+  ▤  driver      FAILED — will not load on Node 24.0.0 — Error: dlopen: symbol not found
+  ▣  plugin      /Users/you/.claude/plugins/marketplaces/eklavya — registered, enabled
+  ▣  skill       /Users/you/.claude/skills/eklavya
+  ...
+
+▤ Something is broken. Run: eklavya install
 ```
 
 `eklavya install` is the repair for all four. It is idempotent — re-running it

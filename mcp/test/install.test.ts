@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import Database from 'better-sqlite3';
+import { buildSource } from './claude-mem-fixture.js';
 
 /**
  * `eklavya install` writes three files that belong to Claude Code, not to us:
@@ -20,6 +22,9 @@ const CLI = path.join(mcpRoot, 'dist', 'cli.js');
 
 let claudeHome = '';
 let eklavyaHome = '';
+// Claude Mem's data directory. Pointed at a temp path always: the developer
+// running this suite may well have a real one, and it must never be seen.
+let claudeMemHome = '';
 
 const readJson = (p: string) => JSON.parse(fs.readFileSync(p, 'utf8'));
 
@@ -32,6 +37,7 @@ function run(args: string[]) {
       EKLAVYA_HOME: eklavyaHome,
       EKLAVYA_DB: path.join(eklavyaHome, 'knowledge.db'),
       EKLAVYA_RUNTIME: path.join(eklavyaHome, 'runtime'),
+      CLAUDE_MEM_DATA_DIR: claudeMemHome,
     },
   });
   return { status: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
@@ -53,6 +59,7 @@ function installWithPath(dirs: string[]) {
       EKLAVYA_HOME: eklavyaHome,
       EKLAVYA_DB: path.join(eklavyaHome, 'knowledge.db'),
       EKLAVYA_RUNTIME: path.join(eklavyaHome, 'runtime'),
+      CLAUDE_MEM_DATA_DIR: claudeMemHome,
     },
   });
   return res.stdout ?? '';
@@ -61,6 +68,7 @@ function installWithPath(dirs: string[]) {
 beforeEach(() => {
   claudeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-claude-'));
   eklavyaHome = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-home-'));
+  claudeMemHome = path.join(eklavyaHome, 'no-claude-mem');
 });
 
 afterEach(() => {
@@ -134,10 +142,10 @@ describe('eklavya install', () => {
     // this test owns is that it still *reports* — the registry writes above
     // landed, the database opened, and the one failure is the step we skipped.
     const res = run(['doctor']);
-    expect(res.stdout).toMatch(/plugin:.*registered, enabled/);
-    expect(res.stdout).toMatch(/skill:\s+\//);
-    expect(res.stdout).toMatch(/concepts: \d+/);
-    expect(res.stdout).toMatch(/runtime:\s+FAILED/);
+    expect(res.stdout).toMatch(/plugin\s.*registered, enabled/);
+    expect(res.stdout).toMatch(/skill\s+\//);
+    expect(res.stdout).toMatch(/concepts\s+\d+/);
+    expect(res.stdout).toMatch(/runtime\s+FAILED/);
     expect(res.status).toBe(1);
   });
 
@@ -260,6 +268,116 @@ describe('eklavya install', () => {
     const after = readJson(settingsPath);
     expect(after.enabledPlugins['other@else']).toBe(true);
     expect(after.model).toBe('opus');
+  });
+});
+
+describe('install with Claude Mem present', () => {
+  // Two recorders means every session captured and recalled twice. Install asks
+  // once which one keeps recording, and every path out of it leaves exactly one.
+  let checkout = '';
+  let memDir = '';
+
+  beforeEach(() => {
+    memDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-cmem-'));
+    claudeMemHome = memDir;
+    buildSource(path.join(memDir, 'claude-mem.db'));
+
+    // The fixture's one session is `content-1` in project `demo-repo`. Claude
+    // Code's transcript for that session is what says where the checkout is.
+    checkout = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'demo-repo-')));
+    fs.mkdirSync(path.join(checkout, '.git'));
+    const transcripts = path.join(claudeHome, 'projects', checkout.replace(/[^A-Za-z0-9]/g, '-'));
+    fs.mkdirSync(transcripts, { recursive: true });
+    fs.writeFileSync(path.join(transcripts, 'content-1.jsonl'), `${JSON.stringify({ cwd: checkout })}\n`);
+
+    fs.mkdirSync(claudeHome, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeHome, 'settings.json'),
+      JSON.stringify({ enabledPlugins: { 'claude-mem@thedotmack': true } }),
+    );
+  });
+
+  afterEach(() => {
+    for (const dir of [memDir, `${memDir}.retired`, checkout]) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const memoryEnabled = () => {
+    const file = path.join(eklavyaHome, 'config.json');
+    return fs.existsSync(file) ? readJson(file).memory?.enabled : undefined;
+  };
+
+  it('choosing Eklavya imports the history under its checkout and retires Claude Mem', () => {
+    // No `claude` on PATH, so the plugin is switched off rather than uninstalled
+    // -- and the suite never runs the real Claude Code CLI.
+    const res = spawnSync(process.execPath, [CLI, 'install', '--skip-runtime', '--memory', 'eklavya'], {
+      encoding: 'utf8',
+      env: {
+        PATH: path.dirname(process.execPath),
+        HOME: os.homedir(),
+        CLAUDE_CONFIG_DIR: claudeHome,
+        EKLAVYA_HOME: eklavyaHome,
+        EKLAVYA_DB: path.join(eklavyaHome, 'knowledge.db'),
+        EKLAVYA_RUNTIME: path.join(eklavyaHome, 'runtime'),
+        CLAUDE_MEM_DATA_DIR: memDir,
+      },
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain('1 project(s) matched');
+
+    const settings = readJson(path.join(claudeHome, 'settings.json'));
+    expect(settings.enabledPlugins['claude-mem@thedotmack']).toBe(false);
+    expect(fs.existsSync(memDir)).toBe(false);
+    expect(fs.existsSync(path.join(`${memDir}.retired`, 'claude-mem.db'))).toBe(true);
+    expect(memoryEnabled()).toBeUndefined();
+
+    const db = new Database(path.join(eklavyaHome, 'knowledge.db'), { readonly: true });
+    const projects = db.prepare('SELECT DISTINCT project FROM memory_entries').all() as { project: string }[];
+    db.close();
+    expect(projects.map((p) => p.project)).toContain(checkout);
+  });
+
+  it('choosing Claude Mem turns Eklavya memory off and touches nothing of Claude Mem', () => {
+    expect(run(['install', '--skip-runtime', '--memory', 'claude-mem']).status).toBe(0);
+    expect(memoryEnabled()).toBe(false);
+    expect(fs.existsSync(path.join(memDir, 'claude-mem.db'))).toBe(true);
+    expect(readJson(path.join(claudeHome, 'settings.json')).enabledPlugins['claude-mem@thedotmack']).toBe(true);
+  });
+
+  it('--memory eklavya reopens an earlier "keep Claude Mem" and turns memory back on', () => {
+    run(['install', '--skip-runtime', '--memory', 'claude-mem']);
+    expect(memoryEnabled()).toBe(false);
+    const res = run(['install', '--skip-runtime', '--memory', 'eklavya']);
+    expect(res.stdout).toContain('imported');
+    expect(memoryEnabled()).toBe(true);
+  });
+
+  it('asks nothing on a later install once Claude Mem was kept', () => {
+    run(['install', '--skip-runtime', '--memory', 'claude-mem']);
+    expect(install().stdout).not.toContain('Claude Mem is installed');
+  });
+
+  it('a source it cannot read keeps Claude Mem and leaves exactly one recorder', () => {
+    fs.writeFileSync(path.join(memDir, 'claude-mem.db'), 'not a database');
+    const res = run(['install', '--skip-runtime', '--memory', 'eklavya']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('import failed');
+    expect(memoryEnabled()).toBe(false);
+    expect(fs.existsSync(path.join(memDir, 'claude-mem.db'))).toBe(true);
+    expect(readJson(path.join(claudeHome, 'settings.json')).enabledPlugins['claude-mem@thedotmack']).toBe(true);
+  });
+
+  it('with no terminal to ask, takes the choice that touches nothing of theirs', () => {
+    expect(install().status).toBe(0);
+    expect(memoryEnabled()).toBe(false);
+    expect(fs.existsSync(path.join(memDir, 'claude-mem.db'))).toBe(true);
+  });
+});
+
+describe('install with no Claude Mem', () => {
+  it('asks nothing and leaves memory on', () => {
+    const res = install();
+    expect(res.stdout).not.toContain('Claude Mem');
+    expect(fs.existsSync(path.join(eklavyaHome, 'config.json'))).toBe(false);
   });
 });
 
