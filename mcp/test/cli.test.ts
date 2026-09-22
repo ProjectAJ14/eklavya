@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import Database from 'better-sqlite3';
 import { tempDbPath, cleanup } from './helpers.js';
 import { openDb } from '../src/db.js';
 import { setCurrentSession, setSessionOff } from '../src/session.js';
@@ -473,6 +474,426 @@ describe('eklavya memory', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toMatch(/version 99/);
     expect(res.stderr).toMatch(/understands version 1/);
+  });
+});
+
+/**
+ * The rest of this file's memory coverage is about the layer above the memory
+ * functions: which one a subcommand reaches, and whether a flag arrives there
+ * at all. `memory-import.test.ts` and `memory-sync.test.ts` call those
+ * functions directly and would keep passing while `--max` was read as a string
+ * or `prune` dispatched to `status`.
+ */
+
+/** One entry in this checkout's memory, for the read subcommands to find. */
+function addEntry(title: string, opts: { project?: string; occurredAt?: string } = {}): void {
+  const db = openDb(dbFile);
+  insertEntry(db, {
+    project: opts.project ?? repo,
+    title,
+    narrative: 'The old refresh token is revoked when a new one is issued.',
+    occurredAt: opts.occurredAt,
+  });
+  db.close();
+}
+
+/**
+ * Queued jobs whose batches hold no events. The worker finishes each as
+ * `skipped` without a summarizer call, so the count is a clean measure of how
+ * many jobs one run was allowed to take — which is what `--max` sets.
+ */
+function queueJobs(count: number, status = 'pending'): void {
+  const db = openDb(dbFile);
+  for (let i = 0; i < count; i++) {
+    const batch = db
+      .prepare("INSERT INTO memory_batches (project, session_id, reason) VALUES (?, 's1', 'manual')")
+      .run(repo);
+    db.prepare('INSERT INTO memory_jobs (batch_id, status) VALUES (?, ?)').run(batch.lastInsertRowid, status);
+  }
+  db.close();
+}
+
+function jobStatuses(): Record<string, number> {
+  const db = openDb(dbFile);
+  const rows = db.prepare('SELECT status, COUNT(*) AS n FROM memory_jobs GROUP BY status').all() as {
+    status: string;
+    n: number;
+  }[];
+  db.close();
+  return Object.fromEntries(rows.map((r) => [r.status, r.n]));
+}
+
+/**
+ * A Claude Mem database trimmed to what the importer reads.
+ *
+ * `importFrom` selects `*` from `observations`, so a column it wants and this
+ * table has not got arrives as `undefined` rather than an error — which is why
+ * the full nine-table schema in `memory-import.test.ts` is not repeated here.
+ * That suite tests the import; these tests only need a source that is real
+ * enough for the argument parsing to have something to point at.
+ */
+function writeClaudeMemDb(file: string, project = 'demo-repo'): string {
+  const src = new Database(file);
+  src.exec(`CREATE TABLE observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, memory_session_id TEXT, project TEXT NOT NULL,
+    type TEXT, title TEXT, narrative TEXT, created_at TEXT NOT NULL, created_at_epoch INTEGER NOT NULL,
+    merged_into_project TEXT)`);
+  src
+    .prepare(
+      `INSERT INTO observations (memory_session_id, project, type, title, narrative, created_at, created_at_epoch)
+       VALUES ('s1', ?, 'decision', 'Imported decision', 'The old token is revoked.', ?, ?)`,
+    )
+    .run(project, '2025-10-04T11:30:00.000Z', Date.UTC(2025, 9, 4, 11, 30));
+  src.close();
+  return file;
+}
+
+describe('eklavya memory dispatches each subcommand', () => {
+  // One fingerprint per subcommand: a line no other memory function prints. A
+  // switch that sent `prune` to `status` would still exit 0 and still print
+  // something, so an exit code on its own proves nothing about dispatch.
+  const dispatches: Array<[string, string[], RegExp]> = [
+    ['status', ['memory', 'status'], /^project:\s+\//m],
+    ['timeline', ['memory', 'timeline'], /^Nothing recorded for this project yet\.$/m],
+    ['search', ['memory', 'search', 'anything'], /^No matches\.$/m],
+    ['prune', ['memory', 'prune'], /^memory\.retention_days is not set/m],
+    ['process', ['memory', 'process'], /^processed 0 · entries 0 · failed 0 · skipped 0$/m],
+    ['sync status', ['memory', 'sync', 'status'], /^sync:\s+off \(set sync\.enabled\)$/m],
+  ];
+
+  for (const [name, argv, expected] of dispatches) {
+    it(`runs ${name} on an empty database and exits 0`, () => {
+      const res = eklavya(argv);
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(expected);
+    });
+  }
+
+  it('runs show against the entry the id names', () => {
+    addEntry('Refresh token rotation');
+    const res = eklavya(['memory', 'show', '1']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^#1\s+Refresh token rotation$/m);
+    expect(res.stdout).toMatch(/^Evidence \(0\):$/m);
+  });
+
+  it('runs prune for real once retention_days is set', () => {
+    // The unset case above short-circuits before `pruneEvidence` is called, so
+    // on its own it cannot tell a correct dispatch from a missing one.
+    eklavya(['config', 'set', 'memory.retention_days', '30']);
+    const res = eklavya(['memory', 'prune']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toBe('Deleted 0 raw evidence events older than 30 days.\n');
+  });
+
+  it('runs import, the one subcommand that reads a file rather than the database', () => {
+    const source = writeClaudeMemDb(path.join(home, 'claude-mem.db'));
+    const res = eklavya(['memory', 'import', source, '--dry-run']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(new RegExp(`^source:\\s+${source.replace(/[/\\]/g, '\\$&')}$`, 'm'));
+  });
+
+  it('answers an unknown subcommand with the memory usage, not the whole CLI\'s', () => {
+    // The two are easy to confuse in the default branch, and the wrong one
+    // hands somebody who mistyped `timeline` a screen about `serve` and
+    // `install` with no list of the subcommands they meant.
+    const res = eklavya(['memory', 'nonsense']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/^Usage: eklavya memory status\|search\|timeline\|show\|replay\|process\|prune/m);
+    expect(res.stderr).not.toMatch(/eklavya serve/);
+  });
+});
+
+describe('eklavya memory flags reach the function they configure', () => {
+  it('--limit caps the timeline, and caps it from the newest end', () => {
+    for (const n of [1, 2, 3]) addEntry(`Token entry ${n}`, { occurredAt: `2025-0${n}-01T10:00:00.000Z` });
+    expect(eklavya(['memory', 'timeline']).stdout.match(/^#\d/gm)).toHaveLength(3);
+
+    const res = eklavya(['memory', 'timeline', '--limit', '2']);
+    expect(res.status).toBe(0);
+    expect(res.stdout.match(/^#\d/gm)).toHaveLength(2);
+    // Which two matters: a `--limit` that never reached the query and got
+    // truncated somewhere else could just as easily keep the oldest rows.
+    expect(res.stdout).toMatch(/Token entry 3/);
+    expect(res.stdout).not.toMatch(/Token entry 1/);
+  });
+
+  it('--since filters the timeline by date', () => {
+    for (const n of [1, 2, 3]) addEntry(`Token entry ${n}`, { occurredAt: `2025-0${n}-01T10:00:00.000Z` });
+    const res = eklavya(['memory', 'timeline', '--since', '2025-02-01']);
+    expect(res.status).toBe(0);
+    expect(res.stdout.match(/^#\d/gm)).toHaveLength(2);
+    expect(res.stdout).not.toMatch(/Token entry 1/);
+  });
+
+  it('--limit caps search hits', () => {
+    for (const n of [1, 2, 3]) addEntry(`Token entry ${n}`);
+    expect(eklavya(['memory', 'search', 'token']).stdout.match(/^#\d/gm)).toHaveLength(3);
+    const res = eklavya(['memory', 'search', 'token', '--limit', '2']);
+    expect(res.status).toBe(0);
+    expect(res.stdout.match(/^#\d/gm)).toHaveLength(2);
+  });
+
+  it('--all-projects is the only way another checkout\'s memory surfaces', () => {
+    addEntry('Token here');
+    addEntry('Token elsewhere', { project: '/some/other/checkout' });
+
+    const scoped = eklavya(['memory', 'search', 'token']);
+    expect(scoped.stdout).toMatch(/Token here/);
+    expect(scoped.stdout).not.toMatch(/Token elsewhere/);
+
+    const wide = eklavya(['memory', 'search', 'token', '--all-projects']);
+    expect(wide.status).toBe(0);
+    expect(wide.stdout).toMatch(/Token elsewhere/);
+  });
+
+  it('--mode picks the searcher, and the output names the one that ran', () => {
+    addEntry('Refresh token rotation');
+    // The default is hybrid, so a `--mode` that was parsed as part of the query
+    // would still return this hit -- the `via` field is what tells them apart.
+    expect(eklavya(['memory', 'search', 'refresh']).stdout).toMatch(/· hybrid$/m);
+    const res = eklavya(['memory', 'search', 'refresh', '--mode', 'keyword']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/· keyword$/m);
+    // ...and the flag's own value must not have been searched for.
+    expect(res.stdout).toMatch(/Refresh token rotation/);
+  });
+
+  it('--max caps how many jobs one process run drains', () => {
+    queueJobs(5);
+    const res = eklavya(['memory', 'process', '--max', '2']);
+    expect(res.status).toBe(0);
+    // `"2"` ignored as a string leaves the default of 10 and drains all five;
+    // this is the assertion that a number arrived.
+    expect(res.stdout).toBe('processed 0 · entries 0 · failed 0 · skipped 2\n');
+    expect(jobStatuses()).toEqual({ done: 2, pending: 3 });
+  });
+
+  it('process resumes paused jobs and says how many, which nothing else does', () => {
+    queueJobs(2, 'paused');
+    const res = eklavya(['memory', 'process']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toBe('resumed 2 paused · processed 0 · entries 0 · failed 0 · skipped 2\n');
+    expect(jobStatuses()).toEqual({ done: 2 });
+  });
+
+  it('omits the resumed line when there was nothing paused', () => {
+    // A line reporting work that did not happen is how `doctor`'s remedy stops
+    // being believable: it says "run this", and this says it resumed nothing.
+    queueJobs(1);
+    expect(eklavya(['memory', 'process']).stdout).not.toMatch(/resumed/);
+  });
+
+  it('--target points sync at a folder for one run without turning sync on', () => {
+    const target = path.join(home, 'shared');
+
+    // `--target` overrides sync.target, never sync.enabled: pointing it
+    // somewhere for a second is still a decision to publish this machine.
+    const off = eklavya(['memory', 'sync', 'push', '--target', target]);
+    expect(off.status).toBe(1);
+    expect(off.stderr).toMatch(/Sync is off\./);
+
+    eklavya(['config', 'set', 'sync.enabled', 'true']);
+    addEntry('Refresh token rotation');
+    const on = eklavya(['memory', 'sync', 'push', '--target', target]);
+    expect(on.status).toBe(0);
+    expect(on.stdout).toMatch(new RegExp(`^Pushed to ${target.replace(/[/\\]/g, '\\$&')} as `, 'm'));
+    expect(fs.existsSync(path.join(target, 'devices'))).toBe(true);
+  });
+
+  it('--dry-run reports the source and writes nothing', () => {
+    const source = writeClaudeMemDb(path.join(home, 'claude-mem.db'));
+    const res = eklavya(['memory', 'import', source, '--dry-run']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/Dry run: nothing was written, and the source was opened read-only\./);
+    expect(eklavya(['memory', 'status']).stdout).toMatch(/entries:\s+0 here, 0 in total/);
+  });
+
+  it('--map files a source project under the checkout it names', () => {
+    const source = writeClaudeMemDb(path.join(home, 'claude-mem.db'));
+    const res = eklavya(['memory', 'import', source, '--map', `demo-repo=${repo}`]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(new RegExp(`^  mapped: demo-repo -> ${repo.replace(/[/\\]/g, '\\$&')}$`, 'm'));
+    // The point of the mapping: the row is now findable from this checkout,
+    // rather than only under --all-projects.
+    expect(eklavya(['memory', 'search', 'imported']).stdout).toMatch(/Imported decision/);
+  });
+
+  it('--map-here uses the checkout the command was run from', () => {
+    const source = writeClaudeMemDb(path.join(home, 'claude-mem.db'));
+    const res = eklavya(['memory', 'import', source, '--map-here', 'demo-repo']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(new RegExp(`^  mapped: demo-repo -> ${repo.replace(/[/\\]/g, '\\$&')}$`, 'm'));
+  });
+
+  it('leaves an unmapped project where it was, and says it is only reachable widened', () => {
+    const source = writeClaudeMemDb(path.join(home, 'claude-mem.db'));
+    const res = eklavya(['memory', 'import', source]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^  kept as-is: demo-repo$/m);
+    expect(res.stdout).toMatch(/only with --all-projects/);
+    expect(eklavya(['memory', 'search', 'imported']).stdout).toBe('No matches.\n');
+    expect(eklavya(['memory', 'search', 'imported', '--all-projects']).stdout).toMatch(/Imported decision/);
+  });
+
+  // The source is a positional, and every flag value sitting next to it is a
+  // candidate for being picked up as one. Each of these once had to be argued
+  // about rather than run.
+  const positionals: Array<[string, (src: string) => string[]]> = [
+    ['--resume', (src) => ['memory', 'import', src, '--resume']],
+    ['--map-here, when the flag comes first', (src) => ['memory', 'import', '--map-here', 'demo-repo', src]],
+    ['--map, when the flag comes first', (src) => ['memory', 'import', '--map', 'demo-repo=/tmp', src]],
+  ];
+
+  for (const [name, argvFor] of positionals) {
+    it(`still finds the source path alongside ${name}`, () => {
+      const source = writeClaudeMemDb(path.join(home, 'claude-mem.db'));
+      const res = eklavya(argvFor(source));
+      expect(res.status).toBe(0);
+      expect(res.stdout).toMatch(/^  observations\s+read 1 · imported 1/m);
+    });
+  }
+});
+
+describe('eklavya memory says what is wrong rather than exiting quietly', () => {
+  const missing: Array<[string, string[], RegExp]> = [
+    ['show', ['memory', 'show'], /^Usage: eklavya memory show <id>$/m],
+    ['show, given something that is not an id', ['memory', 'show', 'latest'], /^Usage: eklavya memory show <id>$/m],
+    ['search', ['memory', 'search'], /^Usage: eklavya memory search <query>/m],
+    ['search, given only flags', ['memory', 'search', '--all-projects'], /^Usage: eklavya memory search <query>/m],
+    ['export', ['memory', 'export'], /^Usage: eklavya memory export <path>$/m],
+    ['restore', ['memory', 'restore'], /^Usage: eklavya memory restore <file>$/m],
+    ['import', ['memory', 'import'], /^Usage: eklavya memory import <path-to-claude-mem\.db>/m],
+    ['sync', ['memory', 'sync'], /^Usage: eklavya memory sync <push\|pull\|status>/m],
+    ['sync, given a verb it has not got', ['memory', 'sync', 'upload'], /^Usage: eklavya memory sync <push\|pull\|status>/m],
+  ];
+
+  for (const [name, argv, expected] of missing) {
+    it(`names the argument it wanted for ${name}`, () => {
+      const res = eklavya(argv);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toMatch(expected);
+      // Nothing on stdout: a usage line the caller has to fish out of a report
+      // is the same as no usage line when the caller is a script.
+      expect(res.stdout).toBe('');
+    });
+  }
+
+  // A flag whose value was eaten by the next flag is the quiet failure this
+  // guards: `--limit --all-projects` must not search for "--all-projects".
+  const valueless: Array<[string, string[], string]> = [
+    ['--limit on search', ['memory', 'search', 'token', '--limit'], '--limit needs a value.'],
+    ['--mode on search', ['memory', 'search', 'token', '--mode'], '--mode needs a value.'],
+    ['--limit swallowed by the next flag', ['memory', 'search', 'token', '--limit', '--all-projects'], '--limit needs a value.'],
+    ['--since on timeline', ['memory', 'timeline', '--since'], '--since needs a value.'],
+    ['--target on sync', ['memory', 'sync', 'status', '--target'], '--target needs a value.'],
+    ['--map-here on import', ['memory', 'import', 'src.db', '--map-here'], 'Usage: --map-here <source-project>'],
+  ];
+
+  for (const [name, argv, expected] of valueless) {
+    it(`refuses ${name} with no value`, () => {
+      const res = eklavya(argv);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain(expected);
+    });
+  }
+
+  const badNumbers: Array<[string, string[], string]> = [
+    ['zero', ['memory', 'search', 'token', '--limit', '0'], '--limit needs a positive number.'],
+    ['a word', ['memory', 'search', 'token', '--limit', 'later'], '--limit needs a positive number.'],
+    ['a negative', ['memory', 'timeline', '--limit', '-1'], '--limit needs a positive number.'],
+    ['a word for --max', ['memory', 'process', '--max', 'lots'], '--max needs a positive number.'],
+  ];
+
+  for (const [name, argv, expected] of badNumbers) {
+    it(`refuses ${name} instead of quietly falling back to the default`, () => {
+      const res = eklavya(argv);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain(expected);
+    });
+  }
+
+  it('names a --map pair that has no path in it', () => {
+    const res = eklavya(['memory', 'import', 'src.db', '--map', 'demo-repo']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('Usage: --map <source-project>=<path-to-checkout>');
+  });
+
+  it('names the file when there is no Claude Mem database there', () => {
+    const res = eklavya(['memory', 'import', path.join(home, 'nowhere.db')]);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain(path.join(home, 'nowhere.db'));
+    expect(res.stderr).toMatch(/usually ~\/\.claude-mem\/claude-mem\.db/);
+  });
+
+  it('names the file when there is no export there', () => {
+    const res = eklavya(['memory', 'restore', path.join(home, 'nowhere.json')]);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain(path.join(home, 'nowhere.json'));
+    expect(res.stderr).toMatch(/Pass the file `eklavya memory export` wrote\./);
+  });
+
+  it('names the file when an export is not readable JSON', () => {
+    const file = path.join(home, 'truncated.json');
+    fs.writeFileSync(file, '{"schema_version": 1, "entr');
+    const res = eklavya(['memory', 'restore', file]);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/is not readable JSON/);
+  });
+
+  // FAILING — DEFECT. src/cli.ts:958-1023. `memoryImport` converts an
+  // `ImportError` into a message and rethrows everything else, and nothing
+  // below `inventory()` wraps better-sqlite3's own errors. Point `import` at a
+  // file that is not a database -- the likeliest mistake there is, since the
+  // argument is a path the developer types by hand -- and they get
+  // `SqliteError: file is not a database` with a stack trace through
+  // node_modules. The missing-file case next door is handled properly, and so
+  // is `restore` given the same junk, so this is an oversight rather than a
+  // policy.
+  it('names the file when it is not a database at all, rather than throwing', () => {
+    const file = path.join(home, 'notes.db');
+    fs.writeFileSync(file, 'this is not a sqlite file at all');
+    const res = eklavya(['memory', 'import', file]);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain(file);
+    expect(res.stderr).not.toMatch(/node_modules/);
+    expect(res.stderr).not.toMatch(/^\s+at /m);
+  });
+
+  // FAILING — DEFECT. src/cli.ts:825-826. `resumePaused(db)` runs on line 825;
+  // `numberFlag(argv, '--max', 10)` is not evaluated until it is built as an
+  // argument to `processPending` on line 826. So a rejected `--max` has already
+  // moved every paused job back to pending, and because the failure path never
+  // reaches the summary line, the `resumed N paused` report is never printed
+  // either. The developer is told the command did nothing and the queue says
+  // otherwise; if the credential behind the pause is still wrong, those jobs
+  // now burn their retries invisibly. Validate the arguments before the write.
+  it('does not resume paused jobs on a run it refused to make', () => {
+    queueJobs(2, 'paused');
+    const res = eklavya(['memory', 'process', '--max', 'lots']);
+    expect(res.status).toBe(1);
+    expect(jobStatuses()).toEqual({ paused: 2 });
+  });
+
+  // FAILING — DEFECT. src/cli.ts:939-942 (`--map-here` in `projectMapFrom`).
+  // `projectKey(findRepoConfig(process.cwd()).repoRoot)` returns GLOBAL_PROJECT
+  // ('*') when there is no checkout to find, so `--map-here` run outside one
+  // files every imported row under the global bucket and reports
+  // `would map: demo-repo -> *` as though it had worked. That is precisely the
+  // outcome the function's own comment says the flag exists to prevent -- rows
+  // in "a scope no session queries" -- and it is silent and permanent. The flag
+  // means "here"; with no here, it should say so.
+  it('refuses --map-here outside a checkout instead of filing rows under *', () => {
+    const source = writeClaudeMemDb(path.join(home, 'claude-mem.db'));
+    const loose = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-nogit-'));
+    try {
+      const res = eklavya(['memory', 'import', source, '--dry-run', '--map-here', 'demo-repo'], loose);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toMatch(/--map-here/);
+      expect(res.stdout).not.toMatch(/would map: demo-repo -> \*/);
+    } finally {
+      fs.rmSync(loose, { recursive: true, force: true });
+    }
   });
 });
 

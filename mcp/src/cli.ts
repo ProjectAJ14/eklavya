@@ -822,8 +822,13 @@ function memoryProcess(argv: string[]): void {
   // what `doctor` tells the developer to run, and nothing else takes a job off
   // 'paused'. Resuming here rather than in the worker keeps it an explicit act
   // — a hook that resumed by itself would spend a rejected key every session.
+  // Validate before resuming. `numberFlag` exits on a bad value, and resuming
+  // is not undoable: a refused run that had already emptied the pause would
+  // tell the developer nothing happened while the queue quietly went back to
+  // spending a credential that may still be rejected.
+  const maxJobs = numberFlag(argv, '--max', 10);
   const resumed = resumePaused(db);
-  processPending(db, config, { maxJobs: numberFlag(argv, '--max', 10) }).then(
+  processPending(db, config, { maxJobs }).then(
     (result) => {
       process.stdout.write(
         `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}\n`,
@@ -939,7 +944,12 @@ function projectMapFrom(argv: string[]): Record<string, string> {
     } else if (argv[i] === '--map-here') {
       const name = argv[i + 1];
       if (!name || name.startsWith('--')) fail('Usage: --map-here <source-project>');
-      map[name] = projectKey(findRepoConfig(process.cwd()).repoRoot);
+      const here = findRepoConfig(process.cwd()).repoRoot;
+      // "Here" has to be somewhere. Without a checkout `projectKey` answers with
+      // the global bucket, so the flag would file every row under a scope no
+      // session queries -- silently, permanently, and to say it had mapped them.
+      if (!here) fail(`--map-here needs a checkout: ${process.cwd()} is not inside a git repository.`);
+      map[name] = projectKey(here);
       i++;
     }
   }
@@ -1019,7 +1029,11 @@ function memoryImport(argv: string[]): void {
     }
   } catch (err) {
     if (err instanceof ImportError) fail(err.message);
-    throw err;
+    // The source is a hand-typed path, so pointing it at the wrong file is the
+    // likeliest mistake there is. The missing-file case was already handled and
+    // `restore` says "is not readable JSON" for the same mistake; only this path
+    // let a driver error out with a stack through node_modules.
+    fail(`eklavya memory import: cannot read ${source} — ${(err as Error).message}`);
   }
 }
 
