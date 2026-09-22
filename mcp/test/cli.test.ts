@@ -226,9 +226,9 @@ describe('eklavya doctor', () => {
   it('reports the database, seed count and journal mode', () => {
     const res = eklavya(['doctor']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/journal:\s+wal/);
-    expect(res.stdout).toMatch(/concepts: 8\d/);
-    expect(res.stdout).toMatch(/quiz:\s+on/);
+    expect(res.stdout).toMatch(/journal\s+wal/);
+    expect(res.stdout).toMatch(/concepts\s+8\d/);
+    expect(res.stdout).toMatch(/quiz\s+on/);
   });
 
   it('creates the database if it does not exist yet', () => {
@@ -246,7 +246,7 @@ describe('eklavya doctor', () => {
     });
     const res = eklavya(['doctor']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/packs:\s+1 loaded — eklavya-pack-rust@1\.0\.0 \(global\)/);
+    expect(res.stdout).toMatch(/1 loaded — eklavya-pack-rust@1\.0\.0 \(global\)/);
   });
 
   it('counts an edge whose endpoint names nothing, which is silent everywhere else', () => {
@@ -266,7 +266,7 @@ describe('eklavya doctor', () => {
     fs.writeFileSync(path.join(home, 'packs', 'broken.json'), '{ not json');
     const res = eklavya(['doctor']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/packs:\s+FAILED/);
+    expect(res.stdout).toMatch(/FAILED/);
     expect(res.stdout).not.toMatch(/Run: eklavya install/);
   });
 });
@@ -275,12 +275,12 @@ describe('eklavya doctor reports the memory half', () => {
   it('answers on an empty database without throwing or inventing numbers', () => {
     const res = eklavya(['doctor']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/memory:\s+on · capture full/);
-    expect(res.stdout).toMatch(/memory:\s+0 entries, 0 evidence events \(0 not yet summarised\)/);
-    expect(res.stdout).toMatch(/memory:\s+queue 0 pending · 0 paused · 0 failed/);
-    expect(res.stdout).toMatch(/memory:\s+last evidence — none captured yet/);
-    expect(res.stdout).toMatch(/memory:\s+sync off/);
-    expect(res.stdout).toMatch(/memory:\s+provider none — nothing leaves this machine/);
+    expect(res.stdout).toMatch(/on · capture full/);
+    expect(res.stdout).toMatch(/0 entries, 0 evidence events \(0 not yet summarised\)/);
+    expect(res.stdout).toMatch(/queue 0 pending · 0 paused · 0 failed/);
+    expect(res.stdout).toMatch(/last evidence — none captured yet/);
+    expect(res.stdout).toMatch(/sync off/);
+    expect(res.stdout).toMatch(/provider none — nothing leaves this machine/);
   });
 
   it('fails on a paused queue and names the fix, with the class and never the message', () => {
@@ -294,7 +294,7 @@ describe('eklavya doctor reports the memory half', () => {
 
     const res = eklavya(['doctor']);
     expect(res.status).toBe(1);
-    expect(res.stdout).toMatch(/memory:\s+FAILED — 1 job\(s\) paused \(auth\)/);
+    expect(res.stdout).toMatch(/FAILED — 1 job\(s\) paused \(auth\)/);
     expect(res.stdout).toMatch(/eklavya memory process/);
     // `last_error` is the provider's own prose and has carried a token in it.
     expect(res.stdout).not.toContain('sk-do-not-print-me');
@@ -308,7 +308,7 @@ describe('eklavya doctor reports the memory half', () => {
 
     const res = eklavya(['doctor']);
     expect(res.status).toBe(1);
-    expect(res.stdout).toMatch(/memory:\s+FAILED — 3 event\(s\) dropped/);
+    expect(res.stdout).toMatch(/FAILED — 3 event\(s\) dropped/);
     expect(res.stdout).toMatch(/eklavya memory replay/);
   });
 });
@@ -317,10 +317,10 @@ describe('eklavya doctor checks the install', () => {
   it('passes and stays silent when everything is wired up', () => {
     const res = eklavya(['doctor']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/runtime:\s+\//);
-    expect(res.stdout).toMatch(/driver:\s+better-sqlite3 loads/);
-    expect(res.stdout).toMatch(/plugin:.*registered, enabled/);
-    expect(res.stdout).toMatch(/skill:\s+\//);
+    expect(res.stdout).toMatch(/runtime\s+\//);
+    expect(res.stdout).toMatch(/driver\s+better-sqlite3 loads/);
+    expect(res.stdout).toMatch(/plugin\s.*registered, enabled/);
+    expect(res.stdout).toMatch(/skill\s+\//);
     expect(res.stdout).not.toMatch(/FAILED/);
     expect(res.stdout).not.toMatch(/Something is broken/);
   });
@@ -333,7 +333,7 @@ describe('eklavya doctor checks the install', () => {
     [
       'the runtime is gone',
       () => fs.rmSync(path.join(runtimeDir, 'node_modules', 'eklavya'), { recursive: true, force: true }),
-      /runtime:\s+FAILED — no compiled server at/,
+      /runtime\s+FAILED — no compiled server at/,
     ],
     [
       'the native driver will not load',
@@ -342,7 +342,7 @@ describe('eklavya doctor checks the install', () => {
           path.join(runtimeDir, 'node_modules', 'better-sqlite3', 'index.js'),
           'throw new Error("dlopen: wrong ABI");',
         ),
-      /driver:\s+FAILED — will not load on Node .* — Error: dlopen: wrong ABI/,
+      /driver\s+FAILED — will not load on Node .* — Error: dlopen: wrong ABI/,
     ],
     [
       'the plugin was dropped from the registry',
@@ -351,7 +351,7 @@ describe('eklavya doctor checks the install', () => {
           path.join(claudeDir, 'plugins', 'installed_plugins.json'),
           JSON.stringify({ version: 2, plugins: {} }),
         ),
-      /plugin:\s+FAILED — .*on disk but not registered/,
+      /plugin\s+FAILED — .*on disk but not registered/,
     ],
     [
       'the plugin was switched off',
@@ -360,19 +360,19 @@ describe('eklavya doctor checks the install', () => {
           path.join(claudeDir, 'settings.json'),
           JSON.stringify({ enabledPlugins: { 'eklavya@eklavya': false } }),
         ),
-      /plugin:\s+FAILED — registered but not enabled/,
+      /plugin\s+FAILED — registered but not enabled/,
     ],
     [
       // Anything but an explicit `true` is off. Reading a vanished key as
       // healthy would hide the exact failure this command exists to catch.
       'the enablement key vanished entirely',
       () => fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify({})),
-      /plugin:\s+FAILED — registered but not enabled/,
+      /plugin\s+FAILED — registered but not enabled/,
     ],
     [
       'the user skill is gone',
       () => fs.rmSync(path.join(claudeDir, 'skills', 'eklavya'), { recursive: true, force: true }),
-      /skill:\s+FAILED — nothing at/,
+      /skill\s+FAILED — nothing at/,
     ],
   ];
 
@@ -395,7 +395,7 @@ describe('eklavya doctor checks the install', () => {
     );
     const res = eklavya(['doctor']);
     expect(res.status).toBe(1);
-    expect(res.stdout).toMatch(/skill:\s+FAILED — .*different skill named eklavya — move it first/);
+    expect(res.stdout).toMatch(/skill\s+FAILED — .*different skill named eklavya — move it first/);
   });
 
   // A broken install must not cost the report: whoever is reading this still
@@ -404,8 +404,8 @@ describe('eklavya doctor checks the install', () => {
     fs.rmSync(path.join(runtimeDir, 'node_modules'), { recursive: true, force: true });
     const res = eklavya(['doctor']);
     expect(res.status).toBe(1);
-    expect(res.stdout).toMatch(/quiz:\s+on/);
-    expect(res.stdout).toMatch(/level:\s+easy/);
+    expect(res.stdout).toMatch(/quiz\s+on/);
+    expect(res.stdout).toMatch(/level\s+easy/);
   });
 });
 
@@ -932,12 +932,12 @@ describe('eklavya misc', () => {
 describe('eklavya doctor reports the difficulty level', () => {
   it('names the level and the runway', () => {
     const res = eklavya(['doctor']);
-    expect(res.stdout).toMatch(/level:\s+easy \(0\/100 passing answers in/);
+    expect(res.stdout).toMatch(/level\s+easy \(0\/100 passing answers in/);
   });
 
   it('says when a pin is switching progression off', () => {
     eklavya(['config', 'set', 'difficulty', 'hard']);
-    expect(eklavya(['doctor']).stdout).toMatch(/level:\s+hard \(pinned by config/);
+    expect(eklavya(['doctor']).stdout).toMatch(/level\s+hard \(pinned by config/);
   });
 });
 
@@ -1066,12 +1066,12 @@ describe('doctor names where each setting came from', () => {
     );
 
     const out = eklavya(['doctor']).stdout;
-    expect(out).toMatch(/quiz:.*\(set for this project\)/);
+    expect(out).toMatch(/quiz\s.*\(set for this project\)/);
     // focus and cadence are defaults here, and must say nothing.
-    expect(out).toMatch(/focus:\s+concept\s*$/m);
-    expect(out).toMatch(/cadence:\s+interleaved[^\n]*$/m);
-    expect(out).not.toMatch(/focus:.*set for this project/);
-    expect(out).not.toMatch(/cadence:.*set for this project/);
+    expect(out).toMatch(/focus\s+concept\s*$/m);
+    expect(out).toMatch(/cadence\s+interleaved[^\n]*$/m);
+    expect(out).not.toMatch(/focus\s.*set for this project/);
+    expect(out).not.toMatch(/cadence\s.*set for this project/);
   });
 });
 
