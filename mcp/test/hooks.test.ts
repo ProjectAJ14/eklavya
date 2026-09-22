@@ -738,7 +738,7 @@ describe('Stop hook — what it tells Claude', () => {
  * Claude Desktop stamps, because a unit test of `attributionRule` proves the
  * sentence is composed and not that either hook reached for it.
  */
-describe('Both hooks sign the question for the host they are running on', () => {
+describe('Signing the question for the host it is running on', () => {
   const desktop = { CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' };
   const terminal = { CLAUDE_CODE_ENTRYPOINT: 'cli' };
 
@@ -760,16 +760,24 @@ describe('Both hooks sign the question for the host they are running on', () => 
       ),
     );
 
-  it('asks the Stop sweep for a stem prefix on Desktop and for the chip alone in a terminal', () => {
-    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
-    logConcepts(['csrf']);
-    expect(stopOn(desktop).context).toMatch(/\[Eklavya\]/);
-
-    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
-    logConcepts(['jwt-structure']);
-    const plain = stopOn(terminal).context;
-    expect(plain).toMatch(/Header "Eklavya"/);
-    expect(plain).not.toMatch(/\[Eklavya\]/);
+  // The Stop sweep is the one path that does NOT spell the rule out, and that is
+  // deliberate: its `additionalContext` is printed to the developer verbatim, so
+  // it points at `ask_attribution` -- which `get_session_quiz_plan` returns, host
+  // branch and all -- instead of reciting it on their screen. Same rule, one
+  // copy, and the copy lives where the model reads it rather than where the
+  // learner does.
+  it('sends the Stop sweep to the plan for the attribution rule, on either host', () => {
+    for (const [env, slug] of [
+      [desktop, 'csrf'],
+      [terminal, 'jwt-structure'],
+    ] as const) {
+      configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
+      logConcepts([slug]);
+      const ctx = stopOn(env).context;
+      expect(ctx).toMatch(/ask_attribution/);
+      expect(ctx).not.toMatch(/Header "Eklavya"/);
+      expect(ctx).not.toMatch(/\[Eklavya\]/);
+    }
   });
 
   it('does the same at the mid-work checkpoint', () => {

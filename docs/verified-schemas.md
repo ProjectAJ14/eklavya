@@ -468,6 +468,10 @@ All three pass through the same loop protections: the `stop_hook_active` input a
 
 **Decision:** `stop-quiz-check` writes the tutor instruction to **`hookSpecificOutput.additionalContext` on stdout and exits 0**. Eklavya asking its question is the feature working, not the session erroring, and a page of model-facing instructions addressed to the developer in red is the opposite of what an ambient tool should look like. Every hook in `mcp/src/hooks/` now exits 0.
 
+**`additionalContext` is not a private channel, and there is no flag that makes it one.** Verified against the 2.1.278 bundle: the `stop_hook_summary` renderer prints every Stop `additionalContext` string to the terminal verbatim, as gold sub-lines under `Ran N stop hooks`, wrapped and effectively untruncated. `suppressOutput` does not reach that path, and the tone is chosen by the harness (`red` on error, `gold` when any additionalContext is present, `dim` otherwise) — a hook cannot ask to be dimmed. The only lever a hook has is **how much it says**.
+
+So the Stop sweep says only what it alone knows — the concepts, the size of the sweep, whether the gate is pressing — in three lines. Everything about *how* to ask (the MCQ shape, `answer_position`, `ask_attribution`, `framing`, `tier_to_ask`, the record format) is returned by `get_session_quiz_plan`, which is the very next call the model makes; repeating it in the hook bought nothing and spent a screen of the developer's terminal on Eklavya reciting its own prompt. The mid-work checkpoint is under no such constraint: `PostToolUse` `additionalContext` is not rendered, and its one-line `systemMessage` is all the developer sees — which is why that hook still spells everything out.
+
 ### D2 — `stop_hook_active` is not documented; the loop guard must be entirely ours
 The original design leaned on `stop_hook_active` to avoid re-blocking. That field is absent from the current stdin field list.
 
