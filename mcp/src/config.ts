@@ -155,6 +155,37 @@ export interface NotificationsConfig {
   sinks: NotificationSink[];
 }
 
+/**
+ * Multi-device sync (ADR-09). A shared directory, not a server.
+ *
+ * Off by default with no target, and both are load-bearing rather than
+ * cautious: `enabled` alone does nothing, because a sync with nowhere to write
+ * is a silent no-op that looks like a broken feature, and a target alone does
+ * nothing, because a path left in a config file from a machine that has since
+ * been wiped must not start publishing this one's memory. Turning it on is two
+ * explicit decisions, and what crosses is memory only -- never attempts,
+ * mastery, gates or receipts (PRD SEC-02).
+ */
+export interface SyncConfig {
+  enabled: boolean;
+  /** A folder both devices can see: Dropbox, iCloud, Syncthing, a mounted share. */
+  target: string | null;
+  /**
+   * Normally `null`, and normally left that way.
+   *
+   * The real device id is generated once and kept in the `meta` table of
+   * `knowledge.db`, because that file is per-install while config files travel:
+   * `.eklavya.json` is committed to a repository and `~/.eklavya/config.json`
+   * is exactly the sort of thing a dotfile manager copies to the second
+   * machine. Two devices sharing an id would interleave one revision stream and
+   * each would treat the other's writes as its own -- so the identity lives
+   * where an import is already forbidden to copy it (PRD MIG-01). This key
+   * exists to pin it deliberately, which is what tests and a restored backup
+   * want.
+   */
+  device_id: string | null;
+}
+
 export interface EklavyaConfig {
   mode: Mode;
   /**
@@ -209,6 +240,7 @@ export interface EklavyaConfig {
   retrieval: RetrievalConfig;
   providers: ProvidersConfig;
   notifications: NotificationsConfig;
+  sync: SyncConfig;
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
@@ -251,6 +283,11 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   notifications: {
     enabled: false,
     sinks: [],
+  },
+  sync: {
+    enabled: false,
+    target: null,
+    device_id: null,
   },
 };
 
@@ -523,6 +560,22 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
       observer: provider(providers.observer),
       embeddings: provider(providers.embeddings),
     };
+  }
+
+  const sync = raw.sync as Record<string, unknown> | undefined;
+  if (sync && typeof sync === 'object') {
+    out.sync = { ...out.sync };
+    if (typeof sync.enabled === 'boolean') out.sync.enabled = sync.enabled;
+    if (typeof sync.target === 'string' && sync.target.trim()) {
+      out.sync.target = sync.target.trim();
+    } else if (sync.target === null) {
+      out.sync.target = null;
+    }
+    if (typeof sync.device_id === 'string' && sync.device_id.trim()) {
+      out.sync.device_id = sync.device_id.trim();
+    } else if (sync.device_id === null) {
+      out.sync.device_id = null;
+    }
   }
 }
 

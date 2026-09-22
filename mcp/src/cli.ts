@@ -30,6 +30,7 @@ import {
   timeline,
 } from './memory/store.js';
 import { search, type SearchMode } from './memory/search.js';
+import { pull, push, syncStatus } from './memory/sync.js';
 import { processPending, pruneEvidence, queueDepth, summarizerFor } from './memory/worker.js';
 import { droppedCount } from './memory/spool.js';
 import { savingsFrom, savingsLine } from './memory/tokens.js';
@@ -75,6 +76,10 @@ Memory:
                                         --map <source>=<path>  file that source project under a checkout
                                         --map-here <source>    the same, for the checkout you are in
   eklavya memory export <file>          Versioned JSON of entries, tags, evidence links and receipts
+  eklavya memory sync <push|pull|status>  Exchange memory with your other devices through a shared
+                                        folder [--target <dir>]. Memory entries, tags and tombstones
+                                        only — attempts, mastery, gates and receipts never leave.
+                                        Needs sync.enabled and sync.target; does nothing without both
 
 Config keys: mode, focus, focus_topic, cadence, difficulty, level_up_after,
              level_up_accuracy, pass_threshold, max_questions_per_task,
@@ -88,6 +93,9 @@ Config namespaces (nested; edit ~/.eklavya/config.json or .eklavya.json directly
              api_key_env names the variable holding the key, never the key itself
   notifications.{enabled, sinks} — sinks are {kind: webhook|command|file, target,
              args, events}; off by default, and a send cannot be recalled
+  sync.{enabled, target, device_id} — target is a folder both devices can see
+             (Dropbox, iCloud, Syncthing, a share); off and unset by default.
+             device_id is normally left null: it is generated once per install
 `;
 
 function fail(message: string): never {
@@ -498,7 +506,7 @@ function dashboardCommand(argv: string[]): void {
  * to ask for it.
  */
 const MEMORY_USAGE =
-  'Usage: eklavya memory status|search|timeline|show|process|prune|import|export\n' +
+  'Usage: eklavya memory status|search|timeline|show|process|prune|import|export|sync\n' +
   '       run `eklavya --help` for the full list\n';
 
 function flag(argv: string[], name: string, fallback?: string): string | undefined {
@@ -842,6 +850,85 @@ function memoryExport(argv: string[]): void {
   }
 }
 
+/**
+ * `eklavya memory sync push|pull|status [--target <dir>]` (ADR-09).
+ *
+ * The directory is the whole protocol, so the command has no host, no token and
+ * no network error to report — only what it wrote and what it read back.
+ * `--target` overrides `sync.target` for one run; it does not override
+ * `sync.enabled`, because "point it somewhere for a second" is still a decision
+ * to publish this machine's memory.
+ */
+function memorySync(argv: string[]): void {
+  const [sub] = argv;
+  if (sub !== 'push' && sub !== 'pull' && sub !== 'status') {
+    fail('Usage: eklavya memory sync <push|pull|status> [--target <dir>]');
+  }
+  const target = flag(argv, '--target') ?? null;
+
+  const db = openDb();
+  try {
+    const { config } = loadConfig();
+
+    if (sub === 'status') {
+      const s = syncStatus(db, config, { target });
+      const lines = [
+        `sync:       ${s.enabled ? 'on' : 'off (set sync.enabled)'}`,
+        `target:     ${s.target ?? '— (set sync.target, or pass --target)'}`,
+        `device:     ${s.device_id ?? '—'}`,
+        `revision:   ${s.local_revision}`,
+        `pending:    ${s.pending} local change${s.pending === 1 ? '' : 's'} to push`,
+        `conflicts:  ${s.open_conflicts} quarantined`,
+        `peers:      ${
+          s.peers.length
+            ? s.peers.map((p) => `${p.device_id}@${p.last_revision}`).join(', ')
+            : 'none seen yet'
+        }`,
+      ];
+      process.stdout.write(`${lines.join('\n')}\n`);
+      return;
+    }
+
+    const result = sub === 'push' ? push(db, config, { target }) : pull(db, config, { target });
+    if (!result.ok) {
+      fail(
+        result.reason === 'disabled'
+          ? 'Sync is off. Set sync.enabled to true in ~/.eklavya/config.json.'
+          : 'No sync target. Set sync.target to a folder your devices share, or pass --target.',
+      );
+    }
+
+    if (sub === 'push') {
+      const r = result as ReturnType<typeof push>;
+      process.stdout.write(
+        `Pushed to ${r.target} as ${r.device_id}: ${r.staged} new revision${
+          r.staged === 1 ? '' : 's'
+        }, ${r.written} record${r.written === 1 ? '' : 's'} written, ${r.already} already there.\n`,
+      );
+      return;
+    }
+
+    const r = result as ReturnType<typeof pull>;
+    process.stdout.write(
+      `Pulled from ${r.target}: ${r.applied} applied (${r.tombstones} deletion${
+        r.tombstones === 1 ? '' : 's'
+      }), ${r.skipped} already known, ${r.conflicts} quarantined.\n`,
+    );
+    if (r.conflicts) {
+      process.stdout.write(
+        'Quarantined versions are kept whole in sync_conflicts — nothing was overwritten.\n',
+      );
+    }
+    if (r.stalled.length) {
+      process.stdout.write(
+        `Stopped early on an unreadable record from: ${r.stalled.join(', ')} — likely still being written. Try again.\n`,
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
 function memoryCommand(argv: string[]): void {
   const [sub, ...rest] = argv;
   switch (sub) {
@@ -861,6 +948,8 @@ function memoryCommand(argv: string[]): void {
       return memoryImport(rest);
     case 'export':
       return memoryExport(rest);
+    case 'sync':
+      return memorySync(rest);
     default:
       process.stderr.write(MEMORY_USAGE);
       process.exit(1);

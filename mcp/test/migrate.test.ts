@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 10;
+const LATEST_SCHEMA_VERSION = 11;
 
 const LEARNING_TABLES = [
   'attempts',
@@ -56,7 +56,21 @@ const MEMORY_TABLES = [
 /** Migration 010: the importer's durable id map (PRD MIG-02). */
 const IMPORT_TABLES = ['import_id_map'];
 
-const EXPECTED_TABLES = [...LEARNING_TABLES, ...MEMORY_TABLES, ...IMPORT_TABLES].sort();
+/**
+ * Migration 011: multi-device sync through a shared directory (ADR-09).
+ *
+ * Listed apart from the memory tables for the reason SEC-02 gives: what syncs
+ * is memory, and a learning table appearing in this list would be the first
+ * sign that a developer's assessment history had started crossing machines.
+ */
+const SYNC_TABLES = ['sync_conflicts', 'sync_records', 'sync_state'];
+
+const EXPECTED_TABLES = [
+  ...LEARNING_TABLES,
+  ...MEMORY_TABLES,
+  ...IMPORT_TABLES,
+  ...SYNC_TABLES,
+].sort();
 
 let dbFile = '';
 afterEach(() => {
@@ -116,6 +130,7 @@ describe('migrations', () => {
         '008_difficulty_levels.sql',
         '009_memory.sql',
         '010_import.sql',
+        '011_sync.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
