@@ -156,13 +156,15 @@ If they pick Other or say skip, record it as grade 0, teach the answer in two li
   // warning -- an error face on a feature that is working. The Stop sweep reached
   // the same conclusion later and by the same route. So: additionalContext
   // carries the instruction to the model, systemMessage tells the human why their
-  // agent just stopped to ask them something.
+  // agent just stopped to ask them something. `systemMessage` is a top-level
+  // field: it sat inside `hookSpecificOutput` for months, where the harness drops
+  // it, so the developer never saw that line at all.
   process.stdout.write(
     `${JSON.stringify({
+      systemMessage: 'Eklavya: quick question on what you just built',
       hookSpecificOutput: {
         hookEventName: 'PostToolUse',
         additionalContext: context,
-        systemMessage: 'Eklavya: quick question on what you just built',
       },
     })}\n`,
   );

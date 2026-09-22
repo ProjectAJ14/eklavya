@@ -315,13 +315,21 @@ mechanism behind interleaved quizzing.
 
 ```json
 {
+  "systemMessage": "shown to the developer",
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "seen by the model, mid-turn",
-    "systemMessage": "shown in the transcript to the user and the model"
+    "additionalContext": "seen by the model, mid-turn"
   }
 }
 ```
+
+`systemMessage` is a **top-level** field on every event. This block used to show
+it inside `hookSpecificOutput`, `checkpoint-quiz` was written to match, and the
+harness drops it there — so its one line to the developer was never shown.
+Corrected 2026-09-23 against the 2.1.280 bundle, where the common output schema
+is `{continue, suppressOutput, stopReason, decision, systemMessage, …,
+hookSpecificOutput}` and a top-level `systemMessage` becomes a
+`hook_system_message` in the transcript.
 
 Exit 2 also surfaces stderr to the model here, but as a *warning* — an error face
 on a working feature. `checkpoint-quiz` therefore uses exit 0 + JSON, and since
@@ -382,8 +390,38 @@ The rest are worth knowing about and Eklavya uses none of them yet:
 }
 ```
 
-### SessionStart context injection
-Plain-text stdout is added to Claude's context. (`systemMessage` is also available for transcript messages.)
+### SessionStart output (verified 2026-09-23, 2.1.280)
+Plain-text stdout is added to Claude's context **and is not shown to the
+developer** — only the brief `statusMessage` spinner is. Eklavya once printed its
+banner that way, so every session opened in apparent silence while the model
+read a greeting meant for a person. `session-start` now emits one envelope with
+each audience on its own channel:
+
+```json
+{
+  "systemMessage": "Eklavya\nYour savings: …\nThis project: Learning 7 · …",
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "<eklavya-memory …>…\n[Eklavya] Standing instruction …"
+  }
+}
+```
+
+### Who sees what, per hook
+
+| Hook | Developer sees | Model reads |
+|---|---|---|
+| `session-start` | banner, override warning, Cowork enforcement note, "questions are off" line (`systemMessage`) | memory recall, standing directive (`additionalContext`) |
+| `prompt-submit-nudge` | nothing | prompt recall, the nudge (`additionalContext`) |
+| `subagent-start` | nothing | the directive (`additionalContext`) |
+| `checkpoint-quiz` | "Eklavya: quick question…" (`systemMessage`) | the checkpoint instruction (`additionalContext`) |
+| `stop-quiz-check` | the whole sweep — the harness renders Stop `additionalContext` | the sweep (`additionalContext`) |
+| `pre-tool-gate` | the deny, as the harness shows any refusal | `permissionDecisionReason` |
+| `capture-tool` | nothing | nothing |
+
+A line written for the developer goes in `systemMessage`; a line written for the
+model goes in `additionalContext`; plain stdout is never used, because on
+SessionStart it silently picks the model.
 
 ---
 
