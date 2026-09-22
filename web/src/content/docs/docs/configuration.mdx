@@ -86,7 +86,7 @@ eklavya config set providers.observer '{"kind":"anthropic","model":"<model-id>"}
 
 ### The memory namespaces
 
-The keys above are flat because every `.eklavya.json` already written uses them that way. The memory half's keys are nested under five namespaces instead, and they merge the same way: a repo file setting `retrieval.mode` leaves your personal `memory.capture` alone.
+The keys above are flat because every `.eklavya.json` already written uses them that way. The memory half's keys are nested under six namespaces instead, and they merge the same way: a repo file setting `retrieval.mode` leaves your personal `memory.capture` alone.
 
 #### `memory`
 
@@ -176,6 +176,36 @@ the way.
   }
 }
 ```
+
+#### `sync` — memory across your machines
+
+Off by default. The target is a directory both machines can see — a synced
+folder, a mounted share, a git repository — so there is no account and no
+service to depend on.
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `sync.enabled` | `false` | The master switch. A target alone does nothing, deliberately: a stale path left by a wiped machine should not quietly start publishing. |
+| `sync.target` | `null` | The shared directory. Each machine writes its own numbered records into it and reads the others'. |
+| `sync.device_id` | `null` | Pin this machine's identity. Normally leave it: an id is minted once and kept in the database, never in a config file, because config files travel and two machines sharing an id would interleave one stream irrecoverably. |
+
+What crosses: memory entries, their tags, and deletions. What never crosses:
+your attempts, your mastery, your review schedule, gates, reuse receipts, and
+the raw evidence behind an observation. Shared project memory is not shared
+learner history.
+
+```bash
+eklavya config set sync.target ~/Dropbox/eklavya-sync
+eklavya config set sync.enabled true
+eklavya memory sync push
+eklavya memory sync status
+```
+
+Two machines editing the same entry between syncs is a conflict, and a
+conflict is **quarantined rather than merged**: your local version stays live,
+the incoming one is kept intact, and `eklavya memory sync status` says there is
+one to resolve. A deletion propagates as a tombstone and stays deleted — the
+machine that still had the entry cannot put it back.
 
 ### A complete file
 

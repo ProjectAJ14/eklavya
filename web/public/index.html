@@ -628,7 +628,7 @@
       </div>
     </div>
 
-    <h3 class="modes__sub" data-reveal>&hellip;and four namespaces for the memory half</h3>
+    <h3 class="modes__sub" data-reveal>&hellip;and six namespaces for the memory half</h3>
     <p class="dials__sub" data-reveal data-delay="100">
       The dials are flat keys because every config file already written uses them that way. Memory's settings are nested, and merge the same way — key by key, repo over global. Defaults shown.
       <a href="/docs/memory/">What memory does</a>
@@ -647,6 +647,8 @@
       <div class="cmd-row"><code>retrieval.cross_project</code><span><b>false</b> — another repository's work is noise by default. <code class="code-inline">true</code> widens search and recall to every project here.</span></div>
       <div class="cmd-row"><code>providers.observer</code><span><b>null</b> — a model that writes richer observations instead of the local summariser. The one setting that sends captured work off the machine.</span></div>
       <div class="cmd-row"><code>providers.embeddings</code><span><b>null</b> — a model for the search vectors instead of the local embedder. Each vector records which model made it.</span></div>
+      <div class="cmd-row"><code>notifications.enabled</code><span><b>false</b> — session wrap-ups to a webhook, a command or a file you name. A send cannot be recalled, so it is off until you say otherwise.</span></div>
+      <div class="cmd-row"><code>sync.enabled</code><span><b>false</b> — memory across your machines, through a directory both can see. Entries and deletions cross; attempts, mastery and gates never do.</span></div>
     </div>
 
     <p class="modes__foot" data-reveal data-delay="300">
@@ -685,7 +687,7 @@
       </span>
       <h3>Your data stays yours</h3>
       <p>One file: <code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. It holds what you have been asked and how you answered, and the memory half's evidence and observations. Delete the directory and Eklavya forgets you entirely.</p>
-      <p><b>With the default config, nothing leaves the machine.</b> The summariser that writes observations and the embedder that makes them searchable both run locally — no key, no account, no telemetry. Setting <code>providers.observer</code> is the only thing that changes that, and nothing sets it for you.</p>
+      <p><b>With the default config, nothing leaves the machine.</b> The summariser that writes observations and the embedder that makes them searchable both run locally — no key, no account, no telemetry. Three settings can change that and none is on unless you turn it on: <code>providers.*</code> sends captured work to a model API, <code>notifications</code> sends wrap-ups where you point it, and <code>sync</code> writes entries into a directory you name. Nothing sets any of them for you, and an upgrade never does.</p>
       <p>Secrets never get that far. Paths like <code>.env</code> and <code>~/.ssh</code> are excluded before capture, known key shapes are redacted before the write, and Eklavya's own traffic is never recorded. <a href="/docs/memory/#what-is-never-captured">The full list</a></p>
       <p>The commit gate is editor-agnostic: one script installs a plain git <code>pre-commit</code> hook that runs the same check, so a commit from a bare terminal is held exactly like one made inside Claude Code.</p>
     </div>
