@@ -19,7 +19,7 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 | 10 | Dashboard memory surfaces | 4 | not started |
 | 11 | Import from the pinned Claude Mem fork | 4 | not started |
 | 12 | Code search/outline + collections | 5 | done |
-| 13 | Host adapters + workflows breadth | 5 | not started |
+| 13 | Host adapters + workflows breadth | 5 | replay + capability descriptors done |
 | 14 | Optional remote (server, sync, notifications) | 6 | not started |
 | 15 | Cutover, soak, release docs | 7 | not started |
 
@@ -48,3 +48,8 @@ increment lands. Phase names map to [delivery.md](delivery.md).
 - 2026-09-22: structured code exploration and saved collections, with ADR-07
   and ADR-08 recording the declaration-scanner ceiling and the refused
   empty rebuild.
+- 2026-09-22: transcript replay captures what hooks never saw — sessions before
+  the install, a misconfigured hook, a hookless host — through the same
+  privacy filter, converging with hook capture by content rather than by
+  identity. Host capability descriptors record what each host can actually
+  deliver; only Claude Code is claimed as proven.
