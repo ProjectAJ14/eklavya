@@ -44,7 +44,7 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
  * so neither end can claim it first. (1729 is the Hardy–Ramanujan number, which
  * is as good a reason as any to remember it.)
  */
-const DEFAULT_PORT = 41729;
+export const DEFAULT_PORT = 41729;
 /**
  * How much history the per-day rows cover. A year, because the calendar heatmap
  * shows half of one and the streak has to be able to run off the top of it —

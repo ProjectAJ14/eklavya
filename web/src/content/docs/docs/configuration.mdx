@@ -67,7 +67,7 @@ only a repo or global change to `quiz.enforced` is the second one.
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `quiz.enabled` | `true` | Whether questions happen at all. `false` stops every question, checkpoint, gate and banner — and stops **nothing else**: memory keeps recording, under `memory.enabled`. |
+| `quiz.enabled` | `true` | Whether questions happen at all. `false` stops every question, checkpoint and gate — and stops **nothing else**: memory keeps recording, under `memory.enabled`, and the banner says `memory on · questions off`. |
 | `quiz.enforced` | `false` | Whether the session quiz must pass before `git commit` succeeds. Setting it also exempts quizzing from the cooldown and the one-question cap, so the gate stays passable. Ignored when `quiz.enabled` is `false` — a gate nothing asks questions for could never be opened, and `eklavya doctor` reports the contradiction. |
 | `mode` <Badge text="retired" variant="caution" size="small" /> | — | The dial `quiz` replaced. Still read wherever it appears, for ever: `ambient` → `{enabled: true, enforced: false}`, `enforced` → `{enabled: true, enforced: true}`, `off` → `{enabled: false}`. A `quiz` in the same file wins over it. Do not write it in new configuration. |
 | `focus` | `"concept"` | What it teaches: `concept`, `project`, `learn`. |

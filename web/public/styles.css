@@ -406,6 +406,8 @@ a { color: inherit; text-decoration: none; }
 .ln--user { color: #E8EDEF; margin-top: 4px; }
 .ln--user .ln__p { margin-left: 0; }
 .ln--hook { color: var(--green-600); font-size: 12px; }
+.ln--save { color: var(--green-300); }
+.ln--faint { color: var(--neutral-600); font-size: 11.5px; }
 .ln--note { color: var(--neutral-600); font-size: 11.5px; }
 .ln--think { color: var(--green-300); margin: 6px 0; }
 .think__g { display: inline-block; width: 1ch; color: var(--green-400); }

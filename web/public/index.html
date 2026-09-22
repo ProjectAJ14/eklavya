@@ -190,14 +190,15 @@
               </div>
             </div>
 
-            <!-- The three lines the SessionStart hook prints, verbatim from
-                 mcp/src/hooks/session-start.ts. Three, not a scoreboard: the
-                 dials are in the status bar and the profile is in the
-                 dashboard. Re-quote both here and in
-                 web/src/content/docs/docs/installing.mdx when that hook changes. -->
-            <div class="ln ln--hook" data-line="hook1" hidden>Eklavya</div>
-            <div class="ln ln--hook" data-line="hook2" hidden>Your savings: 71% less context from reuse (estimated)</div>
-            <div class="ln ln--hook" data-line="hook3" hidden>This project: Learning 9 &middot; Mastered 12 &middot; Due 3 &middot; Level easy (4/100)</div>
+            <!-- The banner the SessionStart hook prints, verbatim from
+                 mcp/src/hooks/session-start.ts: on + dials, the saving (green),
+                 where the project stands, and a dim pointer to the dashboard.
+                 Re-quote here and in web/src/content/docs/docs/installing.mdx
+                 when that hook changes. -->
+            <div class="ln ln--hook" data-line="hook1" hidden>Eklavya active &middot; concept &middot; interleaved &middot; easy (4/100)</div>
+            <div class="ln ln--hook ln--save" data-line="hook2" hidden>71% less context from memory reuse</div>
+            <div class="ln ln--hook" data-line="hook3" hidden>Learning 9 &middot; Mastered 12 &middot; Due 3</div>
+            <div class="ln ln--hook ln--faint" data-line="hook4" hidden>Dashboard &amp; observations: eklavya dashboard</div>
 
             <!-- ...and how it looks once sent -->
             <div class="ln ln--user" data-line="sent" hidden><span class="ln__p">&gt;</span><span data-sent>add JWT auth to the Express API</span></div>

@@ -250,14 +250,20 @@ describe('SessionStart output', () => {
     expect(row.value).toBe(SESSION);
   });
 
-  it('greets in three lines and says nothing has been reused yet on a fresh install', () => {
-    // PRD UX-01: a heading, what reuse saved, where this project stands. No
-    // scoreboard, no dials, no URL -- somebody has just sat down to work.
+  it('greets in a glance: on, the dials, where it stands, where to look', () => {
+    // A fresh install has nothing reused, so no savings line -- words about
+    // nothing. The last line is a link only if a dashboard is actually up on
+    // this machine, so either form passes; never a URL nothing answers.
     const res = sessionStart();
     expect(res.status).toBe(0);
-    expect(res.shown).toMatch(/^Eklavya$/m);
-    expect(res.shown).toMatch(/Your savings: — no context reused yet/);
-    expect(res.shown).toMatch(/This project: Learning \d+ · Mastered \d+ · Due \d+/);
+    const lines = res.shown.split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toBe('Eklavya active · concept · interleaved · easy (0/100)');
+    expect(lines[1]).toMatch(/^Learning \d+ · Mastered \d+ · Due \d+$/);
+    expect(lines[2]).toMatch(
+      /Dashboard (http:\/\/127\.0\.0\.1:\d+ · Observations \S+#\/memory|& observations: eklavya dashboard)/,
+    );
+    expect(res.shown).not.toMatch(/Your savings|from memory reuse/);
   });
 
   // The bug this pins: everything used to go out as plain stdout, which on
@@ -267,10 +273,10 @@ describe('SessionStart output', () => {
     const res = sessionStart();
     const parsed = JSON.parse(res.stdout) as Record<string, unknown>;
     expect(parsed.hookSpecificOutput).toMatchObject({ hookEventName: 'SessionStart' });
-    expect(res.shown).toMatch(/^Eklavya$/m);
+    expect(res.shown).toMatch(/^Eklavya active/m);
     expect(res.shown).not.toMatch(/Standing instruction|log_session_concepts/);
     expect(res.context).toMatch(/Standing instruction/);
-    expect(res.context).not.toMatch(/^Eklavya$|This project: Learning|Your savings:/m);
+    expect(res.context).not.toMatch(/^Eklavya active|^Learning \d|Your savings:|from memory reuse/m);
   });
 
   it('tells the model to log concepts on a fresh install, where nothing else will', () => {
@@ -284,7 +290,7 @@ describe('SessionStart output', () => {
     answer('csrf', 5);
     answer('csrf', 5);
     const res = sessionStart();
-    expect(res.shown).toMatch(/This project: Learning/);
+    expect(res.shown).toMatch(/^Learning \d/m);
     expect(res.context).toMatch(/log_session_concepts/);
   });
 
@@ -296,7 +302,7 @@ describe('SessionStart output', () => {
     configure({ quiet: true });
     const res = sessionStart();
     expect(res.context).toMatch(/log_session_concepts/);
-    expect(res.stdout).not.toMatch(/This project: Learning/);
+    expect(res.stdout).not.toMatch(/^Learning \d/m);
   });
 
   it('counts a mastered concept against this project, not against the shipped catalogue', () => {
@@ -313,13 +319,12 @@ describe('SessionStart output', () => {
 
     const res = sessionStart();
     // One concept touched here; the seed's other 86 are not this project's.
-    expect(res.shown).toMatch(/This project: Learning 0 · Mastered 1 · Due \d+/);
+    expect(res.shown).toMatch(/^Learning 0 · Mastered 1 · Due \d+$/m);
   });
 
-  it('keeps concept names and the dials out of the greeting', () => {
-    // Both moved on purpose: the dials to the status bar, the weak list and the
-    // profile to the dashboard. A greeting naming concepts is a greeting that
-    // grows with the learner until it scrolls.
+  it('keeps concept names out of the greeting', () => {
+    // The weak list and the profile live in the dashboard. A greeting naming
+    // concepts is a greeting that grows with the learner until it scrolls.
     logConcepts(['csrf']);
     answer('csrf', 1);
     const res = sessionStart();
@@ -330,7 +335,7 @@ describe('SessionStart output', () => {
   it('prints no banner when quiet is set, and still stamps the session', () => {
     configure({ quiet: true });
     const res = sessionStart();
-    expect(res.stdout).not.toMatch(/^Eklavya$|This project: Learning|Your savings:/m);
+    expect(res.stdout).not.toMatch(/^Eklavya active|^Learning \d|Your savings:|from memory reuse/m);
     expect(res.context).toMatch(/Standing instruction/);
     expect(db.prepare("SELECT value FROM meta WHERE key='current_session'").get()).toBeTruthy();
   });
@@ -339,7 +344,7 @@ describe('SessionStart output', () => {
     configure({ quiz: { enabled: false, enforced: false }, quiet: false });
     const out = sessionStart().stdout;
     expect(out).not.toMatch(/Standing instruction/);
-    expect(out).not.toMatch(/This project: Learning/);
+    expect(out).not.toMatch(/^Learning \d/m);
   });
 
   // The regression for the bug that retired the `mode` dial. Questions off and
@@ -351,16 +356,16 @@ describe('SessionStart output', () => {
     const res = sessionStart();
     // On screen, not in context: the line exists so a quiet install does not
     // look broken, and plain SessionStart stdout is something only the model reads.
-    expect(res.shown).toMatch(/Questions are off/);
-    expect(res.shown).toMatch(/Memory is still recording/);
-    expect(res.context).not.toMatch(/Questions are off/);
+    expect(res.shown).toMatch(/^Eklavya active · memory on · questions off$/m);
+    expect(res.shown).not.toMatch(/^Learning \d/m);
+    expect(res.context).not.toMatch(/questions off/);
   });
 
   it('says so plainly when both halves are off, and only then', () => {
     configure({ quiz: { enabled: false, enforced: false }, memory: { enabled: false } });
     const out = sessionStart().shown;
-    expect(out).toMatch(/Questions and memory are both off/);
-    expect(out).not.toMatch(/Memory is still recording/);
+    expect(out).toMatch(/Eklavya off · no questions, nothing recorded/);
+    expect(out).not.toMatch(/memory on/);
   });
 
   it('honours quiet for that line too — it is a banner, not a warning', () => {
@@ -1014,22 +1019,22 @@ describe('SessionStart says which level the project is on', () => {
     answerIn('*', 'httponly-cookies', 1);
     const res = sessionStart();
     expect(res.status).toBe(0);
-    expect(res.shown).toContain('Level easy (2/100)');
+    expect(res.shown).toContain('· easy (2/100)');
   });
 
   it('starts at easy with nothing answered', () => {
-    expect(sessionStart().shown).toContain('Level easy (0/100)');
+    expect(sessionStart().shown).toContain('· easy (0/100)');
   });
 
   it('follows a shortened runway', () => {
     configure({ min_minutes_between_quizzes: 0, level_up_after: 20 });
     answerIn('*', 'csrf', 5);
-    expect(sessionStart().shown).toContain('Level easy (1/20)');
+    expect(sessionStart().shown).toContain('· easy (1/20)');
   });
 
   it('says so when the level is pinned, rather than showing a runway nobody is on', () => {
     configure({ min_minutes_between_quizzes: 0, difficulty: 'hard' });
-    expect(sessionStart().shown).toContain('Level hard (pinned)');
+    expect(sessionStart().shown).toContain('· hard (pinned)');
   });
 
   it('reads the level a promotion wrote', () => {
@@ -1037,13 +1042,13 @@ describe('SessionStart says which level the project is on', () => {
       `INSERT INTO project_levels (repo, level, promoted_at) VALUES ('*', 'medium', datetime('now','-1 day'))`,
     ).run();
     answerIn('*', 'csrf', 4); // easy-band evidence, spent with the old level
-    expect(sessionStart().shown).toContain('Level medium (0/100)');
+    expect(sessionStart().shown).toContain('· medium (0/100)');
   });
 
   it('names difficulty when this project pins it over the learner’s own setting', () => {
     configure({ difficulty: 'auto' });
     configureProject({ difficulty: 'easy' });
-    expect(sessionStart().shown).toContain('override your global ones for: difficulty');
+    expect(sessionStart().shown).toContain('Project settings override global: difficulty');
   });
 });
 

@@ -108,21 +108,17 @@ describe('recall', () => {
 });
 
 describe('the startup display', () => {
-  it('is three lines, and says nothing was reused until something was', () => {
+  it('reports no saving until something was reused', () => {
     const before = startupDisplay(db, PROJECT);
-    expect(before.lines).toHaveLength(3);
-    expect(before.lines[0]).toBe('Eklavya');
-    expect(before.lines[1]).toBe('Your savings: — no context reused yet');
-    expect(before.lines[2]).toBe('This project: Learning 0 · Mastered 0 · Due 0');
+    expect(before.savings.kind).toBe('none');
+    expect(before.counts).toMatchObject({ learning: 0, mastered: 0, due: 0 });
 
     const event = addEvent('e1', 'z'.repeat(4000));
     insertEntry(db, { project: PROJECT, title: 'Short note', narrative: 'Brief.', eventIds: [event] });
     recall(db, config(), { project: PROJECT });
 
     const after = startupDisplay(db, PROJECT);
-    expect(after.lines).toHaveLength(3);
     expect(after.savings.kind).toBe('saving');
-    expect(after.lines[1]).toMatch(/^Your savings: \d+% less context from reuse \(estimated\)$/);
   });
 });
 

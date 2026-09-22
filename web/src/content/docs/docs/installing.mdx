@@ -111,15 +111,15 @@ If you would rather not touch a terminal:
 
 #### Check that it worked
 
-Run `/plugin` and confirm **eklavya** is listed with no errors. The first thing a healthy session prints is three lines, like this:
+Run `/plugin` and confirm **eklavya** is listed with no errors. The first thing a healthy session prints is a short banner, like this:
 
 ```text title="Session start"
-Eklavya
-Your savings: — no context reused yet
-This project: Learning 0 · Mastered 0 · Due 0 · Level easy (0/100)
+Eklavya active · concept · interleaved · easy (0/100)
+Learning 0 · Mastered 0 · Due 0
+Dashboard & observations: eklavya dashboard
 ```
 
-The savings line fills in once Eklavya has something to recall; the counts are this project's, not the size of the shipped catalogue. Your dials are in the status bar, and everything longer than three lines is in `eklavya dashboard`.
+The first line is your dials: focus, cadence, and the level with its runway. Once Eklavya has recalled something for you, a green line joins it — `84% less context from memory reuse`. The counts are this project's, not the size of the shipped catalogue. The last line is dim: while `eklavya dashboard` is running it becomes two links, one to the dashboard and one straight to your observations.
 
 If you see those lines, you are done. If you see nothing at all, jump to [Troubleshooting](/docs/troubleshooting/).
 

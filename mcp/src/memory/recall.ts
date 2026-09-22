@@ -2,7 +2,7 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isDue, isKnown } from '../srs.js';
 import { projectKey } from '../store.js';
-import { ESTIMATOR, estimateTokens, savingsFrom, savingsLine, type Savings } from './tokens.js';
+import { ESTIMATOR, estimateTokens, savingsFrom, type Savings } from './tokens.js';
 import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
 import { entryEvents, recordReceipt, timeline, type EntryRow } from './store.js';
 import { receiptTotals } from './store.js';
@@ -301,16 +301,15 @@ function reposFor(db: DB, project: string): string[] {
 }
 
 export interface StartupDisplay {
-  lines: string[];
   savings: Savings;
   counts: LearningCounts;
 }
 
 /**
- * The compact startup display (PRD UX-01): a heading, the reuse saving, and
- * this project's learning counts. Three lines, no table, no URL, no
- * advertising, and nothing that needs a provider call or an index rebuild to
- * compute — every number here is a committed value already in the database.
+ * The numbers behind the session-start banner (PRD UX-01): the reuse saving and
+ * this project's learning counts. The wording lives in the hook. Nothing here
+ * needs a provider call or an index rebuild — every number is a committed value
+ * already in the database.
  */
 export function startupDisplay(db: DB, project: string, now = new Date()): StartupDisplay {
   const totals = receiptTotals(db, project);
@@ -320,15 +319,7 @@ export function startupDisplay(db: DB, project: string, now = new Date()): Start
     delivery: totals.confirmed > 0 ? 'confirmed' : 'unknown',
   });
   const counts = learningCounts(db, project, now);
-  return {
-    lines: [
-      'Eklavya',
-      savingsLine(savings),
-      `This project: Learning ${counts.learning} · Mastered ${counts.mastered} · Due ${counts.due}`,
-    ],
-    savings,
-    counts,
-  };
+  return { savings, counts };
 }
 
 /**
