@@ -1,3 +1,15 @@
+# [1.23.0](https://github.com/ProjectAJ14/eklavya/compare/v1.22.0...v1.23.0) (2026-09-22)
+
+
+### Bug Fixes
+
+* **import:** give each source its own default snapshot ([785d04d](https://github.com/ProjectAJ14/eklavya/commit/785d04d9fe1a721241513dbf67069820340d77c8))
+
+
+### Features
+
+* **install:** arrow-key walk, spinners, and a Claude Mem import that finishes ([253320b](https://github.com/ProjectAJ14/eklavya/commit/253320b7f290192f90305a44b61fc7dac48f9ba4))
+
 # [1.22.0](https://github.com/ProjectAJ14/eklavya/compare/v1.21.1...v1.22.0) (2026-09-22)
 
 
