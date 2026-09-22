@@ -189,7 +189,12 @@ describe('a leftover .eklavya.json', () => {
   // Hooks must never break a session, and this runs inside one.
   it('never throws when the destination cannot be written', () => {
     writeLegacyRepoFile({ focus: 'project' });
-    process.env.EKLAVYA_HOME = '/proc/nonexistent-and-unwritable';
+    // A regular file as the home: mkdir beneath it fails with ENOTDIR on every
+    // OS. Not `/proc/...` -- on Linux procfs answers mkdir with ENOENT, and
+    // Node's recursive mkdir retries the parent forever, hanging CI for hours.
+    const blocker = path.join(home, 'not-a-directory');
+    fs.writeFileSync(blocker, '');
+    process.env.EKLAVYA_HOME = blocker;
     try {
       expect(() => migrateLegacyRepoConfig(repo)).not.toThrow();
       // The settings are still readable where they are, rather than lost.

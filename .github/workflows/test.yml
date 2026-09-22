@@ -26,6 +26,9 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # The suite takes about a minute. A synchronous hang is invisible to
+    # vitest's per-test timeout, and without this it runs to GitHub's 6h cap.
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
