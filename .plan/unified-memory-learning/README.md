@@ -33,5 +33,5 @@ Read in this order:
 - Phases permit partial previews. Full replacement is complete only when every
   required parity row has evidence, or the user explicitly approves a scope
   change. Optional means off until configured, not omitted from delivery.
-- This PR changes only `.plan/` Markdown. It does not uninstall plugins, migrate
-  personal data, change settings, or start implementation.
+- This PR changes only `.plan/unified-memory-learning/` Markdown. It does not
+  uninstall plugins, migrate personal data, change settings, or start implementation.

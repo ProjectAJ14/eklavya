@@ -403,7 +403,8 @@ Implementation choices to settle through bounded architecture decisions in Phase
 host-specific informational banner channels; server deployment stack; target
 fixture sizes/hardware and finalized performance budgets. These choices may change
 mechanisms, not silently remove required capabilities. Record the chosen option,
-evidence, tradeoff, and rollback in `.plan/` before its implementation phase.
+evidence, tradeoff, and rollback in `.plan/unified-memory-learning/` before its
+implementation phase.
 
 The plan does not estimate this program as a few-day copy operation. Phase gates
 and test evidence, not line counts or feature checkmarks alone, establish readiness.

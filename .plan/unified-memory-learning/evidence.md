@@ -28,8 +28,8 @@ public/source evidence rather than redistributing the document.
 2. **Stop behavior:** 1.18.3 uses exit 0 and a JSON `Stop` additional-context
    response. The earlier assistant reviewed the previous exit-2 implementation.
    Preserve the new behavior and its guards; see
-   [the implementation](../mcp/src/hooks/stop-quiz-check.ts) and
-   [verified schema notes](../docs/verified-schemas.md).
+   [the implementation](../../mcp/src/hooks/stop-quiz-check.ts) and
+   [verified schema notes](../../docs/verified-schemas.md).
 3. **Observer granularity:** capturing every tool use does not prove there is one
    external inference request for each tool. The reference processes buffered
    events in a stateful observer. The new requirement explicitly supports bounded
@@ -106,13 +106,13 @@ based on file size or popularity.
 
 | Concern | Eklavya today | Reference lesson | Decision for this plan |
 |---|---|---|---|
-| Domain policy | [SRS](../mcp/src/srs.ts) already isolates score/scheduling functions. [Checkpoint](../mcp/src/hooks/checkpoint-quiz.ts) and Stop SQL use stored mastery thresholds, while the [planner](../mcp/src/tools/get_session_quiz_plan.ts) applies read-time decay. | Separating modules is useful only if there is still one policy owner. | Keep the pure learning core; characterize and correct eligibility differences in a dedicated behavior change before consolidating callers. Q14. |
-| Storage responsibilities | [Store](../mcp/src/store.ts) mixes concepts, attempts, gates, graph, and level queries; [migrations](../mcp/src/migrate.ts) are already numbered and centralized. | The reference separates some query helpers but also runs schema evolution through its large `SessionStore` initialization path. | Split repositories by responsibility without duplicating migrations, moving transaction boundaries, or adopting constructor DDL. DATA-02; Q10. |
-| Hook and process boundaries | [Hook entry](../hooks/run.mjs) and [shared helpers](../mcp/src/hooks/lib.ts) already provide Node dispatch, bounded input, and opening an existing DB without migrations. | Reference host adapters and background processing provide useful capabilities; its lifecycle incident reports show the cost of competing spawn/ownership paths. | Preserve these Eklavya safeguards; add one service owner and typed host adapters, with subprocess tests. OPS-01; Q02. |
+| Domain policy | [SRS](../../mcp/src/srs.ts) already isolates score/scheduling functions. [Checkpoint](../../mcp/src/hooks/checkpoint-quiz.ts) and Stop SQL use stored mastery thresholds, while the [planner](../../mcp/src/tools/get_session_quiz_plan.ts) applies read-time decay. | Separating modules is useful only if there is still one policy owner. | Keep the pure learning core; characterize and correct eligibility differences in a dedicated behavior change before consolidating callers. Q14. |
+| Storage responsibilities | [Store](../../mcp/src/store.ts) mixes concepts, attempts, gates, graph, and level queries; [migrations](../../mcp/src/migrate.ts) are already numbered and centralized. | The reference separates some query helpers but also runs schema evolution through its large `SessionStore` initialization path. | Split repositories by responsibility without duplicating migrations, moving transaction boundaries, or adopting constructor DDL. DATA-02; Q10. |
+| Hook and process boundaries | [Hook entry](../../hooks/run.mjs) and [shared helpers](../../mcp/src/hooks/lib.ts) already provide Node dispatch, bounded input, and opening an existing DB without migrations. | Reference host adapters and background processing provide useful capabilities; its lifecycle incident reports show the cost of competing spawn/ownership paths. | Preserve these Eklavya safeguards; add one service owner and typed host adapters, with subprocess tests. OPS-01; Q02. |
 | Background processing | Eklavya has no equivalent observation pipeline to preserve. | Provider modules are a useful boundary, but the pinned in-memory buffer relies on transcript recovery, and its comments explain why replaying fragments without reducer state failed. | Persist reconstructible input batches and idempotent results; a durable queue alone is insufficient. MEM-02; DATA-03; Q03/Q05. |
-| Schema/type agreement | Tools declare Zod input shapes, but [ToolDef](../mcp/src/tools/types.ts) currently accepts `args: any`, and handlers repeat argument types. | The reference's MCP tool schemas are another public contract that needs validation; copying declarations would not enforce our handler types. | Infer inputs at the registration boundary from the validated schema; prove schema/handler mismatch is caught. This is an improvement, not an existing guarantee. |
-| Dashboard structure | [HTTP server](../mcp/src/dashboard.ts) is separate from a [single HTML asset](../mcp/src/assets/dashboard.html) containing routes, transforms, and rendering. Current data loading is a single snapshot. | The reference's component views, resource APIs, and SSE provide useful interaction patterns, with reconnect correctness still needing tests. | Extract cohesive views and pure transforms, add paginated resources and replay-safe live updates, and preserve the current design system. React is not required. DASH-01–03; Q09. |
-| Product verification | Eklavya already has [question evaluations](../eval/README.md) and a [contributor acceptance journey](../CONTRIBUTING.md). | Upstream issues reveal failure classes that source/test counts cannot measure. | Keep learning evaluations and early-question transcripts; add the explicit memory, recovery, migration, and adapter risk matrix instead of replacing the current proof with more unit-test files. |
+| Schema/type agreement | Tools declare Zod input shapes, but [ToolDef](../../mcp/src/tools/types.ts) currently accepts `args: any`, and handlers repeat argument types. | The reference's MCP tool schemas are another public contract that needs validation; copying declarations would not enforce our handler types. | Infer inputs at the registration boundary from the validated schema; prove schema/handler mismatch is caught. This is an improvement, not an existing guarantee. |
+| Dashboard structure | [HTTP server](../../mcp/src/dashboard.ts) is separate from a [single HTML asset](../../mcp/src/assets/dashboard.html) containing routes, transforms, and rendering. Current data loading is a single snapshot. | The reference's component views, resource APIs, and SSE provide useful interaction patterns, with reconnect correctness still needing tests. | Extract cohesive views and pure transforms, add paginated resources and replay-safe live updates, and preserve the current design system. React is not required. DASH-01–03; Q09. |
+| Product verification | Eklavya already has [question evaluations](../../eval/README.md) and a [contributor acceptance journey](../../CONTRIBUTING.md). | Upstream issues reveal failure classes that source/test counts cannot measure. | Keep learning evaluations and early-question transcripts; add the explicit memory, recovery, migration, and adapter risk matrix instead of replacing the current proof with more unit-test files. |
 
 ## Pinned source map
 
@@ -131,10 +131,10 @@ silently change the evidence:
 - [Viewer events](https://github.com/ProjectAJ14/claude-mem/blob/e04a091f822c90b69fa19bc52f7f3cf80674b1ae/src/ui/viewer/hooks/useSSE.ts),
   [server runtime](https://github.com/ProjectAJ14/claude-mem/tree/e04a091f822c90b69fa19bc52f7f3cf80674b1ae/src/server),
   [sync](https://github.com/ProjectAJ14/claude-mem/tree/e04a091f822c90b69fa19bc52f7f3cf80674b1ae/src/services/sync).
-- Existing Eklavya contracts: [contributor acceptance test](../CONTRIBUTING.md),
-  [repository contract](../CLAUDE.md), [runtime contract](../mcp/CLAUDE.md),
-  [dashboard contract](../.claude/skills/eklavya-dashboard/SKILL.md),
-  [learning evaluation](../eval/README.md).
+- Existing Eklavya contracts: [contributor acceptance test](../../CONTRIBUTING.md),
+  [repository contract](../../CLAUDE.md), [runtime contract](../../mcp/CLAUDE.md),
+  [dashboard contract](../../.claude/skills/eklavya-dashboard/SKILL.md),
+  [learning evaluation](../../eval/README.md).
 
 ## Upstream issue evidence → prevention
 
