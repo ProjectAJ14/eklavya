@@ -49,7 +49,7 @@ const asJson = args.includes('--json');
 const { openDb } = await import(need('db.js'));
 const { insertEntry, appendEvent, batchSession } = await import(need('memory/store.js'));
 const { search } = await import(need('memory/search.js'));
-const { recall, startupDisplay } = await import(need('memory/recall.js'));
+const { recall, recallForPrompt, startupDisplay } = await import(need('memory/recall.js'));
 const { processPending } = await import(need('memory/worker.js'));
 const { prepare } = await import(need('memory/capture.js'));
 const { DEFAULT_CONFIG } = await import(need('config.js'));
@@ -132,6 +132,18 @@ for (const mode of ['keyword', 'semantic', 'hybrid']) {
 }
 
 results.push(timed('recall at a session seam', 60, () => recall(db, config, { project: PROJECT, sessionId: 'perf' })));
+// The one cost paid on EVERY prompt, after the developer pressed Enter. A
+// fresh session id each time, so the per-session deduplication does not make
+// the second call free and flatter the number.
+results.push(
+  timed('recall per prompt (every turn)', 40, (i) =>
+    recallForPrompt(db, config, {
+      project: PROJECT,
+      sessionId: `perf-prompt-${i}`,
+      prompt: `Why did we change the ${pick(3, i)} behaviour in the auth middleware?`,
+    }),
+  ),
+);
 results.push(timed('startup display', 200, () => startupDisplay(db, PROJECT)));
 
 // The worker, on one real batch.
@@ -176,5 +188,7 @@ if (asJson) {
   }
   console.log(`\ncorpus fill: ${report.corpus.fill_ms}ms for ${ENTRIES} entries (insert + FTS + vector, one at a time)`);
   console.log(`local summariser on a 40-event batch: ${report.worker_local_summarizer_ms}ms`);
-  console.log('\nThe three that sit on a human\'s path are capture append, startup display and recall.\n');
+  console.log(
+    "\nFour sit on a human's path: capture append (every tool call), the startup display,\nthe seam recall, and the per-prompt recall (every time they press Enter).\n",
+  );
 }

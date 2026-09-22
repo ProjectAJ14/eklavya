@@ -34,7 +34,8 @@ them rather than trusting this table.
 | Reuse saving on a trivial corpus | **overhead**, and reported as overhead | one tiny session: an observation is longer than the tool call it summarises. The arithmetic says so rather than clamping it to zero |
 | Capture, per tool call | 0.03ms median, flat from 2k to 20k entries | `node eval/memory-perf.mjs --entries 20000` |
 | Startup display | 0.03ms median, flat | same |
-| Recall at a seam | 0.14ms median, flat | same |
+| Recall at a seam | 0.15ms median, flat | same |
+| Recall per prompt, 20k entries | 5.7ms median | same. The one cost paid every time the developer presses Enter, and the reason `recallForPrompt` hands its ranking to `recall` instead of letting it search again — that was 25ms before |
 | Hybrid search, 20k entries | 17ms median | same; on an agent's path, not a human's |
 | Retrieval quality | hybrid ahead of keyword on top-1 and recall; both miss the synonym query, as ADR-03 predicts | `node eval/retrieval-harness.mjs` |
 

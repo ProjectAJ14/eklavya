@@ -64,8 +64,14 @@ export interface RecallOptions {
   delivery?: 'confirmed' | 'unknown' | 'prepared';
   /** Entry ids to leave out — what this session has already been handed. */
   exclude?: Set<number>;
-  /** When set, only these entries may be offered. */
-  include?: Set<number>;
+  /**
+   * Already-ranked candidates, best first.
+   *
+   * A caller that has just run its own search — `recallForPrompt` does, to
+   * decide whether to speak at all — hands the result straight through rather
+   * than making `recall` search a second time for the same rows.
+   */
+  candidates?: EntryRow[];
   /** Override `retrieval.max_items`, for the tighter per-prompt budget. */
   maxItems?: number;
 }
@@ -132,21 +138,27 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   };
 
   const exclude = opts.exclude ?? new Set<number>();
-  const allowed = (id: number) => !exclude.has(id) && (!opts.include || opts.include.has(id));
-  const hits: SearchHit[] = opts.query
-    ? search(db, opts.query, config.retrieval.mode, { ...filter, limit: limit + exclude.size }).filter((h) =>
-        allowed(h.entry.id),
-      )
-    : [];
-  const chosen: EntryRow[] = hits.length
-    ? hits.map((h) => h.entry)
-    : timeline(db, {
+  const allowed = (id: number) => !exclude.has(id);
+  const hits: SearchHit[] =
+    opts.candidates || !opts.query
+      ? []
+      : search(db, opts.query, config.retrieval.mode, { ...filter, limit: limit + exclude.size }).filter((h) =>
+          allowed(h.entry.id),
+        );
+  const ranked: EntryRow[] = opts.candidates ? opts.candidates.filter((e) => allowed(e.id)) : hits.map((h) => h.entry);
+  const chosen: EntryRow[] = ranked.length
+    ? ranked
+    : opts.candidates
+      // A caller that supplied candidates and had none left after exclusion
+      // meant "nothing", not "fall back to whatever is recent".
+      ? []
+      : timeline(db, {
         // `cross_project` widens the seam recall too, not only a search. A dial
         // that only applied when someone typed a query would be off precisely
         // where a developer with two checkouts open would notice it.
         project: config.retrieval.cross_project ? null : opts.project,
         limit: limit + exclude.size,
-      }).filter((entry) => allowed(entry.id));
+        }).filter((entry) => allowed(entry.id));
   if (!chosen.length) return empty;
 
   const base = baseTokensFor(db, chosen);
@@ -354,16 +366,23 @@ export function recallForPrompt(
   // MIN_COSINE is measured, not chosen: on the eval corpus an on-topic
   // paraphrase scores around 0.55 and an unrelated prompt around 0.24.
   const MIN_COSINE = 0.35;
-  const include = new Set<number>([
-    ...keywordSearch(db, query, { ...scope, strict: true }).map((h) => h.entry.id),
-    ...semanticSearch(db, query, scope)
-      .filter((h) => h.score >= MIN_COSINE)
-      .map((h) => h.entry.id),
-  ]);
-  if (!include.size) return null;
+  const lexical = keywordSearch(db, query, { ...scope, strict: true });
+  const semantic = semanticSearch(db, query, scope).filter((h) => h.score >= MIN_COSINE);
+  if (!lexical.length && !semantic.length) return null;
+
+  // Ranked here and handed to `recall` as candidates, rather than letting it
+  // search a third and fourth time for rows this function has already found.
+  // Lexical first: every word of the prompt present beats a close vector.
+  const seen = new Set<number>();
+  const candidates: EntryRow[] = [];
+  for (const hit of [...lexical, ...semantic]) {
+    if (seen.has(hit.entry.id)) continue;
+    seen.add(hit.entry.id);
+    candidates.push(hit.entry);
+  }
 
   const result = recall(db, config, {
-    include,
+    candidates,
     project: opts.project,
     sessionId: opts.sessionId,
     query,
