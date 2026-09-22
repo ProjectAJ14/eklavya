@@ -10,9 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
-import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG } from './config.js';
+import { loadConfig, writeConfigFile, REPO_CONFIG_FILE, DEFAULT_CONFIG, findRepoConfig } from './config.js';
 import { loadPacks, applyPacks } from './packs.js';
-import { levelStanding } from './store.js';
+import { levelStanding, projectKey } from './store.js';
 import { statusLine } from './statusline.js';
 import { isSessionOff } from './session.js';
 import { START_LEVEL, type Level } from './srs.js';
@@ -72,6 +72,8 @@ Memory:
   eklavya memory prune                  Delete raw evidence past memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
                                         --dry-run reads the source and reports; it writes nothing
+                                        --map <source>=<path>  file that source project under a checkout
+                                        --map-here <source>    the same, for the checkout you are in
   eklavya memory export <file>          Versioned JSON of entries, tags, evidence links and receipts
 
 Config keys: mode, focus, focus_topic, cadence, difficulty, level_up_after,
@@ -703,10 +705,42 @@ function dispositionReport(fields: FieldDisposition[]): string {
   return lines.join('\n');
 }
 
+/**
+ * Reads `--map source=/path` and `--map-here source` into a project map.
+ *
+ * Eklavya keys a project by the checkout's absolute realpath; Claude Mem keys
+ * it by a bare name. Without a mapping the import is honest and useless at the
+ * moment it matters -- every row lands in a scope no session queries, so a
+ * search in the very repository the history came from finds nothing. The
+ * importer cannot guess which checkout `eklavya` meant, so this is a flag.
+ */
+function projectMapFrom(argv: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--map') {
+      const pair = argv[i + 1] ?? '';
+      const eq = pair.indexOf('=');
+      if (eq <= 0) fail('Usage: --map <source-project>=<path-to-checkout>');
+      map[pair.slice(0, eq)] = projectKey(findRepoConfig(pair.slice(eq + 1)).repoRoot ?? pair.slice(eq + 1));
+      i++;
+    } else if (argv[i] === '--map-here') {
+      const name = argv[i + 1];
+      if (!name || name.startsWith('--')) fail('Usage: --map-here <source-project>');
+      map[name] = projectKey(findRepoConfig(process.cwd()).repoRoot);
+      i++;
+    }
+  }
+  return map;
+}
+
 function memoryImport(argv: string[]): void {
-  const source = argv.find((a) => !a.startsWith('--'));
-  if (!source) fail('Usage: eklavya memory import <path-to-claude-mem.db> [--dry-run] [--resume]');
+  const flagValues = new Set(
+    argv.flatMap((a, i) => (a === '--map' || a === '--map-here' ? [argv[i + 1] ?? ''] : [])),
+  );
+  const source = argv.find((a) => !a.startsWith('--') && !flagValues.has(a));
+  if (!source) fail('Usage: eklavya memory import <path-to-claude-mem.db> [--dry-run] [--resume] [--map <src>=<path>]');
   const dryRun = argv.includes('--dry-run');
+  const projectMap = projectMapFrom(argv);
 
   try {
     const found = inventory(source);
@@ -724,13 +758,23 @@ function memoryImport(argv: string[]): void {
 
     if (!found.supported) fail(`\n${found.problem ?? 'Unsupported source database.'}`);
     if (dryRun) {
-      process.stdout.write('\nDry run: nothing was written, and the source was opened read-only.\n');
+      const planned = Object.entries(projectMap);
+      const unmapped = found.projects.map((p) => p.project).filter((p) => !(p in projectMap));
+      process.stdout.write(
+        [
+          '',
+          ...planned.map(([from, to]) => `would map: ${from} -> ${to}`),
+          ...(unmapped.length ? [`would keep as-is: ${unmapped.join(', ')}`] : []),
+          'Dry run: nothing was written, and the source was opened read-only.',
+          '',
+        ].join('\n'),
+      );
       return;
     }
 
     const db = openDb();
     try {
-      const report = importFrom(db, source, { resume: argv.includes('--resume') });
+      const report = importFrom(db, source, { resume: argv.includes('--resume'), projectMap });
       const rows = IMPORTED_TABLES.map(
         (t) =>
           `  ${t.padEnd(18)} read ${report.read[t]} · imported ${report.imported[t]} · already present ${report.skipped[t]}`,
@@ -743,6 +787,15 @@ function memoryImport(argv: string[]): void {
           `  concept candidates: ${report.candidates} (all unassessed — no mastery, no attempts, no gate touched)`,
           `  re-indexed: ${report.reindexed} entries`,
           `  validation: ${report.validation.ok ? 'ok' : `FAILED — ${report.validation.notes.join('; ')}`}`,
+          ...report.projectsMapped.map((p) => `  mapped: ${p.from} -> ${p.to}`),
+          // The unmapped list is the useful half: those rows only ever surface
+          // under --all-projects until somebody maps them.
+          ...(report.projectsKept.length
+            ? [
+                `  kept as-is: ${report.projectsKept.join(', ')}`,
+                '  (unmapped projects are searchable only with --all-projects; re-run with --map to file them under a checkout)',
+              ]
+            : []),
           '',
         ].join('\n'),
       );

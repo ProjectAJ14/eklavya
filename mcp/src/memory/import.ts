@@ -202,6 +202,19 @@ export interface ImportOptions {
   resume?: boolean;
   /** Where the snapshot goes. Defaults to a temp directory. */
   snapshotDir?: string;
+  /**
+   * Source project name -> Eklavya project key.
+   *
+   * Without this the import is honest but useless at the moment it matters:
+   * the source names a project `eklavya` and Eklavya keys projects by the
+   * checkout's absolute realpath, so every imported row lands in a project
+   * scope that no session ever queries, and a search in the repo the history
+   * came from finds nothing. The importer cannot invent the path -- only the
+   * person running it knows which checkout `eklavya` meant -- so it is a flag
+   * rather than a guess, and the report says which names were mapped and which
+   * were left as they were.
+   */
+  projectMap?: Record<string, string>;
 }
 
 /** The four source tables that become Eklavya rows. */
@@ -221,6 +234,10 @@ export interface ImportReport {
   unsupportedFields: FieldDisposition[];
   validation: { ok: boolean; notes: string[] };
   dryRun: boolean;
+  /** Source project names that `projectMap` rewrote, and what they became. */
+  projectsMapped: { from: string; to: string }[];
+  /** Source project names left as they were, so nobody has to guess afterwards. */
+  projectsKept: string[];
 }
 
 /** Fails with a message that names the next step, never a bare assertion. */
@@ -525,6 +542,35 @@ const EMPTY_COUNTS = (): ImportCounts => ({
  * are never read or written here, which is what makes "an import cannot
  * overwrite learning history" a property of the code rather than a promise.
  */
+/** Applies `projectMap`, recording which names were used so the report can say. */
+/**
+ * Says which source project names were rewritten and which were not.
+ *
+ * The unmapped list is the useful half: a name left alone is history that will
+ * only ever surface under `--all-projects`, and somebody reading the report
+ * afterwards should not have to work that out for themselves.
+ */
+function recordProjects(
+  report: ImportReport,
+  options: ImportOptions,
+  seen: Set<string>,
+  used: Set<string>,
+): void {
+  const map = options.projectMap ?? {};
+  report.projectsMapped = [...used].sort().map((from) => ({ from, to: map[from]! }));
+  report.projectsKept = [...seen].filter((name) => !used.has(name)).sort();
+}
+
+function projectMapper(options: ImportOptions, used: Set<string>): (name: string) => string {
+  const map = options.projectMap ?? {};
+  return (name: string) => {
+    const mapped = map[name];
+    if (mapped === undefined) return name;
+    used.add(name);
+    return mapped;
+  };
+}
+
 export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): ImportReport {
   const dryRun = opts.dryRun ?? false;
   const found = inventory(sourceDb);
@@ -534,6 +580,14 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
   for (const table of IMPORTED_TABLES) {
     read[table] = found.tables.find((t) => t.name === table)?.rows ?? 0;
   }
+
+  const mapped = new Set<string>();
+  const toProject = projectMapper(opts, mapped);
+  const seenProjects = new Set<string>();
+  const projectOf = (name: string): string => {
+    seenProjects.add(name);
+    return toProject(name);
+  };
 
   const report: ImportReport = {
     sourcePath: sourceDb,
@@ -547,8 +601,15 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
     unsupportedFields: found.fields.filter((f) => f.kind !== 'mapped'),
     validation: { ok: true, notes: [] },
     dryRun,
+    projectsMapped: [],
+    projectsKept: [],
   };
-  if (dryRun) return report;
+  if (dryRun) {
+    // A dry run reads nothing project-shaped, so the mapping it would apply is
+    // reported from the inventory instead of from rows it never touched.
+    recordProjects(report, opts, new Set(found.projects.map((p) => p.project)), mapped);
+    return report;
+  }
 
   const dir = opts.snapshotDir ?? path.join(os.tmpdir(), 'eklavya-import');
   const snap = snapshot(sourceDb, dir, opts.resume ?? false);
@@ -569,7 +630,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
         .prepare('SELECT id, project, content_session_id, memory_session_id FROM sdk_sessions')
         .all() as { id: number; project: string; content_session_id: string; memory_session_id: string | null }[]) {
         sessionProject.set(row.id, {
-          project: row.project,
+          project: projectOf(row.project),
           sessionId: row.memory_session_id ?? row.content_session_id,
         });
       }
@@ -582,7 +643,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
           continue;
         }
         const occurredAt = isoFromEpoch(row.created_at_epoch, row.created_at);
-        const project = row.merged_into_project ?? row.project;
+        const entryProject = projectOf(row.merged_into_project ?? row.project);
         const title = (row.title ?? row.subtitle ?? row.text ?? 'Imported observation').slice(0, 200);
         const narrative = [row.subtitle, row.narrative ?? row.text].filter(Boolean).join('\n\n');
         const concepts = jsonArray(row.concepts);
@@ -590,7 +651,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
 
         const entryId = db.transaction(() => {
           const id = insertEntry(db, {
-            project,
+            project: entryProject,
             sessionId: row.memory_session_id,
             kind: 'observation',
             type: row.type,
@@ -602,7 +663,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
             generator: row.generated_by_model ? `${IMPORT_SOURCE}:${row.generated_by_model}` : IMPORT_SOURCE,
             occurredAt,
             importSource: IMPORT_SOURCE,
-            entryUid: entryUid({ project, title, occurredAt, salt: `${IMPORT_SOURCE}:observations:${row.id}` }),
+            entryUid: entryUid({ project: entryProject, title, occurredAt, salt: `${IMPORT_SOURCE}:observations:${row.id}` }),
           });
           ids.set('observations', row.id, 'memory_entries', id);
           // A concept the source attached is a *proposal*. It lands as a
@@ -616,7 +677,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
               name: concept,
               domain: 'imported',
               confidence: 0,
-              project,
+              project: entryProject,
             });
             report.candidates++;
           }
@@ -637,7 +698,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
           continue;
         }
         const occurredAt = isoFromEpoch(row.created_at_epoch, row.created_at);
-        const project = row.merged_into_project ?? row.project;
+        const entryProject = projectOf(row.merged_into_project ?? row.project);
         const title = (row.request?.split('\n')[0] ?? 'Session summary').slice(0, 200);
         const narrative = (
           [
@@ -654,7 +715,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
           .join('\n\n');
 
         const id = insertEntry(db, {
-          project,
+          project: entryProject,
           sessionId: row.memory_session_id,
           kind: 'session_summary',
           title,
@@ -663,7 +724,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
           generator: IMPORT_SOURCE,
           occurredAt,
           importSource: IMPORT_SOURCE,
-          entryUid: entryUid({ project, title, occurredAt, salt: `${IMPORT_SOURCE}:session_summaries:${row.id}` }),
+          entryUid: entryUid({ project: entryProject, title, occurredAt, salt: `${IMPORT_SOURCE}:session_summaries:${row.id}` }),
         });
         ids.set('session_summaries', row.id, 'memory_entries', id);
         entryIds.push(id);
@@ -701,7 +762,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
         const occurredAt = isoFromEpoch(row.created_at_epoch, row.created_at);
         const body = [row.tool_input, row.tool_response].filter(Boolean).join('\n---\n');
         const id = appendImportedEvent(db, {
-          project: row.project,
+          project: projectOf(row.project),
           checkout: row.cwd,
           sessionId: row.memory_session_id ?? row.content_session_id,
           agentId: row.agent_id,
@@ -723,6 +784,7 @@ export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): 
     report.reindexed = reindex(db, entryIds);
 
     report.validation = validate(db, report);
+    recordProjects(report, opts, seenProjects, mapped);
     return report;
   } finally {
     src.close();

@@ -423,3 +423,25 @@ describe('importFrom', () => {
     expect(() => inventory(path.join(sourceDir, 'nope.db'))).toThrow(/claude-mem\.db/);
   });
 });
+
+describe('filing imported history under a local checkout', () => {
+  it('maps a source project name onto an Eklavya project key when asked', () => {
+    buildSource();
+    const report = importFrom(db, sourcePath, { projectMap: { [PROJECT]: '/work/local-checkout' } });
+    expect(report.projectsMapped).toEqual([{ from: PROJECT, to: '/work/local-checkout' }]);
+    expect(report.projectsKept).toEqual([]);
+    const projects = (
+      db.prepare('SELECT DISTINCT project FROM memory_entries').all() as { project: string }[]
+    ).map((r) => r.project);
+    expect(projects).toEqual(['/work/local-checkout']);
+  });
+
+  it('names the projects it left alone, because those are only findable across projects', () => {
+    // Unmapped history lands in a scope no session queries: a search in the
+    // very repository it came from finds nothing until somebody maps it.
+    buildSource();
+    const report = importFrom(db, sourcePath, {});
+    expect(report.projectsMapped).toEqual([]);
+    expect(report.projectsKept).toContain(PROJECT);
+  });
+});
