@@ -82,6 +82,35 @@ errors."* The grace window is deliberate and documented, and lowering it is a
 product decision about cost and nagging, not a bug to fix unilaterally. Recorded
 here so it is decided rather than discovered.
 
+**The nudge fires, and restrains itself.** Seeding a session twenty minutes old
+with nothing logged, the same hook that was correctly silent in runs 2-4 now
+returns:
+
+```
+[Eklavya] Nothing logged this session. Once you know what the current task
+involves, call log_session_concepts with the 3-8 concepts it genuinely
+exercises, each with a context line naming the real code — without it there is
+nothing to quiz on.
+```
+
+It then writes `<first>|<nudged>|1`, stays silent on the very next prompt
+(cooldown), and goes silent permanently once the session has logged anything.
+So the recovery path for the exact failure runs 2-4 exhibited works, and it
+does not nag.
+
+That closes every mechanism link:
+
+| link | proven by |
+|---|---|
+| session-start injects the directive | run 1, where the model acted on it unprompted |
+| nothing logged after the grace window → nudge re-injects | direct hook test above |
+| nudge respects cooldown, cap, and a session that logged | direct hook test above |
+| a logged concept → checkpoint interrupts mid-task | direct hook test, exact contract wording |
+| evidence → batch → entry, with provenance and links | the live session above |
+
+What is left is not a mechanism. It is whether a model volunteers the tool call
+in a short session, and no harness I can drive settles that.
+
 ### What still needs the interactive run
 
 ```bash
