@@ -148,7 +148,9 @@ Stated so a reviewer does not go looking for it:
 
 ## Checks
 
-- [x] `cd mcp && npm test` — **836 passed, 37 files, nothing skipped.** Four
+- [x] `cd mcp && npm test` — **840 passed, 37 files, nothing skipped**, and
+      verified the way CI runs it: a clean clone of this branch, `npm ci`, then
+      `npm test`. Four
       tests used to fail for anyone with an `.eklavya.json` at the repository
       root, which is the documented way to turn Eklavya off for a repo: they
       ran in the checkout and read it. They run in a scratch directory now,
