@@ -40,6 +40,9 @@ export const TOOLS: ToolDef[] = [
   memoryWrite,
   memoryCorrect,
   memoryDelete,
+  codeOutline,
+  codeFindSymbol,
+  memoryCollections,
 ];
 
 /** Tool results are JSON text: compact, and small enough to live in context (decision G7). */

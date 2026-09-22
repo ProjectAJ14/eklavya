@@ -70,6 +70,8 @@ Memory:
                                         [--mode keyword|semantic|hybrid] [--limit <n>] [--all-projects]
   eklavya memory timeline               Recent entries, newest first [--limit <n>] [--since <iso date>]
   eklavya memory show <id>              One entry, with the evidence it was built from
+  eklavya memory replay [--limit <n>]   Backfill from this checkout's Claude Code transcripts
+                                        Covers sessions from before the install, and any a hook missed
   eklavya memory process [--max <n>]    Drain the observation queue now
   eklavya memory prune                  Delete raw evidence past memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
@@ -508,7 +510,7 @@ function dashboardCommand(argv: string[]): void {
  * to ask for it.
  */
 const MEMORY_USAGE =
-  'Usage: eklavya memory status|search|timeline|show|process|prune|import|export|sync\n' +
+  'Usage: eklavya memory status|search|timeline|show|replay|process|prune|import|export|sync\n' +
   '       run `eklavya --help` for the full list\n';
 
 function flag(argv: string[], name: string, fallback?: string): string | undefined {
@@ -686,6 +688,58 @@ function memoryProcess(argv: string[]): void {
       fail(`eklavya memory process: ${err.message}`);
     },
   );
+}
+
+/**
+ * Backfills from Claude Code's own transcripts.
+ *
+ * The hooks only see sessions that happened after Eklavya was installed. This
+ * is for the ones before it, and for a session where a hook was misconfigured:
+ * the transcript is on disk either way, and it goes through the same privacy
+ * filter and converges with whatever the hooks already captured.
+ */
+function memoryReplay(argv: string[]): void {
+  const db = openDb();
+  try {
+    const { config } = loadConfig();
+    if (!config.memory.enabled) {
+      process.stdout.write('memory.enabled is false, so there is nowhere to replay into.\n');
+      return;
+    }
+    const cwd = process.cwd();
+    const files = transcriptsFor(cwd);
+    if (!files.length) {
+      process.stdout.write(
+        `No Claude Code transcripts found for this checkout.\nLooked in: ${transcriptDirFor(cwd)}\n`,
+      );
+      return;
+    }
+    const limit = Number(flag(argv, '--limit', '20'));
+    const results = replayProject(db, config, cwd, { limit });
+    const total = results.reduce(
+      (sum, r) => ({
+        read: sum.read + r.read,
+        captured: sum.captured + r.captured,
+        duplicates: sum.duplicates + r.duplicates,
+        excluded: sum.excluded + r.excluded,
+      }),
+      { read: 0, captured: 0, duplicates: 0, excluded: 0 },
+    );
+    process.stdout.write(
+      [
+        `transcripts: ${results.length} of ${files.length}`,
+        `lines read:  ${total.read}`,
+        `captured:    ${total.captured}`,
+        `already had: ${total.duplicates}`,
+        `excluded:    ${total.excluded}  (privacy filter, or capture set to minimal)`,
+        '',
+        'Run `eklavya memory process` to summarise what was captured.',
+        '',
+      ].join('\n'),
+    );
+  } finally {
+    db.close();
+  }
 }
 
 function memoryPrune(): void {
@@ -942,6 +996,8 @@ function memoryCommand(argv: string[]): void {
       return memoryTimeline(rest);
     case 'show':
       return memoryShow(rest);
+    case 'replay':
+      return memoryReplay(rest);
     case 'process':
       return memoryProcess(rest);
     case 'prune':

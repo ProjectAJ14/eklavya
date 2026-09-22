@@ -352,3 +352,35 @@ function probe(args: string[], cwd: string, pluginRoot?: string): string {
     },
   });
 }
+
+describe('the tool registry', () => {
+  it('registers every tool that exists, not just the ones somebody remembered', async () => {
+    // Three tools were written, imported into `index.ts`, and left out of the
+    // `TOOLS` array. Nothing failed: TypeScript does not mind an unused import,
+    // and `server.integration.test.ts` compares what the server advertises
+    // against `TOOLS` itself, so it agreed with whatever the array happened to
+    // hold. The server shipped 17 of 20 tools and three skills documented
+    // tools the model could not call.
+    //
+    // This is the reverse check, and the only one that could have caught it:
+    // read the source files, find every exported `ToolDef`, and assert the
+    // registry has all of them.
+    const toolsDir = path.join(mcpRoot, 'src', 'tools');
+    const declared = new Set<string>();
+    for (const file of fs.readdirSync(toolsDir)) {
+      if (!file.endsWith('.ts') || file === 'index.ts' || file === 'types.ts') continue;
+      const source = fs.readFileSync(path.join(toolsDir, file), 'utf8');
+      for (const match of source.matchAll(/^export const (\w+): ToolDef = \{\n\s*name: '([^']+)'/gm)) {
+        declared.add(match[2]!);
+      }
+    }
+
+    const { TOOLS } = (await import('../src/tools/index.js')) as { TOOLS: { name: string }[] };
+    const registered = new Set(TOOLS.map((t) => t.name));
+
+    expect(declared.size).toBeGreaterThan(10);
+    for (const name of declared) {
+      expect(registered.has(name), `${name} is defined but not in TOOLS`).toBe(true);
+    }
+  });
+});
