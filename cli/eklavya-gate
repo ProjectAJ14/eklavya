@@ -9,10 +9,12 @@
 # bricks commits when a dependency is absent gets uninstalled, and an unpassable
 # gate teaches nothing.
 #
-# It reads this project's config and nothing else -- never ~/.eklavya/config.json.
-# That is deliberate: a git hook installed once must not start blocking commits
-# because someone flipped a global setting. Gating a codebase is a per-project
-# decision, stated in that project's own file.
+# Enforcement is read from this project's config only -- never from
+# ~/.eklavya/config.json. That is deliberate: a git hook installed once must not
+# start blocking commits because someone flipped a global setting. Gating a
+# codebase is a per-project decision, stated in that project's own file. The
+# global file is consulted for one thing: a `quiz.enabled: false` there switches
+# the questions off, and a gate nothing can pass must not hold.
 #
 # That file used to be <repo>/.eklavya.json, committed. It is not any more: a
 # project's settings say how *you* want to be taught in that codebase, and a
@@ -45,13 +47,14 @@ REPO=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 # enforcement somebody was promised, silently not happening. Plain
 # `--git-common-dir` has been there for years and answers relative to the
 # current directory, so the relative case is resolved by hand.
+#
+# Resolved with `pwd -P`, never `$(pwd)/...`: in a hook `pwd` echoes the `PWD`
+# the shell handed down, which is the symlinked spelling when the repo was
+# reached through one (macOS's /tmp, a symlinked ~/code). The node side keys on
+# the real path, so a symlinked prefix misses the slug and the gate fails open.
 PROJECT="$REPO"
 COMMON=$(git rev-parse --git-common-dir 2>/dev/null) || COMMON=''
-case "$COMMON" in
-  '')  ;;
-  /*)  ;;
-  *)   COMMON="$(pwd)/$COMMON" ;;
-esac
+[ -n "$COMMON" ] && COMMON=$(cd "$COMMON" 2>/dev/null && pwd -P) || COMMON=''
 case "$COMMON" in
   */.git) CANDIDATE=${COMMON%/.git}; [ -d "$CANDIDATE" ] && PROJECT="$CANDIDATE" ;;
 esac
@@ -84,14 +87,27 @@ fi
 # `"enforced": false` as unset and fall through to a stale `mode` left in the
 # same file. That is a gate holding commits after somebody switched it off.
 #
-# The `enabled == false` arm mirrors what `coerce()` does in the TypeScript: a
-# gate with no questions behind it can never be passed, so it must not hold.
 ENFORCED=$(jq -r '
-  if .quiz.enabled == false then false
-  elif .quiz.enforced != null then .quiz.enforced
+  if .quiz.enforced != null then .quiz.enforced
   else (.mode == "enforced") end
 ' "$CONFIG" 2>/dev/null) || exit 0
 [ "$ENFORCED" = "true" ] || exit 0
+
+# `quiz.enabled`, resolved the way `coerce()` resolves it: project over global,
+# `mode` per file. A gate with no questions behind it can never be passed, so
+# it must not hold -- and the switch that silences the questions may well be in
+# the global file. This is the one thing read from there: the global config can
+# release this gate, never impose one.
+QUIZ_ENABLED='
+  if .quiz.enabled != null then .quiz.enabled
+  elif .mode == "off" then false
+  elif .mode == "ambient" or .mode == "enforced" then true
+  else null end'
+ENABLED=$(jq -r "$QUIZ_ENABLED" "$CONFIG" 2>/dev/null) || exit 0
+if [ "$ENABLED" = "null" ] && [ -f "$(eklavya_home)/config.json" ]; then
+  ENABLED=$(jq -r "$QUIZ_ENABLED" "$(eklavya_home)/config.json" 2>/dev/null) || exit 0
+fi
+[ "$ENABLED" = "false" ] && exit 0
 
 DB=$(eklavya_db)
 [ -f "$DB" ] || exit 0

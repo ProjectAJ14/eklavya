@@ -42,7 +42,7 @@ surface that commits.
 - It **chains** to any `pre-commit` hook you already have rather than replacing it — your existing one is moved to `pre-commit.local` and still runs.
 - `--uninstall` removes Eklavya's hook and restores the previous one.
 - It only acts on projects whose config sets `quiz.enforced` — or the retired `"mode": "enforced"`, which it still reads — so installing it is safe even if you turn enforcement off later. That config is at `~/.eklavya/projects/<checkout>/config.json`, never in the repository.
-- It reads **that file and no other** — never your global `~/.eklavya/config.json`. Enforcing globally gates commits made inside Claude Code, but a bare-terminal commit is only held in repositories that say so themselves. A hook installed once must not start blocking because a global setting changed elsewhere.
+- It reads **that file and no other** — never your global `~/.eklavya/config.json`. Enforcing globally gates commits made inside Claude Code, but a bare-terminal commit is only held in repositories that say so themselves. A hook installed once must not start blocking because a global setting changed elsewhere. The one thing it takes from the global file is the off switch: if your global config sets `quiz.enabled false` and the project does not turn questions back on, the gate lets the commit through, because nothing would ever ask the questions that pass it.
 
 ### What a blocked commit looks like
 

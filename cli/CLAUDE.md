@@ -25,8 +25,12 @@ Then the script itself only acts on a project whose config sets `quiz.enforced`
 `~/.eklavya/projects/<slug>/config.json` — the script rebuilds the slug itself,
 in shell, from `git rev-parse --show-toplevel` folded to the main checkout via
 `--git-common-dir`, because a worktree shares its parent's settings. Note that it
-reads **only** the project file — not `~/.eklavya/config.json` — so a globally
-set gate does not hold a bare terminal.
+reads enforcement from **only** the project file — not `~/.eklavya/config.json` —
+so a globally set gate does not hold a bare terminal. The global file is read for
+one thing: a `quiz.enabled: false` (or `mode: off`) there, not overridden by the
+project, releases the gate, exactly as `coerce()` does — otherwise a terminal
+commit is held by a gate no quiz will ever run to clear. The slug path is built
+with `pwd -P` so a checkout reached through a symlink still finds its file.
 
 It reads `<repo>/.eklavya.json` as a fallback and does **not** migrate it. The
 node half moves that file out automatically; a git pre-commit hook is the wrong
@@ -45,7 +49,8 @@ teaches nothing. Every one of these exits 0:
 - `jq` not on PATH (warns on stderr) — **or** `sqlite3` not on PATH (warns too).
   It needs both, not just `jq`;
 - the config does not ask for enforcement — `quiz.enforced` false or absent with
-  no `mode: enforced` behind it, or `quiz.enabled` explicitly false;
+  no `mode: enforced` behind it, or `quiz.enabled` false — in the project file,
+  or in the global one when the project does not say;
 - the database file does not exist;
 - the `sqlite3` query errors, or returns no gate row for this repo.
 

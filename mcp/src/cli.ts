@@ -327,7 +327,11 @@ function configCommand(args: string[]): void {
   // than applied to the wrong repository. See `belongsTo` in config.ts.
   if (scopeRepo && resolved.repoRoot) patch.project = mainRepoRoot(resolved.repoRoot);
 
-  writeConfigFile(target, patch);
+  try {
+    writeConfigFile(target, patch);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+  }
   for (const [k, v] of Object.entries(patch)) {
     process.stdout.write(`${k} = ${JSON.stringify(v)}  ->  ${target}\n`);
   }

@@ -344,7 +344,11 @@ export const setConfig: ToolDef = {
       }
     }
 
-    writeConfigFile(target, patch);
+    try {
+      writeConfigFile(target, patch);
+    } catch (err) {
+      return { error: 'project_collision', detail: err instanceof Error ? err.message : String(err) };
+    }
 
     return { written_to: target, scope, config: loadConfig(cwd).config };
   },

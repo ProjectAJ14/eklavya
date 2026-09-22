@@ -235,6 +235,30 @@ describe('writeConfigFile', () => {
     expect(JSON.parse(fs.readFileSync(file, 'utf8')).future_setting).toBe(42);
   });
 
+  // Two checkouts can share a slug. A write for one must not take over the
+  // file stamped for the other.
+  it('refuses to write over a file stamped for a different checkout', () => {
+    const file = path.join(home, 'project.json');
+    fs.writeFileSync(file, JSON.stringify({ focus: 'concept', project: '/a/b-c' }));
+    expect(() => writeConfigFile(file, { focus: 'project', project: '/a-b/c' })).toThrow(/different checkout/);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ focus: 'concept', project: '/a/b-c' });
+    expect(writeConfigFile(file, { focus: 'project', project: '/a/b-c' }).focus).toBe('project');
+  });
+
+  // Left beside a new `quiz.enabled: false`, `mode: enforced` resolved to
+  // enforced-and-silent and `doctor` reported a conflict nobody wrote.
+  it('folds a retired `mode` into a `quiz` written over it', () => {
+    const file = path.join(home, 'config.json');
+    fs.writeFileSync(file, JSON.stringify({ mode: 'enforced' }));
+    expect(writeConfigFile(file, { quiz: { enabled: false } })).toEqual({ quiz: { enabled: false, enforced: false } });
+
+    fs.writeFileSync(file, JSON.stringify({ mode: 'enforced' }));
+    expect(writeConfigFile(file, { quiz: { enabled: true } })).toEqual({ quiz: { enabled: true, enforced: true } });
+
+    fs.writeFileSync(file, JSON.stringify({ mode: 'off' }));
+    expect(writeConfigFile(file, { quiet: true })).toEqual({ mode: 'off', quiet: true });
+  });
+
   it('leaves no temp file behind — the git hook may read mid-write', () => {
     writeConfigFile(path.join(home, 'config.json'), { quiet: true });
     expect(fs.readdirSync(home).filter((f) => f.includes('.tmp-'))).toEqual([]);

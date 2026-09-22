@@ -158,11 +158,27 @@ describe('a leftover .eklavya.json', () => {
     expect(moved.difficulty).toBe('hard');
   });
 
-  it('is removed even when it is malformed, since it configures nothing either way', () => {
-    fs.writeFileSync(path.join(repo, '.eklavya.json'), '{ not json at all');
+  // A trailing comma in a hand-edited file is still somebody's settings.
+  // Deleting it on a parse failure loses them for good, silently, at SessionStart.
+  it('is left in place when it is malformed, so a typo never costs the settings', () => {
+    fs.writeFileSync(path.join(repo, '.eklavya.json'), '{ "focus": "project", }');
 
-    expect(migrateLegacyRepoConfig(repo)).toBe(true);
-    expect(fs.existsSync(path.join(repo, '.eklavya.json'))).toBe(false);
+    expect(migrateLegacyRepoConfig(repo)).toBe(false);
+    expect(fs.readFileSync(path.join(repo, '.eklavya.json'), 'utf8')).toBe('{ "focus": "project", }');
+    expect(fs.existsSync(projectConfigPath(repo))).toBe(false);
+  });
+
+  // `/a/b-c` and `/a-b/c` share a slug. The move must not take over the file
+  // the other checkout owns, nor delete this checkout's only copy.
+  it('keeps the legacy file when the destination belongs to another checkout', () => {
+    const target = projectConfigPath(repo);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify({ focus: 'concept', project: '/somewhere/else' }));
+    writeLegacyRepoFile({ focus: 'project' });
+
+    expect(migrateLegacyRepoConfig(repo)).toBe(false);
+    expect(fs.existsSync(path.join(repo, '.eklavya.json'))).toBe(true);
+    expect(JSON.parse(fs.readFileSync(target, 'utf8'))).toEqual({ focus: 'concept', project: '/somewhere/else' });
   });
 
   it('does nothing, and says so, when there is none', () => {

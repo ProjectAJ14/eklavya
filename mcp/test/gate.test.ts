@@ -322,6 +322,44 @@ describe('eklavya-gate CLI (the editor-agnostic half)', () => {
     }
   });
 
+  // `coerce()` drops enforcement when questions are off, and the off switch can
+  // be the global file. Without this the terminal holds a gate no quiz clears.
+  it('lets the commit through when the global config switches questions off', () => {
+    repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
+    openGate({ required: 2 });
+    expect(gateCli().status).toBe(1);
+
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ quiz: { enabled: false } }));
+    expect(gateCli().status).toBe(0);
+
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ mode: 'off' }));
+    expect(gateCli().status).toBe(0);
+
+    // ...unless the project turns them back on, which is project-over-global.
+    repoConfig({ quiz: { enabled: true, enforced: true }, pass_threshold: 1 });
+    expect(gateCli().status).toBe(1);
+  });
+
+  // In a hook `pwd` is the inherited PWD, the symlinked spelling. The node side
+  // slugs the real path, so a symlinked prefix used to miss and fail open.
+  it('finds the project file when the checkout is reached through a symlink', () => {
+    const slug = repo.replace(/[/\\:]/g, '-');
+    const target = path.join(home, 'projects', slug, 'config.json');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify({ quiz: { enforced: true }, pass_threshold: 1, project: repo }));
+    openGate({ required: 2 });
+
+    const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-link-'));
+    const link = path.join(linkDir, 'repo');
+    fs.symlinkSync(repo, link);
+    try {
+      const res = sh('/bin/sh', [GATE_CLI], { cwd: link, env: { PWD: link } });
+      expect(res.status).toBe(1);
+    } finally {
+      fs.rmSync(linkDir, { recursive: true, force: true });
+    }
+  });
+
   it('does not confuse one repo\'s gate with another\'s', () => {
     repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
     openGate({ required: 2 });

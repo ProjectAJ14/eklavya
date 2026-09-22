@@ -737,21 +737,22 @@ export function migrateLegacyRepoConfig(
   try {
     if (!fs.existsSync(legacyPath)) return false;
     const legacy = readJson(legacyPath);
-    // Unreadable or malformed: there is nothing to carry over, and leaving the
-    // file in the checkout would leave a thing that looks like configuration
-    // and is not. Delete it and move on.
-    if (legacy) {
-      const target = projectConfigPath(projectRoot);
-      const existing = readJson(target) ?? {};
-      // Filtered on the way in. Everything under ~/.eklavya/projects/ is
-      // treated as written by the developer, so copying a cloned file's keys
-      // there verbatim would launder them into trust and outlive the deletion.
-      writeConfigFile(target, {
-        ...withoutUntrustedKeys(legacy),
-        ...existing,
-        project: projectRoot,
-      });
-    }
+    // Unreadable or malformed: left exactly where it is. A trailing comma in a
+    // hand-edited file is still somebody's settings, and deleting it would lose
+    // them for good; `loadConfig` reads it as empty, so it does no harm there.
+    if (!legacy) return false;
+    const target = projectConfigPath(projectRoot);
+    const existing = readJson(target) ?? {};
+    // Filtered on the way in. Everything under ~/.eklavya/projects/ is
+    // treated as written by the developer, so copying a cloned file's keys
+    // there verbatim would launder them into trust and outlive the deletion.
+    // A target stamped for another checkout makes `writeConfigFile` throw, so
+    // a slug collision keeps the legacy file rather than taking over the other.
+    writeConfigFile(target, {
+      ...withoutUntrustedKeys(legacy),
+      ...existing,
+      project: projectRoot,
+    });
     fs.rmSync(legacyPath, { force: true });
     return true;
   } catch {
@@ -899,10 +900,38 @@ export function readConfigFile(file: string): Record<string, unknown> {
   return readJson(file) ?? {};
 }
 
-/** Writes via temp file + rename: the git hook may be reading mid-write. */
+/**
+ * Writes via temp file + rename: the git hook may be reading mid-write.
+ *
+ * Refuses a patch stamped for one checkout onto a file stamped for another.
+ * That is a slug collision (see `belongsTo`), and merging would hand the other
+ * checkout's settings to this one while that checkout silently stopped reading
+ * its own file. Every project write routes through here, so this is the one
+ * place the collision is caught on the way in.
+ */
 export function writeConfigFile(file: string, patch: Record<string, unknown>): Record<string, unknown> {
   const existing = readJson(file) ?? {};
-  const merged = { ...existing, ...patch };
+  if (typeof patch.project === 'string' && !belongsTo(existing, patch.project)) {
+    throw new Error(
+      `${file} already holds the settings for ${String(existing.project)}, a different checkout whose ` +
+        `path folds to the same directory name. Not overwriting it.`,
+    );
+  }
+  let merged: Record<string, unknown> = { ...existing, ...patch };
+
+  // A `quiz` written today retires a `mode` left beside it, folded in rather
+  // than dropped. Left in place, `mode: enforced` under a new `quiz.enabled:
+  // false` resolves to enforced-and-silent, which `doctor` then reports as a
+  // contradiction the developer never wrote. An explicit "off" also switches
+  // off the enforcement that only the retired dial implied.
+  if ('quiz' in patch && 'mode' in merged) {
+    const explicit = (merged.quiz ?? {}) as Record<string, unknown>;
+    merged = normalizeLegacyKeys(merged);
+    if (explicit.enabled === false && explicit.enforced === undefined) {
+      merged.quiz = { ...(merged.quiz as Record<string, unknown>), enforced: false };
+    }
+    delete merged.mode;
+  }
 
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp-${process.pid}`;
