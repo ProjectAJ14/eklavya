@@ -49,7 +49,7 @@ npm install -g eklavya && eklavya install
 ```
 
 That gives you the plugin and the `eklavya` command, and walks you through the
-dials — Enter keeps each default. Re-run it any time to change them.
+dials — arrow keys to move, Enter keeps each default. Re-run it any time to change them.
 
 You can also install from the plugin marketplace inside Claude Code, with one
 caveat about what a slash command is allowed to do — both routes and the caveat

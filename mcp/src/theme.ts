@@ -86,6 +86,35 @@ export function check(mark: Mark | null, label: string, detail: string, width = 
   out(`  ${mark ? MARKS[mark] : ' '}  ${padEndVisible(label, width)} ${detail}`.trimEnd());
 }
 
+const FRAMES = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
+
+/**
+ * A check row that animates while `work` runs, then clears itself for the row
+ * the caller prints with the result. A step that takes seconds and prints
+ * nothing reads as a hang. Off a TTY there is nothing to animate: the label is
+ * printed once, so a CI log still says what it was waiting on.
+ *
+ * Only animates through real async work -- a sync call blocks the timer, which
+ * is why the import runs on a worker thread.
+ */
+export async function spin<T>(label: string, detail: string, work: () => Promise<T>): Promise<T> {
+  if (!process.stdout.isTTY) {
+    out(`  ${dim('·')}  ${padEndVisible(label, 11)} ${dim(detail)}`);
+    return work();
+  }
+  let i = 0;
+  const draw = () =>
+    process.stdout.write(`\r\x1b[2K  ${paint.aged(FRAMES[i++ % FRAMES.length]!)}  ${padEndVisible(label, 11)} ${dim(detail)}`);
+  draw();
+  const timer = setInterval(draw, 80);
+  try {
+    return await work();
+  } finally {
+    clearInterval(timer);
+    process.stdout.write('\r\x1b[2K');
+  }
+}
+
 /** The closing line: what the run means, in one sentence. */
 export function verdict(trouble: string | null, clear: string): void {
   out('');

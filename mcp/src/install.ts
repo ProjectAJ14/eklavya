@@ -33,19 +33,19 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { dbPath, eklavyaHome, globalConfigPath } from './paths.js';
-import { check, dim, heading, paint, plain, verdict } from './theme.js';
-import { readConfigFile, writeConfigFile } from './config.js';
-import { ImportError, importFrom } from './memory/import.js';
-import { onboard, type MemoryOwner } from './onboard.js';
+import { check, dim, heading, paint, plain, spin, verdict } from './theme.js';
+import { loadGlobalConfig, readConfigFile, writeConfigFile } from './config.js';
+import { ImportError, IMPORTED_TABLES } from './memory/import.js';
+import { importOffThread } from './memory/import-worker.js';
+import { askOne, onboard, type MemoryOwner } from './onboard.js';
 import {
   activeClaudeMemPluginIds,
   claudeMemDb,
   claudeMemDir,
-  guessProjectMap,
   removeClaudeMemPlugin,
   retireClaudeMemDir,
 } from './claude-mem.js';
@@ -156,7 +156,7 @@ function cliOnPath(): boolean {
 
 // --- 2. the runtime ---------------------------------------------------------
 
-function installRuntime(version: string): void {
+async function installRuntime(version: string): Promise<void> {
   const home = runtimeHome();
   fs.mkdirSync(home, { recursive: true });
 
@@ -167,22 +167,25 @@ function installRuntime(version: string): void {
 
   try {
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const result = spawnSync(
-      npm,
-      [
-        'install',
-        `eklavya@${version}`,
-        '--prefix',
-        home,
-        '--omit=dev',
-        '--no-audit',
-        '--no-fund',
-        '--loglevel=error',
-      ],
-      { stdio: ['ignore', 'inherit', 'inherit'], shell: process.platform === 'win32' },
+    // Async and captured, not inherited: npm writing over the spinner's row
+    // garbles both. Its output is replayed below if it fails.
+    const result = await spin('runtime', 'installing (first run downloads the SQLite driver)…', () =>
+      new Promise<{ status: number | null; output: string }>((resolve) => {
+        let output = '';
+        const child = spawn(
+          npm,
+          ['install', `eklavya@${version}`, '--prefix', home, '--omit=dev', '--no-audit', '--no-fund', '--loglevel=error'],
+          { stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' },
+        );
+        child.stdout.on('data', (d) => (output += d));
+        child.stderr.on('data', (d) => (output += d));
+        child.once('error', (err) => resolve({ status: null, output: `${output}${err.message}\n` }));
+        child.once('close', (status) => resolve({ status, output }));
+      }),
     );
 
     if (result.status !== 0) {
+      process.stderr.write(result.output);
       process.stderr.write(
         '\nInstalling the Eklavya runtime failed. The output above says why — the usual\n' +
           'causes are no network, or a registry proxy that blocks the download.\n' +
@@ -563,12 +566,78 @@ function setEklavyaMemory(enabled: boolean): void {
   writeConfigFile(file, { memory: { ...memory, enabled } });
 }
 
+/** Every retired Claude Mem database: `~/.claude-mem.retired`, `.retired-2`, … */
+function retiredClaudeMemDbs(): string[] {
+  const dir = claudeMemDir();
+  let names: string[] = [];
+  try {
+    names = fs.readdirSync(path.dirname(dir));
+  } catch {
+    return [];
+  }
+  const base = path.basename(dir);
+  return names
+    .filter((n) => n === `${base}.retired` || n.startsWith(`${base}.retired-`))
+    .map((n) => path.join(path.dirname(dir), n, 'claude-mem.db'))
+    .filter((f) => fs.existsSync(f));
+}
+
+/**
+ * Imports `source` -- or, for one already imported, re-checks it -- and proves
+ * the result row by row. Idempotent, so every install can run it: a first
+ * migration imports, a later install files what an earlier run could not
+ * place (a checkout found since, or one moved), and adds nothing twice.
+ *
+ * A project two checkouts could be is asked about, not guessed. Throws when
+ * the import fails or any source row is missing.
+ */
+async function crossReference(source: string): Promise<void> {
+  const shown = source.replace(os.homedir(), '~');
+  const run = (projectMap: Record<string, string>) =>
+    spin('claude-mem', `checking ${shown} against Eklavya…`, () =>
+      importOffThread({ dbFile: dbPath(), source, opts: { projectMap }, guessFrom: claudeHome() }),
+    );
+  let { report, verified, unsure } = await run({});
+  let rehomed = report.rehomed;
+
+  const chosen: Record<string, string> = {};
+  for (const [name, paths] of Object.entries(unsure)) {
+    const pick = await askOne(name, `Claude Mem history — ${paths.length} checkouts carry this name`, 'skip', [
+      ...paths.map((p) => ({ value: p, detail: '' })),
+      { value: 'skip', detail: 'leave it unplaced for now' },
+    ]);
+    if (pick && pick !== 'skip') chosen[name] = pick;
+  }
+  if (Object.keys(chosen).length) {
+    ({ report, verified } = await run(chosen));
+    rehomed += report.rehomed;
+  }
+
+  if (!report.validation.ok) throw new ImportError(report.validation.notes.join('; '));
+  // By id, not by count: a fresh migration retires the source next, so this is
+  // the last moment a gap is cheap to see.
+  const missing = verified.tables.reduce((n, t) => n + t.missing.length, 0);
+  if (missing) throw new ImportError(`${missing} source row(s) did not arrive`);
+
+  const total = verified.tables.reduce((n, t) => n + t.present, 0);
+  const added = IMPORTED_TABLES.reduce((n, t) => n + report.imported[t], 0);
+  const news = [added && `${added} imported`, rehomed && `${rehomed} filed under their checkout`].filter(Boolean);
+  check('ok', 'claude-mem', `${total} rows, all here ${dim(`— ${news.length ? news.join(', ') : 'nothing new'} · ${shown}`)}`);
+
+  const unplaced = verified.projects.filter((p) => Object.keys(p.filedUnder).some((k) => !path.isAbsolute(k)));
+  if (unplaced.length) {
+    const names = unplaced.map((p) => p.project);
+    check('warn', 'unplaced', `${names.length} project(s) ${dim(`— ${names.slice(0, 4).join(', ')}${names.length > 4 ? ', …' : ''}`)}`);
+    check(null, '', dim(`searchable with --all-projects; place one: eklavya memory import ${shown} --map <name>=<checkout>`));
+  }
+}
+
 /**
  * Two recorders is the one outcome this must never leave behind, so every path
  * out of here ends with exactly one: a failed import keeps Claude Mem and
  * switches Eklavya's recording off, rather than leaving both half-on.
  */
-function resolveClaudeMem(owner: MemoryOwner): void {
+async function resolveClaudeMem(owner: MemoryOwner): Promise<void> {
   const ids = activeClaudeMemPluginIds(claudeHome());
   const haveDb = fs.existsSync(claudeMemDb());
 
@@ -580,33 +649,21 @@ function resolveClaudeMem(owner: MemoryOwner): void {
   }
 
   if (haveDb) {
-    const db = openDb();
     try {
       // Inside the try: a corrupt source fails here, and must take the same
       // one-recorder exit as a failed import.
-      const projectMap = guessProjectMap(claudeMemDb(), claudeHome());
-      const report = importFrom(db, claudeMemDb(), { projectMap });
-      if (!report.validation.ok) throw new ImportError(report.validation.notes.join('; '));
-      const n = report.imported.observations + report.imported.session_summaries;
-      check('ok', 'imported', `${n} entries from Claude Mem, ${report.projectsMapped.length} project(s) matched to checkouts`);
-      if (report.projectsKept.length) {
-        const kept = report.projectsKept;
-        check('warn', 'unmatched', `${kept.length} project(s) ${dim(`— ${kept.slice(0, 4).join(', ')}${kept.length > 4 ? ', …' : ''}`)}`);
-        check(null, '', dim('searchable with --all-projects; place one with eklavya memory import --map'));
-      }
+      await crossReference(claudeMemDb());
     } catch (err) {
       setEklavyaMemory(false);
       check('fail', 'claude-mem', `import failed ${dim(`— ${(err as Error).message}`)}`);
       check(null, '', dim('kept Claude Mem, turned Eklavya memory off. Retry: eklavya memory import'));
       return;
-    } finally {
-      db.close();
     }
   }
 
   setEklavyaMemory(true);
   if (ids.length) {
-    const how = removeClaudeMemPlugin(claudeHome(), ids);
+    const how = await spin('claude-mem', 'uninstalling the plugin…', () => removeClaudeMemPlugin(claudeHome(), ids));
     check('ok', 'claude-mem', `plugin ${how}`);
   }
   // ponytail: Claude Mem's background worker, if one is up, lives until its
@@ -735,8 +792,7 @@ export async function install(args: string[]): Promise<void> {
   check('ok', 'node', process.versions.node);
 
   if (!args.includes('--skip-runtime')) {
-    plain(`  ${dim('·')}  ${'runtime'.padEnd(11)} ${dim('installing (first run downloads the SQLite driver)…')}`);
-    installRuntime(version);
+    await installRuntime(version);
     verifyRuntime();
     check('ok', 'runtime', runtimeHome());
   }
@@ -778,7 +834,19 @@ export async function install(args: string[]): Promise<void> {
     memoryFlag,
     hookScript: path.join(marketplaceDir(), 'scripts', 'install-git-hook.sh'),
   });
-  if (owner) resolveClaudeMem(owner);
+  if (owner) await resolveClaudeMem(owner);
+  else if (loadGlobalConfig().memory.enabled) {
+    // Claude Mem already retired -- by an earlier install, or on another
+    // machine and copied over. Re-checking is how an upgrade picks up what an
+    // older version left unplaced, with nothing to run by hand.
+    for (const retired of retiredClaudeMemDbs()) {
+      try {
+        await crossReference(retired);
+      } catch (err) {
+        check('warn', 'claude-mem', `could not check ${retired} ${dim(`— ${(err as Error).message}`)}`);
+      }
+    }
+  }
 
   if (!checkGit()) {
     check('warn', 'git', `not found ${dim('— the per-project level falls back to a shared bucket, and the commit gate needs git')}`);

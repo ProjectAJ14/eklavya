@@ -13,6 +13,7 @@ import {
   ImportError,
   EXPORT_SCHEMA_VERSION,
   SUPPORTED_SCHEMA_VERSION,
+  verifyImport,
 } from '../src/memory/import.js';
 import { keywordSearch, semanticSearch } from '../src/memory/search.js';
 import { appendEvent, countEntries, entryEvents, entryTags, insertEntry, timeline } from '../src/memory/store.js';
@@ -362,6 +363,77 @@ describe('filing imported history under a local checkout', () => {
     const report = importFrom(db, sourcePath, {});
     expect(report.projectsMapped).toEqual([]);
     expect(report.projectsKept).toContain(PROJECT);
+  });
+
+  it('verifies by source id: a missing row is named, and placement says where each project went', () => {
+    buildSource();
+    importFrom(db, sourcePath, { snapshotDir });
+    const clean = verifyImport(db, sourcePath);
+    expect(clean.tables.every((t) => t.missing.length === 0 && t.present === t.source)).toBe(true);
+    expect(clean.changed).toBe(0);
+    expect(clean.projects.map((p) => Object.keys(p.filedUnder))).toEqual([[PROJECT]]);
+
+    // A row the import never saw, as when Claude Mem's worker writes after it.
+    const src = new Database(sourcePath);
+    const { id } = src
+      .prepare(
+        `INSERT INTO observations (memory_session_id, project, type, title, created_at, created_at_epoch)
+         SELECT memory_session_id, project, type, 'late', created_at, created_at_epoch FROM observations LIMIT 1 RETURNING id`,
+      )
+      .get() as { id: number };
+    src.close();
+    const gap = verifyImport(db, sourcePath).tables.find((t) => t.table === 'observations')!;
+    expect(gap.missing).toEqual([id]);
+  });
+
+  it('recognises the same history copied to another path, and a different database as different', () => {
+    buildSource();
+    importFrom(db, sourcePath, { snapshotDir });
+    const total = countEntries(db);
+
+    // An old machine's folder, copied anywhere: same rows, new path.
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-mem-copy-'));
+    try {
+      fs.copyFileSync(sourcePath, path.join(elsewhere, 'claude-mem.db'));
+      expect(verifyImport(db, path.join(elsewhere, 'claude-mem.db')).tables.every((t) => !t.missing.length)).toBe(true);
+      const again = importFrom(db, path.join(elsewhere, 'claude-mem.db'), { snapshotDir });
+      expect(again.imported.observations).toBe(0);
+      expect(countEntries(db)).toBe(total);
+
+      // A fresh Claude Mem: the same ids, other content.
+      const other = new Database(path.join(elsewhere, 'claude-mem.db'));
+      other.exec("UPDATE observations SET title = 'another life ' || id, created_at_epoch = created_at_epoch + 86400000");
+      other.close();
+      const fresh = path.join(elsewhere, 'fresh.db');
+      fs.renameSync(path.join(elsewhere, 'claude-mem.db'), fresh);
+      expect(importFrom(db, fresh, { snapshotDir }).imported.observations).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(elsewhere, { recursive: true, force: true });
+    }
+  });
+
+  it('re-homes what an unmapped run left behind, and does not import it twice from the retired copy', () => {
+    // The real sequence: a by-hand import with no map, then install retiring
+    // ~/.claude-mem, then the documented fix -- re-run with a map.
+    buildSource();
+    importFrom(db, sourcePath, { snapshotDir });
+    const total = countEntries(db);
+    const retired = `${sourceDir}.retired`;
+    fs.renameSync(sourceDir, retired);
+    try {
+      const report = importFrom(db, path.join(retired, 'claude-mem.db'), {
+        snapshotDir,
+        projectMap: { [PROJECT]: '/work/local-checkout' },
+      });
+      expect(report.imported.observations).toBe(0);
+      expect(report.rehomed).toBe(total);
+      expect(countEntries(db)).toBe(total);
+      expect(countEntries(db, '/work/local-checkout')).toBe(total);
+      const events = db.prepare('SELECT DISTINCT project FROM evidence_events').all() as { project: string }[];
+      expect(events.map((r) => r.project)).toEqual(['/work/local-checkout']);
+    } finally {
+      fs.renameSync(retired, sourceDir);
+    }
   });
 });
 

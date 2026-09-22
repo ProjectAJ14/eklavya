@@ -19,7 +19,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { findRepoConfig } from './config.js';
 import { projectKey } from './store.js';
@@ -67,15 +67,20 @@ export function activeClaudeMemPluginIds(claudeHome: string): string[] {
  * it off in settings.json when `claude` is not on PATH. Off is enough to stop
  * the double recording; the fallback just cannot delete the files.
  */
-export function removeClaudeMemPlugin(claudeHome: string, ids: string[]): 'uninstalled' | 'disabled' {
+export async function removeClaudeMemPlugin(claudeHome: string, ids: string[]): Promise<'uninstalled' | 'disabled'> {
   let viaCli = true;
   for (const id of ids) {
-    const res = spawnSync('claude', ['plugin', 'uninstall', id], {
-      stdio: 'ignore',
-      shell: process.platform === 'win32',
-      env: { ...process.env, CLAUDE_CONFIG_DIR: claudeHome },
+    // Async so install's spinner turns while `claude` starts up, which is seconds.
+    const status = await new Promise<number | null>((resolve) => {
+      const child = spawn('claude', ['plugin', 'uninstall', id], {
+        stdio: 'ignore',
+        shell: process.platform === 'win32',
+        env: { ...process.env, CLAUDE_CONFIG_DIR: claudeHome },
+      });
+      child.once('error', () => resolve(null));
+      child.once('close', resolve);
     });
-    if (res.status !== 0) viaCli = false;
+    if (status !== 0) viaCli = false;
   }
   if (viaCli) return 'uninstalled';
 
@@ -153,13 +158,20 @@ function decodeTranscriptDir(name: string): string | null {
  * placed. A project is placed by majority vote over its sessions' transcripts —
  * each session counts for the checkout its `cwd` is in, or, where that path is
  * gone, the checkout its transcript directory now points at. Failing that, by a
- * unique live checkout whose folder carries the same name. Anything else is left
- * out, and the importer keeps it as-is — searchable with `--all-projects`,
- * mappable later with `--map`.
+ * unique live checkout whose folder carries the same name. Failing that, a
+ * checkout that moved: from the nearest folder of the recorded path that still
+ * exists, one carrying the project's name up to two levels down. More than
+ * one is not a guess this makes -- the candidates go into `unsure` for the
+ * caller to show. Anything else is left out, and the importer keeps it as-is —
+ * searchable with `--all-projects`, mappable later with `--map`.
  *
  * ponytail: reads at most 20 transcripts per project, which is plenty to vote.
  */
-export function guessProjectMap(sourceDb: string, claudeHome: string): Record<string, string> {
+export function guessProjectMap(
+  sourceDb: string,
+  claudeHome: string,
+  unsure: Record<string, string[]> = {},
+): Record<string, string> {
   const projectsDir = path.join(claudeHome, 'projects');
   let dirs: string[] = [];
   try {
@@ -208,17 +220,59 @@ export function guessProjectMap(sourceDb: string, claudeHome: string): Record<st
   const map: Record<string, string> = {};
   for (const { project, ids } of rows) {
     const votes = new Map<string, number>();
+    let lost: string | null = null;
     for (const id of (ids ?? '').split(',').slice(0, 20)) {
       const t = byId.get(id);
-      const root = t ? checkoutOf(transcriptCwd(t.file)) ?? t.dirRoot : null;
+      const cwd = t ? transcriptCwd(t.file) : null;
+      const root = t ? checkoutOf(cwd) ?? t.dirRoot : null;
       if (root) votes.set(root, (votes.get(root) ?? 0) + 1);
+      else if (cwd && !fs.existsSync(cwd)) lost ??= cwd;
     }
     const best = [...votes].sort((a, b) => b[1] - a[1])[0];
     const byName = liveByName.get(path.basename(project));
     if (best) map[project] = best[0];
     else if (byName?.size === 1) map[project] = [...byName][0]!;
+    else if (lost) {
+      const moved = relocate(lost, path.basename(project));
+      if (moved.length === 1) map[project] = moved[0]!;
+      else if (moved.length > 1) unsure[project] = moved;
+    }
   }
   return map;
+}
+
+/**
+ * Checkouts named `name` near where `lost` used to be: from its nearest
+ * surviving ancestor, two levels down. `~/Workspace/Personal/PiDom` moved to
+ * `~/Workspace/local/PiDom` is found; a folder of that name inside some other
+ * repository is not, because it must be a checkout root of its own.
+ */
+function relocate(lost: string, name: string): string[] {
+  let dir = path.dirname(lost);
+  while (!fs.existsSync(dir)) {
+    const up = path.dirname(dir);
+    if (up === dir) return [];
+    dir = up;
+  }
+  const found = new Set<string>();
+  const look = (d: string, depth: number) => {
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith('.') || e.name === 'node_modules') continue;
+      const p = path.join(d, e.name);
+      if (e.name === name) {
+        const root = checkoutOf(p);
+        if (root && path.basename(root) === name) found.add(root);
+      } else if (depth > 1) look(p, depth - 1);
+    }
+  };
+  look(dir, 2);
+  return [...found].sort();
 }
 
 /** `~/.claude-mem` → `~/.claude-mem.retired` (or `.retired-2`, …). Never a delete. */

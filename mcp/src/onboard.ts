@@ -2,19 +2,21 @@
  * The dials, one at a time, every time `eklavya install` runs.
  *
  * There is no "onboarded" flag, on purpose: a first run and a tenth run are the
- * same walk. Each step marks what is set now, Enter (or "next") keeps it, and a
- * number or a name changes it. A first install is five Enters to the defaults;
- * a re-install is how you see what you chose and tweak one thing.
+ * same walk. Each step marks what is set now and starts the cursor on it: ↑/↓
+ * move, Enter (or Space, or →) chooses, and a digit jumps straight to one. A
+ * first install is five Enters to the defaults; a re-install is how you see
+ * what you chose and tweak one thing.
  *
  * Without a terminal (CI, a pipe, the test suite) nothing is asked: the settings
  * are printed and left as they are.
  *
- * Input is read through readline, never `fs.readSync(0)`. After `npm install -g`
- * the inherited stdin is often non-blocking, a sync read throws EAGAIN, and the
- * old installer took that as "no terminal" — printing a question and answering
- * it itself.
+ * Keys arrive as readline keypress events in raw mode, never `fs.readSync(0)`.
+ * After `npm install -g` the inherited stdin is often non-blocking, a sync read
+ * throws EAGAIN, and the old installer took that as "no terminal" — printing a
+ * question and answering it itself.
  */
 import readline from 'node:readline/promises';
+import { emitKeypressEvents, type Key } from 'node:readline';
 import { globalConfigPath } from './paths.js';
 import { loadConfig, loadGlobalConfig, readConfigFile, writeConfigFile, type EklavyaConfig } from './config.js';
 import { bold, check, dim, glyph, paint, plain } from './theme.js';
@@ -88,26 +90,123 @@ function steps(c: EklavyaConfig, claudeMem: boolean): Step[] {
   ];
 }
 
-/** An answer to a step: its value, or undefined when it names nothing. */
-export function pick(step: Pick<Step, 'current' | 'options'>, answer: string): string | undefined {
-  const a = answer.trim().toLowerCase();
-  if (!a || a === 'next' || a === 'keep') return step.current;
-  const n = Number(a);
-  if (Number.isInteger(n)) return step.options[n - 1]?.value;
-  const hits = step.options.filter((o) => o.value.startsWith(a));
-  return hits.length === 1 ? hits[0]!.value : undefined;
+/**
+ * One key against a list of `count` options with the cursor at `at`: where the
+ * cursor goes, and whether that chose it. Null for a key that means nothing
+ * here, so a stray letter neither moves nor answers.
+ */
+export function press(at: number, count: number, key: Key): { at: number; done: boolean } | null {
+  switch (key.name) {
+    case 'up':
+    case 'k':
+      return { at: (at - 1 + count) % count, done: false };
+    case 'down':
+    case 'j':
+      return { at: (at + 1) % count, done: false };
+    case 'return':
+    case 'enter':
+    case 'space':
+    case 'right':
+      return { at, done: true };
+  }
+  const n = Number(key.sequence);
+  return Number.isInteger(n) && n >= 1 && n <= count ? { at: n - 1, done: true } : null;
 }
 
-function render(step: Step, at: number, total: number): void {
+class Closed extends Error {}
+
+/**
+ * The options as a list the cursor moves through; resolves with the one
+ * chosen, and collapses the list to it so the walk stays a screen tall.
+ * Ctrl-D rejects with `Closed`: whatever was not answered keeps its value.
+ *
+ * ponytail: redraws by moving the cursor up one row per option, so a detail
+ * wider than the terminal wraps and the redraw lands a row short. The widest
+ * row is under 70 columns.
+ */
+function choose(step: Step): Promise<string> {
+  const count = step.options.length;
   const width = Math.max(...step.options.map((o) => o.value.length));
-  plain('');
-  plain(`${dim(`${at}/${total}`)}  ${bold(step.key)}  ${dim(step.title)}`);
-  step.options.forEach((o, i) => {
-    const on = o.value === step.current;
-    const mark = on ? paint.ok(glyph.ok) : dim(glyph.skip);
-    const label = o.value.padEnd(width);
-    plain(`  ${mark}  ${paint.aged(String(i + 1))}  ${on ? bold(label) : label}  ${dim(o.detail)}`);
+  let at = Math.max(0, step.options.findIndex((o) => o.value === step.current));
+  const rows = () =>
+    step.options.map((o, i) => {
+      const here = i === at;
+      const mark = o.value === step.current ? paint.ok(glyph.ok) : dim(glyph.skip);
+      const label = o.value.padEnd(width);
+      return `\x1b[2K  ${here ? paint.ok(glyph.arrow) : ' '} ${mark}  ${here ? bold(label) : label}  ${dim(o.detail)}`;
+    });
+  process.stdout.write(`${rows().join('\n')}\n`);
+
+  const input = process.stdin;
+  return new Promise((resolve, reject) => {
+    const finish = () => {
+      input.off('keypress', onKey);
+      input.setRawMode(false);
+      input.pause();
+    };
+    const onKey = (_: string, key: Key | undefined) => {
+      if (!key) return;
+      // Raw mode swallows the signal, so Ctrl-C has to be honoured by hand.
+      if (key.ctrl && key.name === 'c') {
+        finish();
+        plain('');
+        process.exit(130);
+      }
+      if (key.ctrl && key.name === 'd') {
+        finish();
+        return reject(new Closed());
+      }
+      const next = press(at, count, key);
+      if (!next) return;
+      at = next.at;
+      process.stdout.write(`\x1b[${count}A`);
+      if (!next.done) {
+        process.stdout.write(`${rows().join('\n')}\n`);
+        return;
+      }
+      finish();
+      const value = step.options[at]!.value;
+      process.stdout.write('\x1b[0J');
+      plain(`  ${paint.ok(glyph.arrow)} ${bold(value)}${value === step.current ? '' : dim('  — changed')}`);
+      resolve(value);
+    };
+    emitKeypressEvents(input);
+    input.setRawMode(true);
+    input.resume();
+    input.on('keypress', onKey);
   });
+}
+
+/**
+ * One arrow-key question outside the walk, starting on `current`. Null off a
+ * terminal or on Ctrl-D: the caller keeps whatever it would have done unasked.
+ */
+export async function askOne(key: string, title: string, current: string, options: Option[]): Promise<string | null> {
+  if (!(process.stdin.isTTY && process.stdout.isTTY)) return null;
+  plain('');
+  plain(`${bold(key)}  ${dim(title)}`);
+  try {
+    return await choose({ key, title, current, options });
+  } catch (err) {
+    if (err instanceof Closed) return null;
+    throw err;
+  }
+}
+
+/** One line of text, for the `learn` topic -- the only step that is typed. */
+async function ask(prompt: string): Promise<string> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  // Closing on Ctrl-D resolves nothing; treat it as an empty answer.
+  const closed = new Promise<string>((resolve) => rl.once('close', () => resolve('')));
+  rl.once('SIGINT', () => {
+    plain('');
+    process.exit(130);
+  });
+  try {
+    return await Promise.race([rl.question(prompt), closed]);
+  } finally {
+    rl.close();
+  }
 }
 
 /**
@@ -129,23 +228,16 @@ export async function onboard(opts: {
 
   const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
   if (tty) {
-    plain(`\n${bold('Your settings')}  ${dim('Enter keeps the marked one · a number or name changes it')}`);
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.on('SIGINT', () => {
-      plain('');
-      process.exit(130);
-    });
+    plain(`\n${bold('Your settings')}  ${dim(`↑↓ move · Enter chooses · ${glyph.ok} is set now`)}`);
     try {
       for (const [i, step] of list.entries()) {
         if (step.key === 'memory' && memoryFixed) continue;
-        render(step, i + 1, list.length);
-        let value: string | undefined;
-        while ((value = pick(step, await rl.question(`  ${glyph.arrow} `))) === undefined) {
-          plain(dim(`  1–${step.options.length}, a name, or Enter to keep`));
-        }
+        plain('');
+        plain(`${dim(`${i + 1}/${list.length}`)}  ${bold(step.key)}  ${dim(step.title)}`);
+        const value = await choose(step);
         chosen[step.key] = value;
         if (step.key === 'focus' && value === 'learn') {
-          const t = (await rl.question(`  topic${topic ? dim(` [${topic}]`) : ''} ${glyph.arrow} `)).trim();
+          const t = (await ask(`  topic${topic ? dim(` [${topic}]`) : ''} ${glyph.arrow} `)).trim();
           topic = t || topic;
           if (!topic) {
             chosen.focus = step.current === 'learn' ? 'concept' : step.current;
@@ -153,11 +245,9 @@ export async function onboard(opts: {
           }
         }
       }
-    } catch {
-      // Ctrl-D closes the input: whatever was not answered keeps its value.
+    } catch (err) {
+      if (!(err instanceof Closed)) throw err;
       plain('');
-    } finally {
-      rl.close();
     }
   } else if (opts.claudeMem && !memoryFixed) {
     // Nobody to ask: the choice that touches nothing of theirs.

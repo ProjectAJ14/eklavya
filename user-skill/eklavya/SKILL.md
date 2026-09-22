@@ -175,7 +175,7 @@ Four more commands worth knowing, none of them worth volunteering unprompted:
 ```bash
 eklavya memory export ~/eklavya-memory.json   # and `restore` reads it back
 eklavya memory replay                         # backfill from Claude Code's own transcripts
-eklavya memory import <claude-mem.db>         # always --dry-run first; `eklavya install --memory eklavya` does the whole switch
+eklavya memory import <claude-mem.db>         # always --dry-run first; `eklavya install --memory eklavya` does the whole switch. Re-running it re-homes rows an unmapped run left under bare names; `eklavya memory status` shows imported/unplaced counts
 eklavya memory sync push|pull|status          # only if sync.target is set
 ```
 

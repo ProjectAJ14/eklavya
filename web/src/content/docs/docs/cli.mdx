@@ -9,7 +9,7 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | Command | What it does |
 | --- | --- |
 | `eklavya serve` | Runs the MCP server on stdio. This is what Claude Code starts for you — you would only run it by hand to point another MCP client at Eklavya. |
-| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. Then it walks your settings one step at a time: `quiz`, `focus`, `cadence`, `difficulty`, `memory`. Each step marks the current value; Enter keeps it. The answers are written to the global config, and there is no onboarded flag, so every run shows the same walk. If Claude Mem is installed, the memory step asks which of the two keeps recording; `--memory eklavya` or `--memory claude-mem` answers in advance ([details](/docs/migrating/)). Safe to re-run — that is how you upgrade, including for a marketplace install, where it pulls the plugin's git clone forward. |
+| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. Then it walks your settings one step at a time: `quiz`, `focus`, `cadence`, `difficulty`, `memory`. Each step marks the current value and starts the cursor on it: ↑/↓ move, Enter, Space or → choose, a digit jumps. Slow steps show a spinner. The answers are written to the global config, and there is no onboarded flag, so every run shows the same walk. If Claude Mem is installed, the memory step asks which of the two keeps recording; `--memory eklavya` or `--memory claude-mem` answers in advance ([details](/docs/migrating/)). Safe to re-run — that is how you upgrade, including for a marketplace install, where it pulls the plugin's git clone forward. |
 | `eklavya uninstall [--purge]` | Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`. |
 | `eklavya config get` | Prints the effective configuration as JSON, plus the paths of the global and repo files it came from. |
 | `eklavya config set <key> <value>` | Changes one setting. Add `--project` (or its older name `--repo`) to write this codebase's file under `~/.eklavya/projects/` instead of your global config — never into the repository. Add `--topic <topic>` when setting `focus learn`. |
@@ -28,7 +28,7 @@ and two of them have no equivalent as a tool.
 
 | Subcommand | What it does |
 | --- | --- |
-| `status` | Is capture healthy: entries, evidence waiting to be summarised, the job queue, whether a provider is configured, spool drops, and the reuse totals with the saving or overhead spelled out. This is the command for *"why does Eklavya remember nothing?"* — it tells apart switched off, queued, a provider refusing, and evidence dropped while the database was unreachable. |
+| `status` | Is capture healthy: entries, evidence waiting to be summarised, the job queue, whether a provider is configured, how many imported Claude Mem entries are filed here and how many sit under names no checkout matches, spool drops, and the reuse totals with the saving or overhead spelled out. This is the command for *"why does Eklavya remember nothing?"* — it tells apart switched off, queued, a provider refusing, and evidence dropped while the database was unreachable. |
 | `search <query>` | `--mode keyword\|semantic\|hybrid`, `--limit`, `--all-projects`. Titles and ids, not narratives. |
 | `timeline` | Recent entries, newest first. `--limit`, `--since <iso date>`. |
 | `show <id>` | One entry in full, with the raw evidence it was built from. |
@@ -73,15 +73,25 @@ Three things worth knowing before the real run:
 - **It never touches your learning history.** Imported observations arrive
   unassessed. Concepts the source had attached become candidates, not concepts:
   no mastery, no attempts, no gate is affected.
-- **It maps projects only when you tell it to.** Claude Mem names a project
-  with a bare string; Eklavya keys one by the checkout's absolute path.
-  `--map-here <name>` files that source project under the checkout you are
-  standing in, and `--map <name>=<path>` under any other. Anything left
-  unmapped is still imported, and still searchable — but only with
-  `--all-projects`, and the report says which names those were.
+- **It places projects the way `eklavya install` does.** Claude Mem names a
+  project with a bare string; Eklavya keys one by the checkout's absolute path.
+  The importer reads each project's checkout off Claude Code's session
+  transcripts. For one it cannot place, `--map-here <name>` files that source
+  project under the checkout you are standing in, and `--map <name>=<path>`
+  under any other; a flag beats the transcripts. Anything left unplaced is
+  still imported, and still searchable — but only with `--all-projects`, and
+  the report says which names those were.
 - **It is resumable and it does not duplicate.** Run it twice and the second
-  run imports nothing. `--resume` reuses the snapshot an interrupted run left
-  rather than copying the source again.
+  run imports nothing — also from `~/.claude-mem.retired`, where install moves
+  the source. `--resume` reuses the snapshot an interrupted run left rather
+  than copying the source again.
+- **`--verify` checks it row by row.** Every source row is looked up by id in
+  Eklavya, missing ones are listed, and each source project shows where its
+  entries are filed. It writes nothing, and exits 1 on a gap. A real import
+  ends with the same report.
+- **A re-run re-homes.** Rows an earlier run left under a bare name move to the
+  checkout the map now names, and the report counts them as `re-homed`. That is
+  the fix for an import first run without a map.
 
 A source database newer than this importer understands stops with the version
 it found and the version supported, rather than guessing at a schema it has
