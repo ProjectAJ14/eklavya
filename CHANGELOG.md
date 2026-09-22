@@ -1,3 +1,10 @@
+## [1.20.1](https://github.com/ProjectAJ14/eklavya/compare/v1.20.0...v1.20.1) (2026-09-22)
+
+
+### Bug Fixes
+
+* **quiz:** scope session quiz to the current project ([d7eef28](https://github.com/ProjectAJ14/eklavya/commit/d7eef285573d44343b8ef5015d296bf11c990f20))
+
 # [1.20.0](https://github.com/ProjectAJ14/eklavya/compare/v1.19.2...v1.20.0) (2026-09-22)
 
 
