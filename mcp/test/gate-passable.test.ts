@@ -117,6 +117,30 @@ describe('an enforced gate is always passable', () => {
     }
   }
 
+  it('lets the gate outrank a standing learn topic, and returns to the topic once it passes', () => {
+    // A topic answer is recorded as review and the gate counts only work, so
+    // a plan that kept serving the topic left the commit blocked for good.
+    configure({ quiz: { enabled: true, enforced: true }, focus: 'learn', focus_topic: 'git', cadence: 'end' });
+    logWork('sess-A');
+
+    const served = answerEverything('sess-A');
+
+    expect(call<any>(getGateStatus, { session_id: 'sess-A' }).passed).toBe(true);
+    expect(served.filter((s) => s.gateOpen).every((s) => WORK.includes(s.slug))).toBe(true);
+    const afterGate = served.filter((s) => !s.gateOpen);
+    expect(afterGate.length).toBeGreaterThan(0);
+    expect(afterGate.every((s) => s.reason === 'learn_topic')).toBe(true);
+  });
+
+  it('serves the gate under learn focus even when no topic is set', () => {
+    configure({ quiz: { enabled: true, enforced: true }, focus: 'learn', cadence: 'end' });
+    logWork('sess-A');
+
+    answerEverything('sess-A');
+
+    expect(call<any>(getGateStatus, { session_id: 'sess-A' }).passed).toBe(true);
+  });
+
   it('offers every work concept when all of them were mastered elsewhere after logging', () => {
     configure({ quiz: { enabled: true, enforced: true }, focus: 'concept', cadence: 'end' });
     logWork('sess-A');

@@ -23,7 +23,7 @@ These replaced a single `mode` dial whose values were `ambient`, `enforced` and 
 
 `difficulty` is the one that is normally *earned* rather than set: on `auto`, each project starts at `easy` and climbs. **`/eklavya:level` is the command for it** — send them there rather than explaining the ladder here, and only set it from this command if they explicitly asked to pin a level.
 
-They combine freely. `quiz.enforced` + `learn` is an intern who must pass a gate on a topic they chose; unenforced + `project` is a gentle nudge grounded in today's diff. The default pairing is unenforced + `concept`: teach the idea, use today's code as the way in. `quiz.enabled: false` is the exception — it wins outright, `focus` is never read, and it forces `quiz.enforced` off with it, since a gate nothing asks questions for could never be passed.
+They combine freely. `quiz.enforced` + `learn` is an intern studying a topic they chose who still passes a gate on the day's work before committing — while the gate is open the plan serves the work, and the topic resumes once it passes; unenforced + `project` is a gentle nudge grounded in today's diff. The default pairing is unenforced + `concept`: teach the idea, use today's code as the way in. `quiz.enabled: false` is the exception — it wins outright, `focus` is never read, and it forces `quiz.enforced` off with it, since a gate nothing asks questions for could never be passed.
 
 ## No arguments
 

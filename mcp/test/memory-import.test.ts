@@ -257,6 +257,25 @@ describe('importFrom', () => {
     expect(events[0]?.occurred_at).toBe(new Date(OCT).toISOString());
   });
 
+  it('redacts and caps imported evidence, which Claude Mem stored verbatim', () => {
+    buildSource();
+    const src = new Database(sourcePath);
+    src.prepare('UPDATE user_prompts SET prompt_text = ?').run('my key is sk-proj-abcdefghijklmnopqrstuvwxyz0123456789');
+    src
+      .prepare(`UPDATE tool_uses SET tool_input = ?, tool_response = ? WHERE tool_use_id = 'tu-1'`)
+      .run('export DB_PASSWORD=hunter2secret', 'x'.repeat(20_000));
+    src.close();
+
+    importFrom(db, sourcePath, { snapshotDir });
+
+    const rows = db.prepare('SELECT body, redacted FROM evidence_events').all() as { body: string; redacted: number }[];
+    const all = rows.map((r) => r.body).join('\n');
+    expect(all).not.toContain('hunter2secret');
+    expect(all).not.toContain('sk-proj-abcdefghij');
+    expect(rows.filter((r) => r.redacted === 1)).toHaveLength(2);
+    expect(Math.max(...rows.map((r) => r.body.length))).toBeLessThanOrEqual(4000);
+  });
+
   it('links an imported observation to the evidence behind it', () => {
     buildSource();
     const report = importFrom(db, sourcePath, { snapshotDir });

@@ -142,6 +142,22 @@ describe('the memory loop, end to end through the real hooks', () => {
     }
   });
 
+  it('redacts an edit\'s secret before trimming the edit, not after', () => {
+    // The hook trims each side of an edit to 600 characters. Trimmed first,
+    // the cut lands inside the quoted value and leaves `DB_PASSWORD="hunter2`,
+    // which no rule recognises without its closing quote.
+    start('clip');
+    const secret = 'DB_PASSWORD="hunter2secretvalue"';
+    tool('clip', 'Edit', {
+      file_path: path.join(repo, 'src/env.ts'),
+      old_string: 'a',
+      new_string: `${'x'.repeat(580)}${secret}`,
+    });
+    const bodies = (db.prepare('SELECT body FROM evidence_events').all() as { body: string }[]).map((r) => r.body);
+    expect(bodies.join('\n')).toContain('+ xxx');
+    expect(bodies.join('\n')).not.toContain('hunter2');
+  });
+
   it('captures a session, summarises it at the seam, and recalls it in the next one', () => {
     start('day-one');
     prompt('day-one', 'Add refresh token rotation to the auth middleware');

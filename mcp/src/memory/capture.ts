@@ -63,6 +63,12 @@ export function policyFrom(config: EklavyaConfig): PrivacyPolicy {
   };
 }
 
+/** A body as evidence stores it: redacted over the window, then capped. */
+export function redactBody(body: string, policy: PrivacyPolicy = DEFAULT_PRIVACY) {
+  const redacted = redact(body.slice(0, REDACT_WINDOW), policy);
+  return { ...redacted, text: redacted.text.slice(0, MAX_BODY) };
+}
+
 /** Everything but the write: pure, so the exclusion rules are testable alone. */
 export function prepare(
   config: EklavyaConfig,
@@ -89,8 +95,7 @@ export function prepare(
   // (`password=hunt`) or a private key without its END line. The window is
   // wider than the cap so a secret straddling it is seen whole, and bounded so
   // a 200KB tool dump is not scanned end to end on every tool call.
-  const redacted = redact(event.body.slice(0, REDACT_WINDOW), policy);
-  const cleaned = { ...redacted, text: redacted.text.slice(0, MAX_BODY) };
+  const cleaned = redactBody(event.body, policy);
   const occurredAt = event.occurredAt ?? nowIso();
 
   return {
