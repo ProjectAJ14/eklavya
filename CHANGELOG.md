@@ -1,3 +1,11 @@
+## [1.24.2](https://github.com/ProjectAJ14/eklavya/compare/v1.24.1...v1.24.2) (2026-09-23)
+
+
+### Bug Fixes
+
+* **memory:** end the worker's whole tree on every exit, and hold the slot by process identity ([7da5022](https://github.com/ProjectAJ14/eklavya/commit/7da50220b23d4ff38234753a4bf063d968fa2247)), closes [#24](https://github.com/ProjectAJ14/eklavya/issues/24)
+* **memory:** no successor after a stop, and no ps under the write lock ([69e6905](https://github.com/ProjectAJ14/eklavya/commit/69e690538fab4e91d2a106e5fdabb7c05e4fd859))
+
 ## [1.24.1](https://github.com/ProjectAJ14/eklavya/compare/v1.24.0...v1.24.1) (2026-09-23)
 
 
