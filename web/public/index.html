@@ -703,9 +703,10 @@
       <h2 class="h2" id="dash-title" data-reveal data-delay="100">Am I actually getting better?</h2>
       <p class="dash__sub" data-reveal data-delay="150">
         A terminal report has three lines and answers <em>what now</em>. The long view needs
-        more room, so it gets a local page: what you have learned and what the project
-        remembers, side by side, with every concept, session, observation and question you
-        have been asked two clicks away.
+        more room, so it gets a local page with two workflows — <strong>Learning</strong> for
+        what you have been taught and asked, <strong>Memory</strong> for what the project
+        remembers — each with its own Dashboard, one switch between them, and every concept,
+        session, observation and question two clicks away.
       </p>
       <div class="dash__cmd" data-reveal data-delay="200">
         <div><span>$</span> eklavya dashboard</div>
@@ -713,16 +714,15 @@
         <div class="dash__cmd-out">Opening it in your browser&hellip;</div>
       </div>
       <ul class="dash__list" data-reveal data-delay="250">
-        <li>Overview: accuracy, streak, thirty days of answers, a year as a calendar heatmap</li>
-        <li>Concepts: searchable and paged — open one for every question you were asked on it</li>
-        <li>Review: what is due, what is scheduled for the next fortnight, what you skipped</li>
-        <li>Memory: every observation, filterable, down to the raw evidence behind each one</li>
-        <li>Reuse: what each recall actually saved, receipt by receipt, labelled as the estimate it is</li>
-        <li>Sessions and Projects: what each piece of work taught, and the runway to the next level</li>
+        <li>Learning Dashboard: accuracy, what your work recorded against what was assessed, streak, a year as a calendar heatmap</li>
+        <li>Concepts and Review: open one for every question you were asked on it; what is due and what you skipped</li>
+        <li>Sessions, Projects, Domains: every project that logged work, including ones with no assessments yet</li>
+        <li>Memory Dashboard and Timeline: every observation, filterable, down to the raw evidence behind each one</li>
+        <li>Reuse and Health: what each recall actually saved, labelled as the estimate it is, and where capture stops</li>
       </ul>
       <p class="dash__note" data-reveal data-delay="300">
-        Bound to loopback, reading the same <code>~/.eklavya/knowledge.db</code>. Nothing is
-        served to anyone but you. <code>--port</code> if 41729 is taken.
+        Bound to loopback, reading the same <code>~/.eklavya/knowledge.db</code>, and making no
+        request to any other host — not even for fonts. <code>--port</code> if 41729 is taken.
       </p>
     </div>
 

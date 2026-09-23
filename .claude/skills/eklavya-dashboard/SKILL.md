@@ -1,26 +1,33 @@
 ---
 name: eklavya-dashboard
-description: How Eklavya's learning dashboard (`eklavya dashboard`) is built and how to change it — the one JSON payload, the hash router, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
+description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the two workflows (Learning, Memory) and their registry, the one JSON payload plus the project inventory, the URL-driven hash router and its legacy redirects, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
 ---
 
 # Working on the dashboard
 
-`eklavya dashboard` serves the learning history as a local web page. It is the
-long view — `/eklavya:progress` gets twenty lines and answers *what now*, this
-answers *am I getting better* and *what did that session actually teach me*.
+`eklavya dashboard` serves the learning and memory history as a local web page.
+It is the long view — `/eklavya:progress` gets twenty lines and answers *what
+now*, this answers *am I getting better* and *what did that session actually
+teach me*. It is two workflows in one shell, **Learning** and **Memory**, each
+with its own Dashboard and sidebar.
 
 Two files, and there is deliberately nothing else:
 
 | File | What it is |
 |---|---|
-| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `memoryPage(db, q)` and `memoryEntry(db, id)` for the paged memory resource, and `startDashboard`, a loopback `http.createServer` with five read-only routes: `/api/state`, `/api/memory`, `/api/memory/entry`, `/tokens.css`, `/`. |
-| `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, router, views, charts. One file, no framework, no build step. |
-| `mcp/test/dashboard.test.ts` | The payload's contract. |
+| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), and `startDashboard`, a loopback `http.createServer` with seven read-only routes: `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/tokens.css`, `/`. |
+| `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, workflow registry, router, views, charts. One file, no framework, no build step. |
+| `mcp/test/dashboard.test.ts` | The payload's contract, the inventory's rules, and `/api/state`'s key set. |
+| `mcp/test/dashboard-browser.test.ts` | The page in a real Chromium: every legacy redirect, the workflow control, collapse persistence, the drawer, picker bounds, overflow, console errors and outbound requests. |
+| `mcp/test/dashboard-fixture.ts` | One synthetic learner with every project shape — memory-only, logged-but-unanswered, answered-only, mixed, worktrees (one deleted), same-named repos, a gone checkout, no-repository and legacy rows. Both suites and the screenshots use it. |
 | `web/src/content/docs/docs/dashboard.mdx` | The manual page. It is a **test of this code**, not prose about it. |
 
 `web/public/tokens.css` is copied into `dist/assets/` by `mcp/scripts/copy-assets.mjs`
 and served at `/tokens.css`. The dashboard and the site therefore share one
-palette by construction; do not fork it.
+palette by construction; do not fork it. The site's copy imports Google Fonts;
+`localTokens` strips that import on the way out, and the page itself loads no
+font — **the dashboard makes no request to any other host**, and the browser
+suite fails if it does. The font stacks fall through to system faces.
 
 When iterating: `npm run build` in `mcp/` (tsc + copy-assets), then
 `node dist/cli.js dashboard --port 41799 --no-open`. **Use `--no-open`** — the
@@ -42,7 +49,20 @@ card is a query that has to change when the card moves. Aggregate in SQL only fo
 what the page cannot honestly derive — all-time totals, which must stay right
 even though `attempts` is capped at `ATTEMPT_LIMIT` rows.
 
-**The memory corpus is the one exception, and it is a resource, not a card.** An
+**Two exceptions, and both are resources, not cards.**
+
+The first is `/api/projects`: the project inventory. `projects` in `/api/state`
+is built from `attempts` and so cannot see a project that logged concepts but was
+never asked a question, or one that only captured memory; the page's selector and
+both Projects pages read the inventory instead. It establishes a project from any
+row that names one (attempts, logged concepts through their gate, evidence —
+processed or not — entries, receipts, `project_levels`), folds identities with
+`projectKey`, and ships `aliases` (every raw spelling → one id) and `sessions`
+(no-repository sessions proven by their own rows). The page's `pid(raw, sid)` is
+the only place a row is given a project — call it, never compare `repo` strings.
+Never discover projects from a capped array or a page of the timeline.
+
+The second is the memory corpus. An
 observation carries a narrative and the tool output it was distilled from, so a
 year of them is megabytes and shipping it on every load is what PRD DASH-02
 forbids. `/api/memory` is one paged, filtered endpoint over `memory_entries`
@@ -52,10 +72,17 @@ candidates and its receipts. Both are *resources* — a filter added to them is 
 parameter, never a second endpoint. Everything else about memory (the counts, the
 facets, the receipts ledger, the health block) still rides in `/api/state`.
 
-That makes exactly three views asynchronous — `memory`, `entry` and the memory
-half of `session`. They go through `fill(id, url, draw)`, which queues on `AFTER`
-exactly as `chart()` does and drops a response that lands after the reader has
-navigated away. `draw` is a pure function of the response; keep it that way.
+`/api/memory/sessions` is the same kind of resource over sessions that captured
+or remembered anything, with a real total, because `memory_sessions` in the state
+payload stops at `MEMORY_SESSION_LIMIT`.
+
+The asynchronous views — the timeline, an entry, the Memory Dashboard's two
+lists, Memory Sessions, the memory half of a session, and a session looked up
+because it is not in the payload — go through `fill(id, url, draw)`, which queues
+on `AFTER` exactly as `chart()` does. Each render bumps `GEN`, and a response
+from an older render is dropped, so a late fetch can never paint one workflow's
+content over the other's. A `draw` may queue its own charts and fills; `fill`
+runs them. Otherwise `draw` is a pure function of the response; keep it that way.
 
 **`/api/state` is append-only.** Add keys; never rename or remove one.
 
@@ -87,18 +114,51 @@ Two things that have bitten this file already:
   about one score is worse than either being wrong. Import from `srs.ts`; never
   re-implement the arithmetic in the page.
 
-## Adding a view
+## Workflows, routes and adding a view
 
-1. Write `viewThing(param)` returning an HTML **string**.
-2. Add it to `VIEWS`. The key is the route: `#/thing/<param>`.
-3. Add a row to `NAV` (`[key, label, inline SVG path]`) if it deserves a sidebar
-   entry, and a count in `renderNav`'s `counts` if there is an honest number.
-4. If it is a **detail** page reached from a list, leave it out of `NAV` and add
-   it to the `root` map in `render()` so the parent nav item stays marked while
-   you are on it (`concept → concepts`, `session → sessions`, `domain → domains`).
+`WORKFLOWS` is the registry: per workflow, its `name`, its sidebar `groups`
+(`{ id, label, items }`), and `pages` — `{ label, view, query }` for a page with a
+sidebar entry, `{ parent, view }` for a detail page, which keeps its parent
+highlighted. The sidebar, the picker, the resolver and `render()` all read it, so
+they cannot disagree. `ICONS` holds the Lucide-style paths.
 
-`route()` is `location.hash.slice(2).split('/')` — an unknown name falls back to
-Overview. Detail pages start with `<a class="page__back" data-go="#/parent">`.
+Canonical routes are `#/<workflow>/<page>/<param>?<query>`. `resolve(hash)` is
+pure: it returns the screen, or a `redirect` for a legacy or partial form, or
+`missing` / `bad` for an unknown page or undecodable parameter.
+`syncFromUrl()` applies a redirect with `history.replaceState` (no extra history
+entry), reads `?project=`, and renders. Every navigation lands there.
+
+- **Build links with `href(wf, page, param, query)`** (`LH`, `MH`, `sessHref`).
+  It carries the project scope and nothing else unless asked, which is how a
+  workflow switch keeps the project and drops screen filters. Never write a
+  `#/…` string by hand.
+- **A filter worth linking to lives in the URL**: a path segment for the primary
+  one (`#/learning/concepts/due`, `#/memory/timeline/bugfix`), a query key for the
+  rest (`?domain=`, `?tag=&from=&to=`), listed in the page's `query` so it
+  survives a project change. Selects rewrite the query with `setQuery()` (replace);
+  chips navigate (push). Search text and sort order stay in `T`.
+- **Legacy links are forever.** `LEGACY` maps each pre-workflow route to its
+  canonical home; `#/memory` and `#/memory/<type>` are special-cased in
+  `resolve()` because canonical Memory pages share the prefix. A new route never
+  reuses an old one's meaning.
+
+To add a page: write `viewThing(param)` returning an HTML **string**, add it to
+the workflow's `pages`, and to a group's `items` if it deserves a sidebar entry
+(with a count in `navCounts` if there is an honest number). Add a row to the
+browser suite that loads it directly and checks the highlight. Detail pages start
+with `<a class="page__back" data-go="${esc(LH('parent'))}">`.
+
+Collapsed groups are stored per workflow under
+`eklavya-dash-nav-collapsed:<workflow>` — only the collapsed ids, so a new group
+starts open; unknown ids and malformed JSON are ignored, and storage that throws
+means everything is open. A direct link into a collapsed group reopens it.
+
+**The drawer.** At 900px and below the rail is a drawer: `inert` while closed,
+`role="dialog"` + `aria-modal` with focus held inside while open, `#main` and the
+top bar `inert` behind it. `syncDrawer()` strips every one of those on a wide
+screen — the desktop rail must never be hidden from assistive technology. The
+workflow picker is `#wf-menu` at the end of `<body>`, outside the rail's scroll
+clip, positioned by `placePicker()` and clamped to the viewport.
 
 ## Adding a chart
 
@@ -136,7 +196,7 @@ stored page number to a list that shrank under a filter — always route through
 rather than reading `T[key].page` directly.
 
 Per-view control state lives in `T`. A filter the reader would want to **link to**
-lives in the hash instead (`#/concepts/due`, `#/review/skipped`) and is read back
+lives in the hash instead (`#/learning/concepts/due`, `#/learning/review/skipped`, `?tag=`) and is read back
 from `param` at the top of the view — the view derives it, the chip only navigates.
 Search text and sort order stay in `T`: they are typing, not destinations.
 
@@ -148,12 +208,12 @@ focus and caret. Any future text input needs the same.
 These are not nice-to-haves; a reader who clicks something that does nothing
 stops trusting the page.
 
-- **The wordmark goes home.** `.side__brand` is an `<a href="#/overview">`.
+- **The wordmark goes home** — to the active workflow's Dashboard. `renderShell()` sets its `href`.
 - **Anything that looks clickable is clickable**: a row that has a detail page
   gets `class="row" data-go="…"`, a stat tile whose number *is* a list gets a
   `go` as its fifth `tiles()` field, a concept name is a `.link`.
-- **Everything clickable is keyboard-operable.** Rows get `tabIndex = 0` on
-  render; Enter and Space are handled by the delegated `keydown` on `#view`;
+- **Everything clickable is keyboard-operable.** `focusable()` gives every row
+  and every `[data-go]` a `tabIndex` on render (and after each `fill`); Enter and Space are handled by the delegated `keydown` on `#view`;
   focus styles are `--ring` or a `--spot` outline. Never a click handler on an
   element nobody can Tab to.
 - **All handlers are delegated** on `#view` — the markup is replaced wholesale on
@@ -234,17 +294,19 @@ The page is a record of someone's learning; it does not get to flatter them.
 ## Before you call it done
 
 ```bash
-cd mcp && npm run build && npx vitest run          # 392+ tests, dashboard.test.ts included
+cd mcp && npm test          # builds, then everything — the browser suite included
 node dist/cli.js dashboard --port 41799 --no-open
 ```
 
 1. Every section and both detail levels, at **1280, 900 and 560**, in **both
    grounds**. A bug that only shows on paper is the commonest kind.
-2. No console errors; `document.documentElement.scrollWidth === clientWidth` at 560.
+2. No console errors, no outbound request, and `scrollWidth <= clientWidth` at 560
+   and 390 — `dashboard-browser.test.ts` checks all three on every workflow page;
+   add a new page to its list.
 3. Click the thing you added, then Tab to it and press Enter.
 4. Payload changes get a case in `mcp/test/dashboard.test.ts`.
 5. **Docs ship in the same commit** — this is the repo contract, not a follow-up:
    `web/src/content/docs/docs/dashboard.mdx` (sections, routes, page sizes), the
    `#dashboard` block in `web/public/index.html`, and the route table in
-   `user-skill/eklavya/SKILL.md` so chat can hand back `#/review` rather than the
+   `user-skill/eklavya/SKILL.md` so chat can hand back `#/learning/review` rather than the
    bare root. A new route that nothing documents is a route nobody will find.

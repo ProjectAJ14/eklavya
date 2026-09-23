@@ -1,19 +1,27 @@
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
-import { dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback } from '../src/dashboard.js';
+import {
+  dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
+} from '../src/dashboard.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { appendEvent, insertEntry, recordReceipt, supersedeEntry, deleteEntry, addCandidate } from '../src/memory/store.js';
 import { tempDbPath, cleanup } from './helpers.js';
+import { seedFixture, type Fixture } from './dashboard-fixture.js';
+// `tokens.css` is copied in by the build, so the served-asset case runs the built server.
+import { startDashboard as startBuilt } from '../dist/dashboard.js';
 
 let dbFile = '';
 let db: DB;
 const SESSION = 'dash-sess';
 
+const call2 = (d: DB, tool: { handler: (a: any, c: any) => unknown }, args: Record<string, unknown>) =>
+  tool.handler(args, { db: d }) as any;
 const call = (tool: { handler: (a: any, c: any) => unknown }, args: Record<string, unknown>) =>
   tool.handler({ cwd: process.cwd(), ...args }, { db }) as any;
 
@@ -430,12 +438,21 @@ describe('the dashboard page', () => {
     expect(html.indexOf('id="stale"')).toBeLessThan(html.indexOf('id="view"'));
   });
 
-  it('still serves every learning route alongside the memory ones', () => {
-    const views = html.slice(html.indexOf('const VIEWS = {'), html.indexOf('function route()'));
+  it('keeps an alias for every route the single-workflow page had', () => {
+    // What each alias renders is the browser suite's job (dashboard-browser.test.ts
+    // follows every one); this pins that none of them was dropped from the table.
+    const legacy = html.slice(html.indexOf('const LEGACY = {'), html.indexOf('function decodeParam('));
     for (const route of ['overview', 'concepts', 'concept', 'review', 'sessions', 'session',
-      'projects', 'domains', 'domain', 'memory', 'entry', 'reuse', 'health']) {
-      expect(views, route).toMatch(new RegExp(`\\b${route}:`));
+      'projects', 'domains', 'domain', 'entry', 'reuse', 'health']) {
+      expect(legacy, route).toMatch(new RegExp(`\\b${route}:`));
     }
+    // `#/memory` and `#/memory/<type>` are resolved before the table, because
+    // canonical Memory pages share the prefix.
+    expect(html).toContain("if (head === 'memory') return canonical('memory', 'timeline', rest);");
+  });
+
+  it('asks for nothing from another host', () => {
+    expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
   });
 });
 
@@ -519,6 +536,218 @@ describe('the dashboard is loopback-only, and says so to a browser', () => {
       const rebound = await get({ host: 'evil.example' });
       expect(rebound.status).toBe(403);
       expect(rebound.body).toContain('loopback');
+    } finally {
+      close();
+    }
+  });
+});
+
+/* ------------------------------------------------------------------
+   One project inventory for both workflows (`/api/projects`).
+   ------------------------------------------------------------------ */
+describe('projectInventory', () => {
+  let home = '';
+  let fdb: DB;
+  let fx: Fixture;
+  const savedHome = process.env.EKLAVYA_HOME;
+
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-inventory-'));
+    // The tools read config through `loadConfig`; point it away from the
+    // machine's real ~/.eklavya so this passes the same everywhere.
+    process.env.EKLAVYA_HOME = path.join(home, 'home');
+    fdb = openDb(path.join(home, 'knowledge.db'));
+    fx = seedFixture(fdb, path.join(home, 'root'));
+  });
+  afterEach(() => {
+    fdb.close();
+    if (savedHome === undefined) delete process.env.EKLAVYA_HOME;
+    else process.env.EKLAVYA_HOME = savedHome;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  const byId = (inv: ReturnType<typeof projectInventory>, id: string) => inv.projects.find((p) => p.id === id);
+
+  it('reproduces the omission: the learning payload lists only projects with answers', () => {
+    const s = dashboardState(fdb) as any;
+    const repos = s.projects.map((p: any) => p.repo);
+    expect(repos).toContain(fx.repo.answered);
+    for (const missing of [fx.repo.logged, fx.repo.memoryOnly, fx.repo.pending]) expect(repos).not.toContain(missing);
+  });
+
+  it('finds memory-only, logged-but-unanswered, answered-only and mixed projects alike', () => {
+    const inv = projectInventory(fdb);
+    const memoryOnly = byId(inv, fx.repo.memoryOnly)!;
+    expect(memoryOnly.learning.answers).toBe(0);
+    expect(memoryOnly.memory).toMatchObject({ events: 2, entries: 2, sessions: 1 });
+
+    const logged = byId(inv, fx.repo.logged)!;
+    expect(logged.learning).toMatchObject({ answers: 0, logged_concepts: 2, assessed_concepts: 0, sessions: 1 });
+    expect(logged.memory.events).toBe(0);
+
+    const answered = byId(inv, fx.repo.answered)!;
+    // `record_attempt` writes a review row per graded concept; those are not
+    // concepts the work logged.
+    expect(answered.learning).toMatchObject({ answers: 3, assessed_concepts: 3, logged_concepts: 0 });
+
+    const mixed = byId(inv, fx.repo.mixed)!;
+    expect(mixed.learning.answers).toBeGreaterThan(0);
+    expect(mixed.memory.entries).toBeGreaterThan(0);
+    expect(mixed.sources).toEqual(expect.arrayContaining(['attempts', 'logged', 'evidence', 'entries', 'receipts']));
+  });
+
+  it('counts captured evidence that no observation job has processed yet', () => {
+    const pending = byId(projectInventory(fdb), fx.repo.pending)!;
+    expect(pending.memory).toMatchObject({ events: 2, pending: 2, entries: 0 });
+    expect(pending.sources).toEqual(['evidence']);
+  });
+
+  it('folds worktrees into their checkout, including one deleted since', () => {
+    const inv = projectInventory(fdb);
+    const ids = inv.projects.map((p) => p.id);
+    expect(ids).not.toContain(fx.repo.mixedFeature);
+    expect(ids).not.toContain(fx.repo.mixedOld);
+    const mixed = byId(inv, fx.repo.mixed)!;
+    expect(mixed.aliases).toEqual(expect.arrayContaining([fx.repo.mixedFeature, fx.repo.mixedOld]));
+    expect(inv.aliases[fx.repo.mixedOld]).toBe(fx.repo.mixed);
+    // The deleted worktree's logged concept is still the checkout's.
+    expect(mixed.learning.logged_concepts).toBe(4);
+    // And the gate row keeps the real checkout path the commit gate matches on.
+    const gate = fdb.prepare("SELECT repo FROM gates WHERE session_id = 's-feature'").get() as { repo: string };
+    expect(gate.repo).toBe(fx.repo.mixedFeature);
+  });
+
+  it('never merges a deleted checkout it cannot prove belongs elsewhere', () => {
+    const retired = byId(projectInventory(fdb), fx.repo.retired)!;
+    expect(retired).toMatchObject({ kind: 'repo', available: false, name: 'retired' });
+    expect(retired.learning.answers).toBe(1);
+  });
+
+  it('keeps same-named repositories apart and names them so a person can tell', () => {
+    const inv = projectInventory(fdb);
+    expect(byId(inv, fx.repo.clientApi)!.name).toBe('client/api');
+    expect(byId(inv, fx.repo.serverApi)!.name).toBe('server/api');
+  });
+
+  it('keeps the no-repository bucket and the legacy bucket, separately', () => {
+    const inv = projectInventory(fdb);
+    expect(byId(inv, '*')).toMatchObject({ kind: 'global', name: 'No repository', path: null });
+    expect(byId(inv, '~')).toMatchObject({ kind: 'unattributed', name: 'Unattributed', path: null });
+    expect(byId(inv, '~')!.learning.answers).toBe(1);
+  });
+
+  it('lists each project once, whatever wrote it', () => {
+    const ids = projectInventory(fdb).projects.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toHaveLength(10);
+  });
+
+  it('attributes a no-repository session by its own answers, and only when they agree', () => {
+    // Outside a checkout, the gate stores NULL while the answer stores `*`:
+    // without this the session's logged concepts read as Unattributed.
+    const gate = fdb.prepare("SELECT repo FROM gates WHERE session_id = 's-outside'").get() as { repo: string | null };
+    expect(gate.repo).toBeNull();
+    expect(projectInventory(fdb).sessions['s-outside']).toBe('*');
+
+    // A session whose own rows name two projects is not guessed at.
+    fdb.prepare("UPDATE gates SET repo = NULL WHERE session_id = 's-client'").run();
+    call2(fdb, recordAttempt, { session_id: 's-client', cwd: fx.repo.serverApi, slug: 'csrf', grade: 4, difficulty: 2, question: 'q', answer: 'a' });
+    fdb.prepare("UPDATE gates SET repo = NULL WHERE session_id = 's-client'").run();
+    const inv = projectInventory(fdb);
+    expect(inv.sessions['s-client']).toBeUndefined();
+    expect(byId(inv, '~')!.learning.logged_concepts).toBeGreaterThan(0);
+  });
+});
+
+describe('a logged concept belongs to its project before any question', () => {
+  it('traces session_concepts → gates → repo with no attempt at all', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-logged-'));
+    const saved = process.env.EKLAVYA_HOME;
+    process.env.EKLAVYA_HOME = path.join(home, 'home');
+    const repo = path.join(fs.realpathSync(home), 'svc');
+    fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+    try {
+      call2(db, logSessionConcepts, { session_id: 'only-logged', cwd: repo, concepts: [{ slug: 'csrf', context: 'set SameSite' }] });
+      expect((db.prepare('SELECT count(*) AS n FROM attempts').get() as { n: number }).n).toBe(0);
+      const s = dashboardState(db) as any;
+      expect(s.logged.find((l: any) => l.session_id === 'only-logged').repo).toBe(repo);
+      const p = projectInventory(db).projects.find((x) => x.id === repo)!;
+      expect(p.learning).toMatchObject({ answers: 0, logged_concepts: 1, sessions: 1 });
+    } finally {
+      if (saved === undefined) delete process.env.EKLAVYA_HOME; else process.env.EKLAVYA_HOME = saved;
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('/api/state is unchanged for the page that still reads it', () => {
+  it('keeps every key, with its type', () => {
+    work();
+    call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q', answer: 'a', grade: 4, difficulty: 2 });
+    const s = dashboardState(db) as any;
+    const shape = Object.fromEntries(Object.entries(s).map(([k, v]) => [k, Array.isArray(v) ? 'array' : typeof v]));
+    expect(shape).toEqual({
+      generated_at: 'string', db_path: 'string', cursor: 'string', timeline_days: 'number',
+      attempts_shown: 'number', attempts_total: 'number', config: 'object', totals: 'object',
+      daily: 'array', projects: 'array', domains: 'array', concepts: 'array', attempts: 'array',
+      logged: 'array', memory: 'object', reuse: 'object', health: 'object', memory_sessions: 'array',
+    });
+    expect(Object.keys(s.projects[0]).sort()).toEqual([
+      'answers', 'concepts', 'first_active', 'key', 'last_active', 'level', 'level_accuracy', 'level_counts',
+      'level_needed', 'level_unmet', 'next_level', 'passed', 'pinned', 'promoted_at', 'repo', 'skipped',
+    ]);
+    expect(Object.keys(s.logged[0]).sort()).toEqual(['context', 'domain', 'name', 'origin', 'repo', 'session_id', 'slug', 'ts']);
+  });
+});
+
+describe('the new endpoints', () => {
+  it('serve the project inventory and a paged session list over loopback, and refuse a rebound host', async () => {
+    remember({ title: 'one', session: 'm-1' });
+    remember({ title: 'two', session: 'm-2' });
+    const gone = remember({ title: 'three', session: 'm-3' });
+    const { url, close } = await startDashboard(db, { port: 0 });
+    try {
+      const inv = (await (await fetch(`${url}/api/projects`)).json()) as any;
+      expect(Object.keys(inv).sort()).toEqual(['aliases', 'projects', 'sessions']);
+      const p = inv.projects.find((x: any) => x.id === PROJECT);
+      expect(Object.keys(p).sort()).toEqual(['aliases', 'available', 'first_active', 'id', 'kind', 'last_active',
+        'learning', 'memory', 'name', 'path', 'sources']);
+      expect(p.memory).toMatchObject({ events: 3, entries: 3, sessions: 3 });
+
+      const page = (await (await fetch(`${url}/api/memory/sessions?per=2&page=2`)).json()) as any;
+      expect(page).toMatchObject({ total: 3, page: 2, pages: 2, per: 2 });
+      expect(page.rows).toHaveLength(1);
+      const one = (await (await fetch(`${url}/api/memory/sessions?session=m-2`)).json()) as any;
+      expect(one.rows).toEqual([expect.objectContaining({ session_id: 'm-2', project: PROJECT, events: 1, entries: 1 })]);
+
+      // A deleted entry leaves both screens alike: the session list and the inventory count live entries only.
+      deleteEntry(db, gone);
+      const after = (await (await fetch(`${url}/api/memory/sessions?session=m-3`)).json()) as any;
+      expect(after.rows[0]).toMatchObject({ session_id: 'm-3', entries: 0 });
+      const inv2 = (await (await fetch(`${url}/api/projects`)).json()) as any;
+      expect(inv2.projects.find((x: any) => x.id === PROJECT).memory.entries).toBe(2);
+
+      for (const route of ['/api/projects', '/api/memory/sessions']) {
+        const res = await new Promise<number>((resolve) => {
+          const u = new URL(url + route);
+          http.get({ host: u.hostname, port: u.port, path: u.pathname, headers: { host: 'evil.example:80' } },
+            (r) => { r.resume(); resolve(r.statusCode ?? 0); });
+        });
+        expect(res, route).toBe(403);
+      }
+    } finally {
+      close();
+    }
+  });
+
+  it('serves the shared tokens with the remote font import stripped', async () => {
+    const css = "@import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');\n:root { --a: 1; }";
+    expect(localTokens(css)).toBe(':root { --a: 1; }');
+    const { url, close } = await startBuilt(db as any, { port: 0 });
+    try {
+      const served = await (await fetch(`${url}/tokens.css`)).text();
+      expect(served).not.toMatch(/fonts\.googleapis|@import url\(\s*['"]?https?:/);
+      expect(served).toContain('--font-body');
     } finally {
       close();
     }

@@ -37,3 +37,6 @@ eval/results/*T*Z-extraction.json
 
 # the README GIF recording set: throwaway demo repo, scratch profile, raw takes
 .example/
+
+# local agent plans and screenshot evidence: never published
+.plan/

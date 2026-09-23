@@ -51,4 +51,7 @@ jobs:
         working-directory: mcp
         run: |
           npm ci
+          # The dashboard's browser suite drives a real Chromium, and fails rather
+          # than skips on CI when there is none -- a skipped suite is a green one.
+          npx playwright-core install --with-deps chromium
           npm test
