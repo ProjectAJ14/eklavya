@@ -19,8 +19,7 @@ import {
   reserveWorker,
   workerStatus,
 } from '../src/memory/reservation.js';
-import type { EklavyaConfig } from '../src/config.js';
-import { loadConfig } from '../src/config.js';
+import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 
 /**
  * The 2026-09-23 incident, as tests. The observer's `claude -p` ran the plugin's
@@ -37,6 +36,12 @@ const mcpDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const hooksDir = path.join(mcpDir, 'dist', 'hooks');
 const RUN = path.join(path.dirname(mcpDir), 'hooks', 'run.mjs');
 const posix = process.platform !== 'win32';
+
+/** In-process runs get this, never `loadConfig`: only spawned children see `EKLAVYA_HOME`. */
+const OBSERVED: EklavyaConfig = {
+  ...DEFAULT_CONFIG,
+  providers: { ...DEFAULT_CONFIG.providers, observer: { kind: 'anthropic', model: 'm' } },
+};
 
 let dbFile = '';
 let db: DB;
@@ -348,7 +353,7 @@ describe.skipIf(!posix)('the provider process tree', () => {
       body: 'Add refresh token rotation',
     });
     batchSession(db, { project, sessionId: 's1', reason: 'session_seam' });
-    const config = loadConfig(repo).config as EklavyaConfig;
+    const config = OBSERVED;
     const cancel = new AbortController();
     setTimeout(() => cancel.abort(), 500);
     const result = await processPending(db, config, { signal: cancel.signal });
@@ -372,7 +377,7 @@ describe.skipIf(!posix)('the provider process tree', () => {
       body: 'Add refresh token rotation',
     });
     batchSession(db, { project, sessionId: 's1', reason: 'session_seam' });
-    const config = loadConfig(repo).config as EklavyaConfig;
+    const config = OBSERVED;
     setTimeout(() => db.prepare("UPDATE memory_jobs SET lease_owner = 'someone-else'").run(), 300);
     const result = await processPending(db, config, { owner: 'stale' });
     expect(result.processed).toBe(0);
