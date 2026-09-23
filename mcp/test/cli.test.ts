@@ -610,7 +610,7 @@ describe('eklavya memory dispatches each subcommand', () => {
     // checkout must not age out another checkout's evidence.
     const db = openDb(dbFile);
     const old = new Date(Date.now() - 60 * 86_400_000).toISOString();
-    for (const [uid, project] of [['here', projectKey(repo)], ['elsewhere', '/tmp/some-other-project']]) {
+    for (const [uid, project] of [['here', projectKey(repo)], ['elsewhere', '/tmp/some-other-project']] as const) {
       const { id } = appendEvent(db, { eventUid: uid, project, sessionId: uid, kind: 'tool_use', body: uid, occurredAt: old });
       db.prepare("UPDATE evidence_events SET status = 'summarized' WHERE id = ?").run(id);
     }
