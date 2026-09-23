@@ -5,7 +5,9 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import type { DB } from '../db.js';
 import { nowIso } from '../time.js';
+import { redactBody } from './capture.js';
 import { entryUid, eventUid } from './identity.js';
+import { redact } from './privacy.js';
 import { addCandidate, indexVector, insertEntry } from './store.js';
 
 /**
@@ -1033,13 +1035,19 @@ function appendImportedEvent(
     | undefined;
   if (existing) return existing.id;
 
+  // Claude Mem stored prompts and tool traffic verbatim, so this is the first
+  // time these bodies meet redaction. The uid above stays on the source text:
+  // it is a hash, and it is what makes a re-import find the rows it wrote.
+  const body = redactBody(input.body);
+  const title = input.title == null ? null : redact(input.title).text;
+
   return Number(
     db
       .prepare(
         `INSERT INTO evidence_events
            (event_uid, project, checkout, session_id, agent_id, host, source, kind, tool,
             title, body, files, occurred_at, received_at, redacted, status)
-         VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?, ?, NULL, ?, ?, 0, 'summarized')`,
+         VALUES (?, ?, ?, ?, ?, ?, 'import', ?, ?, ?, ?, NULL, ?, ?, ?, 'summarized')`,
       )
       .run(
         uid,
@@ -1050,10 +1058,11 @@ function appendImportedEvent(
         IMPORT_SOURCE,
         input.kind,
         input.tool ?? null,
-        input.title ?? null,
-        input.body,
+        title,
+        body.text,
         input.occurredAt,
         nowIso(),
+        body.redacted ? 1 : 0,
       ).lastInsertRowid,
   );
 }

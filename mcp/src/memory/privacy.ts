@@ -216,6 +216,16 @@ export function redact(text: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): R
  * common case costs nothing, and a path that does not exist keeps the answer
  * the literal comparison gave.
  */
+/**
+ * `text` cut to `max` characters, redacted first. A cut made before redaction
+ * can land inside a secret and leave a head no pattern recognises
+ * (`DB_PASSWORD="hunter2` has lost the quote the rule needs), so every place
+ * that trims a piece of a body goes through here, not `.slice()`.
+ */
+export function clip(text: string, max: number): string {
+  return redact(text.slice(0, max * 4)).text.slice(0, max);
+}
+
 export function pathExcluded(file: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): boolean {
   const matches = (candidate: string): boolean => {
     const normalised = candidate.replace(/\\/g, '/').toLowerCase();

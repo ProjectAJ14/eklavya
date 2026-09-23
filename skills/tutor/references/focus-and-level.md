@@ -100,6 +100,12 @@ plan gives you, whether or not today's work touches it.
   unrelated work.** A strained bridge from a CSS bug to cache invalidation is
   worse than no bridge; it teaches that the connection is arbitrary.
 
+Under `quiz.enforced`, an open gate outranks the topic: until it passes, the plan
+holds this session's work (reasons `unmastered`, `gate_work`, `gate_retry`) instead
+of `learn_topic` items. That is not the topic being forgotten — a topic answer
+counts as review, and the gate counts only work. Say so in one line if they ask
+why the topic went quiet; it returns once the gate passes.
+
 `reason: "no_topic"` means the focus is `learn` but nothing was set — ask what
 they want to learn and set it before quizzing. `reason: "topic_unknown"` means
 the graph has nothing matching; offer the closest domain from

@@ -38,7 +38,7 @@
  * Hard rule: a hook must never break a session. Everything here
  * fails to exit 0 in silence.
  */
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -136,22 +136,12 @@ function healInBackground() {
   // on the machine of the person whose install is already struggling. An hour
   // makes the claim self-expiring, so a heal that dies still gets retried
   // tomorrow instead of wedging the runtime as missing forever.
-  const stamp = path.join(runtimeHome, '.installing');
-  try {
-    const age = Date.now() - statSync(stamp).mtimeMs;
-    if (age < 60 * 60 * 1000) return;
-  } catch {
-    /* no stamp: this is the first attempt */
-  }
-
   try {
     mkdirSync(runtimeHome, { recursive: true });
-    writeFileSync(stamp, new Date().toISOString());
   } catch {
-    // Cannot even write the stamp, so we cannot bound the retries. Doing
-    // nothing is the safe failure: the explicit installer still works.
     return;
   }
+  if (!claimHeal(path.join(runtimeHome, '.installing'))) return;
 
   try {
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -160,10 +150,51 @@ function healInBackground() {
       ['install', `eklavya@${version}`, '--prefix', runtimeHome, '--omit=dev', '--no-audit', '--no-fund'],
       { detached: true, stdio: 'ignore', shell: process.platform === 'win32' },
     );
+    // No npm on PATH (a GUI-launched app, a Volta shim) is reported as an
+    // 'error' event after this try has returned. Unheard, it kills the hook or
+    // server this run goes on to import.
+    child.on('error', () => {});
     child.unref();
   } catch {
     /* A failed heal is a slow install, not a broken session. */
   }
+}
+
+const HEAL_CLAIM_MS = 60 * 60 * 1000;
+
+/**
+ * Take the `.installing` stamp, or say someone else holds it. The session's
+ * hooks and its server start within milliseconds of each other, so a stat
+ * followed by a write lets several through: creating with `wx` is the one
+ * step only one process can win. A stamp older than the hour is taken by
+ * renaming it away — again one winner — and put back if it turned out to be
+ * a fresh claim that landed in between.
+ */
+function claimHeal(stamp) {
+  const create = () => {
+    try {
+      writeFileSync(stamp, new Date().toISOString(), { flag: 'wx' });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (create()) return true;
+  try {
+    if (Date.now() - statSync(stamp).mtimeMs < HEAL_CLAIM_MS) return false;
+    const taken = `${stamp}.${process.pid}`;
+    renameSync(stamp, taken);
+    if (Date.now() - statSync(taken).mtimeMs < HEAL_CLAIM_MS) {
+      renameSync(taken, stamp);
+      return false;
+    }
+    rmSync(taken, { force: true });
+  } catch {
+    // Cannot even read or move the stamp, so we cannot bound the retries.
+    // Doing nothing is the safe failure: the explicit installer still works.
+    return false;
+  }
+  return create();
 }
 
 async function main() {

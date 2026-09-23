@@ -5,6 +5,7 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { identityFor } from './identity.js';
 import { prepare, type HostEvent } from './capture.js';
+import { clip } from './privacy.js';
 import { appendEvent } from './store.js';
 
 /**
@@ -105,11 +106,11 @@ function bodyFor(input: Record<string, unknown>): string {
     if (typeof input[key] === 'string') parts.push(input[key] as string);
   }
   if (typeof input.old_string === 'string' && typeof input.new_string === 'string') {
-    parts.push(`- ${(input.old_string as string).slice(0, 600)}`, `+ ${(input.new_string as string).slice(0, 600)}`);
+    parts.push(`- ${clip(input.old_string as string, 600)}`, `+ ${clip(input.new_string as string, 600)}`);
   }
   if (!parts.length) {
     const keys = Object.keys(input).filter((k) => k !== 'content');
-    if (keys.length) parts.push(keys.map((k) => `${k}=${String(input[k]).slice(0, 200)}`).join(' '));
+    if (keys.length) parts.push(keys.map((k) => `${k}=${clip(String(input[k]), 200)}`).join(' '));
   }
   return parts.join('\n');
 }

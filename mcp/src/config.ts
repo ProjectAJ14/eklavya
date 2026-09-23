@@ -54,8 +54,9 @@ export interface QuizConfig {
  *
  * `quiz.enforced` governs whether the Stop hook blocks, whether commits are
  * gated, whether the cooldown applies. `focus` answers "what does it teach?".
- * They are orthogonal: enforced+learn (an intern must pass, on a topic they
- * chose) and gentle+project (grounded in today's diff) are both coherent.
+ * They are orthogonal: enforced+learn (an intern studies a topic they chose,
+ * and passes a gate on the day's work first) and gentle+project (grounded in
+ * today's diff) are both coherent.
  * Folding them into one enum would make those mutually exclusive for no reason.
  *
  * `quiz.enabled: false` is the one interaction: it wins outright and `focus` is

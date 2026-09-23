@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -44,14 +44,25 @@ function fakeBin(name: string, body = ''): void {
   fs.chmodSync(file, 0o755);
 }
 
-function launch(name: string) {
-  const env: Record<string, string> = {
-    PATH: `${bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`,
-    HOME: home,
-    USERPROFILE: home,
-    CLAUDE_PLUGIN_ROOT: pluginRoot,
-  };
-  return spawnSync(process.execPath, [RUN, name], { env, encoding: 'utf8', input: '{}', timeout: 20_000 });
+function launchEnv(PATH = `${bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`) {
+  return { PATH, HOME: home, USERPROFILE: home, CLAUDE_PLUGIN_ROOT: pluginRoot };
+}
+
+function launch(name: string, PATH?: string) {
+  return spawnSync(process.execPath, [RUN, name], { env: launchEnv(PATH), encoding: 'utf8', input: '{}', timeout: 20_000 });
+}
+
+/** Start `n` launches at once, the way a session's hooks and server do. */
+function launchTogether(name: string, n: number): Promise<number[]> {
+  return Promise.all(
+    Array.from({ length: n }, () =>
+      new Promise<number>((resolve) => {
+        const child = spawn(process.execPath, [RUN, name], { env: launchEnv(), stdio: ['pipe', 'ignore', 'ignore'] });
+        child.stdin.end('{}');
+        child.on('close', (code) => resolve(code ?? -1));
+      }),
+    ),
+  );
 }
 
 const logLines = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
@@ -100,6 +111,45 @@ describe.skipIf(process.platform === 'win32')('run.mjs keeps the runtime in step
     launch('probe');
 
     expect(logLines().filter((l) => l.startsWith('npm install'))).toHaveLength(1);
+  });
+
+  it('starts one refresh when a session\'s hooks and server launch at the same moment', async () => {
+    pinPlugin('2.0.0');
+    installRuntime('1.9.0');
+
+    const codes = await launchTogether('probe', 8);
+
+    expect(codes).toEqual(Array(8).fill(0));
+    waitForLog(/^npm install/);
+    expect(logLines().filter((l) => l.startsWith('npm install'))).toHaveLength(1);
+  });
+
+  it('takes over a claim older than an hour', () => {
+    pinPlugin('2.0.0');
+    installRuntime('1.9.0');
+    const stamp = path.join(home, '.eklavya', 'runtime', '.installing');
+    fs.writeFileSync(stamp, 'old');
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    fs.utimesSync(stamp, twoHoursAgo, twoHoursAgo);
+
+    launch('probe');
+
+    expect(waitForLog(/^npm install eklavya@2\.0\.0 /)).toBe(true);
+  });
+
+  it('still runs the hook when npm is not on PATH', () => {
+    // The background refresh cannot start, and that must stay its problem:
+    // an unheard spawn error would kill the hook this run goes on to import.
+    pinPlugin('2.0.0');
+    installRuntime('1.9.0');
+    const noNpm = path.join(tmp, 'empty-bin');
+    fs.mkdirSync(noNpm);
+
+    const res = launch('probe', noNpm);
+
+    expect(res.stderr).toBe('');
+    expect(res.status).toBe(0);
+    expect(logLines()).toContain('ran');
   });
 
   it('leaves a matching runtime alone', () => {

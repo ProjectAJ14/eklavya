@@ -13,6 +13,7 @@ import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
 import type { HookInput } from './lib.js';
 import { batchIfFull, identityOf, record } from './capture-lib.js';
 import type { HostEvent } from '../memory/capture.js';
+import { clip } from '../memory/privacy.js';
 
 /** Tools whose result is a file's contents rather than a change to one. */
 const READ_TOOLS = new Set(['Read', 'NotebookRead', 'Glob', 'Grep']);
@@ -38,7 +39,7 @@ function bodyFor(input: HookInput, failed: boolean): string {
   if (typeof toolInput.description === 'string') parts.push(toolInput.description);
   if (typeof toolInput.prompt === 'string') parts.push(toolInput.prompt);
   if (typeof toolInput.old_string === 'string' && typeof toolInput.new_string === 'string') {
-    parts.push(`- ${toolInput.old_string.slice(0, 600)}`, `+ ${toolInput.new_string.slice(0, 600)}`);
+    parts.push(`- ${clip(toolInput.old_string, 600)}`, `+ ${clip(toolInput.new_string, 600)}`);
   }
   if (!parts.length) {
     const keys = Object.keys(toolInput).filter((k) => k !== 'content');
@@ -46,9 +47,9 @@ function bodyFor(input: HookInput, failed: boolean): string {
     // "[object Object]", which is how every AskUserQuestion was remembered as
     // `questions=[object Object] answers=[object Object]`.
     const text = (v: unknown) => (typeof v === 'string' ? v : (JSON.stringify(v) ?? String(v)));
-    if (keys.length) parts.push(keys.map((k) => `${k}=${text(toolInput[k]).slice(0, 200)}`).join(' '));
+    if (keys.length) parts.push(keys.map((k) => `${k}=${clip(text(toolInput[k]), 200)}`).join(' '));
   }
-  if (failed) parts.push(String(errorText(input.tool_response)).slice(0, 800));
+  if (failed) parts.push(clip(String(errorText(input.tool_response)), 800));
   return parts.join('\n');
 }
 
