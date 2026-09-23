@@ -1,3 +1,17 @@
+# [1.24.0](https://github.com/ProjectAJ14/eklavya/compare/v1.23.0...v1.24.0) (2026-09-23)
+
+
+### Bug Fixes
+
+* **memory:** keep the observer on the subscription whatever the shell sets ([a4a83db](https://github.com/ProjectAJ14/eklavya/commit/a4a83db774950bffdee82be8002f4865ecee13fb))
+* **memory:** name a missing claude, and start one worker, not one per turn ([02dd67f](https://github.com/ProjectAJ14/eklavya/commit/02dd67fd76892225d749ad22f03e9ceab22dc7ee))
+* **memory:** summarise in the background when a model is configured ([1c3dc56](https://github.com/ProjectAJ14/eklavya/commit/1c3dc5661935fc5842528d5a4cc108dcfa5ae2c4))
+
+
+### Features
+
+* **memory:** pick the memory model at install, run it on the subscription ([b13535a](https://github.com/ProjectAJ14/eklavya/commit/b13535a4a5167327ab9b8514e953e7114136f5cf))
+
 # [1.23.0](https://github.com/ProjectAJ14/eklavya/compare/v1.22.0...v1.23.0) (2026-09-22)
 
 
