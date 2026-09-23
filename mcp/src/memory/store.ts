@@ -780,3 +780,122 @@ export function resolveCandidate(
     id,
   );
 }
+
+/**
+ * Backlog recovery: the queue an incident leaves behind.
+ *
+ * When the observer's own `claude -p` ran Eklavya's hooks (the 1.24.0
+ * incident), every helper session was captured, batched and queued like real
+ * work — 1,708 batches on the machine that found it, each one a provider call
+ * that would summarise a summariser. Re-enabling the observer over that queue
+ * spends the subscription on noise, so it can be looked at first, set aside
+ * (quarantined: kept, never claimed), or deleted.
+ *
+ * A helper session is recognised by what it was given, not by where it ran:
+ * its prompt is the summariser's input, which always opens `<evidence project=`
+ * (`ProviderSummarizer.summarize`). No developer types that.
+ */
+export const HELPER_SESSION = `b.session_id IN (
+  SELECT session_id FROM evidence_events WHERE kind = 'prompt' AND body LIKE '<evidence project=%')`;
+
+const UNFINISHED = "j.status IN ('pending', 'claimed', 'paused', 'failed', 'quarantined')";
+
+export interface BacklogSelector {
+  helpers?: boolean;
+  project?: string;
+  session?: string;
+  batch?: number;
+}
+
+function backlogWhere(sel: BacklogSelector, statuses = UNFINISHED): { sql: string; params: Record<string, unknown> } {
+  const parts = [statuses];
+  const params: Record<string, unknown> = {};
+  if (sel.helpers) parts.push(HELPER_SESSION);
+  if (sel.project !== undefined) {
+    parts.push('b.project = @project');
+    params.project = sel.project;
+  }
+  if (sel.session !== undefined) {
+    parts.push('b.session_id = @session');
+    params.session = sel.session;
+  }
+  if (sel.batch !== undefined) {
+    parts.push('b.id = @batch');
+    params.batch = sel.batch;
+  }
+  return { sql: parts.join(' AND '), params };
+}
+
+export interface BacklogGroup {
+  project: string;
+  helper: number;
+  status: string;
+  batches: number;
+  events: number;
+  oldest: string;
+  newest: string;
+}
+
+/** Unfinished jobs by project, helper-or-not and status — what `memory backlog` prints. */
+export function backlogSummary(db: DB, sel: BacklogSelector = {}): BacklogGroup[] {
+  const { sql, params } = backlogWhere(sel);
+  return db
+    .prepare(
+      `SELECT b.project, (${HELPER_SESSION}) AS helper, j.status, COUNT(*) AS batches,
+              SUM(b.event_count) AS events, MIN(b.created_at) AS oldest, MAX(b.created_at) AS newest
+       FROM memory_jobs j JOIN memory_batches b ON b.id = j.batch_id
+       WHERE ${sql}
+       GROUP BY b.project, helper, j.status ORDER BY batches DESC`,
+    )
+    .all(params) as BacklogGroup[];
+}
+
+/** Sets the selected jobs aside: kept, counted, never claimed. Returns how many moved. */
+export function quarantineBacklog(db: DB, sel: BacklogSelector): number {
+  const { sql, params } = backlogWhere(sel, "j.status IN ('pending', 'claimed', 'paused', 'failed')");
+  return db
+    .prepare(
+      `UPDATE memory_jobs SET status = 'quarantined', lease_owner = NULL, lease_until = NULL, updated_at = @now
+       WHERE id IN (SELECT j.id FROM memory_jobs j JOIN memory_batches b ON b.id = j.batch_id WHERE ${sql})`,
+    )
+    .run({ ...params, now: nowIso() }).changes;
+}
+
+/** Puts quarantined jobs back in the queue with their attempts reset, as `resumePaused` does. */
+export function restoreBacklog(db: DB, sel: BacklogSelector): number {
+  const { sql, params } = backlogWhere(sel, "j.status = 'quarantined'");
+  return db
+    .prepare(
+      `UPDATE memory_jobs SET status = 'pending', attempts = 0, next_attempt = NULL, updated_at = @now
+       WHERE id IN (SELECT j.id FROM memory_jobs j JOIN memory_batches b ON b.id = j.batch_id WHERE ${sql})`,
+    )
+    .run({ ...params, now: nowIso() }).changes;
+}
+
+/**
+ * Deletes the selected unfinished batches, their jobs and the raw evidence in
+ * them. Finished batches are never touched — what they produced is memory,
+ * with its own delete. One transaction, so a batch is gone whole or not at all.
+ */
+export function discardBacklog(db: DB, sel: BacklogSelector): { batches: number; events: number } {
+  const { sql, params } = backlogWhere(sel);
+  return db.transaction(() => {
+    const ids = (
+      db
+        .prepare(`SELECT b.id FROM memory_jobs j JOIN memory_batches b ON b.id = j.batch_id WHERE ${sql}`)
+        .all(params) as { id: number }[]
+    ).map((r) => r.id);
+    let events = 0;
+    const dropEvents = db.prepare(
+      'DELETE FROM evidence_events WHERE batch_id = ? AND id NOT IN (SELECT event_id FROM memory_entry_events)',
+    );
+    const dropJobs = db.prepare('DELETE FROM memory_jobs WHERE batch_id = ?');
+    const dropBatch = db.prepare('DELETE FROM memory_batches WHERE id = ?');
+    for (const id of ids) {
+      events += dropEvents.run(id).changes;
+      dropJobs.run(id);
+      dropBatch.run(id);
+    }
+    return { batches: ids.length, events };
+  })();
+}

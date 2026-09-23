@@ -617,7 +617,7 @@ describe('eklavya memory dispatches each subcommand', () => {
     // `install` with no list of the subcommands they meant.
     const res = eklavya(['memory', 'nonsense']);
     expect(res.status).toBe(1);
-    expect(res.stderr).toMatch(/^Usage: eklavya memory status\|search\|timeline\|show\|replay\|process\|prune/m);
+    expect(res.stderr).toMatch(/^Usage: eklavya memory status\|search\|timeline\|show\|replay\|process\|stop\|backlog\|prune/m);
     expect(res.stderr).not.toMatch(/eklavya serve/);
   });
 });

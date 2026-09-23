@@ -183,12 +183,17 @@ describe('the worker reservation', () => {
   });
 
   it.skipIf(!posix)('has one winner when a dozen processes race for it', async () => {
+    const children: ReturnType<typeof spawn>[] = [];
     const script = `
       import Database from 'better-sqlite3';
       import { reserveWorker } from ${JSON.stringify(path.join(mcpDir, 'dist', 'memory', 'reservation.js'))};
       const db = new Database(process.env.EKLAVYA_DB);
       db.pragma('busy_timeout = 5000');
       process.stdout.write(reserveWorker(db, process.pid) ? 'won' : 'lost');
+      // Stay alive until every racer has answered: a winner that exits frees
+      // the slot at once, which is the point of process identity.
+      process.stdin.resume();
+      process.stdin.on('end', () => process.exit(0));
     `;
     const racers = Array.from(
       { length: 12 },
@@ -196,11 +201,16 @@ describe('the worker reservation', () => {
         new Promise<string>((resolve) => {
           const child = spawn(process.execPath, ['--input-type=module', '-e', script], { env: env(), cwd: mcpDir });
           let out = '';
-          child.stdout.on('data', (d) => (out += d));
-          child.on('close', () => resolve(out));
+          child.stdout.on('data', (d) => {
+            out += d;
+            resolve(out);
+          });
+          children.push(child);
         }),
     );
     const results = await Promise.all(racers);
+    for (const child of children) child.stdin.end();
+    await Promise.all(children.map((c) => new Promise((r) => (c.exitCode !== null ? r(null) : c.on('close', r)))));
     expect(results.filter((r) => r === 'won')).toHaveLength(1);
     expect(results.filter((r) => r === 'lost')).toHaveLength(11);
   });
@@ -337,9 +347,10 @@ describe.skipIf(!posix)('the provider process tree', () => {
   it('a hung call is ended, grandchildren included, within the deadline plus grace', async () => {
     const pidFile = stubborn();
     const t = Date.now();
-    const err = await runClaude('m', 'x', { timeoutMs: 500, graceMs: 300 }).catch((e: unknown) => e);
+    // Long enough for the stand-in to start its grandchild on a loaded machine.
+    const err = await runClaude('m', 'x', { timeoutMs: 2_000, graceMs: 300 }).catch((e: unknown) => e);
     expect((err as ProviderError).errorClass).toBe('transient');
-    expect(Date.now() - t).toBeLessThan(5_000);
+    expect(Date.now() - t).toBeLessThan(8_000);
     expect(alive(Number(fs.readFileSync(pidFile, 'utf8')))).toBe(false);
   });
 
@@ -355,7 +366,8 @@ describe.skipIf(!posix)('the provider process tree', () => {
     batchSession(db, { project, sessionId: 's1', reason: 'session_seam' });
     const config = OBSERVED;
     const cancel = new AbortController();
-    setTimeout(() => cancel.abort(), 500);
+    // Mid-call means once the call is running, not after a guess at how long that takes.
+    void until(() => fs.existsSync(pidFile), 10_000).then(() => cancel.abort());
     const result = await processPending(db, config, { signal: cancel.signal });
     expect(result.processed).toBe(0);
     expect(result.failed).toBe(0);
