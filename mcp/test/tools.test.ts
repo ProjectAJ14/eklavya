@@ -62,6 +62,11 @@ afterEach(() => {
   process.env = { ...envBackup };
 });
 
+/** Makes `cwd` a git checkout. The backlog only exists inside a project. */
+function inProject() {
+  fs.mkdirSync(path.join(cwd, '.git'));
+}
+
 function logAuthWork(session = SESSION) {
   return call<any>(logSessionConcepts, {
     session_id: session,
@@ -442,6 +447,7 @@ describe('get_session_quiz_plan', () => {
   // never. That is the leak this source closes.
 
   it('offers work an earlier session logged and no question ever reached', () => {
+    inProject();
     call(logSessionConcepts, {
       session_id: 'earlier-session',
       concepts: [{ slug: 'pkce', context: 'added the code_verifier in login.ts' }],
@@ -458,6 +464,7 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('never re-offers backlog that some earlier session did ask about', () => {
+    inProject();
     call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'pkce' }] });
     // Asked and answered there, which is the whole difference. `alreadyAsked` is
     // scoped to the current session, so the source carries its own global filter.
@@ -480,6 +487,7 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('puts the session the developer is actually in ahead of the backlog', () => {
+    inProject();
     configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 2 });
     call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'pkce' }] });
     logAuthWork();
@@ -491,6 +499,7 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('keeps the backlog inside the domains this session touched', () => {
+    inProject();
     // One database serves every project, and `session_concepts` has no repo
     // column, so without this scope a web-auth session gets asked about the git
     // work it logged last month -- while `framing` still tells the tutor to ground
@@ -513,6 +522,7 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('falls back to the whole project backlog when this session logged nothing', () => {
+    inProject();
     // No diff to contradict, so there is nothing for the scope to protect and the
     // debt is the only thing worth asking about.
     call(logSessionConcepts, {
@@ -522,6 +532,21 @@ describe('get_session_quiz_plan', () => {
 
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.concepts.map((c: any) => c.slug)).toContain('git-commit');
+  });
+
+  it('carries no backlog over outside a project, but still asks about this session\'s work', () => {
+    // Every session with no git root shares one project key, so "an earlier
+    // session here" would mean any folder at all -- a session in ~ was asked
+    // about Flutter work logged in an unrelated scratch directory.
+    call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'git-commit' }] });
+
+    const empty = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(empty.questions_needed).toBe(0);
+
+    logAuthWork();
+    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map((c: any) => c.slug);
+    expect(slugs).toContain('httponly-cookies');
+    expect(slugs).not.toContain('git-commit');
   });
 
   it('never offers backlog or review debt from another project', () => {
