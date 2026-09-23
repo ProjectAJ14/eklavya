@@ -37,7 +37,7 @@ export interface SummarizeInput {
 export interface SummarizeOptions {
   /** Aborted when memory is turned off mid-call; the provider ends its child. */
   signal?: AbortSignal;
-  /** The provider's process-group leader, then null once it has exited. */
+  /** The provider's process-group leader, then null once its whole group has exited. */
   onSpawn?: (pid: number | null) => void;
 }
 

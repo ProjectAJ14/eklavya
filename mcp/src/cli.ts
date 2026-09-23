@@ -31,21 +31,26 @@ import { install, uninstall, health, claudeHome } from './install.js';
 import { guessProjectMap } from './claude-mem.js';
 import { check, dim, heading, spin, verdict, type Mark } from './theme.js';
 import { importOffThread } from './memory/import-worker.js';
-import { isInternalObserver, releaseWorker, renewWorker, reserveWorker, workerStatus } from './memory/reservation.js';
+import { isInternalObserver, renewWorker, reserveWorker, stopWorker, workerStatus } from './memory/reservation.js';
 import { identityFor } from './memory/identity.js';
 import {
+  backlogSummary,
   countEntries,
+  discardBacklog,
   entryById,
   entryEvents,
   entryTags,
   pendingEventCount,
+  quarantineBacklog,
   receiptTotals,
+  restoreBacklog,
   resumePaused,
   timeline,
+  type BacklogSelector,
 } from './memory/store.js';
 import { search, type SearchMode } from './memory/search.js';
 import { pull, push, syncStatus } from './memory/sync.js';
-import { processPending, pruneEvidence, queueDepth, summarizerFor } from './memory/worker.js';
+import { pruneEvidence, queueDepth, summarizerFor, superviseWorker } from './memory/worker.js';
 import { replayProject, transcriptDirFor, transcriptsFor } from './memory/replay.js';
 import { droppedCount } from './memory/spool.js';
 import { savingsFrom, savingsLine } from './memory/tokens.js';
@@ -94,6 +99,12 @@ Memory:
   eklavya memory process [--max <n>] [--no-resume]
                                         Drain the observation queue now
                                         Resumes jobs paused on a login or usage limit — run it once that is sorted
+  eklavya memory stop                   Stop the running memory worker and its claude call; the job goes back
+                                        to the queue. Signals only processes Eklavya recorded starting
+  eklavya memory backlog [quarantine|discard|restore]
+                                        List unfinished jobs by project, marking observer helper sessions;
+                                        or set aside, delete or bring back the ones you select with
+                                        --helpers, --project <key>, --session <id> or --batch <id>
   eklavya memory prune                  Delete raw evidence past memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
                                         --dry-run reads the source and reports; it writes nothing
@@ -467,7 +478,7 @@ function doctor(): void {
     const waiting = safely(() => pendingEventCount(db!), 0);
     add('ok', 'memory', `${entries} entries, ${evidence} evidence events ${dim(`(${waiting} not yet summarised)`)}`);
 
-    const queue = safely(() => queueDepth(db!), { pending: 0, paused: 0, failed: 0, oldest: null });
+    const queue = safely(() => queueDepth(db!), { pending: 0, paused: 0, failed: 0, quarantined: 0, oldest: null });
     add('ok', 'memory', `queue ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`);
     add('ok', 'memory', `worker ${safely(() => workerLine(db!), 'unknown')}`);
 
@@ -761,7 +772,7 @@ function dashboardCommand(argv: string[]): void {
  * to ask for it.
  */
 const MEMORY_USAGE =
-  'Usage: eklavya memory status|search|timeline|show|replay|process|prune|import|export|restore|sync\n' +
+  'Usage: eklavya memory status|search|timeline|show|replay|process|stop|backlog|prune|import|export|restore|sync\n' +
   '       run `eklavya --help` for the full list\n';
 
 function flag(argv: string[], name: string, fallback?: string): string | undefined {
@@ -812,17 +823,49 @@ function importedLines(db: DB, project: string): string[] {
   ];
 }
 
+/** "2m 05s" — elapsed since an ISO stamp. */
+function since(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return '?';
+  const secs = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
+  return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s`;
+}
+
 /** The one background worker, or that there is none — for `memory status` and `doctor`. */
 function workerLine(db: DB): string {
   const w = workerStatus(db);
   if (!w) return 'none running';
   return [
     w.pid ? `pid ${w.pid}` : 'starting',
+    w.started ? `up ${since(w.started)}` : null,
+    w.generation ? `hand-off ${w.generation}` : null,
     w.child ? `claude pid ${w.child}` : null,
-    `heartbeat ${w.heartbeat}`,
+    w.job ? `job #${w.job} for ${since(w.jobStarted)}` : null,
+    w.stale ? `STALE — no heartbeat for ${since(w.heartbeat)}, being stopped` : `heartbeat ${since(w.heartbeat)} ago`,
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+/**
+ * Why the queue is paused, by class — never `last_error`, which is the
+ * provider's own prose and has carried a URL with a token in it.
+ */
+function pauseLine(db: DB): string | null {
+  const rows = db
+    .prepare(
+      `SELECT error_class, COUNT(*) AS n, MAX(updated_at) AS at FROM memory_jobs
+       WHERE status = 'paused' GROUP BY error_class ORDER BY at DESC`,
+    )
+    .all() as { error_class: string | null; n: number; at: string }[];
+  if (!rows.length) return null;
+  const why: Record<string, string> = {
+    auth: 'claude is not logged in',
+    quota: 'usage limit reached',
+    missing: 'claude is not on the PATH',
+  };
+  return rows
+    .map((r) => `${r.n} on ${r.error_class ?? 'unclassified'}${why[r.error_class ?? ''] ? ` (${why[r.error_class!]})` : ''}, since ${r.at}`)
+    .join('; ');
 }
 
 function memoryStatus(): void {
@@ -844,8 +887,11 @@ function memoryStatus(): void {
       `entries:    ${countEntries(db, project)} here, ${countEntries(db)} in total`,
       ...importedLines(db, project),
       `pending:    ${pendingEventCount(db, project)} evidence events here, ${pendingEventCount(db)} in total`,
-      `queue:      ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`,
+      `queue:      ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed${
+        queue.quarantined ? ` · ${queue.quarantined} quarantined` : ''
+      }`,
       `oldest job: ${queue.oldest ?? '—'}`,
+      ...(pauseLine(db) ? [`paused:     ${pauseLine(db)} — fix it, then: eklavya memory process`] : []),
       `worker:     ${workerLine(db)}`,
       // Named separately from the summarizer because they answer different
       // questions: one is "will anything leave this machine", the other is
@@ -986,11 +1032,18 @@ function memoryProcess(argv: string[]): void {
   // One worker per installation, manual runs included. A hook that spawned us
   // already won the slot and hands over its token; anyone else competes for it.
   const handed = flag(argv, '--worker-token');
-  const token = handed
-    ? renewWorker(db, handed, { pid: process.pid })
-      ? handed
-      : null
-    : reserveWorker(db, process.pid);
+  let token: string | null;
+  try {
+    token = handed
+      ? renewWorker(db, handed, { pid: process.pid })
+        ? handed
+        : null
+      : reserveWorker(db, process.pid);
+  } catch {
+    // A database too busy to reserve in is one to leave alone: the slot, if
+    // this launch held it, lapses on its own.
+    token = null;
+  }
   if (!token) {
     const holder = workerStatus(db);
     if (!background) {
@@ -1006,54 +1059,116 @@ function memoryProcess(argv: string[]): void {
   // itself is exactly the retry loop the comment above rules out.
   const resumed = background ? 0 : resumePaused(db);
 
-  // Turning memory off means stop now, not after the queue: re-read the
-  // settings between jobs and every few seconds during a call, and cancel the
-  // call when they say so. The evidence stays queued.
-  const cancel = new AbortController();
-  const stillOn = (): boolean => {
-    try {
-      const now = loadConfig().config;
-      return now.memory.enabled && (!background || Boolean(now.providers.observer));
-    } catch {
-      return true;
-    }
-  };
-  let child: number | null = null;
-  const heartbeat = setInterval(() => {
-    if (!renewWorker(db, token, { child }) || !stillOn()) cancel.abort();
-  }, 5_000);
-  const stop = () => cancel.abort();
-  process.once('SIGTERM', stop);
-  process.once('SIGINT', stop);
+  // SIGHUP too: a closed terminal is a stop, and the call it left running is
+  // exactly the orphan this has to prevent.
+  const stop = new AbortController();
+  const onSignal = () => stop.abort();
+  for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.once(sig, onSignal);
 
-  const finish = () => {
-    clearInterval(heartbeat);
-    releaseWorker(db, token);
-    db.close();
-  };
-
-  processPending(db, config, {
+  superviseWorker(db, token, config, {
     maxJobs,
-    signal: cancel.signal,
-    beforeJob: () => renewWorker(db, token, { child: null }) && stillOn(),
-    onSpawn: (pid) => {
-      child = pid;
-      renewWorker(db, token, { child: pid });
-    },
+    signal: stop.signal,
+    loadConfig: () => loadConfig().config,
   }).then(
     (result) => {
       if (!background) {
         process.stdout.write(
-          `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}\n`,
+          `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}${
+            result.handedOff ? ' · more queued, continuing in the background' : ''
+          }\n`,
         );
       }
-      finish();
+      db.close();
     },
     (err: Error) => {
-      finish();
+      db.close();
       fail(`eklavya memory process: ${err.message}`);
     },
   );
+}
+
+/**
+ * `eklavya memory backlog [quarantine|discard|restore] [selector]`: look at the
+ * unfinished queue before letting a provider loose on it, and set aside or
+ * delete what an incident put there. A change needs a selector — there is no
+ * "all", because the queue also holds real work.
+ */
+function memoryBacklog(argv: string[]): void {
+  const action = argv[0] && !argv[0].startsWith('--') ? argv[0] : 'list';
+  const batch = flag(argv, '--batch');
+  const sel: BacklogSelector = {
+    helpers: argv.includes('--helpers'),
+    project: flag(argv, '--project'),
+    session: flag(argv, '--session'),
+    batch: batch === undefined ? undefined : Number(batch),
+  };
+  if (sel.batch !== undefined && !Number.isInteger(sel.batch)) fail('--batch needs a batch id.');
+  const selected = sel.helpers || sel.project !== undefined || sel.session !== undefined || sel.batch !== undefined;
+
+  const db = openDb();
+  try {
+    if (action === 'list') {
+      const groups = backlogSummary(db, sel);
+      if (!groups.length) {
+        process.stdout.write('No unfinished jobs.\n');
+        return;
+      }
+      for (const g of groups) {
+        process.stdout.write(
+          `${String(g.batches).padStart(6)} ${g.status.padEnd(11)} ${g.project}${g.helper ? '  [observer helper sessions]' : ''}\n` +
+            `       ${g.events} events · ${g.oldest.slice(0, 16).replace('T', ' ')} → ${g.newest.slice(0, 16).replace('T', ' ')}\n`,
+        );
+      }
+      if (groups.some((g) => g.helper)) {
+        process.stdout.write(
+          '\nHelper sessions are the observer summarising its own runs — noise. Set them aside or delete them:\n' +
+            '  eklavya memory backlog quarantine --helpers\n  eklavya memory backlog discard --helpers\n',
+        );
+      }
+      return;
+    }
+    if (!selected) fail(`eklavya memory backlog ${action} needs --helpers, --project <key>, --session <id> or --batch <id>.`);
+    if (action === 'quarantine') {
+      process.stdout.write(`quarantined ${quarantineBacklog(db, sel)} job(s) — kept, and never processed until restored.\n`);
+    } else if (action === 'restore') {
+      process.stdout.write(`restored ${restoreBacklog(db, sel)} job(s) to the queue.\n`);
+    } else if (action === 'discard') {
+      const gone = discardBacklog(db, sel);
+      process.stdout.write(`discarded ${gone.batches} batch(es) and ${gone.events} evidence event(s).\n`);
+    } else {
+      fail('Usage: eklavya memory backlog [list|quarantine|discard|restore] [--helpers] [--project <key>] [--session <id>] [--batch <id>]');
+    }
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * `eklavya memory stop`: ends the running worker and its provider call, and
+ * nothing that is not theirs. The job in flight goes back to the queue.
+ */
+function memoryStop(): void {
+  if (isInternalObserver()) return;
+  const db = openDb();
+  void stopWorker(db).then((outcome) => {
+    const { config } = loadConfig();
+    if (!outcome.stopped) {
+      process.stdout.write('no memory worker is running.\n');
+    } else {
+      process.stdout.write(
+        `stopped the memory worker${outcome.pid ? ` (pid ${outcome.pid})` : ''}${
+          outcome.child ? ` and its claude call (pid ${outcome.child})` : ''
+        }${outcome.forced ? ' — it had to be killed' : ''}. Unfinished jobs stay queued.\n` +
+          (outcome.released ? '' : 'something it started would not exit; the slot stays held until it does.\n'),
+      );
+    }
+    if (config.providers.observer) {
+      process.stdout.write(
+        'the next session seam starts a new one. To keep it stopped: eklavya config set providers.observer null\n',
+      );
+    }
+    db.close();
+  });
 }
 
 /**
@@ -1450,6 +1565,10 @@ function memoryCommand(argv: string[]): void {
       return memoryReplay(rest);
     case 'process':
       return memoryProcess(rest);
+    case 'stop':
+      return memoryStop();
+    case 'backlog':
+      return memoryBacklog(rest);
     case 'prune':
       return memoryPrune();
     case 'import':

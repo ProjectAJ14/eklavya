@@ -4,6 +4,7 @@ import type { EklavyaConfig } from '../config.js';
 import { nowIso } from '../time.js';
 import { ProviderError, ProviderSummarizer } from './provider.js';
 import { LocalSummarizer, summarizeSession, type Summarizer } from './summarize.js';
+import { handOffWorker, launchWorker, releaseWorker, renewWorker } from './reservation.js';
 import {
   addCandidate,
   batchById,
@@ -12,6 +13,7 @@ import {
   claimJob,
   failJob,
   finishJob,
+  hasClaimableJob,
   ownsJob,
   releaseJob,
   pausesQueue,
@@ -120,6 +122,30 @@ export interface WorkerResult {
   entries: number;
   failed: number;
   skipped: number;
+  /**
+   * Why the run ended. Only `limit` and `empty` may hand the slot to a
+   * successor: the others are a pause, a cancel, or a lost reservation, and a
+   * successor would meet the same thing.
+   */
+  stopped: 'limit' | 'empty' | 'paused' | 'cancelled' | 'refused';
+}
+
+/**
+ * Retries a write the database refused, without blocking: a busy database is
+ * one other processes are using, and a synchronous spin would stop this one
+ * from reaping, heartbeating or answering a signal while it waits.
+ */
+async function persist(write: () => unknown, ms = 10_000): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    try {
+      write();
+      return true;
+    } catch {
+      if (Date.now() >= deadline) return false;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
 }
 
 export async function processPending(
@@ -133,17 +159,30 @@ export async function processPending(
     /** Asked before each claim; false stops the run (lost reservation, config off). */
     beforeJob?: () => boolean;
     onSpawn?: (pid: number | null) => void;
+    /** The job just claimed, then null once it is settled — for `memory status`. */
+    onJob?: (jobId: number | null) => void;
   } = {},
 ): Promise<WorkerResult> {
   const owner = opts.owner ?? `${process.pid}-${crypto.randomUUID().slice(0, 8)}`;
   const maxJobs = opts.maxJobs ?? 3;
   const summarizer = summarizerFor(config);
-  const result: WorkerResult = { processed: 0, entries: 0, failed: 0, skipped: 0 };
+  const result: WorkerResult = { processed: 0, entries: 0, failed: 0, skipped: 0, stopped: 'limit' };
 
   for (let i = 0; i < maxJobs; i++) {
-    if (opts.signal?.aborted || (opts.beforeJob && !opts.beforeJob())) break;
+    if (opts.signal?.aborted) {
+      result.stopped = 'cancelled';
+      break;
+    }
+    if (opts.beforeJob && !opts.beforeJob()) {
+      result.stopped = 'refused';
+      break;
+    }
     const job = claimJob(db, owner);
-    if (!job) break;
+    if (!job) {
+      result.stopped = 'empty';
+      break;
+    }
+    opts.onJob?.(job.id);
 
     const batch = batchById(db, job.batch_id);
     const events = batchEvents(db, job.batch_id);
@@ -168,6 +207,7 @@ export async function processPending(
         sessionId: batch.session_id,
         events,
       }, { signal: opts.signal, onSpawn: opts.onSpawn });
+      opts.onJob?.(null);
 
       // One transaction for the entries, the candidates and the event status:
       // a crash between them would leave events marked done with nothing to
@@ -216,21 +256,156 @@ export async function processPending(
       result.entries += drafts.length;
       result.processed++;
     } catch (error) {
+      opts.onJob?.(null);
       const errorClass = error instanceof ProviderError ? error.errorClass : 'transient';
       if (errorClass === 'cancelled') {
-        // Turned off, not broken: the evidence stays queued and the attempt unspent.
-        releaseJob(db, job.id, owner);
+        // Turned off, not broken: the evidence stays queued and the attempt
+        // unspent. A cancel is often *because* the database is contended, so
+        // this waits for it; failing that, the lease lapses and the job is
+        // claimed again with one attempt spent.
+        await persist(() => releaseJob(db, job.id, owner));
+        result.stopped = 'cancelled';
         break;
       }
       failJob(db, job.id, owner, errorClass, error instanceof Error ? error.message : String(error));
       result.failed++;
       // A paused provider will fail the next job the same way; stop rather than
       // burn the remaining budget re-learning that the key is rejected.
-      if (pausesQueue(errorClass)) break;
+      if (pausesQueue(errorClass)) {
+        result.stopped = 'paused';
+        break;
+      }
     }
   }
 
   return result;
+}
+
+/** The observer a run started with, as something comparable. */
+const observerOf = (config: EklavyaConfig): string => JSON.stringify(config.providers.observer ?? null);
+
+export interface SupervisedResult extends WorkerResult {
+  /** A successor was launched under the same token. */
+  handedOff: boolean;
+  /** The slot was given back. False while a provider tree is still alive, or after a hand-off. */
+  released: boolean;
+}
+
+/**
+ * One reserved worker run, from adoption to release: what `eklavya memory
+ * process` does once it holds `token`.
+ *
+ * Every database write on the way — the heartbeat, recording the provider's
+ * pid, recording the job — is caught. The shape that took a Mac down was a
+ * callback throwing on a busy database: the worker died, the provider tree it
+ * had started kept running, and the slot stayed held by nobody. Now a failed
+ * write cancels the call, the provider tree is reaped (`runClaude` settles only
+ * after that), and only then is the slot released.
+ *
+ * The settings are re-read every heartbeat and before every job. The run stops
+ * — and the job in flight goes back unspent — when memory is turned off *or*
+ * when `providers.observer` is no longer the one it started with, whether this
+ * run was launched by a hook or by hand. Clearing the observer means no more
+ * provider calls, and it has to mean that for every worker.
+ *
+ * On the way out, a run that ended for want of budget or of work hands the
+ * slot straight to a successor if claimable jobs remain (`handOffWorker`):
+ * seams that lost the slot while it ran queued their batches expecting a
+ * worker, and this is the worker. Bounded by `MAX_GENERATIONS`, and never past
+ * a pause or a retry floor, because those jobs are not claimable.
+ */
+export async function superviseWorker(
+  db: DB,
+  token: string,
+  config: EklavyaConfig,
+  opts: {
+    maxJobs: number;
+    /** Re-read on every heartbeat; a throw keeps the last answer. */
+    loadConfig: () => EklavyaConfig;
+    /** Aborted to stop the run from outside — SIGTERM, SIGINT. */
+    signal?: AbortSignal;
+    heartbeatMs?: number;
+    /** How a successor is started; tests pass a stand-in. */
+    launch?: (db: DB, token: string) => boolean;
+  },
+): Promise<SupervisedResult> {
+  const started = observerOf(config);
+  const stillOn = (): boolean => {
+    try {
+      const now = opts.loadConfig();
+      return now.memory.enabled && observerOf(now) === started;
+    } catch {
+      return true;
+    }
+  };
+  const renew = (patch: { child?: number | null; job?: number | null }): boolean => {
+    try {
+      return renewWorker(db, token, patch);
+    } catch {
+      return false;
+    }
+  };
+
+  const cancel = new AbortController();
+  const stop = () => cancel.abort();
+  if (opts.signal?.aborted) stop();
+  opts.signal?.addEventListener('abort', stop, { once: true });
+
+  // The provider's group while it is alive — cleared only once `runClaude` has
+  // confirmed the group empty — and the job being worked on.
+  let child: number | null = null;
+  let job: number | null = null;
+  const heartbeat = setInterval(() => {
+    if (!renew({ child, job }) || !stillOn()) cancel.abort();
+  }, opts.heartbeatMs ?? 5_000);
+  // Cancelled is final: renewing a lease the run is giving up only adds load
+  // to a database that may be the reason it gave up.
+  cancel.signal.addEventListener('abort', () => clearInterval(heartbeat), { once: true });
+
+  let result: WorkerResult;
+  try {
+    result = await processPending(db, config, {
+      maxJobs: opts.maxJobs,
+      signal: cancel.signal,
+      // A tree that would not die blocks the next call: one at a time, always.
+      beforeJob: () => child === null && renew({ child: null, job: null }) && stillOn(),
+      onSpawn: (pid) => {
+        child = pid;
+        // Thrown into `runClaude`, which cancels the call it just started.
+        if (pid !== null && !renew({ child: pid })) throw new Error('could not record the provider call');
+      },
+      onJob: (id) => {
+        job = id;
+        renew({ job: id });
+      },
+    });
+  } catch {
+    // A database error outside a call (claiming, committing). Any call has
+    // already settled, which means its tree has already been reaped.
+    result = { processed: 0, entries: 0, failed: 0, skipped: 0, stopped: 'refused' };
+  } finally {
+    clearInterval(heartbeat);
+    opts.signal?.removeEventListener('abort', stop);
+  }
+
+  // Descendants outlived SIGKILL: keep the slot, so no other worker starts
+  // beside them. The record names the group; recovery can see and end it.
+  if (child !== null) return { ...result, handedOff: false, released: false };
+
+  let handedOff = false;
+  if ((result.stopped === 'limit' || result.stopped === 'empty') && config.providers.observer && stillOn()) {
+    try {
+      handedOff = handOffWorker(db, token, () => hasClaimableJob(db) && queueDepth(db).paused === 0);
+    } catch {
+      handedOff = false;
+    }
+    // A successor that cannot start releases the slot itself.
+    if (handedOff) handedOff = (opts.launch ?? launchWorker)(db, token);
+  }
+  const released = handedOff ? false : await persist(() => {
+    if (!releaseWorker(db, token)) throw new Error('busy');
+  });
+  return { ...result, handedOff, released };
 }
 
 /**
@@ -252,17 +427,24 @@ export async function flushSession(
 }
 
 /** Age of the oldest unprocessed job, for the health surfaces. */
-export function queueDepth(db: DB): { pending: number; paused: number; failed: number; oldest: string | null } {
+export function queueDepth(db: DB): {
+  pending: number;
+  paused: number;
+  failed: number;
+  quarantined: number;
+  oldest: string | null;
+} {
   const row = db
     .prepare(
       `SELECT
          COALESCE(SUM(CASE WHEN status IN ('pending','claimed') THEN 1 ELSE 0 END), 0) AS pending,
          COALESCE(SUM(CASE WHEN status = 'paused' THEN 1 ELSE 0 END), 0) AS paused,
          COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS failed,
+         COALESCE(SUM(CASE WHEN status = 'quarantined' THEN 1 ELSE 0 END), 0) AS quarantined,
          MIN(CASE WHEN status IN ('pending','claimed') THEN created_at END) AS oldest
        FROM memory_jobs`,
     )
-    .get() as { pending: number; paused: number; failed: number; oldest: string | null };
+    .get() as { pending: number; paused: number; failed: number; quarantined: number; oldest: string | null };
   return row;
 }
 

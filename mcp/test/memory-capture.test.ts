@@ -196,7 +196,7 @@ describe('the job worker', () => {
     vi.spyOn(LocalSummarizer.prototype, 'summarize').mockRejectedValue(new Error('summariser exploded'));
 
     const result = await processPending(db, config(), { maxJobs: 1 });
-    expect(result).toEqual({ processed: 0, entries: 0, failed: 1, skipped: 0 });
+    expect(result).toEqual({ processed: 0, entries: 0, failed: 1, skipped: 0, stopped: 'limit' });
 
     // A transient failure must not consume the work: the batch is still there
     // and the job is queued. It is held back for a cooldown first — the next

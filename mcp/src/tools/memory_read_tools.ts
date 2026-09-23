@@ -301,7 +301,7 @@ export const memoryStatus: ToolDef = {
       capture: config.memory.capture,
       entries: safely(() => countEntries(db, project), 0),
       pending_events: safely(() => pendingEventCount(db, project), 0),
-      queue: safely(() => queueDepth(db), { pending: 0, paused: 0, failed: 0, oldest: null }),
+      queue: safely(() => queueDepth(db), { pending: 0, paused: 0, failed: 0, quarantined: 0, oldest: null }),
       newest_evidence: safely(
         () =>
           (db.prepare('SELECT MAX(occurred_at) AS at FROM evidence_events WHERE project = ?').get(project) as {

@@ -6,8 +6,6 @@
  * developer is *least* willing to lose a session to: it runs on every tool
  * call, so a throw here is a throw on every tool call.
  */
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import type { ResolvedConfig } from '../config.js';
 import { projectKey } from '../store.js';
 import { identityFor, type EvidenceIdentity } from '../memory/identity.js';
@@ -19,7 +17,7 @@ import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
 import { countEntries } from '../memory/store.js';
 import { queueDepth } from '../memory/worker.js';
 import type { DB, HookInput } from './lib.js';
-import { isInternalObserver, releaseWorker, renewWorker, reserveWorker } from '../memory/reservation.js';
+import { isInternalObserver, launchWorker, reserveWorker } from '../memory/reservation.js';
 
 export function identityOf(input: HookInput, cwd: string, sid: string | null): EvidenceIdentity {
   const identity = identityFor({
@@ -110,24 +108,7 @@ export async function flushAtSeam(db: DB, resolved: ResolvedConfig, identity: Ev
 function drainInBackground(db: DB): void {
   if (isInternalObserver()) return;
   const token = reserveWorker(db);
-  if (!token) return;
-  try {
-    const cli = fileURLToPath(new URL('../cli.js', import.meta.url));
-    const child = spawn(process.execPath, [cli, 'memory', 'process', '--no-resume', '--max', '4', '--worker-token', token], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-    child.on('error', () => releaseWorker(db, token));
-    if (!child.pid) {
-      releaseWorker(db, token);
-      return;
-    }
-    renewWorker(db, token, { pid: child.pid });
-    child.unref();
-  } catch {
-    releaseWorker(db, token);
-  }
+  if (token) launchWorker(db, token);
 }
 
 /** Replays anything the spool holds. Idempotent; safe to call every session. */

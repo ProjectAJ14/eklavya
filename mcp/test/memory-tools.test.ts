@@ -281,7 +281,7 @@ describe('memory_status', () => {
     expect(result.project).toBe(project);
     expect(result.entries).toBe(0);
     expect(result.pending_events).toBe(0);
-    expect(result.queue).toEqual({ pending: 0, paused: 0, failed: 0, oldest: null });
+    expect(result.queue).toEqual({ pending: 0, paused: 0, failed: 0, quarantined: 0, oldest: null });
     expect(result.newest_evidence).toBeNull();
     expect(result.savings).toEqual({ kind: 'none' });
     expect(result.summarizer).toBe('local-v1');

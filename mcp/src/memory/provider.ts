@@ -3,7 +3,7 @@ import os from 'node:os';
 import { z } from 'zod';
 import type { ProviderConfig } from '../config.js';
 import type { EntryDraft, SummarizeInput, SummarizeOptions, Summarizer } from './summarize.js';
-import { OBSERVER_ENV } from './reservation.js';
+import { groupAlive, OBSERVER_ENV } from './reservation.js';
 
 /**
  * The configured observer (ADR-04, PRD MEM-02, CFG-02).
@@ -173,6 +173,34 @@ const NOT_THE_SUBSCRIPTION = [
 ];
 
 /**
+ * Waits for process group `pgid` to empty: SIGTERM to whatever is left, SIGKILL
+ * after `graceMs`, then a short wait for the kernel to finish the job. True once
+ * nothing in the group is alive.
+ */
+async function reapGroup(pgid: number, graceMs: number): Promise<boolean> {
+  if (process.platform === 'win32') return true;
+  const settle = async (ms: number) => {
+    const deadline = Date.now() + ms;
+    while (groupAlive(pgid) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25));
+  };
+  const signal = (sig: NodeJS.Signals) => {
+    try {
+      process.kill(-pgid, sig);
+    } catch {
+      /* Already gone. */
+    }
+  };
+  if (!groupAlive(pgid)) return true;
+  signal('SIGTERM');
+  await settle(graceMs);
+  if (groupAlive(pgid)) {
+    signal('SIGKILL');
+    await settle(2_000);
+  }
+  return !groupAlive(pgid);
+}
+
+/**
  * Runs the configured Claude model through Claude Code (`claude -p`), on the
  * developer's own subscription. Every variable that would route it elsewhere —
  * an API key or token, Bedrock, Vertex — is stripped from the child's
@@ -185,10 +213,17 @@ const NOT_THE_SUBSCRIPTION = [
  * and 2.1.280 ran the hooks anyway; `--safe-mode` is a second ask, not a
  * guarantee.
  *
- * The child leads its own process group, so a timeout or a cancel ends the
- * whole tree — `claude` and anything it started — not just the direct child.
- * SIGTERM first, SIGKILL after `graceMs`, and the promise settles only once the
- * child has exited, so the caller never releases its slot beside a live tree.
+ * The child leads its own process group, and that group is reaped on **every**
+ * way out — success included, because `claude` exiting cleanly says nothing
+ * about what it started. A timeout, a cancel or an output overflow sends
+ * SIGTERM at once; whatever is left when the leader exits gets SIGTERM, then
+ * SIGKILL after `graceMs`. The promise settles only after that, and
+ * `onSpawn(null)` is called only when the group is confirmed empty — so a
+ * caller that keys its release on it never gives up its slot beside a live
+ * tree. If this process dies first, an exit handler SIGKILLs the group.
+ *
+ * `onSpawn` is the caller's code and may throw (it writes to a database). A
+ * throw cancels the call rather than escaping with the tree still running.
  */
 export function runClaude(
   model: string,
@@ -197,6 +232,7 @@ export function runClaude(
     signal?: AbortSignal;
     timeoutMs?: number;
     graceMs?: number;
+    maxOutput?: number;
     onSpawn?: (pid: number | null) => void;
   } = {},
 ): Promise<string> {
@@ -204,6 +240,7 @@ export function runClaude(
   for (const name of NOT_THE_SUBSCRIPTION) delete env[name];
   const timeoutMs = opts.timeoutMs ?? TIMEOUT_MS;
   const graceMs = opts.graceMs ?? KILL_GRACE_MS;
+  const maxOutput = opts.maxOutput ?? MAX_STDOUT;
 
   return new Promise((resolve, reject) => {
     if (opts.signal?.aborted) return reject(new ProviderError('cancelled', 'cancelled before claude started'));
@@ -233,11 +270,26 @@ export function runClaude(
         /* Already gone. */
       }
     };
+    // The last resort, for a worker that dies with the call running: an
+    // uncaught throw or process.exit still runs 'exit' listeners.
+    const onExit = () => signalTree('SIGKILL');
+    process.once('exit', onExit);
+
     const end = (why: ProviderError) => {
       if (ended) return;
       ended = why;
+      // Nothing after this point is ever read: let go of what was buffered.
+      stdout = '';
       signalTree('SIGTERM');
       force = setTimeout(() => signalTree('SIGKILL'), graceMs);
+    };
+    const report = (pid: number | null): boolean => {
+      try {
+        opts.onSpawn?.(pid);
+        return true;
+      } catch {
+        return false;
+      }
     };
 
     const timer = setTimeout(
@@ -246,12 +298,17 @@ export function runClaude(
     );
     const onAbort = () => end(new ProviderError('cancelled', 'memory processing was turned off'));
     opts.signal?.addEventListener('abort', onAbort, { once: true });
-    opts.onSpawn?.(child.pid ?? null);
+    if (!report(child.pid ?? null)) end(new ProviderError('cancelled', 'the worker could not record its provider call'));
 
     child.stdout!.setEncoding('utf8');
     child.stdout!.on('data', (d: string) => {
+      // Once the call is over — overflow, timeout, cancel — keep draining the
+      // pipe so the child is never blocked on a write, but keep none of it.
+      if (ended) return;
       stdout += d;
-      if (stdout.length > MAX_STDOUT) end(new ProviderError('malformed', 'claude -p printed more than 16 MB'));
+      if (stdout.length > maxOutput) {
+        end(new ProviderError('malformed', `claude -p printed more than ${Math.round(maxOutput / 1024 / 1024)} MB`));
+      }
     });
     child.stdin!.on('error', () => {});
     child.stdin!.end(prompt);
@@ -260,21 +317,42 @@ export function runClaude(
     child.once('error', (err: NodeJS.ErrnoException) => {
       spawnError = err;
     });
+
+    // Reaping starts when the leader exits, not when its pipes close: anything
+    // it left running may hold stdout open, and 'close' would then wait for it
+    // — to the deadline, or for ever. Killing the group closes the pipe.
+    let reaping: Promise<boolean> | null = null;
+    let unstick: NodeJS.Timeout | undefined;
+    let killedBy: NodeJS.Signals | null = null;
+    child.once('exit', (_code, sig) => {
+      killedBy = sig;
+      reaping = child.pid ? reapGroup(child.pid, ended ? 0 : graceMs) : Promise.resolve(true);
+      // A descendant that left the group can still hold the pipe; stop waiting for it.
+      unstick = setTimeout(() => child.stdout?.destroy(), graceMs + 3_000);
+    });
     child.once('close', () => {
       clearTimeout(timer);
       if (force) clearTimeout(force);
       opts.signal?.removeEventListener('abort', onAbort);
-      // The group may outlive its leader: make sure nothing it started is left.
-      if (ended) signalTree('SIGKILL');
-      opts.onSpawn?.(null);
 
-      if (spawnError?.code === 'ENOENT') {
-        return reject(new ProviderError('missing', 'claude is not on the PATH the hooks see'));
-      }
-      if (ended) return reject(ended);
-      if (spawnError) return reject(new ProviderError('transient', spawnError.message));
-      // A failed run still prints its JSON envelope; that says more than the exit code.
-      resolve(stdout);
+      const reaped = reaping ?? (child.pid ? reapGroup(child.pid, 0) : Promise.resolve(true));
+      void reaped.then((clear) => {
+        if (unstick) clearTimeout(unstick);
+        process.removeListener('exit', onExit);
+        // Only a confirmed-empty group clears the caller's record of it.
+        if (clear) report(null);
+
+        if (spawnError?.code === 'ENOENT') {
+          return reject(new ProviderError('missing', 'claude is not on the PATH the hooks see'));
+        }
+        if (ended) return reject(ended);
+        if (spawnError) return reject(new ProviderError('transient', spawnError.message));
+        // Killed by somebody else's signal: whatever it printed is cut short,
+        // and parsing it would call a stopped run malformed — a permanent fail.
+        if (killedBy) return reject(new ProviderError('transient', `claude -p was stopped by ${killedBy}`));
+        // A failed run still prints its JSON envelope; that says more than the exit code.
+        resolve(stdout);
+      });
     });
   });
 }

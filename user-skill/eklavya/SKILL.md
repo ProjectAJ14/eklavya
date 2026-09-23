@@ -145,7 +145,9 @@ Other keys, same `config set` shape: `pass_threshold`,
 eklavya doctor         # is it wired up: runtime, driver, plugin, skill, database, config, level
 eklavya config get     # the effective config, and which file each half came from
 eklavya db-path        # where the history lives
-eklavya memory status  # is capture healthy: entries, queue, provider, savings
+eklavya memory status  # is capture healthy: entries, queue, pause reason, worker pid/job, provider, savings
+eklavya memory stop    # end the running worker and its claude call; the job goes back to the queue
+eklavya memory backlog # unfinished jobs by project; `quarantine|discard|restore --helpers` for the 1.24.0 loop's noise
 ```
 
 ## The memory half
