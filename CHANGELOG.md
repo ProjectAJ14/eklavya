@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/ProjectAJ14/eklavya/compare/v1.24.2...v1.25.0) (2026-09-23)
+
+
+### Features
+
+* **dashboard:** split into Learning and Memory workflows with one project inventory ([1b5509e](https://github.com/ProjectAJ14/eklavya/commit/1b5509e6f1262ce265014726a204d09a369be741))
+
 ## [1.24.2](https://github.com/ProjectAJ14/eklavya/compare/v1.24.1...v1.24.2) (2026-09-23)
 
 
