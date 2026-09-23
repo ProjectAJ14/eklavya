@@ -31,6 +31,7 @@ import { install, uninstall, health, claudeHome } from './install.js';
 import { guessProjectMap } from './claude-mem.js';
 import { check, dim, heading, spin, verdict, type Mark } from './theme.js';
 import { importOffThread } from './memory/import-worker.js';
+import { isInternalObserver, releaseWorker, renewWorker, reserveWorker, workerStatus } from './memory/reservation.js';
 import { identityFor } from './memory/identity.js';
 import {
   countEntries,
@@ -468,6 +469,7 @@ function doctor(): void {
 
     const queue = safely(() => queueDepth(db!), { pending: 0, paused: 0, failed: 0, oldest: null });
     add('ok', 'memory', `queue ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`);
+    add('ok', 'memory', `worker ${safely(() => workerLine(db!), 'unknown')}`);
 
     // The class, never the message. `last_error` is the provider's own prose
     // and has carried a URL with a token in it; the class is what tells someone
@@ -810,6 +812,19 @@ function importedLines(db: DB, project: string): string[] {
   ];
 }
 
+/** The one background worker, or that there is none — for `memory status` and `doctor`. */
+function workerLine(db: DB): string {
+  const w = workerStatus(db);
+  if (!w) return 'none running';
+  return [
+    w.pid ? `pid ${w.pid}` : 'starting',
+    w.child ? `claude pid ${w.child}` : null,
+    `heartbeat ${w.heartbeat}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 function memoryStatus(): void {
   const db = openDb();
   try {
@@ -831,6 +846,7 @@ function memoryStatus(): void {
       `pending:    ${pendingEventCount(db, project)} evidence events here, ${pendingEventCount(db)} in total`,
       `queue:      ${queue.pending} pending · ${queue.paused} paused · ${queue.failed} failed`,
       `oldest job: ${queue.oldest ?? '—'}`,
+      `worker:     ${workerLine(db)}`,
       // Named separately from the summarizer because they answer different
       // questions: one is "will anything leave this machine", the other is
       // "what is actually writing the observations right now".
@@ -951,6 +967,9 @@ function memoryShow(argv: string[]): void {
 }
 
 function memoryProcess(argv: string[]): void {
+  // A summariser's own session must never start a worker: that is the loop
+  // that took 165 of them to stop (`reservation.ts`).
+  if (isInternalObserver()) return;
   const db = openDb();
   const { config } = loadConfig();
   // Running this command *is* the "I have fixed the credential" signal: it is
@@ -962,18 +981,76 @@ function memoryProcess(argv: string[]): void {
   // tell the developer nothing happened while the queue quietly went back to
   // spending a credential that may still be rejected.
   const maxJobs = numberFlag(argv, '--max', 10);
+  const background = argv.includes('--no-resume');
+
+  // One worker per installation, manual runs included. A hook that spawned us
+  // already won the slot and hands over its token; anyone else competes for it.
+  const handed = flag(argv, '--worker-token');
+  const token = handed
+    ? renewWorker(db, handed, { pid: process.pid })
+      ? handed
+      : null
+    : reserveWorker(db, process.pid);
+  if (!token) {
+    const holder = workerStatus(db);
+    if (!background) {
+      process.stdout.write(
+        `another memory worker is running${holder?.pid ? ` (pid ${holder.pid})` : ''} — its queue is this queue, so nothing to do.\n`,
+      );
+    }
+    db.close();
+    return;
+  }
+
   // The hooks' background drain passes --no-resume: a hook that resumed by
   // itself is exactly the retry loop the comment above rules out.
-  const resumed = argv.includes('--no-resume') ? 0 : resumePaused(db);
-  processPending(db, config, { maxJobs }).then(
+  const resumed = background ? 0 : resumePaused(db);
+
+  // Turning memory off means stop now, not after the queue: re-read the
+  // settings between jobs and every few seconds during a call, and cancel the
+  // call when they say so. The evidence stays queued.
+  const cancel = new AbortController();
+  const stillOn = (): boolean => {
+    try {
+      const now = loadConfig().config;
+      return now.memory.enabled && (!background || Boolean(now.providers.observer));
+    } catch {
+      return true;
+    }
+  };
+  let child: number | null = null;
+  const heartbeat = setInterval(() => {
+    if (!renewWorker(db, token, { child }) || !stillOn()) cancel.abort();
+  }, 5_000);
+  const stop = () => cancel.abort();
+  process.once('SIGTERM', stop);
+  process.once('SIGINT', stop);
+
+  const finish = () => {
+    clearInterval(heartbeat);
+    releaseWorker(db, token);
+    db.close();
+  };
+
+  processPending(db, config, {
+    maxJobs,
+    signal: cancel.signal,
+    beforeJob: () => renewWorker(db, token, { child: null }) && stillOn(),
+    onSpawn: (pid) => {
+      child = pid;
+      renewWorker(db, token, { child: pid });
+    },
+  }).then(
     (result) => {
-      process.stdout.write(
-        `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}\n`,
-      );
-      db.close();
+      if (!background) {
+        process.stdout.write(
+          `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}\n`,
+        );
+      }
+      finish();
     },
     (err: Error) => {
-      db.close();
+      finish();
       fail(`eklavya memory process: ${err.message}`);
     },
   );

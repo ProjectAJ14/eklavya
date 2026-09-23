@@ -62,9 +62,19 @@ every one of them swallows its own failures — a capture path that throws is a
 throw on every tool call.
 
 The seam never waits on inference. With `providers.observer` configured,
-`flushAtSeam` queues the batch and returns; the next session start, or
-`eklavya memory process`, drains it. A Stop hook that waits on an API call is
-exactly what PRD LRN-04 forbids.
+`flushAtSeam` queues the batch and hands it to a detached `eklavya memory
+process` — but only after winning the single machine-wide worker reservation
+(`mcp/src/memory/reservation.ts`), and never while the queue is paused. A Stop
+hook that waits on an API call is exactly what PRD LRN-04 forbids.
+
+**Every hook is inert inside Eklavya's own `claude -p`.** The observer sets
+`EKLAVYA_INTERNAL_OBSERVER=1`, and `run.mjs` and `run()` in `lib.ts` both exit 0
+before reading stdin. Claude Code 2.1.280 ran plugin hooks inside `claude -p`
+despite `disableAllHooks`, each helper's seam spawned a worker, and a 16 GB Mac
+reached 165 workers. `--safe-mode` now suppresses them too, but correctness
+rests on the env check: never move it after anything that opens the database
+or spawns. `mcp/test/memory-observer-guard.test.ts` runs a stand-in `claude`
+that executes every hook anyway.
 
 The PostToolUse matcher on `checkpoint-quiz` is a regex over the MCP tool name, not a literal, because
 the prefix depends on how the plugin was installed —

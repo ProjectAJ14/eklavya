@@ -34,9 +34,16 @@ export interface SummarizeInput {
   events: EvidenceRow[];
 }
 
+export interface SummarizeOptions {
+  /** Aborted when memory is turned off mid-call; the provider ends its child. */
+  signal?: AbortSignal;
+  /** The provider's process-group leader, then null once it has exited. */
+  onSpawn?: (pid: number | null) => void;
+}
+
 export interface Summarizer {
   readonly id: string;
-  summarize(input: SummarizeInput): Promise<EntryDraft[]>;
+  summarize(input: SummarizeInput, opts?: SummarizeOptions): Promise<EntryDraft[]>;
 }
 
 function jsonList(value: string | null): string[] {

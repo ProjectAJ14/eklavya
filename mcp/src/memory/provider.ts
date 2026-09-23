@@ -1,8 +1,9 @@
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import { z } from 'zod';
 import type { ProviderConfig } from '../config.js';
-import type { EntryDraft, SummarizeInput, Summarizer } from './summarize.js';
+import type { EntryDraft, SummarizeInput, SummarizeOptions, Summarizer } from './summarize.js';
+import { OBSERVER_ENV } from './reservation.js';
 
 /**
  * The configured observer (ADR-04, PRD MEM-02, CFG-02).
@@ -13,7 +14,16 @@ import type { EntryDraft, SummarizeInput, Summarizer } from './summarize.js';
  */
 
 /** Distinguishing these is what stops a retry loop paid for by the developer. */
-export type ProviderErrorClass = 'transient' | 'auth' | 'quota' | 'missing' | 'overflow' | 'malformed' | 'permanent';
+export type ProviderErrorClass =
+  | 'transient'
+  | 'auth'
+  | 'quota'
+  | 'missing'
+  | 'overflow'
+  | 'malformed'
+  | 'permanent'
+  /** Memory was turned off mid-call. Not a failure: the job goes back unspent. */
+  | 'cancelled';
 
 export class ProviderError extends Error {
   constructor(
@@ -96,6 +106,9 @@ function renderEvidence(input: SummarizeInput): string {
  * one this slow is a hung child, not a slow model.
  */
 const TIMEOUT_MS = 100_000;
+/** SIGTERM to SIGKILL, for a tree that ignores the polite ask. */
+const KILL_GRACE_MS = 5_000;
+const MAX_STDOUT = 16 * 1024 * 1024;
 
 /**
  * The flags that make `claude -p` a summariser and nothing else: no tools, no
@@ -113,6 +126,10 @@ export function claudeArgs(model: string): string[] {
     '--tools', '',
     '--strict-mcp-config',
     '--no-session-persistence',
+    // Plugins, hooks, MCP servers and CLAUDE.md off, auth kept. Belt and braces
+    // only: correctness rests on OBSERVER_ENV, because hooks ran through
+    // `disableAllHooks` before.
+    '--safe-mode',
     // A null helper overrides one in the developer's settings, which would bill an API key.
     '--settings', JSON.stringify({ disableAllHooks: true, apiKeyHelper: null }),
   ];
@@ -161,30 +178,104 @@ const NOT_THE_SUBSCRIPTION = [
  * an API key or token, Bedrock, Vertex — is stripped from the child's
  * environment, so a stray one in the shell can never turn this into metered
  * API traffic.
+ *
+ * `OBSERVER_ENV` is set on the way in, and it is the guard that does not depend
+ * on Claude Code: hooks inherit it, and every Eklavya hook and worker returns at
+ * once when it sees it. `disableAllHooks` asked Claude Code the same thing,
+ * and 2.1.280 ran the hooks anyway; `--safe-mode` is a second ask, not a
+ * guarantee.
+ *
+ * The child leads its own process group, so a timeout or a cancel ends the
+ * whole tree — `claude` and anything it started — not just the direct child.
+ * SIGTERM first, SIGKILL after `graceMs`, and the promise settles only once the
+ * child has exited, so the caller never releases its slot beside a live tree.
  */
-function runClaude(model: string, prompt: string): Promise<string> {
-  const env = { ...process.env };
+export function runClaude(
+  model: string,
+  prompt: string,
+  opts: {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    graceMs?: number;
+    onSpawn?: (pid: number | null) => void;
+  } = {},
+): Promise<string> {
+  const env: NodeJS.ProcessEnv = { ...process.env, [OBSERVER_ENV]: '1' };
   for (const name of NOT_THE_SUBSCRIPTION) delete env[name];
+  const timeoutMs = opts.timeoutMs ?? TIMEOUT_MS;
+  const graceMs = opts.graceMs ?? KILL_GRACE_MS;
+
   return new Promise((resolve, reject) => {
-    const child = execFile(
-      'claude',
-      claudeArgs(model),
-      { env, cwd: os.tmpdir(), timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
-      (error, stdout) => {
-        const code = (error as NodeJS.ErrnoException | null)?.code;
-        // ponytail: no shell, so on Windows only a native `claude.exe` is found, not
-        // npm's `claude.cmd` shim — cmd.exe would mangle the JSON arguments. Resolve
-        // the shim's cli.js and run it with node if Windows npm installs need this.
-        if (code === 'ENOENT') {
-          return reject(new ProviderError('missing', 'claude is not on the PATH the hooks see'));
-        }
-        // A failed run still prints its JSON envelope; that says more than the exit code.
-        if (stdout.trim()) return resolve(stdout);
-        if (error) return reject(new ProviderError('transient', error.message));
-        resolve(stdout);
-      },
+    if (opts.signal?.aborted) return reject(new ProviderError('cancelled', 'cancelled before claude started'));
+
+    // ponytail: no shell, so on Windows only a native `claude.exe` is found, not
+    // npm's `claude.cmd` shim — cmd.exe would mangle the JSON arguments. Resolve
+    // the shim's cli.js and run it with node if Windows npm installs need this.
+    const child = spawn('claude', claudeArgs(model), {
+      env,
+      cwd: os.tmpdir(),
+      stdio: ['pipe', 'pipe', 'ignore'],
+      detached: process.platform !== 'win32',
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let ended: ProviderError | null = null;
+    let force: NodeJS.Timeout | undefined;
+
+    const signalTree = (sig: NodeJS.Signals) => {
+      try {
+        // Negative pid: the whole group. Windows has no groups; the child alone.
+        // ponytail: Windows leaves grandchildren; `taskkill /T /F` if that matters.
+        if (process.platform === 'win32' || !child.pid) child.kill(sig);
+        else process.kill(-child.pid, sig);
+      } catch {
+        /* Already gone. */
+      }
+    };
+    const end = (why: ProviderError) => {
+      if (ended) return;
+      ended = why;
+      signalTree('SIGTERM');
+      force = setTimeout(() => signalTree('SIGKILL'), graceMs);
+    };
+
+    const timer = setTimeout(
+      () => end(new ProviderError('transient', `claude -p did not finish in ${timeoutMs / 1000}s`)),
+      timeoutMs,
     );
-    child.stdin?.end(prompt);
+    const onAbort = () => end(new ProviderError('cancelled', 'memory processing was turned off'));
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+    opts.onSpawn?.(child.pid ?? null);
+
+    child.stdout!.setEncoding('utf8');
+    child.stdout!.on('data', (d: string) => {
+      stdout += d;
+      if (stdout.length > MAX_STDOUT) end(new ProviderError('malformed', 'claude -p printed more than 16 MB'));
+    });
+    child.stdin!.on('error', () => {});
+    child.stdin!.end(prompt);
+
+    let spawnError: NodeJS.ErrnoException | null = null;
+    child.once('error', (err: NodeJS.ErrnoException) => {
+      spawnError = err;
+    });
+    child.once('close', () => {
+      clearTimeout(timer);
+      if (force) clearTimeout(force);
+      opts.signal?.removeEventListener('abort', onAbort);
+      // The group may outlive its leader: make sure nothing it started is left.
+      if (ended) signalTree('SIGKILL');
+      opts.onSpawn?.(null);
+
+      if (spawnError?.code === 'ENOENT') {
+        return reject(new ProviderError('missing', 'claude is not on the PATH the hooks see'));
+      }
+      if (ended) return reject(ended);
+      if (spawnError) return reject(new ProviderError('transient', spawnError.message));
+      // A failed run still prints its JSON envelope; that says more than the exit code.
+      resolve(stdout);
+    });
   });
 }
 
@@ -195,11 +286,12 @@ export class ProviderSummarizer implements Summarizer {
     this.id = `${config.kind}:${config.model}`;
   }
 
-  async summarize(input: SummarizeInput): Promise<EntryDraft[]> {
+  async summarize(input: SummarizeInput, opts: SummarizeOptions = {}): Promise<EntryDraft[]> {
     if (!input.events.length) return [];
     const stdout = await runClaude(
       this.config.model,
       `<evidence project="${input.project}" session="${input.sessionId}">\n${renderEvidence(input)}\n</evidence>`,
+      opts,
     );
     const result = ResultSchema.safeParse(readResult(stdout));
     if (!result.success) {

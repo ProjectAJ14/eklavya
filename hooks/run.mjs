@@ -125,6 +125,12 @@ function healInBackground() {
 
 async function main() {
   if (!name) process.exit(0);
+  // Eklavya's own `claude -p` summariser sets this. Its hooks, and any server
+  // it might start, must do nothing at all: in one incident they ran anyway and
+  // every helper's seam launched another worker. Checked before any import, so
+  // not even a stale runtime can act on it. Mirrors `OBSERVER_ENV` in the
+  // runtime's reservation module.
+  if (process.env.EKLAVYA_INTERNAL_OBSERVER) process.exit(0);
 
   const major = Number(process.versions.node.split('.')[0]);
   if (major < MIN_NODE_MAJOR) {

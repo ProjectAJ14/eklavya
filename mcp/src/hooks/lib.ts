@@ -23,6 +23,7 @@ import { readStdinBounded, stripBom, HOOK_STDIN } from '../stdin.js';
 import { withSurfaceNote } from '../surface.js';
 import { getCurrentSession } from '../session.js';
 import { minutesSince, NEVER, nowIso } from '../time.js';
+import { isInternalObserver } from '../memory/reservation.js';
 
 // The clock policy moved to `time.ts` so the memory half shares it; hooks and
 // tests still import these three from here.
@@ -203,6 +204,10 @@ function focusFraming(
  * thrown still lands here and still exits 0.
  */
 export async function run(body: (input: HookInput) => Promise<number | void>): Promise<void> {
+  // Inside Eklavya's own `claude -p` summariser, every hook is inert: no
+  // capture, no database, no worker, no context. `run.mjs` checks too; this is
+  // the copy a directly invoked `dist/hooks/*.js` cannot skip.
+  if (isInternalObserver()) process.exit(0);
   let code = 0;
   try {
     const input = await readInput();
