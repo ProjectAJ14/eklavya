@@ -1,3 +1,10 @@
+## [1.24.1](https://github.com/ProjectAJ14/eklavya/compare/v1.24.0...v1.24.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* **memory:** stop the observer spawning workers from its own hooks ([c4a8813](https://github.com/ProjectAJ14/eklavya/commit/c4a8813ae864bac17fbca8f800ad7ba1b7d070e9))
+
 # [1.24.0](https://github.com/ProjectAJ14/eklavya/compare/v1.23.0...v1.24.0) (2026-09-23)
 
 
