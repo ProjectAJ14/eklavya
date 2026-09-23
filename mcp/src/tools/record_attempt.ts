@@ -16,7 +16,7 @@ import {
   type QuestionFormat,
 } from '../store.js';
 import { stripAskHeader } from '../ask.js';
-import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
+import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
 export const recordAttempt: ToolDef = {
   name: 'record_attempt',
@@ -24,16 +24,18 @@ export const recordAttempt: ToolDef = {
   description:
     'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
   inputSchema: {
-    session_id: z.string().optional().describe(SESSION_HINT),
-    cwd: z.string().optional().describe(CWD_HINT),
-    slug: z.string().describe('The concept that was asked about.'),
+    session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
+    cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
+    slug: z.string().max(LIMITS.slug).describe('The concept that was asked about.'),
     question: z
       .string()
+      .max(LIMITS.question)
       .describe(
         'The question stem exactly as asked, and only the stem. This text is what stops the same question coming back later, so anything baked in here that moves — shuffled options, a dial in a bracketed line — would make one question look like several.',
       ),
     answer: z
       .string()
+      .max(LIMITS.answer)
       .optional()
       .describe(
         'The learner\'s answer verbatim — for multiple choice, the option they picked (or what they typed under "Other"). Omit for a skip.',
@@ -45,7 +47,7 @@ export const recordAttempt: ToolDef = {
       .max(5)
       .describe('0 no answer/skip, 1-2 wrong, 3 correct but laboured, 4 correct, 5 correct and explained the why.'),
     difficulty: z.number().int().min(1).max(5).describe('The tier you actually asked at — use tier_to_ask from the plan.'),
-    feedback: z.string().optional().describe('The short explanation you gave back.'),
+    feedback: z.string().max(LIMITS.feedback).optional().describe('The short explanation you gave back.'),
     format: z
       .literal('mcq')
       .optional()
@@ -53,7 +55,8 @@ export const recordAttempt: ToolDef = {
         'Pass "mcq" — the only shape Eklavya asks in: four options via AskUserQuestion. Say so, because a correct multiple-choice answer is weaker evidence than a correct free one and is capped accordingly. Omit it only when the learner picked "Other" and typed a real explanation, which is free recall and earns an uncapped grade.',
       ),
     options: z
-      .array(z.string())
+      .array(z.string().max(LIMITS.option))
+      .max(LIMITS.options)
       .optional()
       .describe('For mcq: the option labels you offered, in the order shown. Not the stem.'),
     outcome: z
@@ -151,12 +154,20 @@ export const recordAttempt: ToolDef = {
       // In the same transaction as the grade: a promotion is a fact about
       // attempt rows, and a crash between the two would leave a level claiming
       // evidence that was rolled back.
-      return { state: next, promotion: promoteIfEarned(db, config, repoRoot) };
+      const promotion = promoteIfEarned(db, config, repoRoot);
+
+      // The gate too. `registerTools` retries the whole handler on SQLITE_BUSY,
+      // which is only safe when every write here rolls back together: with the
+      // gate written after the commit, a lock on it retried a grade that had
+      // already landed, and one answer became two attempt rows and a rung of
+      // the SM-2 ladder the learner never climbed.
+      const gate = syncGate(db, sessionId, config, { repo: repoRoot });
+      return { state: next, promotion, gate };
     })();
 
     const state = graded.state;
+    const gate = graded.gate;
     const after = levelStanding(db, config, repoRoot);
-    const gate = syncGate(db, sessionId, config, { repo: repoRoot });
     const score = decayedScore(state.score, state.next_review, now);
 
     return {

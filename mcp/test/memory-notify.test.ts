@@ -4,8 +4,9 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
-import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
+import { DEFAULT_CONFIG, type EklavyaConfig, type ResolvedConfig } from '../src/config.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../src/memory/notify.js';
+import { NOTIFY_BUDGET_MS, wrapUpAtSeam } from '../src/hooks/memory-lib.js';
 
 let dbFile: string;
 let db: DB;
@@ -186,4 +187,42 @@ describe('outbound notifications', () => {
     const b = sessionWrapUp({ project: '/work/repo', sessionId: 's1', entries: 9, questions: 4, passed: 1 });
     expect(a.id).toBe(b.id);
   });
+});
+
+describe('the wrap-up stays inside the Stop hook\'s budget', () => {
+  // hooks.json gives Stop 15 seconds. Each sink is bounded at 4, and the seam
+  // raises two notifications (the wrap-up and a paused-queue alert) to every
+  // sink — sequentially that was 8 seconds of dead sinks before the rest of
+  // the hook had run at all.
+  it.skipIf(process.platform === 'win32')('sends both notifications to dead sinks concurrently, well under the timeout', async () => {
+    const hang = (name: string) => {
+      const file = path.join(dir, name);
+      fs.writeFileSync(file, '#!/bin/sh\nsleep 30\n', { mode: 0o755 });
+      return file;
+    };
+    const config = configWith({
+      enabled: true,
+      sinks: [
+        { kind: 'command', target: hang('a.sh') },
+        { kind: 'command', target: hang('b.sh') },
+      ],
+    });
+    // A paused job, so the seam raises the second notification too.
+    const batch = Number(
+      db.prepare("INSERT INTO memory_batches (project, session_id, reason) VALUES ('/work/repo', 's', 'manual')").run()
+        .lastInsertRowid,
+    );
+    db.prepare("INSERT INTO memory_jobs (batch_id, status, error_class) VALUES (?, 'paused', 'auth')").run(batch);
+
+    const resolved = { config } as unknown as ResolvedConfig;
+    const identity = { project: '/work/repo', checkout: '/work/repo', sessionId: 's', agentId: null, host: 'claude-code' };
+    const started = Date.now();
+    await wrapUpAtSeam(db, resolved, identity);
+    const took = Date.now() - started;
+    expect(took).toBeLessThan(NOTIFY_BUDGET_MS + 1000);
+    expect(took).toBeLessThan(6_500);
+    // Both were attempted, on both sinks: concurrency, not a skipped send.
+    const attempts = db.prepare("SELECT COUNT(*) AS n FROM meta WHERE key LIKE 'notified:%'").get() as { n: number };
+    expect(attempts.n).toBe(4);
+  }, 20_000);
 });

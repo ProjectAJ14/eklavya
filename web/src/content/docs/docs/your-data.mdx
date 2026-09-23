@@ -11,11 +11,19 @@ Two things can change that, and neither is on unless you turn it on: `providers.
 | Path | What it holds |
 | --- | --- |
 | `~/.eklavya/knowledge.db` | SQLite, WAL mode. The learning half: concepts and their prerequisite edges, your mastery per concept, every attempt, what each session logged, the gates, each project's level, and the pacing state that stops it asking twice in a row. The memory half, in the same file: the raw evidence of what each session did, the observations distilled from it, the search index and its vectors, the reuse receipts, saved collections, and the concept candidates evidence proposed. |
-| `~/.eklavya/spool/events.jsonl` | Evidence captured while the database was unreachable, waiting to be replayed. Sanitised before it is written, and emptied on the next healthy session. Usually absent. |
+| `~/.eklavya/spool/events.jsonl` | Evidence captured while the database was unreachable or busy, waiting to be replayed. Sanitised before it is written, and emptied on the next healthy session. Usually absent. |
 | `~/.eklavya/config.json` | Your global settings. |
 | `~/.eklavya/projects/<checkout>/config.json` | Your settings for one codebase, named after its path with the separators as dashes. Outside the repository, so they are yours rather than your team's. |
 | `~/.eklavya/packs/*.json` | Your own [concept packs](/docs/packs/) — extra domains Eklavya can quiz on. |
 | `~/.eklavya/projects/<checkout>/packs/*.json` | Your [concept packs](/docs/packs/) for one codebase. |
+
+### Who can read it
+
+`~/.eklavya` is readable only by you (mode `0700`), and `knowledge.db`, its `-wal` and `-shm` files, the spool and `config.json` are `0600`. An install from before this was tightened is fixed the next time Eklavya opens the database. A `memory export` file is written `0600` too.
+
+### Backups of your own files
+
+When Eklavya edits a file that is yours rather than its own — `~/.claude/settings.json`, Claude Code's plugin registries, `~/.eklavya/config.json` — it first copies the previous version beside it as `<file>.eklavya-bak`. There is one backup per file, holding it as it was before the last command that changed it. A file that does not parse is never overwritten: the command stops and names it.
 
 ### Looking inside
 

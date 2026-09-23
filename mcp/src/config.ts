@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { globalConfigPath, projectConfigPath } from './paths.js';
+import { eklavyaHome, ensureEklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
+import { readJsonForUpdate, readJsonStrict, writeJsonWithBackup } from './safe-write.js';
 import type { Level } from './srs.js';
 
 /**
@@ -362,6 +363,13 @@ export interface ResolvedConfig {
    * without this there is no way to know why your own setting stopped applying.
    */
   overrides: string[];
+  /**
+   * Keys this project's file sets that only the global file may set, and that
+   * were therefore not applied. See `GLOBAL_ONLY_KEYS`. Said out loud for the
+   * same reason as `overrides`: a setting in a file you wrote that silently
+   * does nothing is a bug report waiting to happen.
+   */
+  ignored: string[];
 }
 
 function realPath(p: string): string {
@@ -662,6 +670,24 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
 const CLONED_FORBIDDEN = ['notifications', 'sync', 'providers'] as const;
 
 /**
+ * Keys only `~/.eklavya/config.json` may set -- a project file that sets them
+ * is read, reported in `ignored`, and not applied.
+ *
+ * `providers` decides whether work leaves this machine, and the work it acts on
+ * is not one project's. The memory queue is machine-wide and the one worker
+ * drains every project's jobs with the config it was started under, so a
+ * project-level `providers.observer` would decide whether some *other*
+ * project's sessions are sent to a model. That is a decision about the machine,
+ * made once, in the machine's file.
+ */
+const GLOBAL_ONLY_KEYS = ['providers'] as const;
+
+/** True for a global-only namespace or any dotted key under it (`providers.observer`). */
+export function isGlobalOnlyKey(key: string): boolean {
+  return GLOBAL_ONLY_KEYS.some((k) => key === k || key.startsWith(`${k}.`));
+}
+
+/**
  * The same filter, applied to anything read out of a checkout. Dropped in
  * silence rather than reported: the file is on its way to being deleted, and
  * there is no setting to explain because it never applied.
@@ -745,11 +771,13 @@ export function migrateLegacyRepoConfig(
     // there verbatim would launder them into trust and outlive the deletion.
     // A target stamped for another checkout makes `writeConfigFile` throw, so
     // a slug collision keeps the legacy file rather than taking over the other.
-    writeConfigFile(target, {
-      ...withoutUntrustedKeys(legacy),
-      ...existing,
-      project: projectRoot,
-    });
+    //
+    // Global-only keys are left out of the patch rather than carried: a project
+    // file that already holds one keeps it on disk (the write merges over what
+    // is there), and `writeConfigFile` refuses a project patch that sets one.
+    const patch: Record<string, unknown> = { ...withoutUntrustedKeys(legacy), ...existing, project: projectRoot };
+    for (const key of GLOBAL_ONLY_KEYS) delete patch[key];
+    writeConfigFile(target, patch);
     fs.rmSync(legacyPath, { force: true });
     return true;
   } catch {
@@ -851,7 +879,8 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   }
 
   const globalRaw = normalizeLegacyKeys(readJson(globalPath) ?? {});
-  const projectNormalized = normalizeLegacyKeys(withoutBookkeeping(projectRaw));
+  const ignored = GLOBAL_ONLY_KEYS.filter((key) => key in projectRaw);
+  const projectNormalized = normalizeLegacyKeys(withoutBookkeeping(withoutGlobalOnly(projectRaw)));
   const raw = mergeConfigs(globalRaw, projectNormalized);
 
   const overrides = Object.keys(projectNormalized).filter(
@@ -867,7 +896,39 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
     projectPath,
     repoRoot,
     overrides,
+    ignored,
   };
+}
+
+function withoutGlobalOnly(raw: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...raw };
+  for (const key of GLOBAL_ONLY_KEYS) delete out[key];
+  return out;
+}
+
+/**
+ * What is wrong with the config files in force here, or null if nothing is.
+ *
+ * `loadConfig` reads a file it cannot parse as empty, deliberately: it runs in
+ * every hook, and a trailing comma must not take a session down. But that
+ * leaves the developer's settings silently not applying, so this is the other
+ * half -- the question `eklavya doctor` asks so the fallback is visible. It
+ * checks the global file and this checkout's project file; a missing or empty
+ * file is not a problem.
+ */
+export function configFileProblem(cwd: string = process.cwd()): string | null {
+  const files = [globalConfigPath()];
+  const { repoRoot } = findRepoConfig(cwd);
+  if (repoRoot) files.push(projectConfigPath(mainRepoRoot(repoRoot)));
+
+  const problems: string[] = [];
+  for (const file of files) {
+    const read = readJsonStrict(file);
+    if (read.kind === 'invalid') {
+      problems.push(`${file} is not valid JSON (${read.error}); its settings are not being applied`);
+    }
+  }
+  return problems.length ? `${problems.join('. ')}. Fix or remove the file.` : null;
 }
 
 /**
@@ -903,7 +964,9 @@ export function readConfigFile(file: string): Record<string, unknown> {
 }
 
 /**
- * Writes via temp file + rename: the git hook may be reading mid-write.
+ * Writes via temp file + rename (the git hook may be reading mid-write), after
+ * copying the previous bytes to `<file>.eklavya-bak`. Refuses a file that exists
+ * but does not parse, rather than replacing it.
  *
  * Refuses a patch stamped for one checkout onto a file stamped for another.
  * That is a slug collision (see `belongsTo`), and merging would hand the other
@@ -912,7 +975,19 @@ export function readConfigFile(file: string): Record<string, unknown> {
  * place the collision is caught on the way in.
  */
 export function writeConfigFile(file: string, patch: Record<string, unknown>): Record<string, unknown> {
-  const existing = readJson(file) ?? {};
+  // A file that exists and does not parse is somebody's settings with a typo
+  // in them. Reading it as `{}` and writing the patch over it deleted every
+  // other setting; this throws `UnreadableFileError` instead, naming the file.
+  const existing = readJsonForUpdate(file);
+  // `project` marks a project file (see `belongsTo`); only the global file may
+  // set a global-only key.
+  const refused = typeof patch.project === 'string' ? Object.keys(patch).filter(isGlobalOnlyKey) : [];
+  if (refused.length) {
+    throw new Error(
+      `${refused.join(', ')} can only be set in the global config (${globalConfigPath()}), not for one project: ` +
+        'the memory queue is shared by every project, so this decides what leaves the machine for all of them.',
+    );
+  }
   if (typeof patch.project === 'string' && !belongsTo(existing, patch.project)) {
     throw new Error(
       `${file} already holds the settings for ${String(existing.project)}, a different checkout whose ` +
@@ -935,10 +1010,11 @@ export function writeConfigFile(file: string, patch: Record<string, unknown>): R
     delete merged.mode;
   }
 
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
-  fs.renameSync(tmp, file);
+  // Under ~/.eklavya, so that directory is created (or tightened to) 0700
+  // first; the file itself is 0600, backup included. `writeJsonWithBackup` is
+  // temp-file-plus-rename, because the git hook may be reading mid-write.
+  if (path.resolve(file).startsWith(path.resolve(eklavyaHome()) + path.sep)) ensureEklavyaHome();
+  writeJsonWithBackup(file, merged, { mode: 0o600 });
 
   return merged;
 }

@@ -779,7 +779,7 @@ describe('eklavya memory says what is wrong rather than exiting quietly', () => 
     ['show, given something that is not an id', ['memory', 'show', 'latest'], /^Usage: eklavya memory show <id>$/m],
     ['search', ['memory', 'search'], /^Usage: eklavya memory search <query>/m],
     ['search, given only flags', ['memory', 'search', '--all-projects'], /^Usage: eklavya memory search <query>/m],
-    ['export', ['memory', 'export'], /^Usage: eklavya memory export <path>$/m],
+    ['export', ['memory', 'export'], /^Usage: eklavya memory export <path> \[--force\]$/m],
     ['restore', ['memory', 'restore'], /^Usage: eklavya memory restore <file>$/m],
     ['import', ['memory', 'import'], /^Usage: eklavya memory import <path-to-claude-mem\.db>/m],
     ['sync', ['memory', 'sync'], /^Usage: eklavya memory sync <push\|pull\|status>/m],
@@ -1093,5 +1093,59 @@ describe('the retired `mode` writes both flags', () => {
     const res = eklavya(['config', 'set', 'mode', mode]);
     expect(res.status).toBe(0);
     expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz).toEqual(expected);
+  });
+});
+
+// `config set` merged into whatever `readJson` returned, and a file with a
+// trailing comma returned `{}` -- so fixing one dial wrote a one-key file over
+// every other setting the developer had.
+describe('config set on a config file it cannot parse', () => {
+  it('exits non-zero, names the file, and leaves it byte-for-byte alone', () => {
+    const file = path.join(home, 'config.json');
+    const broken = '{ "focus": "project", "cadence": "end", }\n';
+    fs.writeFileSync(file, broken);
+
+    const res = eklavya(['config', 'set', 'difficulty', 'hard']);
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain(file);
+    expect(res.stderr).toMatch(/not valid JSON/);
+    expect(fs.readFileSync(file, 'utf8')).toBe(broken);
+    expect(fs.existsSync(`${file}.eklavya-bak`)).toBe(false);
+  });
+
+  it('config get still works on defaults, and warns that the file is being ignored', () => {
+    const file = path.join(home, 'config.json');
+    fs.writeFileSync(file, '{ nope');
+    const res = eklavya(['config', 'get']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/"focus": "concept"/);
+    expect(res.stderr).toContain(file);
+  });
+
+  it('backs up the previous file on an ordinary set', () => {
+    const file = path.join(home, 'config.json');
+    fs.writeFileSync(file, JSON.stringify({ focus: 'project' }));
+    expect(eklavya(['config', 'set', 'cadence', 'end']).status).toBe(0);
+    expect(JSON.parse(fs.readFileSync(`${file}.eklavya-bak`, 'utf8'))).toEqual({ focus: 'project' });
+  });
+});
+
+describe('providers are global-only', () => {
+  it('refuses providers.* with --project and writes nothing', () => {
+    const res = eklavya(['config', 'set', 'providers.observer', '{"kind":"anthropic","model":"m"}', '--project']);
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toMatch(/global config/);
+    expect(fs.existsSync(path.join(home, 'projects'))).toBe(false);
+  });
+
+  it('config get names a providers key a project file sets but cannot apply', () => {
+    const slug = repo.replace(/[/\\:]/g, '-');
+    const target = path.join(home, 'projects', slug, 'config.json');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify({ project: repo, providers: { observer: { kind: 'anthropic', model: 'm' } } }));
+    const res = eklavya(['config', 'get']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/"observer": null/);
+    expect(res.stdout).toMatch(/ignored in the project file.*providers/);
   });
 });

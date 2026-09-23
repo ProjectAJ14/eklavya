@@ -49,6 +49,7 @@ import {
   removeClaudeMemPlugin,
   retireClaudeMemDir,
 } from './claude-mem.js';
+import { readJsonForUpdate, readJsonStrict, UnreadableFileError, writeJsonWithBackup } from './safe-write.js';
 
 const MIN_NODE_MAJOR = 22;
 
@@ -141,10 +142,15 @@ function checkGit(): boolean {
  * So: check, and say something true either way.
  */
 function cliOnPath(): boolean {
+  return commandOnPath('eklavya');
+}
+
+/** Is `name` an executable somewhere on PATH? `doctor` asks it about `jq` and `sqlite3` too. */
+export function commandOnPath(name: string): boolean {
   const dirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
   const names = process.platform === 'win32'
-    ? ['eklavya.cmd', 'eklavya.exe', 'eklavya.ps1', 'eklavya']
-    : ['eklavya'];
+    ? [`${name}.cmd`, `${name}.exe`, `${name}.ps1`, name]
+    : [name];
   return dirs.some((d) => names.some((n) => {
     try {
       return fs.statSync(path.join(d, n)).isFile() || fs.lstatSync(path.join(d, n)).isSymbolicLink();
@@ -393,20 +399,50 @@ function removeSkill(): boolean {
 
 // --- 4. Claude Code's registries --------------------------------------------
 
-function readJson(file: string): Record<string, unknown> {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
-  } catch {
-    return {};
+/** The three Claude Code files `register()` and `deregister()` merge into. */
+function registryFiles() {
+  const pluginsDir = path.join(claudeHome(), 'plugins');
+  return {
+    marketplaces: path.join(pluginsDir, 'known_marketplaces.json'),
+    installed: path.join(pluginsDir, 'installed_plugins.json'),
+    settings: path.join(claudeHome(), 'settings.json'),
+  };
+}
+
+/**
+ * Stops the command, before it writes anything at all, if any file it is about
+ * to merge into exists but is not a JSON object.
+ *
+ * All of them up front, not each as it is reached: finding the third one broken
+ * after writing the first two leaves a half-registered plugin, which is its own
+ * mess to explain. A file somebody hand-edits (a trailing comma, a comment) is
+ * exactly the one with an afternoon's work in it, so it is never read as `{}`.
+ */
+function refuseUnreadable(files: string[]): void {
+  for (const file of files) {
+    const read = readJsonStrict(file);
+    if (read.kind !== 'invalid') continue;
+    process.stderr.write(`${new UnreadableFileError(file, read.error).message}\nStopped before changing anything.\n`);
+    process.exit(1);
   }
 }
 
-/** Write via temp file + rename: Claude Code may be reading this mid-write. */
-function writeJson(file: string, data: unknown): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-  fs.renameSync(tmp, file);
+/**
+ * One backup per file per command. `settings.json` is written by `register`
+ * and again by the Claude Mem switch-off; without this the second write would
+ * roll `settings.json.eklavya-bak` forward onto Eklavya's own first edit.
+ */
+const RUN = new Set<string>();
+
+/** Writes through `writeJsonWithBackup`, collecting each backup so the caller can say where it is. */
+function saveJson(file: string, data: unknown, backups: string[]): void {
+  const { backup } = writeJsonWithBackup(file, data, { run: RUN });
+  if (backup) backups.push(backup);
+}
+
+/** A row per backup written, so nobody has to guess one exists or where. */
+function reportBackups(backups: string[]): void {
+  for (const backup of backups) check(null, '', dim(`backup ${backup}`));
 }
 
 /**
@@ -423,29 +459,39 @@ function writeJson(file: string, data: unknown): void {
  * came from npm, and deliberately: that is what lets Claude Code's own
  * `/plugin update` take over afterwards. npm is the on-ramp, not the channel.
  *
+ * Timestamps are carried over when nothing else about an entry changed, so a
+ * re-run writes identical bytes and leaves each `.eklavya-bak` holding the
+ * file as it was before Eklavya first touched it.
+ *
  * ponytail: three private files, no public API. If Claude Code ever ships
  * `claude plugin install --local`, delete this and shell out to it.
  */
-function register(version: string): void {
-  const pluginsDir = path.join(claudeHome(), 'plugins');
+function register(version: string): string[] {
+  const files = registryFiles();
+  const backups: string[] = [];
+  const now = new Date().toISOString();
 
-  const marketplaces = path.join(pluginsDir, 'known_marketplaces.json');
-  const known = readJson(marketplaces);
+  const known = readJsonForUpdate(files.marketplaces);
+  const previousMarket = known.eklavya as Record<string, unknown> | undefined;
+  const source = { source: 'github', repo: 'ProjectAJ14/eklavya' };
+  const sameMarket =
+    JSON.stringify(previousMarket?.source) === JSON.stringify(source) &&
+    previousMarket?.installLocation === marketplaceDir() &&
+    previousMarket?.autoUpdate === true;
   known.eklavya = {
-    source: { source: 'github', repo: 'ProjectAJ14/eklavya' },
+    source,
     installLocation: marketplaceDir(),
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: (sameMarket && (previousMarket?.lastUpdated as string | undefined)) || now,
     autoUpdate: true,
   };
-  writeJson(marketplaces, known);
+  saveJson(files.marketplaces, known, backups);
 
   // The value here is an ARRAY, one entry per scope: a `user` install and any
   // number of `local` ones, each pinned to a project directory. Assigning a
   // fresh array would silently uninstall the plugin from every project someone
   // had added it to -- so this replaces the `user` entry and leaves the rest
   // exactly as it found them.
-  const installedPath = path.join(pluginsDir, 'installed_plugins.json');
-  const installed = readJson(installedPath);
+  const installed = readJsonForUpdate(files.installed);
   if (typeof installed.version !== 'number') installed.version = 2;
   const plugins = (installed.plugins ?? {}) as Record<string, unknown>;
 
@@ -454,7 +500,7 @@ function register(version: string): void {
     : [];
   const otherScopes = existing.filter((entry) => entry?.scope !== 'user');
   const previousUser = existing.find((entry) => entry?.scope === 'user');
-  const now = new Date().toISOString();
+  const sameUser = previousUser?.installPath === marketplaceDir() && previousUser?.version === version;
 
   plugins['eklavya@eklavya'] = [
     ...otherScopes,
@@ -464,23 +510,38 @@ function register(version: string): void {
       version,
       // Kept, so re-running this reads as an upgrade rather than a fresh install.
       installedAt: (previousUser?.installedAt as string | undefined) ?? now,
-      lastUpdated: now,
+      lastUpdated: (sameUser && (previousUser?.lastUpdated as string | undefined)) || now,
     },
   ];
   installed.plugins = plugins;
-  writeJson(installedPath, installed);
+  saveJson(files.installed, installed, backups);
 
-  const settingsPath = path.join(claudeHome(), 'settings.json');
-  const settings = readJson(settingsPath);
+  const settings = readJsonForUpdate(files.settings);
   const enabled = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
   enabled['eklavya@eklavya'] = true;
   settings.enabledPlugins = enabled;
   composeStatusLine(settings);
-  writeJson(settingsPath, settings);
+  saveJson(files.settings, settings, backups);
+  return backups;
 }
 
-/** The status bar command this installer owns, and the only one it will remove. */
-const STATUS_LINE_COMMAND = `node ${path.join(runtimeHome(), 'node_modules', 'eklavya', 'dist', 'cli.js')} statusline`;
+/**
+ * The status bar command this installer owns, and the only one it will remove.
+ *
+ * Quoted: a home directory with a space in it (`C:\Users\Jo Doe`, common on
+ * Windows) split the unquoted path into two arguments. Double quotes mean the
+ * same thing to `sh` and to `cmd`.
+ */
+const STATUS_LINE_COMMAND = `node "${path.join(runtimeHome(), 'node_modules', 'eklavya', 'dist', 'cli.js')}" statusline`;
+
+/**
+ * True for a status line this installer wrote, in any version: quoted or the
+ * older unquoted form, at any runtime path. Anchored at both ends, so a line
+ * somebody composed around ours (`my-bar; node …/cli.js statusline`) is theirs.
+ */
+function isOurStatusLine(command: unknown): boolean {
+  return typeof command === 'string' && /^node "?[^"]+[\\/]eklavya[\\/]dist[\\/]cli\.js"? statusline$/.test(command);
+}
 
 /**
  * Puts the dials in the status bar, and never over somebody else's.
@@ -492,15 +553,14 @@ const STATUS_LINE_COMMAND = `node ${path.join(runtimeHome(), 'node_modules', 'ek
  * keeps the by-hand instructions for anyone who wants to compose the two
  * themselves.
  *
- * The removal in `deregister` matches on the command being exactly ours, which
- * is what stops an uninstall taking a line it did not write.
+ * The removal in `deregister` matches the same way, which is what stops an
+ * uninstall taking a line it did not write.
  */
 function composeStatusLine(settings: Record<string, unknown>): void {
   const existing = settings.statusLine;
   if (existing !== undefined && existing !== null) {
-    const command = (existing as { command?: unknown })?.command;
-    // Ours already, possibly from an older runtime path: refresh it.
-    if (typeof command === 'string' && /dist[\\/]cli\.js["']? statusline\b/.test(command)) {
+    // Ours already, possibly from an older runtime path or unquoted: refresh it.
+    if (isOurStatusLine((existing as { command?: unknown })?.command)) {
       settings.statusLine = { type: 'command', command: STATUS_LINE_COMMAND, padding: 0 };
     }
     return;
@@ -508,21 +568,20 @@ function composeStatusLine(settings: Record<string, unknown>): void {
   settings.statusLine = { type: 'command', command: STATUS_LINE_COMMAND, padding: 0 };
 }
 
-function deregister(): Array<Record<string, unknown>> {
-  const pluginsDir = path.join(claudeHome(), 'plugins');
+function deregister(): { otherScopes: Array<Record<string, unknown>>; backups: string[] } {
+  const files = registryFiles();
+  const backups: string[] = [];
 
-  const marketplaces = path.join(pluginsDir, 'known_marketplaces.json');
-  const known = readJson(marketplaces);
+  const known = readJsonForUpdate(files.marketplaces);
   if ('eklavya' in known) {
     delete known.eklavya;
-    writeJson(marketplaces, known);
+    saveJson(files.marketplaces, known, backups);
   }
 
   // Symmetric with register(): drop the `user` entry this CLI owns and leave
   // project-scoped installs alone. Returns them so the caller can say they are
   // still there rather than leaving someone with a half-removed plugin.
-  const installedPath = path.join(pluginsDir, 'installed_plugins.json');
-  const installed = readJson(installedPath);
+  const installed = readJsonForUpdate(files.installed);
   const plugins = (installed.plugins ?? {}) as Record<string, unknown>;
   const existing = Array.isArray(plugins['eklavya@eklavya'])
     ? (plugins['eklavya@eklavya'] as Array<Record<string, unknown>>)
@@ -533,28 +592,58 @@ function deregister(): Array<Record<string, unknown>> {
     if (otherScopes.length > 0) plugins['eklavya@eklavya'] = otherScopes;
     else delete plugins['eklavya@eklavya'];
     installed.plugins = plugins;
-    writeJson(installedPath, installed);
+    saveJson(files.installed, installed, backups);
   }
 
-  const settingsPath = path.join(claudeHome(), 'settings.json');
-  const settings = readJson(settingsPath);
+  // One write for both edits: the backup is a single rolling copy, so a second
+  // write would replace the developer's file with Eklavya's halfway state.
+  const settings = readJsonForUpdate(files.settings);
   const enabled = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
-  // Only a status line that is exactly ours. Somebody else's stays, and so
-  // does one they composed by hand around ours -- this installer did not write
-  // it and has no business deciding what is left of it.
-  const line = (settings.statusLine as { command?: unknown } | undefined)?.command;
-  const ownsStatusLine = typeof line === 'string' && line === STATUS_LINE_COMMAND;
-  if (ownsStatusLine) {
+  let changed = false;
+  // Only a status line that is ours. Somebody else's stays, and so does one
+  // they composed by hand around ours -- this installer did not write it and
+  // has no business deciding what is left of it.
+  if (isOurStatusLine((settings.statusLine as { command?: unknown } | undefined)?.command)) {
     delete settings.statusLine;
-    writeJson(settingsPath, settings);
+    changed = true;
   }
   if ('eklavya@eklavya' in enabled) {
     delete enabled['eklavya@eklavya'];
     settings.enabledPlugins = enabled;
-    writeJson(settingsPath, settings);
+    changed = true;
   }
+  if (changed) saveJson(files.settings, settings, backups);
 
-  return otherScopes;
+  return { otherScopes, backups };
+}
+
+/**
+ * The git `pre-commit` hook in the repository at `cwd`, if it is Eklavya's
+ * gate (`scripts/install-git-hook.sh` writes it between these markers). Asked
+ * of git rather than assumed to be `.git/hooks`, so a worktree finds the hook
+ * its commits actually run.
+ */
+export function eklavyaGateHook(cwd = process.cwd()): string | null {
+  const res = spawnSync('git', ['rev-parse', '--git-path', 'hooks/pre-commit'], { cwd, encoding: 'utf8' });
+  if (res.status !== 0 || !res.stdout) return null;
+  const hook = path.resolve(cwd, res.stdout.trim());
+  try {
+    return fs.readFileSync(hook, 'utf8').includes('# >>> eklavya gate >>>') ? hook : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a hook is the fail-open kind the current installer writes. It names
+ * the runtime copy of the gate; the old kind only ever `exec`'d one fixed path.
+ */
+export function gateHookFailsOpen(hook: string): boolean {
+  try {
+    return fs.readFileSync(hook, 'utf8').includes('dist/plugin/cli/eklavya-gate');
+  } catch {
+    return false;
+  }
 }
 
 // --- 6. Claude Mem ---------------------------------------------------------
@@ -663,8 +752,9 @@ async function resolveClaudeMem(owner: MemoryOwner): Promise<void> {
 
   setEklavyaMemory(true);
   if (ids.length) {
-    const how = await spin('claude-mem', 'uninstalling the plugin…', () => removeClaudeMemPlugin(claudeHome(), ids));
+    const { how, backup } = await spin('claude-mem', 'uninstalling the plugin…', () => removeClaudeMemPlugin(claudeHome(), ids, RUN));
     check('ok', 'claude-mem', `plugin ${how}`);
+    reportBackups(backup ? [backup] : []);
   }
   // ponytail: Claude Mem's background worker, if one is up, lives until its
   // next restart; with no plugin left, nothing restarts it.
@@ -723,6 +813,8 @@ export function health(): Check[] {
   }
 
   checks.push(pluginCheck());
+  const versions = haveRuntime ? versionCheck() : null;
+  if (versions) checks.push(versions);
 
   const skillFile = path.join(userSkillDir(), 'SKILL.md');
   const haveSkill = fs.existsSync(skillFile);
@@ -755,8 +847,9 @@ function pluginCheck(): Check {
     return { name: 'plugin', ok: false, detail: `nothing at ${dir}` };
   }
 
-  const installed = readJson(path.join(claudeHome(), 'plugins', 'installed_plugins.json'));
-  const entries = (installed.plugins as Record<string, unknown> | undefined)?.['eklavya@eklavya'];
+  const installed = readForCheck(registryFiles().installed);
+  if ('error' in installed) return { name: 'plugin', ok: false, detail: installed.error };
+  const entries = (installed.value.plugins as Record<string, unknown> | undefined)?.['eklavya@eklavya'];
   const registered = Array.isArray(entries) && entries.length > 0;
   if (!registered) {
     return { name: 'plugin', ok: false, detail: `${dir} — on disk but not registered` };
@@ -767,8 +860,9 @@ function pluginCheck(): Check {
   // missing one means something removed it, and reading that as healthy is the
   // one failure this whole command exists to prevent. Being wrong the other way
   // costs a run of an idempotent installer.
-  const settings = readJson(path.join(claudeHome(), 'settings.json'));
-  const enabled = (settings.enabledPlugins as Record<string, boolean> | undefined)?.['eklavya@eklavya'];
+  const settings = readForCheck(registryFiles().settings);
+  if ('error' in settings) return { name: 'plugin', ok: false, detail: settings.error };
+  const enabled = (settings.value.enabledPlugins as Record<string, boolean> | undefined)?.['eklavya@eklavya'];
   if (enabled !== true) {
     return { name: 'plugin', ok: false, detail: 'registered but not enabled in settings.json' };
   }
@@ -776,9 +870,85 @@ function pluginCheck(): Check {
   return { name: 'plugin', ok: true, detail: `${dir} — registered, enabled` };
 }
 
+/**
+ * For a check that only reads: the object (`{}` for no file), or why it cannot
+ * be read. An unreadable file is named, not read as empty — "not registered"
+ * would send somebody to `eklavya install`, which refuses to touch it.
+ */
+function readForCheck(file: string): { value: Record<string, unknown> } | { error: string } {
+  const read = readJsonStrict(file);
+  if (read.kind === 'invalid') return { error: `${file} is not valid JSON (${read.error}) — fix it by hand` };
+  return { value: read.kind === 'ok' ? read.value : {} };
+}
+
+function versionAt(file: string): string | null {
+  const read = readJsonStrict(file);
+  const version = read.kind === 'ok' ? read.value.version : null;
+  return typeof version === 'string' ? version : null;
+}
+
+/** -1, 0 or 1 over the numeric parts of two versions; a prerelease tag is ignored. */
+export function compareVersions(a: string, b: string): number {
+  const parts = (v: string) => v.split('-')[0]!.split('.').map((n) => Number(n) || 0);
+  const [x, y] = [parts(a), parts(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d !== 0) return Math.sign(d);
+  }
+  return 0;
+}
+
+/**
+ * Does the runtime match the plugin Claude Code loads?
+ *
+ * They are installed by different routes — the plugin by `/plugin update` or a
+ * marketplace pull, the runtime by npm — so they drift, and the hooks run the
+ * runtime whatever the plugin says. `hooks/run.mjs` heals an older runtime in
+ * the background; this is the line that says whether it has.
+ *
+ * The plugin is read where Claude Code installed it (the `user` entry's
+ * `installPath`), which is the marketplace directory for this installer and a
+ * versioned cache directory for `/plugin install`. Null when either side is
+ * not there to read — the runtime and plugin checks already say so.
+ */
+function versionCheck(): Check | null {
+  const runtime = versionAt(path.join(runtimeHome(), 'node_modules', 'eklavya', 'package.json'));
+  const installed = readForCheck(registryFiles().installed);
+  const entries = 'value' in installed ? (installed.value.plugins as Record<string, unknown> | undefined)?.['eklavya@eklavya'] : null;
+  const user = Array.isArray(entries) ? (entries as Array<Record<string, unknown>>).find((e) => e?.scope === 'user') : undefined;
+  const pluginDir = typeof user?.installPath === 'string' ? user.installPath : marketplaceDir();
+  const plugin = versionAt(path.join(pluginDir, '.claude-plugin', 'plugin.json'));
+  if (!runtime || !plugin) return null;
+
+  const order = compareVersions(runtime, plugin);
+  if (order === 0) return { name: 'versions', ok: true, detail: `runtime and plugin both ${runtime}` };
+  return {
+    name: 'versions',
+    ok: false,
+    detail: order < 0
+      ? `runtime ${runtime} is behind plugin ${plugin} — the next session updates it in the background`
+      // Never downgraded automatically: migrations only go forward, so an older
+      // runtime may not understand a database the newer one has already moved.
+      : `runtime ${runtime} is ahead of plugin ${plugin} — update the plugin: /plugin update eklavya`,
+  };
+}
+
 // --- commands ---------------------------------------------------------------
 
 export async function install(args: string[]): Promise<void> {
+  try {
+    await installSteps(args);
+  } catch (err) {
+    // The files are all checked before the first write, so this is the second
+    // line: one that broke mid-run (an editor saving over it) still ends in a
+    // sentence naming the file, not a stack trace.
+    if (!(err instanceof UnreadableFileError)) throw err;
+    process.stderr.write(`\n${err.message}\n`);
+    process.exit(1);
+  }
+}
+
+async function installSteps(args: string[]): Promise<void> {
   const flagAt = args.indexOf('--memory');
   const memoryFlag = flagAt < 0 ? null : args[flagAt + 1];
   if (memoryFlag !== null && memoryFlag !== 'eklavya' && memoryFlag !== 'claude-mem') {
@@ -790,6 +960,11 @@ export async function install(args: string[]): Promise<void> {
 
   checkNode();
   check('ok', 'node', process.versions.node);
+
+  // Before the runtime, the payload or anything else: a file this run would
+  // merge into but cannot parse stops it with the machine exactly as it was.
+  const files = registryFiles();
+  refuseUnreadable([files.marketplaces, files.installed, files.settings, globalConfigPath()]);
 
   if (!args.includes('--skip-runtime')) {
     await installRuntime(version);
@@ -816,11 +991,12 @@ export async function install(args: string[]): Promise<void> {
     } else check('skip', 'skill', dim('not in this package (skipped)'));
   }
 
-  register(version);
+  const backups = register(version);
   // "and the Code tab" is not padding: that tab runs the same engine against
   // the same `~/.claude`, so this one registration covers it and someone who
   // only ever opens Claude Desktop should not go looking for a second install.
   check('ok', 'registered', `eklavya@eklavya ${dim('— Claude Code CLI and the Code tab in Claude Desktop')}`);
+  reportBackups(backups);
 
   // Creating the DB here rather than on first server start means `eklavya
   // doctor` and the dashboard work before Claude Code has ever been opened.
@@ -889,12 +1065,21 @@ export function uninstall(args: string[]): void {
   const purge = args.includes('--purge');
 
   heading('eklavya uninstall');
-  const otherScopes = deregister();
+  const files = registryFiles();
+  refuseUnreadable([files.marketplaces, files.installed, files.settings]);
+  // Looked up before the plugin directory goes: the hook `exec`s the gate
+  // script inside it, so once it is gone every commit in this repository fails.
+  const gateHook = eklavyaGateHook();
+
+  const { otherScopes, backups } = deregister();
   check('ok', 'registered', 'removed from Claude Code');
+  reportBackups(backups);
 
   // Removing the shared directory out from under a project-scoped install would
-  // leave that project pointing at nothing, so it stays until those go too.
-  if (otherScopes.length === 0) {
+  // leave that project pointing at nothing, so it stays until those go too. The
+  // runtime likewise: those projects' hooks run it.
+  const stillUsed = otherScopes.length > 0;
+  if (!stillUsed) {
     fs.rmSync(marketplaceDir(), { recursive: true, force: true });
     check('ok', 'plugin', 'removed');
   } else {
@@ -903,17 +1088,50 @@ export function uninstall(args: string[]): void {
 
   if (removeSkill()) check('ok', 'skill', 'removed');
 
-  fs.rmSync(runtimeHome(), { recursive: true, force: true });
-  check('ok', 'runtime', 'removed');
+  if (!stillUsed || purge) {
+    fs.rmSync(runtimeHome(), { recursive: true, force: true });
+    check('ok', 'runtime', stillUsed ? `removed ${dim('— --purge asked for everything; those projects need a reinstall')}` : 'removed');
+  } else {
+    check('skip', 'runtime', `kept ${dim(`— those project installs run it (${runtimeHome()})`)}`);
+  }
 
   if (purge) {
     // Only ever on an explicit flag. This is everything the learner has done —
     // months of spaced repetition — and an uninstall that silently deletes it is
-    // not an uninstall, it is data loss.
-    fs.rmSync(eklavyaHome(), { recursive: true, force: true });
-    check('ok', 'data', `removed ${dim(`(${eklavyaHome()})`)}`);
+    // not an uninstall, it is data loss. What went is listed, not summarised.
+    const home = eklavyaHome();
+    let entries: string[] = [];
+    try {
+      entries = fs.readdirSync(home).sort();
+    } catch {
+      /* nothing there to delete */
+    }
+    fs.rmSync(home, { recursive: true, force: true });
+    check('ok', 'data', `deleted ${home}`);
+    if (entries.length) check(null, '', dim(entries.join(', ')));
   } else {
     check('skip', 'data', `kept ${dbPath()} ${dim('— pass --purge to delete your learning history')}`);
+  }
+
+  if (gateHook) {
+    // Warned, never removed: it is the developer's repository, and the hook may
+    // be chaining one of their own (`pre-commit.local`).
+    const chained = path.join(path.dirname(gateHook), 'pre-commit.local');
+    check('warn', 'git hook', `${gateHook} still runs the Eklavya commit gate`);
+    // Hooks written before the gate learned to fail open `exec` a fixed path,
+    // and that path is what uninstall just removed. Newer ones find no gate,
+    // print a line and let the commit through.
+    check(
+      null,
+      '',
+      dim(
+        gateHookFailsOpen(gateHook)
+          ? 'with the gate gone it lets commits through, printing a warning each time; remove it:'
+          : 'it was written by an older Eklavya and fails every commit once its script is gone; remove it:',
+      ),
+    );
+    plain(`  ${paint.aged(fs.existsSync(chained) ? `rm "${gateHook}" && mv "${chained}" "${gateHook}"` : `rm "${gateHook}"`)}`);
+    plain(dim('  Any other repository you installed the gate in needs the same.'));
   }
 
   if (otherScopes.length > 0) {

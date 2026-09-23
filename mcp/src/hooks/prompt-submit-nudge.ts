@@ -52,7 +52,38 @@ import {
 } from './lib.js';
 import { withSurfaceNote } from '../surface.js';
 import { isSessionOff, setCurrentSession } from '../session.js';
-import { batchIfFull, identityOf, promptRecall, record } from './memory-lib.js';
+// `capture-lib`, not `memory-lib`: this runs on every prompt, and `memory-lib`
+// loads the worker, provider, zod and notify for the seams (see capture-lib.ts).
+import { batchIfFull, identityOf, record } from './capture-lib.js';
+import type { ResolvedConfig } from '../config.js';
+import type { EvidenceIdentity } from '../memory/identity.js';
+import { recallForPrompt } from '../memory/recall.js';
+
+/**
+ * Recall for one prompt, mid-session, or null.
+ *
+ * Silent far more often than not: too short a prompt, nothing relevant, or
+ * nothing this session has not already been handed. That is the design — a
+ * recall on every turn is a tax on every turn.
+ */
+function promptRecall(
+  db: DB,
+  resolved: ResolvedConfig,
+  identity: EvidenceIdentity,
+  prompt: string,
+): string | null {
+  try {
+    if (!resolved.config.memory.enabled) return null;
+    const result = recallForPrompt(db, resolved.config, {
+      project: identity.project,
+      sessionId: identity.sessionId,
+      prompt,
+    });
+    return result?.block ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Long enough that the session-start directive has had a fair chance, short

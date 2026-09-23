@@ -2,6 +2,7 @@ import type { DB } from './db.js';
 import {
   applyGrade,
   checkPromotion,
+  clampMastery,
   decayedScore,
   initialMastery,
   isKnown,
@@ -61,14 +62,17 @@ export function masteryFor(db: DB, conceptId: number): MasteryState {
     | (MasteryState & { concept_id: number })
     | undefined;
   if (!row) return initialMastery();
-  return {
+  // Clamped on the way out: a row written before the interval ceiling can hold
+  // an interval that overflows the next grade. Reading it sane is what lets
+  // that next grade land and rewrite the row inside the ceiling.
+  return clampMastery({
     score: row.score,
     ease: row.ease,
     interval_d: row.interval_d,
     reps: row.reps,
     last_seen: row.last_seen,
     next_review: row.next_review,
-  };
+  });
 }
 
 export function writeMastery(db: DB, conceptId: number, state: MasteryState): void {
@@ -651,27 +655,28 @@ export function projectKey(repoRoot: string | null | undefined): string {
 }
 
 /**
- * Every session that logged work in this project.
+ * Every `gates.repo` value that belongs to this project.
  *
  * `session_concepts` has no repo column, but every `log_session_concepts` call
  * writes the session's gate row with one, so the gate is where a session's
  * project is recorded. Folded through `projectKey` so a worktree's sessions count
  * as its checkout's. Sessions from before the gate carried a repo land in
- * `GLOBAL_PROJECT`.
+ * `GLOBAL_PROJECT`, which is why a NULL repo is reported separately: SQL's `IN`
+ * never matches it.
+ *
+ * Distinct repos rather than session ids, because the folding needs the
+ * filesystem and so has to happen here, and there are a handful of checkouts
+ * but one session per conversation -- binding one variable per session is how
+ * a long-lived project would hit SQLite's bound-variable limit.
  */
-export function projectSessionIds(db: DB, repoRoot: string | null | undefined): string[] {
+function projectRepos(db: DB, repoRoot: string | null | undefined): { repos: string[]; includesNull: boolean } {
   const key = projectKey(repoRoot);
-  const rows = db.prepare('SELECT session_id, repo FROM gates').all() as {
-    session_id: string;
-    repo: string | null;
-  }[];
-  const keys = new Map<string | null, string>();
-  return rows
-    .filter((r) => {
-      if (!keys.has(r.repo)) keys.set(r.repo, projectKey(r.repo));
-      return keys.get(r.repo) === key;
-    })
-    .map((r) => r.session_id);
+  const rows = db.prepare('SELECT DISTINCT repo FROM gates').all() as { repo: string | null }[];
+  const matching = rows.filter((r) => projectKey(r.repo) === key);
+  return {
+    repos: matching.flatMap((r) => (r.repo === null ? [] : [r.repo])),
+    includesNull: matching.some((r) => r.repo === null),
+  };
 }
 
 /**
@@ -690,9 +695,13 @@ export function backlogConcepts(
   domains: string[] = [],
   limit = 50,
 ): ConceptRow[] {
-  const projectSessions = projectSessionIds(db, repoRoot);
-  if (projectSessions.length === 0) return [];
+  const { repos, includesNull } = projectRepos(db, repoRoot);
+  if (repos.length === 0 && !includesNull) return [];
   const scoped = domains.length > 0;
+  const repoClause = [
+    ...(repos.length > 0 ? [`repo IN (${repos.map(() => '?').join(',')})`] : []),
+    ...(includesNull ? ['repo IS NULL'] : []),
+  ].join(' OR ');
   return db
     .prepare(
       `SELECT c.* FROM session_concepts sc
@@ -700,13 +709,13 @@ export function backlogConcepts(
        WHERE sc.session_id <> ?
          AND COALESCE(sc.origin, 'work') = 'work'
          AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)
-         AND sc.session_id IN (${projectSessions.map(() => '?').join(',')})
+         AND sc.session_id IN (SELECT session_id FROM gates WHERE ${repoClause})
          ${scoped ? `AND c.domain IN (${domains.map(() => '?').join(',')})` : ''}
        GROUP BY c.id
        ORDER BY min(sc.ts) ASC
        LIMIT ?`,
     )
-    .all(sessionId, ...projectSessions, ...domains, limit) as ConceptRow[];
+    .all(sessionId, ...repos, ...domains, limit) as ConceptRow[];
 }
 
 /**

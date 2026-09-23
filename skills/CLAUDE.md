@@ -40,7 +40,7 @@ So, for `tutor` and anything else without `disable-model-invocation`:
 number of questions, never the order of the tool calls, never the grading.
 Those live in the body, which is where the model has to go to get them.
 
-The eight slash commands are exempt, and it is not a technicality:
+The nine slash commands are exempt, and it is not a technicality:
 `disable-model-invocation: true` means the model never matches on their
 description at all. The developer types the command and the description is its
 one line of help, so those should say what they do. `agents/tutor.md` keeps one

@@ -15,10 +15,22 @@ drives it through `/bin/sh`.
 ## It is opt-in, twice over
 
 Nothing in `eklavya install` puts this on a repo. `scripts/install-git-hook.sh`
-does, as a separate step the user runs per repo; it writes `.git/hooks/pre-commit`
-between the `# >>> eklavya gate >>>` markers, and if a `pre-commit` already
-existed it moves it to `pre-commit.local` and chains it first. `--uninstall`
-restores it.
+does, as a separate step the user runs per repo; it writes `pre-commit` in the
+**common** git directory's `hooks/` (so a linked worktree gets the main
+checkout's hook, which is the one git runs), between the `# >>> eklavya gate >>>`
+markers, and if a `pre-commit` already existed it moves it to `pre-commit.local`
+and chains it first. `--uninstall` restores it. Re-running it rewrites an older
+Eklavya hook in place. With `core.hooksPath` set (husky, lefthook) it installs
+nothing, prints the line to add to the manager's hook, and exits 2.
+
+The installed hook does not `exec` this file at a fixed path any more. It runs
+the first that exists of `~/.eklavya/runtime/node_modules/eklavya/dist/plugin/cli/eklavya-gate`
+(honouring `EKLAVYA_RUNTIME` and `EKLAVYA_HOME`) and the path the installer ran
+from, with `sh` so a lost executable bit cannot block. If neither exists the
+commit goes through with one stderr line. The old fixed-path `exec` meant a
+plugin update that moved the directory made every commit fail — the one failure
+this gate must never have. `eklavya uninstall` warns about the hook and prints
+the command to remove it; it never deletes it.
 
 Then the script itself only acts on a project whose config sets `quiz.enforced`
 (or the retired `"mode": "enforced"`, which it still reads). That config is at

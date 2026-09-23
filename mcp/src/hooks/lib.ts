@@ -82,16 +82,55 @@ export async function readInput(): Promise<HookInput> {
  * which is the same answer `eklavya_have_deps` gave.
  */
 export function openExisting(): DB | null {
+  return openOrDiagnose().db;
+}
+
+/**
+ * Why a database that exists could not be used. `native` is better-sqlite3's
+ * binding failing to load -- it loads lazily, on the first `new Database`, so a
+ * Node major upgrade shows up here and nowhere earlier.
+ */
+export type DbProblem = 'unreadable' | 'native';
+
+/**
+ * `openExisting`, plus the reason when the answer is no.
+ *
+ * No file is not a problem: it is a first session, and the MCP server creates
+ * the database. A file that is there and cannot be opened or read is, and it
+ * used to be indistinguishable -- every hook returned in silence and Eklavya
+ * just stopped. `new Database` succeeds on a file full of garbage, so the header
+ * is read (`schema_version`) before calling it healthy; an empty file reads as
+ * version 0, which is what the server's own first open looks like mid-creation.
+ * A busy database is somebody else's write in progress, not a fault. Never throws.
+ */
+export function openOrDiagnose(): { db: DB | null; problem: DbProblem | null } {
   const file = dbPath();
-  if (!fs.existsSync(file)) return null;
+  if (!fs.existsSync(file)) return { db: null, problem: null };
+  let db: DB;
   try {
-    const db = new Database(file);
+    db = new Database(file);
+  } catch (err) {
+    return { db: null, problem: isNativeLoadError(err) ? 'native' : 'unreadable' };
+  }
+  try {
     db.pragma('busy_timeout = 2000');
     db.pragma('foreign_keys = ON');
-    return db;
-  } catch {
-    return null;
+    db.pragma('schema_version');
+    return { db, problem: null };
+  } catch (err) {
+    try {
+      db.close();
+    } catch {
+      /* already unusable */
+    }
+    const code = (err as { code?: string })?.code ?? '';
+    return { db: null, problem: /^SQLITE_(BUSY|LOCKED)/.test(code) ? null : 'unreadable' };
   }
+}
+
+function isNativeLoadError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /NODE_MODULE_VERSION|better_sqlite3\.node|bindings file|dlopen|ERR_DLOPEN_FAILED/i.test(message);
 }
 
 /**

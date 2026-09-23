@@ -463,6 +463,34 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         }
       }
     }, 120000);
+
+    // The page is served under a Content-Security-Policy. A directive too tight
+    // for what the page really uses -- its inline script, inline styles, the
+    // `data:` favicon, its own fetches -- breaks rendering with nothing but a
+    // console line, so every violation is collected and must be none.
+    it('renders fully under its security policy, with no violation', async () => {
+      const w = await open('#/learning/dashboard', {
+        init: `window.__csp = []; document.addEventListener('securitypolicyviolation',
+          (e) => window.__csp.push(e.violatedDirective + ' ' + e.blockedURI));`,
+      });
+      const res = await w.page.reload(); await ready(w.page);
+      expect(res?.headers()['content-security-policy']).toContain("default-src 'self'");
+      for (const h of ['#/learning/dashboard', '#/learning/concepts', '#/memory/timeline', `#/memory/entry/${fx.entries.mixed}`]) {
+        await w.page.goto(base + '/' + h); await ready(w.page);
+        expect(await w.page.evaluate(() => document.querySelector('#view h1')?.textContent?.trim()), h).toBeTruthy();
+      }
+      expect(await w.page.evaluate(() => (window as any).__csp)).toEqual([]);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('escapes an apostrophe along with the other four', async () => {
+      const w = await open('#/learning/dashboard');
+      // `esc` is a top-level const of the page's own script.
+      expect(await w.page.evaluate(() => (0, eval)('esc')(`<a title='x' href="y">&</a>`)))
+        .toBe('&lt;a title=&#39;x&#39; href=&quot;y&quot;&gt;&amp;&lt;/a&gt;');
+      await w.ctx.close();
+    });
   });
 
   describe('projects', () => {

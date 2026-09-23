@@ -23,6 +23,21 @@ back to `npx eklavya@<pinned> serve` and a hook starts a detached background
 `npm install` (once an hour at most, claimed by a `.installing` stamp before
 spawning) and exits 0 saying nothing.
 
+The same heal keeps an **installed** runtime current. The plugin moves when
+Claude Code updates it; the runtime only moves when npm runs. So when the entry
+resolved to `~/.eklavya/runtime` and its `package.json` version is older than
+`plugin.json`'s, `healIfBehind` starts that background install before the
+import — this run still uses the old runtime and never waits. It never
+downgrades (migrations only go forward), and leaves an `EKLAVYA_RUNTIME` or
+checkout build alone. `eklavya doctor`'s `versions` row reports the skew.
+
+The `npx` fallback retries `eklavya@latest` once, and only when npm says the
+pinned version does not exist (`E404`/`ETARGET`/`No matching version`). That is
+the release gap: semantic-release pushes the bumped `plugin.json` in its
+`prepare` step, before `npm publish`, so a marketplace pull can pin a version
+npm does not have yet for a minute or so. A server that started and then failed
+is not restarted.
+
 **It carries no version number.** It reads `.claude-plugin/plugin.json` at
 runtime, and `mcp/test/packaging.test.ts` asserts the file matches no
 `\d+\.\d+\.\d+` anywhere and does match `plugin\.json` — so writing any dotted
@@ -32,12 +47,15 @@ else.
 
 ## The seven hooks, out of `hooks.json`
 
+Seven scripts on six events: `checkpoint-quiz` is registered twice under
+PostToolUse, so the table has eight rows.
+
 | Event | Matcher | Timeout | Script | Job |
 |---|---|---|---|---|
-| SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), replay the spool, summarise the last session's batch, recall this project's memory, show the developer the profile banner (`systemMessage`) and hand the model the recall and the standing log directive (`additionalContext`) |
+| SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), replay the spool, summarise the last session's batch, recall this project's memory, show the developer the profile banner (`systemMessage`) and hand the model the recall and the standing log directive (`additionalContext`). A database that exists but will not open gets one line to the developer — `Eklavya paused · can't open its database · run: eklavya doctor`, or the SQLite/Node-mismatch variant — and a first run with no database stays silent |
 | UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-stamp this checkout's session pointer, then re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
 | SubagentStart | — | 10s | `subagent-start` | give a delegated agent the log directive the parent's SessionStart never reached it with |
-| PreToolUse | `Bash` | 10s | `pre-tool-gate` | with `quiz.enforced` only, deny a `git commit` whose session gate has not passed |
+| PreToolUse | `Bash` | 10s | `pre-tool-gate` | with `quiz.enforced` only, deny a `git commit` (or `git merge --continue`) whose session gate has not passed. `commit-lib.ts` lexes the command like a shell — newlines, `env`/`sudo`/`timeout`/`VAR=x` prefixes, `bash -c`, subshells, substitutions, `git -C dir` — and accepts missing aliases and scripts: the git hook is the real enforcement |
 | PostToolUse | — | 10s | `capture-tool` | record the tool use as memory evidence |
 | PostToolUse | `mcp__.*log_session_concepts` | 10s | `checkpoint-quiz` | one mid-task question, `interleaved` cadence only |
 | PostToolUse | `^(Bash\|Edit\|Write\|MultiEdit\|NotebookEdit)$` | 10s | `checkpoint-quiz` | the same hook, re-armed by the work: the model logs once per task, so without this the checkpoint asked once per task. No `statusMessage` — it would flash on every command |
@@ -59,7 +77,19 @@ word `off` denied it, so `session-start` now says on screen which half stopped.
 the prompt; `capture-tool` captures the tool use; `stop-quiz-check` closes the
 batch at the seam. `mcp/src/hooks/memory-lib.ts` holds the shared helpers, and
 every one of them swallows its own failures — a capture path that throws is a
-throw on every tool call.
+throw on every tool call. The light capture path — `identityOf`, `record`,
+`batchIfFull` — lives in `capture-lib.ts`, so `capture-tool` and
+`prompt-submit-nudge` never import the worker, the provider, recall or notify;
+`memory-lib.ts` re-exports them for the seam hooks, and
+`mcp/test/hook-isolation.test.ts` fails if a hot path starts loading a heavy
+module again.
+
+A Stop seam does not close a batch every turn: only at `SEAM_MIN_EVENTS` (8)
+or once the oldest open event is `SEAM_MAX_AGE_MS` (20 minutes) old, because
+with an observer configured every closed batch is a `claude -p` call. A session
+start closes everything. The same seam runs the retention sweep
+(`pruneIfDue`, at most every six hours, 5,000 events at a time) and gives all
+notification sinks one shared 5s budget (`NOTIFY_BUDGET_MS`).
 
 The seam never waits on inference. With `providers.observer` configured,
 `flushAtSeam` queues the batch and hands it to a detached `eklavya memory

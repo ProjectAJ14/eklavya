@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { ProviderConfig } from '../config.js';
 import type { EntryDraft, SummarizeInput, SummarizeOptions, Summarizer } from './summarize.js';
 import { groupAlive, OBSERVER_ENV } from './reservation.js';
+import { defangFence } from './privacy.js';
 
 /**
  * The configured observer (ADR-04, PRD MEM-02, CFG-02).
@@ -91,11 +92,21 @@ const SYSTEM = [
   'If the evidence shows no durable work, return an empty observations array.',
 ].join('\n');
 
-function renderEvidence(input: SummarizeInput): string {
+/** The tags the prompt fences evidence with, and so the ones evidence may not spell. */
+const FENCE_TAGS = ['event', 'evidence'];
+
+/**
+ * The batch as the provider reads it. Bodies are captured tool output — a file
+ * read can hold anything — so a body spelling `</event></evidence>` must not be
+ * able to end the data frame the system prompt tells the model to distrust.
+ * Exported for the test that checks exactly that.
+ */
+export function renderEvidence(input: SummarizeInput): string {
+  const safe = (text: string) => defangFence(text, FENCE_TAGS);
   return input.events
     .map((e) => {
-      const files = e.files ? ` files=${e.files}` : '';
-      return `<event kind="${e.kind}" tool="${e.tool ?? ''}" at="${e.occurred_at}"${files}>\n${e.body}\n</event>`;
+      const files = e.files ? ` files=${safe(e.files)}` : '';
+      return `<event kind="${e.kind}" tool="${safe(e.tool ?? '')}" at="${e.occurred_at}"${files}>\n${safe(e.body)}\n</event>`;
     })
     .join('\n');
 }

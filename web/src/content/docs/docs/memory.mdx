@@ -23,7 +23,7 @@ A `PostToolUse` hook runs after **every** tool call and writes one row of eviden
 | `lifecycle` | Session start and stop |
 | `note` | Something written down on purpose, with `memory_write` |
 
-Each event's body is capped at 4,000 characters, and an edit keeps at most 600 characters of each side of the change. Evidence is a pointer to work, not a copy of the repo.
+Each event's body is capped at 4,000 characters — after redaction, so a secret that straddles the cut is still seen whole — and an edit keeps at most 600 characters of each side of the change. Evidence is a pointer to work, not a copy of the repo.
 
 `memory.capture` narrows that. `minimal` keeps `prompt`, `assistant`, `lifecycle` and `note` — enough to answer "what was I doing last Tuesday" — and drops the per-file traffic, which is most of the volume. `off` stops capture and leaves what is already stored searchable.
 
@@ -49,18 +49,24 @@ Three rules, in order:
 
 | Marker | What it matches |
 | --- | --- |
-| `[redacted:private-key]` | A PEM `BEGIN … PRIVATE KEY` block |
+| `[redacted:private-key]` | A PEM `BEGIN … PRIVATE KEY` block, including one cut off before its `END` line |
+| `[redacted:password]` | The password in a URL such as `postgres://user:<password>@db.internal` — the user and host are kept |
 | `[redacted:anthropic-key]` | `sk-ant-…` |
-| `[redacted:openai-key]` | `sk-…` |
+| `[redacted:openai-key]` | `sk-…`, `sk-proj-…`, `sk-svcacct-…`, `sk-admin-…` |
+| `[redacted:stripe-key]` | `sk_live_`, `sk_test_`, `rk_live_`, `rk_test_` |
 | `[redacted:github-token]` | `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_` |
-| `[redacted:aws-key-id]` | `AKIA…` |
+| `[redacted:gitlab-token]` | `glpat-…` |
+| `[redacted:npm-token]` | `npm_…` |
+| `[redacted:aws-key-id]` | `AKIA…`, `ASIA…` |
 | `[redacted:slack-token]` | `xoxb-`, `xoxa-`, `xoxp-`, `xoxr-`, `xoxs-` |
 | `[redacted:google-key]` | `AIza…` |
 | `[redacted:jwt]` | A three-part `eyJ…` token |
 | `[redacted:bearer]` | `Bearer <token>` |
-| `[redacted:secret]` | The value in `password=`, `secret:`, `api_key=`, `token=`, `access_key=` |
+| `[redacted:secret]` | The value assigned to any name ending in `password`, `passwd`, `passphrase`, `secret`, `credential`, `token`, `api_key`, `access_key`, `private_key` or `authorization` — `DB_PASSWORD=…`, `export OPENAI_API_KEY=…`, `"client_secret": "…"`, `config.token: …`. Code is left alone: `token = getToken()` and `apiKey = process.env.KEY` are not secrets |
 
 `privacy.redact_patterns` adds your own regular expressions; matches become `[redacted:configured]`. A pattern that does not compile is skipped rather than taking capture down with it.
+
+The built-in shapes also run on every memory entry as it is written — including notes written with `memory_write` and entries brought in by a Claude Mem import, which never went through capture.
 
 :::caution
 Redaction is pattern matching, not comprehension. It catches the shapes above and whatever you add. A secret that looks like ordinary prose will not match, so keep secrets out of the files you ask an agent to open — `privacy.exclude_paths` is the reliable control, redaction is the backstop.
@@ -68,7 +74,7 @@ Redaction is pattern matching, not comprehension. It catches the shapes above an
 
 ### How observations are made
 
-Raw evidence is not memory. At a seam — a session start or stop, or whenever `memory.batch_max_events` (40) events have piled up — a summariser turns a batch of evidence into one **observation**: a title, a type, a short narrative, a list of facts, the files involved, and tags taken from the path segments and extensions the work touched.
+Raw evidence is not memory. At a seam, a summariser turns a batch of evidence into one **observation**. A session start closes whatever the last session left open, however small. The end of a turn closes a batch only once it holds at least 8 events or its oldest event is 20 minutes old, so a two-line "yes, go ahead" turn joins the next one instead of costing a summary of its own. A batch also closes whenever `memory.batch_max_events` (40) events pile up mid-task. Each observation has a title, a type, a short narrative, a list of facts, the files involved, and tags taken from the path segments and extensions the work touched.
 
 The default summariser is `local-v1`, and it makes **no network call**. It is *extractive*: it quotes and counts what the evidence already says — what you asked for, how many edits landed across how many files, what failed — rather than writing prose about it. That ceiling is real and it is why every observation it writes carries a confidence of 0.5: it cannot explain *why* a change was made unless you said so in a prompt. It is also why it can run inside a hook with no key, no budget and no waiting.
 
@@ -214,7 +220,7 @@ Everything is in the same `~/.eklavya/knowledge.db` as your learning data, in `m
 
 - `memory.enabled: false` stops capture and recall entirely, and leaves the learning half running.
 - `memory.capture: "minimal"` keeps the shape of your sessions without the file-by-file traffic.
-- `memory.retention_days` deletes raw evidence older than N days; observations built from it survive. The default, `null`, keeps evidence until you delete it.
+- `memory.retention_days` deletes raw evidence older than N days once it has been summarised; observations built from it survive, but their drill-down to the raw events gets shorter. Finished jobs and reuse receipts older than the window go with it, so the savings figures cover the retention window. It runs on its own at a session seam, at most every six hours; `eklavya memory prune` runs it now. The default, `null`, keeps everything until you delete it.
 - The `eklavya memory` commands read and maintain the same store from a terminal. See the [CLI reference](/docs/cli/).
 
 With the default configuration nothing about your code leaves the machine: the summariser is local and the embedder is local. Setting `providers.observer` or `providers.embeddings` is the only thing that changes that, and neither is set for you.

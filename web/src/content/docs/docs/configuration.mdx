@@ -61,7 +61,7 @@ quiz — and the gate keeps *growing* while you are silent, because the work sti
 gets logged and the quiz that would have drained it is the thing you switched
 off. Silence an enforced session for an hour and the quiz waiting at `git commit`
 is a longer one. Silencing the questions and skipping the gate are different requests, and
-only a repo or global change to `quiz.enforced` is the second one.
+only a project or global change to `quiz.enforced` is the second one.
 
 ### Every key
 
@@ -118,8 +118,8 @@ The keys above are flat because every config already written uses them that way.
 | --- | --- | --- |
 | `memory.enabled` | `true` | Whether this project's work is recorded and recalled at all. |
 | `memory.capture` | `"full"` | What the capture path accepts. `full` records prompts, tool calls, failures, edits and reads; `minimal` keeps prompts, assistant messages, session seams and notes, and drops the per-file traffic that is most of the volume; `off` stops capture and leaves what is already stored searchable. |
-| `memory.batch_max_events` | `40` | Events per observation batch. A session seam flushes whatever is left, so a short session is still summarised. |
-| `memory.retention_days` | `null` | Days of raw evidence to keep. Observations built from it survive its deletion. `null` keeps it until you delete it. |
+| `memory.batch_max_events` | `40` | The most events in one observation batch; a batch closes mid-task when it reaches this. The end of a turn closes a smaller one only at 8 events or 20 minutes old, and a session start closes whatever is left, so a short session is still summarised. |
+| `memory.retention_days` | `null` | Days of summarised raw evidence to keep. Observations built from it survive its deletion; only their drill-down gets shorter. Finished jobs and reuse receipts older than the window are deleted too. Runs at a session seam at most every six hours, or now with `eklavya memory prune`. `null` keeps it all until you delete it. |
 
 :::note
 **`memory.enabled` is independent of `quiz`.** `quiz.enabled: false` means no quizzes, no checkpoints and no gate — it does not mean no history. Someone who silenced the questions did not ask for their project's record to stop, and the reverse (quizzes, no capture) is just as legitimate: that is `memory.enabled: false`. This was always how it worked; the settings are named `quiz` and `memory` now so that it is legible from the configuration file rather than only from this paragraph.
@@ -147,6 +147,8 @@ Every entry here is *added* to Eklavya's built-in rules, never replaces them. [M
 #### `providers`
 
 Both are `null`, and **nothing turns them on for you** — not an upgrade, not a command. With them unset, the summariser and the embedder are both local and nothing about your code leaves the machine.
+
+`providers` is **global only**: it can be set in `~/.eklavya/config.json` and nowhere else. One background worker summarises every project's queue on this machine, so a per-project setting would decide what leaves the machine for other projects too. A project file that sets it is ignored, and `eklavya config get` lists it as ignored; `eklavya config set providers.observer … --project` refuses.
 
 | Key | Default | What it does |
 | --- | --- | --- |
@@ -184,9 +186,9 @@ ten minutes ran that command. Containing this needed a list of settings a
 repository was not allowed to touch.
 
 Moving the file out removes the class where it was worst. `notifications`,
-`sync`, `providers` and `retrieval.cross_project` are ordinary settings you can
-now set per project, because a file under your home directory is one only you
-wrote.
+`sync` and `retrieval.cross_project` are ordinary settings you can now set per
+project, because a file under your home directory is one only you wrote.
+`providers` is the exception, and global only, for the reason above.
 
 The restriction survives in exactly one place: a **legacy `.eklavya.json` still
 sitting in a checkout**. That file did arrive by clone, and it applies until a
@@ -222,7 +224,9 @@ local database changes nothing.
 Two event kinds today: `session_summary` when a session ends, and
 `queue_paused` when observation processing has stopped and will not restart by
 itself. Every payload goes through the same redaction as capture, and each
-event is delivered once however many times the session seam fires.
+event is delivered once however many times the session seam fires. All sinks
+share a five-second budget at the end of a turn; a slow one is not waited on
+past that.
 
 `command` exists because the interesting integrations are all somebody's
 script — a desktop notification, a line in a journal, a message posted by a CLI

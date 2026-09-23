@@ -23,6 +23,7 @@ import { spawn } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { findRepoConfig } from './config.js';
 import { projectKey } from './store.js';
+import { readJsonForUpdate, writeJsonWithBackup } from './safe-write.js';
 
 /** `CLAUDE_MEM_DATA_DIR` is Claude Mem's own override, so it is ours too. */
 export function claudeMemDir(): string {
@@ -67,7 +68,12 @@ export function activeClaudeMemPluginIds(claudeHome: string): string[] {
  * it off in settings.json when `claude` is not on PATH. Off is enough to stop
  * the double recording; the fallback just cannot delete the files.
  */
-export async function removeClaudeMemPlugin(claudeHome: string, ids: string[]): Promise<'uninstalled' | 'disabled'> {
+export async function removeClaudeMemPlugin(
+  claudeHome: string,
+  ids: string[],
+  /** The caller's backup run (see `WriteOptions.run`), so install keeps one true original. */
+  run?: Set<string>,
+): Promise<{ how: 'uninstalled' | 'disabled'; backup: string | null }> {
   let viaCli = true;
   for (const id of ids) {
     // Async so install's spinner turns while `claude` starts up, which is seconds.
@@ -82,17 +88,16 @@ export async function removeClaudeMemPlugin(claudeHome: string, ids: string[]): 
     });
     if (status !== 0) viaCli = false;
   }
-  if (viaCli) return 'uninstalled';
+  if (viaCli) return { how: 'uninstalled', backup: null };
 
+  // The developer's settings file: never read as `{}` when it will not parse
+  // (install checks it up front, this is the second line), and backed up first.
   const file = path.join(claudeHome, 'settings.json');
-  const settings = readJson(file);
+  const settings = readJsonForUpdate(file);
   const enabled = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
   for (const id of ids) enabled[id] = false;
   settings.enabledPlugins = enabled;
-  const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
-  fs.renameSync(tmp, file);
-  return 'disabled';
+  return { how: 'disabled', backup: writeJsonWithBackup(file, settings, { run }).backup };
 }
 
 /** The first `cwd` a transcript records, or null. Only the head is read. */

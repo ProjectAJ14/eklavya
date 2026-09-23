@@ -3,7 +3,7 @@ import { loadConfig } from '../config.js';
 import { normalizeSlug, isValidSlug, findFuzzyMatch } from '../slug.js';
 import { resolveSessionId } from '../session.js';
 import { allConceptSlugs, conceptBySlug, insertConcept, newConceptsThisSession } from '../store.js';
-import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
+import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
 export const upsertConcepts: ToolDef = {
   name: 'upsert_concepts',
@@ -11,27 +11,29 @@ export const upsertConcepts: ToolDef = {
   description:
     'Grow the knowledge graph when work touches a concept that has no slug yet. Slugs are normalized and near-duplicates are folded into the existing concept, so check the returned canonical slug before using it.',
   inputSchema: {
-    session_id: z.string().optional().describe(SESSION_HINT),
-    cwd: z.string().optional().describe(CWD_HINT),
+    session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
+    cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
     concepts: z
       .array(
         z.object({
-          slug: z.string(),
-          name: z.string().optional(),
-          domain: z.string().optional(),
+          slug: z.string().max(LIMITS.slug),
+          name: z.string().max(LIMITS.name).optional(),
+          domain: z.string().max(LIMITS.domain).optional(),
           tier: z.number().int().min(1).max(5).optional(),
-          description: z.string().optional(),
+          description: z.string().max(LIMITS.description).optional(),
         }),
       )
-      .min(1),
+      .min(1)
+      .max(LIMITS.concepts),
     edges: z
       .array(
         z.object({
-          from: z.string(),
-          to: z.string(),
+          from: z.string().max(LIMITS.slug),
+          to: z.string().max(LIMITS.slug),
           relation: z.enum(['prerequisite_of', 'related_to', 'part_of']),
         }),
       )
+      .max(LIMITS.edges)
       .optional()
       .describe('Prefer prerequisite_of edges — they are what orders a teaching session.'),
   },

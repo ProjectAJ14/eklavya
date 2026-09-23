@@ -178,6 +178,13 @@ into the batch it replaced.
   once: the gate exists, here is what it needs, let's get through it. Supportive,
   not punitive. Never imply they are being punished.
 
+  While the gate is open the plan holds only this session's own work — no
+  review, no widening, since neither counts toward the gate. Items with
+  `reason: "gate_work"` are this session's concepts even when the learner has
+  mastered them in another session since: they are on the gate's list, so ask
+  them normally. Do not skip one because the profile says it is mastered, or
+  the gate can become impossible to pass.
+
   A blank grades 0, and 0 never passes the gate — so a session answered entirely
   with "I don't know" would leave nothing to ask and a commit that can never go
   through. When that happens the plan comes back with `reason: "gate_retry"`: the

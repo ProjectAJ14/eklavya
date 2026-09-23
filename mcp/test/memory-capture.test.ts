@@ -333,7 +333,7 @@ describe('batch provenance', () => {
 });
 
 describe('retention', () => {
-  it('ages out summarised evidence but never evidence an entry still points at', () => {
+  it('ages out old summarised evidence, cited or not, and keeps what is young or not yet summarised', () => {
     const old = new Date(Date.now() - 30 * 86_400_000).toISOString();
     const recent = new Date(Date.now() - 86_400_000).toISOString();
 
@@ -349,12 +349,14 @@ describe('retention', () => {
 
     const cfg = config();
     cfg.memory.retention_days = 7;
-    expect(pruneEvidence(db, cfg)).toBe(1);
+    // Sparing cited events used to mean sparing all of them: every summariser
+    // links every event it read. `memory-retention.test.ts` has the rest.
+    expect(pruneEvidence(db, cfg)).toBe(2);
 
     const left = (db.prepare('SELECT event_uid FROM evidence_events ORDER BY event_uid').all() as {
       event_uid: string;
     }[]).map((r) => r.event_uid);
-    expect(left).toEqual(['cited', 'unsummarized', 'young']);
+    expect(left).toEqual(['unsummarized', 'young']);
     expect(unsummarized).toBeGreaterThan(0);
 
     // `null` means keep until deleted by hand, and must not fall through to a

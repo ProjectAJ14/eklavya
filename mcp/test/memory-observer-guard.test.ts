@@ -11,6 +11,7 @@ import { appendEvent, batchSession } from '../src/memory/store.js';
 import { eventUid } from '../src/memory/identity.js';
 import { processPending, queueDepth } from '../src/memory/worker.js';
 import { runClaude, ProviderError } from '../src/memory/provider.js';
+import { SEAM_MAX_AGE_MS } from '../src/hooks/memory-lib.js';
 import {
   OBSERVER_ENV,
   WORKER_LEASE_MS,
@@ -107,6 +108,12 @@ const session = (sid: string) => {
   hook('session-start', { session_id: sid, cwd: repo, source: 'startup' });
   hook('prompt-submit-nudge', { session_id: sid, cwd: repo, prompt: 'Add refresh token rotation to the auth middleware' });
   hook('capture-tool', { session_id: sid, cwd: repo, tool_name: 'Bash', tool_input: { command: 'npm test' } });
+  // Aged past the Stop seam's bound, so the next Stop closes this short session
+  // into a batch the way a real task's worth of evidence would.
+  db.prepare("UPDATE evidence_events SET occurred_at = ? WHERE status = 'accepted' AND session_id = ?").run(
+    new Date(Date.now() - SEAM_MAX_AGE_MS - 60_000).toISOString(),
+    sid,
+  );
 };
 
 const calls = (): string[] => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : []);

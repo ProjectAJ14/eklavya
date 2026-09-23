@@ -14,6 +14,8 @@ Each session gets a gate with a **required** number of concepts: how many of the
 
 `required` is frozen when the gate opens and only ever grows, so mastering concepts mid-quiz cannot shrink the obligation you already have.
 
+While a gate is open, the quiz offers only this session's own work: no review questions from other sessions and no widening to related concepts, since neither could count. That includes a concept you have since mastered in another session — it is still on this session's list, so it is still asked, and the gate can always be passed.
+
 ### The two paths a commit can take
 
 | Where you commit | What stops it | Installed by |
@@ -22,6 +24,8 @@ Each session gets a gate with a **required** number of concepts: how many of the
 | A terminal, or any other editor | A git `pre-commit` hook in the repository. | You, with the script below. |
 
 Install both, or the gate only covers half the ways to commit.
+
+The Claude Code path reads each command the way a shell would, so a commit is caught on its own line after other commands, behind `env`, `sudo`, `timeout` or a `VAR=value` prefix, inside `bash -c "…"`, a subshell or a `$( )`, and as `git -C <dir> commit`. It also holds `git merge --continue`, which runs git's pre-commit hook too. What it cannot see is a git alias (`git ci`), a variable holding the command, or a script on disk that commits. It is a speed bump for an agent that forgot the quiz, not a sandbox. **The git hook is the real enforcement**, because git runs it however the commit was started.
 
 :::note
 **Neither path exists in Cowork.** The gate is built on `git commit`, and Cowork
@@ -39,8 +43,13 @@ surface that commits.
 /path/to/eklavya/scripts/install-git-hook.sh --uninstall
 ```
 
+- It needs `jq` and the `sqlite3` command line tool: `brew install jq sqlite` or `sudo apt-get install -y jq sqlite3`. Without them the hook lets every commit through, and `eklavya doctor` flags it on its `gate` row.
 - It **chains** to any `pre-commit` hook you already have rather than replacing it — your existing one is moved to `pre-commit.local` and still runs.
 - `--uninstall` removes Eklavya's hook and restores the previous one.
+- **Running it again upgrades an older hook in place**, and says so.
+- It works in a linked `git worktree`: the hook goes into the main repository's hooks folder, which every worktree of it shares.
+- If the repository sets `core.hooksPath` — which hook managers such as husky and lefthook do — git never runs the standard hook, so the script installs nothing. It prints the one line to add to the pre-commit hook your manager runs instead, and exits with code 2. That line does nothing if the gate is missing, so it can never block a commit on its own.
+- The hook looks for the gate script first in the runtime `eklavya install` keeps current, `~/.eklavya/runtime/node_modules/eklavya/dist/plugin/cli/eklavya-gate`, then at the path you installed it from. If neither exists — after an uninstall, say — the commit goes through with one line on stderr saying it was not gated. A plugin update can never make your commits fail.
 - It only acts on projects whose config sets `quiz.enforced` — or the retired `"mode": "enforced"`, which it still reads — so installing it is safe even if you turn enforcement off later. That config is at `~/.eklavya/projects/<checkout>/config.json`, never in the repository.
 - It reads **that file and no other** — never your global `~/.eklavya/config.json`. Enforcing globally gates commits made inside Claude Code, but a bare-terminal commit is only held in repositories that say so themselves. A hook installed once must not start blocking because a global setting changed elsewhere. The one thing it takes from the global file is the off switch: if your global config sets `quiz.enabled false` and the project does not turn questions back on, the gate lets the commit through, because nothing would ever ask the questions that pass it.
 

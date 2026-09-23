@@ -156,7 +156,7 @@ labelled, because the point of the page is that you can check the record — and
 both are already excluded from search and from what the agent is given.
 
 Filter by type with the chips, by tag with the dropdown, and by date with the
-two date fields. The search box matches titles, narrative, facts and file paths.
+two date fields. The search box matches titles, narrative, facts and file paths, and takes `%`, `_` and `\` literally rather than as wildcards.
 The project selector in the sidebar narrows the timeline to one repository.
 
 The five numbers along the top of the Memory Dashboard and the timeline are
@@ -300,8 +300,10 @@ open can point a hostname it controls at `127.0.0.1` and fetch from a local
 server, and the browser's same-origin rule does not stop it, because the page's
 origin *is* that hostname. So the dashboard checks that the request was
 addressed to loopback **by name** and refuses anything else with a 403. Nothing
-here writes, so the risk was never that someone changes a setting; it is that
-this page now carries your prompts, your code and your project history.
+here writes — any request other than `GET` or `HEAD` gets a 405 — so the risk
+was never that someone changes a setting; it is that this page now carries your
+prompts, your code and your project history. Every response also forbids being
+framed by another page and loading anything from another origin.
 
 `/api/state`
 ships flat rows — every attempt, every logged context, one row per day, plus the

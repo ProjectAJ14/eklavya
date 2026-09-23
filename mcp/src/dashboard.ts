@@ -27,24 +27,15 @@ import type { DB } from './db.js';
 import { decayedScore, isDue, isKnown, MS_PER_DAY } from './srs.js';
 import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
 import { loadConfig, DEFAULT_CONFIG, type EklavyaConfig } from './config.js';
-import { dbPath } from './paths.js';
+import { dbPath, DEFAULT_PORT } from './paths.js';
 import { receiptTotals } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
 import { droppedCount } from './memory/spool.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-/**
- * High, unassigned, and deliberately boring to collide with.
- *
- * The low 5000s are where every dev server lands — Vite alone walks 5173, 5174,
- * 5175 upward as it finds ports taken — so a default down there is a default
- * you have to override. This sits above the registered services in /etc/services
- * and below the 49152+ ephemeral range the OS hands out for outbound sockets,
- * so neither end can claim it first. (1729 is the Hardy–Ramanujan number, which
- * is as good a reason as any to remember it.)
- */
-export const DEFAULT_PORT = 41729;
+/** Moved to `paths.ts` so the SessionStart hook can probe it without importing this module. */
+export { DEFAULT_PORT };
 /**
  * How much history the per-day rows cover. A year, because the calendar heatmap
  * shows half of one and the streak has to be able to run off the top of it —
@@ -380,7 +371,12 @@ export function memoryPage(db: DB, q: MemoryQuery = {}): Record<string, unknown>
   // a LIKE over the stored columns beats explaining a MATCH parse error to
   // someone who typed `fix: auth (retry?)`.
   if (q.q && String(q.q).trim()) {
-    where.push('(e.title LIKE ? OR e.narrative LIKE ? OR e.facts LIKE ? OR e.files LIKE ?)');
+    // The escape needs its `ESCAPE` clause: without one SQLite reads `\%` as a
+    // backslash then a wildcard, and a search for `100%` or `snake_case` found
+    // nothing.
+    where.push(
+      "(e.title LIKE ? ESCAPE '\\' OR e.narrative LIKE ? ESCAPE '\\' OR e.facts LIKE ? ESCAPE '\\' OR e.files LIKE ? ESCAPE '\\')",
+    );
     const like = `%${String(q.q).trim().replace(/[\\%_]/g, '\\$&')}%`;
     args.push(like, like, like, like);
   }
@@ -1074,12 +1070,43 @@ export function localTokens(css: string): string {
   return css.replace(/@import\s+url\(\s*['"]?(?:https?:)?\/\/[^)]*\)[^;]*;\s*/gi, '');
 }
 
-function send(res: http.ServerResponse, status: number, type: string, body: string | Buffer): void {
+/**
+ * What a browser may do with anything this server sends. The page is one file
+ * with an inline script and inline styles, a `data:` favicon, and same-origin
+ * fetches -- nothing more is allowed, so an injected tag that slipped past
+ * `esc()` still cannot load or send anything off the machine, and no other page
+ * can frame this one.
+ */
+const SECURITY_HEADERS = {
+  'content-security-policy': [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; '),
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'no-referrer',
+};
+
+function send(
+  res: http.ServerResponse,
+  status: number,
+  type: string,
+  body: string | Buffer,
+  extra: Record<string, string> = {},
+): void {
   res.writeHead(status, {
     'content-type': type,
     // A dashboard read from a stale cache is a dashboard that lies about
     // progress made ten seconds ago, which is the one thing it is for.
     'cache-control': 'no-store',
+    ...SECURITY_HEADERS,
+    ...extra,
   });
   res.end(body);
 }
@@ -1131,6 +1158,10 @@ export function startDashboard(
     // loopback by name, which a rebound hostname never is.
     if (!fromLoopback(req.headers.host, req.headers.origin)) {
       return send(res, 403, 'text/plain', 'Eklavya serves loopback only.\n');
+    }
+    // Every route reads. Anything else is refused rather than answered as a GET.
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      return send(res, 405, 'text/plain', 'Eklavya\'s dashboard is read-only.\n', { allow: 'GET, HEAD' });
     }
     const url = new URL(req.url ?? '/', `http://${host}`);
     try {

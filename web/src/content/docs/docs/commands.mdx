@@ -4,12 +4,12 @@ sidebar:
   order: 7
 ---
 
-Eight slash commands, all typed inside Claude Code. Every one of them is read-only until you ask for a change, and none of them starts a quiz unless that is what the command is for. If you would rather not memorise them, [you can just ask](/docs/commands/#or-just-ask).
+Nine slash commands, all typed inside Claude Code. Every one of them is read-only until you ask for a change, and none of them starts a quiz unless that is what the command is for. If you would rather not memorise them, [you can just ask](/docs/commands/#or-just-ask).
 
 | Command | One line |
 | --- | --- |
 | [`/eklavya:quiz [topic]`](/docs/commands/#eklavyaquiz-topic) | Quiz now — on this session's work, or a named topic. |
-| [`/eklavya:mode [value]`](/docs/commands/#eklavyamode-value) | Show or change the mode, focus, cadence and difficulty dials. |
+| [`/eklavya:mode [value]`](/docs/commands/#eklavyamode-value) | Show or change the quiz, focus, cadence and difficulty dials. |
 | [`/eklavya:learn <topic>`](/docs/commands/#eklavyalearn-topic) | A structured lesson, prerequisite-ordered, calibrated to what you know. |
 | [`/eklavya:level [value]`](/docs/commands/#eklavyalevel-autoeasymediumhard) | This project's difficulty band and the runway into it — or pin one. |
 | [`/eklavya:progress`](/docs/commands/#eklavyaprogress) | The mastery map: projects, what they taught, what you skipped, what is due. |
@@ -61,7 +61,7 @@ The topic is treated as a domain, or as one or more concept slugs. Prerequisites
 
 #### With no argument
 
-Reports your effective settings in two lines — mode, focus, cadence, difficulty — plus, if this repository is overriding any of your personal settings, which ones and where the file is. Then it offers the three focus choices in one line each.
+Reports your effective settings in two lines — whether questions are on and whether they gate commits (`quiz.enabled`, `quiz.enforced`), then focus, cadence and difficulty — and whether memory is recording. If your settings for this project override any of your global ones, it says which and where that file is (under `~/.eklavya/projects/`, never in the repository). Then it offers the three focus choices in one line each.
 
 #### With an argument
 
@@ -73,7 +73,7 @@ Reports your effective settings in two lines — mode, focus, cadence, difficult
 /eklavya:mode off --session     # silence this session only, nothing written
 ```
 
-The value tells Eklavya which dial you mean, so you never have to name the dial. The values are unambiguous across mode, focus and cadence; difficulty is the exception, and has its own command below.
+The value tells Eklavya which dial you mean, so you never have to name the dial. The values are unambiguous across the quiz switch (`on`, `off`, `enforced`), focus and cadence; difficulty is the exception, and has its own command below.
 
 #### Worth knowing
 

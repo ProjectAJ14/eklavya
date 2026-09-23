@@ -39,6 +39,14 @@ export type CaptureOutcome = 'stored' | 'duplicate' | 'excluded' | 'spooled' | '
 
 /** Per-event body cap. Evidence is a pointer to work, not a copy of the repo. */
 const MAX_BODY = 4000;
+/**
+ * How much of a body redaction reads before the cap is applied. Four times the
+ * cap: redaction only ever shortens text, so everything that survives the cap
+ * was read whole unless a secret sits across this boundary *and* the markers
+ * before it saved more than 12,000 characters — which only a private key does,
+ * and an unclosed one already runs to the end of the window.
+ */
+const REDACT_WINDOW = MAX_BODY * 4;
 
 /**
  * `minimal` keeps the shape of a session — what was asked, what was decided,
@@ -76,7 +84,13 @@ export function prepare(
     return null;
   }
 
-  const cleaned = redact(event.body.slice(0, MAX_BODY), policy);
+  // Redact, then cut — never the other way round. Cut first, the cap can land
+  // inside a secret and leave a head too short for any pattern to recognise
+  // (`password=hunt`) or a private key without its END line. The window is
+  // wider than the cap so a secret straddling it is seen whole, and bounded so
+  // a 200KB tool dump is not scanned end to end on every tool call.
+  const redacted = redact(event.body.slice(0, REDACT_WINDOW), policy);
+  const cleaned = { ...redacted, text: redacted.text.slice(0, MAX_BODY) };
   const occurredAt = event.occurredAt ?? nowIso();
 
   return {
@@ -144,7 +158,7 @@ export function captureOrSpool(
 
 /** Replays whatever the spool holds. Idempotent through `event_uid`. */
 export function drainSpool(db: DB): { replayed: number; skipped: number } {
-  const records = takeSpooled();
+  const { records, commit } = takeSpooled();
   let replayed = 0;
   let skipped = 0;
   for (const record of records) {
@@ -161,10 +175,16 @@ export function drainSpool(db: DB): { replayed: number; skipped: number } {
       if (inserted) replayed++;
       else skipped++;
     } catch {
-      // Put it back rather than lose it; the next drain tries again.
-      spoolEvent(input);
-      skipped++;
+      // Stop here and leave the claimed file where it is: the next drain replays
+      // all of it, and what already landed is a no-op through `event_uid`.
+      // Pressing on would pay the busy timeout once per remaining record — a
+      // database that refused one write is refusing them all, and a hook that
+      // waits that long is killed with the rest of its work undone.
+      return { replayed, skipped: skipped + (records.length - replayed - skipped) };
     }
   }
+  // Only now: every record is in the database, so the claimed file holds
+  // nothing that exists nowhere else.
+  commit();
   return { replayed, skipped };
 }

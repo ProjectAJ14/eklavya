@@ -213,11 +213,11 @@ export function summarizeSession(observations: EntryRow[]): EntryDraft | null {
     tags: ['session', ...tagsFor(files, [])].slice(0, 12),
     // No more reliable than the least reliable thing underneath it.
     confidence: Math.min(...ordered.map((o) => o.confidence ?? 0.5)),
-    // Deliberately no event links. `pruneEvidence` keeps any event an entry
-    // still points at, so a summary citing a whole session would pin that
-    // session's raw evidence past `memory.retention_days` for ever — the one
-    // promise SEC-02 makes about raw capture. The price is a receipt that
-    // scores this row as pure overhead; the other trade is worse.
+    // Deliberately no event links. The observations it rolls up already carry
+    // them, and a summary citing a whole session would charge every recall of
+    // it with the session's full evidence as its counterfactual cost. (Links no
+    // longer pin evidence: `pruneEvidence` ages out cited events too.) The price
+    // is a receipt that scores this row as pure overhead.
     eventIds: [],
   };
 }

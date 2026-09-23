@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { loadConfig } from '../config.js';
-import { normalizeSlug, findFuzzyMatch } from '../slug.js';
+import { normalizeSlug, isValidSlug, findFuzzyMatch } from '../slug.js';
 import { decayedScore, isKnown } from '../srs.js';
 import { resolveSessionId } from '../session.js';
 import {
@@ -14,7 +14,7 @@ import {
   syncGate,
 } from '../store.js';
 import { withSurfaceNote } from '../surface.js';
-import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
+import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
 const DEFAULT_DOMAIN = 'general';
 const DEFAULT_TIER = 2;
@@ -31,19 +31,20 @@ export const logSessionConcepts: ToolDef = {
     ' ',
   ),
   inputSchema: {
-    session_id: z.string().optional().describe(SESSION_HINT),
-    cwd: z.string().optional().describe(CWD_HINT),
+    session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
+    cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
     concepts: z
       .array(
         z.object({
-          slug: z.string().describe('kebab-case, e.g. "httponly-cookies"'),
-          name: z.string().optional(),
-          domain: z.string().optional(),
+          slug: z.string().max(LIMITS.slug).describe('kebab-case, e.g. "httponly-cookies"'),
+          name: z.string().max(LIMITS.name).optional(),
+          domain: z.string().max(LIMITS.domain).optional(),
           tier: z.number().int().min(1).max(5).optional(),
-          context: z.string().optional().describe('One line naming the actual code, e.g. "set httpOnly on the refresh cookie in auth.ts".'),
+          context: z.string().max(LIMITS.context).optional().describe('One line naming the actual code, e.g. "set httpOnly on the refresh cookie in auth.ts".'),
         }),
       )
-      .min(1),
+      .min(1)
+      .max(LIMITS.concepts),
   },
   handler: (
     args: {
@@ -67,7 +68,9 @@ export const logSessionConcepts: ToolDef = {
 
       for (const input of args.concepts) {
         const slug = normalizeSlug(input.slug);
-        if (!slug) continue;
+        // The same check upsert_concepts makes, so the two ways a concept gets
+        // minted cannot disagree about what a slug is.
+        if (!isValidSlug(slug)) continue;
 
         let concept = conceptBySlug(db, slug);
 
@@ -98,22 +101,26 @@ export const logSessionConcepts: ToolDef = {
         logSessionConcept(db, sessionId, concept.id, input.context ?? null, 'work');
         logged.push(concept.slug);
       }
-    });
-    apply();
 
-    // The gate's bar rises with the work: how many touched concepts are still
-    // unmastered, capped at the configured questions per task.
-    // 'work' only: `passedCount` counts nothing else, so a review-debt concept
-    // raising the bar would raise it past anything the learner could clear.
-    const unmastered = sessionConcepts(db, sessionId, 'work').filter((c) => {
-      const m = masteryFor(db, c.id);
-      return !isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps });
-    }).length;
+      // The gate's bar rises with the work: how many touched concepts are still
+      // unmastered, capped at the configured questions per task.
+      // 'work' only: `passedCount` counts nothing else, so a review-debt concept
+      // raising the bar would raise it past anything the learner could clear.
+      const unmastered = sessionConcepts(db, sessionId, 'work').filter((c) => {
+        const m = masteryFor(db, c.id);
+        return !isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps });
+      }).length;
 
-    const gate = syncGate(db, sessionId, config, {
-      requiredHint: Math.min(unmastered, config.max_questions_per_task),
-      repo: repoRoot,
+      // Inside the transaction, not after it: `registerTools` retries the whole
+      // handler on SQLITE_BUSY, and a retry after the concepts had committed
+      // found them already there and answered `created: []` -- dropping the
+      // next_action that tells the tutor to give them a domain and edges.
+      return syncGate(db, sessionId, config, {
+        requiredHint: Math.min(unmastered, config.max_questions_per_task),
+        repo: repoRoot,
+      });
     });
+    const gate = apply();
 
     // Said in the response, not only in the tutor skill. A bare concept is
     // tier 2, domain "general", no edges -- and `prereqs_unmet` is computed from

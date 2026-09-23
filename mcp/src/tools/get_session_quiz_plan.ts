@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { loadConfig, type Focus } from '../config.js';
 import { clampToLevel, decayedScore, isDue, isKnown, nextTierToAsk, type Level } from '../srs.js';
 import { answerPosition } from '../mcq.js';
+import { normalizeSlug } from '../slug.js';
+import { minutesSince } from '../time.js';
 import { isSessionOff, resolveSessionId } from '../session.js';
 import {
   attemptedConceptIds,
@@ -24,7 +26,7 @@ import {
   type ConceptRow,
 } from '../store.js';
 import { attributionRule, withSurfaceNote } from '../surface.js';
-import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
+import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
 interface PlanItem {
   slug: string;
@@ -70,6 +72,7 @@ interface PlanItem {
     | 'domain_review'
     | 'topic'
     | 'gate_retry'
+    | 'gate_work'
     | 'concept_widening'
     | 'learn_topic'
     | 'backlog';
@@ -104,14 +107,6 @@ const LEVEL_FRAMING: Record<Level, string> = {
 
 const ASKED_HISTORY = 3;
 
-function minutesSince(iso: string | null, now: Date): number {
-  if (!iso) return Number.POSITIVE_INFINITY;
-  // SQLite datetime('now') is UTC without a zone marker; make that explicit.
-  const t = Date.parse(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`);
-  if (!Number.isFinite(t)) return Number.POSITIVE_INFINITY;
-  return (now.getTime() - t) / 60_000;
-}
-
 export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
   title: 'Get session quiz plan',
@@ -120,19 +115,21 @@ export const getSessionQuizPlan: ToolDef = {
   // already re-pointed on Cowork. A description that still promised a diff
   // while the framing said otherwise would set the two against each other.
   description: withSurfaceNote(
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. When this session\'s own concepts and its review debt run out, it falls back to work an earlier session logged but never asked about, oldest first, only from this project and within the domains this session touched, with reason "backlog" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Never in enforced mode, where only this session\'s own work can open the gate. In enforced mode, once everything else is exhausted and the gate is still unpassed, it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts wait there) when any do.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. When this session\'s own concepts and its review debt run out, it falls back to work an earlier session logged but never asked about, oldest first, only from this project and within the domains this session touched, with reason "backlog" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Never in enforced mode, where only this session\'s own work can open the gate. In enforced mode, while the gate is unpassed, it serves only this session\'s own work -- no widening, no review -- including work concepts mastered in another session since they were logged, with reason "gate_work"; once everything else is exhausted it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts wait there) when any do.',
     ' ',
   ),
   inputSchema: {
-    session_id: z.string().optional().describe(SESSION_HINT),
-    cwd: z.string().optional().describe(CWD_HINT),
+    session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
+    cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
     max: z.number().int().min(1).max(10).optional().describe('Cap on questions. Defaults to the configured max_questions_per_task.'),
     domain: z
       .string()
+      .max(LIMITS.domain)
       .optional()
       .describe('Plan a topic quiz on this domain instead of this session\'s work, e.g. "web-auth". Prerequisites are ordered first.'),
     slugs: z
-      .array(z.string())
+      .array(z.string().max(LIMITS.slug))
+      .max(LIMITS.concepts)
       .optional()
       .describe('Plan around these specific concepts. Use when the developer named a concept rather than a domain.'),
     ignore_cooldown: z
@@ -170,9 +167,12 @@ export const getSessionQuizPlan: ToolDef = {
     // one set of tier and repeat rules. An explicit domain or slugs still win:
     // the developer naming a topic outranks a standing setting.
     let effDomain = args.domain;
-    let effSlugs = args.slugs;
+    // Normalised as every other tool normalises: `slugs` is matched against the
+    // stored slug exactly, so "HttpOnly Cookies" found nothing and the plan came
+    // back empty for a concept that exists.
+    let effSlugs = args.slugs?.map(normalizeSlug).filter(Boolean);
     let topicUnresolved = false;
-    const explicitTopic = Boolean(args.domain || (args.slugs && args.slugs.length > 0));
+    const explicitTopic = Boolean(args.domain || (effSlugs && effSlugs.length > 0));
 
     // The cadence decides how big a plan is allowed to be, and this is the only
     // place that can enforce it. `interleaved` promises one question at a time,
@@ -256,7 +256,10 @@ export const getSessionQuizPlan: ToolDef = {
         config.cadence === 'interleaved'
           ? config.min_minutes_between_checkpoints
           : config.min_minutes_between_quizzes;
-      const since = minutesSince(lastAttemptAt(db, sessionId), now);
+      // The shared clock policy: both stored timestamp shapes parsed as UTC, and
+      // a clock that moved backwards reads as "just now" rather than as a
+      // negative age that inflates `minutes_remaining` past the gap itself.
+      const since = minutesSince(lastAttemptAt(db, sessionId));
       if (since < gap) {
         return {
           session_id: sessionId,
@@ -281,6 +284,11 @@ export const getSessionQuizPlan: ToolDef = {
         detail: `Nothing in the graph matches "${config.focus_topic}". Offer the closest domain from get_concept_graph, or teach from first principles and upsert_concepts as you go.`,
       };
     }
+
+    // An enforced gate that is open and not yet passed. While it is, the plan
+    // serves only what can pass it -- see (a') and the widening guards below.
+    const gate = config.quiz.enforced && !topicMode ? gateRow(db, sessionId) : undefined;
+    const gateOpen = Boolean(gate && gate.required > 0 && !gate.passed);
 
     const picked: PlanItem[] = [];
     const seen = new Set<string>();
@@ -409,6 +417,20 @@ export const getSessionQuizPlan: ToolDef = {
         if (!isKnown({ score, reps: m.reps })) add(c, c.context, 'unmastered');
       }
 
+      // (a') enforced and unpassed: this session's work concepts that are
+      // mastered anyway -- mastered in another session after this one logged
+      // them. `required` was frozen when they were logged and never drops, so
+      // leaving them out made the bar unreachable: three logged, one mastered
+      // elsewhere, and at most two left to pass against a need of three.
+      //
+      // Asked rather than counted as already satisfied. The gate is a claim
+      // that *this* work was understood, and a pass recorded elsewhere, on a
+      // question about other code, is not that; answering one question costs
+      // less than a gate that can be cleared without looking at the diff.
+      if (gateOpen) {
+        for (const c of sessionConcepts(db, sessionId, 'work')) add(c, c.context, 'gate_work');
+      }
+
       // (b) concepts this session touched that are due for review
       for (const c of touched) {
         const m = masteryFor(db, c.id);
@@ -422,7 +444,11 @@ export const getSessionQuizPlan: ToolDef = {
       //
       // Deliberately before (c): a prerequisite of today's work is more use than
       // an unrelated concept that happens to be due.
-      if (focus === 'concept' && picked.length < max) {
+      //
+      // Never while an enforced gate is open: a widened concept is recorded as
+      // review, the gate counts only work, and every slot it takes is a
+      // question the learner answers without moving the commit any closer.
+      if (focus === 'concept' && picked.length < max && !gateOpen) {
         const touchedIds = touched.map((c) => c.id);
         const exclude = new Set(touchedIds);
 
@@ -454,7 +480,8 @@ export const getSessionQuizPlan: ToolDef = {
 
       // (c) anything else due in the same domains, answered in this project, so
       // review debt gets paid down
-      if (picked.length < max && domains.size > 0) {
+      // Not while an enforced gate is open, for the same reason as widening.
+      if (picked.length < max && domains.size > 0 && !gateOpen) {
         const placeholders = [...domains].map(() => '?').join(',');
         const rows = db
           .prepare(
@@ -515,17 +542,14 @@ export const getSessionQuizPlan: ToolDef = {
     // Unenforced quizzing is deliberately left alone. It has no gate to deadlock, and
     // re-offering a concept there would be the nagging the cooldown exists to
     // prevent.
-    if (!topicMode && picked.length === 0 && config.quiz.enforced) {
-      const gate = gateRow(db, sessionId);
-      if (gate && gate.required > 0 && !gate.passed) {
-        // `seen` carries two meanings: "already picked" and "considered and
-        // rejected". Only the second is in it here -- nothing was picked, or we
-        // would not be in this branch -- so clearing it drops exactly the
-        // rejections the retry pass exists to reconsider, and cannot lose a pick.
-        seen.clear();
-        for (const c of gateRetryConcepts(db, sessionId)) {
-          add(c, c.context, 'gate_retry', { retry: true });
-        }
+    if (picked.length === 0 && gateOpen) {
+      // `seen` carries two meanings: "already picked" and "considered and
+      // rejected". Only the second is in it here -- nothing was picked, or we
+      // would not be in this branch -- so clearing it drops exactly the
+      // rejections the retry pass exists to reconsider, and cannot lose a pick.
+      seen.clear();
+      for (const c of gateRetryConcepts(db, sessionId)) {
+        add(c, c.context, 'gate_retry', { retry: true });
       }
     }
 

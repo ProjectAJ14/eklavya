@@ -504,7 +504,7 @@
    a render function and not a new endpoint.
    ============================================================ */
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0);
 const base = (p) => (p ? p.split('/').filter(Boolean).pop() : 'unattributed');
 const DAY_MS = 86400000;

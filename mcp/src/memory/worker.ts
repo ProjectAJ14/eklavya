@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
-import { nowIso } from '../time.js';
+import { nowIso, parseStamp } from '../time.js';
 import { ProviderError, ProviderSummarizer } from './provider.js';
 import { LocalSummarizer, summarizeSession, type Summarizer } from './summarize.js';
 import { handOffWorker, launchWorker, releaseWorker, renewWorker } from './reservation.js';
@@ -456,18 +456,88 @@ export function queueDepth(db: DB): {
   return row;
 }
 
-/** Retention sweep (PRD SEC-02). Raw evidence ages out; entries are kept. */
-export function pruneEvidence(db: DB, config: EklavyaConfig): number {
+/**
+ * Retention sweep (PRD SEC-02). Raw evidence ages out; entries are kept.
+ *
+ * Every summarised event past the window goes, *including* the ones an entry
+ * cites. Sparing cited events was the first shape, and it deleted nothing: every
+ * summariser links every event it read, so the only events it could ever remove
+ * were ones no summary had used. The entry survives with a shorter drill-down —
+ * every reader of `memory_entry_events` joins, so a missing event is a shorter
+ * list, never an error. Unsummarised evidence is never touched, however old: it
+ * is work not yet distilled, and deleting it would lose it outright.
+ *
+ * The same pass bounds the bookkeeping that otherwise grows once per session:
+ * finished jobs (nothing reads a `done` row), reuse receipts and their items,
+ * the per-session "already recalled" rows, and notification ledger rows. The
+ * receipts are the one visible cost — the dashboard's savings then cover the
+ * retention window rather than all time — and they hold only ids and counts.
+ *
+ * `limit` caps the events removed in one call so a seam never pays for a
+ * backlog in one go. A capped run does not stamp `memory_pruned_at`, so the
+ * next seam carries on instead of waiting out the interval.
+ */
+export function pruneEvidence(db: DB, config: EklavyaConfig, opts: { limit?: number } = {}): number {
   const days = config.memory.retention_days;
   if (!days) return 0;
   const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
-  const info = db
-    .prepare(
-      `DELETE FROM evidence_events
-       WHERE occurred_at < ? AND status = 'summarized'
-         AND id NOT IN (SELECT event_id FROM memory_entry_events)`,
-    )
-    .run(cutoff);
-  db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('memory_pruned_at', ?)").run(nowIso());
-  return info.changes;
+
+  return db.transaction(() => {
+    const ids = (
+      db
+        .prepare(
+          `SELECT id FROM evidence_events WHERE occurred_at < ? AND status = 'summarized' ORDER BY id
+           ${opts.limit ? 'LIMIT ?' : ''}`,
+        )
+        .all(...(opts.limit ? [cutoff, opts.limit] : [cutoff])) as { id: number }[]
+    ).map((r) => r.id);
+    const list = JSON.stringify(ids);
+    const inList = 'IN (SELECT value FROM json_each(?))';
+    // A candidate is a proposal about the learner, not evidence: it outlives the
+    // event it came from, which the FK's cascade would otherwise delete.
+    db.prepare(`UPDATE learning_sources SET event_id = NULL WHERE event_id ${inList}`).run(list);
+    // The FK cascades this too, but only with `foreign_keys` on; said here so a
+    // connection opened without it cannot leave links pointing at nothing.
+    db.prepare(`DELETE FROM memory_entry_events WHERE event_id ${inList}`).run(list);
+    const removed = db.prepare(`DELETE FROM evidence_events WHERE id ${inList}`).run(list).changes;
+
+    db.prepare("DELETE FROM memory_jobs WHERE status = 'done' AND updated_at < ?").run(cutoff);
+    db.prepare('DELETE FROM context_receipt_items WHERE receipt_id IN (SELECT id FROM context_receipts WHERE created_at < ?)').run(cutoff);
+    db.prepare('DELETE FROM context_receipts WHERE created_at < ?').run(cutoff);
+    // `recalled:<session>` has no date of its own; every recall writes a
+    // receipt, so a session with none left inside the window is over.
+    db.prepare(
+      `DELETE FROM meta WHERE key LIKE 'recalled:%'
+         AND substr(key, 10) NOT IN (SELECT session_id FROM context_receipts WHERE session_id IS NOT NULL)`,
+    ).run();
+    // Ledger rows stop being retried after a day; past the window they only
+    // take space. A row this version cannot read is left for what wrote it.
+    db.prepare(
+      `DELETE FROM meta WHERE key LIKE 'notified:%'
+         AND (CASE WHEN json_valid(value) THEN json_extract(value, '$.first') END) < ?`,
+    ).run(cutoff);
+
+    if (!opts.limit || ids.length < opts.limit) {
+      db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('memory_pruned_at', ?)").run(nowIso());
+    }
+    return removed;
+  })();
+}
+
+/** How often a seam may run the retention sweep. Retention is counted in days. */
+const PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
+/** Events one seam may delete: enough to keep up, small enough to stay unnoticed inside a hook. */
+const PRUNE_SEAM_LIMIT = 5_000;
+
+/**
+ * The sweep, from a session seam: only with `retention_days` set, at most once
+ * per `PRUNE_EVERY_MS`, and bounded. `eklavya memory prune` stays the way to run
+ * it now and in full.
+ */
+export function pruneIfDue(db: DB, config: EklavyaConfig): number {
+  if (!config.memory.retention_days) return 0;
+  const row = db.prepare("SELECT value FROM meta WHERE key = 'memory_pruned_at'").get() as { value: string } | undefined;
+  const last = row ? parseStamp(row.value) : null;
+  if (last !== null && Date.now() - last < PRUNE_EVERY_MS) return 0;
+  return pruneEvidence(db, config, { limit: PRUNE_SEAM_LIMIT });
 }

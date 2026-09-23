@@ -106,13 +106,14 @@ describe('a checkout configures nothing', () => {
     expect(loadConfig(repo).config.focus).toBe('project');
   });
 
-  // The list that used to live here. These four have an effect outside the
+  // The list that used to live here. These have an effect outside the
   // session, which is why a cloned file was never allowed to set them — and why
-  // a file only you can write now may.
+  // a file only you can write now may. `providers` is the exception, for a
+  // different reason: it is global-only (see `GLOBAL_ONLY_KEYS` and
+  // config-safety.test.ts), because the queue it acts on is machine-wide.
   it.each([
     ['notifications', { notifications: { enabled: true, sinks: [{ kind: 'file', target: '/tmp/x' }] } }],
     ['sync', { sync: { enabled: true, target: '/tmp/sync' } }],
-    ['providers', { providers: { observer: { kind: 'anthropic', model: 'some-model' } } }],
     ['retrieval.cross_project', { retrieval: { cross_project: true } }],
   ])('lets your own project config set %s, now that no config arrives by clone', (_label, patch) => {
     writeProject(patch as Record<string, unknown>);
@@ -120,7 +121,6 @@ describe('a checkout configures nothing', () => {
 
     if ('notifications' in patch) expect(resolved.config.notifications.enabled).toBe(true);
     if ('sync' in patch) expect(resolved.config.sync.enabled).toBe(true);
-    if ('providers' in patch) expect(resolved.config.providers.observer?.model).toBe('some-model');
     if ('retrieval' in patch) expect(resolved.config.retrieval.cross_project).toBe(true);
   });
 });

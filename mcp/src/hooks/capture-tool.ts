@@ -11,7 +11,7 @@
  */
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
 import type { HookInput } from './lib.js';
-import { batchIfFull, identityOf, record } from './memory-lib.js';
+import { batchIfFull, identityOf, record } from './capture-lib.js';
 import type { HostEvent } from '../memory/capture.js';
 
 /** Tools whose result is a file's contents rather than a change to one. */

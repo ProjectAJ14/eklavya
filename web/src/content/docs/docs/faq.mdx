@@ -20,7 +20,7 @@ Not with the default configuration. The database, the config and the dashboard a
 
 Three settings change that, none of them on unless you turn it on, and each says what leaves before it does:
 
-- `providers.observer` and `providers.embeddings` send captured work to a model API so it can write richer observations or better vectors. They need a model and a key you supply.
+- `providers.observer` and `providers.embeddings` send captured work to a Claude model so it can write richer observations or better vectors. The model runs through Claude Code (`claude -p`) on your own Claude subscription; there is nothing else to set up. They can only be set in your global config.
 - `notifications` sends session wrap-ups to a webhook, a command or a file you name.
 - `sync` writes memory entries into a directory you name, for your other machines to read.
 
@@ -30,7 +30,7 @@ An upgrade never enables any of them. If none is configured, the promise above i
 
 It remembers *about* your code. Every tool call is recorded as evidence — what the tool was, the arguments, the files, and the error if it failed — and those are distilled into short observations. It deliberately does not store tool *results*, so a successful `Read` of a file does not put that file in the database; the corpus would otherwise become a second copy of your repository.
 
-Paths that usually hold secrets — `.env` files, `~/.ssh/`, `.pem`, `.npmrc` and others — are never captured at all, and about ten shapes of API key, token and private key are redacted before anything is written. [The memory page](/docs/memory/) has the full list and how to add your own.
+Paths that usually hold secrets — `.env` files, `~/.ssh/`, `.pem`, `.npmrc` and others — are never captured at all, and more than a dozen shapes of access key, token, password and private key are redacted before anything is written. [The memory page](/docs/memory/) has the full list and how to add your own.
 
 ### Will it slow down my work?
 

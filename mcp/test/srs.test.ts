@@ -12,6 +12,8 @@ import {
   DECAY_FLOOR,
   MIN_EASE,
   MS_PER_DAY,
+  MAX_INTERVAL_DAYS,
+  clampMastery,
 } from '../src/srs.js';
 
 const NOW = new Date('2026-08-26T10:00:00.000Z');
@@ -93,6 +95,80 @@ describe('applyGrade — interval ladder', () => {
     const s = applyGrade({ state: initialMastery(), grade: 99, grades: [99], now: NOW });
     expect(s.score).toBe(1);
     expect(s.reps).toBe(1);
+  });
+});
+
+describe('applyGrade — interval ceiling', () => {
+  // Uncapped, interval x ease compounds past what a Date can hold: after ~60
+  // passes `toISOString` threw a RangeError, and from then on every
+  // record_attempt on that concept failed -- the learner's best concept became
+  // the one they could never be graded on again.
+  it('never schedules further out than the ceiling, however many passes', () => {
+    let s = initialMastery();
+    const seen: number[] = [];
+    for (let i = 0; i < 200; i += 1) {
+      seen.push(5);
+      s = applyGrade({ state: s, grade: 5, grades: seen, now: NOW });
+      expect(s.interval_d).toBeLessThanOrEqual(MAX_INTERVAL_DAYS);
+    }
+    expect(s.interval_d).toBe(MAX_INTERVAL_DAYS);
+    expect(s.next_review).toBe(daysFrom(NOW, MAX_INTERVAL_DAYS).toISOString());
+  });
+
+  it('grade 3 forever, the slowest-growing pass, also hits the ceiling and stays there', () => {
+    const s = grade(initialMastery(), Array(300).fill(3));
+    expect(s.interval_d).toBe(MAX_INTERVAL_DAYS);
+  });
+
+  it('caps the step that would cross the ceiling, and leaves the one below it alone', () => {
+    const below = { ...grade(initialMastery(), [4, 4]), interval_d: 1000, reps: 5, ease: 2.5 };
+    // 1000 x 2.6 = 2600, under the ceiling: untouched.
+    expect(applyGrade({ state: below, grade: 5, grades: [5], now: NOW }).interval_d).toBe(2600);
+    // 2000 x 2.6 = 5200, over it: capped.
+    const near = { ...below, interval_d: 2000 };
+    expect(applyGrade({ state: near, grade: 5, grades: [5], now: NOW }).interval_d).toBe(MAX_INTERVAL_DAYS);
+  });
+
+  it('recovers a state that already holds an absurd interval instead of throwing', () => {
+    // Rows written before the ceiling existed: 1e8 days is still a valid Date,
+    // one more multiplication is not.
+    for (const interval_d of [1e8, 1e300, Number.POSITIVE_INFINITY, Number.NaN]) {
+      const huge = { ...initialMastery(), interval_d, reps: 30, ease: 2.5 };
+      const next = applyGrade({ state: huge, grade: 4, grades: [4], now: NOW });
+      expect(next.interval_d).toBe(MAX_INTERVAL_DAYS);
+      expect(next.next_review).toBe(daysFrom(NOW, MAX_INTERVAL_DAYS).toISOString());
+    }
+  });
+});
+
+describe('clampMastery', () => {
+  const seen = NOW.toISOString();
+
+  it('leaves a sane state exactly as it was', () => {
+    const s = grade(initialMastery(), [4, 4, 4]);
+    expect(clampMastery(s)).toEqual(s);
+    expect(clampMastery(initialMastery())).toEqual(initialMastery());
+  });
+
+  it('pulls an absurd interval and review date back to the ceiling past last_seen', () => {
+    const s = {
+      ...initialMastery(),
+      interval_d: 99_000_000,
+      reps: 40,
+      last_seen: seen,
+      next_review: '+275760-09-13T00:00:00.000Z',
+    };
+    const c = clampMastery(s);
+    expect(c.interval_d).toBe(MAX_INTERVAL_DAYS);
+    expect(c.next_review).toBe(daysFrom(NOW, MAX_INTERVAL_DAYS).toISOString());
+    // The part SQL compares as a string: back to a plain four-digit year.
+    expect(c.next_review).toMatch(/^\d{4}-/);
+  });
+
+  it('keeps a review date exactly at the ceiling', () => {
+    const at = daysFrom(NOW, MAX_INTERVAL_DAYS).toISOString();
+    const s = { ...initialMastery(), interval_d: MAX_INTERVAL_DAYS, last_seen: seen, next_review: at };
+    expect(clampMastery(s).next_review).toBe(at);
   });
 });
 

@@ -8,12 +8,12 @@ import { findRepoConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config
 import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
-import { run, openExisting, config, cwdOf, sessionId, clearNudgeState, type DB } from './lib.js';
+import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
 import { flushAtSeam, identityOf, recallBlock, record, replaySpool } from './memory-lib.js';
 import { startupDisplay } from '../memory/recall.js';
 import { savingsLine } from '../memory/tokens.js';
 import { dialParts, paint } from '../statusline.js';
-import { DEFAULT_PORT } from '../dashboard.js';
+import { DEFAULT_PORT } from '../paths.js';
 import net from 'node:net';
 
 /**
@@ -56,8 +56,11 @@ await run(async (input) => {
   const { repoRoot } = findRepoConfig(cwd);
   if (repoRoot) migrateLegacyRepoConfig(repoRoot, mainRepoRoot(repoRoot));
 
-  const db = openExisting();
-  if (!db) return 0;
+  // No database yet is a first session: the server is creating it, and there
+  // is nothing to say. One that is there and unusable is Eklavya stopped, and
+  // the developer is told once, whatever `quiet` says -- it is not a greeting.
+  const { db, problem } = openOrDiagnose();
+  if (!db) return problem ? emit([healthLine(problem)], []) : 0;
 
   const sid = sessionId(input, db);
 
@@ -259,6 +262,13 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
         : 'Dashboard & observations: eklavya dashboard',
     ),
   );
+}
+
+/** State and fix, one line: read in a glance, acted on without the manual. */
+function healthLine(problem: DbProblem): string {
+  return problem === 'native'
+    ? "Eklavya paused · its SQLite module doesn't match this Node version · run: eklavya doctor"
+    : "Eklavya paused · can't open its database · run: eklavya doctor";
 }
 
 /** A 150ms loopback probe: refused is instant, and a silent port is not waited on. */

@@ -11,6 +11,7 @@ import { countEntries, insertEntry, receiptTotals, timeline } from '../src/memor
 import { savingsFrom } from '../src/memory/tokens.js';
 import { projectKey } from '../src/store.js';
 import { queueDepth } from '../src/memory/worker.js';
+import { SEAM_MAX_AGE_MS } from '../src/hooks/memory-lib.js';
 
 /**
  * The whole memory loop, through the hooks the plugin actually runs.
@@ -64,8 +65,18 @@ const tool = (session: string, name: string, toolInput: Record<string, unknown>,
 const start = (session: string) =>
   hook(SESSION_START, { session_id: session, cwd: repo, hook_event_name: 'SessionStart', source: 'startup' });
 
-const stop = (session: string) =>
-  hook(STOP, { session_id: session, cwd: repo, hook_event_name: 'Stop', stop_reason: 'end_turn' });
+/**
+ * A Stop seam closes a batch only once it holds `SEAM_MIN_EVENTS` or its oldest
+ * event is `SEAM_MAX_AGE_MS` old, so a two-event turn is not a model call. These
+ * sessions are a few events long, so the open evidence is aged past that bound
+ * first — what a real task would have reached by itself.
+ */
+const stop = (session: string) => {
+  db.prepare("UPDATE evidence_events SET occurred_at = ? WHERE status = 'accepted'").run(
+    new Date(Date.now() - SEAM_MAX_AGE_MS - 60_000).toISOString(),
+  );
+  return hook(STOP, { session_id: session, cwd: repo, hook_event_name: 'Stop', stop_reason: 'end_turn' });
+};
 
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-e2e-home-'));
