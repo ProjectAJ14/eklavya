@@ -45,6 +45,10 @@ Usage:
                                         which one records without being asked: eklavya imports its
                                         history and retires it; claude-mem keeps it and turns Eklavya
                                         memory off
+                                        --settings  walk the settings again (a first install always does;
+                                        after that they are kept and only printed)
+  eklavya update                        Update now. Eklavya already updates itself in the background at
+                                        session start (auto_update); this is the same run, in the open
   eklavya uninstall [--purge]           Remove it (--purge also deletes your learning history)
   eklavya export-rules [--out <file>]   Write the tutor pedagogy as a Cursor rules file
   eklavya config get                    Show the effective configuration
@@ -98,7 +102,8 @@ Memory:
 Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              level_up_accuracy, pass_threshold, max_questions_per_task,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
-             max_new_concepts_per_session, max_stop_blocks_per_session, quiet
+             max_new_concepts_per_session, max_stop_blocks_per_session, quiet,
+             auto_update (global only)
 Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
   quiz.{enabled, enforced} — whether questions happen, and whether they gate
              commits. Separate from memory: silencing questions never stops
@@ -387,6 +392,9 @@ async function doctor(): Promise<void> {
   // Its own flag for the same reason: `eklavya install` does not put jq or
   // sqlite3 on anybody's PATH, and a config file only its owner can fix.
   let fixByHand = true;
+  // And one more: `eklavya install` does not fix a failing update -- the
+  // update's own error says what does, and `eklavya update` shows it live.
+  let updatesOk = true;
 
   add('ok', 'home', eklavyaHome());
 
@@ -397,6 +405,28 @@ async function doctor(): Promise<void> {
   for (const check of checks) {
     if (!check.ok) ok = false;
     add(check.ok ? 'ok' : 'fail', check.name, `${check.ok ? '' : 'FAILED — '}${check.detail}`);
+  }
+
+  // The auto-updater, read from its state file. The error is shown however it
+  // was classed: `doctor` is where somebody goes when the session line said
+  // updates are failing, and an offline week is still a week without them.
+  {
+    const { autoUpdateEnabled, readState, runtimeVersion, logPath } = await import('./update.js');
+    const u = safely(() => readState(), {});
+    const on = safely(() => autoUpdateEnabled(), true);
+    const last = u.ok_at ? `last succeeded ${u.ok_at}` : 'has not run yet';
+    add(
+      on ? 'ok' : 'skip',
+      'updates',
+      `${on ? 'automatic' : 'off (auto_update is false) — run eklavya update by hand'} · runtime ${runtimeVersion() ?? 'not installed'}${
+        u.latest ? ` · latest ${u.latest}` : ''
+      } ${dim(`(${last})`)}`,
+    );
+    if (u.error) {
+      updatesOk = false;
+      add('fail', 'updates', `FAILED — ${u.error}${u.checked_at ? ` ${dim(`(${u.checked_at})`)}` : ''}`);
+      add('fail', 'updates', dim(`run eklavya update to retry and see why; the last background run is in ${logPath()}`));
+    }
   }
 
   // Which surfaces the checks above actually cover. The `plugin` check reads
@@ -684,10 +714,12 @@ async function doctor(): Promise<void> {
         ? 'Memory needs attention — see above'
         : !fixByHand
           ? 'Needs a fix by hand — see above'
-          : null,
+          : !updatesOk
+            ? 'Updates are failing. Run: eklavya update'
+            : null,
     'ALL CLEAR · Eklavya is wired up',
   );
-  if (!ok || !memoryOk || !fixByHand) process.exit(1);
+  if (!ok || !memoryOk || !fixByHand || !updatesOk) process.exit(1);
 }
 
 /**
@@ -811,8 +843,72 @@ async function dashboardCommand(argv: string[]): Promise<void> {
   );
 }
 
+/**
+ * `eklavya update`: the background updater's run, in the foreground. With
+ * `--background` it is the run the SessionStart hook starts: nobody is
+ * watching, so everything goes to `update.log` instead.
+ */
+async function updateCommand(argv: string[]): Promise<void> {
+  const { runUpdate } = await import('./update.js');
+  const background = argv.includes('--background');
+  if (!background) heading('eklavya update');
+  const result = await runUpdate({ background, say: background ? undefined : (line) => check(null, '', dim(line)) });
+  if (background) return;
+  switch (result.status) {
+    case 'updated':
+      verdict(null, `updated ${result.from ?? 'nothing'} → ${result.to} · new sessions load it`);
+      return;
+    case 'current':
+      verdict(null, `up to date · ${result.version}`);
+      return;
+    case 'busy':
+      verdict('an update is already running · try again in a few minutes', '');
+      return;
+    case 'skipped':
+      return;
+    case 'failed':
+      verdict(`could not update · ${result.error}`, '');
+      process.exitCode = 1;
+  }
+}
+
+/**
+ * Runs the runtime's CLI instead of this one when the runtime is newer.
+ *
+ * The global `eklavya` is installed by `npm install -g` and only moves when
+ * somebody runs that again; the runtime updates itself. So a global binary
+ * that hands off to a newer runtime is never stale, and updating needs no
+ * sudo, no npm and no memory of having to. `EKLAVYA_FORWARDED` stops a loop;
+ * the runtime's own `cli.js` is never forwarded, since it is the target.
+ */
+async function forwardToNewerRuntime(): Promise<boolean> {
+  if (process.env.EKLAVYA_FORWARDED) return false;
+  const { runtimeCli, runtimeVersion, compareVersions } = await import('./update.js');
+  const target = runtimeCli();
+  const own = path.join(moduleDir, 'cli.js');
+  let ownVersion: string;
+  try {
+    if (fs.realpathSync(target) === fs.realpathSync(own)) return false;
+    ownVersion = JSON.parse(fs.readFileSync(path.join(moduleDir, '..', 'package.json'), 'utf8')).version;
+  } catch {
+    return false;
+  }
+  const theirs = runtimeVersion();
+  if (!theirs || compareVersions(theirs, ownVersion) <= 0) return false;
+  const { spawnSync } = await import('node:child_process');
+  const child = spawnSync(process.execPath, [target, ...process.argv.slice(2)], {
+    stdio: 'inherit',
+    env: { ...process.env, EKLAVYA_FORWARDED: '1' },
+  });
+  if (child.error) return false;
+  process.exit(child.status ?? 1);
+}
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
+  // Not for `statusline` or `serve`: both are started from the runtime already,
+  // and the status bar pays for every millisecond here.
+  if (command !== 'statusline' && command !== 'serve' && (await forwardToNewerRuntime())) return;
 
   switch (command) {
     case 'serve':
@@ -833,6 +929,8 @@ async function main(): Promise<void> {
       });
       return;
     }
+    case 'update':
+      return updateCommand(rest);
     case 'uninstall':
       return (await import('./install.js')).uninstall(rest);
     case 'export-rules':

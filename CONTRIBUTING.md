@@ -274,6 +274,8 @@ The Claude Code plugin has no separate publish step: the marketplace serves the 
 
 The package is published as **`eklavya`**, and ships one binary of the same name — the MCP server is `eklavya serve` rather than a second `eklavya-mcp` executable.
 
+**Every release reaches every installed machine within about an hour, on its own.** The auto-updater (`mcp/src/update.ts`) asks npm for `eklavya@latest` at session start, at most hourly, installs anything newer into `~/.eklavya/runtime`, and runs the new version's `eklavya install --auto`. A broken release therefore spreads by itself. The recovery is to fix forward with a new `fix:` release, never `npm unpublish`: the updater never downgrades, so pulling a version back strands the machines that already have it. To test the update path by hand, point it at a scratch home: `EKLAVYA_HOME=$(mktemp -d)` with an old runtime installed there (`npm install eklavya@<older> --prefix "$EKLAVYA_HOME/runtime"`), then `node mcp/dist/cli.js update` and `cat "$EKLAVYA_HOME/update.json"`.
+
 Up to 1.7.0 the package was called `eklavya-mcp`. That name still exists on npm so that already-installed plugins, which pin it by exact version, keep resolving; it is deprecated rather than removed, and must never be unpublished.
 
 Repository secret required: `NPM_TOKEN` (an npm **Automation** token). `GITHUB_TOKEN` is provided by Actions.

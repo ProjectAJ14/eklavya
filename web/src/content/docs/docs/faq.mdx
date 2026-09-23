@@ -16,7 +16,7 @@ The loop is the same, and the wording adapts. Cowork produces documents and anal
 
 ### Does anything leave my machine?
 
-Not with the default configuration. The database, the config and the dashboard are all local, the dashboard binds to loopback, and both halves of the product run locally: the summariser that writes observations is extractive and needs no model, and the search index is built by an embedder that runs here. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade — no learning or memory data is involved. The dashboard makes no request to any other host, fonts included: it uses your system's fonts.
+Not with the default configuration. The database, the config and the dashboard are all local, the dashboard binds to loopback, and both halves of the product run locally: the summariser that writes observations is extractive and needs no model, and the search index is built by an embedder that runs here. There is no account and no telemetry. The only network access in normal use is npm: checking for a newer release at most once an hour, and fetching the package when there is one. That request carries no learning or memory data; `auto_update: false` stops it. The dashboard makes no request to any other host, fonts included: it uses your system's fonts.
 
 Three settings change that, none of them on unless you turn it on, and each says what leaves before it does:
 
@@ -70,7 +70,7 @@ No. There is one database for every project, but the session Eklavya files your 
 
 ### How do I upgrade?
 
-Run `/plugin` and update Eklavya from the menu, or run `eklavya install` again — every step of it is safe to repeat, and it moves the whole install forward: the runtime, the chat skill, the registration, and the plugin files themselves (by pulling the git clone, if you installed through the marketplace). Either way, restart Claude Code afterwards: hooks and MCP servers are wired up when a session starts, so the running one keeps the old build.
+You don't have to. Eklavya updates itself in the background when a session starts, at most once an hour: the runtime, the chat skill, the registration and the plugin files, with your settings left as they are. The next session opens on the new version and says `Eklavya updated to …` once. If an update fails, every session says so until it works ([Updates](/docs/installing/#updates)). To update right now, run `eklavya update`. A session that is already running keeps the build it started with, because hooks and MCP servers are wired up when a session starts.
 
 ### How do I uninstall?
 

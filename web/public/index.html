@@ -688,7 +688,7 @@
       </span>
       <h3>Your data stays yours</h3>
       <p>One file: <code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. It holds what you have been asked and how you answered, and the memory half's evidence and observations. Delete the directory and Eklavya forgets you entirely.</p>
-      <p><b>With the default config, nothing leaves the machine.</b> The summariser that writes observations and the embedder that makes them searchable both run locally — no model call, no account, no telemetry. Three settings can change that and none is on unless you turn it on: <code>providers.*</code> has a Claude model summarise captured work, through <code>claude -p</code> on your own subscription, <code>notifications</code> sends wrap-ups where you point it, and <code>sync</code> writes entries into a directory you name. Nothing sets any of them for you, and an upgrade never does.</p>
+      <p><b>With the default config, nothing leaves the machine.</b> The summariser that writes observations and the embedder that makes them searchable both run locally — no model call, no account, no telemetry. Three settings can change that and none is on unless you turn it on: <code>providers.*</code> has a Claude model summarise captured work, through <code>claude -p</code> on your own subscription, <code>notifications</code> sends wrap-ups where you point it, and <code>sync</code> writes entries into a directory you name. Nothing sets any of them for you, and an upgrade never does. The one request Eklavya makes on its own is asking npm, at most hourly, whether a newer release exists, so it can update itself. That request carries none of your data, and <code>auto_update: false</code> turns it off.</p>
       <p>Secrets never get that far. Paths like <code>.env</code> and <code>~/.ssh</code> are excluded before capture, known key shapes are redacted before the write, and Eklavya's own traffic is never recorded. <a href="/docs/memory/#what-is-never-captured">The full list</a></p>
       <p>The commit gate is editor-agnostic: one script installs a plain git <code>pre-commit</code> hook that runs the same check, so a commit from a bare terminal is held exactly like one made inside Claude Code.</p>
     </div>
@@ -812,7 +812,7 @@
         Star on GitHub
       </a>
     </div>
-    <p class="cta__note" data-reveal data-delay="400">Node 22+ · macOS, Linux and Windows · everything stays on your machine</p>
+    <p class="cta__note" data-reveal data-delay="400">Node 22+ · macOS, Linux and Windows · updates itself · everything stays on your machine</p>
     <p class="cta__note" data-reveal data-delay="450">Covers the terminal and the Code tab in Claude Desktop. Cowork installs from its own Plugins page — one knowledge graph across all three.</p>
   </div>
 </section>

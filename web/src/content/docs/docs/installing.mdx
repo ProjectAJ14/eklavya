@@ -69,7 +69,7 @@ That does the whole job, in this order:
    `~/.eklavya/knowledge.db`, migrated and seeded, so `eklavya doctor` works before you have opened Claude Code even once.
 6. #### Walks your settings
 
-   Five dials, one step each: `quiz`, `focus`, `cadence`, `difficulty` and `memory`. Each step marks what is set now (`▣`) and starts the cursor on it. Move with ↑ and ↓, and choose with Enter, Space or →; a digit jumps straight to that option. When memory is on, a sixth step follows it, `model`. On a first install that is six Enters to the defaults:
+   On a first install, five dials, one step each: `quiz`, `focus`, `cadence`, `difficulty` and `memory`. Each step marks what is set now (`▣`) and starts the cursor on it. Move with ↑ and ↓, and choose with Enter, Space or →; a digit jumps straight to that option. When memory is on, a sixth step follows it, `model`. On a first install that is six Enters to the defaults:
 
    ```text
    2/5  focus  what it teaches
@@ -94,7 +94,7 @@ That does the whole job, in this order:
 
    The slow steps (the runtime download, the Claude Mem import, uninstalling Claude Mem's plugin) show a spinner while they work, so a long step never looks like a hang.
 
-   There is no "already onboarded" state. Every run walks the same steps with your current choices marked, so re-running `eklavya install` is also how you review and tweak them. Answers go to `~/.eklavya/config.json`. The installer never asks about per-project settings; set those with `eklavya config set <key> <value> --project`. Without a terminal, it prints the settings and changes nothing.
+   The walk runs once. After that, `~/.eklavya/config.json` exists and every later install keeps your settings: it prints them, one line each, and asks nothing, because installing again is also how Eklavya upgrades. To walk them again, with your current choices marked, run `eklavya install --settings`. The installer never asks about per-project settings; set those with `eklavya config set <key> <value> --project`. Without a terminal, it prints the settings and changes nothing.
 
    **If you have Claude Mem**, the `memory` step asks a different question. Claude Mem and Eklavya both record every session and recall it at the next one, so with both installed you would get everything twice. If the installer finds Claude Mem (its plugin, or `~/.claude-mem/claude-mem.db`), the step asks which one records:
 
@@ -108,11 +108,11 @@ That does the whole job, in this order:
 
    Already moved off Claude Mem? Every later install re-checks `~/.claude-mem.retired` against Eklavya, row by row: it adds anything missing and files anything an older version left unplaced, and if nothing is new it says so in one line.
 
-   Pass `--memory eklavya` or `--memory claude-mem` to answer that step ahead of time. Without a terminal to ask, the installer picks Claude Mem, because that choice leaves your Claude Mem install and data untouched.
+   Pass `--memory eklavya` or `--memory claude-mem` to answer that step ahead of time. On a first install with no terminal to ask, the installer picks Claude Mem, because that choice leaves your Claude Mem install and data untouched. A later install that is not asked decides nothing: which of the two records stays as it is, and the installer prints `eklavya install --settings` as the way to choose.
 
 </Steps>
 
-Then restart Claude Code and build something; the questions follow. Running `eklavya install` again is how you upgrade — every step is safe to repeat, and it will not disturb your other plugins or your learning history.
+Then restart Claude Code and build something; the questions follow. Every step is safe to repeat, and running it again will not disturb your other plugins, your settings or your learning history.
 
 :::note
 **Your own files are backed up before they change.** The installer edits four files that are not only Eklavya's: `~/.claude/settings.json`, `~/.claude/plugins/known_marketplaces.json`, `~/.claude/plugins/installed_plugins.json` and `~/.eklavya/config.json`. Before it changes one, it copies what was there to the same path with `.eklavya-bak` on the end, and prints that path for the Claude Code files. There is one backup per file, holding it as it was before the last command that changed it, so one `mv` undoes the change:
@@ -124,7 +124,27 @@ mv ~/.claude/settings.json.eklavya-bak ~/.claude/settings.json
 If any of the four is not valid JSON, the installer names it and stops with exit code 1 before touching anything. Fix or remove that file, then run it again. `eklavya uninstall` and `eklavya config set` follow the same two rules.
 :::
 
-**Upgrades after that happen on their own.** Claude Code updates the plugin, but the runtime in `~/.eklavya/runtime` only moves when npm runs. So when a session finds the runtime older than the plugin, it keeps using the old one for that session and starts a background install of the plugin's version — at most once an hour, and never a downgrade. `eklavya doctor` shows the two versions on its `versions` row.
+### Updates
+
+**Eklavya updates itself.** You never need to run npm or `eklavya install` again. At most once an hour, a new Claude Code session asks npm for the latest release, in the background, without waiting on it. If there is a newer one, it installs it into `~/.eklavya/runtime`, then runs that new version's `eklavya install --auto`. That refreshes the plugin files, the chat skill, the registration and the status bar, asks nothing, and changes no setting. The session that started it keeps the version it loaded; the next session opens on the new one and says so once:
+
+```text
+Eklavya updated to 1.26.0
+```
+
+If an update fails, every session says so in one line until it works, with the command that shows why:
+
+```text
+Eklavya can't update itself · npm install failed: EACCES · run: eklavya update
+```
+
+Being offline is not a failure worth a line: it stays silent until a week has passed with no successful check. `eklavya update` runs the same update in the open, right now. `eklavya doctor` shows the state on its `updates` row, and the last background run's output is in `~/.eklavya/update.log`.
+
+The `eklavya` command you installed with `npm install -g` updates too, without npm. When the runtime is newer than it, it runs the runtime's copy, so the command is never older than the code it drives. An update never needs `sudo`, because everything it writes is under your home directory. It never downgrades: a runtime already ahead of npm is left alone.
+
+To turn automatic updates off, `eklavya config set auto_update false`. That setting is global only, since there is one runtime per machine. `eklavya update` still works by hand.
+
+Separately, when Claude Code updates the plugin before the runtime has moved, a session starts a background install of the plugin's version, at most once an hour. `eklavya doctor` shows the two versions on its `versions` row.
 
 ### B. In Claude Code, through the plugin marketplace
 

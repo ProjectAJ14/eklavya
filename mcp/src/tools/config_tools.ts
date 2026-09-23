@@ -133,6 +133,10 @@ export const setConfig: ToolDef = {
     max_new_concepts_per_session: z.number().int().min(0).max(50).optional(),
     max_stop_blocks_per_session: z.number().int().min(0).max(20).optional(),
     quiet: z.boolean().optional(),
+    auto_update: z
+      .boolean()
+      .optional()
+      .describe('Whether Eklavya updates itself in the background at session start (default true). Global scope only.'),
     domains_enabled: z.array(z.string()).optional(),
     // The namespaced half. Passed as objects rather than as dotted keys because
     // the schema is what the model reads: a `memory` object with named fields

@@ -396,6 +396,16 @@ describe('install with Claude Mem present', () => {
     expect(readJson(path.join(claudeHome, 'settings.json')).enabledPlugins['claude-mem@thedotmack']).toBe(true);
   });
 
+  it('decides nothing on a re-install: an upgrade never switches Eklavya memory off', () => {
+    // Not a first run: settings were chosen before Claude Mem arrived.
+    fs.writeFileSync(path.join(eklavyaHome, 'config.json'), JSON.stringify({ memory: { enabled: true } }));
+    const res = install();
+    expect(res.status).toBe(0);
+    expect(memoryEnabled()).toBe(true);
+    expect(fs.existsSync(path.join(memDir, 'claude-mem.db'))).toBe(true);
+    expect(res.stdout).toContain('eklavya install --settings');
+  });
+
   it('with no terminal to ask, takes the choice that touches nothing of theirs', () => {
     expect(install().status).toBe(0);
     expect(memoryEnabled()).toBe(false);
@@ -408,6 +418,18 @@ describe('install with no Claude Mem', () => {
     const res = install();
     expect(res.stdout).not.toContain('Claude Mem');
     expect(fs.existsSync(path.join(eklavyaHome, 'config.json'))).toBe(false);
+  });
+});
+
+describe('install --auto, the updater\'s run', () => {
+  it('installs no runtime, asks nothing, and leaves every setting as it was', () => {
+    const config = { quiz: { enabled: true, enforced: true }, cadence: 'end' };
+    fs.writeFileSync(path.join(eklavyaHome, 'config.json'), JSON.stringify(config));
+    const res = run(['install', '--auto']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).not.toMatch(/runtime\s/);
+    expect(res.stdout).toContain('settings unchanged');
+    expect(readJson(path.join(eklavyaHome, 'config.json'))).toEqual(config);
   });
 });
 

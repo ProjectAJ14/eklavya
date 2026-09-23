@@ -25,10 +25,13 @@
  *      API for "install this plugin" from outside a session, so this reproduces
  *      what `/plugin install` does. See the comment on `register()`.
  *   5. The database, created and seeded.
- *   6. The dials, walked one at a time on every run (`onboard.ts`) — and, if
- *      Claude Mem is here, which of the two records memory. See `claude-mem.ts`.
+ *   6. The dials, walked one at a time on a first run or with `--settings`
+ *      (`onboard.ts`) — and, if Claude Mem is here, which of the two records
+ *      memory. See `claude-mem.ts`.
  *
- * Every step is idempotent: running it twice is how you upgrade.
+ * Every step is idempotent: running it twice is how you upgrade, and it is
+ * what the auto-updater runs (`--auto`: no runtime step, since the updater
+ * just installed it, and no questions). See `update.ts`.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -50,6 +53,7 @@ import {
   retireClaudeMemDir,
 } from './claude-mem.js';
 import { readJsonForUpdate, readJsonStrict, UnreadableFileError, writeJsonWithBackup } from './safe-write.js';
+import { compareVersions, runtimeVersion, writeState } from './update.js';
 
 const MIN_NODE_MAJOR = 22;
 
@@ -887,17 +891,6 @@ function versionAt(file: string): string | null {
   return typeof version === 'string' ? version : null;
 }
 
-/** -1, 0 or 1 over the numeric parts of two versions; a prerelease tag is ignored. */
-export function compareVersions(a: string, b: string): number {
-  const parts = (v: string) => v.split('-')[0]!.split('.').map((n) => Number(n) || 0);
-  const [x, y] = [parts(a), parts(b)];
-  for (let i = 0; i < Math.max(x.length, y.length); i++) {
-    const d = (x[i] ?? 0) - (y[i] ?? 0);
-    if (d !== 0) return Math.sign(d);
-  }
-  return 0;
-}
-
 /**
  * Does the runtime match the plugin Claude Code loads?
  *
@@ -955,6 +948,9 @@ async function installSteps(args: string[]): Promise<void> {
     process.stderr.write('--memory takes eklavya or claude-mem\n');
     process.exit(1);
   }
+  // The auto-updater's run: it has just put this very package in the runtime,
+  // so there is no runtime step, and nobody is there to answer a question.
+  const auto = args.includes('--auto');
   const version = packageVersion();
   heading(`eklavya install ${dim(version)}`);
 
@@ -966,7 +962,7 @@ async function installSteps(args: string[]): Promise<void> {
   const files = registryFiles();
   refuseUnreadable([files.marketplaces, files.installed, files.settings, globalConfigPath()]);
 
-  if (!args.includes('--skip-runtime')) {
+  if (!auto && !args.includes('--skip-runtime')) {
     await installRuntime(version);
     verifyRuntime();
     check('ok', 'runtime', runtimeHome());
@@ -1009,6 +1005,7 @@ async function installSteps(args: string[]): Promise<void> {
     claudeMem,
     memoryFlag,
     hookScript: path.join(marketplaceDir(), 'scripts', 'install-git-hook.sh'),
+    ask: !auto && (args.includes('--settings') || !fs.existsSync(globalConfigPath())),
   });
   if (owner) await resolveClaudeMem(owner);
   else if (loadGlobalConfig().memory.enabled) {
@@ -1048,6 +1045,11 @@ async function installSteps(args: string[]): Promise<void> {
     plain(dim('The runtime and database above are installed and current. To move the plugin'));
     plain(dim('itself, commit or stash there and re-run this, or `/plugin update eklavya`.'));
   }
+  // A manual install is its own announcement, so the next session does not
+  // say "updated" about it, and the updater does not redo it within the hour.
+  // Only for the runtime this install put there: `--skip-runtime` leaves
+  // whatever version was already in it.
+  if (!auto && runtimeVersion() === version) writeState({ applied: version, announced: version });
   verdict(null, 'DONE · restart Claude Code and Eklavya loads with it');
   if (cliOnPath()) {
     plain(dim('Next: build something in Claude Code — the questions follow. `eklavya doctor` checks the wiring.'));
