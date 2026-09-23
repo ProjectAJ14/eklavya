@@ -1,3 +1,10 @@
+## [1.25.1](https://github.com/ProjectAJ14/eklavya/compare/v1.25.0...v1.25.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* launch-readiness fixes from the pre-launch review ([d2d9db0](https://github.com/ProjectAJ14/eklavya/commit/d2d9db00500e730abf1aeb71a6a3d80c46385bda))
+
 # [1.25.0](https://github.com/ProjectAJ14/eklavya/compare/v1.24.2...v1.25.0) (2026-09-23)
 
 
