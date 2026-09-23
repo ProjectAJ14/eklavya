@@ -12,6 +12,8 @@ import {
   claimJob,
   failJob,
   finishJob,
+  ownsJob,
+  releaseJob,
   pausesQueue,
   insertEntry,
   replaceEntry,
@@ -123,7 +125,15 @@ export interface WorkerResult {
 export async function processPending(
   db: DB,
   config: EklavyaConfig,
-  opts: { maxJobs?: number; owner?: string } = {},
+  opts: {
+    maxJobs?: number;
+    owner?: string;
+    /** Aborted when memory is turned off: the running call ends, the job goes back. */
+    signal?: AbortSignal;
+    /** Asked before each claim; false stops the run (lost reservation, config off). */
+    beforeJob?: () => boolean;
+    onSpawn?: (pid: number | null) => void;
+  } = {},
 ): Promise<WorkerResult> {
   const owner = opts.owner ?? `${process.pid}-${crypto.randomUUID().slice(0, 8)}`;
   const maxJobs = opts.maxJobs ?? 3;
@@ -131,6 +141,7 @@ export async function processPending(
   const result: WorkerResult = { processed: 0, entries: 0, failed: 0, skipped: 0 };
 
   for (let i = 0; i < maxJobs; i++) {
+    if (opts.signal?.aborted || (opts.beforeJob && !opts.beforeJob())) break;
     const job = claimJob(db, owner);
     if (!job) break;
 
@@ -156,12 +167,16 @@ export async function processPending(
         project: batch.project,
         sessionId: batch.session_id,
         events,
-      });
+      }, { signal: opts.signal, onSpawn: opts.onSpawn });
 
       // One transaction for the entries, the candidates and the event status:
       // a crash between them would leave events marked done with nothing to
       // show for them, which is the one loss the batch cannot recover from.
-      db.transaction(() => {
+      const stored = db.transaction(() => {
+        // Ownership is checked inside the write, not before it: a worker whose
+        // lease lapsed during a slow call must not commit over the one that
+        // took the job, however late its answer arrives.
+        if (!ownsJob(db, job.id, owner)) return false;
         for (const draft of drafts) {
           const entryId = insertEntry(db, {
             project: batch.project,
@@ -178,8 +193,6 @@ export async function processPending(
             occurredAt: events[0]!.occurred_at,
             eventIds: draft.eventIds,
           });
-          result.entries++;
-
           for (const concept of draft.concepts ?? []) {
             addCandidate(db, {
               entryId,
@@ -192,12 +205,23 @@ export async function processPending(
           }
         }
         db.prepare("UPDATE evidence_events SET status = 'summarized' WHERE batch_id = ?").run(batch.id);
+        finishJob(db, job.id, owner);
+        return true;
       })();
 
-      finishJob(db, job.id, owner);
+      if (!stored) {
+        result.skipped++;
+        continue;
+      }
+      result.entries += drafts.length;
       result.processed++;
     } catch (error) {
       const errorClass = error instanceof ProviderError ? error.errorClass : 'transient';
+      if (errorClass === 'cancelled') {
+        // Turned off, not broken: the evidence stays queued and the attempt unspent.
+        releaseJob(db, job.id, owner);
+        break;
+      }
       failJob(db, job.id, owner, errorClass, error instanceof Error ? error.message : String(error));
       result.failed++;
       // A paused provider will fail the next job the same way; stop rather than

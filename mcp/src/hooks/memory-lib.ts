@@ -19,6 +19,7 @@ import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
 import { countEntries } from '../memory/store.js';
 import { queueDepth } from '../memory/worker.js';
 import type { DB, HookInput } from './lib.js';
+import { isInternalObserver, releaseWorker, renewWorker, reserveWorker } from '../memory/reservation.js';
 
 export function identityOf(input: HookInput, cwd: string, sid: string | null): EvidenceIdentity {
   const identity = identityFor({
@@ -54,7 +55,7 @@ export function record(
 export function batchIfFull(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity): void {
   try {
     const max = resolved.config.memory.batch_max_events;
-    if (pendingEventCount(db, identity.project) < max) return;
+    if (pendingEventCount(db, identity.project, identity.sessionId) < max) return;
     batchSession(db, {
       project: identity.project,
       sessionId: identity.sessionId,
@@ -83,8 +84,10 @@ export async function flushAtSeam(db: DB, resolved: ResolvedConfig, identity: Ev
       maxEvents: resolved.config.memory.batch_max_events,
     });
     if (resolved.config.providers.observer) {
-      // Not while a live worker holds every job: it would start only to exit.
-      if (hasClaimableJob(db)) drainInBackground();
+      // A paused queue is waiting on the developer (a login, a usage limit, a
+      // missing `claude`). Launching per seam would relearn that once a turn;
+      // `eklavya memory process` is the explicit resume.
+      if (hasClaimableJob(db) && queueDepth(db).paused === 0) drainInBackground(db);
       return;
     }
     await processPending(db, resolved.config, { maxJobs: 2 });
@@ -95,19 +98,36 @@ export async function flushAtSeam(db: DB, resolved: ResolvedConfig, identity: Ev
 
 /**
  * Starts `eklavya memory process --no-resume` detached and returns at once, so
- * a model summarises the queue without the hook waiting on it. Two seams close
- * together start two workers; the claim lease hands each job to only one.
- * `--no-resume` leaves paused jobs paused: un-pausing stays an explicit act.
+ * a model summarises the queue without the hook waiting on it.
+ *
+ * Only after winning the one worker reservation (`reservation.ts`): seams that
+ * close together used to spawn a worker each, and each worker's `claude -p`
+ * ran these hooks and spawned more. The loser leaves its batch queued for the
+ * worker already running. The token travels to the child, which adopts the
+ * slot rather than competing for it. `--no-resume` leaves paused jobs paused:
+ * un-pausing stays an explicit act.
  */
-function drainInBackground(): void {
-  const cli = fileURLToPath(new URL('../cli.js', import.meta.url));
-  const child = spawn(process.execPath, [cli, 'memory', 'process', '--no-resume', '--max', '4'], {
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true,
-  });
-  child.on('error', () => {});
-  child.unref();
+function drainInBackground(db: DB): void {
+  if (isInternalObserver()) return;
+  const token = reserveWorker(db);
+  if (!token) return;
+  try {
+    const cli = fileURLToPath(new URL('../cli.js', import.meta.url));
+    const child = spawn(process.execPath, [cli, 'memory', 'process', '--no-resume', '--max', '4', '--worker-token', token], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.on('error', () => releaseWorker(db, token));
+    if (!child.pid) {
+      releaseWorker(db, token);
+      return;
+    }
+    renewWorker(db, token, { pid: child.pid });
+    child.unref();
+  } catch {
+    releaseWorker(db, token);
+  }
 }
 
 /** Replays anything the spool holds. Idempotent; safe to call every session. */

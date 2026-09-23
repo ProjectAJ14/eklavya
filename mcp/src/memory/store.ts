@@ -98,7 +98,17 @@ export function eventsForSession(db: DB, sessionId: string, limit = 200): Eviden
     .all(sessionId, limit) as EvidenceRow[];
 }
 
-export function pendingEventCount(db: DB, project?: string): number {
+export function pendingEventCount(db: DB, project?: string, sessionId?: string): number {
+  // Per session is what `batchSession` claims. A project-wide count stays at or
+  // above the threshold once dead sessions strand enough events, and then every
+  // tool call closes a one-event batch.
+  if (project && sessionId) {
+    return (
+      db
+        .prepare("SELECT COUNT(*) AS n FROM evidence_events WHERE status = 'accepted' AND session_id = ? AND project = ?")
+        .get(sessionId, project) as { n: number }
+    ).n;
+  }
   const row = project
     ? (db
         .prepare("SELECT COUNT(*) AS n FROM evidence_events WHERE status = 'accepted' AND project = ?")
@@ -210,6 +220,23 @@ export function claimJob(db: DB, owner: string, leaseSeconds = 120): JobRow | nu
 export function finishJob(db: DB, jobId: number, owner: string): void {
   db.prepare(
     `UPDATE memory_jobs SET status = 'done', lease_owner = NULL, lease_until = NULL, updated_at = ?
+     WHERE id = ? AND lease_owner = ?`,
+  ).run(nowIso(), jobId, owner);
+}
+
+/** Whether `owner` still holds `jobId`'s lease. */
+export function ownsJob(db: DB, jobId: number, owner: string): boolean {
+  return (
+    db.prepare("SELECT 1 FROM memory_jobs WHERE id = ? AND lease_owner = ? AND status = 'claimed'").get(jobId, owner) !==
+    undefined
+  );
+}
+
+/** Hands a claimed job back untouched — its attempt refunded — for a run that was cancelled. */
+export function releaseJob(db: DB, jobId: number, owner: string): void {
+  db.prepare(
+    `UPDATE memory_jobs
+     SET status = 'pending', attempts = MAX(0, attempts - 1), lease_owner = NULL, lease_until = NULL, updated_at = ?
      WHERE id = ? AND lease_owner = ?`,
   ).run(nowIso(), jobId, owner);
 }

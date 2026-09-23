@@ -73,6 +73,13 @@ describe('evidence capture', () => {
     // Nothing left to batch: a second call must not produce an empty job.
     expect(batchSession(db, { project: PROJECT, sessionId: 's1', reason: 'session_seam' })).toBeNull();
   });
+
+  it('counts per session, so events a dead session stranded do not trip every batch', () => {
+    event('stranded', { sessionId: 'dead', eventUid: 'dead-1' });
+    event('live');
+    expect(pendingEventCount(db, PROJECT)).toBe(2);
+    expect(pendingEventCount(db, PROJECT, 's1')).toBe(1);
+  });
 });
 
 describe('jobs', () => {
