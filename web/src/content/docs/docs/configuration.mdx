@@ -153,15 +153,14 @@ Both are `null`, and **nothing turns them on for you** — not an upgrade, not a
 | `providers.observer` | `null` | A model that writes observation narratives instead of the local extractive summariser. Setting it is the one thing that sends captured work off this machine. |
 | `providers.embeddings` | `null` | A model that produces the vectors `semantic` retrieval compares, instead of the local `local-hash-v1` embedder. Each vector records which embedder made it, so two models' vectors are never compared. |
 
-Each takes an object of three fields: `kind` (only `"anthropic"` today), `model`, and `api_key_env` — the **name of the environment variable** holding the key, defaulting to `ANTHROPIC_API_KEY`. The key itself never goes in the config file, because a config file ends up in every export, log line and dashboard payload that prints configuration.
+Each takes an object of two fields: `kind` (only `"anthropic"` today) and `model`. The model runs through Claude Code (`claude -p`) on your Claude subscription — the same login Claude Code already uses, and nothing else to configure. `eklavya install` asks for the observer model once memory is on.
 
 ```json title="~/.eklavya/config.json"
 {
   "providers": {
     "observer": {
       "kind": "anthropic",
-      "model": "<model-id>",
-      "api_key_env": "ANTHROPIC_API_KEY"
+      "model": "claude-haiku-4-5"
     }
   }
 }

@@ -6,7 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { buildSource } from './claude-mem-fixture.js';
-import { press } from '../src/onboard.js';
+import { modelStep, press, RECOMMENDED_MODEL } from '../src/onboard.js';
+import { DEFAULT_CONFIG } from '../src/config.js';
 
 /**
  * `eklavya install` writes three files that belong to Claude Code, not to us:
@@ -440,6 +441,18 @@ describe('install walks the dials', () => {
     expect(press(0, 3, { sequence: '3' })).toEqual({ at: 2, done: true });
     expect(press(0, 3, { sequence: '9' })).toBeNull();
     expect(press(0, 3, { name: 'x', sequence: 'x' })).toBeNull();
+  });
+
+  it('starts the model step on local, recommends one model, and keeps a hand-set one choosable', () => {
+    const fresh = modelStep(DEFAULT_CONFIG);
+    expect(fresh.current).toBe('local');
+    expect(fresh.options.find((o) => o.value === RECOMMENDED_MODEL)?.detail).toMatch(/^recommended/);
+    const custom = modelStep({
+      ...DEFAULT_CONFIG,
+      providers: { ...DEFAULT_CONFIG.providers, observer: { kind: 'anthropic', model: 'claude-x' } },
+    });
+    expect(custom.current).toBe('claude-x');
+    expect(custom.options.map((o) => o.value)).toContain('claude-x');
   });
 });
 

@@ -295,6 +295,8 @@ describe('eklavya doctor reports the memory half', () => {
     const res = eklavya(['doctor']);
     expect(res.status).toBe(1);
     expect(res.stdout).toMatch(/FAILED — 1 job\(s\) paused \(auth\)/);
+    expect(res.stdout).toMatch(/log in to Claude Code/);
+    expect(res.stdout).not.toMatch(/PATH/);
     expect(res.stdout).toMatch(/eklavya memory process/);
     // `last_error` is the provider's own prose and has carried a token in it.
     expect(res.stdout).not.toContain('sk-do-not-print-me');

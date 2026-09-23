@@ -4,8 +4,9 @@
  * There is no "onboarded" flag, on purpose: a first run and a tenth run are the
  * same walk. Each step marks what is set now and starts the cursor on it: ↑/↓
  * move, Enter (or Space, or →) chooses, and a digit jumps straight to one. A
- * first install is five Enters to the defaults; a re-install is how you see
- * what you chose and tweak one thing.
+ * first install is six Enters to the defaults; a re-install is how you see
+ * what you chose and tweak one thing. Once memory is on, one follow-up asks
+ * which model writes the memories (`providers.observer`), starting on `local`.
  *
  * Without a terminal (CI, a pipe, the test suite) nothing is asked: the settings
  * are printed and left as they are.
@@ -25,6 +26,25 @@ export type MemoryOwner = 'eklavya' | 'claude-mem';
 
 type Option = { value: string; detail: string };
 type Step = { key: string; title: string; current: string; options: Option[] };
+
+/** What writes the memories. `local` is `providers.observer: null`. */
+export const RECOMMENDED_MODEL = 'claude-haiku-4-5';
+const MODELS: Option[] = [
+  { value: 'local', detail: 'extractive, no model — nothing leaves this machine' },
+  { value: RECOMMENDED_MODEL, detail: 'recommended — fast; runs on your Claude subscription' },
+  { value: 'claude-sonnet-5', detail: 'richer summaries, uses more of your plan' },
+  { value: 'claude-opus-5-5', detail: 'the most capable, uses the most' },
+];
+
+/** Asked only once memory is on: it is a question about what memory does. */
+export function modelStep(c: EklavyaConfig): Step {
+  const current = c.providers.observer?.model ?? 'local';
+  // A model set by hand stays choosable, so Enter keeps it.
+  const options = MODELS.some((o) => o.value === current)
+    ? MODELS
+    : [...MODELS, { value: current, detail: 'set by hand' }];
+  return { key: 'model', title: 'which model writes the memories', current, options };
+}
 
 function steps(c: EklavyaConfig, claudeMem: boolean): Step[] {
   return [
@@ -83,10 +103,11 @@ function steps(c: EklavyaConfig, claudeMem: boolean): Step[] {
           title: 'record sessions, recall them next time',
           current: c.memory.enabled ? 'on' : 'off',
           options: [
-            { value: 'on', detail: 'local only — nothing leaves this machine' },
+            { value: 'on', detail: 'stored on this machine; the next step picks what writes it' },
             { value: 'off', detail: 'nothing recorded; quizzes unaffected' },
           ],
         },
+    modelStep(c),
   ];
 }
 
@@ -114,6 +135,9 @@ export function press(at: number, count: number, key: Key): { at: number; done: 
 }
 
 class Closed extends Error {}
+
+/** Both spellings of "Eklavya records": the plain step's `on`, the Claude Mem step's `eklavya`. */
+const recording = (memory: string | undefined) => memory === 'on' || memory === 'eklavya';
 
 /**
  * The options as a list the cursor moves through; resolves with the one
@@ -232,8 +256,11 @@ export async function onboard(opts: {
     try {
       for (const [i, step] of list.entries()) {
         if (step.key === 'memory' && memoryFixed) continue;
+        if (step.key === 'model' && !recording(chosen.memory)) continue;
         plain('');
-        plain(`${dim(`${i + 1}/${list.length}`)}  ${bold(step.key)}  ${dim(step.title)}`);
+        // The model step follows memory rather than counting as a dial of its own.
+        const n = step.key === 'model' ? '  ↳' : `${i + 1}/${list.length - 1}`;
+        plain(`${dim(n)}  ${bold(step.key)}  ${dim(step.title)}`);
         const value = await choose(step);
         chosen[step.key] = value;
         if (step.key === 'focus' && value === 'learn') {
@@ -270,10 +297,18 @@ export async function onboard(opts: {
     const memory = (readConfigFile(globalConfigPath()).memory ?? {}) as Record<string, unknown>;
     patch.memory = { ...memory, enabled: chosen.memory === 'on' };
   }
+  if (recording(chosen.memory) && chosen.model !== list.find((s) => s.key === 'model')!.current) {
+    const providers = (readConfigFile(globalConfigPath()).providers ?? {}) as Record<string, unknown>;
+    patch.providers = {
+      ...providers,
+      observer: chosen.model === 'local' ? null : { kind: 'anthropic', model: chosen.model },
+    };
+  }
   if (Object.keys(patch).length) writeConfigFile(globalConfigPath(), patch);
 
   plain('');
   for (const step of list) {
+    if (step.key === 'model' && !recording(chosen.memory)) continue;
     const value = chosen[step.key]!;
     const shown = step.key === 'focus' && value === 'learn' ? `learn ${dim(`· ${topic ?? 'no topic'}`)}` : value;
     check('ok', step.key, value === step.current ? shown : `${shown} ${dim('— changed')}`);

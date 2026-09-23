@@ -90,8 +90,9 @@ Memory:
   eklavya memory show <id>              One entry, with the evidence it was built from
   eklavya memory replay [--limit <n>]   Backfill from this checkout's Claude Code transcripts
                                         Covers sessions from before the install, and any a hook missed
-  eklavya memory process [--max <n>]    Drain the observation queue now
-                                        Resumes jobs paused on a credential or quota — run it once you have fixed one
+  eklavya memory process [--max <n>] [--no-resume]
+                                        Drain the observation queue now
+                                        Resumes jobs paused on a login or usage limit — run it once that is sorted
   eklavya memory prune                  Delete raw evidence past memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--resume]
                                         --dry-run reads the source and reports; it writes nothing
@@ -118,8 +119,8 @@ Config namespaces (nested; edit ~/.eklavya/config.json or this project's file di
   memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days}
   privacy.{exclude_paths, exclude_tools, redact_patterns}
   retrieval.{mode: keyword|semantic|hybrid, max_items, max_tokens, cross_project}
-  providers.{observer, embeddings} — each null or {kind, model, api_key_env};
-             api_key_env names the variable holding the key, never the key itself
+  providers.{observer, embeddings} — each null or {kind, model}; the model runs
+             through Claude Code on your subscription
   notifications.{enabled, sinks} — sinks are {kind: webhook|command|file, target,
              args, events}; off by default, and a send cannot be recalled
   sync.{enabled, target, device_id} — target is a folder both devices can see
@@ -488,8 +489,14 @@ function doctor(): void {
 
     if (queue.paused > 0) {
       memoryOk = false;
-      add('fail', 'memory', `FAILED — ${queue.paused} job(s) paused (${classes('paused')}); nothing is being summarised`);
-      add('fail', 'memory', dim('fix the credentials or quota behind providers.observer, then: eklavya memory process'));
+      const paused = classes('paused');
+      add('fail', 'memory', `FAILED — ${queue.paused} job(s) paused (${paused}); nothing is being summarised`);
+      const fixes = [
+        paused.includes('missing') && 'put claude on the PATH Claude Code starts with (an app or IDE launch often has a shorter one)',
+        paused.includes('auth') && 'log in to Claude Code (claude, then /login)',
+        paused.includes('quota') && 'wait out the usage limit',
+      ].filter(Boolean);
+      add('fail', 'memory', dim(`${fixes.join(', or ') || 'fix what paused it'}, then: eklavya memory process`));
     }
     if (queue.failed > 0) {
       // Not a failure: a permanently failed job is a batch that will never
@@ -829,7 +836,7 @@ function memoryStatus(): void {
       // "what is actually writing the observations right now".
       `provider:   ${
         config.providers.observer
-          ? `${config.providers.observer.kind}:${config.providers.observer.model} (key from $${config.providers.observer.api_key_env})`
+          ? `${config.providers.observer.kind}:${config.providers.observer.model} (via claude -p, on your subscription)`
           : 'none — nothing leaves this machine'
       }`,
       `summarizer: ${summarizerFor(config).id}`,
@@ -955,7 +962,9 @@ function memoryProcess(argv: string[]): void {
   // tell the developer nothing happened while the queue quietly went back to
   // spending a credential that may still be rejected.
   const maxJobs = numberFlag(argv, '--max', 10);
-  const resumed = resumePaused(db);
+  // The hooks' background drain passes --no-resume: a hook that resumed by
+  // itself is exactly the retry loop the comment above rules out.
+  const resumed = argv.includes('--no-resume') ? 0 : resumePaused(db);
   processPending(db, config, { maxJobs }).then(
     (result) => {
       process.stdout.write(

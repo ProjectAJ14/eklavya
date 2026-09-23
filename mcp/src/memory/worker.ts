@@ -12,6 +12,7 @@ import {
   claimJob,
   failJob,
   finishJob,
+  pausesQueue,
   insertEntry,
   replaceEntry,
   timeline,
@@ -45,8 +46,8 @@ export function summarizerFor(config: EklavyaConfig): Summarizer {
  *
  * The digest covers the three settings that change what a summary comes out as:
  * what capture accepted, what redaction removed from it, and which model read
- * it. `ProviderConfig` names an environment variable rather than carrying a key
- * (SEC-01), so nothing secret is hashed.
+ * it. `ProviderConfig` is a kind and a model — the model runs on the
+ * subscription, so there is no key to hash (SEC-01).
  *
  * ponytail: the provider's system prompt is versioned by `provider.ts` alone —
  * `summarizer.id` carries the model, not the prompt. Fold a prompt version into
@@ -74,10 +75,10 @@ const SESSION_SUMMARY_GENERATOR = 'session-rollup-v1';
  * once at the end of a session, so the row is rewritten in place as the session
  * grows instead of one summary being written per turn.
  *
- * ponytail: with `providers.observer` set, the seam only *queues* the batch, so
- * the last turn's observations land after this ran and the summary trails them
- * by one turn until the next seam. Move the call after `processPending` if the
- * provider path ever stops being asynchronous.
+ * ponytail: with `providers.observer` set, the seam hands the batch to a
+ * background worker, so the last turn's observations land after this ran and
+ * the summary trails them by one turn until the next seam. Move the call after
+ * `processPending` if the provider path ever stops being asynchronous.
  */
 export function writeSessionSummary(db: DB, project: string, sessionId: string): number | null {
   // Bounded: the oldest observations of a day-long session are not where it
@@ -201,7 +202,7 @@ export async function processPending(
       result.failed++;
       // A paused provider will fail the next job the same way; stop rather than
       // burn the remaining budget re-learning that the key is rejected.
-      if (errorClass === 'auth' || errorClass === 'quota') break;
+      if (pausesQueue(errorClass)) break;
     }
   }
 

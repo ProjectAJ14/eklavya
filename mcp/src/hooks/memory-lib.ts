@@ -6,11 +6,13 @@
  * developer is *least* willing to lose a session to: it runs on every tool
  * call, so a throw here is a throw on every tool call.
  */
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import type { ResolvedConfig } from '../config.js';
 import { projectKey } from '../store.js';
 import { identityFor, type EvidenceIdentity } from '../memory/identity.js';
 import { capture, drainSpool, type HostEvent } from '../memory/capture.js';
-import { batchSession, pendingEventCount } from '../memory/store.js';
+import { batchSession, hasClaimableJob, pendingEventCount } from '../memory/store.js';
 import { processPending, writeSessionSummary } from '../memory/worker.js';
 import { recall, recallForPrompt } from '../memory/recall.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
@@ -67,10 +69,10 @@ export function batchIfFull(db: DB, resolved: ResolvedConfig, identity: Evidence
 /**
  * The session seam: close what is open and summarise it.
  *
- * With a provider configured this only *queues* the work. Waiting on inference
- * inside a Stop hook would make the developer wait for an API call to finish a
- * turn, which PRD LRN-04 forbids; the next session start, or `eklavya memory
- * process`, drains it.
+ * With a provider configured the hook never summarises itself: waiting on a
+ * model inside a Stop hook would make the developer wait for it to finish a
+ * turn, which PRD LRN-04 forbids. It hands the queue to a detached worker
+ * instead and returns.
  */
 export async function flushAtSeam(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity): Promise<void> {
   try {
@@ -80,11 +82,32 @@ export async function flushAtSeam(db: DB, resolved: ResolvedConfig, identity: Ev
       reason: 'session_seam',
       maxEvents: resolved.config.memory.batch_max_events,
     });
-    if (resolved.config.providers.observer) return;
+    if (resolved.config.providers.observer) {
+      // Not while a live worker holds every job: it would start only to exit.
+      if (hasClaimableJob(db)) drainInBackground();
+      return;
+    }
     await processPending(db, resolved.config, { maxJobs: 2 });
   } catch {
     /* Nothing summarised is evidence still on disk, not evidence lost. */
   }
+}
+
+/**
+ * Starts `eklavya memory process --no-resume` detached and returns at once, so
+ * a model summarises the queue without the hook waiting on it. Two seams close
+ * together start two workers; the claim lease hands each job to only one.
+ * `--no-resume` leaves paused jobs paused: un-pausing stays an explicit act.
+ */
+function drainInBackground(): void {
+  const cli = fileURLToPath(new URL('../cli.js', import.meta.url));
+  const child = spawn(process.execPath, [cli, 'memory', 'process', '--no-resume', '--max', '4'], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  child.on('error', () => {});
+  child.unref();
 }
 
 /** Replays anything the spool holds. Idempotent; safe to call every session. */
