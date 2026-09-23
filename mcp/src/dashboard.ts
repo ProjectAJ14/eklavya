@@ -422,6 +422,269 @@ export function memoryPage(db: DB, q: MemoryQuery = {}): Record<string, unknown>
   return { total, page: p, pages, per, rows, ...(candidates ? { candidates } : {}) };
 }
 
+/**
+ * One page of the sessions that captured or remembered anything, newest first.
+ *
+ * `memory_sessions` in `/api/state` is capped at `MEMORY_SESSION_LIMIT` for the
+ * learning page's join; this is the same reading as a paged resource with a
+ * real total, so the Memory workflow's Sessions list never stops at the cap.
+ * A session can exist in `memory_entries` alone — an import carries entries
+ * and no evidence — so both tables contribute.
+ */
+export function memorySessionPage(
+  db: DB,
+  q: { project?: string | null; session?: string | null; page?: number; per?: number } = {},
+): Record<string, unknown> {
+  const per = Math.min(MEMORY_PER_MAX, Math.max(1, Math.floor(q.per || MEMORY_PER)));
+  const where: string[] = [];
+  const args: unknown[] = [];
+  if (q.project) { where.push('project = ?'); args.push(q.project); }
+  if (q.session) { where.push('session_id = ?'); args.push(q.session); }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const union = `
+    SELECT session_id, project, count(*) AS events, COALESCE(SUM(redacted), 0) AS redacted,
+           COALESCE(SUM(status <> 'summarized'), 0) AS pending, min(occurred_at) AS first, max(occurred_at) AS last
+    FROM evidence_events GROUP BY session_id, project
+    UNION ALL
+    SELECT session_id, project, 0, 0, 0, min(occurred_at), max(occurred_at)
+    FROM memory_entries WHERE session_id IS NOT NULL GROUP BY session_id, project`;
+  const total = one<{ n: number }>(
+    db,
+    `SELECT count(*) AS n FROM (SELECT session_id, project FROM (${union}) ${clause} GROUP BY session_id, project)`,
+    ...args,
+  ).n;
+  const pages = Math.max(1, Math.ceil(total / per));
+  const p = Math.min(Math.max(1, Math.floor(q.page || 1)), pages);
+  const rows = many(
+    db,
+    `SELECT s.session_id, s.project, SUM(s.events) AS events, SUM(s.redacted) AS redacted, SUM(s.pending) AS pending,
+            min(s.first) AS first, max(s.last) AS last,
+            (SELECT count(*) FROM memory_entries m WHERE m.session_id = s.session_id AND m.project = s.project
+              AND m.deleted_at IS NULL AND m.superseded_by IS NULL) AS entries,
+            (SELECT count(*) FROM learning_sources ls JOIN memory_entries m ON m.id = ls.entry_id
+              WHERE m.session_id = s.session_id AND m.project = s.project) AS candidates
+     FROM (${union}) s ${clause}
+     GROUP BY s.session_id, s.project ORDER BY last DESC LIMIT ? OFFSET ?`,
+    ...args,
+    per,
+    (p - 1) * per,
+  );
+  return { total, page: p, pages, per, rows };
+}
+
+/** The id of a project whose rows carry no repository at all: recorded before projects were tracked. */
+export const UNATTRIBUTED = '~';
+
+interface InventoryProject {
+  id: string;
+  path: string | null;
+  kind: 'repo' | 'global' | 'unattributed';
+  name: string;
+  available: boolean | null;
+  sources: string[];
+  aliases: string[];
+  learning: {
+    answers: number; passed: number; skipped: number; assessed_concepts: number;
+    logged_concepts: number; sessions: number; first: string | null; last: string | null;
+  };
+  memory: {
+    events: number; pending: number; entries: number; sessions: number; receipts: number;
+    first: string | null; last: string | null;
+  };
+  first_active: string | null;
+  last_active: string | null;
+}
+
+/**
+ * Every project any part of Eklavya has recorded, under one id per codebase.
+ *
+ * The learning page's `projects` list is built from `attempts` alone, so a
+ * project whose concepts were logged but never asked about, or one that only
+ * ever captured memory, was absent from it and from the project selector. This
+ * is the inventory both workflows share instead. Existence is established by
+ * any row that names a project: an attempt, a logged concept (through its
+ * session's gate), captured evidence — processed or not — a stored
+ * observation, a reuse receipt, or an earned level. Counts stay per half:
+ * captured is not assessed, and a project with no answers says so rather than
+ * reading as one that failed them.
+ *
+ * Identity is `projectKey`, the same fold every writer uses. Two readings need
+ * more than that, and neither guesses:
+ *
+ * - `gates.repo` is the unfolded checkout (the commit gate matches it against
+ *   `git rev-parse --show-toplevel`), and a deleted worktree can no longer be
+ *   folded from the filesystem. If captured evidence recorded that checkout
+ *   under exactly one project, that recorded fold is used; otherwise the path
+ *   stays its own project, marked unavailable, rather than merged by a guess.
+ * - A NULL repo is `UNATTRIBUTED`, never folded into `*`. On a gate row it can
+ *   mean "before migration 003" or "outside any repository", and nothing
+ *   stored tells the two apart.
+ */
+export function projectInventory(db: DB): {
+  projects: InventoryProject[];
+  aliases: Record<string, string>;
+  sessions: Record<string, string>;
+} {
+  const recorded = new Map<string, Set<string>>();
+  for (const r of many<{ checkout: string; project: string }>(
+    db,
+    `SELECT DISTINCT checkout, project FROM evidence_events WHERE checkout IS NOT NULL AND checkout <> project`,
+  )) {
+    recorded.set(r.checkout, (recorded.get(r.checkout) ?? new Set()).add(r.project));
+  }
+  const folded = new Map<string, string>();
+  const canonical = (raw: string | null): string => {
+    const v = raw?.trim();
+    if (!v) return UNATTRIBUTED;
+    if (v === GLOBAL_PROJECT) return GLOBAL_PROJECT;
+    let id = folded.get(v);
+    if (id === undefined) {
+      id = projectKey(v);
+      const onRecord = recorded.get(v);
+      if (id === v && onRecord?.size === 1) id = [...onRecord][0]!;
+      folded.set(v, id);
+    }
+    return id;
+  };
+
+  const byId = new Map<string, InventoryProject & { _assessed: Set<number>; _logged: Set<number>; _lsess: Set<string>; _msess: Set<string> }>();
+  const at = (raw: string | null, source: string) => {
+    const id = canonical(raw);
+    let p = byId.get(id);
+    if (!p) {
+      const kind = id === UNATTRIBUTED ? 'unattributed' : id === GLOBAL_PROJECT ? 'global' : 'repo';
+      p = {
+        id, kind, path: kind === 'repo' ? id : null, name: '', available: kind === 'repo' ? fs.existsSync(id) : null,
+        sources: [], aliases: [],
+        learning: { answers: 0, passed: 0, skipped: 0, assessed_concepts: 0, logged_concepts: 0, sessions: 0, first: null, last: null },
+        memory: { events: 0, pending: 0, entries: 0, sessions: 0, receipts: 0, first: null, last: null },
+        first_active: null, last_active: null,
+        _assessed: new Set(), _logged: new Set(), _lsess: new Set(), _msess: new Set(),
+      };
+      byId.set(id, p);
+    }
+    if (!p.sources.includes(source)) p.sources.push(source);
+    const v = raw?.trim();
+    if (v && v !== id && !p.aliases.includes(v)) p.aliases.push(v);
+    return p;
+  };
+  const sessionIds = new Map<string, Set<string>>();
+  const note = (sid: string, id: string) => sessionIds.set(sid, (sessionIds.get(sid) ?? new Set()).add(id));
+  // Both timestamp shapes, flattened to ISO so min/max compare as instants.
+  const iso = (ts: string | null) => {
+    if (!ts) return null;
+    const t = parseTs(ts);
+    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+  };
+  const span = (o: { first: string | null; last: string | null }, first: string | null, last: string | null) => {
+    const f = iso(first), l = iso(last);
+    if (f && (!o.first || f < o.first)) o.first = f;
+    if (l && (!o.last || l > o.last)) o.last = l;
+  };
+
+  for (const r of many<{ repo: string | null; session_id: string | null; concept_id: number; n: number; passed: number; skipped: number; first: string; last: string }>(
+    db,
+    `SELECT repo, session_id, concept_id, count(*) AS n,
+            COALESCE(SUM(grade >= ${PASSING_GRADE}), 0) AS passed,
+            COALESCE(SUM(outcome IN ('declined','dont_know')), 0) AS skipped,
+            min(ts) AS first, max(ts) AS last
+     FROM attempts GROUP BY repo, session_id, concept_id`,
+  )) {
+    const p = at(r.repo, 'attempts');
+    p.learning.answers += r.n;
+    p.learning.passed += r.passed;
+    p.learning.skipped += r.skipped;
+    p._assessed.add(r.concept_id);
+    if (r.session_id) {
+      p._lsess.add(r.session_id);
+      if (r.repo?.trim()) note(r.session_id, p.id);
+    }
+    span(p.learning, r.first, r.last);
+  }
+  for (const r of many<{ project: string; session_id: string; n: number; pending: number; first: string; last: string }>(
+    db,
+    `SELECT project, session_id, count(*) AS n, COALESCE(SUM(status <> 'summarized'), 0) AS pending,
+            min(occurred_at) AS first, max(occurred_at) AS last
+     FROM evidence_events GROUP BY project, session_id`,
+  )) {
+    const p = at(r.project, 'evidence');
+    p.memory.events += r.n;
+    p.memory.pending += r.pending;
+    p._msess.add(r.session_id);
+    note(r.session_id, p.id);
+    span(p.memory, r.first, r.last);
+  }
+  // A gate row with no repository names no project, but the same session's
+  // own answers and evidence may. Where they agree on exactly one project, the
+  // session is that project's; where they do not, it stays unattributed. The
+  // session id is an exact identity -- nothing here matches on names or times.
+  const unassigned = new Map<string, string | null>();
+  for (const [sid, ids] of sessionIds) unassigned.set(sid, ids.size === 1 ? [...ids][0]! : null);
+  const sessionProjects: Record<string, string> = {};
+  for (const r of many<{ repo: string | null; session_id: string; concept_id: number; origin: string | null; first: string; last: string }>(
+    db,
+    `SELECT g.repo AS repo, sc.session_id, sc.concept_id, sc.origin, min(sc.ts) AS first, max(sc.ts) AS last
+     FROM session_concepts sc LEFT JOIN gates g ON g.session_id = sc.session_id
+     GROUP BY g.repo, sc.session_id, sc.concept_id`,
+  )) {
+    const proven = r.repo?.trim() ? null : unassigned.get(r.session_id) ?? null;
+    if (proven) sessionProjects[r.session_id] = proven;
+    const p = proven ? at(proven, 'logged') : at(r.repo, 'logged');
+    // Only work the agent logged. `record_attempt` writes a `review` row for
+    // every concept it grades, and counting those would call every answered
+    // concept "recorded from your work".
+    if ((r.origin ?? 'work') === 'work') p._logged.add(r.concept_id);
+    p._lsess.add(r.session_id);
+    span(p.learning, r.first, r.last);
+  }
+  for (const r of many<{ project: string; session_id: string | null; live: number; first: string; last: string }>(
+    db,
+    `SELECT project, session_id, COALESCE(SUM(deleted_at IS NULL AND superseded_by IS NULL), 0) AS live,
+            min(occurred_at) AS first, max(occurred_at) AS last
+     FROM memory_entries GROUP BY project, session_id`,
+  )) {
+    const p = at(r.project, 'entries');
+    p.memory.entries += r.live;
+    if (r.session_id) p._msess.add(r.session_id);
+    span(p.memory, r.first, r.last);
+  }
+  for (const r of many<{ project: string; n: number }>(db, 'SELECT project, count(*) AS n FROM context_receipts GROUP BY project')) {
+    at(r.project, 'receipts').memory.receipts += r.n;
+  }
+  for (const r of many<{ repo: string }>(db, 'SELECT repo FROM project_levels')) at(r.repo, 'levels');
+
+  const projects = [...byId.values()].map(({ _assessed, _logged, _lsess, _msess, ...p }) => {
+    p.learning.assessed_concepts = _assessed.size;
+    p.learning.logged_concepts = _logged.size;
+    p.learning.sessions = _lsess.size;
+    p.memory.sessions = _msess.size;
+    const firsts = [p.learning.first, p.memory.first].filter(Boolean) as string[];
+    const lasts = [p.learning.last, p.memory.last].filter(Boolean) as string[];
+    p.first_active = firsts.sort()[0] ?? null;
+    p.last_active = lasts.sort().at(-1) ?? null;
+    return p;
+  });
+
+  // A folder name is what a person recognises, but two repositories can share
+  // one. Widen a clashing name one parent at a time until it is unique.
+  const repos = projects.filter((p) => p.kind === 'repo');
+  const tail = (p: string, n: number) => p.split(/[\\/]/).filter(Boolean).slice(-n).join('/');
+  for (const p of repos) {
+    let n = 1;
+    while (n < 8 && repos.some((o) => o !== p && tail(o.id, n) === tail(p.id, n))) n += 1;
+    p.name = tail(p.id, n) || p.id;
+  }
+  for (const p of projects) {
+    if (p.kind === 'global') p.name = 'No repository';
+    if (p.kind === 'unattributed') p.name = 'Unattributed';
+  }
+  projects.sort((a, b) => String(b.last_active ?? '').localeCompare(String(a.last_active ?? '')) || a.name.localeCompare(b.name));
+
+  const aliases: Record<string, string> = {};
+  for (const [raw, id] of folded) aliases[raw] = id;
+  return { projects, aliases, sessions: sessionProjects };
+}
+
 /** One entry with its tags, its raw evidence and the candidates it proposed. */
 export function memoryEntry(db: DB, id: number): Record<string, unknown> | null {
   const entry = one<Record<string, unknown> | undefined>(db, 'SELECT * FROM memory_entries WHERE id = ?', id);
@@ -797,6 +1060,20 @@ export function openInBrowser(url: string): void {
   }
 }
 
+/**
+ * The site's tokens, minus anything fetched from another host.
+ *
+ * `tokens.css` is shared with the landing page, which loads its web fonts from
+ * Google; the dashboard promises that nothing on it leaves the machine, and a
+ * font request is a request that tells a third party this page was opened. So
+ * remote `@import`s are dropped here and the font stacks fall through to the
+ * system faces they already name — the site keeps its fonts, this page makes
+ * no outbound request.
+ */
+export function localTokens(css: string): string {
+  return css.replace(/@import\s+url\(\s*['"]?(?:https?:)?\/\/[^)]*\)[^;]*;\s*/gi, '');
+}
+
 function send(res: http.ServerResponse, status: number, type: string, body: string | Buffer): void {
   res.writeHead(status, {
     'content-type': type,
@@ -883,13 +1160,32 @@ export function startDashboard(
           ),
         );
       }
+      if (url.pathname === '/api/projects') {
+        return send(res, 200, 'application/json', JSON.stringify(projectInventory(db)));
+      }
+      if (url.pathname === '/api/memory/sessions') {
+        const g = (k: string) => url.searchParams.get(k);
+        return send(
+          res,
+          200,
+          'application/json',
+          JSON.stringify(
+            memorySessionPage(db, {
+              project: g('project'),
+              session: g('session'),
+              page: Number(g('page')) || 1,
+              per: Number(g('per')) || MEMORY_PER,
+            }),
+          ),
+        );
+      }
       if (url.pathname === '/api/memory/entry') {
         const entry = memoryEntry(db, Number(url.searchParams.get('id')));
         if (!entry) return send(res, 404, 'application/json', '{"error":"no such entry"}');
         return send(res, 200, 'application/json', JSON.stringify(entry));
       }
       if (url.pathname === '/tokens.css') {
-        return send(res, 200, 'text/css', fs.readFileSync(path.join(assets, 'tokens.css')));
+        return send(res, 200, 'text/css', localTokens(fs.readFileSync(path.join(assets, 'tokens.css'), 'utf8')));
       }
       if (url.pathname === '/' || url.pathname === '/index.html') {
         return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(path.join(assets, 'dashboard.html')));

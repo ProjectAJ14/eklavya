@@ -227,20 +227,29 @@ It opens the browser itself, so do not tell them to click the URL. Use
 `--no-open` when they only asked *where* the dashboard is, or when the session
 is on a machine with no desktop.
 
-Six sections, each deep-linkable — hand back the one that answers what was
-actually asked rather than the bare root:
+Two workflows, Learning and Memory, each with its own Dashboard and every page
+deep-linkable — hand back the one that answers what was actually asked rather
+than the bare root. Add `?project=<absolute repo path>` to open it scoped to one
+project; the ids are the ones `/api/projects` lists.
 
 | Ask | Link |
 |---|---|
-| how am I doing, streaks, activity | `/#/overview` |
-| what am I learning, search a concept | `/#/concepts` (or `/#/concepts/due`, `/mastered`, `/unseen`), `/#/concept/<slug>` for one |
-| what is due, what is scheduled, what I skipped | `/#/review`, `/#/review/upcoming`, `/#/review/skipped` |
-| what did that session teach me | `/#/sessions` |
-| what does this project remember | `/#/memory`, `/#/entry/<id>` for one observation and its evidence |
-| what has recall actually saved | `/#/reuse` |
-| is capture healthy | `/#/health` |
-| how hard is this repo allowed to get | `/#/projects` |
-| where are the gaps | `/#/domains` |
+| how am I doing, streaks, activity | `/#/learning/dashboard` |
+| what am I learning, search a concept | `/#/learning/concepts` (or `/#/learning/concepts/due`, `/mastered`, `/unseen`), `/#/learning/concept/<slug>` for one |
+| what is due, what is scheduled, what I skipped | `/#/learning/review`, `/#/learning/review/upcoming`, `/#/learning/review/skipped` |
+| what did that session teach me | `/#/learning/sessions`, `/#/learning/session/<id>` |
+| how hard is this repo allowed to get, which projects have no answers yet | `/#/learning/projects` |
+| where are the gaps | `/#/learning/domains` |
+| what does memory hold, at a glance | `/#/memory/dashboard` |
+| what does this project remember | `/#/memory/timeline` (or `/#/memory/timeline/<type>`), `/#/memory/entry/<id>` for one observation and its evidence |
+| which sessions captured anything | `/#/memory/sessions` |
+| which projects has memory recorded | `/#/memory/projects` |
+| what has recall actually saved | `/#/memory/reuse` |
+| is capture healthy | `/#/memory/health` |
+
+The older single-workflow links (`/#/overview`, `/#/concepts`, `/#/memory`,
+`/#/entry/<id>` and the rest) still open the right page, but hand back the
+canonical form.
 
 ## When the plugin is loaded, point at the commands
 

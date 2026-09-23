@@ -16,7 +16,7 @@ The loop is the same, and the wording adapts. Cowork produces documents and anal
 
 ### Does anything leave my machine?
 
-Not with the default configuration. The database, the config and the dashboard are all local, the dashboard binds to loopback, and both halves of the product run locally: the summariser that writes observations is extractive and needs no model, and the search index is built by an embedder that runs here. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade, and the dashboard page loading its three webfonts from Google Fonts — no learning or memory data is involved in either.
+Not with the default configuration. The database, the config and the dashboard are all local, the dashboard binds to loopback, and both halves of the product run locally: the summariser that writes observations is extractive and needs no model, and the search index is built by an embedder that runs here. There is no account and no telemetry. The only network access in normal use is npm fetching the server package when you install or upgrade — no learning or memory data is involved. The dashboard makes no request to any other host, fonts included: it uses your system's fonts.
 
 Three settings change that, none of them on unless you turn it on, and each says what leaves before it does:
 

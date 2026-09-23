@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Eklavya — learning dashboard</title>
+<title>Eklavya — dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230E6E66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M7 5a11 11 0 0 1 0 14'/%3E%3Cpath d='M6 12h12'/%3E%3Cpath d='M14 9l3 3-3 3'/%3E%3C/g%3E%3C/svg%3E">
 <script>
 /* Ground selection, shared with the site: same localStorage key, same default.
@@ -31,10 +31,10 @@
   window.eklavyaGround.apply(window.eklavyaGround.read());
 })();
 </script>
+<!-- Tokens only, and served with their remote font import stripped: nothing on
+     this page is fetched from anywhere but this loopback server. The font
+     stacks fall through to the system faces they already name. -->
 <link rel="stylesheet" href="/tokens.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
      Layout: a fixed rail and one scrolling column.
@@ -75,7 +75,44 @@
   .side__label { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);
                  text-transform:uppercase; color:var(--faint); margin:0 0 var(--space-2); }
 
-  nav.side__nav { display:flex; flex-direction:column; }
+  /* ---------- the workflow control: open this workflow, or switch ---------- */
+  /* Two targets in one row, the way the reference shell does it: the name opens
+     the active workflow's Dashboard, the caret opens the picker. They are two
+     buttons rather than one, because "go home" and "go somewhere else" are two
+     different intentions and one click should never guess between them. */
+  .wf { display:flex; margin:0 var(--space-5); border:1px solid var(--line-2); background:var(--bg); }
+  .wf__main { flex:1; min-width:0; display:flex; align-items:center; gap:var(--space-3);
+              padding:var(--space-2) var(--space-3); text-decoration:none; color:var(--ink);
+              font-weight:var(--weight-semibold); font-size:14px; }
+  .wf__main:hover { background:var(--mass); }
+  .wf__main svg, .picker svg { width:17px; height:17px; flex:none; color:var(--spot); }
+  .wf__caret { flex:none; width:36px; background:none; border:0; border-left:1px solid var(--line-2);
+               color:var(--dim); cursor:pointer; display:grid; place-items:center; }
+  .wf__caret:hover, .wf__caret[aria-expanded="true"] { background:var(--mass); color:var(--ink); }
+  .wf__caret svg { width:14px; height:14px; transition:transform var(--duration-fast) var(--ease); }
+  .wf__caret[aria-expanded="true"] svg { transform:rotate(180deg); }
+
+  /* The picker lives at the end of <body>, outside the rail: a menu inside a
+     scrolling sidebar is clipped by it. Its position is computed and clamped to
+     the viewport, so it never opens off-screen on a phone or a short window. */
+  .picker { position:fixed; z-index:40; min-width:220px; max-width:calc(100vw - 16px);
+            background:var(--panel); border:1px solid var(--line-2); padding:var(--space-1) 0;
+            box-shadow:0 12px 32px rgba(0,0,0,.28); overflow-y:auto; }
+  .picker[hidden] { display:none; }
+  .picker__label { font-family:var(--font-mono); font-size:10px; letter-spacing:var(--tracking-caps);
+                   text-transform:uppercase; color:var(--faint); padding:var(--space-2) var(--space-4) var(--space-1); margin:0; }
+  .picker button { display:flex; align-items:center; gap:var(--space-3); width:100%; text-align:left;
+                   background:none; border:0; color:var(--dim); font:inherit; font-size:14px;
+                   padding:var(--space-2) var(--space-4); cursor:pointer; }
+  .picker button:hover, .picker button:focus-visible { background:var(--mass); color:var(--ink); box-shadow:none; outline:none; }
+  .picker button:focus-visible { box-shadow:inset 2px 0 0 var(--spot); }
+  .picker button[aria-checked="true"] { color:var(--ink); }
+  .picker button span { flex:1; }
+  .picker .check { width:15px; height:15px; color:var(--spot); visibility:hidden; }
+  .picker button[aria-checked="true"] .check { visibility:visible; }
+
+  /* ---------- the sidebar navigation ---------- */
+  nav.side__nav { display:flex; flex-direction:column; gap:var(--space-4); }
   nav.side__nav a { display:flex; align-items:center; gap:var(--space-3); text-decoration:none;
                     padding:var(--space-2) var(--space-5); color:var(--dim); font-size:14px;
                     border-left:2px solid transparent;
@@ -87,6 +124,22 @@
   nav.side__nav a i { margin-left:auto; font-style:normal; font-family:var(--font-mono);
                       font-size:11px; color:var(--faint); }
   nav.side__nav a i.hot { color:var(--warning); }
+  .nav__toggle { display:flex; align-items:center; gap:var(--space-2); width:100%; background:none; border:0;
+                 font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);
+                 text-transform:uppercase; color:var(--faint); padding:var(--space-1) var(--space-5);
+                 cursor:pointer; text-align:left; }
+  .nav__toggle:hover { color:var(--ink); }
+  .nav__toggle svg { width:12px; height:12px; transition:transform var(--duration-fast) var(--ease); }
+  .nav__toggle[aria-expanded="false"] svg { transform:rotate(-90deg); }
+  .nav__items[hidden] { display:none; }
+
+  /* ---------- phone chrome: a top bar and a drawer ---------- */
+  .topbar { display:none; }
+  .scrim { display:none; }
+  .side__close { display:none; }
+  .crumb { display:flex; gap:var(--space-2); flex-wrap:wrap; }
+  .crumb span + span::before { content:'·'; margin-right:var(--space-2); color:var(--faint); }
+  .crumb .dim { color:var(--faint); }
 
   .foot { margin-top:var(--space-12); padding-top:var(--space-5); border-top:1px solid var(--line);
           color:var(--faint); font-size:var(--text-xs); display:flex; gap:var(--space-4);
@@ -128,7 +181,7 @@
   .card--flush { padding:0; }
   .head { margin-bottom:var(--space-4); }
   .head h2 { font-size:var(--text-md); font-weight:var(--weight-bold); letter-spacing:-.01em; margin:0; }
-  .head p { color:var(--faint); font-size:13.5px; margin:2px 0 0; max-width:78ch; }
+  .head p { color:var(--faint); font-size:13.5px; margin:2px 0 0; max-width:78ch; overflow-wrap:anywhere; }
   .head--row { display:flex; align-items:flex-end; gap:var(--space-4); flex-wrap:wrap; }
   .head--row > :first-child { flex:1 1 320px; }
 
@@ -316,24 +369,43 @@
   @media (max-width:1080px) {
     .g3 { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
+  /* At 900 and below the rail becomes a drawer: the same navigation, the same
+     workflow control and the same controls, behind a menu button. It is a modal
+     while open (focus is held inside it, the page behind is inert) and it is
+     `inert` while closed, so a hidden drawer is never in the Tab order. */
   @media (max-width:900px) {
-    .app { grid-template-columns:1fr; }
-    .side { position:static; height:auto; flex-direction:column; border-right:0;
-            border-bottom:1px solid var(--line-2); padding:var(--space-4) 0; gap:var(--space-4); }
-    nav.side__nav { flex-direction:row; overflow-x:auto; padding:0 var(--space-4); gap:var(--space-1); }
-    nav.side__nav a { border-left:0; border-bottom:2px solid transparent; padding:var(--space-2) var(--space-3);
-                      white-space:nowrap; }
-    nav.side__nav a[aria-current="page"] { border-left:0; border-bottom-color:var(--spot); }
-    /* The two control groups sit side by side rather than stacking: a rail
-       unrolled into a column of full-width controls buries the page. */
-    .side__controls { flex-direction:row; gap:var(--space-5); align-items:flex-end;
-                      padding:0 var(--space-4); margin-top:0; }
-    .side__group { padding:0; }
-    .side__group:first-child { flex:0 1 260px; }
+    .app { grid-template-columns:minmax(0,1fr); }
+    .topbar { display:flex; align-items:center; gap:var(--space-3); position:sticky; top:0; z-index:20;
+              background:var(--panel); border-bottom:1px solid var(--line-2); padding:var(--space-2) var(--space-4); }
+    .topbar__menu { background:none; border:1px solid var(--line-2); color:var(--ink); width:38px; height:38px;
+                    display:grid; place-items:center; cursor:pointer; flex:none; }
+    .topbar__menu svg { width:18px; height:18px; }
+    .topbar__brand { display:flex; align-items:center; gap:var(--space-2); text-decoration:none; color:inherit;
+                     font-family:var(--font-disp); font-weight:var(--weight-extra); letter-spacing:var(--tracking-tight); }
+    .topbar__brand .mark { width:26px; height:26px; }
+    .topbar__wf { margin-left:auto; font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);
+                  text-transform:uppercase; color:var(--spot); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .side { position:fixed; top:0; bottom:0; left:0; z-index:30; width:min(300px, 86vw); height:100vh; height:100dvh;
+            border-right:1px solid var(--line-2); visibility:hidden; left:-100%;
+            transition:left var(--duration-base) var(--ease), visibility 0s linear var(--duration-base); }
+    .side.is-open { visibility:visible; left:0; transition:left var(--duration-base) var(--ease); }
+    .side__close { display:grid; place-items:center; position:absolute; top:var(--space-4); right:var(--space-4);
+                   background:none; border:1px solid var(--line-2); color:var(--ink); width:34px; height:34px; cursor:pointer; }
+    .side__close svg { width:16px; height:16px; }
+    .side__brand { padding-right:64px; }
+    .scrim { position:fixed; inset:0; z-index:25; background:rgba(0,0,0,.45); }
+    .scrim.is-open { display:block; }
+    body.drawer-open { overflow:hidden; }
     main { padding:var(--space-6) var(--space-5) var(--space-16); }
     .g2, .g3 { grid-template-columns:minmax(0,1fr); }
   }
   @media (max-width:560px) {
+    /* The check rows carry a label, a bar and a sentence; on a phone the
+       sentence goes under the bar rather than off the edge of the screen. */
+    .checks div { flex-wrap:wrap; }
+    .checks .bar { flex:1 1 120px; }
+    .checks .slug { white-space:normal !important; flex-basis:100%; }
+    main { padding:var(--space-5) var(--space-4) var(--space-16); }
     .stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); }
     .tile strong { font-size:var(--text-xl); }
     .card { padding:var(--space-5) var(--space-4); }
@@ -347,8 +419,28 @@
 </head>
 <body>
 <div class="app">
-  <aside class="side">
-    <a class="side__brand" href="#/overview" aria-label="Eklavya dashboard, overview">
+  <!-- Phones only: the rail is a drawer behind this bar. -->
+  <header class="topbar" id="topbar">
+    <button type="button" class="topbar__menu" id="menu" aria-controls="side" aria-expanded="false" aria-label="Open navigation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="topbar__brand" id="brand-top" href="#/learning/dashboard" aria-label="Eklavya, Learning dashboard">
+      <div class="mark" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 3a13 13 0 0 1 0 18"/><path d="M5 3l14 9L5 21"/><path d="M3 12h18"/><path d="M15 8l4 4-4 4"/>
+        </svg>
+      </div><span>Eklavya</span>
+    </a>
+    <span class="topbar__wf" id="topbar-wf">Learning</span>
+  </header>
+  <div class="scrim" id="scrim"></div>
+
+  <aside class="side" id="side" aria-label="Dashboard navigation">
+    <button type="button" class="side__close" id="side-close" aria-label="Close navigation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <a class="side__brand" id="brand" href="#/learning/dashboard" aria-label="Eklavya, Learning dashboard">
       <div class="mark" aria-hidden="true">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round">
@@ -357,16 +449,22 @@
       </div>
       <div>
         <b>Eklavya</b>
-        <span>learning dashboard</span>
+        <span>dashboard</span>
       </div>
     </a>
+
+    <div class="wf" id="wf">
+      <a class="wf__main" id="wf-main" href="#/learning/dashboard"></a>
+      <button type="button" class="wf__caret" id="wf-caret" aria-label="Switch workflow"
+              aria-haspopup="menu" aria-expanded="false" aria-controls="wf-menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+    </div>
 
     <nav class="side__nav" id="nav" aria-label="Sections"></nav>
 
     <div class="side__controls">
       <div class="side__group">
         <p class="side__label" id="proj-label">Project</p>
-        <select id="proj" aria-labelledby="proj-label"><option value="*">All projects</option></select>
+        <select id="proj" aria-labelledby="proj-label"><option value="">All projects</option></select>
       </div>
 
       <div class="side__group">
@@ -380,12 +478,13 @@
 
   </aside>
 
-  <main>
+  <main id="main">
     <button type="button" class="stale inner" id="stale" hidden aria-live="polite">
       New activity since this page loaded — refresh
     </button>
+    <p class="page__eyebrow crumb inner" id="crumb" aria-label="Workflow and scope"></p>
     <div class="inner stack" id="view">
-      <p class="empty">Loading your learning history…</p>
+      <p class="empty">Loading your history…</p>
     </div>
     <footer class="foot inner">
       <span>Read from <code id="dbline">~/.eklavya/knowledge.db</code> — nothing on this page leaves your machine.<span id="foot-note"></span></span>
@@ -393,6 +492,8 @@
     </footer>
   </main>
 </div>
+
+<div class="picker" id="wf-menu" role="menu" aria-label="Workflows" hidden></div>
 
 <script>
 /* ============================================================
@@ -446,15 +547,19 @@ const TIER = { 1:'recall', 2:'mechanism', 3:'judgement', 4:'failure modes', 5:'d
 const tierLabel = (t) => `T${t}${TIER[t] ? ' ' + TIER[t] : ''}`;
 
 let S = null;                 // the payload
-let FILTER = '*';             // project scope: '*' all, '~' unattributed, else a repo path
+let INV = null;               // /api/projects: the one project inventory both workflows share
+let PROJECT = null;           // project scope: null for all, else an inventory id ('~' unattributed, '*' no repository)
 let SCOPE = null;             // Set of slugs touched in scope, or null for all
 const AFTER = [];             // render hooks that need a laid-out DOM (charts)
+/** The screen being shown, as the URL says it: `{ wf, page, param, query }`. */
+let CUR = { wf:'learning', page:'dashboard', param:'', query:new URLSearchParams() };
 
 /* ---------- per-view control state, kept across re-renders ---------- */
 const T = {
   concepts: { page:1, q:'', state:'all', domain:'all', sort:'weakest' },
   review:   { page:1, tab:'due' },
   sessions: { page:1 },
+  msessions:{ page:1 },
   attempts: { page:1 },
   domain:   { page:1 },
   concept:  { page:1 },
@@ -466,20 +571,36 @@ const PER = 20;
 
 /* ============================================================
    Scope
+
+   Every row names its project in whatever spelling it was written with: a
+   folded checkout on an attempt, the unfolded worktree on a gate, nothing at
+   all on a pre-migration row. `/api/projects` resolves every spelling to one
+   id (`aliases`), plus the sessions whose gate named no project but whose own
+   answers or evidence did (`sessions`). `pid()` is the only place a row is
+   given a project, so the selector, the filters and every count agree.
    ============================================================ */
-const inScope = (repo) => FILTER === '*' || (repo ?? '') === (FILTER === '~' ? '' : FILTER);
+const pid = (raw, sid) => {
+  const v = raw == null ? '' : String(raw).trim();
+  if (!v) return (sid && INV.sessions[sid]) || '~';
+  return INV.aliases[v] ?? v;
+};
+const inScope = (raw, sid) => PROJECT === null || pid(raw, sid) === PROJECT;
+const projectById = (id) => INV.projects.find((p) => p.id === id) ?? null;
+const pname = (raw, sid) => { const id = pid(raw, sid); return projectById(id)?.name ?? base(id); };
 
 function recomputeScope() {
-  if (FILTER === '*') { SCOPE = null; return; }
+  if (PROJECT === null) { SCOPE = null; return; }
   SCOPE = new Set();
-  for (const a of S.attempts) if (inScope(a.repo)) SCOPE.add(a.slug);
-  for (const l of S.logged) if (inScope(l.repo)) SCOPE.add(l.slug);
+  for (const a of S.attempts) if (inScope(a.repo, a.session_id)) SCOPE.add(a.slug);
+  for (const l of S.logged) if (inScope(l.repo, l.session_id)) SCOPE.add(l.slug);
 }
 const conceptsInScope = () => (SCOPE ? S.concepts.filter((c) => SCOPE.has(c.slug)) : S.concepts);
 const seenConcepts = () => conceptsInScope().filter((c) => c.seen);
-const attemptsInScope = () => S.attempts.filter((a) => inScope(a.repo));
-const loggedInScope = () => S.logged.filter((l) => inScope(l.repo));
-const scopeName = () => (FILTER === '*' ? 'all projects' : base(FILTER === '~' ? null : FILTER));
+const attemptsInScope = () => S.attempts.filter((a) => inScope(a.repo, a.session_id));
+const loggedInScope = () => S.logged.filter((l) => inScope(l.repo, l.session_id));
+const scopeName = () => (PROJECT === null ? 'all projects' : projectById(PROJECT)?.name ?? PROJECT);
+/** Inventory rows in scope — one, or all of them. */
+const projectsInScope = () => INV.projects.filter((p) => PROJECT === null || p.id === PROJECT);
 
 /** One row per calendar day in scope: { day, passed, missed, skipped, total }. */
 function dailyInScope() {
@@ -552,7 +673,7 @@ function sessions() {
   // leaving it out would make the memory half invisible in the one place the
   // two halves are supposed to line up.
   for (const mem of S.memory_sessions ?? []) {
-    if (!inScope(mem.project)) continue;
+    if (!inScope(mem.project, mem.session_id)) continue;
     const s = get(mem.session_id);
     s.mem = mem; s.repo = s.repo ?? mem.project;
     touch(s, mem.first); touch(s, mem.last);
@@ -834,8 +955,13 @@ const chart = (id, fn) => { AFTER.push(() => { const el = $(id); if (el) fn(el);
    That makes exactly two views asynchronous, and both go through `fill()`.
    ============================================================ */
 
-/** Monotonic token: a response that lands after the reader has moved on is dropped. */
-let SEQ = 0;
+/**
+ * Which render a response belongs to. `render()` bumps it, so a response that
+ * lands after the reader has moved on — to another page, another project or the
+ * other workflow — is dropped instead of painting over the screen they are on.
+ * Per render rather than per request: a view with two fills keeps both.
+ */
+let GEN = 0;
 
 /**
  * Renders a placeholder now and the real markup when the fetch lands. Queued
@@ -843,17 +969,36 @@ let SEQ = 0;
  * not exist until `render()` has written the view's `innerHTML`.
  */
 function fill(id, url, draw) {
-  const seq = ++SEQ;
+  const gen = GEN;
   AFTER.push(() => {
-    fetch(url).then((r) => r.json()).then((d) => {
+    fetch(url).then((r) => {
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      return r.json();
+    }).then((d) => {
       const el = $(id);
-      if (!el || seq !== SEQ) return;
+      if (!el || gen !== GEN) return;
+      // A draw can queue its own charts and fills (a session page drawn from a
+      // lookup does); the render that queued this one has already run its hooks.
+      AFTER.length = 0;
       el.innerHTML = draw(d);
-      el.querySelectorAll('tr.row').forEach((r) => { r.tabIndex = 0; });
+      focusable(el);
+      for (const fn of AFTER.splice(0)) fn();
     }).catch((e) => {
       const el = $(id);
-      if (el && seq === SEQ) el.innerHTML = `<p class="empty">Could not load: ${esc(e.message)}</p>`;
+      if (el && gen === GEN) el.innerHTML = `<p class="empty">Could not load: ${esc(e.message)}</p>`;
     });
+  });
+}
+
+/**
+ * Anything with a `data-go` is a link, so it has to be reachable by Tab: rows,
+ * tiles and the `<a class="link">` shorthand, which has no `href` and so is
+ * not focusable on its own.
+ */
+function focusable(root) {
+  root.querySelectorAll('tr.row, [data-go]').forEach((el) => {
+    if (el.tabIndex < 0) el.tabIndex = 0;
+    if (el.tagName === 'A' && !el.hasAttribute('href')) el.setAttribute('role', 'link');
   });
 }
 
@@ -870,7 +1015,7 @@ function entryMark(e) {
 
 /** Project scope as a query parameter; `~` (unattributed) predates memory entirely. */
 function memScope(params) {
-  if (FILTER !== '*' && FILTER !== '~') params.set('project', FILTER);
+  if (PROJECT !== null) params.set('project', PROJECT);
   return params;
 }
 
@@ -899,7 +1044,7 @@ function savingsText(s, receipts) {
    Views
    ============================================================ */
 
-function viewOverview() {
+function viewLearningDashboard() {
   const daily = dailyInScope();
   const st = streaks(daily);
   const seen = seenConcepts();
@@ -909,66 +1054,53 @@ function viewOverview() {
   const passed = atts.filter((a) => a.grade >= 3).length;
   const due = seen.filter((c) => c.due);
   const mastered = seen.filter((c) => c.mastered);
-  const sess = sessions();
+  // Learning's sessions; a memory-only one belongs to the other workflow.
+  const sess = sessions().filter((x) => x.logged.length || x.asked.length);
   const last30 = fillDays(daily, 30);
 
   const weakest = seen.filter((c) => !c.mastered).sort((a, b) => a.score - b.score || b.attempts - a.attempts).slice(0, 5);
   const recentSessions = sess.slice(0, 5);
+
+  // Logged is what the work touched; assessed is what a question was actually
+  // asked about. They are different claims and the page keeps them apart.
+  const logged = new Set(loggedInScope().filter((l) => (l.origin ?? 'work') === 'work').map((l) => l.slug));
+  const asked = new Set(atts.map((a) => a.slug));
+  const loggedAsked = [...logged].filter((x) => asked.has(x)).length;
+  const inv = projectsInScope();
+  const unassessed = inv.filter((p) => !p.learning.answers && p.learning.logged_concepts);
 
   chart('c-activity', (el) => chartActivity(el, last30));
   chart('c-heat', (el) => chartHeatmap(el, daily));
 
   return [
     `<div>
-       <p class="page__eyebrow">${esc(scopeName())}</p>
        <h1 class="page__title">Am I actually getting better?</h1>
        <p class="page__sub">${plural(seen.length, 'concept')} asked out of ${S.totals.catalogue} in the graph ·
          ${plural(answered, 'answer')} · ${plural(sess.length, 'session')} · first answer ${esc(fmtDate(S.totals.first_answer))}.</p>
      </div>`,
 
     tiles([
-      ['Accuracy', answered ? pct(passed, answered) + '%' : '—', `${passed} right of ${answered}`, answered && pct(passed, answered) >= 70 ? 'good' : '', '#/sessions'],
-      ['Mastered', mastered.length, `of ${seen.length} asked`, mastered.length ? 'good' : '', '#/concepts/mastered'],
-      ['Due now', due.length, due.length ? 'ready for review' : 'nothing waiting', due.length ? 'warn' : '', '#/review'],
-      ['Streak', st.current ? plural(st.current, 'day') : '—', st.best ? `best ${plural(st.best, 'day')}` : 'no answers yet'],
-      ['Active days', st.days, 'with at least one answer'],
+      ['Accuracy', answered ? pct(passed, answered) + '%' : '—', answered ? `${passed} right of ${answered}` : 'No assessments yet', answered && pct(passed, answered) >= 70 ? 'good' : '', LH('sessions')],
+      ['Recorded', logged.size, `concepts your work logged · ${loggedAsked} assessed`, '', LH('sessions')],
+      ['Mastered', mastered.length, `of ${seen.length} asked`, mastered.length ? 'good' : '', LH('concepts', 'mastered')],
+      ['Due now', due.length, due.length ? 'ready for review' : 'nothing waiting', due.length ? 'warn' : '', LH('review')],
+      ['Streak', st.current ? plural(st.current, 'day') : '—', st.best ? `best ${plural(st.best, 'day')} · ${plural(st.days, 'active day')}` : 'no answers yet'],
     ]),
+
+    PROJECT !== null && !answered
+      ? `<div class="banner"><p><strong>No assessments yet</strong> in ${esc(scopeName())}.
+          ${logged.size ? `${plural(logged.size, 'concept')} ${logged.size === 1 ? 'was' : 'were'} recorded from its work and will come up in a quiz.` : 'Nothing has been logged here either.'}
+          Captured memory is never counted as an answer.</p></div>`
+      : PROJECT === null && unassessed.length
+        ? `<div class="banner"><p><strong>${plural(unassessed.length, 'project')}</strong> recorded concepts but has no assessments yet:
+            ${unassessed.slice(0, 4).map((p) => `<a class="link" data-go="${esc(LH('projects', null, { project: p.id }))}">${esc(p.name)}</a>`).join(', ')}.</p></div>`
+        : '',
 
     due.length
       ? `<div class="banner"><p><strong>${plural(due.length, 'concept')}</strong> ${due.length === 1 ? 'is' : 'are'} due.
           Run <code>/eklavya:quiz</code> in Claude Code, or open the
-          <a class="link" data-go="#/review">review queue</a> to see what is waiting.</p></div>`
+          <a class="link" data-go="${esc(LH('review'))}">review queue</a> to see what is waiting.</p></div>`
       : '',
-
-    // The memory half, in two summaries. Both are all-project: the timeline is
-    // paged on the server, so narrowing these to a scope the page cannot
-    // recount would be a number nobody could check.
-    `<div class="g2">
-       ${card('Context reuse', 'B is what the same material would have cost read from source; D is what was delivered instead.',
-         `<div class="kv">
-            <div><b>B — from source</b><span>${S.reuse.base}</span></div>
-            <div><b>D — delivered</b><span>${S.reuse.delivered}</span></div>
-            <div><b>Net</b><span>${S.reuse.base - S.reuse.delivered}</span></div>
-            <div><b>Verdict</b><span>${S.reuse.savings.kind === 'saving' ? S.reuse.savings.percent + '%'
-              : S.reuse.savings.kind === 'overhead' ? '+' + S.reuse.savings.tokens + ' tokens' : '—'}</span></div>
-          </div>
-          <p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">${esc(savingsText(S.reuse.savings, S.reuse.receipts))}
-            Estimated with <code class="slug">${esc(S.reuse.estimator)}</code> on both sides of the subtraction —
-            a reduction in context volume, not a bill.
-            <a class="link" data-go="#/reuse">Every receipt →</a></p>`)}
-       ${card('Memory', 'Captured is not assessed. Each of these is a different thing that happened to one piece of evidence.',
-         `<div class="kv">
-            <div><b>Observations</b><span>${S.memory.entries}</span></div>
-            <div><b>Evidence captured</b><span>${S.memory.captured}</span></div>
-            <div><b>Pending</b><span>${S.memory.pending}</span></div>
-            <div><b>Queue</b><span>${S.health.queue.pending}</span></div>
-          </div>
-          <p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">
-            ${S.memory.processed} distilled · ${S.memory.indexed} indexed · ${S.memory.reused} reused ·
-            ${S.memory.exposed} delivered · ${S.memory.assessed} assessed.
-            <a class="link" data-go="#/memory">The timeline →</a>
-            <a class="link" data-go="#/health">Health →</a></p>`)}
-     </div>`,
 
     card('Answers over the last 30 days', 'Right, missed and skipped, per day. Empty days are shown as empty.',
       `<div class="legend">
@@ -996,7 +1128,7 @@ function viewOverview() {
            ? `<div class="list">` + weakest.map((c) => `
                <div style="display:flex;gap:var(--space-4);align-items:center">
                  <div style="flex:1;min-width:0">
-                   <a class="link" data-go="#/concept/${encodeURIComponent(c.slug)}">${esc(c.name)}</a>
+                   <a class="link" data-go="${esc(LH('concept', c.slug))}">${esc(c.name)}</a>
                    <div class="slug">${esc(c.domain)} · ${esc(tierLabel(c.tier))} · ${plural(c.attempts, 'attempt')}</div>
                  </div>
                  <div style="width:96px">${meter(c.score * 100, c.score < 0.5 ? 'warn' : '')}
@@ -1007,14 +1139,14 @@ function viewOverview() {
 
     card('Recent sessions', 'Each one is a piece of work your agent did, and what it taught.',
       table([{t:'Session'},{t:'Concepts',n:1},{t:'Asked',n:1},{t:'Right',n:1},{t:'When',n:1}],
-        recentSessions.map((s) => `<tr class="row" data-go="#/session/${encodeURIComponent(s.id)}">
-            <td><span class="title">${esc(base(s.repo))}</span>
+        recentSessions.map((s) => `<tr class="row" data-go="${esc(sessHref(s.id))}">
+            <td><span class="title">${esc(pname(s.repo, s.id))}</span>
               <div class="slug">${esc(sessionLabel(s))}</div></td>
             <td class="num">${s.logged.length}</td>
             <td class="num">${s.asked.length}</td>
             <td class="num">${s.passed}</td>
             <td class="num slug">${esc(ago(s.last))}</td></tr>`)),
-      { aside: `<a class="link" data-go="#/sessions">All ${sess.length} sessions →</a>` }),
+      { aside: `<a class="link" data-go="${esc(href(CUR.wf, 'sessions'))}">All ${sess.length} sessions →</a>` }),
   ].join('');
 }
 
@@ -1024,6 +1156,7 @@ const CONCEPT_STATES = ['all', 'due', 'learning', 'mastered', 'unseen'];
 function viewConcepts(param) {
   const t = T.concepts;
   t.state = CONCEPT_STATES.includes(param) ? param : 'all';
+  t.domain = CUR.query.get('domain') || 'all';
   const all = conceptsInScope();
   const domains = [...new Set(all.map((c) => c.domain))].sort();
   const q = t.q.trim().toLowerCase();
@@ -1050,7 +1183,7 @@ function viewConcepts(param) {
 
   const p = page('concepts', list.length);
   const rows = slice(list, p).map((c) => `
-    <tr class="row" data-go="#/concept/${encodeURIComponent(c.slug)}">
+    <tr class="row" data-go="${esc(LH('concept', c.slug))}">
       <td style="min-width:210px"><span class="title">${esc(c.name)}</span>
         <div class="slug">${esc(c.slug)}</div></td>
       <td><span class="pill">${esc(c.domain)}</span></td>
@@ -1101,7 +1234,7 @@ function viewConcepts(param) {
 
 function viewConcept(slug) {
   const c = S.concepts.find((x) => x.slug === slug);
-  if (!c) return `<p class="empty">No concept called <code>${esc(slug)}</code>. <a class="link" data-go="#/concepts">Back to concepts</a>.</p>`;
+  if (!c) return `<p class="empty">No concept called <code>${esc(slug)}</code>. <a class="link" data-go="${esc(LH('concepts'))}">Back to concepts</a>.</p>`;
 
   const atts = S.attempts.filter((a) => a.slug === slug);
   // A logged row with no context line is a bookkeeping row, not a memory: it
@@ -1109,7 +1242,7 @@ function viewConcept(slug) {
   const ctx = S.logged.filter((l) => l.slug === slug && l.context && String(l.context).trim());
   const byName = new Map(S.concepts.map((x) => [x.slug, x]));
   const links = (slugs) => slugs.length
-    ? `<div class="tags">` + slugs.map((s) => `<a class="pill link" data-go="#/concept/${encodeURIComponent(s)}">${esc(byName.get(s)?.name ?? s)}</a>`).join('') + `</div>`
+    ? `<div class="tags">` + slugs.map((s) => `<a class="pill link" data-go="${esc(LH('concept', s))}">${esc(byName.get(s)?.name ?? s)}</a>`).join('') + `</div>`
     : '<p class="slug" style="margin:0">None recorded.</p>';
 
   const p = page('concept', atts.length, 5);
@@ -1120,7 +1253,7 @@ function viewConcept(slug) {
       <div class="qa__meta">
         <span>${esc(fmtDate(a.ts))}</span><span>${esc(tierLabel(a.tier))}</span>
         ${a.format ? `<span>${esc(a.format)}</span>` : ''}${a.level ? `<span>${esc(a.level)}</span>` : ''}
-        ${a.repo ? `<span>${esc(base(a.repo))}</span>` : ''}
+        ${a.repo ? `<span>${esc(pname(a.repo, a.session_id))}</span>` : ''}
         <span class="sp">${gradeBadge(a)}</span>
       </div>
       <p class="qa__q">${esc(a.question)}</p>
@@ -1136,7 +1269,7 @@ function viewConcept(slug) {
 
   return [
     `<div>
-       <a class="page__back" data-go="#/concepts">← Concepts</a>
+       <a class="page__back" data-go="${esc(LH('concepts'))}">← Concepts</a>
        <h1 class="page__title">${esc(c.name)}</h1>
        <p class="page__sub"><code class="slug">${esc(c.slug)}</code> · ${esc(c.domain)} · ${esc(tierLabel(c.tier))} ·
          ${esc(c.source === 'seed' ? 'from the seed graph' : 'minted from your work')}
@@ -1160,8 +1293,8 @@ function viewConcept(slug) {
         ? `<div class="list">` + ctx.slice(0, 12).map((l) => `
             <div>
               <div class="ctx">${esc(l.context ?? '')}</div>
-              <div class="slug">${esc(ago(l.ts))} · ${esc(base(l.repo))} · ${esc(l.origin ?? 'work')} ·
-                <a class="link" data-go="#/session/${encodeURIComponent(l.session_id)}">that session</a></div>
+              <div class="slug">${esc(ago(l.ts))} · ${esc(pname(l.repo, l.session_id))} · ${esc(l.origin ?? 'work')} ·
+                <a class="link" data-go="${esc(sessHref(l.session_id))}">that session</a></div>
             </div>`).join('') + `</div>`
         : '<p class="empty">No context recorded — this one came from the seed graph.</p>'),
 
@@ -1208,12 +1341,12 @@ function viewReview(param) {
   const list = t.tab === 'due' ? due : t.tab === 'upcoming' ? upcoming : skipped;
   const p = page('review', list.length);
   const rows = slice(list, p).map((x) => t.tab === 'skipped'
-    ? `<tr class="row" data-go="#/concept/${encodeURIComponent(x.slug)}">
+    ? `<tr class="row" data-go="${esc(LH('concept', x.slug))}">
          <td><span class="title">${esc(x.name)}</span><div class="slug">${esc(x.slug)}</div></td>
          <td><span class="pill">${x.outcome === 'declined' ? 'declined' : 'blanked'}</span></td>
          <td class="ctx" style="min-width:280px">${esc(x.question)}</td>
          <td class="num slug">${esc(ago(x.ts))}</td></tr>`
-    : `<tr class="row" data-go="#/concept/${encodeURIComponent(x.slug)}">
+    : `<tr class="row" data-go="${esc(LH('concept', x.slug))}">
          <td><span class="title">${esc(x.name)}</span><div class="slug">${esc(x.slug)} · ${esc(x.domain)}</div></td>
          <td style="min-width:104px">${meter(x.score * 100, x.score < 0.5 ? 'warn' : '')}
            <div class="slug">${Math.round(x.score * 100)}%</div></td>
@@ -1251,18 +1384,21 @@ function viewReview(param) {
 }
 
 function viewSessions() {
-  const all = sessions();
+  // Learning's sessions: the ones that logged a concept or asked a question.
+  // A session that only captured memory is the Memory workflow's, and is
+  // counted here so it is never silently missing.
+  const every = sessions();
+  const all = every.filter((s) => s.logged.length || s.asked.length);
+  const memOnly = every.length - all.length;
   const p = page('sessions', all.length);
   const rows = slice(all, p).map((s) => {
     const acc = s.asked.length ? pct(s.passed, s.asked.length) : null;
-    return `<tr class="row" data-go="#/session/${encodeURIComponent(s.id)}">
-      <td style="min-width:260px"><span class="title">${esc(base(s.repo))}</span>
+    return `<tr class="row" data-go="${esc(sessHref(s.id))}">
+      <td style="min-width:260px"><span class="title">${esc(pname(s.repo, s.id))}</span>
         <div class="slug">${esc(sessionLabel(s).slice(0, 120))}</div></td>
-      <td class="num">${s.mem ? s.mem.events : '—'}</td>
-      <td class="num">${s.mem ? s.mem.entries : '—'}</td>
-      <td class="num">${s.logged.length}</td>
+      <td class="num">${s.logged.filter((l) => (l.origin ?? 'work') === 'work').length}</td>
       <td class="num">${s.asked.length}</td>
-      <td style="min-width:96px">${acc === null ? '<span class="slug">—</span>'
+      <td style="min-width:96px">${acc === null ? '<span class="slug">not assessed</span>'
         : meter(acc, acc < 70 ? 'warn' : '') + `<div class="slug">${acc}%</div>`}</td>
       <td class="num slug">${esc(stamp(s.last))}</td></tr>`;
   });
@@ -1271,27 +1407,49 @@ function viewSessions() {
   return [
     `<div>
        <h1 class="page__title">Sessions</h1>
-       <p class="page__sub">One row per Claude Code session that captured or logged something. Open one for the
-         whole thread: the evidence it captured, what it remembered, the concepts that came out of it, and every
-         question you were asked.</p>
+       <p class="page__sub">One row per Claude Code session that logged a concept or asked a question. Open one
+         for the whole thread: the concepts the work touched, every question you were asked, and — joined on the
+         same session id — what the session captured and remembered.</p>
      </div>`,
     tiles([
-      ['Sessions', all.length, 'with captured or logged work'],
+      ['Sessions', all.length, 'that logged or asked'],
       ['With questions', withQuestions, `${pct(withQuestions, all.length)}% of sessions`],
-      ['Evidence', all.reduce((a, s) => a + (s.mem ? s.mem.events : 0), 0), 'events captured'],
-      ['Concepts logged', all.reduce((a, s) => a + s.logged.length, 0), 'context lines recorded'],
+      ['Concepts logged', all.reduce((a, s) => a + s.logged.filter((l) => (l.origin ?? 'work') === 'work').length, 0), 'context lines recorded'],
       ['Answers', all.reduce((a, s) => a + s.asked.length, 0), 'across every session'],
     ]),
     card(null, null,
-      table([{t:'Session'},{t:'Captured',n:1},{t:'Remembered',n:1},{t:'Logged',n:1},{t:'Asked',n:1},{t:'Accuracy'},{t:'When',n:1}], rows)
-      + pager('sessions', all.length, p)),
+      table([{t:'Session'},{t:'Logged',n:1},{t:'Asked',n:1},{t:'Accuracy'},{t:'When',n:1}], rows)
+      + pager('sessions', all.length, p)
+      + (memOnly ? `<p class="slug" style="margin:var(--space-4) 0 0">${plural(memOnly, 'session')} captured memory and logged no concept —
+          <a class="link" data-go="${esc(MH('sessions'))}">see them in Memory → Sessions</a>.</p>` : '')),
   ].join('');
 }
 
+const noSession = (id) => `<p class="empty">No session <code>${esc(id)}</code> in this scope.
+    <a class="link" data-go="${esc(href(CUR.wf, 'sessions'))}">Back to sessions</a>.</p>`;
+
+/**
+ * One session, from either workflow. Shared rendering: the learning half and
+ * the memory half of a session are joined on the session id the host handed
+ * both, which is the one association between them that is recorded rather
+ * than inferred. The back link and the sidebar stay in the workflow the reader
+ * came from.
+ */
 function viewSession(id) {
   const s = sessions().find((x) => x.id === id);
-  if (!s) return `<p class="empty">No session <code>${esc(id)}</code> in this scope.
-    <a class="link" data-go="#/sessions">Back to sessions</a>.</p>`;
+  if (s) return sessionBody(s);
+  // Not in the payload: a memory-only session past `memory_sessions`' cap, or
+  // one outside the current scope. The paged resource answers for it exactly.
+  fill('sess-lookup', '/api/memory/sessions?' + memScope(new URLSearchParams({ session: id })), (d) => {
+    const row = d.rows[0];
+    if (!row) return noSession(id);
+    return sessionBody({ id, repo: row.project, logged: [], asked: [], mem: row, first: row.first, last: row.last, passed: 0 });
+  });
+  return `<div class="stack" id="sess-lookup"><p class="empty">Looking up this session…</p></div>`;
+}
+
+function sessionBody(s) {
+  const id = s.id;
 
   const byName = new Map(S.concepts.map((c) => [c.slug, c]));
   const work = s.logged.filter((l) => (l.origin ?? 'work') === 'work');
@@ -1299,7 +1457,7 @@ function viewSession(id) {
 
   const conceptRow = (l) => {
     const c = byName.get(l.slug);
-    return `<tr class="row" data-go="#/concept/${encodeURIComponent(l.slug)}">
+    return `<tr class="row" data-go="${esc(LH('concept', l.slug))}">
       <td style="min-width:190px"><span class="title">${esc(c?.name ?? l.slug)}</span>
         <div class="slug">${esc(l.slug)} · ${esc(l.domain)}</div></td>
       <td class="ctx" style="min-width:280px">${esc(l.context ?? '')}</td>
@@ -1311,7 +1469,7 @@ function viewSession(id) {
     try { opts = a.options ? JSON.parse(a.options) : []; } catch { opts = []; }
     return `<article class="qa">
       <div class="qa__meta">
-        <a class="link" data-go="#/concept/${encodeURIComponent(a.slug)}">${esc(a.name)}</a>
+        <a class="link" data-go="${esc(LH('concept', a.slug))}">${esc(a.name)}</a>
         <span>${esc(tierLabel(a.tier))}</span>${a.level ? `<span>${esc(a.level)}</span>` : ''}
         <span class="sp">${gradeBadge(a)}</span>
       </div>
@@ -1328,7 +1486,7 @@ function viewSession(id) {
   if (s.mem) {
     fill('sess-mem', '/api/memory?per=100&session=' + encodeURIComponent(id), (d) => {
       const entries = d.rows.map((e) => `
-        <tr class="row${e.deleted_at || e.superseded_by ? ' gone' : ''}" data-go="#/entry/${e.id}">
+        <tr class="row${e.deleted_at || e.superseded_by ? ' gone' : ''}" data-go="${esc(MH('entry', e.id))}">
           <td class="slug" style="white-space:nowrap">${esc(stamp(e.occurred_at))}</td>
           <td style="min-width:260px"><span class="title">${esc(e.title)}</span>
             <div class="ctx">${esc(e.snippet ?? '')}</div></td>
@@ -1336,7 +1494,7 @@ function viewSession(id) {
           <td class="num">${e.event_count}</td>
           <td>${entryMark(e)}</td></tr>`);
       const cands = (d.candidates ?? []).map((c) => {
-        const go = c.concept_slug ? ` class="row" data-go="#/concept/${encodeURIComponent(c.concept_slug)}"` : '';
+        const go = c.concept_slug ? ` class="row" data-go="${esc(LH('concept', c.concept_slug))}"` : '';
         return `<tr${go}><td><span class="title">${esc(c.name ?? c.slug)}</span><div class="slug">${esc(c.slug)}</div></td>
           <td><span class="pill">${esc(c.domain ?? '—')}</span></td>
           <td class="num">${Math.round((c.confidence ?? 0) * 100)}%</td>
@@ -1351,8 +1509,8 @@ function viewSession(id) {
 
   return [
     `<div>
-       <a class="page__back" data-go="#/sessions">← Sessions</a>
-       <h1 class="page__title">${esc(base(s.repo))}</h1>
+       <a class="page__back" data-go="${esc(href(CUR.wf, 'sessions'))}">← Sessions</a>
+       <h1 class="page__title">${esc(pname(s.repo, s.id))}</h1>
        <p class="page__sub">${esc(stamp(s.first))} → ${esc(stamp(s.last))} · <code class="slug">${esc(s.id)}</code></p>
      </div>`,
     tiles([
@@ -1376,71 +1534,98 @@ function viewSession(id) {
   ].join('');
 }
 
+/** Where a project was last seen, said plainly. A gone checkout is history, not an error. */
+const whereLine = (p) => p.kind === 'global' ? 'work done outside any repository'
+  : p.kind === 'unattributed' ? 'recorded before projects were tracked, or by a session that named none'
+  : p.path + (p.available === false ? ' — checkout no longer on disk' : '');
+
 function viewProjects() {
-  const list = S.projects.filter((p) => inScope(p.repo));
+  const inv = projectsInScope();
+  const list = inv.filter((p) => p.learning.answers || p.learning.logged_concepts);
+  const other = inv.filter((p) => !p.learning.answers && !p.learning.logged_concepts);
   const daily = dailyInScope();
 
   const cards = list.map((p, i) => {
-    const acc = pct(p.passed, p.answers);
-    const need = p.level_needed, got = p.level_counts;
+    const L = p.learning;
+    const detail = `<div class="kv" style="margin-bottom:var(--space-5)">
+         <div><b>Answers</b><span>${L.answers}</span></div>
+         <div><b>Accuracy</b><span>${L.answers ? pct(L.passed, L.answers) + '%' : '—'}</span></div>
+         <div><b>Assessed</b><span>${plural(L.assessed_concepts, 'concept')}</span></div>
+         <div><b>Recorded</b><span>${plural(L.logged_concepts, 'concept')}</span></div>
+         <div><b>Sessions</b><span>${L.sessions}</span></div>
+         <div><b>Last active</b><span>${esc(ago(L.last))}</span></div>
+       </div>`;
+    if (!L.answers) {
+      return card(p.name, whereLine(p), detail
+        + `<p class="slug" style="margin:0"><strong>No assessments yet.</strong> The concepts this project's work recorded
+            come up in a quiz like any others; nothing counts toward a level until one is answered.
+            <a class="link" data-go="${esc(LH('sessions', null, { project: p.id }))}">Its sessions →</a></p>`);
+    }
+    // The level runway comes from the learning payload, keyed by the same fold.
+    const st = S.projects.filter((x) => pid(x.repo) === p.id).sort((x, y) => y.answers - x.answers)[0];
     const bar = (label, value, target, ok) => `
       <div><span class="${ok ? 'mark-ok' : 'mark-no'}">${ok ? '✓' : '○'}</span>
         <span style="min-width:150px">${esc(label)}</span>
         <span class="bar">${meter(pct(value, target), ok ? '' : 'mute')}</span>
         <span class="slug" style="white-space:nowrap">${value} / ${target}</span></div>`;
-
-    const ladder = ['easy', 'medium', 'hard'].map((l) => {
-      const idx = ['easy','medium','hard'].indexOf(l), cur = ['easy','medium','hard'].indexOf(p.level);
+    const ladder = st ? ['easy', 'medium', 'hard'].map((l, idx) => {
+      const cur = ['easy', 'medium', 'hard'].indexOf(st.level);
       return `<div class="${idx === cur ? 'on' : idx < cur ? 'done' : ''}">${l}</div>`;
-    }).join('');
+    }).join('') : '';
 
     chart('c-proj-' + i, (el) => {
       const m = new Map();
       for (const d of S.daily) {
-        if ((d.repo ?? '') !== (p.repo ?? '')) continue;
-        m.set(d.day, { ...d, total: d.passed + d.missed + d.skipped });
+        if (pid(d.repo) !== p.id) continue;
+        const cur = m.get(d.day) ?? { day:d.day, passed:0, missed:0, skipped:0, total:0 };
+        cur.passed += d.passed; cur.missed += d.missed; cur.skipped += d.skipped;
+        cur.total = cur.passed + cur.missed + cur.skipped;
+        m.set(d.day, cur);
       }
       chartActivity(el, fillDays(m, 30));
     });
 
-    return card(base(p.repo), p.repo ?? 'recorded before projects were tracked',
-      `<div class="kv" style="margin-bottom:var(--space-5)">
-         <div><b>Answers</b><span>${p.answers}</span></div>
-         <div><b>Accuracy</b><span>${acc}%</span></div>
-         <div><b>Concepts</b><span>${p.concepts}</span></div>
-         <div><b>Level</b><span>${esc(p.level)}${p.pinned ? ' (pinned)' : ''}</span></div>
-         <div><b>Active since</b><span>${esc(fmtDate(p.first_active))}</span></div>
-         <div><b>Last answer</b><span>${esc(ago(p.last_active))}</span></div>
-       </div>
-       <div class="ladder">${ladder}</div>
-       ${p.pinned
+    return card(p.name, whereLine(p), detail
+      + (st ? `<div class="ladder">${ladder}</div>
+       ${st.pinned
          ? `<p class="slug" style="margin:var(--space-4) 0 0">Difficulty is pinned in config, so this project does not promote.</p>`
-         : p.next_level
-           ? `<p class="slug" style="margin:var(--space-4) 0 var(--space-2)">To reach <strong>${esc(p.next_level)}</strong>, counting answers since ${esc(p.promoted_at ? fmtDate(p.promoted_at) : 'you started')}:</p>
+         : st.next_level
+           ? `<p class="slug" style="margin:var(--space-4) 0 var(--space-2)">To reach <strong>${esc(st.next_level)}</strong>, counting answers since ${esc(st.promoted_at ? fmtDate(st.promoted_at) : 'you started')}:</p>
               <div class="checks">
-                ${bar('Passing answers', got.passed, need.answers, !p.level_unmet.includes('answers'))}
-                ${bar('Accuracy', Math.round(p.level_accuracy * 100), Math.round(need.accuracy * 100), !p.level_unmet.includes('accuracy'))}
-                ${bar('Distinct concepts', got.concepts, need.concepts, !p.level_unmet.includes('concepts'))}
+                ${bar('Passing answers', st.level_counts.passed, st.level_needed.answers, !st.level_unmet.includes('answers'))}
+                ${bar('Accuracy', Math.round(st.level_accuracy * 100), Math.round(st.level_needed.accuracy * 100), !st.level_unmet.includes('accuracy'))}
+                ${bar('Distinct concepts', st.level_counts.concepts, st.level_needed.concepts, !st.level_unmet.includes('concepts'))}
               </div>`
-           : `<p class="slug" style="margin:var(--space-4) 0 0">Top of the ladder — questions can reach tier 5 here.</p>`}
-       <div class="chart" style="margin-top:var(--space-5)"><svg id="c-proj-${i}" role="img"
+           : `<p class="slug" style="margin:var(--space-4) 0 0">Top of the ladder — questions can reach tier 5 here.</p>`}` : '')
+      + `<div class="chart" style="margin-top:var(--space-5)"><svg id="c-proj-${i}" role="img"
          aria-label="Thirty days of answers in this project"></svg></div>`);
   });
 
+  const assessed = list.filter((p) => p.learning.answers);
   return [
     `<div>
        <h1 class="page__title">Projects</h1>
        <p class="page__sub">Difficulty is earned per codebase, not per person: the same developer is a different
          learner on their fourth Node service and their first Rust one. Everyone starts at easy (tiers 1–2)
-         and climbs on evidence.</p>
+         and climbs on evidence. A project appears here as soon as its work logs a concept — before a single
+         question is asked.</p>
      </div>`,
     tiles([
-      ['Projects', list.length, 'with recorded answers'],
-      ['Answers', list.reduce((a, p) => a + p.answers, 0), 'across all of them'],
-      ['Best accuracy', list.length ? Math.max(...list.map((p) => pct(p.passed, p.answers))) + '%' : '—', 'of any project'],
+      ['Projects', list.length, 'with logged or assessed work'],
+      ['Assessed', assessed.length, `${list.length - assessed.length} with no assessments yet`],
+      ['Answers', list.reduce((a, p) => a + p.learning.answers, 0), 'across all of them'],
+      ['Best accuracy', assessed.length ? Math.max(...assessed.map((p) => pct(p.learning.passed, p.learning.answers))) + '%' : '—', 'of any project'],
       ['Active days', streaks(daily).days, 'with at least one answer'],
     ]),
-    cards.join('') || '<p class="empty">No answers recorded yet.</p>',
+    cards.join('') || '<p class="empty">No project has logged or answered anything yet.</p>',
+    other.length
+      ? card('Memory only', 'Recorded by capture, with no learning activity yet. Captured is not assessed.',
+          table([{t:'Project'},{t:'Evidence',n:1},{t:'Observations',n:1},{t:'Last active',n:1}], other.map((p) => `
+            <tr class="row" data-go="${esc(MH('projects', null, { project: p.id }))}">
+              <td><span class="title">${esc(p.name)}</span><div class="slug">${esc(whereLine(p))}</div></td>
+              <td class="num">${p.memory.events}</td><td class="num">${p.memory.entries}</td>
+              <td class="num slug">${esc(ago(p.last_active))}</td></tr>`)))
+      : '',
   ].join('');
 }
 
@@ -1456,7 +1641,7 @@ function viewDomains() {
   const list = [...byDomain.values()].sort((a, b) => b.touched - a.touched || b.catalogue - a.catalogue);
 
   const rows = list.map((d) => `
-    <tr class="row" data-go="#/domain/${encodeURIComponent(d.domain)}">
+    <tr class="row" data-go="${esc(LH('domain', d.domain))}">
       <td><span class="title">${esc(d.domain)}</span>
         <div class="slug">${plural(d.catalogue, 'concept')} in the graph</div></td>
       <td style="min-width:130px">${d.touched
@@ -1488,13 +1673,13 @@ function viewDomains() {
 function viewDomain(name) {
   const all = conceptsInScope().filter((c) => c.domain === name);
   if (!all.length) return `<p class="empty">No concepts in <code>${esc(name)}</code> for this scope.
-    <a class="link" data-go="#/domains">Back to domains</a>.</p>`;
+    <a class="link" data-go="${esc(LH('domains'))}">Back to domains</a>.</p>`;
 
   const seen = all.filter((c) => c.seen);
   const list = [...all].sort((a, b) => (a.seen === b.seen ? a.score - b.score : a.seen ? -1 : 1));
   const p = page('domain', list.length);
   const rows = slice(list, p).map((c) => `
-    <tr class="row" data-go="#/concept/${encodeURIComponent(c.slug)}">
+    <tr class="row" data-go="${esc(LH('concept', c.slug))}">
       <td style="min-width:220px"><span class="title">${esc(c.name)}</span><div class="slug">${esc(c.slug)}</div></td>
       <td class="slug" style="white-space:nowrap">${esc(tierLabel(c.tier))}</td>
       <td style="min-width:104px">${c.seen ? meter(c.score * 100, c.score < 0.5 ? 'warn' : '')
@@ -1506,7 +1691,7 @@ function viewDomain(name) {
 
   return [
     `<div>
-       <a class="page__back" data-go="#/domains">← Domains</a>
+       <a class="page__back" data-go="${esc(LH('domains'))}">← Domains</a>
        <h1 class="page__title">${esc(name)}</h1>
        <p class="page__sub">${plural(all.length, 'concept')} in the graph · ${seen.length} asked ·
          ${seen.filter((c) => c.mastered).length} mastered.</p>
@@ -1544,13 +1729,13 @@ function drawMemory(d) {
   const rows = d.rows.map((e) => {
     const gone = e.deleted_at || e.superseded_by;
     const more = e.narrative_length > String(e.snippet ?? '').length;
-    return `<tr class="row${gone ? ' gone' : ''}" data-go="#/entry/${e.id}">
+    return `<tr class="row${gone ? ' gone' : ''}" data-go="${esc(MH('entry', e.id))}">
       <td class="slug" style="white-space:nowrap">${esc(stamp(e.occurred_at))}</td>
       <td style="min-width:280px"><span class="title">${esc(e.title)}</span>
         <div class="ctx">${esc(e.snippet ?? '')}${more ? '…' : ''}</div></td>
       <td><span class="pill">${esc(e.type ?? e.kind)}</span></td>
       <td style="min-width:120px"><div class="tags">${tagPills(e.tags)}</div></td>
-      <td class="slug">${esc(base(e.project))}</td>
+      <td class="slug">${esc(pname(e.project))}</td>
       <td class="num">${e.event_count}</td>
       <td>${entryMark(e)}</td>
     </tr>`;
@@ -1559,31 +1744,57 @@ function drawMemory(d) {
     + pager('memory', d.total, d.page, d.per);
 }
 
+/**
+ * The memory counts, scoped when they can be. The inventory counts evidence,
+ * pending evidence, observations and sessions per project, so those follow the
+ * selector; indexing, reuse, delivery and assessment are only aggregated for
+ * the whole database, and say so rather than pretend to be this project's.
+ */
+function memTiles() {
+  const M = S.memory;
+  const scoped = PROJECT !== null;
+  const inv = projectsInScope();
+  const sum = (f) => inv.reduce((a, p) => a + f(p), 0);
+  const events = scoped ? sum((p) => p.memory.events) : M.captured;
+  const pending = scoped ? sum((p) => p.memory.pending) : M.pending;
+  const entries = scoped ? sum((p) => p.memory.entries) : M.entries;
+  const everywhere = scoped ? 'all projects · ' : '';
+  return tiles([
+    ['Observations', entries, scoped ? `live here · ${M.indexed} indexed across all projects`
+      : `${M.entries_total} written · ${M.superseded} superseded · ${M.deleted} deleted · ${M.indexed} indexed`, '', MH('timeline')],
+    ['Evidence', events, `${events - pending} distilled · ${pending} still pending`, pending ? 'warn' : '', MH('health')],
+    ['Sessions', scoped ? sum((p) => p.memory.sessions) : INV.projects.reduce((a, p) => a + p.memory.sessions, 0), 'that captured or remembered', '', MH('sessions')],
+    ['Reused', M.reused, `${everywhere}${M.exposed} actually delivered`, '', MH('reuse')],
+    ['Assessed', M.assessed, everywhere + 'evidence concepts you were asked about', '', LH('concepts')],
+  ]);
+}
+
 function viewMemory(param) {
   const t = T.memory;
   const M = S.memory;
   const types = M.types ?? [];
-  const type = types.some((x) => x.type === param) ? param : 'all';
+  // The URL holds the filters, so a filtered timeline is a link that reopens
+  // filtered. A type with no live entries still filters — to nothing, visibly.
+  const type = param || 'all';
+  t.tag = CUR.query.get('tag') || 'all';
+  t.since = CUR.query.get('from') || '';
+  t.until = CUR.query.get('to') || '';
   fill('mem-rows', '/api/memory?' + memoryQuery(type), drawMemory);
 
   const chip = (k, label, n) =>
     `<button class="chip" data-mtype="${esc(k)}" aria-pressed="${type === k}">${esc(label)}${n === undefined ? '' : ' ' + n}</button>`;
+  const typeChips = types.map((x) => chip(x.type, x.type, x.n)).join('')
+    + (type !== 'all' && !types.some((x) => x.type === type) ? chip(type, type, 0) : '');
 
   return [
     `<div>
-       <h1 class="page__title">Memory</h1>
+       <h1 class="page__title">Timeline</h1>
        <p class="page__sub">What your sessions actually did, distilled into observations and kept with the raw
          evidence behind each one. Corrections supersede rather than overwrite and deletions are marked, so what
          you see is the audit trail and not a tidied version of it.</p>
      </div>`,
 
-    tiles([
-      ['Observations', M.entries, `${M.entries_total} written, ${M.superseded} superseded, ${M.deleted} deleted`],
-      ['Evidence', M.captured, `${M.processed} distilled · ${M.pending} still pending`, M.pending ? 'warn' : '', '#/health'],
-      ['Indexed', M.indexed, 'reachable by semantic search'],
-      ['Reused', M.reused, `${M.exposed} actually delivered`, '', '#/reuse'],
-      ['Assessed', M.assessed, 'evidence concepts you were asked about', '', '#/concepts'],
-    ]),
+    memTiles(),
 
     card(null, null,
       `<div class="filters">
@@ -1596,9 +1807,138 @@ function viewMemory(param) {
          <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">
        </div>
        <div class="chips" id="mtypes">
-         ${chip('all', 'All')}${types.map((x) => chip(x.type, x.type, x.n)).join('')}
+         ${chip('all', 'All')}${typeChips}
        </div>
        <div style="margin-top:var(--space-4)" id="mem-rows"><p class="empty">Loading the timeline…</p></div>`),
+  ].join('');
+}
+
+function viewMemoryDashboard() {
+  const R = S.reuse, H = S.health, Q = H.queue;
+  const scope = () => memScope(new URLSearchParams());
+  const q6 = scope(); q6.set('per', '6');
+  fill('mem-recent', '/api/memory?' + q6, (d) => d.rows.length
+    ? table([{t:'When'},{t:'Observation'},{t:'Type'},{t:'Project'}], d.rows.map((e) => `
+        <tr class="row${e.deleted_at || e.superseded_by ? ' gone' : ''}" data-go="${esc(MH('entry', e.id))}">
+          <td class="slug" style="white-space:nowrap">${esc(stamp(e.occurred_at))}</td>
+          <td style="min-width:240px"><span class="title">${esc(e.title)}</span></td>
+          <td><span class="pill">${esc(e.type ?? e.kind)}</span></td>
+          <td class="slug">${esc(pname(e.project))}</td></tr>`))
+    : '<p class="empty">Nothing remembered in this scope yet.</p>');
+  const q5 = scope(); q5.set('per', '5');
+  fill('mem-sessions', '/api/memory/sessions?' + q5, (d) => d.rows.length
+    ? table([{t:'Session'},{t:'Captured',n:1},{t:'Remembered',n:1},{t:'When',n:1}], d.rows.map((m) => `
+        <tr class="row" data-go="${esc(MH('session', m.session_id))}">
+          <td><span class="title">${esc(pname(m.project, m.session_id))}</span><div class="slug">${esc(m.session_id)}</div></td>
+          <td class="num">${m.events}</td><td class="num">${m.entries}</td>
+          <td class="num slug">${esc(ago(m.last))}</td></tr>`))
+    : '<p class="empty">No session has captured anything in this scope.</p>');
+
+  return [
+    `<div>
+       <h1 class="page__title">What does memory hold?</h1>
+       <p class="page__sub">Captured, processed, stored, retrieved, delivered, assessed — six different things that
+         can happen to one piece of evidence, counted separately. None of them is an answer: only a question you
+         answered moves mastery.</p>
+     </div>`,
+    memTiles(),
+    `<div class="g2">
+       ${card('Context reuse', 'All projects. B is what the same material would have cost read from source; D is what was delivered instead.',
+         `<div class="kv">
+            <div><b>B — from source</b><span>${R.base}</span></div>
+            <div><b>D — delivered</b><span>${R.delivered}</span></div>
+            <div><b>Net</b><span>${R.base - R.delivered}</span></div>
+            <div><b>Verdict</b><span>${R.savings.kind === 'saving' ? R.savings.percent + '%'
+              : R.savings.kind === 'overhead' ? '+' + R.savings.tokens + ' tokens' : '—'}</span></div>
+          </div>
+          <p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">${esc(savingsText(R.savings, R.receipts))}
+            Estimated with <code class="slug">${esc(R.estimator)}</code> on both sides of the subtraction —
+            a reduction in context volume, not a bill.
+            <a class="link" data-go="${esc(MH('reuse'))}">Every receipt →</a></p>`)}
+       ${card('Health', 'All projects. Where the pipeline stops, when it stops.',
+         `<div class="kv">
+            <div><b>Last capture</b><span>${esc(H.capture.newest_event ? ago(H.capture.newest_event) : 'never')}</span></div>
+            <div><b>Capture</b><span>${H.capture.enabled ? esc(H.capture.mode) : 'off'}</span></div>
+            <div><b>Queued</b><span>${Q.pending}</span></div>
+            <div><b>Failed</b><span>${Q.failed}</span></div>
+          </div>
+          <p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">
+            ${S.memory.processed} distilled · ${S.memory.indexed} indexed · ${S.memory.reused} reused ·
+            ${S.memory.exposed} delivered · ${S.memory.assessed} assessed.
+            <a class="link" data-go="${esc(MH('health'))}">Health →</a></p>`)}
+     </div>`,
+    card('Recent observations', 'The newest things memory kept, in this scope.',
+      `<div id="mem-recent"><p class="empty">Loading…</p></div>`,
+      { aside: `<a class="link" data-go="${esc(MH('timeline'))}">The timeline →</a>` }),
+    card('Recent sessions', 'Sessions that captured evidence or wrote an observation.',
+      `<div id="mem-sessions"><p class="empty">Loading…</p></div>`,
+      { aside: `<a class="link" data-go="${esc(MH('sessions'))}">All sessions →</a>` }),
+  ].join('');
+}
+
+function viewMemorySessions() {
+  const t = T.msessions;
+  const q = memScope(new URLSearchParams());
+  q.set('page', t.page); q.set('per', PER);
+  // The learning half of the same session, joined on its id, where there is one.
+  const learned = new Map(sessions().map((x) => [x.id, x]));
+  fill('msess-rows', '/api/memory/sessions?' + q, (d) => {
+    t.page = d.page;
+    return table([{t:'Session'},{t:'Captured',n:1},{t:'Pending',n:1},{t:'Remembered',n:1},{t:'Proposed',n:1},{t:'Asked',n:1},{t:'When',n:1}],
+      d.rows.map((m) => {
+        const l = learned.get(m.session_id);
+        return `<tr class="row" data-go="${esc(MH('session', m.session_id))}">
+          <td style="min-width:240px"><span class="title">${esc(pname(m.project, m.session_id))}</span>
+            <div class="slug">${esc(m.session_id)}</div></td>
+          <td class="num">${m.events}</td>
+          <td class="num">${m.pending || '—'}</td>
+          <td class="num">${m.entries}</td>
+          <td class="num">${m.candidates || '—'}</td>
+          <td class="num">${l && l.asked.length ? l.asked.length : '—'}</td>
+          <td class="num slug">${esc(stamp(m.last))}</td></tr>`;
+      })) + pager('msessions', d.total, d.page, d.per)
+      + `<p class="slug" style="margin:var(--space-4) 0 0">${plural(d.total, 'session')} in scope.</p>`;
+  });
+  return [
+    `<div>
+       <h1 class="page__title">Sessions</h1>
+       <p class="page__sub">One row per session that captured evidence or wrote an observation. Pending is evidence
+         no observation job has processed yet. Asked is the same session's questions, joined on its session id —
+         a session can be remembered without ever being assessed.</p>
+     </div>`,
+    card(null, null, `<div id="msess-rows"><p class="empty">Loading sessions…</p></div>`),
+  ].join('');
+}
+
+function viewMemoryProjects() {
+  const inv = projectsInScope();
+  const list = inv.filter((p) => p.memory.events || p.memory.entries || p.memory.receipts);
+  const none = inv.length - list.length;
+  const rows = list.map((p) => `
+    <tr class="row" data-go="${esc(MH('timeline', null, { project: p.id }))}">
+      <td style="min-width:220px"><span class="title">${esc(p.name)}</span><div class="slug">${esc(whereLine(p))}</div></td>
+      <td class="num">${p.memory.events}</td>
+      <td class="num">${p.memory.pending || '—'}</td>
+      <td class="num">${p.memory.entries}</td>
+      <td class="num">${p.memory.sessions}</td>
+      <td class="num">${p.memory.receipts || '—'}</td>
+      <td class="num slug">${esc(ago(p.memory.last))}</td></tr>`);
+  return [
+    `<div>
+       <h1 class="page__title">Projects</h1>
+       <p class="page__sub">Every project memory has recorded anything for — including evidence that has been
+         captured and not yet processed into an observation. Open one to read its timeline.</p>
+     </div>`,
+    tiles([
+      ['Projects', list.length, 'with captured or stored memory'],
+      ['Evidence', list.reduce((a, p) => a + p.memory.events, 0), 'events captured'],
+      ['Pending', list.reduce((a, p) => a + p.memory.pending, 0), 'waiting to be processed'],
+      ['Observations', list.reduce((a, p) => a + p.memory.entries, 0), 'live entries'],
+    ]),
+    card(null, null,
+      table([{t:'Project'},{t:'Captured',n:1},{t:'Pending',n:1},{t:'Observations',n:1},{t:'Sessions',n:1},{t:'Receipts',n:1},{t:'Last capture',n:1}], rows)
+      + (none ? `<p class="slug" style="margin:var(--space-4) 0 0">${plural(none, 'project')} in scope ${none === 1 ? 'has' : 'have'} learning activity and no memory —
+          <a class="link" data-go="${esc(LH('projects'))}">see Learning → Projects</a>.</p>` : '')),
   ].join('');
 }
 
@@ -1607,7 +1947,7 @@ function drawEntry(d) {
   const gone = e.deleted_at || e.superseded_by;
   const facts = jsonList(e.facts);
   const files = jsonList(e.files);
-  const link = (x) => `<a class="link" data-go="#/entry/${x.id}">${esc(x.title)}</a> <span class="slug">${esc(fmtDate(x.occurred_at))}</span>`;
+  const link = (x) => `<a class="link" data-go="${esc(MH('entry', x.id))}">${esc(x.title)}</a> <span class="slug">${esc(fmtDate(x.occurred_at))}</span>`;
 
   const evidence = d.events.map((ev) => `
     <details class="qa">
@@ -1625,10 +1965,10 @@ function drawEntry(d) {
     `<div>
        <p class="page__eyebrow">${esc(e.type ?? e.kind)}</p>
        <h1 class="page__title${gone ? ' gone-title' : ''}">${esc(e.title)}</h1>
-       <p class="page__sub">${esc(stamp(e.occurred_at))} · ${esc(base(e.project))} ·
+       <p class="page__sub">${esc(stamp(e.occurred_at))} · ${esc(pname(e.project))} ·
          written by <code class="slug">${esc(e.generator)}</code>
          ${e.import_source ? ` · imported from ${esc(e.import_source)}` : ''}
-         ${e.session_id ? ` · <a class="link" data-go="#/session/${encodeURIComponent(e.session_id)}">that session</a>` : ''}</p>
+         ${e.session_id ? ` · <a class="link" data-go="${esc(sessHref(e.session_id))}">that session</a>` : ''}</p>
      </div>`,
 
     e.deleted_at
@@ -1642,7 +1982,7 @@ function drawEntry(d) {
       ['Confidence', e.confidence == null ? '—' : Math.round(e.confidence * 100) + '%', 'the summariser’s own, not a score'],
       ['Evidence', d.events.length, 'raw events behind this claim'],
       ['Candidates', d.candidates.length, 'concepts it proposed'],
-      ['Reused', d.receipts.length, d.receipts.length ? 'times it was selected for context' : 'never selected yet', '', '#/reuse'],
+      ['Reused', d.receipts.length, d.receipts.length ? 'times it was selected for context' : 'never selected yet', '', MH('reuse')],
     ]),
 
     card('What happened', 'The observation, as written.',
@@ -1654,7 +1994,7 @@ function drawEntry(d) {
     d.candidates.length
       ? card('Concepts it proposed', 'A candidate is a proposal, not a concept — and never a passing answer. Only a question you answered moves mastery.',
           table([{t:'Slug'},{t:'Domain'},{t:'Confidence',n:1},{t:'Status'}], d.candidates.map((c) => {
-            const go = c.concept_slug ? ` class="row" data-go="#/concept/${encodeURIComponent(c.concept_slug)}"` : '';
+            const go = c.concept_slug ? ` class="row" data-go="${esc(LH('concept', c.concept_slug))}"` : '';
             return `<tr${go}><td><span class="title">${esc(c.name ?? c.slug)}</span><div class="slug">${esc(c.slug)}</div></td>
               <td><span class="pill">${esc(c.domain ?? '—')}</span></td>
               <td class="num">${Math.round((c.confidence ?? 0) * 100)}%</td>
@@ -1684,7 +2024,7 @@ function drawEntry(d) {
 function viewEntry(id) {
   fill('entry-body', '/api/memory/entry?id=' + encodeURIComponent(id), (d) =>
     d && d.entry ? drawEntry(d) : `<p class="empty">No observation <code>${esc(id)}</code>.</p>`);
-  return `<div><a class="page__back" data-go="#/memory">← Memory</a></div>
+  return `<div><a class="page__back" data-go="${esc(MH('timeline'))}">← Timeline</a></div>
     <div class="stack" id="entry-body"><p class="empty">Loading the observation…</p></div>`;
 }
 
@@ -1692,7 +2032,7 @@ function viewEntry(id) {
 
 function viewReuse() {
   const R = S.reuse;
-  const rows = R.rows.filter((r) => FILTER === '*' || FILTER === '~' || r.project === FILTER);
+  const rows = R.rows.filter((r) => inScope(r.project, r.session_id));
   const p = page('reuse', rows.length);
   const net = R.base - R.delivered;
   const verdict = R.savings.kind === 'saving' ? R.savings.percent + '%'
@@ -1707,7 +2047,7 @@ function viewReuse() {
       : '—';
     return `<tr>
       <td class="slug" style="white-space:nowrap">${esc(stamp(r.created_at))}</td>
-      <td><span class="title">${esc(r.scope)}</span><div class="slug">${esc(base(r.project))}</div></td>
+      <td><span class="title">${esc(r.scope)}</span><div class="slug">${esc(pname(r.project))}</div></td>
       <td class="num">${r.base_tokens}</td>
       <td class="num">${r.delivered_tokens}</td>
       <td class="num">${saved}</td>
@@ -1820,72 +2160,468 @@ function viewHealth() {
 }
 
 /* ============================================================
-   Router
-   ============================================================ */
-const NAV = [
-  ['overview', 'Overview', '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>'],
-  ['concepts', 'Concepts', '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/>'],
-  ['review',   'Review',   '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>'],
-  ['sessions', 'Sessions', '<rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M8 4v16"/>'],
-  ['projects', 'Projects', '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>'],
-  ['domains',  'Domains',  '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M9 6h6a3 3 0 0 1 3 3v6"/>'],
-  ['memory',   'Memory',   '<path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/>'],
-  ['reuse',    'Reuse',    '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>'],
-  ['health',   'Health',   '<path d="M3 12h4l2-6 3 12 2-6h7"/>'],
-];
+   Workflows and routes
 
-const VIEWS = {
-  overview: viewOverview,
-  concepts: viewConcepts,
-  concept: viewConcept,
-  review: viewReview,
-  sessions: viewSessions,
-  session: viewSession,
-  projects: viewProjects,
-  domains: viewDomains,
-  domain: viewDomain,
-  memory: viewMemory,
-  entry: viewEntry,
-  reuse: viewReuse,
-  health: viewHealth,
+   Two workflows, one shell. The registry below is the only description of
+   either: the sidebar, the picker, the route resolver and the page renderer all
+   read it, so the selector, the highlighted item and the screen cannot disagree
+   about where the reader is.
+
+   The URL is the authority. `#/<workflow>/<page>/<param>?project=…` names the
+   workflow, the page, the highlighted item and the project scope, so a refresh,
+   a pasted link or Back/Forward rebuilds the same screen from nothing.
+   ============================================================ */
+const ICONS = {
+  learning:  '<path d="M4 19V6a2 2 0 0 1 2-2h13v13H6a2 2 0 0 0-2 2z"/><path d="M6 21h13v-4"/><path d="M9 8h6"/>',
+  memory:    '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+  dashboard: '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>',
+  concepts:  '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/>',
+  review:    '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
+  sessions:  '<rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M8 4v16"/>',
+  projects:  '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>',
+  domains:   '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M9 6h6a3 3 0 0 1 3 3v6"/>',
+  timeline:  '<path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/>',
+  reuse:     '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>',
+  health:    '<path d="M3 12h4l2-6 3 12 2-6h7"/>',
+};
+const svg = (paths, cls = '') =>
+  `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+
+/**
+ * `pages[key]` is `{ label, view }` for a page with a sidebar entry and
+ * `{ parent, view }` for a detail page: a detail keeps its parent highlighted.
+ * `query` lists the query keys that page reads, so a workflow switch or a link
+ * to another page carries the project and drops filters that mean nothing there.
+ */
+const WORKFLOWS = {
+  learning: {
+    name: 'Learning',
+    groups: [
+      { id: 'learn', label: 'Learn', items: ['concepts', 'review'] },
+      { id: 'history', label: 'History', items: ['sessions', 'projects', 'domains'] },
+    ],
+    pages: {
+      dashboard: { label: 'Dashboard', view: () => viewLearningDashboard() },
+      concepts:  { label: 'Concepts', view: (p) => viewConcepts(p), query: ['domain'] },
+      concept:   { parent: 'concepts', view: (p) => viewConcept(p) },
+      review:    { label: 'Review', view: (p) => viewReview(p) },
+      sessions:  { label: 'Sessions', view: () => viewSessions() },
+      session:   { parent: 'sessions', view: (p) => viewSession(p) },
+      projects:  { label: 'Projects', view: () => viewProjects() },
+      domains:   { label: 'Domains', view: () => viewDomains() },
+      domain:    { parent: 'domains', view: (p) => viewDomain(p) },
+    },
+  },
+  memory: {
+    name: 'Memory',
+    groups: [
+      { id: 'memory', label: 'Memory', items: ['timeline', 'sessions', 'projects'] },
+      { id: 'insights', label: 'Insights', items: ['reuse', 'health'] },
+    ],
+    pages: {
+      dashboard: { label: 'Dashboard', view: () => viewMemoryDashboard() },
+      timeline:  { label: 'Timeline', view: (p) => viewMemory(p), query: ['tag', 'from', 'to'] },
+      entry:     { parent: 'timeline', view: (p) => viewEntry(p) },
+      sessions:  { label: 'Sessions', view: () => viewMemorySessions() },
+      session:   { parent: 'sessions', view: (p) => viewSession(p) },
+      projects:  { label: 'Projects', view: () => viewMemoryProjects() },
+      reuse:     { label: 'Reuse', view: () => viewReuse() },
+      health:    { label: 'Health', view: () => viewHealth() },
+    },
+  },
 };
 
-function route() {
-  const raw = location.hash.replace(/^#\/?/, '');
-  const [name, ...rest] = raw.split('/');
-  return { name: VIEWS[name] ? name : 'overview', param: decodeURIComponent(rest.join('/')) };
+/**
+ * A canonical link. The project scope rides along unless `q` overrides it —
+ * it is shared by both workflows — and nothing else does unless asked for.
+ */
+function href(wf, page, param, q = {}) {
+  const qs = new URLSearchParams();
+  const project = 'project' in q ? q.project : PROJECT;
+  if (project !== null && project !== undefined && project !== '') qs.set('project', project);
+  for (const [k, v] of Object.entries(q)) if (k !== 'project' && v !== null && v !== undefined && v !== '') qs.set(k, v);
+  const tail = param !== undefined && param !== null && param !== '' ? '/' + encodeURIComponent(param) : '';
+  const s = qs.toString();
+  return `#/${wf}/${page}${tail}${s ? '?' + s : ''}`;
+}
+const LH = (page, param, q) => href('learning', page, param, q);
+const MH = (page, param, q) => href('memory', page, param, q);
+/** A session opened from Memory stays in Memory, and from Learning in Learning. */
+const sessHref = (id) => href(CUR.wf, 'session', id);
+
+/**
+ * Bookmarks and older documentation link to the single-workflow routes. Each
+ * one maps to its canonical home; the rest of the path and the query are kept.
+ * `memory` is special-cased in `resolve()`: `#/memory/<type>` was the typed
+ * timeline, and canonical Memory pages have to win over it.
+ */
+const LEGACY = {
+  overview: ['learning', 'dashboard'],
+  concepts: ['learning', 'concepts'],
+  concept:  ['learning', 'concept'],
+  review:   ['learning', 'review'],
+  sessions: ['learning', 'sessions'],
+  session:  ['learning', 'session'],
+  projects: ['learning', 'projects'],
+  domains:  ['learning', 'domains'],
+  domain:   ['learning', 'domain'],
+  entry:    ['memory', 'entry'],
+  reuse:    ['memory', 'reuse'],
+  health:   ['memory', 'health'],
+};
+
+/** Decodes a path parameter, or reports that it cannot be decoded. */
+function decodeParam(raw) {
+  try { return { param: decodeURIComponent(raw), bad: false }; }
+  catch (e) { return { param: raw, bad: true }; }
 }
 
-function renderNav(active) {
-  const seen = seenConcepts();
-  const counts = {
-    concepts: conceptsInScope().length,
-    review: seen.filter((c) => c.due).length,
-    sessions: sessions().length,
-    projects: S.projects.filter((p) => inScope(p.repo)).length,
-    domains: new Set(conceptsInScope().map((c) => c.domain)).size,
-    // Memory counts are all-project: the timeline is paged on the server, so
-    // the page cannot honestly narrow a total it was never sent.
-    memory: S.memory.entries,
-    reuse: S.reuse.receipts,
+/**
+ * Reads a hash into a screen, and says whether it has to be rewritten first.
+ *
+ * Returns `{ wf, page, param, query, redirect, missing, bad }`: `redirect` is
+ * the canonical hash when the one given is a legacy or partial form, `missing`
+ * that no page answers to it, `bad` that its parameter is malformed encoding.
+ * Pure: no DOM, no state beyond its arguments.
+ */
+function resolve(hash, savedProject) {
+  let raw = String(hash || '').replace(/^#/, '');
+  let qs = '';
+  const qi = raw.indexOf('?');
+  if (qi >= 0) { qs = raw.slice(qi + 1); raw = raw.slice(0, qi); }
+  const parts = raw.replace(/^\/+/, '').split('/');
+  while (parts.length > 1 && parts[parts.length - 1] === '') parts.pop();
+  const query = new URLSearchParams(qs);
+  const [head = '', ...rest] = parts;
+
+  const canonical = (wf, page, restParts) => {
+    // The old dashboard remembered the project across visits; a legacy link
+    // that arrives with no project in it keeps that behaviour once, and the
+    // canonical URL carries the scope from then on.
+    if (!query.has('project') && savedProject) query.set('project', savedProject);
+    const s = query.toString();
+    const tail = restParts.length ? '/' + restParts.join('/') : '';
+    return { redirect: `#/${wf}/${page}${tail}${s ? '?' + s : ''}` };
   };
-  $('nav').innerHTML = NAV.map(([key, label, icon]) => `
-    <a href="#/${key}"${key === active ? ' aria-current="page"' : ''}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>
-      ${label}${counts[key] !== undefined ? `<i class="${key === 'review' && counts[key] ? 'hot' : ''}">${counts[key]}</i>` : ''}
-    </a>`).join('');
+
+  if (head === '' ) return canonical('learning', 'dashboard', []);
+  // Own keys only: `#/constructor` would otherwise find Object's and crash the render.
+  const own = (o, k) => Object.hasOwn(o, k);
+  if (own(WORKFLOWS, head) && head === 'memory' && (rest.length === 0 || rest[0] === '')) {
+    return canonical('memory', 'timeline', []);
+  }
+  if (own(WORKFLOWS, head)) {
+    const W = WORKFLOWS[head];
+    const [page = '', ...more] = rest;
+    if (page === '') return { redirect: href(head, 'dashboard', null, { project: query.get('project') }) };
+    if (own(W.pages, page)) {
+      const { param, bad } = decodeParam(more.join('/'));
+      return { wf: head, page, param, query, bad };
+    }
+    // `#/memory/<type>`: the typed timeline, from before there were two workflows.
+    if (head === 'memory') return canonical('memory', 'timeline', rest);
+    return { wf: head, page, param: '', query, missing: true };
+  }
+  if (own(LEGACY, head)) return canonical(LEGACY[head][0], LEGACY[head][1], rest);
+  return { wf: 'learning', page: head, param: '', query, missing: true };
+}
+
+/* ---------- the sidebar ---------- */
+
+/** Collapsed group ids, per workflow. Expanded is the default and is not stored. */
+const collapseKey = (wf) => `eklavya-dash-nav-collapsed:${wf}`;
+function readCollapsed(wf) {
+  try {
+    const v = JSON.parse(localStorage.getItem(collapseKey(wf)) || '[]');
+    const known = WORKFLOWS[wf].groups.map((g) => g.id);
+    return new Set(Array.isArray(v) ? v.filter((id) => known.includes(id)) : []);
+  } catch (e) { return new Set(); }
+}
+function writeCollapsed(wf, set) {
+  try { localStorage.setItem(collapseKey(wf), JSON.stringify([...set])); } catch (e) {}
+}
+
+function navCounts(wf) {
+  const inv = projectsInScope();
+  const sum = (f) => inv.reduce((a, p) => a + f(p), 0);
+  if (wf === 'learning') {
+    const seen = seenConcepts();
+    return {
+      concepts: conceptsInScope().length,
+      review: seen.filter((c) => c.due).length,
+      sessions: sessions().filter((s) => s.logged.length || s.asked.length).length,
+      projects: inv.filter((p) => p.learning.answers || p.learning.logged_concepts).length,
+      domains: new Set(conceptsInScope().map((c) => c.domain)).size,
+    };
+  }
+  return {
+    timeline: sum((p) => p.memory.entries),
+    sessions: sum((p) => p.memory.sessions),
+    projects: inv.filter((p) => p.memory.events || p.memory.entries).length,
+    reuse: sum((p) => p.memory.receipts),
+  };
+}
+
+function renderNav(wf, active) {
+  const W = WORKFLOWS[wf];
+  const counts = navCounts(wf);
+  const collapsed = readCollapsed(wf);
+  // A direct link into a collapsed group opens it: the reader has to be able to
+  // see where they are. A collapse they make afterwards still takes effect.
+  const home = W.groups.find((g) => g.items.includes(active));
+  if (home && collapsed.has(home.id)) { collapsed.delete(home.id); writeCollapsed(wf, collapsed); }
+
+  const item = (key) => {
+    const pg = W.pages[key];
+    const n = counts[key];
+    return `<a href="${esc(href(wf, key))}"${key === active ? ' aria-current="page"' : ''} data-nav="${key}">
+      ${svg(ICONS[key] ?? ICONS.dashboard)}${esc(pg.label)}${n !== undefined ? `<i class="${key === 'review' && n ? 'hot' : ''}">${n}</i>` : ''}
+    </a>`;
+  };
+  $('nav').setAttribute('aria-label', `${W.name} sections`);
+  $('nav').innerHTML = `<div>${item('dashboard')}</div>` + W.groups.map((g) => {
+    const open = !collapsed.has(g.id);
+    const id = `grp-${wf}-${g.id}`;
+    return `<div class="nav__group">
+      <button type="button" class="nav__toggle" id="tog-${wf}-${g.id}" data-group="${g.id}" aria-expanded="${open}" aria-controls="${id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>${esc(g.label)}
+      </button>
+      <div class="nav__items" id="${id}" role="group" aria-label="${esc(g.label)}"${open ? '' : ' hidden'}>${g.items.map(item).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+$('nav').addEventListener('click', (e) => {
+  const tog = e.target.closest('[data-group]');
+  if (tog) {
+    const set = readCollapsed(CUR.wf);
+    const open = tog.getAttribute('aria-expanded') === 'true';
+    if (open) set.add(tog.dataset.group); else set.delete(tog.dataset.group);
+    writeCollapsed(CUR.wf, set);
+    tog.setAttribute('aria-expanded', String(!open));
+    $(tog.getAttribute('aria-controls')).hidden = open;
+    return;
+  }
+  // Following a link closes the drawer on a phone; the hashchange renders.
+  if (e.target.closest('a[href]')) closeDrawer();
+});
+
+function renderShell() {
+  const W = WORKFLOWS[CUR.wf];
+  const home = href(CUR.wf, 'dashboard');
+  for (const id of ['brand', 'brand-top']) {
+    $(id).setAttribute('href', home);
+    $(id).setAttribute('aria-label', `Eklavya, ${W.name} dashboard`);
+  }
+  $('wf-main').setAttribute('href', home);
+  $('wf-main').innerHTML = `${svg(ICONS[CUR.wf])}<span>${esc(W.name)}</span>`;
+  $('wf-main').setAttribute('aria-label', `${W.name} dashboard`);
+  $('topbar-wf').textContent = W.name;
+}
+
+/* ---------- the workflow picker ---------- */
+const menu = $('wf-menu');
+const caret = $('wf-caret');
+
+function pickerItems() { return [...menu.querySelectorAll('[role="menuitemradio"]')]; }
+
+function placePicker() {
+  const anchor = $('wf').getBoundingClientRect();
+  const pad = 8;
+  const vw = document.documentElement.clientWidth;
+  const vh = window.innerHeight;
+  menu.style.maxHeight = `${vh - pad * 2}px`;
+  menu.style.minWidth = `${Math.min(Math.max(220, anchor.width), vw - pad * 2)}px`;
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  const left = Math.max(pad, Math.min(anchor.left, vw - w - pad));
+  let top = anchor.bottom + 4;
+  // Below if it fits, above if that fits, otherwise as high as the window allows.
+  if (top + h > vh - pad) top = anchor.top - h - 4 >= pad ? anchor.top - h - 4 : Math.max(pad, vh - h - pad);
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
+
+function openPicker() {
+  menu.innerHTML = `<p class="picker__label" aria-hidden="true">Workflow</p>` + Object.entries(WORKFLOWS).map(([key, W]) =>
+    `<button type="button" role="menuitemradio" aria-checked="${key === CUR.wf}" data-wf="${key}" tabindex="-1">
+       ${svg(ICONS[key])}<span>${esc(W.name)}</span>
+       <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
+     </button>`).join('');
+  menu.hidden = false;
+  caret.setAttribute('aria-expanded', 'true');
+  placePicker();
+  (pickerItems().find((b) => b.dataset.wf === CUR.wf) ?? pickerItems()[0]).focus();
+}
+
+function closePicker(restore = true) {
+  if (menu.hidden) return;
+  const hadFocus = menu.contains(document.activeElement);
+  menu.hidden = true;
+  caret.setAttribute('aria-expanded', 'false');
+  if (restore || hadFocus) caret.focus();
+}
+
+caret.addEventListener('click', () => (menu.hidden ? openPicker() : closePicker()));
+caret.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openPicker(); }
+});
+menu.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-wf]');
+  if (!b) return;
+  switchWorkflow(b.dataset.wf);
+});
+menu.addEventListener('keydown', (e) => {
+  const items = pickerItems();
+  const i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+  else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+  else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePicker(); }
+  // A menu is one Tab stop: Tab leaves it, back to the control that opened it.
+  else if (e.key === 'Tab') { e.preventDefault(); closePicker(); }
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!menu.hidden && !menu.contains(e.target) && !caret.contains(e.target)) closePicker(false);
+});
+addEventListener('resize', () => { if (!menu.hidden) placePicker(); });
+
+/**
+ * Opens the other workflow's Dashboard. The project and the ground carry over;
+ * screen filters do not, because a tag filter on the timeline means nothing on
+ * the Learning Dashboard. A real navigation, so Back returns to where they were.
+ */
+function switchWorkflow(wf) {
+  closePicker(false);
+  const target = href(wf, 'dashboard');
+  closeDrawer(false);
+  if (location.hash === target) render(); else location.hash = target;
+  (narrow.matches ? $('menu') : caret).focus();
+}
+
+/* ---------- the drawer (900px and below) ---------- */
+const side = $('side');
+const narrow = matchMedia('(max-width: 900px)');
+let drawerOpen = false;
+
+const focusables = (root) => [...root.querySelectorAll(
+  'a[href], button:not([disabled]), select, input, [tabindex]:not([tabindex="-1"])',
+)].filter((el) => !el.closest('[hidden]') && el.getClientRects().length);
+
+/**
+ * The drawer is a modal only while it is open on a narrow screen. On a wide
+ * one the rail is the page's navigation and must stay available to assistive
+ * technology whatever the drawer last did, so every modal attribute comes off.
+ */
+function syncDrawer() {
+  if (!narrow.matches) {
+    drawerOpen = false;
+    side.classList.remove('is-open');
+    side.inert = false;
+    side.removeAttribute('role');
+    side.removeAttribute('aria-modal');
+    $('main').inert = false;
+    $('topbar').inert = false;
+    $('scrim').classList.remove('is-open');
+    document.body.classList.remove('drawer-open');
+    $('menu').setAttribute('aria-expanded', 'false');
+    return;
+  }
+  side.classList.toggle('is-open', drawerOpen);
+  side.inert = !drawerOpen;
+  if (drawerOpen) { side.setAttribute('role', 'dialog'); side.setAttribute('aria-modal', 'true'); }
+  else { side.removeAttribute('role'); side.removeAttribute('aria-modal'); }
+  $('main').inert = drawerOpen;
+  $('topbar').inert = drawerOpen;
+  $('scrim').classList.toggle('is-open', drawerOpen);
+  document.body.classList.toggle('drawer-open', drawerOpen);
+  $('menu').setAttribute('aria-expanded', String(drawerOpen));
+}
+
+function openDrawer() {
+  if (!narrow.matches) return;
+  drawerOpen = true;
+  syncDrawer();
+  $('side-close').focus();
+}
+function closeDrawer(restore = true) {
+  if (!drawerOpen) return;
+  closePicker(false);
+  drawerOpen = false;
+  syncDrawer();
+  if (restore) $('menu').focus();
+}
+
+$('menu').addEventListener('click', openDrawer);
+$('side-close').addEventListener('click', () => closeDrawer());
+$('scrim').addEventListener('click', () => closeDrawer());
+narrow.addEventListener('change', syncDrawer);
+document.addEventListener('keydown', (e) => {
+  if (!drawerOpen) return;
+  if (e.key === 'Escape' && menu.hidden) { e.preventDefault(); closeDrawer(); return; }
+  // Hold focus inside the open drawer.
+  if (e.key === 'Tab' && menu.hidden) {
+    const f = focusables(side);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !side.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || !side.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+  }
+});
+syncDrawer();
+
+/* ---------- rendering ---------- */
+
+function viewNotFound(what, bad) {
+  return `<div>
+      <h1 class="page__title">${bad ? 'This link is malformed' : 'No page here'}</h1>
+      <p class="page__sub">${bad ? 'Part of' : 'Nothing answers to'} <code class="slug">${esc(what)}</code>${bad ? ' is not valid URL encoding, so it cannot be opened.' : '.'}
+        Open the <a class="link" data-go="${esc(LH('dashboard'))}">Learning dashboard</a> or the
+        <a class="link" data-go="${esc(MH('dashboard'))}">Memory dashboard</a>.</p>
+    </div>`;
+}
+
+/**
+ * Brings the screen in line with the URL: canonicalises a legacy or partial
+ * link in place (no extra history entry), reads the project from the query,
+ * then renders. Every navigation — a click, a pasted link, Back — lands here.
+ */
+function syncFromUrl() {
+  let saved = null;
+  try { saved = localStorage.getItem('eklavya-dash-project'); } catch (e) {}
+  if (saved && !INV.projects.some((p) => p.id === saved)) saved = null;
+  const r = resolve(location.hash, saved);
+  if (r.redirect) {
+    history.replaceState(history.state, '', location.pathname + location.search + r.redirect);
+    return syncFromUrl();
+  }
+  const project = r.query.get('project');
+  const known = project !== null && INV.projects.some((p) => p.id === project);
+  const next = known ? project : null;
+  if (next !== PROJECT) { PROJECT = next; for (const k of Object.keys(T)) T[k].page = 1; recomputeScope(); }
+  CUR = { wf: r.wf, page: r.page, param: r.param, query: r.query, missing: r.missing, bad: r.bad };
+  $('proj').value = PROJECT ?? '';
+  render();
 }
 
 function render(keepFocus) {
-  const { name, param } = route();
-  const root = { concept:'concepts', session:'sessions', domain:'domains', entry:'memory' }[name] ?? name;
-  renderNav(root);
+  const W = WORKFLOWS[CUR.wf];
+  const pg = CUR.missing ? null : W.pages[CUR.page];
+  const active = pg ? (pg.parent ?? CUR.page) : null;
+  GEN += 1;
+  renderShell();
+  renderNav(CUR.wf, active);
+  const label = pg ? (W.pages[pg.parent ?? CUR.page].label) : 'Not found';
+  $('crumb').innerHTML = `<span>${esc(W.name)}</span><span class="dim">${esc(label)}</span><span class="dim">${esc(scopeName())}</span>`;
+  document.title = `${label} · ${W.name} — Eklavya`;
 
   AFTER.length = 0;
-  $('view').innerHTML = VIEWS[name](param);
+  $('view').innerHTML = !pg ? viewNotFound('#/' + CUR.wf + '/' + CUR.page, false)
+    : CUR.bad ? viewNotFound(CUR.param, true)
+    : pg.view(CUR.param);
   // A clickable row has to be reachable by Tab as well as by mouse.
-  $('view').querySelectorAll('tr.row').forEach((r) => { r.tabIndex = 0; });
+  focusable($('view'));
   for (const fn of AFTER) fn();
 
   if (keepFocus) {
@@ -1894,6 +2630,9 @@ function render(keepFocus) {
   } else {
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
   }
+  // Which URL the screen was last drawn for. The tests wait on it rather than on
+  // a timer, and it costs nothing to leave in.
+  document.documentElement.dataset.rendered = location.hash;
 }
 
 /* ---------- events, all delegated ---------- */
@@ -1901,6 +2640,18 @@ function render(keepFocus) {
 function goTo(hash) {
   if (location.hash === hash) render();
   else location.hash = hash;
+}
+/**
+ * Rewrites the current URL's query without a history entry: a select or a
+ * date box is adjusting this screen, not going somewhere new.
+ */
+function setQuery(changes) {
+  const q = new URLSearchParams(CUR.query);
+  for (const [k, v] of Object.entries(changes)) { if (v === null || v === '' || v === 'all') q.delete(k); else q.set(k, v); }
+  const s = q.toString();
+  const path = location.hash.replace(/\?.*$/, '');
+  history.replaceState(history.state, '', location.pathname + location.search + path + (s ? '?' + s : ''));
+  syncFromUrl();
 }
 
 function onActivate(e) {
@@ -1911,14 +2662,17 @@ function onActivate(e) {
   const chipState = e.target.closest('[data-state]');
   if (chipState) {
     T.concepts.page = 1;
-    return goTo(chipState.dataset.state === 'all' ? '#/concepts' : '#/concepts/' + chipState.dataset.state);
+    const s = chipState.dataset.state;
+    return goTo(LH('concepts', s === 'all' ? null : s, { domain: CUR.query.get('domain') }));
   }
   const tab = e.target.closest('[data-tab]');
-  if (tab) { T.review.page = 1; return goTo(tab.dataset.tab === 'due' ? '#/review' : '#/review/' + tab.dataset.tab); }
+  if (tab) { T.review.page = 1; return goTo(LH('review', tab.dataset.tab === 'due' ? null : tab.dataset.tab)); }
   const mtype = e.target.closest('[data-mtype]');
   if (mtype) {
     T.memory.page = 1;
-    return goTo(mtype.dataset.mtype === 'all' ? '#/memory' : '#/memory/' + encodeURIComponent(mtype.dataset.mtype));
+    const q = CUR.query;
+    return goTo(MH('timeline', mtype.dataset.mtype === 'all' ? null : mtype.dataset.mtype,
+      { tag: q.get('tag'), from: q.get('from'), to: q.get('to') }));
   }
   const go = e.target.closest('[data-go]');
   if (go) return goTo(go.dataset.go);
@@ -1929,7 +2683,7 @@ $('view').addEventListener('click', onActivate);
 // are divs and table rows, so Enter and Space have to be wired by hand.
 $('view').addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
-  if (!e.target.closest('[data-go],[data-state],[data-tab],[data-page]')) return;
+  if (!e.target.closest('[data-go],[data-state],[data-tab],[data-page],[data-mtype]')) return;
   e.preventDefault();
   onActivate(e);
 });
@@ -1948,23 +2702,23 @@ $('view').addEventListener('input', (e) => {
 });
 
 $('view').addEventListener('change', (e) => {
-  if (e.target.id === 'dom') { T.concepts.domain = e.target.value; T.concepts.page = 1; render(); }
+  if (e.target.id === 'dom') { T.concepts.page = 1; setQuery({ domain: e.target.value }); }
   if (e.target.id === 'sort') { T.concepts.sort = e.target.value; T.concepts.page = 1; render(); }
-  if (e.target.id === 'mtag') { T.memory.tag = e.target.value; T.memory.page = 1; render(); }
-  if (e.target.id === 'mfrom') { T.memory.since = e.target.value; T.memory.page = 1; render(); }
-  if (e.target.id === 'mto') { T.memory.until = e.target.value; T.memory.page = 1; render(); }
+  if (e.target.id === 'mtag') { T.memory.page = 1; setQuery({ tag: e.target.value }); }
+  if (e.target.id === 'mfrom') { T.memory.page = 1; setQuery({ from: e.target.value }); }
+  if (e.target.id === 'mto') { T.memory.page = 1; setQuery({ to: e.target.value }); }
 });
 
-addEventListener('hashchange', () => render());
+addEventListener('hashchange', () => { if (INV) { closePicker(false); syncFromUrl(); } });
 
 let resizeTimer = 0;
 addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => render({ id:'q', pos:null }), 120);
+  resizeTimer = setTimeout(() => { if (S) render({ id:'q', pos:null }); }, 120);
 });
 
 document.querySelectorAll('[data-ground]').forEach((b) => {
-  b.addEventListener('click', () => { window.eklavyaGround.set(b.dataset.ground); render(); });
+  b.addEventListener('click', () => { window.eklavyaGround.set(b.dataset.ground); if (S) render(); });
 });
 
 /* ---------- staying honest about how old this page is ---------- */
@@ -2012,8 +2766,14 @@ $('stale').addEventListener('click', () => location.reload());
 // shown "ink" as the active ground.
 window.eklavyaGround.apply(window.eklavyaGround.read());
 
-fetch('/api/state').then((r) => r.json()).then((s) => {
+const json = (url) => fetch(url).then((r) => {
+  if (!r.ok) throw new Error(`${url} answered ${r.status}`);
+  return r.json();
+});
+
+Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
   S = s;
+  INV = inv;
   $('dbline').textContent = s.db_path;
   // Totals are aggregated in SQL over the whole table, so a cap can only
   // shorten a history list — but say so rather than let it look complete.
@@ -2034,28 +2794,25 @@ fetch('/api/state').then((r) => r.json()).then((s) => {
   ].filter(Boolean);
   $('dials').innerHTML = `<span class="mono">${dials.map(esc).join(' · ')}</span>`;
 
+  // One selector for both workflows, built from the one inventory: a project
+  // that logged concepts but was never asked a question, or that only ever
+  // captured memory, is a project and is listed.
   const sel = $('proj');
-  for (const p of s.projects) {
+  for (const p of inv.projects) {
     const o = document.createElement('option');
-    o.value = p.repo ?? '~';
-    o.textContent = base(p.repo);
+    o.value = p.id;
+    o.textContent = p.name + (p.available === false ? ' (checkout gone)' : '');
     sel.appendChild(o);
   }
-  try {
-    const saved = localStorage.getItem('eklavya-dash-project');
-    if (saved && [...sel.options].some((o) => o.value === saved)) FILTER = saved;
-  } catch (e) {}
-  sel.value = FILTER;
   sel.addEventListener('change', () => {
-    FILTER = sel.value;
-    try { localStorage.setItem('eklavya-dash-project', FILTER); } catch (e) {}
-    for (const k of Object.keys(T)) T[k].page = 1;
-    recomputeScope();
-    render();
+    const v = sel.value || null;
+    try { if (v) localStorage.setItem('eklavya-dash-project', v); else localStorage.removeItem('eklavya-dash-project'); } catch (e) {}
+    // A real navigation: the scope is part of the URL, so Back undoes it.
+    goTo(href(CUR.wf, CUR.page, CUR.param || null, { project: v, ...Object.fromEntries(
+      (WORKFLOWS[CUR.wf].pages[CUR.page]?.query ?? []).map((k) => [k, CUR.query.get(k)])) }));
   });
 
-  recomputeScope();
-  render();
+  syncFromUrl();
 }).catch((e) => {
   $('view').innerHTML = `<p class="empty">Could not read the database: ${esc(e.message)}</p>`;
 });
