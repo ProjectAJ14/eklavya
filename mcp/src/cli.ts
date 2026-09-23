@@ -81,7 +81,7 @@ Memory:
                                         List unfinished jobs by project, marking observer helper sessions;
                                         or set aside, delete or bring back the ones you select with
                                         --helpers, --project <key>, --session <id> or --batch <id>
-  eklavya memory prune                  Delete raw evidence past memory.retention_days
+  eklavya memory prune                  Delete this project's raw evidence past its memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--verify] [--resume]
                                         --dry-run reads the source and reports; it writes nothing
                                         --verify checks every source row by id is here and where each

@@ -285,7 +285,13 @@ function healthSummary(db: DB, config: EklavyaConfig): Record<string, unknown> {
       newest_event: beat.newest,
       newest_received: beat.received,
       retention_days: config.memory.retention_days,
-      pruned_at: one<{ value: string } | undefined>(db, "SELECT value FROM meta WHERE key = 'memory_pruned_at'")?.value ?? null,
+      // Each project stamps its own sweep; the page shows the latest of them
+      // (the bare key is the stamp versions before per-project retention wrote).
+      pruned_at:
+        one<{ value: string | null }>(
+          db,
+          "SELECT max(value) AS value FROM meta WHERE key = 'memory_pruned_at' OR key LIKE 'memory_pruned_at:%'",
+        ).value ?? null,
     },
     queue: queueDepth(db),
     stalled: many(

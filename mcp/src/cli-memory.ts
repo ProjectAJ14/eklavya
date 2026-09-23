@@ -522,11 +522,18 @@ function memoryPrune(): void {
   try {
     const { config } = loadConfig();
     if (!config.memory.retention_days) {
-      process.stdout.write('memory.retention_days is not set, so raw evidence is kept until deleted by hand.\n');
+      process.stdout.write(
+        'memory.retention_days is not set for this project, so its raw evidence is kept until deleted by hand.\n',
+      );
       return;
     }
-    const removed = pruneEvidence(db, config);
-    process.stdout.write(`Deleted ${removed} raw evidence events older than ${config.memory.retention_days} days.\n`);
+    // This project only, under this project's resolved retention: another
+    // project may keep its evidence (retention unset) or a different window.
+    const project = currentProject();
+    const removed = pruneEvidence(db, config, { project });
+    process.stdout.write(
+      `Deleted ${removed} raw evidence events older than ${config.memory.retention_days} days in ${project}.\n`,
+    );
   } finally {
     db.close();
   }
