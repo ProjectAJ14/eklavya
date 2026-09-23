@@ -242,3 +242,23 @@ The nine commands above come from the plugin, so they exist only where the plugi
 :::tip
 It only wakes up when you mention Eklavya or its settings by name. Asking Claude an ordinary coding question does not load it.
 :::
+
+### The artifacts skill
+
+*Ask for a page instead of a wall of chat.*
+
+#### What it does
+
+`npx eklavya install` installs a second skill, at `~/.claude/skills/eklavya-artifacts/SKILL.md`. It turns an explanation into a page: a single HTML file in the Eklavya look — dark by default, a paper ground for printing, inline diagrams, and **PDF** and **HTML** download buttons — filed under `~/.eklavya/artifacts/<project>/` and opened in your browser. It wakes up when you ask for one:
+
+- “Make this an Eklavya artifact.”
+- “Explain refresh-token rotation to me as a page.”
+- “Turn that comparison into a one-pager.”
+
+The page is filed under the project you are in (the main checkout, for a worktree) and listed in the [dashboard's Artifacts workflow](/docs/dashboard/#artifacts), searchable. Because it is a user-level skill, it works from any directory, plugin loaded or not.
+
+#### Worth knowing
+
+- It never publishes. There is no link to share and nothing is uploaded; the page is a file on your disk. The only thing it fetches when you open it is its web fonts.
+- The same pages arrive on their own after a missed question if you turn on [`explain_on_wrong`](/docs/configuration/#every-key). Those are written in the background by the plugin's `eklavya-explainer` agent, so the quiz never waits for them.
+- It will not overwrite a skill of your own that is already called `eklavya-artifacts`; `eklavya doctor` reports the clash.

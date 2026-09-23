@@ -350,12 +350,21 @@ function copyPayload(): PayloadResult {
  * loaded at all — a bare terminal session, another editor, a repo where the
  * plugin is disabled.
  */
-export function userSkillDir(): string {
-  return path.join(claudeHome(), 'skills', 'eklavya');
+export function userSkillDir(name: UserSkill = 'eklavya'): string {
+  return path.join(claudeHome(), 'skills', name);
 }
 
-function skillPayloadDir(): string {
-  return path.join(moduleDir, 'user-skill', 'eklavya');
+/**
+ * Every skill under `user-skill/`. `eklavya-artifacts` is the second: it
+ * writes explainer pages and other artifacts under `~/.eklavya/artifacts/`,
+ * and is user-level for the same reason — "make this an Eklavya artifact"
+ * has to work from any directory, plugin loaded or not.
+ */
+export const USER_SKILLS = ['eklavya', 'eklavya-artifacts'] as const;
+export type UserSkill = (typeof USER_SKILLS)[number];
+
+function skillPayloadDir(name: UserSkill): string {
+  return path.join(moduleDir, 'user-skill', name);
 }
 
 /**
@@ -367,10 +376,10 @@ function skillPayloadDir(): string {
  * unrecognised file is treated as theirs — refusing to overwrite something we
  * cannot identify is the safe direction to be wrong in.
  */
-function isOurSkill(file: string): boolean {
+function isOurSkill(file: string, name: UserSkill = 'eklavya'): boolean {
   try {
     const head = fs.readFileSync(file, 'utf8').slice(0, 2048);
-    return /^name:\s*["']?eklavya["']?\s*$/m.test(head);
+    return new RegExp(`^name:\\s*["']?${name}["']?\\s*$`, 'm').test(head);
   } catch {
     return false;
   }
@@ -378,13 +387,13 @@ function isOurSkill(file: string): boolean {
 
 type SkillResult = 'installed' | 'foreign' | 'missing';
 
-function installSkill(): SkillResult {
-  const from = skillPayloadDir();
+function installSkill(name: UserSkill): SkillResult {
+  const from = skillPayloadDir(name);
   if (!fs.existsSync(from)) return 'missing';
 
-  const to = userSkillDir();
+  const to = userSkillDir(name);
   const target = path.join(to, 'SKILL.md');
-  if (fs.existsSync(target) && !isOurSkill(target)) return 'foreign';
+  if (fs.existsSync(target) && !isOurSkill(target, name)) return 'foreign';
 
   fs.mkdirSync(path.dirname(to), { recursive: true });
   fs.rmSync(to, { recursive: true, force: true });
@@ -393,10 +402,10 @@ function installSkill(): SkillResult {
 }
 
 /** Symmetric with installSkill(): never removes a skill that is not ours. */
-function removeSkill(): boolean {
-  const dir = userSkillDir();
+function removeSkill(name: UserSkill): boolean {
+  const dir = userSkillDir(name);
   const target = path.join(dir, 'SKILL.md');
-  if (!fs.existsSync(target) || !isOurSkill(target)) return false;
+  if (!fs.existsSync(target) || !isOurSkill(target, name)) return false;
   fs.rmSync(dir, { recursive: true, force: true });
   return true;
 }
@@ -820,19 +829,21 @@ export function health(): Check[] {
   const versions = haveRuntime ? versionCheck() : null;
   if (versions) checks.push(versions);
 
-  const skillFile = path.join(userSkillDir(), 'SKILL.md');
-  const haveSkill = fs.existsSync(skillFile);
-  checks.push({
-    name: 'skill',
-    ok: haveSkill && isOurSkill(skillFile),
-    detail: !haveSkill
-      ? `nothing at ${skillFile}`
-      : isOurSkill(skillFile)
-        ? userSkillDir()
-        // `install` will not overwrite someone else's skill either, so "run
-        // install" alone is a dead end here. Name the step that unblocks it.
-        : `${skillFile} is a different skill named eklavya — move it first`,
-  });
+  for (const name of USER_SKILLS) {
+    const skillFile = path.join(userSkillDir(name), 'SKILL.md');
+    const haveSkill = fs.existsSync(skillFile);
+    checks.push({
+      name: name === 'eklavya' ? 'skill' : `skill ${name}`,
+      ok: haveSkill && isOurSkill(skillFile, name),
+      detail: !haveSkill
+        ? `nothing at ${skillFile}`
+        : isOurSkill(skillFile, name)
+          ? userSkillDir(name)
+          // `install` will not overwrite someone else's skill either, so "run
+          // install" alone is a dead end here. Name the step that unblocks it.
+          : `${skillFile} is a different skill named ${name} — move it first`,
+    });
+  }
 
   return checks;
 }
@@ -980,11 +991,13 @@ async function installSteps(args: string[]): Promise<void> {
   check(stuck ? 'warn' : 'ok', 'plugin', `${marketplaceDir()}${notes[payload] ? ` ${dim(`(${notes[payload]})`)}` : ''}`);
 
   if (!args.includes('--skip-skill')) {
-    const skill = installSkill();
-    if (skill === 'installed') check('ok', 'skill', userSkillDir());
-    else if (skill === 'foreign') {
-      check('skip', 'skill', `skipped ${dim(`— ${path.join(userSkillDir(), 'SKILL.md')} is not ours`)}`);
-    } else check('skip', 'skill', dim('not in this package (skipped)'));
+    for (const name of USER_SKILLS) {
+      const skill = installSkill(name);
+      if (skill === 'installed') check('ok', 'skill', userSkillDir(name));
+      else if (skill === 'foreign') {
+        check('skip', 'skill', `skipped ${dim(`— ${path.join(userSkillDir(name), 'SKILL.md')} is not ours`)}`);
+      } else check('skip', 'skill', dim(`${name} not in this package (skipped)`));
+    }
   }
 
   const backups = register(version);
@@ -1088,7 +1101,7 @@ export function uninstall(args: string[]): void {
     check('skip', 'plugin', `kept ${dim(`— still installed in ${otherScopes.length} project(s)`)}`);
   }
 
-  if (removeSkill()) check('ok', 'skill', 'removed');
+  for (const name of USER_SKILLS) if (removeSkill(name)) check('ok', 'skill', `${name} removed`);
 
   if (!stillUsed || purge) {
     fs.rmSync(runtimeHome(), { recursive: true, force: true });

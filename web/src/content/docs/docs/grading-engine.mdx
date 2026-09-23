@@ -26,6 +26,8 @@ Prerequisites matter for fairness. A tier-3 *"why this rather than the alternati
 
 **A multiple-choice answer is capped at 4.** Recognition is easier than recall, and picking the right option out of four cannot demonstrate that you could have explained it. Two clean answers still reach mastery; it just is not claimed on one lucky guess.
 
+**A miss can come with a page.** With [`explain_on_wrong`](/docs/configuration/#every-key) on, a grade of 1 or 2 — or a 0 where you said *I don't know* and were taught — also starts an explainer: the `eklavya-explainer` agent writes a page on that concept in the background and opens it in your browser. The grade and the one-line verdict come first and the session goes straight back to work; nothing waits for the page. A skip or a decline never gets one. It is off by default.
+
 ### Why the questions are multiple choice
 
 You are in the middle of something. A blank prompt asking you to explain a mechanism gets skipped — not because you did not know, but because typing a paragraph costs more than the question is worth right then, and that skip records as if you had no idea. So every question is four options: one right, three that a competent person could believe. "Other" is always there, for *I don't know* or for typing a real answer if you would rather explain.

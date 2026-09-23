@@ -18,19 +18,20 @@ open — a container, a bare SSH session — the attempt fails silently and the 
 above is still what you need.
 
 `/eklavya:progress` fits in twenty lines and answers *what now*. The dashboard is
-the long view, and it is two workflows in one page: **Learning** — what your
-work recorded, what you were asked and how it went — and **Memory** — what your
-sessions captured, what was kept from it, and whether reusing it paid off. Each
-has its own Dashboard and its own sidebar, and every concept, session, question
-and observation is reachable in two clicks.
+the long view, and it is three workflows in one page: **Learning** — what your
+work recorded, what you were asked and how it went — **Memory** — what your
+sessions captured, what was kept from it, and whether reusing it paid off — and
+**Artifacts** — the explainer pages and other pages your agent wrote for you.
+Each has its own Dashboard and its own sidebar, and every concept, session,
+question and observation is reachable in two clicks.
 
 ## Switching workflow
 
-The top of the sidebar is one control with two targets. The name — **Learning**
-or **Memory**, with its icon — opens that workflow's Dashboard. The caret beside
-it, labelled *Switch workflow*, opens a small menu listing both, with a check
-against the one you are in; choosing the other closes the menu and opens its
-Dashboard. The menu works from the keyboard (arrow keys, Enter, Escape, and Tab
+The top of the sidebar is one control with two targets. The name — **Learning**,
+**Memory** or **Artifacts**, with its icon — opens that workflow's Dashboard.
+The caret beside it, labelled *Switch workflow*, opens a small menu listing all
+three, with a check against the one you are in; choosing another closes the
+menu and opens its Dashboard. The menu works from the keyboard (arrow keys, Enter, Escape, and Tab
 to leave it) and closes when you click anywhere else. The Eklavya wordmark goes
 to the active workflow's Dashboard.
 
@@ -45,19 +46,19 @@ pasted you, or Back and Forward all rebuild the same screen. The workflow's name
 also sits above every page title, so a page called *Projects* always says whose
 projects it means.
 
-## The two sidebars
+## The sidebars
 
-Each sidebar starts with its Dashboard, which is always visible, followed by two
+Each sidebar starts with its Dashboard, which is always visible, followed by its
 groups. A group opens by default and collapses on its own; the dashboard
 remembers which groups you collapsed, separately for each workflow, in your
 browser. Following a link into a collapsed group opens it, so you can always see
 where you are.
 
-| Learning | Memory |
-|---|---|
-| **Dashboard** | **Dashboard** |
-| *Learn*: Concepts, Review | *Memory*: Timeline, Sessions, Projects |
-| *History*: Sessions, Projects, Domains | *Insights*: Reuse, Health |
+| Learning | Memory | Artifacts |
+|---|---|---|
+| **Dashboard** | **Dashboard** | **Dashboard** |
+| *Learn*: Concepts, Review | *Memory*: Timeline, Sessions, Projects | *Library*: Projects |
+| *History*: Sessions, Projects, Domains | *Insights*: Reuse, Health | |
 
 On a phone, or any window 900 pixels wide or narrower, the sidebar becomes a
 drawer behind the menu button in the top bar. It holds the same workflow
@@ -88,6 +89,30 @@ Each is a link, so you can bookmark the one you actually use.
 | Projects (`#/memory/projects`) | Which projects has memory recorded? Every one — including a project whose evidence has been captured but not yet processed into a single observation. Open one for its timeline. |
 | Reuse (`#/memory/reuse`) | Did reusing memory actually save anything? One row per context injection, with the arithmetic spelled out. |
 | Health (`#/memory/health`) | Is capture working, and where did it stop? Heartbeat, queue, stalled jobs and provider state. |
+
+## Artifacts
+
+An artifact is a single HTML page your agent wrote — an explainer after a
+missed question when [`explain_on_wrong`](/docs/configuration/) is on, or
+anything you asked to have turned into a page. Each lives in
+`~/.eklavya/artifacts/<project>/`, and this workflow reads that folder every
+time the page loads, so a page you delete or copy in by hand shows up (or
+disappears) on the next refresh.
+
+| Page | What it answers |
+|---|---|
+| Dashboard (`#/artifacts/dashboard`) | What has been written for me? Counts of pages, explainers and projects, a search box that matches the title, description, concept and project, and the list, newest first, grouped by project, 20 to a page. The kind filter is part of the address — `#/artifacts/dashboard/explainer` for explainers, `/artifact` for everything else. An explainer's concept links to that concept's page in Learning. |
+| Projects (`#/artifacts/projects`) | Which projects have pages? Pages and explainers per project, and when the last one was written. Open one to scope the Dashboard to it. |
+
+Clicking a page's title opens it in a new tab, from `/artifacts/<project
+folder>/<file>`. The page is served **sandboxed**: its own scripts run — the PDF
+and HTML download buttons need them — but it cannot read anything else the
+dashboard serves, so a page an agent wrote can never see your history. Nothing
+outside `~/.eklavya/artifacts/` is served, whatever the address says.
+
+A project Eklavya has never recorded anything else for — a page written in a
+plain directory — is listed on the Projects page but cannot be selected as a
+scope.
 
 ## Opening one thing
 
@@ -121,8 +146,8 @@ sidebar.
   and links the replacement.
 
 An address that names no page, or one with a parameter that is not valid URL
-encoding, says so and offers both Dashboards rather than showing something
-else.
+encoding, says so and offers the Learning and Memory Dashboards rather than
+showing something else.
 
 ## Old links still work
 
@@ -245,7 +270,7 @@ the pipeline stops.
 ## Projects, scope, ground and paging
 
 The **project selector** in the sidebar lists every project Eklavya has
-recorded anything for, and both workflows share it. A project is listed as soon
+recorded anything for, and every workflow shares it. A project is listed as soon
 as any of these names it: an answered question, a concept your work logged
 (even if you were never asked about it), captured evidence — processed or not —
 a stored observation, a reuse receipt or an earned level. Learning counts and
@@ -294,7 +319,8 @@ what it already has rather than blanking.
 
 ## What it is, underneath
 
-One static page and five read-only JSON endpoints on loopback — and loopback
+One static page, five read-only JSON endpoints and the artifact pages, on
+loopback — and loopback
 is not by itself the protection it sounds like. A web page you happen to have
 open can point a hostname it controls at `127.0.0.1` and fetch from a local
 server, and the browser's same-origin rule does not stop it, because the page's
@@ -307,7 +333,8 @@ framed by another page and loading anything from another origin.
 
 `/api/state`
 ships flat rows — every attempt, every logged context, one row per day, plus the
-memory, reuse and health summaries — and the page derives the views, so nothing
+memory, reuse and health summaries, and the list of artifacts read from
+`~/.eklavya/artifacts/` — and the page derives the views, so nothing
 on screen is a number the database does not hold. It also carries a `cursor`,
 a count of the rows behind the page, and that is the only field the open page
 re-reads once a minute to decide whether to offer you a refresh. Its fields keep
@@ -331,6 +358,11 @@ Nothing here writes. The dashboard reads the same
 to nobody but you. There is no build step, no framework and **no request to
 any other host**: the page uses your system's fonts rather than fetching web
 fonts, so opening it tells nobody that you did.
+
+An artifact page opened from here is the one exception, and it is that page,
+not the dashboard: its template links Archivo, Inter and JetBrains Mono from
+Google Fonts, the same as when you open the file directly. Offline it falls
+back to system faces.
 
 `--port` if 41729 is taken; if the port you asked for is busy the command fails
 rather than quietly moving, and with no `--port` at all it falls back to any

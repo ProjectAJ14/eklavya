@@ -28,6 +28,7 @@ import { decayedScore, isDue, isKnown, MS_PER_DAY } from './srs.js';
 import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
 import { loadConfig, DEFAULT_CONFIG, type EklavyaConfig } from './config.js';
 import { dbPath, DEFAULT_PORT } from './paths.js';
+import { listArtifacts, resolveArtifact } from './artifacts.js';
 import { receiptTotals } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
@@ -1017,6 +1018,9 @@ export function dashboardState(db: DB): Record<string, unknown> {
     reuse,
     health: healthSummary(db, config),
     memory_sessions: memorySessions(db),
+    // The third workflow. Read from the files themselves on every load
+    // (`artifacts.ts`): there is no table to fall out of step with the disk.
+    artifacts: listArtifacts(),
   };
 }
 
@@ -1092,6 +1096,26 @@ const SECURITY_HEADERS = {
   'x-frame-options': 'DENY',
   'referrer-policy': 'no-referrer',
 };
+
+/**
+ * What an artifact page may do. It is HTML an agent wrote, served from the
+ * dashboard's own origin, so the CSP `sandbox` directive gives it an opaque
+ * origin instead: its scripts run (the PDF and HTML buttons need them) but it
+ * cannot read `/api/state` or anything else here, since a fetch from a null
+ * origin gets no CORS grant. The web fonts its template links are the one
+ * thing allowed off the machine; without them it falls back to system faces.
+ */
+const ARTIFACT_CSP = [
+  'sandbox allow-scripts allow-modals allow-downloads allow-popups',
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline' https://fonts.googleapis.com",
+  'font-src https://fonts.gstatic.com',
+  'img-src data: blob:',
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ');
 
 function send(
   res: http.ServerResponse,
@@ -1214,6 +1238,19 @@ export function startDashboard(
         const entry = memoryEntry(db, Number(url.searchParams.get('id')));
         if (!entry) return send(res, 404, 'application/json', '{"error":"no such entry"}');
         return send(res, 200, 'application/json', JSON.stringify(entry));
+      }
+      if (url.pathname.startsWith('/artifacts/')) {
+        let id: string;
+        try {
+          id = decodeURIComponent(url.pathname.slice('/artifacts/'.length));
+        } catch {
+          return send(res, 400, 'text/plain', 'bad artifact path');
+        }
+        const file = resolveArtifact(id);
+        if (!file) return send(res, 404, 'text/plain', 'no such artifact');
+        return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(file), {
+          'content-security-policy': ARTIFACT_CSP,
+        });
       }
       if (url.pathname === '/tokens.css') {
         return send(res, 200, 'text/css', localTokens(fs.readFileSync(path.join(assets, 'tokens.css'), 'utf8')));

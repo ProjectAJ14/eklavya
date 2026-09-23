@@ -149,6 +149,12 @@ Other keys, same `config set` shape: `pass_threshold`,
 `min_minutes_between_checkpoints`, `level_up_after`, `level_up_accuracy`,
 `max_new_concepts_per_session`, `max_stop_blocks_per_session`, `quiet`.
 
+`explain_on_wrong` (default `false`) is the one people ask for by what it does:
+"when I get one wrong, make me a page explaining it". On, a missed answer also
+gets an explainer page, written in the background and opened, while the session
+carries on. It is usually wanted per project, so default to `--project`. The
+pages themselves are the `eklavya-artifacts` skill's job, not this one's.
+
 ## Reading state
 
 ```bash
@@ -270,6 +276,8 @@ project; the ids are the ones `/api/projects` lists.
 | which projects has memory recorded | `/#/memory/projects` |
 | what has recall actually saved | `/#/memory/reuse` |
 | is capture healthy | `/#/memory/health` |
+| the pages Eklavya wrote me, search them | `/#/artifacts/dashboard` (or `/explainer` for explainers only) |
+| which projects have pages | `/#/artifacts/projects` |
 
 The older single-workflow links (`/#/overview`, `/#/concepts`, `/#/memory`,
 `/#/entry/<id>` and the rest) still open the right page, but hand back the

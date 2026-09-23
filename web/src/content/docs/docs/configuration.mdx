@@ -85,6 +85,7 @@ only a project or global change to `quiz.enforced` is the second one.
 | `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
 | `auto_update` | `true` | Eklavya updates itself: at most once an hour, a session start checks npm in the background and installs a newer release ([Updates](/docs/installing/#updates)). `false` stops that; `eklavya update` still works by hand. Global only: a project file that sets it is ignored, because there is one runtime per machine. |
 | `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `quiz.enabled: false` for that. |
+| `explain_on_wrong` | `false` | `true` writes you an explainer page each time you miss a question — a wrong answer (grade 1 or 2) or an "I don't know" you were taught, never a skip or a decline. The page is written in the background by the `eklavya-explainer` agent, filed under `~/.eklavya/artifacts/<project>/` and opened in your browser; the quiz gives its verdict and goes back to the task without waiting for it. Usually set per project. Asking "explain this to me" gets a page whether this is on or not. |
 
 ### Setting a namespaced key
 

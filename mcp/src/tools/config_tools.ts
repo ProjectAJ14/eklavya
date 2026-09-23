@@ -133,6 +133,10 @@ export const setConfig: ToolDef = {
     max_new_concepts_per_session: z.number().int().min(0).max(50).optional(),
     max_stop_blocks_per_session: z.number().int().min(0).max(20).optional(),
     quiet: z.boolean().optional(),
+    explain_on_wrong: z
+      .boolean()
+      .optional()
+      .describe('Whether a missed question also gets an explainer page, written in the background and opened (default false). Usually set per project.'),
     auto_update: z
       .boolean()
       .optional()

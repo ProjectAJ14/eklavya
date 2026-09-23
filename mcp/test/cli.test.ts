@@ -61,9 +61,11 @@ function fakeInstall(): void {
     JSON.stringify({ enabledPlugins: { 'eklavya@eklavya': true } }),
   );
 
-  const skill = path.join(claudeDir, 'skills', 'eklavya');
-  fs.mkdirSync(skill, { recursive: true });
-  fs.writeFileSync(path.join(skill, 'SKILL.md'), '---\nname: eklavya\n---\n');
+  for (const name of ['eklavya', 'eklavya-artifacts']) {
+    const skill = path.join(claudeDir, 'skills', name);
+    fs.mkdirSync(skill, { recursive: true });
+    fs.writeFileSync(path.join(skill, 'SKILL.md'), `---\nname: ${name}\n---\n`);
+  }
 }
 
 beforeEach(() => {

@@ -691,6 +691,7 @@ describe('/api/state is unchanged for the page that still reads it', () => {
       attempts_shown: 'number', attempts_total: 'number', config: 'object', totals: 'object',
       daily: 'array', projects: 'array', domains: 'array', concepts: 'array', attempts: 'array',
       logged: 'array', memory: 'object', reuse: 'object', health: 'object', memory_sessions: 'array',
+      artifacts: 'array',
     });
     expect(Object.keys(s.projects[0]).sort()).toEqual([
       'answers', 'concepts', 'first_active', 'key', 'last_active', 'level', 'level_accuracy', 'level_counts',

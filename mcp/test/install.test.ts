@@ -529,6 +529,25 @@ describe('the user-level skill', () => {
     expect(text).toMatch(/^description: /m);
   });
 
+  it('installs the artifacts skill beside it, and uninstall removes both', () => {
+    install();
+    const artifacts = path.join(claudeHome, 'skills', 'eklavya-artifacts', 'SKILL.md');
+    expect(fs.readFileSync(artifacts, 'utf8')).toMatch(/^name: eklavya-artifacts$/m);
+    run(['uninstall']);
+    expect(fs.existsSync(path.dirname(artifacts))).toBe(false);
+    expect(fs.existsSync(skill())).toBe(false);
+  });
+
+  it('refuses to overwrite a foreign skill named eklavya-artifacts, and still installs eklavya', () => {
+    const dir = path.join(claudeHome, 'skills', 'eklavya-artifacts');
+    fs.mkdirSync(dir, { recursive: true });
+    const theirs = '---\nname: my-artifacts\n---\n';
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), theirs);
+    install();
+    expect(fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8')).toBe(theirs);
+    expect(fs.existsSync(skill())).toBe(true);
+  });
+
   it('is replaced rather than merged when installed twice', () => {
     install();
     fs.writeFileSync(path.join(claudeHome, 'skills', 'eklavya', 'stale.md'), 'from an older version');

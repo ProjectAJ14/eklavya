@@ -18,11 +18,20 @@ import {
 import { stripAskHeader } from '../ask.js';
 import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
+/**
+ * What the tutor does with an `explain` block. Non-blocking is the whole
+ * contract: the grade and the one-line verdict are already given, the page is
+ * written by a background agent, and the session goes back to the work.
+ */
+export function explainInstruction(name: string): string {
+  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent in the background, handing it the concept slug, the question, the learner's answer and the right answer; it writes an explainer page on ${name} and opens it. Tell the learner in one line that the page is on its way, then carry on with the task.`;
+}
+
 export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on.',
+    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on. Returns explain on a missed answer when explain_on_wrong is on: follow its instruction.',
   inputSchema: {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
@@ -167,6 +176,22 @@ export const recordAttempt: ToolDef = {
 
     const state = graded.state;
     const gate = graded.gate;
+
+    // A missed answer, when the developer asked for pages on those. Decided
+    // here rather than left to a line in the tutor skill: the model follows a
+    // field it was handed far more reliably than a rule it has to remember, and
+    // the instruction is composed once, where the config is visible. A decline
+    // and a bare skip get nothing -- they asked to move on.
+    const missed = grade <= 2 && args.outcome !== 'declined' && (grade > 0 || args.outcome === 'dont_know');
+    const explain = config.explain_on_wrong && missed
+      ? {
+          concept: concept.slug,
+          name: concept.name,
+          question,
+          answer: args.answer ?? null,
+          instruction: explainInstruction(concept.name),
+        }
+      : null;
     const after = levelStanding(db, config, repoRoot);
     const score = decayedScore(state.score, state.next_review, now);
 
@@ -191,6 +216,7 @@ export const recordAttempt: ToolDef = {
       // write would lose a real answer — but the tutor is told, so the next
       // question can be a new one.
       repeat_question: repeatQuestion,
+      ...(explain ? { explain } : {}),
       ...(outcomeConflict
         ? {
             outcome_conflict:

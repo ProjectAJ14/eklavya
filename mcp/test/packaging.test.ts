@@ -107,12 +107,19 @@ describe('what ships to npm', () => {
     }
   });
 
-  it('carries the user-level skill, and only through one route', () => {
-    expect(fs.existsSync(path.join(mcpRoot, 'dist', 'user-skill', 'eklavya', 'SKILL.md'))).toBe(true);
-    // Not under skills/ as well: that whole directory becomes the plugin
-    // payload, and a skill shipped through both routes registers twice in the
-    // same session.
-    expect(fs.existsSync(path.join(mcpRoot, 'dist', 'plugin', 'skills', 'eklavya'))).toBe(false);
+  it('carries the user-level skills, and only through one route', () => {
+    for (const name of ['eklavya', 'eklavya-artifacts']) {
+      expect(fs.existsSync(path.join(mcpRoot, 'dist', 'user-skill', name, 'SKILL.md')), name).toBe(true);
+      // Not under skills/ as well: that whole directory becomes the plugin
+      // payload, and a skill shipped through both routes registers twice in the
+      // same session.
+      expect(fs.existsSync(path.join(mcpRoot, 'dist', 'plugin', 'skills', name)), name).toBe(false);
+    }
+  });
+
+  it('carries the explainer agent and the artifact template', () => {
+    expect(fs.existsSync(path.join(mcpRoot, 'dist', 'plugin', 'agents', 'explainer.md'))).toBe(true);
+    expect(fs.existsSync(path.join(mcpRoot, 'dist', 'assets', 'artifact-template.html'))).toBe(true);
   });
 
   it('points at every reference file it ships, and ships every one it points at', () => {

@@ -566,6 +566,7 @@ const T = {
   session:  { page:1 },
   memory:   { page:1, q:'', tag:'all', since:'', until:'' },
   reuse:    { page:1, only:'all' },
+  artifacts:{ page:1, q:'' },
 };
 const PER = 20;
 
@@ -2162,8 +2163,8 @@ function viewHealth() {
 /* ============================================================
    Workflows and routes
 
-   Two workflows, one shell. The registry below is the only description of
-   either: the sidebar, the picker, the route resolver and the page renderer all
+   Three workflows, one shell. The registry below is the only description of
+   any of them: the sidebar, the picker, the route resolver and the page renderer all
    read it, so the selector, the highlighted item and the screen cannot disagree
    about where the reader is.
 
@@ -2171,7 +2172,106 @@ function viewHealth() {
    workflow, the page, the highlighted item and the project scope, so a refresh,
    a pasted link or Back/Forward rebuilds the same screen from nothing.
    ============================================================ */
+/* ============================================================
+   Artifacts — the pages an agent wrote under ~/.eklavya/artifacts/.
+   `S.artifacts` is read from the files on every load; opening one is a plain
+   link to `/artifacts/<id>`, which the server serves sandboxed, in a new tab.
+   ============================================================ */
+const ARTIFACT_KINDS = ['all', 'explainer', 'artifact'];
+const artifactsInScope = () => (S.artifacts ?? []).filter((a) => inScope(a.project));
+const artifactUrl = (a) => '/artifacts/' + a.id.split('/').map(encodeURIComponent).join('/');
+
+function artifactRow(a) {
+  const known = a.concept && S.concepts.some((c) => c.slug === a.concept);
+  const concept = !a.concept ? '<span class="slug">—</span>'
+    : known ? `<a class="link slug" data-go="${esc(LH('concept', a.concept))}">${esc(a.concept)}</a>`
+    : `<span class="slug">${esc(a.concept)}</span>`;
+  return `<tr>
+    <td style="min-width:260px"><a class="link title" href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">${esc(a.title)}</a>
+      ${a.description ? `<div class="ctx">${esc(a.description)}</div>` : ''}</td>
+    <td><span class="pill">${esc(a.kind)}</span></td>
+    <td>${concept}</td>
+    <td class="num slug" style="white-space:nowrap">${esc(stamp(a.created))}</td></tr>`;
+}
+
+function viewArtifacts(param) {
+  const t = T.artifacts;
+  const kind = ARTIFACT_KINDS.includes(param) ? param : 'all';
+  const all = artifactsInScope();
+  const q = t.q.trim().toLowerCase();
+  const list = all.filter((a) => {
+    if (kind !== 'all' && a.kind !== kind) return false;
+    if (q && ![a.title, a.description, a.concept ?? '', pname(a.project), a.id].join(' ').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const p = page('artifacts', list.length);
+  // The page's slice, grouped by project in the order it arrives (newest first).
+  const groups = new Map();
+  for (const a of slice(list, p)) {
+    const id = pid(a.project);
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(a);
+  }
+  const counts = { all: all.length, explainer: all.filter((a) => a.kind === 'explainer').length };
+  counts.artifact = all.length - counts.explainer;
+  const chip = (k, label) => `<button class="chip" data-go="${esc(AH('dashboard', k === 'all' ? null : k))}" aria-pressed="${kind === k}">${label} ${counts[k]}</button>`;
+  const cols = [{t:'Page'},{t:'Kind'},{t:'Concept'},{t:'Written',n:1}];
+  const body = !list.length
+    ? `<p class="empty">${all.length ? 'Nothing matches that search.' : 'No artifacts yet. Ask for an Eklavya artifact, or turn on explain_on_wrong, and they land here.'}</p>`
+    : [...groups].map(([id, rows]) =>
+        `<h3 class="slug" style="margin:var(--space-5) 0 var(--space-2)">${esc(projectById(id)?.name ?? base(id))}</h3>`
+        + table(cols, rows.map(artifactRow))).join('') + pager('artifacts', list.length, p);
+  return [
+    `<div>
+       <h1 class="page__title">Artifacts</h1>
+       <p class="page__sub">Pages your agent wrote for you — explainers after a missed question, and anything you asked
+         to have turned into a page. Each opens in a new tab, from <code>~/.eklavya/artifacts/</code>.</p>
+     </div>`,
+    tiles([
+      ['Artifacts', all.length, 'in scope'],
+      ['Explainers', counts.explainer, 'written after a question', null, counts.explainer ? AH('dashboard', 'explainer') : null],
+      ['Projects', new Set(all.map((a) => pid(a.project))).size, 'with at least one page', null, AH('projects')],
+    ]),
+    card(null, null,
+      `<div class="filters">
+         <div class="grow"><input type="search" id="aq" value="${esc(t.q)}" placeholder="Search title, description, concept or project…" aria-label="Search artifacts"></div>
+       </div>
+       <div class="chips">${chip('all','All')}${chip('explainer','Explainers')}${chip('artifact','Other pages')}</div>
+       <div style="margin-top:var(--space-4)">${body}</div>`),
+  ].join('');
+}
+
+function viewArtifactProjects() {
+  const by = new Map();
+  for (const a of artifactsInScope()) {
+    const id = pid(a.project);
+    const r = by.get(id) ?? { id, n: 0, explainers: 0, last: a.created };
+    r.n += 1; if (a.kind === 'explainer') r.explainers += 1;
+    if (a.created > r.last) r.last = a.created;
+    by.set(id, r);
+  }
+  // ponytail: a project the inventory has never seen (a directory with no
+  // Eklavya activity) cannot be a scope, so its row is not a link. Upgrade:
+  // teach `projectInventory` to count artifact projects.
+  const rows = [...by.values()].sort((a, b) => (a.last < b.last ? 1 : -1)).map((r) => {
+    const p = projectById(r.id);
+    return `<tr${p ? ` class="row" data-go="${esc(AH('dashboard', null, { project: r.id }))}"` : ''}>
+      <td style="min-width:220px"><span class="title">${esc(p?.name ?? base(r.id))}</span><div class="slug">${esc(r.id)}</div></td>
+      <td class="num">${r.n}</td><td class="num">${r.explainers || '—'}</td>
+      <td class="num slug">${esc(ago(r.last))}</td></tr>`;
+  });
+  return [
+    `<div>
+       <h1 class="page__title">Projects</h1>
+       <p class="page__sub">Artifacts are filed by the project they were written in — the main checkout, for a worktree.
+         Open one to see only its pages.</p>
+     </div>`,
+    card(null, null, table([{t:'Project'},{t:'Pages',n:1},{t:'Explainers',n:1},{t:'Last written',n:1}], rows)),
+  ].join('');
+}
+
 const ICONS = {
+  artifacts: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/>',
   learning:  '<path d="M4 19V6a2 2 0 0 1 2-2h13v13H6a2 2 0 0 0-2 2z"/><path d="M6 21h13v-4"/><path d="M9 8h6"/>',
   memory:    '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
   dashboard: '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>',
@@ -2230,6 +2330,16 @@ const WORKFLOWS = {
       health:    { label: 'Health', view: () => viewHealth() },
     },
   },
+  artifacts: {
+    name: 'Artifacts',
+    groups: [
+      { id: 'library', label: 'Library', items: ['projects'] },
+    ],
+    pages: {
+      dashboard: { label: 'Dashboard', view: (p) => viewArtifacts(p) },
+      projects:  { label: 'Projects', view: () => viewArtifactProjects() },
+    },
+  },
 };
 
 /**
@@ -2247,6 +2357,7 @@ function href(wf, page, param, q = {}) {
 }
 const LH = (page, param, q) => href('learning', page, param, q);
 const MH = (page, param, q) => href('memory', page, param, q);
+const AH = (page, param, q) => href('artifacts', page, param, q);
 /** A session opened from Memory stays in Memory, and from Learning in Learning. */
 const sessHref = (id) => href(CUR.wf, 'session', id);
 
@@ -2355,6 +2466,7 @@ function navCounts(wf) {
       domains: new Set(conceptsInScope().map((c) => c.domain)).size,
     };
   }
+  if (wf === 'artifacts') return { projects: new Set(artifactsInScope().map((a) => pid(a.project))).size };
   return {
     timeline: sum((p) => p.memory.entries),
     sessions: sum((p) => p.memory.sessions),
@@ -2693,6 +2805,11 @@ $('view').addEventListener('input', (e) => {
     T.concepts.q = e.target.value;
     T.concepts.page = 1;
     render({ id:'q', pos:e.target.selectionStart });
+  }
+  if (e.target.id === 'aq') {
+    T.artifacts.q = e.target.value;
+    T.artifacts.page = 1;
+    render({ id:'aq', pos:e.target.selectionStart });
   }
   if (e.target.id === 'mq') {
     T.memory.q = e.target.value;

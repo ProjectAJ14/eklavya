@@ -677,7 +677,8 @@
       <p class="cmd-ask" data-reveal data-delay="150">
         Or don't learn any of them. <code>npm install -g eklavya &amp;&amp; eklavya install</code> also puts a skill in your
         Claude Code, so <em>“Eklavya, ease off — too many questions”</em> and <em>“open my
-        dashboard”</em> move the same dials, in an ordinary sentence.
+        dashboard”</em> move the same dials, in an ordinary sentence. A second skill turns
+        <em>“make this an Eklavya artifact”</em> into a page on your disk, diagrams included.
         <a href="/docs/commands/#or-just-ask">How that works</a>
       </p>
     </div>
@@ -687,8 +688,8 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
       </span>
       <h3>Your data stays yours</h3>
-      <p>One file: <code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. It holds what you have been asked and how you answered, and the memory half's evidence and observations. Delete the directory and Eklavya forgets you entirely.</p>
-      <p><b>With the default config, nothing leaves the machine.</b> The summariser that writes observations and the embedder that makes them searchable both run locally — no model call, no account, no telemetry. Three settings can change that and none is on unless you turn it on: <code>providers.*</code> has a Claude model summarise captured work, through <code>claude -p</code> on your own subscription, <code>notifications</code> sends wrap-ups where you point it, and <code>sync</code> writes entries into a directory you name. Nothing sets any of them for you, and an upgrade never does. The one request Eklavya makes on its own is asking npm, at most hourly, whether a newer release exists, so it can update itself. That request carries none of your data, and <code>auto_update: false</code> turns it off.</p>
+      <p>One file: <code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. It holds what you have been asked and how you answered, and the memory half's evidence and observations. Explainer pages sit beside it, one folder per project under <code>~/.eklavya/artifacts/</code>. Delete the directory and Eklavya forgets you entirely.</p>
+      <p><b>With the default config, nothing leaves the machine.</b> The summariser that writes observations and the embedder that makes them searchable both run locally — no model call, no account, no telemetry. Three settings can change that and none is on unless you turn it on: <code>providers.*</code> has a Claude model summarise captured work, through <code>claude -p</code> on your own subscription, <code>notifications</code> sends wrap-ups where you point it, and <code>sync</code> writes entries into a directory you name. Nothing sets any of them for you, and an upgrade never does. The one request Eklavya makes on its own is asking npm, at most hourly, whether a newer release exists, so it can update itself. That request carries none of your data, and <code>auto_update: false</code> turns it off. An explainer page you open fetches its web fonts, and nothing else.</p>
       <p>Secrets never get that far. Paths like <code>.env</code> and <code>~/.ssh</code> are excluded before capture, known key shapes are redacted before the write, and Eklavya's own traffic is never recorded. <a href="/docs/memory/#what-is-never-captured">The full list</a></p>
       <p>The commit gate is editor-agnostic: one script installs a plain git <code>pre-commit</code> hook that runs the same check, so a commit from a bare terminal is held exactly like one made inside Claude Code.</p>
     </div>
@@ -703,10 +704,11 @@
       <h2 class="h2" id="dash-title" data-reveal data-delay="100">Am I actually getting better?</h2>
       <p class="dash__sub" data-reveal data-delay="150">
         A terminal report has three lines and answers <em>what now</em>. The long view needs
-        more room, so it gets a local page with two workflows — <strong>Learning</strong> for
+        more room, so it gets a local page with three workflows — <strong>Learning</strong> for
         what you have been taught and asked, <strong>Memory</strong> for what the project
-        remembers — each with its own Dashboard, one switch between them, and every concept,
-        session, observation and question two clicks away.
+        remembers, <strong>Artifacts</strong> for the pages written to explain things to you —
+        each with its own Dashboard, one switch between them, and every concept, session,
+        observation and question two clicks away.
       </p>
       <div class="dash__cmd" data-reveal data-delay="200">
         <div><span>$</span> eklavya dashboard</div>
@@ -719,10 +721,12 @@
         <li>Sessions, Projects, Domains: every project that logged work, including ones with no assessments yet</li>
         <li>Memory Dashboard and Timeline: every observation, filterable, down to the raw evidence behind each one</li>
         <li>Reuse and Health: what each recall actually saved, labelled as the estimate it is, and where capture stops</li>
+        <li>Artifacts: every explainer and page your agent wrote, searchable, grouped by project, one click to open</li>
       </ul>
       <p class="dash__note" data-reveal data-delay="300">
         Bound to loopback, reading the same <code>~/.eklavya/knowledge.db</code>, and making no
-        request to any other host — not even for fonts. <code>--port</code> if 41729 is taken.
+        request to any other host — not even for fonts. An artifact opens in its own tab,
+        sandboxed away from your history. <code>--port</code> if 41729 is taken.
       </p>
     </div>
 
