@@ -1,3 +1,10 @@
+## [1.25.2](https://github.com/ProjectAJ14/eklavya/compare/v1.25.1...v1.25.2) (2026-09-23)
+
+
+### Bug Fixes
+
+* **quiz:** no backlog outside a git repository ([1bc91b3](https://github.com/ProjectAJ14/eklavya/commit/1bc91b3ec87350a59e86f44bb1b99fb36ff20cd6))
+
 ## [1.25.1](https://github.com/ProjectAJ14/eklavya/compare/v1.25.0...v1.25.1) (2026-09-23)
 
 
