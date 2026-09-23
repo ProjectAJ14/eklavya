@@ -103,7 +103,7 @@ const RACERS = 6;
 
 describe('concurrent migrations', () => {
   it('every process survives an upgrade that adds columns, and each migration runs exactly once', async () => {
-    // 012 -> 014: 013 is two ALTER TABLE ADD COLUMNs, the shape that is not
+    // 012 -> latest: 013 is two ALTER TABLE ADD COLUMNs, the shape that is not
     // idempotent and that crashed every loser of the race.
     const file = dbAtVersion(12);
     const startAt = Date.now() + 1500;
@@ -113,10 +113,10 @@ describe('concurrent migrations', () => {
 
     // Between them the racers applied each pending file once, and no file twice.
     const applied = results.flatMap((r) => JSON.parse(r.stdout) as string[]).sort();
-    expect(applied).toEqual(['013_batch_provenance.sql', '014_batch_events_index.sql']);
+    expect(applied).toEqual(['013_batch_provenance.sql', '014_batch_events_index.sql', '015_event_link_indexes.sql']);
 
     const db = new Database(file, { readonly: true });
-    expect(schemaVersion(db)).toBe(14);
+    expect(schemaVersion(db)).toBe(15);
     expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
     db.close();
     expect(columns(file, 'memory_batches')).toEqual(expect.arrayContaining(['summarizer', 'config_digest']));
@@ -176,7 +176,7 @@ describe('concurrent migrations', () => {
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 100');
     try {
-      expect(runMigrations(db)).toEqual(['013_batch_provenance.sql', '014_batch_events_index.sql']);
+      expect(runMigrations(db)).toEqual(['013_batch_provenance.sql', '014_batch_events_index.sql', '015_event_link_indexes.sql']);
       // The caller's own timeout is put back: only migrating waits longer.
       expect(Number(db.pragma('busy_timeout', { simple: true }))).toBe(100);
     } finally {
@@ -188,7 +188,7 @@ describe('concurrent migrations', () => {
   it('takes no write lock when nothing is pending, so an up-to-date open never queues', async () => {
     // Every hook opens the database. If an up-to-date open still took a write
     // lock to check the version, one long write anywhere would stall them all.
-    const file = dbAtVersion(14);
+    const file = dbAtVersion(15);
     const lockFile = path.join(tempDir('lock'), 'held');
     const holder = runChild(`
       import fs from 'node:fs';
