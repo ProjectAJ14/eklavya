@@ -33,12 +33,16 @@
  * The same heal keeps rule 3 current. The plugin updates itself through Claude
  * Code (a marketplace pull, `/plugin update`); the runtime only moves when npm
  * runs. So when the runtime is older than the plugin pins, this run still uses
- * it — never blocking — and a background install brings it up to the pin.
-  *
+ * it — never blocking — and a background install brings it up to the pin,
+ * unless the machine opted out with `auto_update: false`. A MISSING runtime is
+ * installed whatever that setting says: without it nothing works, and
+ * installing the plugin was the request for it.
+ *
  * Hard rule: a hook must never break a session. Everything here
  * fails to exit 0 in silence.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -98,9 +102,25 @@ function olderThan(a, b) {
  */
 function healIfBehind(entry) {
   if (!entry.startsWith(path.join(runtimeHome, 'node_modules', 'eklavya') + path.sep)) return;
+  if (!autoUpdateEnabled()) return;
   const installed = runtimeVersion();
   const pinned = pinnedVersion();
   if (installed && pinned && olderThan(installed, pinned)) healInBackground();
+}
+
+/**
+ * `auto_update` from the machine's config file — the global one only, as
+ * `autoUpdateEnabled` in the runtime's `update.ts` reads it: a project cannot
+ * opt the machine in or out. One small JSON read; anything unreadable is the
+ * default, which is on.
+ */
+function autoUpdateEnabled() {
+  try {
+    const home = process.env.EKLAVYA_HOME ?? path.join(homedir(), '.eklavya');
+    return JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')).auto_update !== false;
+  } catch {
+    return true;
+  }
 }
 
 /** The compiled entry point for `name`, or null if no build is reachable. */
@@ -141,7 +161,9 @@ function healInBackground() {
   } catch {
     return;
   }
-  if (!claimHeal(path.join(runtimeHome, '.installing'))) return;
+  const stamp = path.join(runtimeHome, '.installing');
+  const token = claimHeal(stamp);
+  if (!token) return;
 
   try {
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -155,44 +177,105 @@ function healInBackground() {
     // server this run goes on to import.
     child.on('error', () => {});
     child.unref();
+    // The claim now belongs to npm, which outlives this process: it is live
+    // exactly as long as npm runs. Nobody breaks a claim whose pid is alive,
+    // so the stamp is still this run's to rewrite.
+    if (child.pid) writeClaim(stamp, { pid: child.pid, token, at: new Date().toISOString() });
   } catch {
     /* A failed heal is a slow install, not a broken session. */
   }
 }
 
-const HEAL_CLAIM_MS = 60 * 60 * 1000;
+/** Shared with the runtime's `install-lock.ts`, which holds the same rules. */
+const LOCK_TTL_MS = 60 * 60 * 1000;
+const LEGACY_DATE_MS = 10 * 60 * 1000;
+/** How often the heal may start npm, finished or not. */
+const HEAL_EVERY_MS = 60 * 60 * 1000;
+
+function ownerOf(text) {
+  const body = text.trim();
+  if (/^\d+$/.test(body)) return { pid: Number(body), token: null };
+  try {
+    const value = JSON.parse(body);
+    return { pid: typeof value.pid === 'number' ? value.pid : null, token: typeof value.token === 'string' ? value.token : null };
+  } catch {
+    return { pid: null, token: null };
+  }
+}
+
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM';
+  }
+}
+
+/** Is this stamp somebody's live claim on the runtime? */
+function liveClaim(file, text) {
+  const age = Date.now() - statSync(file).mtimeMs;
+  if (age >= LOCK_TTL_MS) return false;
+  const { pid } = ownerOf(text);
+  return pid !== null ? pidAlive(pid) : age < LEGACY_DATE_MS;
+}
+
+/** Replaces the stamp in one step, so a reader never sees half of it. */
+function writeClaim(stamp, owner) {
+  try {
+    const tmp = `${stamp}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(owner));
+    renameSync(tmp, stamp);
+  } catch {
+    /* It still names this process, which is gone soon: the next claim breaks it. */
+  }
+}
 
 /**
- * Take the `.installing` stamp, or say someone else holds it. The session's
- * hooks and its server start within milliseconds of each other, so a stat
- * followed by a write lets several through: creating with `wx` is the one
- * step only one process can win. A stamp older than the hour is taken by
- * renaming it away — again one winner — and put back if it turned out to be
- * a fresh claim that landed in between.
+ * Take the runtime lock — the `.installing` stamp `eklavya install` and the
+ * updater take too — and return its token, or null. The session's hooks and
+ * its server start within milliseconds of each other, so a stat followed by a
+ * write lets several through: creating with `wx` is the one step only one
+ * process can win.
+ *
+ * A stamp is broken only when it is not a live claim — its pid is dead, or it
+ * is past the hour — and, for the heal alone, only once it is an hour old: the
+ * stamp a finished or failed heal leaves behind is also what keeps a broken
+ * npm from being retried on every hook. Breaking is a rename (one winner), and
+ * a fresh claim renamed by mistake is put back with `link`, which never
+ * overwrites.
  */
 function claimHeal(stamp) {
+  const token = randomUUID();
   const create = () => {
     try {
-      writeFileSync(stamp, new Date().toISOString(), { flag: 'wx' });
-      return true;
+      writeFileSync(stamp, JSON.stringify({ pid: process.pid, token, at: new Date().toISOString() }), { flag: 'wx' });
+      return token;
     } catch {
-      return false;
+      return null;
     }
   };
-  if (create()) return true;
+  if (create()) return token;
+  const taken = `${stamp}.${process.pid}.${token}`;
   try {
-    if (Date.now() - statSync(stamp).mtimeMs < HEAL_CLAIM_MS) return false;
-    const taken = `${stamp}.${process.pid}`;
+    const judged = readFileSync(stamp, 'utf8');
+    if (liveClaim(stamp, judged) || Date.now() - statSync(stamp).mtimeMs < HEAL_EVERY_MS) return null;
     renameSync(stamp, taken);
-    if (Date.now() - statSync(taken).mtimeMs < HEAL_CLAIM_MS) {
-      renameSync(taken, stamp);
-      return false;
+    if (readFileSync(taken, 'utf8') !== judged) {
+      try {
+        linkSync(taken, stamp);
+      } catch {
+        /* someone else holds it now; theirs stands */
+      }
+      rmSync(taken, { force: true });
+      return null;
     }
     rmSync(taken, { force: true });
   } catch {
     // Cannot even read or move the stamp, so we cannot bound the retries.
     // Doing nothing is the safe failure: the explicit installer still works.
-    return false;
+    rmSync(taken, { force: true });
+    return null;
   }
   return create();
 }

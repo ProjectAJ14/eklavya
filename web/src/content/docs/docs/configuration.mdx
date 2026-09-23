@@ -83,7 +83,7 @@ only a project or global change to `quiz.enforced` is the second one.
 | `max_new_concepts_per_session` | `8` | Cap on concepts Claude may invent per session, against slug sprawl. |
 | `max_stop_blocks_per_session` | `3` | Hard backstop on how many times the end-of-task hook may hold a session open. |
 | `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
-| `auto_update` | `true` | Eklavya updates itself: at most once an hour, a session start checks npm in the background and installs a newer release ([Updates](/docs/installing/#updates)). `false` stops that; `eklavya update` still works by hand. Global only: a project file that sets it is ignored, because there is one runtime per machine. |
+| `auto_update` | `true` | Eklavya updates itself: at most once an hour, a session start checks npm in the background and installs a newer release ([Updates](/docs/installing/#updates)). `false` stops that, and stops the background catch-up install when the plugin is newer than the runtime; a missing runtime is still installed. `eklavya update` still works by hand. Global only: a project file that sets it is ignored, because there is one runtime per machine. |
 | `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `quiz.enabled: false` for that. |
 
 ### Setting a namespaced key
