@@ -31,6 +31,6 @@ describe('the claude -p observer', () => {
     expect(args).toEqual(expect.arrayContaining(['-p', '--strict-mcp-config', '--no-session-persistence']));
     expect(args[args.indexOf('--model') + 1]).toBe('claude-haiku-4-5');
     expect(args[args.indexOf('--tools') + 1]).toBe('');
-    expect(JSON.parse(args[args.indexOf('--settings') + 1]!)).toEqual({ disableAllHooks: true });
+    expect(JSON.parse(args[args.indexOf('--settings') + 1]!)).toEqual({ disableAllHooks: true, apiKeyHelper: null });
   });
 });

@@ -109,7 +109,8 @@ export function claudeArgs(model: string): string[] {
     '--tools', '',
     '--strict-mcp-config',
     '--no-session-persistence',
-    '--settings', JSON.stringify({ disableAllHooks: true }),
+    // A null helper overrides one in the developer's settings, which would bill an API key.
+    '--settings', JSON.stringify({ disableAllHooks: true, apiKeyHelper: null }),
   ];
 }
 
@@ -143,15 +144,23 @@ function classifyMessage(message: string, status: unknown): ProviderErrorClass {
   return 'transient';
 }
 
+const NOT_THE_SUBSCRIPTION = [
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'CLAUDE_CODE_USE_BEDROCK',
+  'CLAUDE_CODE_USE_VERTEX',
+];
+
 /**
  * Runs the configured Claude model through Claude Code (`claude -p`), on the
- * developer's own subscription. `ANTHROPIC_API_KEY` is stripped from the
- * child's environment so a stray key in the shell can never turn this into
- * metered API traffic.
+ * developer's own subscription. Every variable that would route it elsewhere —
+ * an API key or token, Bedrock, Vertex — is stripped from the child's
+ * environment, so a stray one in the shell can never turn this into metered
+ * API traffic.
  */
 function runClaude(model: string, prompt: string): Promise<string> {
   const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
+  for (const name of NOT_THE_SUBSCRIPTION) delete env[name];
   return new Promise((resolve, reject) => {
     const child = execFile(
       'claude',
