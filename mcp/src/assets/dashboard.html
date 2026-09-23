@@ -1807,7 +1807,7 @@ function viewHealth() {
             your subscription.</p>`)}
      </div>`,
 
-    card('Stalled jobs', 'Grouped by why they stopped. Transient retries on its own; auth and quota need you.',
+    card('Stalled jobs', 'Grouped by why they stopped. Transient retries on its own; auth, quota and missing need you.',
       H.stalled.length
         ? table([{t:'Status'},{t:'Why'},{t:'Jobs',n:1},{t:'Attempts',n:1},{t:'Last',n:1}],
             H.stalled.map((j) => `<tr>

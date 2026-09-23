@@ -13,7 +13,7 @@ import type { EntryDraft, SummarizeInput, Summarizer } from './summarize.js';
  */
 
 /** Distinguishing these is what stops a retry loop paid for by the developer. */
-export type ProviderErrorClass = 'transient' | 'auth' | 'quota' | 'overflow' | 'malformed' | 'permanent';
+export type ProviderErrorClass = 'transient' | 'auth' | 'quota' | 'missing' | 'overflow' | 'malformed' | 'permanent';
 
 export class ProviderError extends Error {
   constructor(
@@ -90,8 +90,12 @@ function renderEvidence(input: SummarizeInput): string {
     .join('\n');
 }
 
-/** Five minutes: a summary that takes longer is a hung child, not a slow model. */
-const TIMEOUT_MS = 5 * 60_000;
+/**
+ * Inside the worker's 120s claim lease: a run that outlived it would see its job
+ * claimed by the next worker and summarised twice. A summary takes seconds, so
+ * one this slow is a hung child, not a slow model.
+ */
+const TIMEOUT_MS = 100_000;
 
 /**
  * The flags that make `claude -p` a summariser and nothing else: no tools, no
@@ -168,8 +172,11 @@ function runClaude(model: string, prompt: string): Promise<string> {
       { env, cwd: os.tmpdir(), timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout) => {
         const code = (error as NodeJS.ErrnoException | null)?.code;
+        // ponytail: no shell, so on Windows only a native `claude.exe` is found, not
+        // npm's `claude.cmd` shim — cmd.exe would mangle the JSON arguments. Resolve
+        // the shim's cli.js and run it with node if Windows npm installs need this.
         if (code === 'ENOENT') {
-          return reject(new ProviderError('auth', 'claude is not on PATH — memory summaries need Claude Code'));
+          return reject(new ProviderError('missing', 'claude is not on the PATH the hooks see'));
         }
         // A failed run still prints its JSON envelope; that says more than the exit code.
         if (stdout.trim()) return resolve(stdout);

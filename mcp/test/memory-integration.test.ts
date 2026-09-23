@@ -10,6 +10,7 @@ import { dashboardState } from '../src/dashboard.js';
 import { countEntries, insertEntry, receiptTotals, timeline } from '../src/memory/store.js';
 import { savingsFrom } from '../src/memory/tokens.js';
 import { projectKey } from '../src/store.js';
+import { queueDepth } from '../src/memory/worker.js';
 
 /**
  * The whole memory loop, through the hooks the plugin actually runs.
@@ -119,6 +120,12 @@ describe('the memory loop, end to end through the real hooks', () => {
       }
       expect(entry?.title).toBe('Rotated refresh tokens');
       expect(entry?.generator).toBe('anthropic:m');
+      // The observation lands before the worker finishes its job; wait for that,
+      // or afterEach deletes the database out from under it.
+      for (let i = 0; i < 100 && queueDepth(db).pending > 0; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      expect(queueDepth(db).pending).toBe(0);
     } finally {
       fs.rmSync(bin, { recursive: true, force: true });
     }

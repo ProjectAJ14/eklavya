@@ -181,18 +181,22 @@ export interface JobRow {
  * still `pending`, and without it the next hook — seconds later — would claim
  * it again and spend another attempt on a provider that has not recovered.
  */
+/** A job a worker could take right now: due, and not held by a live lease. */
+const CLAIMABLE = `(next_attempt IS NULL OR next_attempt <= @now)
+  AND (status = 'pending' OR (status = 'claimed' AND (lease_until IS NULL OR lease_until < @now)))`;
+
+/** Whether starting a worker would find anything to do. */
+export function hasClaimableJob(db: DB): boolean {
+  return db.prepare(`SELECT 1 FROM memory_jobs WHERE ${CLAIMABLE} LIMIT 1`).get({ now: nowIso() }) !== undefined;
+}
+
 export function claimJob(db: DB, owner: string, leaseSeconds = 120): JobRow | null {
   const now = nowIso();
   const until = new Date(Date.now() + leaseSeconds * 1000).toISOString();
   return db.transaction(() => {
-    const job = db
-      .prepare(
-        `SELECT * FROM memory_jobs
-         WHERE (next_attempt IS NULL OR next_attempt <= ?)
-           AND (status = 'pending' OR (status = 'claimed' AND (lease_until IS NULL OR lease_until < ?)))
-         ORDER BY id LIMIT 1`,
-      )
-      .get(now, now) as JobRow | undefined;
+    const job = db.prepare(`SELECT * FROM memory_jobs WHERE ${CLAIMABLE} ORDER BY id LIMIT 1`).get({ now }) as
+      | JobRow
+      | undefined;
     if (!job) return null;
     db.prepare(
       `UPDATE memory_jobs
@@ -233,7 +237,7 @@ export function failJob(
   db: DB,
   jobId: number,
   owner: string,
-  errorClass: 'transient' | 'auth' | 'quota' | 'overflow' | 'malformed' | 'permanent',
+  errorClass: 'transient' | 'auth' | 'quota' | 'missing' | 'overflow' | 'malformed' | 'permanent',
   message: string,
   maxAttempts = 5,
   random: () => number = Math.random,
@@ -243,7 +247,7 @@ export function failJob(
     | undefined;
   const attempts = row?.attempts ?? 0;
   const terminal = errorClass === 'permanent' || errorClass === 'malformed' || attempts >= maxAttempts;
-  const paused = errorClass === 'auth' || errorClass === 'quota';
+  const paused = pausesQueue(errorClass);
   const window = Math.min(RETRY_CEILING_MS, RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1));
   db.prepare(
     `UPDATE memory_jobs
@@ -264,9 +268,18 @@ export function failJob(
 }
 
 /**
+ * The failures that pause rather than retry: the next job would fail the same
+ * way until the developer fixes something — a login, a usage limit, or a
+ * `claude` the hooks cannot find.
+ */
+export function pausesQueue(errorClass: string): boolean {
+  return errorClass === 'auth' || errorClass === 'quota' || errorClass === 'missing';
+}
+
+/**
  * Puts every paused job back in the queue, and returns how many moved.
  *
- * `failJob` parks an auth or quota failure at 'paused' and nothing else ever
+ * `failJob` parks an auth, quota or missing failure at 'paused' and nothing else ever
  * moves it, so this is the only way out — deliberately, and deliberately not
  * automatic. Running `eklavya memory process` is the developer saying they have
  * repaired the credential; a hook doing it on their behalf would re-spend a

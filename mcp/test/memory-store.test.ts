@@ -12,6 +12,7 @@ import {
   deleteEntry,
   failJob,
   finishJob,
+  hasClaimableJob,
   insertEntry,
   pendingCandidates,
   pendingEventCount,
@@ -87,6 +88,21 @@ describe('jobs', () => {
     expect(stolen?.id).toBe(mine!.id);
     finishJob(db, stolen!.id, 'worker-2');
     expect(claimJob(db, 'worker-3')).toBeNull();
+  });
+
+  it('offers a worker only what it could claim now', () => {
+    expect(hasClaimableJob(db)).toBe(false);
+    event('a');
+    batchSession(db, { project: PROJECT, sessionId: 's1', reason: 'manual' });
+    expect(hasClaimableJob(db)).toBe(true);
+    const job = claimJob(db, 'w')!;
+    // Held by a live lease: a second worker would start only to exit.
+    expect(hasClaimableJob(db)).toBe(false);
+    db.prepare("UPDATE memory_jobs SET lease_until = '2000-01-01T00:00:00.000Z'").run();
+    expect(hasClaimableJob(db)).toBe(true);
+    failJob(db, job.id, 'w', 'missing', 'claude is not on the PATH the hooks see');
+    expect((db.prepare('SELECT status FROM memory_jobs WHERE id = ?').get(job.id) as { status: string }).status).toBe('paused');
+    expect(hasClaimableJob(db)).toBe(false);
   });
 
   it('pauses on auth failure and gives up on malformed output', () => {

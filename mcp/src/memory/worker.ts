@@ -12,6 +12,7 @@ import {
   claimJob,
   failJob,
   finishJob,
+  pausesQueue,
   insertEntry,
   replaceEntry,
   timeline,
@@ -201,7 +202,7 @@ export async function processPending(
       result.failed++;
       // A paused provider will fail the next job the same way; stop rather than
       // burn the remaining budget re-learning that the key is rejected.
-      if (errorClass === 'auth' || errorClass === 'quota') break;
+      if (pausesQueue(errorClass)) break;
     }
   }
 

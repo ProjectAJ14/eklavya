@@ -141,8 +141,8 @@ and the page keeps them apart so you can tell which one stopped.
 - **Queued / paused / failed** — observation jobs, with the age of the oldest
   one still waiting.
 - **Stalled jobs** — grouped by `error_class`: `transient`, `auth`, `quota`,
-  `overflow`, `malformed` or `permanent`. `transient` retries itself; `auth` and
-  `quota` need you. The error *message* is never shown, because a provider
+  `missing`, `overflow`, `malformed` or `permanent`. `transient` retries itself;
+  `auth`, `quota` and `missing` (the hooks could not find `claude`) need you. The error *message* is never shown, because a provider
   message can quote the request that produced it.
 - **Dropped** — events the on-disk spool could not keep when the database was
   locked. Anything above zero is evidence that was lost.

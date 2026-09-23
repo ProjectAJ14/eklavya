@@ -297,7 +297,7 @@ export async function onboard(opts: {
     const memory = (readConfigFile(globalConfigPath()).memory ?? {}) as Record<string, unknown>;
     patch.memory = { ...memory, enabled: chosen.memory === 'on' };
   }
-  if (recording(chosen.memory) && chosen.model !== list[list.length - 1]!.current) {
+  if (recording(chosen.memory) && chosen.model !== list.find((s) => s.key === 'model')!.current) {
     const providers = (readConfigFile(globalConfigPath()).providers ?? {}) as Record<string, unknown>;
     patch.providers = {
       ...providers,

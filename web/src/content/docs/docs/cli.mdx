@@ -32,7 +32,7 @@ and two of them have no equivalent as a tool.
 | `search <query>` | `--mode keyword\|semantic\|hybrid`, `--limit`, `--all-projects`. Titles and ids, not narratives. |
 | `timeline` | Recent entries, newest first. `--limit`, `--since <iso date>`. |
 | `show <id>` | One entry in full, with the raw evidence it was built from. |
-| `process` | Drains the observation queue now, rather than waiting for the next session seam. `--max <n>`. With a model configured, the hooks already run this in the background at every seam, with `--no-resume` so paused jobs stay paused. It is also the repair for a queue that has **paused**: a provider refusing on auth or quota parks its jobs rather than spending a dead credential once per tool call, and nothing automatic picks them up again. Running this is how you say you have fixed it — it puts the paused jobs back and says how many. |
+| `process` | Drains the observation queue now, rather than waiting for the next session seam. `--max <n>`. With a model configured, the hooks already run this in the background at every seam, with `--no-resume` so paused jobs stay paused. It is also the repair for a queue that has **paused**: a provider refusing on auth or quota, or a `claude` the hooks cannot find, parks its jobs rather than spending a dead credential once per tool call, and nothing automatic picks them up again. Running this is how you say you have fixed it — it puts the paused jobs back and says how many. |
 | `prune` | Deletes raw evidence older than `memory.retention_days`, keeping the observations built from it. Does nothing when retention is unset. |
 | `import <source.db>` | Imports a Claude Mem database. See below. |
 | `export <file>` | A versioned JSON file of entries, tags, evidence links and receipts. |

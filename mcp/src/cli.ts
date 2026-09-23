@@ -489,8 +489,14 @@ function doctor(): void {
 
     if (queue.paused > 0) {
       memoryOk = false;
-      add('fail', 'memory', `FAILED — ${queue.paused} job(s) paused (${classes('paused')}); nothing is being summarised`);
-      add('fail', 'memory', dim('log in to Claude Code (claude, then /login) or wait out the usage limit, then: eklavya memory process'));
+      const paused = classes('paused');
+      add('fail', 'memory', `FAILED — ${queue.paused} job(s) paused (${paused}); nothing is being summarised`);
+      const fixes = [
+        paused.includes('missing') && 'put claude on the PATH Claude Code starts with (an app or IDE launch often has a shorter one)',
+        paused.includes('auth') && 'log in to Claude Code (claude, then /login)',
+        paused.includes('quota') && 'wait out the usage limit',
+      ].filter(Boolean);
+      add('fail', 'memory', dim(`${fixes.join(', or ') || 'fix what paused it'}, then: eklavya memory process`));
     }
     if (queue.failed > 0) {
       // Not a failure: a permanently failed job is a batch that will never

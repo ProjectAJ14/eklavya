@@ -12,7 +12,7 @@ import type { ResolvedConfig } from '../config.js';
 import { projectKey } from '../store.js';
 import { identityFor, type EvidenceIdentity } from '../memory/identity.js';
 import { capture, drainSpool, type HostEvent } from '../memory/capture.js';
-import { batchSession, pendingEventCount } from '../memory/store.js';
+import { batchSession, hasClaimableJob, pendingEventCount } from '../memory/store.js';
 import { processPending, writeSessionSummary } from '../memory/worker.js';
 import { recall, recallForPrompt } from '../memory/recall.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
@@ -83,7 +83,8 @@ export async function flushAtSeam(db: DB, resolved: ResolvedConfig, identity: Ev
       maxEvents: resolved.config.memory.batch_max_events,
     });
     if (resolved.config.providers.observer) {
-      if (queueDepth(db).pending > 0) drainInBackground();
+      // Not while a live worker holds every job: it would start only to exit.
+      if (hasClaimableJob(db)) drainInBackground();
       return;
     }
     await processPending(db, resolved.config, { maxJobs: 2 });
