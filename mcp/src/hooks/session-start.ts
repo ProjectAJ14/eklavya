@@ -101,8 +101,10 @@ await run(async (input) => {
     replaySpool(db);
     // Drain first, then mark the seam. The other order batches the lifecycle
     // event on its own and summarises "session started" into an observation of
-    // nothing.
-    await flushAtSeam(db, resolved, identity);
+    // nothing. `all`: the last session has no seam of its own left, so its
+    // tail is closed now however small — the Stop hook's size and age
+    // thresholds are for a session that will have another turn.
+    await flushAtSeam(db, resolved, identity, { all: true });
     record(db, resolved, identity, {
       kind: 'lifecycle',
       title: input.source === 'resume' ? 'session resumed' : 'session started',
