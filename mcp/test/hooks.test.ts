@@ -304,6 +304,29 @@ describe('SessionStart never breaks a session', () => {
 });
 
 describe('SessionStart output', () => {
+  it('tells the developer, every session, that updates are failing and what fixes it', () => {
+    fs.writeFileSync(
+      path.join(home, 'update.json'),
+      JSON.stringify({ error: 'npm install failed: EACCES', error_class: 'npm' }),
+    );
+    for (let i = 0; i < 2; i++) {
+      expect(sessionStart().shown).toContain("Eklavya can't update itself · npm install failed: EACCES · run: eklavya update");
+    }
+  });
+
+  it('says "updated" once, for the version now running', () => {
+    const pkg = path.join(home, 'runtime', 'node_modules', 'eklavya');
+    fs.mkdirSync(pkg, { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ version: '9.9.9' }));
+    // Checked just now, so the hook starts no background run of its own.
+    fs.writeFileSync(
+      path.join(home, 'update.json'),
+      JSON.stringify({ applied: '9.9.9', announced: '9.9.8', checked_at: new Date().toISOString() }),
+    );
+    expect(sessionStart().shown).toContain('Eklavya updated to 9.9.9');
+    expect(sessionStart().shown).not.toContain('updated to');
+  });
+
   it('stamps the session id so MCP tools resolve the same session (G1)', () => {
     sessionStart();
     const row = db.prepare("SELECT value FROM meta WHERE key = 'current_session'").get() as { value: string };

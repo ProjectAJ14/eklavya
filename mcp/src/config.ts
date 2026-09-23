@@ -278,6 +278,15 @@ export interface EklavyaConfig {
   min_minutes_between_checkpoints: number;
   domains_enabled: string[];
   quiet: boolean;
+  /**
+   * Whether Eklavya updates itself: a background check at session start, at
+   * most hourly, that installs a newer release into `~/.eklavya/runtime` and
+   * re-runs `eklavya install --auto` (see `update.ts`). On by default, like
+   * Claude Code's own updater — an install nobody has to remember is the point.
+   * Global only: the runtime is the machine's, not one project's. Off still
+   * leaves `eklavya update` working by hand.
+   */
+  auto_update: boolean;
   /** Cap on LLM-minted concepts per session, against slug sprawl. */
   max_new_concepts_per_session: number;
   /** Hard backstop on the Stop hook's loop guard, read by the stop-quiz-check hook. */
@@ -304,6 +313,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   min_minutes_between_checkpoints: 4,
   domains_enabled: ['*'],
   quiet: false,
+  auto_update: true,
   max_new_concepts_per_session: 8,
   max_stop_blocks_per_session: 3,
   memory: {
@@ -498,6 +508,7 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
     out.domains_enabled = raw.domains_enabled as string[];
   }
   if (typeof raw.quiet === 'boolean') out.quiet = raw.quiet;
+  if (typeof raw.auto_update === 'boolean') out.auto_update = raw.auto_update;
   if (
     typeof raw.max_new_concepts_per_session === 'number' &&
     raw.max_new_concepts_per_session >= 0
@@ -679,9 +690,11 @@ const CLONED_FORBIDDEN = ['notifications', 'sync', 'providers'] as const;
  * drains every project's jobs with the config it was started under, so a
  * project-level `providers.observer` would decide whether some *other*
  * project's sessions are sent to a model. That is a decision about the machine,
- * made once, in the machine's file.
+ * made once, in the machine's file. `auto_update` for the same reason: there
+ * is one runtime per machine, and a project that turned it off would stop
+ * updates for every other project too.
  */
-const GLOBAL_ONLY_KEYS = ['providers'] as const;
+const GLOBAL_ONLY_KEYS = ['providers', 'auto_update'] as const;
 
 /** True for a global-only namespace or any dotted key under it (`providers.observer`). */
 export function isGlobalOnlyKey(key: string): boolean {

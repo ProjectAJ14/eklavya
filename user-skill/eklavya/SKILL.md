@@ -1,6 +1,6 @@
 ---
 name: eklavya
-description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, or find where their data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
+description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, update Eklavya, or find where their data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
 ---
 
 # Eklavya
@@ -221,6 +221,15 @@ the learning history. Two cases it can't fix on its own, and `doctor` says which
 - **the skill is a different skill named eklavya** — they have their own
   `~/.claude/skills/eklavya/`. Never overwrite it. Tell them to move theirs
   first, then run `eklavya install`.
+
+**Updates are automatic.** Eklavya checks npm at session start, at most hourly,
+and installs a newer release on its own, settings untouched. So "update
+Eklavya" needs nothing, and if they want it now, run `eklavya update`. If
+session start said `Eklavya can't update itself · <reason> · run: eklavya
+update`, run `eklavya update` to see the full error, and `doctor`'s `updates`
+row says the same. Never suggest `npm install -g eklavya` for an update: the
+`eklavya` command already runs the newer runtime's copy on its own.
+`auto_update false` turns updates off, globally only.
 
 Restarting Claude Code is what picks up a repaired install — the plugin and MCP
 server are read at session start. There is no background process to restart.

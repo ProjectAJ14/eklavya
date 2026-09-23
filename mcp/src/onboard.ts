@@ -1,21 +1,27 @@
 /**
- * The dials, one at a time, every time `eklavya install` runs.
+ * The dials, one at a time — on a first install, or with `--settings`.
  *
- * There is no "onboarded" flag, on purpose: a first run and a tenth run are the
- * same walk. Each step marks what is set now and starts the cursor on it: ↑/↓
- * move, Enter (or Space, or →) chooses, and a digit jumps straight to one. A
- * first install is six Enters to the defaults; a re-install is how you see
- * what you chose and tweak one thing. Once memory is on, one follow-up asks
- * which model writes the memories (`providers.observer`), starting on `local`.
+ * A first run (no `~/.eklavya/config.json` yet) walks every step; after that
+ * `eklavya install` keeps the settings and only prints them, because it is
+ * also how Eklavya upgrades — by hand, or by the auto-updater running
+ * `install --auto` — and an upgrade that stops for six Enters is one nobody
+ * finishes. `eklavya install --settings` walks them again. Each step marks
+ * what is set now and starts the cursor on it: ↑/↓ move, Enter (or Space, or
+ * →) chooses, and a digit jumps straight to one. Once memory is on, one
+ * follow-up asks which model writes the memories (`providers.observer`),
+ * starting on `local`.
  *
- * Without a terminal (CI, a pipe, the test suite) nothing is asked: the settings
- * are printed and left as they are.
+ * Without a terminal (CI, a pipe, the test suite) nothing is asked either.
+ * With Claude Mem present and nobody asked, a first install picks the choice
+ * that touches nothing of theirs (Claude Mem keeps recording); a re-install
+ * decides nothing, and leaves which of the two records exactly as it is.
  *
  * Keys arrive as readline keypress events in raw mode, never `fs.readSync(0)`.
  * After `npm install -g` the inherited stdin is often non-blocking, a sync read
  * throws EAGAIN, and the old installer took that as "no terminal" — printing a
  * question and answering it itself.
  */
+import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { emitKeypressEvents, type Key } from 'node:readline';
 import { globalConfigPath } from './paths.js';
@@ -242,7 +248,10 @@ export async function onboard(opts: {
   claudeMem: boolean;
   memoryFlag: MemoryOwner | null;
   hookScript: string;
+  /** False on a re-install without `--settings`, and always under `--auto`. */
+  ask: boolean;
 }): Promise<MemoryOwner | null> {
+  const firstRun = !fs.existsSync(globalConfigPath());
   const before = loadGlobalConfig();
   const list = steps(before, opts.claudeMem);
   const chosen: Record<string, string> = Object.fromEntries(list.map((s) => [s.key, s.current]));
@@ -250,7 +259,7 @@ export async function onboard(opts: {
   if (memoryFixed) chosen.memory = opts.memoryFlag!;
   let topic = before.focus_topic;
 
-  const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  const tty = opts.ask && Boolean(process.stdin.isTTY && process.stdout.isTTY);
   if (tty) {
     plain(`\n${bold('Your settings')}  ${dim(`↑↓ move · Enter chooses · ${glyph.ok} is set now`)}`);
     try {
@@ -276,8 +285,8 @@ export async function onboard(opts: {
       if (!(err instanceof Closed)) throw err;
       plain('');
     }
-  } else if (opts.claudeMem && !memoryFixed) {
-    // Nobody to ask: the choice that touches nothing of theirs.
+  } else if (opts.claudeMem && !memoryFixed && firstRun) {
+    // Nobody to ask on a first install: the choice that touches nothing of theirs.
     chosen.memory = 'claude-mem';
   }
 
@@ -304,7 +313,9 @@ export async function onboard(opts: {
       observer: chosen.model === 'local' ? null : { kind: 'anthropic', model: chosen.model },
     };
   }
-  if (Object.keys(patch).length) writeConfigFile(globalConfigPath(), patch);
+  // After a walk the file is written even with nothing changed: its existence
+  // is what tells the next install the settings were chosen, not defaulted.
+  if (Object.keys(patch).length || (tty && firstRun)) writeConfigFile(globalConfigPath(), patch);
 
   plain('');
   for (const step of list) {
@@ -317,7 +328,12 @@ export async function onboard(opts: {
     check(null, '', dim(`gate commits made outside Claude Code too: ${opts.hookScript}, in each repo`));
   }
   check(null, '', dim(Object.keys(patch).length ? `settings saved to ${globalConfigPath()}` : 'settings unchanged'));
-  if (!tty) check(null, '', dim('change them: eklavya install in a terminal, or eklavya config set'));
+  if (!tty) check(null, '', dim('change them: eklavya install --settings, or eklavya config set'));
+  if (!tty && opts.claudeMem && !memoryFixed && !firstRun && before.memory.enabled) {
+    // Unasked is undecided. Picking a recorder here once switched Eklavya's
+    // memory off on a plain re-run, which is a setting changed by an upgrade.
+    check(null, '', dim('Claude Mem is installed too · pick who records: eklavya install --settings'));
+  }
 
   // Run from inside a checkout with its own settings, the walk above is not
   // what applies here — say so, rather than let a global "concept" hide a
@@ -337,5 +353,5 @@ export async function onboard(opts: {
     check('warn', 'project', `this checkout overrides ${pinned.join(', ')} ${dim(`— ${here.projectPath}`)}`);
   }
 
-  return opts.claudeMem ? (chosen.memory as MemoryOwner) : null;
+  return opts.claudeMem && (tty || memoryFixed || firstRun) ? (chosen.memory as MemoryOwner) : null;
 }

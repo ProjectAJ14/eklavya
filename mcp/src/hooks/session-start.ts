@@ -14,6 +14,7 @@ import { startupDisplay } from '../memory/recall.js';
 import { savingsLine } from '../memory/tokens.js';
 import { dialParts, paint } from '../statusline.js';
 import { DEFAULT_PORT } from '../paths.js';
+import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
 import net from 'node:net';
 
 /**
@@ -39,8 +40,26 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
     interruption is the product -- learning while the work happens, not a pile of questions after
     it. One question, no summary, no re-plan, no second question.`;
 
+/**
+ * The auto-updater's one line, if it has one: "updated to X" once, or "can't
+ * update itself" every session until it clears. Shown whatever `quiet` says,
+ * like the database health line -- it is a status, not a greeting. Read before
+ * the run below starts, so it reports the last finished run, never this one.
+ */
+let updateLine: ReturnType<typeof updateNotice> = null;
+
 await run(async (input) => {
   const cwd = cwdOf(input);
+
+  // First, and before any early return: an install that cannot open its
+  // database is exactly the one a newer release might fix. Both calls swallow
+  // their failures; the run itself is a detached process nobody waits on.
+  try {
+    updateLine = updateNotice();
+  } catch {
+    /* no line is fine */
+  }
+  startBackgroundUpdate();
 
   // Lift a leftover `<repo>/.eklavya.json` out of the checkout, silently. This
   // is the moment that makes the move automatic: settings files stopped living
@@ -60,7 +79,7 @@ await run(async (input) => {
   // is nothing to say. One that is there and unusable is Eklavya stopped, and
   // the developer is told once, whatever `quiet` says -- it is not a greeting.
   const { db, problem } = openOrDiagnose();
-  if (!db) return problem ? emit([healthLine(problem)], []) : 0;
+  if (!db) return emit(problem ? [healthLine(problem)] : [], []);
 
   const sid = sessionId(input, db);
 
@@ -195,6 +214,10 @@ await run(async (input) => {
  * `get_config` and `get_learner_profile` for anything the banner says.
  */
 function emit(shown: string[], context: string[]): number {
+  if (updateLine) {
+    shown = [...shown, updateLine.text];
+    if (updateLine.announces) markAnnounced(updateLine.announces);
+  }
   if (!shown.length && !context.length) return 0;
   process.stdout.write(
     `${JSON.stringify({
