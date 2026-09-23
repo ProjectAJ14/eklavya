@@ -395,6 +395,8 @@ export async function superviseWorker(
   // A stop that landed after the last job — SIGTERM, Ctrl-C, a closed
   // terminal — still means stop: no successor.
   let handedOff = false;
+  // The token that holds the slot now: this run's, or its successor's once handed on.
+  let holding = token;
   if (
     (result.stopped === 'limit' || result.stopped === 'empty') &&
     config.providers.observer &&
@@ -402,16 +404,21 @@ export async function superviseWorker(
     !cancel.signal.aborted &&
     !opts.signal?.aborted
   ) {
+    let next: string | null = null;
     try {
-      handedOff = handOffWorker(db, token, () => hasClaimableJob(db) && queueDepth(db).paused === 0);
+      next = handOffWorker(db, token, () => hasClaimableJob(db) && queueDepth(db).paused === 0);
     } catch {
-      handedOff = false;
+      next = null;
     }
-    // A successor that cannot start releases the slot itself.
-    if (handedOff) handedOff = (opts.launch ?? launchWorker)(db, token);
+    // From here on the slot is `next`'s, and this run's `token` matches
+    // nothing. A successor that cannot start is released below under `next`.
+    if (next) {
+      holding = next;
+      handedOff = (opts.launch ?? launchWorker)(db, next);
+    }
   }
   const released = handedOff ? false : await persist(() => {
-    if (!releaseWorker(db, token)) throw new Error('busy');
+    if (!releaseWorker(db, holding)) throw new Error('busy');
   });
   return { ...result, handedOff, released };
 }
