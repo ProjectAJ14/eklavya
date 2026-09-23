@@ -753,3 +753,89 @@ describe('the new endpoints', () => {
     }
   });
 });
+
+describe('search takes the box literally', () => {
+  // The escape was there and the `ESCAPE '\'` clause was not, so SQLite read
+  // `\%` as a backslash followed by a wildcard, and any search containing `%`,
+  // `_` or `\` found nothing at all.
+  const titles = (q: string) => ((memoryPage(db, { q, per: 50 }) as any).rows as any[]).map((r) => r.title).sort();
+
+  beforeEach(() => {
+    remember({ title: '100% done', narrative: 'n' });
+    remember({ title: 'snake_case rename', narrative: 'n' });
+    remember({ title: 'snakeXcase rename', narrative: 'n' });
+    remember({ title: 'C:\\Users\\path fix', narrative: 'n' });
+    remember({ title: '100 things', narrative: 'n' });
+  });
+
+  it('a percent sign is a percent sign', () => {
+    expect(titles('100%')).toEqual(['100% done']);
+  });
+
+  it('an underscore matches an underscore, not any character', () => {
+    expect(titles('_')).toEqual(['snake_case rename']);
+    expect(titles('snake_case')).toEqual(['snake_case rename']);
+  });
+
+  it('a backslash is a backslash', () => {
+    expect(titles('\\')).toEqual(['C:\\Users\\path fix']);
+    expect(titles('C:\\Users')).toEqual(['C:\\Users\\path fix']);
+  });
+});
+
+describe('the server says what a browser may do with its pages', () => {
+  /** Raw `http.request`, so any method can be sent and every header read. */
+  const request = (port: number, method: string, pathName: string) =>
+    new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, path: pathName, method }, (res) => {
+        let body = '';
+        res.on('data', (c) => (body += String(c)));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+
+  const ROUTES = ['/', '/tokens.css', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/nope'];
+
+  it('sends the security headers on every response, errors included', async () => {
+    const { url, close } = await startBuilt(db, { port: 0 });
+    const port = Number(new URL(url).port);
+    try {
+      for (const route of ROUTES) {
+        const { headers } = await request(port, 'GET', route);
+        expect(headers['x-content-type-options'], route).toBe('nosniff');
+        expect(headers['x-frame-options'], route).toBe('DENY');
+        expect(headers['referrer-policy'], route).toBe('no-referrer');
+        const csp = String(headers['content-security-policy']);
+        expect(csp, route).toContain("default-src 'self'");
+        expect(csp, route).toContain("frame-ancestors 'none'");
+        expect(csp, route).toContain("connect-src 'self'");
+        expect(csp, route).toContain("img-src 'self' data:");
+      }
+    } finally {
+      close();
+    }
+  });
+
+  it('answers 405 to anything but GET and HEAD, and still serves those', async () => {
+    const { url, close } = await startBuilt(db, { port: 0 });
+    const port = Number(new URL(url).port);
+    try {
+      for (const route of ['/', '/api/state', '/api/memory']) {
+        expect((await request(port, 'GET', route)).status, route).toBe(200);
+        const head = await request(port, 'HEAD', route);
+        expect(head.status, route).toBe(200);
+        expect(head.body, route).toBe('');
+        for (const method of ['POST', 'PUT', 'DELETE', 'PATCH']) {
+          const res = await request(port, method, route);
+          expect(res.status, `${method} ${route}`).toBe(405);
+          expect(res.headers.allow, `${method} ${route}`).toBe('GET, HEAD');
+          expect(res.headers['x-frame-options']).toBe('DENY');
+        }
+      }
+    } finally {
+      close();
+    }
+  });
+});

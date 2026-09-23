@@ -220,6 +220,64 @@ describe('SessionStart never breaks a session', () => {
     expect(res.status).toBe(0);
   });
 
+  // A database that exists and cannot be read used to look exactly like a
+  // database that does not exist yet: every hook returned in silence, and
+  // Eklavya simply stopped, with nothing on screen to say so.
+  describe('says so, in one line, when the database is there but unusable', () => {
+    const expectOneLineDoctor = (res: HookResult) => {
+      expect(res.status).toBe(0);
+      expect(res.shown).toMatch(/eklavya doctor/);
+      expect(res.shown.split('\n')).toHaveLength(1);
+      expect(res.context).toBe('');
+    };
+
+    it('a file that is not SQLite', () => {
+      const corrupt = path.join(home, 'corrupt.db');
+      fs.writeFileSync(corrupt, 'this is not a sqlite file at all, and long enough to have a header');
+      const res = runHook(SESSION_START, { session_id: SESSION, cwd }, { EKLAVYA_DB: corrupt });
+      expectOneLineDoctor(res);
+      expect(res.shown).toMatch(/can't open its database/);
+    });
+
+    it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('a file it has no permission to read', () => {
+      const locked = path.join(home, 'locked.db');
+      fs.copyFileSync(dbFile, locked);
+      fs.chmodSync(locked, 0o000);
+      try {
+        expectOneLineDoctor(runHook(SESSION_START, { session_id: SESSION, cwd }, { EKLAVYA_DB: locked }));
+      } finally {
+        fs.chmodSync(locked, 0o600);
+      }
+    });
+
+    // better-sqlite3 loads its native binding on the first `new Database`, so a
+    // Node major upgrade surfaces here and nowhere earlier. Injected by making
+    // `bindings` throw the error Node really prints for an ABI mismatch.
+    it('a SQLite binding built for a different Node', () => {
+      const preload = path.join(home, 'break-binding.cjs');
+      fs.writeFileSync(
+        preload,
+        `const Module = require('module');
+         const load = Module._load;
+         Module._load = function (request, ...rest) {
+           if (request === 'bindings') return () => { throw new Error("The module 'better_sqlite3.node' was compiled against a different Node.js version using NODE_MODULE_VERSION 115."); };
+           return load.call(this, request, ...rest);
+         };`,
+      );
+      const res = runHook(SESSION_START, { session_id: SESSION, cwd }, { NODE_OPTIONS: `--require ${preload}` });
+      expectOneLineDoctor(res);
+      expect(res.shown).toMatch(/Node/);
+    });
+  });
+
+  it('stays silent on an empty file: the server may be creating it right now', () => {
+    const empty = path.join(home, 'empty.db');
+    fs.writeFileSync(empty, '');
+    const res = runHook(SESSION_START, { session_id: SESSION, cwd }, { EKLAVYA_DB: empty });
+    expect(res.status).toBe(0);
+    expect(res.shown).not.toMatch(/doctor/);
+  });
+
   // The hooks used to shell out to `jq` and the `sqlite3` CLI, and degraded to
   // silence when either was missing -- which on Windows was most of the time.
   // They are Node now, so an empty PATH costs nothing: this asserts the profile

@@ -30,6 +30,11 @@
  * alone gets you a working MCP server immediately, and the first session heals
  * the rest in the background.
  *
+ * The same heal keeps rule 3 current. The plugin updates itself through Claude
+ * Code (a marketplace pull, `/plugin update`); the runtime only moves when npm
+ * runs. So when the runtime is older than the plugin pins, this run still uses
+ * it — never blocking — and a background install brings it up to the pin.
+  *
  * Hard rule: a hook must never break a session. Everything here
  * fails to exit 0 in silence.
  */
@@ -58,6 +63,44 @@ function pinnedVersion() {
   } catch {
     return null;
   }
+}
+
+/** The version of the runtime `eklavya install` wrote, or null. One small JSON read. */
+function runtimeVersion() {
+  try {
+    const manifest = path.join(runtimeHome, 'node_modules', 'eklavya', 'package.json');
+    return JSON.parse(readFileSync(manifest, 'utf8')).version ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when version `a` is older than `b`, comparing the numeric parts; a prerelease tag is ignored. */
+function olderThan(a, b) {
+  const parts = (v) => String(v).split('-')[0].split('.').map((n) => Number(n) || 0);
+  const [x, y] = [parts(a), parts(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d !== 0) return d < 0;
+  }
+  return false;
+}
+
+/**
+ * Starts the background heal when the runtime at `entry` is behind the plugin.
+ *
+ * Only for the runtime directory: an EKLAVYA_RUNTIME build or a development
+ * checkout is somebody's deliberate choice. And only when it is BEHIND — a
+ * runtime ahead of the plugin (a plugin rolled back, or updated late) is left
+ * alone, because migrations only go forward and an older runtime may not
+ * understand a database the newer one has already moved. `eklavya doctor`
+ * reports the skew either way.
+ */
+function healIfBehind(entry) {
+  if (!entry.startsWith(path.join(runtimeHome, 'node_modules', 'eklavya') + path.sep)) return;
+  const installed = runtimeVersion();
+  const pinned = pinnedVersion();
+  if (installed && pinned && olderThan(installed, pinned)) healInBackground();
 }
 
 /** The compiled entry point for `name`, or null if no build is reachable. */
@@ -147,6 +190,9 @@ async function main() {
   const entry = resolveEntry();
 
   if (entry) {
+    // Before the import: a server never returns from it, and the heal is a
+    // detached spawn that costs this run nothing.
+    healIfBehind(entry);
     await import(pathToFileURL(entry).href);
     return;
   }
@@ -157,12 +203,30 @@ async function main() {
     // land there.
     const version = pinnedVersion();
     if (!version) process.exit(0);
+    //
+    // A release pushes the bumped plugin.json before `npm publish` finishes
+    // (semantic-release commits in its prepare step and publishes after), so a
+    // marketplace pull can pin a version npm does not have for a minute or so.
+    // Only that failure — npm saying the version does not exist — retries with
+    // `latest`; a server that started and then failed is not restarted.
     const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    const child = spawn(npx, ['--yes', `eklavya@${version}`, 'serve'], {
-      stdio: ['inherit', 'inherit', 'ignore'],
-      shell: process.platform === 'win32',
-    });
-    child.on('exit', (code) => process.exit(code ?? 0));
+    const serve = (spec, retry) => {
+      const child = spawn(npx, ['--yes', `eklavya@${spec}`, 'serve'], {
+        stdio: ['inherit', 'inherit', 'pipe'],
+        shell: process.platform === 'win32',
+      });
+      let errText = '';
+      // Kept draining past the cap, or a chatty server would block on stderr.
+      child.stderr.on('data', (chunk) => {
+        if (errText.length < 64 * 1024) errText += chunk;
+      });
+      child.on('error', () => process.exit(0));
+      child.on('exit', (code) => {
+        if (code && retry && /E404|ETARGET|No matching version/i.test(errText)) serve('latest', false);
+        else process.exit(code ?? 0);
+      });
+    };
+    serve(version, true);
     return;
   }
 

@@ -179,7 +179,7 @@ Layout:
 ```
 .claude-plugin/     plugin + marketplace manifests
 .mcp.json           registers the eklavya MCP server
-skills/             tutor pedagogy, and the eight /eklavya:* commands
+skills/             tutor pedagogy, and the nine /eklavya:* commands
 user-skill/         the chat skill, installed to ~/.claude/skills/ rather than shipped in the plugin
 agents/             the eklavya-tutor subagent
 hooks/              hooks.json + run.mjs, the one cross-platform entry point
@@ -269,6 +269,8 @@ Releases are automatic. Push a [Conventional Commit](https://www.conventionalcom
 Nothing to run by hand. The workflow installs, runs all tests, and only then releases — and the suite asserts that the two places carrying a version agree: `.claude-plugin/plugin.json` and `mcp/package.json`. `hooks/run.mjs` reads the version out of the plugin manifest at runtime rather than carrying a third copy, which is one fewer thing a release can forget. `scripts/bump-version.sh` keeps the two in step and semantic-release calls it for you.
 
 The Claude Code plugin has no separate publish step: the marketplace serves the plugin straight from this repository, so the same push ships it. The npm package carries the same plugin tree inside it (`mcp/dist/plugin/`, assembled by `mcp/scripts/copy-assets.mjs`), which is what lets `npx eklavya install` set everything up without a git clone — and what keeps the two install routes from drifting apart.
+
+**There is a gap of a minute or so where the plugin names a version npm does not have yet**, and plugin order in `.releaserc.json` cannot close it. semantic-release runs every plugin's `prepare` step before any plugin's `publish` step, and `@semantic-release/git` commits and pushes the bumped `plugin.json` in `prepare`, while `@semantic-release/npm` publishes in `publish`. So a marketplace pull in that window gets a plugin pinned to an unpublished version. `hooks/run.mjs` covers it: when its `npx eklavya@<pinned>` fallback fails because npm says that version does not exist, it retries once with `eklavya@latest`. An installed runtime keeps working meanwhile: a background heal that hit the gap fails quietly and is retried once its one-hour claim expires.
 
 The package is published as **`eklavya`**, and ships one binary of the same name — the MCP server is `eklavya serve` rather than a second `eklavya-mcp` executable.
 

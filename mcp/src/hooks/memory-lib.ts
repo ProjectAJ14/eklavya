@@ -7,80 +7,98 @@
  * call, so a throw here is a throw on every tool call.
  */
 import type { ResolvedConfig } from '../config.js';
-import { projectKey } from '../store.js';
-import { identityFor, type EvidenceIdentity } from '../memory/identity.js';
-import { capture, drainSpool, type HostEvent } from '../memory/capture.js';
-import { batchSession, hasClaimableJob, pendingEventCount } from '../memory/store.js';
-import { processPending, writeSessionSummary } from '../memory/worker.js';
-import { recall, recallForPrompt } from '../memory/recall.js';
+import type { EvidenceIdentity } from '../memory/identity.js';
+import { drainSpool } from '../memory/capture.js';
+import { batchSession, hasClaimableJob, openSessions } from '../memory/store.js';
+import { processPending, pruneIfDue, writeSessionSummary } from '../memory/worker.js';
+import { parseStamp } from '../time.js';
+import { recall } from '../memory/recall.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
 import { countEntries } from '../memory/store.js';
 import { queueDepth } from '../memory/worker.js';
-import type { DB, HookInput } from './lib.js';
+import type { DB } from './lib.js';
 import { isInternalObserver, launchWorker, reserveWorker } from '../memory/reservation.js';
 
-export function identityOf(input: HookInput, cwd: string, sid: string | null): EvidenceIdentity {
-  const identity = identityFor({
-    cwd,
-    sessionId: sid ?? 'default',
-    agentId: input.agent_id ?? null,
-    host: 'claude-code',
-  });
-  // `identityFor` resolves the project from the cwd; `projectKey` is the
-  // learning half's spelling of the same thing, and the two must not diverge or
-  // a memory and a mastery row disagree about which codebase they belong to.
-  return { ...identity, project: projectKey(identity.checkout) };
-}
-
-/** Records one event. Returns false on any failure, and never throws. */
-export function record(
-  db: DB,
-  resolved: ResolvedConfig,
-  identity: EvidenceIdentity,
-  event: HostEvent,
-): boolean {
-  try {
-    return capture(db, resolved.config, identity, event) === 'stored';
-  } catch {
-    return false;
-  }
-}
+// The per-call capture helpers live in `capture-lib.ts`, so the two hooks that
+// run on every tool call and every prompt do not load this module's worker,
+// provider, recall and notify graph. Re-exported so the seam hooks and tests
+// keep one import.
+export { batchIfFull, identityOf, record } from './capture-lib.js';
 
 /**
- * Closes a batch once enough evidence has accumulated. Batching is cheap SQL;
- * summarising is not, so this never summarises — the seam does.
+ * A Stop seam closes a session's open evidence into a batch only past one of
+ * these. The Stop hook fires at the end of every turn, and with an observer
+ * configured every closed batch is a `claude -p` call — so closing on every turn
+ * made a two-event "yes, go ahead" turn cost a model call. Eight events is
+ * roughly one real task (a prompt, a few reads, an edit or two, a test run);
+ * twenty minutes is long enough that a pause for thought does not split a task,
+ * and short enough that an abandoned session's tail is summarised the same
+ * afternoon. `batchIfFull` still closes at `memory.batch_max_events` per tool
+ * call, and a session start (`all`) closes everything whatever its size.
  */
-export function batchIfFull(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity): void {
-  try {
-    const max = resolved.config.memory.batch_max_events;
-    if (pendingEventCount(db, identity.project, identity.sessionId) < max) return;
+export const SEAM_MIN_EVENTS = 8;
+export const SEAM_MAX_AGE_MS = 20 * 60_000;
+
+/**
+ * Closes the project's open evidence that is worth a summary now.
+ *
+ * Every session in the project, not only this one: a session that ended with
+ * two events after its last closed batch has no seam of its own left, so its
+ * tail is closed here — at once with `all`, otherwise once it is old enough.
+ * That is what keeps the thresholds from stranding anything.
+ */
+function closeOpenBatches(db: DB, resolved: ResolvedConfig, project: string, all: boolean): void {
+  const now = Date.now();
+  for (const open of openSessions(db, project)) {
+    const oldest = parseStamp(open.oldest);
+    const due =
+      all ||
+      open.events >= SEAM_MIN_EVENTS ||
+      // An unreadable stamp is closed rather than kept open for ever.
+      oldest === null ||
+      now - oldest >= SEAM_MAX_AGE_MS;
+    if (!due) continue;
     batchSession(db, {
-      project: identity.project,
-      sessionId: identity.sessionId,
-      reason: 'size',
-      maxEvents: max,
+      project,
+      sessionId: open.sessionId,
+      reason: 'session_seam',
+      maxEvents: resolved.config.memory.batch_max_events,
     });
-  } catch {
-    /* A batch that did not close is one that closes at the seam instead. */
   }
 }
 
 /**
- * The session seam: close what is open and summarise it.
+ * The session seam: replay the spool, close what is worth closing, summarise
+ * it, and run the retention sweep when it is due.
+ *
+ * `all` is for a session start, where whatever the last session left open is
+ * closed however small; a Stop seam leaves a short fresh turn open to join the
+ * next (`SEAM_MIN_EVENTS`, `SEAM_MAX_AGE_MS`).
  *
  * With a provider configured the hook never summarises itself: waiting on a
  * model inside a Stop hook would make the developer wait for it to finish a
  * turn, which PRD LRN-04 forbids. It hands the queue to a detached worker
  * instead and returns.
  */
-export async function flushAtSeam(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity): Promise<void> {
+export async function flushAtSeam(
+  db: DB,
+  resolved: ResolvedConfig,
+  identity: EvidenceIdentity,
+  opts: { all?: boolean } = {},
+): Promise<void> {
+  // Before batching, so a spooled event joins the batch it belongs to.
+  replaySpool(db);
   try {
-    batchSession(db, {
-      project: identity.project,
-      sessionId: identity.sessionId,
-      reason: 'session_seam',
-      maxEvents: resolved.config.memory.batch_max_events,
-    });
+    closeOpenBatches(db, resolved, identity.project, opts.all ?? false);
+  } catch {
+    /* Evidence left open is closed at the next seam. */
+  }
+  try {
+    pruneIfDue(db, resolved.config);
+  } catch {
+    /* Retention runs again at the next seam; nothing is lost by waiting. */
+  }
+  try {
     if (resolved.config.providers.observer) {
       // A paused queue is waiting on the developer (a login, a usage limit, a
       // missing `claude`). Launching per seam would relearn that once a turn;
@@ -145,30 +163,12 @@ export function recallBlock(db: DB, resolved: ResolvedConfig, identity: Evidence
 }
 
 /**
- * Recall for one prompt, mid-session, or null.
- *
- * Silent far more often than not: too short a prompt, nothing relevant, or
- * nothing this session has not already been handed. That is the design — a
- * recall on every turn is a tax on every turn.
+ * The most the Stop hook spends on notifications, all of them together. Under
+ * the 4-second bound each sink already has plus one second of slack, and a
+ * third of the hook's 15-second timeout, which leaves the rest for batching,
+ * summarising and the quiz decision.
  */
-export function promptRecall(
-  db: DB,
-  resolved: ResolvedConfig,
-  identity: EvidenceIdentity,
-  prompt: string,
-): string | null {
-  try {
-    if (!resolved.config.memory.enabled) return null;
-    const result = recallForPrompt(db, resolved.config, {
-      project: identity.project,
-      sessionId: identity.sessionId,
-      prompt,
-    });
-    return result?.block ?? null;
-  } catch {
-    return null;
-  }
-}
+export const NOTIFY_BUDGET_MS = 5_000;
 
 /**
  * Everything that happens once the seam's work has been flushed: the session
@@ -197,17 +197,19 @@ export async function wrapUpAtSeam(
     const attempts = db
       .prepare('SELECT COUNT(*) AS n, COALESCE(SUM(grade >= 3), 0) AS passed FROM attempts WHERE session_id = ?')
       .get(identity.sessionId) as { n: number; passed: number };
-    await notify(
-      db,
-      resolved.config,
-      sessionWrapUp({
-        project: identity.project,
-        sessionId: identity.sessionId,
-        entries: countEntries(db, identity.project),
-        questions: attempts.n,
-        passed: attempts.passed,
-      }),
-    );
+    const sends: Promise<unknown>[] = [
+      notify(
+        db,
+        resolved.config,
+        sessionWrapUp({
+          project: identity.project,
+          sessionId: identity.sessionId,
+          entries: countEntries(db, identity.project),
+          questions: attempts.n,
+          passed: attempts.passed,
+        }),
+      ),
+    ];
 
     // A paused queue is capture that has stopped and will not restart by
     // itself. Everything else about memory degrades quietly on purpose; this
@@ -217,16 +219,31 @@ export async function wrapUpAtSeam(
       const reason = db
         .prepare("SELECT error_class FROM memory_jobs WHERE status = 'paused' ORDER BY updated_at DESC LIMIT 1")
         .get() as { error_class: string | null } | undefined;
-      await notify(
-        db,
-        resolved.config,
-        queuePausedAlert({
-          project: identity.project,
-          errorClass: reason?.error_class ?? 'unknown',
-          failed: queue.paused + queue.failed,
-        }),
+      sends.push(
+        notify(
+          db,
+          resolved.config,
+          queuePausedAlert({
+            project: identity.project,
+            errorClass: reason?.error_class ?? 'unknown',
+            failed: queue.paused + queue.failed,
+          }),
+        ),
       );
     }
+
+    // Together, not one after the other, and never past the budget: each sink
+    // is bounded on its own, but two notifications in turn to the same dead
+    // sinks was twice that bound inside a hook with 15 seconds for everything.
+    // A send still running at the deadline is abandoned; its ledger row says an
+    // attempt started, so a later seam retries it.
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, NOTIFY_BUDGET_MS);
+      timer.unref?.();
+    });
+    await Promise.race([Promise.allSettled(sends), deadline]);
+    clearTimeout(timer);
   } catch {
     /* A wrap-up nobody received is a wrap-up. A thrown one is a broken session. */
   }

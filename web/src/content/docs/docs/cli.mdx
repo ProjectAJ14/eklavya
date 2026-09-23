@@ -10,13 +10,13 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | --- | --- |
 | `eklavya serve` | Runs the MCP server on stdio. This is what Claude Code starts for you — you would only run it by hand to point another MCP client at Eklavya. |
 | `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. Then it walks your settings one step at a time: `quiz`, `focus`, `cadence`, `difficulty`, `memory` — and, when memory is on, which model writes the memories (`providers.observer`: `local`, the default, or a Claude model, `claude-haiku-4-5` recommended). Each step marks the current value and starts the cursor on it: ↑/↓ move, Enter, Space or → choose, a digit jumps. Slow steps show a spinner. The answers are written to the global config, and there is no onboarded flag, so every run shows the same walk. If Claude Mem is installed, the memory step asks which of the two keeps recording; `--memory eklavya` or `--memory claude-mem` answers in advance ([details](/docs/migrating/)). Safe to re-run — that is how you upgrade, including for a marketplace install, where it pulls the plugin's git clone forward. |
-| `eklavya uninstall [--purge]` | Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`. |
-| `eklavya config get` | Prints the effective configuration as JSON, plus the paths of the global and repo files it came from. |
-| `eklavya config set <key> <value>` | Changes one setting. Add `--project` (or its older name `--repo`) to write this codebase's file under `~/.eklavya/projects/` instead of your global config — never into the repository. Add `--topic <topic>` when setting `focus learn`. |
-| `eklavya doctor` | Checks that everything is wired up: the runtime, the SQLite driver, the plugin's registration with Claude Code, the chat skill, then the database, counts, journal mode, this project's level and runway, and the effective mode, focus and cadence. It also **applies your [concept packs](/docs/packs/)** — the only command that does so unconditionally — and names any that failed to load. Exits non-zero if a check fails, and names the command that repairs it; a broken pack is reported but does not fail the run, because `eklavya install` cannot repair one. |
+| `eklavya uninstall [--purge]` | Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`, which lists what it deleted. The plugin files and runtime stay while a project-scoped install still uses them, and a git commit gate in the current repository is reported with the command that removes it — see [Uninstalling](/docs/installing/#uninstalling). |
+| `eklavya config get` | Prints the effective configuration as JSON, plus the paths of your global file and this project's file under `~/.eklavya/projects/`. If the project file sets `providers`, which only the global file may set, it lists it as ignored. If a config file does not parse, it warns that defaults are standing in for it. |
+| `eklavya config set <key> <value>` | Changes one setting. Add `--project` (or its older name `--repo`) to write this codebase's file under `~/.eklavya/projects/` instead of your global config — never into the repository. Add `--topic <topic>` when setting `focus learn`. The previous file is copied to `config.json.eklavya-bak` first, and the file is written readable only by you. A file that does not parse is left alone and the command exits 1, naming it. |
+| `eklavya doctor` | Checks that everything is wired up: the runtime, the SQLite driver, the plugin's registration with Claude Code, the chat skill, whether the runtime and plugin versions match, then the database, counts, journal mode, this project's level and runway, the memory queue, and the effective quiz switch, focus and cadence. It also reports a config file that does not parse, and whether the terminal commit gate has the `jq` and `sqlite3` it needs. It also **applies your [concept packs](/docs/packs/)** — the only command that does so unconditionally — and names any that failed to load. Exits non-zero if a check fails, and names the command that repairs it; a broken pack is reported but does not fail the run, because `eklavya install` cannot repair one. |
 | `eklavya dashboard [--port <n>] [--no-open]` | Serves your learning history as a local web page and opens it in your browser. `--no-open` serves it and prints the URL instead. See [The dashboard](/docs/dashboard/). |
 | `eklavya statusline` | Prints your dials as one line for a status bar, or nothing at all. See [below](#eklavya-statusline). |
-| `eklavya memory <sub>` | Drives the memory half from a terminal: `status`, `search`, `timeline`, `show`, `process`, `stop`, `backlog`, `prune`, `import`, `export` and `restore`. See [below](#eklavya-memory). |
+| `eklavya memory <sub>` | Drives the memory half from a terminal: `status`, `search`, `timeline`, `show`, `replay`, `process`, `stop`, `backlog`, `prune`, `import`, `export`, `restore` and `sync`. See [below](#eklavya-memory). |
 | `eklavya db-path` | Prints the database location. Useful in scripts. |
 | `eklavya export-rules [--out <file>]` | Writes the tutor pedagogy out as a Markdown rules file, for editors that read one. Claude Code loads the pedagogy in pieces, on demand; a rules file is a single always-applied document, so every piece is inlined into it. With no `--out` it prints to stdout. Nothing in the Claude Code flow needs it. |
 
@@ -32,13 +32,15 @@ and two of them have no equivalent as a tool.
 | `search <query>` | `--mode keyword\|semantic\|hybrid`, `--limit`, `--all-projects`. Titles and ids, not narratives. |
 | `timeline` | Recent entries, newest first. `--limit`, `--since <iso date>`. |
 | `show <id>` | One entry in full, with the raw evidence it was built from. |
+| `replay` | Backfills memory from this checkout's Claude Code session transcripts: sessions from before you installed Eklavya, and any a hook missed. `--limit <n>`. `doctor` names it as the recovery when events were dropped before they reached the database. |
 | `process` | Drains the observation queue now, rather than waiting for the next session seam. `--max <n>`. With a model configured, the hooks already run this in the background at every seam, with `--no-resume` so paused jobs stay paused. It is also the repair for a queue that has **paused**: a provider refusing on auth or quota, or a `claude` the hooks cannot find, parks its jobs rather than spending a dead credential once per tool call, and nothing automatic picks them up again. Running this is how you say you have fixed it — it puts the paused jobs back and says how many. A worker takes four jobs at most; if more are waiting when it finishes, it hands over to a fresh one rather than leaving them for the next session, still one at a time, and never past a paused queue or a job waiting out its retry delay. |
 | `stop` | Stops the running worker and the `claude` call it is making. The job it was on goes back to the queue with nothing spent. It only signals processes Eklavya recorded starting — checked by process id *and* start time, so a number the system has since given to something else is left alone. The next session starts a new worker; to keep processing off, set `providers.observer` to `null`. |
 | `backlog` | Lists unfinished jobs by project and status, and marks any that came from Eklavya's own summariser sessions — the noise the 1.24.0 bug queued. Then `backlog quarantine`, `backlog discard` or `backlog restore` with a selector: `--helpers`, `--project <key>`, `--session <id>` or `--batch <id>`. Quarantined jobs are kept but never processed until restored; discarded ones are deleted with their raw evidence. A change always needs a selector, because the queue also holds real work. |
-| `prune` | Deletes raw evidence older than `memory.retention_days`, keeping the observations built from it. Does nothing when retention is unset. |
+| `prune` | Deletes raw evidence older than `memory.retention_days`, keeping the observations built from it, along with finished jobs and reuse receipts past the same window. Does nothing when retention is unset. The session seams already run this at most every six hours, 5,000 events at a time; `prune` runs it now and in full. |
 | `import <source.db>` | Imports a Claude Mem database. See below. |
-| `export <file>` | A versioned JSON file of entries, tags, evidence links and receipts. |
+| `export <file>` | A versioned JSON file of entries, tags, evidence links and receipts, readable only by you. It will not replace an existing file unless you add `--force`. |
 | `restore <file>` | Reads that file back in. See below. |
+| `sync push\|pull\|status` | Exchanges memory with your other devices through a folder they can all see. `--target <dir>` overrides `sync.target`. Memory entries, tags and deletions only — attempts, mastery, gates and receipts never leave. Needs `sync.enabled` and `sync.target`, and does nothing without both; see [Configuration](/docs/configuration/). |
 
 `export` and `restore` are one pair: the file is your backup, and `restore` is
 how you undo. Take an export before anything irreversible — an import, a
@@ -158,6 +160,7 @@ eklavya doctor
   ▣  runtime     /Users/you/.eklavya/runtime
   ▣  driver      better-sqlite3 loads on Node 22.14.0
   ▣  plugin      /Users/you/.claude/plugins/marketplaces/eklavya — registered, enabled
+  ▣  versions    runtime and plugin both 1.25.0
   ▣  skill       /Users/you/.claude/skills/eklavya
   ...
   ▣  concepts    87
@@ -174,11 +177,11 @@ eklavya doctor
 
 This is the first thing to run when something feels wrong.
 
-The first four checks after `home` are the install itself. ▣ is fine, ! wants a look, ◌ is something this command skipped or cannot see, and ▤ is broken. The glyph carries the state on its own, so nothing is lost with colour off (`NO_COLOR`) or in a pipe. They matter because Eklavya fails
+The checks after `home`, down to `skill`, are the install itself. ▣ is fine, ! wants a look, ◌ is something this command skipped or cannot see, and ▤ is broken. The glyph carries the state on its own, so nothing is lost with colour off (`NO_COLOR`) or in a pipe. They matter because Eklavya fails
 quietly by design — every hook exits successfully whatever happens, so it can
 never break a session you are in the middle of. The cost of that guarantee is
 that a broken install looks exactly like a quiet one: Eklavya simply stops
-asking. These four checks are the only place that says which it is.
+asking. These checks are the only place that says which it is.
 
 When one fails, `doctor` says so and names the fix:
 
@@ -197,7 +200,7 @@ eklavya doctor
 ▤ Something is broken. Run: eklavya install
 ```
 
-`eklavya install` is the repair for all four. It is idempotent — re-running it
+`eklavya install` is the repair for all of them, except a skill of your own sitting at that path. It is idempotent — re-running it
 reinstalls the runtime, re-copies the plugin and rewrites the registration,
 leaving your learning history untouched. `doctor` never repairs anything itself;
 it reports, and you decide.
@@ -208,6 +211,10 @@ it reports, and you decide.
 | `driver` | The SQLite driver will not load — almost always a Node upgrade that left the prebuilt binary on the wrong ABI. |
 | `plugin` | The plugin is gone from Claude Code's registry, or is registered but switched off in `settings.json`. |
 | `skill` | The chat skill is missing from `~/.claude/skills/eklavya`. If the name is taken by a skill of your own, `doctor` says so and leaves it alone — move yours first. |
+| `versions` | The runtime and the plugin are different versions. Behind: the next session updates the runtime in the background. Ahead: update the plugin with `/plugin update eklavya`, because the runtime is never downgraded. |
+| `database` | Says `(created now — it did not exist)` when this run created it. A database that exists but will not open is a failure. |
+| `config` | A config file does not parse, so every dial above is a default. Fix the file by hand; `eklavya install` will not touch it. |
+| `gate` | The terminal commit gate is installed but `jq` or `sqlite3` is missing, so it lets every commit through. With `quiz.enforced` and no hook installed yet, this is only a warning. |
 
 :::note
 **Guard rails you will meet.** `config set` rejects unknown keys and lists the valid ones. `focus learn` without `--topic` is refused outright, because that combination produces no questions at all. `--project` outside a git repository is refused, because there is no checkout to key the settings by.

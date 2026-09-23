@@ -114,6 +114,18 @@ That does the whole job, in this order:
 
 Then restart Claude Code and build something; the questions follow. Running `eklavya install` again is how you upgrade — every step is safe to repeat, and it will not disturb your other plugins or your learning history.
 
+:::note
+**Your own files are backed up before they change.** The installer edits four files that are not only Eklavya's: `~/.claude/settings.json`, `~/.claude/plugins/known_marketplaces.json`, `~/.claude/plugins/installed_plugins.json` and `~/.eklavya/config.json`. Before it changes one, it copies what was there to the same path with `.eklavya-bak` on the end, and prints that path for the Claude Code files. There is one backup per file, holding it as it was before the last command that changed it, so one `mv` undoes the change:
+
+```bash
+mv ~/.claude/settings.json.eklavya-bak ~/.claude/settings.json
+```
+
+If any of the four is not valid JSON, the installer names it and stops with exit code 1 before touching anything. Fix or remove that file, then run it again. `eklavya uninstall` and `eklavya config set` follow the same two rules.
+:::
+
+**Upgrades after that happen on their own.** Claude Code updates the plugin, but the runtime in `~/.eklavya/runtime` only moves when npm runs. So when a session finds the runtime older than the plugin, it keeps using the old one for that session and starts a background install of the plugin's version — at most once an hour, and never a downgrade. `eklavya doctor` shows the two versions on its `versions` row.
+
 ### B. In Claude Code, through the plugin marketplace
 
 If you would rather not touch a terminal:
@@ -133,7 +145,7 @@ If you would rather not touch a terminal:
    /plugin install eklavya@eklavya
    ```
 
-   The part before the `@` is the plugin, the part after is the marketplace it comes from — they happen to share a name. Claude Code downloads the plugin and registers its MCP server, its six hooks and its eight slash commands.
+   The part before the `@` is the plugin, the part after is the marketplace it comes from — they happen to share a name. Claude Code downloads the plugin and registers its MCP server, its seven hooks and its nine slash commands.
 3. #### Restart Claude Code
 
    Hooks and MCP servers are wired up when a session starts, so the session you installed from will not have them. Quit and reopen.
@@ -226,7 +238,13 @@ npx eklavya uninstall           # removes the plugin and skill, keeps your histo
 npx eklavya uninstall --purge   # removes ~/.eklavya as well
 ```
 
-Without `--purge` your knowledge graph stays at `~/.eklavya/knowledge.db`, so reinstalling picks up exactly where you left off. That is deliberate: months of spaced repetition should not disappear because you removed a plugin.
+Without `--purge` your knowledge graph stays at `~/.eklavya/knowledge.db`, so reinstalling picks up exactly where you left off. That is deliberate: months of spaced repetition should not disappear because you removed a plugin. With `--purge`, it lists every file and folder it deleted from `~/.eklavya`.
+
+Three things it tells you rather than does:
+
+- **Project-scoped installs stay.** If Eklavya is also installed for individual projects through `/plugin`, the uninstall lists them and keeps the plugin files and the runtime they run on. Remove each with `/plugin uninstall` in that project.
+- **A git commit gate stays.** If the repository you run it in has the [git hook](/docs/commit-gate/#installing-the-git-hook) installed, it warns you and prints the exact command that removes it. Any other repository where you installed the hook needs the same.
+- **Your edited files are backed up**, to `.eklavya-bak` beside each one, as on install.
 
 This covers Claude Code and the Code tab in Claude Desktop. Cowork holds its own copy, so remove that one where you installed it — **Customize → Plugins → Eklavya → Uninstall**.
 

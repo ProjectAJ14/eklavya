@@ -5,8 +5,10 @@ import {
   writeConfigFile,
   readConfigFile,
   mainRepoRoot,
+  isGlobalOnlyKey,
   DEFAULT_CONFIG,
 } from '../config.js';
+import { UnreadableFileError } from '../safe-write.js';
 import { currentSurface } from '../surface.js';
 import { FALLBACK_SESSION_ID, isSessionOff, resolveSessionId, setSessionOff } from '../session.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
@@ -47,6 +49,10 @@ export const getConfig: ToolDef = {
       // Which of the learner's own global settings this project is overriding. Say it
       // rather than let a personal focus silently stop applying.
       overridden_by_project: resolved.overrides,
+      // Keys the project file sets that only the global file may, and that
+      // therefore do nothing. A setting you wrote that silently does not apply
+      // is the thing to say out loud.
+      ignored_in_project: resolved.ignored,
     };
   },
 };
@@ -321,6 +327,17 @@ export const setConfig: ToolDef = {
             'No git repository found from this directory, so there is no project to scope this to. Project settings are keyed by the checkout\'s path and kept under ~/.eklavya/projects/ — nothing is written into the repository itself.',
         };
       }
+      // Refused here, before anything is read or written, with its own code:
+      // `writeConfigFile` would refuse it too, but as a generic throw that
+      // reads like a slug collision, which sends the model after the wrong fix.
+      const globalOnly = Object.keys(patch).filter(isGlobalOnlyKey);
+      if (globalOnly.length > 0) {
+        return {
+          error: 'global_only',
+          keys: globalOnly,
+          detail: `${globalOnly.join(', ')} can only be set in the global config (${resolved.globalPath}), not for one project: the memory queue is shared by every project, so this decides what leaves the machine for all of them. Use scope "global".`,
+        };
+      }
       target = resolved.projectPath;
       // Which checkout this file is about, exactly as the CLI writes it. Without
       // it `belongsTo` has nothing to compare and trusts the file, so two
@@ -347,6 +364,12 @@ export const setConfig: ToolDef = {
     try {
       writeConfigFile(target, patch);
     } catch (err) {
+      // A file that exists and does not parse is somebody's settings with a
+      // typo in them; nothing was written, and the fix is to repair the file,
+      // not to pick a different scope.
+      if (err instanceof UnreadableFileError) {
+        return { error: 'unreadable_config', file: err.file, detail: err.message };
+      }
       return { error: 'project_collision', detail: err instanceof Error ? err.message : String(err) };
     }
 

@@ -20,6 +20,14 @@ export const SCORE_ALPHA = 0.6;
 
 export const MS_PER_DAY = 86_400_000;
 
+/**
+ * The furthest out a review is ever scheduled: ten years. Uncapped, interval x
+ * ease compounds past what a Date can hold -- after ~60 passes `toISOString`
+ * threw, and every later grade on that concept failed with it. Ten years is
+ * past any horizon a review means anything at, and far inside the Date range.
+ */
+export const MAX_INTERVAL_DAYS = 3650;
+
 export interface MasteryState {
   score: number;
   ease: number;
@@ -34,6 +42,32 @@ export function initialMastery(): MasteryState {
 }
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
+
+/** An interval pulled into range. Not-a-number reads as the ceiling: it only gets there by overflowing. */
+function saneInterval(days: number): number {
+  return Number.isNaN(days) ? MAX_INTERVAL_DAYS : clamp(days, 0, MAX_INTERVAL_DAYS);
+}
+
+/**
+ * A stored state pulled back inside the ceiling. For rows written before
+ * `MAX_INTERVAL_DAYS` existed: their `next_review` can carry an extended year
+ * (`+275760-...`), which is still a valid Date but sorts *before* every normal
+ * timestamp when SQL compares it as a string. Anchored on `last_seen`, the
+ * moment the interval was measured from, so this stays free of a clock.
+ */
+export function clampMastery(state: MasteryState): MasteryState {
+  const interval_d = saneInterval(state.interval_d);
+  let next_review = state.next_review;
+  const seen = state.last_seen ? Date.parse(state.last_seen) : Number.NaN;
+  if (next_review && Number.isFinite(seen)) {
+    const limit = seen + MAX_INTERVAL_DAYS * MS_PER_DAY;
+    const next = Date.parse(next_review);
+    if (!Number.isFinite(next) || next > limit) next_review = new Date(limit).toISOString();
+  }
+  return interval_d === state.interval_d && next_review === state.next_review
+    ? state
+    : { ...state, interval_d, next_review };
+}
 
 /**
  * Recency-weighted mean of the last few grades, normalized to 0..1.
@@ -83,7 +117,7 @@ export function applyGrade({ state, grade, grades, now }: ApplyGradeInput): Mast
     reps = state.reps + 1;
     if (reps === 1) interval = 1;
     else if (reps === 2) interval = 6;
-    else interval = Math.round(state.interval_d * ease);
+    else interval = Math.min(MAX_INTERVAL_DAYS, Math.round(saneInterval(state.interval_d) * ease));
   } else {
     // A failed recall restarts the ladder — the learner sees it again tomorrow.
     reps = 0;

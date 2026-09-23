@@ -3,6 +3,7 @@ import type { DB } from '../db.js';
 import { nowIso } from '../time.js';
 import { embedLocal, LOCAL_DIM, LOCAL_EMBEDDER, toBlob } from './embed.js';
 import { entryUid, receiptUid } from './identity.js';
+import { redact } from './privacy.js';
 
 /**
  * The memory repository: every write to the `evidence_*`, `memory_*`,
@@ -117,6 +118,17 @@ export function pendingEventCount(db: DB, project?: string, sessionId?: string):
         n: number;
       });
   return row.n;
+}
+
+/** Every session in a project with evidence not yet in a batch: how much, and since when. */
+export function openSessions(db: DB, project: string): { sessionId: string; events: number; oldest: string }[] {
+  return db
+    .prepare(
+      `SELECT session_id AS sessionId, COUNT(*) AS events, MIN(occurred_at) AS oldest
+       FROM evidence_events WHERE status = 'accepted' AND project = ?
+       GROUP BY session_id`,
+    )
+    .all(project) as { sessionId: string; events: number; oldest: string }[];
 }
 
 /**
@@ -379,8 +391,29 @@ export interface EntryRow {
   import_source: string | null;
 }
 
+/**
+ * The entry's prose, through the built-in redaction.
+ *
+ * Capture already redacted the evidence an observation is made from, so for
+ * the summarisers this is a second pass that finds nothing. It is here for the
+ * writers that never went through capture — the Claude Mem import copies
+ * another tool's rows in verbatim — and because this is the one door every
+ * entry comes through, so no future writer can forget it. Built-in patterns
+ * only: the store is handed no config, and the configured ones already ran
+ * wherever there was one to run.
+ */
+function scrubbed(input: EntryInput): EntryInput {
+  return {
+    ...input,
+    title: redact(input.title).text,
+    narrative: input.narrative === undefined ? undefined : redact(input.narrative).text,
+    facts: input.facts?.map((f) => redact(f).text),
+  };
+}
+
 /** Writes an entry, its links, its tags and its vector in one transaction. */
-export function insertEntry(db: DB, input: EntryInput): number {
+export function insertEntry(db: DB, raw: EntryInput): number {
+  const input = scrubbed(raw);
   const occurredAt = input.occurredAt ?? nowIso();
   const uid =
     input.entryUid ??
@@ -453,7 +486,8 @@ function vectorText(input: EntryInput): string {
  * FTS keeps itself in step through the `memory_entries_au` trigger; the vector
  * has no trigger, so it is refreshed here.
  */
-export function replaceEntry(db: DB, id: number, input: EntryInput): void {
+export function replaceEntry(db: DB, id: number, raw: EntryInput): void {
+  const input = scrubbed(raw);
   db.transaction(() => {
     db.prepare(
       `UPDATE memory_entries

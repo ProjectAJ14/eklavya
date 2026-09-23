@@ -8,8 +8,8 @@ what an agent editing code in this directory has to know before it does.
 
 | Module | Owns | Deliberately does not |
 |---|---|---|
-| `src/config.ts` | the dials, defaults, global+repo merge, `coerce()`, and `normalizeLegacyKeys()` — the `mode` → `quiz` alias, applied per file *before* the merge | never touches the db |
-| `src/paths.ts` | every path and env override, including `projectConfigPath` — per-project settings, keyed by checkout, **outside** the repository; nothing else may join `~/.eklavya` by hand | |
+| `src/config.ts` | the dials, defaults, global+project merge, `coerce()`, and `normalizeLegacyKeys()` — the `mode` → `quiz` alias, applied per file *before* the merge. `GLOBAL_ONLY_KEYS` (`providers`): a project file that sets one is reported in `ignored` and not applied, and `writeConfigFile` refuses a project patch carrying one — the worker is machine-wide, so one project's `providers.observer` would decide what leaves the machine for all of them | never touches the db |
+| `src/paths.ts` | every path and env override, including `projectConfigPath` — per-project settings, keyed by checkout, **outside** the repository; nothing else may join `~/.eklavya` by hand. `ensureEklavyaHome`/`makePrivate` (the directory is `0700`, tightened on open for older installs) and `DEFAULT_PORT` (41729), which lives here so the SessionStart hook can probe the dashboard without importing `dashboard.ts` | |
 | `src/srs.ts` | SM-2, mastery scoring, decay, tier selection, level bands, promotion rules | no db, no clock |
 | `src/store.ts` | every query. Gates, level standing, question history, graph walks | no MCP, no config decisions beyond what it is handed |
 | `src/db.ts`, `src/migrate.ts`, `src/migrations/` | `openDb()` — pragmas, then migrate, then seed; forward-only numbered SQL with the version in `meta` | |
@@ -20,19 +20,22 @@ what an agent editing code in this directory has to know before it does.
 | `src/statusline.ts` | `[EKLAVYA concept · interleaved · easy]` — the dials, for `eklavya statusline` and the host's status bar, with `enforced` prepended only when set | never per-question: no tier, no counter |
 | `src/ask.ts`, `src/mcq.ts` | stripping a settings line back out of a recorded stem (history only — nothing composes one now); the deterministic `answerPosition` | |
 | `src/server.ts` | stdio MCP wiring only. **stdout is the protocol** — diagnostics go to stderr | |
-| `src/tools/*.ts` | one file per tool, registered in `tools/index.ts` | |
-| `src/hooks/*.ts` | one file per hook plus `lib.ts`; `run()` swallows everything and exits 0 | |
+| `src/tools/*.ts` | one file per tool, registered in `tools/index.ts`. Every string and array input is bounded by `LIMITS` in `tools/types.ts` (a question 4000 chars, an answer 8000, …); over-limit input is rejected with an error naming the field | |
+| `src/hooks/*.ts` | one file per hook plus `lib.ts`; `run()` swallows everything and exits 0. `commit-lib.ts` is the PreToolUse gate's small shell lexer — is this Bash command a `git commit` (or `git merge --continue`)? — with its accepted misses (aliases, `$GIT commit`, scripts) written at the top. `capture-lib.ts` is the capture path's slice of `memory-lib.ts`, kept apart so `capture-tool` and `prompt-submit-nudge` never import the worker, provider, recall or notify; `test/hook-isolation.test.ts` pins that | |
 | `src/eval/*.ts` | the offline half of the eval — `question-checks.ts` (question shape), `extraction-score.ts` (are the logged concepts right, scored with `slug.ts`'s own matcher), `history-stats.ts` (repeat rate, tier calibration) and `extract-json.ts`. Pure, like `srs.ts`. Driven by `eval/harness.mjs` at the repo root | no model, no I/O; anything needing a judge stays out |
-| `src/install.ts` | `eklavya install/uninstall` — Node check, runtime, plugin payload, registry files, db | |
+| `src/install.ts` | `eklavya install/uninstall` — Node check, runtime, plugin payload, registry files, db; `health()` and `versionCheck()` for `doctor`. Every user file is checked parseable before the first write (`refuseUnreadable`), then written through `safe-write.ts` | never removes a git `pre-commit` hook — it warns and prints the command |
+| `src/safe-write.ts` | writing files that belong to the developer — `settings.json`, the plugin registries, `config.json`: `readJsonStrict` tells missing from unparseable, an unparseable file is never overwritten, and every change first copies the old bytes to `<file>.eklavya-bak` (one rolling backup; with a per-command `run` set, a file written twice keeps the pre-command original). Temp file plus rename, permissions kept, symlinks written through | never reads an unparseable file as `{}` — that once deleted a developer's permissions and hooks |
 | `src/onboard.ts` | the settings walk `install` runs every time — one step per dial, an arrow-key list starting on the current value (`press` is the pure key reducer); writes only the global config, only what changed | no onboarded flag, and never asks about project scope |
 | `src/claude-mem.ts` | install's Claude Mem question: detect it, place its projects from Claude Code's transcripts, uninstall its plugin, retire `~/.claude-mem` | never deletes Claude Mem's data — it is moved, and it is the rollback |
 | `src/theme.ts` | the look of every terminal byte the CLI prints — the verdigris palette, glyphs, `check` rows, `spin`, `verdict`. Ported from talea's `theme.js`/`log.js`; change both together | not the status bar or session banner: the host draws those |
-| `src/dashboard.ts` + `src/assets/dashboard.html` | the local page on loopback (default port 41729). Read `.claude/skills/eklavya-dashboard/SKILL.md` first | |
+| `src/dashboard.ts` + `src/assets/dashboard.html` | the local page on loopback (`DEFAULT_PORT` from `paths.ts`). Read-only (anything but GET/HEAD is a 405), with security headers on every response. Read `.claude/skills/eklavya-dashboard/SKILL.md` first | never writes |
 | `src/memory/` | the other half: `capture.ts` (the one intake), `privacy.ts` (redaction, before persistence), `spool.ts` (the degraded path), `store.ts` (every memory query), `search.ts` (keyword/semantic/hybrid), `embed.ts` (`local-hash-v1`), `summarize.ts` + `provider.ts` (the `Summarizer` port and its two implementations), `worker.ts` (leased jobs, no daemon), `reservation.ts` (the one machine-wide worker slot — held by process identity, pid plus `ps` start time, never by the lease clock alone — its hand-off, `stop`, and the `EKLAVYA_INTERNAL_OBSERVER` marker every hook honours), `recall.ts` (what the model is handed, and the receipt that proves it), `replay.ts`, `learning.ts` (evidence → candidates), `collections.ts`, `code.ts`, `notify.ts`, `sync.ts`, `import.ts` (+ `import-worker.ts`, the same import on a worker thread so the CLI's spinner can turn), `hosts.ts`, `identity.ts`, `tokens.ts` | no MCP, no hooks; `domain`-style purity is not enforced, but nothing here reaches for a host API |
 | `src/time.ts`, `src/config-path.ts` | the one clock policy both halves parse with; dotted config keys derived from `DEFAULT_CONFIG` | |
 
 `src/cli.ts` is the `eklavya` binary — it builds to `dist/cli.js`, which is
-`package.json`'s `bin`. The top-level `cli/` directory is **not** this: it holds
+`package.json`'s `bin`. `src/cli-memory.ts` holds the `eklavya memory …`
+subcommands, loaded only when one runs, so `eklavya statusline` — run on every
+status-bar refresh — never imports the worker, sync or the importer. The top-level `cli/` directory is **not** this: it holds
 `eklavya-gate`, a POSIX script, because a git pre-commit hook must not pay Node's
 startup cost. The names invite the mistake; check which one you are in.
 

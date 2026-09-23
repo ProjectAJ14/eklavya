@@ -10,7 +10,10 @@ export function normalizeSlug(input: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/-{2,}/g, '-')
-    .slice(0, 80);
+    .slice(0, 80)
+    // Again after the cut: truncating can land on a separator, and a slug
+    // ending in `-` fails `isValidSlug` and never matches its own concept.
+    .replace(/-+$/, '');
 }
 
 export function isValidSlug(slug: string): boolean {

@@ -13,7 +13,8 @@ and tracks mastery with spaced repetition.
 
 Both halves are local by default: the summariser and the search index run on
 this machine and nothing leaves it unless `providers.observer` has been
-configured, which is an explicit choice with its own key.
+configured — an explicit choice that sends session batches to a Claude model
+through `claude -p`, on the developer's own Claude subscription.
 
 The two halves are switched separately, and their names now say so.
 `quiz.enabled: false` stops the questions and leaves memory recording;
@@ -54,7 +55,7 @@ above resolved to.
 In a Claude Code session with the Eklavya plugin loaded, `get_config`,
 `set_config`, `get_learner_profile`, `get_concept_graph` and `get_gate_status`
 are available as tools. Use them: they validate the values, they report which
-settings a repo is overriding, and they need no subprocess.
+settings this project is overriding, and they need no subprocess.
 
 The CLI is the fallback for everywhere else — a plain terminal, Cursor, a
 session where the plugin is not enabled. The two write the same files, so it
@@ -130,9 +131,18 @@ they set it back.
 eklavya config set focus learn --topic "database indexing"
 ```
 
-Repo config wins over global. When someone's personal setting has stopped
-applying, that is why — `config get` prints both paths, and `eklavya doctor` or
-`get_config` names the keys the repo is overriding.
+Project settings win over global ones. When someone's global setting has
+stopped applying, that is why — `config get` prints both paths, and `eklavya
+doctor` or `get_config` names the keys this project is overriding. The project
+file lives under `~/.eklavya/projects/`, never in the repository.
+
+`providers` is the exception: global only. A project file that sets it is
+ignored (`config get` and `get_config`'s `ignored_in_project` say so), and
+`set_config` at project scope returns `global_only`. Set it globally or not at
+all. `set_config` can also return `unreadable_config` — the config file does not
+parse and was left untouched; name the file and let them fix it — and
+`project_collision`, when another checkout's settings already sit in the file
+this one would use.
 
 Other keys, same `config set` shape: `pass_threshold`,
 `max_questions_per_task`, `min_minutes_between_quizzes`,
@@ -193,9 +203,14 @@ questions, or seems to have switched itself off. It never fails loudly — every
 hook exits successfully by design, so it can't break a session — which means a
 broken install and a quiet one look the same from the outside.
 
-Run `eklavya doctor`. Its first four lines are the install itself: `runtime`,
-`driver`, `plugin`, `skill`. If any says `FAILED`, it exits non-zero and prints
-the fix.
+Run `eklavya doctor`. Its first lines are the install itself: `runtime`,
+`driver`, `plugin`, `versions`, `skill`. If any says `FAILED`, it exits non-zero
+and prints the fix. Later rows also flag a config file that does not parse and a
+terminal commit gate missing `jq` or `sqlite3`.
+
+If session start printed `Eklavya paused · can't open its database · run:
+eklavya doctor` (or the variant naming a SQLite module and Node version
+mismatch), the database exists but would not open — `doctor` names why.
 
 The fix is almost always `eklavya install`. It is idempotent — it reinstalls the
 runtime, re-copies the plugin and rewrites the registration, and never touches
@@ -287,5 +302,6 @@ skill, not this one.
   entry and its vectors are gone. Confirm before the hard one, and never offer
   it as a tidying-up suggestion.
 - Do not configure `providers.observer` on the user's behalf. It is the one
-  setting that sends this machine's work to an API, and it needs their explicit
-  yes and their own key in an environment variable.
+  setting that sends this machine's work off it — to a Claude model, on their
+  subscription — and it needs their explicit yes. It goes in the global config
+  only.

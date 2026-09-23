@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,3 +93,51 @@ export function projectConfigPath(repoRoot: string): string {
 export function projectPacksDir(repoRoot: string): string {
   return path.join(projectsDir(), projectSlug(repoRoot), 'packs');
 }
+
+/**
+ * Private to the person whose history it is.
+ *
+ * `~/.eklavya` holds every prompt, edit and answer Eklavya has seen, and it was
+ * created 0755 with a 0644 database: readable by every other account on a
+ * shared machine. The directory is now 0700 and the files in it 0600.
+ *
+ * Existing installs are tightened on the next open, but only when the path is
+ * ours (a directory somebody pointed `EKLAVYA_HOME` at on purpose, owned by
+ * another account, is left as found) and never at the cost of a failure: a
+ * filesystem that refuses `chmod` (Windows, some network mounts) still gets a
+ * working Eklavya.
+ */
+export function makePrivate(target: string, wanted: number): void {
+  try {
+    const st = fs.statSync(target);
+    const uid = process.getuid?.();
+    if (uid === undefined || st.uid !== uid) return;
+    if ((st.mode & 0o777 & ~wanted) !== 0) fs.chmodSync(target, st.mode & 0o777 & wanted);
+  } catch {
+    // Best effort, by design: see above.
+  }
+}
+
+/** Creates `~/.eklavya` 0700 if it is missing, and tightens it if it is looser. */
+export function ensureEklavyaHome(): string {
+  const home = eklavyaHome();
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  makePrivate(home, 0o700);
+  return home;
+}
+
+/**
+ * High, unassigned, and deliberately boring to collide with.
+ *
+ * The low 5000s are where every dev server lands — Vite alone walks 5173, 5174,
+ * 5175 upward as it finds ports taken — so a default down there is a default
+ * you have to override. This sits above the registered services in /etc/services
+ * and below the 49152+ ephemeral range the OS hands out for outbound sockets,
+ * so neither end can claim it first. (1729 is the Hardy–Ramanujan number, which
+ * is as good a reason as any to remember it.)
+ *
+ * Lives here, not in `dashboard.ts`, because the SessionStart hook probes it on
+ * every session and importing the dashboard module drags in zod and the memory
+ * worker for one number.
+ */
+export const DEFAULT_PORT = 41729;

@@ -1,0 +1,170 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/**
+ * `hooks/run.mjs` choosing and refreshing the runtime, driven for real: a fake
+ * home with a runtime at some version, a fake plugin root pinning another, and
+ * fake `npm`/`npx` on PATH that record what they were asked to do. Nothing here
+ * touches the network or the developer's `~/.eklavya`.
+ */
+const repoRoot = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
+const RUN = path.join(repoRoot, 'hooks', 'run.mjs');
+
+let tmp = '';
+let home = '';
+let pluginRoot = '';
+let bin = '';
+let log = '';
+
+const runtimePkg = () => path.join(home, '.eklavya', 'runtime', 'node_modules', 'eklavya');
+
+function pinPlugin(version: string): void {
+  fs.mkdirSync(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ version }));
+}
+
+/** A runtime at `version` whose one hook appends `ran` to the log. */
+function installRuntime(version: string): void {
+  fs.mkdirSync(path.join(runtimePkg(), 'dist', 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(runtimePkg(), 'package.json'), JSON.stringify({ name: 'eklavya', version }));
+  fs.writeFileSync(
+    path.join(runtimePkg(), 'dist', 'hooks', 'probe.js'),
+    `require('node:fs').appendFileSync(${JSON.stringify(log)}, 'ran\\n');`,
+  );
+}
+
+/** A fake executable on PATH that logs its argv, then runs `body`. */
+function fakeBin(name: string, body = ''): void {
+  const file = path.join(bin, name);
+  fs.writeFileSync(file, `#!/bin/sh\necho "${name} $*" >> "${log}"\n${body}\n`);
+  fs.chmodSync(file, 0o755);
+}
+
+function launch(name: string) {
+  const env: Record<string, string> = {
+    PATH: `${bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}/usr/bin:/bin`,
+    HOME: home,
+    USERPROFILE: home,
+    CLAUDE_PLUGIN_ROOT: pluginRoot,
+  };
+  return spawnSync(process.execPath, [RUN, name], { env, encoding: 'utf8', input: '{}', timeout: 20_000 });
+}
+
+const logLines = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
+
+/** The heal is detached, so give it a moment to write before deciding it never ran. */
+function waitForLog(pattern: RegExp, ms = 5000): boolean {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (logLines().some((l) => pattern.test(l))) return true;
+    spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},100)']);
+  }
+  return false;
+}
+
+beforeEach(() => {
+  tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-launcher-')));
+  home = path.join(tmp, 'home');
+  pluginRoot = path.join(tmp, 'plugin');
+  bin = path.join(tmp, 'bin');
+  log = path.join(tmp, 'log');
+  for (const d of [home, pluginRoot, bin]) fs.mkdirSync(d, { recursive: true });
+  fakeBin('npm');
+});
+
+afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+describe.skipIf(process.platform === 'win32')('run.mjs keeps the runtime in step with the plugin', () => {
+  it('runs a runtime behind the plugin this time, and refreshes it in the background', () => {
+    pinPlugin('2.0.0');
+    installRuntime('1.9.0');
+
+    const res = launch('probe');
+
+    expect(res.status).toBe(0);
+    expect(logLines()).toContain('ran');
+    expect(waitForLog(/^npm install eklavya@2\.0\.0 /)).toBe(true);
+  });
+
+  it('refreshes at most once an hour, however many hooks fire', () => {
+    pinPlugin('2.0.0');
+    installRuntime('1.9.0');
+
+    launch('probe');
+    waitForLog(/^npm install/);
+    launch('probe');
+    launch('probe');
+
+    expect(logLines().filter((l) => l.startsWith('npm install'))).toHaveLength(1);
+  });
+
+  it('leaves a matching runtime alone', () => {
+    pinPlugin('2.0.0');
+    installRuntime('2.0.0');
+
+    expect(launch('probe').status).toBe(0);
+    expect(logLines()).toContain('ran');
+    expect(waitForLog(/^npm/, 1000)).toBe(false);
+  });
+
+  it('never downgrades a runtime that is ahead of the plugin', () => {
+    // Migrations only go forward: the newer runtime may already have moved the
+    // database past what the older one understands.
+    pinPlugin('1.9.0');
+    installRuntime('2.0.0');
+
+    expect(launch('probe').status).toBe(0);
+    expect(logLines()).toContain('ran');
+    expect(waitForLog(/^npm/, 1000)).toBe(false);
+  });
+
+  it('compares versions as numbers, not strings', () => {
+    pinPlugin('1.10.0');
+    installRuntime('1.9.0');
+
+    launch('probe');
+    expect(waitForLog(/^npm install eklavya@1\.10\.0 /)).toBe(true);
+  });
+
+  it('runs anyway when the runtime has no readable version', () => {
+    pinPlugin('2.0.0');
+    installRuntime('2.0.0');
+    fs.writeFileSync(path.join(runtimePkg(), 'package.json'), JSON.stringify({ name: 'eklavya' }));
+
+    expect(launch('probe').status).toBe(0);
+    expect(logLines()).toContain('ran');
+    expect(waitForLog(/^npm/, 1000)).toBe(false);
+  });
+});
+
+describe.skipIf(process.platform === 'win32')('the npx fallback survives a release still publishing', () => {
+  // semantic-release pushes the bumped plugin.json in its prepare step and runs
+  // `npm publish` after it, so for a minute or so a marketplace pull can pin a
+  // version npm does not have yet.
+  it('retries eklavya@latest when the pinned version is not on npm', () => {
+    pinPlugin('9.9.9');
+    fakeBin(
+      'npx',
+      'case "$*" in *eklavya@latest*) exit 0 ;; esac\necho "npm error code ETARGET" >&2\necho "npm error notarget No matching version found for eklavya@9.9.9." >&2\nexit 1',
+    );
+
+    const res = launch('server');
+
+    expect(res.status).toBe(0);
+    expect(logLines()).toEqual(['npx --yes eklavya@9.9.9 serve', 'npx --yes eklavya@latest serve']);
+  });
+
+  it('does not retry a server that ran and then failed for its own reasons', () => {
+    pinPlugin('9.9.9');
+    fakeBin('npx', 'echo "Error: something inside the server" >&2\nexit 3');
+
+    const res = launch('server');
+
+    expect(res.status).toBe(3);
+    expect(logLines()).toEqual(['npx --yes eklavya@9.9.9 serve']);
+  });
+});

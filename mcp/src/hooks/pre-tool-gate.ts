@@ -6,21 +6,15 @@
  */
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
 import { isSessionOff } from '../session.js';
-
-/**
- * `git commit` only counts at a command position: after the start of the line or
- * a shell separator. This is what keeps `echo "git commit"` from being blocked,
- * while `npm test && git commit -m x` is still caught. The option group allows a
- * value after a flag, so `git -C . commit` and `git -c user.name=x commit` are
- * caught alongside plain `git commit`.
- */
-const COMMIT = /(^|[;&|])\s*(sudo\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+commit(\s|$)/;
+import { isCommitCommand } from './commit-lib.js';
 
 await run(async (input) => {
   // Fast path: no string match, no work. PreToolUse fires on every Bash call.
+  // Every command the gate holds (`git commit`, `git merge --continue`) spells
+  // one of these two words; `commit-lib.ts` says what counts and why.
   const command = input.tool_input?.command;
-  if (!command || !command.includes('commit')) return 0;
-  if (!COMMIT.test(command)) return 0;
+  if (typeof command !== 'string' || !/commit|continue/.test(command)) return 0;
+  if (!isCommitCommand(command)) return 0;
 
   const cwd = cwdOf(input);
   if (!config(cwd).config.quiz.enforced) return 0;

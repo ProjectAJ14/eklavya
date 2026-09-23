@@ -17,6 +17,20 @@ describe('normalizeSlug', () => {
   it('caps length so an LLM cannot mint an essay as a slug', () => {
     expect(normalizeSlug('x'.repeat(200)).length).toBeLessThanOrEqual(80);
   });
+
+  it('never ends on a separator when the cap lands on one', () => {
+    // 79 letters then a space: the cut at 80 keeps the dash the space became.
+    const cut = normalizeSlug(`${'a'.repeat(79)} tail`);
+    expect(cut).toBe('a'.repeat(79));
+    expect(isValidSlug(cut)).toBe(true);
+    // A run of separators straddling the cut collapses first, then trims.
+    expect(isValidSlug(normalizeSlug(`${'b'.repeat(78)}-- !! more`))).toBe(true);
+  });
+
+  it('keeps a slug of exactly the cap intact', () => {
+    expect(normalizeSlug('c'.repeat(80))).toBe('c'.repeat(80));
+    expect(normalizeSlug(`${'c'.repeat(80)}-d`)).toBe('c'.repeat(80));
+  });
 });
 
 describe('isValidSlug', () => {
@@ -34,7 +48,7 @@ describe('isValidSlug', () => {
   });
 
   it('round-trips: normalizing always yields a valid slug', () => {
-    for (const input of ['Hello World', 'a_b_c', '  spaced  out  ', 'Ünïcode Näme']) {
+    for (const input of ['Hello World', 'a_b_c', '  spaced  out  ', 'Ünïcode Näme', `${'z'.repeat(79)} end`]) {
       expect(isValidSlug(normalizeSlug(input))).toBe(true);
     }
   });
