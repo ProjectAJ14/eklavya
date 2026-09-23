@@ -213,18 +213,25 @@ function recover(holder: WorkerHolder, now: number): void {
 
 /**
  * Takes the one worker slot, or returns null when someone holds it. Atomic
- * across processes: IMMEDIATE takes the write lock before the read, so two
- * callers cannot both see the slot free.
+ * across processes: the claim is an IMMEDIATE compare-and-set against what was
+ * read, so two callers cannot both take a slot they both saw free.
  *
  * A stale holder is recovered, not replaced: this call signals it and returns
  * null, and a later call takes the slot once it has gone.
  */
 export function reserveWorker(db: DB, pid: number | null = null, now = Date.now()): string | null {
   const pidStart = startStamp(pid);
-  const outcome = db.transaction(() => {
-    const holder = read(db);
-    const state = stateOf(holder, now);
-    if (state !== 'free') return { token: null, stale: state === 'stale' ? holder : null };
+  // Judged before the write lock: `stateOf` runs `ps`, and a hook holding the
+  // lock while it does stalls every other writer. The lock then only confirms
+  // that nobody changed the slot in between — if they did, someone else took it.
+  const seen = read(db);
+  const state = stateOf(seen, now);
+  if (state !== 'free') {
+    if (state === 'stale') recover(seen!, now);
+    return null;
+  }
+  return db.transaction(() => {
+    if (JSON.stringify(read(db)) !== JSON.stringify(seen)) return null;
     const token = crypto.randomUUID();
     const stamp = new Date(now).toISOString();
     write(db, {
@@ -240,11 +247,8 @@ export function reserveWorker(db: DB, pid: number | null = null, now = Date.now(
       until: new Date(now + WORKER_LEASE_MS).toISOString(),
       heartbeat: stamp,
     });
-    return { token, stale: null };
+    return token;
   }).immediate();
-  // Outside the transaction: signalling is slow next to a write lock.
-  if (outcome.stale) recover(outcome.stale, now);
-  return outcome.token;
 }
 
 /**

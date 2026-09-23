@@ -392,8 +392,16 @@ export async function superviseWorker(
   // beside them. The record names the group; recovery can see and end it.
   if (child !== null) return { ...result, handedOff: false, released: false };
 
+  // A stop that landed after the last job — SIGTERM, Ctrl-C, a closed
+  // terminal — still means stop: no successor.
   let handedOff = false;
-  if ((result.stopped === 'limit' || result.stopped === 'empty') && config.providers.observer && stillOn()) {
+  if (
+    (result.stopped === 'limit' || result.stopped === 'empty') &&
+    config.providers.observer &&
+    stillOn() &&
+    !cancel.signal.aborted &&
+    !opts.signal?.aborted
+  ) {
     try {
       handedOff = handOffWorker(db, token, () => hasClaimableJob(db) && queueDepth(db).paused === 0);
     } catch {

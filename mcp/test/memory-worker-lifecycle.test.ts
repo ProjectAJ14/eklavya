@@ -521,6 +521,27 @@ describe.skipIf(!posix)('a supervised worker run', () => {
     expect(workerStatus(db)).toMatchObject({ token, generation: 1, pid: null });
   });
 
+  it('does not hand off when it was told to stop after its last job', async () => {
+    fakeClaude();
+    queue(6);
+    const token = reserveWorker(db)!;
+    const stop = new AbortController();
+    const launched: string[] = [];
+    const result = await superviseWorker(db, token, OBSERVED, {
+      maxJobs: 4,
+      signal: stop.signal,
+      // The terminal closes once the fourth job is committed, before the hand-off.
+      loadConfig: () => {
+        if (jobs().filter((j) => j.status === 'done').length === 4) stop.abort();
+        return OBSERVED;
+      },
+      launch: (_db, t) => (launched.push(t), true),
+    });
+    expect(result).toMatchObject({ processed: 4, stopped: 'limit', handedOff: false, released: true });
+    expect(launched).toEqual([]);
+    expect(workerStatus(db)).toBeNull();
+  });
+
   it('does not hand off past a paused queue', async () => {
     fakeClaude();
     queue(6);
