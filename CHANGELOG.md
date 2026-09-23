@@ -1,3 +1,10 @@
+# [1.26.0](https://github.com/ProjectAJ14/eklavya/compare/v1.25.3...v1.26.0) (2026-09-23)
+
+
+### Features
+
+* **update:** Eklavya updates itself ([dd9f4ef](https://github.com/ProjectAJ14/eklavya/commit/dd9f4efa37100e6ee275a77f901b14328b772729))
+
 ## [1.25.3](https://github.com/ProjectAJ14/eklavya/compare/v1.25.2...v1.25.3) (2026-09-23)
 
 
