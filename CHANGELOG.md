@@ -1,3 +1,10 @@
+## [1.25.3](https://github.com/ProjectAJ14/eklavya/compare/v1.25.2...v1.25.3) (2026-09-23)
+
+
+### Bug Fixes
+
+* close the gaps a review of the launch-readiness PR found ([f2073eb](https://github.com/ProjectAJ14/eklavya/commit/f2073eb799cc7417fc4d10ca9da8fabdec36a981)), closes [#29](https://github.com/ProjectAJ14/eklavya/issues/29)
+
 ## [1.25.2](https://github.com/ProjectAJ14/eklavya/compare/v1.25.1...v1.25.2) (2026-09-23)
 
 
