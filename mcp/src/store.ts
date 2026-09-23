@@ -660,23 +660,18 @@ export function projectKey(repoRoot: string | null | undefined): string {
  * `session_concepts` has no repo column, but every `log_session_concepts` call
  * writes the session's gate row with one, so the gate is where a session's
  * project is recorded. Folded through `projectKey` so a worktree's sessions count
- * as its checkout's. Sessions from before the gate carried a repo land in
- * `GLOBAL_PROJECT`, which is why a NULL repo is reported separately: SQL's `IN`
- * never matches it.
+ * as its checkout's. A NULL repo -- no git root, or a session from before the
+ * gate carried one -- folds to `GLOBAL_PROJECT`, which no caller asks about.
  *
  * Distinct repos rather than session ids, because the folding needs the
  * filesystem and so has to happen here, and there are a handful of checkouts
  * but one session per conversation -- binding one variable per session is how
  * a long-lived project would hit SQLite's bound-variable limit.
  */
-function projectRepos(db: DB, repoRoot: string | null | undefined): { repos: string[]; includesNull: boolean } {
+function projectRepos(db: DB, repoRoot: string | null | undefined): string[] {
   const key = projectKey(repoRoot);
   const rows = db.prepare('SELECT DISTINCT repo FROM gates').all() as { repo: string | null }[];
-  const matching = rows.filter((r) => projectKey(r.repo) === key);
-  return {
-    repos: matching.flatMap((r) => (r.repo === null ? [] : [r.repo])),
-    includesNull: matching.some((r) => r.repo === null),
-  };
+  return rows.filter((r) => r.repo !== null && projectKey(r.repo) === key).map((r) => r.repo as string);
 }
 
 /**
@@ -687,6 +682,12 @@ function projectRepos(db: DB, repoRoot: string | null | undefined): { repos: str
  * these as `backlog`, and `stop-quiz-check` counts them to decide whether a
  * session with nothing of its own left to ask should still ask. If the two
  * disagreed, the hook would block a turn the plan then answers with nothing.
+ *
+ * Never outside a project. Every session with no git root shares
+ * `GLOBAL_PROJECT`, so "an earlier session here" would mean any folder at all:
+ * a session in `~` got asked about Flutter work logged in an unrelated scratch
+ * directory weeks before. Such a session is still quizzed on its own work; only
+ * the carry-over stops.
  */
 export function backlogConcepts(
   db: DB,
@@ -695,13 +696,10 @@ export function backlogConcepts(
   domains: string[] = [],
   limit = 50,
 ): ConceptRow[] {
-  const { repos, includesNull } = projectRepos(db, repoRoot);
-  if (repos.length === 0 && !includesNull) return [];
+  if (projectKey(repoRoot) === GLOBAL_PROJECT) return [];
+  const repos = projectRepos(db, repoRoot);
+  if (repos.length === 0) return [];
   const scoped = domains.length > 0;
-  const repoClause = [
-    ...(repos.length > 0 ? [`repo IN (${repos.map(() => '?').join(',')})`] : []),
-    ...(includesNull ? ['repo IS NULL'] : []),
-  ].join(' OR ');
   return db
     .prepare(
       `SELECT c.* FROM session_concepts sc
@@ -709,7 +707,7 @@ export function backlogConcepts(
        WHERE sc.session_id <> ?
          AND COALESCE(sc.origin, 'work') = 'work'
          AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)
-         AND sc.session_id IN (SELECT session_id FROM gates WHERE ${repoClause})
+         AND sc.session_id IN (SELECT session_id FROM gates WHERE repo IN (${repos.map(() => '?').join(',')}))
          ${scoped ? `AND c.domain IN (${domains.map(() => '?').join(',')})` : ''}
        GROUP BY c.id
        ORDER BY min(sc.ts) ASC

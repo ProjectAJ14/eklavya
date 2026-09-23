@@ -267,24 +267,31 @@ describe('slugs and clocks the planner is handed', () => {
   it('backlog works for a project with more sessions than SQLite can bind variables', () => {
     // One bound variable per session used to be the shape; SQLite caps a
     // statement at 32,766, and a project a year old can pass that.
-    call(logSessionConcepts, { session_id: 'earlier', concepts: [{ slug: 'pkce' }] });
-    const repo = (db.prepare("SELECT repo FROM gates WHERE session_id = 'earlier'").get() as { repo: string | null }).repo;
-    db.prepare(
-      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 40000)
-       INSERT INTO gates (session_id, mode, required, answered, passed, updated_at, repo)
-       SELECT 'filler-' || i, 'ambient', 0, 0, 1, datetime('now'), ? FROM n`,
-    ).run(repo);
+    const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-co-')));
+    fs.mkdirSync(path.join(repo, '.git'));
+    try {
+      call(logSessionConcepts, { cwd: repo, session_id: 'earlier', concepts: [{ slug: 'pkce' }] });
+      db.prepare(
+        `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 40000)
+         INSERT INTO gates (session_id, mode, required, answered, passed, updated_at, repo)
+         SELECT 'filler-' || i, 'ambient', 0, 0, 1, datetime('now'), ? FROM n`,
+      ).run(repo);
 
-    const started = Date.now();
-    const backlog = backlogConcepts(db, 'current', null).map((c) => c.slug);
-    expect(backlog).toEqual(['pkce']);
-    expect(Date.now() - started).toBeLessThan(2000);
+      const started = Date.now();
+      const backlog = backlogConcepts(db, 'current', repo).map((c) => c.slug);
+      expect(backlog).toEqual(['pkce']);
+      expect(Date.now() - started).toBeLessThan(2000);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
   });
 
-  it('backlog still folds a NULL-repo session into the global project, and keeps projects apart', () => {
+  it('backlog never carries over a NULL-repo session, into the global bucket or a project', () => {
+    // No git root means no project: every such session shares one key, so a
+    // backlog there would ask a session in ~ about work from any other folder.
     call(logSessionConcepts, { session_id: 'earlier', concepts: [{ slug: 'pkce' }] });
     db.prepare("UPDATE gates SET repo = NULL WHERE session_id = 'earlier'").run();
-    expect(backlogConcepts(db, 'current', null).map((c) => c.slug)).toEqual(['pkce']);
+    expect(backlogConcepts(db, 'current', null)).toEqual([]);
     expect(backlogConcepts(db, 'current', '/some/other/checkout')).toEqual([]);
   });
 });
