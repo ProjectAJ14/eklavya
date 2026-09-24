@@ -358,6 +358,66 @@
   summary.qa__meta::before { content:'▸'; color:var(--faint); }
   details[open] > summary.qa__meta::before { content:'▾'; color:var(--spot); }
   summary.qa__meta:focus-visible { outline:none; box-shadow:var(--ring); }
+
+  /* ---------- memory timeline ----------
+     One line per entry on a vertical rule. A row is a <details>: the title is
+     the summary, the snippet and the link to the full entry open under it, so
+     the list stays scannable and detail costs one click. */
+  .counts { margin:var(--space-2) 0 0; font-family:var(--font-mono); font-size:12px; color:var(--faint); }
+  .counts .warn { color:var(--warning); }
+  .tl { list-style:none; margin:var(--space-4) 0 0; padding:0; position:relative; }
+  .tl::before { content:''; position:absolute; left:67px; top:8px; bottom:8px; width:1px; background:var(--line-2); }
+  .tl-day { display:flex; align-items:baseline; gap:var(--space-3); padding:var(--space-5) 0 var(--space-2) 88px; position:relative; }
+  .tl-day:first-child { padding-top:0; }
+  .tl-day::before { content:''; position:absolute; left:62px; top:calc(var(--space-5) + 6px); width:11px; height:11px; background:var(--line-2); }
+  .tl-day:first-child::before { top:6px; }
+  .tl-day h2 { margin:0; font-family:var(--font-disp); font-size:var(--text-lg); font-weight:var(--weight-bold); letter-spacing:-.02em; }
+  .tl-day span { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--spot); }
+  .tl-gap { padding:var(--space-2) 0 var(--space-2) 88px; font-family:var(--font-mono); font-size:11.5px; color:var(--faint); }
+  .tl-item > summary { list-style:none; cursor:pointer; display:grid; grid-template-columns:52px minmax(0,1fr) auto;
+                       align-items:center; column-gap:36px; min-height:44px; padding-right:var(--space-3); position:relative; }
+  .tl-item > summary::-webkit-details-marker { display:none; }
+  .tl-item > summary::before { content:''; position:absolute; left:62px; top:50%; width:11px; height:11px; margin-top:-5.5px;
+                               box-sizing:border-box; border-radius:50%; border:2px solid var(--dim); background:var(--bg); }
+  .tl-item > summary:hover { background:var(--panel); }
+  .tl-item > summary:focus-visible { outline:none; box-shadow:var(--ring); }
+  .tl-item[open] > summary::before { background:var(--spot); border-color:var(--spot); }
+  .tl-item[open] { background:var(--panel); }
+  .tl-time { font-family:var(--font-mono); font-size:12px; color:var(--faint); text-align:right; font-variant-numeric:tabular-nums; }
+  .tl-title { font-size:15px; font-weight:var(--weight-medium); color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tl-item[open] > summary .tl-title { font-weight:var(--weight-semibold); }
+  .tl-type { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); white-space:nowrap; }
+  .tl-body { padding:0 var(--space-4) var(--space-4) 88px; display:grid; gap:var(--space-3); }
+  .tl-body p { margin:0; color:var(--dim); font-size:13.5px; max-width:72ch; overflow-wrap:anywhere; }
+  .tl-meta { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-4);
+             font-family:var(--font-mono); font-size:11.5px; color:var(--faint); }
+  .tl-meta .link { margin-left:auto; font-family:var(--font-body); font-size:13.5px; font-weight:var(--weight-semibold); }
+  .tl-item.gone .tl-title { text-decoration:line-through; color:var(--faint); }
+  /* A session is a larger ring; its observations fold under it. */
+  .tl-session > summary::before { width:15px; height:15px; margin-top:-7.5px; left:60px; border-color:var(--spot); }
+  .tl-session[open] > summary::before { background:var(--bg); }
+  .tl-session[open] { background:none; }
+  .tl-session > summary .tl-title { font-weight:var(--weight-medium); }
+  .tl-session > summary .tl-type { color:var(--spot); }
+  .tl-kids { list-style:none; margin:0; padding:0; }
+  .tl-kids .tl-item > summary::before { left:64px; width:7px; height:7px; margin-top:-3.5px; border-color:var(--faint-2); }
+  .tl-kids .tl-item[open] > summary::before { border-color:var(--spot); }
+  .tl-kids .tl-title { font-size:14px; padding-left:var(--space-6); }
+  .tl-kids .tl-body { padding-left:112px; }
+  .tl-kids .tl-gap { padding-left:112px; }
+  #mwhen, #mtype, #mtag { max-width:100%; min-width:0; }
+  /* Narrow: the title gets the width and two lines; the type drops under it. */
+  @media (max-width:560px) {
+    .tl-item > summary { grid-template-columns:52px minmax(0,1fr); padding:var(--space-2) var(--space-2) var(--space-2) 0; }
+    .tl-item > summary::before { top:calc(var(--space-2) + 11px); margin-top:0; }
+    .tl-session > summary::before { top:calc(var(--space-2) + 9px); }
+    .tl-kids .tl-item > summary::before { top:calc(var(--space-2) + 13px); }
+    .tl-time { align-self:start; padding-top:3px; }
+    .tl-title { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .tl-type { grid-column:2; margin-top:2px; }
+    .tl-kids .tl-type { padding-left:var(--space-6); }
+    .tl-body, .tl-kids .tl-body, .tl-kids .tl-gap { padding-left:88px; }
+  }
   .raw { font-family:var(--font-mono); font-size:12px; line-height:1.55; white-space:pre-wrap;
          word-break:break-word; color:var(--dim); background:var(--mass); padding:var(--space-3);
          max-height:320px; overflow:auto; margin:var(--space-3) 0 0; }
@@ -1728,24 +1788,72 @@ function memoryQuery(type) {
   return p.toString();
 }
 
+const dayName = (d) => d.toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short' });
+const clock = (d) => d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+
+/** One entry on the timeline: a line that opens to its snippet and a link to the full entry. */
+function tlEntry(e) {
+  const d = parse(e.occurred_at);
+  const more = e.narrative_length > String(e.snippet ?? '').length;
+  const gone = e.deleted_at || e.superseded_by;
+  return `<li><details class="tl-item${gone ? ' gone' : ''}" data-entry="${esc(e.id)}">
+    <summary><span class="tl-time">${d ? esc(clock(d)) : '—'}</span>
+      <span class="tl-title">${esc(e.title)}</span><span class="tl-type">${esc(e.type ?? e.kind)}</span></summary>
+    <div class="tl-body">
+      ${e.snippet ? `<p>${esc(e.snippet)}${more ? '…' : ''}</p>` : ''}
+      <div class="tl-meta"><span>${esc(pname(e.project))}</span><span>${plural(e.event_count, 'evidence event')}</span>
+        ${entryMark(e)}<a class="link" data-go="${esc(MH('entry', e.id))}">Open entry →</a></div>
+    </div></details></li>`;
+}
+
+/**
+ * The page's entries as a timeline: grouped by local day, and an entry that
+ * shares a session with a session summary on this page folds under that
+ * summary. Grouping is per page — a session whose summary sits on the next page
+ * shows its observations as ordinary lines here — because the server pages
+ * entries, not sessions.
+ */
 function drawMemory(d) {
   T.memory.page = d.page;   // the server clamps a page number a filter shrank
-  const rows = d.rows.map((e) => {
-    const gone = e.deleted_at || e.superseded_by;
-    const more = e.narrative_length > String(e.snippet ?? '').length;
-    return `<tr class="row${gone ? ' gone' : ''}" data-go="${esc(MH('entry', e.id))}">
-      <td class="slug" style="white-space:nowrap">${esc(stamp(e.occurred_at))}</td>
-      <td style="min-width:280px"><span class="title">${esc(e.title)}</span>
-        <div class="ctx">${esc(e.snippet ?? '')}${more ? '…' : ''}</div></td>
-      <td><span class="pill">${esc(e.type ?? e.kind)}</span></td>
-      <td style="min-width:120px"><div class="tags">${tagPills(e.tags)}</div></td>
-      <td class="slug">${esc(pname(e.project))}</td>
-      <td class="num">${e.event_count}</td>
-      <td>${entryMark(e)}</td>
-    </tr>`;
-  });
-  return table([{t:'When'},{t:'Observation'},{t:'Type'},{t:'Tags'},{t:'Project'},{t:'Evidence',n:1},{t:''}], rows)
-    + pager('memory', d.total, d.page, d.per);
+  if (!d.rows.length) return '<p class="empty">Nothing in memory matches these filters.</p>';
+  const summaries = new Map(d.rows.filter((e) => e.kind === 'session_summary' && e.session_id).map((e) => [e.session_id, e]));
+  const kids = new Map();
+  for (const e of d.rows) {
+    if (e.kind === 'session_summary' || !summaries.has(e.session_id)) continue;
+    if (!kids.has(e.session_id)) kids.set(e.session_id, []);
+    kids.get(e.session_id).push(e);
+  }
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const out = [];
+  let last = null;
+  for (const e of d.rows) {
+    if (e.kind !== 'session_summary' && summaries.has(e.session_id)) continue;   // drawn under its summary
+    const at = parse(e.occurred_at);
+    const day = at ? new Date(at.getFullYear(), at.getMonth(), at.getDate()) : null;
+    if (day && (!last || day.getTime() !== last.getTime())) {
+      if (last) {
+        const gap = Math.round((last - day) / DAY_MS) - 1;
+        const after = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+        const before = new Date(last.getFullYear(), last.getMonth(), last.getDate() - 1);
+        if (gap === 1) out.push(`<li class="tl-gap">Nothing on ${esc(dayName(after))}</li>`);
+        if (gap > 1) out.push(`<li class="tl-gap">Nothing from ${esc(dayName(after))} to ${esc(dayName(before))}</li>`);
+      }
+      const note = day.getTime() === today ? 'Today' : Math.round((today - day.getTime()) / DAY_MS) === 1 ? 'Yesterday' : '';
+      out.push(`<li class="tl-day"><h2>${esc(dayName(day))}</h2>${note ? `<span>${note}</span>` : ''}</li>`);
+      last = day;
+    }
+    const inner = kids.get(e.session_id);
+    if (e.kind === 'session_summary' && inner) {
+      out.push(`<li><details class="tl-item tl-session">
+        <summary><span class="tl-time">${at ? esc(clock(at)) : '—'}</span>
+          <span class="tl-title">${esc(e.title.replace(/^Session:\s*/, ''))}</span>
+          <span class="tl-type">Session · ${plural(inner.length, 'observation')}</span></summary>
+        <ol class="tl-kids">${inner.map(tlEntry).join('')}
+          <li class="tl-gap"><a class="link" data-go="${esc(MH('entry', e.id))}">The session summary →</a></li></ol></details></li>`);
+    } else out.push(tlEntry(e));
+  }
+  return `<ol class="tl" aria-label="Timeline">${out.join('')}</ol>` + pager('memory', d.total, d.page, d.per);
 }
 
 /**
@@ -1754,24 +1862,40 @@ function drawMemory(d) {
  * selector; indexing, reuse, delivery and assessment are only aggregated for
  * the whole database, and say so rather than pretend to be this project's.
  */
-function memTiles() {
+function memCounts() {
   const M = S.memory;
   const scoped = PROJECT !== null;
   const inv = projectsInScope();
   const sum = (f) => inv.reduce((a, p) => a + f(p), 0);
-  const events = scoped ? sum((p) => p.memory.events) : M.captured;
-  const pending = scoped ? sum((p) => p.memory.pending) : M.pending;
-  const entries = scoped ? sum((p) => p.memory.entries) : M.entries;
+  return {
+    scoped,
+    events: scoped ? sum((p) => p.memory.events) : M.captured,
+    pending: scoped ? sum((p) => p.memory.pending) : M.pending,
+    entries: scoped ? sum((p) => p.memory.entries) : M.entries,
+    sessions: scoped ? sum((p) => p.memory.sessions) : INV.projects.reduce((a, p) => a + p.memory.sessions, 0),
+  };
+}
+
+function memTiles() {
+  const M = S.memory;
+  const { scoped, events, pending, entries, sessions } = memCounts();
   const everywhere = scoped ? 'all projects · ' : '';
   return tiles([
     ['Observations', entries, scoped ? `live here · ${M.indexed} indexed across all projects`
       : `${M.entries_total} written · ${M.superseded} superseded · ${M.deleted} deleted · ${M.indexed} indexed`, '', MH('timeline')],
     ['Evidence', events, `${events - pending} distilled · ${pending} still pending`, pending ? 'warn' : '', MH('health')],
-    ['Sessions', scoped ? sum((p) => p.memory.sessions) : INV.projects.reduce((a, p) => a + p.memory.sessions, 0), 'that captured or remembered', '', MH('sessions')],
+    ['Sessions', sessions, 'that captured or remembered', '', MH('sessions')],
     ['Reused', M.reused, `${everywhere}${M.exposed} actually delivered`, '', MH('reuse')],
     ['Assessed', M.assessed, everywhere + 'evidence concepts you were asked about', '', LH('concepts')],
   ]);
 }
+
+/** `YYYY-MM-DD` for n days before today, local — what a date input holds. */
+const daysAgo = (n) => {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const WHEN = { today:0, '7d':6, '30d':29 };
 
 function viewMemory(param) {
   const t = T.memory;
@@ -1785,35 +1909,41 @@ function viewMemory(param) {
   t.until = CUR.query.get('to') || '';
   fill('mem-rows', '/api/memory?' + memoryQuery(type), drawMemory);
 
-  const chip = (k, label, n) =>
-    `<button class="chip" data-mtype="${esc(k)}" aria-pressed="${type === k}">${esc(label)}${n === undefined ? '' : ' ' + n}</button>`;
-  const typeChips = types.map((x) => chip(x.type, x.type, x.n)).join('')
-    + (type !== 'all' && !types.some((x) => x.type === type) ? chip(type, type, 0) : '');
+  // A preset is only a `from` date, so the URL stays the one date format and a
+  // shared link reads the same; anything else is a custom range.
+  const when = !t.since && !t.until ? 'any'
+    : !t.until && Object.keys(WHEN).find((k) => daysAgo(WHEN[k]) === t.since) || 'custom';
+  const opt = (v, label, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(label)}</option>`;
+  const typeOpts = opt('all', 'All types', type === 'all')
+    + types.map((x) => opt(x.type, `${x.type} (${x.n})`, type === x.type)).join('')
+    + (type !== 'all' && !types.some((x) => x.type === type) ? opt(type, `${type} (0)`, true) : '');
+  const { entries, sessions, pending } = memCounts();
 
   return [
     `<div>
        <h1 class="page__title">Timeline</h1>
-       <p class="page__sub">What your sessions actually did, distilled into observations and kept with the raw
-         evidence behind each one. Corrections supersede rather than overwrite and deletions are marked, so what
-         you see is the audit trail and not a tidied version of it.</p>
+       <p class="counts">${plural(entries, 'observation')} · ${plural(sessions, 'session')}${pending
+         ? ` · <a class="link warn" data-go="${esc(MH('health'))}">${pending} evidence pending</a>` : ''}</p>
      </div>`,
 
-    memTiles(),
-
-    card(null, null,
-      `<div class="filters">
-         <div class="grow"><input type="search" id="mq" value="${esc(t.q)}" placeholder="Search titles, narrative, facts and files…" aria-label="Search memory"></div>
+    `<div>
+       <div class="filters">
+         <div class="grow"><input type="search" id="mq" value="${esc(t.q)}" placeholder="Search memory" aria-label="Search memory"></div>
+         <select id="mtype" aria-label="Type">${typeOpts}</select>
          <select id="mtag" aria-label="Tag">
            <option value="all">All tags</option>
-           ${(M.tags ?? []).map((x) => `<option value="${esc(x.tag)}"${t.tag === x.tag ? ' selected' : ''}>${esc(x.tag)} (${x.n})</option>`).join('')}
+           ${(M.tags ?? []).map((x) => opt(x.tag, `${x.tag} (${x.n})`, t.tag === x.tag)).join('')}
          </select>
-         <input type="date" id="mfrom" value="${esc(t.since)}" aria-label="From date">
-         <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">
+         <select id="mwhen" aria-label="When">
+           ${opt('any', 'Any time', when === 'any')}${opt('today', 'Today', when === 'today')}
+           ${opt('7d', 'Last 7 days', when === '7d')}${opt('30d', 'Last 30 days', when === '30d')}
+           ${opt('custom', 'Custom range', when === 'custom')}
+         </select>
+         ${when === 'custom' ? `<input type="date" id="mfrom" value="${esc(t.since)}" aria-label="From date">
+         <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">` : ''}
        </div>
-       <div class="chips" id="mtypes">
-         ${chip('all', 'All')}${typeChips}
-       </div>
-       <div style="margin-top:var(--space-4)" id="mem-rows"><p class="empty">Loading the timeline…</p></div>`),
+       <div id="mem-rows"><p class="empty">Loading the timeline…</p></div>
+     </div>`,
   ].join('');
 }
 
@@ -2782,13 +2912,6 @@ function onActivate(e) {
   }
   const tab = e.target.closest('[data-tab]');
   if (tab) { T.review.page = 1; return goTo(LH('review', tab.dataset.tab === 'due' ? null : tab.dataset.tab)); }
-  const mtype = e.target.closest('[data-mtype]');
-  if (mtype) {
-    T.memory.page = 1;
-    const q = CUR.query;
-    return goTo(MH('timeline', mtype.dataset.mtype === 'all' ? null : mtype.dataset.mtype,
-      { tag: q.get('tag'), from: q.get('from'), to: q.get('to') }));
-  }
   const go = e.target.closest('[data-go]');
   if (go) return goTo(go.dataset.go);
 }
@@ -2798,7 +2921,7 @@ $('view').addEventListener('click', onActivate);
 // are divs and table rows, so Enter and Space have to be wired by hand.
 $('view').addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
-  if (!e.target.closest('[data-go],[data-state],[data-tab],[data-page],[data-mtype]')) return;
+  if (!e.target.closest('[data-go],[data-state],[data-tab],[data-page]')) return;
   e.preventDefault();
   onActivate(e);
 });
@@ -2825,6 +2948,19 @@ $('view').addEventListener('change', (e) => {
   if (e.target.id === 'dom') { T.concepts.page = 1; setQuery({ domain: e.target.value }); }
   if (e.target.id === 'sort') { T.concepts.sort = e.target.value; T.concepts.page = 1; render(); }
   if (e.target.id === 'mtag') { T.memory.page = 1; setQuery({ tag: e.target.value }); }
+  if (e.target.id === 'mtype') {
+    T.memory.page = 1;
+    const q = CUR.query;
+    goTo(MH('timeline', e.target.value === 'all' ? null : e.target.value,
+      { tag: q.get('tag'), from: q.get('from'), to: q.get('to') }));
+  }
+  if (e.target.id === 'mwhen') {
+    T.memory.page = 1;
+    const v = e.target.value;
+    // Custom keeps the range's start, closes it at today and reveals the date boxes.
+    if (v === 'custom') setQuery({ from: CUR.query.get('from') || daysAgo(6), to: daysAgo(0) });
+    else setQuery({ from: v === 'any' ? null : daysAgo(WHEN[v]), to: null });
+  }
   if (e.target.id === 'mfrom') { T.memory.page = 1; setQuery({ from: e.target.value }); }
   if (e.target.id === 'mto') { T.memory.page = 1; setQuery({ to: e.target.value }); }
 });
