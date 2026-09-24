@@ -701,14 +701,16 @@ function retiredClaudeMemDbs(): string[] {
  * place (a checkout found since, or one moved), and adds nothing twice.
  *
  * A project two checkouts could be is asked about, not guessed. Throws when
- * the import fails or any source row is missing.
+ * the import fails or any source row is missing. `quiet` (a later install's
+ * re-check) prints nothing unless rows were added or re-filed: the migration
+ * already reported, so repeating it on every install is noise.
  */
-async function crossReference(source: string): Promise<void> {
+async function crossReference(source: string, quiet = false): Promise<void> {
   const shown = source.replace(os.homedir(), '~');
-  const run = (projectMap: Record<string, string>) =>
-    spin('claude-mem', `checking ${shown} against Eklavya…`, () =>
-      importOffThread({ dbFile: dbPath(), source, opts: { projectMap }, guessFrom: claudeHome() }),
-    );
+  const run = (projectMap: Record<string, string>) => {
+    const work = () => importOffThread({ dbFile: dbPath(), source, opts: { projectMap }, guessFrom: claudeHome() });
+    return quiet ? work() : spin('claude-mem', `checking ${shown} against Eklavya…`, work);
+  };
   let { report, verified, unsure } = await run({});
   let rehomed = report.rehomed;
 
@@ -734,6 +736,7 @@ async function crossReference(source: string): Promise<void> {
   const total = verified.tables.reduce((n, t) => n + t.present, 0);
   const added = IMPORTED_TABLES.reduce((n, t) => n + report.imported[t], 0);
   const news = [added && `${added} imported`, rehomed && `${rehomed} filed under their checkout`].filter(Boolean);
+  if (quiet && !news.length) return;
   check('ok', 'claude-mem', `${total} rows, all here ${dim(`— ${news.length ? news.join(', ') : 'nothing new'} · ${shown}`)}`);
 
   const unplaced = verified.projects.filter((p) => Object.keys(p.filedUnder).some((k) => !path.isAbsolute(k)));
@@ -1037,7 +1040,7 @@ async function installSteps(args: string[]): Promise<void> {
     // older version left unplaced, with nothing to run by hand.
     for (const retired of retiredClaudeMemDbs()) {
       try {
-        await crossReference(retired);
+        await crossReference(retired, true);
       } catch (err) {
         check('warn', 'claude-mem', `could not check ${retired} ${dim(`— ${(err as Error).message}`)}`);
       }
