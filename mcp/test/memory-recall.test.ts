@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
-import { learningCounts, recall, startupDisplay } from '../src/memory/recall.js';
+import { learningCounts, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
 import { appendEvent, insertEntry } from '../src/memory/store.js';
 import { estimateTokens } from '../src/memory/tokens.js';
 
@@ -217,5 +217,28 @@ describe('learning counts and the worktree spelling', () => {
 
     fs.rmSync(main, { recursive: true, force: true });
     fs.rmSync(tree, { recursive: true, force: true });
+  });
+});
+
+describe('recallForPrompt', () => {
+  it('stays within a third of the item and token budget however many entries match', () => {
+    for (let i = 0; i < 12; i++) {
+      insertEntry(db, {
+        project: PROJECT,
+        title: `Refresh token rotation change ${i}`,
+        narrative: 'rotation detail '.repeat(20),
+        type: 'change',
+      });
+    }
+    const cfg = config();
+    const result = recallForPrompt(db, cfg, {
+      project: PROJECT,
+      sessionId: 's1',
+      prompt: 'refresh token rotation change',
+    })!;
+
+    expect(result).not.toBeNull();
+    expect(result.entries.length).toBeLessThanOrEqual(Math.floor(cfg.retrieval.max_items / 3));
+    expect(estimateTokens(result.block!)).toBeLessThanOrEqual(Math.floor(cfg.retrieval.max_tokens / 3));
   });
 });
