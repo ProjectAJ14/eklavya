@@ -56,6 +56,7 @@ Usage:
   eklavya config set <key> <value>      Change a setting (--project scopes it to this codebase,
                                         stored under ~/.eklavya/projects/, never in the repo)
                                         e.g. quiz.enabled true|false, quiz.enforced true|false,
+                                        quiz.only_on_changes true|false,
                                         focus project|concept|learn, cadence interleaved|end,
                                         difficulty auto|easy|medium|hard,
                                         explain_on_wrong true|false
@@ -116,8 +117,10 @@ Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              explain_on_wrong,
              auto_update, telemetry (global only)
 Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
-  quiz.{enabled, enforced} — whether questions happen, and whether they gate
-             commits. Separate from memory: silencing questions never stops
+  quiz.{enabled, enforced, only_on_changes} — whether questions happen, whether
+             they gate commits, and whether they wait for a git change (default
+             true: sessions that only read or research are not quizzed).
+             Separate from memory: silencing questions never stops
              recording. (mode: ambient|enforced|off is the retired spelling,
              still read so older configs keep working)
   memory.{enabled, capture: full|minimal|off, batch_max_events, retention_days}

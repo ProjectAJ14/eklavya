@@ -1157,6 +1157,97 @@ describe('Stop hook — the project backlog', () => {
   });
 });
 
+describe('quiz.only_on_changes — no questions for a session that changed nothing', () => {
+  // A real repository, not `checkout()`'s bare `.git` folder: the check runs
+  // git, and an empty `.git` is not a repository to git.
+  function realRepo(): void {
+    const git = (...args: string[]) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+    git('init', '-q');
+    fs.writeFileSync(path.join(cwd, 'a.ts'), 'export const a = 1;\n');
+    git('add', '.');
+    git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init');
+  }
+  const edit = () => fs.writeFileSync(path.join(cwd, 'a.ts'), 'export const a = 2;\n');
+
+  beforeEach(() => configure({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 }));
+
+  it('keeps the checkpoint quiet while the session has only read', () => {
+    realRepo();
+    sessionStart();
+    logConcepts(['csrf']);
+    expect(checkpoint().spoke).toBe(false);
+  });
+
+  it('asks once the working tree changes, however the change was made', () => {
+    realRepo();
+    sessionStart();
+    logConcepts(['csrf']);
+    edit(); // what `sed -i` through Bash looks like: no edit tool involved
+    expect(checkpoint({ tool_name: 'Bash', tool_input: { command: 'sed -i s/1/2/ a.ts' } }).spoke).toBe(true);
+  });
+
+  it('counts an edit to a file that was already dirty at session start', () => {
+    realRepo();
+    edit();
+    sessionStart();
+    logConcepts(['csrf']);
+    expect(checkpoint().spoke).toBe(false);
+    fs.appendFileSync(path.join(cwd, 'a.ts'), '// more\n');
+    expect(checkpoint().spoke).toBe(true);
+  });
+
+  it('counts an edit inside a folder that was already untracked at session start', () => {
+    realRepo();
+    fs.mkdirSync(path.join(cwd, 'newpkg', 'src'), { recursive: true });
+    fs.writeFileSync(path.join(cwd, 'newpkg', 'src', 'x.ts'), 'export const x = 1;\n');
+    sessionStart();
+    logConcepts(['csrf']);
+    expect(checkpoint().spoke).toBe(false);
+    fs.appendFileSync(path.join(cwd, 'newpkg', 'src', 'x.ts'), '// more\n');
+    expect(checkpoint().spoke).toBe(true);
+  });
+
+  it('keeps the Stop sweep quiet, backlog included', () => {
+    realRepo();
+    sessionStart();
+    logConcepts(['pkce'], 'earlier-session');
+    syncGate(db, 'earlier-session', DEFAULT_CONFIG, { repo: cwd });
+    logConcepts(['csrf']);
+    expect(stop().spoke).toBe(false);
+  });
+
+  it('keeps the baseline across a resume, so earlier changes still count', () => {
+    realRepo();
+    sessionStart();
+    edit();
+    sessionStart({ session_start_reason: 'resume' });
+    logConcepts(['csrf']);
+    expect(stop().spoke).toBe(true);
+  });
+
+  it('asks as before when set to false', () => {
+    configure({ min_minutes_between_checkpoints: 0, quiz: { only_on_changes: false } });
+    realRepo();
+    sessionStart();
+    logConcepts(['csrf']);
+    expect(checkpoint().spoke).toBe(true);
+  });
+
+  it('does not hold back enforced quizzing, which the commit gate depends on', () => {
+    configure({ min_minutes_between_checkpoints: 0, quiz: { enabled: true, enforced: true } });
+    realRepo();
+    sessionStart();
+    logConcepts(['csrf']);
+    expect(stop().spoke).toBe(true);
+  });
+
+  it('asks as before outside a git repository, where there is nothing to compare', () => {
+    sessionStart();
+    logConcepts(['csrf']);
+    expect(checkpoint().spoke).toBe(true);
+  });
+});
+
 describe('capture-tool keeps structured arguments readable', () => {
   it('stores an AskUserQuestion as JSON, not [object Object]', () => {
     checkout();
