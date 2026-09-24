@@ -1,3 +1,16 @@
+# [1.30.0](https://github.com/ProjectAJ14/eklavya/compare/v1.29.1...v1.30.0) (2026-09-24)
+
+
+### Bug Fixes
+
+* count usage once, announce the ping before the first send ([7215c17](https://github.com/ProjectAJ14/eklavya/commit/7215c17b70e89b47d1fc7c483ca6e5ffb5bfbbd2))
+
+
+### Features
+
+* point the usage ping at the Eklavya CLI GA4 property ([8bc936d](https://github.com/ProjectAJ14/eklavya/commit/8bc936d67d27c3beaf58ba7fa2d75eab420c4030))
+* send anonymous daily usage counts ([896a7d7](https://github.com/ProjectAJ14/eklavya/commit/896a7d77832af3adefaf2dc7cc1602eb6b8fe93e))
+
 ## [1.29.1](https://github.com/ProjectAJ14/eklavya/compare/v1.29.0...v1.29.1) (2026-09-24)
 
 
