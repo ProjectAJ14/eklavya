@@ -233,6 +233,8 @@ describe('record_attempt and explain_on_wrong', () => {
     const miss = await attempt({ answer: 'wrong', grade: 2, outcome: 'answered' });
     expect(miss.explain).toMatchObject({ concept: 'csrf', answer: 'wrong' });
     expect(miss.explain.instruction).toMatch(/background/);
+    // The page is not the verdict: the learner hears the right answer now, not later.
+    expect(miss.explain.instruction).toMatch(/what the right answer is/);
     expect((await attempt({ grade: 0, outcome: 'dont_know' })).explain).toBeDefined();
     expect((await attempt({ answer: 'right', grade: 4, outcome: 'answered' })).explain).toBeUndefined();
     expect((await attempt({ grade: 0 })).explain).toBeUndefined();
