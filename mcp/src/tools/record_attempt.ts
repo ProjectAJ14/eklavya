@@ -24,7 +24,7 @@ import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
  * written by a background agent, and the session goes back to the work.
  */
 export function explainInstruction(name: string): string {
-  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent in the background, handing it the concept slug, the question, the learner's answer and the right answer; it writes an explainer page on ${name} and opens it. Tell the learner in one line that the page is on its way, then carry on with the task.`;
+  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent (eklavya:eklavya-explainer when Eklavya is installed as a plugin) in the background, handing it the concept slug, the question, the learner's answer and the right answer; it writes an explainer page on ${name} and opens it. Tell the learner in one line that the page is on its way, then carry on with the task.`;
 }
 
 export const recordAttempt: ToolDef = {

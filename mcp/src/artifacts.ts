@@ -178,7 +178,10 @@ export function listArtifacts(root: string = artifactsDir()): ArtifactRow[] {
     return rows;
   }
   for (const folder of folders) {
-    if (!folder.isDirectory()) continue;
+    // The same rules `resolveArtifact` serves by, so nothing is listed that
+    // the dashboard would then refuse: no dot-names, no symlinks — a link's
+    // `<head>` would otherwise be read from wherever it points.
+    if (!folder.isDirectory() || folder.name.startsWith('.')) continue;
     let files: string[];
     try {
       files = fs.readdirSync(path.join(root, folder.name));
@@ -186,10 +189,10 @@ export function listArtifacts(root: string = artifactsDir()): ArtifactRow[] {
       continue;
     }
     for (const name of files) {
-      if (!/\.html?$/i.test(name)) continue;
+      if (!/\.html?$/i.test(name) || name.startsWith('.')) continue;
       const file = path.join(root, folder.name, name);
       try {
-        const st = fs.statSync(file);
+        const st = fs.lstatSync(file);
         if (!st.isFile()) continue;
         const head = readHead(file);
         const title = /<title>([^<]*)<\/title>/i.exec(head)?.[1]?.trim();

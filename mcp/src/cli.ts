@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 import type { DB } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
@@ -850,12 +851,6 @@ async function dashboardCommand(argv: string[]): Promise<void> {
   );
 }
 
-/** The value after `--flag`, or undefined. */
-function flag(argv: string[], name: string): string | undefined {
-  const i = argv.indexOf(name);
-  return i === -1 ? undefined : argv[i + 1];
-}
-
 /**
  * `eklavya artifacts`: the file side of the eklavya-artifacts skill and the
  * explainer agent. `new` is the one place a page's path and metadata are
@@ -865,24 +860,33 @@ async function artifactsCommand(argv: string[]): Promise<void> {
   const { createArtifact, listArtifacts, resolveArtifact, artifactProject } = await import('./artifacts.js');
   const [sub, ...rest] = argv;
   if (sub === 'new') {
-    const valued = new Set(['--description', '--kind', '--concept']);
-    const words: string[] = [];
-    for (let i = 0; i < rest.length; i++) {
-      if (valued.has(rest[i]!)) { i++; continue; }
-      if (!rest[i]!.startsWith('--')) words.push(rest[i]!);
+    // `parseArgs` rather than a hand loop: an agent writes `--kind=explainer`
+    // as often as `--kind explainer`, and a flag that is silently dropped
+    // files the page under the wrong kind. Unknown flags and missing values
+    // fail loudly; `--` ends the flags, for a title that starts with dashes.
+    let parsed;
+    try {
+      parsed = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: {
+          description: { type: 'string' },
+          kind: { type: 'string' },
+          concept: { type: 'string' },
+          open: { type: 'boolean' },
+        },
+      });
+    } catch (err) {
+      fail(`eklavya artifacts new: ${err instanceof Error ? err.message : String(err)}`);
     }
-    const title = words.join(' ').trim();
+    const { values, positionals } = parsed;
+    const title = positionals.join(' ').trim();
     if (!title) fail('eklavya artifacts new: give the page a title');
-    const kind = flag(rest, '--kind') ?? 'artifact';
+    const kind = values.kind ?? 'artifact';
     if (kind !== 'artifact' && kind !== 'explainer') fail('eklavya artifacts new: --kind is artifact or explainer');
-    const made = createArtifact({
-      title,
-      description: flag(rest, '--description'),
-      kind,
-      concept: flag(rest, '--concept') ?? null,
-    });
+    const made = createArtifact({ title, description: values.description, kind, concept: values.concept ?? null });
     process.stdout.write(`${made.path}\n`);
-    if (rest.includes('--open')) (await import('./dashboard.js')).openInBrowser(made.path);
+    if (values.open) (await import('./dashboard.js')).openInBrowser(made.path);
     return;
   }
   if (sub === 'list') {
@@ -897,7 +901,7 @@ async function artifactsCommand(argv: string[]): Promise<void> {
       return;
     }
     for (const r of rows) {
-      process.stdout.write(`${r.created.slice(0, 10)}  ${r.kind === 'explainer' ? 'explainer' : 'artifact '}  ${r.title}\n`);
+      process.stdout.write(`${new Date(r.created).toLocaleDateString('en-CA')}  ${r.kind === 'explainer' ? 'explainer' : 'artifact '}  ${r.title}\n`);
       process.stdout.write(`            ${path.join(eklavyaHome(), 'artifacts', r.id)}\n`);
     }
     return;

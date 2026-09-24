@@ -239,3 +239,32 @@ describe('record_attempt and explain_on_wrong', () => {
     expect((await attempt({ grade: 0, outcome: 'declined' })).explain).toBeUndefined();
   });
 });
+
+describe('review fixes', () => {
+  const run = (...args: string[]) =>
+    execFileSync(process.execPath, [CLI, 'artifacts', ...args], {
+      cwd: repo,
+      env: { ...process.env, EKLAVYA_HOME: path.join(tmp, 'home') },
+      encoding: 'utf8',
+    });
+
+  it('new takes --flag=value, refuses an unknown flag, and allows a dashed title after --', () => {
+    const file = run('new', 'Eq form', '--kind=explainer', '--concept=csrf').trim();
+    expect(fs.readFileSync(file, 'utf8')).toContain('<meta name="eklavya:kind" content="explainer">');
+    expect(() => run('new', 'x', '--kinda', 'explainer')).toThrow();
+    expect(() => run('new', 'x', '--kind')).toThrow();
+    expect(path.basename(run('new', '--', '--dry-run flag').trim())).toMatch(/-dry-run-flag\.html$/);
+  });
+
+  it('lists nothing the server would refuse: no symlinks, no dot-names', () => {
+    createBuilt({ title: 'Real', cwd: repo });
+    const folder = path.join(artifactsDir(), projectSlug(repo));
+    const outside = path.join(tmp, 'outside.html');
+    fs.writeFileSync(outside, '<title>leaked</title>');
+    fs.symlinkSync(outside, path.join(folder, 'link.html'));
+    fs.writeFileSync(path.join(folder, '.hidden.html'), '<title>hidden</title>');
+    fs.mkdirSync(path.join(artifactsDir(), '.dot'));
+    fs.writeFileSync(path.join(artifactsDir(), '.dot', 'x.html'), '<title>dot</title>');
+    expect(listArtifacts().map((r) => r.title)).toEqual(['Real']);
+  });
+});
