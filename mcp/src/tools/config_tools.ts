@@ -79,10 +79,11 @@ export const setConfig: ToolDef = {
       .object({
         enabled: z.boolean().optional(),
         enforced: z.boolean().optional(),
+        only_on_changes: z.boolean().optional(),
       })
       .optional()
       .describe(
-        'Whether questions happen (`enabled`, default true) and whether they gate commits (`enforced`, default false). These are the quiz half only — memory keeps recording either way, under `memory.enabled`. Setting enabled:false forces enforced:false, since a gate with no questions can never be passed.',
+        'Whether questions happen (`enabled`, default true) and whether they gate commits (`enforced`, default false). These are the quiz half only — memory keeps recording either way, under `memory.enabled`. Setting enabled:false forces enforced:false, since a gate with no questions can never be passed. `only_on_changes` (default true) asks only once this session has changed the git working tree, so research and read-only sessions are not quizzed; false asks on any logged work. Enforced quizzing ignores it.',
       ),
     mode: z
       .enum(['ambient', 'enforced', 'off'])

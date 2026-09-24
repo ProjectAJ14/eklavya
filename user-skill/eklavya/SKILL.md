@@ -70,6 +70,7 @@ changing.
 |---|---|---|---|
 | `quiz.enabled` | Does it ask at all? | `true`, `false` | `true` |
 | `quiz.enforced` | Do questions hold commits? | `true`, `false` | `false` |
+| `quiz.only_on_changes` | Only ask once the session has changed the git working tree? | `true`, `false` | `true` |
 | `focus` | What does it teach? | `project`, `concept`, `learn` | `concept` |
 | `cadence` | When do the questions land? | `interleaved`, `end` | `interleaved` |
 | `difficulty` | How hard may they get? | `auto`, `easy`, `medium`, `hard` | `auto` |

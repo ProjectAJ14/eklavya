@@ -174,6 +174,7 @@ describe('eklavya config', () => {
     expect(JSON.parse(res.stdout.slice(0, res.stdout.indexOf('\n\n'))).quiz).toEqual({
       enabled: true,
       enforced: false,
+      only_on_changes: true,
     });
     expect(res.stdout).toMatch(/project: .+projects./);
   });

@@ -46,6 +46,14 @@ export interface QuizConfig {
    * decided not to ask.
    */
   enforced: boolean;
+  /**
+   * Ask only in sessions that changed the git working tree. A session spent
+   * reading, searching or answering questions has no new code to learn from,
+   * and a question there interrupts research for nothing. `false` restores
+   * asking on any logged work. Enforced quizzing ignores it: a commit is a
+   * change by definition, so the gate never waits on this.
+   */
+  only_on_changes: boolean;
 }
 
 /**
@@ -315,7 +323,7 @@ export interface EklavyaConfig {
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
-  quiz: { enabled: true, enforced: false },
+  quiz: { enabled: true, enforced: false, only_on_changes: true },
   focus: 'concept',
   focus_topic: null,
   cadence: 'interleaved',
@@ -584,6 +592,7 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
     out.quiz = { ...out.quiz };
     if (typeof quiz.enabled === 'boolean') out.quiz.enabled = quiz.enabled;
     if (typeof quiz.enforced === 'boolean') out.quiz.enforced = quiz.enforced;
+    if (typeof quiz.only_on_changes === 'boolean') out.quiz.only_on_changes = quiz.only_on_changes;
   }
   // The one combination the flag pair can express and the old enum could not:
   // a gate holding commits until questions are passed, with the questions

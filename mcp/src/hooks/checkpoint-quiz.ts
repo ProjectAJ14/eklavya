@@ -43,6 +43,7 @@ import { attributionRule } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
 import { isSessionOff } from '../session.js';
 import { countUse } from '../telemetry.js';
+import { sessionChangedCode } from './changes-lib.js';
 
 await run(async (input) => {
   // Fast path. `agent_id` is present only inside a subagent, and a subagent
@@ -132,6 +133,9 @@ await run(async (input) => {
     .get({ sid }) as { concept: string } | undefined;
 
   if (!row?.concept) return 0;
+
+  // Last, because it spawns git: every cheaper reason not to ask goes first.
+  if (quiz.only_on_changes && !quiz.enforced && !sessionChangedCode(db, sid, cwd)) return 0;
 
   // Stamp BEFORE emitting. If anything below fails the worst case is a missed
   // question; stamping after would let a crash between the two re-fire on the very

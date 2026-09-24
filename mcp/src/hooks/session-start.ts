@@ -8,6 +8,7 @@ import { findRepoConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config
 import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
+import { recordBaseline } from './changes-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
 import { flushAtSeam, identityOf, recallBlock, record, replaySpool } from './memory-lib.js';
 import { startupDisplay } from '../memory/recall.js';
@@ -205,6 +206,11 @@ await run(async (input) => {
   // reuse the session id -- without this the first prompt of a resumed session
   // restates what was printed seconds ago.
   if (sid) clearNudgeState(db, sid);
+
+  // What the working tree looked like before this session touched it, so the
+  // quiz hooks can tell a session that changed code from one that only read it.
+  // Recorded once per session id: a resume keeps the original baseline.
+  if (sid && quiz.only_on_changes && !quiz.enforced) recordBaseline(db, sid, cwd);
 
   // Before the directive: it is what the session is *about*, and the directive
   // is what to do about it.

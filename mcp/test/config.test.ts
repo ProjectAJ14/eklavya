@@ -161,16 +161,16 @@ describe('focus — the second dial', () => {
 
 describe('quiz — the dial that replaced `mode`', () => {
   it('defaults to questions on and nothing gated', () => {
-    expect(DEFAULT_CONFIG.quiz).toEqual({ enabled: true, enforced: false });
+    expect(DEFAULT_CONFIG.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: true });
   });
 
   // The compatibility promise. `.eklavya.json` is committed, so a repo written
   // against the old dial outlives the rename by years; dropping the alias would
   // not error, it would silently revert a lead's pinned gate to the default.
   it.each([
-    ['ambient', { enabled: true, enforced: false }],
-    ['enforced', { enabled: true, enforced: true }],
-    ['off', { enabled: false, enforced: false }],
+    ['ambient', { enabled: true, enforced: false, only_on_changes: true }],
+    ['enforced', { enabled: true, enforced: true, only_on_changes: true }],
+    ['off', { enabled: false, enforced: false, only_on_changes: true }],
   ])('reads the retired `mode: %s` as its quiz equivalent', (mode, expected) => {
     writeGlobal({ mode });
     expect(loadConfig(repo).config.quiz).toEqual(expected);
@@ -178,7 +178,7 @@ describe('quiz — the dial that replaced `mode`', () => {
 
   it('lets an explicit quiz win over a mode left behind in the same file', () => {
     writeGlobal({ mode: 'off', quiz: { enabled: true, enforced: true } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: true, enforced: true });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true });
   });
 
   it('reads a repo `mode` over a global `quiz`, like any other repo override', () => {
@@ -190,7 +190,7 @@ describe('quiz — the dial that replaced `mode`', () => {
   it('takes one flag without resetting the other', () => {
     writeGlobal({ quiz: { enforced: true } });
     const { quiz } = loadConfig(repo).config;
-    expect(quiz).toEqual({ enabled: true, enforced: true });
+    expect(quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true });
   });
 
   // The one combination the flags can express and the enum could not. A gate
@@ -198,13 +198,13 @@ describe('quiz — the dial that replaced `mode`', () => {
   // enforcement here is a commit hook nobody can ever get past.
   it('refuses to enforce a gate that has no questions behind it', () => {
     writeGlobal({ quiz: { enabled: false, enforced: true } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true });
   });
 
   it('applies that rule across the file boundary too', () => {
     writeGlobal({ quiz: { enforced: true } });
     writeRepo({ quiz: { enabled: false } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true });
   });
 });
 

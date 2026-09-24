@@ -45,6 +45,7 @@ import { flushAtSeam, identityOf, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
 import { backlogConcepts, sessionConcepts } from '../store.js';
 import { countUse } from '../telemetry.js';
+import { sessionChangedCode } from './changes-lib.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -244,6 +245,13 @@ await run(async (input) => {
   // the cooldown (decision G5): the gate needs several passing answers, so pacing
   // it to one would leave a commit that cannot be made.
   const take = interleaved ? 1 : remaining;
+
+  // A session that only read and searched has nothing new to ask about, and
+  // that includes the backlog: research is not the moment to be quizzed on an
+  // earlier session's work. Enforced quizzing is exempt -- the gate exists for
+  // commits, and a commit is a change. Last among the guards because it spawns
+  // git, and before the stamp so a skipped sweep spends no block.
+  if (quiz.only_on_changes && !quiz.enforced && !sessionChangedCode(db, sid, cwd)) return 0;
 
   const rows = db
     .prepare(
