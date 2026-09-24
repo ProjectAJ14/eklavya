@@ -1,3 +1,10 @@
+## [1.30.1](https://github.com/ProjectAJ14/eklavya/compare/v1.30.0...v1.30.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **memory:** hold prompt recall to a third of the budget ([4794943](https://github.com/ProjectAJ14/eklavya/commit/4794943b1780c107f8ee639375e87a1336cb59ce)), closes [#37](https://github.com/ProjectAJ14/eklavya/issues/37)
+
 # [1.30.0](https://github.com/ProjectAJ14/eklavya/compare/v1.29.1...v1.30.0) (2026-09-24)
 
 
