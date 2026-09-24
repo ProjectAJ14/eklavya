@@ -35,9 +35,13 @@ import { loadGlobalConfig } from './config.js';
 import { runtimeCli, runtimeVersion } from './update.js';
 import type { DB } from './db.js';
 
-/** GA4 property "Eklavya CLI". Empty until provisioned: no ping is sent without both. */
-export const MEASUREMENT_ID = '';
-export const API_SECRET = '';
+/**
+ * GA4 property "Eklavya CLI". Not a secret in any useful sense: it ships in
+ * the package, so anyone could post events with it. That makes the counts
+ * approximate, which is all they are used for. Empty either one to stop sending.
+ */
+export const MEASUREMENT_ID = 'G-8XP3NZLJXS';
+export const API_SECRET = 'c2IKL021RiGv3hS0WtOFtw';
 
 const ACTIVE_DAYS_KEPT = 30;
 
