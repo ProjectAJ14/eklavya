@@ -1,3 +1,11 @@
+## [1.30.3](https://github.com/ProjectAJ14/eklavya/compare/v1.30.2...v1.30.3) (2026-09-24)
+
+
+### Bug Fixes
+
+* **tutor:** give the right answer on a miss that starts an explainer ([878ade3](https://github.com/ProjectAJ14/eklavya/commit/878ade315e160b7af586823b1db3b03bff3cb784))
+* **tutor:** tell the developer whether a quiz answer was right ([e5f20bf](https://github.com/ProjectAJ14/eklavya/commit/e5f20bf5cfdfa961d1b45a622b4cb3a6cdee736c))
+
 ## [1.30.2](https://github.com/ProjectAJ14/eklavya/compare/v1.30.1...v1.30.2) (2026-09-24)
 
 
