@@ -47,13 +47,13 @@ Groups can be collapsed and are remembered per workflow. At 900 px or narrower, 
 | Page | What you can inspect |
 | --- | --- |
 | Dashboard (`#/memory/dashboard`) | Memory counts, estimated reuse, health, recent observations and sessions. |
-| Timeline (`#/memory/timeline`) | Entries filtered by type, tag or date. Search titles, narratives, facts and file paths. |
+| Timeline (`#/memory/timeline`) | Entries by day, one line each; open a line for its summary and a link to the full entry. Filter by type, tag or date, and search titles, narratives, facts and file paths. |
 | Sessions (`#/memory/sessions`) | Sessions with evidence or observations, including pending evidence and questions from the same session. |
 | Projects (`#/memory/projects`) | Every project with captured memory, including evidence not yet summarised. |
 | Reuse (`#/memory/reuse`) | A receipt for each recall and its context-volume arithmetic. |
 | Health (`#/memory/health`) | Capture heartbeat, processing queue, stalled jobs and provider configuration. |
 
-Type filters use paths such as `#/memory/timeline/bugfix`; tag and date filters use `?tag=auth&from=2026-09-01&to=2026-09-23`.
+Type filters use paths such as `#/memory/timeline/bugfix`; tag and date filters use `?tag=auth&from=2026-09-01&to=2026-09-23`. The date menu's Today, Last 7 days and Last 30 days set only `from`; Custom range shows both date boxes.
 
 ## Artifacts
 
@@ -82,6 +82,10 @@ Invalid routes show an error with links back to the Dashboards. Rows and relevan
 ## Reading the timeline
 
 The timeline is an audit trail. Superseded and soft-deleted entries remain labelled and struck through there, although retrieval excludes them. Search treats `%`, `_` and `\` as literal characters.
+
+The timeline groups entries under a heading for each local day and says when a stretch of days has nothing. When a session's summary is on the same page as its observations, they fold under one session line; open it to see them. Grouping is per page, so a session whose summary is on another page shows its observations as ordinary lines.
+
+The Memory Dashboard shows these counts as tiles; the timeline shows observations, sessions and pending evidence on one line under its title.
 
 | Count | Meaning |
 | --- | --- |

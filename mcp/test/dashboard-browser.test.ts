@@ -160,10 +160,45 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.goto(base + '/#/review/skipped'); await ready(w.page);
       expect(await w.page.getAttribute('[data-tab="skipped"]', 'aria-pressed')).toBe('true');
       await w.page.goto(base + '/#/memory/decision'); await ready(w.page);
-      expect(await w.page.getAttribute('[data-mtype="decision"]', 'aria-pressed')).toBe('true');
-      // The timeline really is filtered, not just the chip.
-      const rows = await w.page.$$eval('#mem-rows tbody tr', (r) => r.length);
+      expect(await w.page.inputValue('#mtype')).toBe('decision');
+      // The timeline really is filtered, not just the select.
+      const rows = await w.page.$$eval('#mem-rows [data-entry]', (r) => r.length);
       expect(rows).toBe(1);
+      await w.ctx.close();
+    });
+
+    it('draws the timeline one line per entry, sessions folded, detail on click', async () => {
+      const w = await open('#/learning/dashboard');
+      const at = (daysAgo: number, h: number) => {
+        const d = new Date(); d.setDate(d.getDate() - daysAgo); d.setHours(h, 0, 0, 0); return d.toISOString();
+      };
+      const row = (id: number, kind: string, title: string, occurred: string, session: string | null) => ({
+        id, kind, title, type: 'discovery', occurred_at: occurred, session_id: session, project: fx.repo.mixed,
+        snippet: `${title} snippet`, narrative_length: 99, event_count: 2, tags: [], deleted_at: null, superseded_by: null,
+      });
+      await w.page.route('**/api/memory?*', (route) => route.fulfill({ json: { total: 4, page: 1, pages: 1, per: 25, rows: [
+        row(1, 'session_summary', 'Session: Reviewed the docs', at(0, 12), 's1'),
+        row(2, 'observation', 'Found a stale default', at(0, 11), 's1'),
+        row(3, 'observation', 'Fixed the recall cap', at(0, 10), 's1'),
+        row(4, 'observation', 'An older standalone entry', at(5, 9), 's2'),
+      ] } }));
+      await w.page.evaluate(() => { location.hash = '#/memory/timeline'; });
+      await w.page.waitForSelector('#mem-rows .tl');
+      // Two days, and the empty stretch between them said out loud.
+      expect(await w.page.$$eval('#mem-rows .tl-day h2', (h) => h.length)).toBe(2);
+      expect(await w.page.textContent('#mem-rows > .tl > .tl-gap')).toMatch(/^Nothing from /);
+      // The session's observations fold under its summary, closed.
+      const session = w.page.locator('#mem-rows .tl-session');
+      expect(await session.locator('[data-entry]').count()).toBe(2);
+      expect(await session.getAttribute('open')).toBeNull();
+      expect(await session.locator(':scope > summary .tl-type').textContent()).toContain('2 observations');
+      // Detail is one click away, and opening it leads to the full entry.
+      const lone = w.page.locator('#mem-rows [data-entry="4"]');
+      await lone.locator('summary').click();
+      expect(await lone.getAttribute('open')).not.toBeNull();
+      await lone.locator('.link').click();
+      await w.page.waitForFunction(() => location.hash === '#/memory/entry/4');
+      expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
 
@@ -316,7 +351,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.selectOption('#mtag', 'auth');
       await w.page.waitForFunction(() => location.hash.includes('tag=auth'));
       await ready(w.page);
-      expect(await w.page.$$eval('#mem-rows tbody tr', (r) => r.length)).toBe(2);
+      expect(await w.page.$$eval('#mem-rows [data-entry]', (r) => r.length)).toBe(2);
       // Refresh keeps both.
       await w.page.reload(); await ready(w.page);
       expect(await w.page.inputValue('#mtag')).toBe('auth');
