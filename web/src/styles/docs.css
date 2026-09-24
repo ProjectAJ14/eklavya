@@ -69,20 +69,31 @@
   --sl-text-h2: 26px;
   --sl-text-h3: 20px;
   --sl-content-width: 48rem;
+
+  /* only floating things (search dialog, contents dropdown) carry a shadow */
+  --sl-shadow-md: var(--shadow-lg);
+  --sl-shadow-lg: var(--shadow-lg);
 }
 
 /* ---------- the ground ----------
    No rule grid here. It gives the landing page's short blocks a measure, but
    behind a column of running prose it reads as ruled paper and fights the text. */
-body { background: var(--bg); }
+/* Starlight's reset sets grayscale smoothing, which thins light-on-dark glyphs */
+body { background: var(--bg); -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
 ::selection { background: var(--spot); color: var(--spot-ink); }
 
 /* ---------- square chrome, hairline rules ---------- */
 :where(.sl-markdown-content) :where(pre, .expressive-code .frame),
 .sl-markdown-content :where(table, th, td),
-.card, dialog, .sidebar-pane, site-search button {
+.card, dialog, .sidebar-pane, site-search button,
+.pagination-links a, .sidebar-content a, mobile-starlight-toc .toggle,
+starlight-menu-button button {
   border-radius: 0 !important;
 }
+/* in-flow chrome is ruled, not lifted */
+.pagination-links a, starlight-menu-button button { box-shadow: none !important; }
+starlight-menu-button button { border: 1px solid var(--line-2); }
+.sidebar-content .caret { transition: transform var(--duration-base) var(--ease); }
 
 header.header {
   border-bottom: 1px solid var(--line-2);
@@ -223,7 +234,7 @@ nav.sidebar summary span.large {
   background: var(--code-bg) !important;
   border-color: var(--line-2) !important;
 }
-.expressive-code .frame .header { color: var(--faint); font-family: var(--font-mono); }
+.expressive-code .frame .header { color: var(--dim); font-family: var(--font-mono); }
 .expressive-code code { background: transparent !important; }
 .expressive-code .copy button {
   background: var(--panel); border: 1px solid var(--line-2); border-radius: 0;
@@ -235,7 +246,7 @@ site-search button {
   border: 1px solid var(--line-2) !important;
   color: var(--faint);
 }
-site-search kbd { background: var(--mass); color: var(--dim); border-radius: 0; }
+site-search kbd { background: var(--mass); color: var(--dim); border-radius: 0 !important; }
 
 /* ---------- inline code inside an aside ----------
    Starlight gives each aside its own tinted inline-code ground. The accent is
@@ -286,4 +297,8 @@ a .brand-word,
 .starlight-aside--danger {
   --sl-color-asides-text-accent: var(--error);
   --sl-color-asides-border: var(--error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }

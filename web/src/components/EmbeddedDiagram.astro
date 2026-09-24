@@ -29,6 +29,7 @@ const { src, title, caption } = Astro.props;
     </div>
     <iframe
       class="ed__frame"
+      tabindex="-1"
       src={`${src}?embed=1`}
       title={title}
       scrolling="no"
@@ -77,7 +78,7 @@ const { src, title, caption } = Astro.props;
   .ed__icon {
     width: 13px; height: 13px; flex: none;
     fill: none; stroke: currentColor; stroke-width: 1.5;
-    stroke-linecap: square;
+    stroke-linecap: round; stroke-linejoin: round;
   }
 
   /* A bounded box, not one measured to the picture: a wide diagram fitted into

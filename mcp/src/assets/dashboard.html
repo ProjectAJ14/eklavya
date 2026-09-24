@@ -97,7 +97,7 @@
      the viewport, so it never opens off-screen on a phone or a short window. */
   .picker { position:fixed; z-index:40; min-width:220px; max-width:calc(100vw - 16px);
             background:var(--panel); border:1px solid var(--line-2); padding:var(--space-1) 0;
-            box-shadow:0 12px 32px rgba(0,0,0,.28); overflow-y:auto; }
+            box-shadow:var(--shadow-lg); overflow-y:auto; }
   .picker[hidden] { display:none; }
   .picker__label { font-family:var(--font-mono); font-size:10px; letter-spacing:var(--tracking-caps);
                    text-transform:uppercase; color:var(--faint); padding:var(--space-2) var(--space-4) var(--space-1); margin:0; }
@@ -105,7 +105,7 @@
                    background:none; border:0; color:var(--dim); font:inherit; font-size:14px;
                    padding:var(--space-2) var(--space-4); cursor:pointer; }
   .picker button:hover, .picker button:focus-visible { background:var(--mass); color:var(--ink); box-shadow:none; outline:none; }
-  .picker button:focus-visible { box-shadow:inset 2px 0 0 var(--spot); }
+  .picker button:focus-visible { box-shadow:inset 2px 0 0 var(--spot); } /* inset: the picker scrolls, so an outset ring would clip */
   .picker button[aria-checked="true"] { color:var(--ink); }
   .picker button span { flex:1; }
   .picker .check { width:15px; height:15px; color:var(--spot); visibility:hidden; }
@@ -119,6 +119,8 @@
                     transition:color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease); }
   nav.side__nav a:hover { color:var(--ink); background:var(--mass); }
   nav.side__nav a[aria-current="page"] { color:var(--ink); border-left-color:var(--spot); background:var(--mass); }
+  /* --faint misses 4.5:1 on --mass in ink */
+  nav.side__nav a[aria-current="page"] i, nav.side__nav a:hover i { color:var(--dim); }
   nav.side__nav a svg { width:17px; height:17px; flex:none; color:var(--faint); }
   nav.side__nav a[aria-current="page"] svg { color:var(--spot); }
   nav.side__nav a i { margin-left:auto; font-style:normal; font-family:var(--font-mono);
@@ -266,10 +268,10 @@
   .meter.mute > i { background:var(--faint-2); }
 
   .pill { display:inline-block; font-family:var(--font-mono); font-size:11px; padding:2px 8px;
-          border-radius:var(--radius-pill); background:var(--mass); color:var(--dim); white-space:nowrap; }
+          border-radius:0; background:var(--mass); color:var(--dim); white-space:nowrap; }
   .pill.ok { background:var(--spot-soft); color:var(--spot); }
   .pill.due { color:var(--warning); }
-  .pill.new { color:var(--faint); }
+  .pill.new { color:var(--dim); }
 
   .grade { font-family:var(--font-mono); font-size:11.5px; padding:2px 8px; white-space:nowrap;
            background:var(--mass); color:var(--dim); }
@@ -286,7 +288,7 @@
   .seg > span { display:block; height:100%; }
   .seg__key { display:flex; gap:var(--space-5); flex-wrap:wrap; margin-top:var(--space-3);
               font-size:12.5px; color:var(--dim); }
-  .seg__key b { display:inline-block; width:9px; height:9px; margin-right:var(--space-2); }
+  .seg__key b { display:inline-block; width:9px; height:9px; margin-right:var(--space-2); border:1px solid var(--line-2); }
 
   /* ---------- charts ---------- */
   .legend { display:flex; gap:var(--space-5); font-size:12.5px; color:var(--dim);
@@ -298,6 +300,7 @@
   .axis { font-family:var(--font-mono); font-size:10px; fill:var(--faint); }
   .hit { fill:transparent; cursor:pointer; }
   .hit:hover + .col, .hit:focus-visible + .col { opacity:.72; }
+  .hit:focus-visible { outline:2px solid var(--spot); outline-offset:-2px; }
   .tip { position:absolute; pointer-events:none; opacity:0; transform:translate(-50%,-100%);
          background:var(--bg); border:1px solid var(--line-2); color:var(--ink);
          padding:var(--space-3); font-size:var(--text-xs); line-height:1.6; white-space:nowrap;
@@ -393,7 +396,7 @@
                    background:none; border:1px solid var(--line-2); color:var(--ink); width:34px; height:34px; cursor:pointer; }
     .side__close svg { width:16px; height:16px; }
     .side__brand { padding-right:64px; }
-    .scrim { position:fixed; inset:0; z-index:25; background:rgba(0,0,0,.45); }
+    .scrim { position:fixed; inset:0; z-index:25; background:color-mix(in srgb, var(--bg) 70%, transparent); }
     .scrim.is-open { display:block; }
     body.drawer-open { overflow:hidden; }
     main { padding:var(--space-6) var(--space-5) var(--space-16); }
@@ -1119,7 +1122,7 @@ function viewLearningDashboard() {
        ${card('Where you stand', 'The catalogue is a library, not a to-do list — untouched concepts are not debt.',
          segbar([
            { label:'Mastered', n:mastered.length, color:'var(--spot)' },
-           { label:'Learning', n:seen.length - mastered.length, color:'var(--warning)' },
+           { label:'Learning', n:seen.length - mastered.length, color:'color-mix(in srgb, var(--spot) 45%, var(--mass))' },
            { label:'Not asked', n:Math.max(0, scoped.length - seen.length), color:'var(--mass)' },
          ]) + `<p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">
            A concept is mastered at score 0.7 with two or more passes. Score decays about
@@ -1699,7 +1702,7 @@ function viewDomain(name) {
      </div>`,
     card(null, null, segbar([
       { label:'Mastered', n:seen.filter((c) => c.mastered).length, color:'var(--spot)' },
-      { label:'Learning', n:seen.filter((c) => !c.mastered).length, color:'var(--warning)' },
+      { label:'Learning', n:seen.filter((c) => !c.mastered).length, color:'color-mix(in srgb, var(--spot) 45%, var(--mass))' },
       { label:'Not asked', n:all.length - seen.length, color:'var(--mass)' },
     ])),
     card(null, null, table([{t:'Concept'},{t:'Tier'},{t:'Score'},{t:'Asked',n:1},{t:'State'},{t:'From your code'}], rows)
@@ -2497,7 +2500,7 @@ function renderNav(wf, active) {
     const id = `grp-${wf}-${g.id}`;
     return `<div class="nav__group">
       <button type="button" class="nav__toggle" id="tog-${wf}-${g.id}" data-group="${g.id}" aria-expanded="${open}" aria-controls="${id}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>${esc(g.label)}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>${esc(g.label)}
       </button>
       <div class="nav__items" id="${id}" role="group" aria-label="${esc(g.label)}"${open ? '' : ' hidden'}>${g.items.map(item).join('')}</div>
     </div>`;

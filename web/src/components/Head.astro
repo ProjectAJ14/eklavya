@@ -25,6 +25,18 @@ const props = {
 };
 ---
 <DefaultHead {...props} />
+{/* Blocking: set the ground before first paint. Ink unless the reader chose
+    paper; never the OS setting, which Starlight's theme script would follow. */}
+<script is:inline>
+  (function () {
+    var m = 'ink';
+    try { if (localStorage.getItem('eklavya-ground') === 'paper') m = 'paper'; } catch (e) {}
+    var r = document.documentElement;
+    r.setAttribute('data-mode', m);
+    r.dataset.theme = m === 'paper' ? 'light' : 'dark';
+    try { localStorage.setItem('starlight-theme', m === 'paper' ? 'light' : 'dark'); } catch (e) {}
+  })();
+</script>
 <link rel="icon" href="/favicon.ico" sizes="32x32" />
 <link rel="icon" href="/brand/icon-96.png" type="image/png" sizes="96x96" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />

@@ -22,7 +22,11 @@
       var root = document.documentElement;
       root.setAttribute('data-mode', mode);
       root.dataset.theme = mode === 'paper' ? 'light' : 'dark';
-      try { localStorage.setItem('eklavya-ground', mode); } catch (e) {}
+      try {
+        localStorage.setItem('eklavya-ground', mode);
+        // keep Starlight's own key in step, or its theme script follows the OS
+        localStorage.setItem('starlight-theme', mode === 'paper' ? 'light' : 'dark');
+      } catch (e) {}
       document.querySelectorAll('[data-ground]').forEach(function (b) {
         b.setAttribute('aria-pressed', String(b.dataset.ground === mode));
       });
