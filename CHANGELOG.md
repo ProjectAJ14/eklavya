@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/ProjectAJ14/eklavya/compare/v1.27.1...v1.28.0) (2026-09-24)
+
+
+### Features
+
+* **dashboard:** draw the memory timeline as a timeline ([d01a500](https://github.com/ProjectAJ14/eklavya/commit/d01a5001fc0195cdd80f1efabf15eafed81b2eb2))
+
 ## [1.27.1](https://github.com/ProjectAJ14/eklavya/compare/v1.27.0...v1.27.1) (2026-09-24)
 
 
