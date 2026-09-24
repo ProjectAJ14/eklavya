@@ -75,6 +75,8 @@ export interface RecallOptions {
   candidates?: EntryRow[];
   /** Override `retrieval.max_items`, for the tighter per-prompt budget. */
   maxItems?: number;
+  /** Override `retrieval.max_tokens`, for the tighter per-prompt budget. */
+  maxTokens?: number;
 }
 
 export interface RecallResult {
@@ -140,6 +142,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   if (!config.memory.enabled) return empty;
 
   const limit = opts.maxItems ?? config.retrieval.max_items;
+  const maxTokens = opts.maxTokens ?? config.retrieval.max_tokens;
   const filter = {
     project: opts.project,
     allProjects: config.retrieval.cross_project,
@@ -155,7 +158,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
           allowed(h.entry.id),
         );
   const ranked: EntryRow[] = opts.candidates ? opts.candidates.filter((e) => allowed(e.id)) : hits.map((h) => h.entry);
-  const chosen: EntryRow[] = ranked.length
+  const pool: EntryRow[] = ranked.length
     ? ranked
     : opts.candidates
       // A caller that supplied candidates and had none left after exclusion
@@ -168,6 +171,9 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
         project: config.retrieval.cross_project ? null : opts.project,
         limit: limit + exclude.size,
         }).filter((entry) => allowed(entry.id));
+  // Every source over-fetches (candidates arrive untrimmed; searches pad for
+  // exclusions), so the item cap is applied once, here.
+  const chosen = pool.slice(0, limit);
   if (!chosen.length) return empty;
 
   const base = baseTokensFor(db, chosen);
@@ -193,7 +199,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   for (const entry of chosen) {
     const text = renderEntry(entry, kept.length + 1);
     const cost = estimateTokens(text);
-    if (kept.length && delivered + cost > config.retrieval.max_tokens) break;
+    if (kept.length && delivered + cost > maxTokens) break;
     kept.push(entry);
     rendered.push(text);
     delivered += cost;
@@ -392,6 +398,7 @@ export function recallForPrompt(
     scope: 'prompt',
     delivery: 'confirmed',
     maxItems: Math.max(1, Math.floor(config.retrieval.max_items / 3)),
+    maxTokens: Math.floor(config.retrieval.max_tokens / 3),
     exclude: alreadyRecalled(db, opts.sessionId),
   });
   return result.block ? result : null;

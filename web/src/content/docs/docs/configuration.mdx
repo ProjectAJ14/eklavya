@@ -99,8 +99,8 @@ These extend the [built-in privacy rules](/docs/memory/#what-is-never-captured).
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `retrieval.mode` | `"hybrid"` | `keyword`, local-vector `semantic`, or both (`hybrid`). Searches can override this. See [retrieval limits](/docs/memory/#how-recall-works). |
-| `retrieval.max_items` | `6` | Maximum entries proposed at session recall and default search limit. |
-| `retrieval.max_tokens` | `1200` | Estimated-token budget for the complete recalled block, including its wrapper. |
+| `retrieval.max_items` | `6` | Maximum entries proposed at session recall and default search limit. Mid-session prompt recall gets a third of it (at least one). |
+| `retrieval.max_tokens` | `1200` | Estimated-token budget for the complete recalled block, including its wrapper. Mid-session prompt recall gets a third of it. |
 | `retrieval.cross_project` | `false` | Includes other projects in search and session-start recall. |
 
 #### `providers`
