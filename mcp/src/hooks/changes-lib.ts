@@ -19,7 +19,8 @@
  * pruned after a week the way the prompt nudge's rows are. No migration.
  *
  * Known edges, all accepted:
- *   - a file edited and then reverted still counts (its mtime moved);
+ *   - a file already dirty at session start, edited and then reverted, still
+ *     counts (its mtime moved; a clean file reverted is clean again and does not);
  *   - a build that writes untracked, un-ignored files counts;
  *   - `git pull` or a branch switch moves HEAD and counts.
  * Each errs towards asking, which is the behaviour before this existed.
