@@ -1,3 +1,11 @@
+## [1.29.1](https://github.com/ProjectAJ14/eklavya/compare/v1.29.0...v1.29.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **memory:** discard finished helper sessions and their memories ([c7cead1](https://github.com/ProjectAJ14/eklavya/commit/c7cead18cc9968569d0bd7daeadf8af2a858d7d5))
+* **memory:** discard helper evidence not yet in a batch ([e21d079](https://github.com/ProjectAJ14/eklavya/commit/e21d0796954c92cc43085cc821d56a5f8c47ef6b))
+
 # [1.29.0](https://github.com/ProjectAJ14/eklavya/compare/v1.28.0...v1.29.0) (2026-09-24)
 
 
