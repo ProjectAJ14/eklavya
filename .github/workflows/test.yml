@@ -55,3 +55,23 @@ jobs:
           # than skips on CI when there is none -- a skipped suite is a green one.
           npx playwright-core install --with-deps chromium
           npm test
+
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      # postbuild validates every public page, preview image, sitemap and local link.
+      - run: npm run build
+        working-directory: web

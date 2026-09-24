@@ -10,11 +10,19 @@
     "dev": "astro dev",
     "prebuild": "node scripts/embed-diagram.mjs",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "icons": "node scripts/generate-icons.mjs",
+    "check:seo": "node scripts/check-seo.mjs",
+    "postbuild": "npm run check:seo",
+    "seo:refresh": "node scripts/sync-home-seo.mjs"
   },
   "dependencies": {
+    "@astrojs/sitemap": "3.7.4",
     "@astrojs/starlight": "^0.30.6",
+    "@fontsource/archivo": "5.3.0",
+    "@fontsource/inter": "5.3.0",
     "astro": "^5.18.2",
+    "satori": "0.33.5",
     "sharp": "^0.35.4"
   },
   "allowScripts": {
@@ -22,5 +30,8 @@
     "esbuild@0.25.12": true,
     "sharp@0.34.5": true,
     "sharp@0.35.4": true
+  },
+  "devDependencies": {
+    "cheerio": "1.2.0"
   }
 }
