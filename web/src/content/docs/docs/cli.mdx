@@ -57,8 +57,8 @@ Run project-specific commands from inside the checkout. Memory maintenance does 
 | `replay [--limit <n>]` | Backfills this checkout's Claude Code transcripts, including sessions before installation or missed by hooks. |
 | `process [--max <n>] [--no-resume]` | Processes queued observations now. Normally resumes paused jobs; `--no-resume` leaves them paused. |
 | `stop` | Cancels the recorded worker and its model call; unfinished work returns to the queue. Future session activity can start a worker again. |
-| `backlog` | Lists unfinished jobs by project and status, marking Eklavya observer helper sessions. |
-| `backlog quarantine\|discard\|restore` | Changes selected jobs. Requires `--helpers`, `--project <key>`, `--session <id>` or `--batch <id>`. Quarantine preserves jobs without processing; restore re-enables them; discard deletes jobs and their raw evidence. |
+| `backlog` | Lists unfinished jobs by project and status, plus Eklavya observer helper sessions in any state, marked as such. |
+| `backlog quarantine\|discard\|restore` | Changes selected jobs. Requires `--helpers`, `--project <key>`, `--session <id>` or `--batch <id>`. Quarantine preserves jobs without processing; restore re-enables them; discard deletes unfinished jobs and their raw evidence; with `--helpers` it also deletes finished helper sessions and the memories they produced. |
 | `prune` | Applies this project's `memory.retention_days` now, removing old summarised evidence, finished jobs and reuse receipts. Keeps observations; does nothing when retention is unset. |
 | `import <source.db>` | Imports Claude Mem history. Options are [below](#importing-claude-mem-history). |
 | `export <file> [--force]` | Writes a private, versioned JSON memory backup. Refuses to replace an existing file without `--force`. |

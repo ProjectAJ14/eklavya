@@ -870,16 +870,23 @@ export interface BacklogGroup {
   newest: string;
 }
 
-/** Unfinished jobs by project, helper-or-not and status — what `memory backlog` prints. */
+/**
+ * Unfinished work, plus helper batches in any state. A helper batch the worker
+ * already summarised is still noise — its memories are summaries of summaries —
+ * and its job row may be gone (finished jobs are pruned), hence the LEFT JOIN.
+ */
+const LEFTOVER = `(${UNFINISHED} OR ${HELPER_SESSION})`;
+
+/** Leftover batches by project, helper-or-not and status — what `memory backlog` prints. */
 export function backlogSummary(db: DB, sel: BacklogSelector = {}): BacklogGroup[] {
-  const { sql, params } = backlogWhere(sel);
+  const { sql, params } = backlogWhere(sel, LEFTOVER);
   return db
     .prepare(
-      `SELECT b.project, (${HELPER_SESSION}) AS helper, j.status, COUNT(*) AS batches,
+      `SELECT b.project, (${HELPER_SESSION}) AS helper, COALESCE(j.status, 'done') AS status, COUNT(*) AS batches,
               SUM(b.event_count) AS events, MIN(b.created_at) AS oldest, MAX(b.created_at) AS newest
-       FROM memory_jobs j JOIN memory_batches b ON b.id = j.batch_id
+       FROM memory_batches b LEFT JOIN memory_jobs j ON j.batch_id = b.id
        WHERE ${sql}
-       GROUP BY b.project, helper, j.status ORDER BY batches DESC`,
+       GROUP BY b.project, helper, COALESCE(j.status, 'done') ORDER BY batches DESC`,
     )
     .all(params) as BacklogGroup[];
 }
@@ -907,29 +914,36 @@ export function restoreBacklog(db: DB, sel: BacklogSelector): number {
 }
 
 /**
- * Deletes the selected unfinished batches, their jobs and the raw evidence in
- * them. Finished batches are never touched — what they produced is memory,
- * with its own delete. One transaction, so a batch is gone whole or not at all.
+ * Deletes the selected batches, their jobs and the raw evidence in them: every
+ * unfinished one, and helper batches whatever their state. A real finished
+ * batch is never touched — what it produced is memory, with its own delete. A
+ * helper batch's memories go with it (hard: vectors, tags, links and search
+ * rows cascade), since the summariser summarising itself is not a memory
+ * anyone asked for. One transaction, so a batch is gone whole or not at all.
  */
-export function discardBacklog(db: DB, sel: BacklogSelector): { batches: number; events: number } {
-  const { sql, params } = backlogWhere(sel);
+export function discardBacklog(db: DB, sel: BacklogSelector): { batches: number; events: number; entries: number } {
+  const { sql, params } = backlogWhere(sel, LEFTOVER);
   return db.transaction(() => {
-    const ids = (
-      db
-        .prepare(`SELECT b.id FROM memory_jobs j JOIN memory_batches b ON b.id = j.batch_id WHERE ${sql}`)
-        .all(params) as { id: number }[]
-    ).map((r) => r.id);
+    const rows = db
+      .prepare(
+        `SELECT b.id, (${HELPER_SESSION}) AS helper
+         FROM memory_batches b LEFT JOIN memory_jobs j ON j.batch_id = b.id WHERE ${sql}`,
+      )
+      .all(params) as { id: number; helper: number }[];
     let events = 0;
+    let entries = 0;
+    const dropEntries = db.prepare('DELETE FROM memory_entries WHERE batch_id = ?');
     const dropEvents = db.prepare(
       'DELETE FROM evidence_events WHERE batch_id = ? AND id NOT IN (SELECT event_id FROM memory_entry_events)',
     );
     const dropJobs = db.prepare('DELETE FROM memory_jobs WHERE batch_id = ?');
     const dropBatch = db.prepare('DELETE FROM memory_batches WHERE id = ?');
-    for (const id of ids) {
+    for (const { id, helper } of rows) {
+      if (helper) entries += dropEntries.run(id).changes;
       events += dropEvents.run(id).changes;
       dropJobs.run(id);
       dropBatch.run(id);
     }
-    return { batches: ids.length, events };
+    return { batches: rows.length, events, entries };
   })();
 }
