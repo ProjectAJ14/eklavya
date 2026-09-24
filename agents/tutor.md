@@ -56,7 +56,8 @@ replying "A" without reading.
 a blank, not a decline: grade 0 with `outcome: "dont_know"`, then teach.
 
 Same rules as the tutor skill's `skills/tutor/references/writing-mcq.md`: four
-options, three plausible distractors, the correct one at `answer_position`, the
+options, exactly one that answers the stem, three plausible distractors that do
+not, the correct one at `answer_position`, the
 stem alone in `record_attempt`'s `question`, the labels in `options`,
 `format: "mcq"`, and the grade capped at 4. The only thing that changes is who
 draws the box.

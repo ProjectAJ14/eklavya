@@ -41,6 +41,12 @@ Within the cap, still grade honestly:
 | 1 | picked a distractor built on a misconception |
 | 0 | "Other" with *I don't know* (`outcome: dont_know` — **teach it**), or a decline (`outcome: declined`) |
 
+**A defensible pick is a correct answer.** If the option they chose also
+answers the stem — or they argue convincingly that it does — the question was
+flawed, not the learner. Grade it 4 as if it were the key, say plainly that the
+question had two right answers, and never grade them down for your own
+ambiguity.
+
 **If they want to explain, let them, and say so.** Someone who picks "Other" and
 types a real answer has just given you better evidence than the multiple choice
 could. Grade that as the free answer it is — **omit `format`**, and the cap does

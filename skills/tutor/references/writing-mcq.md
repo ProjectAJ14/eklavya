@@ -43,6 +43,14 @@ learner can dismiss without thinking is a free point, and it teaches nothing.
 When three that good will not come, the stem is too vague to have a near-miss:
 rewrite the stem and the distractors follow.
 
+**Exactly one option answers the stem.** Plausible is not the same as
+defensible: a distractor must be believable *and wrong as an answer to this
+question*. Row two is where this breaks — a true statement answers most "why"
+stems well enough, and a learner who picks it is marked wrong for being right.
+Before asking, read each distractor as if it were the key: if a senior reviewer
+could argue for it, narrow the stem ("why *here*", "what does *this line*
+prevent") until it cannot, or replace it with a different row.
+
 **4. One clause of `description` per option.** This is where a near-miss earns
 its place — the sentence that makes the wrong answer tempting.
 
@@ -90,6 +98,7 @@ telling you which part to rebuild.
   grammar. A visibly longer or more careful option reads as the correct one, and
   gets picked without engaging — the same leak as always answering first.
 - Each of the three wrong options came from a different row of the table above.
+- Only the correct option answers the stem; no expert could argue for another.
 - The correct option sits at `answer_position`.
 - The tool renders the labels, so the stem does not number them.
 - The stem is the question and nothing else — the dials are in the developer's
