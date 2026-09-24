@@ -72,6 +72,9 @@ covers retrieval, processing, providers, privacy and sync.
 State is local under `~/.eklavya/`, including `knowledge.db` (SQLite, WAL).
 `EKLAVYA_HOME` and `EKLAVYA_DB` override those paths. Questions and memory have
 independent switches. External processing is optional and explicitly configured;
-see [your data](https://eklavya-run.web.app/docs/your-data/).
+see [your data](https://eklavya-run.web.app/docs/your-data/). Anonymous daily
+usage counts are on by default and never include paths, names or text;
+[usage analytics](https://eklavya-run.web.app/docs/usage-analytics/) lists every
+field, and `eklavya telemetry off` stops them.
 
 MIT.

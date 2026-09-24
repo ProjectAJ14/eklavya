@@ -295,6 +295,13 @@ export interface EklavyaConfig {
    * leaves `eklavya update` working by hand.
    */
   auto_update: boolean;
+  /**
+   * Whether Eklavya sends its anonymous daily usage ping (see `telemetry.ts`):
+   * counts and setting values only, never a path, name or any text. On by
+   * default. Global only: the ping is about the install, not one project.
+   * `EKLAVYA_TELEMETRY=0` and `DO_NOT_TRACK=1` turn it off whatever this says.
+   */
+  telemetry: boolean;
   /** Cap on LLM-minted concepts per session, against slug sprawl. */
   max_new_concepts_per_session: number;
   /** Hard backstop on the Stop hook's loop guard, read by the stop-quiz-check hook. */
@@ -323,6 +330,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   quiet: false,
   explain_on_wrong: false,
   auto_update: true,
+  telemetry: true,
   max_new_concepts_per_session: 8,
   max_stop_blocks_per_session: 3,
   memory: {
@@ -519,6 +527,7 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
   if (typeof raw.quiet === 'boolean') out.quiet = raw.quiet;
   if (typeof raw.explain_on_wrong === 'boolean') out.explain_on_wrong = raw.explain_on_wrong;
   if (typeof raw.auto_update === 'boolean') out.auto_update = raw.auto_update;
+  if (typeof raw.telemetry === 'boolean') out.telemetry = raw.telemetry;
   if (
     typeof raw.max_new_concepts_per_session === 'number' &&
     raw.max_new_concepts_per_session >= 0
@@ -702,9 +711,10 @@ const CLONED_FORBIDDEN = ['notifications', 'sync', 'providers'] as const;
  * project's sessions are sent to a model. That is a decision about the machine,
  * made once, in the machine's file. `auto_update` for the same reason: there
  * is one runtime per machine, and a project that turned it off would stop
- * updates for every other project too.
+ * updates for every other project too. `telemetry` too: one ping per install,
+ * and a checkout must never be able to switch it back on.
  */
-const GLOBAL_ONLY_KEYS = ['providers', 'auto_update'] as const;
+const GLOBAL_ONLY_KEYS = ['providers', 'auto_update', 'telemetry'] as const;
 
 /** True for a global-only namespace or any dotted key under it (`providers.observer`). */
 export function isGlobalOnlyKey(key: string): boolean {

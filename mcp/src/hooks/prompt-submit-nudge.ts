@@ -58,6 +58,7 @@ import { batchIfFull, identityOf, record } from './capture-lib.js';
 import type { ResolvedConfig } from '../config.js';
 import type { EvidenceIdentity } from '../memory/identity.js';
 import { recallForPrompt } from '../memory/recall.js';
+import { countUse } from '../telemetry.js';
 
 /**
  * Recall for one prompt, mid-session, or null.
@@ -111,6 +112,9 @@ const COOLDOWN_MINUTES = 25;
  * between three nudges and four is not something anyone needs to tune.
  */
 const MAX_NUDGES = 3;
+
+/** The user-invocable skills under `skills/`, bare or plugin-qualified. */
+const SLASH = /^\/(?:eklavya:)?(gate|learn|level|memory|mode|pack|progress|quiz|setup)(?![\w-])/;
 
 /**
  * `<first-seen ISO>|<last-nudge ISO or empty>|<nudges so far>`
@@ -194,6 +198,11 @@ await run(async (input) => {
   // repo calls its tools long after that other window typed. `cwd` is what keeps
   // the two apart — see `sessionKeyFor`.
   setCurrentSession(db, sid, cwd);
+
+  // Which of Eklavya's own slash commands was typed, for the usage ping. Only
+  // a name from this fixed list is ever counted; the rest of the prompt is not.
+  const slash = typeof input.prompt === 'string' ? SLASH.exec(input.prompt.trimStart()) : null;
+  if (slash) countUse(db, `slash:${slash[1]}`);
 
   // The prompt is the single most useful thing a session produces for recall:
   // it is the only place the developer says what they were trying to do. It is

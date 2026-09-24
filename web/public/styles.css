@@ -1342,6 +1342,12 @@ kbd {
 
 .footer__name { font-weight: 800; font-size: 16px; }
 .footer__link { font-weight: 600; }
+.footer__choice {
+  background: none; border: 0; padding: 0; font: inherit; font-weight: 600;
+  color: inherit; cursor: pointer; text-align: inherit;
+}
+.footer__choice:hover { color: var(--spot); }
+.footer__choice:focus-visible { outline: none; box-shadow: var(--ring); }
 
 @media (max-width: 640px) {
   .star__label { display: none; }

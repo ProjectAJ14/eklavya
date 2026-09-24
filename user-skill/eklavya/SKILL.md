@@ -12,7 +12,7 @@ searchable observations it can hand back to the agent weeks later.
 and tracks mastery with spaced repetition.
 
 Both halves are local by default: the summariser and the search index run on
-this machine and nothing leaves it unless `providers.observer` has been
+this machine and no work leaves it unless `providers.observer` has been
 configured — an explicit choice that sends session batches to a Claude model
 through `claude -p`, on the developer's own Claude subscription.
 
@@ -236,6 +236,13 @@ update`, run `eklavya update` to see the full error, and `doctor`'s `updates`
 row says the same. Never suggest `npm install -g eklavya` for an update: the
 `eklavya` command already runs the newer runtime's copy on its own.
 `auto_update false` turns updates off, globally only.
+
+**Analytics.** Eklavya sends anonymous daily usage counts (numbers and setting
+values, never paths, names or text) unless turned off. "Turn off Eklavya
+analytics / telemetry / tracking" means `eklavya telemetry off`, or `set_config`
+with `telemetry: false` at global scope. `eklavya telemetry show` prints
+exactly what is sent; `eklavya telemetry` says whether it is on and why. The
+full field list is https://eklavya-run.web.app/docs/usage-analytics/.
 
 Restarting Claude Code is what picks up a repaired install — the plugin and MCP
 server are read at session start. There is no background process to restart.

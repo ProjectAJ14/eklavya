@@ -15,6 +15,7 @@ import { savingsLine } from '../memory/tokens.js';
 import { dialParts, paint } from '../statusline.js';
 import { DEFAULT_PORT } from '../paths.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
+import { markTelemetryAnnounced, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
 import net from 'node:net';
 
 /**
@@ -47,6 +48,8 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
  * the run below starts, so it reports the last finished run, never this one.
  */
 let updateLine: ReturnType<typeof updateNotice> = null;
+/** The usage ping's one-time notice. Same rules as `updateLine`; the first ping waits for it. */
+let telemetryLine: string | null = null;
 
 await run(async (input) => {
   const cwd = cwdOf(input);
@@ -59,7 +62,9 @@ await run(async (input) => {
   } catch {
     /* no line is fine */
   }
+  telemetryLine = telemetryNotice();
   startBackgroundUpdate();
+  startBackgroundTelemetry();
 
   // Lift a leftover `<repo>/.eklavya.json` out of the checkout, silently. This
   // is the moment that makes the move automatic: settings files stopped living
@@ -225,6 +230,10 @@ function emit(shown: string[], context: string[]): number {
   if (updateLine) {
     shown = [...shown, updateLine.text];
     if (updateLine.announces) markAnnounced(updateLine.announces);
+  }
+  if (telemetryLine) {
+    shown = [...shown, telemetryLine];
+    markTelemetryAnnounced();
   }
   if (!shown.length && !context.length) return 0;
   process.stdout.write(

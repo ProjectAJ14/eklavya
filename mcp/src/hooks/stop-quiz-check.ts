@@ -44,6 +44,7 @@ import { isSessionOff } from '../session.js';
 import { flushAtSeam, identityOf, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
 import { backlogConcepts, sessionConcepts } from '../store.js';
+import { countUse } from '../telemetry.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -320,6 +321,7 @@ get_session_quiz_plan, then AskUserQuestion, then record_attempt (format "mcq", 
   // through the same loop protections; only one of them tells the developer
   // their session just hit an error. No `systemMessage` -- that field is a
   // warning banner too, and the hook already has a `statusMessage`.
+  countUse(db, 'quiz:stop');
   process.stdout.write(
     `${JSON.stringify({
       hookSpecificOutput: { hookEventName: 'Stop', additionalContext: context },

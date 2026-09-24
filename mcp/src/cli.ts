@@ -70,6 +70,9 @@ Usage:
   eklavya statusline                    Print the dials for a status bar (one line, or nothing)
   eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
+  eklavya telemetry [status|on|off|show]
+                                        Anonymous daily usage counts: whether they are sent, turn them
+                                        on or off, or print exactly what the next ping sends
 
 Memory:
   eklavya memory status                 Entries, pending evidence, queue depth, provider and savings
@@ -111,7 +114,7 @@ Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
              max_new_concepts_per_session, max_stop_blocks_per_session, quiet,
              explain_on_wrong,
-             auto_update (global only)
+             auto_update, telemetry (global only)
 Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
   quiz.{enabled, enforced} — whether questions happen, and whether they gate
              commits. Separate from memory: silencing questions never stops
@@ -353,6 +356,52 @@ function configCommand(args: string[]): void {
   if (modeNote) process.stdout.write(`${modeNote}\n`);
 }
 
+/**
+ * `eklavya telemetry`: the anonymous usage ping, in the open. `show` prints the
+ * next ping exactly as `send` would post it, so the docs' claim that it holds
+ * only counts and setting values can be checked by anyone.
+ */
+async function telemetryCommand(args: string[]): Promise<void> {
+  const [sub = 'status', ...flags] = args;
+  const t = await import('./telemetry.js');
+  if (sub === 'on' || sub === 'off') {
+    const file = loadConfig().globalPath;
+    writeConfigFile(file, { telemetry: sub === 'on' });
+    process.stdout.write(`telemetry = ${sub === 'on'}  ->  ${file}\n`);
+    const still = t.disabledReason();
+    if (sub === 'on' && still) process.stdout.write(`${dim(`still off: ${still}`)}\n`);
+    return;
+  }
+  if (sub === 'show' || sub === 'send') {
+    const [{ openDb }, send] = await Promise.all([import('./db.js'), import('./telemetry-send.js')]);
+    const db = openDb();
+    try {
+      if (sub === 'show') {
+        const events = send.buildEvents(db);
+        send.assertSafe(events);
+        process.stdout.write(`${JSON.stringify({ client_id: t.installId(), events }, null, 2)}\n`);
+        return;
+      }
+      const ok = await send.sendNow(db);
+      if (!flags.includes('--background')) process.stdout.write(ok ? 'sent\n' : `not sent${t.disabledReason() ? ` (${t.disabledReason()})` : ''}\n`);
+    } finally {
+      db.close();
+    }
+    return;
+  }
+  if (sub !== 'status') {
+    process.stderr.write('Usage: eklavya telemetry [status|on|off|show]\n');
+    process.exit(1);
+  }
+  const off = t.disabledReason();
+  const st = t.readState();
+  process.stdout.write(
+    `${off ? `off (${off})` : 'on'} · anonymous daily usage counts${st.sent_at ? ` · last sent ${st.sent_at}` : ''}\n` +
+      `${dim('what is sent: eklavya telemetry show · https://eklavya-run.web.app/docs/usage-analytics/')}\n` +
+      `${dim(off ? 'turn on: eklavya telemetry on' : 'turn off: eklavya telemetry off')}\n`,
+  );
+}
+
 /** Never throws: `doctor` is also what someone runs on a half-built database. */
 function safely<T>(fn: () => T, fallback: T): T {
   try {
@@ -435,6 +484,19 @@ async function doctor(): Promise<void> {
       add('fail', 'updates', `FAILED — ${u.error}${u.checked_at ? ` ${dim(`(${u.checked_at})`)}` : ''}`);
       add('fail', 'updates', dim(`run eklavya update to retry and see why; the last background run is in ${logPath()}`));
     }
+  }
+
+  // The usage ping. Not a failure either way: off is a choice, and a ping
+  // that did not go out costs the maintainer a count, not the developer anything.
+  {
+    const t = await import('./telemetry.js');
+    const off = safely(() => t.disabledReason(), null);
+    const sent = safely(() => t.readState().sent_at, undefined);
+    add(
+      off ? 'skip' : 'ok',
+      'usage ping',
+      `${off ? `off (${off})` : 'on — anonymous daily counts, eklavya telemetry show prints them'}${sent ? ` ${dim(`(last sent ${sent})`)}` : ''}`,
+    );
   }
 
   // Which surfaces the checks above actually cover. The `plugin` check reads
@@ -980,11 +1042,23 @@ async function forwardToNewerRuntime(): Promise<boolean> {
   process.exit(child.status ?? 1);
 }
 
+const COUNTED = new Set([
+  'install', 'update', 'export-rules', 'config', 'dashboard', 'memory', 'artifacts', 'doctor', 'db-path', 'telemetry',
+]);
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
   // Not for `statusline` or `serve`: both are started from the runtime already,
   // and the status bar pays for every millisecond here.
   if (command !== 'statusline' && command !== 'serve' && (await forwardToNewerRuntime())) return;
+  // The command's name only, for the usage ping; never its arguments. After the
+  // forward, so a forwarded command is counted once, by the runtime that ran it.
+  // Not the server or the status line, which run constantly and say nothing
+  // about use; not uninstall, which sends its own event and must change nothing
+  // if it fails; not a `--background` run (update, the ping), which nobody typed.
+  if (command && COUNTED.has(command) && !rest.includes('--background')) {
+    (await import('./telemetry.js')).countCommand(`cli:${command}`);
+  }
 
   switch (command) {
     case 'serve':
@@ -1007,8 +1081,12 @@ async function main(): Promise<void> {
     }
     case 'update':
       return updateCommand(rest);
-    case 'uninstall':
+    case 'uninstall': {
+      // Before anything is removed: afterwards there is no runtime to send it.
+      const { sendOne } = await import('./telemetry-send.js');
+      await sendOne('uninstall', { purge: rest.includes('--purge') });
       return (await import('./install.js')).uninstall(rest);
+    }
     case 'export-rules':
       return exportRules(rest);
     case 'config':
@@ -1027,6 +1105,8 @@ async function main(): Promise<void> {
     case 'db-path':
       process.stdout.write(`${dbPath()}\n`);
       return;
+    case 'telemetry':
+      return telemetryCommand(rest);
     case undefined:
     case '-h':
     case '--help':

@@ -48,6 +48,12 @@ different, use `eklavya config set` with `--project` or ask for that explicitly;
 settings stay in your home directory. You can change the learning choices
 later with [`/eklavya:mode`](/docs/commands/#eklavyamode-value).
 
+:::note[Analytics]
+Eklavya sends anonymous daily usage counts, never code, paths, names or text.
+Ask Claude to turn off Eklavya analytics, or run `eklavya telemetry off`.
+[Usage analytics](/docs/usage-analytics/) lists every field.
+:::
+
 :::note[In Cowork]
 Setup verifies the database through the running server, because Cowork's shell
 has a different filesystem. It skips git-hook installation: Cowork does not

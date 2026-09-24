@@ -302,3 +302,11 @@ a .brand-word,
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* The analytics choice control on /docs/usage-analytics/. */
+button[data-analytics-choice] {
+  font: 500 14px var(--font-body); padding: 8px 14px; border-radius: 0; cursor: pointer;
+  border: 1px solid var(--line-2); background: transparent; color: var(--ink);
+}
+button[data-analytics-choice]:hover { border-color: var(--spot); color: var(--spot); }
+button[data-analytics-choice]:focus-visible { outline: none; box-shadow: var(--ring); }

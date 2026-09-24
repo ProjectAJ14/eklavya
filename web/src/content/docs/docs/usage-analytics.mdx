@@ -1,0 +1,129 @@
+---
+title: "Usage analytics"
+description: "See every anonymous count Eklavya sends to Google Analytics, what it never sends, how to turn it off, and what this website counts after you allow it."
+sidebar:
+  order: 14
+---
+
+Eklavya sends anonymous usage counts to Google Analytics, linked to a random install ID rather than to you. It never sends your code, file paths, project names, concept names, questions, answers or memory. The counts tell us whether people install Eklavya, keep using it, and which parts help, so we know what to improve.
+
+It is on by default. To turn it off, run:
+
+```bash
+eklavya telemetry off
+```
+
+Or ask Claude: *"Use the Eklavya skill to turn off analytics."*
+
+## What is sent, and when
+
+The first session start after installing or updating shows one line saying these counts are sent and how to turn them off; nothing is sent before that line has been shown. After that, at most once a day, a session start launches a background process that reads totals from your local database and sends them. The session never waits for it, and a send that fails is tried again at a session start an hour or more later. Counts named `_new` cover the time since the last accepted ping, so they add up across days without being counted twice.
+
+To print the exact next ping, run:
+
+```bash
+eklavya telemetry show
+```
+
+The only identity is `client_id`: a random UUID created on first use and stored in `~/.eklavya/telemetry.json`. It identifies this install, not you, and is not in `config.json`, so copying your settings to another machine does not copy it.
+
+### `daily_active`
+
+| Field | Meaning |
+|---|---|
+| `version`, `os`, `node_major` | Eklavya version, `darwin`/`linux`/`win32`, Node.js major version |
+| `install_age_days` | days since this install's ID was created |
+| `active_days_7d` | days in the last week on which a session started |
+| `sessions_new` | your sessions that captured memory or opened a quiz gate |
+| `helper_sessions_new` | sessions run by Eklavya's own memory observer that were recorded anyway; should be 0, and counts from them are left out of every other field |
+| `update_error` | `none`, or the class of the last automatic-update failure (`network`, `npm`, `install`, `other`) |
+
+### `settings`
+
+Your global setting values: `quiz_enabled`, `quiz_enforced`, `focus`, `cadence`, `difficulty`, `explain_on_wrong`, `quiet`, `auto_update`, `memory_enabled`, `memory_capture`, `retention_set`, `retrieval_mode`, `cross_project`, `observer` and `embeddings` (the provider kind, or `none`), `notifications`, `sync`. `privacy_rules` is how many exclusion and redaction rules you have, not what they say.
+
+Per project: `project_configs` (projects with their own settings file), `projects_quiz_off`, `projects_memory_off`, `projects_with_settings` and `projects_known` (projects Eklavya has seen). All counts; no project is named.
+
+### `learning`
+
+| Field | Meaning |
+|---|---|
+| `questions_new`, `questions_total` | questions graded |
+| `answered_new`, `passed_new` | answered, and answered with a passing grade |
+| `dont_know_new`, `declined_new` | "teach me" and "not now" answers |
+| `mcq_new` | multiple-choice questions |
+| `concepts_logged_new` | concepts logged during work |
+| `concepts_mastered`, `concepts_learning` | concepts at mastery, and concepts practised but not there yet |
+| `concepts_backlog` | concepts logged during work and never asked about |
+| `reviews_due` | practised concepts whose spaced review is due |
+| `level_easy`, `level_medium`, `level_hard`, `promotions_new` | projects at each difficulty level, and level-ups |
+| `gates_enforced_new`, `gates_passed_new` | enforced sessions, and how many passed their commit gate |
+
+### `memory`
+
+| Field | Meaning |
+|---|---|
+| `events_new` | work observations captured |
+| `entries_new`, `entries_total` | memory entries written, and entries kept |
+| `corrected_new`, `deleted_new` | entries replaced by a correction, and deleted |
+| `recalls_new`, `recalls_session_start_new`, `recalls_search_new` | times memory was handed to Claude, in total, at session start, and from a search |
+| `recall_items_new`, `recall_tokens_new`, `recall_tokens_saved_new` | entries handed over, their size in tokens, and tokens saved against the full text |
+| `jobs_pending`, `jobs_failed` | memory processing jobs waiting and failed |
+| `collections`, `db_mb` | saved collections, database size in megabytes |
+
+### `artifacts`
+
+`artifacts_total`, `artifacts_new`, `explainers_total` and `explainers_new`: pages under `~/.eklavya/artifacts/`, counted by kind. Titles and contents are not read.
+
+### `feature_use`
+
+One event per feature used on a finished day, with `kind`, `feature` and `count`. Features are Eklavya's own names only:
+
+| `kind` | `feature` |
+|---|---|
+| `cli` | the `eklavya` command run, such as `doctor` or `dashboard`, never its arguments |
+| `tool` | the MCP tool Claude called, such as `record_attempt` or `memory_search` |
+| `slash` | the Eklavya slash command typed, such as `quiz`, never the rest of the prompt |
+| `quiz` | `checkpoint` (a question during work) or `stop` (a question at the end of a turn) |
+| `gate` | `blocked`, a commit held by the gate |
+| `hook_error` | the hook that failed and let the session continue, such as `capture-tool` |
+
+An `uninstall` event, with `version`, `os` and `purge`, is sent when you run `eklavya uninstall`.
+
+## What is never sent
+
+Nothing Eklavya sends is text you wrote or a name you chose. A check in the code rejects any event whose values are not numbers, true/false or Eklavya's own short identifiers, so a mistake fails instead of sending. Specifically, never: code, file paths, project or repository names, concept names, questions, answers, memory entries, prompts, your focus topic, git details, hostname, username or email.
+
+Google receives the request, so it sees your IP address. Google Analytics 4 does not log or store IP addresses, and these events carry no location.
+
+## Turn it off
+
+Any one of these stops every ping and count:
+
+| How | Scope |
+|---|---|
+| `eklavya telemetry off` | this machine; sets `telemetry: false` in `~/.eklavya/config.json` |
+| Ask Claude to turn off Eklavya analytics | the same setting, through the Eklavya skill |
+| `EKLAVYA_TELEMETRY=0` | any shell or process with that variable |
+| `DO_NOT_TRACK=1` | any shell or process; the convention many developer tools honour |
+
+`telemetry` is a global setting: a project's settings cannot turn it back on. `eklavya telemetry` shows whether it is on and why, and `eklavya doctor` reports it on its `usage ping` row. Eklavya also sends nothing in CI, from a source checkout, or when its runtime is not installed.
+
+## This website
+
+The website asks before it counts anything. Until you choose **Allow analytics** in the banner, no Google script loads, no cookie is set and no analytics request is made. Choosing **Decline** keeps it that way. With your permission, the landing page and this manual send:
+
+| Event | Sent when | Fields |
+|---|---|---|
+| `page_view` | a page loads | page address, title, referrer |
+| `section_view` | a landing-page section scrolls into view, once per visit | section name, such as `dials` or `commands` |
+| `copy_command` | you press **Copy** on a shell command | `landing` or `docs` |
+| `scroll_depth` | you scroll past 25, 50, 75 or 100% of a manual page, once each | the percentage |
+| `search` | you pause while typing in the manual's search box | the search text, at most 100 characters |
+| outbound click | you follow a link to another site | the link address |
+
+Google Analytics also records what every GA4 site records: an anonymous visitor ID in a first-party cookie (`_ga`), approximate location, browser, device type and screen size. The site has no sign-in and records no form input apart from the search box.
+
+<button type="button" data-analytics-choice>Change website analytics choice</button>
+
+The same control is at the foot of the landing page. Declining after you allowed analytics deletes the `_ga` cookies and reloads the page without the Google script. The choice is stored in your browser as `eklavya-analytics`, so clearing site data brings the banner back. The website choice and the tool's `telemetry` setting are separate.

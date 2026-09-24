@@ -26,7 +26,9 @@ Eklavya is a plugin for Claude Code. It does two jobs:
    Claude, it can recall what you did last time.
 
 Your learning history and memory are stored on your computer. There is no
-Eklavya account and no telemetry.
+Eklavya account. Eklavya sends anonymous daily usage counts, never code, paths,
+names or text. [Every field is listed](https://eklavya-run.web.app/docs/usage-analytics/),
+and `eklavya telemetry off` stops them.
 
 ## What you get
 
