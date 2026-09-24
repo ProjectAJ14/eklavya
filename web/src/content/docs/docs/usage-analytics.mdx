@@ -17,7 +17,7 @@ Or ask Claude: *"Use the Eklavya skill to turn off analytics."*
 
 ## What is sent, and when
 
-At most once a day, a session start launches a background process that reads totals from your local database and sends them. The session never waits for it, and a send that fails is tried again at the next session start. Counts named `_new` cover the time since the last accepted ping, so they add up across days without being counted twice.
+The first session start after installing or updating shows one line saying these counts are sent and how to turn them off; nothing is sent before that line has been shown. After that, at most once a day, a session start launches a background process that reads totals from your local database and sends them. The session never waits for it, and a send that fails is tried again at a session start an hour or more later. Counts named `_new` cover the time since the last accepted ping, so they add up across days without being counted twice.
 
 To print the exact next ping, run:
 

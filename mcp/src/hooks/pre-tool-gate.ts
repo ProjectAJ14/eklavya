@@ -7,7 +7,6 @@
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
 import { isSessionOff } from '../session.js';
 import { isCommitCommand } from './commit-lib.js';
-import { countUse } from '../telemetry.js';
 
 await run(async (input) => {
   // Fast path: no string match, no work. PreToolUse fires on every Bash call.
@@ -50,7 +49,8 @@ await run(async (input) => {
     'get_session_quiz_plan, ask one question at a time, grade each answer with record_attempt — ' +
     'then retry the commit. Nothing else is blocked.';
 
-  countUse(db, 'gate:blocked');
+  // Loaded here, not at the top: this hook runs on every Bash call.
+  (await import('../telemetry.js')).countUse(db, 'gate:blocked');
   process.stdout.write(
     `${JSON.stringify({
       hookSpecificOutput: {

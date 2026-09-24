@@ -39,7 +39,12 @@ const num = (db: DB, sql: string, ...args: unknown[]): number => {
   }
 };
 
-/** SQLite's own timestamp format, which every `datetime('now')` column uses. */
+/**
+ * SQLite's own timestamp format. Columns are compared through `datetime(col)`
+ * because some are written by `datetime('now')` and some by `nowIso()`: raw,
+ * `2026-09-24T03:00Z` sorts after `2026-09-24 05:00` and a row counted in the
+ * last ping would be counted again.
+ */
 const sqlTime = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 
 function projectSettings(): Record<string, number> {
@@ -104,13 +109,13 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
       active_days_7d: lastWeek,
       sessions_new: num(
         db,
-        `SELECT COUNT(*) FROM (SELECT session_id FROM evidence_events WHERE received_at >= ?
-          UNION SELECT session_id FROM gates WHERE updated_at >= ?) WHERE session_id NOT IN ${HELPERS}`,
+        `SELECT COUNT(*) FROM (SELECT session_id FROM evidence_events WHERE datetime(received_at) >= ?
+          UNION SELECT session_id FROM gates WHERE datetime(updated_at) >= ?) WHERE session_id NOT IN ${HELPERS}`,
         t, t,
       ),
       // Should be 0. Non-zero means the observer's own sessions are being
       // recorded as work again (the 1.24.0 incident; see HELPER_SESSION).
-      helper_sessions_new: num(db, `SELECT COUNT(DISTINCT session_id) FROM evidence_events WHERE received_at >= ? AND session_id IN ${HELPERS}`, t),
+      helper_sessions_new: num(db, `SELECT COUNT(DISTINCT session_id) FROM evidence_events WHERE datetime(received_at) >= ? AND session_id IN ${HELPERS}`, t),
       update_error: u.error_class ?? (u.error ? 'other' : 'none'),
     },
   };
@@ -148,14 +153,14 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
   const learning: TelemetryEvent = {
     name: 'learning',
     params: {
-      questions_new: num(db, 'SELECT COUNT(*) FROM attempts WHERE ts >= ?', t),
-      answered_new: num(db, "SELECT COUNT(*) FROM attempts WHERE ts >= ? AND COALESCE(outcome, 'answered') = 'answered'", t),
-      passed_new: num(db, "SELECT COUNT(*) FROM attempts WHERE ts >= ? AND COALESCE(outcome, 'answered') = 'answered' AND grade >= ?", t, PASSING_GRADE),
-      dont_know_new: num(db, "SELECT COUNT(*) FROM attempts WHERE ts >= ? AND outcome = 'dont_know'", t),
-      declined_new: num(db, "SELECT COUNT(*) FROM attempts WHERE ts >= ? AND outcome = 'declined'", t),
-      mcq_new: num(db, "SELECT COUNT(*) FROM attempts WHERE ts >= ? AND format = 'mcq'", t),
+      questions_new: num(db, 'SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ?', t),
+      answered_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND COALESCE(outcome, 'answered') = 'answered'", t),
+      passed_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND COALESCE(outcome, 'answered') = 'answered' AND grade >= ?", t, PASSING_GRADE),
+      dont_know_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND outcome = 'dont_know'", t),
+      declined_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND outcome = 'declined'", t),
+      mcq_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND format = 'mcq'", t),
       questions_total: num(db, 'SELECT COUNT(*) FROM attempts'),
-      concepts_logged_new: num(db, 'SELECT COUNT(DISTINCT concept_id) FROM session_concepts WHERE ts >= ?', t),
+      concepts_logged_new: num(db, 'SELECT COUNT(DISTINCT concept_id) FROM session_concepts WHERE datetime(ts) >= ?', t),
       concepts_mastered: num(db, `SELECT COUNT(*) FROM mastery WHERE ${known}`),
       concepts_learning: num(db, `SELECT COUNT(*) FROM mastery WHERE reps > 0 AND NOT (${known})`),
       concepts_backlog: num(
@@ -167,28 +172,28 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
       level_easy: num(db, "SELECT COUNT(*) FROM project_levels WHERE level = 'easy'"),
       level_medium: num(db, "SELECT COUNT(*) FROM project_levels WHERE level = 'medium'"),
       level_hard: num(db, "SELECT COUNT(*) FROM project_levels WHERE level = 'hard'"),
-      promotions_new: num(db, 'SELECT COUNT(*) FROM project_levels WHERE promoted_at >= ?', t),
-      gates_enforced_new: num(db, "SELECT COUNT(*) FROM gates WHERE mode = 'enforced' AND updated_at >= ?", t),
-      gates_passed_new: num(db, "SELECT COUNT(*) FROM gates WHERE mode = 'enforced' AND passed = 1 AND updated_at >= ?", t),
+      promotions_new: num(db, 'SELECT COUNT(*) FROM project_levels WHERE datetime(promoted_at) >= ?', t),
+      gates_enforced_new: num(db, "SELECT COUNT(*) FROM gates WHERE mode = 'enforced' AND datetime(updated_at) >= ?", t),
+      gates_passed_new: num(db, "SELECT COUNT(*) FROM gates WHERE mode = 'enforced' AND passed = 1 AND datetime(updated_at) >= ?", t),
     },
   };
 
   const memory: TelemetryEvent = {
     name: 'memory',
     params: {
-      events_new: num(db, `SELECT COUNT(*) FROM evidence_events WHERE received_at >= ? AND session_id NOT IN ${HELPERS}`, t),
-      entries_new: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE deleted_at IS NULL AND created_at >= ?', t),
-      corrected_new: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE superseded_by IS NOT NULL AND created_at >= ?', t),
-      deleted_new: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE deleted_at >= ?', t),
+      events_new: num(db, `SELECT COUNT(*) FROM evidence_events WHERE datetime(received_at) >= ? AND session_id NOT IN ${HELPERS}`, t),
+      entries_new: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE deleted_at IS NULL AND datetime(created_at) >= ?', t),
+      corrected_new: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE superseded_by IS NOT NULL AND datetime(created_at) >= ?', t),
+      deleted_new: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE datetime(deleted_at) >= ?', t),
       entries_total: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE deleted_at IS NULL AND superseded_by IS NULL'),
-      recalls_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE created_at >= ? AND ${NOT_HELPER}`, t),
-      recalls_session_start_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE scope = 'session_start' AND created_at >= ? AND ${NOT_HELPER}`, t),
-      recalls_search_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE scope = 'search' AND created_at >= ? AND ${NOT_HELPER}`, t),
-      recall_items_new: num(db, `SELECT COALESCE(SUM(item_count), 0) FROM context_receipts WHERE created_at >= ? AND ${NOT_HELPER}`, t),
-      recall_tokens_new: num(db, `SELECT COALESCE(SUM(delivered_tokens), 0) FROM context_receipts WHERE created_at >= ? AND ${NOT_HELPER}`, t),
+      recalls_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
+      recalls_session_start_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE scope = 'session_start' AND datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
+      recalls_search_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE scope = 'search' AND datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
+      recall_items_new: num(db, `SELECT COALESCE(SUM(item_count), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
+      recall_tokens_new: num(db, `SELECT COALESCE(SUM(delivered_tokens), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
       recall_tokens_saved_new: num(
         db,
-        `SELECT COALESCE(SUM(MAX(base_tokens - delivered_tokens, 0)), 0) FROM context_receipts WHERE created_at >= ? AND ${NOT_HELPER}`,
+        `SELECT COALESCE(SUM(MAX(base_tokens - delivered_tokens, 0)), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER}`,
         t,
       ),
       jobs_pending: num(db, "SELECT COUNT(*) FROM memory_jobs WHERE status IN ('pending','claimed','paused')"),
@@ -232,7 +237,8 @@ export function assertSafe(events: TelemetryEvent[]): void {
   for (const e of events) {
     if (!/^[a-z_]{1,40}$/.test(e.name)) throw new Error(`telemetry: bad event name ${e.name}`);
     const keys = Object.keys(e.params);
-    if (keys.length > 25) throw new Error(`telemetry: ${e.name} has ${keys.length} params`);
+    // GA4 allows 25, and `post` adds `engagement_time_msec` to every event.
+    if (keys.length > 24) throw new Error(`telemetry: ${e.name} has ${keys.length} params`);
     for (const [k, v] of Object.entries(e.params)) {
       if (!/^[a-z0-9_]{1,40}$/.test(k)) throw new Error(`telemetry: bad param ${k}`);
       if (typeof v === 'number' && Number.isFinite(v)) continue;

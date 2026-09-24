@@ -44,6 +44,8 @@ export const MEASUREMENT_ID = 'G-8XP3NZLJXS';
 export const API_SECRET = 'c2IKL021RiGv3hS0WtOFtw';
 
 const ACTIVE_DAYS_KEPT = 30;
+/** How long a started send holds its claim: long enough to finish, short enough that a dead one is retried. */
+const ATTEMPT_CLAIM_MS = 3_600_000;
 
 export interface TelemetryState {
   install_id?: string;
@@ -52,6 +54,10 @@ export interface TelemetryState {
   sent_at?: string;
   /** UTC days a session started on, newest last. */
   active_days?: string[];
+  /** When the last send was started. Stops every session start spawning its own. */
+  attempt_at?: string;
+  /** When the developer was told the ping exists. Nothing is sent before this. */
+  announced_at?: string;
 }
 
 export function statePath(): string {
@@ -115,7 +121,15 @@ export function startBackgroundTelemetry(now = Date.now()): void {
     const day = today(now);
     const days = s.active_days ?? [];
     if (days[days.length - 1] !== day) writeState({ active_days: [...days, day].slice(-ACTIVE_DAYS_KEPT) });
-    if (!canSend() || (s.sent_at && today(Date.parse(s.sent_at)) === day)) return;
+    if (!canSend() || !s.announced_at || (s.sent_at && today(Date.parse(s.sent_at)) === day)) return;
+    // Claim before spawning, as `run.mjs` does for its heal: without it two
+    // sessions starting together both post the same counts, and offline every
+    // session start spawns a send that fails.
+    // ponytail: read-then-write, so two starts in the same millisecond can both
+    // claim; an exclusive lock file if duplicates ever show up in the counts.
+    const tried = s.attempt_at ? Date.parse(s.attempt_at) : NaN;
+    if (now - tried < ATTEMPT_CLAIM_MS) return;
+    writeState({ attempt_at: new Date(now).toISOString() });
     const child = spawn(process.execPath, [runtimeCli(), 'telemetry', 'send', '--background'], {
       detached: true,
       stdio: 'ignore',
@@ -126,6 +140,24 @@ export function startBackgroundTelemetry(now = Date.now()): void {
   } catch {
     /* retried next session */
   }
+}
+
+/**
+ * The one line SessionStart shows, once, before the first ping: earlier installs
+ * were told "no telemetry", and an update must not change that silently. Null when off or already said.
+ */
+export function telemetryNotice(): string | null {
+  try {
+    // Only where a ping can go out: a checkout or CI has nothing to announce.
+    if (disabledReason() || !canSend() || readState().announced_at) return null;
+    return 'Eklavya now sends anonymous daily usage counts, never code, paths or text · turn off: eklavya telemetry off';
+  } catch {
+    return null;
+  }
+}
+
+export function markTelemetryAnnounced(now = Date.now()): void {
+  writeState({ announced_at: new Date(now).toISOString() });
 }
 
 /**

@@ -1048,13 +1048,17 @@ const COUNTED = new Set([
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
-  // The command's name only, for the usage ping; never its arguments. Not the
-  // server or the status line, which run constantly and say nothing about use,
-  // nor uninstall, which sends its own event and must change nothing if it fails.
-  if (command && COUNTED.has(command)) (await import('./telemetry.js')).countCommand(`cli:${command}`);
   // Not for `statusline` or `serve`: both are started from the runtime already,
   // and the status bar pays for every millisecond here.
   if (command !== 'statusline' && command !== 'serve' && (await forwardToNewerRuntime())) return;
+  // The command's name only, for the usage ping; never its arguments. After the
+  // forward, so a forwarded command is counted once, by the runtime that ran it.
+  // Not the server or the status line, which run constantly and say nothing
+  // about use; not uninstall, which sends its own event and must change nothing
+  // if it fails; not a `--background` run (update, the ping), which nobody typed.
+  if (command && COUNTED.has(command) && !rest.includes('--background')) {
+    (await import('./telemetry.js')).countCommand(`cli:${command}`);
+  }
 
   switch (command) {
     case 'serve':
