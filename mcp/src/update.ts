@@ -30,17 +30,10 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { eklavyaHome } from './paths.js';
 import { loadGlobalConfig } from './config.js';
+import { claimInstall, releaseInstall } from './install-lock.js';
 
 /** How often the background check runs, at most. Every session would ask npm otherwise. */
 export const CHECK_EVERY_MS = 60 * 60 * 1000;
-/** A stamp older than this is a run that died, not one in progress. Shared with `hooks/run.mjs`. */
-const STAMP_TTL_MS = 60 * 60 * 1000;
-/**
- * `run.mjs`'s heal stamps a date, not a pid, and never removes it — its npm is
- * detached. Past this age that npm has long finished, so the stamp is not a
- * reason to wait out the rest of the hour.
- */
-const HEAL_STAMP_MS = 10 * 60 * 1000;
 /** Offline is not a failure worth a line — until it has lasted this long. */
 export const OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -196,75 +189,6 @@ export function markAnnounced(version: string): void {
 
 // --- the run ----------------------------------------------------------------
 
-/**
- * The claim `hooks/run.mjs` and `installRuntime` already use, so no two npm
- * installs ever land in the runtime at once. Taken the way `claimHeal` takes
- * it: an exclusive create (`wx`), which only one process can win, and a stamp
- * nobody holds any more is taken by renaming it away — again one winner — and
- * put back if what was renamed turned out to be live.
- */
-function claim(): boolean {
-  const stamp = path.join(runtimeDir(), '.installing');
-  const create = () => {
-    try {
-      fs.writeFileSync(stamp, String(process.pid), { flag: 'wx' });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  try {
-    fs.mkdirSync(runtimeDir(), { recursive: true });
-  } catch {
-    return false;
-  }
-  if (create()) return true;
-  try {
-    if (held(stamp)) return false;
-    const taken = `${stamp}.${process.pid}`;
-    fs.renameSync(stamp, taken);
-    if (held(taken)) {
-      fs.renameSync(taken, stamp);
-      return false;
-    }
-    fs.rmSync(taken, { force: true });
-  } catch {
-    // Cannot read or move it, so it cannot be judged: wait for the next run.
-    return false;
-  }
-  return create();
-}
-
-/**
- * Is this stamp someone's live claim? A pid stamp (this updater,
- * `installRuntime`) is while its process runs; the heal's date stamp only for
- * as long as its detached npm plausibly does. Nothing past the hour is.
- */
-function held(stamp: string): boolean {
-  const age = Date.now() - fs.statSync(stamp).mtimeMs;
-  if (age >= STAMP_TTL_MS) return false;
-  const owner = fs.readFileSync(stamp, 'utf8').trim();
-  return /^\d+$/.test(owner) ? alive(Number(owner)) : age < HEAL_STAMP_MS;
-}
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    // EPERM: it exists, it is just not ours to signal.
-    return (err as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
-
-function release(): void {
-  try {
-    fs.rmSync(path.join(runtimeDir(), '.installing'), { force: true });
-  } catch {
-    /* the TTL covers it */
-  }
-}
-
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 function run(cmd: string, args: string[], timeout: number) {
@@ -315,7 +239,11 @@ export type UpdateResult =
  */
 export async function runUpdate(opts: { background: boolean; say?: (line: string) => void }): Promise<UpdateResult> {
   if (opts.background && !updateDue()) return { status: 'skipped' };
-  if (!claim()) return { status: 'busy' };
+  // The runtime lock `installRuntime` and the launcher's heal take too
+  // (`install-lock.ts`). The new runtime's `install --auto` below skips the
+  // runtime step, so it never asks for the lock this run is holding.
+  const claim = claimInstall(runtimeDir());
+  if (!claim) return { status: 'busy' };
   // The background run's log is this run's alone: truncated here, after the claim.
   const log = (text: string) => {
     if (!opts.background) return;
@@ -392,6 +320,6 @@ export async function runUpdate(opts: { background: boolean; say?: (line: string
     writeState({ checked_at: now, error, error_class: err instanceof UpdateError ? err.cls : 'install' });
     return { status: 'failed', error };
   } finally {
-    release();
+    releaseInstall(claim);
   }
 }

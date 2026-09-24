@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 14;
+const LATEST_SCHEMA_VERSION = 15;
 
 const LEARNING_TABLES = [
   'attempts',
@@ -134,6 +134,7 @@ describe('migrations', () => {
         '012_job_backoff.sql',
         '013_batch_provenance.sql',
         '014_batch_events_index.sql',
+        '015_event_link_indexes.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -164,6 +165,56 @@ describe('migrations', () => {
         .prepare("EXPLAIN QUERY PLAN SELECT * FROM evidence_events WHERE batch_id = ?")
         .all(1) as { detail: string }[];
       expect(plan.map((r) => r.detail).join(' ')).toContain('idx_events_batch');
+      db.close();
+    } finally {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+    }
+  });
+
+  it('upgrades a populated v14 database with the event_id indexes retention needs', () => {
+    // Deleting an evidence event makes SQLite find its rows in the two tables
+    // that reference it by event_id. Without an index there, each deleted event
+    // cost a scan of every link and every candidate.
+    const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-mig-'));
+    try {
+      for (const f of fs.readdirSync(migrationsDir()).filter((f) => f < '015')) {
+        fs.copyFileSync(path.join(migrationsDir(), f), path.join(oldDir, f));
+      }
+      const db = new Database(':memory:');
+      runMigrations(db, oldDir);
+      expect(schemaVersion(db)).toBe(14);
+      db.prepare(
+        "INSERT INTO evidence_events (id, event_uid, project, session_id, kind, occurred_at) VALUES (1, 'u', 'p', 's', 'note', 'now')",
+      ).run();
+      db.prepare("INSERT INTO memory_entries (id, entry_uid, project, title, occurred_at) VALUES (1, 'e', 'p', 't', 'now')").run();
+      db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
+      db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
+
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql']);
+      expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
+      expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
+      expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
+
+      const indexes = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as { name: string }[]).map(
+        (r) => r.name,
+      );
+      expect(indexes).toEqual(
+        expect.arrayContaining(['idx_entry_events_event', 'idx_sources_event', 'idx_receipts_session']),
+      );
+      // The plan, not the name, is the thing that matters: a lookup by event_id
+      // alone must search an index rather than scan the table.
+      for (const [table, index] of [
+        ['memory_entry_events', 'idx_entry_events_event'],
+        ['learning_sources', 'idx_sources_event'],
+        ['context_receipts', 'idx_receipts_session'],
+      ]) {
+        const column = table === 'context_receipts' ? 'session_id' : 'event_id';
+        const plan = (db.prepare(`EXPLAIN QUERY PLAN SELECT * FROM ${table} WHERE ${column} = ?`).all(1) as {
+          detail: string;
+        }[]).map((r) => r.detail).join(' ');
+        expect(plan).toContain(index);
+        expect(plan).not.toMatch(/^SCAN/);
+      }
       db.close();
     } finally {
       fs.rmSync(oldDir, { recursive: true, force: true });

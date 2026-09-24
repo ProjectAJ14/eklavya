@@ -351,7 +351,7 @@ describe('retention', () => {
     cfg.memory.retention_days = 7;
     // Sparing cited events used to mean sparing all of them: every summariser
     // links every event it read. `memory-retention.test.ts` has the rest.
-    expect(pruneEvidence(db, cfg)).toBe(2);
+    expect(pruneEvidence(db, cfg, { project: PROJECT })).toBe(2);
 
     const left = (db.prepare('SELECT event_uid FROM evidence_events ORDER BY event_uid').all() as {
       event_uid: string;
@@ -363,6 +363,6 @@ describe('retention', () => {
     // cutoff of "now".
     const forever = config();
     forever.memory.retention_days = null;
-    expect(pruneEvidence(db, forever)).toBe(0);
+    expect(pruneEvidence(db, forever, { project: PROJECT })).toBe(0);
   });
 });

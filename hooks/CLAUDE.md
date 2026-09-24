@@ -28,8 +28,20 @@ Claude Code updates it; the runtime only moves when npm runs. So when the entry
 resolved to `~/.eklavya/runtime` and its `package.json` version is older than
 `plugin.json`'s, `healIfBehind` starts that background install before the
 import — this run still uses the old runtime and never waits. It never
-downgrades (migrations only go forward), and leaves an `EKLAVYA_RUNTIME` or
-checkout build alone. `eklavya doctor`'s `versions` row reports the skew.
+downgrades (migrations only go forward), leaves an `EKLAVYA_RUNTIME` or
+checkout build alone, and does nothing when the global config says
+`auto_update: false` — read straight from `config.json`, since the runtime's
+config loader is not reachable here. A *missing* runtime is healed regardless:
+that is bootstrap, not an upgrade. `eklavya doctor`'s `versions` row reports the
+skew.
+
+The `.installing` stamp is the one runtime lock, shared with `installRuntime`
+and the updater; `mcp/src/install-lock.ts` states the rules and `run.mjs`
+carries a copy, because it has to work before any runtime exists. After
+spawning npm the heal rewrites the stamp to name npm's pid, so the claim lives
+exactly as long as npm runs; the stamp npm leaves behind also throttles the heal
+to once an hour. `mcp/test/install-lock.test.ts` races all three entry points
+against a fake npm.
 
 The `npx` fallback retries `eklavya@latest` once, and only when npm says the
 pinned version does not exist (`E404`/`ETARGET`/`No matching version`). That is

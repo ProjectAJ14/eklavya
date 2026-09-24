@@ -305,21 +305,31 @@ export function releaseWorker(db: DB, token: string): boolean {
  * free a moment later and launches its own. Either way the batch is not left
  * waiting for a seam that may never come.
  *
- * True means the caller must now launch the successor (`launchWorker`) with the
- * same token. The holder is reset to "launch in flight", so a successor that
+ * A token back means the caller must now launch the successor (`launchWorker`)
+ * with it. The holder is reset to "launch in flight", so a successor that
  * never starts frees the slot when the lease lapses.
+ *
+ * **Each generation gets a fresh token.** Every write here is conditional on
+ * the token, so the new one is what retires the old generation: its launcher's
+ * late `renewWorker({pid})`, its spawn-error release and its own release all
+ * stop matching. With one token for the whole chain, a launcher that recorded
+ * its worker's pid after that worker had already handed off overwrote the
+ * successor's pid with a dead one — and a dead pid with no provider reads as
+ * a free slot, so a second worker could start beside the live successor.
  */
-export function handOffWorker(db: DB, token: string, more: () => boolean, now = Date.now()): boolean {
+export function handOffWorker(db: DB, token: string, more: () => boolean, now = Date.now()): string | null {
   return db.transaction(() => {
     const holder = read(db);
-    if (!holder || holder.token !== token) return false;
+    if (!holder || holder.token !== token) return null;
     const generation = (holder.generation ?? 0) + 1;
     if (generation >= MAX_GENERATIONS || !more()) {
       db.prepare('DELETE FROM meta WHERE key = ?').run(KEY);
-      return false;
+      return null;
     }
+    const next = crypto.randomUUID();
     write(db, {
       ...holder,
+      token: next,
       pid: null,
       pidStart: null,
       child: null,
@@ -330,7 +340,7 @@ export function handOffWorker(db: DB, token: string, more: () => boolean, now = 
       until: new Date(now + WORKER_LEASE_MS).toISOString(),
       heartbeat: new Date(now).toISOString(),
     });
-    return true;
+    return next;
   }).immediate();
 }
 

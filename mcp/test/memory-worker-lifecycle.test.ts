@@ -26,7 +26,9 @@ import {
   MAX_GENERATIONS,
   WORKER_LEASE_MS,
   handOffWorker,
+  launchWorker,
   releaseWorker,
+  renewWorker,
   reserveWorker,
   startStamp,
   stopWorker,
@@ -298,25 +300,75 @@ describe('handing the slot on', () => {
     db.prepare("DELETE FROM meta WHERE key = 'memory_worker'").run();
   });
 
-  it('keeps the token when there is more to do, releases it when there is not', () => {
+  it('passes the slot on when there is more to do, releases it when there is not', () => {
     const token = reserveWorker(db)!;
-    expect(handOffWorker(db, token, () => true)).toBe(true);
-    expect(workerStatus(db)).toMatchObject({ token, pid: null, child: null, generation: 1 });
-    expect(handOffWorker(db, token, () => false)).toBe(false);
+    const next = handOffWorker(db, token, () => true);
+    expect(next).toBeTruthy();
+    expect(workerStatus(db)).toMatchObject({ token: next, pid: null, child: null, generation: 1 });
+    expect(handOffWorker(db, next!, () => false)).toBeNull();
     expect(workerStatus(db)).toBeNull();
   });
 
   it('is bounded: the chain from one launch ends at MAX_GENERATIONS', () => {
-    const token = reserveWorker(db)!;
+    let token: string | null = reserveWorker(db)!;
     let hops = 0;
-    while (handOffWorker(db, token, () => true)) hops++;
+    while ((token = handOffWorker(db, token, () => true))) hops++;
     expect(hops).toBe(MAX_GENERATIONS - 1);
     expect(workerStatus(db)).toBeNull();
   });
 
+  /**
+   * A launcher whose registration runs late — after its worker has already
+   * adopted the slot, finished and handed it on — must not write its dead
+   * worker's pid over the successor's. With one token for the whole chain it
+   * did, and a dead pid with no provider made an occupied slot read as free.
+   * Every step is an explicit call in order, so no timing is involved.
+   */
+  it.skipIf(!posix)('a stale launcher cannot register over, release or hand off a successor\'s slot', async () => {
+    const first = reserveWorker(db)!;
+    // The old worker, which has since exited: its pid is dead.
+    const old = spawn('true', [], { stdio: 'ignore' });
+    await new Promise((r) => old.on('close', r));
+    const successor = sleeper();
+
+    // The old worker adopts, then hands off; the successor adopts its slot.
+    expect(renewWorker(db, first, { pid: old.pid! })).toBe(true);
+    handOffWorker(db, first, () => true);
+    const next = workerStatus(db)!.token;
+    expect(renewWorker(db, next, { pid: successor.pid! })).toBe(true);
+    const adopted = workerStatus(db);
+    expect(adopted).toMatchObject({ pid: successor.pid, generation: 1 });
+
+    // The paused registration resumes, and the old worker's cleanup runs.
+    expect(renewWorker(db, first, { pid: old.pid! })).toBe(false);
+    expect(releaseWorker(db, first)).toBe(true);
+    expect(handOffWorker(db, first, () => true)).toBeFalsy();
+    // The real launcher, arriving late with the stale token.
+    const priorDb = process.env.EKLAVYA_DB;
+    process.env.EKLAVYA_DB = dbFile;
+    try {
+      launchWorker(db, first);
+    } finally {
+      if (priorDb === undefined) delete process.env.EKLAVYA_DB;
+      else process.env.EKLAVYA_DB = priorDb;
+    }
+
+    expect(workerStatus(db)).toEqual(adopted);
+    expect(reserveWorker(db)).toBeNull();
+  });
+
+  it('gives every generation its own token', () => {
+    const first = reserveWorker(db)!;
+    handOffWorker(db, first, () => true);
+    const second = workerStatus(db)!.token;
+    expect(second).not.toBe(first);
+    handOffWorker(db, second, () => true);
+    expect(workerStatus(db)!.token).not.toBe(second);
+  });
+
   it('cannot be used by a token that no longer holds the slot', () => {
     reserveWorker(db);
-    expect(handOffWorker(db, 'not-mine', () => true)).toBe(false);
+    expect(handOffWorker(db, 'not-mine', () => true)).toBeNull();
     expect(workerStatus(db)).not.toBeNull();
   });
 });
@@ -517,8 +569,19 @@ describe.skipIf(!posix)('a supervised worker run', () => {
       launch: (_db, t) => (launched.push(t), true),
     });
     expect(result).toMatchObject({ processed: 4, stopped: 'limit', handedOff: true, released: false });
-    expect(launched).toEqual([token]);
-    expect(workerStatus(db)).toMatchObject({ token, generation: 1, pid: null });
+    // The successor is launched under its own token, not this run's.
+    expect(launched).toHaveLength(1);
+    expect(launched[0]).not.toBe(token);
+    expect(workerStatus(db)).toMatchObject({ token: launched[0], generation: 1, pid: null });
+  });
+
+  it('a successor that cannot start leaves the slot free, under its own token', async () => {
+    fakeClaude();
+    queue(6);
+    const token = reserveWorker(db)!;
+    const result = await superviseWorker(db, token, OBSERVED, { maxJobs: 4, loadConfig: () => OBSERVED, launch: () => false });
+    expect(result).toMatchObject({ processed: 4, handedOff: false, released: true });
+    expect(workerStatus(db)).toBeNull();
   });
 
   it('does not hand off when it was told to stop after its last job', async () => {

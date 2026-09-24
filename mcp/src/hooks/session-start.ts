@@ -101,8 +101,16 @@ await run(async (input) => {
     replaySpool(db);
     // Drain first, then mark the seam. The other order batches the lifecycle
     // event on its own and summarises "session started" into an observation of
-    // nothing.
-    await flushAtSeam(db, resolved, identity);
+    // nothing. `all`: the last session has no seam of its own left, so its
+    // tail is closed now however small — the Stop hook's size and age
+    // thresholds are for a session that will have another turn. Not on
+    // `compact`: that is the same session carrying on, and forcing its tail
+    // shut on every compaction is a model call per compaction for nothing.
+    // ponytail: `all` is project-wide, so a second live session in the same
+    // repository also has its short tail closed at this start — one extra
+    // small batch per session start; telling live from ended needs a signal
+    // the hook does not have.
+    await flushAtSeam(db, resolved, identity, { all: input.source !== 'compact' });
     record(db, resolved, identity, {
       kind: 'lifecycle',
       title: input.source === 'resume' ? 'session resumed' : 'session started',

@@ -53,6 +53,7 @@ import {
   retireClaudeMemDir,
 } from './claude-mem.js';
 import { readJsonForUpdate, readJsonStrict, UnreadableFileError, writeJsonWithBackup } from './safe-write.js';
+import { claimInstall, installHolder, releaseInstall } from './install-lock.js';
 import { compareVersions, runtimeVersion, writeState } from './update.js';
 
 const MIN_NODE_MAJOR = 22;
@@ -170,10 +171,19 @@ async function installRuntime(version: string): Promise<void> {
   const home = runtimeHome();
   fs.mkdirSync(home, { recursive: true });
 
-  // A stamp file so the plugin's background self-heal does not race a manual
-  // install. Removed in the finally, whatever happens.
-  const stamp = path.join(home, '.installing');
-  fs.writeFileSync(stamp, String(process.pid), 'utf8');
+  // The runtime lock the updater and the launcher's heal take too
+  // (`install-lock.ts`). A live holder is never overwritten: two npm installs
+  // into one prefix leave a half-written node_modules, so this one waits its
+  // turn by being run again.
+  const claim = claimInstall(home);
+  if (!claim) {
+    const pid = installHolder(home);
+    process.stderr.write(
+      `\nanother Eklavya install is running${pid ? ` (pid ${pid})` : ''} — ` +
+        'let it finish (usually under a minute), then run this again.\n',
+    );
+    process.exit(1);
+  }
 
   try {
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -195,6 +205,9 @@ async function installRuntime(version: string): Promise<void> {
     );
 
     if (result.status !== 0) {
+      // `process.exit` skips the `finally`, so release here: a stamp left
+      // behind would hold the launcher's heal off for an hour.
+      releaseInstall(claim);
       process.stderr.write(result.output);
       process.stderr.write(
         '\nInstalling the Eklavya runtime failed. The output above says why — the usual\n' +
@@ -204,11 +217,8 @@ async function installRuntime(version: string): Promise<void> {
       process.exit(1);
     }
   } finally {
-    try {
-      fs.rmSync(stamp, { force: true });
-    } catch {
-      /* nothing depends on the stamp being gone */
-    }
+    // Only if it is still ours: a claim taken over meanwhile is someone else's.
+    releaseInstall(claim);
   }
 }
 

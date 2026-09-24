@@ -186,6 +186,15 @@ describe('runUpdate', () => {
     expect(readState().error).toBeNull();
   });
 
+  it('a manual update still runs with auto_update off', async () => {
+    fakeRuntime('1.0.0');
+    fakeNpm('1.2.0');
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ auto_update: false }));
+    expect(updateDue()).toBe(false);
+    expect(await runUpdate({ background: true })).toEqual({ status: 'skipped' });
+    expect(await runUpdate({ background: false })).toMatchObject({ status: 'updated', to: '1.2.0' });
+  });
+
   it('steps aside while a live install holds the claim', async () => {
     fakeRuntime('1.0.0');
     fakeNpm('1.2.0');

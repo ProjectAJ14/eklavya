@@ -8,7 +8,8 @@ import Database from 'better-sqlite3';
 import { tempDbPath, cleanup } from './helpers.js';
 import { openDb } from '../src/db.js';
 import { setCurrentSession, setSessionOff } from '../src/session.js';
-import { insertEntry } from '../src/memory/store.js';
+import { appendEvent, insertEntry } from '../src/memory/store.js';
+import { projectKey } from '../src/store.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cliPath = path.join(mcpRoot, 'dist', 'cli.js');
@@ -601,7 +602,26 @@ describe('eklavya memory dispatches each subcommand', () => {
     eklavya(['config', 'set', 'memory.retention_days', '30']);
     const res = eklavya(['memory', 'prune']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toBe('Deleted 0 raw evidence events older than 30 days.\n');
+    expect(res.stdout).toBe(`Deleted 0 raw evidence events older than 30 days in ${projectKey(repo)}.\n`);
+  });
+
+  it('prunes only the project it runs in', () => {
+    // Retention is per project over one database: `memory prune` in one
+    // checkout must not age out another checkout's evidence.
+    const db = openDb(dbFile);
+    const old = new Date(Date.now() - 60 * 86_400_000).toISOString();
+    for (const [uid, project] of [['here', projectKey(repo)], ['elsewhere', '/tmp/some-other-project']] as const) {
+      const { id } = appendEvent(db, { eventUid: uid, project, sessionId: uid, kind: 'tool_use', body: uid, occurredAt: old });
+      db.prepare("UPDATE evidence_events SET status = 'summarized' WHERE id = ?").run(id);
+    }
+    db.close();
+    eklavya(['config', 'set', 'memory.retention_days', '30']);
+    const res = eklavya(['memory', 'prune']);
+    expect(res.stdout).toMatch(/^Deleted 1 raw evidence events/);
+    const check = new Database(dbFile, { readonly: true });
+    const left = check.prepare('SELECT event_uid FROM evidence_events').all() as { event_uid: string }[];
+    check.close();
+    expect(left.map((r) => r.event_uid)).toEqual(['elsewhere']);
   });
 
   it('runs import, the one subcommand that reads a file rather than the database', () => {

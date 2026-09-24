@@ -94,7 +94,7 @@ export async function flushAtSeam(
     /* Evidence left open is closed at the next seam. */
   }
   try {
-    pruneIfDue(db, resolved.config);
+    pruneIfDue(db, resolved.config, identity.project);
   } catch {
     /* Retention runs again at the next seam; nothing is lost by waiting. */
   }

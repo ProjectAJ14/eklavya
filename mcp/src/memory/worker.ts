@@ -395,6 +395,8 @@ export async function superviseWorker(
   // A stop that landed after the last job — SIGTERM, Ctrl-C, a closed
   // terminal — still means stop: no successor.
   let handedOff = false;
+  // The token that holds the slot now: this run's, or its successor's once handed on.
+  let holding = token;
   if (
     (result.stopped === 'limit' || result.stopped === 'empty') &&
     config.providers.observer &&
@@ -402,16 +404,21 @@ export async function superviseWorker(
     !cancel.signal.aborted &&
     !opts.signal?.aborted
   ) {
+    let next: string | null = null;
     try {
-      handedOff = handOffWorker(db, token, () => hasClaimableJob(db) && queueDepth(db).paused === 0);
+      next = handOffWorker(db, token, () => hasClaimableJob(db) && queueDepth(db).paused === 0);
     } catch {
-      handedOff = false;
+      next = null;
     }
-    // A successor that cannot start releases the slot itself.
-    if (handedOff) handedOff = (opts.launch ?? launchWorker)(db, token);
+    // From here on the slot is `next`'s, and this run's `token` matches
+    // nothing. A successor that cannot start is released below under `next`.
+    if (next) {
+      holding = next;
+      handedOff = (opts.launch ?? launchWorker)(db, next);
+    }
   }
   const released = handedOff ? false : await persist(() => {
-    if (!releaseWorker(db, token)) throw new Error('busy');
+    if (!releaseWorker(db, holding)) throw new Error('busy');
   });
   return { ...result, handedOff, released };
 }
@@ -467,29 +474,63 @@ export function queueDepth(db: DB): {
  * list, never an error. Unsummarised evidence is never touched, however old: it
  * is work not yet distilled, and deleting it would lose it outright.
  *
- * The same pass bounds the bookkeeping that otherwise grows once per session:
- * finished jobs (nothing reads a `done` row), reuse receipts and their items,
- * the per-session "already recalled" rows, and notification ledger rows. The
- * receipts are the one visible cost — the dashboard's savings then cover the
+ * **One project per call.** `retention_days` is resolved per project (a project
+ * config can set it or unset it) over one shared database, so the sweep only
+ * touches rows it can attribute to `project`: that project's evidence, its
+ * batches' finished jobs, its receipts, and the `recalled:`/`notified:` rows of
+ * sessions that belong to it and to no other project. A bookkeeping row it
+ * cannot place is left alone — a few stale `meta` rows are cheaper than one
+ * project's policy deleting another's state, which it once did to every
+ * project's evidence.
+ *
+ * The receipts are the one visible cost — the dashboard's savings then cover the
  * retention window rather than all time — and they hold only ids and counts.
  *
  * `limit` caps the events removed in one call so a seam never pays for a
- * backlog in one go. A capped run does not stamp `memory_pruned_at`, so the
- * next seam carries on instead of waiting out the interval.
+ * backlog in one go. A capped run does not stamp the project's
+ * `memory_pruned_at:<project>`, so the next seam carries on instead of waiting
+ * out the interval.
  */
-export function pruneEvidence(db: DB, config: EklavyaConfig, opts: { limit?: number } = {}): number {
+export function pruneEvidence(
+  db: DB,
+  config: EklavyaConfig,
+  opts: { project: string; limit?: number },
+): number {
   const days = config.memory.retention_days;
   if (!days) return 0;
   const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+  const project = opts.project;
 
   return db.transaction(() => {
+    // Which bookkeeping rows are this project's is read first: the receipts and
+    // events that prove a session belongs here are what this pass deletes.
+    const keys = (sql: string, params: Record<string, string>) =>
+      (db.prepare(sql).all(params) as { key: string }[]).map((r) => r.key);
+    const recalled = keys(
+      `SELECT key FROM meta WHERE key LIKE 'recalled:%' AND ${ownedSession('substr(key, 10)')}`,
+      { project },
+    );
+    // Ledger rows stop being retried after a day; past the window they only
+    // take space. A row this version cannot read is left for what wrote it.
+    // `notified:session:<sid>:<sink>` belongs to its session's project;
+    // `notified:queue-paused:<project>:…` names the project outright.
+    const sessionOf = "substr(key, 18, instr(substr(key, 18), ':') - 1)";
+    const notified = keys(
+      `SELECT key FROM meta WHERE key LIKE 'notified:%'
+         AND (CASE WHEN json_valid(value) THEN json_extract(value, '$.first') END) < @cutoff
+         AND ((key LIKE 'notified:session:%' AND ${ownedSession(sessionOf)})
+              OR substr(key, 1, length(@paused)) = @paused)`,
+      { project, cutoff, paused: `notified:queue-paused:${project}:` },
+    );
+
     const ids = (
       db
         .prepare(
-          `SELECT id FROM evidence_events WHERE occurred_at < ? AND status = 'summarized' ORDER BY id
+          `SELECT id FROM evidence_events
+           WHERE project = ? AND occurred_at < ? AND status = 'summarized' ORDER BY id
            ${opts.limit ? 'LIMIT ?' : ''}`,
         )
-        .all(...(opts.limit ? [cutoff, opts.limit] : [cutoff])) as { id: number }[]
+        .all(...(opts.limit ? [project, cutoff, opts.limit] : [project, cutoff])) as { id: number }[]
     ).map((r) => r.id);
     const list = JSON.stringify(ids);
     const inList = 'IN (SELECT value FROM json_each(?))';
@@ -501,28 +542,45 @@ export function pruneEvidence(db: DB, config: EklavyaConfig, opts: { limit?: num
     db.prepare(`DELETE FROM memory_entry_events WHERE event_id ${inList}`).run(list);
     const removed = db.prepare(`DELETE FROM evidence_events WHERE id ${inList}`).run(list).changes;
 
-    db.prepare("DELETE FROM memory_jobs WHERE status = 'done' AND updated_at < ?").run(cutoff);
-    db.prepare('DELETE FROM context_receipt_items WHERE receipt_id IN (SELECT id FROM context_receipts WHERE created_at < ?)').run(cutoff);
-    db.prepare('DELETE FROM context_receipts WHERE created_at < ?').run(cutoff);
+    db.prepare(
+      `DELETE FROM memory_jobs WHERE status = 'done' AND updated_at < ?
+         AND batch_id IN (SELECT id FROM memory_batches WHERE project = ?)`,
+    ).run(cutoff, project);
+    db.prepare(
+      `DELETE FROM context_receipt_items WHERE receipt_id IN
+         (SELECT id FROM context_receipts WHERE project = ? AND created_at < ?)`,
+    ).run(project, cutoff);
+    db.prepare('DELETE FROM context_receipts WHERE project = ? AND created_at < ?').run(project, cutoff);
     // `recalled:<session>` has no date of its own; every recall writes a
-    // receipt, so a session with none left inside the window is over.
+    // receipt, so a session of this project with none left is over.
     db.prepare(
-      `DELETE FROM meta WHERE key LIKE 'recalled:%'
+      `DELETE FROM meta WHERE key ${inList}
          AND substr(key, 10) NOT IN (SELECT session_id FROM context_receipts WHERE session_id IS NOT NULL)`,
-    ).run();
-    // Ledger rows stop being retried after a day; past the window they only
-    // take space. A row this version cannot read is left for what wrote it.
-    db.prepare(
-      `DELETE FROM meta WHERE key LIKE 'notified:%'
-         AND (CASE WHEN json_valid(value) THEN json_extract(value, '$.first') END) < ?`,
-    ).run(cutoff);
+    ).run(JSON.stringify(recalled));
+    db.prepare(`DELETE FROM meta WHERE key ${inList}`).run(JSON.stringify(notified));
 
     if (!opts.limit || ids.length < opts.limit) {
-      db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('memory_pruned_at', ?)").run(nowIso());
+      db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(prunedKey(project), nowIso());
     }
     return removed;
   })();
 }
+
+/**
+ * SQL: the session named by `sid` left a trace in `@project` and in no other
+ * project. Entries count because they outlive the evidence, so a session stays
+ * attributable after its events have aged out.
+ */
+function ownedSession(sid: string): string {
+  const traces = (cmp: string) =>
+    ['evidence_events', 'memory_entries', 'context_receipts']
+      .map((t) => `EXISTS (SELECT 1 FROM ${t} WHERE session_id = ${sid} AND project ${cmp} @project)`)
+      .join(' OR ');
+  return `((${traces('=')}) AND NOT (${traces('<>')}))`;
+}
+
+/** Each project's last sweep, so one project's run never postpones another's. */
+export const prunedKey = (project: string) => `memory_pruned_at:${project}`;
 
 /** How often a seam may run the retention sweep. Retention is counted in days. */
 const PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
@@ -530,14 +588,15 @@ const PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
 const PRUNE_SEAM_LIMIT = 5_000;
 
 /**
- * The sweep, from a session seam: only with `retention_days` set, at most once
- * per `PRUNE_EVERY_MS`, and bounded. `eklavya memory prune` stays the way to run
+ * The sweep, from a session seam: this project only, only with its
+ * `retention_days` set, at most once per `PRUNE_EVERY_MS` per project, and
+ * bounded. `eklavya memory prune` stays the way to run
  * it now and in full.
  */
-export function pruneIfDue(db: DB, config: EklavyaConfig): number {
+export function pruneIfDue(db: DB, config: EklavyaConfig, project: string): number {
   if (!config.memory.retention_days) return 0;
-  const row = db.prepare("SELECT value FROM meta WHERE key = 'memory_pruned_at'").get() as { value: string } | undefined;
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(prunedKey(project)) as { value: string } | undefined;
   const last = row ? parseStamp(row.value) : null;
   if (last !== null && Date.now() - last < PRUNE_EVERY_MS) return 0;
-  return pruneEvidence(db, config, { limit: PRUNE_SEAM_LIMIT });
+  return pruneEvidence(db, config, { project, limit: PRUNE_SEAM_LIMIT });
 }

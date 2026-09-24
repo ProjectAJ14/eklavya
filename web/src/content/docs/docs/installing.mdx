@@ -142,9 +142,11 @@ Being offline is not a failure worth a line: it stays silent until a week has pa
 
 The `eklavya` command you installed with `npm install -g` updates too, without npm. When the runtime is newer than it, it runs the runtime's copy, so the command is never older than the code it drives. An update never needs `sudo`, because everything it writes is under your home directory. It never downgrades: a runtime already ahead of npm is left alone.
 
-To turn automatic updates off, `eklavya config set auto_update false`. That setting is global only, since there is one runtime per machine. `eklavya update` still works by hand.
+To turn automatic updates off, `eklavya config set auto_update false`. That stops both kinds of automatic upgrade: the hourly npm check, and the catch-up install described next. That setting is global only, since there is one runtime per machine. `eklavya update` still works by hand.
 
-Separately, when Claude Code updates the plugin before the runtime has moved, a session starts a background install of the plugin's version, at most once an hour. `eklavya doctor` shows the two versions on its `versions` row.
+Separately, when Claude Code updates the plugin before the runtime has moved, a session starts a background install of the plugin's version, at most once an hour, unless `auto_update` is `false`. `eklavya doctor` shows the two versions on its `versions` row. A runtime that is **missing** altogether (the plugin was installed through `/plugin` and `npx eklavya install` never ran) is always installed in the background, whatever `auto_update` says, because nothing works without it. A runtime pinned with `EKLAVYA_RUNTIME` is never touched.
+
+Only one install writes to `~/.eklavya/runtime` at a time: `eklavya install`, an automatic update and that background install all take the same lock, `~/.eklavya/runtime/.installing`, which names the process working. If one is running, an update steps aside, and `eklavya install` stops with `another Eklavya install is running (pid …)` — run it again once that finishes, usually within a minute.
 
 ### B. In Claude Code, through the plugin marketplace
 

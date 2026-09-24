@@ -137,6 +137,57 @@ describe.skipIf(process.platform === 'win32')('run.mjs keeps the runtime in step
     expect(waitForLog(/^npm install eklavya@2\.0\.0 /)).toBe(true);
   });
 
+  describe('auto_update: false in the machine\'s config', () => {
+    const globalConfig = (value: unknown) => {
+      fs.mkdirSync(path.join(home, '.eklavya'), { recursive: true });
+      fs.writeFileSync(path.join(home, '.eklavya', 'config.json'), JSON.stringify(value));
+    };
+
+    it('stops the launcher upgrading an older runtime', () => {
+      pinPlugin('1.26.0');
+      installRuntime('1.25.0');
+      globalConfig({ auto_update: false });
+      // A project file cannot opt the machine back in.
+      fs.mkdirSync(path.join(home, '.eklavya', 'projects', 'demo'), { recursive: true });
+      fs.writeFileSync(path.join(home, '.eklavya', 'projects', 'demo', 'config.json'), JSON.stringify({ auto_update: true }));
+
+      const res = launch('probe');
+
+      expect(res.status).toBe(0);
+      expect(logLines()).toContain('ran');
+      expect(waitForLog(/^npm install/, 1500)).toBe(false);
+    });
+
+    it('lets it upgrade when the setting is on', () => {
+      pinPlugin('1.26.0');
+      installRuntime('1.25.0');
+      globalConfig({ auto_update: true });
+      launch('probe');
+      expect(waitForLog(/^npm install eklavya@1\.26\.0 /)).toBe(true);
+    });
+
+    it('still installs a runtime that is missing entirely: that is bootstrap, not an upgrade', () => {
+      pinPlugin('1.26.0');
+      globalConfig({ auto_update: false });
+      launch('probe');
+      expect(waitForLog(/^npm install eklavya@1\.26\.0 /)).toBe(true);
+    });
+
+    it('never touches a pinned EKLAVYA_RUNTIME, whatever the setting', () => {
+      pinPlugin('1.26.0');
+      installRuntime('1.25.0');
+      globalConfig({ auto_update: true });
+      const res = spawnSync(process.execPath, [RUN, 'probe'], {
+        env: { ...launchEnv(), EKLAVYA_RUNTIME: runtimePkg() },
+        encoding: 'utf8',
+        input: '{}',
+      });
+      expect(res.status).toBe(0);
+      expect(logLines()).toContain('ran');
+      expect(waitForLog(/^npm install/, 1500)).toBe(false);
+    });
+  });
+
   it('still runs the hook when npm is not on PATH', () => {
     // The background refresh cannot start, and that must stay its problem:
     // an unheard spawn error would kill the hook this run goes on to import.

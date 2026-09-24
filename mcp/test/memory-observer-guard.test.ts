@@ -404,3 +404,64 @@ describe.skipIf(!posix)('the provider process tree', () => {
     expect((db.prepare('SELECT lease_owner FROM memory_jobs').get() as { lease_owner: string }).lease_owner).toBe('someone-else');
   });
 });
+
+/**
+ * A session start closes whatever the last session left open, however small
+ * and however recent: that session has no seam of its own left. SessionStart
+ * once applied the Stop hook's thresholds instead, so a short session's last
+ * two events sat unbatched until they were twenty minutes old.
+ */
+describe.skipIf(!posix)('SessionStart closes a short, fresh prior session', () => {
+  const fresh = (sid: string) => {
+    hook('prompt-submit-nudge', { session_id: sid, cwd: repo, prompt: 'Add refresh token rotation to the auth middleware' });
+    hook('capture-tool', { session_id: sid, cwd: repo, tool_name: 'Bash', tool_input: { command: 'npm test' } });
+  };
+  const batchesOf = (sid: string) =>
+    (db.prepare('SELECT count(*) n FROM memory_batches WHERE session_id = ?').get(sid) as { n: number }).n;
+  const openOf = (sid: string) =>
+    (db.prepare("SELECT count(*) n FROM evidence_events WHERE status = 'accepted' AND session_id = ?").get(sid) as {
+      n: number;
+    }).n;
+
+  for (const source of ['startup', 'resume']) {
+    it(`batches it on ${source}, with one provider call and no recursion`, async () => {
+      hostileClaude({ sleep: 1 });
+      fresh('prior');
+      expect(openOf('prior')).toBe(2);
+
+      hook('session-start', { session_id: 'next', cwd: repo, source });
+
+      expect(batchesOf('prior')).toBe(1);
+      expect(openOf('prior')).toBe(0);
+      await until(() => calls().length >= 2 && quiet(), 20_000);
+      let running = 0;
+      let peak = 0;
+      for (const line of calls()) {
+        running += line.startsWith('start') ? 1 : -1;
+        peak = Math.max(peak, running);
+      }
+      expect(peak).toBe(1);
+      expect(calls().filter((c) => c.startsWith('start'))).toHaveLength(1);
+      // The helper's own hooks recorded nothing and closed nothing.
+      expect((db.prepare("SELECT count(*) n FROM evidence_events WHERE session_id = 'helper'").get() as { n: number }).n).toBe(0);
+    }, 30_000);
+  }
+
+  it('a compaction is the same session carrying on, so it closes nothing early', () => {
+    hook('session-start', { session_id: 's1', cwd: repo, source: 'startup' });
+    fresh('s1');
+    hook('session-start', { session_id: 's1', cwd: repo, source: 'compact' });
+    expect(batchesOf('s1')).toBe(0);
+  });
+
+  it('a Stop still leaves a short, fresh turn open for the next one to join', async () => {
+    hostileClaude();
+    hook('session-start', { session_id: 's1', cwd: repo, source: 'startup' });
+    fresh('s1');
+    hook('stop-quiz-check', { session_id: 's1', cwd: repo });
+    expect(batchesOf('s1')).toBe(0);
+    expect(openOf('s1')).toBeGreaterThanOrEqual(2);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(calls()).toEqual([]);
+  });
+});
