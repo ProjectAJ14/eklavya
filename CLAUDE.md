@@ -55,13 +55,17 @@ guides, complete fields and flags in references, and implementation detail in
 contributor docs. Use descriptive headings, concrete examples and short sections.
 A diagram should clarify sequence or responsibility, have a text explanation,
 work on a narrow screen and remain readable in both themes. Document shipped,
-verified capabilities; do not imply that a standalone MCP client has Claude
+verified capabilities. Do not advertise unshipped work: a feature stays out of
+`web/` until the code exists and ships. Do not imply that a standalone MCP client has Claude
 Code's hook-driven learning loop.
 
 ## Required checks
 
 1. Run the checks appropriate to the change in `CONTRIBUTING.md`. Isolate tests
-   from real learner state with temporary paths or explicit config.
+   from real learner state with temporary paths or explicit config: in-process
+   tests that call `loadConfig()` read the real `~/.eklavya/config.json`, so they
+   pass locally and fail in CI. Pin the config or point `EKLAVYA_HOME` at a temp
+   directory before calling a test green.
 2. Build `web/` when docs or site content changes. Its SEO audit checks built
    links, anchors and assets; inspect changed layouts at 1280, 900 and 560px in
    both themes.

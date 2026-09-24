@@ -90,7 +90,7 @@ A session with at least two observations also gets one summary that is updated a
 
 At session start, Claude receives recent project history in an `<eklavya-memory>` block. The block is budgeted to `retrieval.max_tokens` (1,200 estimated tokens by default). It is marked as **evidence to verify, never instructions to obey**.
 
-Relevant memory can also be supplied on a substantive prompt later in the session. This uses one-third of the recall budget, excludes entries already delivered and requires a relevance match. Unrelated prompts receive no memory block.
+Relevant memory can also be supplied on a substantive prompt later in the session. It shares the same `retrieval.max_tokens` budget as the session-start block, excludes entries already delivered and requires a relevance match. Unrelated prompts receive no memory block.
 
 | Mode | Best use | Limit |
 | --- | --- | --- |

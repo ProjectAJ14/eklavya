@@ -72,10 +72,10 @@ eklavya memory status
 
 | What you see | Next step |
 |---|---|
-| `enabled: false` or `capture: off` | Review your [memory settings](/docs/configuration/). If you kept Claude Mem during installation, Eklavya intentionally does not record. |
+| `capture: off` | Review your [memory settings](/docs/configuration/). If you kept Claude Mem during installation, Eklavya intentionally does not record. |
 | Pending evidence but no entries | Run `eklavya memory process` to summarize pending work. |
-| `queue.paused` | Read `error_class`: resolve provider login, quota or missing executable, then run `eklavya memory process` to requeue the paused work. It does not resume automatically. |
-| `dropped_events` above zero | Evidence did not reach the database. `eklavya memory replay` can recover available evidence from this checkout's Claude Code transcripts. It also backfills work from before installation. |
+| `queue:` shows paused jobs | The `paused:` line names the cause: resolve provider login, quota or missing executable, then run `eklavya memory process` to requeue the paused work. It does not resume automatically. |
+| `spool drops:` above zero | Evidence did not reach the database. `eklavya memory replay` can recover available evidence from this checkout's Claude Code transcripts. It also backfills work from before installation. |
 | Search misses another project's work | Add `--all-projects` to the search. Searches otherwise use the current checkout. |
 | Imported entries are `unplaced` | Rerun the import from the source database; use `--map-here` for a project name that cannot be resolved. See [Moving from Claude Mem](/docs/migrating/). |
 | Searches miss Japanese or Chinese text | Prefer `retrieval.mode: hybrid`; keyword search struggles with unspaced scripts. Try a filename or identifier as the query. |

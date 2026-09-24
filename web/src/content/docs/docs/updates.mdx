@@ -96,7 +96,8 @@ Some integrations need separate removal:
 
 - **Project-scoped plugins:** uninstall lists those that remain. Remove each
   through `/plugin` in its project. Shared plugin files and runtime are kept
-  while they are still needed, unless you used `--purge`.
+  while they are still needed. `--purge` removes the runtime anyway (the plugin
+  files stay), so those projects need `eklavya install` again.
 - **Git hooks:** uninstall reports a hook in the current repository and prints
   its removal command. Follow it, and repeat for any other repository where
   you enabled the gate. See [The commit gate](/docs/commit-gate/).
