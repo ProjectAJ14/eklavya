@@ -1,3 +1,12 @@
+## [1.30.2](https://github.com/ProjectAJ14/eklavya/compare/v1.30.1...v1.30.2) (2026-09-24)
+
+
+### Bug Fixes
+
+* **install:** keep the Claude Mem recheck quiet after migration ([30348d5](https://github.com/ProjectAJ14/eklavya/commit/30348d5f6f817015829b509c33ee09c626199d93))
+* **install:** keep the spinner during a quiet Claude Mem recheck ([1e5b8f6](https://github.com/ProjectAJ14/eklavya/commit/1e5b8f61ace0ba970659b6be3e99a4e01c652ef5))
+* **install:** show a spinner while pulling a git-managed plugin checkout ([dcbccb2](https://github.com/ProjectAJ14/eklavya/commit/dcbccb24451633fca80ed2d613949bddf85f36e5))
+
 ## [1.30.1](https://github.com/ProjectAJ14/eklavya/compare/v1.30.0...v1.30.1) (2026-09-24)
 
 
