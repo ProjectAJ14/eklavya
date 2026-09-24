@@ -1,3 +1,10 @@
+## [1.27.1](https://github.com/ProjectAJ14/eklavya/compare/v1.27.0...v1.27.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* bring every surface onto the design system ([6ec3203](https://github.com/ProjectAJ14/eklavya/commit/6ec3203060249f87e779a02a8c90c9e596edbaca)), closes [#FF6166](https://github.com/ProjectAJ14/eklavya/issues/FF6166) [#A8201A](https://github.com/ProjectAJ14/eklavya/issues/A8201A) [#E5484D](https://github.com/ProjectAJ14/eklavya/issues/E5484D)
+
 # [1.27.0](https://github.com/ProjectAJ14/eklavya/compare/v1.26.0...v1.27.0) (2026-09-24)
 
 
