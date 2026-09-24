@@ -1,12 +1,13 @@
 /** Export the editable brand master for browsers, launchers and repository use. */
 import { readFile, writeFile } from 'node:fs/promises';
 import sharp from 'sharp';
+import { fileURLToPath } from 'node:url';
 const root = new URL('../public/', import.meta.url);
 const source = await readFile(new URL('brand/mark.svg', root));
 for (const size of [96, 192, 512]) {
-  await sharp(source).resize(size, size).png().toFile(new URL(`brand/icon-${size}.png`, root).pathname);
+  await sharp(source).resize(size, size).png().toFile(fileURLToPath(new URL(`brand/icon-${size}.png`, root)));
 }
-await sharp(source).resize(180, 180).png().toFile(new URL('apple-touch-icon.png', root).pathname);
+await sharp(source).resize(180, 180).png().toFile(fileURLToPath(new URL('apple-touch-icon.png', root)));
 // A PNG-backed ICO is supported by current browsers, including Windows shell consumers.
 const png = await sharp(source).resize(32, 32).png().toBuffer();
 const header = Buffer.alloc(22);

@@ -71,6 +71,14 @@ Verified in this worktree on 24 September 2026:
 These are local build/browser/emulator results, not a report of a production
 deployment, a live Search Console audit or field Core Web Vitals measurements.
 
+## Review before pull request
+
+The branch was rebased onto `origin/main` at `794d1e4` and rebuilt on Node 22.
+Dashboard, command, CLI and configuration descriptions now include the shipped
+artifacts and optional explainer features. Review also found and fixed URL-encoded
+output paths in the icon exporter: generation previously failed in a checkout
+whose path contained spaces; all seven exports now succeed in that fixture.
+
 ## Publication and external verification
 
 The implementation is prepared in a separate worktree. It takes effect only
