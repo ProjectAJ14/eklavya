@@ -36,7 +36,7 @@ own.
 | `plan` | Builds a throwaway home and repo, upserts the fixture concepts, logs them as session work, and calls the **real** `get_session_quiz_plan`. | none |
 | `generate` | Gives a model the **shipped** `skills/tutor/SKILL.md` and `references/writing-mcq.md`, the fixture's code, and one plan item. Asks for one question. | one per question |
 | `score` | Deterministic checks. No model, free, same answer every time. | none |
-| `judge` | A model reads each question and answers five questions about it. | one per question |
+| `judge` | A model reads each question and answers six questions about it. | one per question |
 
 `plan` and `score` import the built server from `mcp/dist`, so run
 `npm run build` in `mcp/` first — on a fresh clone `dist/` does not exist.
@@ -91,12 +91,15 @@ reading one question at a time could ever report them:
 - which slot the answer landed in, across the run
 - how often the correct option was the longest — against a 25% chance baseline
 
-Judged — five, and each needs reading comprehension, which is the only reason a
+Judged — six, and each needs reading comprehension, which is the only reason a
 model is involved:
 
 - is the question answerable from what is shown
 - is the option marked correct actually correct
 - how many of the three distractors a competent person could believe (0–3)
+- how many of the three distractors an expert could argue also answer the stem
+  (0–3; should be 0). This pulls against the line above: pushing for believable
+  wrong options is what produces ones that are not wrong at all
 - does the question match the tier it was pitched at
 - does the stem ask one thing
 

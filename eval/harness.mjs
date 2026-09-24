@@ -98,7 +98,9 @@ const fixtures = () =>
     .readdirSync(path.join(evalDir, 'fixtures'))
     .filter((f) => f.endsWith('.json'))
     .sort()
-    .map((f) => JSON.parse(fs.readFileSync(path.join(evalDir, 'fixtures', f), 'utf8')));
+    .map((f) => JSON.parse(fs.readFileSync(path.join(evalDir, 'fixtures', f), 'utf8')))
+    // retrieval-corpus.json shares the directory and belongs to retrieval-harness.mjs.
+    .filter((f) => Array.isArray(f.concepts));
 
 /* ------------------------------------------------------------------ plan --- */
 
@@ -359,7 +361,7 @@ async function score(run) {
 /* ----------------------------------------------------------------- judge --- */
 
 /**
- * The five questions counting cannot answer.
+ * The six questions counting cannot answer.
  *
  * Kept to three on purpose. Every criterion handed to a judge is a criterion
  * whose verdict moves between runs, so anything decidable by `score` is
@@ -395,12 +397,14 @@ async function judge(run, model) {
       '{"answerable": true|false, "answerable_why": "...",',
       ' "correct_is_correct": true|false, "correct_why": "...",',
       ' "plausible_distractors": <0-3>, "distractors_why": "...",',
+      ' "defensible_distractors": <0-3>, "defensible_why": "...",',
       ' "tier_match": "below"|"match"|"above", "tier_why": "...",',
       ' "one_idea": true|false}',
       '',
       '"answerable": could someone who understands the concept answer from what is shown.',
       '"correct_is_correct": is the option marked correct actually the right answer.',
       '"plausible_distractors": how many of the three wrong options a competent person could believe.',
+      '"defensible_distractors": how many of the three wrong options an expert could argue ALSO answer the question correctly. Should be 0; any other number means a learner can be marked wrong for a right answer.',
     ].join('\n');
 
     let parsed = null;
@@ -428,6 +432,10 @@ async function judge(run, model) {
     },
     distractors_total: graded.reduce((n, v) => n + (Number(v.plausible_distractors) || 0), 0),
     distractors_possible: graded.length * 3,
+    // Plausible and defensible pull against each other: the push for believable
+    // wrong options is what produces ones that are not wrong at all.
+    defensible_total: graded.reduce((n, v) => n + (Number(v.defensible_distractors) || 0), 0),
+    single_answer: graded.filter((v) => Number(v.defensible_distractors) === 0).length,
   };
 
   write(run, 'judge.json', { model: model ?? 'default', summary, verdicts });
@@ -435,6 +443,7 @@ async function judge(run, model) {
     `\njudge: ${summary.answerable}/${summary.judged} answerable, ` +
       `${summary.correct_is_correct}/${summary.judged} keyed right, ` +
       `${summary.distractors_total}/${summary.distractors_possible} plausible distractors, ` +
+      `${summary.single_answer}/${summary.judged} with one defensible answer (${summary.defensible_total} defensible distractors), ` +
       `tier ${summary.tier.match} match / ${summary.tier.below} below / ${summary.tier.above} above\n`,
   );
   return summary;
