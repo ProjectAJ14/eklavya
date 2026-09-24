@@ -827,7 +827,9 @@ export function resolveCandidate(
  *
  * A helper session is recognised by what it was given, not by where it ran:
  * its prompt is the summariser's input, which always opens `<evidence project=`
- * (`ProviderSummarizer.summarize`). No developer types that.
+ * (`ProviderSummarizer.summarize`). No developer types that — except one
+ * pasting summariser input while working on Eklavya itself, and `discard`
+ * hard-deletes a matched session's memories, finished or not.
  */
 export const HELPER_SESSION = `b.session_id IN (
   SELECT session_id FROM evidence_events WHERE kind = 'prompt' AND body LIKE '<evidence project=%')`;
@@ -932,6 +934,13 @@ export function discardBacklog(db: DB, sel: BacklogSelector): { batches: number;
       .all(params) as { id: number; helper: number }[];
     let events = 0;
     let entries = 0;
+    // Helper evidence the batcher has not reached yet belongs to no batch, so
+    // the loop below never sees it. Delete it first: the prompt that marks a
+    // session as a helper may sit in a batch the loop is about to remove.
+    if (sel.helpers && sel.batch === undefined) {
+      const { sql: scope, params: scoped } = backlogWhere({ project: sel.project, session: sel.session }, HELPER_SESSION);
+      events += db.prepare(`DELETE FROM evidence_events AS b WHERE b.batch_id IS NULL AND ${scope}`).run(scoped).changes;
+    }
     const dropEntries = db.prepare('DELETE FROM memory_entries WHERE batch_id = ?');
     const dropEvents = db.prepare(
       'DELETE FROM evidence_events WHERE batch_id = ? AND id NOT IN (SELECT event_id FROM memory_entry_events)',

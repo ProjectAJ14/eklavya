@@ -781,6 +781,23 @@ describe('recovering an incident backlog', () => {
     expect(discardBacklog(db, { project })).toEqual({ batches: 0, events: 0, entries: 0 });
   });
 
+  it('discard --helpers also removes helper evidence not yet in a batch, and nothing unbatched of yours', () => {
+    const loose = (sid: string, proj: string) =>
+      appendEvent(db, {
+        eventUid: eventUid({ host: 'claude-code', sessionId: sid, kind: 'tool', occurredAt: `${sid}-late`, body: 'late' }),
+        project: proj,
+        sessionId: sid,
+        kind: 'tool',
+        body: 'late',
+      });
+    helperBatch('h1');
+    loose('h1', '*');
+    loose('s9', project);
+    expect(discardBacklog(db, { helpers: true })).toEqual({ batches: 1, events: 2, entries: 0 });
+    expect((db.prepare("SELECT count(*) n FROM evidence_events WHERE project = '*'").get() as { n: number }).n).toBe(0);
+    expect((db.prepare("SELECT count(*) n FROM evidence_events WHERE session_id = 's9'").get() as { n: number }).n).toBe(1);
+  });
+
   it('selects by batch, session or project as well', () => {
     queue(3);
     const [a, b] = jobs();
