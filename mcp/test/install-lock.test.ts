@@ -198,6 +198,14 @@ describe.skipIf(!posix)('the runtime install lock, across every entry point', ()
     }
   });
 
+  it('a failed npm install still gives the lock back', () => {
+    fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\necho "start $$" >> "' + log + '"\necho boom >&2\nexit 1\n', { mode: 0o755 });
+    const res = cli(['install']);
+    expect(res.status).toBe(1);
+    expect(installs()).toHaveLength(1);
+    expect(fs.existsSync(stamp)).toBe(false);
+  });
+
   it("a late cleanup never deletes the claim of whoever took over meanwhile", () => {
     fakeRuntime('1.0.0');
     const holder = sleeper();

@@ -198,14 +198,18 @@ describe('migrations', () => {
       const indexes = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as { name: string }[]).map(
         (r) => r.name,
       );
-      expect(indexes).toEqual(expect.arrayContaining(['idx_entry_events_event', 'idx_sources_event']));
+      expect(indexes).toEqual(
+        expect.arrayContaining(['idx_entry_events_event', 'idx_sources_event', 'idx_receipts_session']),
+      );
       // The plan, not the name, is the thing that matters: a lookup by event_id
       // alone must search an index rather than scan the table.
       for (const [table, index] of [
         ['memory_entry_events', 'idx_entry_events_event'],
         ['learning_sources', 'idx_sources_event'],
+        ['context_receipts', 'idx_receipts_session'],
       ]) {
-        const plan = (db.prepare(`EXPLAIN QUERY PLAN SELECT * FROM ${table} WHERE event_id = ?`).all(1) as {
+        const column = table === 'context_receipts' ? 'session_id' : 'event_id';
+        const plan = (db.prepare(`EXPLAIN QUERY PLAN SELECT * FROM ${table} WHERE ${column} = ?`).all(1) as {
           detail: string;
         }[]).map((r) => r.detail).join(' ');
         expect(plan).toContain(index);

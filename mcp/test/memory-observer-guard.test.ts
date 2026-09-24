@@ -447,6 +447,13 @@ describe.skipIf(!posix)('SessionStart closes a short, fresh prior session', () =
     }, 30_000);
   }
 
+  it('a compaction is the same session carrying on, so it closes nothing early', () => {
+    hook('session-start', { session_id: 's1', cwd: repo, source: 'startup' });
+    fresh('s1');
+    hook('session-start', { session_id: 's1', cwd: repo, source: 'compact' });
+    expect(batchesOf('s1')).toBe(0);
+  });
+
   it('a Stop still leaves a short, fresh turn open for the next one to join', async () => {
     hostileClaude();
     hook('session-start', { session_id: 's1', cwd: repo, source: 'startup' });

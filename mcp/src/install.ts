@@ -205,6 +205,9 @@ async function installRuntime(version: string): Promise<void> {
     );
 
     if (result.status !== 0) {
+      // `process.exit` skips the `finally`, so release here: a stamp left
+      // behind would hold the launcher's heal off for an hour.
+      releaseInstall(claim);
       process.stderr.write(result.output);
       process.stderr.write(
         '\nInstalling the Eklavya runtime failed. The output above says why — the usual\n' +
