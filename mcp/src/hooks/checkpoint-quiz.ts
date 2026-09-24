@@ -164,7 +164,8 @@ Do exactly this, then get straight back to the task:
   2. Ask that ONE question with AskUserQuestion: four options, one correct, three plausible, and put the correct one in the slot answer_position names.
      ${attributionRule()}
   3. Grade it with record_attempt: format "mcq", the labels in "options", the stem alone in "question".
-  4. Resume the task exactly where you left off. Do not summarise, do not re-plan, do not ask a second question.
+  4. Tell them the verdict: right, or wrong and what the right answer is, with one line of why. Never skip this -- an answer with no verdict teaches nothing.
+  5. Resume the task exactly where you left off. Do not summarise, do not re-plan, do not ask a second question.
 
 ONE question. Not two, not the whole plan. ${remaining} left in this session's budget, and the Stop hook spends whatever you do not.
 ${framing}

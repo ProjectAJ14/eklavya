@@ -39,7 +39,8 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
   - Logging may come straight back with an [Eklavya checkpoint]: ONE multiple-choice question to
     ask right then, before the next line of code, then back to the task in the same turn. That
     interruption is the product -- learning while the work happens, not a pile of questions after
-    it. One question, no summary, no re-plan, no second question.`;
+    it. One question, no summary, no re-plan, no second question -- but always tell them whether
+    they were right, and the right answer if not, before you resume.`;
 
 /**
  * The auto-updater's one line, if it has one: "updated to X" once, or "can't

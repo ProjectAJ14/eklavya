@@ -31,4 +31,4 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
 
 **A named topic overrides the configured focus for this quiz only.** Someone who types `/eklavya:quiz caching` wants caching now; it is not a request to change their standing setting. Do not call `set_config` — `/eklavya:mode` is for that.
 
-Then ask one question at a time at each concept's `tier_to_ask`, following the plan's `framing` field, never repeating anything in `asked_before`, grade every answer with `record_attempt`, and close with one line: what moved, and what comes back for review when.
+Then ask one question at a time at each concept's `tier_to_ask`, following the plan's `framing` field, never repeating anything in `asked_before`, grade every answer with `record_attempt` and tell them whether it was right before the next question, and close with one line: what moved, and what comes back for review when.
