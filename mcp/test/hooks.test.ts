@@ -1169,6 +1169,17 @@ describe('quiz.only_on_changes — no questions for a session that changed nothi
     expect(checkpoint().spoke).toBe(true);
   });
 
+  it('counts an edit inside a folder that was already untracked at session start', () => {
+    realRepo();
+    fs.mkdirSync(path.join(cwd, 'newpkg', 'src'), { recursive: true });
+    fs.writeFileSync(path.join(cwd, 'newpkg', 'src', 'x.ts'), 'export const x = 1;\n');
+    sessionStart();
+    logConcepts(['csrf']);
+    expect(checkpoint().spoke).toBe(false);
+    fs.appendFileSync(path.join(cwd, 'newpkg', 'src', 'x.ts'), '// more\n');
+    expect(checkpoint().spoke).toBe(true);
+  });
+
   it('keeps the Stop sweep quiet, backlog included', () => {
     realRepo();
     sessionStart();

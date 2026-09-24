@@ -11,7 +11,9 @@
  * hooks compare against it just before asking. The fingerprint is HEAD plus the
  * path, size and mtime of every entry `git status` reports -- mtime rather than
  * content, so an edit to a file that was already dirty at session start still
- * counts, and nothing reads file bodies.
+ * counts, and nothing reads file bodies. `-uall` lists every untracked file:
+ * the default collapses an untracked folder to one entry whose mtime does not
+ * move when a file inside it is edited.
  *
  * The baseline lives in `meta` as `<ISO>|<fingerprint>`, one row per session,
  * pruned after a week the way the prompt nudge's rows are. No migration.
@@ -42,7 +44,7 @@ export function treeFingerprint(cwd: string): string | null {
   try {
     const root = git(cwd, ['rev-parse', '--show-toplevel'])?.trim();
     if (!root) return null;
-    const status = git(root, ['status', '--porcelain=v1', '-z']);
+    const status = git(root, ['status', '--porcelain=v1', '-z', '-uall']);
     if (status === null) return null;
     // An unborn branch has no HEAD; the status entries still fingerprint it.
     const head = git(root, ['rev-parse', '--verify', '-q', 'HEAD'])?.trim() ?? '';
