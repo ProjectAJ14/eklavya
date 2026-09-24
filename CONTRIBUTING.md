@@ -1,301 +1,186 @@
 # Contributing to Eklavya
 
-Everything a contributor needs. If you are here to *use* Eklavya rather than work
-on it, the manual is at **[eklavya-run.web.app/docs](https://eklavya-run.web.app/docs/)**.
+For installation and everyday use, read the [manual](https://eklavya-run.web.app/docs/).
+For repository rules, read [CLAUDE.md](CLAUDE.md) and the guidance in the directory
+you change. User-facing behavior and its documentation ship in the same PR.
 
-The site itself has its own contract in [`web/CLAUDE.md`](web/CLAUDE.md), and the
-repo-wide conventions are in [`CLAUDE.md`](CLAUDE.md). Read those before changing
-behaviour: a branch that changes what Eklavya does and touches no documentation is
-an incomplete branch.
+## Set up development
 
-## The acceptance test
-
-One sentence, and every pull request that changes behaviour has to pass it:
-
-> Ask for a non-trivial change, and one question arrives **before the turn ends**
-> — mid-task, with the work resuming straight afterwards and no summary.
-
-Set it up so that a failure means something. Build first (`cd mcp && npm test`,
-which is also what puts `mcp/dist` where the plugin can find it), use a scratch
-repo with no settings of its own, and check `eklavya doctor` reports quiz `on`,
-focus `concept`, cadence `interleaved` before you start — the Phase 3 script
-below deliberately sets `quiz.enforced` for a project, and reusing that checkout
-quietly changes the answer. Those settings live at
-`~/.eklavya/projects/<checkout>/config.json`, so clearing them means deleting
-that directory, not a file in the repo.
+Use Node 22 or newer. From the repository root:
 
 ```bash
-cd /some/scratch/repo
-claude --plugin-dir /path/to/eklavya
+cd mcp
+npm ci
+npm test
+claude plugin validate ..
 ```
 
-Then read *which* hook asked. The checkpoint arrives with the system message
-"Eklavya: quick question on what you just built"; a question after the work is
-finished is the Stop hook, which also asks exactly one under the default
-cadence and does not count.
+`npm test` builds first, then runs unit and integration tests. Tests that spawn
+hooks or the CLI execute `mcp/dist/`, so rebuild before using watch mode after
+source changes. For interactive development, run `claude --plugin-dir
+/path/to/eklavya` from a scratch project; replace that path with your checkout.
 
-And a checkpoint can only fire if the model logged — nothing in the runtime
-makes `log_session_concepts` happen, which is the whole reason the
-`UserPromptSubmit` nudge exists. A run where it was never called is
-**inconclusive**: report that, rather than rerunning until one comes out green.
-
-Paste the transcript into the pull request. The test is short on purpose: the
-mid-task interruption *is* the product, so a change that leaves it working can
-prove it in a paragraph.
-
-What does not count as evidence:
-
-- a green `npm test` — the suite covers the machinery, and the loop breaking is
-  exactly the failure none of it sees
-- a `/eklavya:quiz <topic>` you typed yourself — a topic quiz plans from the
-  seeded graph rather than from this session, so it passes with the ambient loop
-  stone dead. A bare `/eklavya:quiz` is not independent either: it reads the same
-  `session_concepts` rows the checkpoint does, so it dies of the same emptiness
-- a description of what should happen
-
-A change to `skills/tutor/` needs eval evidence as well — see
-[The eval](#the-eval).
-
-## Manual test scripts
-
-Automated coverage is `cd mcp && npm test`, over the suites in `mcp/test/`. (No count here on purpose: it drifts every feature branch and nothing asserts it.) These are the by-hand checks behind each phase's acceptance demo.
-
-<details>
-<summary><b>Phase 0 — scaffold</b></summary>
+To work on the website:
 
 ```bash
-cd mcp && npm install && npm run build
-node dist/cli.js doctor
-sqlite3 ~/.eklavya/knowledge.db '.tables'
+cd web
+npm ci
+npm run build
+npm run preview
 ```
-Expect every table in `EXPECTED_TABLES` (`mcp/test/migrate.test.ts` composes it from four lists — learning, memory, import and sync) and 87 concepts across four domains.
-</details>
 
-<details>
-<summary><b>Phase 1 — the teaching loop</b></summary>
+Run that block from the repository root. The build includes metadata, link and
+asset checks. [web/CLAUDE.md](web/CLAUDE.md) maps manual pages to source files and
+describes visual checks.
 
-1. `claude --plugin-dir /path/to/eklavya`
-2. Ask it to build a small Express endpoint with JWT auth.
-3. `/eklavya:quiz` — questions should name *your* files and decisions, not textbook definitions.
-4. Answer one well. Check it landed:
-   ```bash
-   sqlite3 ~/.eklavya/knowledge.db 'select c.slug, m.score, m.next_review from mastery m join concepts c on c.id=m.concept_id'
-   ```
-5. Answer the same concept well a second time, then `/eklavya:quiz` again — it must not come back.
-6. `/eklavya:progress` should show it as known.
-</details>
+## Choose the right checks
 
-<details>
-<summary><b>Phase 2 — the ambient loop</b></summary>
+| Change | Required evidence |
+|---|---|
+| Runtime behavior | Relevant automated tests and the live learning-loop check below |
+| Hooks or commit gate | Hook/gate tests plus the affected manual scenario below |
+| Tutor pedagogy | Before/after evaluation and live learning-loop transcript |
+| Documentation or website | Website build; source-checked examples; visual checks for changed layouts |
+| Plugin manifests or host integration | Plugin validation and re-verification of [host contracts](docs/verified-schemas.md) |
 
-1. In a fresh session, ask for a small feature and let it finish. A quiz should arrive with no command from you.
-2. Say **skip**. It should accept it and stop — *and must not ask again for the same work*. This is the failure mode to watch for.
-3. Quit and restart Claude Code. The first three lines should be the greeting: `Eklavya`, the reuse saving, and this project's counts with the level.
-4. `eklavya config set quiet true` → restart → no greeting, and the standing directive still injected.
-</details>
+Use temporary `EKLAVYA_HOME` and `EKLAVYA_DB` for runtime experiments. In-process
+tests need the same isolation as subprocesses: otherwise local settings can hide
+a failure or tests can write real learner data. Do not commit databases,
+transcripts containing private work, or files from `~/.eklavya/`.
 
-<details>
-<summary><b>Phase 3 — the commit gate</b></summary>
+The test workflow runs on PRs and non-main pushes. The release workflow tests
+main before publication. Model-based evaluations run separately because they
+cost model calls and are not deterministic.
+
+## Live learning-loop acceptance
+
+The product-level check is:
+
+> Ask for a non-trivial change. One question arrives during the work, and the
+> agent resumes the task immediately after the answer.
+
+1. Build the plugin and use a fresh scratch project. Confirm `eklavya doctor`
+   reports questions on, focus `concept`, cadence `interleaved`, without project
+   enforcement left over from a gate test.
+2. Start `claude --plugin-dir /path/to/eklavya` and request a small feature.
+3. Confirm the model called `log_session_concepts`. Without that call the result
+   is inconclusive; report it instead of retrying until a run passes.
+4. Look for the checkpoint message “Eklavya: quick question on what you just
+   built”. A question only after all work is finished is the Stop sweep and does
+   not satisfy the mid-task check.
+5. Answer and confirm work resumes without an unsolicited summary. Include a
+   short, redacted transcript in the PR.
+
+A passing unit suite, a manually requested topic quiz, or an explanation of
+expected behavior does not establish that the live loop works. Project settings
+live outside the checkout; inspect them with `eklavya config get` rather than
+assuming that a clean Git tree means default settings.
+
+## Manual scenarios
+
+Use a disposable project/home and record which scenarios were actually run.
+
+### Learning and pacing
+
+Ask for a feature, answer a question, and inspect `/eklavya:progress`. Confirm
+the recorded grade and review state. Decline a question and confirm it is not
+immediately repeated for the same work. A new session should show its profile;
+`quiet: true` should hide visible status while leaving the logging directive
+and questions active. Check both `interleaved` and `end` when changing pacing.
+
+### Commit gate
+
+From a disposable Git repository with a pending change:
 
 ```bash
-cd /some/test/repo
 eklavya config set quiz.enforced true --project
 /path/to/eklavya/scripts/install-git-hook.sh
 ```
 
-1. In Claude Code, have it build something, then ask it to commit → the commit is denied with an explanation.
-2. From a bare terminal: `git commit -m x` → blocked with the same reasoning.
-3. `/eklavya:quiz`, answer properly, `/eklavya:gate` shows passed.
-4. Both commit paths now succeed.
-5. In a checkout with no project settings, nothing is gated. Confirm it.
-6. Confirm the repo itself is untouched: `git status` shows no new file, and
-   `.eklavya.json` does not exist. Settings never land in a checkout.
-7. `scripts/install-git-hook.sh --uninstall` restores any hook you had before.
-</details>
+Have Claude build and attempt a commit before the gate passes; confirm the
+in-session denial. Try a terminal commit and confirm the installed Git hook
+also blocks it. Answer enough work-concept questions, check `/eklavya:gate`, and
+confirm both paths succeed. A project without enforcement must remain ungated.
+Settings must stay outside the checkout. Finally run the installer with
+`--uninstall` and confirm any previous hook is restored.
 
-<details>
-<summary><b>Phase 5 — the memory loop</b></summary>
+### Memory and privacy
 
-The half that has to work with the questions switched off, so run it that way.
+Disable questions with `eklavya config set quiz.enabled false --project`, then
+do a small task. `eklavya memory status` should still show captured evidence.
+A short turn may not close a batch yet; start another session or use
+`eklavya memory process` before expecting searchable summaries. Search with
+`eklavya memory search "a term from the task"`, then hydrate the chosen entry
+with `eklavya memory show <id>` (replace the ID).
 
-```bash
-cd /some/scratch/repo && git init
-eklavya config set mode off
-```
+Confirm recall in a new session, and no repeated injection of an already-recalled
+entry. With `memory.enabled: false`, new capture and recall should stop. In a
+scratch repository, read an `.env` file containing a fake token and confirm the
+excluded file and raw token are absent from persisted evidence. Do not use a
+real credential for this test.
 
-1. In Claude Code, ask for a small feature and let it finish.
-2. `eklavya memory status` — evidence captured, entries above zero once the
-   session ended. **Capture is not governed by `mode`**; if this is empty with
-   `mode: off`, that invariant has broken.
-3. `eklavya memory search <something from the work>` — the entry, by title.
-4. `eklavya memory show <id>` — the narrative, and the raw evidence behind it.
-5. Start a **new** session in the same repo. The first thing the model receives
-   is an `<eklavya-memory>` block naming that work.
-6. Ask a question about something from the previous session, in the middle of
-   the new one. A second, smaller recall should arrive — and asking the same
-   thing again should produce nothing, because an entry is handed over once.
-7. `eklavya config set memory.enabled false` → new session → nothing captured,
-   nothing recalled.
+### Parallel tutoring and artifacts
 
-Privacy, worth doing once by hand:
+Follow [parallel tutoring](docs/parallel-tutoring.md) to verify that two panes
+sharing `EKLAVYA_SESSION_ID` can satisfy one gate. For artifacts, create a test
+page with `eklavya artifacts new "Scratch page" --description "A local check"
+--open`; confirm it appears in the dashboard and worktree pages use the main
+project's folder. An artifact must not access the dashboard API.
 
-```bash
-# in a scratch repo, with a fake key
-echo 'API_KEY=sk-ant-not-a-real-key-0000000000000000' > .env
-```
+With `explain_on_wrong: true`, deliberately miss a question. The verdict and task
+should continue immediately while the explainer creates a page in the background.
+Restore the setting after the check.
 
-Have the agent read `.env` and run `export TOKEN=ghp_<forty chars>`. Then:
+## Evaluation
+
+[eval/README.md](eval/README.md) explains each harness, costs, limitations and
+dated results. Build `mcp/` first. From the repository root:
 
 ```bash
-sqlite3 ~/.eklavya/knowledge.db 'select body from evidence_events' | grep -c ghp_   # expect 0
-sqlite3 ~/.eklavya/knowledge.db "select count(*) from evidence_events where files like '%.env%'"  # expect 0
-```
-
-</details>
-
-<details>
-<summary><b>Phase 4 — parallel tutoring</b></summary>
-
-Follow [`docs/parallel-tutoring.md`](docs/parallel-tutoring.md): two panes sharing `EKLAVYA_SESSION_ID`, one building and one teaching. Answering in the teaching pane should release the gate holding the building pane's commit.
-</details>
-
-<details>
-<summary><b>Phase 6 — artifacts and explainers</b></summary>
-
-```bash
-cd mcp && npm run build
-node dist/cli.js artifacts new "Scratch page" --description "a check" --open
-node dist/cli.js artifacts list
-node dist/cli.js dashboard --no-open     # then #/artifacts/dashboard
-```
-
-1. The page opens dark, with PDF and HTML buttons, filed under
-   `~/.eklavya/artifacts/<checkout>/` — from a worktree, under the main checkout.
-2. In the dashboard, search narrows the list as you type; the title opens the
-   page in a new tab; in that tab, `fetch('/api/state')` in the console is refused.
-3. `eklavya config set explain_on_wrong true --project`, start a session, get a
-   question wrong on purpose. The verdict comes straight back and the task
-   resumes; a background `eklavya-explainer` writes a page and opens it. Nothing
-   waits for it. Turn it off again afterwards.
-</details>
-
-## Development
-
-```bash
-cd mcp
-npm install          # approve the better-sqlite3 install script if npm asks
-npm test             # builds, then unit + hook + gate + concurrency + stdio integration tests
-npm run test:watch
-claude plugin validate ..
-```
-
-The same suite runs in CI on every pull request and every push to a branch
-other than `main` ([`.github/workflows/test.yml`](.github/workflows/test.yml)).
-`main` is not tested twice: Release installs and tests before it publishes, so
-a push there is already covered.
-
-Layout:
-
-```
-.claude-plugin/     plugin + marketplace manifests
-.mcp.json           registers the eklavya MCP server
-skills/             tutor pedagogy, and the nine /eklavya:* commands
-user-skill/         the chat skill, installed to ~/.claude/skills/ rather than shipped in the plugin
-agents/             the eklavya-tutor subagent
-hooks/              hooks.json + run.mjs, the one cross-platform entry point
-cli/, scripts/      the editor-agnostic commit gate, plus the release version bump
-mcp/                MCP server: knowledge graph, SM-2, gates, CLI, installer, hook logic
-docs/               verified schemas, parallel tutoring, the runtime architecture
-web/                the landing page and the manual — see web/CLAUDE.md
-eval/               the question-quality eval — see eval/README.md
-```
-
-Plugin, hook and MCP schemas drift. What this is built against is pinned with a date in [`docs/verified-schemas.md`](docs/verified-schemas.md) — re-verify before changing any manifest:
-
-- https://code.claude.com/docs/en/plugins · [reference](https://code.claude.com/docs/en/plugins-reference) · [marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
-- https://code.claude.com/docs/en/hooks
-- https://code.claude.com/docs/en/mcp
-
-## The eval
-
-`mcp/test/` tests the machinery. It does not test the product, which is a
-question — so a change that makes every question worse passes every one of them.
-`eval/` is where that gets measured.
-
-```bash
-(cd mcp && npm run build)                    # the harness imports mcp/dist
 npm run eval -- run --limit 8 --focus project --difficulty hard
-npm run eval -- score eval/results/<run>     # free, no model calls
-```
-
-Four stages: `plan` drives the real `get_session_quiz_plan` against a throwaway
-home, `generate` gives a model the shipped tutor skill and asks for one
-question, `score` runs deterministic checks, `judge` asks a model the three
-things counting cannot answer. `score` is free and reproducible; `generate` and
-`judge` cost one model call per question, which is why **none of this runs in
-CI** and why it is not part of `npm test`.
-
-Read [`eval/README.md`](eval/README.md) before quoting a number from it. It
-states the method, what is deterministic versus judged, and what would disprove
-the whole thing — including that the generator and judge are currently the same
-model family, and that the fixtures are this repo's own code and therefore an
-upper bound.
-
-`extract` measures the step before any question exists — whether
-`log_session_concepts` names the concepts a diff genuinely exercises. It is
-upstream of question quality: pick the wrong concepts and every question after
-is well-formed and about the wrong thing, which `score` would call clean.
-
-```bash
+npm run eval -- score eval/results/<run>
 npm run eval -- extract
+npm run eval -- history
 ```
 
-It is scored with `slug.ts`'s own `findFuzzyMatch`, so a near-miss slug is
-credited exactly as the server would credit it, and only the slugs matching no
-label are sent to a judge — the labels are one person's reading of a diff, and
-grading against them alone would count a concept the labeller missed as an error.
+Replace `<run>` with an existing run directory. Generation, judging and extraction
+use model calls; deterministic scoring does not. History reads real learner state
+and emits aggregates, not question/answer text. Run pedagogy comparisons before
+and after the change, retaining unfavorable results and what would disprove the
+conclusion. Dated results are historical records, not current product guarantees.
 
-There is another command, and it measures the far end:
+## Documentation review
 
-```bash
-npm run eval -- history          # read-only, against ~/.eklavya/knowledge.db
-```
+Use the source maps in root and [web guidance](web/CLAUDE.md). Keep the install
+guide short; move alternate routes, maintenance and full flag lists to their
+own pages. Verify all new commands, defaults, limits and paths from code. Update
+affected diagrams and explain their meaning in text. Check links and metadata
+with the website build; inspect changed layouts in both themes at 1280, 900 and
+560px. Fill [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md)
+and disclose checks not run.
 
-It reports the repeat rate — *never the same question twice*, the promise the
-whole tool rests on — plus tier calibration and what held across a gap. It reads
-a real learner's database, so it is read-only and emits aggregates only: no stem
-or answer reaches the report, because the report is committed.
+## Releases
 
-Results go in `eval/results/` as one dated Markdown file per run; the timestamped
-run directories are gitignored scratch. **A result file that does not say what
-would make it wrong is not finished**, and one that reports only the numbers
-that came out well is worse than none — the first history run is published with
-a defect it found in the product and a tier ladder that did not behave.
-
-**A change to the pedagogy in `skills/tutor/` is the change this exists for.**
-Run it before and after.
-
-## Releasing
-
-Releases are automatic. Push a [Conventional Commit](https://www.conventionalcommits.org/) to `main` and semantic-release decides the version, writes the changelog, tags, creates the GitHub Release, and publishes to npm with provenance.
+Semantic-release tests, versions, tags and publishes from `main`:
 
 | Commit prefix | Effect |
 |---|---|
-| `fix:` | patch — 0.1.0 → 0.1.1 |
-| `feat:` | minor — 0.1.0 → 0.2.0 |
-| `feat!:` or a `BREAKING CHANGE:` footer | major |
-| `docs:` `test:` `chore:` `build:` `ci:` `refactor:` | no release |
+| `fix:` | Patch release |
+| `feat:` | Minor release |
+| `feat!:` or `BREAKING CHANGE:` | Major release |
+| `docs:`, `test:`, `chore:`, `build:`, `ci:`, `refactor:` | No release |
 
-Nothing to run by hand. The workflow installs, runs all tests, and only then releases — and the suite asserts that the two places carrying a version agree: `.claude-plugin/plugin.json` and `mcp/package.json`. `hooks/run.mjs` reads the version out of the plugin manifest at runtime rather than carrying a third copy, which is one fewer thing a release can forget. `scripts/bump-version.sh` keeps the two in step and semantic-release calls it for you.
+`scripts/bump-version.sh` keeps `.claude-plugin/plugin.json` and `mcp/package.json`
+aligned. The marketplace serves this repository; npm ships the same plugin tree
+in `mcp/dist/plugin/`. The package and binary are both `eklavya`; the MCP server
+is `eklavya serve`. Keep the deprecated `eklavya-mcp` package available for older
+pinned installs.
 
-The Claude Code plugin has no separate publish step: the marketplace serves the plugin straight from this repository, so the same push ships it. The npm package carries the same plugin tree inside it (`mcp/dist/plugin/`, assembled by `mcp/scripts/copy-assets.mjs`), which is what lets `npx eklavya install` set everything up without a git clone — and what keeps the two install routes from drifting apart.
+The plugin version can reach Git before npm publication. `hooks/run.mjs` retries
+an unavailable pinned package with `latest`; existing runtimes continue working.
+Automatic checks occur at session start, at most hourly, so update timing depends
+on an active session and network access. Fix a bad release forward: the updater
+does not downgrade, and unpublishing cannot repair an installed version.
 
-**There is a gap of a minute or so where the plugin names a version npm does not have yet**, and plugin order in `.releaserc.json` cannot close it. semantic-release runs every plugin's `prepare` step before any plugin's `publish` step, and `@semantic-release/git` commits and pushes the bumped `plugin.json` in `prepare`, while `@semantic-release/npm` publishes in `publish`. So a marketplace pull in that window gets a plugin pinned to an unpublished version. `hooks/run.mjs` covers it: when its `npx eklavya@<pinned>` fallback fails because npm says that version does not exist, it retries once with `eklavya@latest`. An installed runtime keeps working meanwhile: a background heal that hit the gap fails quietly and is retried an hour after it started.
-
-The package is published as **`eklavya`**, and ships one binary of the same name — the MCP server is `eklavya serve` rather than a second `eklavya-mcp` executable.
-
-**Every release reaches every installed machine within about an hour, on its own.** The auto-updater (`mcp/src/update.ts`) asks npm for `eklavya@latest` at session start, at most hourly, installs anything newer into `~/.eklavya/runtime`, and runs the new version's `eklavya install --auto`. A broken release therefore spreads by itself. The recovery is to fix forward with a new `fix:` release, never `npm unpublish`: the updater never downgrades, so pulling a version back strands the machines that already have it. To test the update path by hand, point it at a scratch home: `EKLAVYA_HOME=$(mktemp -d)` with an old runtime installed there (`npm install eklavya@<older> --prefix "$EKLAVYA_HOME/runtime"`), then `node mcp/dist/cli.js update` and `cat "$EKLAVYA_HOME/update.json"`.
-
-Up to 1.7.0 the package was called `eklavya-mcp`. That name still exists on npm so that already-installed plugins, which pin it by exact version, keep resolving; it is deprecated rather than removed, and must never be unpublished.
-
-Repository secret required: `NPM_TOKEN` (an npm **Automation** token). `GITHUB_TOKEN` is provided by Actions.
+Release credentials are configured in the workflow (`NPM_TOKEN`; Actions supplies
+`GITHUB_TOKEN`). Do not run a publish or change credentials as part of a docs PR.

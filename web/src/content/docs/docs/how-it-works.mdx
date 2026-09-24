@@ -1,56 +1,71 @@
 ---
 title: "How it works"
-description: "Explore Eklavya architecture: Claude Code hooks, the MCP server, tutoring skills, and local storage. Follow the learning and memory flows in the runtime diagram."
+description: "Follow Eklavya's learning and memory flows, from Claude Code hooks to local storage. See which component plans questions, records answers, and recalls project history."
 sidebar:
   order: 12
 ---
 
 import EmbeddedDiagram from '../../../components/EmbeddedDiagram.astro';
+import DocFlow from '../../../components/DocFlow.astro';
 
-### The problem it solves
+Eklavya helps you understand the code Claude writes and remember the decisions behind it. Learning and memory share one local database, but have separate switches: turning questions off does not stop memory capture.
 
-Coding agents create two gaps, and Eklavya is one plugin because they are the same gap seen from two sides.
+## The three moving parts
 
-The first is comprehension: you ship code you did not write and could not debug at 3am. The moment the code is being generated is the best possible teaching moment — the concepts are concrete, the code is on your screen, and your hands are free while you wait. Eklavya spends that waiting time on you.
+| Part | Responsibility |
+| --- | --- |
+| **Hooks** | React to session events: load context, capture work, prompt a quiz, or check a commit. |
+| **MCP server** | A local Node process that exposes tools to Claude. It selects concepts, stores answers, updates review schedules, and searches memory. |
+| **Skills and agents** | Instructions that guide Claude's teaching: write questions, assess answers, explain mistakes, and create optional explainer pages. |
 
-The second is continuity: next week the agent has forgotten everything about your project, and you explain your own repository to it again. So Eklavya records what each session actually did and hands the relevant part back at the start of the next one.
+Claude calls the server through the Model Context Protocol (MCP). Hooks open the same SQLite database directly; they do not send their reads and writes through the MCP server. The [dashboard](/docs/dashboard/) and [CLI](/docs/cli/) also use this local store.
 
-They share a database on purpose. The work that taught you something is the same work worth remembering, and a question grounded in a real decision from March is a better question than one grounded in nothing. What they never share is authority: an observation records that something happened, and only an answered question records that you understood it.
+## From code to a question
 
-### The three moving parts
+<DocFlow
+  title="The learning flow"
+  caption="Claude supplies the teaching; the server tracks what is due and what you have demonstrated."
+  steps={[
+    { label: 'Log the work', detail: 'Claude names the concepts used and links them to the code being changed.' },
+    { label: 'Choose a question', detail: 'A hook prompts a checkpoint. The planner selects a concept and difficulty tier.' },
+    { label: 'Answer and explain', detail: 'Claude asks, assesses your answer, and explains any gap.' },
+    { label: 'Record progress', detail: 'The server validates the attempt, updates mastery and review dates, and refreshes the gate.' },
+  ]}
+/>
 
-You never interact with these directly, but knowing they exist makes the rest of the manual easier to follow.
+By default, checkpoints ask one question while work continues, with a four-minute minimum gap. Mid-task and end-of-task questions share a four-attempt session budget. `cadence: "end"` moves automatic questions to the end; an enforced gate can require further attempts to pass. See [quiz settings](/docs/dials/) and [grading](/docs/grading-engine/) for the exceptions and scoring rules.
 
-| Part | Lives in | What it does |
-| --- | --- | --- |
-| **The MCP server** | `mcp/`, published as `eklavya` on npm | The store and the rules. It holds the knowledge graph, decides what you should be asked next and at what difficulty, grades and stores every answer — and on the other side, keeps the evidence of what each session did, the observations distilled from it, and the search index over them. |
-| **The hooks** | `hooks/` and `mcp/src/hooks/` — small Node scripts | The timing, and the capture. They decide *when* a question arrives: at session start, on a prompt in a session that has gone quiet, mid-task, at the end of a task, and before a `git commit` — and when work is delegated to a subagent, that it does not. One of them, after every tool call, records what just happened. |
-| **The skills** | `skills/` — Markdown instructions for Claude | The teaching. They tell Claude how to phrase a question, how to grade it honestly, and how to explain an answer you did not know. |
+Delegated agents can log concepts, but questions return to the main conversation. This keeps a quiz out of a background transcript you cannot answer. The [first-session walkthrough](/docs/first-session/) shows what you see as a developer.
 
-### The runtime, end to end
+## From work to useful memory
+
+<DocFlow
+  title="The memory flow"
+  caption="Recording work is evidence of what happened. Only an answered question is evidence of understanding."
+  steps={[
+    { label: 'Capture', detail: 'Hooks collect prompts and tool activity, subject to your capture settings and privacy filters.' },
+    { label: 'Summarize', detail: 'Events are grouped into observations locally, or by an optional configured observer.' },
+    { label: 'Index', detail: 'Observations and summaries enter the local keyword and vector search indexes.' },
+    { label: 'Recall', detail: 'Relevant history becomes context for Claude at the next session or prompt.' },
+  ]}
+/>
+
+Raw events, observations, and answers live in `~/.eklavya/knowledge.db` by default. Recall is limited to the current project unless you enable cross-project retrieval. See [memory](/docs/memory/) for capture controls, search, collections, code indexing, and optional integrations, or [your data](/docs/your-data/) for storage and backup.
+
+Local storage does not mean recalled text stays outside Claude: it becomes part of the conversation. Optional observers, notifications, and sync may also move data through services you configure. Installation and update checks contact the package registry.
+
+## The runtime, end to end
+
+The interactive architecture view provides a broader component map. The smaller flows above explain the two everyday paths.
 
 <EmbeddedDiagram
   src="/eklavya-runtime.html"
   title="Eklavya runtime architecture"
-  caption="The whole runtime on one canvas. On the left you are at your terminal, with the opt-in git commit gate below you. Your Claude Code session runs the skills and the tutor subagent, and seven lifecycle hooks fire around it — session start, prompt, subagent start, before a Bash commit, after every tool call, at the log-concepts call, and at the end of a task. Both the session and the hooks talk to the Eklavya MCP server over stdio, which reads the dials out of your config files, asks the SM-2 engine which concept is due and at what tier, and writes every answer through the store into knowledge.db, a local SQLite file. The memory pipeline sits beside the store and writes to the same file: it captures what each tool call did, distils it, and hands the relevant part back at the next session seam. The gate and the dashboard read that file from outside a session."
+  caption="Claude Code runs lifecycle hooks and tutoring instructions. The local MCP server, hooks, dashboard, and optional Git gate use the same SQLite store. Learning records concepts and answers; memory captures work and recalls relevant history. Configuration controls each path. Open the interactive view to explore the component map."
 />
 
-:::tip
-**MCP in one line.** The Model Context Protocol is how Claude Code talks to a local program. Eklavya's MCP server is just a Node process on your machine that Claude can ask questions like *"what does this person already know?"* and *"what did we decide about this file in March?"*. With the default configuration it makes no network calls of its own, and there is no account.
-:::
+## Runtime requirements
 
-### Why Node 22 specifically
+Eklavya requires **Node.js 22 or newer**. Its SQLite driver, `better-sqlite3`, includes native code, so installation also needs a compatible binary or the platform's build tools. Start with the [installation guide](/docs/installing/); use [troubleshooting](/docs/troubleshooting/) if the driver fails to load.
 
-Eklavya stores your knowledge graph in SQLite, through a driver called `better-sqlite3`. That driver is native code, and it ships ready-compiled binaries for Node 22 and newer. On Node 20 or older there is no ready-made binary for your platform, so `npm` falls back to compiling one, which needs a full C++ toolchain — Xcode command line tools on macOS, Visual Studio Build Tools on Windows.
-
-Rather than let you find that out halfway through, `eklavya install` checks your Node version first and stops with instructions if it is too old.
-
-Earlier versions of Eklavya also needed `jq` and the `sqlite3` command line tool, because the hooks were shell scripts. They are Node now, so there is nothing else to install and nothing to go missing.
-
-:::note
-**One exception, for one optional feature.** The git `pre-commit` gate — which enforces the quiz for commits made outside Claude Code, under `quiz.enforced` only — is a POSIX shell script, because a git hook should not pay Node's startup cost on every commit. It needs `jq` and the `sqlite3` command line tool, and it fails open with a warning when either is absent. Nothing else in Eklavya does. Install them with `brew install jq sqlite` or `sudo apt-get install -y jq sqlite3` if you want that gate.
-:::
-
-:::note
-**git is optional.** Without it Eklavya still runs, but two things change: your difficulty level is tracked in one shared bucket instead of per project, and the commit gate has nothing to attach to. Everything else works.
-:::
+Git is optional for ordinary learning and memory. Without a repository, difficulty uses a shared fallback scope and there is no commit to gate. The optional terminal [Git gate](/docs/commit-gate/) additionally needs a POSIX shell, `jq`, and the `sqlite3` command-line tool; the Claude Code hooks do not.

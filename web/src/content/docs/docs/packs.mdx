@@ -5,24 +5,26 @@ sidebar:
   order: 10
 ---
 
-Eklavya ships four concept graphs — git, node-backend, react and web-auth. A **pack** is the same file, written by someone else: a JSON list of concepts, their tiers and what has to come before what. It is how a domain Eklavya has never heard of gets added without a pull request, and how a team teaches its own codebase.
+A **concept pack** adds topics, tiers and prerequisites to Eklavya's built-in `git`, `node-backend`, `react` and `web-auth` graphs. Use a pack for another technology or concepts specific to your codebase.
+
+```text
+/eklavya:pack rust
+/eklavya:pack this repo
+```
+
+The command asks for scope, checks existing concepts, writes the pack, then runs `eklavya doctor` to apply it. It does not start a lesson; use `/eklavya:learn <topic>` for that.
 
 ## Where they live
 
-| Path | Applies to |
+| Path | Scope |
 | --- | --- |
-| `~/.eklavya/packs/*.json` | you, on every project |
-| `~/.eklavya/projects/<checkout>/packs/*.json` | you, on one codebase |
+| `~/.eklavya/packs/*.json` | You, across projects. |
+| `~/.eklavya/projects/<checkout>/packs/*.json` | You, in one codebase and its worktrees. |
+| `<repo>/.eklavya/packs/*.json` | Legacy location: still read, never written or moved automatically. |
 
-Both are `packs/` directories, and both are in your home directory: a pack lives in `packs/`, next to whichever Eklavya state it belongs to. **Eklavya writes no files into a repository** — not [settings](/docs/configuration/#nothing-eklavya-configures-lives-in-your-repository), and no longer packs either.
+New packs live under your home directory. To share one, distribute the JSON and have each developer copy it into their own pack directory.
 
-:::note
-**Packs used to be committed**, at `<repo>/.eklavya/packs/`, so a team could ship a concept graph with the codebase. That directory is still **read**, so a repository that already has one keeps working exactly as before and nothing deletes it — a pack is authored content somebody reviewed, and moving it is your decision, not Eklavya's. But nothing writes there any more.
-
-What you lose is the shared pack: a teammate cloning the repository now has to install it themselves. You can still keep the JSON in the repo and each install it with a copy into `~/.eklavya/projects/<checkout>/packs/`. `eklavya doctor` names any pack it is still loading from inside a checkout.
-:::
-
-Packs load when Eklavya next opens the database, and again whenever a pack file changes. The MCP server opens the database once, when the session starts — so a pack written mid-session is not live yet. `eklavya doctor` is a separate process and applies packs unconditionally, which is why writing one ends by running it.
+Packs apply when a process opens the database and detects changed pack files. The MCP server is long-lived, so a pack written mid-session needs `eklavya doctor`, which reapplies packs unconditionally.
 
 ## What a pack looks like
 
@@ -32,56 +34,58 @@ Packs load when Eklavya next opens the database, and again whenever a pack file 
   "version": "1.0.0",
   "domain": "acme",
   "concepts": [
-    { "slug": "idempotency-keys", "name": "Idempotency keys", "tier": 2,
-      "description": "Why every write endpoint in billing/ takes one, and what a retry does without it." },
-    { "slug": "ledger-append-only", "name": "The ledger is append-only", "tier": 3,
-      "description": "Corrections are new rows. Nothing in billing/ledger updates a posted entry." }
+    {
+      "slug": "idempotency-keys",
+      "name": "Idempotency keys",
+      "tier": 2,
+      "description": "Why billing writes use a key to make retries safe."
+    },
+    {
+      "slug": "ledger-append-only",
+      "name": "The ledger is append-only",
+      "tier": 3,
+      "description": "Why corrections create new ledger entries."
+    }
   ],
   "edges": [
-    { "from": "idempotency-keys", "to": "ledger-append-only", "relation": "prerequisite_of" }
+    {
+      "from": "idempotency-keys",
+      "to": "ledger-append-only",
+      "relation": "prerequisite_of"
+    }
   ]
 }
 ```
 
-| Field | |
+| Field | Requirements |
 | --- | --- |
-| `pack` | required — the pack's identifier, and how `eklavya doctor` names it |
-| `version` | optional, a string. Bump it when you edit the pack |
-| `domain` | required — the one word that groups these concepts in your learner profile |
-| `concepts[]` | `slug` (lowercase, hyphenated), `name`, `tier` 1–5, optional `description` and `domain` |
-| `edges[]` | `from`, `to`, and `relation`: `prerequisite_of`, `related_to` or `part_of` |
+| `pack` | Required nonempty identifier. |
+| `version` | Optional version string. |
+| `domain` | Required domain for grouping concepts. |
+| `concepts[]` | Lowercase hyphenated `slug`, `name`, `tier` from 1–5; optional `description` and per-concept `domain`. |
+| `edges[]` | `from`, `to`, and `relation`: `prerequisite_of`, `related_to` or `part_of`. |
 
-Tiers are the same ladder [levels](/docs/levels-and-tiers/) draw from: 1 is what a thing is, 3 is why this choice here, 5 is when the architecture is wrong.
+Edges can refer to concepts outside this file, including shipped concepts. Missing endpoints are dropped and counted by `doctor`. See [Levels and tiers](/docs/levels-and-tiers/) for tier meanings.
 
-An edge may point at a concept the pack did not declare — that is how a pack hangs itself off the shipped graph, `prerequisite_of` from a seeded concept to one of yours. An endpoint that names nothing is dropped, and `eklavya doctor` counts how many.
+## Merge rules
 
-## Two rules worth knowing before you write one
+Packs extend the graph rather than replacing it. Later definitions of the same slug win, in this order:
 
-**A pack merges over the shipped graph; it does not replace it.** Writing a slug Eklavya already seeds retiers, renames or re-domains that concept rather than adding a second one. That is deliberate — it is how a team says "this is harder in our codebase" — and it applies in order: the shipped graph first, then your global packs, then the repository's. The repository wins.
+1. Shipped concepts.
+2. Global packs.
+3. Legacy packs in the repository.
+4. Personal project packs.
 
-**An override is global to you, even from a project pack.** There is one database, one row per slug, and no repository column — so a project pack that retiers `jwt-structure` retiers it in *your* graph, in every project, and leaving that codebase does not put it back. New slugs are yours alone and harmless; overriding a shipped concept is the part to think about.
+Files within each directory load alphabetically. **Overrides affect your shared concept graph across projects**, even when loaded from a project pack. Leaving that project does not restore a previous definition.
 
-**Removing a pack leaves its concepts behind.** Your answers point at them, so deleting them would delete your history with them. Deleting the file stops the pack being re-applied; it does not undo it.
+Removing a pack file stops future applications but keeps its concepts and your answers. A malformed pack is skipped without preventing other packs or Eklavya from loading.
 
-## Writing one
-
-```text
-/eklavya:pack rust          # a domain
-/eklavya:pack this repo     # read the codebase and describe it
-```
-
-The command asks which scope you want, reads what Eklavya already knows about the domain so the pack extends it rather than colliding with it, and writes the file. Then:
+## Checking a pack
 
 ```bash
 eklavya doctor
 ```
 
-`doctor` names every pack that loaded, with its version and scope, and every one that did not, with the reason. A malformed pack costs you that pack and nothing else — Eklavya starts normally without it.
+The report names loaded packs, their scope and version, invalid packs and missing edge endpoints. If a new domain is absent from your profile, check `domains_enabled`; it can filter the profile even when a concept remains available for an explicit quiz.
 
-## If your profile is missing the new domain
-
-`/eklavya:progress` filters on `domains_enabled`, which defaults to everything. If you have narrowed it, a new pack's domain is quizzable but invisible there until you add it.
-
-## What packs do not carry
-
-The question wording. `framing` and the level framing are server-side strings, so a pack changes *what* Eklavya can ask about, not the language it asks in. Translating Eklavya is a separate job and is not shipped.
+Packs contain concepts and relationships, not question wording or translated tutor instructions.

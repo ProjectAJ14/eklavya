@@ -5,61 +5,64 @@ sidebar:
   order: 13
 ---
 
-import { Badge } from '@astrojs/starlight/components';
-
-You do not need this section to use Eklavya. Read it when you want to know why a question arrived when it did.
+Answers update three things: your understanding of a concept, when it returns for review, and your project's progress toward harder questions. An enforced session also counts eligible passes toward its [commit gate](/docs/commit-gate/).
 
 ### Concepts and the graph
 
-A **concept** is one idea with a kebab-case slug, a domain, a tier and, often, prerequisite edges to other concepts. Eklavya ships with a seeded catalogue across `web-auth`, `react`, `node-backend` and `git`, and grows new ones as your work touches ideas the catalogue does not have — capped at `max_new_concepts_per_session` so the graph does not sprawl.
+A **concept** is an idea identified by a lowercase hyphenated slug, with a domain, tier and optional prerequisite relationships. Built-in domains are `web-auth`, `react`, `node-backend` and `git`. [Concept packs](/docs/packs/) and the agent can extend the graph; new agent-created concepts are capped by `max_new_concepts_per_session` (eight by default).
 
-Prerequisites matter for fairness. A tier-3 *"why this rather than the alternative"* question about a concept whose foundations you do not have is not a hard question, it is an unfair one. The planner orders foundations first and reports which are missing.
+The planner orders prerequisites before dependent concepts and reports missing foundations. It selects a question tier within your project's [level](/docs/levels-and-tiers/).
 
 ### Grading: the 0–5 scale
 
-| Grade | Means |
+| Grade | Meaning |
 | --- | --- |
-| `0` | No answer — a skip, or "I don't know". |
-| `1–2` | Wrong. |
-| `3` | Correct, but laboured. <Badge text="the passing line" variant="tip" size="small" /> |
+| `0` | No answer, recorded separately as “I don't know” or a decline. |
+| `1–2` | Incorrect. |
+| `3` | Correct with difficulty; the minimum passing grade. |
 | `4` | Correct. |
-| `5` | Correct, and explained why. |
+| `5` | Correct with an explanation of why. |
 
-**A multiple-choice answer is capped at 4.** Recognition is easier than recall, and picking the right option out of four cannot demonstrate that you could have explained it. Two clean answers still reach mastery; it just is not claimed on one lucky guess.
+A multiple-choice selection is capped at **4**. A written explanation through “Other” can be assessed beyond recognition alone. Declining a question is distinct from not knowing: a decline is dropped without teaching, while “I don't know” leads to an explanation and can support a later follow-up. Declines do not count against promotion accuracy.
 
-**A miss can come with a page.** With [`explain_on_wrong`](/docs/configuration/#every-key) on, a grade of 1 or 2 — or a 0 where you said *I don't know* and were taught — also starts an explainer: the `eklavya-explainer` agent writes a page on that concept in the background and opens it in your browser. The grade and the one-line verdict come first and the session goes straight back to work; nothing waits for the page. A skip or a decline never gets one. It is off by default.
+With [`explain_on_wrong`](/docs/configuration/#every-key) enabled, wrong or unknown answers also start a background explainer page. The verdict arrives immediately; the quiz does not wait for the page. Skips and declines do not create one.
 
 ### Why the questions are multiple choice
 
-You are in the middle of something. A blank prompt asking you to explain a mechanism gets skipped — not because you did not know, but because typing a paragraph costs more than the question is worth right then, and that skip records as if you had no idea. So every question is four options: one right, three that a competent person could believe. "Other" is always there, for *I don't know* or for typing a real answer if you would rather explain.
+Questions offer four options so you can respond while working. The plan assigns the correct answer's position to avoid always putting it first. “Other” lets you say you do not know or give an explanation in your own words.
 
 ### Scheduling: SM-2
 
-Eklavya uses the SM-2 spaced-repetition algorithm, the same family Anki is built on.
+SM-2 is a spaced-repetition method: passing a review increases the delay before the concept returns.
 
-- Each concept carries a **score**, an **ease factor** (starts at 2.5, never below 1.3) and an **interval**.
-- A passing answer moves the interval along: 1 day, then 6 days, then multiplied by the ease each time, up to a ceiling of 3,650 days (ten years).
-- A failed recall resets the interval to 1 day — you see it again tomorrow, as a different question.
-- A concept counts as **mastered** at a score of 0.7 or better across at least two repetitions.
-- Scores decay slowly while a concept is overdue — about 5% a week, floored at 0.3 — so mastery reflects what you would remember today, not what you knew once.
+| State | Rule |
+| --- | --- |
+| First passing recall | Review in one day. |
+| Second consecutive passing recall | Review in six days. |
+| Later passing recalls | Multiply the previous interval by the ease factor, capped at 3,650 days. |
+| Failed recall | Reset consecutive repetitions and review in one day. |
+| Ease factor | Starts at 2.5, adjusts after each grade, never below 1.3. |
+| Mastery | Score at least 0.7 and at least two consecutive passing repetitions. |
 
-### Never the same question twice
+The score is a recency-weighted average of the last five grades, normalised to 0–1; each newer grade has weight 0.6. Two clean grade-4 answers can establish mastery, while one cannot.
 
-Three separate mechanisms enforce this, because a prompt asking nicely is not enforcement:
+For overdue concepts, the displayed score decreases by **0.05 per complete week**, stopping at 0.3 without raising a score already below that floor. This is calculated when reading the record, not written over your history.
 
-- **Mastered concepts are not asked about.** The learner profile hands Claude the actual list of what you know. Only spaced repetition brings one back, and it comes back harder.
-- **Every question you have been asked is on record**, and the plan hands the most recent of them back with the tier and grade each got. A question already asked is spent: same concept, different angle.
-- **A concept answered this session is done for the session.** Getting something half-right no longer puts it straight back in the queue five minutes later. The one exception is the [gate retry](/docs/commit-gate/) under `quiz.enforced`, which re-opens a concept you blanked on — a tier lower, and as a different question.
+### How repetition is reduced
+
+Mastered concepts normally return only when review is due. The planner supplies recent question history so Claude can choose a new angle, and a concept answered in the current session is ordinarily removed from that session's plan.
+
+An unmet enforced gate takes priority: it can ask about mastered work concepts and retry a concept you did not know after teaching it. A retry uses a different question at a lower tier, within the project's band. If automatic questions have used the session budget, `/eklavya:quiz` can request another round of eligible questions. Repeated question text is flagged when an answer is recorded; the answer is still saved, and wording alone cannot guarantee a new angle.
 
 ### Where each hook fits
 
-| Hook | Fires | Does |
-| --- | --- | --- |
-| `SessionStart` | When a session opens | Stamps the session id, shows you a three-line profile, and hands Claude this project's memory and the instruction to log concepts. |
-| `UserPromptSubmit` | On a message you send | Nothing, almost always. In a session that has logged nothing at all after about twelve minutes, restates the one-line instruction to log concepts — at most three times, and never while logging is working. |
-| `SubagentStart` | When Claude delegates work to a subagent | Gives that subagent the same instruction to log concepts — the session-start one never reaches it. It logs into your session; it never asks you anything, because nobody is watching that transcript. |
-| `PostToolUse` | Right after Claude logs concepts, and after each `Bash`, `Edit`, `Write`, `MultiEdit` or `NotebookEdit` call | Decides whether to ask one mid-task question. Respects the cadence, the budget and the checkpoint spacing — so after the first question at the logging call, the work tools ask the next one once `min_minutes_between_checkpoints` has passed, until the budget runs out. |
-| `Stop` | When a task finishes | Asks about what the checkpoints did not reach — or, when this session has nothing of its own left to ask, about work an earlier session in the same project logged and never asked (not under `quiz.enforced` or `focus: learn`, and never outside a git repository, where there is no project to carry work over from) — one question on the `interleaved` cadence, the remaining budget on `end` or under `quiz.enforced`. On `interleaved` it can ask again on a later turn, never sooner than `min_minutes_between_checkpoints`; on `end` only genuinely new logged work re-arms it. Either way it stops at `max_stop_blocks_per_session` blocks, or when the session budget runs out. |
-| `PreToolUse` | Before every Bash command | With `quiz.enforced`, denies the ones that are really a `git commit` while the gate is unmet. Everything else passes through untouched. |
+| Event | Responsibility |
+| --- | --- |
+| `SessionStart` | Load the learner profile and project memory, initialise the session and give logging instructions. |
+| `UserPromptSubmit` | Capture your prompt, recall relevant memory and occasionally remind the agent to log concepts when it has not. |
+| `SubagentStart` | Give delegated agents the logging instruction; they contribute to your session without quizzing you. |
+| `PostToolUse` | Capture tool activity; eligible concept-logging and work calls can trigger a checkpoint question. |
+| `Stop` | Process memory and offer the remaining learning work, respecting cadence, spacing and session limits. |
+| `PreToolUse` | Under enforcement, block recognised `git commit` commands until the gate passes. |
 
-Every one of these exits cleanly on any failure. A hook that breaks your session is worse than a hook that misses a question.
+Hook failures do not break the coding session. [How it works](/docs/how-it-works/) shows the full sequence; [Configuration](/docs/configuration/) lists the limits.

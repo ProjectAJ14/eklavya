@@ -1,371 +1,120 @@
 # Working in `hooks/`
 
-This directory is wiring, not logic. Two files: `hooks.json` registers the
-events, `run.mjs` is the one entry point every hook and the MCP server go
-through. The behaviour lives in TypeScript under `mcp/src/hooks/` and ships
-compiled as `dist/hooks/<name>.js`. Editing a hook almost always means editing
-`mcp/src/hooks/`, not here.
+`hooks.json` registers events; `run.mjs` resolves the runtime and dispatches into
+`mcp/src/hooks/`. Read the root contract and `mcp/CLAUDE.md` before changing the
+TypeScript implementation. Hook schemas and observed host behavior are recorded
+in `docs/verified-schemas.md`.
 
-## `run.mjs` is the launcher
+## Event map
 
-`.sh` hooks are unreliable on Windows, so every entry in `hooks.json` — and
-`.mcp.json` — is `"command": "node"` with
-`["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "<name>"]`: `node.exe` is a real
-executable and needs no shell. Keep that shape; `mcp/test/packaging.test.ts`
-asserts the server entry is exactly that string.
+Seven implementations are registered across six events. The checkpoint has two
+registrations, for eight rows total.
 
-`run.mjs` maps `<name>` to `dist/hooks/<name>.js` (`server` → `dist/server.js`)
-and resolves it, most specific first: `EKLAVYA_RUNTIME`, then the checkout's own
-`mcp/dist` (only when `mcp/node_modules/better-sqlite3` exists), then
-`~/.eklavya/runtime/node_modules/eklavya`. In a development checkout your local
-build wins — so rebuild before you test. With no build reachable, `server` falls
-back to `npx eklavya@<pinned> serve` and a hook starts a detached background
-`npm install` (once an hour at most, claimed by a `.installing` stamp before
-spawning) and exits 0 saying nothing.
+| Event | Implementation | Responsibility |
+|---|---|---|
+| SessionStart | `session-start` | Set the checkout session pointer; migrate legacy config; replay, summarize and recall memory; start a due background update; show profile/status and supply the log directive |
+| UserPromptSubmit | `prompt-submit-nudge` | Refresh the session pointer, capture the prompt, recall relevant memory and nudge a session that has not logged concepts |
+| SubagentStart | `subagent-start` | Ask implementers to log, without asking questions; exempt the tutor |
+| PreToolUse (`Bash`) | `pre-tool-gate` | Deny recognized commits when the enforced session gate has not passed |
+| PostToolUse (all tools) | `capture-tool` | Record one memory event; no quiz, summarization or provider call |
+| PostToolUse (`mcp__.*log_session_concepts`) | `checkpoint-quiz` | Ask a due interleaved question after concepts are logged |
+| PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `checkpoint-quiz` | Recheck pacing as work continues; no spinner on every tool call |
+| Stop | `stop-quiz-check` | Flush the memory seam and request the remaining eligible quiz |
 
-The same heal keeps an **installed** runtime current. The plugin moves when
-Claude Code updates it; the runtime only moves when npm runs. So when the entry
-resolved to `~/.eklavya/runtime` and its `package.json` version is older than
-`plugin.json`'s, `healIfBehind` starts that background install before the
-import — this run still uses the old runtime and never waits. It never
-downgrades (migrations only go forward), leaves an `EKLAVYA_RUNTIME` or
-checkout build alone, and does nothing when the global config says
-`auto_update: false` — read straight from `config.json`, since the runtime's
-config loader is not reachable here. A *missing* runtime is healed regardless:
-that is bootstrap, not an upgrade. `eklavya doctor`'s `versions` row reports the
-skew.
+The MCP matcher accepts both standalone and plugin-scoped names. Do not narrow
+it to one prefix. Keep the work-tool regex anchored. Hook timeouts are 10 seconds,
+except Stop at 15 seconds; consult the manifest before changing them.
 
-The `.installing` stamp is the one runtime lock, shared with `installRuntime`
-and the updater; `mcp/src/install-lock.ts` states the rules and `run.mjs`
-carries a copy, because it has to work before any runtime exists. After
-spawning npm the heal rewrites the stamp to name npm's pid, so the claim lives
-exactly as long as npm runs; the stamp npm leaves behind also throttles the heal
-to once an hour. `mcp/test/install-lock.test.ts` races all three entry points
-against a fake npm.
+## Failures and latency
 
-The `npx` fallback retries `eklavya@latest` once, and only when npm says the
-pinned version does not exist (`E404`/`ETARGET`/`No matching version`). That is
-the release gap: semantic-release pushes the bumped `plugin.json` in its
-`prepare` step, before `npm publish`, so a marketplace pull can pin a version
-npm does not have yet for a minute or so. A server that started and then failed
-is not restarted.
+Every hook body runs inside `await run(async (input) => { ... })` and returns 0.
+It never calls `process.exit` itself. `run()` catches failures; `openExisting()`
+returns `null` for an unavailable database and never migrates or seeds it.
+Stop continues a turn with JSON `additionalContext`, not exit 2.
 
-**It carries no version number.** It reads `.claude-plugin/plugin.json` at
-runtime, and `mcp/test/packaging.test.ts` asserts the file matches no
-`\d+\.\d+\.\d+` anywhere and does match `plugin\.json` — so writing any dotted
-triple in here, even in a comment, fails that test on purpose.
-`scripts/bump-version.sh` bumps `plugin.json` and `mcp/package.json`, nothing
-else.
+Use the shared bounded reader in `mcp/src/stdin.ts`: reset the idle timer on
+each chunk, retain the total cap, handle errors, strip BOM, unref timers and
+pause the stream when finished. Removing listeners alone leaves stdin alive.
+`HOOK_STDIN` is 2s idle / 5s total; `STATUSLINE_STDIN` is 150ms / 250ms. The total
+cap can truncate a slow payload; on a swallowed pipe each hook can cost the idle
+timeout. `test/stdin.test.ts` checks bounds and processes with stdin left open.
 
-## The seven hooks, out of `hooks.json`
+`EKLAVYA_INTERNAL_OBSERVER=1` must make both `run.mjs` and `run()` exit before
+reading stdin, opening the database or spawning work. Never rely only on the
+host's hook-disabling flag: recursive observer workers have occurred despite it.
 
-Seven scripts on six events: `checkpoint-quiz` is registered twice under
-PostToolUse, so the table has eight rows.
+## Separate memory from questions
 
-| Event | Matcher | Timeout | Script | Job |
-|---|---|---|---|---|
-| SessionStart | — | 10s | `session-start` | stamp this checkout's session pointer (`meta.current_session:<repo root>`), replay the spool, summarise the last session's batch, recall this project's memory, start the background auto-update when one is due (`update.ts`) and add its one line — `Eklavya updated to X` once, or `Eklavya can't update itself · … · run: eklavya update` every session while it fails — to what the developer sees, show the developer the profile banner (`systemMessage`) and hand the model the recall and the standing log directive (`additionalContext`). A database that exists but will not open gets one line to the developer — `Eklavya paused · can't open its database · run: eklavya doctor`, or the SQLite/Node-mismatch variant — and a first run with no database stays silent |
-| UserPromptSubmit | — | 10s | `prompt-submit-nudge` | re-stamp this checkout's session pointer, then re-state the log directive in one line, but only for a session that has logged nothing after a grace window |
-| SubagentStart | — | 10s | `subagent-start` | give a delegated agent the log directive the parent's SessionStart never reached it with |
-| PreToolUse | `Bash` | 10s | `pre-tool-gate` | with `quiz.enforced` only, deny a `git commit` (or `git merge --continue`) whose session gate has not passed. `commit-lib.ts` lexes the command like a shell — newlines, `env`/`sudo`/`timeout`/`VAR=x` prefixes, `bash -c`, subshells, substitutions, `git -C dir` — and accepts missing aliases and scripts: the git hook is the real enforcement |
-| PostToolUse | — | 10s | `capture-tool` | record the tool use as memory evidence |
-| PostToolUse | `mcp__.*log_session_concepts` | 10s | `checkpoint-quiz` | one mid-task question, `interleaved` cadence only |
-| PostToolUse | `^(Bash\|Edit\|Write\|MultiEdit\|NotebookEdit)$` | 10s | `checkpoint-quiz` | the same hook, re-armed by the work: the model logs once per task, so without this the checkpoint asked once per task. No `statusMessage` — it would flash on every command |
-| Stop | — | 15s | `stop-quiz-check` | block the turn and demand a quiz — this session's concepts first, then this project's backlog (`backlogConcepts`, shared with the planner), never backlog under `quiz.enforced` |
+Memory runs before the `quiz.enabled` check. Disabling questions does not disable
+history. Capture uses the lightweight `capture-lib.ts` path; importing worker,
+provider, recall or notification modules there violates `hook-isolation.test.ts`.
 
-## Memory capture is not governed by `quiz`
+Stop closes a batch at `SEAM_MIN_EVENTS` (8) or `SEAM_MAX_AGE_MS` (20 minutes);
+SessionStart closes remaining work except on compaction, which uses the ordinary seam thresholds. Retention runs at most every six hours in
+5,000-event chunks. Notification sinks share a 5s budget. Read these constants
+from source when changing or documenting them.
 
-`capture-tool` has no matcher, so it runs after **every** tool call — it is the
-hook that fires most often in a session, and it does the least: resolve
-identity, normalise one event, one insert, exit. It never quizzes, summarises
-or calls a provider.
+An observer batch is queued for a detached `eklavya memory process`, only after
+winning the machine-wide reservation and only while the queue is unpaused.
+Never wait on inference in a hook. `capture-tool` records subagent evidence;
+prompt and Stop memory seams are parent-only.
 
-Four hooks now carry memory work, and all four do it **before** their `quiz`
-check, because `memory.enabled` is a separate decision from the learning dials
-(PRD CFG-01): `quiz.enabled: false` means no quizzes, not no project history.
-That separation is why the `mode` dial was retired — it was always true and the
-word `off` denied it, so `session-start` now says on screen which half stopped.
-`session-start` replays the spool and recalls; `prompt-submit-nudge` captures
-the prompt; `capture-tool` captures the tool use; `stop-quiz-check` closes the
-batch at the seam. `mcp/src/hooks/memory-lib.ts` holds the shared helpers, and
-every one of them swallows its own failures — a capture path that throws is a
-throw on every tool call. The light capture path — `identityOf`, `record`,
-`batchIfFull` — lives in `capture-lib.ts`, so `capture-tool` and
-`prompt-submit-nudge` never import the worker, the provider, recall or notify;
-`memory-lib.ts` re-exports them for the seam hooks, and
-`mcp/test/hook-isolation.test.ts` fails if a hot path starts loading a heavy
-module again.
+## Output channels and delegation
 
-A Stop seam does not close a batch every turn: only at `SEAM_MIN_EVENTS` (8)
-or once the oldest open event is `SEAM_MAX_AGE_MS` (20 minutes) old, because
-with an observer configured every closed batch is a `claude -p` call. A session
-start closes everything. The same seam runs the retention sweep
-(`pruneIfDue`, at most every six hours, 5,000 events at a time) and gives all
-notification sinks one shared 5s budget (`NOTIFY_BUDGET_MS`).
+Put developer messages in top-level `systemMessage`, model instructions in
+`hookSpecificOutput.additionalContext`, and the event name in `hookEventName`.
+Plain stdout is not a user-visible banner. Stop's context is also rendered by
+the host, so keep it short and let the planner carry pedagogy details.
 
-The seam never waits on inference. With `providers.observer` configured,
-`flushAtSeam` queues the batch and hands it to a detached `eklavya memory
-process` — but only after winning the single machine-wide worker reservation
-(`mcp/src/memory/reservation.ts`), and never while the queue is paused. A Stop
-hook that waits on an API call is exactly what PRD LRN-04 forbids.
+`SubagentStart` requires the JSON envelope. Check `quiz.enabled`, honor a
+session's silence if a database exists, and continue on a missing database.
+Match `eklavya-tutor` as a substring to cover namespaced and bare names. Unknown
+`agent_type` receives the directive. The tutor exemption matters because the
+implementer's directive says not to ask questions.
 
-**Every hook is inert inside Eklavya's own `claude -p`.** The observer sets
-`EKLAVYA_INTERNAL_OBSERVER=1`, and `run.mjs` and `run()` in `lib.ts` both exit 0
-before reading stdin. Claude Code 2.1.280 ran plugin hooks inside `claude -p`
-despite `disableAllHooks`, each helper's seam spawned a worker, and a 16 GB Mac
-reached 165 workers. `--safe-mode` now suppresses them too, but correctness
-rests on the env check: never move it after anything that opens the database
-or spawns. `mcp/test/memory-observer-guard.test.ts` runs a stand-in `claude`
-that executes every hook anyway.
+Both checkpoint and Stop return on `agent_id`; retain both guards even if the
+host appears to deliver Stop only to parents. See `docs/subagent-policy.md`.
 
-The PostToolUse matcher on `checkpoint-quiz` is a regex over the MCP tool name, not a literal, because
-the prefix depends on how the plugin was installed —
-`mcp__eklavya__log_session_concepts` standalone,
-`mcp__plugin_eklavya_eklavya__log_session_concepts` via `/plugin`. `mcp__.*`
-catches both; anchoring it to one spelling silently disables the checkpoint for
-half the installs.
+## Pacing, silence and gates
 
-## Two audiences, two channels
+`quiet` hides the banner and status bar, not model directives or quizzes.
+`quiz.enabled: false` disables questions. Session-scoped silence disables that
+session's questions but never bypasses an enforced commit gate; `pre-tool-gate`
+reads it only to explain how to resume and clear the gate.
 
-Every line a hook writes is for the developer or for the model, and each has
-exactly one channel: top-level `systemMessage` is rendered to the developer,
-`hookSpecificOutput.additionalContext` is read by the model. Plain stdout is
-never used. On `SessionStart` it is accepted, but as context only — the banner
-went out that way for months and every session opened in apparent silence while
-the model read three lines meant for a person. And `systemMessage` is **top
-level**: nested inside `hookSpecificOutput` the harness drops it, which is how
-the checkpoint's one line to the developer went unseen for just as long.
-`docs/verified-schemas.md` has the per-hook table; `mcp/test/hooks.test.ts`
-asserts on `shown` and `context` separately, and its `systemMessage()` helper
-throws on the nested placement, so a new hook cannot repeat either mistake
-without a test saying so.
+Unenforced sessions can still receive Stop questions. Enforcement skips cooldown,
+lifts the planner's interleaved cap and adds commit checks. It does not override
+the developer's session silence.
 
-## SubagentStart needs the JSON form, and skips the tutor
+| Cadence | Pacing and loop guard |
+|---|---|
+| `interleaved` | `min_minutes_between_checkpoints` (default 4) paces single questions; Stop floors its gap at one minute. Time can re-arm Stop without new logged work. |
+| `end` | `min_minutes_between_quizzes` (default 20) paces the full sweep; work-origin concept count must grow since the previous block. |
 
-`SessionStart` accepts raw stdout as context (Eklavya no longer uses it — see
-above). `SubagentStart` does not: it
-reads `hookSpecificOutput.additionalContext` and drops anything else in silence,
-so the wrong form is a hook that runs, exits 0, and does nothing. That is the
-one thing `subagent-start.ts` cannot get wrong, and `mcp/test/hooks.test.ts`
-parses the envelope rather than asserting that something was printed.
+Hooks and planner must use the same clock, checking both the last block and
+last answer. Stamp `stop_markers` or `checkpoints` before emitting. The Stop
+block cap (default 3) and remaining session question budget also bound repeats.
+Every attempt consumes the shared `max_questions_per_task` allowance (default 4).
+Review-origin concepts cannot re-arm the work-count guard. Change matching
+candidate predicates in both hooks together.
 
-It also stays silent for `eklavya-tutor`, matched as a substring so both
-`eklavya-tutor` and `eklavya:eklavya-tutor` are caught. Not because the tutor
-lacks `log_session_concepts` — so do `Explore` and `Plan`, and they are told
-anyway. It is the directive's second sentence: *do not ask the developer
-anything here* is an order not to do the only thing `agents/tutor.md` exists
-for, so delivering it disables parallel tutoring in silence. An absent or
-unrecognised `agent_type` fails **open** — a host that does not send the field
-is a host where failing closed would turn the feature off with nothing to
-report. `docs/subagent-policy.md` is the policy in full; keep the two in step.
+The shell lexer in `commit-lib.ts` recognizes common wrappers and nested shell
+forms, with deliberate misses for aliases, variables and scripts. The optional
+git hook covers terminal commits; do not describe the Bash detector as complete.
 
-`stop-quiz-check.ts` carries the same `agent_id` guard as `checkpoint-quiz.ts`,
-and for a stronger reason: it keeps the turn going. `Stop` is believed to be
-parent-only, since `SubagentStop` is a separate event — but nothing here has
-verified that, and this hook is what made the path reachable, because before it
-a subagent logged nothing and the Stop hook's `logged > last_logged` predicate
-could never arm. Do not read that as making the guard optional now: under
-`interleaved` the clock arms the sweep whether or not anything was logged, so the
-`agent_id` check is the only thing standing between a subagent and a quiz it
-cannot ask.
+## Documentation and checks
 
-**And it pays the stdin cost on every delegated task.** It needs `agent_type`,
-so it cannot keep ponytail's stdin-independent fast path; on a host that
-swallows the pipe that is `idleMs` — 2s — per subagent spawn, the same trade
-`PreToolUse` makes per `Bash` call.
+Update the affected manual pages in the same PR: `first-session`, `dials`,
+`how-it-works`, `memory`, `commit-gate` and `troubleshooting`. Keep the timeline
+and flow labels aligned with ordering and guards. Schema/delegation changes also
+update `docs/verified-schemas.md` and `docs/subagent-policy.md`.
 
-## Every failure path exits 0
+When changing banner or checkpoint wording, search `web/public/index.html` and
+manual examples for quoted output. Do not preserve a transcript that no longer
+matches the source.
 
-A hook that throws breaks the user's session, and a learning tool that breaks
-sessions gets uninstalled. `run()` in `mcp/src/hooks/lib.ts` enforces it: parse
-stdin defensively, run the body, exit 0 silently on any throw. A new hook body
-goes inside `await run(async (input) => { ... })` and returns an exit code; it
-never calls `process.exit` itself. Helpers follow the same rule —
-`openExisting()` returns `null` rather than throwing on a missing or corrupt
-database, and deliberately does not migrate or seed (several hooks racing a
-migration on session start is a corruption story). Every hook returns 0 — the
-Stop sweep included. It keeps the turn going with
-`hookSpecificOutput.additionalContext` rather than exit 2, because exit 2 renders
-to the developer as a hook error; `docs/verified-schemas.md` D1 has the table.
-
-## A hook must never *wait*, either
-
-Exiting 0 on a throw covers the loud failure. The quiet one is worse: a hook
-that blocks never errors, never logs, and stalls the session on every tool call
-that triggers it — with nothing for the developer to report except that Claude
-Code got slow.
-
-`readInput` used to be `for await (const chunk of process.stdin)`, which has
-exactly one exit: EOF. Ponytail's issue #443 reports Claude Code on Windows
-running a hook through a PowerShell block that swallows the piped JSON, so `end`
-never fires. **Nothing here verifies that mechanism** — there is no Windows
-machine in the loop — so what this defends against is the consequence, a stdin
-that never ends, which the tests reproduce directly. `run.mjs` is careful about
-everything else — Node version, four resolution candidates, a self-expiring heal
-claim, exit 0 on every throw — and this was the one gap.
-
-`mcp/src/stdin.ts` closes it, and `eklavya statusline` shares it: both read a
-JSON blob the host pipes in, both must degrade rather than hang, and two copies
-would be one copy getting the fix. Three things matter about it.
-
-**The primary bound is on silence, not on total time.** A flat cap truncates a
-payload still arriving when it fires, and truncated JSON does not fail loudly —
-it fails as `{}`, so the hook runs to completion having quietly decided the
-session has no cwd and no id. The idle timer resets on every chunk, so a payload
-is safe as long as it keeps making progress. The total cap behind it *can* still
-truncate, and claiming otherwise would be the same overclaim in the other
-direction — it is a deliberate trade, and `totalMs` is generous against how long
-a real payload takes.
-
-**It pauses the stream, not just the listeners.** This is the line the rest of
-it depends on. `setEncoding` puts stdin in flowing mode and a flowing stdin holds
-an active libuv handle, so removing the `data` listener resolves the read and
-leaves the process alive. The hooks hide that — `run()` ends in `process.exit` —
-but `eklavya statusline` just returns, and under exactly the no-EOF condition
-this exists for it printed the dials and then lingered forever, once per status
-bar refresh. `test/stdin.test.ts` spawns the statusline for that reason: it is
-the caller with no `process.exit` behind it, so it is the honest test of whether
-the read lets go.
-
-**Every timer is `unref`'d**, so a pending timer adds no latency to a hook that
-has already finished. On its own that does not let the process exit — see above.
-
-**There is an `error` handler.** A stream that errors never emits `end`, so
-without one the read waits on something that is not coming. It is also
-load-bearing beyond that: an unhandled `error` on `process.stdin` is an async
-exception `run()`'s `try`/`catch` could not have caught.
-
-**It costs something, and the cost is worth stating.** On a host that swallows
-the pipe this turns an infinite hang into `idleMs` per invocation, and PreToolUse
-matches every `Bash` call — so +2s per command until the host is fixed. Two
-seconds a command is bad; a frozen session is worse.
-
-`HOOK_STDIN` is 2s idle / 5s total, well under the 10s `hooks.json` grants (15
-for Stop) — a read that outlives its host timeout is a read the developer waits
-on, and `test/stdin.test.ts` asserts the relationship rather than the number.
-`STATUSLINE_STDIN` is 150ms / 250ms, and the total is pinned at or below the
-250ms flat cap the inline reader had before it: splitting one budget into idle
-plus total made the worst case four times worse for the one caller whose latency
-a human sees, which a test now prevents.
-
-That suite spawns a real hook, writes a payload, and **never closes stdin**;
-against the old code all three cases hang until the test kills them.
-
-`stripBom` runs before every `JSON.parse` here. Some Windows shells prepend a
-byte-order mark, and `JSON.parse` throws on input that looks perfectly
-well-formed in a terminal and in any editor — another silent nothing-happens.
-
-## `quiet` is not an off switch
-
-It suppresses the session-start banner and the status bar — things the developer
-looks at. It does **not** suppress the standing directive, and it does not gate
-the `UserPromptSubmit` nudge, because both are `additionalContext` the model
-reads rather than output anyone sees.
-
-That was a bug for a while, and a bad one: `session-start` returned before
-pushing the directive, so a developer who turned the greeting off logged
-nothing, was never quizzed, and saw quizzing reported as enabled in
-`get_config` the whole time. Two tests encoded it as intended behaviour.
-`quiz.enabled: false` is the off switch — along with its session-scoped twin
-below, which is the same switch with a shorter life.
-
-## The Stop hook blocks when unenforced too
-
-Commonly got wrong. Unenforced is not "never interrupts" — `stop-quiz-check.ts`
-returns 2 without the gate as readily as with it. `quiz.enforced` changes three
-things: the `min_minutes_between_quizzes` cooldown is skipped (a cooldown could
-make a commit gate unpassable — decision G5); the one-question cap under
-`interleaved` is lifted, so the sweep asks for the whole remaining budget; and
-`pre-tool-gate` plus `cli/eklavya-gate` start holding commits. Only
-`quiz.enabled: false` silences the questions — and it silences only those, not
-the memory half.
-
-## The per-session off switch
-
-`isSessionOff(db, sessionId)` (`mcp/src/session.ts`) is a `meta` row written by
-`set_config` at `scope: "session"`. **Every hook that speaks to the developer
-checks it right after its `mode` check** — session-start, the nudge, the
-checkpoint, Stop, subagent-start. `pre-tool-gate` is the deliberate exception
-and reads it only to word its refusal; see below. It exists because the file-backed `off` outlives the urgent
-afternoon that wanted it, and a developer who silences one hour by editing a
-config file has quietly turned the product off for good.
-
-Two rules it is easy to get wrong:
-
-- It silences, it does not exempt. `cli/eklavya-gate` reads the project config and
-  never sees a session id, so an enforced repo still holds the commit. Making
-  the gate honour it would turn a per-session convenience into a gate bypass.
-  `pre-tool-gate` reads `isSessionOff` for one reason only: its refusal tells
-  the model to run a quiz, and in a silenced session the planner returns
-  `session_off` and nothing to ask, so the refusal has to name the way out.
-  Reading it to word the message is not the same as acting on it.
-- Enforced mode is **not** the exception here that it is for the cooldown. The
-  cooldown is pacing Eklavya chose; this is the developer saying stop, in words.
-
-## The loop guard
-
-A Stop hook that blocks on every Stop blocks forever, and `stop_hook_active` is
-no longer a documented input. What bounds it depends on the cadence, because the
-two cadences block for different reasons.
-
-Under **`end`**: block only when the count of `origin = 'work'` rows in
-`session_concepts` has **grown** since the last block. That cadence delivers the
-whole budget in one sweep, so a second sweep needs new work behind it.
-
-Under **`interleaved`**: the pacing clock is the guard. The `logged > last_logged`
-rule cannot work here — the model logs its whole batch in one call at the start
-of a task, so "new work since the last block" is false for the rest of the
-session and the sweep fired exactly once, ever. That capped a session at two
-questions against a budget of four. Time re-arms it instead.
-
-Either way, blocking stamps into `stop_markers` (`last_logged_count`,
-`last_blocked_at`, `block_count`) *before* the block — a failure after it costs
-a missed quiz, never a loop — and three caps bound every block: the pacing clock,
-`max_stop_blocks_per_session` (default 3), and the remaining session budget.
-Counting review-origin rows here would let answering a question re-arm the block
-that asked it; don't. `checkpoint-quiz.ts` has the mirror-image guard for
-mid-turn bursts, stamping `checkpoints` before it emits.
-
-## Pacing
-
-Two keys, and which one applies depends on what is being paced, not on which
-hook is asking (`mcp/src/config.ts` is the source of truth).
-`min_minutes_between_checkpoints` (default 4) paces a **single question**: the
-mid-task checkpoint in `checkpoint-quiz.ts`, and the Stop sweep too whenever the
-cadence is `interleaved`, since a sweep is one question there.
-`min_minutes_between_quizzes` (default 20) paces a **whole quiz**, which only the
-`end` cadence produces. Both apply **in `ambient` only**, and both are measured
-against the last block *and* the last answer — checking only one would let the
-hook block a turn the quiz plan then refuses as too soon. That is why
-`get_session_quiz_plan` picks between the same two keys on the same cadence: the
-hook's clock and the plan's cooldown have to be the same number, or the hook
-blocks a turn and the plan hands back `questions_needed: 0`. Under `interleaved`
-the Stop sweep floors its gap at one minute, because there the clock is the whole
-loop guard and `0` is a legal value for the checkpoint it borrows.
-`max_questions_per_task` (default 4) is a session allowance shared by both hooks:
-every `attempts` row spends it, so the Stop hook asks for whatever the checkpoints
-left. The two hooks' candidate queries share a WHERE clause verbatim; if you
-change one, change both, or a concept gets asked twice or never.
-
-## The SessionStart banner is a format string
-
-The `[Eklavya] ...` line in `mcp/src/hooks/session-start.ts` is quoted verbatim
-by `web/public/index.html` (the hero terminal script) and
-`web/src/content/docs/docs/installing.mdx` (the no-history variant). Changing its
-wording, order or fields means re-quoting both in the same commit.
-
-## Testing a hook by hand
-
-`dist/` must exist first — the tests run the built files, not the sources, and
-`pretest` builds them. From `mcp/`:
-
-```sh
-npm run build
-echo '{"session_id":"s1","cwd":"/path/to/repo","hook_event_name":"Stop"}' \
-  | EKLAVYA_DB=/tmp/k.db EKLAVYA_HOME=/tmp/eklavya-home \
-    node dist/hooks/stop-quiz-check.js; echo "exit $?"
-```
-
-`EKLAVYA_DB` and `EKLAVYA_HOME` point a hook at a scratch database and config;
-`EKLAVYA_SESSION_ID` overrides the harness session id. `mcp/test/hooks.test.ts`
-and `mcp/test/gate.test.ts` do exactly this.
+Run `npm test -- hooks gate stdin hook-isolation memory-observer-guard` from
+`mcp/`; `pretest` builds the files the hook suites execute. Use a temporary
+`EKLAVYA_HOME` and `EKLAVYA_DB` for manual probes. Behavior changes also need the
+live checkpoint acceptance check in `CONTRIBUTING.md`; unit tests cannot prove
+that the model asks a question and resumes work.

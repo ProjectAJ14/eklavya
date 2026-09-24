@@ -1,282 +1,131 @@
 ---
 title: "Installing"
-description: "Install Eklavya for Claude Code with npm or the plugin marketplace. Check Node.js requirements, configure the plugin, and verify your installation."
+description: "Install Eklavya for Claude Code in three steps, choose the default settings, and check that it is ready."
 sidebar:
   order: 2
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-### Where Eklavya runs
+The recommended install sets up the Claude Code plugin, its local runtime, and
+the `eklavya` terminal command together.
 
-Eklavya loads in three places. Two of them are one install; the third is its own.
+## Before you start
 
-| Where | How it gets there |
-|---|---|
-| **Claude Code**, in a terminal | Route A or B below |
-| **Claude Code in Claude Desktop** — the Code tab | Nothing extra: it is the same engine reading the same `~/.claude`, so A or B covers it too |
-| **Cowork**, in Claude Desktop | [Route D](#d-in-cowork), from Claude Desktop's own Plugins page |
-
-All three write to the same `~/.eklavya/knowledge.db`. You are one learner with
-one knowledge graph whichever you are working in, and a concept you were quizzed
-on in the terminal comes back for review in Cowork.
-
-Ordinary Claude Desktop **chat** is the exception — chat does not load plugins,
-so Eklavya is not there.
-
-Routes A and B are for Claude Code, and they end up in the same place. Pick either.
-
-### A. One command, from a terminal
+Use **Claude Code and Node.js 22+** on macOS, Linux or Windows. Check Node with:
 
 ```bash
-npm install -g eklavya && eklavya install
+node --version
 ```
 
-That one line gives you both halves: the `eklavya` command on your `PATH`, and
-the install it then runs. If you would rather not install anything globally,
-`npx eklavya install` does the same setup — but leaves no `eklavya` command
-behind, so `eklavya doctor` and `eklavya dashboard` will not exist afterwards.
+<details>
+<summary>Install or upgrade Node.js</summary>
 
-That does the whole job, in this order:
+Use the [Node.js installer](https://nodejs.org/en/download), or your existing
+package manager:
+
+```bash title="macOS with Homebrew"
+brew install node
+```
+
+```powershell title="Windows"
+winget install OpenJS.NodeJS.LTS
+```
+
+```bash title="Linux with nvm already installed"
+nvm install 22 && nvm use 22
+```
+
+</details>
+
+Git lets Eklavya identify checkouts for project settings and learning progress. The optional terminal
+[commit gate](/docs/commit-gate/) also needs a POSIX shell, `jq` and `sqlite3`; ordinary
+questions and memory do not.
+
+<span id="a-one-command-from-a-terminal"></span>
+
+## Install in three steps
 
 <Steps>
 
-1. #### Checks your Node version
+1. **Run the installer in a terminal.**
 
-   Stops with upgrade instructions if it is older than 22, rather than half-installing and failing later. If you need to upgrade first:
-
-   ```bash title="macOS"
-   brew install node
+   ```bash
+   npm install -g eklavya && eklavya install
    ```
 
-   ```bash title="Windows"
-   winget install OpenJS.NodeJS.LTS
-   ```
+   It installs the plugin and runtime, creates the database, and adds two chat
+   skills for plain-English controls and saved explanations.
 
-   ```bash title="Linux (nvm)"
-   nvm install 22 && nvm use 22
-   ```
-2. #### Installs the runtime
+2. **Choose your settings.**
 
-   The server, the hooks and the SQLite driver go into `~/.eklavya/runtime`. This is the step that downloads the ready-compiled database binary for your platform. It then loads it once to prove it actually works, instead of trusting that `npm` exiting cleanly meant a working binary.
-3. #### Installs and enables the plugin
+   Use the arrow keys and Enter. Accepting each default gives you skippable
+   questions about concepts, spread through your work, and local memory.
 
-   Copies the plugin into Claude Code's plugin directory and registers it, which is the same end state `/plugin install` produces. If you first added Eklavya with `/plugin marketplace add`, that directory is a git clone rather than a copy — so this fast-forwards it with a pull instead of overwriting it, and says which it did. A clone with uncommitted changes in it is left exactly as it is.
-4. #### Installs the chat skills
+   | Setting | Default |
+   |---|---|
+   | Quiz | On, without commit enforcement |
+   | Focus | General concepts behind your code |
+   | Cadence | One question at a time during work |
+   | Difficulty | Adjusted from your answers |
+   | Memory | On |
+   | Memory model | Local processing, no extra model calls |
 
-   Two, each a directory under `~/.claude/skills/`. `eklavya/` is what lets you change Eklavya by asking in plain English instead of remembering a slash command — [see below](/docs/commands/#or-just-ask). `eklavya-artifacts/` turns an explanation into a page on disk when you ask for one — [the artifacts skill](/docs/commands/#the-artifacts-skill). Both are installed for your user account, not for the plugin, so they keep working in projects where the plugin is not enabled. If a skill of your own is already at either path, this step says so and leaves that one alone.
-5. #### Creates the database
+   You can change these later with [the dials](/docs/dials/), or repeat the walk
+   with `eklavya install --settings`. Reinstalling normally keeps your settings.
 
-   `~/.eklavya/knowledge.db`, migrated and seeded, so `eklavya doctor` works before you have opened Claude Code even once.
-6. #### Walks your settings
+   If Claude Mem is detected, the installer asks which tool should record:
+   keep Claude Mem, or import its history and switch to Eklavya. Read
+   [Moving from Claude Mem](/docs/migrating/) before choosing if you need the
+   migration details.
 
-   On a first install, five dials, one step each: `quiz`, `focus`, `cadence`, `difficulty` and `memory`. Each step marks what is set now (`▣`) and starts the cursor on it. Move with ↑ and ↓, and choose with Enter, Space or →; a digit jumps straight to that option. When memory is on, a sixth step follows it, `model`. On a first install that is six Enters to the defaults:
+3. **Restart Claude Code and start a task.**
 
-   ```text
-   2/5  focus  what it teaches
-     → ▣  concept  the transferable idea behind the code
-       ◌  project  this codebase — the code just written
-       ◌  learn    a topic you name, taught through your code
-   ```
-
-   The `model` step picks what writes your memories, which is `providers.observer`:
-
-   ```text
-     ↳  model  which model writes the memories
-     → ▣  local             extractive, no model — nothing leaves this machine
-       ◌  claude-haiku-4-5  recommended — fast; runs on your Claude subscription
-       ◌  claude-sonnet-5   richer summaries, uses more of your plan
-       ◌  claude-opus-5-5   the most capable, uses the most
-   ```
-
-   `local` is the default. Pick a Claude model and the session batches are summarised by that model through Claude Code (`claude -p`), on your Claude subscription. Nothing else to set up, and the batches do go to Anthropic. Haiku is the recommended model: summarising is a light job, so a bigger model mostly uses more of your plan. A model you set by hand with `eklavya config set` shows up as an extra option, so pressing Enter keeps it. Choosing `off` or `claude-mem` at the memory step skips this step.
-
-   Once chosen, the step folds to one line, so the walk stays a screen tall. `learn` then asks for its topic, the one answer you type. Ctrl-D ends the walk early and keeps whatever you had not reached.
-
-   The slow steps (the runtime download, the Claude Mem import, uninstalling Claude Mem's plugin) show a spinner while they work, so a long step never looks like a hang.
-
-   The walk runs once. After that, `~/.eklavya/config.json` exists and every later install keeps your settings: it prints them, one line each, and asks nothing, because installing again is also how Eklavya upgrades. To walk them again, with your current choices marked, run `eklavya install --settings`. The installer never asks about per-project settings; set those with `eklavya config set <key> <value> --project`. Without a terminal, it prints the settings and changes nothing.
-
-   **If you have Claude Mem**, the `memory` step asks a different question. Claude Mem and Eklavya both record every session and recall it at the next one, so with both installed you would get everything twice. If the installer finds Claude Mem (its plugin, or `~/.claude-mem/claude-mem.db`), the step asks which one records:
-
-   ```text
-   5/5  memory  Claude Mem is installed too — only one should record
-     → ▣  eklavya     import Claude Mem's history, then uninstall it
-       ◌  claude-mem  keep it; Eklavya records nothing, quizzes stay on
-   ```
-
-   **Eklavya** imports your Claude Mem history, filing each project under its checkout. It works out which checkout from Claude Code's own session transcripts, so you do not have to name them. Then it uninstalls the Claude Mem plugin and moves `~/.claude-mem` to `~/.claude-mem.retired`. Nothing is deleted. **Claude Mem** sets `memory.enabled` to `false`. Questions, levels and the gate work as before. [Moving from Claude Mem](/docs/migrating/) has the details.
-
-   Already moved off Claude Mem? Every later install re-checks `~/.claude-mem.retired` against Eklavya, row by row: it adds anything missing and files anything an older version left unplaced, and if nothing is new it says so in one line.
-
-   Pass `--memory eklavya` or `--memory claude-mem` to answer that step ahead of time. On a first install with no terminal to ask, the installer picks Claude Mem, because that choice leaves your Claude Mem install and data untouched. A later install that is not asked decides nothing: which of the two records stays as it is, and the installer prints `eklavya install --settings` as the way to choose.
+   A new session loads the plugin. Ask Claude to build or change something;
+   questions follow as it logs the concepts involved.
 
 </Steps>
 
-Then restart Claude Code and build something; the questions follow. Every step is safe to repeat, and running it again will not disturb your other plugins, your settings or your learning history.
+<span id="check-that-it-worked"></span>
 
-:::note
-**Your own files are backed up before they change.** The installer edits four files that are not only Eklavya's: `~/.claude/settings.json`, `~/.claude/plugins/known_marketplaces.json`, `~/.claude/plugins/installed_plugins.json` and `~/.eklavya/config.json`. Before it changes one, it copies what was there to the same path with `.eklavya-bak` on the end, and prints that path for the Claude Code files. There is one backup per file, holding it as it was before the last command that changed it, so one `mv` undoes the change:
-
-```bash
-mv ~/.claude/settings.json.eklavya-bak ~/.claude/settings.json
-```
-
-If any of the four is not valid JSON, the installer names it and stops with exit code 1 before touching anything. Fix or remove that file, then run it again. `eklavya uninstall` and `eklavya config set` follow the same two rules.
-:::
-
-### Updates
-
-**Eklavya updates itself.** You never need to run npm or `eklavya install` again. At most once an hour, a new Claude Code session asks npm for the latest release, in the background, without waiting on it. If there is a newer one, it installs it into `~/.eklavya/runtime`, then runs that new version's `eklavya install --auto`. That refreshes the plugin files, the chat skills, the registration and the status bar, asks nothing, and changes no setting. The session that started it keeps the version it loaded; the next session opens on the new one and says so once:
-
-```text
-Eklavya updated to 1.26.0
-```
-
-If an update fails, every session says so in one line until it works, with the command that shows why:
-
-```text
-Eklavya can't update itself · npm install failed: EACCES · run: eklavya update
-```
-
-Being offline is not a failure worth a line: it stays silent until a week has passed with no successful check. `eklavya update` runs the same update in the open, right now. `eklavya doctor` shows the state on its `updates` row, and the last background run's output is in `~/.eklavya/update.log`.
-
-The `eklavya` command you installed with `npm install -g` updates too, without npm. When the runtime is newer than it, it runs the runtime's copy, so the command is never older than the code it drives. An update never needs `sudo`, because everything it writes is under your home directory. It never downgrades: a runtime already ahead of npm is left alone.
-
-To turn automatic updates off, `eklavya config set auto_update false`. That stops both kinds of automatic upgrade: the hourly npm check, and the catch-up install described next. That setting is global only, since there is one runtime per machine. `eklavya update` still works by hand.
-
-Separately, when Claude Code updates the plugin before the runtime has moved, a session starts a background install of the plugin's version, at most once an hour, unless `auto_update` is `false`. `eklavya doctor` shows the two versions on its `versions` row. A runtime that is **missing** altogether (the plugin was installed through `/plugin` and `npx eklavya install` never ran) is always installed in the background, whatever `auto_update` says, because nothing works without it. A runtime pinned with `EKLAVYA_RUNTIME` is never touched.
-
-Only one install writes to `~/.eklavya/runtime` at a time: `eklavya install`, an automatic update and that background install all take the same lock, `~/.eklavya/runtime/.installing`, which names the process working. If one is running, an update steps aside, and `eklavya install` stops with `another Eklavya install is running (pid …)` — run it again once that finishes, usually within a minute.
-
-### B. In Claude Code, through the plugin marketplace
-
-If you would rather not touch a terminal:
-
-<Steps>
-
-1. #### Add the marketplace
-
-   ```text
-   /plugin marketplace add ProjectAJ14/eklavya
-   ```
-
-   A marketplace is a list of plugins Claude Code is allowed to install from. This one points at the Eklavya GitHub repository. You should see a confirmation naming the marketplace `eklavya`.
-2. #### Install the plugin
-
-   ```text
-   /plugin install eklavya@eklavya
-   ```
-
-   The part before the `@` is the plugin, the part after is the marketplace it comes from — they happen to share a name. Claude Code downloads the plugin and registers its MCP server, its seven hooks and its nine slash commands.
-3. #### Restart Claude Code
-
-   Hooks and MCP servers are wired up when a session starts, so the session you installed from will not have them. Quit and reopen.
-4. #### Run first-time setup
-
-   ```text
-   /eklavya:setup
-   ```
-
-   This checks your prerequisites, creates the database, and asks you two short questions. [The next section walks through it.](/docs/first-run/)
-
-</Steps>
-
-:::note
-**What route B does differently.** A slash command cannot run `npm` or write outside the plugin, so this route installs the plugin files but not the runtime and not the chat skills. Your first session starts that download in the background and carries on as normal; the questions begin from the session after it finishes, and the slash commands work throughout. Route A does both up front instead. If you would rather not wait — or you want to change Eklavya by asking rather than by command — run `npx eklavya install` at any point. It finishes the job and is safe to run over an existing install: the plugin files here are a git clone, and it pulls that clone rather than overwriting it.
-:::
-
-#### Check that it worked
-
-Run `/plugin` and confirm **eklavya** is listed with no errors. The first thing a healthy session prints is a short banner, like this:
-
-```text title="Session start"
-Eklavya active · concept · interleaved · easy (0/100)
-Learning 0 · Mastered 0 · Due 0
-Dashboard & observations: eklavya dashboard
-```
-
-The first line is your dials: focus, cadence, and the level with its runway. Once Eklavya has recalled something for you, a green line joins it — `84% less context from memory reuse`. The counts are this project's, not the size of the shipped catalogue. The last line is dim: while `eklavya dashboard` is running it becomes two links, one to the dashboard and one straight to your observations.
-
-If you see those lines, you are done. If you see nothing at all, jump to [Troubleshooting](/docs/troubleshooting/).
-
-### C. From a checkout (contributors)
-
-Use this when you are changing Eklavya itself and want your edits to take effect immediately.
+## Check the installation
 
 ```bash
-git clone https://github.com/ProjectAJ14/eklavya.git
-cd eklavya/mcp
-npm install        # approve the better-sqlite3 build script if npm asks
-npm run build
-cd ..
-claude --plugin-dir "$(pwd)"
+eklavya doctor
 ```
 
-`--plugin-dir` tells Claude Code to load the plugin from a folder instead of a marketplace, and sets `CLAUDE_PLUGIN_ROOT` so the MCP server can find itself. Use it rather than relying on the repository's `.mcp.json` as project config, which has no plugin root to expand. The launcher prefers your local `mcp/dist/` build when one exists, so a rebuild is all it takes to see a change.
+This checks the runtime, database driver, plugin registration, settings and
+other dependencies. In Claude Code, `/plugin` should also list Eklavya without
+errors. A new session shows a short Eklavya banner unless `quiet` is enabled.
 
-### D. In Cowork
+If something is missing, see [Troubleshooting](/docs/troubleshooting/).
+Otherwise, continue to [Your first session](/docs/first-session/).
+[`/eklavya:setup`](/docs/first-run/) is an optional guided check inside Claude.
 
-Cowork keeps its own list of plugins, separate from Claude Code's, so it needs
-its own install even if you already have Eklavya in the terminal. It is the same
-plugin from the same repository.
+<span id="where-eklavya-runs"></span>
 
-<Steps>
+## Other installation options
 
-1. #### Open the Plugins page
+- <span id="b-in-claude-code-through-the-plugin-marketplace"></span>
+  [Claude Code marketplace](/docs/installation-options/#claude-code-marketplace)
+  — install from inside Claude Code.
+- <span id="d-in-cowork"></span>
+  [Claude Desktop and Cowork](/docs/installation-options/#claude-desktop-and-cowork)
+  — the Code tab uses this install; Cowork needs its own plugin entry.
+- <span id="c-from-a-checkout-contributors"></span>
+  [Source checkout](/docs/installation-options/#from-a-source-checkout)
+  — load a local build while developing Eklavya.
+- <span id="the-eklavya-command"></span>
+  [Without a global command](/docs/installation-options/#without-a-global-command)
+  — use `npx` instead.
 
-   In Claude Desktop, **Customize** in the sidebar, then **Plugins**.
-2. #### Add the marketplace
+<span id="updates"></span>
 
-   **Add marketplace**, then `ProjectAJ14/eklavya`. That is the same GitHub repository route B uses; Cowork accepts the `owner/repo` shorthand or the full `https://github.com/…` URL.
-3. #### Install
+## Updates and removal
 
-   Find **Eklavya** in the list and select **Install**. Open it afterwards to see its skills, connector and hooks, which you can switch on and off individually.
-4. #### Run first-time setup
+Automatic updates are on by default. See [Updates and removal](/docs/updates/)
+for manual updates, disabling updates, and installer backups.
 
-   `/eklavya:setup`, the same as anywhere else.
-
-</Steps>
-
-If you would rather not add a marketplace, you can build the package yourself —
-`zip -r eklavya.plugin .` from a checkout — and use the upload option on the
-same page. The marketplace route is better, because it is the one that gets
-updates.
-
-:::note
-**What is different in Cowork.** The loop is the same — concepts are logged
-while the work happens, questions arrive at the seams — but Cowork produces
-documents and analysis rather than code, so Eklavya asks about the work you
-produced rather than about a diff. Two things do not carry over:
-
-- **The commit gate does nothing.** It holds `git commit`, and Cowork does not commit. `quiz.enforced` still records the gate and still asks the questions; it just has nothing to block, and says so at session start.
-- **Delegated work is not logged.** Cowork does not fire the `SubagentStart` event, so a subagent is never told to log what it exercised. Concepts from the main thread are logged as normal.
-- **Questions are signed in the stem.** Cowork draws a question card with no header chip and has no status bar, so the question opens with `[Eklavya]` on its own line instead. The same is true of the Code tab. See [your first session](/docs/first-session/).
-:::
-
-### Uninstalling
-
-```bash
-npx eklavya uninstall           # removes the plugin and skills, keeps your history
-npx eklavya uninstall --purge   # removes ~/.eklavya as well
-```
-
-Without `--purge` your knowledge graph stays at `~/.eklavya/knowledge.db`, so reinstalling picks up exactly where you left off. That is deliberate: months of spaced repetition should not disappear because you removed a plugin. With `--purge`, it lists every file and folder it deleted from `~/.eklavya`.
-
-Three things it tells you rather than does:
-
-- **Project-scoped installs stay.** If Eklavya is also installed for individual projects through `/plugin`, the uninstall lists them and keeps the plugin files and the runtime they run on. Remove each with `/plugin uninstall` in that project.
-- **A git commit gate stays.** If the repository you run it in has the [git hook](/docs/commit-gate/#installing-the-git-hook) installed, it warns you and prints the exact command that removes it. Any other repository where you installed the hook needs the same.
-- **Your edited files are backed up**, to `.eklavya-bak` beside each one, as on install.
-
-This covers Claude Code and the Code tab in Claude Desktop. Cowork holds its own copy, so remove that one where you installed it — **Customize → Plugins → Eklavya → Uninstall**.
-
-### The `eklavya` command
-
-Some things — checking your setup, serving the dashboard, editing config from a terminal — are done with a small CLI rather than a slash command. Route A above installs it. If you took route B, or used `npx`, add it whenever you want it:
-
-```bash
-npm install -g eklavya     # then: eklavya doctor
-```
-
-Full list of subcommands: [The `eklavya` CLI](/docs/cli/).
+<span id="uninstalling"></span>
+[Uninstalling](/docs/updates/#uninstalling) keeps your learning history unless
+you explicitly request its deletion.

@@ -1,57 +1,79 @@
 ---
 title: "Your first session"
-description: "See what happens in your first Eklavya session: concept logging, checkpoint questions, graded answers, and project memory while Claude Code works."
+description: "Follow a task from concept logging through a checkpoint question, grading, review scheduling and memory recall."
 sidebar:
   order: 4
 ---
 
-import { Steps } from '@astrojs/starlight/components';
+import DocFlow from '../../../components/DocFlow.astro';
 
-Nothing below requires you to type an Eklavya command. This is the plugin working on its own while you do ordinary work.
+Work normally. Eklavya runs alongside Claude; you do not need to invoke a
+command for each question.
 
-### The loop, start to finish
+<span id="the-loop-start-to-finish"></span>
 
-<Steps>
+## The session timeline
 
-1. #### You open Claude Code
+<DocFlow
+  title="One task, with learning along the way"
+  caption="Work produces concepts, answers schedule reviews, and memory carries context into a later session."
+  steps={[
+    { label: 'Open', detail: 'Your settings and relevant project memories load.' },
+    { label: 'Build', detail: 'Claude implements your request and logs the concepts it uses.' },
+    { label: 'Answer', detail: 'One question connects a concept to the work on screen.' },
+    { label: 'Continue', detail: 'Claude grades the answer, schedules a review and resumes work.' },
+    { label: 'Return', detail: 'A later session recalls project history and revisits due concepts.' },
+  ]}
+/>
 
-   The **SessionStart** hook prints a banner you can read in a glance: that Eklavya is active and which dials are set, what reusing your project's memory saved (in green, once there is a saving), and where this project stands — concepts you are learning, mastered, and due for review. A dim last line points at `eklavya dashboard`, and turns into links to the dashboard and your observations while it is running. Claude receives more than you see: the same hook hands it the relevant history of this project, framed as evidence to check rather than instructions to follow. `quiet: true` turns the banner off and leaves the rest working.
-2. #### You ask for something
+For example, ask Claude to “Add JWT authentication to the Express API.” As it
+implements the change, it logs concepts tied to the actual code. With the
+default `interleaved` cadence, that logging call can trigger a question. Later
+edits and shell commands provide further checkpoints, paced by a four-minute
+interval. Task completion can bring one more question, subject to the same
+pacing and session budget.
 
-   For example: *"Add JWT auth to the Express API."* Claude starts working.
-3. #### Claude logs what the work touches
+Answers are graded from 0 to 5. Concepts you struggle with return sooner;
+successful reviews are spaced further apart. A new session also shows a short
+settings and progress banner. `quiet: true` hides that banner without disabling
+questions or memory.
 
-   As it implements, Claude calls the `log_session_concepts` tool with three to eight concepts — say `jwt-structure`, `httponly-cookies`, `middleware-order-auth` — each with one line naming the real code it wrote. This is what everything else is grounded in: no logging, nothing to ask about.
-4. #### A question lands at the seam
 
-   That logging call fires the **PostToolUse** checkpoint hook. If the cadence is `interleaved` (the default), you get *one* question right there, while the code is still on your screen. As the work goes on, the same hook checks again after Claude's shell commands and edits, and asks the next concept once `min_minutes_between_checkpoints` (four minutes) has passed:
+The default budget is **four questions per session**, even though the setting
+is named `max_questions_per_task`. Explicit practice and enforced gate retries
+can behave differently; see [The dials](/docs/dials/) and
+[The commit gate](/docs/commit-gate/).
 
-   ```text title="Checkpoint"
-   Why is httpOnly set on the refresh cookie here but not on the access token?
-   ```
+## A checkpoint example
 
-   Four options arrive through Claude Code's own question UI, under an **Eklavya** header so you can see who is asking. Picking one is a keystroke.
+```text
+Why is httpOnly set on the refresh cookie here?
+```
 
-   In the Claude Desktop app the question is a card rather than a terminal prompt, and that card draws no header. There the question opens with `[Eklavya]` on its own line instead, so the attribution is on screen either way:
+The question arrives with four choices in Claude's question UI. In a terminal,
+it has an **Eklavya** header. In Claude Desktop's Code tab and Cowork, the card
+instead begins with `[Eklavya]`.
 
-   ```text title="Checkpoint, in Claude Desktop"
-   [Eklavya]
-   Why is httpOnly set on the refresh cookie here but not on the access token?
-   ```
+The terminal status bar shows the current focus, cadence and difficulty:
 
-   Nothing else is printed with the question. The dials that pitched it — focus, cadence and the level you are on — live in your status bar instead, if you [set it up](/docs/cli/#eklavya-statusline): `[EKLAVYA concept · interleaved · easy]`. They are true for the whole session, so a bar is the honest place for them; earlier versions restated them above every stem, which put four settings between you and the question. Claude Desktop has no status bar, so the dials are not shown there — [the dashboard](/docs/dashboard/) has the same settings and the history behind them.
-5. #### Claude grades it and goes straight back to work
+```text
+[EKLAVYA concept · interleaved · easy]
+```
 
-   The answer is graded on a 0–5 scale and stored, along with the next review date. No summary, no re-plan, no second question — the interruption is meant to cost you seconds.
-6. #### The task finishes and sweeps up the rest
+The installer configures this status line when possible. If you already have a
+custom one, see [`eklavya statusline`](/docs/cli/#eklavya-statusline). Claude
+Desktop has no equivalent status bar; use the [dashboard](/docs/dashboard/).
 
-   The **Stop** hook checks whether anything worth asking is left, and if so asks **one** more question on the default cadence — never a row of them, unless the session is gated and the gate still needs answers. Because `max_questions_per_task` is a *session budget* and not a batch size, a session that answered its whole budget while you worked ends in silence.
-7. #### Tomorrow
+## If you do not know the answer
 
-   Concepts you got right are scheduled further out. Concepts you fumbled come back sooner, as a *different* question, sometimes a tier lower. Concepts you mastered are retired unless spaced repetition brings them back.
+Choose “I don't know” to get an explanation grounded in the work. Skipping
+moves on. Both receive grade 0, but Eklavya records the difference so it can
+respond appropriately. A correct multiple-choice answer receives at most
+grade 4; [Grading and scheduling](/docs/grading-engine/) explains the scale.
 
-</Steps>
+## Make it fit your workflow
 
-:::note
-**Answering "I don't know" is not the same as skipping.** Both grade 0, but "I don't know" is treated as a request to be taught: you get the mechanism, the real lines from your diff, and one takeaway. Skipping just moves on. Eklavya records which one it was.
-:::
+Use [The dials](/docs/dials/) to change the pace, topic or difficulty. Use
+`/eklavya:quiz` for practice, `/eklavya:progress` for learning progress, and
+`/eklavya:memory` for project history. If expected questions never arrive,
+start with [Troubleshooting](/docs/troubleshooting/#questions-and-settings).

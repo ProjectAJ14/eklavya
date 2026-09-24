@@ -5,183 +5,90 @@ sidebar:
   order: 12
 ---
 
-Claude Mem and Eklavya's memory do the same job. Both record every session and
-recall it at the next one. Leave both installed and every session is captured
-twice and recalled twice. You only need one, and switching takes one command:
+Choose one memory recorder to avoid capturing and recalling the same sessions twice. When Eklavya detects the Claude Mem plugin or database, installation offers the choice:
 
 ```bash
 eklavya install
 ```
 
-If it finds Claude Mem (its plugin, or `~/.claude-mem/claude-mem.db`), the
-`memory` step of its settings walk asks which one should record:
+| Choice | Result |
+| --- | --- |
+| Eklavya | Import Claude Mem history, verify it, then retire Claude Mem. |
+| Claude Mem | Keep it unchanged and disable Eklavya memory; quizzes remain available. |
 
-```text
-5/5  memory  Claude Mem is installed too — only one should record
-  → ▣  eklavya     import Claude Mem's history, then uninstall it
-    ◌  claude-mem  keep it; Eklavya records nothing, quizzes stay on
-```
-
-↑/↓ move, Enter chooses; the cursor starts on the marked choice.
-
-To skip the question, pass `--memory eklavya` or `--memory claude-mem`. If
-there is no terminal to ask, the installer picks Claude Mem, because that
-choice changes nothing of Claude Mem's.
+Pass `--memory eklavya` or `--memory claude-mem` to select without the prompt. Without an interactive terminal or explicit choice, the installer keeps Claude Mem.
 
 ## Choosing Eklavya
 
-The installer does four things, in this order:
+The installer performs these steps in order:
 
-1. **Imports the history.** It opens `claude-mem.db` read-only, snapshots it,
-   and imports observations, session summaries, prompts and tool uses. Each
-   one keeps its **original** timestamp.
-2. **Files each project under its checkout.** Claude Mem names a project with a
-   bare string, like `storefront`. Eklavya keys a project by the checkout's
-   path, because two repositories can share a folder name and must never share
-   a history. Every Claude Mem session carries its Claude Code session id, and
-   Claude Code's transcript for that session records where it ran. So the
-   installer reads each checkout from your transcripts instead of guessing from
-   the name. That also works for a checkout you have moved since, even one
-   copied to a new place outside Claude Code: it looks for a checkout of the
-   same name near where the old path was. If two checkouts carry that name, it
-   names both and places neither, so you pick with `--map`.
-3. **Uninstalls the Claude Mem plugin** with `claude plugin uninstall`. If the
-   `claude` command is not on your `PATH`, it switches the plugin off in
-   `~/.claude/settings.json` instead.
-4. **Moves `~/.claude-mem` to `~/.claude-mem.retired`.** A move, not a delete:
-   it is your rollback. Delete it once you are happy.
+1. **Import.** Open the source database read-only, snapshot it, and import observations, summaries, prompts and tool uses with their original dates.
+2. **Place projects.** Match Claude Mem names to checkout paths using Claude Code transcripts. Moved checkouts may be found nearby; ambiguous matches are shown for you to choose, with “leave unplaced” as the default.
+3. **Verify and uninstall.** Check every source row by ID. Only after a complete import, uninstall Claude Mem through `claude plugin uninstall`, or disable it in Claude Code settings if `claude` is unavailable.
+4. **Retain a rollback copy.** Move `~/.claude-mem` to `~/.claude-mem.retired` rather than deleting it.
 
-If two checkouts carry a project's name, the installer asks which one it is,
-with the same arrow-key list as the settings walk; the cursor starts on *leave
-it unplaced*. Before step 3 it checks every source row by id, and a missing
-one counts as a failed import.
+If import or verification fails, Claude Mem stays installed and Eklavya memory is disabled. The error names what needs attention.
 
-If the import fails, the installer stops before step 3. Claude Mem stays
-installed and Eklavya's memory is switched off, so you still have exactly one
-recorder. The message says why the import failed.
-
-What arrives:
-
-- observations and session summaries become memory entries;
-- prompts and tool uses become evidence, linked to the entry they belong to, so
-  the drill-down from an imported entry works as it does for a live one;
-- concepts Claude Mem had attached become **candidates**. An import never
-  grants mastery, records an attempt or opens a gate. History is not proof
-  that you understand something.
-
-What does not arrive: device identities and sync state from other machines,
-Claude Mem's live worker queue, notifications it already sent, and opaque
-metadata. That is Claude Mem's runtime state, not your history.
+Observations and summaries become memory entries. Prompts and tool uses become linked evidence. Imported concepts become candidates, **not assessed knowledge**: import does not grant mastery, record answers or open gates. Device identities, sync state, live worker queues, sent notifications and opaque runtime metadata are not imported.
 
 ### Every later install checks again
 
-Once Claude Mem is retired, each `eklavya install` (with Eklavya's memory on)
-cross-references `~/.claude-mem.retired` against Eklavya: it imports anything
-missing, files under its checkout whatever an earlier run left unplaced, and
-adds nothing twice. So upgrading is the whole fix for an older import:
+With Eklavya memory enabled, later installs recheck retired databases, import missing rows and improve project placement without duplicating history. Content identity prevents a relocated copy of the same source from being imported twice.
 
 ```bash
-npm install -g eklavya@latest && eklavya install
+eklavya update
+eklavya install
 ```
-
-```text
-  ▣  claude-mem  7160 rows, all here — 3181 filed under their checkout · ~/.claude-mem.retired/claude-mem.db
-```
-
-The same history copied from another machine, or to another path, is
-recognised by its content rather than its path, so it does not come in twice.
 
 ### Projects it could not place
 
-The install report ends with a count of unmatched projects. A project is
-unmatched when none of its sessions ran in a checkout that still exists, or
-when it was never a real checkout (a home directory, a scratch folder). Its
-entries are still imported and still searchable, but only with
-`--all-projects`. To place one, run this from inside its checkout:
+Unmatched entries are still imported, but they are not recalled for a checkout and require `--all-projects` when searching. Run the following from the correct checkout, replacing `storefront` with the source project name reported by the importer:
 
 ```bash
-cd ~/work/storefront
 eklavya memory import ~/.claude-mem.retired/claude-mem.db --map-here storefront
 ```
 
-`--map <name>=<path>` does the same for a checkout you are not standing in. A
-second import never duplicates anything it already brought in; it moves the
-rows an earlier run left under the bare name to the checkout, and says how many
-it `re-homed`.
+Use `--map <name>=<path>` for another checkout. Re-running moves previously unplaced rows to that project and reports them as `re-homed`; it does not duplicate them.
 
 ## Checking the move
 
-`--verify` checks every row of the Claude Mem database against Eklavya by
-source id. It writes nothing:
-
 ```bash
 eklavya memory import ~/.claude-mem.retired/claude-mem.db --verify
+eklavya memory status
 ```
 
-```text
-  observations         4339 in source ·   4339 in Eklavya · 0 missing
-  session_summaries     369 in source ·    369 in Eklavya · 0 missing
-  user_prompts          571 in source ·    571 in Eklavya · 0 missing
-  tool_uses            1881 in source ·   1881 in Eklavya · 0 missing
-placement:
-    1994  eklavya    → /Users/you/work/eklavya
-    1430  PiDom      not placed — searchable only with --all-projects; --map it to a checkout
-complete: every source row is in Eklavya.
-```
+`--verify` writes nothing. It reports source counts, missing IDs and the location of each project's entries; any missing row produces exit code 1. Every real import performs the same check before the installer retires the source.
 
-A missing row is listed by id and the command exits 1. Every import, and the
-installer, runs the same check after it finishes; the installer refuses to
-retire `~/.claude-mem` if a row is missing. `placement` is the half that
-usually explains "my history is not there": the rows arrived, under a name no
-checkout matches.
+In `memory status`, **imported** counts imported entries in this project and **unplaced** identifies unmatched source names. If history exists but is missing from the current project's view, check placement first. The [Memory dashboard](/docs/dashboard/#memory-pages) lets you inspect the entries.
 
-From inside a checkout, `eklavya memory status` says what arrived there:
-
-```text
-entries:    2065 here, 4817 in total
-imported:   1994 here from Claude Mem
-unplaced:   1751 under 7 name(s) no checkout matches — PiDom, emeritus-shorts, …
-```
-
-`imported` at zero in a project Claude Mem knew means its history went
-somewhere else. `unplaced` names where: map each one as above. A project Claude
-Mem never recorded has nothing to import, so zero there is right. The
-dashboard's memory page shows the same entries, one by one.
-
-The session-start line `84% less context from memory reuse` is not an import
-count. It measures what Eklavya itself has handed Claude at session start and
-mid-session, so it appears once imported history starts being recalled in that
-checkout, not the moment it arrives. An import filed under a bare name is never
-recalled, which is why an unplaced project shows no saving at all.
+The session greeting's estimated context savings measure actual recall, not import completeness. A successful import can show no savings until entries are recalled.
 
 ## Choosing Claude Mem
 
-Eklavya sets `memory.enabled` to `false` in `~/.eklavya/config.json`, and that
-is the only change. Questions, levels and the commit gate work as before.
-Nothing of Claude Mem's is touched. Later installs still show the step, with the cursor on Claude Mem, so Enter keeps it.
+The installer sets global `memory.enabled: false` and leaves Claude Mem untouched. Eklavya's quizzes, levels and optional commit gate remain available. To switch later:
 
-To switch later, run `eklavya install --memory eklavya`. It imports, switches
-Eklavya's memory back on, and retires Claude Mem as above.
+```bash
+eklavya install --memory eklavya
+```
 
 ## Going back
 
-Rename `~/.claude-mem.retired` back to `~/.claude-mem`, reinstall the Claude
-Mem plugin, and run `eklavya config set memory.enabled false`. Anything Eklavya
-recorded in the meantime stays in its own database, and
-`eklavya memory export <file>` / `eklavya memory restore <file>` back it up and
-bring it back.
+Restore the retired Claude Mem directory to its original path, reinstall its plugin, and disable Eklavya memory:
+
+```bash
+eklavya config set memory.enabled false
+```
+
+Keep any newer Claude Mem directory before restoring the retired copy over that path. Work recorded by Eklavya in the meantime stays in Eklavya; it is not converted back to Claude Mem. You can preserve those entries with `eklavya memory export`, or take a [full data backup](/docs/your-data/#backups-of-your-own-files).
 
 ## Doing it by hand
 
-`eklavya memory import` is the same importer without the install around it. Run
-a dry run first. It writes nothing, and it prints the schema version, the row
-counts per project, and a field-by-field report of what maps where and what is
-dropped:
+The standalone importer does not uninstall Claude Mem. Preview its field mapping first:
 
 ```bash
 eklavya memory import ~/.claude-mem/claude-mem.db --dry-run
 ```
 
-An interrupted run continues with `--resume`. If the source is newer than the
-importer understands, it stops and names both versions rather than guess at a
-schema it has never read. Every flag is on [the CLI page](/docs/cli/).
+The report includes schema version, row counts, project names, mapped fields, deliberately dropped fields and unknown columns. `--resume` continues using an interrupted run's snapshot. A newer unsupported source schema is rejected with both version numbers.
+
+See the [CLI import options](/docs/cli/#importing-claude-mem-history) for every flag.

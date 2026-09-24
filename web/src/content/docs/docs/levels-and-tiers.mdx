@@ -5,55 +5,56 @@ sidebar:
   order: 6
 ---
 
-import { Badge } from '@astrojs/starlight/components';
-
-Difficulty has two layers, and they are easy to mix up.
+A **tier** describes one question's depth. A **level** sets the range of tiers available in a project.
 
 ### Tiers: how hard one question is
 
-Every concept can be asked about at five depths. The tier is chosen per question. It is not printed with the question — a [status bar](/docs/cli/#eklavya-statusline) refreshes when Claude Code decides to, not when a question appears, so a tier shown there would sometimes name the previous one. What the bar does carry is your **level**, which is the part that explains the pitch: `easy` means tiers 1–2. The exact tier of any answer is in [the dashboard](/docs/dashboard/).
-
-| Tier | Label | The question it asks |
+| Tier | Label | What you need to explain |
 | --- | --- | --- |
-| 1 | `recall` | What is this thing? |
-| 2 | `mechanism` | What does the machine actually do with it? |
-| 3 | `judgement` | Why this choice here, rather than the alternative? |
-| 4 | `failure modes` | What breaks it, and how would you notice? |
-| 5 | `design` | When is this the wrong approach entirely? |
+| 1 | Recall | What the concept is. |
+| 2 | Mechanism | How it works. |
+| 3 | Judgement | Why this choice fits here. |
+| 4 | Failure modes | What breaks and how to detect it. |
+| 5 | Design | When to choose a different approach. |
+
+The [status line](/docs/cli/#eklavya-statusline) shows your level. The [dashboard](/docs/dashboard/) records the exact tier of each answered question.
 
 ### Levels: the band of tiers a project is allowed to use
 
-A level is a coarse band held **per project**. It does not replace tier selection — it clamps it.
-
-| Level | Tier band | Asks for |
+| Level | Tiers | Emphasis |
 | --- | --- | --- |
-| `easy` <Badge text="every project starts here" variant="tip" size="small" /> | 1–2 | What a thing is; what the machine does with it. |
-| `medium` | 2–4 | Why this choice here, and what breaks it. |
-| `hard` | 3–5 | Judgement, failure modes, when the architecture is wrong. |
+| `easy` | 1–2 | Recognise ideas and explain their mechanisms. |
+| `medium` | 2–4 | Explain choices and failure modes. |
+| `hard` | 3–5 | Evaluate trade-offs and design alternatives. |
 
-Starting easy is deliberate, not a warm-up. You have been *watching* an agent work, and tiers 1–2 are the questions that state can answer honestly. A question you have no way of answering is the fastest route to turning the plugin off.
+Every project starts at `easy` with `difficulty: auto`. The planner still chooses a tier for each concept, constrained to the project's band.
 
 ### How a project is promoted
 
-All three conditions must hold before the band moves up:
+All three conditions must hold at the current level in that project:
 
-- **100 passing answers** in that project, at the band you are on — the `level_up_after` setting. "Passing" means graded 3 or better, and answers earned before a promotion are spent: each band starts its count from scratch.
-- **70% accuracy or better** across every answer at that band — `level_up_accuracy`. Endurance alone is not readiness.
-- **At least 15 distinct concepts** among the passing answers — one concept re-asked forty ways is not readiness either. This floor scales down if you shorten `level_up_after`, so a shortened runway stays reachable.
+1. **100 passing answers**, each grade 3 or higher (`level_up_after`).
+2. **70% accuracy** across answered questions (`level_up_accuracy`). Declines are excluded.
+3. **15 distinct concepts** among those passes.
 
-Declining a question costs nothing: a decline counts on neither side of the accuracy. **Nothing ever demotes you.**
+Changing `level_up_after` also scales the distinct-concept minimum to `max(1, min(15, ceil(level_up_after / 3)))`. Promotion starts a new answer count for the next band. Eklavya never demotes you automatically.
 
 ### Why it is per project
 
-"How hard should this be" is a question about a codebase, not about a person. The same developer is a different learner on their fourth Node service and their first Rust one — so a new repository starts at `easy` even when three others are on `hard`.
+A new codebase starts easy even if another is already hard. Worktrees contribute to the main checkout's level, settings and progress. Two separate clones are separate projects because they have different paths.
 
-A project is the git checkout you are in, resolved to its main one: a [git worktree](https://git-scm.com/docs/git-worktree) is a branch of the same codebase, so its answers, level and progress all count towards the repository it was created from rather than starting a fresh `easy` runway per branch. Two separate clones of the same repository are still two projects — they are two places on disk with nothing linking them.
+Concept mastery is shared across projects; the level measures your readiness to handle harder questions in this particular codebase.
 
 ### Pinning a level
 
-```text
-eklavya config set difficulty hard          # skip the runway, for you
-eklavya config set difficulty easy --project  # keep one codebase gentle for you
+```text title="In Claude Code"
+/eklavya:level
+/eklavya:level medium
+/eklavya:level auto
 ```
 
-A pin is a hard set, not a floor: while it stands, nothing promotes. `auto` hands control back to the evidence, and the project's own record resumes where it left off. `/eklavya:level` shows where you are and how far into the band.
+```bash title="In a terminal"
+eklavya config set difficulty easy --project
+```
+
+A pin selects the band and stops promotion. `auto` resumes from the project's existing earned level. `/eklavya:level` shows your standing, the remaining promotion conditions, or the file responsible for a pin.

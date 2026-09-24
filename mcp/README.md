@@ -1,27 +1,29 @@
-# eklavya
+# Eklavya
 
-[Eklavya](https://github.com/ProjectAJ14/eklavya) — learn while your agent works. This package is
-the whole thing: the installer, the MCP server, the CLI, and the Claude Code plugin it installs.
+[Eklavya](https://github.com/ProjectAJ14/eklavya) teaches the concepts behind
+agent-written code and keeps local project memory. This package includes the
+Claude Code plugin, installer, CLI and MCP server.
 
-## Install
+## Install in Claude Code
+
+With Node 22 or newer:
 
 ```bash
 npx eklavya install
 ```
 
-That checks your Node version, installs the runtime and its SQLite driver, registers the plugin
-with Claude Code and enables it, installs the chat skill into `~/.claude/skills/`, and creates the
-database. Restart Claude Code afterwards, then run `/eklavya:setup` to pick a mode. Re-running it
-is how you upgrade; `npx eklavya uninstall` removes it and keeps your history unless you pass
+Follow the settings prompts, then restart Claude Code. The installer registers
+the plugin, installs the managed runtime and chat/artifact skills, and prepares
+local storage. `/eklavya:setup` lets you revisit settings.
+
+Read the [installation guide](https://eklavya-run.web.app/docs/installing/) for
+verification and [updates and removal](https://eklavya-run.web.app/docs/updates/)
+for maintenance. Uninstall preserves learner data unless you explicitly use
 `--purge`.
 
-Requires **Node 22+** — below that the SQLite driver has no prebuilt binary and would need a C++
-toolchain to compile.
+## Standalone MCP connection
 
-## As a standalone MCP server
-
-The server runs on its own, so any MCP client can use it — this is what makes Eklavya
-editor-agnostic.
+An MCP client can connect directly:
 
 ```json
 {
@@ -31,41 +33,45 @@ editor-agnostic.
 }
 ```
 
-> Renamed from `eklavya-mcp` after 1.7.0, and the separate `eklavya-mcp` binary folded into
-> `eklavya serve` at the same time — one package, one command. The old package still exists on
-> npm so older installs keep resolving, but it is no longer updated.
+This exposes tools. Automatic capture, checkpoints and session instructions
+depend on host integration; an MCP connection alone does not provide Claude
+Code's learning loop.
 
-State lives in `~/.eklavya/knowledge.db` (SQLite, WAL). Override with `EKLAVYA_HOME` or `EKLAVYA_DB`.
+## Available tools
 
-## Tools
-
-| Tool | Purpose |
+| Purpose | Tools |
 |---|---|
-| `get_learner_profile` | what the developer already knows; call before teaching |
-| `log_session_concepts` | record what the current task exercises, with code context |
-| `get_session_quiz_plan` | what to ask, and at which difficulty tier |
-| `record_attempt` | grade 0–5, update mastery and the review schedule |
-| `get_gate_status` | whether this session's quiz gate has passed |
-| `upsert_concepts` | grow the graph, with slug normalization and dedupe |
-| `get_concept_graph` | a domain in prerequisite order |
-| `get_config` / `set_config` | global and per-repo settings |
+| Learner state and concepts | `get_learner_profile`, `log_session_concepts`, `upsert_concepts`, `get_concept_graph` |
+| Questions and assessment | `get_session_quiz_plan`, `record_attempt`, `get_gate_status` |
+| Settings | `get_config`, `set_config` |
+| Find and read memory | `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` |
+| Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |
+| Inspect code | `code_outline`, `code_find_symbol` |
 
-`session_id` is optional on every tool — the server resolves the current session itself.
+Search first, choose relevant entries, then use `memory_get` for their full
+content. Session-aware learning and configuration tools resolve the current session
+when `session_id` is omitted. In `memory_timeline`, it instead filters results
+to one session; omission shows the project timeline. Other tools may not accept
+that argument.
 
-## CLI
+## CLI and data
 
 ```bash
-eklavya install                     # install into Claude Code, runtime included
-eklavya uninstall [--purge]         # remove it; --purge also deletes your history
-eklavya doctor                      # check the install
-eklavya config get
-eklavya config set quiz.enforced true [--project]  # gate commits on one codebase
-eklavya config set focus concept              # what it teaches
-eklavya config set focus learn --topic caching
-eklavya export-rules --out rules.md              # the tutor pedagogy as Markdown
-eklavya dashboard [--port <n>] [--no-open]       # your learning history, served locally and opened
-                                                 # in your browser (--no-open just prints the URL)
-eklavya db-path
+npx eklavya doctor
+npx eklavya memory status
+npx eklavya config get
+npx eklavya dashboard
+npx eklavya db-path
 ```
+
+The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
+flags. [Configuration](https://eklavya-run.web.app/docs/configuration/) lists
+defaults and scopes. The [memory guide](https://eklavya-run.web.app/docs/memory/)
+covers retrieval, processing, providers, privacy and sync.
+
+State is local under `~/.eklavya/`, including `knowledge.db` (SQLite, WAL).
+`EKLAVYA_HOME` and `EKLAVYA_DB` override those paths. Questions and memory have
+independent switches. External processing is optional and explicitly configured;
+see [your data](https://eklavya-run.web.app/docs/your-data/).
 
 MIT.

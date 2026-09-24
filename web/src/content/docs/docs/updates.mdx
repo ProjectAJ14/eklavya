@@ -1,0 +1,105 @@
+---
+title: "Updates and removal"
+description: "Understand automatic Eklavya updates, update manually, restore installer backups, or uninstall while choosing what happens to your data."
+---
+
+## Automatic updates
+
+Automatic updates are on by default. At most once an hour, a new Claude Code
+session checks npm in the background. If a newer release is available, Eklavya
+updates its runtime, plugin files, chat skills and registration, keeping your
+settings. Your current session continues; the next session loads the new
+version and announces it once.
+
+The global `eklavya` command delegates to the newer runtime when present, so
+you do not need to reinstall the global package for each release. Automatic
+updates write under your home directory and do not require `sudo`.
+
+## Update now or turn updates off
+
+```bash
+eklavya update
+```
+
+To stop automatic checks and runtime catch-up:
+
+```bash
+eklavya config set auto_update false
+```
+
+This setting is global because the machine has one runtime. Manual
+`eklavya update` still works. A completely missing runtime is still bootstrapped
+when the plugin starts; a runtime selected through `EKLAVYA_RUNTIME` is never
+automatically changed.
+
+If Claude Code updates the plugin first, the next session catches the runtime
+up in the background, unless automatic updates are off. Eklavya does not
+downgrade a runtime that is already newer.
+
+## Diagnose an update
+
+```bash
+eklavya doctor
+```
+
+Read the `updates` and `versions` rows. `~/.eklavya/update.log` contains the last
+background run's output. Failed updates produce a session notice until they
+succeed; network failures stay quiet for a week before a notice appears.
+Run `eklavya update` to retry and see the error directly.
+
+Only one runtime installation runs at a time. If you see
+`another Eklavya install is running (pid …)`, wait for that process to finish
+before retrying. See [Troubleshooting](/docs/troubleshooting/#installation-and-updates)
+for other repairs.
+
+## Installer safety and backups
+
+You can repeat `eklavya install` to repair the install. Existing settings and
+learning history are preserved. Use `eklavya install --settings` only when you
+want to revisit the settings walk.
+
+Before changing a shared JSON file, Eklavya saves one `.eklavya-bak` copy beside
+it. This applies to Claude Code's `settings.json`, `plugins/known_marketplaces.json`,
+`plugins/installed_plugins.json`, and Eklavya's configuration files. The backup
+holds the contents before the last command that changed the file.
+
+For example, on macOS or Linux, restore Claude Code settings with:
+
+```bash
+mv ~/.claude/settings.json.eklavya-bak ~/.claude/settings.json
+```
+
+If a required JSON file is invalid, the installer names it and stops before
+changing it. Fix the named file and retry. Uninstall and configuration writes
+also refuse to overwrite invalid JSON.
+
+## Uninstalling
+
+Remove the Claude Code plugin and both user chat skills while keeping your
+learning history:
+
+```bash
+npx eklavya uninstall
+```
+
+Restart Claude Code to unload it. Reinstalling later reuses the saved database.
+The global npm command, if you installed it, can be removed separately with
+`npm uninstall -g eklavya`.
+
+:::caution[Delete saved data only if you intend to]
+`npx eklavya uninstall --purge` also deletes `~/.eklavya`, including learning
+history, memory, settings and artifacts. Back up anything you want to keep
+first; see [Your data](/docs/your-data/).
+:::
+
+Some integrations need separate removal:
+
+- **Project-scoped plugins:** uninstall lists those that remain. Remove each
+  through `/plugin` in its project. Shared plugin files and runtime are kept
+  while they are still needed. `--purge` removes the runtime anyway (the plugin
+  files stay), so those projects need `eklavya install` again.
+- **Git hooks:** uninstall reports a hook in the current repository and prints
+  its removal command. Follow it, and repeat for any other repository where
+  you enabled the gate. See [The commit gate](/docs/commit-gate/).
+- **Cowork:** remove its copy through **Customize → Plugins → Eklavya →
+  Uninstall** in Claude Desktop.
