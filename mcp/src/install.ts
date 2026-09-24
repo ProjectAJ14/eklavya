@@ -305,15 +305,24 @@ function git(dir: string, args: string[]) {
  */
 type CheckoutResult = 'updated' | 'current' | 'dirty' | 'failed';
 
-function updateCheckout(dir: string): CheckoutResult {
+async function updateCheckout(dir: string): Promise<CheckoutResult> {
   const head = () => git(dir, ['rev-parse', 'HEAD']).stdout?.trim() ?? '';
   const before = head();
   if (!before) return 'failed';
   if (git(dir, ['status', '--porcelain']).stdout?.trim()) return 'dirty';
-  const pull = git(dir, ['pull', '--ff-only', '--quiet']);
+  // The one step here that waits on the network, so it runs async under a spinner.
+  const pull = await spin('plugin', 'pulling the git checkout…', () =>
+    new Promise<{ status: number | null; stderr: string }>((resolve) => {
+      let stderr = '';
+      const child = spawn('git', ['pull', '--ff-only', '--quiet'], { cwd: dir, stdio: ['ignore', 'ignore', 'pipe'] });
+      child.stderr.on('data', (d) => (stderr += d));
+      child.once('error', (err) => resolve({ status: null, stderr: `${stderr}${err.message}\n` }));
+      child.once('close', (status) => resolve({ status, stderr }));
+    }),
+  );
   if (pull.status !== 0) {
     // git's own reason, or "could not pull" is a support ticket with no clue in it.
-    const why = (pull.stderr ?? '').trim();
+    const why = pull.stderr.trim();
     if (why) process.stderr.write(`${why}\n`);
     return 'failed';
   }
@@ -322,7 +331,7 @@ function updateCheckout(dir: string): CheckoutResult {
 
 type PayloadResult = 'copied' | CheckoutResult;
 
-function copyPayload(): PayloadResult {
+async function copyPayload(): Promise<PayloadResult> {
   const from = payloadDir();
   if (!fs.existsSync(from)) {
     process.stderr.write(
@@ -993,7 +1002,7 @@ async function installSteps(args: string[]): Promise<void> {
     check('ok', 'runtime', runtimeHome());
   }
 
-  const payload = copyPayload();
+  const payload = await copyPayload();
   const notes: Record<PayloadResult, string> = {
     copied: '',
     updated: 'git checkout — pulled',
