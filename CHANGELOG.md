@@ -1,3 +1,21 @@
+# [1.27.0](https://github.com/ProjectAJ14/eklavya/compare/v1.26.0...v1.27.0) (2026-09-24)
+
+
+### Bug Fixes
+
+* address review findings on prune, SessionStart and install ([63fa338](https://github.com/ProjectAJ14/eklavya/commit/63fa3380844c2f237b8fa6cb268e07d4419b2db8))
+* **artifacts:** review fixes, and stop git maintenance racing test cleanup ([839da85](https://github.com/ProjectAJ14/eklavya/commit/839da85d1faaf02cf9a8abc96300b1f29ac14251))
+* **hooks:** close a short prior session at SessionStart ([0c29deb](https://github.com/ProjectAJ14/eklavya/commit/0c29debe8ea3b3d6d5be8ba1f8009107b330cca6))
+* **memory:** give each worker generation its own token ([6d5ed27](https://github.com/ProjectAJ14/eklavya/commit/6d5ed27d5d2c7814e7ba375697e2062b18306037))
+* **memory:** index event_id on links and candidates ([f5ee5ec](https://github.com/ProjectAJ14/eklavya/commit/f5ee5eca452a99531263901c78ecd6c70ee534df))
+* **memory:** scope retention sweeps to one project ([1de1070](https://github.com/ProjectAJ14/eklavya/commit/1de1070baeb0d61e2bdf1a9562f78c3b60a2a2de))
+* **runtime:** one install lock; launcher honours auto_update ([dd5dbaa](https://github.com/ProjectAJ14/eklavya/commit/dd5dbaac05675e9d24f4d1e9784338735d3d8600))
+
+
+### Features
+
+* **artifacts:** Eklavya artifacts, an Artifacts dashboard, and explain_on_wrong ([1304f50](https://github.com/ProjectAJ14/eklavya/commit/1304f5023e95dfab7bb30845340c5c6ddebf3547))
+
 # [1.26.0](https://github.com/ProjectAJ14/eklavya/compare/v1.25.3...v1.26.0) (2026-09-23)
 
 
