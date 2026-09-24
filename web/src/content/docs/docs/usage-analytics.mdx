@@ -1,0 +1,35 @@
+---
+title: "Usage analytics"
+description: "See exactly what this website counts with Google Analytics, what it never collects, and how to allow or decline it at any time."
+sidebar:
+  order: 14
+---
+
+This website asks before it counts anything. Until you choose **Allow analytics** in the banner, no Google script loads, no cookie is set and no analytics request is made. Choosing **Decline** keeps it that way.
+
+This page covers the website only. The Eklavya tool you install sends no usage data; [Your data](/docs/your-data/) lists every network request it can make.
+
+## What the website counts
+
+With your permission, the landing page and this manual send these events to Google Analytics 4:
+
+| Event | Sent when | Fields |
+|---|---|---|
+| `page_view` | a page loads | page address, title, referrer |
+| `section_view` | a landing-page section scrolls into view, once per visit | section name, such as `dials` or `commands` |
+| `copy_command` | you press **Copy** on a shell command | `landing` or `docs` |
+| `scroll_depth` | you scroll past 25, 50, 75 or 100% of a manual page, once each | the percentage |
+| `search` | you pause while typing in the manual's search box | the search text, at most 100 characters |
+| outbound click | you follow a link to another site | the link address |
+
+Google Analytics also records what every GA4 site records: an anonymous visitor ID in a first-party cookie (`_ga`), approximate location, browser, device type and screen size. Google Analytics 4 does not log or store IP addresses.
+
+## What it never collects
+
+No account, name or email: the site has no sign-in. It records no form input apart from the search box, and nothing from the Eklavya tool or your projects.
+
+## Change your choice
+
+<button type="button" data-analytics-choice>Change analytics choice</button>
+
+The same control is at the foot of the landing page. Declining after you allowed analytics deletes the `_ga` cookies and reloads the page without the Google script. The choice is stored in your browser as `eklavya-analytics`, so clearing site data brings the banner back.

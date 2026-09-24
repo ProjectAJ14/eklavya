@@ -42,4 +42,5 @@ const props = {
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
 <link rel="manifest" href="/site.webmanifest" />
+<script is:inline src="/analytics.js?v=2" defer></script>
 {!is404 && <script type="application/ld+json" set:html={jsonLd(structuredData({ title, description, path, docs: true }))} />}

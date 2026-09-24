@@ -87,6 +87,7 @@ export default defineConfig({
             { slug: 'docs/how-it-works' },
             { slug: 'docs/grading-engine' },
             { slug: 'docs/your-data' },
+            { slug: 'docs/usage-analytics' },
           ],
         },
         {
