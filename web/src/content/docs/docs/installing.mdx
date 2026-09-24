@@ -98,6 +98,14 @@ This checks the runtime, database driver, plugin registration, settings and
 other dependencies. In Claude Code, `/plugin` should also list Eklavya without
 errors. A new session shows a short Eklavya banner unless `quiet` is enabled.
 
+:::note[Analytics]
+Eklavya sends anonymous daily usage counts, such as how many questions were
+asked and which settings are on. They are linked to a random install ID, not to
+you, and never include code, paths, names, questions, answers or memory.
+[Usage analytics](/docs/usage-analytics/) lists every field. Turn it off with
+`eklavya telemetry off`.
+:::
+
 If something is missing, see [Troubleshooting](/docs/troubleshooting/).
 Otherwise, continue to [Your first session](/docs/first-session/).
 [`/eklavya:setup`](/docs/first-run/) is an optional guided check inside Claude.

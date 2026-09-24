@@ -42,6 +42,7 @@ that implements it. Existing prose and recalled memory are not evidence.
 | Hook timing, question planning or grading | Manual `first-session`, `how-it-works`, `grading-engine`, `levels-and-tiers`; hook and tutor guidance |
 | Commit gating | Manual `commit-gate`; `cli/CLAUDE.md`; setup skill and contributor acceptance checks |
 | Memory, providers, privacy or storage | Manual `memory`, `your-data`, `migrating`, `configuration`, `faq` |
+| Usage ping fields, counters or website analytics | Manual `usage-analytics`, `your-data`, `faq`; `user-skill/eklavya/SKILL.md` |
 | Packs, seeds or concept graph | Manual `packs`; command reference and relevant skills; recount any published totals |
 | Dashboard or explainer pages | Manual `dashboard`, `commands`, `configuration`; artifact skill and explainer agent |
 | Delegation or host hook contracts | `docs/parallel-tutoring.md`, `docs/subagent-policy.md`, `docs/verified-schemas.md` |

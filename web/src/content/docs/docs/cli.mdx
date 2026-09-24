@@ -22,6 +22,7 @@ eklavya doctor
 | `eklavya doctor` | Checks installation and memory health, reports repairs and applies concept packs. See [diagnostics below](#what-doctor-looks-like). |
 | `eklavya serve` | Runs the MCP server over standard input/output. Claude Code starts this automatically. |
 | `eklavya db-path` | Prints the active database path. |
+| `eklavya telemetry [status\|on\|off\|show]` | The anonymous daily usage counts. `status` (the default) says whether they are sent and why; `on` and `off` set `telemetry` in your global config; `show` prints the exact next ping. See [Usage analytics](/docs/usage-analytics/). |
 | `eklavya export-rules [--out <file>]` | Exports the complete tutor text as a Markdown rules file, or prints it without `--out`. This exports instructions only; it does not install another editor's hooks or the automatic learning loop. |
 
 `install --auto` is used internally by the updater: it skips the runtime installation step and interactive questions. Normal installs repair missing files without resetting history.
@@ -132,7 +133,7 @@ Run this when Eklavya is unexpectedly quiet:
 eklavya doctor
 ```
 
-The report checks the runtime, SQLite driver, plugin registration, both chat skills, update status, version alignment, configuration, database, concept packs, project level, memory queue and gate dependencies. Marks distinguish healthy (`▣`), warning (`!`), skipped (`◌`) and failed (`▤`) checks, including without colour.
+The report checks the runtime, SQLite driver, plugin registration, both chat skills, update status, usage ping, version alignment, configuration, database, concept packs, project level, memory queue and gate dependencies. Marks distinguish healthy (`▣`), warning (`!`), skipped (`◌`) and failed (`▤`) checks, including without colour.
 
 | Finding | Repair |
 | --- | --- |

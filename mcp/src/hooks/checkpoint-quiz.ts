@@ -42,6 +42,7 @@
 import { attributionRule } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
 import { isSessionOff } from '../session.js';
+import { countUse } from '../telemetry.js';
 
 await run(async (input) => {
   // Fast path. `agent_id` is present only inside a subagent, and a subagent
@@ -176,6 +177,7 @@ If they pick Other or say skip, record it as grade 0, teach the answer in two li
   // agent just stopped to ask them something. `systemMessage` is a top-level
   // field: it sat inside `hookSpecificOutput` for months, where the harness drops
   // it, so the developer never saw that line at all.
+  countUse(db, 'quiz:checkpoint');
   process.stdout.write(
     `${JSON.stringify({
       systemMessage: 'Eklavya: quick question on what you just built',

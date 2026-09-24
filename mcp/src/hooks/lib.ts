@@ -253,6 +253,14 @@ export async function run(body: (input: HookInput) => Promise<number | void>): P
     code = (await body(input)) ?? 0;
   } catch {
     code = 0;
+    // Failing open hides the failure from the developer, on purpose; this is
+    // the one place it is still counted, by hook name only.
+    try {
+      const hook = (process.argv[1] ?? '').split(/[\\/]/).pop()?.replace(/\.js$/, '') ?? '';
+      if (/^[a-z-]{1,40}$/.test(hook)) (await import('../telemetry.js')).countCommand(`hook_error:${hook}`);
+    } catch {
+      /* uncounted */
+    }
   }
   process.exit(code);
 }

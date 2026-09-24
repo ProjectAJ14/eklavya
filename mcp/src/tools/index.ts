@@ -21,6 +21,7 @@ import {
   memoryTimeline,
 } from './memory_read_tools.js';
 import { memoryCorrect, memoryDelete, memoryWrite } from './memory_write_tools.js';
+import { countUse } from '../telemetry.js';
 
 export const TOOLS: ToolDef[] = [
   getLearnerProfile,
@@ -60,6 +61,7 @@ export function registerTools(server: McpServer, db: DB): void {
       async (args: unknown) => {
         try {
           // Safe to retry: a busy transaction has already rolled back.
+          countUse(db, `tool:${tool.name}`);
           return toResult(retryOnBusy(() => tool.handler(args, { db })));
         } catch (err) {
           // A tool throwing must not take the server down mid-session.

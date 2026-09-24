@@ -28,7 +28,9 @@ happened in your project.
 
 Eklavya stores its learning history locally. Default memory processing runs on
 your machine; recalled history becomes context for Claude. No separate Eklavya
-account or telemetry.
+account. It sends anonymous daily usage counts, never code, paths, names or
+text; [every field is listed](https://eklavya-run.web.app/docs/usage-analytics/),
+and `eklavya telemetry off` stops them.
 
 ## Install
 

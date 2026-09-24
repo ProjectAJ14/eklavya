@@ -15,6 +15,7 @@ import { savingsLine } from '../memory/tokens.js';
 import { dialParts, paint } from '../statusline.js';
 import { DEFAULT_PORT } from '../paths.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
+import { startBackgroundTelemetry } from '../telemetry.js';
 import net from 'node:net';
 
 /**
@@ -60,6 +61,7 @@ await run(async (input) => {
     /* no line is fine */
   }
   startBackgroundUpdate();
+  startBackgroundTelemetry();
 
   // Lift a leftover `<repo>/.eklavya.json` out of the checkout, silently. This
   // is the moment that makes the move automatic: settings files stopped living
