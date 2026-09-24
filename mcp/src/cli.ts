@@ -88,8 +88,8 @@ Memory:
   eklavya memory stop                   Stop the running memory worker and its claude call; the job goes back
                                         to the queue. Signals only processes Eklavya recorded starting
   eklavya memory backlog [quarantine|discard|restore]
-                                        List unfinished jobs by project, marking observer helper sessions;
-                                        or set aside, delete or bring back the ones you select with
+                                        List unfinished jobs by project, and observer helper sessions in any
+                                        state; or set aside, delete or bring back the ones you select with
                                         --helpers, --project <key>, --session <id> or --batch <id>
   eklavya memory prune                  Delete this project's raw evidence past its memory.retention_days
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--verify] [--resume]
