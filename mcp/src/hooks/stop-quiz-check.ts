@@ -315,7 +315,7 @@ await run(async (input) => {
     : `Eklavya: quiz the developer on what this task taught. ${ask}`;
   const context = `${what}
 Concepts: ${concepts}
-get_session_quiz_plan, then AskUserQuestion, then record_attempt (format "mcq", labels in "options", stem alone in "question"). The plan's framing, ask_attribution, answer_position and tier_to_ask are the rules — follow them. ${tone}`;
+get_session_quiz_plan, then AskUserQuestion, then record_attempt (format "mcq", labels in "options", stem alone in "question"), then tell them whether they were right before anything else. The plan's framing, ask_attribution, answer_position and tier_to_ask are the rules — follow them. ${tone}`;
 
   // exit 0 + JSON, not exit 2 + stderr. Both continue the turn and both pass
   // through the same loop protections; only one of them tells the developer

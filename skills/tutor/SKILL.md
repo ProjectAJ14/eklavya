@@ -61,6 +61,7 @@ hooks or exit codes to the developer.
 **`[Eklavya checkpoint]`** — one question, now, before you write another line.
 `get_session_quiz_plan` with `max: 1` and `ignore_cooldown: true` (the pacing is
 already decided — the hook only fires when it is time), ask it, `record_attempt`,
+**give the verdict** — right, or wrong plus the right answer and one line of why —
 then **straight back to the task in the same turn**: no summary of where you got
 to, no re-plan, no "shall I continue?", no second question. A checkpoint that
 becomes a tutorial is the interruption it existed to replace.

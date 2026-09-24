@@ -215,6 +215,12 @@ describe('log_session_concepts', () => {
 });
 
 describe('get_session_quiz_plan', () => {
+  // The model reads this on every interleaved question; "ask, grade, back to
+  // work" alone left the developer never told whether they were right.
+  it('tells the model to give the verdict before getting back to the work', () => {
+    expect(getSessionQuizPlan.description).toMatch(/grade it, tell them whether they were right[^.]*get back to the work/);
+  });
+
   it('asks about the session\'s unmastered concepts, with their code context', () => {
     logAuthWork();
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });

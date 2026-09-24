@@ -55,6 +55,10 @@ If they answer and get it wrong, do not immediately give the answer. Ask one
 narrower question that isolates the gap. If they miss that too, teach it as
 below.
 
+**Always say whether they were right first.** At an `[Eklavya checkpoint]`
+there is no narrower question — the checkpoint is one question — so a miss
+gets the right answer and one line of why, then the task resumes.
+
 ## When they say "I don't know"
 
 **This is the most important thing in this skill.** A blank is not a skip. A

@@ -362,6 +362,10 @@ describe('SessionStart output', () => {
     expect(res.context).not.toMatch(/^Eklavya active|^Learning \d|Your savings:|from memory reuse/m);
   });
 
+  it('tells the model a checkpoint answer always gets a verdict', () => {
+    expect(sessionStart().context).toMatch(/always tell them whether\s+they were right/);
+  });
+
   it('tells the model to log concepts on a fresh install, where nothing else will', () => {
     const res = sessionStart();
     expect(res.context).toMatch(/Standing instruction/);
@@ -904,6 +908,13 @@ describe('Signing the question for the host it is running on', () => {
     }
   });
 
+  it('tells the Stop sweep to say whether the answer was right', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
+    logConcepts(['csrf']);
+    const ctx = stopOn(terminal).context;
+    expect(ctx).toMatch(/record_attempt[^.]*then tell them whether they were right/);
+  });
+
   it('does the same at the mid-work checkpoint', () => {
     configure({ min_minutes_between_checkpoints: 0 });
     logConcepts(['csrf']);
@@ -948,6 +959,22 @@ describe('PostToolUse checkpoint — asking while the agent still works', () => 
     expect(ctx).toMatch(/ignore_cooldown/);
     expect(ctx).toMatch(/ONE question/);
     expect(ctx).toMatch(/Resume the task/);
+  });
+
+  // Grade-then-resume with no word to the developer left them never knowing
+  // whether they were right. The verdict must sit after grading and before the
+  // resume, or "resume exactly where you left off" swallows it again.
+  it('tells the model to give the verdict between grading and resuming', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    logConcepts(['csrf']);
+
+    const ctx = checkpointContext(checkpoint())!;
+    const grade = ctx.indexOf('record_attempt');
+    const verdict = ctx.search(/verdict: right, or wrong and what the right answer is/);
+    const resume = ctx.indexOf('Resume the task');
+    expect(grade).toBeGreaterThan(-1);
+    expect(verdict).toBeGreaterThan(grade);
+    expect(resume).toBeGreaterThan(verdict);
   });
 
   it('exits 0 with valid JSON, never exit 2 — nothing here is an error to prevent', () => {
