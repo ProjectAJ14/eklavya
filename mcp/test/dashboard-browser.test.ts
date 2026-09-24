@@ -202,6 +202,25 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
+    it('folds secondary detail, draws a hidden chart on open and remembers it', async () => {
+      const w = await open('#/learning/dashboard');
+      // The page leads with its answer: explanation and secondary cards are closed.
+      expect(await w.page.getAttribute('#view details.about', 'open')).toBeNull();
+      const heat = w.page.locator('details[data-fold="learn:heat"]');
+      expect(await heat.getAttribute('open')).toBeNull();
+      // A chart inside a closed fold has no width to measure, so it waits.
+      expect(await w.page.$eval('#c-heat', (s) => s.childElementCount)).toBe(0);
+      await heat.locator('summary').focus();
+      await w.page.keyboard.press('Enter');
+      await w.page.waitForFunction(() => document.getElementById('c-heat')!.childElementCount > 0);
+      // Opened once, it stays open across a reload and a re-render.
+      await w.page.reload(); await ready(w.page);
+      expect(await heat.getAttribute('open')).not.toBeNull();
+      expect(await w.page.$eval('#c-heat', (s) => s.childElementCount)).toBeGreaterThan(0);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
     it('carries the query and decodes encoded identifiers', async () => {
       const id = fx.repo.mixed;
       const w = await open(`#/concepts/due?project=${enc(id)}`);

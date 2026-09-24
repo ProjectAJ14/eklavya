@@ -192,7 +192,7 @@ cell fixed), `chartForecast` (14 days plus one overdue column), `chartGrades`
 ## Tables, paging and filters
 
 `table(cols, rows)`, `pager(key, total, page, per)`, `page(key, total, per)`,
-`slice(arr, p, per)`. `PER` is 20; question histories page at 5. `page()` clamps a
+`slice(arr, p, per)`. `PER` is 20; a concept's question history pages at 10. `page()` clamps a
 stored page number to a list that shrank under a filter — always route through it
 rather than reading `T[key].page` directly.
 
@@ -203,6 +203,35 @@ Search text and sort order stay in `T`: they are typing, not destinations.
 
 The search box re-renders on every keystroke, so `render({id:'q', pos})` restores
 focus and caret. Any future text input needs the same.
+
+## Progressive disclosure: what a page shows first
+
+The timeline set the rule and every page follows it: **the answer first, one
+line per item, detail one click away.** A page is, in order:
+
+1. `pageHead(title, counts, about, back)` — the title, one mono line of counts
+   (`.counts`, joined with ` · `), and the page's explanation folded under a
+   "How this works" `<details class="about">`. Arithmetic the honesty rules
+   require is said there, not in a paragraph above the fold.
+2. At most four `tiles()` — only numbers the reader acts on. A total that is
+   context, not a decision, belongs in the counts line.
+3. `nextStep(html, ok)` — the one thing waiting on the reader (due reviews, a
+   stalled job), or nothing. Never a banner per fact.
+4. The lists. `lines(items)` for short lists (`{ t, s, v, go }`: title, quiet
+   mono second line, one value); `table()` for paged ones, at most four or five
+   columns — secondary fields go in the row's second line. A question answered
+   is `qaLine(a, lead)`, a `<details>` that opens to its options and feedback.
+5. `fold(id, title, peek, body, { open, hint })` — secondary cards (calendars,
+   grade history, settings, audit detail) as a closed `<details class="card fold">`.
+   The `peek` is what the closed summary still answers: a count or a verdict.
+
+Folds remember being opened or closed in `localStorage` under
+`eklavya-dash-folds`, keyed by `id` (`<page>:<what>`, stable across renders);
+storage that throws means the defaults. A `chart()` whose element is inside a
+closed `<details>` has no width to measure, so it waits in `LAZY` and the
+capture-phase `toggle` listener on `#view` draws it when its fold opens. All
+helpers take HTML the caller already escaped — `esc()` at the call site, as
+everywhere else.
 
 ## The interaction contract
 

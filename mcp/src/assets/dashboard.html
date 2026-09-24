@@ -185,7 +185,7 @@
   .head h2 { font-size:var(--text-md); font-weight:var(--weight-bold); letter-spacing:-.01em; margin:0; }
   .head p { color:var(--faint); font-size:13.5px; margin:2px 0 0; max-width:78ch; overflow-wrap:anywhere; }
   .head--row { display:flex; align-items:flex-end; gap:var(--space-4); flex-wrap:wrap; }
-  .head--row > :first-child { flex:1 1 320px; }
+  .head--row > :first-child { flex:1 1 180px; }
 
   .g2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-6); }
   .g3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-6); }
@@ -429,6 +429,64 @@
   .banner p { margin:0; color:var(--dim); font-size:13.5px; }
   .banner code { background:var(--mass); padding:2px 6px; font-size:12.5px; color:var(--ink); }
 
+  /* ---------- progressive disclosure ----------
+     The timeline's rule, applied to every page: the answer first, one line per
+     item, and detail one click away. A page opens with its title, one mono line
+     of counts, the action that is waiting (if any) and the lists; explanations
+     and secondary cards are folded and remembered open once the reader opens
+     them. Every fold is a native <details>: keyboard-operable, no JS to open. */
+  .about { margin-top:var(--space-2); }
+  .about > summary, .fold > summary { list-style:none; cursor:pointer; }
+  .about > summary::-webkit-details-marker, .fold > summary::-webkit-details-marker { display:none; }
+  .about > summary { display:inline-flex; align-items:center; gap:var(--space-2); min-height:32px;
+                     font-family:var(--font-mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+  .about > summary:hover { color:var(--spot); }
+  .about > summary::before, .fold > summary::before { content:'▸'; color:var(--faint); flex:none; }
+  .about[open] > summary::before, .fold[open] > summary::before { content:'▾'; color:var(--spot); }
+  .about > summary:focus-visible, .fold > summary:focus-visible { outline:none; box-shadow:var(--ring); }
+  .about p { margin:var(--space-2) 0 0; color:var(--dim); font-size:13.5px; max-width:72ch; }
+  .fold { padding:0; }
+  /* Consecutive folds read as one list, not a column of separate cards. */
+  .stack > .fold + .fold { margin-top:var(--space-2); }
+  .fold > summary { display:flex; align-items:center; gap:var(--space-3); min-height:56px; padding:var(--space-4) var(--space-6); }
+  .fold > summary:hover { background:var(--mass); }
+  .fold > summary h2 { margin:0; font-size:var(--text-md); font-weight:var(--weight-bold); letter-spacing:-.01em; }
+  .fold > summary .fold__peek { margin-left:auto; font-family:var(--font-mono); font-size:12px; color:var(--faint);
+                                text-align:right; overflow-wrap:anywhere; }
+  .fold > summary .fold__peek.warn { color:var(--warning); }
+  .fold__body { padding:0 var(--space-6) var(--space-6); }
+  .fold__body > .hint { color:var(--faint); font-size:13.5px; margin:0 0 var(--space-4); max-width:78ch; overflow-wrap:anywhere; }
+
+  /* The one next step, when there is one. Not a banner per fact. */
+  .next { display:flex; align-items:center; gap:var(--space-4); flex-wrap:wrap; padding:var(--space-4) var(--space-5);
+          border:1px solid var(--line-2); border-left:2px solid var(--warning); background:var(--panel); }
+  .next p { margin:0; flex:1 1 280px; color:var(--dim); font-size:13.5px; }
+  .next p strong { color:var(--ink); }
+  .next code { background:var(--mass); padding:2px 6px; font-size:12.5px; color:var(--ink); }
+  .next.ok { border-left-color:var(--spot); }
+
+  /* One line per item: a name, a quiet second line, and one number on the right. */
+  .lines { list-style:none; margin:0; padding:0; }
+  .lines > li { display:flex; align-items:center; gap:var(--space-4); min-height:48px; padding:var(--space-2) var(--space-2);
+                margin:0 calc(-1 * var(--space-2)); border-bottom:1px solid var(--line); }
+  .lines > li:last-child { border-bottom:none; }
+  .lines > li[data-go] { cursor:pointer; }
+  .lines > li[data-go]:hover { background:var(--mass); }
+  .lines > li[data-go]:focus-visible { outline:none; box-shadow:var(--ring); }
+  .lines .ln__main { flex:1; min-width:0; }
+  .lines .ln__t { display:block; color:var(--ink); font-weight:var(--weight-medium); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lines .ln__s { display:block; font-family:var(--font-mono); font-size:11.5px; color:var(--faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lines .ln__v { flex:none; text-align:right; font-family:var(--font-mono); font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums; }
+  .lines .ln__v .meter { width:88px; margin-top:4px; }
+  .more { margin:var(--space-4) 0 0; font-size:13.5px; }
+
+  /* A question answered: one line — concept, grade, the question — and it opens
+     to the options and the feedback. */
+  details.qa > summary { display:flex; align-items:center; gap:var(--space-3); flex-wrap:wrap; }
+  details.qa > summary .qa__line { flex:1 1 240px; min-width:0; font-family:var(--font-body); font-size:13.5px; color:var(--ink);
+                                   letter-spacing:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  details.qa[open] > summary .qa__line { white-space:normal; }
+
   @media (max-width:1080px) {
     .g3 { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
@@ -472,6 +530,11 @@
     .stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); }
     .tile strong { font-size:var(--text-xl); }
     .card { padding:var(--space-5) var(--space-4); }
+    .fold { padding:0; }
+    .fold > summary { padding:var(--space-3) var(--space-4); flex-wrap:wrap; }
+    .fold > summary .fold__peek { margin-left:0; flex-basis:100%; text-align:left; padding-left:var(--space-5); }
+    .fold__body { padding:0 var(--space-4) var(--space-5); }
+    .lines .ln__v .meter { width:56px; }
     .page__title { font-size:var(--text-xl); }
   }
   @media (prefers-reduced-motion:reduce) {
@@ -798,6 +861,81 @@ function card(title, hint, body, opts = {}) {
   return `<section class="card">${head}${body}</section>`;
 }
 
+/* ---------- progressive disclosure ---------- */
+
+/**
+ * Which folds the reader opened or closed, by id, so a page they come back to
+ * — or one re-rendered by a resize or a ground switch — keeps the detail they
+ * asked for. Per-viewer convenience only: storage that throws means defaults.
+ */
+const FOLD_KEY = 'eklavya-dash-folds';
+let FOLD = {};
+try {
+  const v = JSON.parse(localStorage.getItem(FOLD_KEY) || '{}');
+  if (v && typeof v === 'object' && !Array.isArray(v)) FOLD = v;
+} catch (e) { FOLD = {}; }
+const isOpen = (id, dflt) => (typeof FOLD[id] === 'boolean' ? FOLD[id] : dflt);
+const openAttr = (id, dflt) => (isOpen(id, dflt) ? ' open' : '');
+
+/**
+ * A page's head: its title, one mono line of counts, and the explanation of how
+ * the numbers are counted folded under a "How this works" line. `title` and
+ * every count are HTML the caller escaped.
+ */
+function pageHead(title, counts = [], about = '', back = '') {
+  const id = `about:${CUR.wf}:${CUR.page}`;
+  return `<div>${back}<h1 class="page__title">${title}</h1>
+    ${counts.length ? `<p class="counts">${counts.join(' · ')}</p>` : ''}
+    ${about ? `<details class="about" data-fold="${esc(id)}"${openAttr(id, false)}><summary>How this works</summary><p>${about}</p></details>` : ''}</div>`;
+}
+
+/**
+ * A secondary card, folded: the summary line carries the title and a peek at
+ * what is inside (a count, a verdict), so a closed fold still answers
+ * something. A chart inside a closed fold is drawn when it opens.
+ */
+function fold(id, title, peek, body, opts = {}) {
+  return `<details class="card fold" data-fold="${esc(id)}"${openAttr(id, !!opts.open)}>
+    <summary><h2>${esc(title)}</h2>${peek ? `<span class="fold__peek${opts.warn ? ' warn' : ''}">${peek}</span>` : ''}</summary>
+    <div class="fold__body">${opts.hint ? `<p class="hint">${esc(opts.hint)}</p>` : ''}${body}</div></details>`;
+}
+
+/** The one thing waiting on the reader, or nothing. `html` is escaped by the caller. */
+const nextStep = (html, ok) => `<div class="next${ok ? ' ok' : ''}"><p>${html}</p></div>`;
+
+/**
+ * One line per item: `{ t, s, v, go, cls }` — a title, a quiet mono second
+ * line, one value on the right, and where it opens. All HTML the caller escaped.
+ */
+function lines(items, empty = 'Nothing here yet.') {
+  if (!items.length) return `<p class="empty">${empty}</p>`;
+  return `<ul class="lines">` + items.map((x) =>
+    `<li${x.go ? ` data-go="${esc(x.go)}" role="link"` : ''}${x.cls ? ` class="${x.cls}"` : ''}>`
+    + `<div class="ln__main"><span class="ln__t">${x.t}</span>${x.s ? `<span class="ln__s">${x.s}</span>` : ''}</div>`
+    + (x.v != null && x.v !== '' ? `<div class="ln__v">${x.v}</div>` : '') + `</li>`).join('') + `</ul>`;
+}
+
+/**
+ * A question and its answer as one line that opens to the options and the
+ * feedback. `lead` is plain text (a summary holds no links); `linkConcept` puts
+ * the way to the concept's page inside the opened body instead.
+ */
+function qaLine(a, lead, linkConcept = false) {
+  let opts = [];
+  try { opts = a.options ? JSON.parse(a.options) : []; } catch { opts = []; }
+  return `<details class="qa">
+    <summary class="qa__meta">${lead}<span class="qa__line">${esc(a.question)}</span>${gradeBadge(a)}</summary>
+    <div class="qa__meta" style="margin-top:var(--space-3)"><span>${esc(tierLabel(a.tier))}</span>
+      ${a.format ? `<span>${esc(a.format)}</span>` : ''}${a.level ? `<span>${esc(a.level)}</span>` : ''}
+      ${a.repo ? `<span>${esc(pname(a.repo, a.session_id))}</span>` : ''}
+      ${linkConcept ? `<a class="link sp" data-go="${esc(LH('concept', a.slug))}">${esc(a.name)} →</a>` : ''}</div>
+    ${opts.length ? `<ul class="qa__opts">${opts.map((o) =>
+      `<li class="${a.answer && o === a.answer ? 'picked' : ''}">${esc(o)}</li>`).join('')}</ul>` : ''}
+    ${a.answer && !opts.length ? `<p class="qa__a"><b>You said:</b> ${esc(a.answer)}</p>` : ''}
+    ${a.feedback ? `<p class="qa__f">${esc(a.feedback)}</p>` : ''}
+  </details>`;
+}
+
 function table(cols, rows) {
   if (!rows.length) return '<p class="empty">Nothing here yet.</p>';
   return `<div class="scroll"><table><thead><tr>`
@@ -1008,7 +1146,19 @@ function segbar(parts) {
     + `</div>`;
 }
 
-const chart = (id, fn) => { AFTER.push(() => { const el = $(id); if (el) fn(el); }); };
+/**
+ * A chart measures its parent, and a closed <details> has no width — so a
+ * chart inside a closed fold waits in `LAZY` until the fold opens.
+ */
+const LAZY = new Map();
+const chart = (id, fn) => {
+  AFTER.push(() => {
+    const el = $(id);
+    if (!el) return;
+    if (el.closest('details:not([open])')) LAZY.set(id, fn);
+    else fn(el);
+  });
+};
 
 /* ============================================================
    The memory half
@@ -1123,7 +1273,6 @@ function viewLearningDashboard() {
   const last30 = fillDays(daily, 30);
 
   const weakest = seen.filter((c) => !c.mastered).sort((a, b) => a.score - b.score || b.attempts - a.attempts).slice(0, 5);
-  const recentSessions = sess.slice(0, 5);
 
   // Logged is what the work touched; assessed is what a question was actually
   // asked about. They are different claims and the page keeps them apart.
@@ -1136,37 +1285,39 @@ function viewLearningDashboard() {
   chart('c-activity', (el) => chartActivity(el, last30));
   chart('c-heat', (el) => chartHeatmap(el, daily));
 
+  // One next step, the most useful one. Due work outranks an empty scope.
+  const next = due.length
+    ? nextStep(`<strong>${plural(due.length, 'concept')} ${due.length === 1 ? 'is' : 'are'} due.</strong>
+        Run <code>/eklavya:quiz</code> in Claude Code, or open the
+        <a class="link" data-go="${esc(LH('review'))}">review queue</a>.`)
+    : PROJECT !== null && !answered
+      ? nextStep(`<strong>No assessments yet in ${esc(scopeName())}.</strong>
+          ${logged.size ? `${plural(logged.size, 'concept')} recorded from its work will come up in a quiz.` : 'Nothing has been logged here either.'}`, true)
+      : '';
+
   return [
-    `<div>
-       <h1 class="page__title">Am I actually getting better?</h1>
-       <p class="page__sub">${plural(seen.length, 'concept')} asked out of ${S.totals.catalogue} in the graph ·
-         ${plural(answered, 'answer')} · ${plural(sess.length, 'session')} · first answer ${esc(fmtDate(S.totals.first_answer))}.</p>
-     </div>`,
+    pageHead('Am I actually getting better?', [
+      `${plural(seen.length, 'concept')} asked of ${S.totals.catalogue}`,
+      plural(answered, 'answer'),
+      `${logged.size} recorded from your work, ${loggedAsked} assessed`,
+      `since ${esc(fmtDate(S.totals.first_answer))}`,
+      ...(PROJECT === null && unassessed.length
+        ? [`<a class="link" data-go="${esc(LH('projects'))}">${plural(unassessed.length, 'project')} not assessed yet</a>`] : []),
+    ], `A concept is mastered at score 0.7 with two or more passes. Its score decays about 5% a week once a
+       review is overdue, so mastery is kept, not banked. The catalogue is a library, not a to-do list:
+       untouched concepts are not debt. Captured memory is never counted as an answer — only a question you
+       answered moves a score.`),
 
     tiles([
       ['Accuracy', answered ? pct(passed, answered) + '%' : '—', answered ? `${passed} right of ${answered}` : 'No assessments yet', answered && pct(passed, answered) >= 70 ? 'good' : '', LH('sessions')],
-      ['Recorded', logged.size, `concepts your work logged · ${loggedAsked} assessed`, '', LH('sessions')],
       ['Mastered', mastered.length, `of ${seen.length} asked`, mastered.length ? 'good' : '', LH('concepts', 'mastered')],
       ['Due now', due.length, due.length ? 'ready for review' : 'nothing waiting', due.length ? 'warn' : '', LH('review')],
-      ['Streak', st.current ? plural(st.current, 'day') : '—', st.best ? `best ${plural(st.best, 'day')} · ${plural(st.days, 'active day')}` : 'no answers yet'],
+      ['Streak', st.current ? plural(st.current, 'day') : '—', st.best ? `best ${plural(st.best, 'day')}` : 'no answers yet'],
     ]),
 
-    PROJECT !== null && !answered
-      ? `<div class="banner"><p><strong>No assessments yet</strong> in ${esc(scopeName())}.
-          ${logged.size ? `${plural(logged.size, 'concept')} ${logged.size === 1 ? 'was' : 'were'} recorded from its work and will come up in a quiz.` : 'Nothing has been logged here either.'}
-          Captured memory is never counted as an answer.</p></div>`
-      : PROJECT === null && unassessed.length
-        ? `<div class="banner"><p><strong>${plural(unassessed.length, 'project')}</strong> recorded concepts but has no assessments yet:
-            ${unassessed.slice(0, 4).map((p) => `<a class="link" data-go="${esc(LH('projects', null, { project: p.id }))}">${esc(p.name)}</a>`).join(', ')}.</p></div>`
-        : '',
+    next,
 
-    due.length
-      ? `<div class="banner"><p><strong>${plural(due.length, 'concept')}</strong> ${due.length === 1 ? 'is' : 'are'} due.
-          Run <code>/eklavya:quiz</code> in Claude Code, or open the
-          <a class="link" data-go="${esc(LH('review'))}">review queue</a> to see what is waiting.</p></div>`
-      : '',
-
-    card('Answers over the last 30 days', 'Right, missed and skipped, per day. Empty days are shown as empty.',
+    card('Answers, last 30 days', null,
       `<div class="legend">
          <span><b style="background:var(--spot)"></b>Right</span>
          <span><b style="background:var(--warning)"></b>Missed</span>
@@ -1175,42 +1326,35 @@ function viewLearningDashboard() {
        <div class="chart"><div class="tip" id="tip"></div><svg id="c-activity" role="img"
          aria-label="Daily answers, split into right, missed and skipped"></svg></div>`),
 
-    card('Practice history', 'One cell per day, up to a year back. Darker means more answered that day.',
-      `<div class="heat"><svg id="c-heat" role="img" aria-label="Calendar heatmap of daily answers"></svg></div>`),
-
     `<div class="g2">
-       ${card('Where you stand', 'The catalogue is a library, not a to-do list — untouched concepts are not debt.',
-         segbar([
-           { label:'Mastered', n:mastered.length, color:'var(--spot)' },
-           { label:'Learning', n:seen.length - mastered.length, color:'color-mix(in srgb, var(--spot) 45%, var(--mass))' },
-           { label:'Not asked', n:Math.max(0, scoped.length - seen.length), color:'var(--mass)' },
-         ]) + `<p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">
-           A concept is mastered at score 0.7 with two or more passes. Score decays about
-           5% a week once a review is overdue, so mastery is kept, not banked.</p>`)}
-       ${card('Weakest five', 'Lowest score first. These are what the next quiz will reach for.',
-         weakest.length
-           ? `<div class="list">` + weakest.map((c) => `
-               <div style="display:flex;gap:var(--space-4);align-items:center">
-                 <div style="flex:1;min-width:0">
-                   <a class="link" data-go="${esc(LH('concept', c.slug))}">${esc(c.name)}</a>
-                   <div class="slug">${esc(c.domain)} · ${esc(tierLabel(c.tier))} · ${plural(c.attempts, 'attempt')}</div>
-                 </div>
-                 <div style="width:96px">${meter(c.score * 100, c.score < 0.5 ? 'warn' : '')}
-                   <div class="slug" style="text-align:right">${Math.round(c.score * 100)}%</div></div>
-               </div>`).join('') + `</div>`
-           : '<p class="empty">Nothing asked in this scope yet.</p>')}
+       ${card('Weakest five', null,
+         lines(weakest.map((c) => ({
+           t: esc(c.name),
+           s: `${esc(c.domain)} · ${esc(tierLabel(c.tier))}`,
+           v: `${Math.round(c.score * 100)}%${meter(c.score * 100, c.score < 0.5 ? 'warn' : '')}`,
+           go: LH('concept', c.slug),
+         })), 'Nothing asked in this scope yet.'),
+         { aside: `<a class="link" data-go="${esc(LH('concepts'))}">All concepts →</a>` })}
+       ${card('Recent sessions', null,
+         lines(sess.slice(0, 5).map((s) => ({
+           t: esc(pname(s.repo, s.id)),
+           s: esc(sessionLabel(s)),
+           v: `${s.asked.length ? `${s.passed}/${s.asked.length} right` : plural(s.logged.length, 'concept')}<div class="slug">${esc(ago(s.last))}</div>`,
+           go: sessHref(s.id),
+         })), 'No sessions in this scope yet.'),
+         { aside: `<a class="link" data-go="${esc(href(CUR.wf, 'sessions'))}">All ${sess.length} →</a>` })}
      </div>`,
 
-    card('Recent sessions', 'Each one is a piece of work your agent did, and what it taught.',
-      table([{t:'Session'},{t:'Concepts',n:1},{t:'Asked',n:1},{t:'Right',n:1},{t:'When',n:1}],
-        recentSessions.map((s) => `<tr class="row" data-go="${esc(sessHref(s.id))}">
-            <td><span class="title">${esc(pname(s.repo, s.id))}</span>
-              <div class="slug">${esc(sessionLabel(s))}</div></td>
-            <td class="num">${s.logged.length}</td>
-            <td class="num">${s.asked.length}</td>
-            <td class="num">${s.passed}</td>
-            <td class="num slug">${esc(ago(s.last))}</td></tr>`)),
-      { aside: `<a class="link" data-go="${esc(href(CUR.wf, 'sessions'))}">All ${sess.length} sessions →</a>` }),
+    fold('learn:stand', 'Where you stand', `${mastered.length} mastered · ${seen.length - mastered.length} learning`,
+      segbar([
+        { label:'Mastered', n:mastered.length, color:'var(--spot)' },
+        { label:'Learning', n:seen.length - mastered.length, color:'color-mix(in srgb, var(--spot) 45%, var(--mass))' },
+        { label:'Not asked', n:Math.max(0, scoped.length - seen.length), color:'var(--mass)' },
+      ])),
+
+    fold('learn:heat', 'Practice history', plural(st.days, 'active day'),
+      `<div class="heat"><svg id="c-heat" role="img" aria-label="Calendar heatmap of daily answers"></svg></div>`,
+      { hint: 'One cell per day, up to a year back. Darker means more answered that day.' }),
   ].join('');
 }
 
@@ -1245,18 +1389,17 @@ function viewConcepts(param) {
   };
   list = [...list].sort(SORTS[t.sort] ?? SORTS.weakest);
 
+  // Four columns: what it is, how strong, how often asked, and its state. The
+  // code context and the slug live on the concept's own page.
   const p = page('concepts', list.length);
   const rows = slice(list, p).map((c) => `
     <tr class="row" data-go="${esc(LH('concept', c.slug))}">
-      <td style="min-width:210px"><span class="title">${esc(c.name)}</span>
-        <div class="slug">${esc(c.slug)}</div></td>
-      <td><span class="pill">${esc(c.domain)}</span></td>
-      <td class="slug" style="white-space:nowrap">${esc(tierLabel(c.tier))}</td>
+      <td style="min-width:220px"><span class="title">${esc(c.name)}</span>
+        <div class="slug">${esc(c.domain)} · ${esc(tierLabel(c.tier))}</div></td>
       <td style="min-width:104px">${c.seen ? meter(c.score * 100, c.score < 0.5 ? 'warn' : '') +
         `<div class="slug">${Math.round(c.score * 100)}%</div>` : '<span class="slug">—</span>'}</td>
       <td class="num">${c.attempts || '—'}</td>
       <td>${statePill(c)}</td>
-      <td class="ctx" style="min-width:220px">${esc(c.context ?? '')}</td>
     </tr>`);
 
   const counts = {
@@ -1269,14 +1412,12 @@ function viewConcepts(param) {
   const chip = (k, label) => `<button class="chip" data-state="${k}" aria-pressed="${t.state === k}">${label} ${counts[k]}</button>`;
 
   return [
-    `<div>
-       <h1 class="page__title">Concepts</h1>
-       <p class="page__sub">Everything in your graph — what you have been asked, and what is still just catalogue.
-         Open one to see every question you were given on it.</p>
-     </div>`,
+    pageHead('Concepts', [plural(all.length, 'concept'), `${counts.all - counts.unseen} asked`, `${counts.mastered} mastered`],
+      `Everything in your graph — what you have been asked, and what is still just catalogue. Open a concept
+       for every question you were given on it and the code that logged it.`),
     card(null, null,
       `<div class="filters">
-         <div class="grow"><input type="search" id="q" value="${esc(t.q)}" placeholder="Search name, slug, domain or context…" aria-label="Search concepts"></div>
+         <div class="grow"><input type="search" id="q" value="${esc(t.q)}" placeholder="Search concepts" aria-label="Search concepts"></div>
          <select id="dom" aria-label="Domain">
            <option value="all">All domains</option>
            ${domains.map((d) => `<option value="${esc(d)}"${t.domain === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}
@@ -1290,7 +1431,7 @@ function viewConcepts(param) {
          ${chip('all','All')}${chip('due','Due')}${chip('learning','Learning')}${chip('mastered','Mastered')}${chip('unseen','Not asked')}
        </div>
        <div style="margin-top:var(--space-4)">
-         ${table([{t:'Concept'},{t:'Domain'},{t:'Tier'},{t:'Score'},{t:'Asked',n:1},{t:'State'},{t:'From your code'}], rows)}
+         ${table([{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'}], rows)}
          ${pager('concepts', list.length, p)}
        </div>`),
   ].join('');
@@ -1305,72 +1446,54 @@ function viewConcept(slug) {
   // would render as a date attached to nothing.
   const ctx = S.logged.filter((l) => l.slug === slug && l.context && String(l.context).trim());
   const byName = new Map(S.concepts.map((x) => [x.slug, x]));
-  const links = (slugs) => slugs.length
+  const links = (label, slugs) => `<div style="display:grid;gap:var(--space-2)"><b class="slug">${esc(label)}</b>` + (slugs.length
     ? `<div class="tags">` + slugs.map((s) => `<a class="pill link" data-go="${esc(LH('concept', s))}">${esc(byName.get(s)?.name ?? s)}</a>`).join('') + `</div>`
-    : '<p class="slug" style="margin:0">None recorded.</p>';
+    : '<span class="slug">None recorded.</span>') + `</div>`;
 
-  const p = page('concept', atts.length, 5);
-  const history = slice(atts, p, 5).map((a) => {
-    let opts = [];
-    try { opts = a.options ? JSON.parse(a.options) : []; } catch { opts = []; }
-    return `<article class="qa">
-      <div class="qa__meta">
-        <span>${esc(fmtDate(a.ts))}</span><span>${esc(tierLabel(a.tier))}</span>
-        ${a.format ? `<span>${esc(a.format)}</span>` : ''}${a.level ? `<span>${esc(a.level)}</span>` : ''}
-        ${a.repo ? `<span>${esc(pname(a.repo, a.session_id))}</span>` : ''}
-        <span class="sp">${gradeBadge(a)}</span>
-      </div>
-      <p class="qa__q">${esc(a.question)}</p>
-      ${opts.length ? `<ul class="qa__opts">${opts.map((o) =>
-        `<li class="${a.answer && o === a.answer ? 'picked' : ''}">${esc(o)}</li>`).join('')}</ul>` : ''}
-      ${a.answer && !opts.length ? `<p class="qa__a"><b>You said:</b> ${esc(a.answer)}</p>` : ''}
-      ${a.feedback ? `<p class="qa__f">${esc(a.feedback)}</p>` : ''}
-    </article>`;
-  }).join('');
+  // Collapsed, a question is one line, so ten fit where five cards did.
+  const PER_Q = 10;
+  const p = page('concept', atts.length, PER_Q);
+  const history = slice(atts, p, PER_Q).map((a) => qaLine(a, `<span>${esc(fmtDate(a.ts))}</span>`)).join('');
 
   if (atts.length) chart('c-grades', (el) => chartGrades(el, atts));
   const decayed = c.stored_score > c.score;
+  const back = `<a class="page__back" data-go="${esc(LH('concepts'))}">← Concepts</a>`;
 
   return [
-    `<div>
-       <a class="page__back" data-go="${esc(LH('concepts'))}">← Concepts</a>
-       <h1 class="page__title">${esc(c.name)}</h1>
-       <p class="page__sub"><code class="slug">${esc(c.slug)}</code> · ${esc(c.domain)} · ${esc(tierLabel(c.tier))} ·
-         ${esc(c.source === 'seed' ? 'from the seed graph' : 'minted from your work')}
-         ${c.description ? '<br>' + esc(c.description) : ''}</p>
-     </div>`,
+    pageHead(esc(c.name), [
+      `<code class="slug">${esc(c.slug)}</code>`, esc(c.domain), esc(tierLabel(c.tier)),
+      esc(c.source === 'seed' ? 'from the seed graph' : 'minted from your work'),
+    ], c.description ? esc(c.description) : '', back),
 
     tiles([
-      ['Score', c.seen ? Math.round(c.score * 100) + '%' : '—', decayed ? `decayed from ${Math.round(c.stored_score * 100)}%` : 'recency-weighted last 5 grades', c.mastered ? 'good' : c.score < 0.5 && c.seen ? 'warn' : ''],
+      ['Score', c.seen ? Math.round(c.score * 100) + '%' : '—', decayed ? `decayed from ${Math.round(c.stored_score * 100)}%` : 'last five grades, recent first', c.mastered ? 'good' : c.score < 0.5 && c.seen ? 'warn' : ''],
       ['State', c.mastered ? 'mastered' : c.seen ? (c.due ? 'due' : 'learning') : 'not asked', c.seen ? `${c.passed} of ${c.attempts} right` : 'no questions yet', c.due ? 'warn' : ''],
-      ['Next review', c.seen ? whenDue(c.next_review) : '—', c.interval_d ? `interval ${Math.round(c.interval_d)}d` : 'not scheduled', c.due ? 'warn' : ''],
-      ['Reps', c.reps, `ease ${c.ease ? c.ease.toFixed(2) : '—'}`],
+      ['Next review', c.seen ? whenDue(c.next_review) : '—', c.interval_d ? `every ${Math.round(c.interval_d)}d · ease ${c.ease ? c.ease.toFixed(2) : '—'} · ${plural(c.reps, 'rep')}` : 'not scheduled', c.due ? 'warn' : ''],
     ]),
 
-    atts.length
-      ? card('How the grades went', 'Every graded answer in order. Grey points are skips and blanks.',
-          `<div class="chart"><svg id="c-grades" role="img" aria-label="Grades over time for this concept"></svg></div>`)
-      : '',
-
-    card('Where this came from', 'The code that logged it — the memory the slug hangs on.',
-      ctx.length
-        ? `<div class="list">` + ctx.slice(0, 12).map((l) => `
-            <div>
-              <div class="ctx">${esc(l.context ?? '')}</div>
-              <div class="slug">${esc(ago(l.ts))} · ${esc(pname(l.repo, l.session_id))} · ${esc(l.origin ?? 'work')} ·
-                <a class="link" data-go="${esc(sessHref(l.session_id))}">that session</a></div>
-            </div>`).join('') + `</div>`
-        : '<p class="empty">No context recorded — this one came from the seed graph.</p>'),
-
-    card(`Every question you were asked`, atts.length ? `${plural(atts.length, 'attempt')}, newest first.` : '',
-      atts.length ? history + pager('concept', atts.length, p, 5)
+    card('Every question you were asked', atts.length ? `${plural(atts.length, 'attempt')}, newest first. Open one for the options and the feedback.` : '',
+      atts.length ? history + pager('concept', atts.length, p, PER_Q)
         : '<p class="empty">Not asked yet. It will come up when your work touches it.</p>'),
 
-    `<div class="g3">
-       ${card('Prerequisites', 'Asked first when the graph plans a session.', links(c.prereqs))}
-       ${card('Unlocks', 'These lean on this one.', links(c.unlocks))}
-       ${card('Related', 'Same neighbourhood.', links(c.related))}
-     </div>`,
+    atts.length
+      ? fold('concept:grades', 'How the grades went', plural(atts.length, 'grade'),
+          `<div class="chart"><svg id="c-grades" role="img" aria-label="Grades over time for this concept"></svg></div>`,
+          { hint: 'Every graded answer in order. Grey points are skips and blanks.' })
+      : '',
+
+    fold('concept:ctx', 'Where it came from', ctx.length ? plural(ctx.length, 'context line') : 'seed graph',
+      ctx.length
+        ? lines(ctx.slice(0, 12).map((l) => ({
+            t: esc(l.context ?? ''),
+            s: `${esc(ago(l.ts))} · ${esc(pname(l.repo, l.session_id))} · ${esc(l.origin ?? 'work')}`,
+            go: sessHref(l.session_id),
+          })))
+        : '<p class="empty">No context recorded — this one came from the seed graph.</p>',
+      { hint: 'What the agent said the concept was for, in the code it wrote. Open a line for that session.' }),
+
+    fold('concept:graph', 'Connected concepts',
+      `${c.prereqs.length} prerequisites · ${c.unlocks.length} unlocks · ${c.related.length} related`,
+      `<div style="display:grid;gap:var(--space-5)">${links('Prerequisites — asked first', c.prereqs)}${links('Unlocks — lean on this one', c.unlocks)}${links('Related', c.related)}</div>`),
   ].join('');
 }
 
@@ -1400,44 +1523,41 @@ function viewReview(param) {
     });
   }
   chart('c-forecast', (el) => chartForecast(el, buckets));
+  const week = buckets.slice(1, 8).reduce((a, b) => a + b.n, 0);
+  const longest = due.length ? Math.max(...due.map((c) => c.overdue_days ?? 0)) : 0;
 
   const tabs = [['due', `Due now ${due.length}`], ['upcoming', `Upcoming ${upcoming.length}`], ['skipped', `Skipped ${skipped.length}`]];
   const list = t.tab === 'due' ? due : t.tab === 'upcoming' ? upcoming : skipped;
   const p = page('review', list.length);
   const rows = slice(list, p).map((x) => t.tab === 'skipped'
     ? `<tr class="row" data-go="${esc(LH('concept', x.slug))}">
-         <td><span class="title">${esc(x.name)}</span><div class="slug">${esc(x.slug)}</div></td>
+         <td style="min-width:260px"><span class="title">${esc(x.name)}</span><div class="ctx">${esc(x.question)}</div></td>
          <td><span class="pill">${x.outcome === 'declined' ? 'declined' : 'blanked'}</span></td>
-         <td class="ctx" style="min-width:280px">${esc(x.question)}</td>
          <td class="num slug">${esc(ago(x.ts))}</td></tr>`
     : `<tr class="row" data-go="${esc(LH('concept', x.slug))}">
-         <td><span class="title">${esc(x.name)}</span><div class="slug">${esc(x.slug)} · ${esc(x.domain)}</div></td>
+         <td style="min-width:220px"><span class="title">${esc(x.name)}</span><div class="slug">${esc(x.domain)} · ${esc(tierLabel(x.tier))}</div></td>
          <td style="min-width:104px">${meter(x.score * 100, x.score < 0.5 ? 'warn' : '')}
            <div class="slug">${Math.round(x.score * 100)}%</div></td>
-         <td class="num">${x.attempts}</td>
-         <td class="slug" style="white-space:nowrap">${esc(tierLabel(x.tier))}</td>
          <td class="num slug">${esc(whenDue(x.next_review))}</td></tr>`);
 
   const cols = t.tab === 'skipped'
-    ? [{t:'Concept'},{t:'How'},{t:'The question'},{t:'When',n:1}]
-    : [{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'Tier'},{t:t.tab === 'due' ? 'Overdue' : 'Due',n:1}];
+    ? [{t:'Concept and question'},{t:'How'},{t:'When',n:1}]
+    : [{t:'Concept'},{t:'Score'},{t:t.tab === 'due' ? 'Overdue' : 'Due',n:1}];
 
   return [
-    `<div>
-       <h1 class="page__title">Review queue</h1>
-       <p class="page__sub">SM-2 decides when a concept comes back: one day after a miss, then 6, then the
-         interval times its ease. A score decays about 5% a week while a review is overdue, so this list is
-         also the list of things quietly getting weaker.</p>
-     </div>`,
+    pageHead('Review queue', [
+      due.length ? `<span class="warn">${due.length} due now</span>` : 'nothing due',
+      `${week} in the next 7 days`, `${skipped.length} skipped`,
+      ...(due.length ? [`longest overdue ${plural(longest, 'day')}`] : []),
+    ], `SM-2 decides when a concept comes back: one day after a miss, then 6, then the interval times its
+       ease. A score decays about 5% a week while a review is overdue, so this list is also the list of
+       things quietly getting weaker. A skipped question comes back a tier lower.`),
 
-    tiles([
-      ['Due now', due.length, due.length ? 'run /eklavya:quiz' : 'nothing waiting', due.length ? 'warn' : 'good'],
-      ['Next 7 days', buckets.slice(1, 8).reduce((a, b) => a + b.n, 0), 'scheduled reviews'],
-      ['Skipped', skipped.length, 'come back a tier lower'],
-      ['Longest overdue', due.length ? plural(Math.max(...due.map((c) => c.overdue_days ?? 0)), 'day') : '—', 'since it was due'],
-    ]),
+    due.length
+      ? nextStep(`<strong>${plural(due.length, 'concept')} waiting.</strong> Run <code>/eklavya:quiz</code> in Claude Code to work through them.`)
+      : '',
 
-    card('The next fortnight', 'How much review is already scheduled, day by day.',
+    card('The next fortnight', null,
       `<div class="chart"><svg id="c-forecast" role="img" aria-label="Scheduled reviews for the next fourteen days"></svg></div>`),
 
     card(null, null,
@@ -1461,28 +1581,21 @@ function viewSessions() {
       <td style="min-width:260px"><span class="title">${esc(pname(s.repo, s.id))}</span>
         <div class="slug">${esc(sessionLabel(s).slice(0, 120))}</div></td>
       <td class="num">${s.logged.filter((l) => (l.origin ?? 'work') === 'work').length}</td>
-      <td class="num">${s.asked.length}</td>
-      <td style="min-width:96px">${acc === null ? '<span class="slug">not assessed</span>'
-        : meter(acc, acc < 70 ? 'warn' : '') + `<div class="slug">${acc}%</div>`}</td>
-      <td class="num slug">${esc(stamp(s.last))}</td></tr>`;
+      <td style="min-width:110px">${acc === null ? '<span class="slug">not assessed</span>'
+        : meter(acc, acc < 70 ? 'warn' : '') + `<div class="slug">${s.passed}/${s.asked.length} right</div>`}</td>
+      <td class="num slug">${esc(ago(s.last))}</td></tr>`;
   });
 
   const withQuestions = all.filter((s) => s.asked.length).length;
   return [
-    `<div>
-       <h1 class="page__title">Sessions</h1>
-       <p class="page__sub">One row per Claude Code session that logged a concept or asked a question. Open one
-         for the whole thread: the concepts the work touched, every question you were asked, and — joined on the
-         same session id — what the session captured and remembered.</p>
-     </div>`,
-    tiles([
-      ['Sessions', all.length, 'that logged or asked'],
-      ['With questions', withQuestions, `${pct(withQuestions, all.length)}% of sessions`],
-      ['Concepts logged', all.reduce((a, s) => a + s.logged.filter((l) => (l.origin ?? 'work') === 'work').length, 0), 'context lines recorded'],
-      ['Answers', all.reduce((a, s) => a + s.asked.length, 0), 'across every session'],
-    ]),
+    pageHead('Sessions', [
+      plural(all.length, 'session'), `${withQuestions} with questions`,
+      plural(all.reduce((a, s) => a + s.asked.length, 0), 'answer'),
+    ], `One row per Claude Code session that logged a concept or asked a question. Open one for the whole
+       thread: the concepts the work touched, every question you were asked, and — joined on the same
+       session id — what the session captured and remembered.`),
     card(null, null,
-      table([{t:'Session'},{t:'Logged',n:1},{t:'Asked',n:1},{t:'Accuracy'},{t:'When',n:1}], rows)
+      table([{t:'Session'},{t:'Concepts',n:1},{t:'Answers'},{t:'When',n:1}], rows)
       + pager('sessions', all.length, p)
       + (memOnly ? `<p class="slug" style="margin:var(--space-4) 0 0">${plural(memOnly, 'session')} captured memory and logged no concept —
           <a class="link" data-go="${esc(MH('sessions'))}">see them in Memory → Sessions</a>.</p>` : '')),
@@ -1519,82 +1632,62 @@ function sessionBody(s) {
   const work = s.logged.filter((l) => (l.origin ?? 'work') === 'work');
   const review = s.logged.filter((l) => l.origin === 'review');
 
-  const conceptRow = (l) => {
+  const conceptLine = (l) => {
     const c = byName.get(l.slug);
-    return `<tr class="row" data-go="${esc(LH('concept', l.slug))}">
-      <td style="min-width:190px"><span class="title">${esc(c?.name ?? l.slug)}</span>
-        <div class="slug">${esc(l.slug)} · ${esc(l.domain)}</div></td>
-      <td class="ctx" style="min-width:280px">${esc(l.context ?? '')}</td>
-      <td>${c ? statePill(c) : ''}</td></tr>`;
+    return { t: esc(c?.name ?? l.slug), s: esc(l.context ?? l.domain ?? ''), v: c ? statePill(c) : '', go: LH('concept', l.slug) };
   };
 
-  const qa = s.asked.slice().reverse().map((a) => {
-    let opts = [];
-    try { opts = a.options ? JSON.parse(a.options) : []; } catch { opts = []; }
-    return `<article class="qa">
-      <div class="qa__meta">
-        <a class="link" data-go="${esc(LH('concept', a.slug))}">${esc(a.name)}</a>
-        <span>${esc(tierLabel(a.tier))}</span>${a.level ? `<span>${esc(a.level)}</span>` : ''}
-        <span class="sp">${gradeBadge(a)}</span>
-      </div>
-      <p class="qa__q">${esc(a.question)}</p>
-      ${opts.length ? `<ul class="qa__opts">${opts.map((o) =>
-        `<li class="${a.answer && o === a.answer ? 'picked' : ''}">${esc(o)}</li>`).join('')}</ul>` : ''}
-      ${a.answer && !opts.length ? `<p class="qa__a"><b>You said:</b> ${esc(a.answer)}</p>` : ''}
-      ${a.feedback ? `<p class="qa__f">${esc(a.feedback)}</p>` : ''}
-    </article>`;
-  }).join('');
+  // Collapsed to one line each: which concept, the question, the grade.
+  const qa = s.asked.slice().reverse().map((a) =>
+    qaLine(a, `<span style="color:var(--spot)">${esc(a.name)}</span>`, true)).join('');
 
-  // The memory half of this session, in the order it happened: evidence in,
-  // observations out, candidates proposed — then the questions above.
+  // The memory half of this session, folded: what it remembered and what it
+  // proposed are the audit trail behind the learning, not the headline.
   if (s.mem) {
     fill('sess-mem', '/api/memory?per=100&session=' + encodeURIComponent(id), (d) => {
-      const entries = d.rows.map((e) => `
-        <tr class="row${e.deleted_at || e.superseded_by ? ' gone' : ''}" data-go="${esc(MH('entry', e.id))}">
-          <td class="slug" style="white-space:nowrap">${esc(stamp(e.occurred_at))}</td>
-          <td style="min-width:260px"><span class="title">${esc(e.title)}</span>
-            <div class="ctx">${esc(e.snippet ?? '')}</div></td>
-          <td><span class="pill">${esc(e.type ?? e.kind)}</span></td>
-          <td class="num">${e.event_count}</td>
-          <td>${entryMark(e)}</td></tr>`);
-      const cands = (d.candidates ?? []).map((c) => {
-        const go = c.concept_slug ? ` class="row" data-go="${esc(LH('concept', c.concept_slug))}"` : '';
-        return `<tr${go}><td><span class="title">${esc(c.name ?? c.slug)}</span><div class="slug">${esc(c.slug)}</div></td>
-          <td><span class="pill">${esc(c.domain ?? '—')}</span></td>
-          <td class="num">${Math.round((c.confidence ?? 0) * 100)}%</td>
-          <td><span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span></td></tr>`;
-      });
-      return card('What the session remembered', 'Observations distilled from the evidence this session captured.',
-          table([{t:'When'},{t:'Observation'},{t:'Type'},{t:'Evidence',n:1},{t:''}], entries))
-        + card('Concepts it proposed', 'Derived from evidence, and still only a proposal — nothing here moved mastery.',
-          table([{t:'Candidate'},{t:'Domain'},{t:'Confidence',n:1},{t:'Status'}], cands));
+      const entries = d.rows.map((e) => ({
+        t: `<span${e.deleted_at || e.superseded_by ? ' class="gone-title"' : ''}>${esc(e.title)}</span>`,
+        s: `${esc(stamp(e.occurred_at))} · ${esc(e.type ?? e.kind)} · ${plural(e.event_count, 'evidence event')}`,
+        v: entryMark(e),
+        go: MH('entry', e.id),
+      }));
+      const cands = (d.candidates ?? []).map((c) => ({
+        t: esc(c.name ?? c.slug),
+        s: `${esc(c.domain ?? '—')} · ${Math.round((c.confidence ?? 0) * 100)}% confidence`,
+        v: `<span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span>`,
+        go: c.concept_slug ? LH('concept', c.concept_slug) : null,
+      }));
+      return fold('sess:mem', 'What the session remembered', plural(entries.length, 'observation'), lines(entries),
+          { hint: 'Observations distilled from the evidence this session captured.' })
+        + (cands.length
+          ? fold('sess:cands', 'Concepts it proposed', plural(cands.length, 'candidate'), lines(cands),
+              { hint: 'Derived from evidence, and still only a proposal — nothing here moved mastery.' })
+          : '');
     });
   }
 
+  const back = `<a class="page__back" data-go="${esc(href(CUR.wf, 'sessions'))}">← Sessions</a>`;
   return [
-    `<div>
-       <a class="page__back" data-go="${esc(href(CUR.wf, 'sessions'))}">← Sessions</a>
-       <h1 class="page__title">${esc(pname(s.repo, s.id))}</h1>
-       <p class="page__sub">${esc(stamp(s.first))} → ${esc(stamp(s.last))} · <code class="slug">${esc(s.id)}</code></p>
-     </div>`,
-    tiles([
-      ['Captured', s.mem ? s.mem.events : 0, s.mem && s.mem.redacted ? `${s.mem.redacted} redacted` : 'evidence events'],
-      ['Remembered', s.mem ? s.mem.entries : 0, 'observations written'],
-      ['Logged', s.logged.length, 'concepts the work touched'],
-      ['Asked', s.asked.length, s.asked.length ? `${s.passed} right` : 'no questions in this one'],
-      ['Accuracy', s.asked.length ? pct(s.passed, s.asked.length) + '%' : '—', 'in this session',
-        s.asked.length && pct(s.passed, s.asked.length) >= 70 ? 'good' : ''],
-      ['Review pulled in', review.length, 'from earlier work'],
-    ]),
-    s.mem ? `<div class="stack" id="sess-mem"><p class="empty">Loading what this session remembered…</p></div>` : '',
-    card('What the work taught', 'Each line is what the agent said the concept was for, in the code it wrote.',
-      table([{t:'Concept'},{t:'What you did'},{t:'State now'}], work.map(conceptRow))),
-    review.length
-      ? card('Pulled in for review', 'Not from this diff — the tutor widened to prerequisites and neighbours.',
-          table([{t:'Concept'},{t:'Context'},{t:'State now'}], review.map(conceptRow)))
+    pageHead(esc(pname(s.repo, s.id)), [
+      `${esc(stamp(s.first))} → ${esc(stamp(s.last))}`,
+      `${plural(work.length, 'concept')} logged`,
+      s.asked.length ? `${s.passed}/${s.asked.length} right (${pct(s.passed, s.asked.length)}%)` : 'no questions',
+      ...(s.mem ? [`${s.mem.events} captured${s.mem.redacted ? `, ${s.mem.redacted} redacted` : ''}`, `${s.mem.entries} remembered`] : []),
+    ], `Session <code class="slug">${esc(s.id)}</code>. The learning half and the memory half are joined on the
+       session id the host handed both — the one association between them that is recorded rather than inferred.`, back),
+
+    work.length
+      ? card('What the work taught', 'Each line is what the agent said the concept was for, in the code it wrote.', lines(work.map(conceptLine)))
       : '',
-    card('What you were asked', s.asked.length ? `${plural(s.asked.length, 'question')}, in order.` : '',
-      s.asked.length ? qa : '<p class="empty">No questions were asked in this session.</p>'),
+
+    s.asked.length ? card('What you were asked', `${plural(s.asked.length, 'question')}, in order. Open one for the options and the feedback.`, qa) : '',
+
+    review.length
+      ? fold('sess:review', 'Pulled in for review', plural(review.length, 'concept'), lines(review.map(conceptLine)),
+          { hint: 'Not from this diff — the tutor widened to prerequisites and neighbours.' })
+      : '',
+
+    s.mem ? `<div class="stack" id="sess-mem"><p class="empty">Loading what this session remembered…</p></div>` : '',
   ].join('');
 }
 
@@ -1609,24 +1702,26 @@ function viewProjects() {
   const other = inv.filter((p) => !p.learning.answers && !p.learning.logged_concepts);
   const daily = dailyInScope();
 
-  const cards = list.map((p, i) => {
+  // One fold per project. Its summary line is the standing — level, accuracy,
+  // answers, last active — and it opens to the runway and thirty days of work.
+  const folds = list.map((p, i) => {
     const L = p.learning;
+    const acc = L.answers ? pct(L.passed, L.answers) + '%' : null;
+    const st = L.answers ? S.projects.filter((x) => pid(x.repo) === p.id).sort((x, y) => y.answers - x.answers)[0] : null;
+    const peek = [st ? st.level : 'not assessed', acc ? `${acc} of ${plural(L.answers, 'answer')}` : plural(L.logged_concepts, 'concept') + ' recorded', esc(ago(L.last))].join(' · ');
     const detail = `<div class="kv" style="margin-bottom:var(--space-5)">
-         <div><b>Answers</b><span>${L.answers}</span></div>
-         <div><b>Accuracy</b><span>${L.answers ? pct(L.passed, L.answers) + '%' : '—'}</span></div>
          <div><b>Assessed</b><span>${plural(L.assessed_concepts, 'concept')}</span></div>
          <div><b>Recorded</b><span>${plural(L.logged_concepts, 'concept')}</span></div>
          <div><b>Sessions</b><span>${L.sessions}</span></div>
-         <div><b>Last active</b><span>${esc(ago(L.last))}</span></div>
        </div>`;
+    const links = `<p class="more"><a class="link" data-go="${esc(LH('dashboard', null, { project: p.id }))}">Its dashboard →</a>
+       &nbsp; <a class="link" data-go="${esc(LH('sessions', null, { project: p.id }))}">Its sessions →</a></p>`;
+    const opts = { hint: whereLine(p), open: list.length === 1 };
     if (!L.answers) {
-      return card(p.name, whereLine(p), detail
-        + `<p class="slug" style="margin:0"><strong>No assessments yet.</strong> The concepts this project's work recorded
-            come up in a quiz like any others; nothing counts toward a level until one is answered.
-            <a class="link" data-go="${esc(LH('sessions', null, { project: p.id }))}">Its sessions →</a></p>`);
+      return fold('proj:' + p.id, p.name, peek, detail
+        + `<p class="slug" style="margin:0">No assessments yet. The concepts this project's work recorded come up in a
+            quiz like any others; nothing counts toward a level until one is answered.</p>` + links, opts);
     }
-    // The level runway comes from the learning payload, keyed by the same fold.
-    const st = S.projects.filter((x) => pid(x.repo) === p.id).sort((x, y) => y.answers - x.answers)[0];
     const bar = (label, value, target, ok) => `
       <div><span class="${ok ? 'mark-ok' : 'mark-no'}">${ok ? '✓' : '○'}</span>
         <span style="min-width:150px">${esc(label)}</span>
@@ -1649,7 +1744,7 @@ function viewProjects() {
       chartActivity(el, fillDays(m, 30));
     });
 
-    return card(p.name, whereLine(p), detail
+    return fold('proj:' + p.id, p.name, peek, detail
       + (st ? `<div class="ladder">${ladder}</div>
        ${st.pinned
          ? `<p class="slug" style="margin:var(--space-4) 0 0">Difficulty is pinned in config, so this project does not promote.</p>`
@@ -1662,33 +1757,28 @@ function viewProjects() {
               </div>`
            : `<p class="slug" style="margin:var(--space-4) 0 0">Top of the ladder — questions can reach tier 5 here.</p>`}` : '')
       + `<div class="chart" style="margin-top:var(--space-5)"><svg id="c-proj-${i}" role="img"
-         aria-label="Thirty days of answers in this project"></svg></div>`);
+         aria-label="Thirty days of answers in this project"></svg></div>` + links, opts);
   });
 
   const assessed = list.filter((p) => p.learning.answers);
   return [
-    `<div>
-       <h1 class="page__title">Projects</h1>
-       <p class="page__sub">Difficulty is earned per codebase, not per person: the same developer is a different
-         learner on their fourth Node service and their first Rust one. Everyone starts at easy (tiers 1–2)
-         and climbs on evidence. A project appears here as soon as its work logs a concept — before a single
-         question is asked.</p>
-     </div>`,
-    tiles([
-      ['Projects', list.length, 'with logged or assessed work'],
-      ['Assessed', assessed.length, `${list.length - assessed.length} with no assessments yet`],
-      ['Answers', list.reduce((a, p) => a + p.learning.answers, 0), 'across all of them'],
-      ['Best accuracy', assessed.length ? Math.max(...assessed.map((p) => pct(p.learning.passed, p.learning.answers))) + '%' : '—', 'of any project'],
-      ['Active days', streaks(daily).days, 'with at least one answer'],
-    ]),
-    cards.join('') || '<p class="empty">No project has logged or answered anything yet.</p>',
+    pageHead('Projects', [
+      plural(list.length, 'project'), `${assessed.length} assessed`,
+      plural(list.reduce((a, p) => a + p.learning.answers, 0), 'answer'), plural(streaks(daily).days, 'active day'),
+    ], `Difficulty is earned per codebase, not per person: the same developer is a different learner on their
+       fourth Node service and their first Rust one. Everyone starts at easy (tiers 1–2) and climbs on
+       evidence — a promotion needs passing answers <em>and</em> accuracy <em>and</em> distinct concepts. A
+       project appears here as soon as its work logs a concept, before a single question is asked.`),
+    folds.join('') || '<p class="empty">No project has logged or answered anything yet.</p>',
     other.length
-      ? card('Memory only', 'Recorded by capture, with no learning activity yet. Captured is not assessed.',
-          table([{t:'Project'},{t:'Evidence',n:1},{t:'Observations',n:1},{t:'Last active',n:1}], other.map((p) => `
-            <tr class="row" data-go="${esc(MH('projects', null, { project: p.id }))}">
-              <td><span class="title">${esc(p.name)}</span><div class="slug">${esc(whereLine(p))}</div></td>
-              <td class="num">${p.memory.events}</td><td class="num">${p.memory.entries}</td>
-              <td class="num slug">${esc(ago(p.last_active))}</td></tr>`)))
+      ? fold('proj:memory-only', 'Memory only', plural(other.length, 'project'),
+          lines(other.map((p) => ({
+            t: esc(p.name),
+            s: `${esc(whereLine(p))}`,
+            v: `${p.memory.entries} obs.<div class="slug">${esc(ago(p.last_active))}</div>`,
+            go: MH('projects', null, { project: p.id }),
+          }))),
+          { hint: 'Recorded by capture, with no learning activity yet. Captured is not assessed.' })
       : '',
   ].join('');
 }
@@ -1703,34 +1793,27 @@ function viewDomains() {
     byDomain.set(c.domain, d);
   }
   const list = [...byDomain.values()].sort((a, b) => b.touched - a.touched || b.catalogue - a.catalogue);
-
   const rows = list.map((d) => `
     <tr class="row" data-go="${esc(LH('domain', d.domain))}">
       <td><span class="title">${esc(d.domain)}</span>
-        <div class="slug">${plural(d.catalogue, 'concept')} in the graph</div></td>
+        <div class="slug">${d.touched} asked of ${d.catalogue} in the graph</div></td>
       <td style="min-width:130px">${d.touched
-        ? meter(pct(d.mastered, d.touched)) + `<div class="slug">${d.mastered} mastered of ${d.touched} asked</div>`
-        : '<span class="slug">your work has not reached it</span>'}</td>
-      <td class="num">${d.attempts}</td>
+        ? meter(pct(d.mastered, d.touched)) + `<div class="slug">${d.mastered} mastered</div>`
+        : '<span class="slug">not reached yet</span>'}</td>
       <td class="num">${d.due || '—'}</td>
-      <td class="num slug">${d.catalogue - d.touched} not asked</td>
     </tr>`);
-
   const tierCount = [1,2,3,4,5].map((t) => scoped.filter((c) => c.seen && c.tier === t).length);
   // A sequential ramp mixed from the accent role rather than picked off the
   // accent scale: a fixed --vd-200 is legible on ink and invisible on paper.
   const COLORS = [100, 78, 58, 40, 24].map((p) => `color-mix(in srgb, var(--spot) ${p}%, var(--mass))`);
-
   return [
-    `<div>
-       <h1 class="page__title">Domains</h1>
-       <p class="page__sub">What you are learning, grouped. The catalogue is a library, not a to-do list —
-         a domain with untouched concepts is a domain your work has not reached yet.</p>
-     </div>`,
-    card('Coverage', 'Open a domain to see its concepts.',
-      table([{t:'Domain'},{t:'Mastered'},{t:'Answers',n:1},{t:'Due',n:1},{t:'Catalogue',n:1}], rows)),
-    card('Tier spread of what you have been asked', 'Tier is how hard one question is: recall, mechanism, judgement, failure modes, design.',
-      segbar([1,2,3,4,5].map((t, i) => ({ label: tierLabel(t), n: tierCount[i], color: COLORS[i] })))),
+    pageHead('Domains', [plural(list.length, 'domain'), `${list.filter((d) => d.touched).length} reached by your work`],
+      `What you are learning, grouped. The catalogue is a library, not a to-do list — a domain with untouched
+       concepts is a domain your work has not reached yet.`),
+    card(null, null, table([{t:'Domain'},{t:'Mastered'},{t:'Due',n:1}], rows)),
+    fold('domains:tiers', 'Tier spread', `${tierCount.reduce((a, b) => a + b, 0)} asked`,
+      segbar([1,2,3,4,5].map((t, i) => ({ label: tierLabel(t), n: tierCount[i], color: COLORS[i] }))),
+      { hint: 'Tier is how hard one question is: recall, mechanism, judgement, failure modes, design.' }),
   ].join('');
 }
 
@@ -1738,35 +1821,25 @@ function viewDomain(name) {
   const all = conceptsInScope().filter((c) => c.domain === name);
   if (!all.length) return `<p class="empty">No concepts in <code>${esc(name)}</code> for this scope.
     <a class="link" data-go="${esc(LH('domains'))}">Back to domains</a>.</p>`;
-
   const seen = all.filter((c) => c.seen);
   const list = [...all].sort((a, b) => (a.seen === b.seen ? a.score - b.score : a.seen ? -1 : 1));
   const p = page('domain', list.length);
   const rows = slice(list, p).map((c) => `
     <tr class="row" data-go="${esc(LH('concept', c.slug))}">
-      <td style="min-width:220px"><span class="title">${esc(c.name)}</span><div class="slug">${esc(c.slug)}</div></td>
-      <td class="slug" style="white-space:nowrap">${esc(tierLabel(c.tier))}</td>
+      <td style="min-width:220px"><span class="title">${esc(c.name)}</span><div class="slug">${esc(tierLabel(c.tier))}</div></td>
       <td style="min-width:104px">${c.seen ? meter(c.score * 100, c.score < 0.5 ? 'warn' : '')
         + `<div class="slug">${Math.round(c.score * 100)}%</div>` : '<span class="slug">—</span>'}</td>
       <td class="num">${c.attempts || '—'}</td>
       <td>${statePill(c)}</td>
-      <td class="ctx" style="min-width:200px">${esc(c.context ?? '')}</td>
     </tr>`);
-
+  const back = `<a class="page__back" data-go="${esc(LH('domains'))}">← Domains</a>`;
   return [
-    `<div>
-       <a class="page__back" data-go="${esc(LH('domains'))}">← Domains</a>
-       <h1 class="page__title">${esc(name)}</h1>
-       <p class="page__sub">${plural(all.length, 'concept')} in the graph · ${seen.length} asked ·
-         ${seen.filter((c) => c.mastered).length} mastered.</p>
-     </div>`,
+    pageHead(esc(name), [plural(all.length, 'concept'), `${seen.length} asked`, `${seen.filter((c) => c.mastered).length} mastered`], '', back),
     card(null, null, segbar([
       { label:'Mastered', n:seen.filter((c) => c.mastered).length, color:'var(--spot)' },
       { label:'Learning', n:seen.filter((c) => !c.mastered).length, color:'color-mix(in srgb, var(--spot) 45%, var(--mass))' },
       { label:'Not asked', n:all.length - seen.length, color:'var(--mass)' },
-    ])),
-    card(null, null, table([{t:'Concept'},{t:'Tier'},{t:'Score'},{t:'Asked',n:1},{t:'State'},{t:'From your code'}], rows)
-      + pager('domain', list.length, p)),
+    ]) + `<div style="margin-top:var(--space-5)">${table([{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'}], rows)}${pager('domain', list.length, p)}</div>`),
   ].join('');
 }
 
@@ -1881,12 +1954,10 @@ function memTiles() {
   const { scoped, events, pending, entries, sessions } = memCounts();
   const everywhere = scoped ? 'all projects · ' : '';
   return tiles([
-    ['Observations', entries, scoped ? `live here · ${M.indexed} indexed across all projects`
-      : `${M.entries_total} written · ${M.superseded} superseded · ${M.deleted} deleted · ${M.indexed} indexed`, '', MH('timeline')],
-    ['Evidence', events, `${events - pending} distilled · ${pending} still pending`, pending ? 'warn' : '', MH('health')],
-    ['Sessions', sessions, 'that captured or remembered', '', MH('sessions')],
-    ['Reused', M.reused, `${everywhere}${M.exposed} actually delivered`, '', MH('reuse')],
-    ['Assessed', M.assessed, everywhere + 'evidence concepts you were asked about', '', LH('concepts')],
+    ['Observations', entries, scoped ? 'live in this project' : `${M.indexed} indexed`, '', MH('timeline')],
+    ['Sessions', sessions, 'captured or remembered', '', MH('sessions')],
+    ['Pending', pending, pending ? `of ${events} evidence events` : `all ${events} distilled`, pending ? 'warn' : '', MH('health')],
+    ['Reused', M.reused, `${everywhere}${M.exposed} delivered`, '', MH('reuse')],
   ]);
 }
 
@@ -1920,11 +1991,11 @@ function viewMemory(param) {
   const { entries, sessions, pending } = memCounts();
 
   return [
-    `<div>
-       <h1 class="page__title">Timeline</h1>
-       <p class="counts">${plural(entries, 'observation')} · ${plural(sessions, 'session')}${pending
-         ? ` · <a class="link warn" data-go="${esc(MH('health'))}">${pending} evidence pending</a>` : ''}</p>
-     </div>`,
+    pageHead('Timeline', [plural(entries, 'observation'), plural(sessions, 'session'),
+      ...(pending ? [`<a class="link warn" data-go="${esc(MH('health'))}">${pending} evidence pending</a>`] : [])],
+      `What your sessions actually did, distilled into observations and kept with the raw evidence behind each
+       one. Corrections supersede rather than overwrite and deletions are marked and struck through, so what
+       you see is the audit trail and not a tidied version of it.`),
 
     `<div>
        <div class="filters">
@@ -1948,65 +2019,49 @@ function viewMemory(param) {
 }
 
 function viewMemoryDashboard() {
-  const R = S.reuse, H = S.health, Q = H.queue;
+  const R = S.reuse, H = S.health, Q = H.queue, M = S.memory;
   const scope = () => memScope(new URLSearchParams());
   const q6 = scope(); q6.set('per', '6');
-  fill('mem-recent', '/api/memory?' + q6, (d) => d.rows.length
-    ? table([{t:'When'},{t:'Observation'},{t:'Type'},{t:'Project'}], d.rows.map((e) => `
-        <tr class="row${e.deleted_at || e.superseded_by ? ' gone' : ''}" data-go="${esc(MH('entry', e.id))}">
-          <td class="slug" style="white-space:nowrap">${esc(stamp(e.occurred_at))}</td>
-          <td style="min-width:240px"><span class="title">${esc(e.title)}</span></td>
-          <td><span class="pill">${esc(e.type ?? e.kind)}</span></td>
-          <td class="slug">${esc(pname(e.project))}</td></tr>`))
-    : '<p class="empty">Nothing remembered in this scope yet.</p>');
+  fill('mem-recent', '/api/memory?' + q6, (d) => lines(d.rows.map((e) => ({
+    t: `<span${e.deleted_at || e.superseded_by ? ' class="gone-title"' : ''}>${esc(e.title)}</span>`,
+    s: `${esc(stamp(e.occurred_at))} · ${esc(e.type ?? e.kind)} · ${esc(pname(e.project))}`,
+    v: entryMark(e),
+    go: MH('entry', e.id),
+  })), 'Nothing remembered in this scope yet.'));
   const q5 = scope(); q5.set('per', '5');
-  fill('mem-sessions', '/api/memory/sessions?' + q5, (d) => d.rows.length
-    ? table([{t:'Session'},{t:'Captured',n:1},{t:'Remembered',n:1},{t:'When',n:1}], d.rows.map((m) => `
-        <tr class="row" data-go="${esc(MH('session', m.session_id))}">
-          <td><span class="title">${esc(pname(m.project, m.session_id))}</span><div class="slug">${esc(m.session_id)}</div></td>
-          <td class="num">${m.events}</td><td class="num">${m.entries}</td>
-          <td class="num slug">${esc(ago(m.last))}</td></tr>`))
-    : '<p class="empty">No session has captured anything in this scope.</p>');
+  fill('mem-sessions', '/api/memory/sessions?' + q5, (d) => lines(d.rows.map((m) => ({
+    t: esc(pname(m.project, m.session_id)),
+    s: `${m.events} captured · ${m.entries} remembered`,
+    v: esc(ago(m.last)),
+    go: MH('session', m.session_id),
+  })), 'No session has captured anything in this scope.'));
+
+  // The pipeline in two lines: is reuse paying for itself, and is capture alive.
+  // Each opens its page; the arithmetic lives there.
+  const verdict = R.savings.kind === 'saving' ? `${R.savings.percent}% less context`
+    : R.savings.kind === 'overhead' ? `+${R.savings.tokens} tokens of overhead` : 'no confirmed receipts yet';
+  const stuck = Q.failed + Q.paused;
+  const pipeline = lines([
+    { t: 'Context reuse', s: `${plural(R.receipts, 'receipt')}, ${R.confirmed} confirmed · estimated, all projects`,
+      v: esc(verdict), go: MH('reuse') },
+    { t: 'Health', s: `last capture ${esc(H.capture.newest_event ? ago(H.capture.newest_event) : 'never')} · capture ${H.capture.enabled ? esc(H.capture.mode) : 'off'} · ${Q.pending} queued`,
+      v: stuck ? `<span style="color:var(--warning)">${stuck} stalled</span>` : 'running', go: MH('health') },
+  ]);
 
   return [
-    `<div>
-       <h1 class="page__title">What does memory hold?</h1>
-       <p class="page__sub">Captured, processed, stored, retrieved, delivered, assessed — six different things that
-         can happen to one piece of evidence, counted separately. None of them is an answer: only a question you
-         answered moves mastery.</p>
-     </div>`,
+    pageHead('What does memory hold?', [
+      `${M.processed} distilled`, `${M.indexed} indexed`, `${M.reused} reused`, `${M.exposed} delivered`, `${M.assessed} assessed`,
+    ], `Captured, processed, stored, retrieved, delivered, assessed — six different things that can happen to one
+       piece of evidence, counted separately. None of them is an answer: only a question you answered moves
+       mastery. Reuse, delivery and assessment are counted across all projects.`),
     memTiles(),
+    card('Pipeline', null, pipeline),
     `<div class="g2">
-       ${card('Context reuse', 'All projects. B is what the same material would have cost read from source; D is what was delivered instead.',
-         `<div class="kv">
-            <div><b>B — from source</b><span>${R.base}</span></div>
-            <div><b>D — delivered</b><span>${R.delivered}</span></div>
-            <div><b>Net</b><span>${R.base - R.delivered}</span></div>
-            <div><b>Verdict</b><span>${R.savings.kind === 'saving' ? R.savings.percent + '%'
-              : R.savings.kind === 'overhead' ? '+' + R.savings.tokens + ' tokens' : '—'}</span></div>
-          </div>
-          <p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">${esc(savingsText(R.savings, R.receipts))}
-            Estimated with <code class="slug">${esc(R.estimator)}</code> on both sides of the subtraction —
-            a reduction in context volume, not a bill.
-            <a class="link" data-go="${esc(MH('reuse'))}">Every receipt →</a></p>`)}
-       ${card('Health', 'All projects. Where the pipeline stops, when it stops.',
-         `<div class="kv">
-            <div><b>Last capture</b><span>${esc(H.capture.newest_event ? ago(H.capture.newest_event) : 'never')}</span></div>
-            <div><b>Capture</b><span>${H.capture.enabled ? esc(H.capture.mode) : 'off'}</span></div>
-            <div><b>Queued</b><span>${Q.pending}</span></div>
-            <div><b>Failed</b><span>${Q.failed}</span></div>
-          </div>
-          <p style="margin:var(--space-4) 0 0;color:var(--faint);font-size:13.5px">
-            ${S.memory.processed} distilled · ${S.memory.indexed} indexed · ${S.memory.reused} reused ·
-            ${S.memory.exposed} delivered · ${S.memory.assessed} assessed.
-            <a class="link" data-go="${esc(MH('health'))}">Health →</a></p>`)}
+       ${card('Recent observations', null, `<div id="mem-recent"><p class="empty">Loading…</p></div>`,
+         { aside: `<a class="link" data-go="${esc(MH('timeline'))}">Timeline →</a>` })}
+       ${card('Recent sessions', null, `<div id="mem-sessions"><p class="empty">Loading…</p></div>`,
+         { aside: `<a class="link" data-go="${esc(MH('sessions'))}">All sessions →</a>` })}
      </div>`,
-    card('Recent observations', 'The newest things memory kept, in this scope.',
-      `<div id="mem-recent"><p class="empty">Loading…</p></div>`,
-      { aside: `<a class="link" data-go="${esc(MH('timeline'))}">The timeline →</a>` }),
-    card('Recent sessions', 'Sessions that captured evidence or wrote an observation.',
-      `<div id="mem-sessions"><p class="empty">Loading…</p></div>`,
-      { aside: `<a class="link" data-go="${esc(MH('sessions'))}">All sessions →</a>` }),
   ].join('');
 }
 
@@ -2018,28 +2073,25 @@ function viewMemorySessions() {
   const learned = new Map(sessions().map((x) => [x.id, x]));
   fill('msess-rows', '/api/memory/sessions?' + q, (d) => {
     t.page = d.page;
-    return table([{t:'Session'},{t:'Captured',n:1},{t:'Pending',n:1},{t:'Remembered',n:1},{t:'Proposed',n:1},{t:'Asked',n:1},{t:'When',n:1}],
+    return `<p class="counts" style="margin:0 0 var(--space-4)">${plural(d.total, 'session')} in scope</p>`
+      + table([{t:'Session'},{t:'Remembered',n:1},{t:'Asked',n:1},{t:'When',n:1}],
       d.rows.map((m) => {
         const l = learned.get(m.session_id);
+        const sub = [`${m.events} captured`, m.pending ? `${m.pending} pending` : '', m.candidates ? `${m.candidates} proposed` : '']
+          .filter(Boolean).join(' · ');
         return `<tr class="row" data-go="${esc(MH('session', m.session_id))}">
           <td style="min-width:240px"><span class="title">${esc(pname(m.project, m.session_id))}</span>
-            <div class="slug">${esc(m.session_id)}</div></td>
-          <td class="num">${m.events}</td>
-          <td class="num">${m.pending || '—'}</td>
+            <div class="slug">${sub}</div></td>
           <td class="num">${m.entries}</td>
-          <td class="num">${m.candidates || '—'}</td>
           <td class="num">${l && l.asked.length ? l.asked.length : '—'}</td>
-          <td class="num slug">${esc(stamp(m.last))}</td></tr>`;
-      })) + pager('msessions', d.total, d.page, d.per)
-      + `<p class="slug" style="margin:var(--space-4) 0 0">${plural(d.total, 'session')} in scope.</p>`;
+          <td class="num slug">${esc(ago(m.last))}</td></tr>`;
+      })) + pager('msessions', d.total, d.page, d.per);
   });
   return [
-    `<div>
-       <h1 class="page__title">Sessions</h1>
-       <p class="page__sub">One row per session that captured evidence or wrote an observation. Pending is evidence
-         no observation job has processed yet. Asked is the same session's questions, joined on its session id —
-         a session can be remembered without ever being assessed.</p>
-     </div>`,
+    pageHead('Sessions', [],
+      `One row per session that captured evidence or wrote an observation. Pending is evidence no observation
+       job has processed yet. Asked is the same session's questions, joined on its session id — a session can
+       be remembered without ever being assessed.`),
     card(null, null, `<div id="msess-rows"><p class="empty">Loading sessions…</p></div>`),
   ].join('');
 }
@@ -2048,29 +2100,25 @@ function viewMemoryProjects() {
   const inv = projectsInScope();
   const list = inv.filter((p) => p.memory.events || p.memory.entries || p.memory.receipts);
   const none = inv.length - list.length;
-  const rows = list.map((p) => `
-    <tr class="row" data-go="${esc(MH('timeline', null, { project: p.id }))}">
-      <td style="min-width:220px"><span class="title">${esc(p.name)}</span><div class="slug">${esc(whereLine(p))}</div></td>
-      <td class="num">${p.memory.events}</td>
-      <td class="num">${p.memory.pending || '—'}</td>
+  const rows = list.map((p) => {
+    const sub = [`${p.memory.events} captured`, p.memory.pending ? `${p.memory.pending} pending` : '',
+      p.memory.receipts ? `${p.memory.receipts} receipts` : ''].filter(Boolean).join(' · ');
+    return `<tr class="row" data-go="${esc(MH('timeline', null, { project: p.id }))}">
+      <td style="min-width:220px"><span class="title">${esc(p.name)}</span><div class="slug">${sub}</div></td>
       <td class="num">${p.memory.entries}</td>
       <td class="num">${p.memory.sessions}</td>
-      <td class="num">${p.memory.receipts || '—'}</td>
-      <td class="num slug">${esc(ago(p.memory.last))}</td></tr>`);
+      <td class="num slug">${esc(ago(p.memory.last))}</td></tr>`;
+  });
+  const pending = list.reduce((a, p) => a + p.memory.pending, 0);
   return [
-    `<div>
-       <h1 class="page__title">Projects</h1>
-       <p class="page__sub">Every project memory has recorded anything for — including evidence that has been
-         captured and not yet processed into an observation. Open one to read its timeline.</p>
-     </div>`,
-    tiles([
-      ['Projects', list.length, 'with captured or stored memory'],
-      ['Evidence', list.reduce((a, p) => a + p.memory.events, 0), 'events captured'],
-      ['Pending', list.reduce((a, p) => a + p.memory.pending, 0), 'waiting to be processed'],
-      ['Observations', list.reduce((a, p) => a + p.memory.entries, 0), 'live entries'],
-    ]),
+    pageHead('Projects', [
+      plural(list.length, 'project'), plural(list.reduce((a, p) => a + p.memory.entries, 0), 'observation'),
+      `${list.reduce((a, p) => a + p.memory.events, 0)} evidence events`,
+      ...(pending ? [`<span class="warn">${pending} pending</span>`] : []),
+    ], `Every project memory has recorded anything for — including evidence that has been captured and not yet
+       processed into an observation. Open one to read its timeline.`),
     card(null, null,
-      table([{t:'Project'},{t:'Captured',n:1},{t:'Pending',n:1},{t:'Observations',n:1},{t:'Sessions',n:1},{t:'Receipts',n:1},{t:'Last capture',n:1}], rows)
+      table([{t:'Project'},{t:'Observations',n:1},{t:'Sessions',n:1},{t:'Last capture',n:1}], rows)
       + (none ? `<p class="slug" style="margin:var(--space-4) 0 0">${plural(none, 'project')} in scope ${none === 1 ? 'has' : 'have'} learning activity and no memory —
           <a class="link" data-go="${esc(LH('projects'))}">see Learning → Projects</a>.</p>` : '')),
   ].join('');
@@ -2082,7 +2130,6 @@ function drawEntry(d) {
   const facts = jsonList(e.facts);
   const files = jsonList(e.files);
   const link = (x) => `<a class="link" data-go="${esc(MH('entry', x.id))}">${esc(x.title)}</a> <span class="slug">${esc(fmtDate(x.occurred_at))}</span>`;
-
   const evidence = d.events.map((ev) => `
     <details class="qa">
       <summary class="qa__meta">
@@ -2094,63 +2141,53 @@ function drawEntry(d) {
       <pre class="raw">${esc(ev.body)}${ev.body_length > String(ev.body ?? '').length ? '\n… truncated' : ''}</pre>
       ${jsonList(ev.files).length ? `<div class="tags" style="margin-top:var(--space-3)">${jsonList(ev.files).map((f) => `<span class="pill">${esc(f)}</span>`).join('')}</div>` : ''}
     </details>`).join('');
-
   return [
     `<div>
        <p class="page__eyebrow">${esc(e.type ?? e.kind)}</p>
        <h1 class="page__title${gone ? ' gone-title' : ''}">${esc(e.title)}</h1>
-       <p class="page__sub">${esc(stamp(e.occurred_at))} · ${esc(pname(e.project))} ·
-         written by <code class="slug">${esc(e.generator)}</code>
-         ${e.import_source ? ` · imported from ${esc(e.import_source)}` : ''}
-         ${e.session_id ? ` · <a class="link" data-go="${esc(sessHref(e.session_id))}">that session</a>` : ''}</p>
+       <p class="counts">${esc(stamp(e.occurred_at))} · ${esc(pname(e.project))}
+         ${e.session_id ? ` · <a class="link" data-go="${esc(sessHref(e.session_id))}">that session</a>` : ''}
+         · ${plural(d.events.length, 'evidence event')}
+         ${e.confidence == null ? '' : ` · ${Math.round(e.confidence * 100)}% summariser confidence`}
+         · ${d.receipts.length ? `reused ${plural(d.receipts.length, 'time')}` : 'never reused'}</p>
      </div>`,
-
     e.deleted_at
       ? `<div class="banner"><p><strong>Deleted ${esc(ago(e.deleted_at))}.</strong> It is kept here so the record
            stays checkable, and it is excluded from search and recall.</p></div>` : '',
     d.replaced_by
       ? `<div class="banner"><p><strong>Superseded.</strong> A later observation corrected this one:
            ${link(d.replaced_by)}. Recall prefers the replacement; this row is the audit trail.</p></div>` : '',
-
-    tiles([
-      ['Confidence', e.confidence == null ? '—' : Math.round(e.confidence * 100) + '%', 'the summariser’s own, not a score'],
-      ['Evidence', d.events.length, 'raw events behind this claim'],
-      ['Candidates', d.candidates.length, 'concepts it proposed'],
-      ['Reused', d.receipts.length, d.receipts.length ? 'times it was selected for context' : 'never selected yet', '', MH('reuse')],
-    ]),
-
-    card('What happened', 'The observation, as written.',
-      `<p class="qa__q">${esc(e.narrative) || '<span class="empty">No narrative.</span>'}</p>
+    card('What happened', null,
+      `<p class="qa__q" style="margin:0">${esc(e.narrative) || '<span class="empty">No narrative.</span>'}</p>
        ${facts.length ? `<ul class="facts">${facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
        ${files.length ? `<div class="tags" style="margin-top:var(--space-4)">${files.map((f) => `<span class="pill">${esc(f)}</span>`).join('')}</div>` : ''}
-       ${d.tags.length ? `<div class="tags" style="margin-top:var(--space-3)">${tagPills(d.tags)}</div>` : ''}`),
-
-    d.candidates.length
-      ? card('Concepts it proposed', 'A candidate is a proposal, not a concept — and never a passing answer. Only a question you answered moves mastery.',
-          table([{t:'Slug'},{t:'Domain'},{t:'Confidence',n:1},{t:'Status'}], d.candidates.map((c) => {
-            const go = c.concept_slug ? ` class="row" data-go="${esc(LH('concept', c.concept_slug))}"` : '';
-            return `<tr${go}><td><span class="title">${esc(c.name ?? c.slug)}</span><div class="slug">${esc(c.slug)}</div></td>
-              <td><span class="pill">${esc(c.domain ?? '—')}</span></td>
-              <td class="num">${Math.round((c.confidence ?? 0) * 100)}%</td>
-              <td><span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span></td></tr>`;
-          })))
-      : '',
-
+       ${d.tags.length ? `<div class="tags" style="margin-top:var(--space-3)">${tagPills(d.tags)}</div>` : ''}
+       <p class="slug" style="margin:var(--space-4) 0 0">Written by <code>${esc(e.generator)}</code>${e.import_source ? ` · imported from ${esc(e.import_source)}` : ''}.</p>`),
     d.replaces.length
       ? card('What this replaced', 'Earlier claims this observation corrected.',
           `<div class="list">${d.replaces.map((x) => `<div>${link(x)}</div>`).join('')}</div>`)
       : '',
-
-    card('The raw evidence', 'Every event this was distilled from, exactly as captured. Open one to read it.',
-      evidence || '<p class="empty">No evidence is linked — this entry was written by hand or imported.</p>'),
-
+    fold('entry:evidence', 'The raw evidence', plural(d.events.length, 'event'),
+      evidence || '<p class="empty">No evidence is linked — this entry was written by hand or imported.</p>',
+      { hint: 'Every event this was distilled from, exactly as captured. Open one to read it.' }),
+    d.candidates.length
+      ? fold('entry:cands', 'Concepts it proposed', plural(d.candidates.length, 'candidate'),
+          lines(d.candidates.map((c) => ({
+            t: esc(c.name ?? c.slug),
+            s: `${esc(c.slug)} · ${esc(c.domain ?? '—')} · ${Math.round((c.confidence ?? 0) * 100)}% confidence`,
+            v: `<span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span>`,
+            go: c.concept_slug ? LH('concept', c.concept_slug) : null,
+          }))),
+          { hint: 'A candidate is a proposal, not a concept — and never a passing answer. Only a question you answered moves mastery.' })
+      : '',
     d.receipts.length
-      ? card('Where it was reused', 'Each time this entry was selected for a context injection.',
-          table([{t:'When'},{t:'Scope'},{t:'Stage'},{t:'From source',n:1},{t:'Sent',n:1},{t:'Delivery'}],
+      ? fold('entry:receipts', 'Where it was reused', plural(d.receipts.length, 'receipt'),
+          table([{t:'When'},{t:'Scope'},{t:'From source',n:1},{t:'Sent',n:1},{t:'Delivery'}],
             d.receipts.map((r) => `<tr><td class="slug">${esc(stamp(r.created_at))}</td>
-              <td>${esc(r.scope)}</td><td class="slug">${esc(r.stage)}</td>
+              <td>${esc(r.scope)}<div class="slug">${esc(r.stage)}</div></td>
               <td class="num">${r.source_tokens}</td><td class="num">${r.sent_tokens}</td>
-              <td>${deliveryPill(r.delivery)}</td></tr>`)))
+              <td>${deliveryPill(r.delivery)}</td></tr>`)),
+          { hint: 'Each time this entry was selected for a context injection.' })
       : '',
   ].join('');
 }
@@ -2171,7 +2208,6 @@ function viewReuse() {
   const net = R.base - R.delivered;
   const verdict = R.savings.kind === 'saving' ? R.savings.percent + '%'
     : R.savings.kind === 'overhead' ? '+' + R.savings.tokens : '—';
-
   const body = slice(rows, p).map((r) => {
     // A saving is only a saving when the delivery was confirmed. An unknown or
     // prepared receipt has a B and a D but no verdict, and printing one would
@@ -2179,42 +2215,32 @@ function viewReuse() {
     const saved = r.delivery === 'confirmed' && r.base_tokens > 0
       ? Math.round((100 * (r.base_tokens - r.delivered_tokens)) / r.base_tokens) + '%'
       : '—';
+    const sub = [esc(pname(r.project)), plural(r.item_count, 'item'), r.detail_tokens ? `+${r.detail_tokens} detail` : '', esc(r.method)]
+      .filter(Boolean).join(' · ');
     return `<tr>
       <td class="slug" style="white-space:nowrap">${esc(stamp(r.created_at))}</td>
-      <td><span class="title">${esc(r.scope)}</span><div class="slug">${esc(pname(r.project))}</div></td>
+      <td style="min-width:200px"><span class="title">${esc(r.scope)}</span><div class="slug">${sub}</div></td>
       <td class="num">${r.base_tokens}</td>
       <td class="num">${r.delivered_tokens}</td>
       <td class="num">${saved}</td>
-      <td class="num">${r.item_count}</td>
-      <td class="num">${r.detail_tokens ? '+' + r.detail_tokens : '—'}</td>
       <td>${deliveryPill(r.delivery)}</td>
-      <td class="slug">${esc(r.method)}</td>
     </tr>`;
   });
-
   return [
-    `<div>
-       <h1 class="page__title">Context reuse</h1>
-       <p class="page__sub"><strong>B</strong> is what the same material would have cost to read from source.
-         <strong>D</strong> is what was actually delivered instead. Both are counted with the same estimator
-         (<code class="slug">${esc(R.estimator)}</code>), and the percentage is an estimate of how much
-         <em>context volume</em> was avoided — not a bill, not a price, and not a measure of model spend.</p>
-     </div>`,
-
+    pageHead('Context reuse', [
+      `${R.confirmed} of ${plural(R.receipts, 'receipt')} confirmed`, `net ${net} tokens`, `estimated with <code class="slug">${esc(R.estimator)}</code>`,
+    ], `<strong>B</strong> is what the same material would have cost to read from source. <strong>D</strong> is
+       what was actually delivered instead. Both are counted with the same estimator, and the percentage is an
+       estimate of how much <em>context volume</em> was avoided — not a bill, not a price, and not a measure of
+       model spend. Receipts whose delivery is <code>unknown</code> or <code>prepared</code> are listed in the
+       ledger but never counted in the verdict: an injection that may not have reached the model is not a saving.`),
     tiles([
+      ['Verdict', verdict, savingsText(R.savings, R.receipts), R.savings.kind === 'saving' ? 'good' : R.savings.kind === 'overhead' ? 'warn' : ''],
       ['B — from source', R.base, 'estimated tokens, confirmed receipts'],
       ['D — delivered', R.delivered, 'estimated tokens actually injected'],
-      ['Net', net, net >= 0 ? 'fewer tokens of context' : 'more tokens than reading source', net < 0 ? 'warn' : ''],
-      ['Verdict', verdict, 'estimated, all projects', R.savings.kind === 'saving' ? 'good' : R.savings.kind === 'overhead' ? 'warn' : ''],
-      ['Receipts', R.receipts, `${R.confirmed} confirmed of ${R.receipts}`],
     ]),
-
-    `<div class="banner"><p>${esc(savingsText(R.savings, R.receipts))}
-       Receipts whose delivery is <code>unknown</code> or <code>prepared</code> are counted in the ledger below
-       but never in the verdict — an injection that may not have reached the model is not a saving.</p></div>`,
-
     card('Every receipt', `${plural(rows.length, 'receipt')} in scope. One row per injection.`,
-      table([{t:'When'},{t:'Scope'},{t:'B',n:1},{t:'D',n:1},{t:'Saved',n:1},{t:'Items',n:1},{t:'Detail fetch',n:1},{t:'Delivery'},{t:'Method'}], body)
+      table([{t:'When'},{t:'Scope'},{t:'B',n:1},{t:'D',n:1},{t:'Saved',n:1},{t:'Delivery'}], body)
       + pager('reuse', rows.length, p)
       + (R.receipts > R.receipts_shown
         ? `<p class="slug" style="margin:var(--space-4) 0 0">Showing the most recent ${R.receipts_shown} of ${R.receipts} receipts. The totals above cover all of them.</p>`
@@ -2235,61 +2261,63 @@ function viewHealth() {
     ['Assessed', M.assessed, 'concepts you were actually asked about'],
   ];
   const oldest = Q.oldest ? ago(Q.oldest) : '—';
-
+  // What needs the reader, said once, in words: the tiles below are the numbers.
+  const problems = [
+    !H.capture.enabled ? 'memory is disabled' : !H.capture.newest_event ? 'nothing has been captured yet' : '',
+    Q.failed ? `${plural(Q.failed, 'job')} failed after retries` : '',
+    Q.paused ? `${plural(Q.paused, 'job')} paused, waiting on a decision` : '',
+    H.spool_dropped ? `${H.spool_dropped} events dropped by the spool` : '',
+  ].filter(Boolean);
   return [
-    `<div>
-       <h1 class="page__title">Health</h1>
-       <p class="page__sub">Where memory stops, when it stops. Capture, processing, indexing, retrieval and
-         delivery fail in different ways and this page keeps them apart. Error classes only — no log dumps,
-         no keys, no raw request bodies.</p>
-     </div>`,
-
+    pageHead('Health', [
+      `last capture ${esc(H.capture.newest_event ? ago(H.capture.newest_event) : 'never')}`,
+      H.capture.enabled ? `capture is ${esc(H.capture.mode)}` : 'memory off',
+      `${Q.pending} queued${Q.pending ? `, oldest ${esc(oldest)}` : ''}`,
+    ], `Where memory stops, when it stops. Capture, processing, indexing, retrieval and delivery fail in
+       different ways and this page keeps them apart. Error classes only — no log dumps, no keys, no raw
+       request bodies. Transient failures retry on their own; auth, quota and missing need you.`),
+    problems.length
+      ? nextStep(`<strong>Needs a look:</strong> ${problems.map(esc).join(' · ')}.`)
+      : nextStep('<strong>Capture is running.</strong> No job has failed or paused.', true),
     tiles([
-      ['Last capture', H.capture.newest_event ? ago(H.capture.newest_event) : 'never',
-        H.capture.enabled ? `capture is ${H.capture.mode}` : 'memory is disabled',
-        H.capture.enabled && H.capture.newest_event ? '' : 'warn'],
       ['Queued', Q.pending, Q.pending ? `oldest ${oldest}` : 'nothing waiting', Q.pending ? 'warn' : 'good'],
       ['Paused', Q.paused, 'waiting on a decision', Q.paused ? 'warn' : ''],
       ['Failed', Q.failed, 'gave up after retries', Q.failed ? 'warn' : ''],
-      ['Dropped', H.spool_dropped, 'events the spool could not keep', H.spool_dropped ? 'warn' : ''],
+      ['Dropped', H.spool_dropped, 'events the spool lost', H.spool_dropped ? 'warn' : ''],
     ]),
-
-    card('Captured is not assessed', 'Each step is a place the pipeline can stop. A number that falls off between two rows is where to look.',
-      `<div class="checks">` + ladder.map(([label, n, note]) => `
-        <div><span class="${n ? 'mark-ok' : 'mark-no'}">${n ? '✓' : '○'}</span>
-          <span style="min-width:110px">${esc(label)}</span>
-          <span class="bar">${meter(pct(n, ladder[0][1] || 1), n ? '' : 'mute')}</span>
-          <span class="slug" style="white-space:nowrap">${n} — ${esc(note)}</span></div>`).join('') + `</div>`),
-
-    `<div class="g2">
-       ${card('Capture', 'What the hooks are allowed to record, and how long it is kept.',
-         `<div class="kv">
-            <div><b>Memory</b><span>${H.capture.enabled ? 'on' : 'off'}</span></div>
-            <div><b>Capture mode</b><span>${esc(H.capture.mode)}</span></div>
-            <div><b>Newest event</b><span>${esc(H.capture.newest_event ? stamp(H.capture.newest_event) : 'never')}</span></div>
-            <div><b>Redacted</b><span>${M.redacted}</span></div>
-            <div><b>Retention</b><span>${H.capture.retention_days ? plural(H.capture.retention_days, 'day') : 'kept until deleted'}</span></div>
-            <div><b>Last prune</b><span>${esc(H.capture.pruned_at ? ago(H.capture.pruned_at) : 'never')}</span></div>
-          </div>`)}
-       ${card('Providers', 'Nothing leaves this machine unless a provider is configured here.',
-         `<div class="kv">
-            <div><b>Observer</b><span>${H.providers.observer ? esc(H.providers.observer.kind + ' · ' + H.providers.observer.model) : 'local summariser'}</span></div>
-            <div><b>Embeddings</b><span>${H.providers.embeddings ? esc(H.providers.embeddings.kind + ' · ' + H.providers.embeddings.model) : 'local embedder'}</span></div>
-            <div><b>Retrieval</b><span>${esc(H.providers.retrieval_mode)}</span></div>
-          </div>
-          <p class="slug" style="margin:var(--space-4) 0 0">A configured model runs through Claude Code on
-            your subscription.</p>`)}
-     </div>`,
-
-    card('Stalled jobs', 'Grouped by why they stopped. Transient retries on its own; auth, quota and missing need you.',
-      H.stalled.length
-        ? table([{t:'Status'},{t:'Why'},{t:'Jobs',n:1},{t:'Attempts',n:1},{t:'Last',n:1}],
+    H.stalled.length
+      ? card('Stalled jobs', 'Grouped by why they stopped.',
+          table([{t:'Status'},{t:'Why'},{t:'Jobs',n:1},{t:'Attempts',n:1},{t:'Last',n:1}],
             H.stalled.map((j) => `<tr>
               <td><span class="pill due">${esc(j.status)}</span></td>
               <td><code class="slug">${esc(j.error_class)}</code></td>
               <td class="num">${j.n}</td><td class="num">${j.attempts}</td>
-              <td class="num slug">${esc(ago(j.last))}</td></tr>`))
-        : '<p class="empty">No job has failed or paused.</p>'),
+              <td class="num slug">${esc(ago(j.last))}</td></tr>`)))
+      : '',
+    card('Captured is not assessed', 'Each step is a place the pipeline can stop. A number that falls off between two rows is where to look.',
+      `<div class="checks" style="margin-top:0">` + ladder.map(([label, n, note]) => `
+        <div><span class="${n ? 'mark-ok' : 'mark-no'}">${n ? '✓' : '○'}</span>
+          <span style="min-width:110px">${esc(label)}</span>
+          <span class="bar">${meter(pct(n, ladder[0][1] || 1), n ? '' : 'mute')}</span>
+          <span class="slug" style="white-space:nowrap">${n} — ${esc(note)}</span></div>`).join('') + `</div>`),
+    fold('health:capture', 'Capture settings', `${M.redacted} redacted · ${H.capture.retention_days ? plural(H.capture.retention_days, 'day') + ' retention' : 'kept until deleted'}`,
+      `<div class="kv">
+         <div><b>Memory</b><span>${H.capture.enabled ? 'on' : 'off'}</span></div>
+         <div><b>Capture mode</b><span>${esc(H.capture.mode)}</span></div>
+         <div><b>Newest event</b><span>${esc(H.capture.newest_event ? stamp(H.capture.newest_event) : 'never')}</span></div>
+         <div><b>Redacted</b><span>${M.redacted}</span></div>
+         <div><b>Retention</b><span>${H.capture.retention_days ? plural(H.capture.retention_days, 'day') : 'kept until deleted'}</span></div>
+         <div><b>Last prune</b><span>${esc(H.capture.pruned_at ? ago(H.capture.pruned_at) : 'never')}</span></div>
+       </div>`,
+      { hint: 'What the hooks are allowed to record, and how long it is kept.' }),
+    fold('health:providers', 'Providers', esc(H.providers.retrieval_mode),
+      `<div class="kv">
+         <div><b>Observer</b><span>${H.providers.observer ? esc(H.providers.observer.kind + ' · ' + H.providers.observer.model) : 'local summariser'}</span></div>
+         <div><b>Embeddings</b><span>${H.providers.embeddings ? esc(H.providers.embeddings.kind + ' · ' + H.providers.embeddings.model) : 'local embedder'}</span></div>
+         <div><b>Retrieval</b><span>${esc(H.providers.retrieval_mode)}</span></div>
+       </div>
+       <p class="slug" style="margin:var(--space-4) 0 0">A configured model runs through Claude Code on your subscription.</p>`,
+      { hint: 'Nothing leaves this machine unless a provider is configured here.' }),
   ].join('');
 }
 
@@ -2347,6 +2375,7 @@ function viewArtifacts(param) {
   }
   const counts = { all: all.length, explainer: all.filter((a) => a.kind === 'explainer').length };
   counts.artifact = all.length - counts.explainer;
+  const projects = new Set(all.map((a) => pid(a.project))).size;
   const chip = (k, label) => `<button class="chip" data-go="${esc(AH('dashboard', k === 'all' ? null : k))}" aria-pressed="${kind === k}">${label} ${counts[k]}</button>`;
   const cols = [{t:'Page'},{t:'Kind'},{t:'Concept'},{t:'Written',n:1}];
   const body = !list.length
@@ -2355,19 +2384,14 @@ function viewArtifacts(param) {
         `<h3 class="slug" style="margin:var(--space-5) 0 var(--space-2)">${esc(projectById(id)?.name ?? (id === '~' ? 'no project' : base(id)))}</h3>`
         + table(cols, rows.map(artifactRow))).join('') + pager('artifacts', list.length, p);
   return [
-    `<div>
-       <h1 class="page__title">Artifacts</h1>
-       <p class="page__sub">Pages your agent wrote for you — explainers after a missed question, and anything you asked
-         to have turned into a page. Each opens in a new tab, from <code>~/.eklavya/artifacts/</code>.</p>
-     </div>`,
-    tiles([
-      ['Artifacts', all.length, 'in scope'],
-      ['Explainers', counts.explainer, 'written after a question', null, counts.explainer ? AH('dashboard', 'explainer') : null],
-      ['Projects', new Set(all.map((a) => pid(a.project))).size, 'with at least one page', null, AH('projects')],
-    ]),
+    pageHead('Artifacts', [
+      plural(all.length, 'page'), plural(counts.explainer, 'explainer'),
+      `<a class="link" data-go="${esc(AH('projects'))}">${plural(projects, 'project')}</a>`,
+    ], `Pages your agent wrote for you — explainers after a missed question, and anything you asked to have
+       turned into a page. Each opens in a new tab, from <code>~/.eklavya/artifacts/</code>.`),
     card(null, null,
       `<div class="filters">
-         <div class="grow"><input type="search" id="aq" value="${esc(t.q)}" placeholder="Search title, description, concept or project…" aria-label="Search artifacts"></div>
+         <div class="grow"><input type="search" id="aq" value="${esc(t.q)}" placeholder="Search artifacts" aria-label="Search artifacts"></div>
        </div>
        <div class="chips">${chip('all','All')}${chip('explainer','Explainers')}${chip('artifact','Other pages')}</div>
        <div style="margin-top:var(--space-4)">${body}</div>`),
@@ -2394,11 +2418,9 @@ function viewArtifactProjects() {
       <td class="num slug">${esc(ago(r.last))}</td></tr>`;
   });
   return [
-    `<div>
-       <h1 class="page__title">Projects</h1>
-       <p class="page__sub">Artifacts are filed by the project they were written in — the main checkout, for a worktree.
-         Open one to see only its pages.</p>
-     </div>`,
+    pageHead('Projects', [plural(by.size, 'project')],
+      `Artifacts are filed by the project they were written in — the main checkout, for a worktree. Open one
+       to see only its pages.`),
     card(null, null, table([{t:'Project'},{t:'Pages',n:1},{t:'Explainers',n:1},{t:'Last written',n:1}], rows)),
   ].join('');
 }
@@ -2862,6 +2884,7 @@ function render(keepFocus) {
   document.title = `${label} · ${W.name} — Eklavya`;
 
   AFTER.length = 0;
+  LAZY.clear();
   $('view').innerHTML = !pg ? viewNotFound('#/' + CUR.wf + '/' + CUR.page, false)
     : CUR.bad ? viewNotFound(CUR.param, true)
     : pg.view(CUR.param);
@@ -2925,6 +2948,22 @@ $('view').addEventListener('keydown', (e) => {
   e.preventDefault();
   onActivate(e);
 });
+
+// A fold remembers being opened or closed, and draws the charts it was hiding.
+// `toggle` does not bubble, so this listens in the capture phase.
+$('view').addEventListener('toggle', (e) => {
+  const d = e.target;
+  if (!(d instanceof HTMLDetailsElement)) return;
+  if (d.dataset.fold) {
+    FOLD[d.dataset.fold] = d.open;
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify(FOLD)); } catch (err) { /* defaults next time */ }
+  }
+  if (!d.open) return;
+  for (const [id, fn] of LAZY) {
+    const el = $(id);
+    if (el && d.contains(el) && !el.closest('details:not([open])')) { LAZY.delete(id); fn(el); }
+  }
+}, true);
 
 $('view').addEventListener('input', (e) => {
   if (e.target.id === 'q') {

@@ -31,22 +31,34 @@ Project and theme choices survive a workflow switch. Page-specific filters do no
 
 Groups can be collapsed and are remembered per workflow. At 900 px or narrower, navigation moves into a menu drawer. Keyboard navigation supports Tab and Enter; the workflow picker also supports arrows and Escape. Escape or clicking outside closes the drawer.
 
+## Reading a page
+
+Every page follows the same order, so the answer comes before the detail:
+
+1. **The title and one line of counts.** For example, `85 concepts asked of 334 · 96 answers · since 26 Aug`. A count that needs attention, such as pending evidence, is a link.
+2. **How this works**, folded. Open it for the arithmetic behind the page: mastery thresholds, decay, how savings are estimated.
+3. **The one next step**, when there is one: concepts due for review, or a stalled memory job.
+4. **The lists**, one line per item. Open a line, or its page, for the rest.
+5. **Secondary sections, folded.** The practice calendar, grade history, capture settings and similar detail sit in closed sections whose summary line still shows a count or verdict. Open one with a click, Enter or Space.
+
+The dashboard remembers which sections you opened or closed, in this browser only.
+
 ## Learning
 
 | Page | What you can inspect |
 | --- | --- |
-| Dashboard (`#/learning/dashboard`) | Accuracy, recorded versus assessed concepts, mastery, due reviews, streaks, answer charts, practice calendar, weakest concepts and recent sessions. |
+| Dashboard (`#/learning/dashboard`) | Accuracy, mastery, due reviews and streak; recorded versus assessed concepts in the counts line; 30 days of answers; the weakest five concepts and recent sessions. Where you stand and the practice calendar are folded. |
 | Concepts (`#/learning/concepts`) | Search, sort and filter the graph by domain or state: due, learning, mastered or unseen. |
 | Review (`#/learning/review`) | Due reviews, upcoming reviews with a 14-day forecast, and skipped questions. Tabs use `/upcoming` and `/skipped`. |
 | Sessions (`#/learning/sessions`) | Sessions that logged concepts or asked questions. Memory-only sessions are listed in Memory. |
-| Projects (`#/learning/projects`) | Assessments, logged concepts, accuracy, levels and promotion conditions per project. Projects with logged work but no answers are marked “No assessments yet”. |
+| Projects (`#/learning/projects`) | One line per project: level, accuracy and last activity. Open it for logged and assessed concepts, promotion conditions and 30 days of answers. Projects with logged work but no answers say “not assessed”. |
 | Domains (`#/learning/domains`) | Concept coverage and the spread of question tiers. |
 
 ## Memory pages
 
 | Page | What you can inspect |
 | --- | --- |
-| Dashboard (`#/memory/dashboard`) | Memory counts, estimated reuse, health, recent observations and sessions. |
+| Dashboard (`#/memory/dashboard`) | Memory counts, a two-line pipeline status (estimated reuse and health, each linking to its page), recent observations and sessions. |
 | Timeline (`#/memory/timeline`) | Entries by day, one line each; open a line for its summary and a link to the full entry. Filter by type, tag or date, and search titles, narratives, facts and file paths. |
 | Sessions (`#/memory/sessions`) | Sessions with evidence or observations, including pending evidence and questions from the same session. |
 | Projects (`#/memory/projects`) | Every project with captured memory, including evidence not yet summarised. |
@@ -72,8 +84,8 @@ Pages served by the dashboard are sandboxed: their inline scripts and downloads 
 
 | Detail page | Contains |
 | --- | --- |
-| Concept (`#/learning/concept/<slug>`) | Score and decay, review schedule, grade history, every recorded question and answer, logged context, prerequisites and related concepts. |
-| Session (`#/learning/session/<id>` or `#/memory/session/<id>`) | Evidence, observations, proposed concepts, logged work, review questions and grades. Both routes show the same session with the originating workflow's sidebar. |
+| Concept (`#/learning/concept/<slug>`) | Score and decay, review schedule, and every recorded question as one line that opens to its options and feedback. Grade history, logged context and connected concepts are folded. |
+| Session (`#/learning/session/<id>` or `#/memory/session/<id>`) | Logged work and the questions asked, then folded sections for review concepts, observations and proposed concepts. Both routes show the same session with the originating workflow's sidebar. |
 | Domain (`#/learning/domain/<name>`) | Concepts ordered by weakness, with mastery and learning state. |
 | Observation (`#/memory/entry/<id>`) | Narrative, facts, files, tags, summariser, confidence, concept candidates, reuse receipts and expandable raw evidence. Corrections link to the replacement. |
 
@@ -85,12 +97,12 @@ The timeline is an audit trail. Superseded and soft-deleted entries remain label
 
 The timeline groups entries under a heading for each local day and says when a stretch of days has nothing. When a session's summary is on the same page as its observations, they fold under one session line; open it to see them. Grouping is per page, so a session whose summary is on another page shows its observations as ordinary lines.
 
-The Memory Dashboard shows these counts as tiles; the timeline shows observations, sessions and pending evidence on one line under its title.
+The Memory Dashboard shows observations, sessions, pending evidence and reuse as tiles, and the distilled, indexed, reused, delivered and assessed totals on one line under its title. The timeline shows observations, sessions and pending evidence on one line.
 
 | Count | Meaning |
 | --- | --- |
 | Observations | Live entries, excluding superseded and deleted ones; also reports how many are indexed as vectors. |
-| Evidence | Captured raw events and how many have been summarised. |
+| Pending | Captured raw events not yet summarised into an observation, out of all evidence events. |
 | Sessions | Sessions that captured evidence or wrote observations. |
 | Reused | Entries selected for recall and those confirmed as delivered. |
 | Assessed | Concepts proposed from evidence that you actually answered a question about. |
@@ -124,7 +136,7 @@ The project selector includes projects with attempts, logged concepts, evidence,
 
 Selecting a project scopes lists and activity, but concept mastery and review dates remain shared. The selected project is saved in the URL. The ink/paper theme is remembered in your browser.
 
-Most lists show 20 rows per page; the memory timeline shows 25, and question histories show five.
+Most lists show 20 rows per page; the memory timeline shows 25, and a concept's question history shows ten, one line each.
 
 ## While you leave it open
 
