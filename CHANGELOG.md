@@ -1,3 +1,10 @@
+# [1.29.0](https://github.com/ProjectAJ14/eklavya/compare/v1.28.0...v1.29.0) (2026-09-24)
+
+
+### Features
+
+* **dashboard:** lead every page with its answer, fold the detail ([3628edb](https://github.com/ProjectAJ14/eklavya/commit/3628edb6fac2541624cc359111dc8506792cb5af))
+
 # [1.28.0](https://github.com/ProjectAJ14/eklavya/compare/v1.27.1...v1.28.0) (2026-09-24)
 
 
