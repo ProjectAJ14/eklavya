@@ -709,7 +709,8 @@ async function crossReference(source: string, quiet = false): Promise<void> {
   const shown = source.replace(os.homedir(), '~');
   const run = (projectMap: Record<string, string>) => {
     const work = () => importOffThread({ dbFile: dbPath(), source, opts: { projectMap }, guessFrom: claudeHome() });
-    return quiet ? work() : spin('claude-mem', `checking ${shown} against Eklavya…`, work);
+    // A terminal spinner erases itself; only the non-TTY log line would be noise.
+    return quiet && !process.stdout.isTTY ? work() : spin('claude-mem', `checking ${shown} against Eklavya…`, work);
   };
   let { report, verified, unsure } = await run({});
   let rehomed = report.rehomed;
