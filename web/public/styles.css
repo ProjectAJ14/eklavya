@@ -113,11 +113,6 @@ a { color: inherit; text-decoration: none; }
 .btn--brand:hover { background: var(--spot); color: var(--spot-ink); }
 .btn--ghost { color: var(--ink); border: 1px solid var(--line-2); padding: 12px 18px; }
 .btn--ghost:hover { background: var(--panel); color: var(--ink); }
-.btn--white {
-  background: var(--panel); color: var(--ink);
-  font-size: 14px; padding: 9px 16px;
-}
-.btn--white:hover { background: var(--mass); color: var(--ink); }
 
 /* ============================================================
    NAV
@@ -238,7 +233,7 @@ a { color: inherit; text-decoration: none; }
 }
 .badge {
   display: inline-flex; align-items: center; gap: 8px;
-  border: 1px solid rgba(25,150,136,.45); background: rgba(25,150,136,.12);
+  border: 1px solid var(--spot); background: var(--spot-soft);
   color: var(--spot); border-radius: 0; padding: 6px 14px;
   font-size: 12px; font-weight: 700; letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
@@ -425,7 +420,7 @@ a { color: inherit; text-decoration: none; }
 /* the tutor's one-line explanation, printed under the grade */
 .tool__res--why { padding-left: 4ch; color: var(--neutral-400); }
 .tool--ek .tool__head { color: var(--green-300); }
-.is-miss { color: var(--error); }
+.is-miss { color: var(--term-err); }
 .is-blank { color: var(--neutral-500); }
 
 /* ---------- boxes ---------- */
@@ -528,7 +523,7 @@ kbd {
 .ask__opt.is-right { background: rgba(25, 150, 136, .18); color: #E8EDEF; }
 .ask__opt.is-right .ask__n, .ask__opt.is-right .ask__mark { color: var(--green-300); }
 .ask__opt.is-wrong { background: rgba(229, 72, 77, .14); color: #E8EDEF; }
-.ask__opt.is-wrong .ask__n, .ask__opt.is-wrong .ask__mark { color: var(--error); }
+.ask__opt.is-wrong .ask__n, .ask__opt.is-wrong .ask__mark { color: var(--term-err); }
 .ask__opt.is-blank { background: rgba(107, 119, 128, .18); color: #C7CFD4; }
 .ask__opt.is-blank .ask__mark { color: var(--neutral-400); }
 .ask__keys { color: var(--neutral-600); font-size: 11.5px; padding: 4px 0 0 2px; }
@@ -651,9 +646,7 @@ kbd {
 .card {
   background: var(--panel); border: 1px solid var(--line);
   border-radius: 0; padding: 28px;
-  transition: box-shadow 200ms var(--ease);
 }
-.card:hover { }
 .card h3 { margin: 18px 0 8px; font-family: var(--font-disp); font-size: 18px; font-weight: var(--weight-bold); letter-spacing: var(--tracking-snug); }
 .card p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--dim); }
 .icon-tile {
@@ -753,7 +746,7 @@ kbd {
 .cmd-ask a:hover { border-bottom-color: var(--spot); }
 
 .data-card {
-  background: var(--bg); border-radius: var(--radius-xl); padding: 36px;
+  background: var(--bg); border-radius: 0; padding: 36px;
   color: var(--ink); position: sticky; top: 96px;
 }
 .data-card h3 { margin: 20px 0 10px; font-family: var(--font-disp); font-size: 24px; font-weight: var(--weight-extra); letter-spacing: var(--tracking-tight); }
@@ -789,7 +782,7 @@ kbd {
 .dash__note code { font-family: var(--font-mono); font-size: 13px; color: var(--spot); }
 
 .dash__preview {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-xl);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 0;
   padding: 24px;
 }
 .dash__tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
@@ -825,7 +818,7 @@ kbd {
     transparent var(--rs), transparent calc(var(--rs) + 2px),
     var(--warning) calc(var(--rs) + 2px), var(--warning) var(--ms),
     transparent var(--ms), transparent calc(var(--ms) + 2px),
-    var(--faint-2) calc(var(--ms) + 2px)
+    var(--faint) calc(var(--ms) + 2px)
   );
   --total: calc(var(--r) + var(--m) + var(--s));
   --rs: calc(var(--r) / var(--total) * 100%);
@@ -912,7 +905,7 @@ kbd {
 }
 .footer__left { max-width: 520px; }
 .footer__mark {
-  width: 26px; height: 26px; border-radius: 0; background: var(--spot);
+  width: 26px; height: 26px; border-radius: 0; background: var(--spot); color: var(--spot-ink);
   display: flex; align-items: center; justify-content: center; flex: none;
 }
 .footer__quote {
@@ -1240,7 +1233,6 @@ kbd {
 }
 @keyframes spineShuttle { 0%, 100% { top: -72px; } 50% { top: 100%; } }
 @keyframes gridDrift { to { background-position: 34px 34px; } }
-@keyframes gridDrift26 { to { background-position: 26px 26px; } }
 @keyframes glowDrift {
   0%, 100% { transform: translate(0, 0); }
   50% { transform: translate(-70px, 46px); }
@@ -1333,6 +1325,7 @@ kbd {
   *, *::before, *::after {
     animation: none !important;
     transition-duration: .01ms !important;
+    transition-delay: 0s !important;
   }
   /* Several loops end their cycle at opacity 0. Killing the animation would
      leave that content invisible, so land every animated element in the state

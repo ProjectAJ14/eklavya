@@ -47,9 +47,11 @@ In this order, each under its own `<h2>`:
 - **The rule that transfers.** When this applies in a different codebase, and
   the one gotcha to watch for.
 
-Plain English, short sentences, no jargon without a gloss. Role tokens only in
-any CSS you add (`--ink --dim --line --spot …`), square corners, no emoji, one
-self-contained file.
+Plain English, short sentences, no jargon without a gloss. Any CSS you add
+follows the design rules in the `eklavya-artifacts` skill: role tokens only
+(`--ink --dim --faint --line --spot …`, never a raw hex or `--vd-*` step), one
+verdigris accent, square corners, hairlines instead of shadows, the three font
+variables, readable on both ink and paper, no emoji. One self-contained file.
 
 Never reveal or restate the answer to a *different* question, and never grade
 anything: the session already recorded the answer.

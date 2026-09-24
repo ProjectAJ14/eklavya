@@ -77,10 +77,29 @@ not.
 
 **Stay on the design system.** Components already in the template: `.eyebrow`,
 `.lede`, `.card`, `.grid`, `.chip` (`.warn`, `.bad`), `.stat` (`.k`, `.v`,
-`.d`), `.callout`, `td.num`. Any new CSS names a role — `--bg --panel --mass
---ink --dim --faint --line --line-2 --spot --spot-soft --warning --error` —
-never a raw hex, and keeps `border-radius: 0`. One accent, verdigris `--spot`,
-spent sparingly. No emoji.
+`.d`), `.callout`, `td.num`. Reuse them before adding CSS. Any CSS you add
+follows Eklavya's rules:
+
+- **Colour names a role**, never a raw hex, `rgba()` or `--vd-*` step. Grounds
+  `--bg`, `--panel` (cards), `--mass` (wells, inline code), `--code-bg`; text
+  `--ink`, `--dim` (body), `--faint` (captions, labels); hairlines `--line`,
+  `--line-2`; accent `--spot`, `--spot-soft` (tints), `--spot-ink` (text on a
+  `--spot` fill); state `--warning`, `--error`. `--faint-2` is for disabled
+  marks only, never readable text.
+- **One accent**, verdigris `--spot`, spent a handful of times: the node that
+  matters, a key number, a link. No other hues. `--warning` and `--error` mean
+  a real warning or mistake, and always carry a word or mark too — never
+  colour alone.
+- **Square and flat.** `border-radius: 0` on every box, chip and table; circles
+  only for dots. Separate with 1px hairlines, not shadows.
+- **Type through the variables**: `--font-disp` (Archivo) for headings,
+  `--font-body` (Inter) for text, `--font-mono` (JetBrains Mono) for code,
+  commands, concept slugs and small uppercase labels. Sentence case.
+- **Icons** are inline Lucide-style line SVG: `stroke="currentColor"`, width 2,
+  round caps and joins. No emoji, icon fonts or filled icons.
+- **Both grounds.** Every text colour reads at 4.5:1 on ink and on paper —
+  check with `data-mode="paper"` on `<html>`. Motion, if any, is short
+  (120–320ms on `--ease`) and switched off under `prefers-reduced-motion`.
 
 **Keep it one file.** Everything inline. An external stylesheet, script or
 image breaks the HTML download, which hands over the page itself.

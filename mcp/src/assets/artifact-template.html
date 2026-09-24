@@ -20,7 +20,7 @@
 /*{{TOKENS}}*/
 </style>
 <style>
-  :root{ --ok:var(--spot); --maxw:880px; }
+  :root{ --maxw:880px; }
 
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 var(--font-body)}
@@ -80,7 +80,7 @@
     border:1px solid var(--line-2);border-radius:0;background:var(--panel);color:var(--ink);
     font:500 12px var(--font-mono);letter-spacing:.06em;cursor:pointer}
   .actions button:hover{border-color:var(--spot);color:var(--spot)}
-  .actions button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--spot)}
+  .actions button:focus-visible{outline:none;box-shadow:var(--ring)}
 
   @media screen{
     body{background-image:linear-gradient(var(--grid) 1px,transparent 1px),

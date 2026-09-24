@@ -84,8 +84,8 @@ function inlineTokens(): string {
     const css = fs.readFileSync(assetPath('tokens.css'), 'utf8');
     return css.replace(/@import\s+url\([^)]*\)[^;]*;\s*/gi, '');
   } catch {
-    // A build without the tokens still yields a readable page: the template's
-    // own fallbacks cover the roles it names.
+    // A build without the tokens still writes the page; it renders unstyled
+    // until the tokens are restored, rather than failing the command.
     return '';
   }
 }
