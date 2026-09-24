@@ -1,25 +1,15 @@
-/**
- * Copies the generated runtime diagram into public/ and gives it the site's
- * favicon on the way through.
- *
- * archify emits no `<link rel="icon">`, so the tab falls back to /favicon.ico,
- * which this site does not have — the diagram opened in its own tab showed the
- * browser's blank page mark. The link is added here rather than in docs/,
- * because a hand-edit to a generated file dies with the next regeneration.
- */
+/** Keep the generated diagram intact; add public-site metadata only to the copy. */
 import { readFileSync, writeFileSync } from 'node:fs';
-
+import { staticHead } from '../src/lib/static-head.mjs';
 const src = new URL('../../docs/eklavya-runtime.html', import.meta.url);
 const out = new URL('../public/eklavya-runtime.html', import.meta.url);
 const charset = '<meta charset="UTF-8">';
-const icon = '<link rel="icon" href="/favicon.svg" type="image/svg+xml">';
-
 const html = readFileSync(src, 'utf8');
-// after the charset, so that declaration stays where a parser expects it
-const withIcon = html.includes(icon) ? html : html.replace(charset, `${charset}\n  ${icon}`);
-
-if (!withIcon.includes(icon)) {
-  console.warn('embed-diagram: no charset meta to inject the favicon after; copying as generated');
-}
-
-writeFileSync(out, withIcon);
+if (!html.includes(charset)) throw new Error('embed-diagram: expected charset marker is missing');
+const metadata = staticHead({
+  title: 'Eklavya runtime architecture',
+  description: 'Explore the Eklavya runtime: Claude Code hooks, learning checkpoints, local memory, the MCP server, and the optional commit gate.',
+  path: '/eklavya-runtime.html', id: 'docs/how-it-works', index: false,
+});
+// The diagram is an embedded companion to /docs/how-it-works/, not a search landing page.
+writeFileSync(out, html.replace(/<title>[\s\S]*?<\/title>/i, '').replace(charset, `${charset}\n${metadata}`));

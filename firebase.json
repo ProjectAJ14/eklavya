@@ -44,6 +44,50 @@
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/social/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/robots.txt",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/sitemap*.xml",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ],
+    "redirects": [
+      {
+        "source": "/index.html",
+        "destination": "/",
+        "type": 301
+      },
+      {
+        "source": "/docs/index.html",
+        "destination": "/docs/",
+        "type": 301
+      },
+      {
+        "source": "/docs/:page/index.html",
+        "destination": "/docs/:page/",
+        "type": 301
       }
     ]
   }

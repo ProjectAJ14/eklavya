@@ -1,6 +1,8 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
+import { site } from './src/lib/seo.mjs';
 import rehypeBrand from './src/plugins/rehype-brand.mjs';
 
 /**
@@ -17,14 +19,16 @@ import rehypeBrand from './src/plugins/rehype-brand.mjs';
  * key, so a choice made on either half carries to the other.
  */
 export default defineConfig({
-  site: 'https://eklavya-run.web.app',
-  trailingSlash: 'ignore',
+  site: site.url,
+  trailingSlash: 'always',
   // Every prose mention of the product's name is painted in the accent. It runs
   // over the rendered tree rather than being written by hand, so a page added
   // next year gets it without anyone remembering to. See the plugin for what it
   // deliberately does not touch.
   markdown: { rehypePlugins: [rehypeBrand] },
   integrations: [
+    // public/index.html is copied verbatim, so Astro cannot discover it as a route.
+    sitemap({ customPages: [`${site.url}/`], filter: (page) => !new URL(page).pathname.startsWith('/social/') }),
     starlight({
       title: 'Eklavya',
       description:
@@ -42,6 +46,7 @@ export default defineConfig({
       // Starlight's own toggle would fight ours; ours is in the shared nav and
       // writes the key both halves read.
       components: {
+        Head: './src/components/Head.astro',
         ThemeSelect: './src/components/GroundToggle.astro',
         SiteTitle: './src/components/SiteTitle.astro',
         // The <h1> comes from frontmatter, so the rehype plugin cannot reach it.

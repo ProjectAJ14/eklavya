@@ -77,12 +77,11 @@ which copies it into `public/` (gitignored), and
 `.github/workflows/firebase.yml` lists it as a deploy trigger so regenerating
 the diagram republishes the page.
 
-That script is a copy with one edit: archify emits no `<link rel="icon">`, so
-the diagram opened in its own tab fell back to `/favicon.ico`, which this site
-does not have, and showed the browser's blank mark. The link is injected on the
-way into `public/` rather than written into `docs/`, for the same reason
-everything else here is injected — a hand-edit to a generated file dies with the
-next regeneration.
+The copy gains the site's icons, canonical URL and social preview metadata.
+It is marked `noindex, follow` because the explanatory manual page is the search
+entry point. The script changes only the copied file; the generated source in
+`docs/` remains untouched. A missing injection marker fails the build rather
+than silently publishing a viewer without metadata.
 
 The component is a still picture, deliberately. The frame loads `?embed=1`
 (which hides the viewer's toolbar) with `pointer-events: none`, because
@@ -271,3 +270,15 @@ EOF
 ```
 
 Site-only work is a `docs:` commit — it does not cut a release.
+
+## Search metadata and share images
+
+`SEO.md` describes the public identity, build checks and publication checklist.
+Every manual page needs a unique frontmatter `description`. Its share card is
+rendered automatically from the same title and description. `Head.astro` adds
+social tags and structured data without replacing Starlight's head behavior.
+
+`src/lib/seo.mjs` owns the canonical origin and product identity. After changing
+it, run `npm run seo:refresh` to refresh the handwritten homepage's marked SEO
+block. After editing `public/brand/mark.svg`, run `npm run icons` and commit the
+exports. Every build runs `check:seo` over the output; it must pass before deploy.

@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Eklavya — Learning and memory for Claude Code",
+  "short_name": "Eklavya",
+  "description": "Adaptive learning and local project memory for Claude Code.",
+  "lang": "en",
+  "start_url": "/",
+  "scope": "/",
+  "display": "browser",
+  "background_color": "#17171a",
+  "theme_color": "#17171a",
+  "icons": [
+    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

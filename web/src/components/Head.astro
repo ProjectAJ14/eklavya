@@ -1,0 +1,33 @@
+---
+import DefaultHead from '@astrojs/starlight/components/Head.astro';
+import type { Props } from '@astrojs/starlight/props';
+import { absolute, docPath, jsonLd, sharingMeta, structuredData } from '../lib/seo.mjs';
+
+const { entry } = Astro.props;
+const is404 = Astro.url.pathname === '/404.html' || Astro.url.pathname === '/404/';
+const title = `${entry.data.title} | Eklavya`;
+const description = entry.data.description;
+const path = docPath(entry.id);
+// Let Starlight merge tags so there is exactly one value for each meta key.
+// Keep its built-in title, canonical, styles, language handling and generator tags.
+const props = {
+  ...Astro.props,
+  entry: { ...entry, data: { ...entry.data, head: [
+    ...entry.data.head,
+    ...(is404
+      ? [
+          { tag: 'meta', attrs: { name: 'robots', content: 'noindex, follow' } },
+          { tag: 'link', attrs: { rel: 'canonical', href: absolute('/404.html') } },
+          { tag: 'meta', attrs: { property: 'og:url', content: absolute('/404.html') } },
+        ]
+      : sharingMeta({ title, description, path, id: entry.id })),
+  ] } },
+};
+---
+<DefaultHead {...props} />
+<link rel="icon" href="/favicon.ico" sizes="32x32" />
+<link rel="icon" href="/brand/icon-96.png" type="image/png" sizes="96x96" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+<link rel="manifest" href="/site.webmanifest" />
+{!is404 && <script type="application/ld+json" set:html={jsonLd(structuredData({ title, description, path, docs: true }))} />}
