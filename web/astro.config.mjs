@@ -82,11 +82,18 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Going deeper',
+          label: 'How it works',
           items: [
             { slug: 'docs/how-it-works' },
             { slug: 'docs/grading-engine' },
             { slug: 'docs/your-data' },
+          ],
+        },
+        {
+          label: 'Setup and support',
+          items: [
+            { slug: 'docs/installation-options' },
+            { slug: 'docs/updates' },
             { slug: 'docs/migrating' },
             { slug: 'docs/troubleshooting' },
             { slug: 'docs/faq' },

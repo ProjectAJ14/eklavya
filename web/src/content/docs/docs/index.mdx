@@ -1,24 +1,36 @@
 ---
 title: "What Eklavya is"
-description: "Learn how Eklavya brings adaptive coding questions, spaced repetition, and local project memory into your Claude Code workflow. Start with the manual."
+description: "Learn the concepts behind Claude Code's work, retain project history, and choose your next step in the Eklavya manual."
 sidebar:
   order: 1
 ---
 
-Eklavya is a plugin for [Claude Code](https://claude.com/claude-code). You work exactly as you do now — you ask Claude to build something, and it builds it. The difference is that while it works, Eklavya asks you a **multiple-choice question** about a concept the code it just wrote depends on. One question, not a batch.
+Eklavya is a Claude Code plugin with two jobs: **help you understand the work
+Claude produces** and **remember what happened in your project**.
 
-You answer with a keystroke. Claude grades it, saves the result to a small database on your machine, and carries on with the task. By default you get at most **four questions in a whole session**, spread through the work rather than piled at the end. Over weeks the questions get harder, the ones you got right stop coming back, and the ones you fumbled return at spaced-out intervals until they stick.
+- **Learn as you build.** Short questions connect to the code Claude just wrote.
+  Your answers guide the difficulty and schedule future reviews.
+- **Carry context forward.** Eklavya saves prompts and work evidence, turns them
+  into observations, and recalls relevant history in later sessions.
+- **Choose how much it interrupts.** Keep skippable questions, require a passing
+  quiz before commits, or use memory alone.
 
-While that happens it also **remembers**. What you asked for, what changed, what failed — recorded as you work and summarised into short observations, so the next session starts knowing what this project has already been through instead of asking you to explain your own repository again. That half is on by default and is governed separately: `quiz.enabled: false` means no questions, not no history. [Memory](/docs/memory/) is the page for it.
+By default, questions arrive one at a time during work, with a four-minute
+checkpoint interval and a budget of four questions per session. Memory is on;
+commit enforcement is off. [The dials](/docs/dials/) explains how to change this.
 
-That is the whole product: it teaches you the code your agent writes, and it remembers the work.
+## Start here
 
-### What you need
+You need **Claude Code and Node.js 22 or newer** on macOS, Linux or Windows.
+Eklavya needs no separate account. Its database and default memory processing
+are local; recalled history becomes context for Claude. See
+[privacy and data](/docs/memory/) for the boundaries.
 
-**Node 22 or newer.** Check it with `node --version`. That is the entire list, on macOS, Linux and Windows alike — it runs the server, the `eklavya` command and every hook. If yours is older, [Installing](/docs/installing/) has the upgrade command for your platform.
-
-There is no account, and with the default configuration nothing leaves your machine — the summariser that writes observations and the embedder that makes memory searchable both run locally. Pointing `providers.observer` at a model is the only setting that changes that, and nothing sets it for you.
-
----
-
-Next: **[Installing](/docs/installing/)**. If you would rather see the machinery first, [How it works](/docs/how-it-works/) is the parts underneath.
+| Your goal | Read next |
+|---|---|
+| Get it running | [Installing](/docs/installing/) |
+| See what a session feels like | [Your first session](/docs/first-session/) |
+| Adjust questions or memory | [The dials](/docs/dials/) |
+| Find a command or setting | [Commands](/docs/commands/) · [CLI](/docs/cli/) · [Configuration](/docs/configuration/) |
+| Understand the components | [How it works](/docs/how-it-works/) |
+| Fix a problem | [Troubleshooting](/docs/troubleshooting/) |

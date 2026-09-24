@@ -5,94 +5,92 @@ sidebar:
   order: 14
 ---
 
-Everything Eklavya knows about you is in one directory. There is no account and no telemetry, and with the default configuration nothing about your code leaves the machine.
+Eklavya stores personal state under `~/.eklavya/`. It has no account or telemetry. Default memory capture, summarisation and retrieval run locally.
 
-Two things can change that, and neither is on unless you turn it on: `providers.observer` sends batches of captured work to a Claude model, through Claude Code on your subscription, so it can write richer observations, and `notifications` and `sync` send wrap-ups or memory entries to somewhere you name. [Configuration](/docs/configuration/) has all three, and each one says what leaves.
+Choosing an observer sends captured work through Claude Code to a model. Enabling notifications or shared-folder sync can send selected data elsewhere. [Configuration](/docs/configuration/) describes each opt-in. The normal update check contacts npm; artifact templates can load Google Fonts. Local data storage does not mean every feature makes zero network requests.
 
-| Path | What it holds |
+| Path | Contents |
 | --- | --- |
-| `~/.eklavya/knowledge.db` | SQLite, WAL mode. The learning half: concepts and their prerequisite edges, your mastery per concept, every attempt, what each session logged, the gates, each project's level, and the pacing state that stops it asking twice in a row. The memory half, in the same file: the raw evidence of what each session did, the observations distilled from it, the search index and its vectors, the reuse receipts, saved collections, and the concept candidates evidence proposed. |
-| `~/.eklavya/spool/events.jsonl` | Evidence captured while the database was unreachable or busy, waiting to be replayed. Sanitised before it is written, and emptied on the next healthy session. Usually absent. |
+| `~/.eklavya/knowledge.db` | Quiz attempts, concepts, mastery, review schedules, gates and project levels; also memory evidence, observations, search indexes, receipts, collections and candidates. |
 | `~/.eklavya/config.json` | Your global settings. |
-| `~/.eklavya/projects/<checkout>/config.json` | Your settings for one codebase, named after its path with the separators as dashes. Outside the repository, so they are yours rather than your team's. |
-| `~/.eklavya/update.json`, `update.log` | The auto-updater's state (when it last checked, the latest version it saw, the last error) and the output of its last background run. Safe to delete; the next session starts them again. |
-| `~/.eklavya/packs/*.json` | Your own [concept packs](/docs/packs/) — extra domains Eklavya can quiz on. |
-| `~/.eklavya/projects/<checkout>/packs/*.json` | Your [concept packs](/docs/packs/) for one codebase. |
-| `~/.eklavya/artifacts/<checkout>/*.html` | [Explainer pages and other artifacts](/docs/commands/#the-artifacts-skill) your agent wrote, one folder per project, named the same way as `projects/` — a worktree's pages go in its main checkout's folder, and a page written outside any checkout is filed under that directory's path. Each is a self-contained page; delete one and it is gone from the dashboard on the next load. |
+| `~/.eklavya/projects/<checkout>/config.json` | Your personal settings for one checkout and its worktrees. |
+| `~/.eklavya/packs/*.json` | Global concept packs. |
+| `~/.eklavya/projects/<checkout>/packs/*.json` | Personal project packs. |
+| `~/.eklavya/artifacts/<checkout>/*.html` | Saved explanations and other pages. |
+| `~/.eklavya/spool/events.jsonl` | Sanitised evidence waiting for replay after a busy or unavailable database. Usually absent. |
+| `~/.eklavya/update.json`, `update.log` | Update state and output from the last background update. |
+| `~/.eklavya/runtime/` | Installed runtime and dependencies. |
 
 ### Who can read it
 
-`~/.eklavya` is readable only by you (mode `0700`), and `knowledge.db`, its `-wal` and `-shm` files, the spool and `config.json` are `0600`. An install from before this was tightened is fixed the next time Eklavya opens the database. A `memory export` file is written `0600` too.
+Eklavya requests private filesystem permissions: `0700` for its home directory and `0600` for the database and sidecars, spool, configuration and memory exports. Existing installations are tightened when the database opens. On Windows, access also depends on the user's filesystem permissions.
+
+The database uses SQLite's write-ahead log (WAL). Its `-wal` and `-shm` sidecars can contain active state; do not treat the main file alone as a live backup.
 
 ### Backups of your own files
 
-When Eklavya edits a file that is yours rather than its own — `~/.claude/settings.json`, Claude Code's plugin registries, `~/.eklavya/config.json` — it first copies the previous version beside it as `<file>.eklavya-bak`. There is one backup per file, holding it as it was before the last command that changed it. A file that does not parse is never overwritten: the command stops and names it.
+For a **full database backup**, including learning history, use SQLite's backup operation. This example requires the `sqlite3` CLI:
+
+```bash
+sqlite3 "$(eklavya db-path)" ".backup '$HOME/eklavya-backup.db'"
+```
+
+Keep copies of your configuration, packs and artifacts separately. A memory-only export is useful for moving or restoring entries:
+
+```bash
+eklavya memory export ~/eklavya-memory-backup.json
+eklavya memory restore ~/eklavya-memory-backup.json
+```
+
+Memory restore is additive and idempotent. It does not restore quiz attempts, mastery or gates, remove later data, or reverse all edits. Learning history cannot be reconstructed from memories or repository history.
+
+When Eklavya changes a user-owned JSON file, it keeps the previous version beside it as `<file>.eklavya-bak`. This is one previous version, not a backup history. Malformed files are left untouched.
+
+Database schema migrations run automatically when the database opens and are forward-only. Keep a full backup before testing an older runtime against newer data.
 
 ### Looking inside
 
 ```bash
 eklavya db-path
-sqlite3 ~/.eklavya/knowledge.db '.tables'
-sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'
-sqlite3 ~/.eklavya/knowledge.db \
-  'select c.slug, m.score, m.next_review from mastery m join concepts c on c.id = m.concept_id'
+sqlite3 "$(eklavya db-path)" '.tables'
+sqlite3 "$(eklavya db-path)" 'select domain, count(*) from concepts group by domain'
 ```
+
+Use the [dashboard](/docs/dashboard/) for a readable history without SQL.
 
 ### Experimenting safely
 
-Two environment variables redirect everything, so you can try settings without touching your real history:
+Use a separate directory for a disposable test, or override only the database:
 
-```text
-export EKLAVYA_HOME=/tmp/eklavya-test   # whole directory
-export EKLAVYA_DB=/tmp/test.db          # just the database
+```bash
+export EKLAVYA_HOME=/tmp/eklavya-test
 ```
 
-A third changes wording rather than data. Eklavya works out whether it is in a
-Claude Code session or a Cowork one from the entrypoint the app sets, and words
-its questions accordingly — code and diffs in the first, the work you produced
-in the second. `EKLAVYA_SURFACE` pins it:
-
-```text
-export EKLAVYA_SURFACE=cowork   # or: code
+```bash
+export EKLAVYA_DB=/tmp/eklavya-test.db
 ```
 
-This one only reaches a process that inherits your shell — the `eklavya` CLI, or
-Claude Code started from a terminal. It does **not** reach a Cowork session:
-Claude Desktop composes the environment for the hooks and the server itself, and
-the shell you can reach there belongs to the sandbox VM, which they are not
-started from. So it is a testing and CLI knob rather than a fix for a
-misdetected Cowork session — if you ever hit one of those, it is a bug worth
-[reporting](https://github.com/ProjectAJ14/eklavya/issues) with your app version.
+`EKLAVYA_HOME` redirects Eklavya's state, not Claude Code's own settings or plugin registry. Running the installer can still change Claude Code registration; these variables are for isolating data, not a complete installation sandbox.
+
+For testing question wording, `EKLAVYA_SURFACE=code` or `cowork` overrides surface detection. It applies only to processes that inherit that environment. A shell inside Cowork's sandbox cannot change the environment of the host's hooks or server.
 
 ### The two halves are separable
 
-They share a file, and they are not the same data. Learning history — your
-attempts, your mastery, your review schedule — cannot be rebuilt from anything;
-if you lose it, it is gone. Memory can be: the evidence is a record of work
-that also exists in your repository's history, and the search index and vectors
-are derived and rebuildable from the entries.
-
-That asymmetry is why a backup matters more for the learning half, and why
-`memory.retention_days` exists to age out raw evidence while keeping the
-observations built from it.
-
-To stop one without the other:
-
 ```bash
-eklavya config set mode off               # no questions; history keeps recording
-eklavya config set memory.enabled false   # no history; questions keep coming
+eklavya config set quiz.enabled false
+eklavya config set memory.enabled false
 ```
+
+The first stops questions and leaves memory running. The second stops memory capture and recall; by itself it leaves questions running. `memory.capture: off` stops only new capture, keeping old entries searchable.
 
 ### Deleting it
 
-```text
-rm -rf ~/.eklavya
+`eklavya uninstall` keeps your history. To remove the installation **and all data under the active Eklavya home**, including artifacts, use:
+
+```bash
+eklavya uninstall --purge
 ```
 
-That is the whole uninstall of your data. Eklavya forgets you entirely.
+Back up anything you want to keep first. A separately configured `EKLAVYA_DB` outside that directory requires separate deletion.
 
-:::caution
-**Never commit a learner's database.** `knowledge.db` and anything under `~/.eklavya/` is personal.
-
-**Eklavya writes nothing into your repository.** Not settings, not packs, nothing — everything above is under your home directory. Two things used to be in a checkout and no longer are: `<repo>/.eklavya.json`, which is moved into `~/.eklavya/projects/` automatically on the next session there, and `<repo>/.eklavya/packs/`, which is still read if you have one but is never written to. The one thing Eklavya still touches inside a repository is `.git/hooks/pre-commit`, and only if you run `scripts/install-git-hook.sh` yourself — git has nowhere else to put a hook, and `.git/` is never committed.
-:::
+Never commit a learner database or personal Eklavya state. New settings and packs stay under your home directory. Legacy checkout settings are migrated there; legacy pack files are still read. The opt-in git gate is installed separately under `.git/hooks/`. See [Installing](/docs/installing/#uninstalling) for removal details.

@@ -1,90 +1,117 @@
 ---
-title: "FAQ and uninstall"
-description: "Get answers about Eklavya privacy, local storage, declined questions, and the dashboard. Learn how to uninstall the plugin and handle your saved data."
+title: "FAQ"
+description: "Short answers about Eklavya's supported environments, privacy, skipped questions, project isolation and removal."
 sidebar:
   order: 16
 ---
 
-### Does it work in Claude Desktop?
+## Does it work in Claude Desktop?
 
-In two of its three places. The **Code** tab runs the same Claude Code engine against the same `~/.claude`, so a normal install covers it with nothing extra to do. **Cowork** works too, but keeps its own plugin list, so install it there as well — [route D](/docs/installing/#d-in-cowork). Ordinary **chat** does not load plugins, so Eklavya is not available in it.
+The **Code** tab uses your Claude Code installation. **Cowork** needs a separate
+plugin install. Ordinary **chat** does not load Eklavya. See
+[Installation options](/docs/installation-options/#claude-desktop-and-cowork).
 
-Both surfaces share the one `~/.eklavya/knowledge.db`, so you stay one learner: a concept you met in the terminal on Monday comes back for review in Cowork on Thursday.
+## Is Cowork different?
 
-### Is Cowork different?
+Questions refer to the documents and analysis you produce. The commit gate has
+nothing to block, and delegated subagents are not instructed to log concepts.
+Questions carry `[Eklavya]` in the card because there is no terminal header or
+status bar.
 
-The loop is the same, and the wording adapts. Cowork produces documents and analysis rather than code, so Eklavya asks about the work you produced rather than about a diff. Two things do not carry over: the commit gate has nothing to hold, because Cowork does not commit, and delegated subagents are not asked to log, because Cowork does not fire that event. Both are called out at session start rather than left to surprise you.
+## Does anything leave my machine?
 
-### Does anything leave my machine?
+Eklavya stores data locally, and its default memory summarizer and search index
+run locally. It has no separate account or telemetry. **Recalled memories are
+provided to Claude as session context**, alongside the work you already do
+with Claude.
 
-Not with the default configuration. The database, the config and the dashboard are all local, the dashboard binds to loopback, and both halves of the product run locally: the summariser that writes observations is extractive and needs no model, and the search index is built by an embedder that runs here. There is no account and no telemetry. The only network access in normal use is npm: checking for a newer release at most once an hour, and fetching the package when there is one. That request carries no learning or memory data; `auto_update: false` stops it. The dashboard makes no request to any other host, fonts included: it uses your system's fonts. An [artifact page](/docs/commands/#the-artifacts-skill) is the one exception: its template has your browser fetch three web fonts from Google Fonts, and the dashboard serves it sandboxed so it can fetch nothing else. The request names the fonts, not the page, and offline the page falls back to system faces.
+Automatic updates contact npm without sending your learning or memory data;
+`auto_update: false` disables those checks. The local dashboard makes no
+outbound requests. Saved explainer pages can request Google Fonts, with system
+font fallbacks when offline.
 
-Three settings change that, none of them on unless you turn it on, and each says what leaves before it does:
+Optional providers send captured work through Claude Code to a configured
+model. Notifications can send wrap-ups to a destination you choose, and sync
+writes memory to a directory you choose. None is enabled by default. See
+[Memory](/docs/memory/) and [Configuration](/docs/configuration/) before enabling
+them.
 
-- `providers.observer` and `providers.embeddings` send captured work to a Claude model so it can write richer observations or better vectors. The model runs through Claude Code (`claude -p`) on your own Claude subscription; there is nothing else to set up. They can only be set in your global config.
-- `notifications` sends session wrap-ups to a webhook, a command or a file you name.
-- `sync` writes memory entries into a directory you name, for your other machines to read.
+## Does it remember my code?
 
-An upgrade never enables any of them. If none is configured, the promise above is the whole story.
+It records prompts and tool-call evidence, including arguments, paths and
+errors, then turns them into observations. Successful tool results are not
+stored as a second copy of your repository, but arguments can contain code.
+Privacy filters exclude common secret paths and redact recognized secret
+patterns; review [what memory captures](/docs/memory/) before working with
+sensitive material.
 
-### Does it remember my code?
+## Will it slow down my work?
 
-It remembers *about* your code. Every tool call is recorded as evidence — what the tool was, the arguments, the files, and the error if it failed — and those are distilled into short observations. It deliberately does not store tool *results*, so a successful `Read` of a file does not put that file in the database; the corpus would otherwise become a second copy of your repository.
+Questions interrupt briefly; local hooks read the database directly. Change
+the cadence or question budget if the default pace is too frequent. A
+configured memory model also uses your Claude subscription. See
+[The dials](/docs/dials/).
 
-Paths that usually hold secrets — `.env` files, `~/.ssh/`, `.pem`, `.npmrc` and others — are never captured at all, and more than a dozen shapes of access key, token, password and private key are redacted before anything is written. [The memory page](/docs/memory/) has the full list and how to add your own.
+## Can I skip a question?
 
-### Will it slow down my work?
+Yes. A skip is recorded as a decline with grade 0 and excluded from accuracy.
+A clean decline without tutor feedback is not retried by the gate; a decline
+with an explanation can return. With enforcement enabled, skipping does not
+remove the requirement to pass enough concepts before committing.
 
-A checkpoint question is one keystroke, asked while Claude is still working. The hooks read SQLite directly rather than going through the MCP server precisely because they sit on the critical path of something you are already doing.
+<span id="i-am-in-the-middle-of-something-urgent-can-i-turn-it-off-just-for-now"></span>
 
-### Can I skip a question?
+## Can I pause questions for one session?
 
-Always, when quizzing is unenforced. A skip is recorded as a decline: grade 0, excluded from your accuracy, and not re-offered by the commit gate. With `quiz.enforced` you can still skip individual questions, but the gate stays shut until enough concepts are answered.
+Say **“turn Eklavya off for this session.”** It hides questions, checkpoints,
+the banner and status bar without changing saved settings. Memory continues.
+The installed git commit gate still follows the project's enforcement setting.
 
-### I am in the middle of something urgent. Can I turn it off just for now?
+For persistent changes, set `quiz.enabled` or `memory.enabled` separately.
+There is no session-only memory switch.
 
-Say **"turn Eklavya off for this session"**. The questions go quiet — questions, checkpoints, banner, status bar — until the session ends, and nothing is written to either config file, so tomorrow is configured exactly as today was. `quiz.enabled: false` in a config file is the other way to do it, and the one that is still off next month.
+## Why did it ask about something I already know?
 
-Memory keeps recording either way. There is no session switch for it, deliberately: a day of work nobody recorded is a day nobody can look up later. If you want that stopped too, it is `memory.enabled: false`, and it is a file.
+The concept may not yet meet the mastery threshold, or it may be due for a
+spaced review. Questions should vary as you progress through the tiers. See
+[Levels and tiers](/docs/levels-and-tiers/).
 
-It silences the questions, not the [commit gate](/docs/commit-gate/): in a project running `quiz.enforced` the git hook still holds the commit, because it reads that project's config and has no idea which session you are in.
+## Can my team share settings?
 
-### Why did it ask about something I already know?
+Each developer keeps personal settings under `~/.eklavya/`, including
+project-specific overrides. Share a [concept pack](/docs/packs/) in the repository
+to teach the same project concepts without imposing one learner's preferences
+on everyone. Legacy `.eklavya.json` files are migrated out of the checkout;
+unsafe repository-supplied provider and notification settings are not trusted.
 
-Either it is not yet marked mastered — that needs two repetitions at a decent score — or spaced repetition brought it back for review. A review question is never the same question as last time, and often a tier higher.
+## Can two Claude Code sessions share one quiz?
 
-### Can my team share settings?
+Yes. Give both sessions the same `EKLAVYA_SESSION_ID` to use one for building
+and one for tutoring. Follow the
+[parallel tutoring guide](https://github.com/ProjectAJ14/eklavya/blob/main/docs/parallel-tutoring.md).
 
-No, and deliberately not. Eklavya writes no configuration into a repository: your settings for a codebase live in *your* home directory, at `~/.eklavya/projects/<checkout>/config.json`.
+## I work in two repositories at once. Will they mix?
 
-That is a change from earlier versions, which read a committed `<repo>/.eklavya.json`. Two reasons it went. Everyone on a team is at a different point — the level you have earned in a codebase is not the level a new teammate has — so one committed file could never be right for all of them. And a committed config is a configuration file written by somebody else: a checked-in notification sink pointing at a shell plus the automatic end-of-session wrap-up made cloning a repository and working in it for ten minutes run that command. A repository that still has one cannot do that: those settings are ignored when they come from a checkout, and stripped when the file is moved out.
+Session lookup is scoped to the checkout, including separate worktrees. Two
+sessions in the **same** checkout share a session pointer; use separate
+worktrees when you need concurrent, independent sessions. The database itself
+is shared across projects.
 
-What a team can still share is a [concept pack](/docs/packs/) at `<repo>/.eklavya/packs/` — the concepts a codebase is about, which genuinely is the same for everyone.
+## How do I upgrade?
 
-### Can two Claude Code sessions share one quiz?
+Updates run automatically. Use `eklavya update` to update now, then start a new
+session. See [Updates and removal](/docs/updates/).
 
-Yes — one pane building while another teaches, sharing a single database. Set the same `EKLAVYA_SESSION_ID` in both. See `docs/parallel-tutoring.md` in the repository.
+## How do I uninstall?
 
-### I work in two repositories at once. Will they mix?
-
-No. There is one database for every project, but the session Eklavya files your work under is keyed by repository, so a question asked in one checkout is about that checkout's work. Two sessions in the *same* checkout still share one — that is the mechanism the question above relies on.
-
-### How do I upgrade?
-
-You don't have to. Eklavya updates itself in the background when a session starts, at most once an hour: the runtime, the chat skill, the registration and the plugin files, with your settings left as they are. The next session opens on the new version and says `Eklavya updated to …` once. If an update fails, every session says so until it works ([Updates](/docs/installing/#updates)). To update right now, run `eklavya update`. A session that is already running keeps the build it started with, because hooks and MCP servers are wired up when a session starts.
-
-### How do I uninstall?
-
-Three independent steps — do as many as you want:
-
-1. Remove the plugin from the `/plugin` menu in Claude Code, or run `npx eklavya uninstall`, which also removes the chat skill from `~/.claude/skills/eklavya/`.
-2. Restore your previous git hook: `/path/to/eklavya/scripts/install-git-hook.sh --uninstall`
-3. Delete your learning history: `rm -rf ~/.eklavya`
-
-Removing the plugin leaves your history intact, so you can come back to it later.
+Run `npx eklavya uninstall` to remove the Claude Code plugin and user skills
+while keeping history. Git hooks, project-scoped plugin installs and Cowork
+may need separate removal. Follow the
+[uninstall guide](/docs/updates/#uninstalling) for those steps or to delete data.
 
 ## Still stuck?
 
-Every default, flag and rule in this manual is written from Eklavya's source. If
-the docs and the tool disagree, **the tool is right and the docs are a bug** —
-[open an issue](https://github.com/ProjectAJ14/eklavya/issues).
+Start with [Troubleshooting](/docs/troubleshooting/). If the tool and the manual
+disagree, [report the discrepancy](https://github.com/ProjectAJ14/eklavya/issues)
+with the command, expected result and actual result. Do not include private
+project data or secrets.

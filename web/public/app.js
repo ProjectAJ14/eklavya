@@ -50,29 +50,29 @@
       '1': {
         right: true,
         grade: '✓ correct · grade 4 · recognition caps at 4 · next review in 6 days',
-        why: 'httpOnly keeps the cookie out of document.cookie, so an injected script can reach the in-memory access token but never the refresh token that mints new ones.',
+        why: 'httpOnly keeps the refresh cookie out of document.cookie. Injected scripts can still make authenticated requests, so this limits token theft without preventing every XSS attack.',
         done: 'task complete — 3 files changed. You can explain the split you just shipped.'
       },
       '2': {
         grade: '✗ grade 1 · under the passing grade of 3 · next review tomorrow',
-        why: 'That is CSRF. The browser still attaches the cookie to a forged cross-site request — SameSite is what stops it. httpOnly only hides the value from scripts.',
+        why: 'httpOnly hides a cookie from scripts; it does not prevent forged requests. SameSite and CSRF protections address when cookies can accompany those requests.',
         done: 'task complete — 3 files changed. httponly-cookies goes back in the deck for tomorrow.'
       },
       '3': {
         grade: '✗ grade 1 · under the passing grade of 3 · next review tomorrow',
-        why: 'httpOnly is read by the browser, not the server. The cookie arrives on every request either way, so whatever your server logs, it still logs.',
+        why: 'httpOnly restricts browser scripts. It does not control what your server logs when the browser sends the cookie.',
         done: 'task complete — 3 files changed. httponly-cookies goes back in the deck for tomorrow.'
       },
       '4': {
         grade: '✗ grade 1 · under the passing grade of 3 · next review tomorrow',
-        why: 'Revocation is a server-side decision about the token store. A cookie flag has no say in it — and an access token held in memory is the one you cannot revoke.',
+        why: 'Revocation depends on server-side validation. Storing a token in memory or adding a cookie flag does not make it instantly revocable.',
         done: 'task complete — 3 files changed. httponly-cookies goes back in the deck for tomorrow.'
       },
       '5': {
         blank: true,
         grade: '· grade 0 · recorded as "I don\'t know" · next review tomorrow',
-        why: 'No penalty for saying so. httpOnly hides the refresh cookie from document.cookie, so an XSS payload can steal the access token in memory but not the refresh token — which is why the two live in different places.',
-        done: 'task complete — 3 files changed. httponly-cookies queued for tomorrow, no penalty.'
+        why: 'httpOnly hides the refresh cookie from document.cookie. It limits direct token theft, but injected scripts can still make authenticated requests. The missed concept is scheduled for review.',
+        done: 'task complete — 3 files changed. httponly-cookies queued for review tomorrow.'
       }
     };
 

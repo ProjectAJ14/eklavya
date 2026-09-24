@@ -5,366 +5,151 @@ sidebar:
   order: 11
 ---
 
+Open your learning history, project memory and saved pages in a local browser:
+
 ```bash
-$ eklavya dashboard
-Eklavya dashboard on http://127.0.0.1:41729
-Reading /Users/you/.eklavya/knowledge.db — press Ctrl+C to stop.
-Opening it in your browser…
+eklavya dashboard
 ```
 
-It opens your default browser for you. The command then stays in the foreground
-because it *is* the server — Ctrl+C stops it, and `eklavya dashboard &` frees the
-terminal if you want it running while you work. On a machine with no browser to
-open — a container, a bare SSH session — the attempt fails silently and the URL
-above is still what you need.
+The server normally uses `http://127.0.0.1:41729` and opens your browser. Keep the command running; **Ctrl+C** stops it. Use `--no-open` to print the URL without opening a browser, or `--port <n>` to choose a port. A busy default port falls back to an available one; an explicitly requested busy port returns an error.
 
-`/eklavya:progress` fits in twenty lines and answers *what now*. The dashboard is
-the long view, and it is three workflows in one page: **Learning** — what your
-work recorded, what you were asked and how it went — **Memory** — what your
-sessions captured, what was kept from it, and whether reusing it paid off — and
-**Artifacts** — the explainer pages and other pages your agent wrote for you.
-Each has its own Dashboard and its own sidebar, and every concept, session,
-question and observation is reachable in two clicks.
+`/eklavya:progress` gives a short summary in chat. The dashboard is where you inspect full histories and follow links between a concept, its questions, the session and the memory behind it.
 
 ## Switching workflow
 
-The top of the sidebar is one control with two targets. The name — **Learning**,
-**Memory** or **Artifacts**, with its icon — opens that workflow's Dashboard.
-The caret beside it, labelled *Switch workflow*, opens a small menu listing all
-three, with a check against the one you are in; choosing another closes the
-menu and opens its Dashboard. The menu works from the keyboard (arrow keys, Enter, Escape, and Tab
-to leave it) and closes when you click anywhere else. The Eklavya wordmark goes
-to the active workflow's Dashboard.
+Use the caret beside the workflow name to choose **Learning**, **Memory** or **Artifacts**. Clicking the name or Eklavya wordmark returns to that workflow's Dashboard.
 
-Switching keeps the project you had selected and the ink/paper ground. It drops
-filters that only meant something on the screen you left — a tag filter on the
-Memory timeline has no meaning on the Learning Dashboard. Switching is a real
-navigation, so Back takes you to where you were.
-
-The **address is the authority**. It names the workflow, the page, the item the
-sidebar highlights and the project, so a refresh, a bookmark, a link someone
-pasted you, or Back and Forward all rebuild the same screen. The workflow's name
-also sits above every page title, so a page called *Projects* always says whose
-projects it means.
+Project and theme choices survive a workflow switch. Page-specific filters do not. The address records the workflow, page, filters and project, so bookmarks and Back/Forward return to the same view. A new-style link without `?project=` means all projects.
 
 ## The sidebars
 
-Each sidebar starts with its Dashboard, which is always visible, followed by its
-groups. A group opens by default and collapses on its own; the dashboard
-remembers which groups you collapsed, separately for each workflow, in your
-browser. Following a link into a collapsed group opens it, so you can always see
-where you are.
-
 | Learning | Memory | Artifacts |
-|---|---|---|
-| **Dashboard** | **Dashboard** | **Dashboard** |
-| *Learn*: Concepts, Review | *Memory*: Timeline, Sessions, Projects | *Library*: Projects |
-| *History*: Sessions, Projects, Domains | *Insights*: Reuse, Health | |
+| --- | --- | --- |
+| Dashboard | Dashboard | Dashboard |
+| Concepts, Review | Timeline, Sessions, Projects | Projects |
+| Sessions, Projects, Domains | Reuse, Health | |
 
-On a phone, or any window 900 pixels wide or narrower, the sidebar becomes a
-drawer behind the menu button in the top bar. It holds the same workflow
-control, the same navigation and the same project and ground controls. While it
-is open, focus stays inside it; Escape, the close button or a tap outside closes
-it, and so does following a link.
+Groups can be collapsed and are remembered per workflow. At 900 px or narrower, navigation moves into a menu drawer. Keyboard navigation supports Tab and Enter; the workflow picker also supports arrows and Escape. Escape or clicking outside closes the drawer.
 
 ## Learning
 
-Each is a link, so you can bookmark the one you actually use.
-
-| Page | What it answers |
-|---|---|
-| Dashboard (`#/learning/dashboard`) | Am I getting better? Accuracy, the concepts your work **recorded** set against how many of them were **assessed**, mastered, due, current and best streak, thirty days of answers, a year of practice as a calendar heatmap, your weakest five, the last five sessions. A project that recorded concepts but has not been asked about them yet is named, as having no assessments yet. |
-| Concepts (`#/learning/concepts`) | What am I learning? Every concept in your graph, searchable, filterable by state or domain, sortable, 20 to a page. The state filter is part of the address — `#/learning/concepts/due`, `/learning`, `/mastered`, `/unseen` — and so is the domain: `?domain=web-auth`. |
-| Review (`#/learning/review`) | What is waiting? Everything due, sorted by how overdue it is; everything else that is scheduled, soonest first, under a fourteen-day forecast chart (`#/learning/review/upcoming`); and the skipped backlog (`#/learning/review/skipped`). |
-| Sessions (`#/learning/sessions`) | What happened in that session? One row per session that logged a concept or asked a question. Sessions that only captured memory are counted at the foot of the list and live under Memory. |
-| Projects (`#/learning/projects`) | How hard is this codebase allowed to get? Per project: answers, accuracy, concepts assessed and concepts recorded, the level ladder, and the exact runway to the next promotion. A project whose work logged concepts appears here before a single question is asked, marked **No assessments yet**. |
-| Domains (`#/learning/domains`) | Where are the gaps? Coverage per domain, and the tier spread of what you have been asked. |
+| Page | What you can inspect |
+| --- | --- |
+| Dashboard (`#/learning/dashboard`) | Accuracy, recorded versus assessed concepts, mastery, due reviews, streaks, answer charts, practice calendar, weakest concepts and recent sessions. |
+| Concepts (`#/learning/concepts`) | Search, sort and filter the graph by domain or state: due, learning, mastered or unseen. |
+| Review (`#/learning/review`) | Due reviews, upcoming reviews with a 14-day forecast, and skipped questions. Tabs use `/upcoming` and `/skipped`. |
+| Sessions (`#/learning/sessions`) | Sessions that logged concepts or asked questions. Memory-only sessions are listed in Memory. |
+| Projects (`#/learning/projects`) | Assessments, logged concepts, accuracy, levels and promotion conditions per project. Projects with logged work but no answers are marked “No assessments yet”. |
+| Domains (`#/learning/domains`) | Concept coverage and the spread of question tiers. |
 
 ## Memory pages
 
-| Page | What it answers |
-|---|---|
-| Dashboard (`#/memory/dashboard`) | What does memory hold? The five memory counts below, the context-reuse arithmetic, a health summary, the newest observations and the newest sessions. |
-| Timeline (`#/memory/timeline`) | What does it remember? The observation timeline, searchable and filterable, 25 to a page. The type filter is part of the address — `#/memory/timeline/bugfix`, `/decision`, `/untyped` — and so are the tag and dates: `?tag=auth&from=2026-09-01&to=2026-09-23`. |
-| Sessions (`#/memory/sessions`) | Which sessions captured anything? One row per session that captured evidence or wrote an observation, with how much of its evidence is still waiting to be processed, and how many questions the same session asked. 20 to a page, with the real total. |
-| Projects (`#/memory/projects`) | Which projects has memory recorded? Every one — including a project whose evidence has been captured but not yet processed into a single observation. Open one for its timeline. |
-| Reuse (`#/memory/reuse`) | Did reusing memory actually save anything? One row per context injection, with the arithmetic spelled out. |
-| Health (`#/memory/health`) | Is capture working, and where did it stop? Heartbeat, queue, stalled jobs and provider state. |
+| Page | What you can inspect |
+| --- | --- |
+| Dashboard (`#/memory/dashboard`) | Memory counts, estimated reuse, health, recent observations and sessions. |
+| Timeline (`#/memory/timeline`) | Entries filtered by type, tag or date. Search titles, narratives, facts and file paths. |
+| Sessions (`#/memory/sessions`) | Sessions with evidence or observations, including pending evidence and questions from the same session. |
+| Projects (`#/memory/projects`) | Every project with captured memory, including evidence not yet summarised. |
+| Reuse (`#/memory/reuse`) | A receipt for each recall and its context-volume arithmetic. |
+| Health (`#/memory/health`) | Capture heartbeat, processing queue, stalled jobs and provider configuration. |
+
+Type filters use paths such as `#/memory/timeline/bugfix`; tag and date filters use `?tag=auth&from=2026-09-01&to=2026-09-23`.
 
 ## Artifacts
 
-An artifact is a single HTML page your agent wrote — an explainer after a
-missed question when [`explain_on_wrong`](/docs/configuration/) is on, or
-anything you asked to have turned into a page. Each lives in
-`~/.eklavya/artifacts/<project>/`, and this workflow reads that folder every
-time the page loads, so a page you delete or copy in by hand shows up (or
-disappears) on the next refresh.
+Artifacts are HTML pages saved under `~/.eklavya/artifacts/<project>/`: requested explanations and background explainers created when [`explain_on_wrong`](/docs/configuration/#every-key) is enabled.
 
-| Page | What it answers |
-|---|---|
-| Dashboard (`#/artifacts/dashboard`) | What has been written for me? Counts of pages, explainers and projects, a search box that matches the title, description, concept and project, and the list, newest first, grouped by project, 20 to a page. The kind filter is part of the address — `#/artifacts/dashboard/explainer` for explainers, `/artifact` for everything else. An explainer's concept links to that concept's page in Learning. |
-| Projects (`#/artifacts/projects`) | Which projects have pages? Pages and explainers per project, and when the last one was written. Open one to scope the Dashboard to it. |
+| Page | What you can inspect |
+| --- | --- |
+| Dashboard (`#/artifacts/dashboard`) | Pages grouped by project, newest first. Search title, description, concept and project; filter with `/explainer` or `/artifact`. |
+| Projects (`#/artifacts/projects`) | Page and explainer counts and the latest page in each project. |
 
-Clicking a page's title opens it in a new tab, from `/artifacts/<project
-folder>/<file>`. The page is served **sandboxed**: its own scripts run — the PDF
-and HTML download buttons need them — but it cannot read anything else the
-dashboard serves, so a page an agent wrote can never see your history. Nothing
-outside `~/.eklavya/artifacts/` is served, whatever the address says.
+An explainer's concept links to its Learning page. Page titles open the saved HTML in a new tab. The file list is reread on refresh, so adding or deleting a file updates the library. A project with artifacts but no other recorded activity appears here but cannot be selected as a global project scope.
 
-A project Eklavya has never recorded anything else for — a page written in a
-plain directory — is listed on the Projects page but cannot be selected as a
-scope.
+Pages served by the dashboard are sandboxed: their inline scripts and downloads work, but they cannot read dashboard history. Only files under the artifacts directory are served. The template's Google Fonts requests are allowed; offline it uses system fonts. Opening the same file directly does not add the dashboard sandbox.
 
 ## Opening one thing
 
-Rows are clickable, and the detail pages are where the dashboard stops being a
-report and starts being a record. Each keeps its parent highlighted in the
-sidebar.
+| Detail page | Contains |
+| --- | --- |
+| Concept (`#/learning/concept/<slug>`) | Score and decay, review schedule, grade history, every recorded question and answer, logged context, prerequisites and related concepts. |
+| Session (`#/learning/session/<id>` or `#/memory/session/<id>`) | Evidence, observations, proposed concepts, logged work, review questions and grades. Both routes show the same session with the originating workflow's sidebar. |
+| Domain (`#/learning/domain/<name>`) | Concepts ordered by weakness, with mastery and learning state. |
+| Observation (`#/memory/entry/<id>`) | Narrative, facts, files, tags, summariser, confidence, concept candidates, reuse receipts and expandable raw evidence. Corrections link to the replacement. |
 
-- **A concept** (`#/learning/concept/<slug>`) shows its score and how much of it is
-  decay, its SM-2 state (reps, ease, interval, next review), every grade in
-  order as a chart, **every question you were asked on it** — the options, the
-  one you picked, and what the tutor told you afterwards — the most recent
-  context lines the agent wrote when it logged the concept, and its
-  prerequisites, what it
-  unlocks and its neighbours, each a link.
-- **A session** (`#/learning/session/<id>` or `#/memory/session/<id>`) is the
-  whole thread in one place: how much evidence it captured, the observations
-  written from that evidence, the concept candidates those observations
-  proposed, what the work logged with the context line for each concept, what
-  was pulled in for review rather than logged by the work, and every question
-  asked in that session with its grade. The learning half and the memory half
-  are joined on the session id the host gave both. It is the same page from
-  either workflow; opened from Memory it keeps Memory's sidebar, and from
-  Learning, Learning's.
-- **A domain** (`#/learning/domain/<name>`) lists its concepts, weakest first, with what
-  is mastered, learning and not yet asked.
-- **An observation** (`#/memory/entry/<id>`) shows the narrative, the facts, the files
-  it touched, its tags, which summariser wrote it and how confident that
-  summariser was, the concept candidates it proposed, the receipts that ever
-  reused it, and — opened one at a time — **the raw evidence it was distilled
-  from**, exactly as captured. If it was corrected or deleted, the page says so
-  and links the replacement.
+Invalid routes show an error with links back to the Dashboards. Rows and relevant count tiles are links you can reach with the keyboard.
 
-An address that names no page, or one with a parameter that is not valid URL
-encoding, says so and offers the Learning and Memory Dashboards rather than
-showing something else.
+## Reading the timeline
+
+The timeline is an audit trail. Superseded and soft-deleted entries remain labelled and struck through there, although retrieval excludes them. Search treats `%`, `_` and `\` as literal characters.
+
+| Count | Meaning |
+| --- | --- |
+| Observations | Live entries, excluding superseded and deleted ones; also reports how many are indexed as vectors. |
+| Evidence | Captured raw events and how many have been summarised. |
+| Sessions | Sessions that captured evidence or wrote observations. |
+| Reused | Entries selected for recall and those confirmed as delivered. |
+| Assessed | Concepts proposed from evidence that you actually answered a question about. |
+
+With a project selected, observations, evidence and sessions are scoped to it. Indexing, reuse, delivery and assessment totals that remain database-wide are labelled “all projects”. Captured or recalled material does not count as understanding.
+
+## Reuse: what `B` and `D` mean
+
+A recall receipt compares **base (`B`)**, the raw evidence behind the entries, with **delivered (`D`)**, the context actually supplied, including later detail fetches. Both use the same four-characters-per-token estimate. Estimated reduction is `(B − D) / B`.
+
+Receipts can be `confirmed`, `unknown` or `prepared`. Only confirmed delivery contributes to headline savings. Unconfirmed receipts stay visible without a saving claim. Longer summaries can produce overhead, which is reported rather than hidden.
+
+This measures estimated context volume compared with raw evidence, not your bill, API cache hits or model spend. See [Memory](/docs/memory/#what-the-savings-percentage-measures).
+
+## Health
+
+Use the health page to locate a gap between capture, processing, indexing, retrieval and delivery:
+
+| Signal | Meaning or next step |
+| --- | --- |
+| Last capture | Old despite recent work: inspect capture and installation. |
+| Queued, paused or failed jobs | Check the oldest job and error class. Transient failures retry; auth, quota and missing-command problems require a fix, then `eklavya memory process`. |
+| Dropped events | Evidence could not be retained while the database was unavailable. `eklavya memory replay` can recover eligible transcript history. |
+| Provider settings | Shows what is configured. Only the observer currently runs a model; an embeddings setting does not change the local search implementation. |
+
+Provider error classes are shown without raw messages, which can quote captured content. `eklavya memory status` gives the terminal view of the same health information.
+
+## Projects, scope, ground and paging
+
+The project selector includes projects with attempts, logged concepts, evidence, observations, reuse receipts or earned levels. Folder names identify projects; duplicate names include a parent folder. Worktrees resolve to their main checkout when that relationship is known. Missing checkouts remain listed as “checkout gone”. **No repository** means work outside git; **Unattributed** means older rows without a project.
+
+Selecting a project scopes lists and activity, but concept mastery and review dates remain shared. The selected project is saved in the URL. The ink/paper theme is remembered in your browser.
+
+Most lists show 20 rows per page; the memory timeline shows 25, and question histories show five.
+
+## While you leave it open
+
+The dashboard is a snapshot. Once a minute, while the tab is visible, it checks for new activity and offers a **refresh** notice. It does not redraw automatically while you are reading. Refresh preserves your route and filters; stopping the server leaves the loaded view visible.
 
 ## Old links still work
 
-Links from before the two workflows — bookmarks, older notes, older copies of
-this page — land on the page they always meant. The address is rewritten in
-place, so the old form does not leave an extra entry in your history, and the
-rest of the link (a slug, a session id, a filter) is kept.
+Legacy bookmarks are rewritten without adding a history entry. Their filters and item IDs are preserved.
 
-| Old link | Opens |
-|---|---|
-| the bare address, `#/`, `#/overview` | `#/learning/dashboard` |
-| `#/concepts`, `#/concepts/<filter>`, `#/concept/<slug>` | `#/learning/concepts`, `#/learning/concepts/<filter>`, `#/learning/concept/<slug>` |
+<details>
+<summary>Legacy route mapping</summary>
+
+| Old route | Current route |
+| --- | --- |
+| `#/`, `#/overview` | `#/learning/dashboard` |
+| `#/concepts`, `#/concept/<slug>` | `#/learning/concepts`, `#/learning/concept/<slug>` |
 | `#/review`, `#/review/<tab>` | `#/learning/review`, `#/learning/review/<tab>` |
-| `#/sessions`, `#/session/<id>` | `#/learning/sessions`, `#/learning/session/<id>` — including a session that only captured memory |
-| `#/projects`, `#/domains`, `#/domain/<name>` | `#/learning/projects`, `#/learning/domains`, `#/learning/domain/<name>` |
+| `#/sessions`, `#/session/<id>` | `#/learning/sessions`, `#/learning/session/<id>` |
+| `#/projects`, `#/domains`, `#/domain/<name>` | The corresponding `/learning/` route. |
 | `#/memory`, `#/memory/<type>` | `#/memory/timeline`, `#/memory/timeline/<type>` |
 | `#/entry/<id>` | `#/memory/entry/<id>` |
 | `#/reuse`, `#/health` | `#/memory/reuse`, `#/memory/health` |
 
-The old dashboard remembered the project you last selected. An old link that
-arrives without a project picks that choice up once, and the new address
-carries it from then on; a new-style address with no `?project=` means all
-projects.
+An old link without a project can pick up the previous saved project once. New-style links carry their scope explicitly.
 
-## Reading the timeline
-
-The timeline shows every observation, including the ones that are no longer
-current. A **superseded** row is one a later observation corrected; a
-**deleted** row was removed by hand. Both stay in the list, struck through and
-labelled, because the point of the page is that you can check the record — and
-both are already excluded from search and from what the agent is given.
-
-Filter by type with the chips, by tag with the dropdown, and by date with the
-two date fields. The search box matches titles, narrative, facts and file paths, and takes `%`, `_` and `\` literally rather than as wildcards.
-The project selector in the sidebar narrows the timeline to one repository.
-
-The five numbers along the top of the Memory Dashboard and the timeline are
-five different things, and the difference between them is the point:
-
-| Number | What it counts |
-|---|---|
-| Observations | Live observations — not superseded, not deleted — and how many carry a vector, which is what semantic search can reach. |
-| Evidence | Raw events the hooks captured, and how many of those have been distilled into an observation yet. |
-| Sessions | Sessions that captured evidence or wrote an observation. |
-| Reused | Observations that were ever selected for a context injection, and how many of those were part of a *confirmed* delivery. |
-| Assessed | Concepts that came out of evidence **and** that you were actually asked a question about. |
-
-With a project selected, Observations, Evidence and Sessions are that
-project's. Indexing, reuse, delivery and assessment are only counted for the
-whole database, and those tiles say *all projects* rather than pass a total off
-as one project's.
-
-The last row is the one that matters most: being remembered is not being
-learned. An observation can be captured, indexed, retrieved and handed to the
-agent without you ever answering a question about it, and nothing on this page
-counts that as understanding.
-
-## Reuse: what `B` and `D` mean
-
-Every time Eklavya injects remembered context, it writes a **receipt**. The
-receipt records two numbers, counted with the same estimator on both sides:
-
-- **`B`** — *base*. What the same material would have cost to read from source:
-  the files, the diffs and the tool output the observations were distilled from.
-- **`D`** — *delivered*. What was actually put into the context window instead.
-
-The percentage is `(B − D) / B`.
-
-:::caution
-**It is an estimate of context volume, not a bill.**
-Tokens here are estimated at four characters per token, and the figure measures
-how much **context volume** was avoided — not money, not your API bill, not
-model spend. Eklavya has no way to see what you are charged, and does not claim
-to. The estimator's name is printed on the page and on every receipt so you can
-see both sides of the subtraction were counted the same way.
-:::
-
-A receipt also records its **delivery**:
-
-| Delivery | Meaning |
-|---|---|
-| `confirmed` | The host confirmed the context reached the model. |
-| `unknown` | Eklavya could not tell. |
-| `prepared` | The context was assembled but never confirmed as sent. |
-
-**Only `confirmed` receipts contribute to the headline `B`, `D` and percentage.**
-The others appear in the ledger, with their own `B` and `D`, and no saving next
-to them — an injection that may never have reached the model is not a saving.
-If nothing is confirmed, the page says there is no saving to report rather than
-printing an optimistic number.
-
-The **detail fetch** column is the honest tail. A session seam usually sends a
-short index of observations and only pulls the full text of one when the agent
-asks; that later fetch is charged back to the same receipt, so the percentage
-falls to what the reuse actually cost instead of keeping the index-only figure.
-
-## Health
-
-Capture, processing, indexing, retrieval and delivery fail in different ways,
-and the page keeps them apart so you can tell which one stopped.
-
-- **Last capture** — the newest evidence event. If this is days old while you
-  have been working, capture is the problem, not the summariser.
-- **Queued / paused / failed** — observation jobs, with the age of the oldest
-  one still waiting.
-- **Stalled jobs** — grouped by `error_class`: `transient`, `auth`, `quota`,
-  `missing`, `overflow`, `malformed` or `permanent`. `transient` retries itself;
-  `auth`, `quota` and `missing` (the hooks could not find `claude`) need you. The error *message* is never shown, because a provider
-  message can quote the request that produced it.
-- **Dropped** — events the on-disk spool could not keep when the database was
-  locked. Anything above zero is evidence that was lost.
-- **Providers** — whether an observer or embedding provider is configured at
-  all, and which model it names. A configured model runs through Claude Code on
-  your subscription.
-
-The "captured is not assessed" ladder repeats the six memory counts as a bar
-each, so a number that falls off between two rows shows you where
-the pipeline stops.
-
-## Projects, scope, ground and paging
-
-The **project selector** in the sidebar lists every project Eklavya has
-recorded anything for, and every workflow shares it. A project is listed as soon
-as any of these names it: an answered question, a concept your work logged
-(even if you were never asked about it), captured evidence — processed or not —
-a stored observation, a reuse receipt or an earned level. Learning counts and
-memory counts stay separate: captured is not assessed.
-
-Projects are named by their folder. A worktree counts as the checkout it
-branched from, including one you have since deleted, when its captured evidence
-recorded which checkout that was. Two repositories with the same folder name are
-told apart by their parent folder (`client/api`, `server/api`). A project whose
-checkout is no longer on disk is still listed, marked *checkout gone*, and never
-merged into another on a guess. Two buckets have no folder: **No repository**,
-for work done outside any git checkout, and **Unattributed**, for rows recorded
-before projects were tracked or by a session that named none.
-
-Picking a project scopes the whole page — tiles, charts, sessions, the concept
-list and the timeline — and the choice is part of the address (`?project=…`),
-so a shared link opens scoped. Mastery itself is not per project — a concept you
-know is a concept you know — so scores and review dates do not change when you
-switch.
-
-The **ink / paper** toggle is the same one the site uses, and remembers your
-choice. Tables page at 20 rows, the memory timeline at 25, question histories
-at 5.
-
-Everything that looks clickable is: the wordmark goes back to the active
-workflow's Dashboard, a row opens its detail page, and a stat tile whose number
-is a list — due, mastered, sessions — takes you to that list. Rows, tiles and
-links are reachable with Tab and open with Enter.
-
-## While you leave it open
-
-The page is a snapshot of the moment it loaded, and it tells you when that stops
-being true. Once a minute it checks whether anything has been written since —
-answers, logged work, captured evidence, receipts — and if something has, a bar
-appears above the view: **New activity since this page loaded — refresh**.
-
-It never refreshes itself. A page that redrew while you were reading would scroll
-you back to the top, move the table you were halfway down and drop the caret out
-of the search box, so the refresh is yours to click, and your filter, tab and
-section survive it. The check stops entirely while the tab is in the background
-and runs again the moment you come back to it, so a dashboard left open in a tab
-you are not looking at costs nothing.
-
-If the check itself fails — you stopped the server, say — the page keeps showing
-what it already has rather than blanking.
+</details>
 
 ## What it is, underneath
 
-One static page, five read-only JSON endpoints and the artifact pages, on
-loopback — and loopback
-is not by itself the protection it sounds like. A web page you happen to have
-open can point a hostname it controls at `127.0.0.1` and fetch from a local
-server, and the browser's same-origin rule does not stop it, because the page's
-origin *is* that hostname. So the dashboard checks that the request was
-addressed to loopback **by name** and refuses anything else with a 403. Nothing
-here writes — any request other than `GET` or `HEAD` gets a 405 — so the risk
-was never that someone changes a setting; it is that this page now carries your
-prompts, your code and your project history. Every response also forbids being
-framed by another page and loading anything from another origin.
+The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, validates loopback request addresses, escapes stored content and refuses framing by other pages. Dashboard views load no external fonts or other remote resources; artifact pages have the font exception described above.
 
-`/api/state`
-ships flat rows — every attempt, every logged context, one row per day, plus the
-memory, reuse and health summaries, and the list of artifacts read from
-`~/.eklavya/artifacts/` — and the page derives the views, so nothing
-on screen is a number the database does not hold. It also carries a `cursor`,
-a count of the rows behind the page, and that is the only field the open page
-re-reads once a minute to decide whether to offer you a refresh. Its fields keep
-their names and meanings, so a page built against an older version still reads it.
-
-`/api/projects` is the project inventory above: one row per project with its
-learning and memory counts kept apart, and the table that maps every way a row
-spells its project — a worktree path, a checkout path — to that one project.
-
-The memory corpus is paged rather than shipped. An observation carries a
-narrative and the tool output behind it, so shipping the whole corpus on every
-load would be megabytes for a page showing twenty-five rows; the timeline is
-paged over `/api/memory`, one observation's full detail and raw evidence is
-`/api/memory/entry`, and the Memory Sessions list is paged over
-`/api/memory/sessions`. Everything stored is escaped before it reaches the page
-— an observation's title is whatever a tool printed, and it is shown as text,
-never as markup.
-
-Nothing here writes. The dashboard reads the same
-`~/.eklavya/knowledge.db` as everything else, binds to `127.0.0.1`, and serves
-to nobody but you. There is no build step, no framework and **no request to
-any other host**: the page uses your system's fonts rather than fetching web
-fonts, so opening it tells nobody that you did.
-
-An artifact page opened from here is the one exception, and it is that page,
-not the dashboard: its template links Archivo, Inter and JetBrains Mono from
-Google Fonts, the same as when you open the file directly. Offline it falls
-back to system faces.
-
-`--port` if 41729 is taken; if the port you asked for is busy the command fails
-rather than quietly moving, and with no `--port` at all it falls back to any
-free port. `--no-open` skips the browser and just prints the URL.
+Its five read-only JSON endpoints serve summary state (`/api/state`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`) and memory sessions (`/api/memory/sessions`). It does not offer settings or data edits.

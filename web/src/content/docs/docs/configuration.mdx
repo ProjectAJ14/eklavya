@@ -5,92 +5,63 @@ sidebar:
   order: 9
 ---
 
-import { Badge } from '@astrojs/starlight/components';
+Use `/eklavya:mode` for guided changes or the CLI for an exact setting:
+
+```bash
+eklavya config get
+eklavya config set cadence end --project
+eklavya config set focus learn --topic caching
+```
 
 ### Where settings live
 
-| Layer | File | Applies to |
+| Layer | Location | Scope |
 | --- | --- | --- |
-| Defaults | built in | Everything, until something overrides it. |
-| Global | `~/.eklavya/config.json` | You, on every project. |
-| Project <Badge text="wins" variant="tip" size="small" /> | `~/.eklavya/projects/<checkout>/config.json` | You, on one codebase. |
-| Session <Badge text="quiz only" variant="tip" size="small" /> | no file — held in the database until the session ends | This one session, on any project. |
+| Defaults | Built into Eklavya | Used when no setting overrides them. |
+| Global | `~/.eklavya/config.json` | You, across projects. |
+| Project | `~/.eklavya/projects/<checkout>/config.json` | You, in one codebase; overrides global keys. |
+| Session | Database state; no configuration file | Temporarily silence questions only. |
 
-**Both files are in your home directory.** Nothing Eklavya configures is written into a repository, so your settings never reach your teammates and theirs never reach you — see [below](#nothing-eklavya-configures-lives-in-your-repository).
+Files merge key by key, including nested settings. A project file containing only `memory.capture` leaves your other settings intact. `providers` and `auto_update` are **global only** and ignored in project files.
 
-The project directory is named after the checkout's absolute path with the separators turned into dashes, the way `~/.claude/projects/` names its own:
-
-```text
-~/.eklavya/
-  config.json                                        you, everywhere
-  projects/
-    -Users-you-code-api/config.json                  you, on ~/code/api
-    -Users-you-code-web/config.json                  you, on ~/code/web
-```
-
-A git worktree shares its main checkout's settings — a branch parked in a worktree is the same codebase, not a new one to configure from scratch.
-
-Later layers win key by key, not file by file: a project file setting only `quiz` leaves your personal `focus` alone. Which project you are in is found by walking up from your working directory to the **git root**, so a directory that merely contains a checkout is never mistaken for it. A missing or malformed file is ignored rather than fatal — defaults win and your session keeps working.
+Project folders encode the main checkout's absolute path, such as `-Users-you-code-api`. Git worktrees share their main checkout's settings. A directory containing a repository is not itself that project. Missing or malformed files fall back to defaults; `eklavya config get` and `eklavya doctor` report malformed files.
 
 ### Turning it off for one session
 
-Both files outlive the afternoon that made you want silence, which is how a
-"just for now" `quiz.enabled: false` becomes questions you switched off in April
-and noticed in June. So there is a third scope that takes `quiz` and nothing
-else:
+Say **“Turn the questions off for this session”**, or run `/eklavya:mode off --session`. Questions, checkpoints, the banner and the status line stay silent until the session ends. Ask to turn Eklavya back on to resume sooner. No configuration file changes, and concepts logged while silent remain available later.
 
-> **"Turn the questions off for this session."**
-
-No questions, no checkpoints, no banner, no status bar, until the session ends —
-and nothing on disk changes, so the next session is configured exactly as it was.
-Ask for it back in the same words (**"turn Eklavya back on"**) and the session
-picks up where it left off; concepts logged while it was silent are not lost,
-they stay unmastered and a later session in the same project offers them again once its own work and
-review debt are covered.
-
-Two things it deliberately does not do.
-
-**It does not stop memory.** Recording has no session scope at all: a day of work
-nobody recorded is a day nobody can look up later, and asking for quiet is not
-asking for a hole in your history. If you want the recording stopped too, that is
-`memory.enabled: false`, and it is a file.
-
-**It does not open the commit gate.** In a
-project running `quiz.enforced`, the [git hook](/docs/commit-gate/) reads that
-project's config and has never heard of a session, so a commit still waits for the
-quiz — and the gate keeps *growing* while you are silent, because the work still
-gets logged and the quiz that would have drained it is the thing you switched
-off. Silence an enforced session for an hour and the quiz waiting at `git commit`
-is a longer one. Silencing the questions and skipping the gate are different requests, and
-only a project or global change to `quiz.enforced` is the second one.
+Memory keeps recording. An enforced commit gate also remains active and can accumulate work while questions are silenced. Change `memory.enabled` to stop recording; change `quiz.enforced` at project or global scope to remove enforcement.
 
 ### Every key
 
-| Key | Default | What it does |
+These are the learning and general settings. Memory-related namespaces follow below.
+
+| Key | Default | Meaning |
 | --- | --- | --- |
-| `quiz.enabled` | `true` | Whether questions happen at all. `false` stops every question, checkpoint and gate — and stops **nothing else**: memory keeps recording, under `memory.enabled`, and the banner says `memory on · questions off`. |
-| `quiz.enforced` | `false` | Whether the session quiz must pass before `git commit` succeeds. Setting it also exempts quizzing from the cooldown and the one-question cap, so the gate stays passable. Ignored when `quiz.enabled` is `false` — a gate nothing asks questions for could never be opened, and `eklavya doctor` reports the contradiction. |
-| `mode` <Badge text="retired" variant="caution" size="small" /> | — | The dial `quiz` replaced. Still read wherever it appears, for ever: `ambient` → `{enabled: true, enforced: false}`, `enforced` → `{enabled: true, enforced: true}`, `off` → `{enabled: false}`. A `quiz` in the same file wins over it. Do not write it in new configuration. |
-| `focus` | `"concept"` | What it teaches: `concept`, `project`, `learn`. |
-| `focus_topic` | `null` | The topic for `learn` focus. Ignored by the other two, required by that one. |
-| `cadence` | `"interleaved"` | When it asks, and how many at once: `interleaved` asks mid-task, one question per quiz (`quiz.enforced` and quizzes you ask for excepted); `end` waits and asks the remaining budget. |
-| `difficulty` | `"auto"` | The tier band: `auto` earns it per project; `easy`/`medium`/`hard` pin it and stop progression. |
-| `level_up_after` | `100` | Passing answers needed at the current band, in one project, before it moves up. Answers earned before a promotion are spent. The distinct-concept floor scales with this, so shortening it keeps the runway reachable. |
-| `level_up_accuracy` | `0.7` | Minimum accuracy over every answer at that band, not only the passing ones. Declines are excluded from both halves of the fraction. |
-| `pass_threshold` | `0.7` | The fraction of a session's required concepts you must answer correctly — grade 3 or better — before the commit gate opens, rounded up. `required` never exceeds `max_questions_per_task`, so at both defaults that is three of four. |
-| `max_questions_per_task` | `4` | A budget for the **whole session**, shared between mid-task checkpoints and the end-of-task sweep. Not a batch size — on the default cadence a quiz asks one question, so the budget is spent one at a time or not at all. |
-| `min_minutes_between_quizzes` | `20` | Floor between whole quizzes, and the anti-nagging dial for the `end` cadence. It applies when quizzing is unenforced only — `quiz.enforced` ignores it, or a cooldown could make a commit gate unpassable. On `interleaved` nothing it paces exists: every quiz there is one question, so `min_minutes_between_checkpoints` is the dial that applies. |
-| `min_minutes_between_checkpoints` | `4` | Floor between single questions on the `interleaved` cadence — both the mid-task checkpoint and the end-of-task sweep. It is what stops eight logged concepts becoming eight questions in a row, and it is what re-arms both: the checkpoint on Claude's next shell command or edit, the sweep on the next finished turn, so lowering it asks more often and raising it asks less. `0` asks at every seam; the end-of-task sweep still keeps a one-minute floor, since there this clock is its only loop guard. |
-| `max_new_concepts_per_session` | `8` | Cap on concepts Claude may invent per session, against slug sprawl. |
-| `max_stop_blocks_per_session` | `3` | Hard backstop on how many times the end-of-task hook may hold a session open. |
-| `domains_enabled` | `["*"]` | Restrict questions to named domains. `["*"]` means all. |
-| `auto_update` | `true` | Eklavya updates itself: at most once an hour, a session start checks npm in the background and installs a newer release ([Updates](/docs/installing/#updates)). `false` stops that, and stops the background catch-up install when the plugin is newer than the runtime; a missing runtime is still installed. `eklavya update` still works by hand. Global only: a project file that sets it is ignored, because there is one runtime per machine. |
-| `quiet` | `false` | `true` suppresses the session-start banner and the `eklavya statusline` output. It does **not** stop Eklavya working — concepts are still logged and questions still arrive. Use `quiz.enabled: false` for that. |
-| `explain_on_wrong` | `false` | `true` writes you an explainer page each time you miss a question — a wrong answer (grade 1 or 2) or an "I don't know" you were taught, never a skip or a decline. The page is written in the background by the `eklavya-explainer` agent, filed under `~/.eklavya/artifacts/<project>/` and opened in your browser; the quiz gives its verdict and goes back to the task without waiting for it. Usually set per project. Asking "explain this to me" gets a page whether this is on or not. |
+| `quiz.enabled` | `true` | Enables questions, checkpoints and the gate. `false` leaves memory running; the banner reports “memory on · questions off” when memory is enabled. |
+| `quiz.enforced` | `false` | Requires passing answers before committing. Ignores quiz cooldowns and the interleaved one-question cap. Has no effect when `quiz.enabled` is false. Terminal commits also need the [git hook](/docs/commit-gate/). |
+| `focus` | `"concept"` | Subject: `concept`, `project` or `learn`. |
+| `focus_topic` | `null` | Required topic for `learn`; ignored by other focus values. An unmet enforced gate still asks about current work first. |
+| `cadence` | `"interleaved"` | `interleaved` offers one question at a time during work; `end` waits for task completion. Explicit and enforced plans are exempt from the one-question cap. |
+| `difficulty` | `"auto"` | Earn a level per project, or pin `easy`, `medium` or `hard`. Pins stop progression. |
+| `level_up_after` | `100` | Passing answers needed at the current level in this project. Promotion also needs accuracy and distinct concepts. |
+| `level_up_accuracy` | `0.7` | Required fraction of passing answers at that level. Declines are excluded. |
+| `pass_threshold` | `0.7` | Gate passes needed: `ceil(required concepts × threshold)`. At default settings, at most three passes out of four required concepts. |
+| `max_questions_per_task` | `4` | Automatic-question budget shared by checkpoints and the final sweep. Also the maximum size of each explicit `/eklavya:quiz` round; a requested round can continue after the automatic budget is spent. |
+| `min_minutes_between_quizzes` | `20` | Spacing for offered `end` quizzes. Explicit requests and enforcement bypass it. |
+| `min_minutes_between_checkpoints` | `4` | Spacing between offered interleaved questions, including the final sweep. At `0`, checkpoints can ask at each eligible seam; the final sweep retains a one-minute floor. |
+| `max_new_concepts_per_session` | `8` | Maximum new concepts the agent may create in a session. |
+| `max_stop_blocks_per_session` | `3` | Maximum times the end-of-task hook can hold a session open for questions. |
+| `domains_enabled` | `["*"]` | Filters the learner profile (including its due list) and memory-derived concept candidates. `*` includes all. It is not a strict block on explicitly selected or logged concepts. |
+| `quiet` | `false` | Suppresses the banner and status line. Logging, memory and questions continue. |
+| `explain_on_wrong` | `false` | Writes a background explainer page after a wrong or “I don't know” answer. Skips and declines do not create pages. |
+| `auto_update` | `true` | Global only. Checks for a newer release at session start, at most hourly, and permits runtime catch-up. A missing runtime is still installed when false; manual `eklavya update` remains available. |
+
+Older files may still use `mode`: `ambient` enables unenforced questions, `enforced` enables the gate, and `off` disables questions. A `quiz` object in the same file takes precedence. Use `quiz` in new files.
 
 ### Setting a namespaced key
 
-`eklavya config set` takes a dotted path, and so does asking in chat:
+Dotted paths change one value without replacing the rest of the namespace:
 
 ```bash
 eklavya config set memory.capture minimal
@@ -99,151 +70,68 @@ eklavya config set privacy.exclude_paths "/internal/, /vendor/"
 eklavya config set providers.observer null
 ```
 
-Only the key you name changes; the rest of its namespace is left alone. A list
-takes either a comma-separated string or JSON, and a value is read as the type
-the setting actually has — so `focus_topic 2` stays the string `"2"` while
-`memory.batch_max_events 40` becomes the number `40`.
-
-The one thing that needs JSON is setting a whole object, because there is no
-sensible shorthand for one:
-
-```bash
-eklavya config set providers.observer '{"kind":"anthropic","model":"<model-id>"}'
-```
+Lists accept comma-separated strings or JSON. Other values use the key's expected type. Whole objects require JSON. The CLI rejects unknown keys and refuses to overwrite malformed files; it backs up valid files before changing them.
 
 ### The memory namespaces
 
-The keys above are flat because every config already written uses them that way. The memory half's keys are nested under six namespaces instead, and they merge the same way: a project file setting `retrieval.mode` leaves your global `memory.capture` alone.
-
 #### `memory`
 
-| Key | Default | What it does |
+| Key | Default | Meaning |
 | --- | --- | --- |
-| `memory.enabled` | `true` | Whether this project's work is recorded and recalled at all. |
-| `memory.capture` | `"full"` | What the capture path accepts. `full` records prompts, tool calls, failures, edits and reads; `minimal` keeps prompts, assistant messages, session seams and notes, and drops the per-file traffic that is most of the volume; `off` stops capture and leaves what is already stored searchable. |
-| `memory.batch_max_events` | `40` | The most events in one observation batch; a batch closes mid-task when it reaches this. The end of a turn closes a smaller one only at 8 events or 20 minutes old, and a session start closes whatever is left, so a short session is still summarised. |
-| `memory.retention_days` | `null` | Days of summarised raw evidence to keep. Observations built from it survive its deletion; only their drill-down gets shorter. Finished jobs and reuse receipts older than the window are deleted too. Applies per project: set in a project's config it prunes that project only, and another project's evidence is never touched by it. Runs at a session seam at most every six hours per project, or now with `eklavya memory prune` from inside the project. `null` keeps it all until you delete it. |
-
-:::note
-**`memory.enabled` is independent of `quiz`.** `quiz.enabled: false` means no quizzes, no checkpoints and no gate — it does not mean no history. Someone who silenced the questions did not ask for their project's record to stop, and the reverse (quizzes, no capture) is just as legitimate: that is `memory.enabled: false`. This was always how it worked; the settings are named `quiz` and `memory` now so that it is legible from the configuration file rather than only from this paragraph.
-:::
+| `memory.enabled` | `true` | Enables capture and recall independently of quizzes. |
+| `memory.capture` | `"full"` | `full`: prompts, tool activity, edits, reads and session events. `minimal`: prompts, assistant messages, session events and notes. `off`: stop capture while keeping stored history searchable. |
+| `memory.batch_max_events` | `40` | Maximum events per observation batch. A turn end also closes batches at eight events or 20 minutes old; a session start closes leftovers. |
+| `memory.retention_days` | `null` | Days to keep summarised raw evidence, finished jobs and reuse receipts. Observations survive. Applies per project, automatically at most every six hours or through `eklavya memory prune`. `null` keeps everything. |
 
 #### `privacy`
 
-Every entry here is *added* to Eklavya's built-in rules, never replaces them. [Memory](/docs/memory/#what-is-never-captured) lists what the built-in rules already cover.
+These extend the [built-in privacy rules](/docs/memory/#what-is-never-captured).
 
-| Key | Default | What it does |
+| Key | Default | Meaning |
 | --- | --- | --- |
-| `privacy.exclude_paths` | `[]` | Extra path fragments that are never captured, on top of the built-in list (`.env`, `/.ssh/`, `.pem`, `credentials.json` and the rest). Matched as a substring of the path. |
-| `privacy.exclude_tools` | `[]` | Tool names never captured, when a tool's arguments are usually secrets. |
-| `privacy.redact_patterns` | `[]` | Extra regular expressions, applied on top of the built-in secret shapes. A match becomes `[redacted:configured]`. A pattern that does not compile is skipped rather than breaking capture. |
+| `privacy.exclude_paths` | `[]` | Additional path fragments to exclude; matched as substrings. |
+| `privacy.exclude_tools` | `[]` | Tool names whose activity must not be captured. |
+| `privacy.redact_patterns` | `[]` | Additional regular expressions; matches become `[redacted:configured]`. Invalid patterns are skipped. |
 
 #### `retrieval`
 
-| Key | Default | What it does |
+| Key | Default | Meaning |
 | --- | --- | --- |
-| `retrieval.mode` | `"hybrid"` | How memory is searched: `keyword` (FTS5, BM25), `semantic` (cosine over local vectors), or `hybrid` — both, fused. A single search may override it. |
-| `retrieval.max_items` | `6` | Entries offered at a session seam before any detail is fetched, and the default `limit` for a search. |
-| `retrieval.max_tokens` | `1200` | Estimated-token budget for the whole recalled block, wrapper included. It fills to the budget rather than to `max_items`, because six short notes and six long ones are not the same amount of context. |
-| `retrieval.cross_project` | `false` | `true` widens both search and the session-start block to every project on this machine. Off by default: another repository's work is usually noise. |
+| `retrieval.mode` | `"hybrid"` | `keyword`, local-vector `semantic`, or both (`hybrid`). Searches can override this. See [retrieval limits](/docs/memory/#how-recall-works). |
+| `retrieval.max_items` | `6` | Maximum entries proposed at session recall and default search limit. |
+| `retrieval.max_tokens` | `1200` | Estimated-token budget for the complete recalled block, including its wrapper. |
+| `retrieval.cross_project` | `false` | Includes other projects in search and session-start recall. |
 
 #### `providers`
 
-Both are `null`, and **nothing turns them on for you** — not an upgrade, not a command. With them unset, the summariser and the embedder are both local and nothing about your code leaves the machine.
+Provider settings are global because one worker processes all projects on the machine. Project-level writes are refused. Both keys default to `null`.
 
-`providers` is **global only**: it can be set in `~/.eklavya/config.json` and nowhere else. One background worker summarises every project's queue on this machine, so a per-project setting would decide what leaves the machine for other projects too. A project file that sets it is ignored, and `eklavya config get` lists it as ignored; `eklavya config set providers.observer … --project` refuses.
-
-| Key | Default | What it does |
+| Key | Default | Meaning |
 | --- | --- | --- |
-| `providers.observer` | `null` | A model that writes observation narratives instead of the local extractive summariser. Setting it is the one thing that sends captured work off this machine. |
-| `providers.embeddings` | `null` | A model that produces the vectors `semantic` retrieval compares, instead of the local `local-hash-v1` embedder. Each vector records which embedder made it, so two models' vectors are never compared. |
+| `providers.observer` | `null` | Optional `{ "kind": "anthropic", "model": "…" }` for richer observation summaries. Runs through `claude -p` using your Claude Code login and sends captured work to that model. |
+| `providers.embeddings` | `null` | Accepted configuration field, but no external embedding provider is wired into current retrieval. Search still uses the local embedder; leave this unset. |
 
-Each takes an object of two fields: `kind` (only `"anthropic"` today) and `model`. The model runs through Claude Code (`claude -p`) on your Claude subscription — the same login Claude Code already uses, and nothing else to configure. `eklavya install` asks for the observer model once memory is on.
+The installer offers an observer choice when memory is enabled; upgrades do not enable one silently. With no observer, summaries are generated locally.
 
-```json title="~/.eklavya/config.json"
-{
-  "providers": {
-    "observer": {
-      "kind": "anthropic",
-      "model": "claude-haiku-4-5"
-    }
-  }
-}
+```bash
+eklavya config set providers.observer '{"kind":"anthropic","model":"claude-haiku-4-5"}'
 ```
-
-### Nothing Eklavya configures lives in your repository
-
-Project settings are **yours**, not your team's. They sit in your home
-directory, keyed by the checkout's path, and no Eklavya configuration file is
-ever written into a working tree.
-
-That used to be the other way round: settings lived at `<repo>/.eklavya.json`
-and were committed, so a lead could pin the gate for everyone who cloned. Two
-problems with that, and the second is the serious one. Everyone on a team gets
-taught differently — the level you have earned in a codebase is not the level
-your new teammate has — so one file could never be right for all of them. And
-a committed config is a configuration file **written by somebody else**: a
-checked-in `notifications` sink pointing at `/bin/sh` plus the automatic
-end-of-session wrap-up meant that cloning a repository and working in it for
-ten minutes ran that command. Containing this needed a list of settings a
-repository was not allowed to touch.
-
-Moving the file out removes the class where it was worst. `notifications`,
-`sync` and `retrieval.cross_project` are ordinary settings you can now set per
-project, because a file under your home directory is one only you wrote.
-`providers` is the exception, and global only, for the reason above.
-
-The restriction survives in exactly one place: a **legacy `.eklavya.json` still
-sitting in a checkout**. That file did arrive by clone, and it applies until a
-session moves it, so those four settings are ignored when they come from it and
-are stripped rather than carried across when it is moved. A repository cannot
-hand you a notification sink, before or after the migration.
-
-:::note
-**An `.eklavya.json` left in a checkout is moved for you.** The next session
-that starts there lifts it into `~/.eklavya/projects/` and deletes it from the
-working tree, keeping every setting it held. Nothing is printed and nothing is
-asked — a settings file in a repository was a mistake to undo, not a decision
-to confirm. If project settings already exist, they win and the old file's
-extra keys are merged underneath them, so nothing is lost either way.
-
-Concept packs are the deliberate exception and still live at
-`<repo>/.eklavya/packs/`. A pack is a shared concept graph for the codebase,
-the same for everyone by design — content rather than configuration. See
-[Packs](/docs/packs/).
-:::
 
 #### `notifications` — what gets sent out
 
-Off by default, and separately from everything else, because a notification
-cannot be recalled: once a session summary is in a team channel, deleting your
-local database changes nothing.
-
-| Key | Default | What it does |
+| Key | Default | Meaning |
 | --- | --- | --- |
-| `notifications.enabled` | `false` | The master switch. With no sinks configured nothing is sent either way. |
-| `notifications.sinks` | `[]` | Where wrap-ups go. Each is an object: `kind` (`"webhook"`, `"command"` or `"file"`), `target`, optional `args` (for `command`), and optional `events` to take only some kinds. |
+| `notifications.enabled` | `false` | Enables delivery to configured sinks. |
+| `notifications.sinks` | `[]` | Objects with `kind` (`webhook`, `command` or `file`), `target`, optional command `args` and optional `events` filter. |
 
-Two event kinds today: `session_summary` when a session ends, and
-`queue_paused` when observation processing has stopped and will not restart by
-itself. Every payload goes through the same redaction as capture, and each
-event is delivered once however many times the session seam fires. All sinks
-share a five-second budget at the end of a turn; a slow one is not waited on
-past that.
-
-`command` exists because the interesting integrations are all somebody's
-script — a desktop notification, a line in a journal, a message posted by a CLI
-that already holds the credentials. The event JSON arrives on the command's
-standard input, and no shell is involved, so nothing in `target` is expanded on
-the way.
+Events are `session_summary` and `queue_paused`. Payloads are redacted; duplicate delivery is prevented and sinks share a five-second budget per seam. Commands receive JSON on standard input without shell expansion. Delivery to another service cannot be undone by deleting local history.
 
 ```json title="~/.eklavya/config.json"
 {
   "notifications": {
     "enabled": true,
     "sinks": [
-      { "kind": "file", "target": "~/eklavya-wrapups.jsonl" },
-      { "kind": "command", "target": "/usr/local/bin/notify-me", "events": ["queue_paused"] }
+      { "kind": "file", "target": "~/eklavya-wrapups.jsonl" }
     ]
   }
 }
@@ -251,50 +139,41 @@ the way.
 
 #### `sync` — memory across your machines
 
-Off by default. The target is a directory both machines can see — a synced
-folder, a mounted share, a git repository — so there is no account and no
-service to depend on.
-
-| Key | Default | What it does |
+| Key | Default | Meaning |
 | --- | --- | --- |
-| `sync.enabled` | `false` | The master switch. A target alone does nothing, deliberately: a stale path left by a wiped machine should not quietly start publishing. |
-| `sync.target` | `null` | The shared directory. Each machine writes its own numbered records into it and reads the others'. |
-| `sync.device_id` | `null` | Pin this machine's identity. Normally leave it: an id is minted once and kept in the database, never in a config file, because config files travel and two machines sharing an id would interleave one stream irrecoverably. |
+| `sync.enabled` | `false` | Enables exchange through the configured folder. |
+| `sync.target` | `null` | Shared directory, such as a mounted share or synced folder. |
+| `sync.device_id` | `null` | Optional device identity. Normally leave unset: an identity is generated once and stored in the database. |
 
-What crosses: memory entries, their tags, and deletions. What never crosses:
-your attempts, your mastery, your review schedule, gates, reuse receipts, and
-the raw evidence behind an observation. Shared project memory is not shared
-learner history.
+Sync exchanges entries, tags and deletions. Attempts, mastery, review schedules, gates, raw evidence and reuse receipts stay on their original machine. Eklavya does not supply the shared-folder transport.
 
 ```bash
 eklavya config set sync.target ~/Dropbox/eklavya-sync
 eklavya config set sync.enabled true
 eklavya memory sync push
+eklavya memory sync pull
 eklavya memory sync status
 ```
 
-Two machines editing the same entry between syncs is a conflict, and a
-conflict is **quarantined rather than merged**: your local version stays live,
-the incoming one is kept intact, and `eklavya memory sync status` says there is
-one to resolve. A deletion propagates as a tombstone and stays deleted — the
-machine that still had the entry cannot put it back.
+Conflicting edits are quarantined: your local version stays active and the incoming version is retained. `sync status` reports conflicts. Deletions propagate as tombstones so a device with an older copy cannot restore them accidentally. Do not copy a pinned `device_id` between machines.
+
+### Nothing Eklavya configures lives in your repository
+
+Project settings are personal files under your home directory, not team policy. Legacy `<repo>/.eklavya.json` files are moved there on the next session; existing personal project settings win. The migration excludes `providers`, `notifications`, `sync` and cross-project retrieval from the cloned file.
+
+New packs also live under your home directory. Legacy `<repo>/.eklavya/packs/` files are still read but are neither moved nor written. See [Concept packs](/docs/packs/). The opt-in git hook is the separate exception under `.git/hooks/`.
 
 ### A complete file
 
-Every key is optional — write only the ones you want to change. This example is a project file for a codebase you are new to: gated, grounded in the project, held at easy.
+Every key is optional. This project configuration enables a gate and keeps questions about the codebase in the easy band:
 
 ```json title="~/.eklavya/projects/-Users-you-code-api/config.json"
 {
   "quiz": { "enabled": true, "enforced": true },
   "focus": "project",
   "cadence": "interleaved",
-  "difficulty": "easy",
-  "pass_threshold": 0.7,
-  "max_questions_per_task": 4,
-  "min_minutes_between_checkpoints": 4
+  "difficulty": "easy"
 }
 ```
 
-:::tip
-**Two settings people misread.** `max_questions_per_task` is a session budget, so turning on `interleaved` moves questions earlier without adding any — and under that cadence it is a ceiling for the session, not a number of questions you will be asked. And `difficulty` is a *band*, not a question — pinning `hard` does not make every question tier 5, it makes tiers 3–5 the range the planner may choose from.
-:::
+A pinned difficulty selects a range of tiers, not one question difficulty. See [Levels and tiers](/docs/levels-and-tiers/).

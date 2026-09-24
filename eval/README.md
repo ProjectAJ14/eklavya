@@ -1,12 +1,30 @@
-# The question-quality eval
+# Evaluation guide
 
-Eklavya's claim is that the developer learns. The suite in `mcp/test/` checks
-the machinery — SM-2 arithmetic, plan sizing, gate maths, migrations —
-and not one of them checks the product, which is a question. This measures the
-question.
+Use these harnesses to measure question quality, concept extraction, real answer
+history, memory retrieval and performance. Automated runtime tests in `mcp/test/`
+cover implementation correctness; these evaluations answer different questions.
 
-It is deliberately the narrowest of the three evals worth having. The other two
-are named at the bottom, and neither exists yet.
+## Choose a harness
+
+Build first with `cd mcp && npm run build`, then run from the repository root.
+
+| Goal | Command | Model calls |
+|---|---|---|
+| Question planning and quality | `npm run eval -- run --limit 8 --focus project --difficulty hard` | Generation and judging |
+| Re-score existing questions | `npm run eval -- score eval/results/<run>` | None |
+| Concept extraction | `npm run eval -- extract` | Extraction and judging |
+| Repeats and retention in real history | `npm run eval -- history` | None; reads learner database |
+| Retrieval quality | `node eval/retrieval-harness.mjs` | None |
+| Memory performance | `node eval/memory-perf.mjs` | None |
+
+Replace `<run>` with a saved run directory. Model-based stages use the configured
+Claude command and can incur usage. These harnesses do not run in CI. Before
+publishing a result, include the revision, settings, corpus, limitations and what
+would disprove the conclusion; report unfavorable results too.
+
+The detailed retrieval and performance analyses below are dated historical
+measurements. They do not claim that the current version has the same defects or
+timings. Preserve the original evidence and make corrections explicit.
 
 ## Method
 
@@ -327,6 +345,9 @@ The last one is worth more than the label it broke: **an identifier bridges
 languages when nothing else does.** Both queries kept their place in the corpus
 with the `expectedMiss` label removed and the reason written into their `why`.
 
+<details>
+<summary>Historical retrieval results and limitations — 22 September 2026</summary>
+
 ### Measured, 2026-09-22
 
 `results/2026-09-22-retrieval-v2.json`, k=5, against
@@ -446,6 +467,9 @@ that — which is exactly why the leak count is printed next to it.
   reported because hiding them would be the failure mode this table exists to
   prevent.
 
+
+</details>
+
 ## The performance baseline
 
 `eval/memory-perf.mjs` measures the machinery rather than the product: how long
@@ -468,6 +492,9 @@ and 20k baselines ran with. It pre-loads `evidence_events` before anything is
 timed, in one transaction through the product's own `appendEvent`, so the rows
 and indexes are the ones a hook writes and only the per-row fsync is dropped.
 Nothing measured runs inside that transaction.
+
+<details>
+<summary>Historical performance results and subsequent index fix — 22 September 2026</summary>
 
 ### Measured, 2026-09-22 — 100,000 entries and 1,000,000 events
 
@@ -606,6 +633,9 @@ they measured the worker against an evidence table two orders of magnitude too
 small and reported 1.1ms. The quadratic was invisible because the axis driving
 it was pinned, not because it was absent. A baseline that holds one axis still
 is not a baseline; it is a shape you chose.
+
+
+</details>
 
 ## Not built yet
 

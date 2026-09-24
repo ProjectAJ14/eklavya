@@ -1,56 +1,127 @@
 ---
 title: "Troubleshooting"
-description: "Diagnose Eklavya installation, hooks, quizzes, memory, and commit-gate problems. Use doctor and status checks to find why the expected behavior is missing."
+description: "Find a symptom, run the right diagnostic, and repair Eklavya installation, questions, memory or commit enforcement."
 sidebar:
   order: 15
 ---
 
-Start with `eklavya doctor`. It answers most of these in one screen, and it
-checks the install itself — the runtime, the SQLite driver, the plugin's
-registration and the chat skill — before anything else. If one of those has
-broken, `doctor` says which and tells you to run `eklavya install`, which is
-idempotent and repairs all four without touching your history.
+## Start here
 
-That first block matters more than it looks. Eklavya never breaks a session:
-every hook exits successfully whatever happens. So a broken install and a quiet
-one look identical from the inside — it just stops asking. `doctor` is the only
-thing that tells them apart.
+```bash
+eklavya doctor
+```
 
-| Symptom | Likely cause and fix |
-| --- | --- |
-| No greeting at session start | Either `quiet` is `true`, the runtime is not installed yet, or the plugin did not load. Run `/plugin` and check for errors, then `eklavya doctor`. If you installed through the marketplace, `npx eklavya install` finishes the runtime immediately. |
-| No questions at all, ever | Check `quiz.enabled` is not `false` — `eklavya config get` shows it. Then check that Claude is actually logging concepts — with nothing logged there is nothing grounded to ask about. `/eklavya:quiz` will tell you which of the two it is. |
-| Nothing at all in a long session, and nothing was ever logged | The instruction to log concepts is injected once, at session start, so in a long session it can end up buried under everything that came after it. Eklavya notices this particular case: after about twelve minutes of a session that has logged **nothing**, it restates the instruction in one line — at most once every twenty-five minutes, and at most three times before it gives up, because a session that logs nothing is also what an unreachable server looks like. Resuming a session or compacting one starts that count again, since the original instruction is reprinted then too. `quiz.enabled: false` is what switches the reminder off; `quiet` does not, because the reminder is context for Claude rather than output for you. |
-| Questions arrived earlier in the session, then stopped | This is the other case, and no reminder fires for it — concepts are logged per task, and a task can legitimately run a long time, so Eklavya cannot tell a quiet stretch from a long one. Ask Claude directly to log what the current task touched, or run `/eklavya:quiz`. |
-| Questions only arrive at the end, or several in a row | Cadence is `end`. `eklavya config set cadence interleaved` — that asks at the seam where a concept is logged, and caps a quiz at one question. If they still arrive late on `interleaved`, Claude is logging concepts at the end of the task rather than as it works; tell it to log as it goes. |
-| Too many interruptions | Raise `min_minutes_between_checkpoints` — on `interleaved` it paces both the mid-task question and the end-of-task sweep — or lower `max_questions_per_task`. Switching to `end` is the blunt version. |
-| Questions feel far too easy | You are on `easy`, which is where every project starts. Run `/eklavya:level` to see the runway — you may be close to a promotion. Pin a band only if you are sure. |
-| My global setting stopped applying | Your own settings for this project are overriding it. The session banner names which ones; `eklavya config get` prints the file path under `~/.eklavya/projects/`. |
-| Session start says `Eklavya paused · can't open its database · run: eklavya doctor` | The database exists but would not open, so Eklavya is doing nothing this session rather than breaking it. `eklavya doctor` names the reason on its `database` row. The variant that names the SQLite module and your Node version is the Node-upgrade case below: run `eklavya install`. A first run with no database yet prints nothing. |
-| `eklavya install` stops with `… is not valid JSON` | One of your own files — `~/.claude/settings.json`, a file under `~/.claude/plugins/`, or `~/.eklavya/config.json` — does not parse. The installer changed nothing. Fix or remove the file it names, then run it again. `eklavya doctor` shows the same problem for the config file on its `config` row. |
-| An install or config change went wrong and I want my old file back | Every file Eklavya edits that belongs to you was copied first to the same path with `.eklavya-bak` on the end. `mv ~/.claude/settings.json.eklavya-bak ~/.claude/settings.json` restores it. |
-| Session start says `Eklavya can't update itself · … · run: eklavya update` | The last automatic update failed, and the line gives the reason. Run `eklavya update` to retry and see the whole error; the last background run's output is in `~/.eklavya/update.log`. `npm not found on PATH` means the PATH Claude Code starts with has no npm, which is common when it is launched from an app or an IDE. `EACCES` means something under `~/.eklavya/runtime` is not yours; `sudo chown -R "$USER" ~/.eklavya` fixes it. A plain network failure says nothing until a week has passed. |
-| `doctor` says the runtime is behind the plugin | Claude Code updated the plugin, and the runtime has not caught up yet. The next session updates it in the background, or `eklavya install` does it now. If the runtime is *ahead*, update the plugin with `/plugin update eklavya` — the runtime is never downgraded. |
-| The database file does not exist | The MCP server never started. Check `/plugin` for errors and confirm `node --version` is 22 or newer — below that the native database binding has no prebuilt binary and will not install. |
-| Lots of `claude` or `node` processes, or the machine slows down, with a memory model configured | That was the 1.24.0 bug: every summariser run started another worker. First set `providers.observer` to `null` so nothing new starts, then run `eklavya memory stop`. Upgrade with `eklavya update` (or, from a version older than the updater, `npm install -g eklavya@latest && eklavya install`) — the plugin can update itself while the runtime under `~/.eklavya/runtime` stays on the old version, and the old runtime is the one that loops — and check `eklavya memory status`: the `worker:` line should show at most one pid. A worker left over from 1.24.0 never recorded itself, so `memory stop` can't see it; end those by hand (`pkill -f 'memory process'`) or restart. Before turning the model back on, run `eklavya memory backlog`: batches marked as observer helper sessions are the loop's own noise, and `eklavya memory backlog discard --helpers` (or `quarantine --helpers`, to keep them) stops the model spending your subscription summarising them. |
-| Eklavya remembers nothing about this project | Four different problems look identical from the outside, and `eklavya memory status` tells them apart: `enabled: false` or `capture: off` means it is switched off; entries at zero with pending evidence above it means nothing has summarised yet, and `eklavya memory process` drains it; `queue.paused` means a configured provider is refusing, with `error_class` saying whether that is auth, quota or missing — log in to Claude Code, wait out the usage limit, or put `claude` on the PATH Claude Code starts with (launched from an app or IDE, it is often shorter than your shell's), then run `eklavya memory process`, which is what puts paused jobs back in the queue, since nothing automatic will; and `dropped_events` above zero means the spool overflowed while the database was unreachable — that evidence never reached the database, and `eklavya memory replay` recovers it from this checkout's Claude Code transcripts. A fresh install remembers nothing from before it was installed for the same reason, and `replay` backfills that too. |
-| A search finds nothing, but I know it happened | Three possibilities in order. It may be in another project: Eklavya scopes to this checkout, so add `--all-projects`. It may have been imported and never placed — `eklavya memory status` counts those as `unplaced`, and re-running `eklavya memory import` on `~/.claude-mem.retired/claude-mem.db` (with `--map-here` for any name the transcripts cannot place) moves them to their checkout without duplicating anything. Or you write in Japanese or Chinese: the full-text tokenizer has no word boundaries for unspaced scripts, so a whole title becomes one token and `retrieval.mode: keyword` finds almost none of it. Set it back to `hybrid`, which measures 0.533 top-1 against keyword's 0.200 on the CJK half of the retrieval eval — better, but still missing nearly half, so search by a filename or an identifier where you can. Those are Latin script whatever the prose around them is, and they are what actually bridges the two. |
-| My savings percentage says "unavailable" or shows overhead | Both are honest answers rather than faults. "Unavailable" means no reuse has been *confirmed* delivered yet, and a number would be invented. Overhead means the recalled block cost more tokens than reading the underlying evidence would have — which happens on a small corpus, where an observation is longer than the tool call it summarises, and stops happening as the history grows. Eklavya reports it rather than clamping it to zero. |
-| Memory recorded something I did not want recorded | `memory_delete` removes an entry, and `privacy.exclude_paths`, `privacy.exclude_tools` and `privacy.redact_patterns` stop the next one. If a secret got through, please [open an issue](https://github.com/ProjectAJ14/eklavya/issues) with the *shape* of it and never the value — the built-in patterns are a list that only grows by someone hitting a gap. |
-| A commit is blocked and I do not know why | `/eklavya:gate` tells you how many concepts are outstanding. `/eklavya:quiz` clears it. |
-| Commits are blocked but I never turned on the gate | Your project settings have `quiz.enforced`. Run `eklavya config get` for the file path, then `eklavya config set quiz.enforced false --project`. Since settings are per developer, nobody else can have turned this on for you — an older committed `.eklavya.json` may have been migrated into your config on a previous session. |
-| Memory is off and I never turned it off | You kept Claude Mem when `eklavya install` asked, or the installer ran without a terminal and made that choice for you. Run `eklavya install --memory eklavya` to import Claude Mem's history and switch over. |
-| Questions stopped and I assumed everything had | `quiz.enabled: false` stops the questions and nothing else — memory keeps recording, and `eklavya memory status` proves it. Session start says which half is off. The two are separate switches on purpose. |
-| The gate never holds, though the repo says enforced | Check for `quiz.enabled: false` in the same file. A gate needs passed questions and nothing would ask any, so the enforcement is ignored rather than blocking every commit for ever. `eklavya doctor` reports this combination by name. |
-| The git hook does not fire | It only acts on projects whose config sets `quiz.enforced` (or the retired `"mode": "enforced"`), and it deliberately fails open when `jq` or `sqlite3` is missing — `eklavya doctor` flags that on its `gate` row. If the repository uses husky or lefthook (`core.hooksPath` is set), the installer put nothing in place and printed the line to add to your hook manager instead. |
-| Every commit prints `eklavya: commit gate not found, so this commit is not gated` | The hook is installed but cannot find the gate script, usually after an uninstall. `npx eklavya install` restores it; deleting the hook file the message names stops it. |
-| A commit Claude ran slipped past the gate | The Claude Code side catches `git commit` in the forms a shell would run it, but not a git alias, a variable holding the command, or a script that commits. Install the [git hook](/docs/commit-gate/#installing-the-git-hook) — git runs it however the commit started. |
-| An `.eklavya.json` vanished from my checkout | Eklavya moved it. Settings no longer live in repositories, so the next session there lifted it into `~/.eklavya/projects/<checkout>/config.json`, keeping every setting, and deleted it. `eklavya config get` shows where it went. |
-| Eklavya worked, then went silent after a Node upgrade | The SQLite driver's prebuilt binary is tied to a Node ABI. `eklavya doctor` reports this as `driver: FAILED`; `eklavya install` rebuilds it. |
-| `doctor` says the plugin is registered but not enabled | Under `enabledPlugins` in `~/.claude/settings.json`, `eklavya@eklavya` is `false` or missing entirely. Re-enable it there, with `/plugin` in Claude Code, or by running `eklavya install`. |
-| `doctor` says the skill is a different skill named eklavya | You have your own `~/.claude/skills/eklavya/`. Eklavya will not overwrite it — rename or move yours, then run `eklavya install`. |
-| Questions in Claude Desktop have no **Eklavya** header | Expected, and handled. The header is a chip Claude Code draws in a terminal; the Claude Desktop app draws a question card with no chip in it, and no plugin can change that. Questions there open with `[Eklavya]` on their own line instead. If you see *neither* the chip nor that line, the question did not come from Eklavya. |
-| It works in the terminal but not in Cowork | Cowork keeps a separate list of plugins and `doctor` cannot see it, so a clean report says nothing about Cowork. Install it there: **Customize → Plugins → Add marketplace → `ProjectAJ14/eklavya`**. |
-| Cowork questions talk about code, but I am not writing code | Eklavya recognises a Cowork session from the entrypoint the app sets, and re-points its wording at the work you produced. If it did not, the app used an entrypoint this version does not know — that is a bug, so please [open an issue](https://github.com/ProjectAJ14/eklavya/issues) naming your Claude Desktop version. `EKLAVYA_SURFACE` will not help here: Claude Desktop composes the environment for the hooks and the server itself, so there is no shell of yours for them to inherit it from. |
-| Commits are not blocked in Cowork | Correct, and the session banner says so. The gate holds `git commit`, and Cowork does not commit. The questions still arrive. |
-| Nothing works in Cowork, and your organisation manages Claude Desktop | Two administrator settings switch Eklavya off there, both silently. A full-VM Cowork sandbox moves the session off your machine and away from `~/.eklavya/runtime`; `isLocalDevMcpEnabled: false` refuses local MCP servers outright. Ask your administrator which is set. |
+Use `npx eklavya doctor` if you did not install the global command. Doctor checks
+the runtime, database driver, plugin registration, configuration and optional
+dependencies. Follow the repair it reports, then restart Claude Code.
+
+Eklavya's hooks allow your session to continue when they fail, so silence alone
+does not prove it is healthy. `eklavya install` repairs a broken installation
+without resetting your learning history or settings.
+
+## Installation and updates
+
+| Symptom | Check or repair |
+|---|---|
+| No session banner | Check `quiet` with `eklavya config get`, then inspect `/plugin` and `eklavya doctor`. A marketplace install may still need `npx eklavya install` to finish the runtime. |
+| Plugin registered but not enabled | Enable Eklavya through `/plugin`, or rerun `eklavya install`. |
+| Database missing or session says it cannot open the database | Read doctor's `database` and `driver` rows. Confirm Node.js 22+, then run `eklavya install` if the driver is missing or incompatible. |
+| It stopped working after upgrading Node.js | The native SQLite driver may need rebuilding for the new Node version. `eklavya install` repairs it. |
+| Installer reports invalid JSON | Fix the named file before retrying. Eklavya refuses to overwrite invalid configuration. [Backups](/docs/updates/#installer-safety-and-backups) can restore a previous version. |
+| Skill path contains a different skill named `eklavya` | Eklavya preserves your existing skill. Move or rename it yourself, then reinstall. |
+| Runtime and plugin versions differ | Run `eklavya update` and restart. Automatic updates normally catch up in a later session; check `auto_update` if they do not. A newer runtime is never downgraded. |
+| Automatic update failed | Run `eklavya update` for the full error; inspect `~/.eklavya/update.log`. Missing npm usually means Claude's launch environment has a different `PATH`; a permissions error needs the named files' ownership repaired. |
+| Another installation is running | Let the process named by the installer finish, then retry. Do not delete its lock while it is active. |
+
+[Updates and removal](/docs/updates/) explains automatic checks, backups and
+runtime catch-up.
+
+## Questions and settings
+
+| Symptom | Check or repair |
+|---|---|
+| No questions | Check `quiz.enabled`, then run `/eklavya:quiz`. Claude must log concepts tied to the work before Eklavya can ask about them. |
+| Questions stopped partway through | The session may have reached its budget, have no eligible concepts, or still be within the checkpoint interval. Ask Claude to log the current task's concepts, then try `/eklavya:quiz`. |
+| Questions only arrive at task completion | Check `cadence`. `eklavya config set cadence interleaved` enables mid-task checkpoints; Claude also needs to log concepts while working. |
+| Too many interruptions | Increase `min_minutes_between_checkpoints`, decrease `max_questions_per_task`, or choose `cadence: end`. See [The dials](/docs/dials/). |
+| Questions are too easy | Run `/eklavya:level` to see this project's progress. Difficulty starts easy in a new project; you can also pin a level through the dials. |
+| A global setting seems ignored | `eklavya config get` shows effective settings and the project's override file. Change the override with `--project`. |
+| Questions stopped but memory continues | Expected: `quiz.enabled` and `memory.enabled` are separate. `eklavya memory status` shows whether recording is active. |
+| A repository's `.eklavya.json` disappeared | It was migrated into your personal project settings. `eklavya config get` shows the new path. |
+
+<details>
+<summary>A long session has never logged any concepts</summary>
+
+After about 12 minutes with no logged concepts, Eklavya reminds Claude to log
+what the task exercises. It repeats at most every 25 minutes, up to three
+times. Resuming or compacting resets the reminder state. `quiz.enabled: false`
+disables the reminder; `quiet` does not.
+
+This reminder does not fire after a session has already logged concepts. For
+that case, ask Claude to log the current task or run `/eklavya:quiz`.
+
+</details>
+
+## Memory and search
+
+Start with:
+
+```bash
+eklavya memory status
+```
+
+| What you see | Next step |
+|---|---|
+| `enabled: false` or `capture: off` | Review your [memory settings](/docs/configuration/). If you kept Claude Mem during installation, Eklavya intentionally does not record. |
+| Pending evidence but no entries | Run `eklavya memory process` to summarize pending work. |
+| `queue.paused` | Read `error_class`: resolve provider login, quota or missing executable, then run `eklavya memory process` to requeue the paused work. It does not resume automatically. |
+| `dropped_events` above zero | Evidence did not reach the database. `eklavya memory replay` can recover available evidence from this checkout's Claude Code transcripts. It also backfills work from before installation. |
+| Search misses another project's work | Add `--all-projects` to the search. Searches otherwise use the current checkout. |
+| Imported entries are `unplaced` | Rerun the import from the source database; use `--map-here` for a project name that cannot be resolved. See [Moving from Claude Mem](/docs/migrating/). |
+| Searches miss Japanese or Chinese text | Prefer `retrieval.mode: hybrid`; keyword search struggles with unspaced scripts. Try a filename or identifier as the query. |
+| Savings say “unavailable” or show overhead | No confirmed delivered reuse means unavailable. On small histories, recalled observations can cost more tokens than the original evidence. This is reported rather than hidden. |
+| Unwanted content was recorded | Ask Claude to delete the affected memory entry with `memory_delete`, then adjust `privacy.exclude_paths`, `privacy.exclude_tools` or `privacy.redact_patterns` to prevent recurrence. |
+
+To switch from Claude Mem, run `eklavya install --memory eklavya` after reviewing
+[the migration steps](/docs/migrating/).
+
+<details>
+<summary>Recovery from the version 1.24.0 memory-worker loop</summary>
+
+If configuring a memory model created many `claude` or `node` processes:
+
+1. Run `eklavya config set providers.observer null`, then `eklavya memory stop`.
+2. Run `eklavya update`. On a version without that command, use
+   `npm install -g eklavya@latest && eklavya install`.
+3. Check `eklavya memory status`: there should be at most one worker PID. Old
+   untracked workers may need to be stopped manually or by restarting.
+4. Inspect `eklavya memory backlog`. Use `eklavya memory backlog quarantine --helpers`
+   to set aside helper-session noise before restoring the model. Use
+   `discard --helpers` only if you want to delete that queued evidence.
+
+</details>
+
+## Commit gate
+
+| Symptom | Check or repair |
+|---|---|
+| Commit blocked | `/eklavya:gate` shows outstanding concepts. `/eklavya:quiz` starts the required practice; a passing result clears the gate. |
+| You did not expect enforcement | Check the effective `quiz.enforced` value. To disable a project's override, run `eklavya config set quiz.enforced false --project`. |
+| Enforcement enabled but commits pass | Questions must also be enabled. Doctor reports `quiz.enabled: false` with enforcement. For terminal commits, verify the git hook plus `jq` and `sqlite3`. |
+| Git hook never runs | If `core.hooksPath` points to husky or another manager, add the line printed by Eklavya's hook installer to that manager's pre-commit hook. |
+| Claude's commit escaped enforcement | Shell aliases, command variables and scripts can bypass the Claude-side check. The [git hook](/docs/commit-gate/#installing-the-git-hook) covers commits at git itself. |
+| Every commit says the gate script is missing | Reinstall Eklavya, or remove its git hook using the command printed by uninstall. |
+
+## Claude Desktop and Cowork
+
+| Symptom | Check or repair |
+|---|---|
+| Questions have no Eklavya header chip | Desktop uses cards. Eklavya questions start with `[Eklavya]` instead. |
+| Terminal works but Cowork does not | Cowork needs its own [plugin installation](/docs/installation-options/#claude-desktop-and-cowork). Doctor verifies the Claude Code install only. |
+| Cowork asks about code when you are producing documents | Report your Claude Desktop version; Eklavya may not recognize its session entrypoint. Setting a variable in your terminal does not change Desktop's hook environment. |
+| Cowork does not block commits | Expected: Cowork does not commit. Enforcement can still ask questions. |
+| Nothing works in a managed Cowork installation | Ask the administrator whether local MCP servers are disabled (`isLocalDevMcpEnabled: false`) or a full-VM sandbox prevents access to the local runtime. |
+
+If a repair fails, [open an issue](https://github.com/ProjectAJ14/eklavya/issues)
+with the Eklavya version, environment and relevant diagnostic output. Remove
+secrets and private project details first.

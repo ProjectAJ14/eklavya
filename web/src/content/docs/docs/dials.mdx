@@ -5,85 +5,67 @@ sidebar:
   order: 5
 ---
 
-import { Badge } from '@astrojs/starlight/components';
+Choose what Eklavya teaches and how often it asks. These settings are independent; memory has its own switch.
 
-Eklavya's behaviour is a handful of independent settings. Conflating them is the most common confusion, so learn them as separate questions. They sit in your status bar — see [`eklavya statusline`](/docs/cli/#eklavya-statusline):
-
-| Setting | Question it answers | Values |
+| Setting | Default | Other choices |
 | --- | --- | --- |
-| `quiz.enabled` | Does it ask questions at all? | `true` (default), `false` |
-| `quiz.enforced` | Do unanswered questions hold commits? | `false` (default), `true` |
-| `focus` | What does it teach? | `concept` (default), `project`, `learn` |
-| `cadence` | When does it ask? | `interleaved` (default), `end` |
-| `difficulty` | How hard may the questions get? | `auto` (default), `easy`, `medium`, `hard` |
-| `memory.enabled` | Is your work recorded and recalled? | `true` (default), `false` |
-
-They combine freely. `quiz.enforced` + `learn` is an intern studying a topic they chose who still has to pass a gate on the day's work before committing — while that gate is open the quiz asks about the work, and the topic comes back once it passes. Unenforced + `project` is a gentle nudge grounded in today's diff. The one interaction is `quiz.enabled: false`: it wins outright, `focus` is never read, and it forces `quiz.enforced` off with it — a gate nothing asks questions for could never be passed.
-
-:::note
-**These replaced a single `mode` dial** whose values were `ambient`, `enforced` and `off`. Configuration files still using it keep working — `off` reads as `quiz.enabled: false`, `enforced` as `quiz.enforced: true`, `ambient` as neither — so nothing you have written needs changing. New configuration should use the names above.
-
-The rename happened because `mode: off` was never an off switch for Eklavya. It stopped the questions and left [memory](/docs/memory/) recording, exactly as it was designed to — but the word said otherwise, and people reasonably concluded the tool had broken when a session went quiet.
-:::
+| `quiz.enabled` | `true`: offer questions | `false`: no questions or gate; memory can continue. |
+| `quiz.enforced` | `false`: commits are unrestricted | `true`: require passing answers before committing. |
+| `focus` | `concept`: the idea behind the code | `project`: this codebase; `learn`: a chosen topic. |
+| `cadence` | `interleaved`: one question during work | `end`: questions when the task finishes. |
+| `difficulty` | `auto`: earn a level per project | Pin `easy`, `medium` or `hard`. |
+| `memory.enabled` | `true`: record and recall work | `false`: learning continues without memory capture or recall. |
 
 ### `quiz` — whether it asks, and whether it insists
 
-| Setting | Behaviour | Reach for it when |
-| --- | --- | --- |
-| `quiz.enabled: true` <Badge text="default" variant="tip" size="small" /> | Questions are offered as you work and at the end of a task. Always skippable, never nagging. | You are learning a new stack on your own terms. |
-| `quiz.enforced: true` | The session quiz must be passed before `git commit` succeeds — inside Claude Code automatically, and from a bare terminal once you install the [git hook](/docs/commit-gate/). | Onboarding, interns, a codebase where shipping unread code is expensive. |
-| `quiz.enabled: false` | No questions, no gate, no banner. **Memory keeps recording** — that is `memory.enabled`, a separate switch. | A demo, a deadline, a repo you are only passing through. |
+Questions are optional by default. With `quiz.enforced: true`, enough answers must pass before `git commit` succeeds. This applies automatically to commits Claude Code makes; commits from a terminal require the separate [git hook](/docs/commit-gate/).
 
-`quiz.enabled: false` written to a config file stays off until you remember to change it back. For an urgent hour, say **"turn the questions off for this session"** instead — same silence, scoped to the session, and no file is touched. It silences the questions only: a repo with `quiz.enforced` still holds the commit. See [Configuration](/docs/configuration/#turning-it-off-for-one-session).
+Setting `quiz.enabled: false` disables questions and enforcement. It does not stop memory; when memory is on, the session banner reports “memory on · questions off”. To stop both halves, also set `memory.enabled: false`.
 
-:::tip
-Want everything off, recording included? That is both switches: `quiz.enabled: false` **and** `memory.enabled: false`. Turning off one never turns off the other.
-:::
+For temporary quiet, use `/eklavya:mode off --session`. This silences questions and the banner for this session without changing a file, but **keeps an enforced commit gate active**. See [session scope](/docs/configuration/#turning-it-off-for-one-session).
 
 ### `focus` — what it teaches
 
-| Value | Asks about | Good for |
+| Value | Questions are about | Example |
 | --- | --- | --- |
-| `concept` <Badge text="default" variant="tip" size="small" /> | The idea behind the code, phrased so the answer transfers to any codebase. Your diff is the motivation, not the subject. | Learning a stack. |
-| `project` | The code just written — the file, the line, the decision. | Learning a codebase. |
-| `learn` | A topic you name, taught in prerequisite order, using your real code as the worked example wherever the work touches it. | Learning something on purpose. |
+| `concept` | Transferable ideas behind the work | Why an index changes query cost. |
+| `project` | Files and decisions in this codebase | Why this query uses the new index. |
+| `learn` | A named topic, prerequisites first | Learn database indexing over future sessions. |
 
-:::note
-`focus: "learn"` needs `focus_topic` set as well. Without one the planner refuses with `reason: "no_topic"` and you get no questions — except while a `quiz.enforced` gate is open, when the session's own work is asked about either way.
-:::
+`learn` requires `focus_topic`; without it, no topic quiz is planned. An unmet enforced gate takes priority and asks about the current work first, even with `learn` focus. The chosen topic resumes after the gate passes.
 
 ### `cadence` — when it asks
 
-| Value | Behaviour | Good for |
-| --- | --- | --- |
-| `interleaved` <Badge text="default" variant="tip" size="small" /> | One question at a time, the moment a concept is logged. A quiz Eklavya offers is capped at one question under this cadence, the end-of-task sweep included — never a batch.<br /><Badge text="exceptions" variant="tip" size="small" /> `quiz.enforced` plans the full remaining budget, because the commit gate needs enough passing answers to open; so does a quiz you asked for by name, or one aimed at a topic or concept you named. | Learning while the agent works — the thing the tool is for. |
-| `end` | Nothing until the task is finished, then whatever the budget has left, asked one question at a time. | Pairing, demos, deep focus. |
+**Interleaved** offers one question when concepts are logged, then at eligible shell commands, edits or completed turns. Offered questions are at least `min_minutes_between_checkpoints` apart (four minutes by default).
 
-`interleaved` does not mean more questions. It moves the same budget earlier and caps every quiz it offers at one question, asking them across the task rather than in a batch at the end — one at the seam where a concept is logged, then one at a later shell command or edit while the work goes on, then one per finished turn, never closer together than `min_minutes_between_checkpoints`. A budget it never reaches is simply not spent, and what it leaves behind is offered again in a later session in the same project — at the end of a turn once that session's own concepts are covered, even in a session that logged nothing of its own, and first in line when you run `/eklavya:quiz`. If being interrupted is the problem rather than the timing, raise `min_minutes_between_checkpoints` before switching to `end`.
+**End** waits until a task finishes, then asks the remaining budget one question at a time. `min_minutes_between_quizzes` spaces these offered quizzes (20 minutes by default).
+
+Automatic checkpoints and the final sweep share `max_questions_per_task`: four questions across the session by default. Interleaving moves that budget earlier without adding automatic questions. Enforcement removes the planner's one-question cap and normal quiz cooldown, but automatic hooks still stop when their session budget is spent.
+
+Each explicit `/eklavya:quiz` round can plan up to `max_questions_per_task` eligible questions even after that automatic budget is exhausted. Use it to continue learning or retry a taught miss when an enforced gate remains blocked.
+
+Unasked work can return in a later session in the same project, after current work is covered. Raise checkpoint spacing if you want fewer interruptions; choose `end` if you want none during the task.
 
 ### `difficulty` — how hard it may get
 
-This is the one dial you normally *earn* rather than set. On `auto`, every project starts at `easy` and climbs on evidence. Setting a literal value pins the band and stops progression. See [Levels and tiers](/docs/levels-and-tiers/).
+With `auto`, each project starts at `easy` and can earn promotion. Pinning a value stops progression. A level sets the allowed tier range, not the tier of every question: `easy` allows 1–2, `medium` 2–4, and `hard` 3–5. See [Levels and tiers](/docs/levels-and-tiers/).
 
 ### Changing a dial
 
-Two ways, both equivalent:
-
 ```text title="In Claude Code"
-/eklavya:mode              # show them all, then change any of them
-/eklavya:mode project      # set focus to project
-/eklavya:mode off --session # silence this session only, nothing written
-/eklavya:level medium      # pin this project's difficulty band
+/eklavya:mode
+/eklavya:mode project
+/eklavya:mode off --session
+/eklavya:level medium
 ```
 
-```text title="From a terminal"
-eklavya config set quiz.enforced true         # for you, everywhere
-eklavya config set quiz.enforced true --project  # for this codebase only
-eklavya config set quiz.enabled false         # stop the questions, keep the history
+```bash title="In a terminal"
+eklavya config set quiz.enforced true --project
+eklavya config set quiz.enabled false
 eklavya config set focus learn --topic caching
 eklavya config set cadence end
 ```
 
-:::caution
-**Project settings beat your global ones.** A value written with `--project` lands in `~/.eklavya/projects/<checkout>/config.json` — in *your* home directory, not the repository — and applies to you whenever you work in that codebase. It is how you pin `quiz.enforced` on one project, or hold a codebase you are new to at `easy`, without changing how Eklavya treats you everywhere else. It reaches nobody else: your teammates have their own. The session banner names any setting a project is overriding, so a `learn` topic never stops applying silently.
-:::
+Without `--project`, CLI changes are global. Personal project settings override global values and live under `~/.eklavya/projects/`, outside your repository. Worktrees share the main checkout's settings; teammates keep their own.
+
+Older `mode: ambient|enforced|off` files still work. New files should use `quiz`. For every key and default, see [Configuration](/docs/configuration/).

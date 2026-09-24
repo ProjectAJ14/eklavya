@@ -70,7 +70,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="tokens.css?v=2">
-<link rel="stylesheet" href="styles.css?v=4">
+<link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 <div class="frame">
@@ -144,7 +144,7 @@
       <h1 class="hero__title fade-up fade-up--1">Learn while your<br>agent <em>works.</em></h1>
 
       <p class="hero__lede pretty fade-up fade-up--2">
-        Eklavya turns agent generation time into learning time. While Claude Code implements your task, it teaches you the concepts behind that exact work — Socratic questions grounded in the diff it just wrote, mastery tracked in a local knowledge graph. And it remembers the work: what you asked for, what changed, what failed, recalled at the start of the next session so you never explain your own repository twice.
+        Understand the code your agent writes. Eklavya asks short questions about the work, explains the gaps, and tracks your progress. It also saves project history and recalls relevant decisions when you return.
       </p>
 
       <!-- No commands in the hero. The install has two routes and a Node
@@ -161,7 +161,7 @@
         </a>
       </div>
 
-      <p class="hero__note fade-up fade-up--4">Node 22+ &middot; macOS, Linux and Windows &middot; everything stays on your machine. No accounts, no sync, no telemetry.</p>
+      <p class="hero__note fade-up fade-up--4">Node 22+ &middot; macOS, Linux and Windows &middot; local storage &middot; no Eklavya account or telemetry.</p>
     </div>
 
     <!-- ========================= THE TERMINAL =========================
@@ -212,7 +212,7 @@
             <!-- The banner the SessionStart hook prints, verbatim from
                  mcp/src/hooks/session-start.ts: on + dials, the saving (green),
                  where the project stands, and a dim pointer to the dashboard.
-                 Re-quote here and in web/src/content/docs/docs/installing.mdx
+                 Re-quote here and in web/src/content/docs/docs/first-session.mdx
                  when that hook changes. -->
             <div class="ln ln--hook" data-line="hook1" hidden>Eklavya active &middot; concept &middot; interleaved &middot; easy (4/100)</div>
             <div class="ln ln--hook ln--save" data-line="hook2" hidden>71% less context from memory reuse</div>
@@ -374,10 +374,10 @@
       and <em class="hl hl--c">couldn&rsquo;t debug.</em>
     </p>
     <p class="why__body pretty" data-reveal data-delay="150" data-anim>
-      <span class="hl hl--d">The moment code is being generated is the highest-leverage teaching moment there is:</span>
+      <span class="hl hl--d">Learn while the code is still in front of you:</span>
       <span class="hl hl--e">the concepts are concrete, the code is right in front of you, and your hands are free.</span>
-      <span class="hl hl--f">So Eklavya asks you about it &mdash; once per task,</span>
-      <span class="hl hl--g">never the same question twice, and harder each time you get it right.</span>
+      <span class="hl hl--f">Eklavya asks one question at a time,</span>
+      <span class="hl hl--g">explains what you missed, and adapts to your progress.</span>
     </p>
   </div>
 </section>
@@ -441,10 +441,10 @@
       <p class="eyebrow eyebrow--light" data-reveal>The loop</p>
       <h2 class="h2" id="how-title" data-reveal data-delay="100">How it works</h2>
       <p class="how__body pretty" data-reveal data-delay="200">
-        Difficulty is earned, not picked. Tier 1 asks what a thing is; tier 5 asks when it is the wrong architecture entirely. You climb as you get things right, which is how "never ask the same question twice" survives contact with a finite concept graph.
+        Questions progress from recalling a concept to reasoning about its design trade-offs. Automatic difficulty adapts to your answers; you can also pin a level for a particular project.
       </p>
       <p class="how__body pretty" data-reveal data-delay="250">
-        Three bands sit over that ladder, held <em>per project.</em> Every codebase starts at <code class="code-inline">easy</code>, because the questions you can answer while watching an agent work are the ones that make the habit stick. A band moves up after 100 passing answers in that project, at 70% accuracy, across at least fifteen concepts. Nothing ever demotes you.
+        With automatic difficulty, each project starts at <code class="code-inline">easy</code>. By default, a band advances after 100 passing answers at 70% accuracy across at least fifteen concepts. <a href="/docs/levels-and-tiers/">How levels progress</a>
       </p>
 
       <div class="ladder" data-reveal data-delay="300">
@@ -497,28 +497,28 @@
       </li>
       <li data-reveal data-delay="200">
         <span class="steps__n">3</span>
-        <h3>A question lands at the seam</h3>
-        <p>Logging a concept is a natural pause, so that is where the question goes — one question, while the agent keeps working, and the next one no sooner than four minutes later. Set <code class="code-inline">cadence: end</code> and it waits for the task instead.</p>
+        <h3>A question arrives while you work</h3>
+        <p>A checkpoint asks one question, then work resumes. Later checkpoints are at least four minutes apart by default. Prefer to wait? Set <code class="code-inline">cadence: end</code>.</p>
       </li>
       <li data-reveal data-delay="300">
         <span class="steps__n">4</span>
         <h3>You answer, it grades honestly</h3>
-        <p>Four options and a keystroke, so answering costs less than the question is worth. SM-2's 0–5 scale, recorded in the graph. Recognition is capped at grade 4 — picking one of four is weaker evidence than producing the answer.</p>
+        <p>Pick from four options, or use Other to answer in your own words or say “I don’t know.” Answers score 0–5; multiple-choice recognition is capped at 4.</p>
       </li>
       <li data-reveal data-delay="400">
         <span class="steps__n">5</span>
-        <h3>The task finishes, and asks at most one more</h3>
-        <p>One question about a concept the checkpoints did not reach — or one an earlier session in this project left unasked — never a row of them at the moment you wanted to be done. A session that answered its budget while the agent worked finishes in silence, which is the entire point.</p>
+        <h3>Finish with a brief review</h3>
+        <p>The default cadence can ask one remaining question at the end, subject to pacing and the shared four-attempt session budget. Explicit quizzes and an enforced gate can ask for more.</p>
       </li>
       <li data-reveal data-delay="500">
         <span class="steps__n">6</span>
-        <h3>And all of it is remembered</h3>
-        <p>Every tool call leaves one row of evidence — what ran, what changed, what failed — and at each seam a local summariser turns the batch into a short observation. No network call, no key: the default summariser quotes what the evidence already says. Secrets and excluded paths are filtered out before anything is written. <a href="/docs/memory/">How memory works</a></p>
+        <h3>Save useful project history</h3>
+        <p>With memory enabled, prompts and eligible tool activity become local observations. Capture settings, excluded paths, and secret filters control what is recorded. <a href="/docs/memory/">How memory works</a></p>
       </li>
       <li data-reveal data-delay="600">
         <span class="steps__n steps__n--solid">7</span>
-        <h3>Next session starts calibrated — and briefed</h3>
-        <p>A one-line learner profile, so Claude calibrates from your first message, plus this project's relevant history, handed over as evidence to verify rather than instructions to follow. Shaky concepts come back later, at a higher tier.</p>
+        <h3>Return with context</h3>
+        <p>Claude receives your learner profile and relevant project history. Spaced reviews revisit concepts when they are due, with difficulty based on your progress.</p>
       </li>
     </ol>
   </div>
@@ -528,30 +528,30 @@
 <section class="promise seam" aria-labelledby="promise-title">
   <div class="wrap section">
     <p class="eyebrow eyebrow--light center" data-reveal>The promise</p>
-    <h2 class="h2 center" id="promise-title" data-reveal data-delay="100">Never the same question twice</h2>
-    <p class="promise__sub" data-reveal data-delay="200">Three separate things enforce it, because a prompt asking nicely is not enforcement.</p>
+    <h2 class="h2 center" id="promise-title" data-reveal data-delay="100">Practice that builds on your progress</h2>
+    <p class="promise__sub" data-reveal data-delay="200">Your answer history shapes what comes next.</p>
 
     <div class="cards">
       <div class="card" data-reveal>
         <span class="icon-tile">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
         </span>
-        <h3>Mastered concepts stay retired</h3>
-        <p>The learner profile hands the tutor the list of what you know. Spaced repetition is the only thing that brings one back — harder than last time.</p>
+        <h3>Focus on what needs practice</h3>
+        <p>Mastered concepts leave the ordinary work quiz. Due reviews and an outstanding commit gate can bring them back.</p>
       </div>
       <div class="card" data-reveal data-delay="120">
         <span class="icon-tile">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
         </span>
         <h3>Every question is on record</h3>
-        <p>The quiz plan hands past questions back with the tier and grade each got. A question already asked is spent: same concept, different angle.</p>
+        <p>The quiz plan hands past questions back with the tier and grade each got. The tutor uses that history to approach a familiar concept from a different angle.</p>
       </div>
       <div class="card" data-reveal data-delay="240">
         <span class="icon-tile">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </span>
-        <h3>Answered means done for the session</h3>
-        <p>Getting something half-right no longer puts it straight back in the queue five minutes later. Prerequisites are checked too — foundations come first.</p>
+        <h3>Keep repetition purposeful</h3>
+        <p>Ordinary quizzes skip concepts already attempted in the session. An enforced gate can retry missed concepts with a new question after other candidates run out.</p>
       </div>
     </div>
   </div>
@@ -565,7 +565,7 @@
     <p class="eyebrow eyebrow--dark" data-reveal>The dials</p>
     <h2 class="h2" id="dials-title" data-reveal data-delay="100">Independent dials</h2>
     <p class="dials__sub" data-reveal data-delay="200">
-      <code class="code-inline">quiz</code> is whether it asks and whether it insists, <code class="code-inline">focus</code> is what it teaches, <code class="code-inline">cadence</code> is when it asks, <code class="code-inline">difficulty</code> is how hard the questions may get. They combine freely — <code class="code-inline">quiz.enforced</code> + <code class="code-inline">learn</code> is an intern studying a topic they chose who still passes a gate on the day's work before each commit. Memory is its own switch and none of these touch it.
+      Choose whether to quiz, what to learn, when to pause, and how hard to make the questions. Memory has its own switch. <a href="/docs/dials/">Choose your settings</a>
     </p>
 
     <div class="dials">
@@ -577,15 +577,15 @@
         <div class="dial__opt dial__opt--default">
           <span class="dial__pill">default</span>
           <code class="dial__val">enabled</code>
-          <p>Questions offered, always skippable, no nagging. For anyone learning a new stack.</p>
+          <p>Questions are on, enforcement is off. Skip a question when you need to keep moving.</p>
         </div>
         <div class="dial__opt">
           <code class="dial__val">enforced</code>
-          <p>The session quiz must pass before <code class="code-inline">git commit</code> — inside Claude Code, and from a bare terminal once you install the git hook. For interns and onboarding.</p>
+          <p>Hold commits until enough work concepts pass. Included inside Claude Code; terminal commits need the optional <a href="/docs/commit-gate/">Git hook</a>.</p>
         </div>
         <div class="dial__opt">
           <code class="dial__val">enabled: false</code>
-          <p>No questions, no gate, no banner, and <code class="code-inline">focus</code> is never read. <strong>Memory keeps recording</strong> — that is <code class="code-inline">memory.enabled</code>, a separate switch. For one urgent afternoon, say <em>“turn the questions off for this session”</em> instead — same silence, nothing written to disk.</p>
+          <p>No questions or commit gate. <strong>Memory keeps recording</strong> if enabled, and the session banner says “memory on · questions off.” Use <code class="code-inline">quiet</code> to hide the banner.</p>
         </div>
       </div>
 
@@ -617,14 +617,14 @@
         <div class="dial__opt dial__opt--default">
           <span class="dial__pill">default</span>
           <code class="dial__val">interleaved</code>
-          <p>One question at a time — at the seam where a concept is logged, then one per finished turn. A quiz is capped at one question under this cadence — the end-of-task sweep included, unless a commit gate is waiting on it or you asked for a quiz yourself.</p>
+          <p>One question at a time during work or at the end, with a four-minute minimum gap by default. Explicit quizzes and enforced gates can ask for more.</p>
         </div>
         <div class="dial__opt">
           <code class="dial__val">end</code>
           <p>Nothing until the task is finished, then whatever the budget has left. For deep focus, pairing, demos.</p>
         </div>
         <div class="dial__opt dial__opt--note">
-          <p><code class="code-inline">max_questions_per_task</code> is a session budget, not a batch size — a question answered mid-work is one the Stop hook no longer asks, and a budget it never reaches is simply not spent.</p>
+          <p>Automatic checkpoints share a session budget of four attempts by default. Questions answered during work reduce the remaining budget.</p>
         </div>
       </div>
 
@@ -648,31 +648,22 @@
       </div>
     </div>
 
-    <h3 class="modes__sub" data-reveal>&hellip;and the namespaces for the memory half</h3>
+    <h3 class="modes__sub" data-reveal>Memory you can inspect and control</h3>
     <p class="dials__sub" data-reveal data-delay="100">
-      The dials are flat keys because every config file already written uses them that way. Memory's settings are nested, and merge the same way — key by key, repo over global. Defaults shown.
-      <a href="/docs/memory/">What memory does</a>
+      Keep project history useful between sessions. Capture and search run locally by default;
+      optional integrations stay off until you configure them.
     </p>
     <div class="cmd-table" data-reveal data-delay="150">
-      <div class="cmd-row"><code>memory.enabled</code><span><b>true</b> — whether the work is recorded and recalled. Independent of <code class="code-inline">quiz</code> — <code class="code-inline">quiz.enabled: false</code> means no questions, not no history.</span></div>
-      <div class="cmd-row"><code>memory.capture</code><span><b>full</b> — or <code class="code-inline">minimal</code> for prompts and session seams without the file-by-file traffic, or <code class="code-inline">off</code>.</span></div>
-      <div class="cmd-row"><code>memory.batch_max_events</code><span><b>40</b> — events per observation. The end of a turn closes a smaller batch at 8 events or 20 minutes old; a session start closes whatever is left.</span></div>
-      <div class="cmd-row"><code>memory.retention_days</code><span><b>null</b> — keep raw evidence until you delete it. A number prunes it; the observations built from it survive.</span></div>
-      <div class="cmd-row"><code>privacy.exclude_paths</code><span><b>[]</b> — added to the built-in list, never replacing it: <code class="code-inline">.env</code>, <code class="code-inline">/.ssh/</code>, <code class="code-inline">.pem</code>, <code class="code-inline">credentials.json</code> and the rest.</span></div>
-      <div class="cmd-row"><code>privacy.exclude_tools</code><span><b>[]</b> — tools whose calls are never captured.</span></div>
-      <div class="cmd-row"><code>privacy.redact_patterns</code><span><b>[]</b> — your own regexes, on top of the built-in secret shapes. Redaction happens before anything is written.</span></div>
-      <div class="cmd-row"><code>retrieval.mode</code><span><b>hybrid</b> — <code class="code-inline">keyword</code> is FTS5 and BM25, <code class="code-inline">semantic</code> is cosine over local vectors, hybrid fuses both.</span></div>
-      <div class="cmd-row"><code>retrieval.max_items</code><span><b>6</b> — entries offered at a session seam before any detail is fetched.</span></div>
-      <div class="cmd-row"><code>retrieval.max_tokens</code><span><b>1200</b> — estimated-token budget for the recalled block. It fills to the budget, not to the item count.</span></div>
-      <div class="cmd-row"><code>retrieval.cross_project</code><span><b>false</b> — another repository's work is noise by default. <code class="code-inline">true</code> widens search and recall to every project here.</span></div>
-      <div class="cmd-row"><code>providers.observer</code><span><b>null</b> — a model that writes richer observations instead of the local summariser. The one setting that sends captured work off the machine. <code>eklavya install</code> asks, once memory is on.</span></div>
-      <div class="cmd-row"><code>providers.embeddings</code><span><b>null</b> — a model for the search vectors instead of the local embedder. Each vector records which model made it.</span></div>
-      <div class="cmd-row"><code>notifications.enabled</code><span><b>false</b> — session wrap-ups to a webhook, a command or a file you name. A send cannot be recalled, so it is off until you say otherwise.</span></div>
-      <div class="cmd-row"><code>sync.enabled</code><span><b>false</b> — memory across your machines, through a directory both can see. Entries and deletions cross; attempts, mastery and gates never do.</span></div>
+      <div class="cmd-row"><code>Capture and recall</code><span>Record eligible work, summarize it, and recall relevant project history. Turn memory off independently of questions.</span></div>
+      <div class="cmd-row"><code>Search</code><span>Find decisions and fixes with keyword search or local similarity matching. No embedding service is required.</span></div>
+      <div class="cmd-row"><code>Collections and code</code><span>Group useful entries and index a project's code for later lookup.</span></div>
+      <div class="cmd-row"><code>Import and sync</code><span>Import existing Claude Code or claude-mem history. Optionally share memory through a directory you manage; quiz scores and gates stay local.</span></div>
+      <div class="cmd-row"><code>Observers and alerts</code><span>Choose an optional observer for richer summaries, or send session wrap-ups to a file, command, or webhook.</span></div>
+      <div class="cmd-row"><code>Privacy controls</code><span>Exclude paths and tools, add redaction rules, and choose retention. <a href="/docs/memory/">Explore memory</a></span></div>
     </div>
 
     <p class="modes__foot" data-reveal data-delay="300">
-      Project settings beat global ones — <code class="code-inline">eklavya config set quiz.enforced true --project</code> pins the commit gate on one codebase without changing how Eklavya treats you everywhere else. They live at <code class="code-inline">~/.eklavya/projects/&lt;checkout&gt;/config.json</code>, in your home directory: <strong>Eklavya writes no configuration into a repository</strong>, so your settings are yours and never reach a teammate. The session banner names whatever a project is overriding rather than letting it change silently.
+      Project settings override global defaults and stay in your home directory. They are personal preferences, not files your teammates inherit. <a href="/docs/configuration/">Configuration reference</a>
     </p>
   </div>
 </section>
@@ -691,7 +682,7 @@
         <div class="cmd-row"><code>/eklavya:progress</code><span>The mastery map: which projects, what they taught, what you skipped, what's due</span></div>
         <div class="cmd-row"><code>/eklavya:memory</code><span>What this project's history says — past decisions, fixes, unfinished work</span></div>
         <div class="cmd-row"><code>/eklavya:gate</code><span>Commit-gate status</span></div>
-        <div class="cmd-row"><code>/eklavya:setup</code><span>First run — checks Node, then picks how hard it pushes and what it teaches</span></div>
+        <div class="cmd-row"><code>/eklavya:setup</code><span>Check requirements and choose learning settings</span></div>
       </div>
       <p class="cmd-ask" data-reveal data-delay="150">
         Or don't learn any of them. <code>npm install -g eklavya &amp;&amp; eklavya install</code> also puts a skill in your
@@ -707,10 +698,10 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
       </span>
       <h3>Your data stays yours</h3>
-      <p>One file: <code>~/.eklavya/knowledge.db</code> — SQLite, WAL mode, yours. It holds what you have been asked and how you answered, and the memory half's evidence and observations. Explainer pages sit beside it, one folder per project under <code>~/.eklavya/artifacts/</code>. Delete the directory and Eklavya forgets you entirely.</p>
-      <p><b>With the default config, nothing leaves the machine.</b> The summariser that writes observations and the embedder that makes them searchable both run locally — no model call, no account, no telemetry. Three settings can change that and none is on unless you turn it on: <code>providers.*</code> has a Claude model summarise captured work, through <code>claude -p</code> on your own subscription, <code>notifications</code> sends wrap-ups where you point it, and <code>sync</code> writes entries into a directory you name. Nothing sets any of them for you, and an upgrade never does. The one request Eklavya makes on its own is asking npm, at most hourly, whether a newer release exists, so it can update itself. That request carries none of your data, and <code>auto_update: false</code> turns it off. The explainer template fetches only its web fonts; in the dashboard a page is sandboxed so it cannot load anything more.</p>
-      <p>Secrets never get that far. Paths like <code>.env</code> and <code>~/.ssh</code> are excluded before capture, known key shapes are redacted before the write, and Eklavya's own traffic is never recorded. <a href="/docs/memory/#what-is-never-captured">The full list</a></p>
-      <p>The commit gate is editor-agnostic: one script installs a plain git <code>pre-commit</code> hook that runs the same check, so a commit from a bare terminal is held exactly like one made inside Claude Code.</p>
+      <p>Your learning history and captured work live in <code>~/.eklavya/knowledge.db</code>. Explainer pages live under <code>~/.eklavya/artifacts/</code>. You can inspect, export, or remove your data.</p>
+      <p><b>Local storage and processing by default.</b> Recalled history becomes context for Claude. Optional observers, notifications, and sync use the services or directories you configure. Automatic update checks contact npm without sending your learning history.</p>
+      <p>Capture filters exclude sensitive paths and redact known secret patterns. Filters cannot recognize every secret; add exclusions for your project. <a href="/docs/memory/#what-is-never-captured">Capture and privacy controls</a></p>
+      <p>The optional <a href="/docs/commit-gate/">Git gate</a> also covers terminal commits after you install its hook and enable enforcement for that project.</p>
     </div>
   </div>
 </section>
@@ -726,8 +717,8 @@
         more room, so it gets a local page with three workflows — <strong>Learning</strong> for
         what you have been taught and asked, <strong>Memory</strong> for what the project
         remembers, <strong>Artifacts</strong> for the pages written to explain things to you —
-        each with its own Dashboard, one switch between them, and every concept, session,
-        observation and question two clicks away.
+        each with its own Dashboard, one switch between them, and linked views of concepts, sessions,
+        observations, and questions.
       </p>
       <div class="dash__cmd" data-reveal data-delay="200">
         <div><span>$</span> eklavya dashboard</div>
@@ -800,7 +791,7 @@
       <a class="docs__card" href="/docs/installing/">
         <span class="docs__n">01</span>
         <b>Installing</b>
-        <span>The plugin, or a local checkout for contributors — with the checks that prove it worked.</span>
+        <span>Three steps to start, with separate guides for alternative setups and updates.</span>
       </a>
       <a class="docs__card" href="/docs/commands/">
         <span class="docs__n">02</span>
@@ -835,8 +826,8 @@
         Star on GitHub
       </a>
     </div>
-    <p class="cta__note" data-reveal data-delay="400">Node 22+ · macOS, Linux and Windows · updates itself · everything stays on your machine</p>
-    <p class="cta__note" data-reveal data-delay="450">Covers the terminal and the Code tab in Claude Desktop. Cowork installs from its own Plugins page — one knowledge graph across all three.</p>
+    <p class="cta__note" data-reveal data-delay="400">Node 22+ · macOS, Linux and Windows · automatic updates · local learning and memory</p>
+    <p class="cta__note" data-reveal data-delay="450">Use Claude Code in the terminal or Claude Desktop’s Code tab. <a href="/docs/installation-options/">Cowork and other installation options</a> have their own setup and storage limits.</p>
   </div>
 </section>
 
@@ -859,7 +850,7 @@
   </div>
 </footer>
 
-<script src="app.js?v=3" defer></script>
+<script src="app.js?v=4" defer></script>
 </div><!-- /.frame -->
 </body>
 </html>

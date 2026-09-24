@@ -1,110 +1,62 @@
 # Working in `cli/`
 
-**This directory is not the `eklavya` binary.** That is `mcp/src/cli.ts`,
-published as `dist/cli.js` and the package's only `bin`. `cli/` holds exactly one
-file: `eklavya-gate`, the POSIX commit-gate script. The name invites the
-confusion, so check which one a request means before you edit anything —
-`eklavya config`, `eklavya doctor`, `eklavya dashboard` and `eklavya install` all
-live in `mcp/src/cli.ts`.
+This directory contains the POSIX `eklavya-gate` script. The `eklavya` binary
+(`config`, `doctor`, `install`, `dashboard`, etc.) lives in `mcp/src/cli.ts`.
+Read the root `CLAUDE.md` for the repository contract.
 
-It is a shell script and not Node on purpose: it runs as a git `pre-commit` hook
-on every commit, and a git hook must not pay Node's startup cost. Keep it POSIX
-`sh` — the installed hook execs it with `#!/bin/sh`, and `mcp/test/gate.test.ts`
-drives it through `/bin/sh`.
+## Installation and scope
 
-## It is opt-in, twice over
+The terminal gate requires both a per-repository installation and project
+`quiz.enforced: true`. `eklavya install` does not install a git hook.
 
-Nothing in `eklavya install` puts this on a repo. `scripts/install-git-hook.sh`
-does, as a separate step the user runs per repo; it writes `pre-commit` in the
-**common** git directory's `hooks/` (so a linked worktree gets the main
-checkout's hook, which is the one git runs), between the `# >>> eklavya gate >>>`
-markers, and if a `pre-commit` already existed it moves it to `pre-commit.local`
-and chains it first. `--uninstall` restores it. Re-running it rewrites an older
-Eklavya hook in place. With `core.hooksPath` set (husky, lefthook) it installs
-nothing, prints the line to add to the manager's hook, and exits 2.
+`scripts/install-git-hook.sh` writes into the common Git directory so linked
+worktrees use the same hook. It preserves an existing hook as `pre-commit.local`
+and runs that first; `--uninstall` restores it. With `core.hooksPath` configured,
+it prints the integration line and exits 2 without installing anything.
 
-The installed hook does not `exec` this file at a fixed path any more. It runs
-the first that exists of `~/.eklavya/runtime/node_modules/eklavya/dist/plugin/cli/eklavya-gate`
-(honouring `EKLAVYA_RUNTIME` and `EKLAVYA_HOME`) and the path the installer ran
-from, with `sh` so a lost executable bit cannot block. If neither exists the
-commit goes through with one stderr line. The old fixed-path `exec` meant a
-plugin update that moved the directory made every commit fail — the one failure
-this gate must never have. `eklavya uninstall` warns about the hook and prints
-the command to remove it; it never deletes it.
+The installed wrapper tries the managed runtime, then the original installation
+path, and invokes the script with `sh`. Missing both paths warns and allows the
+commit. Preserve this fallback: updates can move plugin directories.
+`eklavya uninstall` warns about the hook and prints removal instructions; it
+does not remove the hook itself.
 
-Then the script itself only acts on a project whose config sets `quiz.enforced`
-(or the retired `"mode": "enforced"`, which it still reads). That config is at
-`~/.eklavya/projects/<slug>/config.json` — the script rebuilds the slug itself,
-in shell, from `git rev-parse --show-toplevel` folded to the main checkout via
-`--git-common-dir`, because a worktree shares its parent's settings. Note that it
-reads enforcement from **only** the project file — not `~/.eklavya/config.json` —
-so a globally set gate does not hold a bare terminal. The global file is read for
-one thing: a `quiz.enabled: false` (or `mode: off`) there, not overridden by the
-project, releases the gate, exactly as `coerce()` does — otherwise a terminal
-commit is held by a gate no quiz will ever run to clear. The slug path is built
-with `pwd -P` so a checkout reached through a symlink still finds its file.
+Project config lives in `~/.eklavya/projects/<slug>/config.json`; worktrees fold
+to their main checkout. The script reads the old `<repo>/.eklavya.json` only as
+a fallback and never migrates it. Global enforcement alone does not activate
+this gate, but a global `quiz.enabled: false` releases it unless overridden by
+the project. Keep legacy `mode` compatibility and explicit `false` values.
 
-It reads `<repo>/.eklavya.json` as a fallback and does **not** migrate it. The
-node half moves that file out automatically; a git pre-commit hook is the wrong
-place to start rewriting somebody's working tree, so it reads the old location
-and lets the next ordinary session do the move. Any doc claiming a terminal commit is gated has to attach the installer
-step and the repo config; `web/src/content/docs/docs/commit-gate.mdx` and
-`skills/setup/SKILL.md` are where that lives.
+## Fail-open contract
 
-## It fails open, always
+Use POSIX `sh`; the installed hook runs through `/bin/sh`. Missing repository,
+config, `jq`, `sqlite3`, database or gate row allows the commit. Database query
+errors also allow it. Missing dependencies warn on stderr.
 
-A learning tool that bricks commits gets uninstalled, and an unpassable gate
-teaches nothing. Every one of these exits 0:
+Exit 1 only when a gate row exists for this repository and `passed` is not `1`.
+Do not add an operational error that prevents a commit.
 
-- not inside a git repo, or `git rev-parse` fails;
-- no config for this project, at either the current or the legacy location;
-- `jq` not on PATH (warns on stderr) — **or** `sqlite3` not on PATH (warns too).
-  It needs both, not just `jq`;
-- the config does not ask for enforcement — `quiz.enforced` false or absent with
-  no `mode: enforced` behind it, or `quiz.enabled` false — in the project file,
-  or in the global one when the project does not say;
-- the database file does not exist;
-- the `sqlite3` query errors, or returns no gate row for this repo.
+## Keep duplicated logic aligned
 
-Exit 1 happens on exactly one condition: a gate row for this repo whose `passed`
-is not `1`. Adding a new failure mode means adding a new `exit 0` path.
+| Script responsibility | Source and verification |
+|---|---|
+| Config merge and legacy `mode` alias | `mcp/src/config.ts`; shared fixtures in `mcp/test/gate.test.ts` |
+| Project slug and worktree folding | `mcp/src/paths.ts`; physical paths must also handle symlinks |
+| Latest repository gate lookup | `gates` schema and `syncGate` in `mcp/src/store.ts` |
+| In-session commit detection | `mcp/src/hooks/pre-tool-gate.ts` and `commit-lib.ts` |
 
-## It reads the database directly
+The script trusts persisted `passed`; it must not duplicate passing-grade or
+threshold arithmetic. It looks up the latest gate by repository, whereas the
+in-session hook uses a session ID. In jq, use explicit `if`/`elif` for booleans:
+`//` treats `false` as absent and can re-enable a disabled legacy gate.
 
-There is no server in a git hook, so the script talks to `knowledge.db` in raw
-SQL and duplicates things it cannot import. Keep it in step with:
+## Documentation and verification
 
-- the `gates` table shape — it selects `passed, required, answered` and picks the
-  repo's most recent row by `updated_at`. `syncGate` in `mcp/src/store.ts` is the
-  only writer; a renamed or added column lands here in the same commit.
-- `DEFAULT_CONFIG.quiz` in `mcp/src/config.ts` — the script defaults a config
-  with neither `quiz` nor `mode` to unenforced.
-- `projectSlug` in `mcp/src/paths.ts` — the script rebuilds it with
-  `tr '/\\:' '-'`, and `test/gate.test.ts` runs both parsers over one set of
-  configs so the two cannot drift apart silently.
-- the `mode` → `quiz` alias in `normalizeLegacyKeys`, and the rule that
-  `quiz.enabled: false` forces `enforced` off. Both are duplicated here in jq,
-  spelled out with `if`/`elif` rather than `//`: jq's `//` is an alternative
-  operator, so `.quiz.enforced // (.mode == "enforced")` reads an explicit
-  `false` as unset and falls back to a stale `mode` in the same file — a gate
-  that keeps holding commits after somebody switched it off.
-  `test/gate.test.ts` runs both parsers over the same five configs.
+In the same PR, update the manual `commit-gate.mdx` for installer, prerequisite,
+scope, bypass or failure behavior changes. Check `configuration.mdx`,
+`skills/setup/SKILL.md` and the commit-gate acceptance check in `CONTRIBUTING.md`
+when their claims change. Every claim about terminal enforcement must include
+both installation and project enforcement.
 
-The pass/fail arithmetic itself (`PASSING_GRADE`, `pass_threshold`,
-`ceil(required * pass_threshold)`) is **not** duplicated here — the script trusts
-the persisted `passed` column. Keep it that way: a change to the gate's rule
-belongs in `syncGate` alone. What is duplicated is the lookup key, and it differs
-from the in-session hook on purpose: `mcp/src/hooks/pre-tool-gate.ts` looks the
-gate up by `session_id`, this script by `repo`, because a terminal commit has no
-session.
-
-## Tests
-
-`mcp/test/gate.test.ts` runs the real script and the real installer against a
-temp repo, and ends with an actual `git commit`. From `mcp/`:
-
-```sh
-npm test -- gate
-```
-
-`pretest` builds `dist/`, which `pre-tool-gate.js` in the same file needs.
+From `mcp/`, run `npm test -- gate`. It builds the runtime and exercises the real
+script and installer in temporary repositories, including an actual commit.
+Build `web/` after documentation changes; report any live acceptance test not run.

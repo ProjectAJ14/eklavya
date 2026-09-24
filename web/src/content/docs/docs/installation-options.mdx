@@ -1,0 +1,125 @@
+---
+title: "Installation options"
+description: "Alternative Eklavya installation paths for the Claude Code marketplace, Claude Desktop, Cowork, npx and source development."
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+For most users, start with the [recommended terminal install](/docs/installing/).
+Use this page for another environment or a source checkout.
+
+## Claude Code marketplace
+
+<Steps>
+
+1. **Add the marketplace and install the plugin** in Claude Code:
+
+   ```text
+   /plugin marketplace add ProjectAJ14/eklavya
+   /plugin install eklavya@eklavya
+   ```
+
+2. **Restart Claude Code.** The new session loads the plugin and starts a
+   background runtime download if needed.
+
+3. **Run guided setup:**
+
+   ```text
+   /eklavya:setup
+   ```
+
+   If the runtime is still downloading, complete it from a terminal:
+
+   ```bash
+   npx eklavya install
+   ```
+
+   Then restart Claude Code and retry setup.
+
+</Steps>
+
+The marketplace installs plugin files. The terminal installer also prepares
+the runtime and the two user chat skills. Running it over a marketplace install
+is supported: it updates a clean plugin checkout without overwriting local
+changes. Questions need the runtime; allow its installation to finish before
+expecting them in a new session.
+
+## Claude Desktop and Cowork
+
+| Surface | Installation | What to expect |
+|---|---|---|
+| Claude Code terminal | [Recommended install](/docs/installing/) | Questions, memory and optional commit enforcement |
+| Claude Desktop **Code** tab | Uses the same Claude Code install | The same loop, with questions displayed as cards |
+| Claude Desktop **Cowork** | Install separately below | Questions and memory about your documents and analysis |
+| Ordinary Claude Desktop **chat** | Not supported | Does not load this plugin |
+
+To install in Cowork:
+
+1. Open **Customize → Plugins** in Claude Desktop.
+2. Choose **Add marketplace** and enter `ProjectAJ14/eklavya`.
+3. Find **Eklavya**, select **Install**, then run `/eklavya:setup`.
+
+Surfaces that can access the same local runtime and home directory share
+`~/.eklavya/knowledge.db`; sandboxed environments may not share that storage.
+Cowork keeps its own plugin list, so the Claude Code installer and
+`eklavya doctor` cannot register or verify that copy.
+
+Cowork has these differences:
+
+- The commit gate has nothing to block because Cowork does not commit.
+- Delegated subagents are not instructed to log concepts because Cowork does
+  not fire the `SubagentStart` event.
+- Questions begin with `[Eklavya]`; there is no terminal header or status bar.
+  The Code tab also uses this question attribution.
+
+An administrator can disable local MCP servers or require a full-VM sandbox,
+which prevents access to the local runtime. See
+[Troubleshooting](/docs/troubleshooting/#claude-desktop-and-cowork).
+
+<details>
+<summary>Upload a plugin package to Cowork</summary>
+
+From an Eklavya source checkout, create a package:
+
+```bash
+zip -r eklavya.plugin .
+```
+
+Upload it through the same Plugins page. Prefer the marketplace route when you
+want plugin updates.
+
+</details>
+
+## Without a global command
+
+```bash
+npx eklavya install
+```
+
+This performs the same setup but does not put `eklavya` on your `PATH`. Continue
+using `npx eklavya doctor`, `npx eklavya dashboard`, and other
+[CLI commands](/docs/cli/), or add the global command later:
+
+```bash
+npm install -g eklavya
+```
+
+## From a source checkout
+
+Use this when developing Eklavya:
+
+```bash
+git clone https://github.com/ProjectAJ14/eklavya.git
+cd eklavya/mcp
+npm install
+npm run build
+cd ..
+claude --plugin-dir "$(pwd)"
+```
+
+Approve the `better-sqlite3` build script if npm asks. `--plugin-dir` supplies
+the plugin root required by the server; loading the repository's `.mcp.json`
+as ordinary project configuration does not. The launcher prefers the local
+`mcp/dist/` build, so rebuild after source changes and restart the session.
+See [CONTRIBUTING.md](https://github.com/ProjectAJ14/eklavya/blob/main/CONTRIBUTING.md)
+for development checks.

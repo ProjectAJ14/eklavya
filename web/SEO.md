@@ -1,4 +1,4 @@
-# Search and link-preview plan
+# Search and link previews
 
 Eklavya's public identity is **learning and memory for Claude Code**. The site
 must describe the shipped product: adaptive questions, spaced repetition,
@@ -10,7 +10,7 @@ sources are mapped in `CLAUDE.md`; new metadata follows the same contract.
 
 | Area | Implementation | Acceptance condition |
 | --- | --- | --- |
-| Page metadata | Distinct descriptions on all 19 manual pages; shared homepage/product identity | One accurate title, description, canonical and social tag set per indexable page |
+| Page metadata | Distinct descriptions on every manual page; shared homepage/product identity | One accurate title, description, canonical and social tag set per indexable page |
 | Share cards | One PNG per public page, generated from its title and description | 1200 × 630, under 1 MB, readable copy and a consistent bow-and-arrow identity |
 | Brand assets | Editable SVG master, SVG/ICO favicon, 96/192/512px PNGs, 180px Apple touch icon, manifest | Icons resolve and match their declared dimensions; mark has safe launcher padding |
 | Search discovery | Sitemap includes the static homepage and all manual routes; robots.txt advertises it | Exactly the indexable HTML pages appear in the sitemap |
@@ -51,38 +51,16 @@ Run `npm ci && npm run build` in `web/` for the full build and SEO audit.
 of the server tests, and the existing Firebase deployment also runs the audit
 through `postbuild`. No runtime application or learner data is involved.
 
-## Validation record
+## Record validation per change
 
-Verified in this worktree on 24 September 2026:
-
-- Production build and SEO audit pass on Node 22.23.2 (the CI major version).
-- All 20 indexable pages have unique PNG previews, 58–70 KB each; all 22 HTML
-  files pass local resource/link/anchor checks, including README website links.
-- Homepage, installation and memory pages fit at 1280, 900 and 560px in both
-  themes (18 browser checks), with no browser errors or failed local requests.
-  Theme controls, active sidebar entries and the interactive terminal work.
-- Firebase Hosting emulator returns 301 for slash/index.html aliases, 200 with
-  the correct content types for PNGs, icons, the manifest, robots and sitemap,
-  and HTTP 404 for an unknown URL. HTML and crawler files use revalidation;
-  share PNGs have a one-hour cache policy.
-- Homepage and long-title documentation cards were visually inspected. Site
-  layout and the existing terminal/arrow animation were preserved.
-
-These are local build/browser/emulator results, not a report of a production
-deployment, a live Search Console audit or field Core Web Vitals measurements.
-
-## Review before pull request
-
-The branch was rebased onto `origin/main` at `794d1e4` and rebuilt on Node 22.
-Dashboard, command, CLI and configuration descriptions now include the shipped
-artifacts and optional explainer features. Review also found and fixed URL-encoded
-output paths in the icon exporter: generation previously failed in a checkout
-whose path contained spaces; all seven exports now succeed in that fixture.
+Include the build result, inspected pages, viewport/theme coverage and any
+emulator checks in the PR. Page counts and card sizes belong in that dated
+record, not in the ongoing maintenance contract. A local pass does not establish
+a production deployment, search indexing or field performance.
 
 ## Publication and external verification
 
-The implementation is prepared in a separate worktree. It takes effect only
-after merging and deploying through the existing Firebase workflow. After that:
+After merging and deploying through the existing Firebase workflow:
 
 1. Check the homepage, a manual page, `/robots.txt`, `/sitemap-index.xml`,
    `/social/home.png` and the icon URLs on the live domain. Confirm the

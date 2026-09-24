@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "4b510f50d4c1b8ef1016033873d547f91631d819"
+      "revision": "689b7d4d0e465bc8fc9f88f4ade1979492d57252"
     },
     "views": [
       {
@@ -58,7 +58,7 @@
           "db",
           "session"
         ],
-        "note": "Captured per tool call, redacted before storage, summarised at the seam into one entry rewritten in place — evidence, never instruction."
+        "note": "Tool evidence is redacted before storage; batches feed a session summary and later recall. Memory does not change mastery."
       }
     ]
   },
@@ -287,14 +287,14 @@
         },
         {
           "path": "mcp/src/migrations/001_init.sql",
-          "label": "13 migrations"
+          "label": "schema migrations"
         }
       ]
     },
     {
       "id": "dashboard",
       "type": "frontend",
-      "label": "CLI & Dashboard",
+      "label": "Local Dashboard",
       "sublabel": "eklavya dashboard",
       "tag": "read-only",
       "pos": [
@@ -475,7 +475,7 @@
       "id": "dials",
       "from": "config",
       "to": "mcp",
-      "label": "mode · focus · cadence · difficulty",
+      "label": "quiz · focus · cadence · difficulty",
       "fromSide": "bottom",
       "toSide": "top",
       "labelAt": [
@@ -572,17 +572,17 @@
         "2 · PostToolUse reads it and returns additionalContext",
         "3 · an instruction to ask — never the question itself",
         "4 · the model plans, asks, grades with record_attempt",
-        "Budget is per session: mid-task answers Stop then skips"
+        "Mid-task and Stop questions share one session budget"
       ]
     },
     {
       "dot": "amber",
-      "title": "Seven hooks, seven mechanisms",
+      "title": "Seven hooks, six events",
       "items": [
-        "SessionStart — stdout; SubagentStart — the JSON form only",
+        "SessionStart — banner + context; SubagentStart — context",
         "UserPromptSubmit — one line, only when a session logged nothing",
-        "PostToolUse — twice: unmatched captures, matched may quiz",
-        "Stop — additionalContext continues it; the seam summarises",
+        "PostToolUse — capture plus two checkpoint matchers",
+        "Stop — context continues work; memory closes due batches",
         "PreToolUse(Bash) — permissionDecision \"deny\" on git commit"
       ]
     },
@@ -592,7 +592,7 @@
       "items": [
         "stdout is the protocol; diagnostics are forced to stderr",
         "retryOnBusy wraps handlers; openDb seeds, then packs",
-        "Two gates, session and project (project config only); fail open",
+        "Session gate + opt-in Git hook; operational failures allow commits",
         "A failed memory job backs off; auth or quota pauses the queue",
         "No config in a checkout; settings are per developer, not committed"
       ]
