@@ -404,7 +404,7 @@ function memoryBacklog(argv: string[]): void {
     if (action === 'list') {
       const groups = backlogSummary(db, sel);
       if (!groups.length) {
-        process.stdout.write('No unfinished jobs.\n');
+        process.stdout.write('No unfinished jobs or helper sessions.\n');
         return;
       }
       for (const g of groups) {
@@ -415,8 +415,9 @@ function memoryBacklog(argv: string[]): void {
       }
       if (groups.some((g) => g.helper)) {
         process.stdout.write(
-          '\nHelper sessions are the observer summarising its own runs — noise. Set them aside or delete them:\n' +
-            '  eklavya memory backlog quarantine --helpers\n  eklavya memory backlog discard --helpers\n',
+          '\nHelper sessions are the observer summarising its own runs — noise. Delete them, and the memories\n' +
+            'they produced, or set the unfinished ones aside:\n' +
+            '  eklavya memory backlog discard --helpers\n  eklavya memory backlog quarantine --helpers\n',
         );
       }
       return;
@@ -428,7 +429,9 @@ function memoryBacklog(argv: string[]): void {
       process.stdout.write(`restored ${restoreBacklog(db, sel)} job(s) to the queue.\n`);
     } else if (action === 'discard') {
       const gone = discardBacklog(db, sel);
-      process.stdout.write(`discarded ${gone.batches} batch(es) and ${gone.events} evidence event(s).\n`);
+      process.stdout.write(
+        `discarded ${gone.batches} batch(es), ${gone.events} evidence event(s) and ${gone.entries} memory entr${gone.entries === 1 ? 'y' : 'ies'}.\n`,
+      );
     } else {
       fail('Usage: eklavya memory backlog [list|quarantine|discard|restore] [--helpers] [--project <key>] [--session <id>] [--batch <id>]');
     }

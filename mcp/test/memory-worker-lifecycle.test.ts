@@ -15,7 +15,9 @@ import {
   claimJob,
   discardBacklog,
   failJob,
+  finishJob,
   hasClaimableJob,
+  insertEntry,
   quarantineBacklog,
   restoreBacklog,
 } from '../src/memory/store.js';
@@ -740,10 +742,60 @@ describe('recovering an incident backlog', () => {
   it('discard deletes the selected batches and their evidence, and nothing else', () => {
     for (const sid of ['h1', 'h2']) helperBatch(sid);
     queue(1);
-    expect(discardBacklog(db, { helpers: true })).toEqual({ batches: 2, events: 2 });
+    expect(discardBacklog(db, { helpers: true })).toEqual({ batches: 2, events: 2, entries: 0 });
     expect(jobs()).toHaveLength(1);
     expect((db.prepare("SELECT count(*) n FROM evidence_events WHERE project = '*'").get() as { n: number }).n).toBe(0);
     expect((db.prepare('SELECT count(*) n FROM evidence_events WHERE project = ?').get(project) as { n: number }).n).toBe(1);
+  });
+
+  it('discard --helpers also removes finished helper batches and the memories they produced', () => {
+    /** Summarise the next claimable batch into one entry linked to its evidence, as the worker does. */
+    const summarise = (title: string) => {
+      const job = claimJob(db, 'w')!;
+      const b = db.prepare('SELECT project, session_id FROM memory_batches WHERE id = ?').get(job.batch_id) as {
+        project: string;
+        session_id: string;
+      };
+      const ids = (db.prepare('SELECT id FROM evidence_events WHERE batch_id = ?').all(job.batch_id) as { id: number }[]).map((r) => r.id);
+      insertEntry(db, { project: b.project, sessionId: b.session_id, batchId: job.batch_id, title, eventIds: ids, tags: ['t'] });
+      finishJob(db, job.id, 'w');
+      return job;
+    };
+    helperBatch('h1');
+    summarise('Recursive session cascade');
+    helperBatch('h2');
+    const pruned = summarise('Another cascade');
+    // The worker prunes finished jobs after retention; the batch and its memory stay.
+    db.prepare('DELETE FROM memory_jobs WHERE id = ?').run(pruned.id);
+    queue(1);
+    summarise('Rotated refresh tokens');
+
+    expect(backlogSummary(db)).toEqual([expect.objectContaining({ project: '*', helper: 1, status: 'done', batches: 2 })]);
+    expect(discardBacklog(db, { helpers: true })).toEqual({ batches: 2, events: 2, entries: 2 });
+    const count = (sql: string) => (db.prepare(sql).get() as { n: number }).n;
+    expect(count("SELECT count(*) n FROM memory_entries WHERE project = '*'")).toBe(0);
+    expect(count("SELECT count(*) n FROM memory_fts WHERE memory_fts MATCH 'cascade'")).toBe(0);
+    expect(count('SELECT count(*) n FROM memory_entries')).toBe(1);
+    expect(count('SELECT count(*) n FROM memory_entry_events')).toBe(1);
+    // A real finished batch is never selected, even by project.
+    expect(discardBacklog(db, { project })).toEqual({ batches: 0, events: 0, entries: 0 });
+  });
+
+  it('discard --helpers also removes helper evidence not yet in a batch, and nothing unbatched of yours', () => {
+    const loose = (sid: string, proj: string) =>
+      appendEvent(db, {
+        eventUid: eventUid({ host: 'claude-code', sessionId: sid, kind: 'tool', occurredAt: `${sid}-late`, body: 'late' }),
+        project: proj,
+        sessionId: sid,
+        kind: 'tool',
+        body: 'late',
+      });
+    helperBatch('h1');
+    loose('h1', '*');
+    loose('s9', project);
+    expect(discardBacklog(db, { helpers: true })).toEqual({ batches: 1, events: 2, entries: 0 });
+    expect((db.prepare("SELECT count(*) n FROM evidence_events WHERE project = '*'").get() as { n: number }).n).toBe(0);
+    expect((db.prepare("SELECT count(*) n FROM evidence_events WHERE session_id = 's9'").get() as { n: number }).n).toBe(1);
   });
 
   it('selects by batch, session or project as well', () => {
@@ -754,7 +806,7 @@ describe('recovering an incident backlog', () => {
     expect(quarantineBacklog(db, { session: 's1' })).toBe(1);
     expect(jobs().map((j) => j.status)).toEqual(['quarantined', 'quarantined', 'pending']);
     expect(b).toBeDefined();
-    expect(discardBacklog(db, { project })).toEqual({ batches: 3, events: 3 });
+    expect(discardBacklog(db, { project })).toEqual({ batches: 3, events: 3, entries: 0 });
   });
 
   it.skipIf(!posix)('the CLI refuses to change anything without a selector', () => {

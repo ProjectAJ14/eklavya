@@ -95,9 +95,11 @@ If configuring a memory model created many `claude` or `node` processes:
    `npm install -g eklavya@latest && eklavya install`.
 3. Check `eklavya memory status`: there should be at most one worker PID. Old
    untracked workers may need to be stopped manually or by restarting.
-4. Inspect `eklavya memory backlog`. Use `eklavya memory backlog quarantine --helpers`
-   to set aside helper-session noise before restoring the model. Use
-   `discard --helpers` only if you want to delete that queued evidence.
+4. Inspect `eklavya memory backlog`. It lists helper sessions whether or not
+   they were already summarised. Run `eklavya memory backlog discard --helpers`
+   to delete them: their batches, their evidence and the memories they produced.
+   Your own sessions are not touched. To keep the unfinished ones instead, use
+   `quarantine --helpers`; it sets them aside without processing them.
 
 </details>
 
