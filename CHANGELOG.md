@@ -1,3 +1,15 @@
+# [1.31.0](https://github.com/ProjectAJ14/eklavya/compare/v1.30.4...v1.31.0) (2026-09-24)
+
+
+### Bug Fixes
+
+* **quiz:** count edits inside an already-untracked folder ([46d48ac](https://github.com/ProjectAJ14/eklavya/commit/46d48ac1c143f3dc62e1d31da72fb0341e114e3e))
+
+
+### Features
+
+* **quiz:** ask only after the session changes the git working tree ([1b21fcc](https://github.com/ProjectAJ14/eklavya/commit/1b21fcc3466e4720cd9182d0b4d64771061b0b5e))
+
 ## [1.30.4](https://github.com/ProjectAJ14/eklavya/compare/v1.30.3...v1.30.4) (2026-09-24)
 
 
