@@ -56,6 +56,13 @@ by what it is, not loaded by trigger.
   it, and it works where the plugin is not loaded. **Never move it under
   `skills/`**: it would then register twice, once per surface. It drives the
   `eklavya` CLI and the read/write config tools; it does not teach or quiz.
+- **`user-skill/eklavya-artifacts/`** travels the same way (`USER_SKILLS` in
+  `install.ts`). It writes a page under `~/.eklavya/artifacts/<project>/`
+  through `eklavya artifacts new`, which owns the path, the metadata and the
+  template — the skill never writes a page from scratch. Its design rules and
+  `agents/explainer.md`'s summary of them describe one thing; change both.
+- **`agents/explainer.md`** is the background page-writer `record_attempt`'s
+  `explain` block names. No Eklavya MCP tools at all: it cannot grade or log.
 - **`agents/tutor.md`** is the subagent. It has the Eklavya MCP tools and
   read-only file access — and **no `AskUserQuestion`** — so it renders the four
   options as lettered text. Any change to

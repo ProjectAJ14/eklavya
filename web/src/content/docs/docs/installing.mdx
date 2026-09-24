@@ -61,9 +61,9 @@ That does the whole job, in this order:
 3. #### Installs and enables the plugin
 
    Copies the plugin into Claude Code's plugin directory and registers it, which is the same end state `/plugin install` produces. If you first added Eklavya with `/plugin marketplace add`, that directory is a git clone rather than a copy — so this fast-forwards it with a pull instead of overwriting it, and says which it did. A clone with uncommitted changes in it is left exactly as it is.
-4. #### Installs the chat skill
+4. #### Installs the chat skills
 
-   A single file at `~/.claude/skills/eklavya/SKILL.md`. It is what lets you change Eklavya by asking in plain English instead of remembering a slash command — [see below](/docs/commands/). It is installed for your user account, not for the plugin, so it keeps working in projects where the plugin is not enabled. If a skill of your own is already at that path, this step says so and leaves it alone.
+   Two, each a directory under `~/.claude/skills/`. `eklavya/` is what lets you change Eklavya by asking in plain English instead of remembering a slash command — [see below](/docs/commands/#or-just-ask). `eklavya-artifacts/` turns an explanation into a page on disk when you ask for one — [the artifacts skill](/docs/commands/#the-artifacts-skill). Both are installed for your user account, not for the plugin, so they keep working in projects where the plugin is not enabled. If a skill of your own is already at either path, this step says so and leaves that one alone.
 5. #### Creates the database
 
    `~/.eklavya/knowledge.db`, migrated and seeded, so `eklavya doctor` works before you have opened Claude Code even once.
@@ -126,7 +126,7 @@ If any of the four is not valid JSON, the installer names it and stops with exit
 
 ### Updates
 
-**Eklavya updates itself.** You never need to run npm or `eklavya install` again. At most once an hour, a new Claude Code session asks npm for the latest release, in the background, without waiting on it. If there is a newer one, it installs it into `~/.eklavya/runtime`, then runs that new version's `eklavya install --auto`. That refreshes the plugin files, the chat skill, the registration and the status bar, asks nothing, and changes no setting. The session that started it keeps the version it loaded; the next session opens on the new one and says so once:
+**Eklavya updates itself.** You never need to run npm or `eklavya install` again. At most once an hour, a new Claude Code session asks npm for the latest release, in the background, without waiting on it. If there is a newer one, it installs it into `~/.eklavya/runtime`, then runs that new version's `eklavya install --auto`. That refreshes the plugin files, the chat skills, the registration and the status bar, asks nothing, and changes no setting. The session that started it keeps the version it loaded; the next session opens on the new one and says so once:
 
 ```text
 Eklavya updated to 1.26.0
@@ -182,7 +182,7 @@ If you would rather not touch a terminal:
 </Steps>
 
 :::note
-**What route B does differently.** A slash command cannot run `npm` or write outside the plugin, so this route installs the plugin files but not the runtime and not the chat skill. Your first session starts that download in the background and carries on as normal; the questions begin from the session after it finishes, and the slash commands work throughout. Route A does both up front instead. If you would rather not wait — or you want to change Eklavya by asking rather than by command — run `npx eklavya install` at any point. It finishes the job and is safe to run over an existing install: the plugin files here are a git clone, and it pulls that clone rather than overwriting it.
+**What route B does differently.** A slash command cannot run `npm` or write outside the plugin, so this route installs the plugin files but not the runtime and not the chat skills. Your first session starts that download in the background and carries on as normal; the questions begin from the session after it finishes, and the slash commands work throughout. Route A does both up front instead. If you would rather not wait — or you want to change Eklavya by asking rather than by command — run `npx eklavya install` at any point. It finishes the job and is safe to run over an existing install: the plugin files here are a git clone, and it pulls that clone rather than overwriting it.
 :::
 
 #### Check that it worked
@@ -256,7 +256,7 @@ produced rather than about a diff. Two things do not carry over:
 ### Uninstalling
 
 ```bash
-npx eklavya uninstall           # removes the plugin and skill, keeps your history
+npx eklavya uninstall           # removes the plugin and skills, keeps your history
 npx eklavya uninstall --purge   # removes ~/.eklavya as well
 ```
 

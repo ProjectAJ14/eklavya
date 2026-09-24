@@ -95,6 +95,15 @@ export function projectPacksDir(repoRoot: string): string {
 }
 
 /**
+ * Explainer pages and other artifacts, one folder per project, named with the
+ * same slug as `projects/`. Outside the checkout for the same reason settings
+ * and packs are: Eklavya creates no files in your project.
+ */
+export function artifactsDir(): string {
+  return path.join(eklavyaHome(), 'artifacts');
+}
+
+/**
  * Private to the person whose history it is.
  *
  * `~/.eklavya` holds every prompt, edit and answer Eklavya has seen, and it was

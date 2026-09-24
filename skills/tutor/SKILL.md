@@ -168,6 +168,13 @@ tool exists to prevent. **Read `references/grading.md` before you grade** — bo
 scales, how long feedback may be, the sequence a blank earns, and what
 `already_taught` changes.
 
+**A missed answer can come back with `explain`.** That is `explain_on_wrong` at
+work: follow its `instruction` exactly. The page is written in the background
+and opens by itself, so give the verdict, say the page is on its way, and go
+back to the task — no longer explanation, no waiting. When the developer asks
+for something to be explained as a page ("explain this to me", "make me a page
+on this"), start the same background explainer whatever the setting says.
+
 ## The dials
 
 **Mode** is how hard to push, **focus** is what to teach, **cadence** is when to

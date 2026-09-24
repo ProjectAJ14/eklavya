@@ -159,6 +159,26 @@ sqlite3 ~/.eklavya/knowledge.db "select count(*) from evidence_events where file
 Follow [`docs/parallel-tutoring.md`](docs/parallel-tutoring.md): two panes sharing `EKLAVYA_SESSION_ID`, one building and one teaching. Answering in the teaching pane should release the gate holding the building pane's commit.
 </details>
 
+<details>
+<summary><b>Phase 6 — artifacts and explainers</b></summary>
+
+```bash
+cd mcp && npm run build
+node dist/cli.js artifacts new "Scratch page" --description "a check" --open
+node dist/cli.js artifacts list
+node dist/cli.js dashboard --no-open     # then #/artifacts/dashboard
+```
+
+1. The page opens dark, with PDF and HTML buttons, filed under
+   `~/.eklavya/artifacts/<checkout>/` — from a worktree, under the main checkout.
+2. In the dashboard, search narrows the list as you type; the title opens the
+   page in a new tab; in that tab, `fetch('/api/state')` in the console is refused.
+3. `eklavya config set explain_on_wrong true --project`, start a session, get a
+   question wrong on purpose. The verdict comes straight back and the task
+   resumes; a background `eklavya-explainer` writes a page and opens it. Nothing
+   waits for it. Turn it off again afterwards.
+</details>
+
 ## Development
 
 ```bash

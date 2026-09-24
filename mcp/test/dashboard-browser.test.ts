@@ -17,6 +17,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import { openDb, type DB } from '../src/db.js';
 // The built server, so the page under test is the one `npm run build` ships.
 import { startDashboard } from '../dist/dashboard.js';
+import { createArtifact } from '../dist/artifacts.js';
 import { seedFixture, type Fixture } from './dashboard-fixture.js';
 
 function launchOptions(): Parameters<typeof chromium.launch>[0] | null {
@@ -49,6 +50,7 @@ beforeAll(async () => {
   process.env.EKLAVYA_HOME = path.join(home, 'home');
   db = openDb(path.join(home, 'knowledge.db'));
   fx = seedFixture(db, path.join(home, 'root'));
+  createArtifact({ title: 'Why CSRF needs SameSite', description: 'an explainer', kind: 'explainer', concept: 'csrf' });
   const srv = await startDashboard(db as any, { port: 0 });
   base = srv.url;
   close = srv.close;
@@ -132,6 +134,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         [`#/entry/${e}`, `#/memory/entry/${e}`, { wf: 'Memory', active: 'timeline', h1: /SameSite=Lax/ }],
         ['#/reuse', '#/memory/reuse', { wf: 'Memory', active: 'reuse', h1: /Context reuse/ }],
         ['#/health', '#/memory/health', { wf: 'Memory', active: 'health', h1: /^Health$/ }],
+        ['#/artifacts', '#/artifacts/dashboard', { wf: 'Artifacts', active: 'dashboard', h1: /^Artifacts$/ }],
+        ['#/artifacts/projects', '#/artifacts/projects', { wf: 'Artifacts', active: 'projects', h1: /^Projects$/ }],
       ];
     };
 
@@ -276,7 +280,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         expect(box.y + box.height, `${width}x${height}`).toBeLessThanOrEqual(height);
         await w.ctx.close();
       }
-    });
+      // Three browser contexts in a row: ~3.5s alone, past vitest's 5s default
+      // under the full suite's load. The bounds are what this test checks.
+    }, 20000);
   });
 
   describe('the URL is the authority', () => {
@@ -445,10 +451,35 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     });
   });
 
+  describe('artifacts', () => {
+    it('searches as you type, and opens a page in a new tab that cannot read the dashboard', async () => {
+      const w = await open('#/artifacts/dashboard');
+      const link = w.page.locator('#view a[target="_blank"]');
+      expect(await link.count()).toBe(1);
+      expect(await link.getAttribute('href')).toMatch(/^\/artifacts\/.+\.html$/);
+      expect(await link.getAttribute('rel')).toBe('noopener');
+
+      await w.page.fill('#aq', 'no such page');
+      expect(await link.count()).toBe(0);
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('aq');
+      await w.page.fill('#aq', 'samesite');
+      expect(await link.count()).toBe(1);
+
+      const href = await link.getAttribute('href');
+      const tab = await w.ctx.newPage();
+      await tab.goto(base + href);
+      expect(await tab.locator('h1').textContent()).toBe('Why CSRF needs SameSite');
+      const read = await tab.evaluate(() => fetch('/api/state').then(() => 'read', () => 'blocked'));
+      expect(read).toBe('blocked');
+      await w.ctx.close();
+    });
+  });
+
   describe('every screen', () => {
     it('makes no outbound request, logs no error, and fits the width', async () => {
       const hashes = ['#/learning/dashboard', '#/learning/projects', '#/memory/dashboard', '#/memory/timeline',
-        '#/memory/sessions', '#/memory/projects', '#/memory/health', `#/memory/entry/${fx.entries.mixed}`];
+        '#/memory/sessions', '#/memory/projects', '#/memory/health', `#/memory/entry/${fx.entries.mixed}`,
+        '#/artifacts/dashboard', '#/artifacts/dashboard/explainer', '#/artifacts/projects'];
       for (const width of [1280, 900, 560, 390]) {
         for (const ground of ['ink', 'paper'] as const) {
           const w = await open(hashes[0]!, { width, ground });

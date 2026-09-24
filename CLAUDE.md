@@ -14,8 +14,8 @@ working in this repo.
 | `mcp/test/` | the vitest suite: `cd mcp && npm test` |
 | `hooks/` | `hooks.json` and `run.mjs`, the one cross-platform entry point (it also heals a runtime older than the plugin, in the background). Seven hooks on six events: SessionStart, UserPromptSubmit (the log-directive nudge, and prompt capture), SubagentStart (the same directive for delegated work), PreToolUse (`Bash`, the commit gate), PostToolUse (`capture-tool` for every tool, and the checkpoint — on the log-concepts call and on the work tools), Stop. Every one dispatches into `mcp/src/hooks/` |
 | `skills/` | the prompt-side behaviour; each skill with `disable-model-invocation: true` is also a `/eklavya:<name>` slash command. `tutor/` is the pedagogy, split into a short `SKILL.md` and `tutor/references/*.md` the model reads on demand |
-| `user-skill/` | the one skill installed to `~/.claude/skills/`, not shipped in the plugin — it drives the CLI from plain chat. Must never be under `skills/`, or it registers twice |
-| `agents/` | the tutor subagent |
+| `user-skill/` | the two skills installed to `~/.claude/skills/`, not shipped in the plugin: `eklavya` drives the CLI from plain chat, `eklavya-artifacts` writes explainer pages under `~/.eklavya/artifacts/`. Must never be under `skills/`, or they register twice |
+| `agents/` | the tutor subagent, and the explainer — the background agent that writes a page after a missed question |
 | `cli/`, `scripts/` | the editor-agnostic commit gate: `cli/eklavya-gate` is a POSIX script (no Node startup cost in a git hook), `scripts/install-git-hook.sh` installs it. `scripts/bump-version.sh` is the release's version bump |
 | `docs/` | contributor reference, not the manual: the pinned plugin/hook/MCP schemas, parallel tutoring, and the subagent policy — who logs, who quizzes, who stays silent — all kept current by hand. `eklavya-runtime.html` is **generated** from `eklavya-runtime.architecture.json` and stamped with the revision it was built from — edit the JSON, never the HTML, then regenerate (see below) |
 | `eval/` | the question-quality eval: fixtures, a four-stage harness, and dated results. Measures the product (are the questions good) rather than the machinery. Never runs in CI — two of its four stages cost a model call per question. `eval/README.md` has the method and what would disprove it |
@@ -70,6 +70,8 @@ That applies to:
 - a change to the quiz loop: when questions arrive, what shape they take, how
   they are graded, what the gate requires
 - a change to where data is stored or what leaves the machine
+- a change to artifacts: the template, where pages are filed, or what the
+  explainer writes
 
 The page went stale exactly this way once: it shipped describing `mode` alone,
 then `focus` and `cadence` landed and the page kept promising two dials and

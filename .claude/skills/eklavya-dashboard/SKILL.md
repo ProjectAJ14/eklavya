@@ -1,6 +1,6 @@
 ---
 name: eklavya-dashboard
-description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the two workflows (Learning, Memory) and their registry, the one JSON payload plus the project inventory, the URL-driven hash router and its legacy redirects, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
+description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the three workflows (Learning, Memory, Artifacts) and their registry, the one JSON payload plus the project inventory, the URL-driven hash router and its legacy redirects, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
 ---
 
 # Working on the dashboard
@@ -8,14 +8,14 @@ description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to c
 `eklavya dashboard` serves the learning and memory history as a local web page.
 It is the long view — `/eklavya:progress` gets twenty lines and answers *what
 now*, this answers *am I getting better* and *what did that session actually
-teach me*. It is two workflows in one shell, **Learning** and **Memory**, each
-with its own Dashboard and sidebar.
+teach me*. It is three workflows in one shell, **Learning**, **Memory** and
+**Artifacts**, each with its own Dashboard and sidebar.
 
 Two files, and there is deliberately nothing else:
 
 | File | What it is |
 |---|---|
-| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), and `startDashboard`, a loopback `http.createServer` with seven read-only routes: `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/tokens.css`, `/`. Any method but `GET`/`HEAD` is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
+| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), and `startDashboard`, a loopback `http.createServer` with eight read-only routes: `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/tokens.css`, `/artifacts/<folder>/<file>`, `/`. Any method but `GET`/`HEAD` is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
 | `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, workflow registry, router, views, charts. One file, no framework, no build step. |
 | `mcp/test/dashboard.test.ts` | The payload's contract, the inventory's rules, and `/api/state`'s key set. |
 | `mcp/test/dashboard-browser.test.ts` | The page in a real Chromium: every legacy redirect, the workflow control, collapse persistence, the drawer, picker bounds, overflow, console errors and outbound requests. |
@@ -100,6 +100,7 @@ runs them. Otherwise `draw` is a pure function of the response; keep it that way
 | `reuse` | `receiptTotals` (confirmed rows only), the `savingsFrom` verdict and `savingsLine`, the estimator's name, counts by delivery, and the newest `RECEIPT_LIMIT` receipts with their index/detail split |
 | `health` | capture heartbeat and mode, `queueDepth`, stalled jobs grouped by `error_class`, the spool's drop count, and whether a provider is configured |
 | `memory_sessions` | one row per session that captured evidence: events, entries, candidates, first/last — what lets the Sessions view line the two halves up |
+| `artifacts` | `listArtifacts()` from `artifacts.ts`: every page under `~/.eklavya/artifacts/`, newest first — `id` (`<folder>/<file>`), title, description, project, kind (`explainer` or `artifact`), concept, created, bytes. Read from the files' heads on each load; there is no table |
 
 Two things that have bitten this file already:
 
@@ -251,6 +252,19 @@ because it sits behind the same handler — keep it that way rather than
 registering a second server. And if a mutating endpoint is ever added, this
 check is necessary and not sufficient: it would also need a token the page
 holds and a hostile origin cannot read.
+
+## An artifact page is not the dashboard
+
+`/artifacts/<folder>/<file>` serves HTML an agent wrote, from this origin. It
+goes out with `ARTIFACT_CSP` instead of the page's CSP: `sandbox` without
+`allow-same-origin` gives it an opaque origin, so its scripts run (the PDF and
+HTML buttons need them) but a fetch to `/api/state` is refused, and
+`default-src 'none'` plus the Google Fonts hosts is all it may load. The page
+links to one with a plain `<a target="_blank" rel="noopener">` — never an
+iframe, never `data-go`. `resolveArtifact` is the only way from a URL to a
+file; do not join paths here. `test/artifacts.test.ts` covers traversal, a
+planted symlink and the rebound host, and the browser suite checks the opened
+page cannot read the API.
 
 ## Escaping is not optional
 

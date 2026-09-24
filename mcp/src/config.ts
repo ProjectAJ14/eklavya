@@ -279,6 +279,14 @@ export interface EklavyaConfig {
   domains_enabled: string[];
   quiet: boolean;
   /**
+   * Whether a missed question also gets an explainer page: a background agent
+   * writes an Eklavya artifact on the concept and opens it, while the session
+   * carries on. Off by default — a page per wrong answer is a lot to have land
+   * unasked, so it is something a developer turns on, usually per project.
+   * Asking "explain this to me" gets a page whatever this says.
+   */
+  explain_on_wrong: boolean;
+  /**
    * Whether Eklavya updates itself: a background check at session start, at
    * most hourly, that installs a newer release into `~/.eklavya/runtime` and
    * re-runs `eklavya install --auto` (see `update.ts`). On by default, like
@@ -313,6 +321,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   min_minutes_between_checkpoints: 4,
   domains_enabled: ['*'],
   quiet: false,
+  explain_on_wrong: false,
   auto_update: true,
   max_new_concepts_per_session: 8,
   max_stop_blocks_per_session: 3,
@@ -508,6 +517,7 @@ function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfi
     out.domains_enabled = raw.domains_enabled as string[];
   }
   if (typeof raw.quiet === 'boolean') out.quiet = raw.quiet;
+  if (typeof raw.explain_on_wrong === 'boolean') out.explain_on_wrong = raw.explain_on_wrong;
   if (typeof raw.auto_update === 'boolean') out.auto_update = raw.auto_update;
   if (
     typeof raw.max_new_concepts_per_session === 'number' &&

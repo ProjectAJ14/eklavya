@@ -14,6 +14,7 @@ So there are three roles, and each one does exactly one thing.
 | The parent thread | yes | yes | tool uses, prompts, lifecycle | `SessionStart` directive, re-stated by `UserPromptSubmit` when a session has logged nothing |
 | An implementer subagent | yes | **no** | tool uses only | `SubagentStart` directive (`mcp/src/hooks/subagent-start.ts`) |
 | The `eklavya-tutor` subagent | **no** | yes | tool uses only | `agents/tutor.md`, its own brief — no hook speaks to it |
+| The `eklavya-explainer` subagent | **no** | **no** | tool uses only | `agents/explainer.md`; it also hears the `SubagentStart` directive, harmlessly |
 
 The fourth column is memory's, and it is the one addition the memory half makes
 to this policy. It is not a fourth role: nothing about who logs or who quizzes
@@ -152,6 +153,21 @@ The cost, stated: on a host where hooks never ran, a replayed transcript keeps
 the parent thread's account of what a subagent did and loses the subagent's own
 tool-by-tool detail. That is the same thin-session cost Cowork pays above, and
 it is bounded the same way — the delegation and its outcome survive.
+
+## The explainer writes a page and nothing else
+
+`eklavya-explainer` (`agents/explainer.md`) is started in the background when
+`record_attempt` hands back an `explain` block (`explain_on_wrong` is on and the
+answer was missed) or when the developer asks for something to be explained as
+a page. It runs `eklavya artifacts new`, writes the page, opens it, and stops.
+
+It is deliberately **not** exempted from the `SubagentStart` directive, unlike
+the tutor. Both halves of that directive are right for it: it has no
+`log_session_concepts`, so the first sentence is inert, and "do not ask the
+developer anything" is exactly its brief — the whole point is that the session
+never waits on it. Its tool list has no Eklavya MCP tool at all, so it cannot
+log, grade or quiz even if it tried; the answer it explains was recorded by the
+parent before it started.
 
 ## The tutor is told nothing, on purpose
 

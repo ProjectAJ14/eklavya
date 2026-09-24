@@ -17,6 +17,7 @@ Two things can change that, and neither is on unless you turn it on: `providers.
 | `~/.eklavya/update.json`, `update.log` | The auto-updater's state (when it last checked, the latest version it saw, the last error) and the output of its last background run. Safe to delete; the next session starts them again. |
 | `~/.eklavya/packs/*.json` | Your own [concept packs](/docs/packs/) — extra domains Eklavya can quiz on. |
 | `~/.eklavya/projects/<checkout>/packs/*.json` | Your [concept packs](/docs/packs/) for one codebase. |
+| `~/.eklavya/artifacts/<checkout>/*.html` | [Explainer pages and other artifacts](/docs/commands/#the-artifacts-skill) your agent wrote, one folder per project, named the same way as `projects/` — a worktree's pages go in its main checkout's folder, and a page written outside any checkout is filed under that directory's path. Each is a self-contained page; delete one and it is gone from the dashboard on the next load. |
 
 ### Who can read it
 

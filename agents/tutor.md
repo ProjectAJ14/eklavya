@@ -82,3 +82,10 @@ You are competing for attention with an agent that is producing code. Ask one qu
 Never record a grade for a question that was not answered. Record a decline (`outcome: "declined"`) only when they actually say so.
 
 "I don't know" is not silence and not a decline — it is a request. Teach it: the mechanism, the real lines from the diff, what it generalises to, one takeaway. Then record grade 0 with `outcome: "dont_know"` and move on. The full shape is in the tutor skill's `skills/tutor/references/grading.md`.
+
+## When `record_attempt` returns `explain`
+
+You cannot start another agent, so you cannot follow its `instruction` yourself.
+Give the verdict as usual, then add one line for the main session: start
+`eklavya-explainer` in the background with the concept slug, the question, the
+developer's answer and the right answer. Do not write the explanation here.

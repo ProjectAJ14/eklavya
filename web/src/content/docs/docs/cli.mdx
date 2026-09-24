@@ -9,13 +9,14 @@ For the parts of Eklavya that make sense outside a Claude Code session. `npx ekl
 | Command | What it does |
 | --- | --- |
 | `eklavya serve` | Runs the MCP server on stdio. This is what Claude Code starts for you — you would only run it by hand to point another MCP client at Eklavya. |
-| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the chat skill at `~/.claude/skills/eklavya/`, and creates the database. Then it walks your settings one step at a time: `quiz`, `focus`, `cadence`, `difficulty`, `memory` — and, when memory is on, which model writes the memories (`providers.observer`: `local`, the default, or a Claude model, `claude-haiku-4-5` recommended). Each step marks the current value and starts the cursor on it: ↑/↓ move, Enter, Space or → choose, a digit jumps. Slow steps show a spinner. The answers are written to the global config. The walk runs on a first install only: once `~/.eklavya/config.json` exists, a later install prints your settings and asks nothing. `--settings` walks them again. If Claude Mem is installed, the memory step asks which of the two keeps recording; `--memory eklavya` or `--memory claude-mem` answers in advance ([details](/docs/migrating/)). Safe to re-run, including for a marketplace install, where it pulls the plugin's git clone forward. `--auto` is the updater's own run: no runtime step and no questions. |
+| `eklavya install` | Installs Eklavya into Claude Code: checks Node, installs the runtime and its SQLite driver, registers and enables the plugin, installs the two chat skills at `~/.claude/skills/eklavya/` and `~/.claude/skills/eklavya-artifacts/`, and creates the database. Then it walks your settings one step at a time: `quiz`, `focus`, `cadence`, `difficulty`, `memory` — and, when memory is on, which model writes the memories (`providers.observer`: `local`, the default, or a Claude model, `claude-haiku-4-5` recommended). Each step marks the current value and starts the cursor on it: ↑/↓ move, Enter, Space or → choose, a digit jumps. Slow steps show a spinner. The answers are written to the global config. The walk runs on a first install only: once `~/.eklavya/config.json` exists, a later install prints your settings and asks nothing. `--settings` walks them again. If Claude Mem is installed, the memory step asks which of the two keeps recording; `--memory eklavya` or `--memory claude-mem` answers in advance ([details](/docs/migrating/)). Safe to re-run, including for a marketplace install, where it pulls the plugin's git clone forward. `--auto` is the updater's own run: no runtime step and no questions. |
 | `eklavya update` | Updates now: asks npm for the latest release, installs it into `~/.eklavya/runtime` if it is newer, then runs the new version's `eklavya install --auto`. You do not need it, because Eklavya already does this in the background at session start, at most once an hour ([Updates](/docs/installing/#updates)). It is the same run, in the open, with the real error when one fails. Never downgrades. |
-| `eklavya uninstall [--purge]` | Removes the plugin, the runtime and the chat skill, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`, which lists what it deleted. The plugin files and runtime stay while a project-scoped install still uses them, and a git commit gate in the current repository is reported with the command that removes it — see [Uninstalling](/docs/installing/#uninstalling). |
+| `eklavya uninstall [--purge]` | Removes the plugin, the runtime and both chat skills, and deregisters it from Claude Code. Your learning history is kept unless you pass `--purge`, which lists what it deleted. The plugin files and runtime stay while a project-scoped install still uses them, and a git commit gate in the current repository is reported with the command that removes it — see [Uninstalling](/docs/installing/#uninstalling). |
 | `eklavya config get` | Prints the effective configuration as JSON, plus the paths of your global file and this project's file under `~/.eklavya/projects/`. If the project file sets `providers`, which only the global file may set, it lists it as ignored. If a config file does not parse, it warns that defaults are standing in for it. |
 | `eklavya config set <key> <value>` | Changes one setting. Add `--project` (or its older name `--repo`) to write this codebase's file under `~/.eklavya/projects/` instead of your global config — never into the repository. Add `--topic <topic>` when setting `focus learn`. The previous file is copied to `config.json.eklavya-bak` first, and the file is written readable only by you. A file that does not parse is left alone and the command exits 1, naming it. |
 | `eklavya doctor` | Checks that everything is wired up: the runtime, the SQLite driver, the plugin's registration with Claude Code, the chat skill, whether the runtime and plugin versions match, then the database, counts, journal mode, this project's level and runway, the memory queue, and the effective quiz switch, focus and cadence. It also reports a config file that does not parse, and whether the terminal commit gate has the `jq` and `sqlite3` it needs. It also **applies your [concept packs](/docs/packs/)** — the only command that does so unconditionally — and names any that failed to load. Exits non-zero if a check fails, and names the command that repairs it; a broken pack is reported but does not fail the run, because `eklavya install` cannot repair one. |
 | `eklavya dashboard [--port <n>] [--no-open]` | Serves your learning history as a local web page and opens it in your browser. `--no-open` serves it and prints the URL instead. See [The dashboard](/docs/dashboard/). |
+| `eklavya artifacts <sub>` | Writes and finds the pages under `~/.eklavya/artifacts/`: `new`, `list` and `open`. See [below](#eklavya-artifacts). |
 | `eklavya statusline` | Prints your dials as one line for a status bar, or nothing at all. See [below](#eklavya-statusline). |
 | `eklavya memory <sub>` | Drives the memory half from a terminal: `status`, `search`, `timeline`, `show`, `replay`, `process`, `stop`, `backlog`, `prune`, `import`, `export`, `restore` and `sync`. See [below](#eklavya-memory). |
 | `eklavya db-path` | Prints the database location. Useful in scripts. |
@@ -102,6 +103,16 @@ A source database newer than this importer understands stops with the version
 it found and the version supported, rather than guessing at a schema it has
 never seen.
 
+### `eklavya artifacts`
+
+The file side of [explainer pages and other artifacts](/docs/commands/#the-artifacts-skill). An agent calls these; you rarely need to.
+
+| Subcommand | What it does |
+| --- | --- |
+| `eklavya artifacts new <title>` | Starts a page from the Eklavya template under `~/.eklavya/artifacts/<project>/`, named `YYYY-MM-DD-<title-slug>.html` in your local date, and prints its path. The project is the git checkout you run it in — the main checkout, for a worktree — or the directory itself outside one. It never overwrites: the same title twice on one day gets `-2`. `--description <text>` sets the one-line summary, `--kind artifact\|explainer` (default `artifact`) and `--concept <slug>` mark an explainer and link it to its concept, and `--open` opens it in your browser. |
+| `eklavya artifacts list [--json]` | Every artifact, newest first, with its path. `--here` narrows it to this project; `--json` prints the rows the dashboard reads, ids included. |
+| `eklavya artifacts open <path\|id>` | Opens one in your browser, by its path or by an id from `list --json`. |
+
 ### `eklavya statusline`
 
 Your dials, in Claude Code's status bar, so the settings that shape a
@@ -163,6 +174,7 @@ eklavya doctor
   ▣  plugin      /Users/you/.claude/plugins/marketplaces/eklavya — registered, enabled
   ▣  versions    runtime and plugin both 1.25.0
   ▣  skill       /Users/you/.claude/skills/eklavya
+  ▣  skill eklavya-artifacts /Users/you/.claude/skills/eklavya-artifacts
   ...
   ▣  concepts    87
   ▣  attempts    41
@@ -211,7 +223,7 @@ it reports, and you decide.
 | `runtime` | The compiled server is missing from `~/.eklavya/runtime`. Usually an install that was interrupted. |
 | `driver` | The SQLite driver will not load — almost always a Node upgrade that left the prebuilt binary on the wrong ABI. |
 | `plugin` | The plugin is gone from Claude Code's registry, or is registered but switched off in `settings.json`. |
-| `skill` | The chat skill is missing from `~/.claude/skills/eklavya`. If the name is taken by a skill of your own, `doctor` says so and leaves it alone — move yours first. |
+| `skill` | A chat skill is missing from `~/.claude/skills/eklavya` (or, on the `skill eklavya-artifacts` row, `~/.claude/skills/eklavya-artifacts`). If the name is taken by a skill of your own, `doctor` says so and leaves it alone — move yours first. |
 | `updates` | The last automatic update failed; the row gives the reason and when it happened. `eklavya update` retries it and shows the full error, and the last background run is in `~/.eklavya/update.log`. The first line of the row says whether updates are automatic (`auto_update`), the runtime version and the latest one npm reported. This row has its own verdict, `Updates are failing. Run: eklavya update`, because `eklavya install` does not fix it. |
 | `versions` | The runtime and the plugin are different versions. Behind: the next session updates the runtime in the background. Ahead: update the plugin with `/plugin update eklavya`, because the runtime is never downgraded. |
 | `database` | Says `(created now — it did not exist)` when this run created it. A database that exists but will not open is a failure. |

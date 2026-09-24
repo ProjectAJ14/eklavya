@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 import type { DB } from './db.js';
 import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
@@ -56,10 +57,16 @@ Usage:
                                         stored under ~/.eklavya/projects/, never in the repo)
                                         e.g. quiz.enabled true|false, quiz.enforced true|false,
                                         focus project|concept|learn, cadence interleaved|end,
-                                        difficulty auto|easy|medium|hard
+                                        difficulty auto|easy|medium|hard,
+                                        explain_on_wrong true|false
                                         add --topic <topic> when setting focus to "learn"
   eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser
                                         (--no-open serves it and just prints the URL)
+  eklavya artifacts new <title>         Start a page under ~/.eklavya/artifacts/<project>/ from the
+                                        Eklavya template and print its path [--description <text>]
+                                        [--kind artifact|explainer] [--concept <slug>] [--open]
+  eklavya artifacts list [--json]       Every artifact, newest first [--here: this project only]
+  eklavya artifacts open <path|id>      Open one in your browser
   eklavya statusline                    Print the dials for a status bar (one line, or nothing)
   eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
@@ -103,6 +110,7 @@ Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              level_up_accuracy, pass_threshold, max_questions_per_task,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
              max_new_concepts_per_session, max_stop_blocks_per_session, quiet,
+             explain_on_wrong,
              auto_update (global only)
 Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
   quiz.{enabled, enforced} — whether questions happen, and whether they gate
@@ -844,6 +852,74 @@ async function dashboardCommand(argv: string[]): Promise<void> {
 }
 
 /**
+ * `eklavya artifacts`: the file side of the eklavya-artifacts skill and the
+ * explainer agent. `new` is the one place a page's path and metadata are
+ * decided, so a model never has to work out the project folder itself.
+ */
+async function artifactsCommand(argv: string[]): Promise<void> {
+  const { createArtifact, listArtifacts, resolveArtifact, artifactProject } = await import('./artifacts.js');
+  const [sub, ...rest] = argv;
+  if (sub === 'new') {
+    // `parseArgs` rather than a hand loop: an agent writes `--kind=explainer`
+    // as often as `--kind explainer`, and a flag that is silently dropped
+    // files the page under the wrong kind. Unknown flags and missing values
+    // fail loudly; `--` ends the flags, for a title that starts with dashes.
+    let parsed;
+    try {
+      parsed = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: {
+          description: { type: 'string' },
+          kind: { type: 'string' },
+          concept: { type: 'string' },
+          open: { type: 'boolean' },
+        },
+      });
+    } catch (err) {
+      fail(`eklavya artifacts new: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    const { values, positionals } = parsed;
+    const title = positionals.join(' ').trim();
+    if (!title) fail('eklavya artifacts new: give the page a title');
+    const kind = values.kind ?? 'artifact';
+    if (kind !== 'artifact' && kind !== 'explainer') fail('eklavya artifacts new: --kind is artifact or explainer');
+    const made = createArtifact({ title, description: values.description, kind, concept: values.concept ?? null });
+    process.stdout.write(`${made.path}\n`);
+    if (values.open) (await import('./dashboard.js')).openInBrowser(made.path);
+    return;
+  }
+  if (sub === 'list') {
+    const here = rest.includes('--here') ? artifactProject() : null;
+    const rows = listArtifacts().filter((r) => !here || r.project === here);
+    if (rest.includes('--json')) {
+      process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
+      return;
+    }
+    if (!rows.length) {
+      process.stdout.write('No artifacts yet.\n');
+      return;
+    }
+    for (const r of rows) {
+      process.stdout.write(`${new Date(r.created).toLocaleDateString('en-CA')}  ${r.kind === 'explainer' ? 'explainer' : 'artifact '}  ${r.title}\n`);
+      process.stdout.write(`            ${path.join(eklavyaHome(), 'artifacts', r.id)}\n`);
+    }
+    return;
+  }
+  if (sub === 'open') {
+    const target = rest[0];
+    if (!target) fail('eklavya artifacts open: name the file or its id');
+    // A path the caller already has, or an id from `list --json`.
+    const file = fs.existsSync(target) ? path.resolve(target) : resolveArtifact(target);
+    if (!file) fail(`eklavya artifacts open: no artifact at ${target}`);
+    (await import('./dashboard.js')).openInBrowser(file);
+    process.stdout.write(`${file}\n`);
+    return;
+  }
+  fail('Usage: eklavya artifacts new <title> | list [--json] [--here] | open <path|id>');
+}
+
+/**
  * `eklavya update`: the background updater's run, in the foreground. With
  * `--background` it is the run the SessionStart hook starts: nobody is
  * watching, so everything goes to `update.log` instead.
@@ -944,6 +1020,8 @@ async function main(): Promise<void> {
       return dashboardCommand(rest);
     case 'memory':
       return (await import('./cli-memory.js')).memoryCommand(rest);
+    case 'artifacts':
+      return artifactsCommand(rest);
     case 'doctor':
       return doctor();
     case 'db-path':

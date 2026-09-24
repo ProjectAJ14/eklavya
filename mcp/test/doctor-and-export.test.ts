@@ -57,9 +57,11 @@ function fakeInstall(runtime: string, plugin: string): void {
     JSON.stringify({ version: 2, plugins: { 'eklavya@eklavya': [{ scope: 'user', installPath: market }] } }),
   );
   fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify({ enabledPlugins: { 'eklavya@eklavya': true } }));
-  const skill = path.join(claudeDir, 'skills', 'eklavya');
-  fs.mkdirSync(skill, { recursive: true });
-  fs.writeFileSync(path.join(skill, 'SKILL.md'), '---\nname: eklavya\n---\n');
+  for (const name of ['eklavya', 'eklavya-artifacts']) {
+    const skill = path.join(claudeDir, 'skills', name);
+    fs.mkdirSync(skill, { recursive: true });
+    fs.writeFileSync(path.join(skill, 'SKILL.md'), `---\nname: ${name}\n---\n`);
+  }
 }
 
 /** A PATH holding node, git and exactly the extra tools named — nothing from /usr/bin. */
