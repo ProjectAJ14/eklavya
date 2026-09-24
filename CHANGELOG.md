@@ -1,3 +1,10 @@
+## [1.30.4](https://github.com/ProjectAJ14/eklavya/compare/v1.30.3...v1.30.4) (2026-09-24)
+
+
+### Bug Fixes
+
+* **tutor:** keep exactly one defensible answer per quiz question ([01c6c93](https://github.com/ProjectAJ14/eklavya/commit/01c6c93c53f16493aa2a56e9be6228ebcddba7ac))
+
 ## [1.30.3](https://github.com/ProjectAJ14/eklavya/compare/v1.30.2...v1.30.3) (2026-09-24)
 
 
