@@ -33,7 +33,7 @@ Observations and summaries become memory entries. Prompts and tool uses become l
 
 ### Every later install checks again
 
-With Eklavya memory enabled, later installs recheck retired databases, import missing rows and improve project placement without duplicating history. Content identity prevents a relocated copy of the same source from being imported twice.
+With Eklavya memory enabled, later installs recheck retired databases, import missing rows and improve project placement without duplicating history. Content identity prevents a relocated copy of the same source from being imported twice. The recheck prints a `claude-mem` line only when it adds or re-files rows, or when the check fails. `eklavya memory status` still lists unplaced projects.
 
 ```bash
 eklavya update

@@ -358,10 +358,10 @@ describe('install with Claude Mem present', () => {
     // The move is finished: a later install, with no terminal to ask, must not
     // see the switched-off plugin as Claude Mem still recording -- that path
     // picks "keep Claude Mem" and would turn Eklavya's memory back off. It
-    // does re-check the retired copy, and finds nothing to add.
+    // does re-check the retired copy, finds nothing to add, and says nothing.
     const later = install();
     expect(later.stdout).not.toMatch(/Claude Mem is installed too/);
-    expect(later.stdout).toMatch(/claude-mem\s+\d+ rows, all here — nothing new/);
+    expect(later.stdout).not.toMatch(/claude-mem|unplaced/);
     expect(later.stdout).toMatch(/memory\s+on/);
     expect(memoryEnabled()).toBeUndefined();
   });

@@ -305,15 +305,24 @@ function git(dir: string, args: string[]) {
  */
 type CheckoutResult = 'updated' | 'current' | 'dirty' | 'failed';
 
-function updateCheckout(dir: string): CheckoutResult {
+async function updateCheckout(dir: string): Promise<CheckoutResult> {
   const head = () => git(dir, ['rev-parse', 'HEAD']).stdout?.trim() ?? '';
   const before = head();
   if (!before) return 'failed';
   if (git(dir, ['status', '--porcelain']).stdout?.trim()) return 'dirty';
-  const pull = git(dir, ['pull', '--ff-only', '--quiet']);
+  // The one step here that waits on the network, so it runs async under a spinner.
+  const pull = await spin('plugin', 'pulling the git checkout…', () =>
+    new Promise<{ status: number | null; stderr: string }>((resolve) => {
+      let stderr = '';
+      const child = spawn('git', ['pull', '--ff-only', '--quiet'], { cwd: dir, stdio: ['ignore', 'ignore', 'pipe'] });
+      child.stderr.on('data', (d) => (stderr += d));
+      child.once('error', (err) => resolve({ status: null, stderr: `${stderr}${err.message}\n` }));
+      child.once('close', (status) => resolve({ status, stderr }));
+    }),
+  );
   if (pull.status !== 0) {
     // git's own reason, or "could not pull" is a support ticket with no clue in it.
-    const why = (pull.stderr ?? '').trim();
+    const why = pull.stderr.trim();
     if (why) process.stderr.write(`${why}\n`);
     return 'failed';
   }
@@ -322,7 +331,7 @@ function updateCheckout(dir: string): CheckoutResult {
 
 type PayloadResult = 'copied' | CheckoutResult;
 
-function copyPayload(): PayloadResult {
+async function copyPayload(): Promise<PayloadResult> {
   const from = payloadDir();
   if (!fs.existsSync(from)) {
     process.stderr.write(
@@ -701,14 +710,17 @@ function retiredClaudeMemDbs(): string[] {
  * place (a checkout found since, or one moved), and adds nothing twice.
  *
  * A project two checkouts could be is asked about, not guessed. Throws when
- * the import fails or any source row is missing.
+ * the import fails or any source row is missing. `quiet` (a later install's
+ * re-check) prints nothing unless rows were added or re-filed: the migration
+ * already reported, so repeating it on every install is noise.
  */
-async function crossReference(source: string): Promise<void> {
+async function crossReference(source: string, quiet = false): Promise<void> {
   const shown = source.replace(os.homedir(), '~');
-  const run = (projectMap: Record<string, string>) =>
-    spin('claude-mem', `checking ${shown} against Eklavya…`, () =>
-      importOffThread({ dbFile: dbPath(), source, opts: { projectMap }, guessFrom: claudeHome() }),
-    );
+  const run = (projectMap: Record<string, string>) => {
+    const work = () => importOffThread({ dbFile: dbPath(), source, opts: { projectMap }, guessFrom: claudeHome() });
+    // A terminal spinner erases itself; only the non-TTY log line would be noise.
+    return quiet && !process.stdout.isTTY ? work() : spin('claude-mem', `checking ${shown} against Eklavya…`, work);
+  };
   let { report, verified, unsure } = await run({});
   let rehomed = report.rehomed;
 
@@ -734,6 +746,7 @@ async function crossReference(source: string): Promise<void> {
   const total = verified.tables.reduce((n, t) => n + t.present, 0);
   const added = IMPORTED_TABLES.reduce((n, t) => n + report.imported[t], 0);
   const news = [added && `${added} imported`, rehomed && `${rehomed} filed under their checkout`].filter(Boolean);
+  if (quiet && !news.length) return;
   check('ok', 'claude-mem', `${total} rows, all here ${dim(`— ${news.length ? news.join(', ') : 'nothing new'} · ${shown}`)}`);
 
   const unplaced = verified.projects.filter((p) => Object.keys(p.filedUnder).some((k) => !path.isAbsolute(k)));
@@ -989,7 +1002,7 @@ async function installSteps(args: string[]): Promise<void> {
     check('ok', 'runtime', runtimeHome());
   }
 
-  const payload = copyPayload();
+  const payload = await copyPayload();
   const notes: Record<PayloadResult, string> = {
     copied: '',
     updated: 'git checkout — pulled',
@@ -1037,7 +1050,7 @@ async function installSteps(args: string[]): Promise<void> {
     // older version left unplaced, with nothing to run by hand.
     for (const retired of retiredClaudeMemDbs()) {
       try {
-        await crossReference(retired);
+        await crossReference(retired, true);
       } catch (err) {
         check('warn', 'claude-mem', `could not check ${retired} ${dim(`— ${(err as Error).message}`)}`);
       }
