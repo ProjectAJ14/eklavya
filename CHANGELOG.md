@@ -1,3 +1,10 @@
+## [1.32.1](https://github.com/ProjectAJ14/eklavya/compare/v1.32.0...v1.32.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **memory:** no recall outside git; banner states what was recalled ([f7372c1](https://github.com/ProjectAJ14/eklavya/commit/f7372c14ffe2c6d086bfeb6e7347e2ef6a6824bf))
+
 # [1.32.0](https://github.com/ProjectAJ14/eklavya/compare/v1.31.0...v1.32.0) (2026-09-25)
 
 
