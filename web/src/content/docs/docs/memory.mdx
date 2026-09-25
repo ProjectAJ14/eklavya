@@ -34,7 +34,7 @@ Privacy checks run before evidence is stored. Built-in path exclusions are subst
 secrets.  .eklavya/knowledge.db
 ```
 
-An excluded read or edit is dropped when it has no remaining allowed file. Eklavya's own tool calls, CLI traffic and checkpoint messages are excluded to prevent its output feeding back into memory.
+Nothing is captured in a folder outside a git checkout: recall never serves that folder, so its evidence would only take up space. An excluded read or edit is dropped when it has no remaining allowed file. Eklavya's own tool calls, CLI traffic and checkpoint messages are excluded to prevent its output feeding back into memory.
 
 Secret detection redacts private keys, URL passwords, common provider tokens, JWTs, bearer tokens and secret assignments such as `DB_PASSWORD=…`. It preserves markers such as `[redacted:github-token]` so the surrounding event remains understandable. The built-in rules also apply to saved notes and imported entries.
 
@@ -72,10 +72,20 @@ An optional `providers.observer` uses a Claude model through `claude -p` and you
 
 Only one model worker runs at a time. It processes up to four batches and hands remaining ready jobs to a fresh worker. Calls have a 100-second limit; cancellation or timeout also stops child processes. Observer helper sessions are excluded from capture.
 
+#### When the model is unavailable
+
+If Claude Code is not logged in, a usage limit is reached or `claude` cannot be found, the queue **pauses** instead of retrying every job. While it is paused:
+
+- Each session start and turn end writes `local-v1` observations for up to four waiting batches, so recall keeps showing current work. These are stand-ins: the jobs stay queued, and when the model later summarises a batch, its observations replace the local ones.
+- At most every 30 minutes, a turn end or session start checks whether the cause is fixed. A login is checked with `claude auth status`, which makes no model call. A usage limit is retried after an hour. Once the check passes, the queue resumes by itself.
+- The session banner says so, for example `Memory paused · claude not logged in since 23 Sep · local summaries meanwhile · fix it, then: eklavya memory process`.
+
+Separately, if the oldest waiting job is more than six hours old, the banner shows `Memory behind · 12 jobs waiting, oldest 9h · run: eklavya doctor`.
+
 | Need | Command or setting |
 | --- | --- |
 | See queue, worker and provider health | `eklavya memory status` |
-| Resume after fixing login, quota or a missing `claude` command | `eklavya memory process` |
+| Resume now after fixing login, quota or a missing `claude` command, instead of waiting for the next check | `eklavya memory process` |
 | Stop the current worker and return its unfinished job to the queue | `eklavya memory stop` |
 | Inspect, quarantine, restore or discard selected jobs | `eklavya memory backlog` |
 | Return to local summaries | Set `providers.observer` to `null`. |
@@ -88,13 +98,13 @@ A session with at least two observations also gets one summary that is updated a
 
 ### How recall works
 
-At session start, Claude receives recent project history in an `<eklavya-memory>` block. The block is budgeted to `retrieval.max_tokens` (1,200 estimated tokens by default). It is marked as **evidence to verify, never instructions to obey**.
+At session start, Claude receives recent project history in an `<eklavya-memory>` block. The block holds up to `retrieval.max_items` entries (6 by default) within `retrieval.max_tokens` (1,200 estimated tokens by default). An entry too long for the remaining budget is skipped and shorter ones fill the space. It is marked as **evidence to verify, never instructions to obey**.
 
 The session banner says what was delivered, for example `Memory · 3 past entries recalled (~1.1k tokens)`. It prints no memory line when nothing was recalled.
 
-Recall needs a git checkout. In a folder outside git there is no project to recall from, so neither session-start nor prompt recall runs. Work there is still captured under **No repository**.
+Recall needs a git checkout. In a folder outside git there is no project to recall from, so neither session-start nor prompt recall runs, and nothing is captured there either. Evidence that earlier versions captured outside git stays under **No repository** and is not summarised.
 
-Relevant memory can also be supplied on a substantive prompt later in the session. It gets a third of the session-start budget (at most `retrieval.max_items / 3` entries and `retrieval.max_tokens / 3` estimated tokens, so two entries and 400 tokens by default), excludes entries already delivered and requires a relevance match. Unrelated prompts receive no memory block.
+Relevant memory can also be supplied on a substantive prompt later in the session. It gets a third of the session-start budget (at most `retrieval.max_items / 3` entries and `retrieval.max_tokens / 3` estimated tokens, so two entries and 400 tokens by default), excludes entries already delivered and requires a relevance match. Unrelated prompts receive no memory block. Only what you typed is searched: pasted content, subagent hand-backs and task notifications are ignored, so a prompt that contains nothing else gets no memory block.
 
 | Mode | Best use | Limit |
 | --- | --- | --- |

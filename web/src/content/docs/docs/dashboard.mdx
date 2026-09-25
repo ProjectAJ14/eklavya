@@ -124,7 +124,7 @@ Use the health page to locate a gap between capture, processing, indexing, retri
 | Signal | Meaning or next step |
 | --- | --- |
 | Last capture | Old despite recent work: inspect capture and installation. |
-| Queued, paused or failed jobs | Check the oldest job and error class. Transient failures retry; auth, quota and missing-command problems require a fix, then `eklavya memory process`. |
+| Queued, paused or failed jobs | Check the oldest job and error class. Transient failures retry. Auth, quota and missing-command problems pause the queue: it rechecks itself at most every 30 minutes, or run `eklavya memory process` after fixing the cause. |
 | Dropped events | Evidence could not be retained while the database was unavailable. `eklavya memory replay` can recover eligible transcript history. |
 | Provider settings | Shows what is configured. Only the observer currently runs a model; an embeddings setting does not change the local search implementation. |
 

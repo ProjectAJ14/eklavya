@@ -10,10 +10,10 @@ import { levelStanding, pruneUnasked } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
 import { recordBaseline } from './changes-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
-import { flushAtSeam, identityOf, recallBlock, record, replaySpool } from './memory-lib.js';
+import { flushAtSeam, identityOf, memoryHealthLine, recallBlock, record, replaySpool } from './memory-lib.js';
 import { startupDisplay, type RecallResult } from '../memory/recall.js';
 import { recalledLine } from '../memory/tokens.js';
-import { dialParts, paint } from '../statusline.js';
+import { AMBER, dialParts, paint } from '../statusline.js';
 import { DEFAULT_PORT } from '../paths.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
 import { canSend, disabledReason, markTelemetryAnnounced, readState, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
@@ -311,6 +311,10 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   if (parts.memory && parts.recalled) {
     out.push(paint(recalledLine(parts.recalled.entries.length, parts.recalled.deliveredTokens), 114, color));
   }
+  // Stale memory is recalled as confidently as fresh memory, so the one state
+  // worth a warning is a queue that has stopped turning evidence into entries.
+  const health = parts.memory ? memoryHealthLine(db) : null;
+  if (health) out.push(paint(health, AMBER, color));
   if (parts.quiz) out.push(`Learning ${counts.learning} · Mastered ${counts.mastered} · Due ${counts.due}`);
 
   if (parts.overrides.length > 0) {

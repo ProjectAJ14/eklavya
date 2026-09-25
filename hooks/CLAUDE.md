@@ -55,7 +55,11 @@ SessionStart closes remaining work except on compaction, which uses the ordinary
 from source when changing or documenting them.
 
 An observer batch is queued for a detached `eklavya memory process`, only after
-winning the machine-wide reservation and only while the queue is unpaused.
+winning the machine-wide reservation and only while the queue is unpaused. A
+paused queue instead gets local stand-in observations each seam and, at most
+every 30 minutes, a detached `--probe-paused` worker that resumes only when
+`claude auth status` or the quota cooldown says the cause is fixed. Nothing is
+captured or batched outside a git checkout.
 Never wait on inference in a hook. `capture-tool` records subagent evidence;
 prompt and Stop memory seams are parent-only.
 

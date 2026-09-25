@@ -74,7 +74,8 @@ eklavya memory status
 |---|---|
 | `capture: off` | Review your [memory settings](/docs/configuration/). If you kept Claude Mem during installation, Eklavya intentionally does not record. |
 | Pending evidence but no entries | Run `eklavya memory process` to summarize pending work. |
-| `queue:` shows paused jobs | The `paused:` line names the cause: resolve provider login, quota or missing executable, then run `eklavya memory process` to requeue the paused work. It does not resume automatically. |
+| `queue:` shows paused jobs, or the banner says `Memory paused` | The `paused:` line names the cause: resolve provider login, quota or missing executable. The queue checks at most every 30 minutes and resumes by itself once the login is back or an hour after a usage limit; run `eklavya memory process` to resume now. Until then, recall uses local stand-in observations. |
+| Banner says `Memory behind` | Jobs have waited more than six hours. Run `eklavya doctor`; it names a stopped worker or failing provider. |
 | `spool drops:` above zero | Evidence did not reach the database. `eklavya memory replay` can recover available evidence from this checkout's Claude Code transcripts. It also backfills work from before installation. |
 | Search misses another project's work | Add `--all-projects` to the search. Searches otherwise use the current checkout. |
 | Imported entries are `unplaced` | Rerun the import from the source database; use `--map-here` for a project name that cannot be resolved. See [Moving from Claude Mem](/docs/migrating/). |

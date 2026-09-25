@@ -66,7 +66,7 @@ Run project-specific commands from inside the checkout. Memory maintenance does 
 | `restore <file>` | Adds missing memory from an export and rebuilds its search data. Repeating the restore adds no duplicates. |
 | `sync push\|pull\|status [--target <dir>]` | Exchanges memory entries, tags and deletions through a shared folder. Requires `sync.enabled` and a target. Learning history, raw evidence and receipts do not sync. |
 
-If processing paused because of login, quota or a missing `claude` command, fix that problem and run `eklavya memory process`. Automatic seams leave paused jobs alone. Only one worker runs at a time; it handles up to four batches before handing remaining ready jobs to a fresh worker. To keep model processing off, clear `providers.observer`.
+If processing paused because of login, quota or a missing `claude` command, fix that problem and run `eklavya memory process` to resume now. Otherwise, automatic seams check at most every 30 minutes and resume once the login is back or an hour has passed since a usage limit; meanwhile they write local observations for waiting work. See [when the model is unavailable](/docs/memory/#when-the-model-is-unavailable). Only one worker runs at a time; it handles up to four batches before handing remaining ready jobs to a fresh worker. To keep model processing off, clear `providers.observer`.
 
 ```bash
 eklavya memory search "refresh cookie"
@@ -143,6 +143,6 @@ The report checks the runtime, SQLite driver, plugin registration, both chat ski
 | Malformed configuration | Fix the named file; the installer will not overwrite it. |
 | Broken concept pack | Fix that pack; the rest still loads. |
 | Installed terminal gate lacks `jq` or `sqlite3` | Install the missing dependency. Until then, that gate lets commits through. |
-| Paused memory queue | Fix the reported login, quota or command problem, then run `eklavya memory process`. |
+| Paused memory queue | Fix the reported login, quota or command problem. It resumes by itself within 30 minutes, or run `eklavya memory process` to resume now. |
 
 `doctor` exits nonzero for failed checks and names the repair. A broken pack is reported without failing the run. It also opens/initialises the database and applies packs, so it is a diagnostic command with those limited writes. Hooks fail open to protect your session; this report distinguishes a quiet session from a broken installation.

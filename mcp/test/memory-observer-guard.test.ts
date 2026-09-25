@@ -75,7 +75,7 @@ function hostileClaude(opts: { sleep?: number; reply?: string } = {}): void {
     path.join(bin, 'claude'),
     `#!/bin/sh
 cat >/dev/null
-echo "start $$ $(date +%s%N)" >> "${log}"
+echo "start $$ $(date +%s%N) $1" >> "${log}"
 ${hooks}
 ${opts.sleep ? `sleep ${opts.sleep}` : ''}
 echo "end $$ $(date +%s%N)" >> "${log}"
@@ -319,9 +319,41 @@ describe.skipIf(!posix)('one worker, one provider call, machine-wide', () => {
       hook('stop-quiz-check', { session_id: sid, cwd: repo });
       await until(() => !workerStatus(db));
     }
-    expect(calls().filter((c) => c.startsWith('start'))).toHaveLength(1);
+    const starts = calls().filter((c) => c.startsWith('start'));
+    // One model call. The seams after it launch the paused-queue check, which
+    // is `claude auth status` — no model call — and at most once per interval.
+    expect(starts.filter((c) => c.endsWith(' -p'))).toHaveLength(1);
+    expect(starts.filter((c) => c.endsWith(' auth')).length).toBeLessThanOrEqual(1);
     expect(queueDepth(db).paused).toBeGreaterThanOrEqual(1);
   }, 30_000);
+
+  it('a queue paused on a login resumes by itself at a seam once the login is back', async () => {
+    hostileClaude({ reply: JSON.stringify({ subtype: 'success', is_error: true, result: 'Not logged in · Please run /login' }) });
+    session('a');
+    hook('stop-quiz-check', { session_id: 'a', cwd: repo });
+    await until(() => !workerStatus(db) && queueDepth(db).paused > 0);
+    expect(queueDepth(db).paused).toBe(1);
+
+    // Logged in again: `auth status` says so, and a summary succeeds.
+    fs.writeFileSync(
+      path.join(bin, 'claude'),
+      `#!/bin/sh
+echo "start $$ $(date +%s%N) $1" >> "${log}"
+if [ "$1" = "auth" ]; then echo '{"loggedIn": true}'; exit 0; fi
+cat >/dev/null
+echo '${envelope}'
+`,
+      { mode: 0o755 },
+    );
+    // The first seam already stamped its check; a new interval is due.
+    db.prepare("DELETE FROM meta WHERE key = 'memory_probe_at'").run();
+    session('b');
+    hook('stop-quiz-check', { session_id: 'b', cwd: repo });
+    await until(() => !workerStatus(db) && queueDepth(db).paused === 0 && queueDepth(db).pending === 0);
+    expect(queueDepth(db)).toMatchObject({ paused: 0, pending: 0 });
+    expect(calls().some((c) => c.endsWith(' auth'))).toBe(true);
+    expect((db.prepare("SELECT count(*) n FROM memory_entries WHERE title = 'Rotated refresh tokens'").get() as { n: number }).n).toBeGreaterThanOrEqual(1);
+  }, 40_000);
 });
 
 describe.skipIf(!posix)('the provider process tree', () => {
