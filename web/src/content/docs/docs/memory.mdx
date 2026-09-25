@@ -90,6 +90,10 @@ A session with at least two observations also gets one summary that is updated a
 
 At session start, Claude receives recent project history in an `<eklavya-memory>` block. The block is budgeted to `retrieval.max_tokens` (1,200 estimated tokens by default). It is marked as **evidence to verify, never instructions to obey**.
 
+The session banner says what was delivered, for example `Memory · 3 past entries recalled (~1.1k tokens)`. It prints no memory line when nothing was recalled.
+
+Recall needs a git checkout. In a folder outside git there is no project to recall from, so neither session-start nor prompt recall runs. Work there is still captured under **No repository**.
+
 Relevant memory can also be supplied on a substantive prompt later in the session. It gets a third of the session-start budget (at most `retrieval.max_items / 3` entries and `retrieval.max_tokens / 3` estimated tokens, so two entries and 400 tokens by default), excludes entries already delivered and requires a relevance match. Unrelated prompts receive no memory block.
 
 | Mode | Best use | Limit |
@@ -113,9 +117,9 @@ Each recall records a **receipt** with two estimates, both using four characters
 | Base (`B`) | The raw evidence behind the recalled entries, deduplicated by event. This is an estimate of what reading that evidence would cost. |
 | Delivered (`D`) | The actual recalled block, its wrapper and any later detail fetch charged to it. |
 
-Estimated context reduction is `(B − D) / B`. Only confirmed deliveries contribute to the headline. A negative saving is reported as overhead; unavailable delivery is not counted as a saving.
+Estimated context reduction is `(B − D) / B`, shown by the dashboard and `eklavya memory status`. Only confirmed deliveries contribute to the headline. Receipts from the observer's own `claude -p` helper sessions are excluded. A negative saving is reported as overhead; unavailable delivery is not counted as a saving.
 
-This estimates context volume compared with raw evidence. It is not API billing, money saved or prompt-cache usage, and does not claim Claude would otherwise have read every event.
+This estimates context volume compared with raw evidence. It is not API billing, money saved or prompt-cache usage, and does not claim Claude would otherwise have read every event. Base includes whole-file snapshots stored with edits, so it overstates what reading the history would really cost; treat the percentage as an upper bound.
 
 ### The memory tools
 

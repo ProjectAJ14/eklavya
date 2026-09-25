@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import { learningCounts, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
 import { appendEvent, insertEntry } from '../src/memory/store.js';
 import { estimateTokens } from '../src/memory/tokens.js';
+import { GLOBAL_PROJECT } from '../src/store.js';
 
 const PROJECT = '/tmp/demo-repo';
 const OTHER = '/tmp/other-repo';
@@ -93,6 +94,13 @@ describe('recall', () => {
     expect(items.map((i) => i.entry_id).sort((a, b) => a - b)).toEqual([entryA, entryB].sort((a, b) => a - b));
   });
 
+  it('recalls nothing, and records no receipt, outside a checkout', () => {
+    insertEntry(db, { project: GLOBAL_PROJECT, title: 'Some other folder', narrative: 'Unrelated work.' });
+    const result = recall(db, config(), { project: GLOBAL_PROJECT });
+    expect(result.block).toBeNull();
+    expect(db.prepare('SELECT count(*) AS n FROM context_receipts').get()).toEqual({ n: 0 });
+  });
+
   it('keeps another codebase out unless cross_project was asked for', () => {
     insertEntry(db, { project: PROJECT, title: 'Refresh cookie rotation', narrative: 'Rotation of the refresh cookie.' });
     insertEntry(db, { project: OTHER, title: 'Refresh cookie rotation elsewhere', narrative: 'Rotation in another repo.' });
@@ -108,17 +116,8 @@ describe('recall', () => {
 });
 
 describe('the startup display', () => {
-  it('reports no saving until something was reused', () => {
-    const before = startupDisplay(db, PROJECT);
-    expect(before.savings.kind).toBe('none');
-    expect(before.counts).toMatchObject({ learning: 0, mastered: 0, due: 0 });
-
-    const event = addEvent('e1', 'z'.repeat(4000));
-    insertEntry(db, { project: PROJECT, title: 'Short note', narrative: 'Brief.', eventIds: [event] });
-    recall(db, config(), { project: PROJECT });
-
-    const after = startupDisplay(db, PROJECT);
-    expect(after.savings.kind).toBe('saving');
+  it('reports the learning counts of a fresh project as zero', () => {
+    expect(startupDisplay(db, PROJECT).counts).toMatchObject({ learning: 0, mastered: 0, due: 0 });
   });
 });
 

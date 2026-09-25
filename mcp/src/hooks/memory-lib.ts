@@ -12,7 +12,7 @@ import { drainSpool } from '../memory/capture.js';
 import { batchSession, hasClaimableJob, openSessions } from '../memory/store.js';
 import { processPending, pruneIfDue, writeSessionSummary } from '../memory/worker.js';
 import { parseStamp } from '../time.js';
-import { recall } from '../memory/recall.js';
+import { recall, type RecallResult } from '../memory/recall.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
 import { countEntries } from '../memory/store.js';
 import { queueDepth } from '../memory/worker.js';
@@ -145,7 +145,7 @@ export function replaySpool(db: DB): void {
  * part of producing it: a block delivered without one is a saving that cannot
  * be checked later, so `recall` does both or neither.
  */
-export function recallBlock(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity, scope: string): string | null {
+export function recallBlock(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity, scope: string): RecallResult | null {
   try {
     if (!resolved.config.memory.enabled) return null;
     const result = recall(db, resolved.config, {
@@ -156,7 +156,7 @@ export function recallBlock(db: DB, resolved: ResolvedConfig, identity: Evidence
       // delivery is confirmed rather than merely prepared.
       delivery: 'confirmed',
     });
-    return result.block;
+    return result.block ? result : null;
   } catch {
     return null;
   }

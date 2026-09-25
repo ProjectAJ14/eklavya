@@ -29,7 +29,7 @@ import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './stor
 import { loadConfig, DEFAULT_CONFIG, type EklavyaConfig } from './config.js';
 import { dbPath, DEFAULT_PORT } from './paths.js';
 import { listArtifacts, resolveArtifact } from './artifacts.js';
-import { receiptTotals } from './memory/store.js';
+import { NOT_HELPER_RECEIPT, receiptTotals } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
 import { droppedCount } from './memory/spool.js';
@@ -248,7 +248,7 @@ function reuseSummary(db: DB): Record<string, unknown> {
       `SELECT delivery, count(*) AS n,
               COALESCE(SUM(base_tokens), 0) AS base,
               COALESCE(SUM(delivered_tokens), 0) AS delivered
-       FROM context_receipts GROUP BY delivery`,
+       FROM context_receipts WHERE ${NOT_HELPER_RECEIPT} GROUP BY delivery`,
     ),
     receipts_shown: Math.min(totals.receipts, RECEIPT_LIMIT),
     rows: many(
@@ -261,7 +261,7 @@ function reuseSummary(db: DB): Record<string, unknown> {
                 WHERE i.receipt_id = r.id AND i.stage = 'detail') AS detail_tokens,
               (SELECT count(*) FROM context_receipt_items i
                 WHERE i.receipt_id = r.id AND i.stage = 'detail') AS detail_items
-       FROM context_receipts r ORDER BY r.id DESC LIMIT ?`,
+       FROM context_receipts r WHERE ${NOT_HELPER_RECEIPT} ORDER BY r.id DESC LIMIT ?`,
       RECEIPT_LIMIT,
     ),
   };

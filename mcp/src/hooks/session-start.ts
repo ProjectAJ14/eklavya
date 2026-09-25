@@ -11,8 +11,8 @@ import { isCowork, withSurfaceNote } from '../surface.js';
 import { recordBaseline } from './changes-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
 import { flushAtSeam, identityOf, recallBlock, record, replaySpool } from './memory-lib.js';
-import { startupDisplay } from '../memory/recall.js';
-import { savingsLine } from '../memory/tokens.js';
+import { startupDisplay, type RecallResult } from '../memory/recall.js';
+import { recalledLine } from '../memory/tokens.js';
 import { dialParts, paint } from '../statusline.js';
 import { DEFAULT_PORT } from '../paths.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
@@ -103,6 +103,7 @@ await run(async (input) => {
   // holds, mark the seam, and drain any batch the last session left queued.
   const identity = identityOf(input, cwd, sid);
   const memoryContext: string[] = [];
+  let recalled: RecallResult | null = null;
   const memoryEnabled = resolved.config.memory.enabled;
   if (memoryEnabled) {
     replaySpool(db);
@@ -123,8 +124,8 @@ await run(async (input) => {
       title: input.source === 'resume' ? 'session resumed' : 'session started',
       body: `source=${input.source ?? 'startup'} cwd=${cwd}`,
     });
-    const block = recallBlock(db, resolved, identity, 'session_start');
-    if (block) memoryContext.push(block);
+    recalled = recallBlock(db, resolved, identity, 'session_start');
+    if (recalled?.block) memoryContext.push(recalled.block);
   }
 
   if (!quiz.enabled) {
@@ -143,6 +144,7 @@ await run(async (input) => {
       banner(db, shown, {
         project: identity.project,
         memory: true,
+        recalled,
         dials: ['memory on', 'questions off'],
         overrides: resolved.overrides,
         dashboard: await dashboardLive(),
@@ -183,6 +185,7 @@ await run(async (input) => {
     banner(db, shown, {
       project: identity.project,
       memory: resolved.config.memory.enabled,
+      recalled,
       dials: dialParts(resolved.config, levelLabel),
       overrides: resolved.overrides,
       dashboard: await dashboardLive(),
@@ -257,6 +260,8 @@ function emit(shown: string[], context: string[]): number {
 interface BannerParts {
   project: string;
   memory: boolean;
+  /** What this session start just handed the model, if anything. */
+  recalled: RecallResult | null;
   dials: string[];
   overrides: string[];
   /** True when `eklavya dashboard` is already serving on its default port. */
@@ -282,14 +287,13 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   // NO_COLOR is the cross-tool convention; the host renders ANSI in systemMessage.
   const color = !process.env.NO_COLOR;
   const dim = (text: string) => (color ? `\u001b[2m${text}\u001b[0m` : text);
-  const { savings, counts } = startupDisplay(db, parts.project);
+  const { counts } = startupDisplay(db, parts.project);
   out.push(`Eklavya active · ${parts.dials.join(' · ')}`);
-  // Only a real saving earns a line. "Nothing reused yet" every morning of a
-  // first week is words about nothing; an overhead is rare and worth admitting.
-  if (parts.memory && savings.kind === 'saving') {
-    out.push(paint(`${savings.percent}% less context from memory reuse`, 114, color));
-  } else if (parts.memory && savings.kind === 'overhead') {
-    out.push(savingsLine(savings));
+  // What was recalled, not a percentage saved: the saving is a counterfactual
+  // against raw evidence the agent would never have re-read, so the banner
+  // states the delivery it can prove. Nothing recalled earns no line.
+  if (parts.memory && parts.recalled) {
+    out.push(paint(recalledLine(parts.recalled.entries.length, parts.recalled.deliveredTokens), 114, color));
   }
   if (parts.quiz) out.push(`Learning ${counts.learning} · Mastered ${counts.mastered} · Due ${counts.due}`);
 

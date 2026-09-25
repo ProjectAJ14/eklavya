@@ -9,6 +9,8 @@ import { conceptBySlug, gradeConcept, logSessionConcept, syncGate } from '../src
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { getCurrentSession, setCurrentSession, setSessionOff } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
+import { insertEntry } from '../src/memory/store.js';
+import { GLOBAL_PROJECT } from '../src/store.js';
 
 // The built hooks, not the sources: these are what the plugin actually runs,
 // and `pretest` builds them. They are Node rather than shell so that Windows,
@@ -347,6 +349,25 @@ describe('SessionStart output', () => {
       /Dashboard (http:\/\/127\.0\.0\.1:\d+ · Observations \S+#\/memory|& observations: eklavya dashboard)/,
     );
     expect(res.shown).not.toMatch(/Your savings|from memory reuse/);
+  });
+
+  it('says what it recalled, not a percentage saved', () => {
+    checkout();
+    insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated on every refresh.' });
+    const res = runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart' }, { NO_COLOR: '1' });
+    expect(res.shown).toMatch(/^Memory · 1 past entry recalled \(~\d+ tokens\)$/m);
+    expect(res.shown).not.toMatch(/less context/);
+    expect(res.context).toContain('<eklavya-memory');
+  });
+
+  // The bug this pins: a folder without git fell into the '*' bucket every
+  // other such folder shares, so a brand-new folder was handed their history
+  // and greeted with their savings.
+  it('recalls nothing into a folder outside a checkout', () => {
+    insertEntry(db, { project: GLOBAL_PROJECT, title: 'Work in some other folder', narrative: 'Not this one.' });
+    const res = sessionStart();
+    expect(res.shown).not.toMatch(/^Memory ·|less context/m);
+    expect(res.context).not.toContain('<eklavya-memory');
   });
 
   // The bug this pins: everything used to go out as plain stdout, which on

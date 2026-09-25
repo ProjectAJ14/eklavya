@@ -720,7 +720,10 @@ export interface ReceiptTotals {
 }
 
 export function receiptTotals(db: DB, project?: string | null, sinceDays?: number): ReceiptTotals {
-  const where: string[] = [];
+  // The observer's own `claude -p` sessions once ran these hooks (the 1.24.0
+  // incident) and left thousands of receipts for recalls into a summariser.
+  // They are not the developer's reuse, so no total counts them.
+  const where: string[] = [NOT_HELPER_RECEIPT];
   const args: unknown[] = [];
   if (project) {
     where.push('project = ?');
@@ -736,7 +739,7 @@ export function receiptTotals(db: DB, project?: string | null, sinceDays?: numbe
               COALESCE(SUM(CASE WHEN delivery = 'confirmed' THEN delivered_tokens ELSE 0 END), 0) AS delivered,
               COUNT(*) AS receipts,
               COALESCE(SUM(CASE WHEN delivery = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed
-       FROM context_receipts ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`,
+       FROM context_receipts WHERE ${where.join(' AND ')}`,
     )
     .get(...args) as ReceiptTotals;
   return row;
@@ -831,8 +834,10 @@ export function resolveCandidate(
  * pasting summariser input while working on Eklavya itself, and `discard`
  * hard-deletes a matched session's memories, finished or not.
  */
-export const HELPER_SESSION = `b.session_id IN (
-  SELECT session_id FROM evidence_events WHERE kind = 'prompt' AND body LIKE '<evidence project=%')`;
+const HELPER_PROMPT_SESSIONS = "SELECT session_id FROM evidence_events WHERE kind = 'prompt' AND body LIKE '<evidence project=%'";
+export const HELPER_SESSION = `b.session_id IN (${HELPER_PROMPT_SESSIONS})`;
+/** A `context_receipts` row that is not from an observer helper session. */
+export const NOT_HELPER_RECEIPT = `(session_id IS NULL OR session_id NOT IN (${HELPER_PROMPT_SESSIONS}))`;
 
 const UNFINISHED = "j.status IN ('pending', 'claimed', 'paused', 'failed', 'quarantined')";
 
