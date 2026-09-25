@@ -1,3 +1,10 @@
+# [1.33.0](https://github.com/ProjectAJ14/eklavya/compare/v1.32.1...v1.33.0) (2026-09-25)
+
+
+### Features
+
+* **artifacts:** brand pages with the Eklavya mark and a link home ([200a0b7](https://github.com/ProjectAJ14/eklavya/commit/200a0b7e7d60c7463c3569cc93f7596b81d51b59))
+
 ## [1.32.1](https://github.com/ProjectAJ14/eklavya/compare/v1.32.0...v1.32.1) (2026-09-25)
 
 
