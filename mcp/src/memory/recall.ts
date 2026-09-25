@@ -1,11 +1,10 @@
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isDue, isKnown } from '../srs.js';
-import { projectKey } from '../store.js';
-import { ESTIMATOR, estimateTokens, savingsFrom, type Savings } from './tokens.js';
+import { GLOBAL_PROJECT, projectKey } from '../store.js';
+import { ESTIMATOR, estimateTokens } from './tokens.js';
 import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
 import { entryEvents, recordReceipt, timeline, type EntryRow } from './store.js';
-import { receiptTotals } from './store.js';
 import { defangFence } from './privacy.js';
 
 /**
@@ -140,6 +139,10 @@ function baseTokensFor(db: DB, entries: EntryRow[]): Map<number, number> {
 export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): RecallResult {
   const empty: RecallResult = { block: null, receiptId: null, entries: [], baseTokens: 0, deliveredTokens: 0 };
   if (!config.memory.enabled) return empty;
+  // Outside a checkout there is no project, only the shared '*' bucket every
+  // folder without git falls into. Recalling from it hands a new folder some
+  // other folder's history.
+  if (opts.project === GLOBAL_PROJECT) return empty;
 
   const limit = opts.maxItems ?? config.retrieval.max_items;
   const maxTokens = opts.maxTokens ?? config.retrieval.max_tokens;
@@ -319,25 +322,18 @@ function reposFor(db: DB, project: string): string[] {
 }
 
 export interface StartupDisplay {
-  savings: Savings;
   counts: LearningCounts;
 }
 
 /**
- * The numbers behind the session-start banner (PRD UX-01): the reuse saving and
- * this project's learning counts. The wording lives in the hook. Nothing here
- * needs a provider call or an index rebuild — every number is a committed value
- * already in the database.
+ * The numbers behind the session-start banner (PRD UX-01): this project's
+ * learning counts. The wording lives in the hook. Nothing here needs a provider
+ * call or an index rebuild — every number is a committed value already in the
+ * database.
  */
 export function startupDisplay(db: DB, project: string, now = new Date()): StartupDisplay {
-  const totals = receiptTotals(db, project);
-  const savings = savingsFrom({
-    baseTokens: totals.base,
-    deliveredTokens: totals.delivered,
-    delivery: totals.confirmed > 0 ? 'confirmed' : 'unknown',
-  });
   const counts = learningCounts(db, project, now);
-  return { savings, counts };
+  return { counts };
 }
 
 /**

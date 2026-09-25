@@ -65,3 +65,12 @@ export function savingsLine(s: Savings): string {
       return `Your savings: ${s.percent}% less context from reuse (estimated)`;
   }
 }
+
+/**
+ * The banner line for one session start's recall: what was delivered, which a
+ * receipt proves, rather than a saving against a counterfactual it cannot.
+ */
+export function recalledLine(entries: number, tokens: number): string {
+  const size = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}k` : String(tokens);
+  return `Memory · ${entries} past ${entries === 1 ? 'entry' : 'entries'} recalled (~${size} tokens)`;
+}

@@ -25,7 +25,7 @@ import {
 import { hybridSearch, keywordSearch, semanticSearch } from '../src/memory/search.js';
 import { eventUid } from '../src/memory/identity.js';
 import { redact, pathExcluded, isOwnTraffic } from '../src/memory/privacy.js';
-import { savingsFrom, savingsLine } from '../src/memory/tokens.js';
+import { recalledLine, savingsFrom, savingsLine } from '../src/memory/tokens.js';
 
 const PROJECT = '/tmp/demo-repo';
 
@@ -255,6 +255,28 @@ describe('savings receipts', () => {
     // The index line stays on the receipt; the detail is charged on top of it,
     // which is the point -- the episode gets more expensive, not cheaper.
     expect(totals.delivered).toBe(105);
+  });
+
+  it("leaves the observer's own helper sessions out of every total", () => {
+    const entry = insertEntry(db, { project: PROJECT, title: 'A thing', narrative: 'x' });
+    event('<evidence project="/tmp/demo-repo">summarise this</evidence>', { sessionId: 'helper', kind: 'prompt' });
+    const receipt = (sessionId: string, sourceTokens: number) =>
+      recordReceipt(db, {
+        project: PROJECT,
+        sessionId,
+        scope: 'session_start',
+        method: 'chars4-v1',
+        delivery: 'confirmed',
+        items: [{ entryId: entry, sourceTokens, sentTokens: 10 }],
+      });
+    receipt('helper', 5000);
+    receipt('s1', 100);
+    expect(receiptTotals(db, PROJECT)).toMatchObject({ base: 100, delivered: 10, receipts: 1 });
+  });
+
+  it('states a recall as what was delivered', () => {
+    expect(recalledLine(1, 240)).toBe('Memory · 1 past entry recalled (~240 tokens)');
+    expect(recalledLine(3, 1130)).toBe('Memory · 3 past entries recalled (~1.1k tokens)');
   });
 
   it('never dresses an unconfirmed or negative result as a saving', () => {
