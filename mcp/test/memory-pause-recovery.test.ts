@@ -140,7 +140,7 @@ describe('the banner line for memory that stopped keeping up', () => {
 });
 
 describe('capture outside a git checkout', () => {
-  it('records nothing, because recall never serves that project', () => {
+  it('records nothing when only this project is searched', () => {
     const resolved = { config: structuredClone(DEFAULT_CONFIG) } as ResolvedConfig;
     const identity = { project: GLOBAL_PROJECT, checkout: null, sessionId: 's1', agentId: null, host: 'claude-code' };
     expect(record(db, resolved, identity, { kind: 'prompt', title: 'prompt', body: 'hello' })).toBe(false);
@@ -148,6 +148,13 @@ describe('capture outside a git checkout', () => {
 
     const inRepo = { ...identity, project: PROJECT, checkout: PROJECT };
     expect(record(db, resolved, inRepo, { kind: 'prompt', title: 'prompt', body: 'hello' })).toBe(true);
+  });
+
+  it('records it when cross-project search can serve it', () => {
+    const resolved = { config: structuredClone(DEFAULT_CONFIG) } as ResolvedConfig;
+    resolved.config.retrieval.cross_project = true;
+    const identity = { project: GLOBAL_PROJECT, checkout: null, sessionId: 's1', agentId: null, host: 'claude-code' };
+    expect(record(db, resolved, identity, { kind: 'prompt', title: 'prompt', body: 'hello' })).toBe(true);
   });
 });
 

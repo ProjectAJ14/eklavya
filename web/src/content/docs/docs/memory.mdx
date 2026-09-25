@@ -34,7 +34,7 @@ Privacy checks run before evidence is stored. Built-in path exclusions are subst
 secrets.  .eklavya/knowledge.db
 ```
 
-Nothing is captured in a folder outside a git checkout: recall never serves that folder, so its evidence would only take up space. An excluded read or edit is dropped when it has no remaining allowed file. Eklavya's own tool calls, CLI traffic and checkpoint messages are excluded to prevent its output feeding back into memory.
+Nothing is captured in a folder outside a git checkout unless `retrieval.cross_project` is on: only a cross-project search serves that folder, so otherwise its evidence would only take up space. An excluded read or edit is dropped when it has no remaining allowed file. Eklavya's own tool calls, CLI traffic and checkpoint messages are excluded to prevent its output feeding back into memory.
 
 Secret detection redacts private keys, URL passwords, common provider tokens, JWTs, bearer tokens and secret assignments such as `DB_PASSWORD=…`. It preserves markers such as `[redacted:github-token]` so the surrounding event remains understandable. The built-in rules also apply to saved notes and imported entries.
 

@@ -361,11 +361,12 @@ export function startupDisplay(db: DB, project: string, now = new Date()): Start
  * `<pasted_content>`. Searching on those matched whatever the pasted log or
  * the subagent's report happened to mention — a curl command recalled
  * authentication notes, a hand-back recalled a feature from another branch. A
- * tagged block is dropped whole; what is left is what the developer said.
+ * tagged block is dropped whole; what is left is what the developer said. Only
+ * the host's own tags: a prompt about `<Button>Save</Button>` keeps its markup.
  */
 export function ownWords(prompt: string): string {
   return prompt
-    .replace(/<([a-z][\w-]*)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<(agent-message|task-notification|pasted_content)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
     .replace(/^\s*Another Claude session sent a message:\s*/i, '')
     .replace(/\s+/g, ' ')
     .trim();

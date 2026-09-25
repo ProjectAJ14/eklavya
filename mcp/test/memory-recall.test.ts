@@ -283,5 +283,7 @@ describe('ownWords', () => {
     expect(ownWords('Another Claude session sent a message: <agent-message from="a">report</agent-message>')).toBe('');
     expect(ownWords('<task-notification>done</task-notification> now fix the test')).toBe('now fix the test');
     expect(ownWords('compare a < b and b > c')).toBe('compare a < b and b > c');
+    expect(ownWords('why does <Button>Save</Button> fire twice')).toBe('why does <Button>Save</Button> fire twice');
+    expect(ownWords('<pasted_content id="x">log</pasted_content> explain')).toBe('explain');
   });
 });
