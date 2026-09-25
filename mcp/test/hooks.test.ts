@@ -1137,6 +1137,17 @@ function earlierDecline(slug: string, due = true): void {
 }
 
 describe('Stop hook — the project backlog', () => {
+  it('session start clears logged work an earlier session never asked about', () => {
+    logConcepts(['pkce', 'csrf'], 'earlier-session');
+    answer('csrf', 0, 'earlier-session');
+    db.prepare("UPDATE session_concepts SET ts = datetime('now', '-2 days')").run();
+    sessionStart();
+    const left = db
+      .prepare("SELECT c.slug FROM session_concepts JOIN concepts c ON c.id = concept_id WHERE session_id = 'earlier-session'")
+      .all();
+    expect(left).toEqual([{ slug: 'csrf' }]);
+  });
+
   it('asks it again when this session has nothing of its own', () => {
     earlierDecline('pkce');
     const res = stop();
