@@ -1110,9 +1110,10 @@ const SECURITY_HEADERS = {
  * cannot read `/api/state` or anything else here, since a fetch from a null
  * origin gets no CORS grant. The web fonts its template links are the one
  * thing allowed off the machine; without them it falls back to system faces.
+ * A link out (the Eklavya lockup) opens in a normal, unsandboxed tab.
  */
 const ARTIFACT_CSP = [
-  'sandbox allow-scripts allow-modals allow-downloads allow-popups',
+  'sandbox allow-scripts allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox',
   "default-src 'none'",
   "script-src 'unsafe-inline'",
   "style-src 'unsafe-inline' https://fonts.googleapis.com",
