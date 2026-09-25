@@ -46,6 +46,11 @@ is named `max_questions_per_task`. Explicit practice and enforced gate retries
 can behave differently; see [The dials](/docs/dials/) and
 [The commit gate](/docs/commit-gate/).
 
+Concepts the budget does not reach are dropped once the session is over;
+Eklavya does not keep a pile of questions you were never shown. A question you
+decline, do not know or get wrong is scheduled for review a day later, and the
+next quiz in that project asks it again after that session's own work.
+
 ## A checkpoint example
 
 ```text

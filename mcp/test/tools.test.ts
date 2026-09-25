@@ -443,21 +443,35 @@ describe('get_session_quiz_plan', () => {
 
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.concepts.map((c: any) => c.slug)).toContain('pkce');
-    expect(plan.concepts.find((c: any) => c.slug === 'pkce').reason).toBe('domain_review');
+    expect(plan.concepts.find((c: any) => c.slug === 'pkce').reason).toBe('project_review');
   });
 
-  // --- the backlog: work that was logged and never asked about ---------------
-  // Spaced repetition cannot reach these. (c) above joins `mastery`, and a
-  // mastery row is written only by record_attempt -- so a concept the budget
-  // never got to has no next_review to come due on and would be offered again
-  // never. That is the leak this source closes.
+  // --- the backlog: only what was asked and not answered ---------------------
+  // A concept enters the backlog by being asked. A decline, a blank or a miss
+  // resets its review to a day out, and the next quiz in this project asks it
+  // again. Work that was logged and never asked is not carried anywhere.
 
-  it('offers work an earlier session logged and no question ever reached', () => {
-    inProject();
-    call(logSessionConcepts, {
-      session_id: 'earlier-session',
-      concepts: [{ slug: 'pkce', context: 'added the code_verifier in login.ts' }],
+  function overdue(slug: string) {
+    db.prepare(
+      'UPDATE mastery SET next_review = ? WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?)',
+    ).run(new Date(Date.now() - 60_000).toISOString(), slug);
+  }
+
+  function decline(slug: string, session = 'earlier-session') {
+    call(recordAttempt, {
+      session_id: session,
+      slug,
+      question: `about ${slug}`,
+      grade: 0,
+      difficulty: 2,
+      outcome: 'declined',
     });
+  }
+
+  it('asks a question the learner declined earlier in this project, in any domain', () => {
+    inProject();
+    decline('git-commit');
+    overdue('git-commit');
 
     logAuthWork();
     master('httponly-cookies');
@@ -465,89 +479,49 @@ describe('get_session_quiz_plan', () => {
     master('csrf');
 
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
-    expect(plan.concepts.map((c: any) => c.slug)).toContain('pkce');
-    expect(plan.concepts.find((c: any) => c.slug === 'pkce').reason).toBe('backlog');
+    expect(plan.concepts.find((c: any) => c.slug === 'git-commit')?.reason).toBe('project_review');
   });
 
-  it('never re-offers backlog that some earlier session did ask about', () => {
+  it('waits for the review date before asking a declined question again', () => {
+    inProject();
+    decline('git-commit');
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.questions_needed).toBe(0);
+  });
+
+  it('never carries over work an earlier session logged and no question reached', () => {
     inProject();
     call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'pkce' }] });
-    // Asked and answered there, which is the whole difference. `alreadyAsked` is
-    // scoped to the current session, so the source carries its own global filter.
-    call(recordAttempt, {
-      session_id: 'earlier-session',
-      slug: 'pkce',
-      question: 'about pkce',
-      answer: 'a',
-      grade: 4,
-      difficulty: 2,
-    });
+
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(0);
 
     logAuthWork();
     master('httponly-cookies');
     master('jwt-structure');
     master('csrf');
-
-    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
-    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('pkce');
+    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map((c: any) => c.slug);
+    expect(slugs).not.toContain('pkce');
   });
 
-  it('puts the session the developer is actually in ahead of the backlog', () => {
+  it('puts the session the developer is actually in ahead of review', () => {
     inProject();
     configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 2 });
-    call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'pkce' }] });
+    decline('pkce');
+    overdue('pkce');
     logAuthWork();
 
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
     expect(plan.concepts).toHaveLength(2);
-    expect(plan.concepts.map((c: any) => c.slug)).not.toContain('pkce');
     expect(plan.concepts.every((c: any) => c.reason === 'unmastered')).toBe(true);
   });
 
-  it('keeps the backlog inside the domains this session touched', () => {
-    inProject();
-    // One database serves every project, and `session_concepts` has no repo
-    // column, so without this scope a web-auth session gets asked about the git
-    // work it logged last month -- while `framing` still tells the tutor to ground
-    // the question in this session's diff, which that concept is not in.
-    call(logSessionConcepts, {
-      session_id: 'earlier-session',
-      concepts: [{ slug: 'git-commit' }, { slug: 'pkce' }],
-    });
+  it('outside a project, serves review only from the domains this session touched', () => {
+    // Every session with no git root shares one project key, so "this project"
+    // would mean any folder at all.
+    decline('git-commit');
+    overdue('git-commit');
 
-    logAuthWork();
-    master('httponly-cookies');
-    master('jwt-structure');
-    master('csrf');
-
-    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map(
-      (c: any) => c.slug,
-    );
-    expect(slugs).toContain('pkce');
-    expect(slugs).not.toContain('git-commit');
-  });
-
-  it('falls back to the whole project backlog when this session logged nothing', () => {
-    inProject();
-    // No diff to contradict, so there is nothing for the scope to protect and the
-    // debt is the only thing worth asking about.
-    call(logSessionConcepts, {
-      session_id: 'earlier-session',
-      concepts: [{ slug: 'git-commit' }],
-    });
-
-    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
-    expect(plan.concepts.map((c: any) => c.slug)).toContain('git-commit');
-  });
-
-  it('carries no backlog over outside a project, but still asks about this session\'s work', () => {
-    // Every session with no git root shares one project key, so "an earlier
-    // session here" would mean any folder at all -- a session in ~ was asked
-    // about Flutter work logged in an unrelated scratch directory.
-    call(logSessionConcepts, { session_id: 'earlier-session', concepts: [{ slug: 'git-commit' }] });
-
-    const empty = call<any>(getSessionQuizPlan, { session_id: SESSION });
-    expect(empty.questions_needed).toBe(0);
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(0);
 
     logAuthWork();
     const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts.map((c: any) => c.slug);
@@ -555,14 +529,13 @@ describe('get_session_quiz_plan', () => {
     expect(slugs).not.toContain('git-commit');
   });
 
-  it('never offers backlog or review debt from another project', () => {
+  it('never offers review debt from another project, but points at it', () => {
     // One database serves every checkout. A quiz run in this one must not ask
-    // about work logged in another, even when this session logged nothing.
+    // about work answered in another, even when this session logged nothing.
     const other = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-other-'));
     fs.mkdirSync(path.join(other, '.git'));
     try {
       call(logSessionConcepts, { cwd: other, session_id: 'other-session', concepts: [{ slug: 'git-commit' }] });
-      call(logSessionConcepts, { cwd: other, session_id: 'other-reviewed', concepts: [{ slug: 'pkce' }] });
       call(recordAttempt, {
         cwd: other,
         session_id: 'other-reviewed',
@@ -576,8 +549,8 @@ describe('get_session_quiz_plan', () => {
 
       const empty = call<any>(getSessionQuizPlan, { session_id: SESSION });
       expect(empty.questions_needed).toBe(0);
-      // ...but it says where the work is waiting: git-commit logged, pkce due.
-      expect(empty.pending_elsewhere).toEqual([{ project: fs.realpathSync(other), pending: 2 }]);
+      // Only pkce: git-commit was logged there but never asked, so nothing waits on it.
+      expect(empty.pending_elsewhere).toEqual([{ project: fs.realpathSync(other), pending: 1 }]);
 
       logAuthWork();
       master('httponly-cookies');
@@ -589,12 +562,6 @@ describe('get_session_quiz_plan', () => {
     } finally {
       fs.rmSync(other, { recursive: true, force: true });
     }
-  });
-
-  it('does not treat this session\'s own unasked concepts as backlog', () => {
-    logAuthWork();
-    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
-    expect(plan.concepts.some((c: any) => c.reason === 'backlog')).toBe(false);
   });
 
   it('goes quiet during the cooldown when unenforced (G5)', () => {

@@ -79,11 +79,10 @@ and you ask those one at a time.
 `max_questions_per_task` is a **session budget shared by both**. Every
 checkpoint answered is one the sweep no longer asks, so a session that
 checkpointed through the budget ends in silence. That is intended — do not top it
-up because the ending felt quiet. What the budget never reached stays unmastered
-and comes back in a later plan with `reason: "backlog"`, once that session's own
-concepts and review debt are covered, from that project and the domains it touches, and
-never when `quiz.enforced` is set. It is not spaced repetition that brings it
-back — that only schedules concepts already answered once.
+up because the ending felt quiet. What the budget never reached is dropped when the
+session ends: it was never shown, so nothing is owed. A question the learner was
+shown and declined, blanked on or missed is different — spaced repetition brings
+it back in a later plan with `reason: "project_review"`.
 
 `questions_needed: 0` means say nothing and carry on; `reason` says why.
 

@@ -43,7 +43,7 @@ import { run, openExisting, config, cwdOf, sessionId, minutesSince } from './lib
 import { isSessionOff } from '../session.js';
 import { flushAtSeam, identityOf, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
-import { backlogConcepts, sessionConcepts } from '../store.js';
+import { dueInProject, sessionConcepts } from '../store.js';
 import { countUse } from '../telemetry.js';
 import { sessionChangedCode } from './changes-lib.js';
 
@@ -153,19 +153,17 @@ await run(async (input) => {
   // re-offering them is exactly the "asked me the same thing twice" failure this
   // tool exists to avoid.
   //
-  // Then fall back to this project's backlog -- work an earlier session logged
-  // that no question reached. Without this the backlog was reachable only by
-  // `/eklavya:quiz`: the plan serves it, but no hook ever called the plan for a
-  // session with nothing of its own, so a project's leftovers sat unasked for
-  // good. Same helper, same domain scope as the plan, so a block here is a plan
-  // there. Never under `quiz.enforced`, where the plan never serves backlog, nor
-  // under `learn` focus, where the plan asks from the topic instead.
-  let backlog: string[] = [];
+  // Then fall back to what this project already asked that is due again --
+  // the questions the learner declined, blanked on or missed come back here.
+  // Same helper and scope as the plan, so a block here is a plan there. Never
+  // under `quiz.enforced`, where an open gate asks only this session's work,
+  // nor under `learn` focus, where the plan asks from the topic instead.
+  let due: string[] = [];
   if (stats.unmastered <= 0) {
     if (quiz.enforced || focus === 'learn') return 0;
     const domains = [...new Set(sessionConcepts(db, sid).map((c) => c.domain))];
-    backlog = backlogConcepts(db, sid, repoRoot, domains, max_questions_per_task).map((c) => c.slug);
-    if (backlog.length === 0) return 0;
+    due = dueInProject(db, repoRoot, new Date(), domains, max_questions_per_task).map((c) => c.slug);
+    if (due.length === 0) return 0;
   }
 
   // Under `interleaved` this sweep asks exactly ONE question (see `take` below),
@@ -237,17 +235,16 @@ await run(async (input) => {
   // How many of those to ask here. Under `interleaved` the answer is always one:
   // that cadence promises a question at a time, at the seam where the concept was
   // logged, and a sweep that ends the task with three questions in a row is the
-  // thing it was sold as replacing. What the sweep leaves unasked is not lost --
-  // the plan's `backlog` source offers it again in a later session. Note that
-  // spaced repetition does NOT cover it: `mastery` rows are written only by
-  // record_attempt, so a concept never asked has no next_review to come due on.
+  // thing it was sold as replacing. What the sweep leaves unasked is dropped
+  // when the session ends (`pruneUnasked`): it was never shown, so nobody owes
+  // an answer to it.
   // Under `end`, a batch is the setting. Enforced mode is exempt, as it is from
   // the cooldown (decision G5): the gate needs several passing answers, so pacing
   // it to one would leave a commit that cannot be made.
   const take = interleaved ? 1 : remaining;
 
   // A session that only read and searched has nothing new to ask about, and
-  // that includes the backlog: research is not the moment to be quizzed on an
+  // that includes review: research is not the moment to be quizzed on an
   // earlier session's work. Enforced quizzing is exempt -- the gate exists for
   // commits, and a commit is a change. Last among the guards because it spawns
   // git, and before the stamp so a skipped sweep spends no block.
@@ -269,7 +266,7 @@ await run(async (input) => {
     )
     .all({ sid, take }) as Array<{ line: string }>;
 
-  const concepts = (backlog.length ? backlog.slice(0, take) : rows.map((r) => r.line)).join('; ');
+  const concepts = (due.length ? due.slice(0, take) : rows.map((r) => r.line)).join('; ');
 
   // Stamp the guard BEFORE blocking. If anything below fails, the worst case is a
   // missed quiz — never a loop.
@@ -316,10 +313,10 @@ await run(async (input) => {
   // rest. It already returns `framing`, `ask_attribution`, `answer_position` and
   // `tier_to_ask` with every plan, and the next thing the model does is call it,
   // so repeating any of that here buys nothing and costs the developer a screen.
-  // Backlog has no code on screen, and the plan's `framing` still says to ground
+  // Review has no code on screen, and the plan's `framing` still says to ground
   // the question in the diff -- so say which one this is.
-  const what = backlog.length
-    ? `Eklavya: quiz the developer on work from an earlier session in this project -- ask about the idea itself, the code is not on screen. ${ask}`
+  const what = due.length
+    ? `Eklavya: quiz the developer on an earlier question from this project that is due again -- ask about the idea itself, the code is not on screen. ${ask}`
     : `Eklavya: quiz the developer on what this task taught. ${ask}`;
   const context = `${what}
 Concepts: ${concepts}

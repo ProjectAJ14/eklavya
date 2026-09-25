@@ -21,7 +21,7 @@ Nine slash commands are available inside Claude Code when the plugin is loaded. 
 
 ### `/eklavya:quiz [topic]`
 
-Starts questions immediately. With no topic, it covers this session's logged work first, then due reviews and unasked work from earlier sessions **in this project**. Outside a git repository, it only covers the current session. If other projects have waiting questions, it may name up to three of them without asking their questions here.
+Starts questions immediately. With no topic, it covers this session's logged work first, then earlier questions **from this project** that are due again, including ones you declined, did not know or got wrong. Concepts that were logged but never asked are not carried into later sessions. Outside a git repository, reviews come only from the topics the current session touched. If other projects have waiting questions, it may name up to three of them without asking their questions here.
 
 ```text
 /eklavya:quiz

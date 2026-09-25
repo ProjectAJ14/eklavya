@@ -655,70 +655,78 @@ export function projectKey(repoRoot: string | null | undefined): string {
 }
 
 /**
- * Every `gates.repo` value that belongs to this project.
+ * Questions this project already asked that are due again, soonest first.
  *
- * `session_concepts` has no repo column, but every `log_session_concepts` call
- * writes the session's gate row with one, so the gate is where a session's
- * project is recorded. Folded through `projectKey` so a worktree's sessions count
- * as its checkout's. A NULL repo -- no git root, or a session from before the
- * gate carried one -- folds to `GLOBAL_PROJECT`, which no caller asks about.
- *
- * Distinct repos rather than session ids, because the folding needs the
- * filesystem and so has to happen here, and there are a handful of checkouts
- * but one session per conversation -- binding one variable per session is how
- * a long-lived project would hit SQLite's bound-variable limit.
- */
-function projectRepos(db: DB, repoRoot: string | null | undefined): string[] {
-  const key = projectKey(repoRoot);
-  const rows = db.prepare('SELECT DISTINCT repo FROM gates').all() as { repo: string | null }[];
-  return rows.filter((r) => r.repo !== null && projectKey(r.repo) === key).map((r) => r.repo as string);
-}
-
-/**
- * Work an earlier session in this project logged and no question ever reached,
- * oldest first. Scoped to `domains` when there are any.
+ * This is the whole backlog. A concept enters it only by being asked: every
+ * grade writes a review date, and a decline, a blank or a wrong answer resets
+ * it to a day out. A concept that was logged but never reached by a question is
+ * not owed anything -- it was never shown, so nobody refused it -- and
+ * `pruneUnasked` removes it once its session is over.
  *
  * One query for two callers that must agree: `get_session_quiz_plan` serves
- * these as `backlog`, and `stop-quiz-check` counts them to decide whether a
- * session with nothing of its own left to ask should still ask. If the two
- * disagreed, the hook would block a turn the plan then answers with nothing.
+ * these after the session's own work, and `stop-quiz-check` counts them to
+ * decide whether a session with nothing of its own left to ask should still
+ * ask. If the two disagreed, the hook would block a turn the plan then answers
+ * with nothing.
  *
- * Never outside a project. Every session with no git root shares
- * `GLOBAL_PROJECT`, so "an earlier session here" would mean any folder at all:
- * a session in `~` got asked about Flutter work logged in an unrelated scratch
- * directory weeks before. Such a session is still quizzed on its own work; only
- * the carry-over stops.
+ * Any domain inside a project: a refused question comes back at the next quiz
+ * here, not only when later work happens to touch the same topic. Outside a
+ * project `domains` is required, because every folder with no git root shares
+ * `GLOBAL_PROJECT`, and a session in `~` must not be asked about work done in
+ * an unrelated scratch directory.
  */
-export function backlogConcepts(
+export function dueInProject(
   db: DB,
-  sessionId: string,
   repoRoot: string | null | undefined,
+  now: Date,
   domains: string[] = [],
   limit = 50,
 ): ConceptRow[] {
-  if (projectKey(repoRoot) === GLOBAL_PROJECT) return [];
-  const repos = projectRepos(db, repoRoot);
-  if (repos.length === 0) return [];
-  const scoped = domains.length > 0;
+  const repo = projectKey(repoRoot);
+  const scoped = repo === GLOBAL_PROJECT;
+  if (scoped && domains.length === 0) return [];
   return db
     .prepare(
-      `SELECT c.* FROM session_concepts sc
-       JOIN concepts c ON c.id = sc.concept_id
-       WHERE sc.session_id <> ?
-         AND COALESCE(sc.origin, 'work') = 'work'
-         AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)
-         AND sc.session_id IN (SELECT session_id FROM gates WHERE repo IN (${repos.map(() => '?').join(',')}))
-         ${scoped ? `AND c.domain IN (${domains.map(() => '?').join(',')})` : ''}
-       GROUP BY c.id
-       ORDER BY min(sc.ts) ASC
-       LIMIT ?`,
+      `SELECT c.* FROM concepts c
+         JOIN mastery m ON m.concept_id = c.id
+        WHERE m.next_review IS NOT NULL AND m.next_review <= ?
+          AND c.id IN (SELECT concept_id FROM attempts WHERE repo = ?)
+          ${scoped ? `AND c.domain IN (${domains.map(() => '?').join(',')})` : ''}
+        ORDER BY m.next_review ASC
+        LIMIT ?`,
     )
-    .all(sessionId, ...repos, ...domains, limit) as ConceptRow[];
+    .all(now.toISOString(), repo, ...(scoped ? domains : []), limit) as ConceptRow[];
 }
 
 /**
- * Other projects with something a quiz there would ask: concepts logged and never
- * asked about, plus review that has come due. Most first. What an empty plan
+ * Forget logged work that no question ever reached, once its session is over.
+ *
+ * A session logs every concept its work touched, and the budget asks about a
+ * few. The rest used to wait as a backlog that later sessions dug into -- which
+ * meant questions about code nobody had on screen, forever, for concepts the
+ * learner was never shown. What the learner saw and did not answer is kept: it
+ * has an attempt row and a review date (see `dueInProject`).
+ *
+ * Only rows logged before `before`, which the caller keeps at least twelve
+ * hours back, not "not this session": a resumed conversation keeps its session
+ * id and its concepts. An enforced gate still waiting to pass keeps its rows
+ * whatever their age: its bar is computed from them.
+ */
+export function pruneUnasked(db: DB, currentSession: string | null, before: Date): number {
+  return db
+    .prepare(
+      `DELETE FROM session_concepts
+        WHERE COALESCE(origin, 'work') = 'work'
+          AND datetime(ts) < datetime(?)
+          AND session_id <> COALESCE(?, '')
+          AND concept_id NOT IN (SELECT concept_id FROM attempts)
+          AND session_id NOT IN (SELECT session_id FROM gates WHERE mode = 'enforced' AND passed = 0)`,
+    )
+    .run(before.toISOString(), currentSession).changes;
+}
+
+/**
+ * Other projects with review that has come due, most first. What an empty plan
  * points at, so "nothing here" also says where to go.
  */
 export function pendingElsewhere(
@@ -728,42 +736,19 @@ export function pendingElsewhere(
   limit = 3,
 ): { project: string; pending: number }[] {
   const here = projectKey(repoRoot);
-  const byProject = new Map<string, Set<number>>();
-  const add = (project: string, conceptId: number) => {
-    if (project === here || project === GLOBAL_PROJECT) return;
-    if (!byProject.has(project)) byProject.set(project, new Set());
-    byProject.get(project)!.add(conceptId);
-  };
-
-  const keys = new Map<string | null, string>();
-  const keyOf = (repo: string | null) => {
-    if (!keys.has(repo)) keys.set(repo, projectKey(repo));
-    return keys.get(repo)!;
-  };
-
-  const backlog = db
-    .prepare(
-      `SELECT g.repo, sc.concept_id FROM session_concepts sc
-         JOIN gates g ON g.session_id = sc.session_id
-        WHERE COALESCE(sc.origin, 'work') = 'work'
-          AND sc.concept_id NOT IN (SELECT concept_id FROM attempts)`,
-    )
-    .all() as { repo: string | null; concept_id: number }[];
-  for (const r of backlog) add(keyOf(r.repo), r.concept_id);
-
-  const due = db
-    .prepare(
-      `SELECT DISTINCT a.repo, a.concept_id FROM attempts a
-         JOIN mastery m ON m.concept_id = a.concept_id
-        WHERE a.repo IS NOT NULL AND m.next_review IS NOT NULL AND m.next_review <= ?`,
-    )
-    .all(now.toISOString()) as { repo: string; concept_id: number }[];
-  for (const r of due) add(r.repo, r.concept_id);
-
-  return [...byProject]
-    .map(([project, ids]) => ({ project, pending: ids.size }))
-    .sort((a, b) => b.pending - a.pending)
-    .slice(0, limit);
+  return (
+    db
+      .prepare(
+        `SELECT a.repo AS project, count(DISTINCT a.concept_id) AS pending FROM attempts a
+           JOIN mastery m ON m.concept_id = a.concept_id
+          WHERE a.repo IS NOT NULL AND a.repo NOT IN (?, ?)
+            AND m.next_review IS NOT NULL AND m.next_review <= ?
+          GROUP BY a.repo
+          ORDER BY pending DESC
+          LIMIT ?`,
+      )
+      .all(here, GLOBAL_PROJECT, now.toISOString(), limit) as { project: string; pending: number }[]
+  );
 }
 
 /** Set once `mergeWorktreeProjects` has folded pre-existing worktree rows in. */
