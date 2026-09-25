@@ -163,11 +163,6 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
       concepts_logged_new: num(db, 'SELECT COUNT(DISTINCT concept_id) FROM session_concepts WHERE datetime(ts) >= ?', t),
       concepts_mastered: num(db, `SELECT COUNT(*) FROM mastery WHERE ${known}`),
       concepts_learning: num(db, `SELECT COUNT(*) FROM mastery WHERE reps > 0 AND NOT (${known})`),
-      concepts_backlog: num(
-        db,
-        `SELECT COUNT(DISTINCT concept_id) FROM session_concepts
-          WHERE COALESCE(origin, 'work') = 'work' AND concept_id NOT IN (SELECT concept_id FROM attempts)`,
-      ),
       reviews_due: num(db, 'SELECT COUNT(*) FROM mastery WHERE reps > 0 AND next_review IS NOT NULL AND next_review <= ?', new Date(now).toISOString()),
       level_easy: num(db, "SELECT COUNT(*) FROM project_levels WHERE level = 'easy'"),
       level_medium: num(db, "SELECT COUNT(*) FROM project_levels WHERE level = 'medium'"),

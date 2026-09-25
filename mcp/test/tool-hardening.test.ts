@@ -11,7 +11,7 @@ import { upsertConcepts } from '../src/tools/upsert_concepts.js';
 import { getSessionQuizPlan } from '../src/tools/get_session_quiz_plan.js';
 import { LIMITS, type ToolDef } from '../src/tools/types.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
-import { backlogConcepts, conceptBySlug, masteryFor } from '../src/store.js';
+import { conceptBySlug, masteryFor, pruneUnasked } from '../src/store.js';
 import { MAX_INTERVAL_DAYS, MS_PER_DAY } from '../src/srs.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
@@ -264,35 +264,26 @@ describe('slugs and clocks the planner is handed', () => {
     expect(plan.minutes_remaining).toBeLessThanOrEqual(4);
   });
 
-  it('backlog works for a project with more sessions than SQLite can bind variables', () => {
-    // One bound variable per session used to be the shape; SQLite caps a
-    // statement at 32,766, and a project a year old can pass that.
-    const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-co-')));
-    fs.mkdirSync(path.join(repo, '.git'));
-    try {
-      call(logSessionConcepts, { cwd: repo, session_id: 'earlier', concepts: [{ slug: 'pkce' }] });
-      db.prepare(
-        `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 40000)
-         INSERT INTO gates (session_id, mode, required, answered, passed, updated_at, repo)
-         SELECT 'filler-' || i, 'ambient', 0, 0, 1, datetime('now'), ? FROM n`,
-      ).run(repo);
+  it('pruneUnasked drops only logged work no question reached, from sessions that are over', () => {
+    call(logSessionConcepts, { session_id: 'old', concepts: [{ slug: 'pkce' }, { slug: 'csrf' }] });
+    call(logSessionConcepts, { session_id: 'old-gate', concepts: [{ slug: 'jwt-structure' }] });
+    call(logSessionConcepts, { session_id: 'current', concepts: [{ slug: 'git-commit' }] });
+    call(recordAttempt, { session_id: 'old', slug: 'csrf', question: 'q', grade: 0, difficulty: 1, outcome: 'declined' });
+    db.prepare("UPDATE session_concepts SET ts = datetime('now', '-2 days')").run();
+    db.prepare("UPDATE gates SET mode = 'enforced', passed = 0 WHERE session_id = 'old-gate'").run();
 
-      const started = Date.now();
-      const backlog = backlogConcepts(db, 'current', repo).map((c) => c.slug);
-      expect(backlog).toEqual(['pkce']);
-      expect(Date.now() - started).toBeLessThan(2000);
-    } finally {
-      fs.rmSync(repo, { recursive: true, force: true });
-    }
-  });
-
-  it('backlog never carries over a NULL-repo session, into the global bucket or a project', () => {
-    // No git root means no project: every such session shares one key, so a
-    // backlog there would ask a session in ~ about work from any other folder.
-    call(logSessionConcepts, { session_id: 'earlier', concepts: [{ slug: 'pkce' }] });
-    db.prepare("UPDATE gates SET repo = NULL WHERE session_id = 'earlier'").run();
-    expect(backlogConcepts(db, 'current', null)).toEqual([]);
-    expect(backlogConcepts(db, 'current', '/some/other/checkout')).toEqual([]);
+    expect(pruneUnasked(db, 'current', new Date(Date.now() - 12 * 3_600_000))).toBe(1);
+    const left = db
+      .prepare('SELECT session_id, c.slug FROM session_concepts JOIN concepts c ON c.id = concept_id ORDER BY 1, 2')
+      .all();
+    // pkce went: logged, never asked. csrf stays because it was asked (and
+    // declined); jwt-structure because its enforced gate still needs it; the
+    // current session is untouched whatever its age.
+    expect(left).toEqual([
+      { session_id: 'current', slug: 'git-commit' },
+      { session_id: 'old', slug: 'csrf' },
+      { session_id: 'old-gate', slug: 'jwt-structure' },
+    ]);
   });
 });
 

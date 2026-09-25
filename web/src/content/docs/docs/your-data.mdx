@@ -21,6 +21,8 @@ Choosing an observer sends captured work through Claude Code to a model. Enablin
 | `~/.eklavya/update.json`, `update.log` | Update state and output from the last background update. |
 | `~/.eklavya/runtime/` | Installed runtime and dependencies. |
 
+Concepts a session logged but never asked about are deleted at a later session start, at least 12 hours after they were logged. Asked questions, their answers and review dates are kept.
+
 ### Who can read it
 
 Eklavya requests private filesystem permissions: `0700` for its home directory and `0600` for the database and sidecars, spool, configuration and memory exports. Existing installations are tightened when the database opens. On Windows, access also depends on the user's filesystem permissions.

@@ -6,7 +6,7 @@
  */
 import { findRepoConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
 import { isSessionOff, setCurrentSession } from '../session.js';
-import { levelStanding } from '../store.js';
+import { levelStanding, pruneUnasked } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
 import { recordBaseline } from './changes-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
@@ -16,7 +16,7 @@ import { savingsLine } from '../memory/tokens.js';
 import { dialParts, paint } from '../statusline.js';
 import { DEFAULT_PORT } from '../paths.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
-import { markTelemetryAnnounced, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
+import { canSend, disabledReason, markTelemetryAnnounced, readState, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
 import net from 'node:net';
 
 /**
@@ -207,6 +207,22 @@ await run(async (input) => {
   // reuse the session id -- without this the first prompt of a resumed session
   // restates what was printed seconds ago.
   if (sid) clearNudgeState(db, sid);
+
+  // Logged work no question reached, from sessions that are over. The first
+  // start after upgrading clears the backlog earlier releases kept. Never a row
+  // the usage ping has yet to count in `concepts_logged_new`: it reads from the
+  // last accepted ping (or a day back) to now. Best effort: a locked database
+  // costs a row that the next start removes.
+  try {
+    let before = Date.now() - 12 * 3_600_000;
+    if (canSend() && !disabledReason()) {
+      const sent = Date.parse(readState().sent_at ?? '');
+      before = Math.min(before, Number.isFinite(sent) ? sent : Date.now() - 24 * 3_600_000);
+    }
+    pruneUnasked(db, sid, new Date(before));
+  } catch {
+    /* fail open */
+  }
 
   // What the working tree looked like before this session touched it, so the
   // quiz hooks can tell a session that changed code from one that only read it.

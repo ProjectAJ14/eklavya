@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, type DB } from '../src/db.js';
-import { conceptBySlug, gradeConcept, logSessionConcept, syncGate } from '../src/store.js';
+import { conceptBySlug, gradeConcept, logSessionConcept, projectKey, syncGate } from '../src/store.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { getCurrentSession, setCurrentSession, setSessionOff } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
@@ -1114,45 +1114,66 @@ describe('PostToolUse checkpoint — re-armed by the work, not only by logging',
   });
 });
 
-describe('Stop hook — the project backlog', () => {
-  // An earlier session in this checkout logged work nobody asked about.
-  function earlierWork(slugs: string[]): void {
-    checkout();
-    logConcepts(slugs, 'earlier-session');
-    syncGate(db, 'earlier-session', DEFAULT_CONFIG, { repo: cwd });
-  }
+// An earlier session in this checkout asked a question and the learner declined it.
+function earlierDecline(slug: string, due = true): void {
+  checkout();
+  const c = conceptBySlug(db, slug)!;
+  gradeConcept(db, {
+    conceptId: c.id,
+    sessionId: 'earlier-session',
+    question: `about ${slug}`,
+    answer: null,
+    grade: 0,
+    difficulty: 2,
+    feedback: null,
+    outcome: 'declined',
+    format: 'mcq',
+    options: null,
+    repo: projectKey(cwd),
+    level: 'easy',
+    now: new Date(),
+  });
+  if (due) db.prepare("UPDATE mastery SET next_review = '2000-01-01T00:00:00Z' WHERE concept_id = ?").run(c.id);
+}
 
-  it('asks about it when this session has nothing of its own', () => {
-    earlierWork(['pkce']);
+describe('Stop hook — the project backlog', () => {
+  it('asks it again when this session has nothing of its own', () => {
+    earlierDecline('pkce');
     const res = stop();
     expect(res.spoke).toBe(true);
-    expect(res.context).toMatch(/earlier session/);
+    expect(res.context).toMatch(/due again/);
     expect(conceptsLine(res.context)).toMatch(/pkce/);
   });
 
+  it('waits for the review date', () => {
+    earlierDecline('pkce', false);
+    expect(stop().spoke).toBe(false);
+  });
+
   it('asks this session\'s own work first', () => {
-    earlierWork(['pkce']);
+    earlierDecline('pkce');
     logConcepts(['csrf']);
     const res = stop();
     expect(conceptsLine(res.context)).toMatch(/csrf/);
-    expect(res.context).not.toMatch(/earlier session/);
+    expect(res.context).not.toMatch(/due again/);
   });
 
-  it('never serves backlog under quiz.enforced, where the plan will not either', () => {
+  it('never carries over work an earlier session logged and nobody asked', () => {
+    checkout();
+    logConcepts(['pkce'], 'earlier-session');
+    syncGate(db, 'earlier-session', DEFAULT_CONFIG, { repo: cwd });
+    expect(stop().spoke).toBe(false);
+  });
+
+  it('never serves review under quiz.enforced, where the plan will not either', () => {
     configure({ quiz: { enabled: true, enforced: true } });
-    earlierWork(['pkce']);
+    earlierDecline('pkce');
     expect(stop().spoke).toBe(false);
   });
 
-  it('never serves backlog under learn focus, where the plan asks from the topic', () => {
+  it('never serves review under learn focus, where the plan asks from the topic', () => {
     configure({ focus: 'learn', focus_topic: 'auth' });
-    earlierWork(['pkce']);
-    expect(stop().spoke).toBe(false);
-  });
-
-  it('skips backlog some session already asked about', () => {
-    earlierWork(['pkce']);
-    answer('pkce', 3, 'earlier-session');
+    earlierDecline('pkce');
     expect(stop().spoke).toBe(false);
   });
 });
@@ -1207,11 +1228,10 @@ describe('quiz.only_on_changes — no questions for a session that changed nothi
     expect(checkpoint().spoke).toBe(true);
   });
 
-  it('keeps the Stop sweep quiet, backlog included', () => {
+  it('keeps the Stop sweep quiet, review included', () => {
     realRepo();
     sessionStart();
-    logConcepts(['pkce'], 'earlier-session');
-    syncGate(db, 'earlier-session', DEFAULT_CONFIG, { repo: cwd });
+    earlierDecline('pkce');
     logConcepts(['csrf']);
     expect(stop().spoke).toBe(false);
   });

@@ -28,7 +28,7 @@ In this order, because this is the order a learner asks them:
    memory that makes the slug mean something. Slug second, in parentheses.
 3. **What did I skip?** `skipped` — `declined` means they chose to pass,
    `dont_know` means they blanked and were taught. Say which. This is the
-   actionable list: those come back a tier lower, so it is a backlog, not a
+   actionable list: each comes back once its review is due, so it is a backlog, not a
    scolding. If it is empty, say so in one clause; it is good news.
 4. **What is due?** `due_for_review` — the count, then the slugs with their
    `tier_to_ask`. Already clamped to the level, so do not re-explain tiers.
