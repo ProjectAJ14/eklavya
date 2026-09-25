@@ -1,3 +1,11 @@
+## [1.33.1](https://github.com/ProjectAJ14/eklavya/compare/v1.33.0...v1.33.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **memory:** capture outside git when cross-project recall can serve it ([f266aab](https://github.com/ProjectAJ14/eklavya/commit/f266aabbc5e2df4ee44281ae5e472a53f818040d))
+* **memory:** recover from a paused queue and keep recall current ([a739e62](https://github.com/ProjectAJ14/eklavya/commit/a739e6214d61c0b57d4622515ced9274629ea94c))
+
 # [1.33.0](https://github.com/ProjectAJ14/eklavya/compare/v1.32.1...v1.33.0) (2026-09-25)
 
 
