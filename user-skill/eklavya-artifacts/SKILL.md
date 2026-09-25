@@ -48,7 +48,8 @@ filename.
 
 Edit the file: replace the `<!-- CONTENT … -->` comment with the page, and
 adjust the lede if the description was too short. Leave the `<head>`, the
-`.actions` toolbar and its script alone.
+`.actions` toolbar and its script, the `.brand` header and the `.made-with`
+footer alone: they carry the Eklavya favicon, share tags and link home.
 
 **Write for the person reading it.** Plain English first: what the thing *does*
 before what it is called. One idea per section under an `<h2>`. A concrete

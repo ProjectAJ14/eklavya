@@ -69,6 +69,10 @@ describe('createArtifact', () => {
     expect(html).not.toMatch(/\{\{[A-Z_]+\}\}/);
     expect(html).toContain('--bg:');
     expect(html).not.toMatch(/@import url/);
+    // Branded: the mark as an inline favicon, share tags from the title, a link home.
+    expect(html).toMatch(/<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml,/);
+    expect(html).toContain('<meta property="og:title" content="&lt;script&gt;');
+    expect(html).toContain('href="https://eklavya-run.web.app/"');
 
     const [row] = listArtifacts();
     expect(row).toMatchObject({

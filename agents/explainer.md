@@ -26,7 +26,8 @@ Work with what you have; do not go looking for a conversation you cannot see.
    `eklavya artifacts new "<Concept name>, explained" --kind explainer --concept <slug> --description "<the one-line answer>"`.
    It prints the file's path. Never pick a path yourself.
 4. Replace the `<!-- CONTENT … -->` comment in that file with the explanation.
-   Leave the `<head>` and the download buttons alone.
+   Leave the `<head>`, the download buttons, the `.brand` header and the
+   `.made-with` footer alone.
 5. `eklavya artifacts open "<path>"`, then reply with the path, one line.
 
 ## What goes on it
