@@ -13,7 +13,7 @@
  * The same rule as `memory-lib.ts`: every function swallows its own failures.
  */
 import type { ResolvedConfig } from '../config.js';
-import { projectKey } from '../store.js';
+import { GLOBAL_PROJECT, projectKey } from '../store.js';
 import { identityFor, type EvidenceIdentity } from '../memory/identity.js';
 import { captureOrSpool, type HostEvent } from '../memory/capture.js';
 import { batchSession, pendingEventCount } from '../memory/store.js';
@@ -40,6 +40,13 @@ export function identityOf(input: HookInput, cwd: string, sid: string | null): E
  * by another session, a migration or a checkpoint used to cost the event
  * outright, because the spool that exists for exactly that had no caller. The
  * spool is replayed at the next seam.
+ *
+ * Nothing outside a git checkout unless `retrieval.cross_project` is on. Such a
+ * folder folds into the shared `GLOBAL_PROJECT`, which only a cross-project
+ * search serves, so otherwise its evidence would be kept, batched and summarised
+ * for memory no session is ever handed — and unsummarised evidence is never
+ * pruned. It is also the shared home folder, where a session is least likely to
+ * be the developer's project work.
  */
 export function record(
   db: DB,
@@ -47,6 +54,7 @@ export function record(
   identity: EvidenceIdentity,
   event: HostEvent,
 ): boolean {
+  if (identity.project === GLOBAL_PROJECT && !resolved.config.retrieval.cross_project) return false;
   try {
     const outcome = captureOrSpool(db, resolved.config, identity, event);
     return outcome === 'stored' || outcome === 'spooled';

@@ -176,6 +176,9 @@ function classifyMessage(message: string, status: unknown): ProviderErrorClass {
   return 'transient';
 }
 
+/** Enough of stderr to name the failure; `failJob` keeps 500 characters. */
+const STDERR_TAIL = 2_000;
+
 const NOT_THE_SUBSCRIPTION = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
@@ -262,12 +265,16 @@ export function runClaude(
     const child = spawn('claude', claudeArgs(model), {
       env,
       cwd: os.tmpdir(),
-      stdio: ['pipe', 'pipe', 'ignore'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       detached: process.platform !== 'win32',
       windowsHide: true,
     });
 
     let stdout = '';
+    // The tail only, and only for the error message: a run that printed no JSON
+    // envelope said why on stderr, and a job recorded as "not JSON" alone was a
+    // failure nobody could diagnose afterwards.
+    let stderr = '';
     let ended: ProviderError | null = null;
     let force: NodeJS.Timeout | undefined;
 
@@ -321,6 +328,10 @@ export function runClaude(
         end(new ProviderError('malformed', `claude -p printed more than ${Math.round(maxOutput / 1024 / 1024)} MB`));
       }
     });
+    child.stderr!.setEncoding('utf8');
+    child.stderr!.on('data', (d: string) => {
+      stderr = (stderr + d).slice(-STDERR_TAIL);
+    });
     child.stdin!.on('error', () => {});
     child.stdin!.end(prompt);
 
@@ -362,8 +373,53 @@ export function runClaude(
         // and parsing it would call a stopped run malformed — a permanent fail.
         if (killedBy) return reject(new ProviderError('transient', `claude -p was stopped by ${killedBy}`));
         // A failed run still prints its JSON envelope; that says more than the exit code.
+        // No envelope at all is a run that failed before it could print one.
+        const why = stderr.trim();
+        if (!stdout.trim() && why) return reject(new ProviderError(classifyMessage(why, null), `claude -p: ${why}`));
         resolve(stdout);
       });
+    });
+  });
+}
+
+/**
+ * Whether `claude` is installed and logged in, from `claude auth status`.
+ *
+ * No model call and no usage: it reads the local credential. That is what lets
+ * a paused queue check for itself whether the login it was waiting on is back,
+ * instead of waiting for the developer to notice and run a command. The same
+ * environment as `runClaude`, so it answers for the credential the summariser
+ * would use, not an API key in the shell.
+ */
+export function probeLogin(timeoutMs = 10_000): Promise<'ok' | 'auth' | 'missing' | 'unknown'> {
+  const env: NodeJS.ProcessEnv = { ...process.env, [OBSERVER_ENV]: '1' };
+  for (const name of NOT_THE_SUBSCRIPTION) delete env[name];
+  return new Promise((resolve) => {
+    let out = '';
+    let settled = false;
+    const done = (v: 'ok' | 'auth' | 'missing' | 'unknown') => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(v);
+    };
+    const child = spawn('claude', ['auth', 'status'], { env, cwd: os.tmpdir(), stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      done('unknown');
+    }, timeoutMs);
+    child.stdout!.setEncoding('utf8');
+    child.stdout!.on('data', (d: string) => {
+      if (out.length < 64 * 1024) out += d;
+    });
+    child.once('error', (err: NodeJS.ErrnoException) => done(err.code === 'ENOENT' ? 'missing' : 'unknown'));
+    child.once('close', () => {
+      try {
+        const status = JSON.parse(out) as { loggedIn?: unknown };
+        done(status.loggedIn === true ? 'ok' : status.loggedIn === false ? 'auth' : 'unknown');
+      } catch {
+        done('unknown');
+      }
     });
   });
 }

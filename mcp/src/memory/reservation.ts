@@ -347,12 +347,15 @@ export function handOffWorker(db: DB, token: string, more: () => boolean, now = 
 /**
  * Starts `eklavya memory process --no-resume` detached under `token`, which the
  * child adopts rather than competing for. Releases the slot if it cannot start.
- * `--no-resume` leaves paused jobs paused: un-pausing stays an explicit act.
+ * `--no-resume` leaves paused jobs paused. `probe` launches `--probe-paused`
+ * instead: the child resumes a paused queue only once `resumeIfRepaired` finds
+ * what paused it fixed, and otherwise exits without a model call.
  */
-export function launchWorker(db: DB, token: string): boolean {
+export function launchWorker(db: DB, token: string, opts: { probe?: boolean } = {}): boolean {
   try {
     const cli = fileURLToPath(new URL('../cli.js', import.meta.url));
-    const child = spawn(process.execPath, [cli, 'memory', 'process', '--no-resume', '--max', '4', '--worker-token', token], {
+    const mode = opts.probe ? '--probe-paused' : '--no-resume';
+    const child = spawn(process.execPath, [cli, 'memory', 'process', mode, '--max', '4', '--worker-token', token], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,

@@ -16,6 +16,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Repeats and retention in real history | `npm run eval -- history` | None; reads learner database |
 | Retrieval quality | `node eval/retrieval-harness.mjs` | None |
 | Memory performance | `node eval/memory-perf.mjs` | None |
+| Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
 
 Replace `<run>` with a saved run directory. Model-based stages use the configured
 Claude command and can incur usage. These harnesses do not run in CI. Before

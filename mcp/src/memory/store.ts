@@ -318,11 +318,11 @@ export function pausesQueue(errorClass: string): boolean {
 /**
  * Puts every paused job back in the queue, and returns how many moved.
  *
- * `failJob` parks an auth, quota or missing failure at 'paused' and nothing else ever
- * moves it, so this is the only way out — deliberately, and deliberately not
- * automatic. Running `eklavya memory process` is the developer saying they have
- * repaired the credential; a hook doing it on their behalf would re-spend a
- * rejected key at every session seam and never say why it stopped again.
+ * `failJob` parks an auth, quota or missing failure at 'paused', and this is
+ * the only way out. Two callers: `eklavya memory process`, the developer saying
+ * they have repaired the credential, and `resumeIfRepaired`, which calls it only
+ * once a free login check or a quota cooldown says the cause is gone. Resuming
+ * without that proof would re-spend a rejected key at every session seam.
  *
  * The attempt count resets with it: a queue paused on its fifth attempt is one
  * that would otherwise be marked permanently failed by the first call after the

@@ -54,7 +54,7 @@ export interface StatusLineInput {
 
 /** 256-colour approximations of the two ground-independent accents. */
 const VERDIGRIS = 116;
-const AMBER = 172;
+export const AMBER = 172;
 
 // Written as escapes rather than literal ESC bytes: a raw control character in
 // source is invisible in an editor and does not survive every copy-paste.

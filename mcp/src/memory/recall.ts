@@ -174,12 +174,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
         project: config.retrieval.cross_project ? null : opts.project,
         limit: limit + exclude.size,
         }).filter((entry) => allowed(entry.id));
-  // Every source over-fetches (candidates arrive untrimmed; searches pad for
-  // exclusions), so the item cap is applied once, here.
-  const chosen = pool.slice(0, limit);
-  if (!chosen.length) return empty;
-
-  const base = baseTokensFor(db, chosen);
+  if (!pool.length) return empty;
 
   // A checkout path is not ours to trust either: a directory named with a quote
   // or a fence tag must not rewrite the header it is quoted in.
@@ -195,19 +190,26 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   );
 
   // Fill to the token budget rather than the item count: six short notes and
-  // six long ones are not the same amount of context.
+  // six long ones are not the same amount of context. An entry that does not
+  // fit is skipped, not the end of the block: stopping there let one long
+  // session summary in second place hold every seam recall to a single entry.
+  // Every source over-fetches (candidates arrive untrimmed; searches pad for
+  // exclusions), so the item cap is applied here too.
   const kept: EntryRow[] = [];
   const rendered: string[] = [];
   let delivered = wrapperTokens;
-  for (const entry of chosen) {
+  for (const entry of pool) {
+    if (kept.length >= limit) break;
     const text = renderEntry(entry, kept.length + 1);
     const cost = estimateTokens(text);
-    if (kept.length && delivered + cost > maxTokens) break;
+    if (kept.length && delivered + cost > maxTokens) continue;
     kept.push(entry);
     rendered.push(text);
     delivered += cost;
   }
   if (!kept.length) return empty;
+
+  const base = baseTokensFor(db, kept);
 
   const header = `<eklavya-memory project="${projectAttr}" items="${kept.length}">`;
   const block = [header, note, ...rendered, footer].join('\n');
@@ -350,12 +352,32 @@ export function startupDisplay(db: DB, project: string, now = new Date()): Start
  * rather than filling the space with whatever ranked highest — a prompt that
  * matches nothing should cost nothing.
  */
+/**
+ * The part of a prompt the developer wrote.
+ *
+ * The host delivers more than typing through this hook: a subagent's hand-back
+ * arrives as `Another Claude session sent a message: <agent-message …>`, a
+ * finished background task as `<task-notification>`, a paste as
+ * `<pasted_content>`. Searching on those matched whatever the pasted log or
+ * the subagent's report happened to mention — a curl command recalled
+ * authentication notes, a hand-back recalled a feature from another branch. A
+ * tagged block is dropped whole; what is left is what the developer said. Only
+ * the host's own tags: a prompt about `<Button>Save</Button>` keeps its markup.
+ */
+export function ownWords(prompt: string): string {
+  return prompt
+    .replace(/<(agent-message|task-notification|pasted_content)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/^\s*Another Claude session sent a message:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function recallForPrompt(
   db: DB,
   config: EklavyaConfig,
   opts: { project: string; sessionId: string; prompt: string },
 ): RecallResult | null {
-  const query = opts.prompt.trim();
+  const query = ownWords(opts.prompt);
   // Too short to be about anything. "yes", "carry on", "fix it" match whatever
   // happens to share a word, and a recall on those is pure cost.
   if (query.length < 25) return null;

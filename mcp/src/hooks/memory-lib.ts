@@ -10,13 +10,14 @@ import type { ResolvedConfig } from '../config.js';
 import type { EvidenceIdentity } from '../memory/identity.js';
 import { drainSpool } from '../memory/capture.js';
 import { batchSession, hasClaimableJob, openSessions } from '../memory/store.js';
-import { processPending, pruneIfDue, writeSessionSummary } from '../memory/worker.js';
+import { markProbe, probeDue, processPending, pruneIfDue, standInWhilePaused, writeSessionSummary } from '../memory/worker.js';
 import { parseStamp } from '../time.js';
 import { recall, type RecallResult } from '../memory/recall.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
 import { countEntries } from '../memory/store.js';
 import { queueDepth } from '../memory/worker.js';
 import type { DB } from './lib.js';
+import { GLOBAL_PROJECT } from '../store.js';
 import { isInternalObserver, launchWorker, reserveWorker } from '../memory/reservation.js';
 
 // The per-call capture helpers live in `capture-lib.ts`, so the two hooks that
@@ -89,7 +90,10 @@ export async function flushAtSeam(
   // Before batching, so a spooled event joins the batch it belongs to.
   replaySpool(db);
   try {
-    closeOpenBatches(db, resolved, identity.project, opts.all ?? false);
+    // Not outside git: recall never serves that project, so a batch there is a
+    // provider call for nothing. Capture stopped recording it (`record`); this
+    // leaves what an older version captured there unsummarised.
+    if (identity.project !== GLOBAL_PROJECT) closeOpenBatches(db, resolved, identity.project, opts.all ?? false);
   } catch {
     /* Evidence left open is closed at the next seam. */
   }
@@ -100,10 +104,20 @@ export async function flushAtSeam(
   }
   try {
     if (resolved.config.providers.observer) {
-      // A paused queue is waiting on the developer (a login, a usage limit, a
-      // missing `claude`). Launching per seam would relearn that once a turn;
-      // `eklavya memory process` is the explicit resume.
-      if (hasClaimableJob(db) && queueDepth(db).paused === 0) drainInBackground(db);
+      // A paused queue is waiting on a login, a usage limit or a missing
+      // `claude`. Draining it per seam would relearn that once a turn, so a
+      // seam instead launches a check at most every `PROBE_INTERVAL_MS`: the
+      // worker resumes only once `resumeIfRepaired` finds the cause fixed.
+      if (queueDepth(db).paused > 0) {
+        // Local entries meanwhile, so recall is not frozen at the pause.
+        await standInWhilePaused(db);
+        if (probeDue(db)) {
+          markProbe(db);
+          drainInBackground(db, { probe: true });
+        }
+      } else if (hasClaimableJob(db)) {
+        drainInBackground(db);
+      }
       return;
     }
     await processPending(db, resolved.config, { maxJobs: 2 });
@@ -113,20 +127,65 @@ export async function flushAtSeam(
 }
 
 /**
- * Starts `eklavya memory process --no-resume` detached and returns at once, so
- * a model summarises the queue without the hook waiting on it.
+ * Starts `eklavya memory process` detached and returns at once, so a model
+ * summarises the queue without the hook waiting on it.
  *
  * Only after winning the one worker reservation (`reservation.ts`): seams that
  * close together used to spawn a worker each, and each worker's `claude -p`
  * ran these hooks and spawned more. The loser leaves its batch queued for the
  * worker already running. The token travels to the child, which adopts the
- * slot rather than competing for it. `--no-resume` leaves paused jobs paused:
- * un-pausing stays an explicit act.
+ * slot rather than competing for it. Paused jobs stay paused unless `probe`
+ * asks the child to check whether their cause is fixed.
  */
-function drainInBackground(db: DB): void {
+function drainInBackground(db: DB, opts: { probe?: boolean } = {}): void {
   if (isInternalObserver()) return;
   const token = reserveWorker(db);
-  if (token) launchWorker(db, token);
+  if (token) launchWorker(db, token, opts);
+}
+
+/** A queue older than this is a stalled worker, not a busy one: a seam drains every turn. */
+export const BEHIND_AFTER_MS = 6 * 60 * 60_000;
+
+const PAUSE_CAUSE: Record<string, string> = {
+  auth: 'claude not logged in',
+  quota: 'usage limit reached',
+  missing: 'claude not found on PATH',
+};
+
+/**
+ * One line for the session-start banner when memory has stopped keeping up, or
+ * null when it is healthy.
+ *
+ * A paused queue used to be silent everywhere but `eklavya doctor`: the banner
+ * went on saying "memory on" and recalling ever-older entries while nothing new
+ * was summarised. A paused queue now rechecks itself (`resumeIfRepaired`), so
+ * this is the case where that has not worked yet — the developer can act now or
+ * let the next check find the fix.
+ */
+export function memoryHealthLine(db: DB, now = Date.now()): string | null {
+  try {
+    const queue = queueDepth(db);
+    if (queue.paused > 0) {
+      const row = db
+        .prepare("SELECT error_class, MIN(updated_at) AS since FROM memory_jobs WHERE status = 'paused' GROUP BY error_class ORDER BY since LIMIT 1")
+        .get() as { error_class: string | null; since: string } | undefined;
+      const cause = PAUSE_CAUSE[row?.error_class ?? ''] ?? 'provider failing';
+      const since = row?.since ? ` since ${shortDate(row.since)}` : '';
+      return `Memory paused · ${cause}${since} · local summaries meanwhile · fix it, then: eklavya memory process`;
+    }
+    const oldest = parseStamp(queue.oldest);
+    if (oldest !== null && now - oldest >= BEHIND_AFTER_MS) {
+      return `Memory behind · ${queue.pending} job${queue.pending === 1 ? '' : 's'} waiting, oldest ${Math.floor((now - oldest) / 3_600_000)}h · run: eklavya doctor`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : `${d.getDate()} ${d.toLocaleString('en', { month: 'short' })}`;
 }
 
 /** Replays anything the spool holds. Idempotent; safe to call every session. */

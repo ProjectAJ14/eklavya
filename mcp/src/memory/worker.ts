@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { nowIso, parseStamp } from '../time.js';
-import { ProviderError, ProviderSummarizer } from './provider.js';
+import { probeLogin, ProviderError, ProviderSummarizer } from './provider.js';
 import { LocalSummarizer, summarizeSession, type Summarizer } from './summarize.js';
 import { handOffWorker, launchWorker, releaseWorker, renewWorker } from './reservation.js';
 import {
@@ -11,6 +11,7 @@ import {
   batchEvents,
   batchSession,
   claimJob,
+  deleteEntry,
   failJob,
   finishJob,
   hasClaimableJob,
@@ -19,6 +20,7 @@ import {
   pausesQueue,
   insertEntry,
   replaceEntry,
+  resumePaused,
   timeline,
 } from './store.js';
 
@@ -217,6 +219,9 @@ export async function processPending(
         // lease lapsed during a slow call must not commit over the one that
         // took the job, however late its answer arrives.
         if (!ownsJob(db, job.id, owner)) return false;
+        // The provider's summary is the one this batch was waiting for; the
+        // local stand-in written while it was paused (`standInWhilePaused`) goes.
+        if (summarizer.id !== STAND_IN.id) retireStandIns(db, batch.id);
         for (const draft of drafts) {
           const entryId = insertEntry(db, {
             project: batch.project,
@@ -439,6 +444,139 @@ export async function flushSession(
 ): Promise<WorkerResult> {
   batchSession(db, { project, sessionId, reason, maxEvents: config.memory.batch_max_events });
   return processPending(db, config, { maxJobs: 4 });
+}
+
+/**
+ * How often a seam may check whether a paused queue can go again. The check
+ * itself is free (`claude auth status`), but it is a process spawn on a hook's
+ * behalf, and a login does not come back every turn.
+ */
+export const PROBE_INTERVAL_MS = 30 * 60_000;
+
+/**
+ * How long a usage limit is waited out before one job tries again. There is no
+ * free check for a quota: the retry is the check, so it costs at most one call
+ * per `PROBE_INTERVAL_MS` while the limit lasts.
+ */
+export const QUOTA_COOLDOWN_MS = 60 * 60_000;
+
+const PROBE_KEY = 'memory_probe_at';
+
+/** True when no seam has launched a paused-queue check in the last interval. */
+export function probeDue(db: DB, now = Date.now()): boolean {
+  try {
+    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(PROBE_KEY) as { value: string } | undefined;
+    const last = parseStamp(row?.value ?? null);
+    return last === null || now - last >= PROBE_INTERVAL_MS;
+  } catch {
+    return false;
+  }
+}
+
+/** Stamped before the launch, so the seams of several open sessions launch one check between them. */
+export function markProbe(db: DB, now = Date.now()): void {
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(PROBE_KEY, new Date(now).toISOString());
+}
+
+/**
+ * Resumes a paused queue once what paused it is fixed, and returns how many
+ * jobs moved. Zero when anything is still wrong.
+ *
+ * A pause used to end only when the developer ran `eklavya memory process`,
+ * and nothing said it had started: one expired login on 23 September stopped
+ * every summary on one machine for two and a half days, while the banner said
+ * "memory on". Resuming without proof would re-spend a rejected credential each
+ * session, which is why it was manual; the proof is what makes it safe:
+ *
+ * - `auth` and `missing` need `claude auth status` to report a login, which
+ *   costs no model call.
+ * - `quota` needs `QUOTA_COOLDOWN_MS` since the pause. If the limit still holds,
+ *   the first job pauses the queue again and the worker stops.
+ */
+export async function resumeIfRepaired(
+  db: DB,
+  probe: () => Promise<'ok' | 'auth' | 'missing' | 'unknown'> = () => probeLogin(),
+  now = Date.now(),
+): Promise<number> {
+  const rows = db
+    .prepare(
+      "SELECT error_class, MAX(updated_at) AS since FROM memory_jobs WHERE status = 'paused' GROUP BY error_class",
+    )
+    .all() as { error_class: string | null; since: string }[];
+  if (!rows.length) return 0;
+  for (const row of rows) {
+    if (row.error_class === 'quota') {
+      const since = parseStamp(row.since);
+      if (since !== null && now - since < QUOTA_COOLDOWN_MS) return 0;
+    }
+  }
+  if (rows.some((r) => r.error_class !== 'quota') && (await probe()) !== 'ok') return 0;
+  return resumePaused(db);
+}
+
+const STAND_IN = new LocalSummarizer();
+
+/** Soft-deletes a batch's stand-in entries: auditable, and out of every search and recall. */
+function retireStandIns(db: DB, batchId: number): void {
+  const rows = db
+    .prepare('SELECT id FROM memory_entries WHERE batch_id = ? AND generator = ? AND deleted_at IS NULL')
+    .all(batchId, STAND_IN.id) as { id: number }[];
+  for (const { id } of rows) deleteEntry(db, id);
+}
+
+/**
+ * Local entries for work waiting behind a paused provider, and how many
+ * batches it covered.
+ *
+ * A paused queue used to mean no new memory at all: recall went on serving
+ * entries from before the pause, with nothing from the days since. The local
+ * summariser needs no login and runs inside a hook, so while the provider is
+ * paused each seam writes its extractive entries for up to `max` waiting
+ * batches. They are a stand-in, not the summary: the job stays queued, and when
+ * the provider summarises the batch its entries replace these (`retireStandIns`).
+ *
+ * A batch is stood in once — `memory_batches.summarizer` records it — so a batch
+ * the local summariser has nothing to say about is not re-read every seam.
+ */
+export async function standInWhilePaused(db: DB, max = 4): Promise<number> {
+  const rows = db
+    .prepare(
+      `SELECT b.id, b.project, b.session_id FROM memory_jobs j JOIN memory_batches b ON b.id = j.batch_id
+       WHERE j.status IN ('pending', 'paused') AND b.summarizer IS NOT ?
+         AND NOT EXISTS (SELECT 1 FROM memory_entries e WHERE e.batch_id = b.id AND e.deleted_at IS NULL)
+       ORDER BY j.id LIMIT ?`,
+    )
+    .all(STAND_IN.id, max) as { id: number; project: string; session_id: string }[];
+  for (const batch of rows) {
+    const events = batchEvents(db, batch.id);
+    const drafts = events.length
+      ? await STAND_IN.summarize({ project: batch.project, sessionId: batch.session_id, events })
+      : [];
+    db.transaction(() => {
+      for (const draft of drafts) {
+        insertEntry(db, {
+          project: batch.project,
+          sessionId: batch.session_id,
+          batchId: batch.id,
+          type: draft.type,
+          title: draft.title,
+          narrative: draft.narrative,
+          facts: draft.facts,
+          files: draft.files,
+          tags: draft.tags,
+          generator: STAND_IN.id,
+          confidence: draft.confidence,
+          occurredAt: events[0]!.occurred_at,
+          eventIds: draft.eventIds,
+        });
+      }
+      db.prepare('UPDATE memory_batches SET summarizer = ? WHERE id = ?').run(STAND_IN.id, batch.id);
+    })();
+  }
+  return rows.length;
 }
 
 /** Age of the oldest unprocessed job, for the health surfaces. */

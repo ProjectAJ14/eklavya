@@ -17,7 +17,7 @@ import { claudeHome } from './install.js';
 import { guessProjectMap } from './claude-mem.js';
 import { spin } from './theme.js';
 import { importOffThread } from './memory/import-worker.js';
-import { isInternalObserver, renewWorker, reserveWorker, stopWorker, workerStatus } from './memory/reservation.js';
+import { isInternalObserver, releaseWorker, renewWorker, reserveWorker, stopWorker, workerStatus } from './memory/reservation.js';
 import { identityFor } from './memory/identity.js';
 import {
   backlogSummary,
@@ -36,7 +36,7 @@ import {
 } from './memory/store.js';
 import { search, type SearchMode } from './memory/search.js';
 import { pull, push, syncStatus } from './memory/sync.js';
-import { pruneEvidence, queueDepth, summarizerFor, superviseWorker } from './memory/worker.js';
+import { pruneEvidence, queueDepth, resumeIfRepaired, summarizerFor, superviseWorker } from './memory/worker.js';
 import { replayProject, transcriptDirFor, transcriptsFor } from './memory/replay.js';
 import { droppedCount } from './memory/spool.js';
 import { savingsFrom, savingsLine } from './memory/tokens.js';
@@ -313,15 +313,18 @@ function memoryProcess(argv: string[]): void {
   const db = openDb();
   const { config } = loadConfig();
   // Running this command *is* the "I have fixed the credential" signal: it is
-  // what `doctor` tells the developer to run, and nothing else takes a job off
-  // 'paused'. Resuming here rather than in the worker keeps it an explicit act
-  // — a hook that resumed by itself would spend a rejected key every session.
+  // what `doctor` tells the developer to run. The only other way off 'paused'
+  // is `--probe-paused`, which resumes only with proof the cause is fixed — a
+  // hook that resumed without it would spend a rejected key every session.
   // Validate before resuming. `numberFlag` exits on a bad value, and resuming
   // is not undoable: a refused run that had already emptied the pause would
   // tell the developer nothing happened while the queue quietly went back to
   // spending a credential that may still be rejected.
   const maxJobs = numberFlag(argv, '--max', 10);
-  const background = argv.includes('--no-resume');
+  // `--probe-paused` is the hooks' paused-queue check: background like
+  // `--no-resume`, but it resumes once `resumeIfRepaired` proves the cause fixed.
+  const probe = argv.includes('--probe-paused');
+  const background = argv.includes('--no-resume') || probe;
 
   // One worker per installation, manual runs included. A hook that spawned us
   // already won the slot and hands over its token; anyone else competes for it.
@@ -349,10 +352,30 @@ function memoryProcess(argv: string[]): void {
     return;
   }
 
-  // The hooks' background drain passes --no-resume: a hook that resumed by
-  // itself is exactly the retry loop the comment above rules out.
+  // The hooks' background drain passes --no-resume: a hook that resumed
+  // without proof is exactly the retry loop the comment above rules out. The
+  // probe resumes with proof, or releases the slot and exits unspent.
+  if (probe) {
+    const held = token;
+    const giveUp = () => {
+      releaseWorker(db, held);
+      db.close();
+    };
+    resumeIfRepaired(db).then((moved) => (moved ? runWorker(db, held, config, maxJobs, true, moved) : giveUp()), giveUp);
+    return;
+  }
   const resumed = background ? 0 : resumePaused(db);
+  runWorker(db, token, config, maxJobs, background, resumed);
+}
 
+function runWorker(
+  db: ReturnType<typeof openDb>,
+  token: string,
+  config: ReturnType<typeof loadConfig>['config'],
+  maxJobs: number,
+  background: boolean,
+  resumed: number,
+): void {
   // SIGHUP too: a closed terminal is a stop, and the call it left running is
   // exactly the orphan this has to prevent.
   const stop = new AbortController();

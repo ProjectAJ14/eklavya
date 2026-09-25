@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
-import { learningCounts, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
+import { learningCounts, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
 import { appendEvent, insertEntry } from '../src/memory/store.js';
 import { estimateTokens } from '../src/memory/tokens.js';
 import { GLOBAL_PROJECT } from '../src/store.js';
@@ -64,6 +64,29 @@ describe('recall', () => {
     // A budget in items would let six long entries cost what sixty short ones do.
     expect(result.entries.length).toBeLessThan(cfg.retrieval.max_items);
     expect(estimateTokens(block)).toBeLessThanOrEqual(cfg.retrieval.max_tokens);
+  });
+
+  it('skips an entry too long for what is left of the budget, and keeps filling with the rest', () => {
+    // Newest first: a short entry, then a long session summary, then short ones.
+    // Stopping at the summary held every seam recall to one entry.
+    const at = (m: number) => new Date(Date.UTC(2026, 8, 25, 12, 59 - m)).toISOString();
+    const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ');
+    insertEntry(db, { project: PROJECT, title: 'Newest', narrative: words(40), type: 'change', occurredAt: at(0) });
+    insertEntry(db, { project: PROJECT, title: 'Long summary', narrative: words(600), type: 'change', occurredAt: at(1) });
+    for (let i = 2; i < 5; i++) {
+      insertEntry(db, { project: PROJECT, title: `Short ${i}`, narrative: words(40), type: 'change', occurredAt: at(i) });
+    }
+    const cfg = config();
+    cfg.retrieval.max_tokens = 1200;
+    const result = recall(db, cfg, { project: PROJECT });
+    expect(result.entries.map((e) => e.title)).toEqual(['Newest', 'Short 2', 'Short 3', 'Short 4']);
+    expect(result.deliveredTokens).toBeLessThanOrEqual(1200);
+  });
+
+  it('still stops at max_items when every entry fits', () => {
+    for (let i = 0; i < 10; i++) insertEntry(db, { project: PROJECT, title: `Tiny ${i}`, narrative: 'x', type: 'change' });
+    const cfg = config();
+    expect(recall(db, cfg, { project: PROJECT }).entries).toHaveLength(cfg.retrieval.max_items);
   });
 
   it('charges the underlying evidence once, however many entries were built from it', () => {
@@ -239,5 +262,28 @@ describe('recallForPrompt', () => {
     expect(result).not.toBeNull();
     expect(result.entries.length).toBeLessThanOrEqual(Math.floor(cfg.retrieval.max_items / 3));
     expect(estimateTokens(result.block!)).toBeLessThanOrEqual(Math.floor(cfg.retrieval.max_tokens / 3));
+  });
+
+  it('searches on what the developer wrote, not on a pasted block or a subagent hand-back', () => {
+    insertEntry(db, { project: PROJECT, title: 'Refresh token rotation change', narrative: 'rotation', type: 'change' });
+    const cfg = config();
+    const handBack =
+      'Another Claude session sent a message: <agent-message from="a1">refresh token rotation change, all done</agent-message>';
+    expect(recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's1', prompt: handBack })).toBeNull();
+    const pasted = 'look <pasted_content id="x">refresh token rotation change</pasted_content>';
+    expect(recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's1', prompt: pasted })).toBeNull();
+    // The developer's own words around a paste still search.
+    const own = 'why did the refresh token rotation change break? <pasted_content id="y">stack</pasted_content>';
+    expect(recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's2', prompt: own })).not.toBeNull();
+  });
+});
+
+describe('ownWords', () => {
+  it('drops tagged blocks and the hand-back preamble, and keeps the rest', () => {
+    expect(ownWords('Another Claude session sent a message: <agent-message from="a">report</agent-message>')).toBe('');
+    expect(ownWords('<task-notification>done</task-notification> now fix the test')).toBe('now fix the test');
+    expect(ownWords('compare a < b and b > c')).toBe('compare a < b and b > c');
+    expect(ownWords('why does <Button>Save</Button> fire twice')).toBe('why does <Button>Save</Button> fire twice');
+    expect(ownWords('<pasted_content id="x">log</pasted_content> explain')).toBe('explain');
   });
 });
