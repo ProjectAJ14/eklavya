@@ -1,3 +1,10 @@
+# [1.32.0](https://github.com/ProjectAJ14/eklavya/compare/v1.31.0...v1.32.0) (2026-09-25)
+
+
+### Features
+
+* **quiz:** keep only asked questions in the backlog ([392e2da](https://github.com/ProjectAJ14/eklavya/commit/392e2dab44c098521ee9572426e1ecb18f604183))
+
 # [1.31.0](https://github.com/ProjectAJ14/eklavya/compare/v1.30.4...v1.31.0) (2026-09-24)
 
 
