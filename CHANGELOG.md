@@ -1,3 +1,10 @@
+## [1.35.1](https://github.com/ProjectAJ14/eklavya/compare/v1.35.0...v1.35.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **memory:** resolve observer concepts like logged ones ([4efd11d](https://github.com/ProjectAJ14/eklavya/commit/4efd11d0df5dfa998978325c93971700dc02ea5a))
+
 # [1.35.0](https://github.com/ProjectAJ14/eklavya/compare/v1.34.0...v1.35.0) (2026-09-26)
 
 
