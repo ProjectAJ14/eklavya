@@ -40,7 +40,7 @@ runtime catch-up.
 
 | Symptom | Check or repair |
 |---|---|
-| No questions | Check `quiz.enabled`. Automatic questions also wait until the session changes code (`quiz.only_on_changes`), so read-only sessions get none, and they cover only work logged in the last hour. Run `/eklavya:quiz` to be asked anyway. Claude must log concepts tied to the work before Eklavya can ask about them. |
+| No questions | Check `quiz.enabled`. Automatic questions also wait until the session changes code (`quiz.only_on_changes`), so read-only sessions get none, and they cover only work logged since you last came back after more than an hour away. Run `/eklavya:quiz` to be asked anyway. Claude must log concepts tied to the work before Eklavya can ask about them. |
 | Questions stopped partway through | The session may have reached its budget, have no eligible concepts, or still be within the checkpoint interval. Ask Claude to log the current task's concepts, then try `/eklavya:quiz`. |
 | Questions only arrive at task completion | Check `cadence`. `eklavya config set cadence interleaved` enables mid-task checkpoints; Claude also needs to log concepts while working. |
 | Too many interruptions | Increase `min_minutes_between_checkpoints`, decrease `max_questions_per_task`, or choose `cadence: end`. See [The dials](/docs/dials/). |

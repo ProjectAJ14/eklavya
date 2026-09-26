@@ -6,7 +6,6 @@ import { findFuzzyMatch, normalizeSlug } from '../slug.js';
 import {
   addCandidate,
   entryById,
-  pendingCandidates,
   resolveCandidate,
   timeline,
   type CandidateRow,
@@ -156,9 +155,7 @@ export function fillOmissions(
   // sessions in a day. Nothing of its own yet means nothing to ask, which is
   // the status quo, not a failure.
   proposeForProject(db, config, project, 10, sessionId);
-  const candidates = pendingCandidates(db, project, 200)
-    .filter((c) => c.confidence >= 0.7 && candidateSession(db, c) === sessionId)
-    .slice(0, 20);
+  const candidates = sessionCandidates(db, project, sessionId, 20);
   if (!candidates.length) return { accepted: 0, skipped: 0, reason: 'no_candidates' };
 
   // The same budget an explicit log is held to. It is a cap on slug sprawl, and
@@ -187,16 +184,23 @@ export function fillOmissions(
   return { accepted, skipped: candidates.length - accepted };
 }
 
-/** The session whose memory entry, or evidence event, a candidate was mined from. */
-function candidateSession(db: DB, candidate: CandidateRow): string | null {
-  const row = db
+/**
+ * Pending candidates mined from this session's own entries or events, strongest
+ * first. Filtered in the query, not after a project-wide limit: other sessions'
+ * candidates are never resolved here, so they accumulate, and a capped list
+ * would sooner or later hold none of this session's.
+ */
+function sessionCandidates(db: DB, project: string, sessionId: string, limit: number): CandidateRow[] {
+  return db
     .prepare(
-      `SELECT COALESCE(
-         (SELECT session_id FROM memory_entries WHERE id = ?),
-         (SELECT session_id FROM evidence_events WHERE id = ?)) AS sid`,
+      `SELECT ls.* FROM learning_sources ls
+        WHERE ls.status = 'candidate' AND ls.project = ? AND ls.confidence >= 0.7
+          AND (ls.entry_id IN (SELECT id FROM memory_entries WHERE session_id = ?)
+               OR ls.event_id IN (SELECT id FROM evidence_events WHERE session_id = ?))
+        ORDER BY ls.confidence DESC, ls.id
+        LIMIT ?`,
     )
-    .get(candidate.entry_id ?? null, candidate.event_id ?? null) as { sid: string | null } | undefined;
-  return row?.sid ?? null;
+    .all(project, sessionId, sessionId, limit) as CandidateRow[];
 }
 
 function conceptFor(db: DB, candidate: CandidateRow): { id: number } | undefined {

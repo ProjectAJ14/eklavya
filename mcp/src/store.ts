@@ -191,8 +191,8 @@ export function logSessionConcept(
      VALUES (?, ?, ?, ?)
      ON CONFLICT(session_id, concept_id) DO UPDATE SET
        context = COALESCE(excluded.context, session_concepts.context),
-       -- Logged again as work is work happening now: only recent work is
-       -- askable (RECENT_WORK_MINUTES in time.ts), so the clock restarts.
+       -- Logged again as work is work happening now: only the current
+       -- stretch of work is askable (workSince in session.ts), so the stamp moves.
        ts = CASE WHEN excluded.origin = 'work' THEN excluded.ts ELSE session_concepts.ts END,
        -- Work wins and never degrades: a concept quizzed as review debt and
        -- then genuinely touched by the task is part of the task.

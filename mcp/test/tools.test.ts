@@ -148,6 +148,13 @@ describe('session resolution (G1)', () => {
       expect(resolveSessionId(db)).toBe('before-clear');
     });
 
+    it('follows /clear on a host with no socket variable, keyed by the startup id', () => {
+      process.env.CLAUDE_CODE_SESSION_ID = 'started-as';
+      expect(resolveSessionId(db)).toBe('started-as');
+      setCurrentSession(db, 'after-clear');
+      expect(resolveSessionId(db)).toBe('after-clear');
+    });
+
     it('yields to EKLAVYA_SESSION_ID, which joins panes on purpose', () => {
       process.env.CLAUDE_CODE_SESSION_ID = 'this-window';
       process.env.EKLAVYA_SESSION_ID = 'shared-task';
@@ -553,12 +560,29 @@ describe('get_session_quiz_plan', () => {
     expect(slugs).not.toContain('git-commit');
   });
 
-  it('plans from this session\'s last hour of work, not what it logged yesterday', () => {
+  it('plans from the current stretch of work, not what was logged before an idle break', () => {
     logAuthWork();
     db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-1 day') WHERE session_id = ?`).run(SESSION);
+    // The developer comes back the next morning: the last prompt was a day ago.
+    db.prepare(`INSERT INTO meta (key, value) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day') || '|x')`).run(
+      `activity:${SESSION}`,
+    );
+    setCurrentSession(db, SESSION);
     call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'pkce', context: 'added PKCE to login' }] });
     const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 5 }).concepts.map((c: any) => c.slug);
     expect(slugs).toEqual(['pkce']);
+  });
+
+  it('does not widen from work logged before an idle break', () => {
+    configure({ min_minutes_between_quizzes: 0, focus: 'concept' });
+    logAuthWork();
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-1 day') WHERE session_id = ?`).run(SESSION);
+    db.prepare(`INSERT INTO meta (key, value) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day') || '|x')`).run(
+      `activity:${SESSION}`,
+    );
+    setCurrentSession(db, SESSION);
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 5 });
+    expect(plan.concepts.filter((c: any) => c.reason === 'concept_widening')).toEqual([]);
   });
 
   it('waits for the review date before asking a declined question again', () => {

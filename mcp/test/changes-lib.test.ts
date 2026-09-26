@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
+import { noteEdit, recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
 import { openDb, type DB } from '../src/db.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
@@ -161,20 +161,42 @@ describe('sessionChangedCode', () => {
     expect(sessionChangedCode(db, 's1', repo)).toBe(true);
   });
 
-  it('counts an edit made through the tools outside the tree it started in', () => {
+  it('counts an edit-tool write into any git tree, including a sibling worktree', () => {
     // The OIP layout: started in the main checkout, editing a sibling worktree
     // by absolute path. This tree never moves; the session still wrote code.
-    recordBaseline(db, 's1', repo);
-    expect(sessionChangedCode(db, 's1', repo)).toBe(false);
-    expect(sessionChangedCode(db, 's1', repo, true)).toBe(true);
-    db.prepare(
-      `INSERT INTO evidence_events (event_uid, project, session_id, kind, tool, occurred_at)
-       VALUES ('e1', ?, 's1', 'file_edit', 'Edit', datetime('now'))`,
-    ).run(repo);
-    expect(sessionChangedCode(db, 's1', repo)).toBe(true);
-    // Another session's edit is not this one's.
-    recordBaseline(db, 's2', repo);
-    expect(sessionChangedCode(db, 's2', repo)).toBe(false);
+    const sibling = `${repo}-worktrees/feat`;
+    git('worktree', 'add', '-q', '-b', 'feat', sibling);
+    try {
+      recordBaseline(db, 's1', repo);
+      recordBaseline(db, 's2', repo);
+      expect(sessionChangedCode(db, 's1', repo)).toBe(false);
+      fs.writeFileSync(path.join(sibling, 'b.ts'), 'b\n');
+      noteEdit(db, 's1', path.join(sibling, 'b.ts'));
+      expect(sessionChangedCode(db, 's1', repo)).toBe(true);
+      // Another session's edit is not this one's.
+      expect(sessionChangedCode(db, 's2', repo)).toBe(false);
+    } finally {
+      fs.rmSync(`${repo}-worktrees`, { recursive: true, force: true });
+    }
+  });
+
+  it('does not count research writes outside any tree, or ignored files', () => {
+    const notes = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-notes-')));
+    try {
+      write('.gitignore', 'dist/\n');
+      git('add', '.gitignore');
+      git('commit', '-qm', 'ignore');
+      recordBaseline(db, 's1', repo);
+      recordBaseline(db, 's3', repo);
+      fs.writeFileSync(path.join(notes, 'memory.md'), 'n\n');
+      noteEdit(db, 's1', path.join(notes, 'memory.md'));
+      write('dist/out.js', 'x\n');
+      noteEdit(db, 's3', file('dist/out.js'));
+      expect(sessionChangedCode(db, 's1', repo)).toBe(false);
+      expect(sessionChangedCode(db, 's3', repo)).toBe(false);
+    } finally {
+      fs.rmSync(notes, { recursive: true, force: true });
+    }
   });
 
   it('keeps the first baseline when recorded again, as on a resume', () => {

@@ -22,10 +22,11 @@
  * checkout that edits a sibling worktree (`<repo>-worktrees/<branch>`) by
  * absolute path and `cd`. The tree it started in never moves, so every one of
  * those sessions read as research -- nine of thirteen coding sessions in one
- * OIP day got no question. So an edit the session made through the edit tools
- * counts wherever it landed: the hook that fired on it says so (`editedNow`),
- * and memory capture has recorded it as a `file_edit` event for every call
- * after. Git still covers Bash edits in the session's own tree.
+ * OIP day got no question. So the checkpoint hook, which fires on every edit
+ * tool, marks the session (`noteEdit`) when the file it edited sits in any git
+ * working tree and is not ignored. Research writes elsewhere -- auto-memory
+ * notes, plans, a scratchpad -- are outside any tree and do not count. Git
+ * still covers Bash edits in the session's own tree.
  *
  * Known edges, all accepted:
  *   - a file already dirty at session start, edited and then reverted, still
@@ -111,8 +112,8 @@ export function recordBaseline(db: DB, sessionId: string, cwd: string, fp = tree
  * or whose start-up git call timed out. It takes its baseline now and answers
  * false, so its changes from here on still count.
  */
-export function sessionChangedCode(db: DB, sessionId: string, cwd: string, editedNow = false): boolean {
-  if (editedNow || editedThroughTools(db, sessionId)) return true;
+export function sessionChangedCode(db: DB, sessionId: string, cwd: string): boolean {
+  if (editMarked(db, sessionId)) return true;
   const now = treeFingerprint(cwd);
   if (now === null) return true;
   try {
@@ -129,13 +130,41 @@ export function sessionChangedCode(db: DB, sessionId: string, cwd: string, edite
   }
 }
 
-/** An Edit/Write/MultiEdit/NotebookEdit this session made, as memory captured it. */
-function editedThroughTools(db: DB, sessionId: string): boolean {
+const EDIT_PREFIX = 'code_edit:';
+
+function editMarked(db: DB, sessionId: string): boolean {
   try {
-    return Boolean(
-      db.prepare("SELECT 1 FROM evidence_events WHERE session_id = ? AND kind = 'file_edit' LIMIT 1").get(sessionId),
-    );
+    return Boolean(db.prepare('SELECT 1 FROM meta WHERE key = ?').get(`${EDIT_PREFIX}${sessionId}`));
   } catch {
     return false;
+  }
+}
+
+/** True when `file` is in a git working tree and not ignored. Two git calls. */
+function inWorkTree(file: string): boolean {
+  const dir = path.dirname(file);
+  if (git(dir, ['rev-parse', '--is-inside-work-tree'])?.trim() !== 'true') return false;
+  // Exit 0 means ignored: build output, a vendored folder.
+  const ignored = spawnSync('git', ['check-ignore', '-q', file], { cwd: dir, timeout: GIT_TIMEOUT_MS, windowsHide: true });
+  return ignored.status !== 0;
+}
+
+/**
+ * Marks the session as having changed code, once, when an edit tool wrote a
+ * file inside a git working tree -- any tree, including a sibling worktree the
+ * session never started in. Once marked, later edits cost no git call.
+ */
+export function noteEdit(db: DB, sessionId: string, file: string): void {
+  try {
+    if (!path.isAbsolute(file) || editMarked(db, sessionId) || !inWorkTree(file)) return;
+    db.prepare(`DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`).run(
+      `${EDIT_PREFIX}%`,
+    );
+    db.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)').run(
+      `${EDIT_PREFIX}${sessionId}`,
+      new Date().toISOString(),
+    );
+  } catch {
+    /* Unmarked falls back to the git comparison. */
   }
 }

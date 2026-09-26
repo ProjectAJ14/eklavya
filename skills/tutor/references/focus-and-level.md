@@ -73,7 +73,7 @@ you reach for the idea instead. Ask about them on their own terms.
 Items with `reason: "project_review"` are earlier questions from this project
 that the learner declined, blanked on or missed and that are due again — the
 only backlog there is. A question answered correctly never comes back this way.
-Offered once this session's own concepts (those logged in the last hour) are
+Offered once this session's own concepts (those logged since the developer's last break of over an hour) are
 covered, in any domain but only from this project -- there is one
 database for every project, so the scope is what keeps a Flutter session off
 last month's Terraform. Never while an enforced gate is open: a review answer

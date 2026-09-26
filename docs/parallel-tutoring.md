@@ -77,8 +77,8 @@ status; it does not silence questions. Session-scoped silence is shared too.
 `mcp/src/session.ts` resolves tool calls in this order: explicit tool argument,
 `EKLAVYA_SESSION_ID`, the host's session, checkout-specific database pointer,
 then `default`. The host's session is the ID the hooks last recorded for this
-`claude` process (keyed by `CLAUDE_CODE_MESSAGING_SOCKET`, so it follows
-`/clear`), else the server's own `CLAUDE_CODE_SESSION_ID`. Hooks prefer the
+`claude` process (keyed by `CLAUDE_CODE_MESSAGING_SOCKET`, else by the startup
+`CLAUDE_CODE_SESSION_ID`, so it follows `/clear`), else the server's own `CLAUDE_CODE_SESSION_ID`. Hooks prefer the
 environment override before the host's input ID. Normally, tools should omit
 `session_id`.
 

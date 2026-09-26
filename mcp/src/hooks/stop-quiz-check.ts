@@ -40,13 +40,12 @@
  */
 import { isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince } from './lib.js';
-import { isSessionOff } from '../session.js';
+import { isSessionOff, workSince } from '../session.js';
 import { flushAtSeam, identityOf, record, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
 import { dueInProject, sessionConcepts } from '../store.js';
 import { countUse } from '../telemetry.js';
 import { sessionChangedCode } from './changes-lib.js';
-import { recentWorkSql } from '../time.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -117,9 +116,14 @@ await run(async (input) => {
 
   if (!quiz.enabled) return 0;
 
-  // The same recent-work window as checkpoint-quiz.ts, for the same reason,
-  // and the same exemption for an enforced gate.
-  const recent = quiz.enforced ? '' : `AND ${recentWorkSql('sc.ts')}`;
+  // Only work logged in the current stretch is askable -- since the first prompt
+  // after an idle break (`workSince`) -- so a session left open overnight is not
+  // asked about yesterday. Not for an enforced gate, whose bar was frozen from
+  // everything the session logged. checkpoint-quiz.ts and stop-quiz-check.ts
+  // must agree on this line.
+  const since = quiz.enforced ? null : workSince(db, sid);
+  const recent = since ? 'AND datetime(sc.ts) >= datetime(@since)' : '';
+  const bind = since ? { sid, since } : { sid };
 
   const stats = db
     .prepare(
@@ -147,7 +151,7 @@ await run(async (input) => {
          -- Stop quiz from a fixed batch of four into a sweep of whatever is left.
          (SELECT count(*) FROM attempts WHERE session_id = @sid) AS spent`,
     )
-    .get({ sid }) as
+    .get(bind) as
     | {
         unmastered: number;
         logged: number;
@@ -278,7 +282,7 @@ await run(async (input) => {
         ORDER BY sc.ts DESC, sc.rowid DESC
         LIMIT @take`,
     )
-    .all({ sid, take }) as Array<{ line: string }>;
+    .all({ ...bind, take }) as Array<{ line: string }>;
 
   const concepts = (due.length ? due.slice(0, take) : rows.map((r) => r.line)).join('; ');
 

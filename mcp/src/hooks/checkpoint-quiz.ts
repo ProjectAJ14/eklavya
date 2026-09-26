@@ -40,39 +40,55 @@
  * hook that errors on every tool call is a plugin nobody keeps.
  */
 import { attributionRule } from '../surface.js';
-import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
-import { isSessionOff } from '../session.js';
+import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor, type DB } from './lib.js';
+import { isSessionOff, workSince } from '../session.js';
 import { countUse } from '../telemetry.js';
-import { sessionChangedCode } from './changes-lib.js';
-import { recentWorkSql } from '../time.js';
+import { noteEdit, sessionChangedCode } from './changes-lib.js';
+
+const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
 
 await run(async (input) => {
-  // Fast path. `agent_id` is present only inside a subagent, and a subagent
-  // cannot ask the developer anything -- AskUserQuestion is not in its toolset,
-  // and the human is not watching that transcript. Checkpointing there would
-  // burn a question from the budget on a prompt nobody ever sees.
-  if (input.agent_id) return 0;
-
   const cwd = cwdOf(input);
   const { quiz, cadence, focus, focus_topic, max_questions_per_task, min_minutes_between_checkpoints } =
     config(cwd).config;
 
   if (!quiz.enabled) return 0;
+
+  // Before every other exit: an edit is what `quiz.only_on_changes` waits for,
+  // and it counts whoever made it (a subagent's edit is the session's work) and
+  // under either cadence (the Stop hook reads the same mark).
+  let db: DB | null = null;
+  if (quiz.only_on_changes && !quiz.enforced && EDIT_TOOLS.test(input.tool_name ?? '')) {
+    const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
+    db = openExisting();
+    const sid = db ? sessionId(input, db) : null;
+    if (db && sid && typeof file === 'string') noteEdit(db, sid, file);
+  }
+
+  // `agent_id` is present only inside a subagent, and a subagent cannot ask the
+  // developer anything -- AskUserQuestion is not in its toolset, and the human
+  // is not watching that transcript. Checkpointing there would burn a question
+  // from the budget on a prompt nobody ever sees.
+  if (input.agent_id) return 0;
   // The whole feature behind one switch. `end` is the pre-1.4 behaviour: silence
   // until Stop.
   if (cadence !== 'interleaved') return 0;
 
-  const db = openExisting();
+  db ??= openExisting();
   if (!db) return 0;
 
   const sid = sessionId(input, db);
   if (!sid) return 0;
   if (isSessionOff(db, sid)) return 0;
 
-  // Only work logged in the last hour is askable, so a session left open
-  // overnight is not asked about yesterday. Not for an enforced gate, whose bar
-  // was frozen from everything the session logged.
-  const recent = quiz.enforced ? '' : `AND ${recentWorkSql('sc.ts')}`;
+  // Only work logged in the current stretch is askable -- since the first prompt
+  // after an idle break (`workSince`) -- so a session left open overnight is not
+  // asked about yesterday. Not for an enforced gate, whose bar was frozen from
+  // everything the session logged. checkpoint-quiz.ts and stop-quiz-check.ts
+  // must agree on this line.
+  const since = quiz.enforced ? null : workSince(db, sid);
+  const recent = since ? 'AND datetime(sc.ts) >= datetime(@since)' : '';
+  const bind = since ? { sid, since } : { sid };
 
   // One query for every number this decision needs.
   //
@@ -103,7 +119,7 @@ await run(async (input) => {
          (SELECT last_checkpoint_at FROM checkpoints WHERE session_id = @sid) AS last_checkpoint,
          (SELECT ts FROM attempts WHERE session_id = @sid ORDER BY id DESC LIMIT 1) AS last_answer`,
     )
-    .get({ sid }) as
+    .get(bind) as
     | { candidates: number; spent: number; last_checkpoint: string | null; last_answer: string | null }
     | undefined;
 
@@ -138,15 +154,12 @@ await run(async (input) => {
         ORDER BY sc.ts DESC, sc.rowid DESC
         LIMIT 1`,
     )
-    .get({ sid }) as { concept: string } | undefined;
+    .get(bind) as { concept: string } | undefined;
 
   if (!row?.concept) return 0;
 
   // Last, because it spawns git: every cheaper reason not to ask goes first.
-  // The edit this hook fired on counts even before capture has recorded it:
-  // the two PostToolUse hooks run side by side.
-  const editedNow = /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(input.tool_name ?? '');
-  if (quiz.only_on_changes && !quiz.enforced && !sessionChangedCode(db, sid, cwd, editedNow)) return 0;
+  if (quiz.only_on_changes && !quiz.enforced && !sessionChangedCode(db, sid, cwd)) return 0;
 
   // Stamp BEFORE emitting. If anything below fails the worst case is a missed
   // question; stamping after would let a crash between the two re-fire on the very

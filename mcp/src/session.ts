@@ -1,5 +1,6 @@
 import type { DB } from './db.js';
 import { findRepoConfig } from './config.js';
+import { IDLE_BREAK_MINUTES, minutesSince } from './time.js';
 
 const CURRENT_SESSION_KEY = 'current_session';
 export const FALLBACK_SESSION_ID = 'default';
@@ -55,6 +56,44 @@ export function setCurrentSession(db: DB, sessionId: string, cwd?: string | null
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   ).run(sessionKeyFor(cwd), sessionId);
   stampHostSession(db, sessionId);
+  noteActivity(db, sessionId);
+}
+
+/**
+ * When this session's current stretch of work began: its first prompt, or the
+ * first one after an idle gap longer than `IDLE_BREAK_MINUTES`. Only work logged
+ * since then is askable. Stamped wherever the pointer is -- session start and
+ * every prompt, the two moments the developer is demonstrably there.
+ */
+const ACTIVITY_PREFIX = 'activity:';
+
+function noteActivity(db: DB, sessionId: string): void {
+  const key = `${ACTIVITY_PREFIX}${sessionId}`;
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
+  const now = new Date().toISOString();
+  const [last, since] = row ? row.value.split('|') : [];
+  const fresh = !last || !since || minutesSince(last) > IDLE_BREAK_MINUTES;
+  if (!row) {
+    db.prepare(`DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`).run(
+      `${ACTIVITY_PREFIX}%`,
+    );
+  }
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(key, `${now}|${fresh ? now : since}`);
+}
+
+/** The start of the session's current stretch of work, or null if never stamped. */
+export function workSince(db: DB, sessionId: string): string | null {
+  try {
+    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`${ACTIVITY_PREFIX}${sessionId}`) as
+      | { value: string }
+      | undefined;
+    return row?.value.split('|')[1] || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -84,8 +123,20 @@ function envValue(name: string): string | null {
   return value ? value : null;
 }
 
+/**
+ * Which `claude` process this is: its messaging socket, else the session id it
+ * started with -- a host without the socket still gets a record the hooks
+ * refresh after `/clear`, instead of the startup id winning outright.
+ */
+function hostKey(): string | null {
+  const socket = envValue('CLAUDE_CODE_MESSAGING_SOCKET');
+  if (socket) return socket;
+  const started = envValue('CLAUDE_CODE_SESSION_ID');
+  return started ? `id:${started}` : null;
+}
+
 function stampHostSession(db: DB, sessionId: string): void {
-  const host = envValue('CLAUDE_CODE_MESSAGING_SOCKET');
+  const host = hostKey();
   if (!host) return;
   // A row per `claude` process; a week is far past any process still running.
   db.prepare(`DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`).run(
@@ -98,7 +149,7 @@ function stampHostSession(db: DB, sessionId: string): void {
 }
 
 export function hostSession(db: DB): string | null {
-  const host = envValue('CLAUDE_CODE_MESSAGING_SOCKET');
+  const host = hostKey();
   if (host) {
     const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`${HOST_SESSION_PREFIX}${host}`) as
       | { value: string }
