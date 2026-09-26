@@ -1,3 +1,15 @@
+# [1.34.0](https://github.com/ProjectAJ14/eklavya/compare/v1.33.3...v1.34.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* **dashboard:** revert refused settings controls; fit the largest list ([94b2b30](https://github.com/ProjectAJ14/eklavya/commit/94b2b307d15286dc56d912e32f7e56b49e31bd20))
+
+
+### Features
+
+* **dashboard:** settings workflow, brand loader and design-system dropdowns ([8d037c4](https://github.com/ProjectAJ14/eklavya/commit/8d037c47e9e23af3c3184ee73cc7f8e70d65336f))
+
 ## [1.33.3](https://github.com/ProjectAJ14/eklavya/compare/v1.33.2...v1.33.3) (2026-09-26)
 
 
