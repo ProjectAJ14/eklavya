@@ -1,3 +1,12 @@
+## [1.33.3](https://github.com/ProjectAJ14/eklavya/compare/v1.33.2...v1.33.3) (2026-09-26)
+
+
+### Bug Fixes
+
+* **quiz:** address review of the session-scope change ([03b1930](https://github.com/ProjectAJ14/eklavya/commit/03b1930f2636a44a734e423a6582930fe0918549))
+* **quiz:** ask about this session's current work; backlog only what was missed ([3ef91e6](https://github.com/ProjectAJ14/eklavya/commit/3ef91e64a57dc23967a4766fd3169dc05c7b8a75))
+* **quiz:** plan the concept the hooks name; count tool calls as activity ([85b87d2](https://github.com/ProjectAJ14/eklavya/commit/85b87d254f52cba38a7975d46f6555b3db26e7c8))
+
 ## [1.33.2](https://github.com/ProjectAJ14/eklavya/compare/v1.33.1...v1.33.2) (2026-09-26)
 
 
