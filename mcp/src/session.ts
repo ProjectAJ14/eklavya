@@ -1,6 +1,6 @@
 import type { DB } from './db.js';
 import { findRepoConfig } from './config.js';
-import { IDLE_BREAK_MINUTES, minutesSince } from './time.js';
+import { IDLE_BREAK_MINUTES, parseStamp } from './time.js';
 
 const CURRENT_SESSION_KEY = 'current_session';
 export const FALLBACK_SESSION_ID = 'default';
@@ -60,19 +60,27 @@ export function setCurrentSession(db: DB, sessionId: string, cwd?: string | null
 }
 
 /**
- * When this session's current stretch of work began: its first prompt, or the
- * first one after an idle gap longer than `IDLE_BREAK_MINUTES`. Only work logged
- * since then is askable. Stamped wherever the pointer is -- session start and
- * every prompt, the two moments the developer is demonstrably there.
+ * When this session's current stretch of work began: its first activity, or the
+ * first after an idle gap longer than `IDLE_BREAK_MINUTES`. Only work logged
+ * since then is askable. Activity is a prompt or session start (stamped with the
+ * pointer) and every work tool call (stamped by the checkpoint hook): an agent
+ * working alone for seventy minutes after one prompt is not idle, and measuring
+ * from prompts alone made that whole task stale the moment the developer typed
+ * a follow-up.
  */
 const ACTIVITY_PREFIX = 'activity:';
 
-function noteActivity(db: DB, sessionId: string): void {
+export function noteActivity(db: DB, sessionId: string, at = new Date()): void {
   const key = `${ACTIVITY_PREFIX}${sessionId}`;
   const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as { value: string } | undefined;
-  const now = new Date().toISOString();
-  const [last, since] = row ? row.value.split('|') : [];
-  const fresh = !last || !since || minutesSince(last) > IDLE_BREAK_MINUTES;
+  const now = at.toISOString();
+  // An empty start means "since the session began": the first record sets no
+  // boundary, because work logged before it (a session that predates this
+  // stamp, or whose first stamp is a tool call) is still this stretch's work.
+  // Only a real break starts a bounded stretch.
+  const [last, since = ''] = row ? row.value.split('|') : [];
+  const lastMs = parseStamp(last);
+  const broke = lastMs !== null && at.getTime() - lastMs > IDLE_BREAK_MINUTES * 60_000;
   if (!row) {
     db.prepare(`DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`).run(
       `${ACTIVITY_PREFIX}%`,
@@ -81,10 +89,10 @@ function noteActivity(db: DB, sessionId: string): void {
   db.prepare(
     `INSERT INTO meta (key, value) VALUES (?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-  ).run(key, `${now}|${fresh ? now : since}`);
+  ).run(key, `${now}|${broke ? now : since}`);
 }
 
-/** The start of the session's current stretch of work, or null if never stamped. */
+/** The start of the session's current stretch of work, or null for "since it began". */
 export function workSince(db: DB, sessionId: string): string | null {
   try {
     const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`${ACTIVITY_PREFIX}${sessionId}`) as

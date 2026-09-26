@@ -41,7 +41,7 @@
  */
 import { attributionRule } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor, type DB } from './lib.js';
-import { isSessionOff, workSince } from '../session.js';
+import { isSessionOff, noteActivity, workSince } from '../session.js';
 import { countUse } from '../telemetry.js';
 import { noteEdit, sessionChangedCode } from './changes-lib.js';
 
@@ -57,12 +57,21 @@ await run(async (input) => {
   // Before every other exit: an edit is what `quiz.only_on_changes` waits for,
   // and it counts whoever made it (a subagent's edit is the session's work) and
   // under either cadence (the Stop hook reads the same mark).
-  let db: DB | null = null;
-  if (quiz.only_on_changes && !quiz.enforced && EDIT_TOOLS.test(input.tool_name ?? '')) {
+  // The same goes for activity: every work tool call keeps the session's
+  // current stretch of work open (`noteActivity`), whoever made it.
+  let db: DB | null = openExisting();
+  if (!db) return 0;
+  const workSid = sessionId(input, db);
+  if (workSid) {
+    try {
+      noteActivity(db, workSid);
+    } catch {
+      /* Bookkeeping: a missed stamp only risks one stale-looking stretch. */
+    }
     const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
-    db = openExisting();
-    const sid = db ? sessionId(input, db) : null;
-    if (db && sid && typeof file === 'string') noteEdit(db, sid, file);
+    if (quiz.only_on_changes && !quiz.enforced && EDIT_TOOLS.test(input.tool_name ?? '') && typeof file === 'string') {
+      noteEdit(db, workSid, file);
+    }
   }
 
   // `agent_id` is present only inside a subagent, and a subagent cannot ask the
@@ -74,10 +83,7 @@ await run(async (input) => {
   // until Stop.
   if (cadence !== 'interleaved') return 0;
 
-  db ??= openExisting();
-  if (!db) return 0;
-
-  const sid = sessionId(input, db);
+  const sid = workSid;
   if (!sid) return 0;
   if (isSessionOff(db, sid)) return 0;
 
@@ -137,8 +143,8 @@ await run(async (input) => {
 
   // The concept most recently logged, not the oldest: this hook is asking about
   // the code that was just written, and the last row is the one the call that
-  // triggered us put there. The Stop hook orders the same way, for the same
-  // reason.
+  // triggered us put there. The Stop hook and the planner order the same way
+  // (ts, then insertion), so the concept named here is the one the plan serves.
   const row = db
     .prepare(
       `SELECT c.slug || COALESCE(' (' || sc.context || ')', '') AS concept

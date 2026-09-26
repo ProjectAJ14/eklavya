@@ -12,7 +12,7 @@ import { upsertConcepts } from '../src/tools/upsert_concepts.js';
 import { getConceptGraph } from '../src/tools/get_concept_graph.js';
 import { gateRetryConcepts } from '../src/store.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
-import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID } from '../src/session.js';
+import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID, noteActivity, workSince } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 let dbFile = '';
@@ -571,6 +571,36 @@ describe('get_session_quiz_plan', () => {
     call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'pkce', context: 'added PKCE to login' }] });
     const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 5 }).concepts.map((c: any) => c.slug);
     expect(slugs).toEqual(['pkce']);
+  });
+
+  it('serves the concept the hooks name: newest first, then last logged in a batch', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'earlier' }] });
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-30 minutes') WHERE session_id = ?`).run(SESSION);
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'jwt-structure', context: 'a' }, { slug: 'pkce', context: 'b' }],
+    });
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    // The Stop hook's concept line under the same state names pkce.
+    expect(plan.concepts.map((c: any) => c.slug)).toEqual(['pkce']);
+  });
+
+  it('keeps a long agent turn in one stretch: tool calls count as activity, not just prompts', () => {
+    // Prompt at 09:00, the agent works alone until 10:15, then a follow-up.
+    const t = Date.now();
+    const at = (min: number) => new Date(t - min * 60_000);
+    noteActivity(db, SESSION, at(200));
+    // The first stretch is unbounded: nothing before it belongs elsewhere.
+    expect(workSince(db, SESSION)).toBeNull();
+    noteActivity(db, SESSION, at(75)); // after a break: the 09:00 prompt
+    noteActivity(db, SESSION, at(40));
+    noteActivity(db, SESSION, at(5));
+    noteActivity(db, SESSION, at(0)); // the follow-up
+    expect(workSince(db, SESSION)).toBe(at(75).toISOString());
+    // A real break still starts a new stretch.
+    noteActivity(db, SESSION, new Date(t + 61 * 60_000));
+    expect(workSince(db, SESSION)).toBe(new Date(t + 61 * 60_000).toISOString());
   });
 
   it('does not widen from work logged before an idle break', () => {

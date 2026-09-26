@@ -892,6 +892,15 @@ describe('Stop hook — what it tells Claude', () => {
     expect(line).not.toMatch(/csrf/);
   });
 
+  it('stamps activity on every work tool call, not just prompts', () => {
+    db.prepare(`INSERT INTO meta (key, value) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-50 minutes') || '|' || strftime('%Y-%m-%dT%H:%M:%fZ','now','-80 minutes'))`).run(`activity:${SESSION}`);
+    checkpoint({ tool_name: 'Bash', tool_input: { command: 'npm test' } });
+    const [last, since] = (db.prepare('SELECT value FROM meta WHERE key = ?').get(`activity:${SESSION}`) as { value: string }).value.split('|');
+    expect(Date.now() - Date.parse(last!)).toBeLessThan(60_000);
+    // Fifty minutes is not a break: the stretch still starts where it did.
+    expect(Date.now() - Date.parse(since!)).toBeGreaterThan(79 * 60_000);
+  });
+
   it('keeps a long task\'s early work askable while the developer stays active', () => {
     // Concepts are logged once, at the start. A two-hour task with prompts
     // every few minutes must not fall silent after its first hour.

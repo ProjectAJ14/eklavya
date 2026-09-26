@@ -418,10 +418,13 @@ export const getSessionQuizPlan: ToolDef = {
       // compares them there. An enforced gate asks everything it counted.
       const sinceMs = config.quiz.enforced ? null : parseStamp(workSince(db, sessionId));
       const sinceS = sinceMs === null ? null : Math.floor(sinceMs / 1000);
-      const current =
-        sinceS === null
-          ? touched
-          : touched.filter((c) => Math.floor((parseStamp(c.logged_at) ?? 0) / 1000) >= sinceS);
+      const loggedS = (c: (typeof touched)[number]) => Math.floor((parseStamp(c.logged_at) ?? 0) / 1000);
+      // Newest first, in the hooks' exact order (ts DESC, rowid DESC): under the
+      // interleaved cadence the plan is one item, and the concept a hook just
+      // named has to be that item.
+      const current = (sinceS === null ? [...touched] : touched.filter((c) => loggedS(c) >= sinceS)).sort(
+        (a, b) => loggedS(b) - loggedS(a) || b.logged_seq - a.logged_seq,
+      );
 
       // (a) concepts this session touched that the learner has not mastered
       for (const c of current) {

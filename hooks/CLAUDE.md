@@ -101,8 +101,9 @@ block cap (default 3) and remaining session question budget also bound repeats.
 Every attempt consumes the shared `max_questions_per_task` allowance (default 4).
 Review-origin concepts cannot re-arm the work-count guard. Change matching
 candidate predicates in both hooks together: both ask only work logged within
-the current stretch (`workSince` in `session.ts`: the first prompt after an
-idle gap over `IDLE_BREAK_MINUTES`), newest first, and so does the planner;
+the current stretch (`workSince` in `session.ts`: activity is a prompt or a
+work tool call, and a gap over `IDLE_BREAK_MINUTES` starts a new stretch),
+newest first then last inserted, and so does the planner;
 enforced gates are exempt. `quiz.only_on_changes` counts an edit-tool write
 into any git working tree, not ignored (`noteEdit`, marked by the checkpoint
 before its subagent and cadence exits), before comparing git trees.

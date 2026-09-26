@@ -33,6 +33,8 @@ export interface ConceptRow {
 export interface SessionConceptRow extends ConceptRow {
   context: string | null;
   logged_at: string;
+  /** Insertion order, the hooks' tie-break between concepts logged in one call. */
+  logged_seq: number;
 }
 
 export function conceptBySlug(db: DB, slug: string): ConceptRow | undefined {
@@ -216,7 +218,7 @@ export function sessionConcepts(
 ): SessionConceptRow[] {
   return db
     .prepare(
-      `SELECT c.*, sc.context, sc.ts AS logged_at
+      `SELECT c.*, sc.context, sc.ts AS logged_at, sc.rowid AS logged_seq
        FROM session_concepts sc JOIN concepts c ON c.id = sc.concept_id
        WHERE sc.session_id = ?
          ${origin ? `AND COALESCE(sc.origin, 'work') = ?` : ''}
@@ -500,7 +502,7 @@ export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[
     .prepare(
       // Carries `context` so a retry question stays grounded in the same code
       // the first one was about -- the concept was taught, not the file.
-      `SELECT c.*, sc.context, sc.ts AS logged_at FROM concepts c
+      `SELECT c.*, sc.context, sc.ts AS logged_at, sc.rowid AS logged_seq FROM concepts c
          JOIN session_concepts sc ON sc.concept_id = c.id AND sc.session_id = ?
          JOIN (
            SELECT a.concept_id,
