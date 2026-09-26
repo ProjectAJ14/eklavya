@@ -34,7 +34,8 @@ eklavya doctor
 | `eklavya config get` | Prints effective settings and global/project file paths. Warns about malformed files or global-only settings ignored in a project file. |
 | `eklavya config set <key> <value>` | Sets one key globally. Add `--project` (legacy alias `--repo`) for this codebase; add `--topic <topic>` when setting `focus learn` with no topic already set. Refuses a value outside the key's [accepted range](/docs/configuration/#what-each-setting-accepts) and writes nothing. |
 | `eklavya config unset <key>` | Removes one key from your global file, so it falls back to the default. With `--project`, removes it from this codebase's file, so your global setting applies again. |
-| `eklavya dashboard [--port <n>] [--no-open]` | Starts the [local dashboard](/docs/dashboard/). `--no-open` prints the URL without opening a browser. Its [Settings pages](/docs/dashboard/#settings) make the same changes as `config set` and `config unset`. |
+| `eklavya dashboard [--port <n>] [--no-open]` | Opens the [local dashboard](/docs/dashboard/), starting it [in the background](/docs/dashboard/#keeping-it-running) if it is not running. `--no-open` prints the URL without opening a browser. `--port` serves in the foreground on that port. Its [Settings pages](/docs/dashboard/#settings) make the same changes as `config set` and `config unset`. |
+| `eklavya dashboard status` / `stop` | Shows the background dashboard's version, process id and database, or stops it. The next session starts it again unless `dashboard_autostart` is `false`. |
 | `eklavya statusline [--no-color]` | Prints one line for a terminal status bar. See [below](#eklavya-statusline). |
 | `eklavya artifacts <subcommand>` | Creates, lists and opens saved pages. See [below](#eklavya-artifacts). |
 

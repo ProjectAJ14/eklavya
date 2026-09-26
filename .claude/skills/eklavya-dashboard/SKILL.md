@@ -15,7 +15,7 @@ Two files, and there is deliberately nothing else:
 
 | File | What it is |
 |---|---|
-| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with nine read routes: `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/tokens.css`, `/artifacts/<folder>/<file>`, `/` — and one write, `POST /api/settings`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
+| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with ten read routes: `/api/health` (app, version, pid and database, read by `dashboard-daemon.ts`), `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/tokens.css`, `/artifacts/<folder>/<file>`, `/` — and one write, `POST /api/settings`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
 | `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, workflow registry, router, views, charts. One file, no framework, no build step. |
 | `mcp/test/dashboard.test.ts` | The payload's contract, the inventory's rules, and `/api/state`'s key set. |
 | `mcp/test/dashboard-browser.test.ts` | The page in a real Chromium: every legacy redirect, the workflow control, collapse persistence, the drawer, picker bounds, overflow, console errors and outbound requests. |
@@ -32,7 +32,9 @@ suite fails if it does. The font stacks fall through to system faces.
 When iterating: `npm run build` in `mcp/` (tsc + copy-assets), then
 `node dist/cli.js dashboard --port 41799 --no-open`. **Use `--no-open`** — the
 command opens the reader's browser by default, and a restart loop without it
-spawns a tab every time. Editing only the HTML? `cp src/assets/dashboard.html
+spawns a tab every time. **Use `--port`** too: without it the command reuses or
+starts the background dashboard on 41729 (`dashboard-daemon.ts`) instead of
+serving your build in the foreground. Editing only the HTML? `cp src/assets/dashboard.html
 dist/assets/` and reload — no rebuild needed.
 
 ## The one rule about data

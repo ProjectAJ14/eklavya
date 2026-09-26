@@ -310,6 +310,14 @@ export interface EklavyaConfig {
    * `EKLAVYA_TELEMETRY=0` and `DO_NOT_TRACK=1` turn it off whatever this says.
    */
   telemetry: boolean;
+  /**
+   * Whether session start keeps the dashboard running in the background (see
+   * `dashboard-daemon.ts`): started when nothing answers its port, replaced
+   * when an older Eklavya is serving it. On by default. Global only: one
+   * dashboard serves the machine. Off leaves `eklavya dashboard` in the
+   * foreground, stopped with Ctrl+C, as before.
+   */
+  dashboard_autostart: boolean;
   /** Cap on LLM-minted concepts per session, against slug sprawl. */
   max_new_concepts_per_session: number;
   /** Hard backstop on the Stop hook's loop guard, read by the stop-quiz-check hook. */
@@ -339,6 +347,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   explain_on_wrong: false,
   auto_update: true,
   telemetry: true,
+  dashboard_autostart: true,
   max_new_concepts_per_session: 8,
   max_stop_blocks_per_session: 3,
   memory: {
@@ -537,6 +546,7 @@ export function coerce(raw: Record<string, unknown>, base: EklavyaConfig): Eklav
   if (typeof raw.explain_on_wrong === 'boolean') out.explain_on_wrong = raw.explain_on_wrong;
   if (typeof raw.auto_update === 'boolean') out.auto_update = raw.auto_update;
   if (typeof raw.telemetry === 'boolean') out.telemetry = raw.telemetry;
+  if (typeof raw.dashboard_autostart === 'boolean') out.dashboard_autostart = raw.dashboard_autostart;
   if (
     typeof raw.max_new_concepts_per_session === 'number' &&
     raw.max_new_concepts_per_session >= 0
@@ -722,9 +732,11 @@ const CLONED_FORBIDDEN = ['notifications', 'sync', 'providers'] as const;
  * made once, in the machine's file. `auto_update` for the same reason: there
  * is one runtime per machine, and a project that turned it off would stop
  * updates for every other project too. `telemetry` too: one ping per install,
- * and a checkout must never be able to switch it back on.
+ * and a checkout must never be able to switch it back on. `dashboard_autostart`
+ * because one background process serves every project, and a checkout must not
+ * start one on this machine.
  */
-const GLOBAL_ONLY_KEYS = ['providers', 'auto_update', 'telemetry'] as const;
+const GLOBAL_ONLY_KEYS = ['providers', 'auto_update', 'telemetry', 'dashboard_autostart'] as const;
 
 /** True for a global-only namespace or any dotted key under it (`providers.observer`). */
 export function isGlobalOnlyKey(key: string): boolean {

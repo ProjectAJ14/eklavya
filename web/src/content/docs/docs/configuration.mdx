@@ -25,7 +25,7 @@ The CLI and the dashboard write through the same code, so they accept and refuse
 | Project | `~/.eklavya/projects/<checkout>/config.json` | You, in one codebase; overrides global keys. |
 | Session | Database state; no configuration file | Temporarily silence questions only. |
 
-Files merge key by key, including nested settings. A project file containing only `memory.capture` leaves your other settings intact. `providers`, `auto_update` and `telemetry` are **global only** and ignored in project files.
+Files merge key by key, including nested settings. A project file containing only `memory.capture` leaves your other settings intact. `providers`, `auto_update`, `telemetry` and `dashboard_autostart` are **global only** and ignored in project files.
 
 Project folders encode the main checkout's absolute path, such as `-Users-you-code-api`. Git worktrees share their main checkout's settings. A directory containing a repository is not itself that project. Missing or malformed files fall back to defaults; `eklavya config get` and `eklavya doctor` report malformed files.
 
@@ -61,6 +61,7 @@ These are the learning and general settings. Memory-related namespaces follow be
 | `explain_on_wrong` | `false` | Writes a background explainer page after a wrong or “I don't know” answer. Skips and declines do not create pages. |
 | `auto_update` | `true` | Global only. Checks for a newer release at session start, at most hourly, and permits runtime catch-up. A missing runtime is still installed when false; manual `eklavya update` remains available. |
 | `telemetry` | `true` | Global only. Sends anonymous daily usage counts: numbers and setting values, never paths, names or text. `EKLAVYA_TELEMETRY=0` or `DO_NOT_TRACK=1` turns it off whatever this says. See [Usage analytics](/docs/usage-analytics/). |
+| `dashboard_autostart` | `true` | Global only. Session start keeps the [dashboard running in the background](/docs/dashboard/#keeping-it-running), replacing an older version after an update. When false, `eklavya dashboard` runs in the foreground until **Ctrl+C**. |
 
 Older files may still use `mode`: `ambient` enables unenforced questions, `enforced` enables the gate, and `off` disables questions. A `quiz` object in the same file takes precedence. Use `quiz` in new files.
 

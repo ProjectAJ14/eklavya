@@ -4,7 +4,7 @@
  * Hard rule: this must never break a session. Every failure path
  * exits 0 with no output — `run()` enforces it.
  */
-import { findRepoConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
+import { findRepoConfig, loadGlobalConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
 import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding, pruneUnasked } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
@@ -14,10 +14,10 @@ import { flushAtSeam, identityOf, memoryHealthLine, recallBlock, record, replayS
 import { startupDisplay, type RecallResult } from '../memory/recall.js';
 import { recalledLine } from '../memory/tokens.js';
 import { AMBER, dialParts, paint } from '../statusline.js';
-import { DEFAULT_PORT } from '../paths.js';
+import { dashboardPort } from '../paths.js';
+import { ensureDashboard, probeDashboard } from '../dashboard-daemon.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
 import { canSend, disabledReason, markTelemetryAnnounced, readState, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
-import net from 'node:net';
 
 /**
  * The whole tutoring loop starts at log_session_concepts: it is the only writer
@@ -52,6 +52,8 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
 let updateLine: ReturnType<typeof updateNotice> = null;
 /** The usage ping's one-time notice. Same rules as `updateLine`; the first ping waits for it. */
 let telemetryLine: string | null = null;
+/** What the greeting may say about the dashboard; settled before any early return. */
+let dashboardState: DashboardState = 'down';
 
 await run(async (input) => {
   const cwd = cwdOf(input);
@@ -67,6 +69,9 @@ await run(async (input) => {
   telemetryLine = telemetryNotice();
   startBackgroundUpdate();
   startBackgroundTelemetry();
+  // Awaited here, not at the banner: `run()` exits the process when the body
+  // returns, so a spawn left pending behind an early return would never happen.
+  dashboardState = await keepDashboard();
 
   // Lift a leftover `<repo>/.eklavya.json` out of the checkout, silently. This
   // is the moment that makes the move automatic: settings files stopped living
@@ -147,7 +152,7 @@ await run(async (input) => {
         recalled,
         dials: ['memory on', 'questions off'],
         overrides: resolved.overrides,
-        dashboard: await dashboardLive(),
+        dashboard: dashboardState,
         quiz: false,
       });
     } else if (!quiet) {
@@ -188,7 +193,7 @@ await run(async (input) => {
       recalled,
       dials: dialParts(resolved.config, levelLabel),
       overrides: resolved.overrides,
-      dashboard: await dashboardLive(),
+      dashboard: dashboardState,
       quiz: true,
     });
   }
@@ -280,8 +285,7 @@ interface BannerParts {
   recalled: RecallResult | null;
   dials: string[];
   overrides: string[];
-  /** True when `eklavya dashboard` is already serving on its default port. */
-  dashboard: boolean;
+  dashboard: DashboardState;
   /** False with `quiz.enabled: false`: no learning counts to report. */
   quiz: boolean;
 }
@@ -323,14 +327,17 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
     out.push(`Project settings override global: ${parts.overrides.join(' ')}`);
   }
 
-  // A link only when something answers it; the dashboard runs on demand, and a
-  // dead URL in the greeting is a small lie.
-  const url = `http://127.0.0.1:${DEFAULT_PORT}`;
+  // A link only when something answers it, or was just started to: a dead URL
+  // in the greeting is a small lie. A start says how to turn it off, because a
+  // background process nobody asked for should say so the first time it appears.
+  const url = `http://127.0.0.1:${dashboardPort()}`;
   out.push(
     dim(
-      parts.dashboard
-        ? `Dashboard ${url} · Observations ${url}/#/memory`
-        : 'Dashboard & observations: eklavya dashboard',
+      parts.dashboard === 'started'
+        ? `Dashboard ${url} started in the background · off: eklavya config set dashboard_autostart false`
+        : parts.dashboard === 'live'
+          ? `Dashboard ${url} · Observations ${url}/#/memory`
+          : 'Dashboard & observations: eklavya dashboard',
     ),
   );
 }
@@ -342,16 +349,25 @@ function healthLine(problem: DbProblem): string {
     : "Eklavya paused · can't open its database · run: eklavya doctor";
 }
 
-/** A 150ms loopback probe: refused is instant, and a silent port is not waited on. */
-function dashboardLive(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const sock = net.connect({ host: '127.0.0.1', port: DEFAULT_PORT });
-    const done = (up: boolean) => {
-      sock.destroy();
-      resolve(up);
-    };
-    sock.setTimeout(150, () => done(false));
-    sock.once('connect', () => done(true));
-    sock.once('error', () => done(false));
-  });
+/** `live`: something answers the port. `started`: this session just started one. */
+type DashboardState = 'live' | 'started' | 'down';
+
+/**
+ * Keeps the background dashboard running (`dashboard-daemon.ts`), or with
+ * autostart off only looks. Never from a test run or CI: the suites run this
+ * hook against scratch databases, and a dashboard they started would outlive them.
+ */
+async function keepDashboard(): Promise<DashboardState> {
+  try {
+    if (!process.env.CI && !process.env.VITEST && loadGlobalConfig().dashboard_autostart) {
+      const result = await ensureDashboard();
+      if (result === 'started') return 'started';
+      // Replaced is an update restarting it: already announced the first time.
+      if (result === 'running' || result === 'replaced') return 'live';
+    }
+    // 150ms: refused is instant, and a silent port is not waited on.
+    return (await probeDashboard()).kind === 'down' ? 'down' : 'live';
+  } catch {
+    return 'down';
+  }
 }

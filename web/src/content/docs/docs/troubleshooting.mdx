@@ -31,6 +31,7 @@ without resetting your learning history or settings.
 | Skill path contains a different skill named `eklavya` | Eklavya preserves your existing skill. Move or rename it yourself, then reinstall. |
 | Runtime and plugin versions differ | Run `eklavya update` and restart. Automatic updates normally catch up in a later session; check `auto_update` if they do not. A newer runtime is never downgraded. |
 | Automatic update failed | Run `eklavya update` for the full error; inspect `~/.eklavya/update.log`. Missing npm usually means Claude's launch environment has a different `PATH`; a permissions error needs the named files' ownership repaired. |
+| Dashboard link missing or not loading | Run `eklavya dashboard status`. If another program holds port 41729, the greeting shows `eklavya dashboard` instead of a link; stop that program, or keep using `eklavya dashboard`, which falls back to another port. If the dashboard keeps failing to start, read `~/.eklavya/dashboard.log`. |
 | Another installation is running | Let the process named by the installer finish, then retry. Do not delete its lock while it is active. |
 
 [Updates and removal](/docs/updates/) explains automatic checks, backups and

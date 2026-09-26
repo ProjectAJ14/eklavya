@@ -19,6 +19,7 @@ Choosing an observer sends captured work through Claude Code to a model. Enablin
 | `~/.eklavya/artifacts/<checkout>/*.html` | Saved explanations and other pages. |
 | `~/.eklavya/spool/events.jsonl` | Sanitised evidence waiting for replay after a busy or unavailable database. Usually absent. |
 | `~/.eklavya/update.json`, `update.log` | Update state and output from the last background update. |
+| `~/.eklavya/dashboard.log` | Errors from the background dashboard's latest start. |
 | `~/.eklavya/runtime/` | Installed runtime and dependencies. |
 
 Concepts a session logged but never asked about are deleted at a later session start, at least 12 hours after they were logged. Asked questions, their answers and review dates are kept.

@@ -33,7 +33,8 @@ import {
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
-import { dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
+import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
+import { ownVersion } from './dashboard-daemon.js';
 import { listArtifacts, resolveArtifact } from './artifacts.js';
 import { NOT_HELPER_RECEIPT, receiptTotals } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
@@ -1176,6 +1177,8 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
     help: 'Install newer releases in the background at session start.' },
   { key: 'telemetry', group: 'This machine', label: 'Anonymous usage counts',
     help: 'The daily ping of counts and setting values. Never a path, name or text.' },
+  { key: 'dashboard_autostart', group: 'This machine', label: 'Keep the dashboard running',
+    help: 'Start this dashboard in the background at session start, and restart it after an update.' },
 ];
 
 export const SETTINGS: SettingField[] = FIELDS.map((f) => {
@@ -1378,7 +1381,7 @@ export function startDashboard(
   opts: { port?: number; host?: string } = {},
 ): Promise<{ url: string; close: () => void }> {
   const host = opts.host ?? '127.0.0.1';
-  const wanted = opts.port ?? DEFAULT_PORT;
+  const wanted = opts.port ?? dashboardPort();
   const assets = path.join(moduleDir, 'assets');
 
   // Per server start. Every write must carry it (see `postSettings`).
@@ -1458,6 +1461,11 @@ export function startDashboard(
       });
     }
     try {
+      // Who is serving: what SessionStart reads to decide whether to leave this
+      // process alone, replace it, or stop it (`dashboard-daemon.ts`).
+      if (url.pathname === '/api/health') {
+        return send(res, 200, 'application/json', JSON.stringify({ app: 'eklavya', version: ownVersion(), pid: process.pid, db: dbPath() }));
+      }
       if (url.pathname === '/api/settings') {
         return send(res, 200, 'application/json', JSON.stringify(settingsState(db, url.searchParams.get('project'))));
       }

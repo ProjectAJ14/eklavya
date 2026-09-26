@@ -16,6 +16,10 @@ export default defineConfig({
       // checkout pointer the tests set up -- green in CI, red on a laptop.
       CLAUDE_CODE_SESSION_ID: '',
       CLAUDE_CODE_MESSAGING_SOCKET: '',
+      // Never the developer's own dashboard on 41729: a suite that probed it
+      // would see whatever that one is serving, and one that stopped it would
+      // stop theirs.
+      EKLAVYA_DASHBOARD_PORT: '41730',
     },
   },
 });

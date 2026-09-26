@@ -36,6 +36,11 @@ If Claude Code updates the plugin first, the next session catches the runtime
 up in the background, unless automatic updates are off. Eklavya does not
 downgrade a runtime that is already newer.
 
+An update that installs a new runtime stops the
+[background dashboard](/docs/dashboard/#keeping-it-running) first and starts it
+again on the new version. Windows cannot replace the database driver while a
+running dashboard has it loaded.
+
 ## Diagnose an update
 
 ```bash
@@ -82,7 +87,8 @@ learning history:
 npx eklavya uninstall
 ```
 
-Restart Claude Code to unload it. Reinstalling later reuses the saved database.
+Uninstalling stops the background dashboard. Restart Claude Code to unload the
+plugin. Reinstalling later reuses the saved database.
 The global npm command, if you installed it, can be removed separately with
 `npm uninstall -g eklavya`.
 

@@ -149,6 +149,10 @@ export const setConfig: ToolDef = {
       .boolean()
       .optional()
       .describe('Whether Eklavya sends its anonymous daily usage counts (default true). Global scope only. "Turn off Eklavya analytics" means telemetry:false.'),
+    dashboard_autostart: z
+      .boolean()
+      .optional()
+      .describe('Whether session start keeps the dashboard running in the background (default true). Global scope only.'),
     domains_enabled: z.array(z.string()).optional(),
     // The namespaced half. Passed as objects rather than as dotted keys because
     // the schema is what the model reads: a `memory` object with named fields

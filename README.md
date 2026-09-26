@@ -89,7 +89,8 @@ with diagrams that you can print or save as PDF.
 
 ## Dashboard
 
-Run `eklavya dashboard` to open a local page in your browser. It has four
+Run `eklavya dashboard` to open a local page in your browser. It keeps running
+in the background, and each session start restarts it if needed. It has four
 parts:
 
 | Part | What you can see | Read more |

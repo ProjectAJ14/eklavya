@@ -219,6 +219,7 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   explain_on_wrong: bool,
   auto_update: bool,
   telemetry: bool,
+  dashboard_autostart: bool,
   max_new_concepts_per_session: whole(0, 50),
   max_stop_blocks_per_session: whole(0, 20),
   'memory.enabled': bool,

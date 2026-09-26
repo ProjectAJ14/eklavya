@@ -150,3 +150,17 @@ export function ensureEklavyaHome(): string {
  * worker for one number.
  */
 export const DEFAULT_PORT = 41729;
+
+/**
+ * The port the always-on dashboard binds and every probe asks. The override is
+ * for tests, which must never answer to, or replace, the developer's own.
+ */
+export function dashboardPort(): number {
+  const n = Number(process.env.EKLAVYA_DASHBOARD_PORT);
+  return Number.isInteger(n) && n > 0 && n < 65536 ? n : DEFAULT_PORT;
+}
+
+/** The background dashboard's stderr, truncated at each start. */
+export function dashboardLogPath(): string {
+  return path.join(eklavyaHome(), 'dashboard.log');
+}
