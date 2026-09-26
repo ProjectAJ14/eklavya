@@ -1,6 +1,6 @@
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
-import { decayedScore, isDue, isKnown } from '../srs.js';
+import { decayedScore, isKnown, isOwed } from '../srs.js';
 import { GLOBAL_PROJECT, projectKey } from '../store.js';
 import { ESTIMATOR, estimateTokens } from './tokens.js';
 import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
@@ -308,7 +308,8 @@ export interface LearningCounts {
 export function learningCounts(db: DB, project: string, now = new Date()): LearningCounts {
   const rows = db
     .prepare(
-      `SELECT c.id, m.score, m.reps, m.next_review
+      `SELECT c.id, m.score, m.reps, m.next_review,
+              (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id ORDER BY a.id DESC LIMIT 1) AS last_grade
        FROM concepts c
        LEFT JOIN mastery m ON m.concept_id = c.id
        WHERE c.id IN (
@@ -326,6 +327,7 @@ export function learningCounts(db: DB, project: string, now = new Date()): Learn
     score: number | null;
     reps: number | null;
     next_review: string | null;
+    last_grade: number | null;
   }[];
 
   let learning = 0;
@@ -335,10 +337,10 @@ export function learningCounts(db: DB, project: string, now = new Date()): Learn
     const score = decayedScore(row.score ?? 0, row.next_review, now);
     if (isKnown({ score, reps: row.reps ?? 0 })) mastered++;
     else learning++;
-    // Deliberately not exclusive with the other two: a mastered concept that
-    // has come round for review is both mastered and due, and hiding that
-    // would make the review queue look empty.
-    if (isDue(row.next_review, now)) due++;
+    // The backlog, not the review calendar: only a question declined, blanked
+    // or missed is owed (`isOwed`). Not exclusive with the other two -- a
+    // mastered concept whose latest answer missed is both.
+    if (isOwed(row.last_grade, row.next_review, now)) due++;
   }
   return { learning, mastered, due };
 }

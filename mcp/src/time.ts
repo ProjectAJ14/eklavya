@@ -8,6 +8,20 @@
 export const NEVER = 999_999;
 
 /**
+ * The idle gap that ends a stretch of work. A question is about the work on
+ * screen now: a session left open overnight, or resumed the next morning, was
+ * asked about the previous day's code while its developer was checking a
+ * server mount. So logged work goes stale once the session comes back after
+ * this long with no prompt and no tool call (`workSince` in session.ts). A wall-clock window
+ * would be wrong the other way: concepts are usually logged once, at the start
+ * of a task, and a two-hour task would fall silent after its first hour. Both
+ * quiz hooks and the planner read the same boundary -- a concept one of them
+ * can ask and another cannot is asked twice or never. Enforced gates ignore
+ * it: their bar was frozen from everything logged.
+ */
+export const IDLE_BREAK_MINUTES = 60;
+
+/**
  * Minutes since a timestamp written by SQLite.
  *
  * This schema stores two shapes, and the difference is a trap. `strftime(...Z)`

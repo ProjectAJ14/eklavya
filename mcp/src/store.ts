@@ -12,6 +12,7 @@ import {
   type MasteryState,
   type PromotionBlocker,
   nextLevel,
+  PASSING_GRADE,
   requiredConcepts,
   SCORE_WINDOW,
   START_LEVEL,
@@ -32,6 +33,8 @@ export interface ConceptRow {
 export interface SessionConceptRow extends ConceptRow {
   context: string | null;
   logged_at: string;
+  /** Insertion order, the hooks' tie-break between concepts logged in one call. */
+  logged_seq: number;
 }
 
 export function conceptBySlug(db: DB, slug: string): ConceptRow | undefined {
@@ -190,6 +193,9 @@ export function logSessionConcept(
      VALUES (?, ?, ?, ?)
      ON CONFLICT(session_id, concept_id) DO UPDATE SET
        context = COALESCE(excluded.context, session_concepts.context),
+       -- Logged again as work is work happening now: only the current
+       -- stretch of work is askable (workSince in session.ts), so the stamp moves.
+       ts = CASE WHEN excluded.origin = 'work' THEN excluded.ts ELSE session_concepts.ts END,
        -- Work wins and never degrades: a concept quizzed as review debt and
        -- then genuinely touched by the task is part of the task.
        origin = CASE
@@ -212,7 +218,7 @@ export function sessionConcepts(
 ): SessionConceptRow[] {
   return db
     .prepare(
-      `SELECT c.*, sc.context, sc.ts AS logged_at
+      `SELECT c.*, sc.context, sc.ts AS logged_at, sc.rowid AS logged_seq
        FROM session_concepts sc JOIN concepts c ON c.id = sc.concept_id
        WHERE sc.session_id = ?
          ${origin ? `AND COALESCE(sc.origin, 'work') = ?` : ''}
@@ -259,7 +265,7 @@ export interface GateRow {
   repo: string | null;
 }
 
-export const PASSING_GRADE = 3;
+export { PASSING_GRADE } from './srs.js';
 
 export function gateRow(db: DB, sessionId: string): GateRow | undefined {
   return db.prepare('SELECT * FROM gates WHERE session_id = ?').get(sessionId) as GateRow | undefined;
@@ -496,7 +502,7 @@ export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[
     .prepare(
       // Carries `context` so a retry question stays grounded in the same code
       // the first one was about -- the concept was taught, not the file.
-      `SELECT c.*, sc.context, sc.ts AS logged_at FROM concepts c
+      `SELECT c.*, sc.context, sc.ts AS logged_at, sc.rowid AS logged_seq FROM concepts c
          JOIN session_concepts sc ON sc.concept_id = c.id AND sc.session_id = ?
          JOIN (
            SELECT a.concept_id,
@@ -654,14 +660,20 @@ export function projectKey(repoRoot: string | null | undefined): string {
   return mainRepoRoot(repoRoot);
 }
 
+/** `isOwed` in SQL: the concept's latest answer, anywhere, did not pass. */
+const OWED_SQL = (conceptId: string): string =>
+  `(SELECT grade FROM attempts WHERE concept_id = ${conceptId} ORDER BY id DESC LIMIT 1) < ${PASSING_GRADE}`;
+
 /**
  * Questions this project already asked that are due again, soonest first.
  *
- * This is the whole backlog. A concept enters it only by being asked: every
- * grade writes a review date, and a decline, a blank or a wrong answer resets
- * it to a day out. A concept that was logged but never reached by a question is
- * not owed anything -- it was never shown, so nobody refused it -- and
- * `pruneUnasked` removes it once its session is over.
+ * This is the whole backlog. A concept enters it only by being asked and not
+ * passed: a decline, a blank or a wrong answer resets its review to a day out,
+ * and it stays owed until an answer passes (`isOwed` in srs.ts). A correct
+ * answer also schedules a review date, but that is decay's clock, not a debt:
+ * it never comes back here. A concept that was logged but never reached by a
+ * question is not owed anything -- it was never shown, so nobody refused it --
+ * and `pruneUnasked` removes it once its session is over.
  *
  * One query for two callers that must agree: `get_session_quiz_plan` serves
  * these after the session's own work, and `stop-quiz-check` counts them to
@@ -690,6 +702,7 @@ export function dueInProject(
       `SELECT c.* FROM concepts c
          JOIN mastery m ON m.concept_id = c.id
         WHERE m.next_review IS NOT NULL AND m.next_review <= ?
+          AND ${OWED_SQL('c.id')}
           AND c.id IN (SELECT concept_id FROM attempts WHERE repo = ?)
           ${scoped ? `AND c.domain IN (${domains.map(() => '?').join(',')})` : ''}
         ORDER BY m.next_review ASC
@@ -743,6 +756,7 @@ export function pendingElsewhere(
            JOIN mastery m ON m.concept_id = a.concept_id
           WHERE a.repo IS NOT NULL AND a.repo NOT IN (?, ?)
             AND m.next_review IS NOT NULL AND m.next_review <= ?
+            AND ${OWED_SQL('a.concept_id')}
           GROUP BY a.repo
           ORDER BY pending DESC
           LIMIT ?`,

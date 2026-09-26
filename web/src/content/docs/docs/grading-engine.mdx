@@ -52,7 +52,7 @@ For overdue concepts, the displayed score decreases by **0.05 per complete week*
 
 ### How repetition is reduced
 
-Mastered concepts normally return only when review is due. The planner supplies recent question history so Claude can choose a new angle, and a concept answered in the current session is ordinarily removed from that session's plan.
+Mastered concepts normally return only when the current work touches them while their review is due. From earlier sessions, only questions you declined, did not know or got wrong come back, once their review date arrives; a correct answer never comes back that way. The planner supplies recent question history so Claude can choose a new angle, and a concept answered in the current session is ordinarily removed from that session's plan.
 
 An unmet enforced gate takes priority: it can ask about mastered work concepts and retry a concept you did not know after teaching it. A retry uses a different question at a lower tier, within the project's band. If automatic questions have used the session budget, `/eklavya:quiz` can request another round of eligible questions. Repeated question text is flagged when an answer is recorded; the answer is still saved, and wording alone cannot guarantee a new angle.
 

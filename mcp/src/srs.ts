@@ -163,6 +163,20 @@ export function isDue(nextReview: string | null, now: Date): boolean {
   return Number.isFinite(t) && t <= now.getTime();
 }
 
+/** The grade an answer must reach to count as passed. Re-exported by store.ts. */
+export const PASSING_GRADE = 3;
+
+/**
+ * The backlog rule: a concept is owed a question only when its latest answer
+ * did not pass -- declined, "don't know" or wrong. A correct answer still
+ * schedules a review date, which decay reads, but it never comes back as
+ * backlog: the learner answered it, so nothing is owed. A null grade means
+ * never asked, and a question nobody saw is not owed either.
+ */
+export function isOwed(lastGrade: number | null | undefined, nextReview: string | null, now: Date): boolean {
+  return lastGrade != null && lastGrade < PASSING_GRADE && isDue(nextReview, now);
+}
+
 /**
  * Difficulty escalation (phase-1 decision G3). Tier belongs to the *question*,
  * not the concept: a fundamentals concept gets asked at tier 4 of someone who

@@ -838,7 +838,8 @@ describe('Stop hook — what it tells Claude', () => {
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
     const line = conceptsLine(res.context);
-    expect(line).toMatch(/csrf/);
+    // Newest first: the last one logged is the work on screen.
+    expect(line).toMatch(/pkce/);
     expect(line.match(/;/g) ?? []).toHaveLength(0);
     expect(res.context).toMatch(/One question, then let them finish/);
     expect(res.context).not.toMatch(/ONE question at a time/);
@@ -863,8 +864,58 @@ describe('Stop hook — what it tells Claude', () => {
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
     const line = conceptsLine(res.context);
-    expect(line).toMatch(/csrf/);
+    expect(line).toMatch(/pkce/);
     expect(line.match(/;/g) ?? []).toHaveLength(0);
+  });
+
+  /** A prompt from the developer, with the previous one `idle` minutes back. */
+  function promptAfter(idle: number): void {
+    const since = `strftime('%Y-%m-%dT%H:%M:%fZ','now','-${idle + 120} minutes')`;
+    const last = `strftime('%Y-%m-%dT%H:%M:%fZ','now','-${idle} minutes')`;
+    db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ${last} || '|' || ${since})`).run(`activity:${SESSION}`);
+    runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit', prompt: 'next' });
+  }
+
+  it('drops work logged before an idle break, and asks about what came after', () => {
+    // A session left open overnight was asked about the previous day's code
+    // while its developer was checking a server mount.
+    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    logConcepts(['csrf']);
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-16 hours') WHERE session_id = ?`).run(SESSION);
+    promptAfter(15 * 60);
+    expect(stop().spoke).toBe(false);
+    expect(checkpointContext(checkpoint())).toBeNull();
+
+    logConcepts(['pkce']);
+    const line = conceptsLine(stop().context);
+    expect(line).toMatch(/pkce/);
+    expect(line).not.toMatch(/csrf/);
+  });
+
+  it('stamps activity on every work tool call, not just prompts', () => {
+    db.prepare(`INSERT INTO meta (key, value) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-50 minutes') || '|' || strftime('%Y-%m-%dT%H:%M:%fZ','now','-80 minutes'))`).run(`activity:${SESSION}`);
+    checkpoint({ tool_name: 'Bash', tool_input: { command: 'npm test' } });
+    const [last, since] = (db.prepare('SELECT value FROM meta WHERE key = ?').get(`activity:${SESSION}`) as { value: string }).value.split('|');
+    expect(Date.now() - Date.parse(last!)).toBeLessThan(60_000);
+    // Fifty minutes is not a break: the stretch still starts where it did.
+    expect(Date.now() - Date.parse(since!)).toBeGreaterThan(79 * 60_000);
+  });
+
+  it('keeps a long task\'s early work askable while the developer stays active', () => {
+    // Concepts are logged once, at the start. A two-hour task with prompts
+    // every few minutes must not fall silent after its first hour.
+    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    logConcepts(['csrf']);
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-100 minutes') WHERE session_id = ?`).run(SESSION);
+    promptAfter(5);
+    expect(conceptsLine(stop().context)).toMatch(/csrf/);
+  });
+
+  it('keeps old work askable while an enforced gate still counts it', () => {
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
+    logConcepts(['csrf']);
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-3 hours') WHERE session_id = ?`).run(SESSION);
+    expect(conceptsLine(stop().context)).toMatch(/csrf/);
   });
 
   it('says the gate needs it when enforced, and offers the skip when not', () => {
@@ -1237,6 +1288,31 @@ describe('quiz.only_on_changes — no questions for a session that changed nothi
     logConcepts(['csrf']);
     edit(); // what `sed -i` through Bash looks like: no edit tool involved
     expect(checkpoint({ tool_name: 'Bash', tool_input: { command: 'sed -i s/1/2/ a.ts' } }).spoke).toBe(true);
+  });
+
+  it('asks after an edit in a sibling worktree, from a subagent too; not after a note outside any tree', () => {
+    // The OIP layout: the session starts in the main checkout and edits
+    // `<repo>-worktrees/<branch>` by absolute path, so this tree never moves.
+    realRepo();
+    const sibling = `${cwd}-worktrees/feat`;
+    spawnSync('git', ['worktree', 'add', '-q', '-b', 'feat', sibling], { cwd });
+    const notes = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-notes-'));
+    try {
+      sessionStart();
+      logConcepts(['csrf']);
+      const editOf = (file: string, extra: Record<string, unknown> = {}) => {
+        fs.writeFileSync(file, 'x\n');
+        return checkpoint({ tool_name: 'Write', tool_input: { file_path: file, content: 'x' }, ...extra });
+      };
+      // Auto-memory notes, plans and scratch files are research, not code.
+      expect(editOf(path.join(notes, 'memory.md')).spoke).toBe(false);
+      // A subagent cannot be asked, but its edit is still the session's work.
+      expect(editOf(path.join(sibling, 'b.ts'), { agent_id: 'sub-1' }).spoke).toBe(false);
+      expect(checkpoint().spoke).toBe(true);
+    } finally {
+      fs.rmSync(`${cwd}-worktrees`, { recursive: true, force: true });
+      fs.rmSync(notes, { recursive: true, force: true });
+    }
   });
 
   it('counts an edit to a file that was already dirty at session start', () => {

@@ -29,8 +29,9 @@ In this order, because this is the order a learner asks them:
 3. **What did I skip?** `skipped` — `declined` means they chose to pass,
    `dont_know` means they blanked and were taught. Say which. This is the
    actionable list: each comes back once its review is due, so it is a backlog, not a
-   scolding. If it is empty, say so in one clause; it is good news.
-4. **What is due?** `due_for_review` — the count, then the slugs with their
+   scolding. Wrong answers come back the same way; right answers never do. If it is empty, say so in one clause; it is good news.
+4. **What is due?** `due_for_review` — questions declined, blanked or answered
+   wrong whose review date has come (never a correct answer). The count, then the slugs with their
    `tier_to_ask`. Already clamped to the level, so do not re-explain tiers.
 5. **What is shaky?** `weak` — each with a one-clause gloss of what the concept
    actually is. A bare slug list is not a report.

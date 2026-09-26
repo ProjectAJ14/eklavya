@@ -39,7 +39,7 @@ settings and progress banner. `quiet: true` hides that banner without disabling
 questions or memory.
 
 
-In a git repository, nothing is asked until the session changes a file in the working tree. A session spent reading or researching gets no questions. Enforced quizzing and `/eklavya:quiz` are not held back.
+In a git repository, nothing is asked until the session changes a file: through Claude's edit tools in any git repository, including a sibling worktree, or in the working tree it started in. A session spent reading or researching gets no questions. Enforced quizzing and `/eklavya:quiz` are not held back.
 
 The default budget is **four questions per session**, even though the setting
 is named `max_questions_per_task`. Explicit practice and enforced gate retries

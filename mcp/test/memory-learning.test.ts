@@ -99,6 +99,32 @@ describe('filling in for a session that logged nothing', () => {
     ).toBe(1);
   });
 
+  it('fills only from this session\'s own entries, never another session\'s', () => {
+    // One "design system audit" entry turned up as `design-tokens` in four
+    // unrelated sessions: mined project-wide, the latest entry belongs to
+    // whoever wrote it, not to the session that looked empty.
+    insertEntry(db, { project: PROJECT, sessionId: 'an-earlier-session', title: 'Set httponly cookies on the refresh path' });
+    expect(fillOmissions(db, config, SESSION, PROJECT).reason).toBe('no_candidates');
+    expect(
+      (db.prepare('SELECT COUNT(*) AS n FROM session_concepts WHERE session_id = ?').get(SESSION) as { n: number }).n,
+    ).toBe(0);
+    // The earlier session's own fill still finds it.
+    expect(fillOmissions(db, config, 'an-earlier-session', PROJECT).accepted).toBeGreaterThan(0);
+  });
+
+  it('still finds this session\'s candidates behind a pile of other sessions\' ones', () => {
+    // Other sessions' candidates are never resolved by this session's fill, so
+    // they accumulate; a capped project-wide list would crowd this one out.
+    const other = insertEntry(db, { project: PROJECT, sessionId: 'someone-else', title: 'unrelated' });
+    const insert = db.prepare(
+      `INSERT INTO learning_sources (entry_id, slug, name, domain, confidence, status, project)
+       VALUES (?, 'csrf', 'CSRF', 'web-auth', 0.95, 'candidate', ?)`,
+    );
+    for (let i = 0; i < 250; i++) insert.run(other, PROJECT);
+    seedEntry('Set httponly cookies on the refresh path');
+    expect(fillOmissions(db, config, SESSION, PROJECT).accepted).toBeGreaterThan(0);
+  });
+
   it('says so rather than guessing when there is nothing to go on', () => {
     seedEntry('Rewrote the frobnicator gizmo pipeline end to end');
     expect(fillOmissions(db, config, SESSION, PROJECT).reason).toBe('no_candidates');
