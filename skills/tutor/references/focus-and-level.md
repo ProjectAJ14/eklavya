@@ -71,9 +71,10 @@ and they arrive with **`context: null` on purpose** — the code is withheld so
 you reach for the idea instead. Ask about them on their own terms.
 
 Items with `reason: "project_review"` are earlier questions from this project
-that are due again — including every one the learner declined, blanked on or
-missed, which is the only backlog there is. Offered once this session's own
-concepts are covered, in any domain but only from this project -- there is one
+that the learner declined, blanked on or missed and that are due again — the
+only backlog there is. A question answered correctly never comes back this way.
+Offered once this session's own concepts (those logged in the last hour) are
+covered, in any domain but only from this project -- there is one
 database for every project, so the scope is what keeps a Flutter session off
 last month's Terraform. Never while an enforced gate is open: a review answer
 cannot open it. They also arrive with `context: null`, and for a

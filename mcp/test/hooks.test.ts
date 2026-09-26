@@ -838,7 +838,8 @@ describe('Stop hook — what it tells Claude', () => {
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
     const line = conceptsLine(res.context);
-    expect(line).toMatch(/csrf/);
+    // Newest first: the last one logged is the work on screen.
+    expect(line).toMatch(/pkce/);
     expect(line.match(/;/g) ?? []).toHaveLength(0);
     expect(res.context).toMatch(/One question, then let them finish/);
     expect(res.context).not.toMatch(/ONE question at a time/);
@@ -863,8 +864,30 @@ describe('Stop hook — what it tells Claude', () => {
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
     const line = conceptsLine(res.context);
-    expect(line).toMatch(/csrf/);
+    expect(line).toMatch(/pkce/);
     expect(line.match(/;/g) ?? []).toHaveLength(0);
+  });
+
+  it('asks about the work on screen now, not what was logged over an hour ago', () => {
+    // A session left open overnight was asked about the previous day's code
+    // while its developer was checking a server mount.
+    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    logConcepts(['csrf']);
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-61 minutes') WHERE session_id = ?`).run(SESSION);
+    expect(stop().spoke).toBe(false);
+    expect(checkpointContext(checkpoint())).toBeNull();
+
+    logConcepts(['pkce']);
+    const line = conceptsLine(stop().context);
+    expect(line).toMatch(/pkce/);
+    expect(line).not.toMatch(/csrf/);
+  });
+
+  it('keeps old work askable while an enforced gate still counts it', () => {
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
+    logConcepts(['csrf']);
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-3 hours') WHERE session_id = ?`).run(SESSION);
+    expect(conceptsLine(stop().context)).toMatch(/csrf/);
   });
 
   it('says the gate needs it when enforced, and offers the skip when not', () => {

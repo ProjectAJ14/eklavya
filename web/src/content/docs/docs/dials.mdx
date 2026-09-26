@@ -20,7 +20,7 @@ Choose what Eklavya teaches and how often it asks. These settings are independen
 
 Questions are optional by default. With `quiz.enforced: true`, enough answers must pass before `git commit` succeeds. This applies automatically to commits Claude Code makes; commits from a terminal require the separate [git hook](/docs/commit-gate/).
 
-Automatic questions only come in sessions that change code. With the default `quiz.only_on_changes: true`, Eklavya compares the git working tree with how it looked when the session started, and asks nothing until they differ. Research and read-only sessions stay quiet, and `/eklavya:quiz` still works in them. Set it to `false` to be asked about any logged work.
+Automatic questions only come in sessions that change code. With the default `quiz.only_on_changes: true`, Eklavya asks nothing until the session edits a file through Claude's edit tools, wherever that file is, or the git working tree the session started in differs from how it looked at the start. Questions cover the work logged in the last hour, newest first, so a session left open overnight is not asked about yesterday. Research and read-only sessions stay quiet, and `/eklavya:quiz` still works in them. Set it to `false` to be asked about any logged work.
 
 Setting `quiz.enabled: false` disables questions and enforcement. It does not stop memory; when memory is on, the session banner reports “memory on · questions off”. To stop both halves, also set `memory.enabled: false`.
 

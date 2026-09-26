@@ -54,18 +54,73 @@ export function setCurrentSession(db: DB, sessionId: string, cwd?: string | null
     `INSERT INTO meta (key, value) VALUES (?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   ).run(sessionKeyFor(cwd), sessionId);
+  stampHostSession(db, sessionId);
+}
+
+/**
+ * The host's own answer to "which session is calling", which the checkout
+ * pointer can only guess at.
+ *
+ * The pointer guesses wrong in the two ways real work produces. Two windows in
+ * one checkout share it, so a model logs into whichever session was typed in
+ * last. And a model that passes the sibling worktree it is editing as `cwd`
+ * finds no pointer at all and lands in the shared `default` bucket, where the
+ * next session in that position is quizzed on it. One OIP day had both: a
+ * session's answers graded under the window beside it, and a session asked four
+ * questions about the previous day's scroll fix.
+ *
+ * Claude Code hands every process it spawns -- this MCP server and the hooks
+ * alike -- `CLAUDE_CODE_SESSION_ID`, so the server knows its session without
+ * being told. That id is fixed when the server starts, though, and `/clear`
+ * starts a new session in the same process. So the hooks, which always see the
+ * current id, also record it against the host process (its messaging socket,
+ * one per `claude` process), and that record wins over the startup value.
+ * Hosts that set neither variable fall through to the checkout pointer.
+ */
+const HOST_SESSION_PREFIX = 'host_session:';
+
+function envValue(name: string): string | null {
+  const value = process.env[name]?.trim();
+  return value ? value : null;
+}
+
+function stampHostSession(db: DB, sessionId: string): void {
+  const host = envValue('CLAUDE_CODE_MESSAGING_SOCKET');
+  if (!host) return;
+  // A row per `claude` process; a week is far past any process still running.
+  db.prepare(`DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`).run(
+    `${HOST_SESSION_PREFIX}%`,
+  );
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(`${HOST_SESSION_PREFIX}${host}`, `${new Date().toISOString()}|${sessionId}`);
+}
+
+export function hostSession(db: DB): string | null {
+  const host = envValue('CLAUDE_CODE_MESSAGING_SOCKET');
+  if (host) {
+    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`${HOST_SESSION_PREFIX}${host}`) as
+      | { value: string }
+      | undefined;
+    const id = row?.value.slice(row.value.indexOf('|') + 1);
+    if (id) return id;
+  }
+  return envValue('CLAUDE_CODE_SESSION_ID');
 }
 
 /**
  * The model cannot see its own Claude Code session id, but the Phase 2 hooks
  * receive the real one on stdin — so both sides have to agree on a resolution
  * order or the hooks query rows that were written under a different key
- * (phase-1 decision G1).
+ * (phase-1 decision G1). The host's id comes before the checkout pointer:
+ * see `hostSession`.
  */
 export function resolveSessionId(db: DB, explicit?: string | null, cwd?: string | null): string {
   const candidate =
     (explicit && explicit.trim()) ||
-    (process.env.EKLAVYA_SESSION_ID && process.env.EKLAVYA_SESSION_ID.trim()) ||
+    envValue('EKLAVYA_SESSION_ID') ||
+    hostSession(db) ||
     getCurrentSession(db, cwd) ||
     FALLBACK_SESSION_ID;
 

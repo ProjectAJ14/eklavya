@@ -110,6 +110,51 @@ describe('session resolution (G1)', () => {
     expect(resolveSessionId(db, 'explicit')).toBe('explicit');
   });
 
+  describe('the host\'s own session id', () => {
+    afterEach(() => {
+      process.env.CLAUDE_CODE_SESSION_ID = '';
+      process.env.CLAUDE_CODE_MESSAGING_SOCKET = '';
+    });
+
+    it('beats the checkout pointer, so the window beside it cannot capture its calls', () => {
+      // Two windows in one checkout: the pointer names whichever was typed in
+      // last. The MCP server is started per window with its own id.
+      setCurrentSession(db, 'the-other-window');
+      process.env.CLAUDE_CODE_SESSION_ID = 'this-window';
+      expect(resolveSessionId(db)).toBe('this-window');
+    });
+
+    it('holds when the model passes a sibling worktree as cwd, instead of landing in default', () => {
+      const sibling = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-sibling-'));
+      fs.mkdirSync(path.join(sibling, '.git'));
+      try {
+        expect(resolveSessionId(db, undefined, sibling)).toBe(FALLBACK_SESSION_ID);
+        process.env.CLAUDE_CODE_SESSION_ID = 'this-window';
+        expect(resolveSessionId(db, undefined, sibling)).toBe('this-window');
+      } finally {
+        fs.rmSync(sibling, { recursive: true, force: true });
+      }
+    });
+
+    it('follows /clear: the hooks\' record for this host process beats the startup id', () => {
+      process.env.CLAUDE_CODE_SESSION_ID = 'before-clear';
+      process.env.CLAUDE_CODE_MESSAGING_SOCKET = '/tmp/cc-socks/4242.sock';
+      expect(resolveSessionId(db)).toBe('before-clear');
+      // SessionStart after /clear stamps the new id against the same process.
+      setCurrentSession(db, 'after-clear');
+      expect(resolveSessionId(db)).toBe('after-clear');
+      // Another claude process does not read this one's record.
+      process.env.CLAUDE_CODE_MESSAGING_SOCKET = '/tmp/cc-socks/99.sock';
+      expect(resolveSessionId(db)).toBe('before-clear');
+    });
+
+    it('yields to EKLAVYA_SESSION_ID, which joins panes on purpose', () => {
+      process.env.CLAUDE_CODE_SESSION_ID = 'this-window';
+      process.env.EKLAVYA_SESSION_ID = 'shared-task';
+      expect(resolveSessionId(db)).toBe('shared-task');
+    });
+  });
+
   it('ignores blank ids rather than writing rows under an empty key', () => {
     setCurrentSession(db, 'from-hook');
     expect(resolveSessionId(db, '   ')).toBe('from-hook');
@@ -482,6 +527,40 @@ describe('get_session_quiz_plan', () => {
     expect(plan.concepts.find((c: any) => c.slug === 'git-commit')?.reason).toBe('project_review');
   });
 
+  it('never brings back a question the learner answered correctly', () => {
+    // 41 of 74 "due" items on one machine were right answers whose spaced
+    // review date had come round. That is not a backlog: nothing is owed.
+    inProject();
+    call(recordAttempt, {
+      session_id: 'earlier-session',
+      slug: 'git-commit',
+      question: 'about git-commit',
+      answer: 'a',
+      grade: 4,
+      difficulty: 2,
+    });
+    overdue('git-commit');
+    decline('pkce');
+    overdue('pkce');
+
+    logAuthWork();
+    master('httponly-cookies');
+    master('jwt-structure');
+    master('csrf');
+
+    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 5 }).concepts.map((c: any) => c.slug);
+    expect(slugs).toContain('pkce');
+    expect(slugs).not.toContain('git-commit');
+  });
+
+  it('plans from this session\'s last hour of work, not what it logged yesterday', () => {
+    logAuthWork();
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-1 day') WHERE session_id = ?`).run(SESSION);
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'pkce', context: 'added PKCE to login' }] });
+    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 5 }).concepts.map((c: any) => c.slug);
+    expect(slugs).toEqual(['pkce']);
+  });
+
   it('waits for the review date before asking a declined question again', () => {
     inProject();
     decline('git-commit');
@@ -542,7 +621,8 @@ describe('get_session_quiz_plan', () => {
         slug: 'pkce',
         question: 'about pkce',
         answer: 'a',
-        grade: 4,
+        // Missed: only a question that did not pass is owed.
+        grade: 1,
         difficulty: 2,
       });
       db.prepare("UPDATE mastery SET next_review = '2000-01-01T00:00:00Z'").run();

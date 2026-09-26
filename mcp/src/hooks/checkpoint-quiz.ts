@@ -44,6 +44,7 @@ import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor }
 import { isSessionOff } from '../session.js';
 import { countUse } from '../telemetry.js';
 import { sessionChangedCode } from './changes-lib.js';
+import { recentWorkSql } from '../time.js';
 
 await run(async (input) => {
   // Fast path. `agent_id` is present only inside a subagent, and a subagent
@@ -68,6 +69,11 @@ await run(async (input) => {
   if (!sid) return 0;
   if (isSessionOff(db, sid)) return 0;
 
+  // Only work logged in the last hour is askable, so a session left open
+  // overnight is not asked about yesterday. Not for an enforced gate, whose bar
+  // was frozen from everything the session logged.
+  const recent = quiz.enforced ? '' : `AND ${recentWorkSql('sc.ts')}`;
+
   // One query for every number this decision needs.
   //
   // The candidate count and the concept line below share their WHERE clause with
@@ -82,6 +88,7 @@ await run(async (input) => {
             LEFT JOIN mastery m ON m.concept_id = c.id
            WHERE sc.session_id = @sid
              AND COALESCE(sc.origin,'work') = 'work'
+             ${recent}
              AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
              AND sc.concept_id NOT IN
                  (SELECT concept_id FROM attempts WHERE session_id = @sid)) AS candidates,
@@ -112,10 +119,10 @@ await run(async (input) => {
   if (minutesSince(stats.last_answer) < min_minutes_between_checkpoints) return 0;
   // ---------------------------------------------------------------------------
 
-  // The concept most recently logged, not the oldest. The Stop hook orders ASC
-  // because it is sweeping up a whole session; this hook is asking about the code
-  // that was just written, and the last row is the one the call that triggered us
-  // put there.
+  // The concept most recently logged, not the oldest: this hook is asking about
+  // the code that was just written, and the last row is the one the call that
+  // triggered us put there. The Stop hook orders the same way, for the same
+  // reason.
   const row = db
     .prepare(
       `SELECT c.slug || COALESCE(' (' || sc.context || ')', '') AS concept
@@ -124,6 +131,7 @@ await run(async (input) => {
          LEFT JOIN mastery m ON m.concept_id = c.id
         WHERE sc.session_id = @sid
           AND COALESCE(sc.origin,'work') = 'work'
+          ${recent}
           AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
           AND sc.concept_id NOT IN
               (SELECT concept_id FROM attempts WHERE session_id = @sid)
@@ -135,7 +143,10 @@ await run(async (input) => {
   if (!row?.concept) return 0;
 
   // Last, because it spawns git: every cheaper reason not to ask goes first.
-  if (quiz.only_on_changes && !quiz.enforced && !sessionChangedCode(db, sid, cwd)) return 0;
+  // The edit this hook fired on counts even before capture has recorded it:
+  // the two PostToolUse hooks run side by side.
+  const editedNow = /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(input.tool_name ?? '');
+  if (quiz.only_on_changes && !quiz.enforced && !sessionChangedCode(db, sid, cwd, editedNow)) return 0;
 
   // Stamp BEFORE emitting. If anything below fails the worst case is a missed
   // question; stamping after would let a crash between the two re-fire on the very

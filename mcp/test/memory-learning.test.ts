@@ -99,6 +99,19 @@ describe('filling in for a session that logged nothing', () => {
     ).toBe(1);
   });
 
+  it('fills only from this session\'s own entries, never another session\'s', () => {
+    // One "design system audit" entry turned up as `design-tokens` in four
+    // unrelated sessions: mined project-wide, the latest entry belongs to
+    // whoever wrote it, not to the session that looked empty.
+    insertEntry(db, { project: PROJECT, sessionId: 'an-earlier-session', title: 'Set httponly cookies on the refresh path' });
+    expect(fillOmissions(db, config, SESSION, PROJECT).reason).toBe('no_candidates');
+    expect(
+      (db.prepare('SELECT COUNT(*) AS n FROM session_concepts WHERE session_id = ?').get(SESSION) as { n: number }).n,
+    ).toBe(0);
+    // The earlier session's own fill still finds it.
+    expect(fillOmissions(db, config, 'an-earlier-session', PROJECT).accepted).toBeGreaterThan(0);
+  });
+
   it('says so rather than guessing when there is nothing to go on', () => {
     seedEntry('Rewrote the frobnicator gizmo pipeline end to end');
     expect(fillOmissions(db, config, SESSION, PROJECT).reason).toBe('no_candidates');

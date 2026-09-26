@@ -1,9 +1,9 @@
 /**
- * Has this session changed the code? Answered by git, not by watching tools.
+ * Has this session changed the code? Answered by its edits and by git.
  *
  * `quiz.only_on_changes` keeps questions out of sessions that only read,
  * searched or answered questions -- being quizzed in the middle of research is
- * an interruption with no new code behind it. Watching Edit and Write is not
+ * an interruption with no new code behind it. Watching Edit and Write alone is not
  * enough: agents edit through Bash (`sed -i`, heredocs, codegen) as often as
  * through the edit tools, and all of those land in the working tree.
  *
@@ -17,6 +17,15 @@
  *
  * The baseline lives in `meta` as `<ISO>|<fingerprint>`, one row per session,
  * pruned after a week the way the prompt nudge's rows are. No migration.
+ *
+ * Git alone misses the commonest layout of all: a session started in the main
+ * checkout that edits a sibling worktree (`<repo>-worktrees/<branch>`) by
+ * absolute path and `cd`. The tree it started in never moves, so every one of
+ * those sessions read as research -- nine of thirteen coding sessions in one
+ * OIP day got no question. So an edit the session made through the edit tools
+ * counts wherever it landed: the hook that fired on it says so (`editedNow`),
+ * and memory capture has recorded it as a `file_edit` event for every call
+ * after. Git still covers Bash edits in the session's own tree.
  *
  * Known edges, all accepted:
  *   - a file already dirty at session start, edited and then reverted, still
@@ -102,7 +111,8 @@ export function recordBaseline(db: DB, sessionId: string, cwd: string, fp = tree
  * or whose start-up git call timed out. It takes its baseline now and answers
  * false, so its changes from here on still count.
  */
-export function sessionChangedCode(db: DB, sessionId: string, cwd: string): boolean {
+export function sessionChangedCode(db: DB, sessionId: string, cwd: string, editedNow = false): boolean {
+  if (editedNow || editedThroughTools(db, sessionId)) return true;
   const now = treeFingerprint(cwd);
   if (now === null) return true;
   try {
@@ -116,5 +126,16 @@ export function sessionChangedCode(db: DB, sessionId: string, cwd: string): bool
     return row.value.slice(row.value.indexOf('|') + 1) !== now;
   } catch {
     return true;
+  }
+}
+
+/** An Edit/Write/MultiEdit/NotebookEdit this session made, as memory captured it. */
+function editedThroughTools(db: DB, sessionId: string): boolean {
+  try {
+    return Boolean(
+      db.prepare("SELECT 1 FROM evidence_events WHERE session_id = ? AND kind = 'file_edit' LIMIT 1").get(sessionId),
+    );
+  } catch {
+    return false;
   }
 }

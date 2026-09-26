@@ -12,8 +12,8 @@ registrations, for eight rows total.
 
 | Event | Implementation | Responsibility |
 |---|---|---|
-| SessionStart | `session-start` | Set the checkout session pointer; migrate legacy config; replay, summarize and recall memory; start a due background update; show profile/status and supply the log directive |
-| UserPromptSubmit | `prompt-submit-nudge` | Refresh the session pointer, capture the prompt, recall relevant memory and nudge a session that has not logged concepts |
+| SessionStart | `session-start` | Record the session for this host process and the checkout pointer; migrate legacy config; replay, summarize and recall memory; start a due background update; show profile/status and supply the log directive |
+| UserPromptSubmit | `prompt-submit-nudge` | Refresh the host session record and checkout pointer, capture the prompt, recall relevant memory and nudge a session that has not logged concepts |
 | SubagentStart | `subagent-start` | Ask implementers to log, without asking questions; exempt the tutor |
 | PreToolUse (`Bash`) | `pre-tool-gate` | Deny recognized commits when the enforced session gate has not passed |
 | PostToolUse (all tools) | `capture-tool` | Record one memory event with a bounded result excerpt (none for reads and edits); no quiz, summarization or provider call |
@@ -100,7 +100,10 @@ last answer. Stamp `stop_markers` or `checkpoints` before emitting. The Stop
 block cap (default 3) and remaining session question budget also bound repeats.
 Every attempt consumes the shared `max_questions_per_task` allowance (default 4).
 Review-origin concepts cannot re-arm the work-count guard. Change matching
-candidate predicates in both hooks together.
+candidate predicates in both hooks together: both ask only work logged within
+`RECENT_WORK_MINUTES` (`time.ts`, also read by the planner), newest first,
+except under an enforced gate. `quiz.only_on_changes` counts an edit-tool call
+anywhere (`editedNow`, or a captured `file_edit`) before comparing git trees.
 
 The shell lexer in `commit-lib.ts` recognizes common wrappers and nested shell
 forms, with deliberate misses for aliases, variables and scripts. The optional

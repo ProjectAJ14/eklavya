@@ -92,12 +92,18 @@ export function proposeFor(db: DB, entry: EntryRow, config: EklavyaConfig): numb
 }
 
 /** Proposes for every entry of a project that has not been mined yet. */
-export function proposeForProject(db: DB, config: EklavyaConfig, project: string, limit = 10): number {
+export function proposeForProject(
+  db: DB,
+  config: EklavyaConfig,
+  project: string,
+  limit = 10,
+  sessionId?: string,
+): number {
   // Observations only. A session summary is a roll-up of observation titles
   // this has already mined, so including it proposes the same slugs a second
   // time -- harmless in itself, but it crowds the top five that `fillOmissions`
   // accepts for a session that logged nothing.
-  const entries = timeline(db, { project, kind: 'observation', limit }).filter((entry) => {
+  const entries = timeline(db, { project, kind: 'observation', limit, ...(sessionId ? { sessionId } : {}) }).filter((entry) => {
     const row = db
       .prepare('SELECT 1 AS hit FROM learning_sources WHERE entry_id = ? LIMIT 1')
       .get(entry.id) as { hit: number } | undefined;
@@ -143,8 +149,16 @@ export function fillOmissions(
     .get(sessionId) as { n: number };
   if (logged.n > 0) return { accepted: 0, skipped: 0, reason: 'already_logged' };
 
-  proposeForProject(db, config, project);
-  const candidates = pendingCandidates(db, project, 20).filter((c) => c.confidence >= 0.7);
+  // This session's own entries and nothing else. Mined project-wide, the
+  // latest observations belong to whichever session wrote them, and a session
+  // that looked empty was quizzed on another one's work: one "design system
+  // compliance audit" entry turned up as `design-tokens` in four unrelated OIP
+  // sessions in a day. Nothing of its own yet means nothing to ask, which is
+  // the status quo, not a failure.
+  proposeForProject(db, config, project, 10, sessionId);
+  const candidates = pendingCandidates(db, project, 200)
+    .filter((c) => c.confidence >= 0.7 && candidateSession(db, c) === sessionId)
+    .slice(0, 20);
   if (!candidates.length) return { accepted: 0, skipped: 0, reason: 'no_candidates' };
 
   // The same budget an explicit log is held to. It is a cap on slug sprawl, and
@@ -171,6 +185,18 @@ export function fillOmissions(
     accepted++;
   }
   return { accepted, skipped: candidates.length - accepted };
+}
+
+/** The session whose memory entry, or evidence event, a candidate was mined from. */
+function candidateSession(db: DB, candidate: CandidateRow): string | null {
+  const row = db
+    .prepare(
+      `SELECT COALESCE(
+         (SELECT session_id FROM memory_entries WHERE id = ?),
+         (SELECT session_id FROM evidence_events WHERE id = ?)) AS sid`,
+    )
+    .get(candidate.entry_id ?? null, candidate.event_id ?? null) as { sid: string | null } | undefined;
+  return row?.sid ?? null;
 }
 
 function conceptFor(db: DB, candidate: CandidateRow): { id: number } | undefined {

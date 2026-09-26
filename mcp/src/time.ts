@@ -8,6 +8,22 @@
 export const NEVER = 999_999;
 
 /**
+ * How long logged work stays askable. A question is about the work on screen
+ * now: a session left open overnight, or resumed the next morning, asked about
+ * the previous day's code while its developer was checking a server mount. An
+ * hour covers a task's worth of pacing (four questions, four minutes apart)
+ * with room to spare. Both quiz hooks and the planner read this, and must --
+ * a concept one of them can ask and another cannot is asked twice or never.
+ * Enforced gates ignore it: their bar was frozen from everything logged.
+ */
+export const RECENT_WORK_MINUTES = 60;
+
+/** `RECENT_WORK_MINUTES` as a SQL predicate on a SQLite timestamp column. */
+export function recentWorkSql(column: string): string {
+  return `datetime(${column}) >= datetime('now', '-${RECENT_WORK_MINUTES} minutes')`;
+}
+
+/**
  * Minutes since a timestamp written by SQLite.
  *
  * This schema stores two shapes, and the difference is a trap. `strftime(...Z)`

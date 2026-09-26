@@ -46,6 +46,7 @@ import { fillOmissions } from '../memory/learning.js';
 import { dueInProject, sessionConcepts } from '../store.js';
 import { countUse } from '../telemetry.js';
 import { sessionChangedCode } from './changes-lib.js';
+import { recentWorkSql } from '../time.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -116,6 +117,10 @@ await run(async (input) => {
 
   if (!quiz.enabled) return 0;
 
+  // The same recent-work window as checkpoint-quiz.ts, for the same reason,
+  // and the same exemption for an enforced gate.
+  const recent = quiz.enforced ? '' : `AND ${recentWorkSql('sc.ts')}`;
+
   const stats = db
     .prepare(
       `SELECT
@@ -124,6 +129,7 @@ await run(async (input) => {
             LEFT JOIN mastery m ON m.concept_id = c.id
            WHERE sc.session_id = @sid
              AND COALESCE(sc.origin,'work') = 'work'
+             ${recent}
              AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
              AND sc.concept_id NOT IN
                  (SELECT concept_id FROM attempts WHERE session_id = @sid)) AS unmastered,
@@ -265,10 +271,11 @@ await run(async (input) => {
          LEFT JOIN mastery m ON m.concept_id = c.id
         WHERE sc.session_id = @sid
           AND COALESCE(sc.origin,'work') = 'work'
+          ${recent}
           AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
           AND sc.concept_id NOT IN
               (SELECT concept_id FROM attempts WHERE session_id = @sid)
-        ORDER BY sc.ts ASC
+        ORDER BY sc.ts DESC, sc.rowid DESC
         LIMIT @take`,
     )
     .all({ sid, take }) as Array<{ line: string }>;

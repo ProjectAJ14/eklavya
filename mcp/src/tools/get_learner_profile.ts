@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { loadConfig, isDomainEnabled } from '../config.js';
-import { clampToLevel, decayedScore, isKnown, isDue, nextTierToAsk, suggestedTier } from '../srs.js';
+import { clampToLevel, decayedScore, isKnown, isOwed, nextTierToAsk, suggestedTier } from '../srs.js';
 import { levelStanding } from '../store.js';
 import { CWD_HINT, type ToolDef } from './types.js';
 
@@ -49,7 +49,7 @@ export const getLearnerProfile: ToolDef = {
   name: 'get_learner_profile',
   title: 'Get learner profile',
   description:
-    'What this developer already knows. Call before teaching or quizzing so you never ask about a mastered concept. Returns mode, per-domain counts, the concepts already mastered, weak concepts, what is due for review, the tier to pitch at, and this project\'s difficulty level with the progress toward the next one. Every tier here is already clamped to that level. Also returns the three things a progress report needs and mastery counts cannot give: `projects` (per-repo answered/passed, so a report can say *which* codebase), `recent_concepts` (what was logged, with the context line naming the real code it came from) and `skipped` (declined or blanked, the actionable backlog).',
+    'What this developer already knows. Call before teaching or quizzing so you never ask about a mastered concept. Returns mode, per-domain counts, the concepts already mastered, weak concepts, what is due again (questions declined, blanked or answered wrong whose review date has come -- a correct answer never comes back), the tier to pitch at, and this project\'s difficulty level with the progress toward the next one. Every tier here is already clamped to that level. Also returns the three things a progress report needs and mastery counts cannot give: `projects` (per-repo answered/passed, so a report can say *which* codebase), `recent_concepts` (what was logged, with the context line naming the real code it came from) and `skipped` (declined or blanked, the actionable backlog).',
   inputSchema: {
     domain: z.string().optional().describe('Restrict to one domain, e.g. "web-auth".'),
     cwd: z.string().optional().describe(CWD_HINT),
@@ -109,7 +109,7 @@ export const getLearnerProfile: ToolDef = {
 
       if (score < WEAK_THRESHOLD) weak.push({ slug: row.slug, score: Number(score.toFixed(2)), tier: row.tier });
 
-      if (isDue(row.next_review, now)) {
+      if (isOwed(row.last_grade, row.next_review, now)) {
         due.push({
           slug: row.slug,
           tier: row.tier,

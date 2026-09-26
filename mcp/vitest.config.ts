@@ -11,6 +11,11 @@ export default defineConfig({
       GIT_CONFIG_COUNT: '1',
       GIT_CONFIG_KEY_0: 'maintenance.auto',
       GIT_CONFIG_VALUE_0: 'false',
+      // A suite run from inside a Claude Code session inherits that session's
+      // id and host socket, and `resolveSessionId` prefers them over the
+      // checkout pointer the tests set up -- green in CI, red on a laptop.
+      CLAUDE_CODE_SESSION_ID: '',
+      CLAUDE_CODE_MESSAGING_SOCKET: '',
     },
   },
 });

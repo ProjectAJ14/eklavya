@@ -75,12 +75,15 @@ status; it does not silence questions. Session-scoped silence is shared too.
 ## Session identity details
 
 `mcp/src/session.ts` resolves tool calls in this order: explicit tool argument,
-`EKLAVYA_SESSION_ID`, checkout-specific database pointer, then `default`. Hooks
-prefer the environment override before the host's input ID. Normally, tools
-should omit `session_id`.
+`EKLAVYA_SESSION_ID`, the host's session, checkout-specific database pointer,
+then `default`. The host's session is the ID the hooks last recorded for this
+`claude` process (keyed by `CLAUDE_CODE_MESSAGING_SOCKET`, so it follows
+`/clear`), else the server's own `CLAUDE_CODE_SESSION_ID`. Hooks prefer the
+environment override before the host's input ID. Normally, tools should omit
+`session_id`.
 
-Without the override, two conversations in one checkout compete for its current
-session pointer. Different Git roots, including worktrees, have separate
+On a host that sets neither variable, two conversations in one checkout
+compete for its current session pointer. Different Git roots, including worktrees, have separate
 pointers; this deliberately differs from project settings, which fold worktrees
 into the main checkout. Work outside Git shares the unscoped pointer.
 

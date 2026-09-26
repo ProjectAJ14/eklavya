@@ -1468,7 +1468,7 @@ function viewConcept(slug) {
     tiles([
       ['Score', c.seen ? Math.round(c.score * 100) + '%' : '—', decayed ? `decayed from ${Math.round(c.stored_score * 100)}%` : 'last five grades, recent first', c.mastered ? 'good' : c.score < 0.5 && c.seen ? 'warn' : ''],
       ['State', c.mastered ? 'mastered' : c.seen ? (c.due ? 'due' : 'learning') : 'not asked', c.seen ? `${c.passed} of ${c.attempts} right` : 'no questions yet', c.due ? 'warn' : ''],
-      ['Next review', c.seen ? whenDue(c.next_review) : '—', c.interval_d ? `every ${Math.round(c.interval_d)}d · ease ${c.ease ? c.ease.toFixed(2) : '—'} · ${plural(c.reps, 'rep')}` : 'not scheduled', c.due ? 'warn' : ''],
+      ['Next review', c.owed ? whenDue(c.next_review) : '—', c.interval_d ? `every ${Math.round(c.interval_d)}d · ease ${c.ease ? c.ease.toFixed(2) : '—'} · ${plural(c.reps, 'rep')}` : 'not scheduled', c.due ? 'warn' : ''],
     ]),
 
     card('Every question you were asked', atts.length ? `${plural(atts.length, 'attempt')}, newest first. Open one for the options and the feedback.` : '',
@@ -1504,7 +1504,7 @@ function viewReview(param) {
   t.tab = REVIEW_TABS.includes(param) ? param : 'due';
   const seen = seenConcepts();
   const due = seen.filter((c) => c.due).sort((a, b) => (b.overdue_days ?? 0) - (a.overdue_days ?? 0));
-  const upcoming = seen.filter((c) => !c.due && c.next_review)
+  const upcoming = seen.filter((c) => c.owed && !c.due && c.next_review)
     .sort((a, b) => String(a.next_review).localeCompare(String(b.next_review)));
   const skipped = attemptsInScope().filter((a) => a.outcome === 'declined' || a.outcome === 'dont_know');
 
