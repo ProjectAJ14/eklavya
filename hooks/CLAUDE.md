@@ -16,10 +16,10 @@ registrations, for eight rows total.
 | UserPromptSubmit | `prompt-submit-nudge` | Refresh the session pointer, capture the prompt, recall relevant memory and nudge a session that has not logged concepts |
 | SubagentStart | `subagent-start` | Ask implementers to log, without asking questions; exempt the tutor |
 | PreToolUse (`Bash`) | `pre-tool-gate` | Deny recognized commits when the enforced session gate has not passed |
-| PostToolUse (all tools) | `capture-tool` | Record one memory event; no quiz, summarization or provider call |
+| PostToolUse (all tools) | `capture-tool` | Record one memory event with a bounded result excerpt (none for reads and edits); no quiz, summarization or provider call |
 | PostToolUse (`mcp__.*log_session_concepts`) | `checkpoint-quiz` | Ask a due interleaved question after concepts are logged |
 | PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `checkpoint-quiz` | Recheck pacing as work continues; no spinner on every tool call |
-| Stop | `stop-quiz-check` | Flush the memory seam and request the remaining eligible quiz |
+| Stop | `stop-quiz-check` | Record the turn's final message (parent only), flush the memory seam and request the remaining eligible quiz |
 
 The MCP matcher accepts both standalone and plugin-scoped names. Do not narrow
 it to one prefix. Keep the work-tool regex anchored. Hook timeouts are 10 seconds,

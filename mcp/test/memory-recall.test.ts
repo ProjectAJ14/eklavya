@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
-import { learningCounts, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
+import { INDEX_MAX_ITEMS, learningCounts, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
 import { appendEvent, insertEntry } from '../src/memory/store.js';
 import { estimateTokens } from '../src/memory/tokens.js';
 import { GLOBAL_PROJECT } from '../src/store.js';
@@ -41,7 +41,7 @@ function addEvent(uid: string, body: string): number {
 describe('recall', () => {
   it('offers nothing on a project with no history, rather than an empty wrapper', () => {
     const result = recall(db, config(), { project: PROJECT });
-    expect(result).toEqual({ block: null, receiptId: null, entries: [], baseTokens: 0, deliveredTokens: 0 });
+    expect(result).toEqual({ block: null, receiptId: null, entries: [], indexed: 0, baseTokens: 0, deliveredTokens: 0 });
   });
 
   it('names the entries, frames them as evidence, and stops at the token budget', () => {
@@ -81,6 +81,37 @@ describe('recall', () => {
     const result = recall(db, cfg, { project: PROJECT });
     expect(result.entries.map((e) => e.title)).toEqual(['Newest', 'Short 2', 'Short 3', 'Short 4']);
     expect(result.deliveredTokens).toBeLessThanOrEqual(1200);
+  });
+
+  it('lists the entries after the full ones by title and id, with how to read them, at a seam', () => {
+    for (let i = 0; i < 40; i++) {
+      insertEntry(db, {
+        project: PROJECT,
+        title: `Work item ${i}`,
+        narrative: 'n',
+        type: 'change',
+        occurredAt: new Date(Date.UTC(2026, 8, 1, 0, i)).toISOString(),
+      });
+    }
+    const cfg = config();
+    const result = recall(db, cfg, { project: PROJECT, index: true });
+    expect(result.entries).toHaveLength(cfg.retrieval.max_items);
+    expect(result.indexed).toBeGreaterThan(10);
+    expect(result.indexed).toBeLessThanOrEqual(INDEX_MAX_ITEMS);
+    expect(result.block).toContain('Read any in full with the memory_get tool');
+    // Newest first, and none listed twice.
+    expect(result.block).toMatch(/- \[#\d+\] 2026-09-01 change · Work item 33/);
+    expect(result.block!.match(/Work item 39\b/g)).toHaveLength(1);
+    // The receipt counts the full entries; the index is delivered, not a saving.
+    expect(result.deliveredTokens).toBeGreaterThan(recall(db, cfg, { project: PROJECT, sessionId: 'x' }).deliveredTokens);
+  });
+
+  it('keeps a prompt recall inside its cap even when the best match alone would overrun it', () => {
+    const words = (n: number) => Array.from({ length: n }, (_, i) => `rotation${i}`).join(' ');
+    insertEntry(db, { project: PROJECT, title: 'Refresh token rotation, long', narrative: words(900), type: 'change' });
+    const cfg = config();
+    const result = recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's1', prompt: 'refresh token rotation long' });
+    expect(result).toBeNull();
   });
 
   it('still stops at max_items when every entry fits', () => {

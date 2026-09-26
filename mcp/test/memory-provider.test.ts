@@ -34,3 +34,33 @@ describe('the claude -p observer', () => {
     expect(JSON.parse(args[args.indexOf('--settings') + 1]!)).toEqual({ disableAllHooks: true, apiKeyHelper: null });
   });
 });
+
+describe('output past the limits', () => {
+  it('is trimmed to them instead of failing the batch', async () => {
+    const { trimToLimits } = await import('../src/memory/provider.js');
+    const obs = (n: number) => ({
+      title: 't'.repeat(250),
+      type: 'change',
+      narrative: 'n',
+      facts: Array.from({ length: 15 }, () => 'f'.repeat(500)),
+      files: [],
+      tags: Array.from({ length: 14 }, () => 'tag'),
+      n,
+    });
+    const trimmed = trimToLimits({ observations: Array.from({ length: 8 }, (_, i) => obs(i)) }) as {
+      observations: { title: string; facts: string[]; tags: string[] }[];
+    };
+    expect(trimmed.observations).toHaveLength(6);
+    expect(trimmed.observations[0]!.facts).toHaveLength(12);
+    expect(trimmed.observations[0]!.facts[0]!.length).toBe(400);
+    expect(trimmed.observations[0]!.title.length).toBe(200);
+    expect(trimmed.observations[0]!.tags).toHaveLength(12);
+  });
+
+  it('leaves a wrong shape alone, so validation still rejects it', async () => {
+    const { trimToLimits } = await import('../src/memory/provider.js');
+    expect(trimToLimits({ nope: 1 })).toEqual({ nope: 1 });
+    expect(trimToLimits('text')).toBe('text');
+  });
+});
+

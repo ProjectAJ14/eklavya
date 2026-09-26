@@ -25,12 +25,59 @@ function filesFrom(toolInput: Record<string, unknown> | undefined): string[] {
   return candidates.filter((c): c is string => typeof c === 'string' && c.length > 0);
 }
 
+/** Tools whose result is not worth keeping: a file's contents, or an edit's echo. */
+const NO_RESULT = new Set(['Read', 'NotebookRead', ...EDIT_TOOLS]);
+
+/** Most of a result a single event keeps; `MAX_BODY` still caps the whole body. */
+const RESULT_HEAD = 1_600;
+const RESULT_TAIL = 600;
+
 /**
- * What the event's body says.
+ * The text of a tool's result, whatever shape the host sent: a string, content
+ * blocks (MCP), `stdout`/`stderr` (Bash), or a known text field.
+ */
+function resultText(response: unknown): string {
+  if (typeof response === 'string') return response;
+  if (Array.isArray(response)) {
+    return response
+      .map((b) => (b && typeof b === 'object' && typeof (b as { text?: unknown }).text === 'string' ? (b as { text: string }).text : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (!response || typeof response !== 'object') return '';
+  const r = response as Record<string, unknown>;
+  const std = [r.stdout, r.stderr].filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+  if (std.length) return std.join('\n');
+  for (const key of ['content', 'result', 'output', 'text']) {
+    const v = r[key];
+    if (typeof v === 'string') return v;
+    if (Array.isArray(v)) return resultText(v);
+  }
+  if (Array.isArray(r.filenames)) return (r.filenames as unknown[]).map(String).join('\n');
+  return '';
+}
+
+/**
+ * What the result showed, head and tail — the tail is where a test summary or
+ * a stack trace ends up. This is what an observation is made from: without it
+ * the summariser saw that `git log` ran, never what it showed, and could record
+ * that work happened but not what was found. Redaction runs on the whole body
+ * before it is stored.
+ */
+function excerpt(tool: string, response: unknown): string {
+  if (NO_RESULT.has(tool)) return '';
+  const text = resultText(response).trim();
+  if (!text) return '';
+  if (text.length <= RESULT_HEAD + RESULT_TAIL) return text;
+  return `${text.slice(0, RESULT_HEAD)}\n…\n${text.slice(-RESULT_TAIL)}`;
+}
+
+/**
+ * What the event's body says: the arguments, then what came back.
  *
- * Arguments rather than results, with one exception: a failure's message is the
- * part worth remembering. A successful `Read` returning a whole file would make
- * the corpus a second copy of the repository.
+ * A failure keeps its message. A success keeps an excerpt of its result, except
+ * for reads and edits: a `Read` returning a whole file would make the corpus a
+ * second copy of the repository, and an edit's result only echoes its input.
  */
 function bodyFor(input: HookInput, failed: boolean): string {
   const toolInput = input.tool_input ?? {};
@@ -50,6 +97,10 @@ function bodyFor(input: HookInput, failed: boolean): string {
     if (keys.length) parts.push(keys.map((k) => `${k}=${clip(text(toolInput[k]), 200)}`).join(' '));
   }
   if (failed) parts.push(clip(String(errorText(input.tool_response)), 800));
+  else {
+    const result = excerpt(input.tool_name ?? '', input.tool_response);
+    if (result) parts.push(`→ ${result}`);
+  }
   return parts.join('\n');
 }
 

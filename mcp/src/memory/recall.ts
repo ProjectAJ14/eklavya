@@ -76,12 +76,35 @@ export interface RecallOptions {
   maxItems?: number;
   /** Override `retrieval.max_tokens`, for the tighter per-prompt budget. */
   maxTokens?: number;
+  /**
+   * Also list the next entries by title and id, after the ones sent in full.
+   * The seam recall only: a prompt recall is about one thing.
+   */
+  index?: boolean;
 }
+
+/**
+ * The title index a seam recall adds after its full entries: the rest of the
+ * project's recent work, one line each, with the ids to read any of it.
+ *
+ * Six full entries is depth without breadth — the model knew the last hour well
+ * and nothing about last week. Claude Mem's session start is the opposite, up to
+ * fifty titles with ids and a line saying how to fetch one, and that breadth is
+ * much of why it read as knowing the project. A title costs about fifteen
+ * tokens; the full entry stays one `memory_get` away.
+ *
+ * ponytail: fixed allowances rather than config keys; make them dials if
+ * someone needs a wider or narrower index.
+ */
+export const INDEX_MAX_ITEMS = 30;
+export const INDEX_MAX_TOKENS = 700;
 
 export interface RecallResult {
   block: string | null;
   receiptId: number | null;
   entries: EntryRow[];
+  /** Entries listed by title only, in the index after the full ones. */
+  indexed: number;
   baseTokens: number;
   deliveredTokens: number;
 }
@@ -137,7 +160,7 @@ function baseTokensFor(db: DB, entries: EntryRow[]): Map<number, number> {
 }
 
 export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): RecallResult {
-  const empty: RecallResult = { block: null, receiptId: null, entries: [], baseTokens: 0, deliveredTokens: 0 };
+  const empty: RecallResult = { block: null, receiptId: null, entries: [], indexed: 0, baseTokens: 0, deliveredTokens: 0 };
   if (!config.memory.enabled) return empty;
   // Outside a checkout there is no project, only the shared '*' bucket every
   // folder without git falls into. Recalling from it hands a new folder some
@@ -172,7 +195,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
         // that only applied when someone typed a query would be off precisely
         // where a developer with two checkouts open would notice it.
         project: config.retrieval.cross_project ? null : opts.project,
-        limit: limit + exclude.size,
+        limit: limit + exclude.size + (opts.index ? INDEX_MAX_ITEMS : 0),
         }).filter((entry) => allowed(entry.id));
   if (!pool.length) return empty;
 
@@ -202,17 +225,43 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     if (kept.length >= limit) break;
     const text = renderEntry(entry, kept.length + 1);
     const cost = estimateTokens(text);
-    if (kept.length && delivered + cost > maxTokens) continue;
+    // The first entry may overrun at a seam, where one long summary is still the
+    // best thing to say. A prompt's budget is a cap: a 660-token entry against
+    // 400 tokens is skipped in favour of one that fits, or nothing is sent.
+    if ((kept.length || opts.scope === 'prompt') && delivered + cost > maxTokens) continue;
     kept.push(entry);
     rendered.push(text);
     delivered += cost;
   }
   if (!kept.length) return empty;
 
+  // The index: whatever the full entries left, newest first, title and id only.
+  // Charged like the wrapper — delivered, never claimed as a saving.
+  const indexLines: string[] = [];
+  if (opts.index) {
+    const sent = new Set(kept.map((e) => e.id));
+    let spent = 0;
+    for (const entry of pool) {
+      if (indexLines.length >= INDEX_MAX_ITEMS) break;
+      if (sent.has(entry.id)) continue;
+      const line = `- [#${entry.id}] ${entry.occurred_at.slice(0, 10)} ${defangFence(entry.type ?? 'change')} · ${defangFence(entry.title)}`;
+      const cost = estimateTokens(line);
+      if (spent + cost > INDEX_MAX_TOKENS) break;
+      indexLines.push(line);
+      spent += cost;
+    }
+    if (indexLines.length) {
+      indexLines.unshift(
+        'Earlier work, titles only. Read any in full with the memory_get tool (pass the ids); look further back with memory_search.',
+      );
+      delivered += estimateTokens(indexLines.join('\n'));
+    }
+  }
+
   const base = baseTokensFor(db, kept);
 
   const header = `<eklavya-memory project="${projectAttr}" items="${kept.length}">`;
-  const block = [header, note, ...rendered, footer].join('\n');
+  const block = [header, note, ...rendered, ...indexLines, footer].join('\n');
 
   const receiptId = recordReceipt(db, {
     project: opts.project,
@@ -220,7 +269,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     scope: opts.scope ?? 'session_start',
     method: ESTIMATOR,
     delivery: opts.delivery ?? 'confirmed',
-    wrapperTokens,
+    wrapperTokens: wrapperTokens + (indexLines.length ? estimateTokens(indexLines.join('\n')) : 0),
     items: kept.map((entry, i) => ({
       entryId: entry.id,
       sourceTokens: base.get(entry.id) ?? 0,
@@ -234,6 +283,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     block,
     receiptId,
     entries: kept,
+    indexed: Math.max(0, indexLines.length - 1),
     baseTokens: kept.reduce((sum, e) => sum + (base.get(e.id) ?? 0), 0),
     deliveredTokens: delivered,
   };

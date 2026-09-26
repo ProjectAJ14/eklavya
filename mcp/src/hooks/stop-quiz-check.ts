@@ -41,7 +41,7 @@
 import { isCowork } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince } from './lib.js';
 import { isSessionOff } from '../session.js';
-import { flushAtSeam, identityOf, wrapUpAtSeam } from './memory-lib.js';
+import { flushAtSeam, identityOf, record, wrapUpAtSeam } from './memory-lib.js';
 import { fillOmissions } from '../memory/learning.js';
 import { dueInProject, sessionConcepts } from '../store.js';
 import { countUse } from '../telemetry.js';
@@ -76,6 +76,13 @@ await run(async (input) => {
   const stopConfig = config(cwd);
   if (stopConfig.config.memory.enabled) {
     const identity = identityOf(input, cwd, sid);
+    // The turn's conclusion, before the batch closes so it is summarised with
+    // the work it concludes. Tool events say what was done; this is where the
+    // agent says what it found and decided — "the root cause is X" lives here
+    // and nowhere else. Parent only: a subagent's report reaches the parent as
+    // a tool result, which capture already keeps.
+    const said = typeof input.last_assistant_message === 'string' ? input.last_assistant_message.trim() : '';
+    if (said && !input.agent_id) record(db, stopConfig, identity, { kind: 'assistant', title: 'assistant', body: said });
     await flushAtSeam(db, stopConfig, identity);
     // Only for a session that logged nothing at all. A session that logged
     // properly is left alone: the model's own account of what it wrote beats
