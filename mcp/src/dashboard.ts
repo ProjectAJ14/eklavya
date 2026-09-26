@@ -6,10 +6,11 @@
  * comparison, per-concept history and the full concept list — none of which fit
  * in a paragraph.
  *
- * Deliberately a static page plus one JSON endpoint: no framework, no build
- * step, same rule the landing page follows. It binds to loopback only, which
- * is the whole security model — the data never leaves the machine, and that
- * is a promise the landing page makes on Eklavya's behalf.
+ * Deliberately a static page plus JSON endpoints: no framework, no build
+ * step, same rule the landing page follows. It binds to loopback only — the
+ * data never leaves the machine, and that is a promise the landing page makes
+ * on Eklavya's behalf. The one write, a setting, also needs the page's token
+ * (see `postSettings`).
  *
  * The endpoint ships mostly *flat rows* — every attempt, every logged context,
  * one row per day — and lets the page derive the views. One aggregate query per
@@ -26,8 +27,13 @@ import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
 import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
 import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
-import { loadConfig, DEFAULT_CONFIG, type EklavyaConfig } from './config.js';
-import { dbPath, DEFAULT_PORT } from './paths.js';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile,
+  type EklavyaConfig,
+} from './config.js';
+import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
+import { dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { listArtifacts, resolveArtifact } from './artifacts.js';
 import { NOT_HELPER_RECEIPT, receiptTotals } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
@@ -1085,6 +1091,200 @@ export function localTokens(css: string): string {
   return css.replace(/@import\s+url\(\s*['"]?(?:https?:)?\/\/[^)]*\)[^;]*;\s*/gi, '');
 }
 
+
+/* ============================================================
+   Settings: the one part of the dashboard that writes.
+   ============================================================ */
+
+export interface SettingField extends SettingRule {
+  key: string;
+  label: string;
+  help: string;
+  group: string;
+  /** The input's step: 1 for whole numbers, 0.05 for a share. */
+  step?: number;
+}
+
+/**
+ * Every setting the Settings pages can change, in the order they show. A key
+ * that is neither here nor in `CLI_ONLY` fails `dashboard.test.ts`, which is
+ * what keeps the dashboard and `eklavya config set` describing one config: a
+ * new key in `DEFAULT_CONFIG` has to be placed on one list or the other.
+ * What each accepts is not written here: it is `SETTING_RULES`, the table the
+ * CLI and `set_config` check against too, merged in below.
+ */
+const FIELDS: Omit<SettingField, 'type'>[] = [
+  { key: 'quiz.enabled', group: 'Questions', label: 'Ask questions',
+    help: 'Whether Eklavya asks about the work at all. Memory keeps recording either way.' },
+  { key: 'quiz.enforced', group: 'Questions', label: 'Gate commits',
+    help: 'Hold commits until the session\'s questions are passed. Off whenever questions are off.' },
+  { key: 'quiz.only_on_changes', group: 'Questions', label: 'Only after code changes',
+    help: 'Ask only in sessions that changed the git working tree, so reading and research are not quizzed.' },
+  { key: 'focus', group: 'Questions', label: 'Focus',
+    help: 'What is taught: the transferable concept, this codebase, or a topic you chose (needs a topic).' },
+  { key: 'focus_topic', group: 'Questions', label: 'Learn topic',
+    help: 'The topic "learn" focus teaches, e.g. caching. Ignored by the other focuses.' },
+  { key: 'cadence', group: 'Questions', label: 'Cadence',
+    help: 'Interleaved asks one question mid-task; end waits until the task is finished.' },
+  { key: 'difficulty', group: 'Questions', label: 'Difficulty',
+    help: 'Auto earns the level per project. A literal level pins it and stops progression.' },
+  { key: 'explain_on_wrong', group: 'Questions', label: 'Explainer after a miss',
+    help: 'Write and open an explainer page in the background when a question is missed.' },
+  { key: 'quiet', group: 'Questions', label: 'Quiet',
+    help: 'Fewer status lines from Eklavya in the session.' },
+  { key: 'max_questions_per_task', group: 'Pacing', label: 'Questions per task',
+    help: 'The session budget. Under interleaved cadence, questions asked mid-work come out of it.' },
+  { key: 'min_minutes_between_quizzes', group: 'Pacing', label: 'Minutes between quizzes',
+    help: 'Cooldown between whole quizzes. Enforced quizzing ignores it.' },
+  { key: 'min_minutes_between_checkpoints', group: 'Pacing', label: 'Minutes between mid-work questions',
+    help: 'Floor on the gap between single interleaved questions. 0 asks at every seam.' },
+  { key: 'max_new_concepts_per_session', group: 'Pacing', label: 'New concepts per session',
+    help: 'Cap on concepts the agent may add to the catalogue in one session.' },
+  { key: 'max_stop_blocks_per_session', group: 'Pacing', label: 'Stop-hook blocks per session',
+    help: 'Hard backstop on how often the end-of-task check may hold a session.' },
+  { key: 'domains_enabled', group: 'Pacing', label: 'Domains',
+    help: 'Concept domains that may be asked about, one per line. * is every domain.' },
+  { key: 'level_up_after', group: 'Levels', label: 'Answers to level up',
+    help: 'Passing answers needed at a level, in one project, before it promotes.' },
+  { key: 'level_up_accuracy', group: 'Levels', label: 'Accuracy to level up',
+    help: 'Minimum accuracy over those answers, declines excluded (0 to 1).' },
+  { key: 'pass_threshold', group: 'Levels', label: 'Pass threshold',
+    help: 'Share of a gate\'s questions that must pass (0 to 1).' },
+  { key: 'memory.enabled', group: 'Memory', label: 'Record memory',
+    help: 'Capture what each session did. Independent of questions.' },
+  { key: 'memory.capture', group: 'Memory', label: 'Capture',
+    help: 'Minimal keeps prompts and session seams without recording every read.' },
+  { key: 'memory.batch_max_events', group: 'Memory', label: 'Events per batch',
+    help: 'Events per observation batch; the session seam flushes the rest.' },
+  { key: 'memory.retention_days', group: 'Memory', label: 'Keep raw evidence (days)',
+    help: 'Empty keeps raw evidence until you delete it.' },
+  { key: 'retrieval.mode', group: 'Memory', label: 'Search',
+    help: 'Hybrid fuses keyword and vector search.' },
+  { key: 'retrieval.max_items', group: 'Memory', label: 'Recalled items',
+    help: 'Entries offered at a session seam before any detail fetch.' },
+  { key: 'retrieval.max_tokens', group: 'Memory', label: 'Recall budget (tokens)',
+    help: 'Estimated tokens for the whole recalled block.' },
+  { key: 'retrieval.cross_project', group: 'Memory', label: 'Recall across projects',
+    help: 'Let another repository\'s memory be recalled here.' },
+  { key: 'privacy.exclude_paths', group: 'Privacy', label: 'Never capture paths',
+    help: 'Path patterns, one per line, on top of the built-in credential paths.' },
+  { key: 'privacy.exclude_tools', group: 'Privacy', label: 'Never capture tools',
+    help: 'Tool names, one per line.' },
+  { key: 'privacy.redact_patterns', group: 'Privacy', label: 'Extra redaction patterns',
+    help: 'Regular expressions, one per line, on top of the built-in secret shapes.' },
+  { key: 'auto_update', group: 'This machine', label: 'Update automatically',
+    help: 'Install newer releases in the background at session start.' },
+  { key: 'telemetry', group: 'This machine', label: 'Anonymous usage counts',
+    help: 'The daily ping of counts and setting values. Never a path, name or text.' },
+];
+
+export const SETTINGS: SettingField[] = FIELDS.map((f) => {
+  const rule = SETTING_RULES[f.key]!;
+  return { ...f, ...rule, ...(rule.type === 'number' ? { step: rule.int ? 1 : 0.05 } : {}) };
+});
+
+/**
+ * Settings the dashboard shows but will not change. Each sends this machine's
+ * work somewhere else or runs a command (see `CLONED_FORBIDDEN` in config.ts),
+ * so turning one on stays a typed command rather than a click on a page.
+ */
+export const CLI_ONLY: { key: string; why: string }[] = [
+  { key: 'providers.observer', why: 'sends session evidence to a model' },
+  { key: 'providers.embeddings', why: 'sends memory text to a model' },
+  { key: 'notifications.enabled', why: 'posts to a webhook or runs a command' },
+  { key: 'notifications.sinks', why: 'posts to a webhook or runs a command' },
+  { key: 'sync.enabled', why: 'writes memory to a shared folder' },
+  { key: 'sync.target', why: 'writes memory to a shared folder' },
+  { key: 'sync.device_id', why: 'pins this device\'s sync identity' },
+];
+
+/**
+ * Projects the Settings pages may write for: an inventory project whose
+ * checkout still exists. The POST checks against this list, so the page can
+ * never name an arbitrary path to write settings for.
+ */
+export function configurableProjects(db: DB): { id: string; name: string; inventory: string }[] {
+  const out = new Map<string, { id: string; name: string; inventory: string }>();
+  for (const p of projectInventory(db).projects) {
+    // A checkout, not just a directory: `loadConfig` finds the project file
+    // through the repository, so a folder without `.git` would show the user
+    // settings as if they were this project's.
+    if (p.kind !== 'repo' || !p.available || !p.path || !fs.existsSync(path.join(p.path, '.git'))) continue;
+    const root = mainRepoRoot(p.path);
+    if (!out.has(root)) out.set(root, { id: root, name: p.name, inventory: p.id });
+  }
+  return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const settingKeys = () => [...SETTINGS.map((f) => f.key), ...CLI_ONLY.map((c) => c.key)];
+/** What one file sets, key by key: a key absent here inherits. */
+const setIn = (raw: Record<string, unknown>) =>
+  Object.fromEntries(settingKeys().flatMap((k) => {
+    const v = valueAt(raw as unknown as EklavyaConfig, k);
+    return v === undefined ? [] : [[k, v]];
+  }));
+const effectiveOf = (c: EklavyaConfig) => Object.fromEntries(settingKeys().map((k) => [k, valueAt(c, k)]));
+
+/** `GET /api/settings?project=<checkout>`: both files and what they resolve to. */
+export function settingsState(db: DB, root: string | null): Record<string, unknown> {
+  const projects = configurableProjects(db);
+  const project = root ? projects.find((p) => p.id === root || p.inventory === root) ?? null : null;
+  return {
+    fields: SETTINGS,
+    cli_only: CLI_ONLY,
+    global_only: settingKeys().filter(isGlobalOnlyKey),
+    known: knownKeys(),
+    projects,
+    user: {
+      path: globalConfigPath(),
+      set: setIn(readConfigFile(globalConfigPath())),
+      effective: effectiveOf(loadGlobalConfig()),
+    },
+    project: project && {
+      ...project,
+      path: projectConfigPath(project.id),
+      set: setIn(readConfigFile(projectConfigPath(project.id))),
+      effective: effectiveOf(loadConfig(project.id).config),
+    },
+    problem: configFileProblem(project?.id ?? eklavyaHome()),
+  };
+}
+
+/** `POST /api/settings`: `{ scope: 'user'|'project', project?, key, value | unset: true }`. */
+export function updateSetting(db: DB, body: unknown): { status: number; body: Record<string, unknown> } {
+  const bad = (error: string) => ({ status: 400, body: { error } });
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return bad('Expected a JSON object.');
+  const b = body as Record<string, unknown>;
+  if (b.scope !== 'user' && b.scope !== 'project') return bad('scope is "user" or "project".');
+  const f = SETTINGS.find((x) => x.key === b.key);
+  if (!f) {
+    const cli = CLI_ONLY.find((x) => x.key === b.key);
+    return bad(cli ? `${cli.key} ${cli.why}, so it is changed from the terminal: eklavya config set ${cli.key} <value>`
+      : `Unknown setting ${JSON.stringify(b.key)}.`);
+  }
+  let root: string | null = null;
+  if (b.scope === 'project') {
+    const p = configurableProjects(db).find((x) => x.id === b.project);
+    if (!p) return bad('That project is not one this dashboard can configure.');
+    if (isGlobalOnlyKey(f.key)) return bad(`${f.key} is set once for the whole machine, in your user settings.`);
+    root = p.id;
+  }
+  const unset = b.unset === true;
+  if (!unset && b.value === undefined) return bad('Send a value, or unset: true.');
+  // Every rule -- range, type, list items, combinations -- is `applySetting`'s,
+  // so this refuses exactly what `eklavya config set` refuses, in its words.
+  try {
+    const { target } = applySetting(f.key, unset ? undefined : b.value, root);
+    return { status: 200, body: { ok: true, key: f.key, target, unset } };
+  } catch (err) {
+    return bad(err instanceof Error ? err.message : String(err));
+  }
+}
+
+// Room for the largest value `SETTING_RULES` accepts — 100 list lines of 500
+// characters, JSON-escaped — so the page refuses nothing the CLI would take.
+const MAX_SETTINGS_BODY = 256 * 1024;
+
 /**
  * What a browser may do with anything this server sends. The page is one file
  * with an inline script and inline styles, a `data:` favicon, and same-origin
@@ -1181,13 +1381,65 @@ export function startDashboard(
   const wanted = opts.port ?? DEFAULT_PORT;
   const assets = path.join(moduleDir, 'assets');
 
+  // Per server start. Every write must carry it (see `postSettings`).
+  const token = randomBytes(24).toString('hex');
+  const json = (res: http.ServerResponse, status: number, body: Record<string, unknown>) =>
+    send(res, status, 'application/json', JSON.stringify(body));
+
+  /**
+   * The one mutating route, and why the loopback check alone is not enough for
+   * it: a sandboxed frame on any page sends `Origin: null`, which the read
+   * routes accept. So a write also needs a real loopback `Origin`, a JSON
+   * content type (which a cross-origin form cannot send without a preflight
+   * this server never grants), and the token only this page was served.
+   */
+  const postSettings = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+    const origin = req.headers.origin;
+    if (!origin || origin === 'null') return json(res, 403, { error: 'A write needs a loopback Origin.' });
+    if (!/^application\/json\b/i.test(req.headers['content-type'] ?? '')) {
+      return json(res, 415, { error: 'Send application/json.' });
+    }
+    const sent = Buffer.from(String(req.headers['x-eklavya-token'] ?? ''));
+    const want = Buffer.from(token);
+    if (sent.length !== want.length || !timingSafeEqual(sent, want)) {
+      return json(res, 403, { error: 'Stale or missing dashboard token. Reload the page.' });
+    }
+    if (Number(req.headers['content-length'] ?? 0) > MAX_SETTINGS_BODY) {
+      return json(res, 413, { error: 'Request too large.' });
+    }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > MAX_SETTINGS_BODY) {
+        // Answer first and drop the connection only once the answer is out,
+        // so the browser reads the 413 instead of a reset.
+        res.on('finish', () => req.destroy());
+        json(res, 413, { error: 'Request too large.' });
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (res.headersSent) return;
+      let body: unknown;
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      } catch {
+        return json(res, 400, { error: 'Not valid JSON.' });
+      }
+      const out = updateSetting(db, body);
+      json(res, out.status, out.body);
+    });
+  };
+
   const server = http.createServer((req, res) => {
     // Loopback is not an authorisation boundary for a browser (PRD DASH-03).
     // A page the developer happens to have open can point a hostname it
     // controls at 127.0.0.1 and fetch from here -- DNS rebinding -- and the
     // same-origin policy does not help, because the page's origin *is* that
-    // hostname. Nothing here mutates, so the risk is not a write; it is that
-    // this payload now contains the developer's prompts, code and project
+    // hostname. The risk is a write to settings (`postSettings` adds a token
+    // for that) and that this payload contains the developer's prompts, code and project
     // history, and a hostile page would be reading all of it.
     //
     // The check is the standard one: the request has to have been addressed to
@@ -1195,12 +1447,20 @@ export function startDashboard(
     if (!fromLoopback(req.headers.host, req.headers.origin)) {
       return send(res, 403, 'text/plain', 'Eklavya serves loopback only.\n');
     }
-    // Every route reads. Anything else is refused rather than answered as a GET.
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      return send(res, 405, 'text/plain', 'Eklavya\'s dashboard is read-only.\n', { allow: 'GET, HEAD' });
-    }
     const url = new URL(req.url ?? '/', `http://${host}`);
+    // One route writes: a setting, through the same `applySetting` the CLI
+    // uses. Everything else reads, and any other method is refused rather
+    // than answered as a GET.
+    if (url.pathname === '/api/settings' && req.method === 'POST') return postSettings(req, res);
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      return send(res, 405, 'text/plain', 'Only /api/settings accepts a write; everything else here is read-only.\n', {
+        allow: url.pathname === '/api/settings' ? 'GET, HEAD, POST' : 'GET, HEAD',
+      });
+    }
     try {
+      if (url.pathname === '/api/settings') {
+        return send(res, 200, 'application/json', JSON.stringify(settingsState(db, url.searchParams.get('project'))));
+      }
       if (url.pathname === '/api/state') {
         return send(res, 200, 'application/json', JSON.stringify(dashboardState(db)));
       }
@@ -1268,7 +1528,11 @@ export function startDashboard(
         return send(res, 200, 'text/css', localTokens(fs.readFileSync(path.join(assets, 'tokens.css'), 'utf8')));
       }
       if (url.pathname === '/' || url.pathname === '/index.html') {
-        return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(path.join(assets, 'dashboard.html')));
+        // The write token rides in the page itself: a hostile origin cannot read
+        // this response, so it cannot learn the token to send back.
+        const html = fs.readFileSync(path.join(assets, 'dashboard.html'), 'utf8')
+          .replace('<meta name="eklavya-token" content="">', `<meta name="eklavya-token" content="${token}">`);
+        return send(res, 200, 'text/html; charset=utf-8', html);
       }
       return send(res, 404, 'text/plain', 'not found');
     } catch (err) {

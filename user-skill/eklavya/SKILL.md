@@ -263,17 +263,17 @@ eklavya dashboard --port 8080
 eklavya dashboard --no-open    # serve it, print the URL, open nothing
 ```
 
-It binds to loopback only and reads the local database — that is the whole
-security model, and it is worth saying when someone asks where their data
-goes. The process runs until interrupted, so start it in the background and
+It binds to loopback only and reads the local database; its one write is a
+settings change, guarded by a per-start token in the page. Worth saying when
+someone asks where their data goes. The process runs until interrupted, so start it in the background and
 hand back the URL rather than blocking the session on it.
 
 It opens the browser itself, so do not tell them to click the URL. Use
 `--no-open` when they only asked *where* the dashboard is, or when the session
 is on a machine with no desktop.
 
-Two workflows, Learning and Memory, each with its own Dashboard and every page
-deep-linkable — hand back the one that answers what was actually asked rather
+Four workflows, Learning, Memory, Artifacts and Settings, each with its own
+Dashboard and every page deep-linkable — hand back the one that answers what was actually asked rather
 than the bare root. Add `?project=<absolute repo path>` to open it scoped to one
 project; the ids are the ones `/api/projects` lists.
 
@@ -293,6 +293,7 @@ project; the ids are the ones `/api/projects` lists.
 | is capture healthy | `/#/memory/health` |
 | the pages Eklavya wrote me, search them | `/#/artifacts/dashboard` (or `/explainer` for explainers only) |
 | which projects have pages | `/#/artifacts/projects` |
+| change my settings in a page, see what a project overrides | `/#/settings/dashboard`, `/#/settings/user`, `/#/settings/project?project=<path>` |
 
 The older single-workflow links (`/#/overview`, `/#/concepts`, `/#/memory`,
 `/#/entry/<id>` and the rest) still open the right page, but hand back the

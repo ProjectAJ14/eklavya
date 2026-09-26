@@ -43,7 +43,14 @@ config does not need that legacy filter. `loadConfig` stays read-only;
 Legacy in-repo packs remain read-only sources and are not deleted.
 
 For a new config key, update its type/comment, default, coercion, CLI help and
-`set_config` schema, plus the corresponding documentation. An uncoerced field
+`set_config` schema, plus the corresponding documentation. **The CLI and the
+dashboard are both interfaces to config**: give a leaf key its row in
+`SETTING_RULES` (`config-path.ts`: type, range, lengths — the one table the CLI,
+the dashboard and `set_config`'s number schemas check against; a test fails
+without it), place it in `SETTINGS` (label and help only) or `CLI_ONLY` in
+`dashboard.ts`, and write through `applySetting`, the one write path
+`eklavya config set|unset` and `POST /api/settings` share. The page's
+`fieldProblem` mirrors `settingProblem` word for word; change both. An uncoerced field
 silently disappears. `config-path.ts` derives keys from defaults; nullable keys
 also need `NULLABLE`. Keep the tool's patch construction derived from defaults.
 
@@ -123,7 +130,8 @@ Memory tool use is “search, choose, then get”: index tools return small resu
 `memory_get` hydrates selected entries. Describe `local-hash-v1` accurately:
 morphology and character overlap are not general semantic understanding.
 
-The dashboard is loopback-only and read-only (GET/HEAD, security headers).
+The dashboard is loopback-only and read-only (GET/HEAD, security headers), except
+`POST /api/settings`, which needs a loopback Origin, JSON and the per-start page token.
 Artifact resolution must reject traversal and stay inside the real artifact
 root. Artifact creation never overwrites or publishes; metadata lives in HTML
 heads, not a database table. The template inlines shared design tokens.

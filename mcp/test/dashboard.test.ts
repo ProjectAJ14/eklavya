@@ -7,7 +7,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
+  SETTINGS, CLI_ONLY,
 } from '../src/dashboard.js';
+import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { appendEvent, insertEntry, recordReceipt, supersedeEntry, deleteEntry, addCandidate } from '../src/memory/store.js';
@@ -812,7 +814,7 @@ describe('the server says what a browser may do with its pages', () => {
       req.end();
     });
 
-  const ROUTES = ['/', '/tokens.css', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/nope'];
+  const ROUTES = ['/', '/tokens.css', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/nope'];
 
   it('sends the security headers on every response, errors included', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });
@@ -850,8 +852,192 @@ describe('the server says what a browser may do with its pages', () => {
           expect(res.headers['x-frame-options']).toBe('DENY');
         }
       }
+      // The one writable route still refuses every other write method.
+      const put = await request(port, 'PUT', '/api/settings');
+      expect(put.status).toBe(405);
+      expect(put.headers.allow).toBe('GET, HEAD, POST');
     } finally {
       close();
     }
+  });
+});
+
+/* ------------------------------------------------------------------
+   Settings: the one route that writes.
+   ------------------------------------------------------------------ */
+describe('every config key has a home in the dashboard or the terminal', () => {
+  it('lists each leaf key in SETTINGS or CLI_ONLY, and nothing else', () => {
+    // A new key in DEFAULT_CONFIG fails here until it is placed on one list:
+    // that is what keeps the CLI and the dashboard describing one config.
+    const leaves = knownKeys().filter((k) => {
+      const d = defaultAt(k);
+      return !(d && typeof d === 'object' && !Array.isArray(d));
+    });
+    const placed = [...SETTINGS.map((f) => f.key), ...CLI_ONLY.map((c) => c.key)];
+    expect([...placed].sort()).toEqual([...leaves].sort());
+    expect(new Set(placed).size).toBe(placed.length);
+  });
+});
+
+describe('/api/settings', () => {
+  let home = '';
+  let repo = '';
+  const saved = process.env.EKLAVYA_HOME;
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-set-home-'));
+    repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-set-repo-')));
+    fs.mkdirSync(path.join(repo, '.git'));
+    process.env.EKLAVYA_HOME = home;
+    appendEvent(db, { eventUid: 'set-1', project: repo, sessionId: 's1', kind: 'tool_use', tool: 'Edit', title: 't', body: 'b' });
+  });
+  afterEach(() => {
+    if (saved === undefined) delete process.env.EKLAVYA_HOME;
+    else process.env.EKLAVYA_HOME = saved;
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(repo, { recursive: true, force: true });
+  });
+
+  const post = (port: number, body: unknown, headers: Record<string, string>) =>
+    new Promise<{ status: number; body: any }>((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, path: '/api/settings', method: 'POST', headers }, (res) => {
+        let text = '';
+        res.on('data', (c) => (text += String(c)));
+        res.on('end', () => {
+          let parsed: any = text;
+          try { parsed = JSON.parse(text); } catch { /* the loopback refusal is plain text */ }
+          resolve({ status: res.statusCode ?? 0, body: parsed });
+        });
+      });
+      req.on('error', reject);
+      req.end(typeof body === 'string' ? body : JSON.stringify(body));
+    });
+
+  async function withServer(fn: (port: number, token: string, url: string) => Promise<void>) {
+    const { url, close } = await startBuilt(db, { port: 0 });
+    try {
+      const html = await (await fetch(url)).text();
+      const token = /name="eklavya-token" content="([0-9a-f]+)"/.exec(html)?.[1] ?? '';
+      expect(token).toMatch(/^[0-9a-f]{48}$/);
+      await fn(Number(new URL(url).port), token, url);
+    } finally {
+      close();
+    }
+  }
+  const ok = (port: number, token: string) => ({
+    host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json', 'x-eklavya-token': token,
+  });
+
+  it('reads both scopes and offers only projects with a checkout', async () => {
+    await withServer(async (_port, _token, url) => {
+      const d = await (await fetch(`${url}/api/settings?project=${encodeURIComponent(repo)}`)).json();
+      expect(d.projects.map((p: any) => p.id)).toEqual([repo]);
+      expect(d.project.id).toBe(repo);
+      expect(d.user.effective['cadence']).toBe('interleaved');
+      expect(d.global_only).toEqual(expect.arrayContaining(['telemetry', 'auto_update']));
+    });
+  });
+
+  it('writes a user setting and a project one, and unsets back to inherit', async () => {
+    await withServer(async (port, token, url) => {
+      const h = ok(port, token);
+      expect((await post(port, { scope: 'user', key: 'cadence', value: 'end' }, h)).status).toBe(200);
+      const userFile = path.join(home, 'config.json');
+      expect(JSON.parse(fs.readFileSync(userFile, 'utf8')).cadence).toBe('end');
+
+      expect((await post(port, { scope: 'project', project: repo, key: 'memory.capture', value: 'minimal' }, h)).status).toBe(200);
+      expect((await post(port, { scope: 'project', project: repo, key: 'cadence', value: 'interleaved' }, h)).status).toBe(200);
+      let d = await (await fetch(`${url}/api/settings?project=${encodeURIComponent(repo)}`)).json();
+      expect(d.project.set).toEqual({ 'memory.capture': 'minimal', cadence: 'interleaved' });
+      expect(d.project.effective.cadence).toBe('interleaved');
+
+      // A second write keeps the previous bytes beside the file.
+      expect(fs.existsSync(`${d.project.path}.eklavya-bak`)).toBe(true);
+
+      expect((await post(port, { scope: 'project', project: repo, key: 'cadence', unset: true }, h)).status).toBe(200);
+      d = await (await fetch(`${url}/api/settings?project=${encodeURIComponent(repo)}`)).json();
+      expect(d.project.set).toEqual({ 'memory.capture': 'minimal' });
+      expect(d.project.effective.cadence).toBe('end'); // the user setting applies again
+    });
+  });
+
+  it('refuses a write without the token, from another origin, or as a form', async () => {
+    await withServer(async (port, token) => {
+      const body = { scope: 'user', key: 'cadence', value: 'end' };
+      expect((await post(port, body, { ...ok(port, token), 'x-eklavya-token': '' })).status).toBe(403);
+      expect((await post(port, body, { ...ok(port, token), 'x-eklavya-token': 'f'.repeat(48) })).status).toBe(403);
+      expect((await post(port, body, { ...ok(port, token), origin: 'https://evil.example' })).status).toBe(403);
+      expect((await post(port, body, { ...ok(port, token), origin: 'null' })).status).toBe(403);
+      const { origin: _o, ...noOrigin } = ok(port, token);
+      expect((await post(port, body, noOrigin)).status).toBe(403);
+      expect((await post(port, body, { ...ok(port, token), host: 'evil.example' })).status).toBe(403);
+      expect((await post(port, 'cadence=end', { ...ok(port, token), 'content-type': 'application/x-www-form-urlencoded' })).status).toBe(415);
+      expect((await post(port, 'x'.repeat(300 * 1024), ok(port, token))).status).toBe(413);
+      // The largest list the shared rules accept still fits: the page refuses nothing the CLI would take.
+      const big = { scope: 'user', key: 'privacy.exclude_paths', value: Array.from({ length: 100 }, (_, i) => `${i}`.padEnd(500, '\\')) };
+      const accepted = await post(port, big, ok(port, token));
+      expect(accepted.status).toBe(200);
+      fs.rmSync(path.join(home, 'config.json'), { force: true });
+      fs.rmSync(path.join(home, 'config.json.eklavya-bak'), { force: true });
+      expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
+    });
+  });
+
+  it('refuses unknown, terminal-only, global-only-for-a-project and out-of-range writes', async () => {
+    await withServer(async (port, token) => {
+      const h = ok(port, token);
+      const bad = async (body: unknown) => {
+        const r = await post(port, body, h);
+        expect(r.status, JSON.stringify(body)).toBe(400);
+        expect(typeof r.body.error).toBe('string');
+      };
+      await bad({ scope: 'user', key: 'nope', value: 1 });
+      await bad({ scope: 'user', key: 'sync.enabled', value: true });
+      await bad({ scope: 'project', project: repo, key: 'telemetry', value: false });
+      await bad({ scope: 'project', project: '/etc', key: 'cadence', value: 'end' });
+      await bad({ scope: 'user', key: 'cadence', value: 'bogus' });
+      await bad({ scope: 'user', key: 'max_questions_per_task', value: 99 });
+      await bad({ scope: 'user', key: 'focus', value: 'learn' }); // no topic yet
+      await bad({ scope: 'global', key: 'cadence', value: 'end' });
+      expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
+      expect(fs.existsSync(path.join(home, 'projects'))).toBe(false);
+    });
+  });
+
+  it('refuses each kind of bad value in the words the CLI uses', async () => {
+    await withServer(async (port, token) => {
+      const h = ok(port, token);
+      const cases: [string, unknown][] = [
+        ['quiet', 'yes'],
+        ['difficulty', 'impossible'],
+        ['max_questions_per_task', 2.5],
+        ['min_minutes_between_quizzes', 5000],
+        ['level_up_accuracy', -0.1],
+        ['memory.retention_days', 0],
+        ['level_up_after', null],
+        ['focus_topic', 'x'.repeat(201)],
+        ['privacy.redact_patterns', ['(unclosed']],
+        ['domains_enabled', 'react'],
+      ];
+      for (const [key, value] of cases) {
+        const r = await post(port, { scope: 'user', key, value }, h);
+        expect(r.status, key).toBe(400);
+        expect(r.body.error, key).toBe(settingProblem(key, value));
+      }
+      await post(port, { scope: 'user', key: 'quiz.enabled', value: false }, h);
+      const gate = await post(port, { scope: 'user', key: 'quiz.enforced', value: true }, h);
+      expect(gate.body.error).toMatch(/no effect while quiz.enabled is false/);
+      expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8'))).toEqual({ quiz: { enabled: false } });
+    });
+  });
+
+  it('ships each field\'s bounds from SETTING_RULES, so the page checks what the server checks', async () => {
+    await withServer(async (_port, _token, url) => {
+      const d = await (await fetch(`${url}/api/settings`)).json();
+      for (const f of d.fields) {
+        const { type, options, min, max, int, nullable, maxLength, maxItems, regex } = f;
+        expect(JSON.parse(JSON.stringify({ type, options, min, max, int, nullable, maxLength, maxItems, regex })), f.key)
+          .toEqual(JSON.parse(JSON.stringify(SETTING_RULES[f.key])));
+      }
+    });
   });
 });

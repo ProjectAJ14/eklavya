@@ -1,11 +1,11 @@
 ---
 title: "The dashboard"
-description: "Explore the local Eklavya dashboard: learning progress, project memory, session history, and saved artifacts, with three connected workflows."
+description: "Explore the local Eklavya dashboard: learning progress, project memory, session history, saved artifacts and your settings, in four connected workflows."
 sidebar:
   order: 11
 ---
 
-Open your learning history, project memory and saved pages in a local browser:
+Open your learning history, project memory, saved pages and settings in a local browser:
 
 ```bash
 eklavya dashboard
@@ -17,17 +17,17 @@ The server normally uses `http://127.0.0.1:41729` and opens your browser. Keep t
 
 ## Switching workflow
 
-Use the caret beside the workflow name to choose **Learning**, **Memory** or **Artifacts**. Clicking the name or Eklavya wordmark returns to that workflow's Dashboard.
+Use the caret beside the workflow name to choose **Learning**, **Memory**, **Artifacts** or **Settings**. Clicking the name or Eklavya wordmark returns to that workflow's Dashboard.
 
 Project and theme choices survive a workflow switch. Page-specific filters do not. The address records the workflow, page, filters and project, so bookmarks and Back/Forward return to the same view. A new-style link without `?project=` means all projects.
 
 ## The sidebars
 
-| Learning | Memory | Artifacts |
-| --- | --- | --- |
-| Dashboard | Dashboard | Dashboard |
-| Concepts, Review | Timeline, Sessions, Projects | Projects |
-| Sessions, Projects, Domains | Reuse, Health | |
+| Learning | Memory | Artifacts | Settings |
+| --- | --- | --- | --- |
+| Dashboard | Dashboard | Dashboard | Overview |
+| Concepts, Review | Timeline, Sessions, Projects | Projects | User, Project |
+| Sessions, Projects, Domains | Reuse, Health | | |
 
 Groups can be collapsed and are remembered per workflow. At 900 px or narrower, navigation moves into a menu drawer. Keyboard navigation supports Tab and Enter; the workflow picker also supports arrows and Escape. Escape or clicking outside closes the drawer.
 
@@ -79,6 +79,20 @@ Artifacts are HTML pages saved under `~/.eklavya/artifacts/<project>/`: requeste
 An explainer's concept links to its Learning page. Page titles open the saved HTML in a new tab. The file list is reread on refresh, so adding or deleting a file updates the library. A project with artifacts but no other recorded activity appears here but cannot be selected as a global project scope.
 
 Pages served by the dashboard are sandboxed: their inline scripts and downloads work, but they cannot read dashboard history. Only files under the artifacts directory are served. The template's Google Fonts requests are allowed; offline it uses system fonts. The Eklavya link in the header and footer opens the website in a normal tab. Opening the same file directly does not add the dashboard sandbox.
+
+## Settings
+
+Settings changes the same two files as [`eklavya config set`](/docs/cli/#settings-and-browsing): your user settings in `~/.eklavya/config.json`, and one project's settings in `~/.eklavya/projects/<checkout>/config.json`. Both interfaces use one write path, so they accept and refuse the same values.
+
+| Page | What you can do |
+| --- | --- |
+| Overview (`#/settings/dashboard`) | See how many settings each file sets, and which settings the selected project changes from yours. |
+| User (`#/settings/user`) | Change a setting everywhere. **Reset to default** removes it from your file. |
+| Project (`#/settings/project?project=<checkout>`) | Change a setting for one project. Each row says whether its value is set for this project, inherited from your user settings, or the default. **Inherit** removes the project's value so your user setting applies again. Without a project selected, it lists the projects you can configure. |
+
+A control saves when you change it; a text or number box saves when you leave it or press Enter. The row reports **saved** or **inherited**. Each field states what it accepts, and a value outside that is refused under the field before anything is sent, keeping what you typed; the server checks again with the [same rules](/docs/configuration/#what-each-setting-accepts) and reports a refusal, such as `focus: learn` with no topic, in the same place. `auto_update` and `telemetry` apply to the whole machine, so a project page shows them read-only with a link to User. Providers, notifications and sync send work off the machine or run a command, so the pages list them under **Changed from the terminal** with their current value instead of offering a control.
+
+Only projects with a git checkout on this machine can be configured. The footer's dial line is read when the page loads, so it updates on the next refresh.
 
 ## Opening one thing
 
@@ -166,6 +180,6 @@ An old link without a project can pick up the previous saved project once. New-s
 
 ## What it is, underneath
 
-The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, validates loopback request addresses, escapes stored content and refuses framing by other pages. Dashboard views load no external fonts or other remote resources; artifact pages have the font exception described above.
+The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except a settings change, validates loopback request addresses, escapes stored content and refuses framing by other pages. Dashboard views load no external fonts or other remote resources; artifact pages have the font exception described above.
 
-Its five read-only JSON endpoints serve summary state (`/api/state`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`) and memory sessions (`/api/memory/sessions`). It does not offer settings or data edits.
+Its read-only JSON endpoints serve summary state (`/api/state`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`) and settings (`/api/settings`). The one write is `POST /api/settings`, which changes one setting. It needs a loopback `Origin`, a JSON body of at most 256 KB and a random token the server puts in the page each time it starts, so another site open in your browser cannot change your settings. It never edits learning or memory data.

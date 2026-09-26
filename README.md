@@ -89,7 +89,7 @@ with diagrams that you can print or save as PDF.
 
 ## Dashboard
 
-Run `eklavya dashboard` to open a local page in your browser. It has three
+Run `eklavya dashboard` to open a local page in your browser. It has four
 parts:
 
 | Part | What you can see | Read more |
@@ -97,6 +97,7 @@ parts:
 | Learning | Accuracy, mastery, reviews due, weak topics, sessions and projects. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page, grouped by project. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
+| Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.
 
@@ -115,8 +116,8 @@ questions off and keep memory on.
 | `memory.enabled` | `true`: record and recall | `false`: learning only |
 
 By default Eklavya asks up to four questions per session on its own, at
-least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code, or
-`eklavya config set` in a terminal. See [the dials](https://eklavya-run.web.app/docs/dials/)
+least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
+`eklavya config set` in a terminal, or the dashboard's Settings pages. See [the dials](https://eklavya-run.web.app/docs/dials/)
 and [every setting](https://eklavya-run.web.app/docs/configuration/).
 
 ## Commands

@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Filled in by the server on each load; the Settings pages send it with a write. -->
+<meta name="eklavya-token" content="">
 <title>Eklavya — dashboard</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230E6E66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M7 5a11 11 0 0 1 0 14'/%3E%3Cpath d='M6 12h12'/%3E%3Cpath d='M14 9l3 3-3 3'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230E6E66'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4c5 2.5 5 13.5 0 16'/%3E%3Cpath d='M6 4v16M4 12h14'/%3E%3Cpath d='M14.5 8.5 18 12l-3.5 3.5'/%3E%3C/g%3E%3C/svg%3E">
 <script>
 /* Ground selection, shared with the site: same localStorage key, same default.
    Runs before the stylesheet so the page never paints one ground then swaps.
@@ -106,10 +108,50 @@
                    padding:var(--space-2) var(--space-4); cursor:pointer; }
   .picker button:hover, .picker button:focus-visible { background:var(--mass); color:var(--ink); box-shadow:none; outline:none; }
   .picker button:focus-visible { box-shadow:inset 2px 0 0 var(--spot); } /* inset: the picker scrolls, so an outset ring would clip */
-  .picker button[aria-checked="true"] { color:var(--ink); }
-  .picker button span { flex:1; }
+  .picker button[aria-checked="true"], .picker button[aria-selected="true"] { color:var(--ink); background:var(--spot-soft); }
+  .picker button span { flex:1; min-width:0; overflow-wrap:anywhere; }
   .picker .check { width:15px; height:15px; color:var(--spot); visibility:hidden; }
-  .picker button[aria-checked="true"] .check { visibility:visible; }
+  .picker button[aria-checked="true"] .check, .picker button[aria-selected="true"] .check { visibility:visible; }
+  .picker[role="listbox"] { max-width:min(320px, calc(100vw - 16px)); }
+
+  /* ---------- the project selector: a button that opens a listbox ---------- */
+  /* Not a native <select>: its menu is drawn by the OS (translucent, blue,
+     rounded) and ignores every token on the page. Same chrome as the workflow
+     control, same picker underneath. */
+  .combo { display:flex; align-items:center; gap:var(--space-2); width:100%; min-height:36px; text-align:left;
+           font:inherit; font-size:13.5px; background:var(--bg); color:var(--ink); border:1px solid var(--line-2);
+           border-radius:0; padding:var(--space-2) var(--space-3); cursor:pointer; }
+  .combo:hover:not(:disabled), .combo[aria-expanded="true"] { background:var(--mass); }
+  .combo:disabled { cursor:progress; }
+  .combo__value { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .combo > svg { width:14px; height:14px; flex:none; color:var(--dim); transition:transform var(--duration-fast) var(--ease); }
+  .combo[aria-expanded="true"] > svg { transform:rotate(180deg); }
+  /* Every other dropdown is a native <select> kept as the value, hidden, with
+     one of these standing in for it (see `combos()`). */
+  .filters .combo { width:auto; max-width:240px; }
+  /* Until the inventory lands there is no honest label, so the box says it is
+     waiting rather than showing an empty field. */
+  .skel { display:block; height:10px; width:70%; background:var(--mass);
+          animation:skel 1.4s var(--ease) infinite alternate; }
+  @keyframes skel { from { opacity:.55; } to { opacity:1; } }
+
+  /* ---------- the loader: the mark, held still, with its tile traced ---------- */
+  /* One loader for every wait on the page: `loader(label)`. The mark is the
+     brand mark and never moves; a short --spot segment travels round a square
+     outline just outside its tile. It fades in after 150ms so a fast loopback
+     answer never flashes it; reduced motion stops the trace and keeps the label. */
+  .loader { display:flex; align-items:center; gap:var(--space-4); padding:var(--space-6) 0; color:var(--dim);
+            font-family:var(--font-mono); font-size:12px; letter-spacing:.04em;
+            animation:loader-in var(--duration-base) var(--ease) 150ms both; }
+  .loader--page { justify-content:center; flex-direction:column; min-height:40vh; gap:var(--space-5); }
+  .loader .mark { position:relative; overflow:visible; }
+  .loader__trace { position:absolute; inset:-5px; width:calc(100% + 10px); height:calc(100% + 10px); overflow:visible; }
+  .loader__trace rect { fill:none; stroke:var(--spot); stroke-width:1.5; stroke-dasharray:32 128;
+                        animation:trace 1.6s linear infinite; }
+  .loader--page .mark { width:40px; height:40px; }
+  .loader--page .mark svg:first-child { width:24px; height:24px; }
+  @keyframes loader-in { from { opacity:0; } to { opacity:1; } }
+  @keyframes trace { to { stroke-dashoffset:-160; } }
 
   /* ---------- the sidebar navigation ---------- */
   nav.side__nav { display:flex; flex-direction:column; gap:var(--space-4); }
@@ -153,6 +195,19 @@
     font:inherit; font-size:13.5px; background:var(--bg); color:var(--ink);
     border:1px solid var(--line-2); border-radius:0; padding:7px var(--space-3); width:100%;
   }
+  /* Native selects are hidden behind a `.combo` by `combos()`; this chrome is
+     only what shows if the script has not run. */
+  select { appearance:none; -webkit-appearance:none; padding-right:calc(var(--space-3) + 18px); cursor:pointer;
+           background-image:linear-gradient(45deg, transparent 50%, var(--dim) 50%),
+                            linear-gradient(135deg, var(--dim) 50%, transparent 50%);
+           background-position:calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+           background-size:5px 5px; background-repeat:no-repeat; }
+  select:hover { background-color:var(--mass); }
+  select option { background:var(--panel); color:var(--ink); }
+  /* Before the first payload there is nothing true to put in the chrome, so the
+     rail's controls and the footer wait with the loader rather than showing
+     empty boxes. */
+  .booting #wf, .booting #nav, .booting .side__controls, .booting .foot, .booting #crumb { visibility:hidden; }
   select:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible,
   [tabindex]:focus-visible { outline:none; box-shadow:var(--ring); }
 
@@ -537,6 +592,32 @@
     .lines .ln__v .meter { width:56px; }
     .page__title { font-size:var(--text-xl); }
   }
+  /* ---------- Settings: one row per setting, the control on the right ---------- */
+  .set { display:flex; gap:var(--space-5); align-items:flex-start; flex-wrap:wrap;
+         padding:var(--space-4) 0; border-bottom:1px solid var(--line); }
+  .set:last-child { border-bottom:none; padding-bottom:0; }
+  .set:first-child { padding-top:0; }
+  .set__main { flex:1 1 260px; min-width:0; }
+  .set__main label { font-weight:var(--weight-bold); display:block; }
+  .set__main p { margin:2px 0 0; color:var(--dim); font-size:13.5px; max-width:62ch; }
+  .set__src { margin:var(--space-2) 0 0; font-family:var(--font-mono); font-size:11.5px; color:var(--faint);
+              display:flex; gap:var(--space-3); align-items:center; flex-wrap:wrap; overflow-wrap:anywhere; }
+  .set__src .here { color:var(--spot); }
+  .set__src .warn { color:var(--warning); }
+  .set__ctl { flex:0 1 240px; min-width:0; }
+  .set__ctl input[type="number"], .set__ctl textarea { font:inherit; font-size:13.5px; background:var(--bg); color:var(--ink);
+    border:1px solid var(--line-2); border-radius:0; padding:7px var(--space-3); width:100%; }
+  .set__ctl textarea { font-family:var(--font-mono); font-size:12.5px; resize:vertical; min-height:64px; }
+  .set__ctl input[type="checkbox"] { width:18px; height:18px; accent-color:var(--spot); margin:4px 0; cursor:pointer; }
+  .set__ctl :disabled { opacity:.55; cursor:not-allowed; }
+  .set__rule { color:var(--faint); }
+  .set__err { margin:var(--space-2) 0 0; color:var(--warning); font-size:12.5px; overflow-wrap:anywhere; }
+  .set__ctl [aria-invalid="true"] { border-color:var(--warning); outline-color:var(--warning); }
+  .set__btn { font-family:var(--font-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+              background:none; border:1px solid var(--line-2); color:var(--dim); padding:2px 8px; cursor:pointer; }
+  .set__btn:hover { color:var(--ink); border-color:var(--spot); }
+  /* A config path is one unbroken word; on a phone it has to break anywhere. */
+  .counts .mono, .lines .mono { overflow-wrap:anywhere; }
   @media (prefers-reduced-motion:reduce) {
     html { scroll-behavior:auto; }
     * { transition:none !important; animation:none !important; }
@@ -544,7 +625,7 @@
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app booting" id="app">
   <!-- Phones only: the rail is a drawer behind this bar. -->
   <header class="topbar" id="topbar">
     <button type="button" class="topbar__menu" id="menu" aria-controls="side" aria-expanded="false" aria-label="Open navigation">
@@ -554,7 +635,7 @@
       <div class="mark" aria-hidden="true">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 3a13 13 0 0 1 0 18"/><path d="M5 3l14 9L5 21"/><path d="M3 12h18"/><path d="M15 8l4 4-4 4"/>
+          <path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/>
         </svg>
       </div><span>Eklavya</span>
     </a>
@@ -570,7 +651,7 @@
       <div class="mark" aria-hidden="true">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 3a13 13 0 0 1 0 18"/><path d="M5 3l14 9L5 21"/><path d="M3 12h18"/><path d="M15 8l4 4-4 4"/>
+          <path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/>
         </svg>
       </div>
       <div>
@@ -590,7 +671,8 @@
     <div class="side__controls">
       <div class="side__group">
         <p class="side__label" id="proj-label">Project</p>
-        <select id="proj" aria-labelledby="proj-label"><option value="">All projects</option></select>
+        <button type="button" class="combo" id="proj" data-value="" disabled aria-haspopup="listbox"
+                aria-expanded="false" aria-controls="proj-menu" aria-labelledby="proj-label proj-name"><span class="combo__value" id="proj-name"><span class="skel" aria-label="Loading projects"></span></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
       </div>
 
       <div class="side__group">
@@ -609,8 +691,9 @@
       New activity since this page loaded — refresh
     </button>
     <p class="page__eyebrow crumb inner" id="crumb" aria-label="Workflow and scope"></p>
-    <div class="inner stack" id="view">
-      <p class="empty">Loading your history…</p>
+    <div class="inner stack" id="view" aria-busy="true">
+      <!-- The same markup `loader()` writes; the script has not run yet. -->
+      <div class="loader loader--page" role="status" aria-live="polite"><div class="mark" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg><svg class="loader__trace" viewBox="0 0 40 40" aria-hidden="true"><rect x="0.75" y="0.75" width="38.5" height="38.5" pathLength="160"/></svg></div><span>Loading your history…</span></div>
     </div>
     <footer class="foot inner">
       <span>Read from <code id="dbline">~/.eklavya/knowledge.db</code> — nothing on this page leaves your machine.<span id="foot-note"></span></span>
@@ -620,6 +703,8 @@
 </div>
 
 <div class="picker" id="wf-menu" role="menu" aria-label="Workflows" hidden></div>
+<div class="picker" id="proj-menu" role="listbox" aria-labelledby="proj-label" hidden></div>
+<div class="picker" id="sel-menu" role="listbox" hidden></div>
 
 <script>
 /* ============================================================
@@ -1182,9 +1267,20 @@ let GEN = 0;
  * through `AFTER` like a chart, for the same reason — the target element does
  * not exist until `render()` has written the view's `innerHTML`.
  */
+/**
+ * The one loading state: the mark loosing its arrow, and what is being waited
+ * for. `page: true` is the full-height version the first paint uses. Every
+ * placeholder a `fill()` target starts with is one of these, so a wait looks
+ * the same wherever it happens. `label` is plain text; it is escaped here.
+ */
+function loader(label, { page = false } = {}) {
+  return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><div class="mark" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg><svg class="loader__trace" viewBox="0 0 40 40" aria-hidden="true"><rect x="0.75" y="0.75" width="38.5" height="38.5" pathLength="160"/></svg></div><span>${esc(label)}</span></div>`;
+}
+
 function fill(id, url, draw) {
   const gen = GEN;
   AFTER.push(() => {
+    $(id)?.setAttribute('aria-busy', 'true');
     fetch(url).then((r) => {
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
       return r.json();
@@ -1195,11 +1291,12 @@ function fill(id, url, draw) {
       // lookup does); the render that queued this one has already run its hooks.
       AFTER.length = 0;
       el.innerHTML = draw(d);
+      el.removeAttribute('aria-busy');
       focusable(el);
       for (const fn of AFTER.splice(0)) fn();
     }).catch((e) => {
       const el = $(id);
-      if (el && gen === GEN) el.innerHTML = `<p class="empty">Could not load: ${esc(e.message)}</p>`;
+      if (el && gen === GEN) { el.innerHTML = `<p class="empty">Could not load: ${esc(e.message)}</p>`; el.removeAttribute('aria-busy'); }
     });
   });
 }
@@ -1214,6 +1311,9 @@ function focusable(root) {
     if (el.tabIndex < 0) el.tabIndex = 0;
     if (el.tagName === 'A' && !el.hasAttribute('href')) el.setAttribute('role', 'link');
   });
+  // Runs after every render and every fill, so it is also where new markup's
+  // selects get their stand-ins.
+  combos(root);
 }
 
 /** Everything stored is untrusted text: a title is whatever a tool printed. */
@@ -1622,7 +1722,7 @@ function viewSession(id) {
     if (!row) return noSession(id);
     return sessionBody({ id, repo: row.project, logged: [], asked: [], mem: row, first: row.first, last: row.last, passed: 0 });
   });
-  return `<div class="stack" id="sess-lookup"><p class="empty">Looking up this session…</p></div>`;
+  return `<div class="stack" id="sess-lookup">${loader('Looking up this session…')}</div>`;
 }
 
 function sessionBody(s) {
@@ -1687,7 +1787,7 @@ function sessionBody(s) {
           { hint: 'Not from this diff — the tutor widened to prerequisites and neighbours.' })
       : '',
 
-    s.mem ? `<div class="stack" id="sess-mem"><p class="empty">Loading what this session remembered…</p></div>` : '',
+    s.mem ? `<div class="stack" id="sess-mem">${loader('Loading what this session remembered…')}</div>` : '',
   ].join('');
 }
 
@@ -2013,7 +2113,7 @@ function viewMemory(param) {
          ${when === 'custom' ? `<input type="date" id="mfrom" value="${esc(t.since)}" aria-label="From date">
          <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">` : ''}
        </div>
-       <div id="mem-rows"><p class="empty">Loading the timeline…</p></div>
+       <div id="mem-rows">${loader('Loading the timeline…')}</div>
      </div>`,
   ].join('');
 }
@@ -2057,9 +2157,9 @@ function viewMemoryDashboard() {
     memTiles(),
     card('Pipeline', null, pipeline),
     `<div class="g2">
-       ${card('Recent observations', null, `<div id="mem-recent"><p class="empty">Loading…</p></div>`,
+       ${card('Recent observations', null, `<div id="mem-recent">${loader('Loading observations…')}</div>`,
          { aside: `<a class="link" data-go="${esc(MH('timeline'))}">Timeline →</a>` })}
-       ${card('Recent sessions', null, `<div id="mem-sessions"><p class="empty">Loading…</p></div>`,
+       ${card('Recent sessions', null, `<div id="mem-sessions">${loader('Loading sessions…')}</div>`,
          { aside: `<a class="link" data-go="${esc(MH('sessions'))}">All sessions →</a>` })}
      </div>`,
   ].join('');
@@ -2092,7 +2192,7 @@ function viewMemorySessions() {
       `One row per session that captured evidence or wrote an observation. Pending is evidence no observation
        job has processed yet. Asked is the same session's questions, joined on its session id — a session can
        be remembered without ever being assessed.`),
-    card(null, null, `<div id="msess-rows"><p class="empty">Loading sessions…</p></div>`),
+    card(null, null, `<div id="msess-rows">${loader('Loading sessions…')}</div>`),
   ].join('');
 }
 
@@ -2196,7 +2296,7 @@ function viewEntry(id) {
   fill('entry-body', '/api/memory/entry?id=' + encodeURIComponent(id), (d) =>
     d && d.entry ? drawEntry(d) : `<p class="empty">No observation <code>${esc(id)}</code>.</p>`);
   return `<div><a class="page__back" data-go="${esc(MH('timeline'))}">← Timeline</a></div>
-    <div class="stack" id="entry-body"><p class="empty">Loading the observation…</p></div>`;
+    <div class="stack" id="entry-body">${loader('Loading the observation…')}</div>`;
 }
 
 /* ---------- Reuse: the savings ledger, receipt by receipt ---------- */
@@ -2324,7 +2424,7 @@ function viewHealth() {
 /* ============================================================
    Workflows and routes
 
-   Three workflows, one shell. The registry below is the only description of
+   Four workflows, one shell. The registry below is the only description of
    any of them: the sidebar, the picker, the route resolver and the page renderer all
    read it, so the selector, the highlighted item and the screen cannot disagree
    about where the reader is.
@@ -2425,6 +2525,231 @@ function viewArtifactProjects() {
   ].join('');
 }
 
+/* ============================================================
+   Settings — the same configuration `eklavya config set|unset` writes, at two
+   scopes: the user file (~/.eklavya/config.json) and one project's file under
+   ~/.eklavya/projects/. `/api/settings` reads both; a change is a POST that
+   goes through the CLI's own write path, so the two cannot disagree. The
+   registry of fields lives on the server (`SETTINGS` in dashboard.ts).
+   ============================================================ */
+let SETS = null;              // the last /api/settings response
+const SH = (page, param, q) => href('settings', page, param, q);
+const settingsUrl = () => '/api/settings' + (PROJECT ? '?project=' + encodeURIComponent(PROJECT) : '');
+
+const showValue = (v) =>
+  v === true ? 'on' : v === false ? 'off' : v === null || v === undefined ? 'none'
+  : Array.isArray(v) ? (v.length ? v.join(', ') : 'none') : String(v);
+const cliFor = (scope, key, v) =>
+  `eklavya config ${v === undefined ? 'unset' : 'set'} ${key}${v === undefined ? '' : ' ' + (Array.isArray(v) ? v.join(',') : v === null ? 'null' : String(v))}${scope === 'project' ? ' --project' : ''}`;
+
+function settingControl(f, v, disabled) {
+  const id = 'set-' + f.key.replace(/\W/g, '-');
+  const d = disabled ? ' disabled' : '';
+  const attrs = `id="${id}" data-set="${esc(f.key)}"${d} aria-describedby="${id}-h ${id}-e"`;
+  if (f.type === 'bool') return `<input type="checkbox" ${attrs}${v ? ' checked' : ''}>`;
+  if (f.type === 'enum') {
+    return `<select ${attrs}>${f.options.map((o) =>
+      `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+  }
+  if (f.type === 'number') {
+    return `<input type="number" ${attrs} min="${f.min}" max="${f.max}" step="${f.step ?? 1}" value="${v ?? ''}"
+      inputmode="${f.int ? 'numeric' : 'decimal'}"${f.nullable ? ' placeholder="none"' : ' required'}>`;
+  }
+  if (f.type === 'list') return `<textarea ${attrs} rows="3">${esc((v ?? []).join('\n'))}</textarea>`;
+  return `<input type="text" ${attrs} value="${esc(v ?? '')}" maxlength="${f.maxLength}" placeholder="none">`;
+}
+
+/** What a field accepts, said under its help: the range is part of the setting. */
+function ruleHint(f) {
+  if (f.type === 'number') {
+    return `${f.int ? 'Whole number' : 'Number'}, ${f.min} to ${f.max}${f.nullable ? ', or empty' : ''}.`;
+  }
+  if (f.type === 'text') return `Up to ${f.maxLength} characters${f.nullable ? ', or empty' : ''}.`;
+  if (f.type === 'list') return `Up to ${f.maxItems} lines of ${f.maxLength} characters${f.regex ? ', each a regular expression' : ''}.`;
+  return '';
+}
+
+/**
+ * The server's `settingProblem` (config-path.ts), in the same words, run before
+ * anything is sent. The server checks again and has the last word -- this only
+ * spares a round trip and keeps the typed value in the box.
+ */
+function fieldProblem(f, v) {
+  const k = f.key;
+  if (v === null) return f.nullable ? null : `${k} cannot be empty.`;
+  if (f.type === 'number') {
+    const range = `${f.int ? 'a whole number' : 'a number'} from ${f.min} to ${f.max}${f.nullable ? ', or empty' : ''}`;
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < f.min || v > f.max || (f.int && !Number.isInteger(v))) return `${k} is ${range}.`;
+    return null;
+  }
+  if (f.type === 'text') {
+    if (!v.trim()) return `${k} needs some text${f.nullable ? ', or empty to clear it' : ''}.`;
+    return v.length > f.maxLength ? `${k} is at most ${f.maxLength} characters.` : null;
+  }
+  if (f.type === 'list') {
+    if (v.length > f.maxItems) return `${k} holds at most ${f.maxItems} lines.`;
+    for (const item of v) {
+      if (item.length > f.maxLength) return `${k} lines are at most ${f.maxLength} characters.`;
+      if (f.regex) { try { new RegExp(item, 'g'); } catch { return `${k}: ${JSON.stringify(item)} is not a valid regular expression.`; } }
+    }
+  }
+  return null;
+}
+
+/** Shows (or clears, with null) a field's error under its control. */
+function fieldError(key, text) {
+  const el = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
+  const box = el && $(el.id + '-e');
+  if (!box) return;
+  box.textContent = text || '';
+  box.hidden = !text;
+  if (text) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
+}
+
+/** One setting at one scope: its control, and where the value in force comes from. */
+function settingRow(f, d, scope) {
+  const id = 'set-' + f.key.replace(/\W/g, '-');
+  const globalOnly = scope === 'project' && d.global_only.includes(f.key);
+  const file = scope === 'project' ? d.project : d.user;
+  const here = Object.hasOwn(file.set, f.key);
+  const v = file.effective[f.key];
+  let src;
+  if (globalOnly) {
+    src = `<span>set once for this machine — <a class="link" data-go="${esc(SH('user'))}">user settings</a></span>`;
+  } else if (here) {
+    src = `<span class="here">${scope === 'project' ? 'set for this project' : 'set by you'}</span>
+      <button type="button" class="set__btn" data-unset="${esc(f.key)}">${scope === 'project' ? 'Inherit' : 'Reset to default'}</button>`;
+  } else {
+    src = `<span>${scope === 'project'
+      ? (Object.hasOwn(d.user.set, f.key) ? 'inherited from user settings' : 'default')
+      : 'default'}</span>`;
+  }
+  return `<div class="set">
+    <div class="set__main"><label for="${id}">${esc(f.label)}</label>
+      <p id="${id}-h">${esc(f.help)}${ruleHint(f) ? ` <span class="set__rule">${esc(ruleHint(f))}</span>` : ''}</p>
+      <p class="set__src"><code>${esc(f.key)}</code>${src}<span data-msg="${esc(f.key)}" role="status"></span></p></div>
+    <div class="set__ctl">${settingControl(f, v, globalOnly)}<p class="set__err" id="${id}-e" role="alert" hidden></p></div>
+  </div>`;
+}
+
+function drawSettings(d, scope) {
+  SETS = d;
+  const W = scope === 'project' ? 'Project settings' : 'User settings';
+  const about = `User settings apply everywhere; a project setting wins in that project only, and <b>Inherit</b>
+    removes it so the user setting applies again. Every change here is the same write as
+    <code>eklavya config set &lt;key&gt; &lt;value&gt;</code> (with <code>--project</code> for a project), and
+    <b>Inherit</b> / <b>Reset</b> is <code>eklavya config unset</code>. Nothing is written inside a repository.`;
+  if (scope === 'project' && !d.project) {
+    const known = d.projects.filter((p) => projectById(p.inventory));
+    return [
+      pageHead(W, [plural(known.length, 'project')], about),
+      nextStep(PROJECT
+        ? `<strong>${esc(scopeName())}</strong> has no git checkout on this machine, so there is no project file to change. Pick one below.`
+        : 'Pick a project to change its settings, or use the project selector.'),
+      card(null, null, lines(known.map((p) => ({ t: esc(p.name), s: `<span class="mono">${esc(p.id)}</span>`,
+        go: SH('project', null, { project: p.inventory }) })), 'No project with a checkout on this machine yet.')),
+    ].join('');
+  }
+  const file = scope === 'project' ? d.project : d.user;
+  const groups = [...new Set(d.fields.map((f) => f.group))];
+  const setHere = Object.keys(file.set).length;
+  return [
+    pageHead(scope === 'project' ? `${esc(d.project.name)} settings` : W,
+      [`<span class="mono">${esc(file.path)}</span>`, `${setHere} set here`], about),
+    d.problem ? nextStep(`<strong>A config file is not being read.</strong> ${esc(d.problem)}`) : '',
+    ...groups.map((g) => card(g, null, d.fields.filter((f) => f.group === g).map((f) => settingRow(f, d, scope)).join(''))),
+    fold(`settings:${scope}:cli`, 'Changed from the terminal', plural(d.cli_only.length, 'setting'),
+      lines(d.cli_only.map((c) => ({ t: `<code>${esc(c.key)}</code>`, s: esc(c.why),
+        v: `<span class="mono">${esc(showValue(file.effective[c.key]))}</span>` }))),
+      { hint: 'These send work off this machine or run a command, so they stay a typed command: eklavya config set <key> <value>.' }),
+  ].join('');
+}
+
+function viewSettings(scope) {
+  fill('settings', settingsUrl(), (d) => drawSettings(d, scope));
+  return `<div class="stack" id="settings">${loader('Reading your settings…')}</div>`;
+}
+
+function viewSettingsHome() {
+  fill('settings', settingsUrl(), (d) => {
+    SETS = d;
+    const proj = d.project;
+    const overrides = proj ? Object.keys(proj.set).filter((k) => !d.global_only.includes(k)) : [];
+    return [
+      pageHead('Settings', [plural(Object.keys(d.user.set).length, 'user setting'),
+        proj ? `${plural(overrides.length, 'project setting')} in ${esc(proj.name)}` : 'no project selected'],
+        `Two files, one precedence: the project's file wins over yours, key by key, and anything neither sets is the
+         default. The terminal writes the same files — <code>eklavya config get</code> shows what is in force.`),
+      card(null, null, lines([
+        { t: 'User settings', s: `<span class="mono">${esc(d.user.path)}</span>`, v: esc(`${Object.keys(d.user.set).length} set`), go: SH('user') },
+        { t: 'Project settings', s: proj ? `<span class="mono">${esc(proj.path)}</span>` : 'choose a project',
+          v: proj ? esc(`${overrides.length} set`) : '', go: SH('project') },
+      ])),
+      proj && overrides.length ? card(`What ${proj.name} changes`, null, lines(overrides.map((k) => ({
+        t: `<code>${esc(k)}</code>`, s: esc(`user: ${showValue(d.user.effective[k])}`),
+        v: `<span class="mono">${esc(showValue(proj.set[k]))}</span>`, go: SH('project') })))) : '',
+    ].join('');
+  });
+  return `<div class="stack" id="settings">${loader('Reading your settings…')}</div>`;
+}
+
+/** Reads a control back into the value its field stores. */
+function controlValue(f, el) {
+  if (f.type === 'bool') return el.checked;
+  if (f.type === 'number') return el.value.trim() === '' ? (f.nullable ? null : NaN) : Number(el.value);
+  if (f.type === 'list') return el.value.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (f.type === 'text') return el.value.trim() === '' && f.nullable ? null : el.value.trim();
+  return el.value;
+}
+
+/**
+ * Saves one setting and redraws the settings in place — not through `render()`,
+ * which would scroll to the top and lose the control the reader just used.
+ */
+function saveSetting(key, change) {
+  const scope = CUR.page === 'project' ? 'project' : 'user';
+  const msg = document.querySelector(`[data-msg="${CSS.escape(key)}"]`);
+  const say = (text, warn) => { if (msg) { msg.textContent = text; msg.className = warn ? 'warn' : 'here'; } };
+  fieldError(key, null);
+  say('saving…');
+  const token = document.querySelector('meta[name="eklavya-token"]')?.content ?? '';
+  const gen = GEN;
+  fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-eklavya-token': token },
+    body: JSON.stringify({ scope, project: SETS?.project?.id, key, ...change }),
+  })
+    .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || `${r.status}`); }))
+    .then(() => fetch(settingsUrl()).then((r) => r.json()))
+    .then((d) => {
+      const el = $('settings');
+      if (!el || gen !== GEN) return;
+      const focusId = document.activeElement?.id;
+      el.innerHTML = drawSettings(d, scope);
+      focusable(el);
+      const back = (focusId && $(focusId)) || document.querySelector(`[data-set="${CSS.escape(key)}"]`);
+      back?.focus({ preventScroll: true });
+      const m = document.querySelector(`[data-msg="${CSS.escape(key)}"]`);
+      if (m) { m.textContent = change.unset ? 'inherited' : 'saved'; m.className = 'here'; }
+    })
+    .catch((e) => {
+      // A refused choice or switch is put back to what is on disk, so the
+      // control never shows a value that was not saved. Typed text and numbers
+      // are kept, so the reader can fix them where they are.
+      const el = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
+      const box = $('settings');
+      if (SETS && box && gen === GEN && (el?.type === 'checkbox' || el?.tagName === 'SELECT')) {
+        box.innerHTML = drawSettings(SETS, scope);
+        focusable(box);
+        const again = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
+        (again && ($(again.id + '-combo') || again))?.focus({ preventScroll: true });
+      } else {
+        say('');
+      }
+      fieldError(key, e.message);
+    });
+}
+
 const ICONS = {
   artifacts: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/>',
   learning:  '<path d="M4 19V6a2 2 0 0 1 2-2h13v13H6a2 2 0 0 0-2 2z"/><path d="M6 21h13v-4"/><path d="M9 8h6"/>',
@@ -2438,6 +2763,9 @@ const ICONS = {
   timeline:  '<path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/>',
   reuse:     '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>',
   health:    '<path d="M3 12h4l2-6 3 12 2-6h7"/>',
+  settings:  '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  user:      '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  project:   '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>',
 };
 const svg = (paths, cls = '') =>
   `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -2493,6 +2821,17 @@ const WORKFLOWS = {
     pages: {
       dashboard: { label: 'Dashboard', view: (p) => viewArtifacts(p) },
       projects:  { label: 'Projects', view: () => viewArtifactProjects() },
+    },
+  },
+  settings: {
+    name: 'Settings',
+    groups: [
+      { id: 'scopes', label: 'Scopes', items: ['user', 'project'] },
+    ],
+    pages: {
+      dashboard: { label: 'Overview', view: () => viewSettingsHome() },
+      user:      { label: 'User', view: () => viewSettings('user') },
+      project:   { label: 'Project', view: () => viewSettings('project') },
     },
   },
 };
@@ -2622,6 +2961,8 @@ function navCounts(wf) {
     };
   }
   if (wf === 'artifacts') return { projects: new Set(artifactsInScope().map((a) => pid(a.project))).size };
+  // No honest count for a settings page: how many keys a file sets is not a to-do.
+  if (wf === 'settings') return {};
   return {
     timeline: sum((p) => p.memory.entries),
     sessions: sum((p) => p.memory.sessions),
@@ -2693,20 +3034,20 @@ const caret = $('wf-caret');
 
 function pickerItems() { return [...menu.querySelectorAll('[role="menuitemradio"]')]; }
 
-function placePicker() {
-  const anchor = $('wf').getBoundingClientRect();
+function placePicker(el = menu, at = $('wf')) {
+  const anchor = at.getBoundingClientRect();
   const pad = 8;
   const vw = document.documentElement.clientWidth;
   const vh = window.innerHeight;
-  menu.style.maxHeight = `${vh - pad * 2}px`;
-  menu.style.minWidth = `${Math.min(Math.max(220, anchor.width), vw - pad * 2)}px`;
-  const w = menu.offsetWidth, h = menu.offsetHeight;
+  el.style.maxHeight = `${Math.min(360, vh - pad * 2)}px`;
+  el.style.minWidth = `${Math.min(Math.max(220, anchor.width), vw - pad * 2)}px`;
+  const w = el.offsetWidth, h = el.offsetHeight;
   const left = Math.max(pad, Math.min(anchor.left, vw - w - pad));
   let top = anchor.bottom + 4;
   // Below if it fits, above if that fits, otherwise as high as the window allows.
   if (top + h > vh - pad) top = anchor.top - h - 4 >= pad ? anchor.top - h - 4 : Math.max(pad, vh - h - pad);
-  menu.style.left = `${left}px`;
-  menu.style.top = `${top}px`;
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
 }
 
 function openPicker() {
@@ -2752,7 +3093,222 @@ menu.addEventListener('keydown', (e) => {
 document.addEventListener('pointerdown', (e) => {
   if (!menu.hidden && !menu.contains(e.target) && !caret.contains(e.target)) closePicker(false);
 });
-addEventListener('resize', () => { if (!menu.hidden) placePicker(); });
+addEventListener('resize', () => { if (!menu.hidden) placePicker(); if (!pmenu.hidden) placePicker(pmenu, pbtn); });
+
+/* ---------- the project selector ---------- */
+// A button and a listbox rather than a <select>: the native menu is drawn by
+// the OS and ignores the page's tokens. It reuses the workflow picker's
+// placement, so it is outside the rail's scroll clip and clamped to the window.
+// The value lives on the button as `data-value` ('' = all projects).
+const pmenu = $('proj-menu');
+const pbtn = $('proj');
+let typed = '', typedAt = 0;
+
+function projOptions() { return [...pmenu.querySelectorAll('[role="option"]')]; }
+
+/** Built once from the inventory; `syncProjects()` only moves the selection. */
+function buildProjects(inv) {
+  const row = (value, name) =>
+    `<button type="button" role="option" aria-selected="false" data-value="${esc(value)}" tabindex="-1">
+       <span>${esc(name)}</span>
+       <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
+     </button>`;
+  pmenu.innerHTML = row('', 'All projects') +
+    inv.projects.map((p) => row(p.id, p.name + (p.available === false ? ' (checkout gone)' : ''))).join('');
+  pbtn.disabled = false;
+}
+
+function syncProjects() {
+  const v = PROJECT ?? '';
+  pbtn.dataset.value = v;
+  let name = 'All projects';
+  for (const o of projOptions()) {
+    const on = o.dataset.value === v;
+    o.setAttribute('aria-selected', String(on));
+    if (on) name = o.textContent.trim();
+  }
+  $('proj-name').textContent = name;
+}
+
+function openProjects() {
+  if (pbtn.disabled) return;
+  pmenu.hidden = false;
+  pbtn.setAttribute('aria-expanded', 'true');
+  placePicker(pmenu, pbtn);
+  const cur = projOptions().find((o) => o.getAttribute('aria-selected') === 'true') ?? projOptions()[0];
+  cur.focus();
+  cur.scrollIntoView({ block: 'nearest' });
+}
+
+function closeProjects(restore = true) {
+  if (pmenu.hidden) return;
+  const hadFocus = pmenu.contains(document.activeElement);
+  pmenu.hidden = true;
+  pbtn.setAttribute('aria-expanded', 'false');
+  if (restore || hadFocus) pbtn.focus();
+}
+
+function chooseProject(value) {
+  closeProjects();
+  const v = value || null;
+  try { if (v) localStorage.setItem('eklavya-dash-project', v); else localStorage.removeItem('eklavya-dash-project'); } catch (e) {}
+  // A real navigation: the scope is part of the URL, so Back undoes it.
+  goTo(href(CUR.wf, CUR.page, CUR.param || null, { project: v, ...Object.fromEntries(
+    (WORKFLOWS[CUR.wf].pages[CUR.page]?.query ?? []).map((k) => [k, CUR.query.get(k)])) }));
+}
+
+pbtn.addEventListener('click', () => (pmenu.hidden ? openProjects() : closeProjects()));
+pbtn.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openProjects(); }
+});
+pmenu.addEventListener('click', (e) => {
+  const o = e.target.closest('[role="option"]');
+  if (o) chooseProject(o.dataset.value);
+});
+pmenu.addEventListener('keydown', (e) => {
+  const items = projOptions();
+  const i = items.indexOf(document.activeElement);
+  const to = (n) => { e.preventDefault(); items[n].focus(); items[n].scrollIntoView({ block: 'nearest' }); };
+  if (e.key === 'ArrowDown') to(Math.min(i + 1, items.length - 1));
+  else if (e.key === 'ArrowUp') to(Math.max(i - 1, 0));
+  else if (e.key === 'Home') to(0);
+  else if (e.key === 'End') to(items.length - 1);
+  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (i >= 0) chooseProject(items[i].dataset.value); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeProjects(); }
+  else if (e.key === 'Tab') { e.preventDefault(); closeProjects(); }
+  else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // Type-ahead: letters typed within a second jump to the first match.
+    typed = (Date.now() - typedAt > 1000 ? '' : typed) + e.key.toLowerCase();
+    typedAt = Date.now();
+    const n = items.findIndex((o) => o.textContent.trim().toLowerCase().startsWith(typed));
+    if (n >= 0) to(n);
+  }
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!pmenu.hidden && !pmenu.contains(e.target) && !pbtn.contains(e.target)) closeProjects(false);
+});
+
+/* ---------- every other dropdown ---------- */
+// Views keep writing plain <select>s, and the delegated `change` handler keeps
+// reading them: the select stays the value, hidden from sight and from
+// assistive technology, and a `.combo` beside it opens the one shared listbox.
+// Choosing sets `select.value` and fires a bubbling `change`, so nothing that
+// reads a select needs to know this exists.
+const smenu = $('sel-menu');
+let sOpen = null;       // the combo whose listbox is showing
+let sRefocus = null;    // a combo id to take focus back after a re-render
+let selSeq = 0;
+
+const CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const selectOf = (combo) => document.getElementById(combo.dataset.for);
+
+function combos(root) {
+  root.querySelectorAll('select:not([data-combo])').forEach((s) => {
+    s.dataset.combo = '1';
+    if (!s.id) s.id = `sel-${++selSeq}`;
+    s.hidden = true;
+    s.setAttribute('aria-hidden', 'true');
+    s.tabIndex = -1;
+    const name = s.getAttribute('aria-label') || s.labels?.[0]?.textContent.trim() || '';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'combo';
+    b.id = `${s.id}-combo`;
+    b.dataset.for = s.id;
+    b.disabled = s.disabled;
+    b.setAttribute('role', 'combobox');
+    b.setAttribute('aria-haspopup', 'listbox');
+    b.setAttribute('aria-expanded', 'false');
+    b.setAttribute('aria-controls', 'sel-menu');
+    if (name) b.setAttribute('aria-label', name);
+    if (s.getAttribute('aria-describedby')) b.setAttribute('aria-describedby', s.getAttribute('aria-describedby'));
+    b.innerHTML = `<span class="combo__value">${esc(s.selectedOptions[0]?.textContent.trim() ?? '')}</span>${CHEVRON}`;
+    s.after(b);
+  });
+  if (sOpen && !sOpen.isConnected) closeSelect(false);
+  const back = sRefocus && document.getElementById(sRefocus);
+  if (back && (document.activeElement === document.body || !document.activeElement)) back.focus({ preventScroll: true });
+  if (back) sRefocus = null;
+}
+
+function selOptions() { return [...smenu.querySelectorAll('[role="option"]')]; }
+
+function openSelect(b) {
+  const s = selectOf(b);
+  if (!s || b.disabled) return;
+  if (sOpen) closeSelect(false);
+  smenu.innerHTML = [...s.options].map((o, i) =>
+    `<button type="button" role="option" aria-selected="${o.selected}" data-i="${i}" tabindex="-1">
+       <span>${esc(o.textContent.trim())}</span>
+       <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
+     </button>`).join('');
+  smenu.setAttribute('aria-label', b.getAttribute('aria-label') || '');
+  smenu.hidden = false;
+  sOpen = b;
+  b.setAttribute('aria-expanded', 'true');
+  placePicker(smenu, b);
+  const cur = selOptions()[Math.max(0, s.selectedIndex)];
+  cur?.focus();
+  cur?.scrollIntoView({ block: 'nearest' });
+}
+
+function closeSelect(restore = true) {
+  if (!sOpen) return;
+  const b = sOpen;
+  const hadFocus = smenu.contains(document.activeElement);
+  smenu.hidden = true;
+  sOpen = null;
+  b.setAttribute('aria-expanded', 'false');
+  if ((restore || hadFocus) && b.isConnected) b.focus();
+}
+
+function chooseOption(i) {
+  const b = sOpen;
+  const s = b && selectOf(b);
+  closeSelect();
+  if (!s || s.selectedIndex === i) return;
+  s.selectedIndex = i;
+  b.querySelector('.combo__value').textContent = s.options[i].textContent.trim();
+  // The handler often re-renders, which replaces this combo; the next pass of
+  // `combos()` hands focus to its replacement.
+  sRefocus = b.id;
+  s.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.combo[data-for]');
+  if (b) (sOpen === b ? closeSelect() : openSelect(b));
+});
+document.addEventListener('keydown', (e) => {
+  const b = e.target.closest?.('.combo[data-for]');
+  if (b && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); openSelect(b); }
+});
+smenu.addEventListener('click', (e) => {
+  const o = e.target.closest('[role="option"]');
+  if (o) chooseOption(Number(o.dataset.i));
+});
+smenu.addEventListener('keydown', (e) => {
+  const items = selOptions();
+  const i = items.indexOf(document.activeElement);
+  const to = (n) => { e.preventDefault(); items[n].focus(); items[n].scrollIntoView({ block: 'nearest' }); };
+  if (e.key === 'ArrowDown') to(Math.min(i + 1, items.length - 1));
+  else if (e.key === 'ArrowUp') to(Math.max(i - 1, 0));
+  else if (e.key === 'Home') to(0);
+  else if (e.key === 'End') to(items.length - 1);
+  else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (i >= 0) chooseOption(i); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSelect(); }
+  else if (e.key === 'Tab') { e.preventDefault(); closeSelect(); }
+  else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    typed = (Date.now() - typedAt > 1000 ? '' : typed) + e.key.toLowerCase();
+    typedAt = Date.now();
+    const n = items.findIndex((o) => o.textContent.trim().toLowerCase().startsWith(typed));
+    if (n >= 0) to(n);
+  }
+});
+document.addEventListener('pointerdown', (e) => {
+  if (sOpen && !smenu.contains(e.target) && !sOpen.contains(e.target)) closeSelect(false);
+});
+addEventListener('resize', () => { if (sOpen) placePicker(smenu, sOpen); });
 
 /**
  * Opens the other workflow's Dashboard. The project and the ground carry over;
@@ -2815,6 +3371,7 @@ function openDrawer() {
 function closeDrawer(restore = true) {
   if (!drawerOpen) return;
   closePicker(false);
+  closeProjects(false);
   drawerOpen = false;
   syncDrawer();
   if (restore) $('menu').focus();
@@ -2826,9 +3383,9 @@ $('scrim').addEventListener('click', () => closeDrawer());
 narrow.addEventListener('change', syncDrawer);
 document.addEventListener('keydown', (e) => {
   if (!drawerOpen) return;
-  if (e.key === 'Escape' && menu.hidden) { e.preventDefault(); closeDrawer(); return; }
+  if (e.key === 'Escape' && menu.hidden && pmenu.hidden) { e.preventDefault(); closeDrawer(); return; }
   // Hold focus inside the open drawer.
-  if (e.key === 'Tab' && menu.hidden) {
+  if (e.key === 'Tab' && menu.hidden && pmenu.hidden) {
     const f = focusables(side);
     if (!f.length) return;
     const first = f[0], last = f[f.length - 1];
@@ -2868,7 +3425,7 @@ function syncFromUrl() {
   const next = known ? project : null;
   if (next !== PROJECT) { PROJECT = next; for (const k of Object.keys(T)) T[k].page = 1; recomputeScope(); }
   CUR = { wf: r.wf, page: r.page, param: r.param, query: r.query, missing: r.missing, bad: r.bad };
-  $('proj').value = PROJECT ?? '';
+  syncProjects();
   render();
 }
 
@@ -2983,7 +3540,23 @@ $('view').addEventListener('input', (e) => {
   }
 });
 
+// Settings: a control saves on change (a text box on blur or Enter), and the
+// Inherit / Reset button removes the key from that scope's file.
+$('view').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-unset]');
+  if (b) saveSetting(b.dataset.unset, { unset: true });
+});
 $('view').addEventListener('change', (e) => {
+  const c = e.target.closest('[data-set]');
+  if (c && SETS) {
+    const f = SETS.fields.find((x) => x.key === c.dataset.set);
+    if (!f) return;
+    const value = controlValue(f, c);
+    const problem = fieldProblem(f, value);
+    if (problem) fieldError(f.key, problem);
+    else saveSetting(f.key, { value });
+    return;
+  }
   if (e.target.id === 'dom') { T.concepts.page = 1; setQuery({ domain: e.target.value }); }
   if (e.target.id === 'sort') { T.concepts.sort = e.target.value; T.concepts.page = 1; render(); }
   if (e.target.id === 'mtag') { T.memory.page = 1; setQuery({ tag: e.target.value }); }
@@ -3092,23 +3665,14 @@ Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
   // One selector for both workflows, built from the one inventory: a project
   // that logged concepts but was never asked a question, or that only ever
   // captured memory, is a project and is listed.
-  const sel = $('proj');
-  for (const p of inv.projects) {
-    const o = document.createElement('option');
-    o.value = p.id;
-    o.textContent = p.name + (p.available === false ? ' (checkout gone)' : '');
-    sel.appendChild(o);
-  }
-  sel.addEventListener('change', () => {
-    const v = sel.value || null;
-    try { if (v) localStorage.setItem('eklavya-dash-project', v); else localStorage.removeItem('eklavya-dash-project'); } catch (e) {}
-    // A real navigation: the scope is part of the URL, so Back undoes it.
-    goTo(href(CUR.wf, CUR.page, CUR.param || null, { project: v, ...Object.fromEntries(
-      (WORKFLOWS[CUR.wf].pages[CUR.page]?.query ?? []).map((k) => [k, CUR.query.get(k)])) }));
-  });
+  buildProjects(inv);
 
   syncFromUrl();
+  $('app').classList.remove('booting');
+  $('view').removeAttribute('aria-busy');
 }).catch((e) => {
+  $('app').classList.remove('booting');
+  $('view').removeAttribute('aria-busy');
   $('view').innerHTML = `<p class="empty">Could not read the database: ${esc(e.message)}</p>`;
 });
 </script>
