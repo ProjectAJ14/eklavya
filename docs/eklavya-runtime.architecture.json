@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "94f73b22379f6cb0cbab24aae86427525da8ac49"
+      "revision": "8d037c47e9e23af3c3184ee73cc7f8e70d65336f"
     },
     "views": [
       {
@@ -296,7 +296,7 @@
       "type": "frontend",
       "label": "Local Dashboard",
       "sublabel": "eklavya dashboard",
-      "tag": "read-only",
+      "tag": "edits settings",
       "pos": [
         1126,
         440
@@ -309,6 +309,10 @@
         {
           "path": "mcp/src/dashboard.ts",
           "label": "http server"
+        },
+        {
+          "path": "mcp/src/config-path.ts",
+          "label": "settings writes"
         },
         {
           "path": "mcp/src/assets/dashboard.html",
