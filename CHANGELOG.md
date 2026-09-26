@@ -1,3 +1,10 @@
+## [1.33.2](https://github.com/ProjectAJ14/eklavya/compare/v1.33.1...v1.33.2) (2026-09-26)
+
+
+### Bug Fixes
+
+* **memory:** summarise what was found, not only what ran ([94f73b2](https://github.com/ProjectAJ14/eklavya/commit/94f73b22379f6cb0cbab24aae86427525da8ac49))
+
 ## [1.33.1](https://github.com/ProjectAJ14/eklavya/compare/v1.33.0...v1.33.1) (2026-09-25)
 
 
