@@ -2,6 +2,7 @@ import { z } from 'zod';
 import path from 'node:path';
 import {
   loadConfig,
+  loadGlobalConfig,
   writeConfigFile,
   readConfigFile,
   mainRepoRoot,
@@ -9,6 +10,7 @@ import {
   DEFAULT_CONFIG,
 } from '../config.js';
 import { UnreadableFileError } from '../safe-write.js';
+import { combinationProblem, normalizeSetting, SETTING_RULES, settingProblem } from '../config-path.js';
 import { currentSurface } from '../surface.js';
 import { FALLBACK_SESSION_ID, isSessionOff, resolveSessionId, setSessionOff } from '../session.js';
 import { CWD_HINT, SESSION_HINT, type ToolDef } from './types.js';
@@ -57,6 +59,16 @@ export const getConfig: ToolDef = {
   },
 };
 
+/**
+ * A number field built from `SETTING_RULES`, so the bounds the model reads are
+ * the bounds `eklavya config set` and the dashboard enforce -- one table, no copy.
+ */
+function num(key: string) {
+  const r = SETTING_RULES[key]!;
+  const n = r.int ? z.number().int().min(r.min!).max(r.max!) : z.number().min(r.min!).max(r.max!);
+  return r.nullable ? n.nullable().optional() : n.optional();
+}
+
 /** A namespace is a config key whose default is an object. */
 function isNamespace(key: string): boolean {
   const value = (DEFAULT_CONFIG as unknown as Record<string, unknown>)[key];
@@ -103,36 +115,27 @@ export const setConfig: ToolDef = {
       .describe(
         'When the questions land. "interleaved" (default) asks one question mid-task, at the seam where a concept was logged, and the Stop hook then only sweeps up what is left of max_questions_per_task. "end" is the old behaviour: nothing until the task is finished.',
       ),
-    min_minutes_between_checkpoints: z.number().int().min(0).max(120).optional(),
+    min_minutes_between_checkpoints: num('min_minutes_between_checkpoints'),
     difficulty: z
       .enum(['auto', 'easy', 'medium', 'hard'])
       .optional()
       .describe(
         'How hard questions on a project may get. "auto" (default) earns the level per project: everyone starts at easy (tiers 1-2), then medium (2-4), then hard (3-5). A literal level pins it and stops progression — "easy" at project scope keeps an onboarding codebase gentle, "hard" globally skips the runway.',
       ),
-    level_up_after: z
-      .number()
-      .int()
-      .min(1)
-      .max(1000)
-      .optional()
+    level_up_after: num('level_up_after')
       .describe('Passing answers needed at a level, in one project, before it promotes. Defaults to 100.'),
-    level_up_accuracy: z
-      .number()
-      .min(0)
-      .max(1)
-      .optional()
+    level_up_accuracy: num('level_up_accuracy')
       .describe('Minimum accuracy over those answers, declines excluded. Defaults to 0.7.'),
     focus_topic: z
       .string()
       .nullable()
       .optional()
       .describe('The topic "learn" focus teaches, e.g. "caching". Pass null to clear it.'),
-    pass_threshold: z.number().min(0).max(1).optional(),
-    max_questions_per_task: z.number().int().min(1).max(10).optional(),
-    min_minutes_between_quizzes: z.number().int().min(0).optional(),
-    max_new_concepts_per_session: z.number().int().min(0).max(50).optional(),
-    max_stop_blocks_per_session: z.number().int().min(0).max(20).optional(),
+    pass_threshold: num('pass_threshold'),
+    max_questions_per_task: num('max_questions_per_task'),
+    min_minutes_between_quizzes: num('min_minutes_between_quizzes'),
+    max_new_concepts_per_session: num('max_new_concepts_per_session'),
+    max_stop_blocks_per_session: num('max_stop_blocks_per_session'),
     quiet: z.boolean().optional(),
     explain_on_wrong: z
       .boolean()
@@ -155,8 +158,8 @@ export const setConfig: ToolDef = {
       .object({
         enabled: z.boolean().optional(),
         capture: z.enum(['full', 'minimal', 'off']).optional(),
-        batch_max_events: z.number().int().min(1).max(500).optional(),
-        retention_days: z.number().int().min(1).nullable().optional(),
+        batch_max_events: num('memory.batch_max_events'),
+        retention_days: num('memory.retention_days'),
       })
       .optional()
       .describe(
@@ -165,8 +168,8 @@ export const setConfig: ToolDef = {
     retrieval: z
       .object({
         mode: z.enum(['keyword', 'semantic', 'hybrid']).optional(),
-        max_items: z.number().int().min(1).max(50).optional(),
-        max_tokens: z.number().int().min(100).max(20000).optional(),
+        max_items: num('retrieval.max_items'),
+        max_tokens: num('retrieval.max_tokens'),
         cross_project: z.boolean().optional(),
       })
       .optional()
@@ -363,6 +366,23 @@ export const setConfig: ToolDef = {
       target = resolved.globalPath;
     }
 
+    // The same table and the same words as `eklavya config set` and the
+    // dashboard: zod has the types and number bounds, `SETTING_RULES` the rest
+    // (list lines, regex compile, text length). Only what this call sent is
+    // checked -- a value already in the file is not this call's to refuse.
+    for (const key of Object.keys(patch)) {
+      if (key === 'project') continue;
+      const value = patch[key];
+      const leaves = isNamespace(key) && value && typeof value === 'object'
+        ? Object.keys(value as Record<string, unknown>).map((sub) => [`${key}.${sub}`, value as Record<string, unknown>, sub] as const)
+        : [[key, patch, key] as const];
+      for (const [dotted, holder, field] of leaves) {
+        holder[field] = normalizeSetting(dotted, holder[field]);
+        const problem = settingProblem(dotted, holder[field]);
+        if (problem) return { error: 'invalid_value', key: dotted, detail: problem };
+      }
+    }
+
     if (namespaced.length) {
       const existing = readConfigFile(target);
       for (const key of namespaced) {
@@ -375,6 +395,9 @@ export const setConfig: ToolDef = {
     }
 
     try {
+      const overlay = { file: target, patch };
+      const combo = combinationProblem(scope === 'project' ? loadConfig(cwd, overlay).config : loadGlobalConfig(overlay));
+      if (combo) return { error: 'invalid_combination', detail: combo };
       writeConfigFile(target, patch);
     } catch (err) {
       // A file that exists and does not parse is somebody's settings with a

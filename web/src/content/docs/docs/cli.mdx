@@ -32,8 +32,9 @@ eklavya doctor
 | Command | Purpose and options |
 | --- | --- |
 | `eklavya config get` | Prints effective settings and global/project file paths. Warns about malformed files or global-only settings ignored in a project file. |
-| `eklavya config set <key> <value>` | Sets one key globally. Add `--project` (legacy alias `--repo`) for this codebase; add `--topic <topic>` when setting `focus learn`. |
-| `eklavya dashboard [--port <n>] [--no-open]` | Starts the [local dashboard](/docs/dashboard/). `--no-open` prints the URL without opening a browser. |
+| `eklavya config set <key> <value>` | Sets one key globally. Add `--project` (legacy alias `--repo`) for this codebase; add `--topic <topic>` when setting `focus learn` with no topic already set. Refuses a value outside the key's [accepted range](/docs/configuration/#what-each-setting-accepts) and writes nothing. |
+| `eklavya config unset <key>` | Removes one key from your global file, so it falls back to the default. With `--project`, removes it from this codebase's file, so your global setting applies again. |
+| `eklavya dashboard [--port <n>] [--no-open]` | Starts the [local dashboard](/docs/dashboard/). `--no-open` prints the URL without opening a browser. Its [Settings pages](/docs/dashboard/#settings) make the same changes as `config set` and `config unset`. |
 | `eklavya statusline [--no-color]` | Prints one line for a terminal status bar. See [below](#eklavya-statusline). |
 | `eklavya artifacts <subcommand>` | Creates, lists and opens saved pages. See [below](#eklavya-artifacts). |
 
@@ -41,9 +42,10 @@ eklavya doctor
 eklavya config set cadence end --project
 eklavya config set focus learn --topic caching
 eklavya config set memory.capture minimal
+eklavya config unset cadence --project
 ```
 
-Settings are backed up to `config.json.eklavya-bak` before a change. Unknown keys, malformed files, `focus learn` without a topic, and `--project` outside a git repository are rejected with a repair message. See [Configuration](/docs/configuration/) for every key and default.
+Settings are backed up to `config.json.eklavya-bak` before a change. Unknown keys, values Eklavya would ignore (such as `cadence bogus`), malformed files, `focus learn` without a topic, and `--project` outside a git repository are rejected with a repair message. See [Configuration](/docs/configuration/) for every key and default.
 
 ### `eklavya memory`
 

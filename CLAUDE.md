@@ -37,7 +37,7 @@ that implements it. Existing prose and recalled memory are not evidence.
 | Change | Documentation to review |
 |---|---|
 | Install, repair, updates, removal or host support | Manual `installing`, `installation-options`, `updates`, `troubleshooting`; root and package README |
-| Dials, defaults, scopes or config keys | Manual `dials`, `configuration`; affected command skills; landing `#dials` |
+| Dials, defaults, scopes or config keys | Manual `dials`, `configuration`; affected command skills; landing `#dials`; the dashboard Settings registry in `mcp/src/dashboard.ts` |
 | Slash commands, CLI or MCP tools | Manual `commands`, `cli`, `memory`; `mcp/README.md`; relevant skills |
 | Hook timing, question planning or grading | Manual `first-session`, `how-it-works`, `grading-engine`, `levels-and-tiers`; hook and tutor guidance |
 | Commit gating | Manual `commit-gate`; `cli/CLAUDE.md`; setup skill and contributor acceptance checks |
@@ -81,6 +81,11 @@ Code's hook-driven learning loop.
 
 - Hooks fail open and exit 0 on every failure path. They must also have bounded
   stdin reads and avoid waiting for inference.
+- Configuration has two interfaces, the CLI (`eklavya config`) and the
+  dashboard's Settings workflow, at user and project scope. Both write through
+  one shared function; a config key, scope rule or validation change lands in
+  both in the same PR. A new key goes in the Settings registry or its explicit
+  CLI-only list, or `dashboard.test.ts` fails.
 - Memory and quizzes have independent switches. Memory evidence cannot change
   mastery; only an assessed answer can.
 - Migrations are forward-only; update the schema expectations in

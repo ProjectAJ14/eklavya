@@ -486,7 +486,8 @@ export function mainRepoRoot(repoRoot: string): string {
   }
 }
 
-function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfig {
+/** Exported for `applySetting`, which refuses a value this would silently drop. */
+export function coerce(raw: Record<string, unknown>, base: EklavyaConfig): EklavyaConfig {
   const out: EklavyaConfig = { ...base };
 
   if (raw.focus === 'project' || raw.focus === 'concept' || raw.focus === 'learn') out.focus = raw.focus;
@@ -887,7 +888,24 @@ function mergeConfigs(
   return merged;
 }
 
-export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
+/**
+ * A patch not yet written, read as if it were: `applySetting` asks what a
+ * change would resolve to before it writes, so a setting that would not take
+ * effect is refused rather than stored. `undefined` values remove the key.
+ */
+export interface ConfigOverlay {
+  file: string;
+  patch: Record<string, unknown>;
+}
+
+function readWith(file: string, overlay?: ConfigOverlay): Record<string, unknown> | null {
+  const onDisk = readJson(file);
+  if (!overlay || path.resolve(overlay.file) !== path.resolve(file)) return onDisk;
+  // The round trip drops `undefined`, exactly as the write will.
+  return JSON.parse(JSON.stringify({ ...(onDisk ?? {}), ...overlay.patch })) as Record<string, unknown>;
+}
+
+export function loadConfig(cwd: string = process.cwd(), overlay?: ConfigOverlay): ResolvedConfig {
   const globalPath = globalConfigPath();
   const { repoRoot } = findRepoConfig(cwd);
 
@@ -899,7 +917,7 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   // Read-only, deliberately and permanently: see `migrateLegacyRepoConfig`.
   let projectRaw: Record<string, unknown> = {};
   if (repoRoot && projectRoot && projectPath) {
-    const onDisk = readJson(projectPath);
+    const onDisk = readWith(projectPath, overlay);
     if (onDisk && belongsTo(onDisk, projectRoot)) {
       projectRaw = onDisk;
     } else if (!onDisk) {
@@ -921,7 +939,7 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
     }
   }
 
-  const globalRaw = normalizeLegacyKeys(readJson(globalPath) ?? {});
+  const globalRaw = normalizeLegacyKeys(readWith(globalPath, overlay) ?? {});
   const ignored = GLOBAL_ONLY_KEYS.filter((key) => key in projectRaw);
   const projectNormalized = normalizeLegacyKeys(withoutBookkeeping(withoutGlobalOnly(projectRaw)));
   const raw = mergeConfigs(globalRaw, projectNormalized);
@@ -996,8 +1014,8 @@ function withoutBookkeeping(raw: Record<string, unknown>): Record<string, unknow
 }
 
 /** The global file alone, coerced: what `eklavya install` shows and writes. */
-export function loadGlobalConfig(): EklavyaConfig {
-  return coerce(normalizeLegacyKeys(readJson(globalConfigPath()) ?? {}), DEFAULT_CONFIG);
+export function loadGlobalConfig(overlay?: ConfigOverlay): EklavyaConfig {
+  return coerce(normalizeLegacyKeys(readWith(globalConfigPath(), overlay) ?? {}), DEFAULT_CONFIG);
 }
 
 /** One config file's raw contents, or `{}`. Exported so a caller building a

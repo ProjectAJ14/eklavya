@@ -5,13 +5,16 @@ sidebar:
   order: 9
 ---
 
-Use `/eklavya:mode` for guided changes or the CLI for an exact setting:
+Use `/eklavya:mode` for guided changes, the CLI for an exact setting, or the dashboard's [Settings pages](/docs/dashboard/#settings) to see and change both scopes side by side:
 
 ```bash
 eklavya config get
 eklavya config set cadence end --project
 eklavya config set focus learn --topic caching
+eklavya config unset cadence --project   # this project inherits your setting again
 ```
+
+The CLI and the dashboard write through the same code, so they accept and refuse the same values. The dashboard leaves `providers`, `notifications` and `sync` to the CLI, because each sends work off the machine or runs a command.
 
 ### Where settings live
 
@@ -74,6 +77,34 @@ eklavya config set providers.observer null
 
 Lists accept comma-separated strings or JSON. Other values use the key's expected type. Whole objects require JSON. The CLI rejects unknown keys and refuses to overwrite malformed files; it backs up valid files before changing them.
 
+### What each setting accepts
+
+`eklavya config set`, the dashboard's Settings pages and the `set_config` tool check one table of rules, so each refuses the same value with the same message and writes nothing. Text is trimmed and blank list lines are dropped before the check.
+
+| Keys | Accepts |
+|---|---|
+| `max_questions_per_task` | Whole number, 1–10 |
+| `min_minutes_between_quizzes` | Whole number, 0–1440 |
+| `min_minutes_between_checkpoints` | Whole number, 0–120 |
+| `max_new_concepts_per_session` | Whole number, 0–50 |
+| `max_stop_blocks_per_session` | Whole number, 0–20 |
+| `level_up_after` | Whole number, 1–1000 |
+| `level_up_accuracy`, `pass_threshold` | Number, 0–1 |
+| `memory.batch_max_events` | Whole number, 1–500 |
+| `memory.retention_days` | Whole number, 1–36500, or `null` |
+| `retrieval.max_items` | Whole number, 1–50 |
+| `retrieval.max_tokens` | Whole number, 100–20000 |
+| `focus_topic`, `sync.device_id` | Text up to 200 characters, or `null` |
+| `sync.target` | Text up to 1000 characters, or `null` |
+| `privacy.exclude_paths` | Up to 100 lines of 500 characters |
+| `privacy.redact_patterns` | Up to 100 lines of 500 characters, each a valid regular expression |
+| `privacy.exclude_tools` | Up to 100 lines of 200 characters |
+| `domains_enabled` | Up to 100 lines of 100 characters |
+| `focus`, `cadence`, `difficulty`, `memory.capture`, `retrieval.mode` | One of the listed values |
+| switches such as `quiz.enabled`, `quiet` | `true` or `false` |
+
+A change that would not take effect is refused too: `focus learn` when no `focus_topic` is in force at that scope (or clearing the topic while `learn` is set), and, from the CLI and dashboard, `quiz.enforced true` while `quiz.enabled` is `false`. The `set_config` tool keeps its documented behaviour for a call that sends `quiz.enabled: false`: enforcement is switched off with it.
+
 ### The memory namespaces
 
 #### `memory`
@@ -93,7 +124,7 @@ These extend the [built-in privacy rules](/docs/memory/#what-is-never-captured).
 | --- | --- | --- |
 | `privacy.exclude_paths` | `[]` | Additional path fragments to exclude; matched as substrings. |
 | `privacy.exclude_tools` | `[]` | Tool names whose activity must not be captured. |
-| `privacy.redact_patterns` | `[]` | Additional regular expressions; matches become `[redacted:configured]`. Invalid patterns are skipped. |
+| `privacy.redact_patterns` | `[]` | Additional regular expressions; matches become `[redacted:configured]`. A pattern that does not compile is refused when set; one already in a hand-edited file is skipped. |
 
 #### `retrieval`
 

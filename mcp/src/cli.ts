@@ -20,7 +20,7 @@ import {
   mainRepoRoot,
   migrateLegacyRepoConfig,
 } from './config.js';
-import { isKnownKey, knownKeys, parseValue, patchFor } from './config-path.js';
+import { applySetting, isKnownKey, knownKeys, parseValue } from './config-path.js';
 import { levelStanding } from './store.js';
 import { statusLine } from './statusline.js';
 import { isSessionOff } from './session.js';
@@ -61,7 +61,11 @@ Usage:
                                         difficulty auto|easy|medium|hard,
                                         explain_on_wrong true|false
                                         add --topic <topic> when setting focus to "learn"
-  eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser
+  eklavya config unset <key>            Remove a setting from that file so it inherits again: a project
+                                        falls back to your user setting, your user file to the default
+                                        (--project for this codebase's file)
+  eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser;
+                                        its Settings pages change the same settings as config set/unset
                                         (--no-open serves it and just prints the URL)
   eklavya artifacts new <title>         Start a page under ~/.eklavya/artifacts/<project>/ from the
                                         Eklavya template and print its path [--description <text>]
@@ -300,10 +304,32 @@ function configCommand(args: string[]): void {
     return;
   }
 
-  if (action !== 'set') fail(`Unknown config action "${action}".`);
-  if (!key || value === undefined) fail('Usage: eklavya config set <key> <value>');
+  if (action !== 'set' && action !== 'unset') fail(`Unknown config action "${action}".`);
+  if (!key || (action === 'set' && value === undefined)) {
+    fail(action === 'set' ? 'Usage: eklavya config set <key> <value>' : 'Usage: eklavya config unset <key> [--project]');
+  }
   if (!isKnownKey(key)) {
     fail(`Unknown setting "${key}". Known: ${knownKeys().join(', ')}`);
+  }
+  // Nothing here writes into the checkout. `--project` (and its older spelling
+  // `--repo`) means "this project", not "this repository's working tree": the
+  // file lands under ~/.eklavya/projects/, keyed by the checkout's path.
+  if (scopeRepo && !resolved.repoRoot) {
+    fail('Not inside a git repository, so there is no project to scope this to.');
+  }
+  const projectRoot = scopeRepo ? mainRepoRoot(resolved.repoRoot!) : null;
+
+  // `unset` removes the key from that one file, so the scope inherits again:
+  // a project falls back to the user setting, the user file to the default.
+  // The dashboard's "Inherit" button is the same call.
+  if (action === 'unset') {
+    try {
+      const { target } = applySetting(key, undefined, projectRoot);
+      process.stdout.write(`${key} unset  ->  ${target}\n`);
+    } catch (err) {
+      fail(err instanceof Error ? err.message : String(err));
+    }
+    return;
   }
 
   // `focus learn` is useless without a topic, so let one call say both rather
@@ -314,47 +340,29 @@ function configCommand(args: string[]): void {
   if (topic !== undefined && key !== 'focus' && key !== 'focus_topic') {
     fail('--topic only applies when setting focus.');
   }
-  if (key === 'focus' && value === 'learn' && topic === undefined) {
-    fail('focus "learn" needs a topic: eklavya config set focus learn --topic <topic>');
-  }
+  // A `learn` focus with no topic in force is refused by `applySetting`, for
+  // the dashboard too; a topic already set is enough.
 
   // Typed by the schema at that path rather than guessed from the text. A
   // topic of "2" is a topic; `memory.batch_max_events` of "40" is a number,
   // and only the default sitting there knows which is which.
-  const parsed = modeQuiz ?? parseValue(key, value);
+  const parsed = modeQuiz ?? parseValue(key, value!);
 
-  // Nothing here writes into the checkout. `--project` (and its older spelling
-  // `--repo`) means "this project", not "this repository's working tree": the
-  // file lands under ~/.eklavya/projects/, keyed by the checkout's path. There
-  // is no forbidden-key list any more, because there is no longer such a thing
-  // as a config file that arrived from somebody else.
+  // One write path for the CLI and the dashboard: `applySetting` builds the
+  // patch against the file being written (the files merge shallowly, so a
+  // patch that replaced a namespace would drop its siblings), stamps the
+  // project, refuses global-only keys, values `SETTING_RULES` or `coerce`
+  // refuse, and changes that would not take effect.
+  let patch: Record<string, unknown>;
   let target: string;
-  if (scopeRepo) {
-    if (!resolved.projectPath) {
-      fail('Not inside a git repository, so there is no project to scope this to.');
-    }
-    target = resolved.projectPath!;
-  } else {
-    target = resolved.globalPath;
-  }
-
-  // Built against the file being written, not against nothing: the two config
-  // files merge with a shallow spread, so a patch that replaced a whole
-  // namespace would drop every other key already set in it.
-  const existing = readConfigFile(target);
-  const patch: Record<string, unknown> = patchFor(existing, key, parsed);
-  if (topic !== undefined && key === 'focus') patch.focus_topic = topic;
-  // Which checkout this file is about, so a slug collision is detected rather
-  // than applied to the wrong repository. See `belongsTo` in config.ts.
-  if (scopeRepo && resolved.repoRoot) patch.project = mainRepoRoot(resolved.repoRoot);
-
   try {
-    writeConfigFile(target, patch);
+    ({ patch, target } = applySetting(key, parsed, projectRoot,
+      topic !== undefined && key === 'focus' ? { focus_topic: topic } : {}));
   } catch (err) {
     fail(err instanceof Error ? err.message : String(err));
   }
-  for (const [k, v] of Object.entries(patch)) {
-    process.stdout.write(`${k} = ${JSON.stringify(v)}  ->  ${target}\n`);
+  for (const [k, v] of Object.entries(patch!)) {
+    process.stdout.write(`${k} = ${JSON.stringify(v)}  ->  ${target!}\n`);
   }
   if (modeNote) process.stdout.write(`${modeNote}\n`);
 }

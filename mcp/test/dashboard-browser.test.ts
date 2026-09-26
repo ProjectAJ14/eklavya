@@ -93,8 +93,7 @@ async function open(
 /** The page has booted and any fill it queued has landed. */
 async function ready(page: Page) {
   await page.waitForFunction(() => document.documentElement.dataset.rendered === location.hash
-    && !document.querySelector('#view .empty')?.textContent?.startsWith('Loading')
-    && !document.querySelector('#view .empty')?.textContent?.startsWith('Looking'));
+    && !document.querySelector('.booting, #view .loader'));
   await page.waitForLoadState('networkidle');
 }
 
@@ -108,6 +107,21 @@ const screen = (page: Page) => page.evaluate(() => ({
 }));
 
 const enc = encodeURIComponent;
+
+/** The project selector is a button plus a listbox; its value is `data-value`. */
+const projValue = (page: Page) => page.getAttribute('#proj', 'data-value');
+async function pickProject(page: Page, id: string) {
+  await page.click('#proj');
+  await page.click(`#proj-menu [role="option"][data-value="${id.replace(/"/g, '\\"')}"]`);
+}
+
+/** A native <select> is hidden behind a combo; drive the combo the way a reader would. */
+async function pickOption(page: Page, sel: string, value: string) {
+  const i = await page.$eval(sel, (s, v) => [...(s as HTMLSelectElement).options].findIndex((o) => o.value === v), value);
+  if (i < 0) throw new Error(`${sel} has no option ${value}`);
+  await page.click(`${sel}-combo`);
+  await page.click(`#sel-menu [role="option"][data-i="${i}"]`);
+}
 
 describe.skipIf(!OPTS)('dashboard in a browser', () => {
   describe('legacy links land on the intended screen', () => {
@@ -136,6 +150,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         ['#/health', '#/memory/health', { wf: 'Memory', active: 'health', h1: /^Health$/ }],
         ['#/artifacts', '#/artifacts/dashboard', { wf: 'Artifacts', active: 'dashboard', h1: /^Artifacts$/ }],
         ['#/artifacts/projects', '#/artifacts/projects', { wf: 'Artifacts', active: 'projects', h1: /^Projects$/ }],
+        ['#/settings', '#/settings/dashboard', { wf: 'Settings', active: 'dashboard', h1: /^Settings$/ }],
+        ['#/settings/user', '#/settings/user', { wf: 'Settings', active: 'user', h1: /^User settings$/ }],
+        ['#/settings/project', '#/settings/project', { wf: 'Settings', active: 'project', h1: /^Project settings$/ }],
       ];
     };
 
@@ -225,7 +242,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const id = fx.repo.mixed;
       const w = await open(`#/concepts/due?project=${enc(id)}`);
       expect((await screen(w.page)).hash).toBe(`#/learning/concepts/due?project=${enc(id)}`);
-      expect(await w.page.inputValue('#proj')).toBe(id);
+      expect(await projValue(w.page)).toBe(id);
       await w.page.goto(base + '/#/domain/web%2Dauth'); await ready(w.page);
       expect((await screen(w.page)).h1).toBe('web-auth');
       await w.page.goto(base + '/#/learning/session/' + enc('s-mixed')); await ready(w.page);
@@ -239,7 +256,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect((await screen(w.page)).hash).toBe(`#/learning/dashboard?project=${enc(fx.repo.mixed)}`);
       // A canonical link without a project means all projects.
       await w.page.goto(base + '/#/learning/dashboard'); await ready(w.page);
-      expect(await w.page.inputValue('#proj')).toBe('');
+      expect(await projValue(w.page)).toBe('');
       await w.ctx.close();
     });
 
@@ -364,10 +381,10 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
     it('keeps the project and the ground across a switch, and drops screen filters', async () => {
       const w = await open('#/memory/timeline', { ground: 'paper' });
-      await w.page.selectOption('#proj', fx.repo.mixed);
+      await pickProject(w.page, fx.repo.mixed);
       await w.page.waitForFunction((id) => location.hash === `#/memory/timeline?project=${encodeURIComponent(id)}`, fx.repo.mixed);
       await ready(w.page);
-      await w.page.selectOption('#mtag', 'auth');
+      await pickOption(w.page, '#mtag', 'auth');
       await w.page.waitForFunction(() => location.hash.includes('tag=auth'));
       await ready(w.page);
       expect(await w.page.$$eval('#mem-rows [data-entry]', (r) => r.length)).toBe(2);
@@ -381,7 +398,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await ready(w.page);
       const hash = (await screen(w.page)).hash;
       expect(hash).toBe(`#/learning/dashboard?project=${enc(fx.repo.mixed)}`);
-      expect(await w.page.inputValue('#proj')).toBe(fx.repo.mixed);
+      expect(await projValue(w.page)).toBe(fx.repo.mixed);
       expect(await w.page.getAttribute('html', 'data-mode')).toBe('paper');
       await w.ctx.close();
     });
@@ -529,11 +546,61 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     });
   });
 
+  describe('settings', () => {
+    it('saves a user setting, overrides it for a project and inherits it back, from the keyboard', async () => {
+      const userFile = path.join(home, 'home', 'config.json');
+      const w = await open('#/settings/user');
+      await pickOption(w.page, '#set-cadence', 'end');
+      await w.page.waitForSelector('[data-msg="cadence"].here:text("saved")');
+      expect(JSON.parse(fs.readFileSync(userFile, 'utf8')).cadence).toBe('end');
+      // Focus stays on the control that was just used, rather than jumping to the top.
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('set-cadence-combo');
+
+      await w.page.goto(base + '/' + `#/settings/project?project=${enc(fx.repo.mixed)}`); await ready(w.page);
+      expect(await w.page.textContent('#view')).toContain('inherited from user settings');
+      await pickOption(w.page, '#set-cadence', 'interleaved');
+      await w.page.waitForSelector('[data-unset="cadence"]');
+      // A global-only key is shown, not editable, on a project.
+      expect(await w.page.isDisabled('#set-telemetry')).toBe(true);
+      await w.page.focus('[data-unset="cadence"]');
+      await w.page.keyboard.press('Enter');
+      await w.page.waitForSelector('[data-msg="cadence"]:text("inherited")');
+      expect(await w.page.inputValue('#set-cadence')).toBe('end');
+
+      // An out-of-range number is refused in the page, under the field, before any request.
+      const posts: string[] = [];
+      w.page.on('request', (r) => { if (r.method() === 'POST') posts.push(r.url()); });
+      await w.page.fill('#set-max_questions_per_task', '99');
+      await w.page.press('#set-max_questions_per_task', 'Enter');
+      await w.page.waitForSelector('#set-max_questions_per_task-e:visible');
+      expect(await w.page.textContent('#set-max_questions_per_task-e')).toBe('max_questions_per_task is a whole number from 1 to 10.');
+      expect(await w.page.getAttribute('#set-max_questions_per_task', 'aria-invalid')).toBe('true');
+      expect(await w.page.getAttribute('#set-max_questions_per_task', 'aria-describedby')).toContain('set-max_questions_per_task-e');
+      expect(await w.page.inputValue('#set-max_questions_per_task')).toBe('99'); // the typed value stays
+      expect(posts).toEqual([]);
+      // Only the server knows the combination: its refusal lands in the same place.
+      await w.page.uncheck('#set-quiz-enabled');
+      await w.page.waitForSelector('[data-msg="quiz.enabled"]:text("saved")');
+      await w.page.check('#set-quiz-enforced');
+      await w.page.waitForSelector('#set-quiz-enforced-e:visible');
+      expect(await w.page.textContent('#set-quiz-enforced-e')).toMatch(/no effect while quiz.enabled is false/);
+
+      await w.page.goto(base + '/#/settings/user'); await ready(w.page);
+      await w.page.click('[data-unset="cadence"]');
+      await w.page.waitForSelector('[data-msg="cadence"]:text("inherited")');
+      expect(JSON.parse(fs.readFileSync(userFile, 'utf8')).cadence).toBeUndefined();
+      // The one refusal above is a 400 the browser logs; nothing else may be.
+      expect(w.errors.filter((e) => !/status of 400/.test(e))).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+  });
+
   describe('every screen', () => {
     it('makes no outbound request, logs no error, and fits the width', async () => {
       const hashes = ['#/learning/dashboard', '#/learning/projects', '#/memory/dashboard', '#/memory/timeline',
         '#/memory/sessions', '#/memory/projects', '#/memory/health', `#/memory/entry/${fx.entries.mixed}`,
-        '#/artifacts/dashboard', '#/artifacts/dashboard/explainer', '#/artifacts/projects'];
+        '#/artifacts/dashboard', '#/artifacts/dashboard/explainer', '#/artifacts/projects',
+        '#/settings/dashboard', '#/settings/user', `#/settings/project?project=${enc(fx.repo.mixed)}`];
       for (const width of [1280, 900, 560, 390]) {
         for (const ground of ['ink', 'paper'] as const) {
           const w = await open(hashes[0]!, { width, ground });
@@ -581,7 +648,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
   describe('projects', () => {
     it('lists every project in the selector, whatever recorded it', async () => {
       const w = await open('#/learning/dashboard');
-      const options = await w.page.$$eval('#proj option', (o) => o.map((x) => x.textContent));
+      const options = await w.page.$$eval('#proj-menu [role="option"]', (o) => o.map((x) => x.textContent!.trim()));
       for (const name of ['logged', 'memory-only', 'pending', 'answered', 'mixed', 'client/api', 'server/api',
         'retired (checkout gone)', 'No repository', 'Unattributed']) {
         expect(options, name).toContain(name);
@@ -589,6 +656,100 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       // Worktrees fold into their checkout; they are not projects of their own.
       expect(options.filter((o) => o?.startsWith('mixed'))).toEqual(['mixed']);
       await w.ctx.close();
+    });
+
+    it('opens the project listbox from the keyboard and scopes the URL', async () => {
+      const w = await open('#/learning/dashboard');
+      await w.page.focus('#proj');
+      await w.page.keyboard.press('ArrowDown');
+      expect(await w.page.getAttribute('#proj', 'aria-expanded')).toBe('true');
+      expect(await w.page.evaluate(() => document.activeElement?.getAttribute('data-value'))).toBe('');
+      await w.page.keyboard.press('End');
+      expect(await w.page.evaluate(() => document.activeElement === [...document.querySelectorAll('#proj-menu [role="option"]')].at(-1))).toBe(true);
+      await w.page.keyboard.press('Home');
+      await w.page.keyboard.press('ArrowDown');
+      const second = (await w.page.evaluate(() => document.activeElement?.getAttribute('data-value')))!;
+      await w.page.keyboard.press('Enter');
+      await w.page.waitForFunction((id) => location.hash === `#/learning/dashboard?project=${encodeURIComponent(id)}`, second);
+      await ready(w.page);
+      expect(await projValue(w.page)).toBe(second);
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('proj');
+      // Escape closes without choosing; an outside click closes too.
+      await w.page.keyboard.press('ArrowDown');
+      await w.page.keyboard.press('Escape');
+      expect(await w.page.isHidden('#proj-menu')).toBe(true);
+      await w.page.click('#proj');
+      await w.page.mouse.click(900, 400);
+      expect(await w.page.isHidden('#proj-menu')).toBe(true);
+      // Inside the viewport, even on a phone-sized window.
+      await w.page.setViewportSize({ width: 390, height: 500 });
+      await w.page.click('#menu');
+      await w.page.click('#proj');
+      const box = (await w.page.locator('#proj-menu').boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(390);
+      expect(box.y + box.height).toBeLessThanOrEqual(500);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('leaves no native dropdown on screen: every select has a combo standing in', async () => {
+      for (const hash of ['#/memory/timeline', '#/learning/concepts', '#/settings/user']) {
+        const w = await open(hash);
+        const r = await w.page.evaluate(() => [...document.querySelectorAll('#view select')].map((s) => ({
+          id: s.id,
+          shown: (s as HTMLElement).offsetParent !== null,
+          combo: !!document.getElementById(`${s.id}-combo`)?.matches('[role="combobox"]'),
+        })));
+        expect(r.length, hash).toBeGreaterThan(0);
+        expect(r.filter((s) => s.shown || !s.combo), hash).toEqual([]);
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }
+    });
+
+    it('changes a settings dropdown from the keyboard and keeps focus on it', async () => {
+      const userFile = path.join(home, 'home', 'config.json');
+      const w = await open('#/settings/user');
+      expect(await w.page.getAttribute('#set-difficulty-combo', 'aria-label')).toBeTruthy();
+      await w.page.focus('#set-difficulty-combo');
+      await w.page.keyboard.press('ArrowDown');
+      expect(await w.page.isVisible('#sel-menu')).toBe(true);
+      expect(await w.page.getAttribute('#set-difficulty-combo', 'aria-expanded')).toBe('true');
+      await w.page.keyboard.press('Escape');
+      expect(await w.page.isHidden('#sel-menu')).toBe(true);
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('set-difficulty-combo');
+      await w.page.keyboard.press('Enter');
+      await w.page.keyboard.press('End');
+      await w.page.keyboard.press('Enter');
+      await w.page.waitForSelector('[data-msg="difficulty"].here:text("saved")');
+      expect(JSON.parse(fs.readFileSync(userFile, 'utf8')).difficulty).toBe('hard');
+      expect(await w.page.textContent('#set-difficulty-combo')).toContain('hard');
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('set-difficulty-combo');
+      await w.page.click('[data-unset="difficulty"]');
+      await w.page.waitForSelector('[data-msg="difficulty"]:text("inherited")');
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 30000);
+
+    it('shows the loader, not empty chrome, until the data lands', async () => {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const page = await ctx.newPage();
+      let release = () => {};
+      const held = new Promise<void>((r) => { release = r; });
+      await page.route('**/api/projects', async (route) => { await held; await route.continue(); });
+      await page.goto(base + '/#/learning/dashboard');
+      await page.waitForSelector('#view .loader[role="status"]');
+      expect(await page.getAttribute('#view', 'aria-busy')).toBe('true');
+      expect(await page.isDisabled('#proj')).toBe(true);
+      expect(await page.evaluate(() => getComputedStyle(document.getElementById('wf')!).visibility)).toBe('hidden');
+      release();
+      await ready(page);
+      expect(await page.getAttribute('#view', 'aria-busy')).toBeNull();
+      expect(await page.isEnabled('#proj')).toBe(true);
+      expect(await page.textContent('#proj-name')).toBe('All projects');
+      await ctx.close();
     });
 
     it('shows a project with no answers honestly, in both workflows', async () => {

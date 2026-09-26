@@ -1,6 +1,6 @@
 ---
 name: eklavya-dashboard
-description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the three workflows (Learning, Memory, Artifacts) and their registry, the one JSON payload plus the project inventory, the URL-driven hash router and its legacy redirects, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
+description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the four workflows (Learning, Memory, Artifacts, Settings) and their registry, the one JSON payload plus the project inventory, the URL-driven hash router and its legacy redirects, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
 ---
 
 # Working on the dashboard
@@ -8,14 +8,14 @@ description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to c
 `eklavya dashboard` serves the learning and memory history as a local web page.
 It is the long view — `/eklavya:progress` gets twenty lines and answers *what
 now*, this answers *am I getting better* and *what did that session actually
-teach me*. It is three workflows in one shell, **Learning**, **Memory** and
-**Artifacts**, each with its own Dashboard and sidebar.
+teach me*. It is four workflows in one shell, **Learning**, **Memory**, **Artifacts** and
+**Settings**, each with its own Dashboard and sidebar.
 
 Two files, and there is deliberately nothing else:
 
 | File | What it is |
 |---|---|
-| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), and `startDashboard`, a loopback `http.createServer` with eight read-only routes: `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/tokens.css`, `/artifacts/<folder>/<file>`, `/`. Any method but `GET`/`HEAD` is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
+| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with nine read routes: `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/tokens.css`, `/artifacts/<folder>/<file>`, `/` — and one write, `POST /api/settings`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
 | `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, workflow registry, router, views, charts. One file, no framework, no build step. |
 | `mcp/test/dashboard.test.ts` | The payload's contract, the inventory's rules, and `/api/state`'s key set. |
 | `mcp/test/dashboard-browser.test.ts` | The page in a real Chromium: every legacy redirect, the workflow control, collapse persistence, the drawer, picker bounds, overflow, console errors and outbound requests. |
@@ -268,6 +268,43 @@ contract is `web/CLAUDE.md`. The parts this page is strict about:
 - Both grounds are the product. `data-mode` is applied by the head script before
   paint and re-applied on boot (the toggle does not exist yet when the head runs).
 
+## Settings: the one write
+
+The Settings workflow is the dashboard's half of a promise: **configuration has
+two interfaces, `eklavya config` and this page, and they change together.**
+
+- Both write through `applySetting` in `config-path.ts`. It checks the key,
+  coerces the value and refuses one `coerce` would silently drop, builds the
+  patch against the file (siblings kept), stamps `project`, and calls
+  `writeConfigFile` (backup, atomic rename, global-only refusal). `value`
+  `undefined` is unset: that is `eklavya config unset` and the page's
+  Inherit / Reset button. Never write a config file from `dashboard.ts` any
+  other way.
+- `SETTINGS` in `dashboard.ts` is the registry the page renders (label, help,
+  group); its type, options, range and lengths are merged in from
+  `SETTING_RULES` in `config-path.ts`, never written here. `CLI_ONLY` lists keys the page shows but
+  will not change — providers, notifications and sync, because each sends work
+  off the machine or runs a command. `dashboard.test.ts` fails when a
+  `DEFAULT_CONFIG` leaf is on neither list, so **a new config key is placed
+  here in the same change** as its CLI help and `set_config` schema.
+- `updateSetting` leaves every value rule to `applySetting` (the table, then
+  `coerce`, then combinations such as `learn` with no topic), so its 400s are
+  the CLI's messages word for word, and checks that a project is one of
+  `configurableProjects(db)` — inventory projects with a `.git` on disk. The
+  page can never name an arbitrary path to write to.
+- The page validates before it POSTs: `fieldProblem` mirrors `settingProblem`
+  in the same words, `ruleHint` prints the accepted range under the help, and
+  `fieldError` puts a refusal — the page's or the server's — in the field's
+  `-e` element with `aria-invalid`, keeping the typed value.
+- `POST /api/settings` needs a loopback `Origin` (not `null`: a sandboxed
+  frame sends that), `application/json` (no cross-origin form can), a body of
+  at most 16 KB, and `x-eklavya-token` equal to the per-start token the `/`
+  response writes into `<meta name="eklavya-token">`. A hostile origin cannot
+  read that page, so it cannot learn the token.
+- The page saves on `change` and redraws `#settings` in place (not via
+  `render()`, which scrolls to the top), restoring focus to the control used.
+  Errors come back as `{ error }` and show in that row's `data-msg`.
+
 ## Loopback is not the boundary it looks like
 
 `startDashboard` refuses any request whose `Host` is not a loopback name, and
@@ -278,9 +315,10 @@ same-origin rule does not stop it because the page's origin *is* that hostname.
 
 Two consequences for anything added here. A new endpoint inherits the check
 because it sits behind the same handler — keep it that way rather than
-registering a second server. And if a mutating endpoint is ever added, this
-check is necessary and not sufficient: it would also need a token the page
-holds and a hostile origin cannot read.
+registering a second server. And a mutating endpoint needs more than this
+check: `POST /api/settings` adds the page token, a required loopback `Origin`
+and a JSON content type (see *Settings: the one write*). Any future write
+follows the same pattern, inside `postSettings`' shape.
 
 ## An artifact page is not the dashboard
 

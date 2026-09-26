@@ -1172,3 +1172,49 @@ describe('providers are global-only', () => {
     expect(res.stdout).toMatch(/ignored in the project file.*providers/);
   });
 });
+
+describe('config unset, and values config set would silently drop', () => {
+  it('unset removes a project key so the user setting applies again', () => {
+    expect(eklavya(['config', 'set', 'cadence', 'end']).status).toBe(0);
+    expect(eklavya(['config', 'set', 'cadence', 'interleaved', '--project']).status).toBe(0);
+    expect(JSON.parse(eklavya(['config', 'get']).stdout.split('\n\n')[0]!).cadence).toBe('interleaved');
+    const res = eklavya(['config', 'unset', 'cadence', '--project']);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/cadence unset/);
+    expect(JSON.parse(eklavya(['config', 'get']).stdout.split('\n\n')[0]!).cadence).toBe('end');
+  });
+
+  it('unset of a nested key keeps its siblings', () => {
+    eklavya(['config', 'set', 'memory.capture', 'minimal']);
+    eklavya(['config', 'set', 'memory.enabled', 'false']);
+    expect(eklavya(['config', 'unset', 'memory.capture']).status).toBe(0);
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).memory).toEqual({ enabled: false });
+  });
+
+  it('refuses a value the config would ignore, and writes nothing', () => {
+    const res = eklavya(['config', 'set', 'cadence', 'bogus']);
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toMatch(/cadence is one of interleaved, end\./);
+    expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
+  });
+
+  it('refuses out-of-range, fractional and uncompilable values with the dashboard\'s words', () => {
+    const cases: [string, string, string][] = [
+      ['max_questions_per_task', '99', 'max_questions_per_task is a whole number from 1 to 10.'],
+      ['memory.batch_max_events', '2.5', 'memory.batch_max_events is a whole number from 1 to 500.'],
+      ['privacy.redact_patterns', '(unclosed', 'privacy.redact_patterns: "(unclosed" is not a valid regular expression.'],
+    ];
+    for (const [key, value, message] of cases) {
+      const res = eklavya(['config', 'set', key, value]);
+      expect(res.status, key).not.toBe(0);
+      expect(res.stderr, key).toContain(message);
+    }
+    expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
+  });
+
+  it('takes focus learn when a topic is already set, and refuses it when none is', () => {
+    expect(eklavya(['config', 'set', 'focus', 'learn']).stderr).toMatch(/focus "learn" needs a topic/);
+    expect(eklavya(['config', 'set', 'focus_topic', 'caching']).status).toBe(0);
+    expect(eklavya(['config', 'set', 'focus', 'learn']).status).toBe(0);
+  });
+});
