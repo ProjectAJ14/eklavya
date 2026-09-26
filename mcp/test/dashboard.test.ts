@@ -971,7 +971,13 @@ describe('/api/settings', () => {
       expect((await post(port, body, noOrigin)).status).toBe(403);
       expect((await post(port, body, { ...ok(port, token), host: 'evil.example' })).status).toBe(403);
       expect((await post(port, 'cadence=end', { ...ok(port, token), 'content-type': 'application/x-www-form-urlencoded' })).status).toBe(415);
-      expect((await post(port, 'x'.repeat(20000), ok(port, token))).status).toBe(413);
+      expect((await post(port, 'x'.repeat(300 * 1024), ok(port, token))).status).toBe(413);
+      // The largest list the shared rules accept still fits: the page refuses nothing the CLI would take.
+      const big = { scope: 'user', key: 'privacy.exclude_paths', value: Array.from({ length: 100 }, (_, i) => `${i}`.padEnd(500, '\\')) };
+      const accepted = await post(port, big, ok(port, token));
+      expect(accepted.status).toBe(200);
+      fs.rmSync(path.join(home, 'config.json'), { force: true });
+      fs.rmSync(path.join(home, 'config.json.eklavya-bak'), { force: true });
       expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
     });
   });

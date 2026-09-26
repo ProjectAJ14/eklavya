@@ -2732,7 +2732,22 @@ function saveSetting(key, change) {
       const m = document.querySelector(`[data-msg="${CSS.escape(key)}"]`);
       if (m) { m.textContent = change.unset ? 'inherited' : 'saved'; m.className = 'here'; }
     })
-    .catch((e) => { say(''); fieldError(key, e.message); });
+    .catch((e) => {
+      // A refused choice or switch is put back to what is on disk, so the
+      // control never shows a value that was not saved. Typed text and numbers
+      // are kept, so the reader can fix them where they are.
+      const el = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
+      const box = $('settings');
+      if (SETS && box && gen === GEN && (el?.type === 'checkbox' || el?.tagName === 'SELECT')) {
+        box.innerHTML = drawSettings(SETS, scope);
+        focusable(box);
+        const again = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
+        (again && ($(again.id + '-combo') || again))?.focus({ preventScroll: true });
+      } else {
+        say('');
+      }
+      fieldError(key, e.message);
+    });
 }
 
 const ICONS = {

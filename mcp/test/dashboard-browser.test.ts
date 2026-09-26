@@ -584,6 +584,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.check('#set-quiz-enforced');
       await w.page.waitForSelector('#set-quiz-enforced-e:visible');
       expect(await w.page.textContent('#set-quiz-enforced-e')).toMatch(/no effect while quiz.enabled is false/);
+      // A refused switch is put back to what is on disk, not left showing a value nobody saved.
+      expect(await w.page.isChecked('#set-quiz-enforced')).toBe(false);
 
       await w.page.goto(base + '/#/settings/user'); await ready(w.page);
       await w.page.click('[data-unset="cadence"]');

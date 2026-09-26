@@ -1281,7 +1281,9 @@ export function updateSetting(db: DB, body: unknown): { status: number; body: Re
   }
 }
 
-const MAX_SETTINGS_BODY = 16 * 1024;
+// Room for the largest value `SETTING_RULES` accepts — 100 list lines of 500
+// characters, JSON-escaped — so the page refuses nothing the CLI would take.
+const MAX_SETTINGS_BODY = 256 * 1024;
 
 /**
  * What a browser may do with anything this server sends. The page is one file
@@ -1410,8 +1412,10 @@ export function startDashboard(
     req.on('data', (c: Buffer) => {
       size += c.length;
       if (size > MAX_SETTINGS_BODY) {
+        // Answer first and drop the connection only once the answer is out,
+        // so the browser reads the 413 instead of a reset.
+        res.on('finish', () => req.destroy());
         json(res, 413, { error: 'Request too large.' });
-        req.destroy();
         return;
       }
       chunks.push(c);

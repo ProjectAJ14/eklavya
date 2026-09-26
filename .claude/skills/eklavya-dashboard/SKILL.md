@@ -298,7 +298,7 @@ two interfaces, `eklavya config` and this page, and they change together.**
   `-e` element with `aria-invalid`, keeping the typed value.
 - `POST /api/settings` needs a loopback `Origin` (not `null`: a sandboxed
   frame sends that), `application/json` (no cross-origin form can), a body of
-  at most 16 KB, and `x-eklavya-token` equal to the per-start token the `/`
+  at most 256 KB, and `x-eklavya-token` equal to the per-start token the `/`
   response writes into `<meta name="eklavya-token">`. A hostile origin cannot
   read that page, so it cannot learn the token.
 - The page saves on `change` and redraws `#settings` in place (not via
