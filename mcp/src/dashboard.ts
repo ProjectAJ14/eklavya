@@ -25,7 +25,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
-import { decayedScore, isDue, isKnown, MS_PER_DAY } from './srs.js';
+import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
 import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import {
@@ -850,7 +850,11 @@ export function dashboardState(db: DB): Record<string, unknown> {
       else bucket.learning += 1;
     }
 
-    const due = seen && isDue(row.next_review, now);
+    // The backlog rule (`isOwed`): only a question declined, blanked or missed
+    // comes back. A correct answer's review date is decay's clock, not a debt,
+    // so it is neither due nor upcoming.
+    const owed = seen && row.last_grade != null && row.last_grade < PASSING_GRADE;
+    const due = owed && isOwed(row.last_grade, row.next_review, now);
     return {
       slug: row.slug,
       name: row.name,
@@ -871,6 +875,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
       skipped: row.skipped,
       last_grade: row.last_grade,
       mastered,
+      owed,
       due,
       overdue_days: due ? days(row.next_review, now) : null,
       next_review: row.next_review,

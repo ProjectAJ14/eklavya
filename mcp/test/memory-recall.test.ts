@@ -180,11 +180,11 @@ describe('learning counts', () => {
     return (db.prepare('SELECT id FROM concepts ORDER BY id LIMIT ?').all(n) as { id: number }[]).map((r) => r.id);
   }
 
-  function attempt(conceptId: number, repo: string): void {
+  function attempt(conceptId: number, repo: string, grade = 4): void {
     db.prepare(
       `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, repo)
-       VALUES (?, 's1', 'q', 'a', 4, 1, ?)`,
-    ).run(conceptId, repo);
+       VALUES (?, 's1', 'q', 'a', ?, 1, ?)`,
+    ).run(conceptId, grade, repo);
   }
 
   it('counts only what this project touched, not the size of the shipped catalogue', () => {
@@ -208,9 +208,9 @@ describe('learning counts', () => {
     expect(learningCounts(db, PROJECT)).toEqual({ learning: 0, mastered: 1, due: 0 });
   });
 
-  it('counts a mastered concept that has come round for review in both mastered and due', () => {
+  it('counts a mastered concept whose latest answer missed in both mastered and due', () => {
     const [touched] = conceptIds(1);
-    attempt(touched!, PROJECT);
+    attempt(touched!, PROJECT, 1);
     // A day overdue, not a week: enough to be due, not enough to decay the score.
     db.prepare(
       `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, last_seen, next_review)
@@ -219,6 +219,18 @@ describe('learning counts', () => {
 
     // Exclusive counts would make the review queue look empty.
     expect(learningCounts(db, PROJECT)).toEqual({ learning: 0, mastered: 1, due: 1 });
+  });
+
+  it('never counts a correctly answered concept as due, whatever its review date', () => {
+    const [touched] = conceptIds(1);
+    attempt(touched!, PROJECT, 4);
+    db.prepare(
+      `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, last_seen, next_review)
+       VALUES (?, 0.9, 2.5, 6, 3, ?, ?)`,
+    ).run(touched!, new Date().toISOString(), new Date(Date.now() - 86_400_000).toISOString());
+
+    // The backlog is what was declined, blanked or missed; a pass owes nothing.
+    expect(learningCounts(db, PROJECT)).toEqual({ learning: 0, mastered: 1, due: 0 });
   });
 
   it('ignores an evidence-derived candidate until somebody accepts it', () => {

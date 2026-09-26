@@ -76,8 +76,10 @@ There is no session-only memory switch.
 
 ## Why did it ask about something I already know?
 
-The concept may not yet meet the mastery threshold, or it may be due for a
-spaced review. Questions should vary as you progress through the tiers. See
+The concept may not yet meet the mastery threshold, your last answer on it may
+have been declined, blank or wrong, or today's work may have touched it while its
+spaced review was due. A concept whose last answer was right is not brought
+back from an earlier session. Questions should vary as you progress through the tiers. See
 [Levels and tiers](/docs/levels-and-tiers/).
 
 ## Can my team share settings?
@@ -96,10 +98,11 @@ and one for tutoring. Follow the
 
 ## I work in two repositories at once. Will they mix?
 
-Session lookup is scoped to the checkout, including separate worktrees. Two
-sessions in the **same** checkout share a session pointer; use separate
-worktrees when you need concurrent, independent sessions. The database itself
-is shared across projects.
+No. In Claude Code each session's tools use the session ID the host gives
+them, so two windows stay separate even in the same checkout or when one edits
+a sibling worktree. Hosts that do not provide that ID fall back to a pointer per
+checkout, which two sessions in one checkout share. The database itself is
+shared across projects.
 
 ## How do I upgrade?
 

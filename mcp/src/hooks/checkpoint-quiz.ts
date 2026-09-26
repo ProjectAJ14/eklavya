@@ -40,33 +40,61 @@
  * hook that errors on every tool call is a plugin nobody keeps.
  */
 import { attributionRule } from '../surface.js';
-import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor } from './lib.js';
-import { isSessionOff } from '../session.js';
+import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor, type DB } from './lib.js';
+import { isSessionOff, noteActivity, workSince } from '../session.js';
 import { countUse } from '../telemetry.js';
-import { sessionChangedCode } from './changes-lib.js';
+import { noteEdit, sessionChangedCode } from './changes-lib.js';
+
+const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
 
 await run(async (input) => {
-  // Fast path. `agent_id` is present only inside a subagent, and a subagent
-  // cannot ask the developer anything -- AskUserQuestion is not in its toolset,
-  // and the human is not watching that transcript. Checkpointing there would
-  // burn a question from the budget on a prompt nobody ever sees.
-  if (input.agent_id) return 0;
-
   const cwd = cwdOf(input);
   const { quiz, cadence, focus, focus_topic, max_questions_per_task, min_minutes_between_checkpoints } =
     config(cwd).config;
 
   if (!quiz.enabled) return 0;
+
+  // Before every other exit: an edit is what `quiz.only_on_changes` waits for,
+  // and it counts whoever made it (a subagent's edit is the session's work) and
+  // under either cadence (the Stop hook reads the same mark).
+  // The same goes for activity: every work tool call keeps the session's
+  // current stretch of work open (`noteActivity`), whoever made it.
+  let db: DB | null = openExisting();
+  if (!db) return 0;
+  const workSid = sessionId(input, db);
+  if (workSid) {
+    try {
+      noteActivity(db, workSid);
+    } catch {
+      /* Bookkeeping: a missed stamp only risks one stale-looking stretch. */
+    }
+    const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
+    if (quiz.only_on_changes && !quiz.enforced && EDIT_TOOLS.test(input.tool_name ?? '') && typeof file === 'string') {
+      noteEdit(db, workSid, file);
+    }
+  }
+
+  // `agent_id` is present only inside a subagent, and a subagent cannot ask the
+  // developer anything -- AskUserQuestion is not in its toolset, and the human
+  // is not watching that transcript. Checkpointing there would burn a question
+  // from the budget on a prompt nobody ever sees.
+  if (input.agent_id) return 0;
   // The whole feature behind one switch. `end` is the pre-1.4 behaviour: silence
   // until Stop.
   if (cadence !== 'interleaved') return 0;
 
-  const db = openExisting();
-  if (!db) return 0;
-
-  const sid = sessionId(input, db);
+  const sid = workSid;
   if (!sid) return 0;
   if (isSessionOff(db, sid)) return 0;
+
+  // Only work logged in the current stretch is askable -- since the first prompt
+  // after an idle break (`workSince`) -- so a session left open overnight is not
+  // asked about yesterday. Not for an enforced gate, whose bar was frozen from
+  // everything the session logged. checkpoint-quiz.ts and stop-quiz-check.ts
+  // must agree on this line.
+  const since = quiz.enforced ? null : workSince(db, sid);
+  const recent = since ? 'AND datetime(sc.ts) >= datetime(@since)' : '';
+  const bind = since ? { sid, since } : { sid };
 
   // One query for every number this decision needs.
   //
@@ -82,6 +110,7 @@ await run(async (input) => {
             LEFT JOIN mastery m ON m.concept_id = c.id
            WHERE sc.session_id = @sid
              AND COALESCE(sc.origin,'work') = 'work'
+             ${recent}
              AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
              AND sc.concept_id NOT IN
                  (SELECT concept_id FROM attempts WHERE session_id = @sid)) AS candidates,
@@ -96,7 +125,7 @@ await run(async (input) => {
          (SELECT last_checkpoint_at FROM checkpoints WHERE session_id = @sid) AS last_checkpoint,
          (SELECT ts FROM attempts WHERE session_id = @sid ORDER BY id DESC LIMIT 1) AS last_answer`,
     )
-    .get({ sid }) as
+    .get(bind) as
     | { candidates: number; spent: number; last_checkpoint: string | null; last_answer: string | null }
     | undefined;
 
@@ -112,10 +141,10 @@ await run(async (input) => {
   if (minutesSince(stats.last_answer) < min_minutes_between_checkpoints) return 0;
   // ---------------------------------------------------------------------------
 
-  // The concept most recently logged, not the oldest. The Stop hook orders ASC
-  // because it is sweeping up a whole session; this hook is asking about the code
-  // that was just written, and the last row is the one the call that triggered us
-  // put there.
+  // The concept most recently logged, not the oldest: this hook is asking about
+  // the code that was just written, and the last row is the one the call that
+  // triggered us put there. The Stop hook and the planner order the same way
+  // (ts, then insertion), so the concept named here is the one the plan serves.
   const row = db
     .prepare(
       `SELECT c.slug || COALESCE(' (' || sc.context || ')', '') AS concept
@@ -124,13 +153,14 @@ await run(async (input) => {
          LEFT JOIN mastery m ON m.concept_id = c.id
         WHERE sc.session_id = @sid
           AND COALESCE(sc.origin,'work') = 'work'
+          ${recent}
           AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
           AND sc.concept_id NOT IN
               (SELECT concept_id FROM attempts WHERE session_id = @sid)
         ORDER BY sc.ts DESC, sc.rowid DESC
         LIMIT 1`,
     )
-    .get({ sid }) as { concept: string } | undefined;
+    .get(bind) as { concept: string } | undefined;
 
   if (!row?.concept) return 0;
 

@@ -6,7 +6,6 @@ import { findFuzzyMatch, normalizeSlug } from '../slug.js';
 import {
   addCandidate,
   entryById,
-  pendingCandidates,
   resolveCandidate,
   timeline,
   type CandidateRow,
@@ -92,12 +91,18 @@ export function proposeFor(db: DB, entry: EntryRow, config: EklavyaConfig): numb
 }
 
 /** Proposes for every entry of a project that has not been mined yet. */
-export function proposeForProject(db: DB, config: EklavyaConfig, project: string, limit = 10): number {
+export function proposeForProject(
+  db: DB,
+  config: EklavyaConfig,
+  project: string,
+  limit = 10,
+  sessionId?: string,
+): number {
   // Observations only. A session summary is a roll-up of observation titles
   // this has already mined, so including it proposes the same slugs a second
   // time -- harmless in itself, but it crowds the top five that `fillOmissions`
   // accepts for a session that logged nothing.
-  const entries = timeline(db, { project, kind: 'observation', limit }).filter((entry) => {
+  const entries = timeline(db, { project, kind: 'observation', limit, ...(sessionId ? { sessionId } : {}) }).filter((entry) => {
     const row = db
       .prepare('SELECT 1 AS hit FROM learning_sources WHERE entry_id = ? LIMIT 1')
       .get(entry.id) as { hit: number } | undefined;
@@ -143,8 +148,14 @@ export function fillOmissions(
     .get(sessionId) as { n: number };
   if (logged.n > 0) return { accepted: 0, skipped: 0, reason: 'already_logged' };
 
-  proposeForProject(db, config, project);
-  const candidates = pendingCandidates(db, project, 20).filter((c) => c.confidence >= 0.7);
+  // This session's own entries and nothing else. Mined project-wide, the
+  // latest observations belong to whichever session wrote them, and a session
+  // that looked empty was quizzed on another one's work: one "design system
+  // compliance audit" entry turned up as `design-tokens` in four unrelated OIP
+  // sessions in a day. Nothing of its own yet means nothing to ask, which is
+  // the status quo, not a failure.
+  proposeForProject(db, config, project, 10, sessionId);
+  const candidates = sessionCandidates(db, project, sessionId, 20);
   if (!candidates.length) return { accepted: 0, skipped: 0, reason: 'no_candidates' };
 
   // The same budget an explicit log is held to. It is a cap on slug sprawl, and
@@ -171,6 +182,25 @@ export function fillOmissions(
     accepted++;
   }
   return { accepted, skipped: candidates.length - accepted };
+}
+
+/**
+ * Pending candidates mined from this session's own entries or events, strongest
+ * first. Filtered in the query, not after a project-wide limit: other sessions'
+ * candidates are never resolved here, so they accumulate, and a capped list
+ * would sooner or later hold none of this session's.
+ */
+function sessionCandidates(db: DB, project: string, sessionId: string, limit: number): CandidateRow[] {
+  return db
+    .prepare(
+      `SELECT ls.* FROM learning_sources ls
+        WHERE ls.status = 'candidate' AND ls.project = ? AND ls.confidence >= 0.7
+          AND (ls.entry_id IN (SELECT id FROM memory_entries WHERE session_id = ?)
+               OR ls.event_id IN (SELECT id FROM evidence_events WHERE session_id = ?))
+        ORDER BY ls.confidence DESC, ls.id
+        LIMIT ?`,
+    )
+    .all(project, sessionId, sessionId, limit) as CandidateRow[];
 }
 
 function conceptFor(db: DB, candidate: CandidateRow): { id: number } | undefined {

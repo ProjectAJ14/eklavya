@@ -140,6 +140,7 @@ target host before changing the behavior; they are not universal UI guarantees.
 | 2026-09-05, terminal | Question newlines survived; Markdown markers rendered literally; the question had one bold weight | Do not rely on Markdown or ANSI inside the stem |
 | 2026-09-20, Claude Desktop comparison | Desktop lacked the terminal header chip and status bar | The plan's `ask_attribution` can request inline `[Eklavya]`; skills follow that field |
 | 2026-09-26, 2.1.283 binary | `last_assistant_message` is a Stop input field | Capture it when present; a host without it records no assistant evidence, as before |
+| 2026-09-26, 2.1.283 CLI | The MCP server and hooks both inherit `CLAUDE_CODE_SESSION_ID` (equal to the hook's stdin `session_id`) and `CLAUDE_CODE_MESSAGING_SOCKET` (one per `claude` process). `/clear` in a running process was not probed | Tools resolve the host's session before the checkout pointer; hooks record the current id per socket so a stale startup id is overridden |
 | 2026-09-22, 2.1.278 bundle | Stop context appeared in terminal feedback; suppression did not hide that path | Keep the sweep short; the planner supplies detailed pedagogy |
 | 2026-09-23, 2.1.280 bundle | Top-level `systemMessage` produced visible hook messages; SessionStart plain output was model context | Use the common JSON envelope and test both channels |
 

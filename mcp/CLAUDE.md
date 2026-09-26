@@ -8,7 +8,7 @@ scheduling, hooks, installer, CLI and dashboard. Read the root `CLAUDE.md` first
 | Area | Sources and boundary |
 |---|---|
 | Configuration | `config.ts`: defaults, validation, legacy aliases and scope merge; no database access. `config-path.ts`: dotted CLI keys and nullable types. |
-| Paths and identity | `paths.ts`: all paths, env overrides, project config, worktree folding, private permissions and dashboard port. Never construct `~/.eklavya` paths elsewhere. `session.ts`: checkout-specific session pointers. |
+| Paths and identity | `paths.ts`: all paths, env overrides, project config, worktree folding, private permissions and dashboard port. Never construct `~/.eklavya` paths elsewhere. `session.ts`: host session identity and checkout-specific session pointers. |
 | Learning | `srs.ts`: pure scheduling, tiers, scores and promotion; explicit `now`, no database or clock. `store.ts`: queries and gates. `slug.ts`: deduplication. |
 | Database | `db.ts` opens WAL, foreign keys and busy timeout, then migrates and seeds. `migrations/` is forward-only. `seed.ts` never overwrites mastery. |
 | Packs | `packs.ts`: validated overlays after seeds, fail-open per file, never delete concepts referenced by attempts. |
@@ -94,8 +94,11 @@ All tool handlers register through `registerTools` to retain retries on
 `SQLITE_BUSY` and the error envelope. Transactions roll back before retry.
 Tests must use temporary `EKLAVYA_HOME` / `EKLAVYA_DB` or explicit config,
 including in-process tests. `EKLAVYA_SESSION_ID` intentionally joins sessions.
-Session pointers use checkout roots, keeping concurrent worktrees distinct;
-project settings fold worktrees, session pointers do not.
+Tools resolve the host's session first (`hostSession` in `session.ts`:
+the hooks' record for this `claude` process, then `CLAUDE_CODE_SESSION_ID`);
+tests blank both variables in `vitest.config.ts`. The fallback session pointers
+use checkout roots, keeping concurrent worktrees distinct; project settings fold
+worktrees, session pointers do not.
 
 Migrations update `LATEST_SCHEMA_VERSION`, expected files and relevant table
 lists in `test/migrate.test.ts`. Read the current version there instead of

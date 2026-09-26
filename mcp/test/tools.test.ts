@@ -12,7 +12,7 @@ import { upsertConcepts } from '../src/tools/upsert_concepts.js';
 import { getConceptGraph } from '../src/tools/get_concept_graph.js';
 import { gateRetryConcepts } from '../src/store.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
-import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID } from '../src/session.js';
+import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID, noteActivity, workSince } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 let dbFile = '';
@@ -108,6 +108,58 @@ describe('session resolution (G1)', () => {
 
     // Explicit still beats everything.
     expect(resolveSessionId(db, 'explicit')).toBe('explicit');
+  });
+
+  describe('the host\'s own session id', () => {
+    afterEach(() => {
+      process.env.CLAUDE_CODE_SESSION_ID = '';
+      process.env.CLAUDE_CODE_MESSAGING_SOCKET = '';
+    });
+
+    it('beats the checkout pointer, so the window beside it cannot capture its calls', () => {
+      // Two windows in one checkout: the pointer names whichever was typed in
+      // last. The MCP server is started per window with its own id.
+      setCurrentSession(db, 'the-other-window');
+      process.env.CLAUDE_CODE_SESSION_ID = 'this-window';
+      expect(resolveSessionId(db)).toBe('this-window');
+    });
+
+    it('holds when the model passes a sibling worktree as cwd, instead of landing in default', () => {
+      const sibling = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-sibling-'));
+      fs.mkdirSync(path.join(sibling, '.git'));
+      try {
+        expect(resolveSessionId(db, undefined, sibling)).toBe(FALLBACK_SESSION_ID);
+        process.env.CLAUDE_CODE_SESSION_ID = 'this-window';
+        expect(resolveSessionId(db, undefined, sibling)).toBe('this-window');
+      } finally {
+        fs.rmSync(sibling, { recursive: true, force: true });
+      }
+    });
+
+    it('follows /clear: the hooks\' record for this host process beats the startup id', () => {
+      process.env.CLAUDE_CODE_SESSION_ID = 'before-clear';
+      process.env.CLAUDE_CODE_MESSAGING_SOCKET = '/tmp/cc-socks/4242.sock';
+      expect(resolveSessionId(db)).toBe('before-clear');
+      // SessionStart after /clear stamps the new id against the same process.
+      setCurrentSession(db, 'after-clear');
+      expect(resolveSessionId(db)).toBe('after-clear');
+      // Another claude process does not read this one's record.
+      process.env.CLAUDE_CODE_MESSAGING_SOCKET = '/tmp/cc-socks/99.sock';
+      expect(resolveSessionId(db)).toBe('before-clear');
+    });
+
+    it('follows /clear on a host with no socket variable, keyed by the startup id', () => {
+      process.env.CLAUDE_CODE_SESSION_ID = 'started-as';
+      expect(resolveSessionId(db)).toBe('started-as');
+      setCurrentSession(db, 'after-clear');
+      expect(resolveSessionId(db)).toBe('after-clear');
+    });
+
+    it('yields to EKLAVYA_SESSION_ID, which joins panes on purpose', () => {
+      process.env.CLAUDE_CODE_SESSION_ID = 'this-window';
+      process.env.EKLAVYA_SESSION_ID = 'shared-task';
+      expect(resolveSessionId(db)).toBe('shared-task');
+    });
   });
 
   it('ignores blank ids rather than writing rows under an empty key', () => {
@@ -482,6 +534,87 @@ describe('get_session_quiz_plan', () => {
     expect(plan.concepts.find((c: any) => c.slug === 'git-commit')?.reason).toBe('project_review');
   });
 
+  it('never brings back a question the learner answered correctly', () => {
+    // 41 of 74 "due" items on one machine were right answers whose spaced
+    // review date had come round. That is not a backlog: nothing is owed.
+    inProject();
+    call(recordAttempt, {
+      session_id: 'earlier-session',
+      slug: 'git-commit',
+      question: 'about git-commit',
+      answer: 'a',
+      grade: 4,
+      difficulty: 2,
+    });
+    overdue('git-commit');
+    decline('pkce');
+    overdue('pkce');
+
+    logAuthWork();
+    master('httponly-cookies');
+    master('jwt-structure');
+    master('csrf');
+
+    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 5 }).concepts.map((c: any) => c.slug);
+    expect(slugs).toContain('pkce');
+    expect(slugs).not.toContain('git-commit');
+  });
+
+  it('plans from the current stretch of work, not what was logged before an idle break', () => {
+    logAuthWork();
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-1 day') WHERE session_id = ?`).run(SESSION);
+    // The developer comes back the next morning: the last prompt was a day ago.
+    db.prepare(`INSERT INTO meta (key, value) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day') || '|x')`).run(
+      `activity:${SESSION}`,
+    );
+    setCurrentSession(db, SESSION);
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'pkce', context: 'added PKCE to login' }] });
+    const slugs = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 5 }).concepts.map((c: any) => c.slug);
+    expect(slugs).toEqual(['pkce']);
+  });
+
+  it('serves the concept the hooks name: newest first, then last logged in a batch', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'earlier' }] });
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-30 minutes') WHERE session_id = ?`).run(SESSION);
+    call(logSessionConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'jwt-structure', context: 'a' }, { slug: 'pkce', context: 'b' }],
+    });
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    // The Stop hook's concept line under the same state names pkce.
+    expect(plan.concepts.map((c: any) => c.slug)).toEqual(['pkce']);
+  });
+
+  it('keeps a long agent turn in one stretch: tool calls count as activity, not just prompts', () => {
+    // Prompt at 09:00, the agent works alone until 10:15, then a follow-up.
+    const t = Date.now();
+    const at = (min: number) => new Date(t - min * 60_000);
+    noteActivity(db, SESSION, at(200));
+    // The first stretch is unbounded: nothing before it belongs elsewhere.
+    expect(workSince(db, SESSION)).toBeNull();
+    noteActivity(db, SESSION, at(75)); // after a break: the 09:00 prompt
+    noteActivity(db, SESSION, at(40));
+    noteActivity(db, SESSION, at(5));
+    noteActivity(db, SESSION, at(0)); // the follow-up
+    expect(workSince(db, SESSION)).toBe(at(75).toISOString());
+    // A real break still starts a new stretch.
+    noteActivity(db, SESSION, new Date(t + 61 * 60_000));
+    expect(workSince(db, SESSION)).toBe(new Date(t + 61 * 60_000).toISOString());
+  });
+
+  it('does not widen from work logged before an idle break', () => {
+    configure({ min_minutes_between_quizzes: 0, focus: 'concept' });
+    logAuthWork();
+    db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-1 day') WHERE session_id = ?`).run(SESSION);
+    db.prepare(`INSERT INTO meta (key, value) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day') || '|x')`).run(
+      `activity:${SESSION}`,
+    );
+    setCurrentSession(db, SESSION);
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 5 });
+    expect(plan.concepts.filter((c: any) => c.reason === 'concept_widening')).toEqual([]);
+  });
+
   it('waits for the review date before asking a declined question again', () => {
     inProject();
     decline('git-commit');
@@ -542,7 +675,8 @@ describe('get_session_quiz_plan', () => {
         slug: 'pkce',
         question: 'about pkce',
         answer: 'a',
-        grade: 4,
+        // Missed: only a question that did not pass is owed.
+        grade: 1,
         difficulty: 2,
       });
       db.prepare("UPDATE mastery SET next_review = '2000-01-01T00:00:00Z'").run();

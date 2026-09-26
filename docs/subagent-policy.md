@@ -26,8 +26,10 @@ The hook checks `quiz.enabled` and session silence, but a missing database does
 not suppress its directive. It may open an existing database to check silence;
 the old claim that it never reads the database is incorrect.
 
-The logging tool normally resolves the parent's session through the inherited
-checkout's session pointer. Neither directive nor model needs to invent a
+The logging tool normally resolves the parent's session from the host: a
+subagent's tool calls go through the parent's MCP server, which carries the
+parent's `CLAUDE_CODE_SESSION_ID` (the checkout's session pointer is the
+fallback on hosts without it). Neither directive nor model needs to invent a
 session ID. See [parallel tutoring](parallel-tutoring.md) for concurrent sessions.
 
 Checkpoint and Stop hooks return on `agent_id`. Keep both guards: an automatic

@@ -125,6 +125,21 @@ describe('dashboardState', () => {
     expect(bySlug(s, 'csrf').overdue_days).toBe(3);
   });
 
+  it('owes nothing for a correct answer, however overdue its review date', () => {
+    work();
+    call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q', answer: 'a', grade: 4, difficulty: 2 });
+    db.prepare("UPDATE mastery SET next_review = ? WHERE concept_id = (SELECT id FROM concepts WHERE slug = 'csrf')")
+      .run(new Date(Date.now() - 3 * 86_400_000).toISOString());
+
+    const s = dashboardState(db) as any;
+    // Neither due nor upcoming: the review page lists only what is owed.
+    expect(bySlug(s, 'csrf')).toMatchObject({ owed: false, due: false, overdue_days: null });
+    expect(s.totals.due).toBe(0);
+
+    call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q2', answer: 'b', grade: 1, difficulty: 2 });
+    expect(bySlug(dashboardState(db) as any, 'csrf').owed).toBe(true);
+  });
+
   it('carries the promotion runway for each project', () => {
     work();
     call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q', answer: 'a', grade: 4, difficulty: 2 });
