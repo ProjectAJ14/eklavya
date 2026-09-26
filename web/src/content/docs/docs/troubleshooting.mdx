@@ -61,6 +61,10 @@ disables the reminder; `quiet` does not.
 This reminder does not fire after a session has already logged concepts. For
 that case, ask Claude to log the current task or run `/eklavya:quiz`.
 
+With memory on, a session that never logs still gets concepts from its own
+observations at the end of a turn ([how](/docs/memory/#what-memory-does-to-the-learning-half)).
+When an observer model summarises in the background, that can take one more turn.
+
 </details>
 
 ## Memory and search
