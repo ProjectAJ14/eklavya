@@ -79,6 +79,11 @@ export function spawnDashboard(cli = path.join(moduleDir, 'cli.js')): boolean {
     // Truncated per start: the log only has to explain the latest failure.
     const log = fs.openSync(dashboardLogPath(), 'w');
     const child = spawn(process.execPath, [cli, 'dashboard', '--serve'], {
+      // Not the session's checkout: the page's dial line reads config from the
+      // working directory, so a copy started in one project would show that
+      // project's overrides to every other one, and on Windows it would hold
+      // the checkout open. The Eklavya home names no project.
+      cwd: eklavyaHome(),
       detached: true,
       stdio: ['ignore', log, log],
       windowsHide: true,
