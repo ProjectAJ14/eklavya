@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
-import { insertEntry, pendingCandidates } from '../src/memory/store.js';
+import { addCandidate, insertEntry, pendingCandidates } from '../src/memory/store.js';
 import { fillOmissions, proposeFor, proposeForProject } from '../src/memory/learning.js';
 import { conceptBySlug, gradeConcept, logSessionConcept, syncGate } from '../src/store.js';
 import { entryById } from '../src/memory/store.js';
@@ -187,5 +187,71 @@ describe('filling in for a session that logged nothing', () => {
     ).toBe(1);
     const after = syncGate(db, SESSION, config, { repo: PROJECT });
     expect(after).toEqual(before);
+  });
+});
+
+describe('resolving what the memory observer proposed', () => {
+  /** An observer proposal, as the worker writes it: free-form slug, 0.8 confidence. */
+  function propose(entryId: number, slug: string, name: string, domain: string): void {
+    addCandidate(db, { entryId, slug, name, domain, confidence: 0.8, project: PROJECT });
+  }
+  const rows = () =>
+    db
+      .prepare(
+        `SELECT c.slug, c.domain, c.source FROM session_concepts sc JOIN concepts c ON c.id = sc.concept_id
+          WHERE sc.session_id = ? ORDER BY c.slug`,
+      )
+      .all(SESSION) as { slug: string; domain: string; source: string }[];
+
+  it('creates the concepts an observer named, instead of rejecting every one it has not seen', () => {
+    // A real d-pilot session: the model never logged, the observer proposed
+    // these, and exact-slug matching rejected all five -- so nothing was asked.
+    const entry = seedEntry('Fixed truncated badge text in table status columns');
+    propose(entry, 'badge_component', 'Mantine Badge component', 'ui_library');
+    propose(entry, 'text_truncation', 'Text truncation with ellipsis', 'ui');
+    const result = fillOmissions(db, config, SESSION, PROJECT);
+    expect(result.accepted).toBe(2);
+    expect(rows()).toEqual([
+      { slug: 'badge-component', domain: 'ui-library', source: 'llm' },
+      { slug: 'text-truncation', domain: 'ui', source: 'llm' },
+    ]);
+  });
+
+  it('prefers a concept the graph already has over minting a near-duplicate', () => {
+    const entry = seedEntry('Scoped a cookie');
+    propose(entry, 'CSRF', 'Cross-site request forgery', 'security');
+    fillOmissions(db, config, SESSION, PROJECT);
+    expect(rows()).toEqual([{ slug: 'csrf', domain: 'web-auth', source: expect.any(String) }]);
+    expect(conceptBySlug(db, 'csrf')!.domain).toBe('web-auth');
+  });
+
+  it('counts a concept once when two proposals land on it', () => {
+    const entry = seedEntry('Laid out a table');
+    propose(entry, 'table_layout', 'Table layout', 'css');
+    propose(entry, 'table-layout', 'Table layout', 'css');
+    const result = fillOmissions(db, config, SESSION, PROJECT);
+    expect(result.accepted).toBe(1);
+    expect(rows()).toHaveLength(1);
+  });
+
+  it('creates no more than the session budget, and leaves the rest as candidates', () => {
+    const entry = seedEntry('Restyled a button');
+    config = { ...config, max_new_concepts_per_session: 1 };
+    propose(entry, 'button_variant', 'Button variants', 'ui');
+    propose(entry, 'destructive_action', 'Destructive action styling', 'ui');
+    expect(fillOmissions(db, config, SESSION, PROJECT).accepted).toBe(1);
+    expect(rows()).toHaveLength(1);
+    const pending = db
+      .prepare("SELECT COUNT(*) AS n FROM learning_sources WHERE status = 'candidate' AND entry_id = ?")
+      .get(entry) as { n: number };
+    expect(pending.n).toBe(1);
+  });
+
+  it('never creates a concept in a disabled domain', () => {
+    const entry = seedEntry('Restyled a button');
+    config = { ...config, domains_enabled: ['web-auth'] };
+    propose(entry, 'button_variant', 'Button variants', 'ui');
+    expect(fillOmissions(db, config, SESSION, PROJECT).accepted).toBe(0);
+    expect(conceptBySlug(db, 'button-variant')).toBeUndefined();
   });
 });

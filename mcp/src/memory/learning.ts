@@ -1,8 +1,8 @@
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { isDomainEnabled } from '../config.js';
-import { allConceptSlugs, logSessionConcept, newConceptsThisSession } from '../store.js';
-import { findFuzzyMatch, normalizeSlug } from '../slug.js';
+import { allConceptSlugs, insertConcept, logSessionConcept, newConceptsThisSession } from '../store.js';
+import { findFuzzyMatch, isValidSlug, normalizeSlug } from '../slug.js';
 import {
   addCandidate,
   entryById,
@@ -164,12 +164,25 @@ export function fillOmissions(
   if (budget === 0) return { accepted: 0, skipped: candidates.length, reason: 'budget' };
 
   let accepted = 0;
-  for (const candidate of candidates.slice(0, Math.min(budget, 5))) {
-    const concept = conceptFor(db, candidate);
-    if (!concept) {
+  let left = budget;
+  // Two proposals can land on one concept (`table_layout` and `table-layout`);
+  // count it once, or `accepted` stops matching the rows written.
+  const seen = new Set<number>();
+  for (const candidate of candidates) {
+    if (accepted >= 5) break;
+    const found = conceptFor(db, config, candidate, left > 0);
+    if (found === 'no_budget') continue;
+    if (!found) {
       resolveCandidate(db, candidate.id, 'rejected');
       continue;
     }
+    const { concept, created } = found;
+    if (created) left--;
+    if (seen.has(concept.id)) {
+      resolveCandidate(db, candidate.id, 'accepted', concept.id);
+      continue;
+    }
+    seen.add(concept.id);
     const entry = candidate.entry_id ? entryById(db, candidate.entry_id) : undefined;
     logSessionConcept(
       db,
@@ -203,8 +216,44 @@ function sessionCandidates(db: DB, project: string, sessionId: string, limit: nu
     .all(project, sessionId, sessionId, limit) as CandidateRow[];
 }
 
-function conceptFor(db: DB, candidate: CandidateRow): { id: number } | undefined {
-  return db.prepare('SELECT id FROM concepts WHERE slug = ?').get(candidate.slug) as
-    | { id: number }
-    | undefined;
+/**
+ * The concept a candidate names, resolved the way `log_session_concepts`
+ * resolves a slug: normalized, then an exact or fuzzy match, then created.
+ *
+ * Exact-only matching made this fallback useless. The provider observer writes
+ * free-form slugs (`badge_component`, `text_truncation`) that are never already
+ * in the graph character for character, so every one was rejected and a session
+ * that forgot to log was never asked anything.
+ *
+ * Creating is safe here because of who can reach it. Extractive candidates
+ * (`proposeFor`) always carry an existing slug, so they match; only the
+ * observer's own proposals are ever new, and `sessionCandidates` has already
+ * dropped anything under 0.7 confidence. A new concept is bare, as one from
+ * `log_session_concepts` is, and spends the same per-session budget.
+ */
+function conceptFor(
+  db: DB,
+  config: EklavyaConfig,
+  candidate: CandidateRow,
+  mayCreate: boolean,
+): { concept: { id: number }; created: boolean } | 'no_budget' | undefined {
+  const slug = normalizeSlug(candidate.slug);
+  if (!isValidSlug(slug)) return undefined;
+  const known = allConceptSlugs(db);
+  const match = known.find((k) => k.slug === slug) ?? findFuzzyMatch(slug, known);
+  if (match) return isDomainEnabled(config, match.domain) ? { concept: match, created: false } : undefined;
+
+  const domain = normalizeSlug(candidate.domain) || 'general';
+  if (!isDomainEnabled(config, domain)) return undefined;
+  // Left as a candidate rather than rejected: the budget is this session's, and
+  // the proposal may still be worth something to a later fill.
+  if (!mayCreate) return 'no_budget';
+  const concept = insertConcept(db, {
+    slug,
+    name: candidate.name?.trim() || slug.replace(/-/g, ' '),
+    domain,
+    tier: 2,
+    source: 'llm',
+  });
+  return { concept, created: true };
 }

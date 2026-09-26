@@ -169,7 +169,11 @@ Supported languages are JavaScript/TypeScript, Python, Go, Rust, Java, Ruby and 
 
 ### What memory does to the learning half
 
-Memory can propose concept candidates when a session failed to log its work. Candidates use the usual validation and new-concept budget and do not replace concepts already logged by the agent.
+Memory can propose concept candidates when a session failed to log its work. At the end of each turn, if the session has logged no concepts, Eklavya logs up to five candidates taken from that session's own observations. It never touches a session that logged concepts itself.
+
+A candidate is resolved the same way as a concept Claude logs: an existing concept with the same or a close name is reused (for example, `CSRF` becomes `csrf`); otherwise a new concept is created, such as `text_truncation` → `text-truncation`. New concepts count against `max_new_concepts_per_session`; candidates over that budget stay pending. `domains_enabled` applies. The built-in summariser only proposes concepts the graph already has; new names come from an observer model.
+
+With an observer model, observations are written in the background, so they can arrive after the first turn ends. The next turn's end picks them up.
 
 Memory does not record quiz attempts, grant mastery, clear review debt, promote a level or open a gate. Remembered work is not assessed knowledge.
 
