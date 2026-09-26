@@ -11,7 +11,26 @@ Open your learning history, project memory, saved pages and settings in a local 
 eklavya dashboard
 ```
 
-The server normally uses `http://127.0.0.1:41729` and opens your browser. Keep the command running; **Ctrl+C** stops it. Use `--no-open` to print the URL without opening a browser, or `--port <n>` to choose a port. A busy default port falls back to an available one; an explicitly requested busy port returns an error.
+The dashboard lives at `http://127.0.0.1:41729` and keeps running in the background, so the command opens your browser and returns. Use `--no-open` to print the URL without opening a browser.
+
+## Keeping it running
+
+Each session start checks the dashboard and starts it if nothing is answering, so it comes back after a crash or a restart of your computer. When a session starts it, the greeting says so:
+
+```text
+Dashboard http://127.0.0.1:41729 started in the background · off: eklavya config set dashboard_autostart false
+```
+
+After an update, the next session replaces a dashboard running an older version. A dashboard started from a newer version is left alone, and so is one serving a different database (`EKLAVYA_DB`) or another program on the port.
+
+```bash
+eklavya dashboard status   # version, process id and database of the running copy
+eklavya dashboard stop     # stop it; the next session starts it again
+```
+
+To keep it off, set [`dashboard_autostart`](/docs/configuration/#every-key) to `false` (global only). `eklavya dashboard` then runs in the foreground as before, and **Ctrl+C** stops it. With `--port <n>` it always runs in the foreground on that port; a busy requested port returns an error. Without `--port`, a foreground dashboard whose default port is busy falls back to an available one.
+
+The background copy writes errors to `~/.eklavya/dashboard.log`, cleared each time it starts.
 
 `/eklavya:progress` gives a short summary in chat. The dashboard is where you inspect full histories and follow links between a concept, its questions, the session and the memory behind it.
 

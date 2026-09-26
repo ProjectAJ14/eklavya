@@ -18,7 +18,7 @@ scheduling, hooks, installer, CLI and dashboard. Read the root `CLAUDE.md` first
 | Installation | `install.ts`, `safe-write.ts`, `install-lock.ts`, `onboard.ts`, `claude-mem.ts`, `update.ts`. Preserve user files, lock ownership and recovery paths. |
 | Terminal | `theme.ts` owns CLI styling (keep its talea counterpart aligned); `statusline.ts` owns dials in the host status bar. `stdin.ts` owns bounded input. |
 | Questions | `mcq.ts`: answer positioning. `ask.ts`: historical header stripping. `surface.ts`: host-specific attribution. |
-| Dashboard and artifacts | `dashboard.ts`, `assets/dashboard.html`, `artifacts.ts`, `assets/artifact-template.html`; read `.claude/skills/eklavya-dashboard/SKILL.md` before dashboard work. |
+| Dashboard and artifacts | `dashboard.ts`, `assets/dashboard.html`, `artifacts.ts`, `assets/artifact-template.html`; read `.claude/skills/eklavya-dashboard/SKILL.md` before dashboard work. `dashboard-daemon.ts` keeps one background `dashboard --serve` per machine: the port is the lock, `/api/health` names the process, and only an older version on the same database is replaced. Tests use `EKLAVYA_DASHBOARD_PORT`. |
 | Memory | `memory/`: capture, privacy, spool, queries, search/embeddings, summarization, worker/reservation, recall, replay, learning candidates, collections, code lookup, notifications, sync and import. No MCP or host API dependencies. |
 | Evaluation | `eval/*.ts` is deterministic and I/O-free; root `eval/harness.mjs` orchestrates model calls. |
 

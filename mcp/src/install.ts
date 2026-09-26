@@ -186,6 +186,9 @@ async function installRuntime(version: string): Promise<void> {
   }
 
   try {
+    // A running dashboard holds the SQLite driver open, and Windows will not
+    // let npm replace a loaded file. The next session start brings it back.
+    await (await import('./dashboard-daemon.js')).stopDashboard();
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     // Async and captured, not inherited: npm writing over the spinner's row
     // garbles both. Its output is replayed below if it fails.

@@ -28,8 +28,9 @@ provided to Claude as session context**, alongside the work you already do
 with Claude.
 
 Automatic updates contact npm without sending your learning or memory data;
-`auto_update: false` disables those checks. The local dashboard makes no
-outbound requests. Saved explainer pages can request Google Fonts, with system
+`auto_update: false` disables those checks. The local dashboard keeps running in
+the background on `127.0.0.1` only and makes no outbound requests;
+`dashboard_autostart: false` stops it being started. Saved explainer pages can request Google Fonts, with system
 font fallbacks when offline.
 
 Optional providers send captured work through Claude Code to a configured

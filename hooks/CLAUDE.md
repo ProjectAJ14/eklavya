@@ -12,7 +12,7 @@ registrations, for eight rows total.
 
 | Event | Implementation | Responsibility |
 |---|---|---|
-| SessionStart | `session-start` | Record the session for this host process and the checkout pointer; migrate legacy config; replay, summarize and recall memory; start a due background update; show profile/status and supply the log directive |
+| SessionStart | `session-start` | Record the session for this host process and the checkout pointer; migrate legacy config; replay, summarize and recall memory; start a due background update; start or replace the background dashboard (`dashboard-daemon.ts`, never under `CI` or `VITEST`); show profile/status and supply the log directive |
 | UserPromptSubmit | `prompt-submit-nudge` | Refresh the host session record and checkout pointer, capture the prompt, recall relevant memory and nudge a session that has not logged concepts |
 | SubagentStart | `subagent-start` | Ask implementers to log, without asking questions; exempt the tutor |
 | PreToolUse (`Bash`) | `pre-tool-gate` | Deny recognized commits when the enforced session gate has not passed |

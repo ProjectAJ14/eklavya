@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "8d037c47e9e23af3c3184ee73cc7f8e70d65336f"
+      "revision": "f17be3baef9997cc85dfa78f2a914dc11fd322da"
     },
     "views": [
       {
@@ -295,7 +295,7 @@
       "id": "dashboard",
       "type": "frontend",
       "label": "Local Dashboard",
-      "sublabel": "eklavya dashboard",
+      "sublabel": "kept running by SessionStart",
       "tag": "edits settings",
       "pos": [
         1126,
@@ -311,12 +311,12 @@
           "label": "http server"
         },
         {
-          "path": "mcp/src/config-path.ts",
-          "label": "settings writes"
+          "path": "mcp/src/dashboard-daemon.ts",
+          "label": "background start and replace"
         },
         {
-          "path": "mcp/src/assets/dashboard.html",
-          "label": "one payload, polled"
+          "path": "mcp/src/config-path.ts",
+          "label": "settings writes"
         }
       ]
     },

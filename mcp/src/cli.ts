@@ -13,6 +13,7 @@ import { dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
 import {
   loadConfig,
+  loadGlobalConfig,
   writeConfigFile,
   readConfigFile,
   configFileProblem,
@@ -64,9 +65,11 @@ Usage:
   eklavya config unset <key>            Remove a setting from that file so it inherits again: a project
                                         falls back to your user setting, your user file to the default
                                         (--project for this codebase's file)
-  eklavya dashboard [--port <n>]        Serve the learning dashboard and open it in your browser;
-                                        its Settings pages change the same settings as config set/unset
-                                        (--no-open serves it and just prints the URL)
+  eklavya dashboard [--port <n>]        Open the learning dashboard in your browser; it keeps running
+                                        in the background (dashboard_autostart) and its Settings pages
+                                        change the same settings as config set/unset (--no-open just
+                                        prints the URL; --port serves in the foreground on that port)
+  eklavya dashboard status|stop         Show or stop the background dashboard
   eklavya artifacts new <title>         Start a page under ~/.eklavya/artifacts/<project>/ from the
                                         Eklavya template and print its path [--description <text>]
                                         [--kind artifact|explainer] [--concept <slug>] [--open]
@@ -119,7 +122,7 @@ Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
              max_new_concepts_per_session, max_stop_blocks_per_session, quiet,
              explain_on_wrong,
-             auto_update, telemetry (global only)
+             auto_update, telemetry, dashboard_autostart (global only)
 Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
   quiz.{enabled, enforced, only_on_changes} — whether questions happen, whether
              they gate commits, and whether they wait for a git change (default
@@ -892,32 +895,87 @@ async function statuslineCommand(argv: string[]): Promise<void> {
 }
 
 async function dashboardCommand(argv: string[]): Promise<void> {
+  const daemon = await import('./dashboard-daemon.js');
+  const { dashboardPort } = await import('./paths.js');
+  const url = `http://127.0.0.1:${dashboardPort()}`;
+
+  if (argv[0] === 'status') {
+    const probe = await daemon.probeDashboard(dashboardPort(), 1000);
+    if (probe.kind === 'eklavya') {
+      const h = probe.health;
+      process.stdout.write(`Eklavya dashboard on ${url} · ${h.version} · pid ${h.pid}\nReading ${h.db}\n`);
+    } else if (probe.kind === 'down') {
+      process.stdout.write(`No dashboard on ${url}. Start one: eklavya dashboard\n`);
+    } else {
+      process.stdout.write(`Port ${dashboardPort()} is taken by something that is not an Eklavya dashboard.\n`);
+    }
+    return;
+  }
+  if (argv[0] === 'stop') {
+    const stopped = await daemon.stopDashboard();
+    process.stdout.write(
+      stopped
+        ? `Stopped the dashboard on ${url}.${
+            loadGlobalConfig().dashboard_autostart
+              ? ' The next session starts it again; to keep it off: eklavya config set dashboard_autostart false'
+              : ''
+          }\n`
+        : `No Eklavya dashboard was running on ${url}.\n`,
+    );
+    return;
+  }
+
   const i = argv.indexOf('--port');
   const port = i === -1 ? undefined : Number(argv[i + 1]);
   if (port !== undefined && !Number.isInteger(port)) {
     process.stderr.write('eklavya dashboard: --port needs a number\n');
     process.exit(1);
   }
+  // `--serve` is the background copy SessionStart starts: its own port only,
+  // never a fallback, so the port is the lock and a second copy just leaves.
+  const serve = argv.includes('--serve');
   // Opens by default. A dashboard you have to copy out of a terminal is a
   // dashboard you open once; `--no-open` is for a headless box, or for an agent
   // that only wants the URL to hand back.
-  const open = !argv.includes('--no-open');
+  const open = !serve && !argv.includes('--no-open');
+
+  // With autostart on, the dashboard is the background one: reuse it, start
+  // it, or replace an older one, then hand back its URL instead of holding a
+  // terminal. A port of your own, or a port someone else holds, still gets a
+  // foreground server as before.
+  if (!serve && port === undefined && loadGlobalConfig().dashboard_autostart) {
+    const state = await daemon.ensureDashboard();
+    const up = state === 'running' || ((state === 'started' || state === 'replaced') && (await daemon.waitForDashboard()));
+    if (up) {
+      process.stdout.write(
+        `Eklavya dashboard on ${url} (${state === 'running' ? 'already running' : 'started'} in the background)\n` +
+          `Reading ${dbPath()} — stop it: eklavya dashboard stop\n`,
+      );
+      if (open) {
+        process.stdout.write('Opening it in your browser…\n');
+        (await import('./dashboard.js')).openInBrowser(url);
+      }
+      return;
+    }
+  }
 
   const [{ openDb }, { startDashboard, openInBrowser }] = await Promise.all([
     import('./db.js'),
     import('./dashboard.js'),
   ]);
-  startDashboard(openDb(), { port }).then(
+  startDashboard(openDb(), { port: serve ? dashboardPort() : port }).then(
     ({ url }) => {
       process.stdout.write(
-        `Eklavya dashboard on ${url}\nReading ${dbPath()} — press Ctrl+C to stop.\n`,
+        `Eklavya dashboard on ${url}\nReading ${dbPath()} — ${serve ? 'stop it: eklavya dashboard stop' : 'press Ctrl+C to stop'}.\n`,
       );
       if (open) {
         process.stdout.write('Opening it in your browser…\n');
         openInBrowser(url);
       }
     },
-    (err: Error) => {
+    (err: NodeJS.ErrnoException) => {
+      // Another copy won the port first: that one is the dashboard.
+      if (serve && err.code === 'EADDRINUSE') process.exit(0);
       process.stderr.write(`eklavya dashboard: ${err.message}\n`);
       process.exit(1);
     },
@@ -1061,13 +1119,23 @@ async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
   // Not for `statusline` or `serve`: both are started from the runtime already,
   // and the status bar pays for every millisecond here.
-  if (command !== 'statusline' && command !== 'serve' && (await forwardToNewerRuntime())) return;
+  if (
+    command !== 'statusline' &&
+    command !== 'serve' &&
+    // The background dashboard is started from a chosen build on purpose: its
+    // version is what the next session compares against.
+    !(command === 'dashboard' && rest.includes('--serve')) &&
+    (await forwardToNewerRuntime())
+  ) {
+    return;
+  }
   // The command's name only, for the usage ping; never its arguments. After the
   // forward, so a forwarded command is counted once, by the runtime that ran it.
   // Not the server or the status line, which run constantly and say nothing
   // about use; not uninstall, which sends its own event and must change nothing
-  // if it fails; not a `--background` run (update, the ping), which nobody typed.
-  if (command && COUNTED.has(command) && !rest.includes('--background')) {
+  // if it fails; not a `--background` run (update, the ping) or the background
+  // dashboard's `--serve`, which nobody typed.
+  if (command && COUNTED.has(command) && !rest.includes('--background') && !rest.includes('--serve')) {
     (await import('./telemetry.js')).countCommand(`cli:${command}`);
   }
 
@@ -1096,6 +1164,8 @@ async function main(): Promise<void> {
       // Before anything is removed: afterwards there is no runtime to send it.
       const { sendOne } = await import('./telemetry-send.js');
       await sendOne('uninstall', { purge: rest.includes('--purge') });
+      // Before its files go: `--purge` deletes the database it has open.
+      await (await import('./dashboard-daemon.js')).stopDashboard();
       return (await import('./install.js')).uninstall(rest);
     }
     case 'export-rules':

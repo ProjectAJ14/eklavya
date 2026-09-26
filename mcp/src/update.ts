@@ -28,6 +28,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { spawnDashboard, stopDashboard } from './dashboard-daemon.js';
 import { eklavyaHome } from './paths.js';
 import { loadGlobalConfig } from './config.js';
 import { claimInstall, releaseInstall } from './install-lock.js';
@@ -283,7 +284,11 @@ export async function runUpdate(opts: { background: boolean; say?: (line: string
     }
     say(`latest ${latest}, runtime ${from ?? 'not installed'}`);
 
+    let restart = false;
     if (!from || compareVersions(latest, from) > 0) {
+      // A running dashboard holds the SQLite driver open, and Windows will not
+      // let npm replace a loaded file. Stopped first, restarted on the new code.
+      restart = await stopDashboard();
       say(`installing eklavya@${latest}…`);
       const install = run(
         npm,
@@ -312,6 +317,7 @@ export async function runUpdate(opts: { background: boolean; say?: (line: string
       }
     }
 
+    if (restart) spawnDashboard(runtimeCli());
     writeState({ checked_at: now, ok_at: now, latest, applied: version, error: null, error_class: null });
     return from === version ? { status: 'current', version } : { status: 'updated', from, to: version };
   } catch (err) {

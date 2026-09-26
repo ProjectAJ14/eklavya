@@ -253,20 +253,26 @@ exactly what is sent; `eklavya telemetry` says whether it is on and why. The
 full field list is https://eklavya-run.web.app/docs/usage-analytics/.
 
 Restarting Claude Code is what picks up a repaired install — the plugin and MCP
-server are read at session start. There is no background process to restart.
+server are read at session start. The only background process is the dashboard,
+and session start restarts that on its own.
 
 ## The dashboard
 
 ```bash
-eklavya dashboard              # opens http://127.0.0.1:41729 in their browser
-eklavya dashboard --port 8080
-eklavya dashboard --no-open    # serve it, print the URL, open nothing
+eklavya dashboard              # opens http://127.0.0.1:41729 in their browser, then returns
+eklavya dashboard --no-open    # print the URL, open nothing
+eklavya dashboard status       # is it running, which version, which database
+eklavya dashboard stop         # stop the background copy
 ```
 
 It binds to loopback only and reads the local database; its one write is a
 settings change, guarded by a per-start token in the page. Worth saying when
-someone asks where their data goes. The process runs until interrupted, so start it in the background and
-hand back the URL rather than blocking the session on it.
+someone asks where their data goes. It keeps running in the background: session
+start starts it when it is down and replaces an older version after an update, so
+the command returns at once with the URL. `dashboard_autostart false` (global
+only) turns that off; the command then serves in the foreground until
+interrupted, so start it in the background and hand back the URL. `--port <n>`
+always serves in the foreground on that port.
 
 It opens the browser itself, so do not tell them to click the URL. Use
 `--no-open` when they only asked *where* the dashboard is, or when the session
