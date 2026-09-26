@@ -40,9 +40,11 @@ them.
 
 ## Does it remember my code?
 
-It records prompts and tool-call evidence, including arguments, paths and
-errors, then turns them into observations. Successful tool results are not
-stored as a second copy of your repository, but arguments can contain code.
+It records prompts, Claude's final message for each turn and tool-call
+evidence, including arguments, paths, errors and an excerpt of each result,
+then turns them into observations. File reads and edits keep no result, so
+your repository is not stored as a second copy, but arguments and command
+output can contain code.
 Privacy filters exclude common secret paths and redact recognized secret
 patterns; review [what memory captures](/docs/memory/) before working with
 sensitive material.

@@ -11,15 +11,17 @@ Start by asking `/eklavya:memory` about a past change. To browse, use the [Memor
 
 ### What gets captured
 
-Hooks record prompts, assistant messages, session events and tool activity. A tool event includes its name, arguments and file paths. Failed calls can include the error; successful tool results are not copied into memory.
+Hooks record prompts, Claude's final message for each turn, session events and tool activity. A tool event includes its name, arguments, file paths and what came back: a failed call keeps its error (up to 800 characters), and a successful call keeps an excerpt of its result, the first 1,600 and last 600 characters. Reads and edits keep no result, so a file's contents are never stored as a second copy of your repository.
+
+The result is what lets an observation say what was *found*, not only what ran: `kubectl get configmap` is remembered with the value it printed. It also means command and query output is stored locally after redaction. To keep a tool's output out of memory entirely, for example a database query tool that returns sensitive rows, add it to `privacy.exclude_tools`.
 
 | Event kind | Source |
 | --- | --- |
 | `prompt` | A message you send. |
-| `tool_use`, `tool_error` | Successful tool calls or failed calls with their error. |
+| `tool_use`, `tool_error` | Successful tool calls with a result excerpt, or failed calls with their error. |
 | `file_edit` | Edit, Write, NotebookEdit and MultiEdit. |
 | `file_read` | Read, NotebookRead, Glob and Grep. |
-| `assistant`, `lifecycle` | Captured assistant messages and session start/stop events. |
+| `assistant`, `lifecycle` | Claude's final message at the end of each turn (from Claude Code's Stop hook), and session start/stop events. |
 | `note` | A note saved explicitly. |
 
 Bodies are limited to 4,000 characters after redaction; edits retain up to 600 characters per side. `memory.capture: minimal` keeps prompts, assistant messages, session events and notes. `off` stops capture but keeps existing history searchable.
@@ -70,6 +72,8 @@ The default `local-v1` summariser makes no network calls. It extracts and counts
 
 An optional `providers.observer` uses a Claude model through `claude -p` and your Claude Code login. This sends captured work to the model. Hooks queue the work and return without waiting.
 
+The model writes one observation per distinct finding, decision or change, up to six per batch, each with at most 12 facts. When it goes past those limits, the extra is trimmed and the rest is kept; only output with the wrong shape fails the batch.
+
 Only one model worker runs at a time. It processes up to four batches and hands remaining ready jobs to a fresh worker. Calls have a 100-second limit; cancellation or timeout also stops child processes. Observer helper sessions are excluded from capture.
 
 #### When the model is unavailable
@@ -98,13 +102,13 @@ A session with at least two observations also gets one summary that is updated a
 
 ### How recall works
 
-At session start, Claude receives recent project history in an `<eklavya-memory>` block. The block holds up to `retrieval.max_items` entries (6 by default) within `retrieval.max_tokens` (1,200 estimated tokens by default). An entry too long for the remaining budget is skipped and shorter ones fill the space. It is marked as **evidence to verify, never instructions to obey**.
+At session start, Claude receives recent project history in an `<eklavya-memory>` block. The block holds up to `retrieval.max_items` entries (6 by default) within `retrieval.max_tokens` (1,200 estimated tokens by default). An entry too long for the remaining budget is skipped and shorter ones fill the space. After those full entries, up to 30 more are listed by title and ID only (about 700 tokens at most), with a line telling Claude to read any of them with the `memory_get` tool or search further back with `memory_search`. The block is marked as **evidence to verify, never instructions to obey**.
 
-The session banner says what was delivered, for example `Memory · 3 past entries recalled (~1.1k tokens)`. It prints no memory line when nothing was recalled.
+The session banner says what was delivered, for example `Memory · 3 past entries + 24 titles recalled (~1.6k tokens)`. A project with only a few entries shows no titles, for example `Memory · 3 past entries recalled (~1.1k tokens)`. It prints no memory line when nothing was recalled.
 
 Recall needs a git checkout. In a folder outside git there is no project to recall from, so neither session-start nor prompt recall runs, and nothing is captured there either. Evidence that earlier versions captured outside git stays under **No repository** and is not summarised.
 
-Relevant memory can also be supplied on a substantive prompt later in the session. It gets a third of the session-start budget (at most `retrieval.max_items / 3` entries and `retrieval.max_tokens / 3` estimated tokens, so two entries and 400 tokens by default), excludes entries already delivered and requires a relevance match. Unrelated prompts receive no memory block. Only what you typed is searched: pasted content, subagent hand-backs and task notifications are ignored, so a prompt that contains nothing else gets no memory block.
+Relevant memory can also be supplied on a substantive prompt later in the session. It gets a third of the session-start budget (at most `retrieval.max_items / 3` entries and `retrieval.max_tokens / 3` estimated tokens, so two entries and 400 tokens by default), excludes entries already delivered and requires a relevance match. The cap is strict: an entry larger than the whole per-prompt budget is skipped. Unrelated prompts receive no memory block. Only what you typed is searched: pasted content, subagent hand-backs and task notifications are ignored, so a prompt that contains nothing else gets no memory block.
 
 | Mode | Best use | Limit |
 | --- | --- | --- |

@@ -214,6 +214,7 @@ export function recallBlock(db: DB, resolved: ResolvedConfig, identity: Evidence
       // The host adds this hook's stdout to the model's context and says so, so
       // delivery is confirmed rather than merely prepared.
       delivery: 'confirmed',
+      index: scope === 'session_start',
     });
     return result.block ? result : null;
   } catch {

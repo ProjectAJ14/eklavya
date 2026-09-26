@@ -36,20 +36,69 @@ export class ProviderError extends Error {
   }
 }
 
+/** One source for the limits: the validator, the trim and the prompt all read these. */
+const LIMIT = {
+  observations: 6,
+  title: 200,
+  narrative: 4000,
+  facts: 12,
+  fact: 400,
+  files: 40,
+  file: 400,
+  tags: 12,
+  tag: 40,
+  concepts: 8,
+} as const;
+
 const DraftSchema = z.object({
-  title: z.string().min(1).max(200),
+  title: z.string().min(1).max(LIMIT.title),
   type: z.enum(['bugfix', 'feature', 'refactor', 'decision', 'discovery', 'change']),
-  narrative: z.string().max(4000),
-  facts: z.array(z.string().max(400)).max(12),
-  files: z.array(z.string().max(400)).max(40),
-  tags: z.array(z.string().max(40)).max(12),
+  narrative: z.string().max(LIMIT.narrative),
+  facts: z.array(z.string().max(LIMIT.fact)).max(LIMIT.facts),
+  files: z.array(z.string().max(LIMIT.file)).max(LIMIT.files),
+  tags: z.array(z.string().max(LIMIT.tag)).max(LIMIT.tags),
   concepts: z
     .array(z.object({ slug: z.string().max(80), name: z.string().max(120), domain: z.string().max(60) }))
-    .max(8)
+    .max(LIMIT.concepts)
     .optional(),
 });
 
-const ResultSchema = z.object({ observations: z.array(DraftSchema).max(6) });
+const ResultSchema = z.object({ observations: z.array(DraftSchema).max(LIMIT.observations) });
+
+/**
+ * The model's output cut to the limits, before validation.
+ *
+ * Structured outputs cannot enforce a length or an item count (the API rejects
+ * `maxLength` and array-size constraints), so the model is told the limits in
+ * the prompt and sometimes exceeds them anyway: a thirteenth fact, a seventh
+ * observation. Rejecting the whole batch for that threw away 31 batches in a
+ * day — about a tenth of the work — over detail past a limit. Claude Mem keeps
+ * what it can and skips only what it cannot read; this trims to the limit and
+ * keeps the rest. Only a wrong shape (a missing field, a bad type) still fails.
+ */
+export function trimToLimits(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const obs = (raw as { observations?: unknown }).observations;
+  if (!Array.isArray(obs)) return raw;
+  const cut = (v: unknown, n: number) => (typeof v === 'string' && v.length > n ? `${v.slice(0, n - 1)}…` : v);
+  const list = (v: unknown, n: number, each: number) => (Array.isArray(v) ? v.slice(0, n).map((x) => cut(x, each)) : v);
+  return {
+    ...raw,
+    observations: obs.slice(0, LIMIT.observations).map((o) => {
+      if (!o || typeof o !== 'object') return o;
+      const d = o as Record<string, unknown>;
+      return {
+        ...d,
+        title: cut(d.title, LIMIT.title),
+        narrative: cut(d.narrative, LIMIT.narrative),
+        facts: list(d.facts, LIMIT.facts, LIMIT.fact),
+        files: list(d.files, LIMIT.files, LIMIT.file),
+        tags: list(d.tags, LIMIT.tags, LIMIT.tag),
+        concepts: Array.isArray(d.concepts) ? d.concepts.slice(0, LIMIT.concepts) : d.concepts,
+      };
+    }),
+  };
+}
 
 const OUTPUT_SCHEMA = {
   type: 'object',
@@ -90,6 +139,8 @@ const SYSTEM = [
   'Write what happened and why, in the developer\'s own vocabulary. Prefer specifics over adjectives.',
   'Every fact must be supported by the evidence. Omit rather than guess.',
   'If the evidence shows no durable work, return an empty observations array.',
+  `Write one observation per distinct finding, decision or change, at most ${LIMIT.observations}; do not merge unrelated work into one. Each has at most ${LIMIT.facts} facts of under ${LIMIT.fact} characters, and a narrative under ${LIMIT.narrative} characters.`,
+  'Tool events end with "→" and what the tool returned: record what it showed, not only that it ran. An assistant event is the agent\'s own conclusion for that turn: keep what it found and decided.',
 ].join('\n');
 
 /** The tags the prompt fences evidence with, and so the ones evidence may not spell. */
@@ -438,7 +489,7 @@ export class ProviderSummarizer implements Summarizer {
       `<evidence project="${input.project}" session="${input.sessionId}">\n${renderEvidence(input)}\n</evidence>`,
       opts,
     );
-    const result = ResultSchema.safeParse(readResult(stdout));
+    const result = ResultSchema.safeParse(trimToLimits(readResult(stdout)));
     if (!result.success) {
       throw new ProviderError('malformed', `the provider output failed validation: ${result.error.message.slice(0, 200)}`);
     }

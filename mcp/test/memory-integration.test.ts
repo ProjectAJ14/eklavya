@@ -245,6 +245,49 @@ describe('the memory loop, end to end through the real hooks', () => {
   });
 });
 
+describe('what the summariser is given', () => {
+  const bodies = (kind?: string) =>
+    (db
+      .prepare(`SELECT body FROM evidence_events${kind ? ' WHERE kind = ?' : ''} ORDER BY id`)
+      .all(...(kind ? [kind] : [])) as { body: string }[]).map((r) => r.body);
+
+  it('keeps what a command printed, head and tail, not only the command', () => {
+    const middle = 'x'.repeat(5000);
+    tool('s1', 'Bash', { command: 'npm test' }, { stdout: `START 12 passed${middle}END 1 failed: auth.test.ts`, stderr: '' });
+    const [body] = bodies('tool_use');
+    expect(body).toContain('npm test');
+    expect(body).toContain('→ START 12 passed');
+    expect(body).toContain('END 1 failed: auth.test.ts');
+    expect(body!.length).toBeLessThanOrEqual(4000);
+  });
+
+  it('keeps an MCP result, but never a file read back or an edit echoed', () => {
+    tool('s1', 'mcp__db__run_query', { sql: 'select 1' }, [{ type: 'text', text: 'order BG-1 has 3 documents' }]);
+    tool('s1', 'Read', { file_path: `${repo}/secret-free.ts` }, { file: { content: 'const whole = "file";' } });
+    tool('s1', 'Edit', { file_path: `${repo}/a.ts`, old_string: 'a', new_string: 'b' }, { structuredPatch: 'echo' });
+    const all = bodies().join('\n');
+    expect(all).toContain('order BG-1 has 3 documents');
+    expect(all).not.toContain('const whole');
+    expect(all).not.toContain('echo');
+  });
+
+  it("records the turn's final answer at Stop, before the batch closes", () => {
+    tool('s1', 'Bash', { command: 'git log -1' }, { stdout: 'abc123 fix', stderr: '' });
+    hook(STOP, {
+      session_id: 's1',
+      cwd: repo,
+      hook_event_name: 'Stop',
+      last_assistant_message: 'The root cause is the token cache expiring before refresh.',
+    });
+    expect(bodies('assistant')).toEqual(['The root cause is the token cache expiring before refresh.']);
+  });
+
+  it("does not record a subagent's final message at Stop", () => {
+    hook(STOP, { session_id: 's1', cwd: repo, hook_event_name: 'Stop', agent_id: 'a1', last_assistant_message: 'subagent report' });
+    expect(bodies('assistant')).toEqual([]);
+  });
+});
+
 describe('recall mid-session, on a change of subject', () => {
   function recalledFrom(stdout: string): string | null {
     if (!stdout.trim().startsWith('{')) return null;

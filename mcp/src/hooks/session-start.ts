@@ -309,7 +309,7 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   // against raw evidence the agent would never have re-read, so the banner
   // states the delivery it can prove. Nothing recalled earns no line.
   if (parts.memory && parts.recalled) {
-    out.push(paint(recalledLine(parts.recalled.entries.length, parts.recalled.deliveredTokens), 114, color));
+    out.push(paint(recalledLine(parts.recalled.entries.length, parts.recalled.deliveredTokens, parts.recalled.indexed), 114, color));
   }
   // Stale memory is recalled as confidently as fresh memory, so the one state
   // worth a warning is a queue that has stopped turning evidence into entries.

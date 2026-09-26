@@ -78,7 +78,7 @@ All launch `node` with `args`. Timeouts are in seconds: 10 for each registration
 | SubagentStart | `agent_type`, session identity | Implementer logging directive; tutor exempt |
 | PreToolUse | `tool_name`, `tool_input.command` | Optional commit denial |
 | PostToolUse | `tool_name`, `tool_input`, `tool_response`, `agent_id` | Capture and eligible checkpoint |
-| Stop | Identity, `agent_id`, optional `stop_hook_active` | Memory seam and eligible quiz continuation |
+| Stop | Identity, `agent_id`, optional `stop_hook_active`, `last_assistant_message` (2.1.283; absent on older hosts) | Records the turn's final message as memory evidence, then the memory seam and eligible quiz continuation |
 
 [`HookInput`](../mcp/src/hooks/lib.ts) is the exact list Eklavya reads. An
 upstream field existing does not imply the integration uses it. Capture currently
@@ -139,6 +139,7 @@ target host before changing the behavior; they are not universal UI guarantees.
 |---|---|---|
 | 2026-09-05, terminal | Question newlines survived; Markdown markers rendered literally; the question had one bold weight | Do not rely on Markdown or ANSI inside the stem |
 | 2026-09-20, Claude Desktop comparison | Desktop lacked the terminal header chip and status bar | The plan's `ask_attribution` can request inline `[Eklavya]`; skills follow that field |
+| 2026-09-26, 2.1.283 binary | `last_assistant_message` is a Stop input field | Capture it when present; a host without it records no assistant evidence, as before |
 | 2026-09-22, 2.1.278 bundle | Stop context appeared in terminal feedback; suppression did not hide that path | Keep the sweep short; the planner supplies detailed pedagogy |
 | 2026-09-23, 2.1.280 bundle | Top-level `systemMessage` produced visible hook messages; SessionStart plain output was model context | Use the common JSON envelope and test both channels |
 
