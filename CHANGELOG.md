@@ -1,3 +1,15 @@
+# [1.35.0](https://github.com/ProjectAJ14/eklavya/compare/v1.34.0...v1.35.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* **dashboard:** start the background dashboard outside any checkout ([2c12ce1](https://github.com/ProjectAJ14/eklavya/commit/2c12ce148278fcdf124085ed07d4cb8d12cac416))
+
+
+### Features
+
+* **dashboard:** keep the dashboard running in the background ([f17be3b](https://github.com/ProjectAJ14/eklavya/commit/f17be3baef9997cc85dfa78f2a914dc11fd322da))
+
 # [1.34.0](https://github.com/ProjectAJ14/eklavya/compare/v1.33.3...v1.34.0) (2026-09-26)
 
 
