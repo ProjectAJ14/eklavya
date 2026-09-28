@@ -1,3 +1,10 @@
+## [1.36.1](https://github.com/ProjectAJ14/eklavya/compare/v1.36.0...v1.36.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **explainer:** hand the page every option, not just picked and right ([1b76c32](https://github.com/ProjectAJ14/eklavya/commit/1b76c32957977ccdf6ff0adfc146d26058bec2a9))
+
 # [1.36.0](https://github.com/ProjectAJ14/eklavya/compare/v1.35.1...v1.36.0) (2026-09-28)
 
 
