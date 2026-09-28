@@ -140,7 +140,7 @@ export const setConfig: ToolDef = {
     explain_on_wrong: z
       .boolean()
       .optional()
-      .describe('Whether a missed question also gets an explainer page, written in the background and opened (default false). Usually set per project.'),
+      .describe('Whether a missed question also gets an explainer page, written in the background and opened (default true). Usually turned off per project.'),
     auto_update: z
       .boolean()
       .optional()

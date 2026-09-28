@@ -78,7 +78,8 @@ not.
 
 **Stay on the design system.** Components already in the template: `.eyebrow`,
 `.lede`, `.card`, `.grid`, `.chip` (`.warn`, `.bad`), `.stat` (`.k`, `.v`,
-`.d`), `.callout`, `td.num`. Reuse them before adding CSS. Any CSS you add
+`.d`), `.callout`, `td.num`, and `ol.options` with `li.picked` / `li.right`
+for restating a missed question. Reuse them before adding CSS. Any CSS you add
 follows Eklavya's rules:
 
 - **Colour names a role**, never a raw hex, `rgba()` or `--vd-*` step. Grounds

@@ -289,8 +289,9 @@ export interface EklavyaConfig {
   /**
    * Whether a missed question also gets an explainer page: a background agent
    * writes an Eklavya artifact on the concept and opens it, while the session
-   * carries on. Off by default — a page per wrong answer is a lot to have land
-   * unasked, so it is something a developer turns on, usually per project.
+   * carries on. On by default: the page restates the question, so a miss is
+   * something to read later rather than lost. Turn it off per project if the
+   * pages pile up.
    * Asking "explain this to me" gets a page whatever this says.
    */
   explain_on_wrong: boolean;
@@ -344,7 +345,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   min_minutes_between_checkpoints: 4,
   domains_enabled: ['*'],
   quiet: false,
-  explain_on_wrong: false,
+  explain_on_wrong: true,
   auto_update: true,
   telemetry: true,
   dashboard_autostart: true,

@@ -11,7 +11,8 @@ do not ask anything, and do not quiz. Write one page, open it, and report its
 path in one line.
 
 You were handed some of: the concept slug and name, the question as it was
-asked, the developer's answer, the right answer, and the code it came from.
+asked, the options offered, the developer's answer, the right answer, and the
+code it came from.
 Work with what you have; do not go looking for a conversation you cannot see.
 
 ## Make the page
@@ -34,6 +35,12 @@ Work with what you have; do not go looking for a conversation you cannot see.
 
 In this order, each under its own `<h2>`:
 
+- **The question.** Only when a missed question started this page. The stem as
+  asked, then every option in order as `<ol class="options">`: the developer's
+  pick gets `class="picked"`, the right one `class="right"`. Copy both
+  verbatim, and keep the text labels the classes add; colour is not the only
+  signal. With no options (a typed answer), show the stem, their answer and the
+  right answer in the same list. Skip this section for a page someone asked for.
 - **The short answer.** Two or three sentences a newcomer could repeat: what the
   thing *does*, before what it is called.
 - **Where the answer went wrong.** Name the misconception in the answer given
