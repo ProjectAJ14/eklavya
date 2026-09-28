@@ -16,7 +16,7 @@ Eklavya helps you understand the code Claude writes and remember the decisions b
 | --- | --- |
 | **Hooks** | React to session events: load context, capture work, prompt a quiz, or check a commit. |
 | **MCP server** | A local Node process that exposes tools to Claude. It selects concepts, stores answers, updates review schedules, and searches memory. |
-| **Skills and agents** | Instructions that guide Claude's teaching: write questions, assess answers, explain mistakes, and create optional explainer pages. |
+| **Skills and agents** | Instructions that guide Claude's teaching: write questions, assess answers, explain mistakes, and create explainer pages after a miss. |
 
 Claude calls the server through the Model Context Protocol (MCP). Hooks open the same SQLite database directly; they do not send their reads and writes through the MCP server. The [dashboard](/docs/dashboard/) and [CLI](/docs/cli/) also use this local store.
 

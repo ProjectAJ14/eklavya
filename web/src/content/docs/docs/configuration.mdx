@@ -58,7 +58,7 @@ These are the learning and general settings. Memory-related namespaces follow be
 | `max_stop_blocks_per_session` | `3` | Maximum times the end-of-task hook can hold a session open for questions. |
 | `domains_enabled` | `["*"]` | Filters the learner profile (including its due list) and memory-derived concept candidates. `*` includes all. It is not a strict block on explicitly selected or logged concepts. |
 | `quiet` | `false` | Suppresses the banner and status line. Logging, memory and questions continue. |
-| `explain_on_wrong` | `false` | Writes a background explainer page after a wrong or “I don't know” answer. Skips and declines do not create pages. |
+| `explain_on_wrong` | `true` | Writes a background explainer page after a wrong or “I don't know” answer. The page opens with the question, its options, your pick in red and the right answer highlighted. Skips and declines do not create pages. |
 | `auto_update` | `true` | Global only. Checks for a newer release at session start, at most hourly, and permits runtime catch-up. A missing runtime is still installed when false; manual `eklavya update` remains available. |
 | `telemetry` | `true` | Global only. Sends anonymous daily usage counts: numbers and setting values, never paths, names or text. `EKLAVYA_TELEMETRY=0` or `DO_NOT_TRACK=1` turns it off whatever this says. See [Usage analytics](/docs/usage-analytics/). |
 | `dashboard_autostart` | `true` | Global only. Session start keeps the [dashboard running in the background](/docs/dashboard/#keeping-it-running), replacing an older version after an update. When false, `eklavya dashboard` runs in the foreground until **Ctrl+C**. |

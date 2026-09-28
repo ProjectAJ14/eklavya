@@ -127,9 +127,10 @@ page with `eklavya artifacts new "Scratch page" --description "A local check"
 --open`; confirm it appears in the dashboard and worktree pages use the main
 project's folder. An artifact must not access the dashboard API.
 
-With `explain_on_wrong: true`, deliberately miss a question. The verdict and task
-should continue immediately while the explainer creates a page in the background.
-Restore the setting after the check.
+With `explain_on_wrong` at its default (`true`), deliberately miss a question. The
+verdict and task should continue immediately while the explainer creates a page in
+the background. The page must open with the question, every option, the pick in
+red and the right answer highlighted.
 
 ## Evaluation
 

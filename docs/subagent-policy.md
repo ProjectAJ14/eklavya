@@ -50,7 +50,7 @@ brief drives the requested teaching.
 
 ## The explainer writes a page
 
-With `explain_on_wrong` enabled, `record_attempt` can return an `explain` block.
+With `explain_on_wrong` on (the default), `record_attempt` can return an `explain` block.
 The parent records the answer before starting the background explainer, which
 creates a page through `eklavya artifacts new`, fills it, opens it and finishes.
 The parent does not wait for the page.

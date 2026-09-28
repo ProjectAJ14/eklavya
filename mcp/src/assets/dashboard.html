@@ -2479,7 +2479,7 @@ function viewArtifacts(param) {
   const chip = (k, label) => `<button class="chip" data-go="${esc(AH('dashboard', k === 'all' ? null : k))}" aria-pressed="${kind === k}">${label} ${counts[k]}</button>`;
   const cols = [{t:'Page'},{t:'Kind'},{t:'Concept'},{t:'Written',n:1}];
   const body = !list.length
-    ? `<p class="empty">${all.length ? 'Nothing matches that search.' : 'No artifacts yet. Ask for an Eklavya artifact, or turn on explain_on_wrong, and they land here.'}</p>`
+    ? `<p class="empty">${all.length ? 'Nothing matches that search.' : 'No artifacts yet. Ask for an Eklavya artifact, or miss a question with explain_on_wrong on, and they land here.'}</p>`
     : [...groups].map(([id, rows]) =>
         `<h3 class="slug" style="margin:var(--space-5) 0 var(--space-2)">${esc(projectById(id)?.name ?? (id === '~' ? 'no project' : base(id)))}</h3>`
         + table(cols, rows.map(artifactRow))).join('') + pager('artifacts', list.length, p);

@@ -79,6 +79,16 @@
   .stat .d{color:var(--dim);font-size:13px}
   .callout{border:1px solid var(--spot);background:var(--spot-soft);padding:14px 18px;margin:1.4em 0}
 
+  /* A missed question, restated: the learner's pick in --error, the right one in --spot. */
+  ol.options{list-style:upper-alpha;padding-left:1.6em;margin:1.2em 0}
+  ol.options li{border:1px solid var(--line-2);padding:10px 14px;margin:8px 0}
+  ol.options li.picked{border-color:var(--error);background:color-mix(in srgb,var(--error) 12%,transparent)}
+  ol.options li.right{border-color:var(--spot);background:var(--spot-soft)}
+  ol.options li.picked::after,ol.options li.right::after{display:block;margin-top:4px;
+    font:400 11px var(--font-mono);letter-spacing:var(--tracking-caps);text-transform:uppercase}
+  ol.options li.picked::after{content:"Your answer";color:var(--error)}
+  ol.options li.right::after{content:"Right answer";color:var(--spot)}
+
   figure{margin:1.8em 0;background:var(--panel);border:1px solid var(--line-2);
     padding:20px;text-align:center;break-inside:avoid}
   figure svg{max-width:100%;height:auto}

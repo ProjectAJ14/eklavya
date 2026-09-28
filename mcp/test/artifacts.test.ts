@@ -227,9 +227,18 @@ describe('record_attempt and explain_on_wrong', () => {
     ) as any;
   };
 
-  it('stays silent by default, even on a wrong answer', async () => {
+  it('is on by default and stays silent when turned off', async () => {
     const r = await attempt({ answer: 'wrong', grade: 1, outcome: 'answered' });
-    expect(r.explain).toBeUndefined();
+    expect(r.explain).toBeDefined();
+    setExplain(false);
+    expect((await attempt({ answer: 'wrong', grade: 1, outcome: 'answered' })).explain).toBeUndefined();
+  });
+
+  it('hands the explainer the options so the page can show the question', async () => {
+    const options = ['A', 'B', 'C', 'D'];
+    const r = await attempt({ answer: 'B', grade: 1, outcome: 'answered', format: 'mcq', options });
+    expect(r.explain).toMatchObject({ options, answer: 'B' });
+    expect(r.explain.instruction).toMatch(/every option offered/);
   });
 
   it('hands back an explain block on a miss and a taught blank, never on a pass, skip or decline', async () => {
