@@ -93,8 +93,11 @@ export function receiptUid(): string {
 /** Repo-relative when the file is inside the checkout, absolute otherwise. */
 export function relativeToProject(file: string, project: string): string {
   if (!path.isAbsolute(file) || project === GLOBAL_PROJECT) return file;
+  // Forward slashes on every platform: the same file is stored and looked up
+  // under one spelling, whichever OS captured it.
+  const posix = (p: string) => p.split(path.sep).join('/');
   const rel = path.relative(project, file);
-  if (rel && !rel.startsWith('..')) return rel;
+  if (rel && !rel.startsWith('..')) return posix(rel);
   // The project key is a realpath (`findRepoConfig` resolves symlinks so the
   // git hook can match on it), and a host may report the unresolved path --
   // on macOS every repo under /tmp is really under /private/tmp. Only tried
@@ -102,7 +105,9 @@ export function relativeToProject(file: string, project: string): string {
   // ordinary case.
   try {
     const resolved = path.relative(project, fs.realpathSync(path.dirname(file)));
-    if (resolved && !resolved.startsWith('..')) return path.join(resolved, path.basename(file));
+    // '' is the checkout root itself: a file there (`package.json`) is inside
+    // the project too, and used to keep its absolute spelling.
+    if (!resolved.startsWith('..') && !path.isAbsolute(resolved)) return posix(path.join(resolved, path.basename(file)));
   } catch {
     /* A path that no longer exists keeps the spelling the host gave. */
   }

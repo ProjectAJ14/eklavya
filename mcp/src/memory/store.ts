@@ -491,7 +491,8 @@ export function replaceEntry(db: DB, id: number, raw: EntryInput): void {
   db.transaction(() => {
     db.prepare(
       `UPDATE memory_entries
-       SET type = ?, title = ?, narrative = ?, facts = ?, files = ?, confidence = ?, occurred_at = ?
+       SET type = ?, title = ?, narrative = ?, facts = ?, files = ?, confidence = ?, occurred_at = ?,
+           generator = COALESCE(?, generator)
        WHERE id = ?`,
     ).run(
       input.type ?? null,
@@ -501,6 +502,9 @@ export function replaceEntry(db: DB, id: number, raw: EntryInput): void {
       input.files?.length ? JSON.stringify(input.files) : null,
       input.confidence ?? null,
       input.occurredAt ?? nowIso(),
+      // Who wrote the row now: a session's roll-up replaced by a model
+      // checkpoint must say so, or the next roll-up takes it for its own.
+      input.generator ?? null,
       id,
     );
     db.prepare('DELETE FROM memory_entry_tags WHERE entry_id = ?').run(id);

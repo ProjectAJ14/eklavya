@@ -77,27 +77,73 @@ export interface RecallOptions {
   /** Override `retrieval.max_tokens`, for the tighter per-prompt budget. */
   maxTokens?: number;
   /**
-   * Also list the next entries by title and id, after the ones sent in full.
-   * The seam recall only: a prompt recall is about one thing.
+   * The seam layout: a timeline of recent work, the newest observations in
+   * full, and the last session's checkpoint. A prompt recall is about one
+   * thing and stays a ranked list.
    */
   index?: boolean;
 }
 
 /**
- * The title index a seam recall adds after its full entries: the rest of the
- * project's recent work, one line each, with the ids to read any of it.
+ * The timeline a seam recall opens with: the project's recent work, oldest
+ * first, one timed line each, grouped by day, with each session's request
+ * among its observations.
  *
- * Six full entries is depth without breadth — the model knew the last hour well
- * and nothing about last week. Claude Mem's session start is the opposite, up to
- * fifty titles with ids and a line saying how to fetch one, and that breadth is
- * much of why it read as knowing the project. A title costs about fifteen
- * tokens; the full entry stays one `memory_get` away.
+ * Modelled on Claude Mem's session start, which is fifty such lines and the
+ * last session's checkpoint rather than a few entries in full. Read in order,
+ * the lines are the story of the last few days — what was asked, what was
+ * found, what shipped — which a handful of narratives, however detailed, is
+ * not. A line costs about twenty tokens; the full entry is one `memory_get` away.
  *
  * ponytail: fixed allowances rather than config keys; make them dials if
- * someone needs a wider or narrower index.
+ * someone needs a wider or narrower timeline.
  */
-export const INDEX_MAX_ITEMS = 30;
-export const INDEX_MAX_TOKENS = 700;
+export const INDEX_MAX_ITEMS = 50;
+export const INDEX_MAX_TOKENS = 1_100;
+
+const pad = (n: number) => String(n).padStart(2, '0');
+/** Local calendar day and clock time: the developer's own day, not UTC's. */
+function localDay(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function localTime(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** One timeline line. A session's summary line is what was asked in it. */
+function timelineLine(entry: EntryRow): string {
+  const kind = entry.kind === 'session_summary' ? 'session' : defangFence(entry.type ?? 'change');
+  const title = defangFence(entry.title.replace(/^Session: /, '')).replace(/\s+/g, ' ').slice(0, 160);
+  return `[#${entry.id}] ${localTime(entry.occurred_at)} ${kind} · ${title}`;
+}
+
+/**
+ * Characters kept per checkpoint section at session start. Five sections at
+ * this length stay near 450 estimated tokens, so the checkpoint cannot take
+ * the whole detail budget and push every observation out of the block; the
+ * full text is one `memory_get` away.
+ */
+const CHECKPOINT_SECTION_CHARS = 350;
+
+/** The last session's checkpoint, closing the block: where the work was left. */
+function renderCheckpoint(entry: EntryRow): string {
+  const text = entry.narrative || entry.title;
+  const sections = text.split(/\n{2,}/);
+  const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+  // A checkpoint (model-written or imported) has blank-line sections, each cut
+  // to its share; anything else — a local roll-up is one list — is cut as a
+  // whole at the same total.
+  const body =
+    sections.length > 1
+      ? sections.map((s) => cut(s, CHECKPOINT_SECTION_CHARS)).join('\n\n')
+      : cut(text, CHECKPOINT_SECTION_CHARS * 5);
+  return [
+    `Where the last session left off ([#${entry.id}], ${localDay(entry.occurred_at)} ${localTime(entry.occurred_at)}):`,
+    defangFence(body),
+  ].join('\n');
+}
 
 export interface RecallResult {
   block: string | null;
@@ -199,6 +245,34 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
         }).filter((entry) => allowed(entry.id));
   if (!pool.length) return empty;
 
+  // The seam: the newest session summary is the checkpoint and goes first in
+  // the detail budget; the rest of the detail is observations, newest first.
+  // Session summaries otherwise appear only as timeline lines — in full they
+  // were a list of titles the timeline already shows.
+  // Not this session's own summary: on a resume or after a compaction it is
+  // the session carrying on, not "the last session", and its work is already
+  // in the context the host kept.
+  // Always this project's: another checkout's next steps are not where this one
+  // left off, even when cross_project widens the rest of the recall.
+  const newest = opts.index
+    ? timeline(db, { project: opts.project, kind: 'session_summary', limit: 3 }).filter(
+        (e) => allowed(e.id) && (!opts.sessionId || e.session_id !== opts.sessionId),
+      )[0]
+    : undefined;
+  // And only when it is the last work here: a later session with no summary
+  // (too short, or its checkpoint still queued) did newer work, which the
+  // timeline and the full entries already show.
+  const later = pool.find(
+    (e) => e.kind !== 'session_summary' && e.project === opts.project && e.session_id !== opts.sessionId,
+  );
+  const checkpoint =
+    newest && (!later || later.session_id === newest.session_id || later.occurred_at <= newest.occurred_at)
+      ? newest
+      : undefined;
+  const detailPool = opts.index
+    ? [...(checkpoint ? [checkpoint] : []), ...pool.filter((e) => e.kind !== 'session_summary')]
+    : pool;
+
   // A checkout path is not ours to trust either: a directory named with a quote
   // or a fence tag must not rewrite the header it is quoted in.
   const projectAttr = defangFence(opts.project).replace(/"/g, '&quot;');
@@ -221,9 +295,9 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   const kept: EntryRow[] = [];
   const rendered: string[] = [];
   let delivered = wrapperTokens;
-  for (const entry of pool) {
+  for (const entry of detailPool) {
     if (kept.length >= limit) break;
-    const text = renderEntry(entry, kept.length + 1);
+    const text = entry === checkpoint ? renderCheckpoint(entry) : renderEntry(entry, kept.length + (checkpoint ? 0 : 1));
     const cost = estimateTokens(text);
     // The first entry may overrun at a seam, where one long summary is still the
     // best thing to say. A prompt's budget is a cap: a 660-token entry against
@@ -235,24 +309,37 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   }
   if (!kept.length) return empty;
 
-  // The index: whatever the full entries left, newest first, title and id only.
-  // Charged like the wrapper — delivered, never claimed as a saving.
+  // The timeline: the newest entries not sent in full, within its own
+  // allowance, then put in order and grouped by day. Charged like the wrapper
+  // — delivered, never claimed as a saving.
   const indexLines: string[] = [];
+  let timelineCount = 0;
   if (opts.index) {
     const sent = new Set(kept.map((e) => e.id));
+    const chosen: EntryRow[] = [];
     let spent = 0;
     for (const entry of pool) {
-      if (indexLines.length >= INDEX_MAX_ITEMS) break;
+      if (chosen.length >= INDEX_MAX_ITEMS) break;
       if (sent.has(entry.id)) continue;
-      const line = `- [#${entry.id}] ${entry.occurred_at.slice(0, 10)} ${defangFence(entry.type ?? 'change')} · ${defangFence(entry.title)}`;
-      const cost = estimateTokens(line);
+      const cost = estimateTokens(timelineLine(entry)) + 1;
       if (spent + cost > INDEX_MAX_TOKENS) break;
-      indexLines.push(line);
+      chosen.push(entry);
       spent += cost;
     }
-    if (indexLines.length) {
+    chosen.sort((a, b) => a.occurred_at.localeCompare(b.occurred_at) || a.id - b.id);
+    let day = '';
+    for (const entry of chosen) {
+      const d = localDay(entry.occurred_at);
+      if (d !== day) {
+        indexLines.push(`### ${d}`);
+        day = d;
+      }
+      indexLines.push(timelineLine(entry));
+    }
+    timelineCount = chosen.length;
+    if (chosen.length) {
       indexLines.unshift(
-        'Earlier work, titles only. Read any in full with the memory_get tool (pass the ids); look further back with memory_search.',
+        'Recent work, oldest first: [#id] time type · title. A "session" line stands for a whole session, usually what was asked in it. Read any entry in full with the memory_get tool (pass the ids); look further back with memory_search.',
       );
       delivered += estimateTokens(indexLines.join('\n'));
     }
@@ -260,8 +347,17 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
 
   const base = baseTokensFor(db, kept);
 
-  const header = `<eklavya-memory project="${projectAttr}" items="${kept.length}">`;
-  const block = [header, note, ...rendered, ...indexLines, footer].join('\n');
+  const header = `<eklavya-memory project="${projectAttr}" items="${kept.length + timelineCount}">`;
+  // Timeline first, then the newest work in full, then the checkpoint: read
+  // top to bottom it ends where the last session stopped.
+  const full = kept.map((e, i) => ({ e, text: rendered[i]! }));
+  const detail = full.filter((x) => x.e !== checkpoint).map((x) => x.text);
+  const DETAIL_HEADING = 'Latest, in full:';
+  if (opts.index && detail.length) delivered += estimateTokens(DETAIL_HEADING);
+  const closing = full.filter((x) => x.e === checkpoint).map((x) => x.text);
+  const block = opts.index
+    ? [header, note, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
+    : [header, note, ...rendered, footer].join('\n');
 
   const receiptId = recordReceipt(db, {
     project: opts.project,
@@ -269,7 +365,10 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     scope: opts.scope ?? 'session_start',
     method: ESTIMATOR,
     delivery: opts.delivery ?? 'confirmed',
-    wrapperTokens: wrapperTokens + (indexLines.length ? estimateTokens(indexLines.join('\n')) : 0),
+    wrapperTokens:
+      wrapperTokens +
+      (indexLines.length ? estimateTokens(indexLines.join('\n')) : 0) +
+      (opts.index && detail.length ? estimateTokens(DETAIL_HEADING) : 0),
     items: kept.map((entry, i) => ({
       entryId: entry.id,
       sourceTokens: base.get(entry.id) ?? 0,
@@ -283,7 +382,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     block,
     receiptId,
     entries: kept,
-    indexed: Math.max(0, indexLines.length - 1),
+    indexed: timelineCount,
     baseTokens: kept.reduce((sum, e) => sum + (base.get(e.id) ?? 0), 0),
     deliveredTokens: delivered,
   };

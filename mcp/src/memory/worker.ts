@@ -3,7 +3,8 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { nowIso, parseStamp } from '../time.js';
 import { probeLogin, ProviderError, ProviderSummarizer } from './provider.js';
-import { LocalSummarizer, summarizeSession, type Summarizer } from './summarize.js';
+import { LocalSummarizer, summarizeSession, type Checkpoint, type Summarizer } from './summarize.js';
+import { ownWords } from './recall.js';
 import { handOffWorker, launchWorker, releaseWorker, renewWorker } from './reservation.js';
 import {
   addCandidate,
@@ -87,10 +88,28 @@ const SESSION_SUMMARY_GENERATOR = 'session-rollup-v1';
  * `processPending` if the provider path ever stops being asynchronous.
  */
 export function writeSessionSummary(db: DB, project: string, sessionId: string): number | null {
+  // Immediate: the check below and the write after it are one step, so a
+  // worker committing a checkpoint in between cannot be overwritten by it.
+  return db.transaction(() => writeRollup(db, project, sessionId)).immediate();
+}
+
+function writeRollup(db: DB, project: string, sessionId: string): number | null {
+  const existing = timeline(db, { project, sessionId, kind: 'session_summary', limit: 1 })[0];
   // Bounded: the oldest observations of a day-long session are not where it
   // left off, and an unbounded roll-up is an unbounded row in every recall.
   const observations = timeline(db, { project, sessionId, kind: 'observation', limit: 24 });
-  const draft = summarizeSession(observations);
+  // A model's checkpoint says what was learned and what comes next; a roll-up
+  // of titles says less, so it replaces one only once the session has moved
+  // past it — the observer stopped writing checkpoints (cleared, paused, or its
+  // turn-end batches failed) while work went on, and its next steps are stale.
+  if (
+    existing &&
+    existing.generator !== SESSION_SUMMARY_GENERATOR &&
+    !(observations[0] && observations[0].occurred_at > existing.occurred_at)
+  ) {
+    return existing.id;
+  }
+  const draft = summarizeSession(observations, firstPrompt(db, project, sessionId));
   if (!draft) return null;
 
   const fields = {
@@ -111,8 +130,98 @@ export function writeSessionSummary(db: DB, project: string, sessionId: string):
     eventIds: draft.eventIds,
   };
 
+  if (existing) {
+    replaceEntry(db, existing.id, fields);
+    return existing.id;
+  }
+  return insertEntry(db, fields);
+}
+
+/** The first thing the developer asked in a session, in their own words, while the evidence is kept. */
+function firstPrompt(db: DB, project: string, sessionId: string): string | null {
+  const rows = db
+    .prepare(
+      `SELECT body FROM evidence_events WHERE project = ? AND session_id = ? AND kind = 'prompt'
+       ORDER BY occurred_at LIMIT 5`,
+    )
+    .all(project, sessionId) as { body: string }[];
+  // The first prompt that is more than a pasted block or a hand-back.
+  for (const row of rows) {
+    const own = ownWords(row.body);
+    if (own.length >= 12) return own;
+  }
+  return null;
+}
+
+/**
+ * The session so far, for a batch that ends a turn: its last checkpoint and
+ * the observations already recorded. Bounded, newest kept.
+ */
+export function sessionSoFar(db: DB, project: string, sessionId: string): string | undefined {
+  // Each part bounded on its own and cut at whole lines: the checkpoint keeps
+  // its opening Request, the titles keep their newest lines.
+  const PART = 3_000;
+  const parts: string[] = [];
+  const last = timeline(db, { project, sessionId, kind: 'session_summary', limit: 1 })[0];
+  if (last && last.generator !== SESSION_SUMMARY_GENERATOR) {
+    const text = last.narrative.length > PART ? `${last.narrative.slice(0, PART)}…` : last.narrative;
+    parts.push(`Last checkpoint:\n${text}`);
+  }
+  const lines: string[] = [];
+  let size = 0;
+  for (const e of timeline(db, { project, sessionId, kind: 'observation', limit: 60 })) {
+    const line = `- ${e.type ?? 'change'}: ${e.title}`;
+    if (size + line.length + 1 > PART) break;
+    lines.unshift(line);
+    size += line.length + 1;
+  }
+  if (lines.length) parts.push(`Recorded so far:\n${lines.join('\n')}`);
+  return parts.length ? parts.join('\n\n') : undefined;
+}
+
+/**
+ * Writes the session's checkpoint as its summary entry, replacing the one
+ * before: one row per session that always says where it stands now. The
+ * narrative uses Claude Mem's section names, which its imported summaries
+ * already carry, so both render the same way at session start.
+ */
+function writeCheckpoint(
+  db: DB,
+  project: string,
+  sessionId: string,
+  checkpoint: Checkpoint,
+  generator: string,
+  occurredAt: string,
+): number {
+  const section = (label: string, text: string) => (text.trim() ? `${label}: ${text.trim()}` : '');
+  const fields = {
+    project,
+    sessionId,
+    kind: 'session_summary' as const,
+    type: 'change',
+    title: checkpoint.request.trim().slice(0, 200),
+    narrative: [
+      section('Request', checkpoint.request),
+      section('Investigated', checkpoint.investigated),
+      section('Learned', checkpoint.learned),
+      section('Completed', checkpoint.completed),
+      section('Next steps', checkpoint.next_steps),
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    facts: [],
+    files: [],
+    tags: ['session', 'checkpoint'],
+    generator,
+    confidence: 0.8,
+    occurredAt,
+    eventIds: [],
+  };
   const existing = timeline(db, { project, sessionId, kind: 'session_summary', limit: 1 })[0];
   if (existing) {
+    // A retried batch from an earlier turn can finish after a later turn's
+    // checkpoint; it must not put the session back to where it stood then.
+    if (existing.generator !== SESSION_SUMMARY_GENERATOR && existing.occurred_at > occurredAt) return existing.id;
     replaceEntry(db, existing.id, fields);
     return existing.id;
   }
@@ -204,10 +313,15 @@ export async function processPending(
     );
 
     try {
+      // A batch that ends a turn carries the agent's final message; the
+      // checkpoint written from it needs the rest of the session, which earlier
+      // batches already summarised.
+      const endsTurn = events.some((e) => e.kind === 'assistant');
       const drafts = await summarizer.summarize({
         project: batch.project,
         sessionId: batch.session_id,
         events,
+        prior: endsTurn ? sessionSoFar(db, batch.project, batch.session_id) : undefined,
       }, { signal: opts.signal, onSpawn: opts.onSpawn });
       opts.onJob?.(null);
 
@@ -248,6 +362,14 @@ export async function processPending(
               project: batch.project,
             });
           }
+        }
+        // Only a session that did durable work gets a checkpoint. It closes every
+        // later session-start context as "where the last session left off", and
+        // a quick question in a new session must not replace the real next steps
+        // of the one before with an empty "nothing to do".
+        const didWork = drafts.length > 0 || timeline(db, { project: batch.project, sessionId: batch.session_id, kind: 'observation', limit: 1 }).length > 0;
+        if (drafts.checkpoint && didWork) {
+          writeCheckpoint(db, batch.project, batch.session_id, drafts.checkpoint, summarizer.id, events[events.length - 1]!.occurred_at);
         }
         db.prepare("UPDATE evidence_events SET status = 'summarized' WHERE batch_id = ?").run(batch.id);
         finishJob(db, job.id, owner);
@@ -648,6 +770,12 @@ export function pruneEvidence(
       `SELECT key FROM meta WHERE key LIKE 'recalled:%' AND ${ownedSession('substr(key, 10)')}`,
       { project },
     );
+    // The file-context hook's once-per-file rows (`filectx:<session>`), under
+    // the same rule as `recalled:`.
+    const fileSeen = keys(
+      `SELECT key FROM meta WHERE key LIKE 'filectx:%' AND ${ownedSession('substr(key, 9)')}`,
+      { project },
+    );
     // Ledger rows stop being retried after a day; past the window they only
     // take space. A row this version cannot read is left for what wrote it.
     // `notified:session:<sid>:<sink>` belongs to its session's project;
@@ -695,6 +823,14 @@ export function pruneEvidence(
       `DELETE FROM meta WHERE key ${inList}
          AND substr(key, 10) NOT IN (SELECT session_id FROM context_receipts WHERE session_id IS NOT NULL)`,
     ).run(JSON.stringify(recalled));
+    // `filectx:<session>` also has no date, and no receipt of its own: a
+    // session whose start recalled nothing has none. It is over once neither
+    // a receipt nor any evidence of it is left.
+    db.prepare(
+      `DELETE FROM meta WHERE key ${inList}
+         AND substr(key, 9) NOT IN (SELECT session_id FROM context_receipts WHERE session_id IS NOT NULL)
+         AND substr(key, 9) NOT IN (SELECT session_id FROM evidence_events WHERE session_id IS NOT NULL)`,
+    ).run(JSON.stringify(fileSeen));
     db.prepare(`DELETE FROM meta WHERE key ${inList}`).run(JSON.stringify(notified));
 
     if (!opts.limit || ids.length < opts.limit) {

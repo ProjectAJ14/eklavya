@@ -66,7 +66,8 @@ session.
 
 ## Hooks used by Eklavya
 
-Seven implementations use six events. PostToolUse has three registrations:
+Eight implementations use six events. PreToolUse has two registrations (`Bash`
+for the commit gate, `^Read$` for file history). PostToolUse has three registrations:
 capture for all tools and checkpoints on both concept logging and work tools.
 All launch `node` with `args`. Timeouts are in seconds: 10 for each registration,
 15 for Stop. Do not copy timeout units from another integration schema.
@@ -76,7 +77,7 @@ All launch `node` with `args`. Timeouts are in seconds: 10 for each registration
 | SessionStart | Session identity, checkout, `source` | Visible profile plus model recall/directive |
 | UserPromptSubmit | Identity and `prompt` | Capture, recall and logging nudge |
 | SubagentStart | `agent_type`, session identity | Implementer logging directive; tutor exempt |
-| PreToolUse | `tool_name`, `tool_input.command` | Optional commit denial |
+| PreToolUse | `tool_name`, `tool_input.command` or `tool_input.file_path`, `agent_id` | Optional commit denial; before a Read, the file's past work as `additionalContext` |
 | PostToolUse | `tool_name`, `tool_input`, `tool_response`, `agent_id` | Capture and eligible checkpoint |
 | Stop | Identity, `agent_id`, optional `stop_hook_active`, `last_assistant_message` (2.1.283; absent on older hosts) | Records the turn's final message as memory evidence, then the memory seam and eligible quiz continuation |
 
@@ -114,7 +115,10 @@ for a visible banner. `mcp/test/hooks.test.ts` checks the audiences separately.
 
 All Eklavya hooks exit 0, including expected quiz continuation and operational
 failures. PreToolUse denies with `permissionDecision: "deny"` and
-`permissionDecisionReason` inside `hookSpecificOutput`. Stop returns
+`permissionDecisionReason` inside `hookSpecificOutput`. The Read hook returns
+only `hookSpecificOutput.additionalContext`, with no `permissionDecision`: Claude
+Code 2.1.283 reads `additionalContext` on PreToolUse independently of any
+decision, so context never doubles as an approval. Stop returns
 `additionalContext`; exit 2 and `decision: "block"` have historically produced
 an error presentation for a working quiz.
 

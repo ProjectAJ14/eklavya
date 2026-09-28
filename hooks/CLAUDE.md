@@ -7,8 +7,8 @@ in `docs/verified-schemas.md`.
 
 ## Event map
 
-Seven implementations are registered across six events. The checkpoint has two
-registrations, for eight rows total.
+Eight implementations are registered across six events. The checkpoint has two
+registrations, for nine rows total.
 
 | Event | Implementation | Responsibility |
 |---|---|---|
@@ -16,6 +16,7 @@ registrations, for eight rows total.
 | UserPromptSubmit | `prompt-submit-nudge` | Refresh the host session record and checkout pointer, capture the prompt, recall relevant memory and nudge a session that has not logged concepts |
 | SubagentStart | `subagent-start` | Ask implementers to log, without asking questions; exempt the tutor |
 | PreToolUse (`Bash`) | `pre-tool-gate` | Deny recognized commits when the enforced session gate has not passed |
+| PreToolUse (`^Read$`) | `file-context` | Add the file's past observations as `additionalContext`, once per file per session; parent only; never a permission decision; capture-path imports only |
 | PostToolUse (all tools) | `capture-tool` | Record one memory event with a bounded result excerpt (none for reads and edits); no quiz, summarization or provider call |
 | PostToolUse (`mcp__.*log_session_concepts`) | `checkpoint-quiz` | Ask a due interleaved question after concepts are logged |
 | PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `checkpoint-quiz` | Mark an edit into a git tree for `only_on_changes`; recheck pacing as work continues; no spinner on every tool call |
