@@ -23,8 +23,14 @@ import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
  * contract: the grade and the one-line verdict are already given, the page is
  * written by a background agent, and the session goes back to the work.
  */
-export function explainInstruction(name: string): string {
-  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent (eklavya:eklavya-explainer when Eklavya is installed as a plugin) in the background, handing it the concept slug, the question, every option offered, the learner's answer and the right answer, so the page can show the question as it was asked; it writes an explainer page on ${name} and opens it. Tell the learner in one line that they missed it, what the right answer is, and that a page on it is on its way, then carry on with the task.`;
+export function explainInstruction(name: string, options: string[] | null = null): string {
+  // The tutor relays this in its own words, and a paraphrase kept only the
+  // picked and right options. Spelling them out makes the full list the thing
+  // it copies.
+  const list = options?.length
+    ? ` Copy all ${options.length} options into its prompt, in this order, not just the picked and right ones: ${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join(' | ')}.`
+    : '';
+  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent (eklavya:eklavya-explainer when Eklavya is installed as a plugin) in the background, handing it the concept slug, the question, every option offered, the learner's answer and the right answer, so the page can show the question as it was asked.${list} It writes an explainer page on ${name} and opens it. Tell the learner in one line that they missed it, what the right answer is, and that a page on it is on its way, then carry on with the task.`;
 }
 
 export const recordAttempt: ToolDef = {
@@ -190,7 +196,7 @@ export const recordAttempt: ToolDef = {
           question,
           options: args.options ?? null,
           answer: args.answer ?? null,
-          instruction: explainInstruction(concept.name),
+          instruction: explainInstruction(concept.name, args.options ?? null),
         }
       : null;
     const after = levelStanding(db, config, repoRoot);

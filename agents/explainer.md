@@ -37,7 +37,8 @@ In this order, each under its own `<h2>`:
 
 - **The question.** Only when a missed question started this page. The stem as
   asked, then every option in order as `<ol class="options">`: the developer's
-  pick gets `class="picked"`, the right one `class="right"`. Copy both
+  pick gets `class="picked"`, the right one `class="right"`. List every
+  option you were handed, including the ones nobody picked. Copy each
   verbatim, and keep the text labels the classes add; colour is not the only
   signal. With no options (a typed answer), show the stem, their answer and the
   right answer in the same list. Skip this section for a page someone asked for.
