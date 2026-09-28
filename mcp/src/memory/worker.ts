@@ -823,9 +823,13 @@ export function pruneEvidence(
       `DELETE FROM meta WHERE key ${inList}
          AND substr(key, 10) NOT IN (SELECT session_id FROM context_receipts WHERE session_id IS NOT NULL)`,
     ).run(JSON.stringify(recalled));
+    // `filectx:<session>` also has no date, and no receipt of its own: a
+    // session whose start recalled nothing has none. It is over once neither
+    // a receipt nor any evidence of it is left.
     db.prepare(
       `DELETE FROM meta WHERE key ${inList}
-         AND substr(key, 9) NOT IN (SELECT session_id FROM context_receipts WHERE session_id IS NOT NULL)`,
+         AND substr(key, 9) NOT IN (SELECT session_id FROM context_receipts WHERE session_id IS NOT NULL)
+         AND substr(key, 9) NOT IN (SELECT session_id FROM evidence_events WHERE session_id IS NOT NULL)`,
     ).run(JSON.stringify(fileSeen));
     db.prepare(`DELETE FROM meta WHERE key ${inList}`).run(JSON.stringify(notified));
 

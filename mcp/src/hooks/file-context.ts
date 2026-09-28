@@ -55,11 +55,12 @@ await run(async (input) => {
   }
 
   // Capture stores paths relative to the checkout with forward slashes; an
-  // import or a model may have kept the absolute path. Exact matches only: a
+  // import or a model may have kept the absolute path, and Windows history
+  // captured before forward slashes has backslashes. Exact matches only: a
   // substring would let `src/a.ts` find `src/a.tsx`, and `_` in a name is a
   // LIKE wildcard.
   const rel = relativeToProject(file, identity.project);
-  const spellings = [...new Set([rel, file, `${identity.project}/${rel}`])];
+  const spellings = [...new Set([rel, rel.replaceAll('/', '\\'), file, `${identity.project}/${rel}`])];
 
   // Session summaries are left to session start.
   const rows = db

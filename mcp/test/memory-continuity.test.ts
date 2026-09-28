@@ -319,6 +319,11 @@ describe('file history on Read, through the built hook', () => {
     expect(read(big)).toBe('');
   });
 
+  it('finds history Windows stored with backslashes before paths were normalised', () => {
+    insertEntry(db, { project, title: 'Stored with backslashes', type: 'change', files: ['src\\auth\\session.ts'] });
+    expect(read(big)).toContain('Stored with backslashes');
+  });
+
   it('says nothing for a file without history, a tiny file, a subagent or another project', () => {
     expect(read(big)).toBe('');
     insertEntry(db, { project, title: 'tiny', type: 'change', files: ['src/tiny.ts'] });
