@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "f17be3baef9997cc85dfa78f2a914dc11fd322da"
+      "revision": "4dc80a684ac2fc29a3e7f60da6b3d5f0b3d611df"
     },
     "views": [
       {
@@ -587,8 +587,7 @@
         "UserPromptSubmit — one line, only when a session logged nothing",
         "PostToolUse — capture plus two checkpoint matchers",
         "Stop — context continues work; memory closes due batches",
-        "PreToolUse(Bash) — permissionDecision \"deny\" on git commit",
-        "PreToolUse(Read) — the file's past work as additionalContext"
+        "PreToolUse — deny git commit (Bash); a file's past work (Read)"
       ]
     },
     {
