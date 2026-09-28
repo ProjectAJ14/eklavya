@@ -1,3 +1,20 @@
+# [1.37.0](https://github.com/ProjectAJ14/eklavya/compare/v1.36.1...v1.37.0) (2026-09-28)
+
+
+### Bug Fixes
+
+* **memory:** address review of the continuity change ([8494d5f](https://github.com/ProjectAJ14/eklavya/commit/8494d5f7a399bcf10876fdfe9e687ba1b23a5202))
+* **memory:** close a seam only on this checkout's latest checkpoint ([d4d88d1](https://github.com/ProjectAJ14/eklavya/commit/d4d88d185aea96f8d6b96a831ff312b3463d457a))
+* **memory:** keep a later turn's checkpoint over a retried older one ([1d791ce](https://github.com/ProjectAJ14/eklavya/commit/1d791ceeabe0395b49c0977d73eb29e13e755ace))
+* **memory:** keep file history once per session and find Windows paths ([2ec0809](https://github.com/ProjectAJ14/eklavya/commit/2ec080981ea6d8848baabb514c4872e5085c4d32))
+* **memory:** keep local roll-ups whole and paths posix on every OS ([4dc80a6](https://github.com/ProjectAJ14/eklavya/commit/4dc80a684ac2fc29a3e7f60da6b3d5f0b3d611df))
+* **memory:** let the roll-up replace a checkpoint the session moved past ([819be50](https://github.com/ProjectAJ14/eklavya/commit/819be509ac8477e784d2a84be514c29f61e670c9))
+
+
+### Features
+
+* **memory:** session continuity like Claude Mem ([31dc2d4](https://github.com/ProjectAJ14/eklavya/commit/31dc2d4a9b81a003f1b94ab6473341c7dde8a35c))
+
 ## [1.36.1](https://github.com/ProjectAJ14/eklavya/compare/v1.36.0...v1.36.1) (2026-09-28)
 
 
