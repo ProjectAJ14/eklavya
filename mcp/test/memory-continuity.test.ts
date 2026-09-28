@@ -321,7 +321,7 @@ describe.skipIf(process.platform === 'win32')('a path reported through a symlink
     fs.mkdirSync(path.join(real, 'src'));
     try {
       expect(relativeToProject(path.join(link, 'package.json'), real)).toBe('package.json');
-      expect(relativeToProject(path.join(link, 'src', 'a.ts'), real)).toBe(path.join('src', 'a.ts'));
+      expect(relativeToProject(path.join(link, 'src', 'a.ts'), real)).toBe('src/a.ts');
       expect(relativeToProject('/elsewhere/package.json', real)).toBe('/elsewhere/package.json');
     } finally {
       fs.unlinkSync(link);

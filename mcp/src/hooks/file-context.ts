@@ -19,7 +19,6 @@
  *   Read, and fails open like every hook.
  */
 import fs from 'node:fs';
-import path from 'node:path';
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
 import { identityOf } from './capture-lib.js';
 import { relativeToProject } from '../memory/identity.js';
@@ -59,13 +58,23 @@ await run(async (input) => {
   // import or a model may have kept the absolute path. Exact matches only: a
   // substring would let `src/a.ts` find `src/a.tsx`, and `_` in a name is a
   // LIKE wildcard.
-  const rel = relativeToProject(file, identity.project).split(path.sep).join('/');
+  const rel = relativeToProject(file, identity.project);
   const spellings = [...new Set([rel, file, `${identity.project}/${rel}`])];
 
+  // Session summaries are left to session start.
+  const rows = db
+    .prepare(
+      `SELECT e.* FROM memory_entries e
+       WHERE e.project = ? AND e.deleted_at IS NULL AND e.superseded_by IS NULL
+         AND e.kind != 'session_summary' AND e.files IS NOT NULL
+         AND EXISTS (SELECT 1 FROM json_each(e.files) WHERE json_each.value IN (SELECT value FROM json_each(?)))
+       ORDER BY e.occurred_at DESC LIMIT ?`,
+    )
+    .all(identity.project, JSON.stringify(spellings), FILE_CONTEXT_MAX * 2) as EntryRow[];
   // Once per file per session: a second read of the same file needs nothing
   // new. Read, checked and written under one lock, so two Reads at once do
-  // not both inject. Remembered even when there is nothing to say, so the
-  // lookup is paid once.
+  // not both inject. Marked after the lookup, so a lookup that failed is tried
+  // again next read; remembered even when nothing was found, so it is paid once.
   const key = `${SEEN_PREFIX}${sid}`;
   const first = db
     .transaction(() => {
@@ -80,16 +89,6 @@ await run(async (input) => {
     .immediate();
   if (!first) return 0;
 
-  // Session summaries are left to session start.
-  const rows = db
-    .prepare(
-      `SELECT e.* FROM memory_entries e
-       WHERE e.project = ? AND e.deleted_at IS NULL AND e.superseded_by IS NULL
-         AND e.kind != 'session_summary' AND e.files IS NOT NULL
-         AND EXISTS (SELECT 1 FROM json_each(e.files) WHERE json_each.value IN (SELECT value FROM json_each(?)))
-       ORDER BY e.occurred_at DESC LIMIT ?`,
-    )
-    .all(identity.project, JSON.stringify(spellings), FILE_CONTEXT_MAX * 2) as EntryRow[];
   if (!rows.length) return 0;
 
   // Entries about this file specifically before ones that merely listed it

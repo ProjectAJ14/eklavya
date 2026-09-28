@@ -156,6 +156,14 @@ describe('recall', () => {
     expect(result.block).toMatch(/Next steps: w0 w1 .*…/);
   });
 
+  it("keeps a local roll-up's list whole at session start, not cut like a checkpoint section", () => {
+    insertEntry(db, { project: PROJECT, title: 'work', narrative: 'n', type: 'change' });
+    const list = ['9 observations across 4 file(s) in this session.', ...Array.from({ length: 9 }, (_, i) => `- change: step number ${i} of the rollout`)].join('\n');
+    insertEntry(db, { project: PROJECT, sessionId: 'prev', kind: 'session_summary', title: 'Session: step', narrative: list, generator: 'session-rollup-v1' });
+    const block = recall(db, config(), { project: PROJECT, index: true }).block!;
+    expect(block).toContain('- change: step number 8 of the rollout');
+  });
+
   it("does not call the current session's own summary the last session on a resume", () => {
     insertEntry(db, { project: PROJECT, title: 'work', narrative: 'n', type: 'change' });
     insertEntry(db, { project: PROJECT, sessionId: 'before', kind: 'session_summary', title: 'earlier', narrative: 'Next steps: earlier', generator: 'anthropic:m', occurredAt: '2026-09-01T00:00:00.000Z' });

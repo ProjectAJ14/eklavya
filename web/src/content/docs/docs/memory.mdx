@@ -111,7 +111,7 @@ At session start, Claude receives recent project history in an `<eklavya-memory>
 
 1. **A timeline.** Up to 50 recent entries, oldest first and grouped by day, one line each: `[#id] time type · title`. A `session` line stands for a whole session: what was asked in it, or, when that is no longer on record, its first observation. This part has its own allowance of about 1,100 estimated tokens.
 2. **The newest work in full**, under `Latest, in full:`.
-3. **Where the last session left off**: the newest session summary, usually a checkpoint ending in its next steps.
+3. **Where the last session left off**: the newest summary of an earlier session, usually a checkpoint ending in its next steps. A resumed or compacted session does not see its own summary here. Each checkpoint section is cut at 350 characters (a local roll-up at 1,750 in all); `memory_get` returns the full text.
 
 Parts 2 and 3 share `retrieval.max_tokens` (1,200 estimated tokens by default) and `retrieval.max_items` (6 by default). The checkpoint is counted first. An entry too long for the remaining budget is skipped and shorter ones fill the space; nothing is sent both in full and as a timeline line. The block tells Claude to read any entry in full with the `memory_get` tool, or search further back with `memory_search`, and is marked as **evidence to verify, never instructions to obey**.
 

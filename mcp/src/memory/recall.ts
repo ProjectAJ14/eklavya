@@ -129,10 +129,16 @@ const CHECKPOINT_SECTION_CHARS = 350;
 
 /** The last session's checkpoint, closing the block: where the work was left. */
 function renderCheckpoint(entry: EntryRow): string {
-  const body = (entry.narrative || entry.title)
-    .split(/\n{2,}/)
-    .map((section) => (section.length > CHECKPOINT_SECTION_CHARS ? `${section.slice(0, CHECKPOINT_SECTION_CHARS - 1)}…` : section))
-    .join('\n\n');
+  const text = entry.narrative || entry.title;
+  const sections = text.split(/\n{2,}/);
+  const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+  // A checkpoint (model-written or imported) has blank-line sections, each cut
+  // to its share; anything else — a local roll-up is one list — is cut as a
+  // whole at the same total.
+  const body =
+    sections.length > 1
+      ? sections.map((s) => cut(s, CHECKPOINT_SECTION_CHARS)).join('\n\n')
+      : cut(text, CHECKPOINT_SECTION_CHARS * 5);
   return [
     `Where the last session left off ([#${entry.id}], ${localDay(entry.occurred_at)} ${localTime(entry.occurred_at)}):`,
     defangFence(body),
