@@ -165,11 +165,28 @@ describe('recall', () => {
   });
 
   it("does not call the current session's own summary the last session on a resume", () => {
-    insertEntry(db, { project: PROJECT, title: 'work', narrative: 'n', type: 'change' });
+    insertEntry(db, { project: PROJECT, sessionId: 'me', title: 'work', narrative: 'n', type: 'change' });
     insertEntry(db, { project: PROJECT, sessionId: 'before', kind: 'session_summary', title: 'earlier', narrative: 'Next steps: earlier', generator: 'anthropic:m', occurredAt: '2026-09-01T00:00:00.000Z' });
     insertEntry(db, { project: PROJECT, sessionId: 'me', kind: 'session_summary', title: 'mine', narrative: 'Next steps: mine', generator: 'anthropic:m' });
     const block = recall(db, config(), { project: PROJECT, sessionId: 'me', index: true }).block!;
     expect(block.slice(block.indexOf('Where the last session left off'))).toContain('Next steps: earlier');
+  });
+
+  it('ends on no checkpoint when a later session did newer work without one', () => {
+    insertEntry(db, { project: PROJECT, sessionId: 'a', kind: 'session_summary', title: 'A', narrative: 'Next steps: stale', generator: 'anthropic:m', occurredAt: '2026-09-01T00:00:00.000Z' });
+    insertEntry(db, { project: PROJECT, sessionId: 'b', title: 'newer work in B', narrative: 'n', type: 'change', occurredAt: '2026-09-02T00:00:00.000Z' });
+    const block = recall(db, config(), { project: PROJECT, sessionId: 'c', index: true }).block!;
+    expect(block).toContain('newer work in B');
+    expect(block).not.toContain('Where the last session left off');
+  });
+
+  it("never closes on another checkout's checkpoint, even with cross_project on", () => {
+    insertEntry(db, { project: PROJECT, sessionId: 'a', title: 'work here', narrative: 'n', type: 'change', occurredAt: '2026-09-01T00:00:00.000Z' });
+    insertEntry(db, { project: OTHER, sessionId: 'x', kind: 'session_summary', title: 'X', narrative: 'Next steps: other repo', generator: 'anthropic:m', occurredAt: '2026-09-02T00:00:00.000Z' });
+    const cfg = config();
+    cfg.retrieval.cross_project = true;
+    const block = recall(db, cfg, { project: PROJECT, sessionId: 'c', index: true }).block!;
+    expect(block).not.toContain('Where the last session left off');
   });
 
   it('opens a seam with the timeline alone when the project has no session summary yet', () => {

@@ -252,11 +252,23 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // Not this session's own summary: on a resume or after a compaction it is
   // the session carrying on, not "the last session", and its work is already
   // in the context the host kept.
-  const checkpoint = opts.index
-    ? timeline(db, { project: config.retrieval.cross_project ? null : opts.project, kind: 'session_summary', limit: 3 }).filter(
+  // Always this project's: another checkout's next steps are not where this one
+  // left off, even when cross_project widens the rest of the recall.
+  const newest = opts.index
+    ? timeline(db, { project: opts.project, kind: 'session_summary', limit: 3 }).filter(
         (e) => allowed(e.id) && (!opts.sessionId || e.session_id !== opts.sessionId),
       )[0]
     : undefined;
+  // And only when it is the last work here: a later session with no summary
+  // (too short, or its checkpoint still queued) did newer work, which the
+  // timeline and the full entries already show.
+  const later = pool.find(
+    (e) => e.kind !== 'session_summary' && e.project === opts.project && e.session_id !== opts.sessionId,
+  );
+  const checkpoint =
+    newest && (!later || later.session_id === newest.session_id || later.occurred_at <= newest.occurred_at)
+      ? newest
+      : undefined;
   const detailPool = opts.index
     ? [...(checkpoint ? [checkpoint] : []), ...pool.filter((e) => e.kind !== 'session_summary')]
     : pool;
