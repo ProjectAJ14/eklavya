@@ -95,13 +95,20 @@ export function writeSessionSummary(db: DB, project: string, sessionId: string):
 
 function writeRollup(db: DB, project: string, sessionId: string): number | null {
   const existing = timeline(db, { project, sessionId, kind: 'session_summary', limit: 1 })[0];
-  // A model's checkpoint says what was learned and what comes next; a roll-up
-  // of titles says less, so it never replaces one.
-  if (existing && existing.generator !== SESSION_SUMMARY_GENERATOR) return existing.id;
-
   // Bounded: the oldest observations of a day-long session are not where it
   // left off, and an unbounded roll-up is an unbounded row in every recall.
   const observations = timeline(db, { project, sessionId, kind: 'observation', limit: 24 });
+  // A model's checkpoint says what was learned and what comes next; a roll-up
+  // of titles says less, so it replaces one only once the session has moved
+  // past it — the observer stopped writing checkpoints (cleared, paused, or its
+  // turn-end batches failed) while work went on, and its next steps are stale.
+  if (
+    existing &&
+    existing.generator !== SESSION_SUMMARY_GENERATOR &&
+    !(observations[0] && observations[0].occurred_at > existing.occurred_at)
+  ) {
+    return existing.id;
+  }
   const draft = summarizeSession(observations, firstPrompt(db, project, sessionId));
   if (!draft) return null;
 

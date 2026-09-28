@@ -103,6 +103,8 @@ Each session that did durable work has one summary entry, rewritten as the sessi
 - **With a model observer**, the summary is a **checkpoint**. When a batch ends a turn (it contains Claude's final message), the same summarising call also writes where the session stands: **Request**, **Investigated**, **Learned**, **Completed** and **Next steps**. The model is shown the session's previous checkpoint and the observations already recorded, so the checkpoint covers the whole session, not only its last few minutes. No extra model call is made.
 - **Without one**, the summary rolls up the session's observations locally and is titled with the first thing you asked.
 
+If checkpoints stop partway through a session (the observer is removed or paused, or its end-of-turn batches fail) while work is still recorded, the local roll-up replaces the older checkpoint so the summary never shows next steps the session has already moved past.
+
 A session that recorded no observations, such as a quick question, gets no checkpoint, so it never replaces the next steps of the session before it. Summaries imported from Claude Mem use the same sections and are read the same way.
 
 ### How recall works

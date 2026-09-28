@@ -139,7 +139,8 @@ describe.skipIf(process.platform === 'win32')('the checkpoint, through a stubbed
   });
 
   it('replaces a local roll-up with the checkpoint, and the roll-up never takes it back', async () => {
-    for (const t of ['a first thing', 'a second thing']) insertEntry(db, { project: PROJECT, sessionId: 's1', title: t, type: 'change' });
+    for (const t of ['a first thing', 'a second thing'])
+      insertEntry(db, { project: PROJECT, sessionId: 's1', title: t, type: 'change', occurredAt: '2026-09-26T00:00:00.000Z' });
     writeSessionSummary(db, PROJECT, 's1');
     expect(summaries()[0]!.generator).toBe('session-rollup-v1');
 
@@ -152,6 +153,21 @@ describe.skipIf(process.platform === 'win32')('the checkpoint, through a stubbed
 
     writeSessionSummary(db, PROJECT, 's1');
     expect(summaries()[0]).toMatchObject({ generator: 'anthropic:m', title: CP.request });
+  });
+
+  it('lets the roll-up replace a checkpoint the session has since moved past', async () => {
+    stub(reply(CP));
+    event('assistant', 'Done.');
+    batchSession(db, { project: PROJECT, sessionId: 's1', reason: 'session_seam' });
+    await processPending(db, observed(), { maxJobs: 1 });
+    expect(summaries()[0]!.generator).toBe('anthropic:m');
+
+    // Later turns recorded without a checkpoint: the observer was cleared or paused.
+    insertEntry(db, { project: PROJECT, sessionId: 's1', title: 'Set REFRESH_ENABLED=true in QA', type: 'change', occurredAt: '2026-09-27T00:00:00.000Z' });
+    writeSessionSummary(db, PROJECT, 's1');
+    expect(summaries()).toHaveLength(1);
+    expect(summaries()[0]!.generator).toBe('session-rollup-v1');
+    expect(summaries()[0]!.narrative).toContain('Set REFRESH_ENABLED=true in QA');
   });
 
   it("keeps a later turn's checkpoint when an earlier turn's batch finishes after it", async () => {
