@@ -102,7 +102,9 @@ export function relativeToProject(file: string, project: string): string {
   // ordinary case.
   try {
     const resolved = path.relative(project, fs.realpathSync(path.dirname(file)));
-    if (resolved && !resolved.startsWith('..')) return path.join(resolved, path.basename(file));
+    // '' is the checkout root itself: a file there (`package.json`) is inside
+    // the project too, and used to keep its absolute spelling.
+    if (!resolved.startsWith('..') && !path.isAbsolute(resolved)) return path.join(resolved, path.basename(file));
   } catch {
     /* A path that no longer exists keeps the spelling the host gave. */
   }

@@ -72,10 +72,7 @@ const CheckpointSchema = z.object({
   next_steps: z.string().max(LIMIT.checkpointField),
 });
 
-const ResultSchema = z.object({
-  observations: z.array(DraftSchema).max(LIMIT.observations),
-  checkpoint: CheckpointSchema.optional(),
-});
+const ResultSchema = z.object({ observations: z.array(DraftSchema).max(LIMIT.observations) });
 
 /**
  * The model's output cut to the limits, before validation.
@@ -97,7 +94,7 @@ export function trimToLimits(raw: unknown): unknown {
   const cp = (raw as { checkpoint?: unknown }).checkpoint;
   return {
     ...raw,
-    ...(cp && typeof cp === 'object'
+    ...(cp && typeof cp === 'object' && !Array.isArray(cp)
       ? {
           checkpoint: Object.fromEntries(
             Object.entries(cp as Record<string, unknown>).map(([k, v]) => [k, cut(v, LIMIT.checkpointField)]),
@@ -530,7 +527,8 @@ export class ProviderSummarizer implements Summarizer {
       `${prior}<evidence project="${input.project}" session="${input.sessionId}">\n${renderEvidence(input)}\n</evidence>`,
       opts,
     );
-    const result = ResultSchema.safeParse(trimToLimits(readResult(stdout)));
+    const raw = trimToLimits(readResult(stdout));
+    const result = ResultSchema.safeParse(raw);
     if (!result.success) {
       throw new ProviderError('malformed', `the provider output failed validation: ${result.error.message.slice(0, 200)}`);
     }
@@ -550,7 +548,10 @@ export class ProviderSummarizer implements Summarizer {
     }));
     // Only from a batch that ended a turn: a checkpoint from mid-turn evidence
     // would claim a "where it stands" the agent had not reached.
-    const cp: Checkpoint | undefined = result.data.checkpoint;
+    // Validated on its own: a checkpoint of the wrong shape is dropped, and
+    // the batch's observations are kept rather than failed with it.
+    const parsed = CheckpointSchema.safeParse((raw as { checkpoint?: unknown } | null)?.checkpoint);
+    const cp: Checkpoint | undefined = parsed.success ? parsed.data : undefined;
     if (cp && cp.request.trim() && input.events.some((e) => e.kind === 'assistant')) drafts.checkpoint = cp;
     return drafts;
   }

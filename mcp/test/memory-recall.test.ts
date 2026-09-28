@@ -137,6 +137,33 @@ describe('recall', () => {
     expect(result.deliveredTokens).toBeGreaterThan(recall(db, cfg, { project: PROJECT, sessionId: 'x' }).deliveredTokens);
   });
 
+  it('keeps the newest work in full even when the checkpoint is long', () => {
+    for (let i = 0; i < 5; i++) insertEntry(db, { project: PROJECT, title: `Short ${i}`, narrative: 'n', type: 'change' });
+    const long = (label: string) => `${label}: ${Array.from({ length: 200 }, (_, i) => `w${i}`).join(' ')}`;
+    insertEntry(db, {
+      project: PROJECT,
+      sessionId: 'last',
+      kind: 'session_summary',
+      title: 'r',
+      narrative: ['Request', 'Investigated', 'Learned', 'Completed', 'Next steps'].map(long).join('\n\n'),
+      generator: 'anthropic:m',
+    });
+    const cfg = config();
+    const result = recall(db, cfg, { project: PROJECT, index: true });
+    expect(result.entries.length).toBeGreaterThan(1);
+    expect(result.block).toContain('Latest, in full:');
+    // Every section survives, cut short, with its label.
+    expect(result.block).toMatch(/Next steps: w0 w1 .*…/);
+  });
+
+  it("does not call the current session's own summary the last session on a resume", () => {
+    insertEntry(db, { project: PROJECT, title: 'work', narrative: 'n', type: 'change' });
+    insertEntry(db, { project: PROJECT, sessionId: 'before', kind: 'session_summary', title: 'earlier', narrative: 'Next steps: earlier', generator: 'anthropic:m', occurredAt: '2026-09-01T00:00:00.000Z' });
+    insertEntry(db, { project: PROJECT, sessionId: 'me', kind: 'session_summary', title: 'mine', narrative: 'Next steps: mine', generator: 'anthropic:m' });
+    const block = recall(db, config(), { project: PROJECT, sessionId: 'me', index: true }).block!;
+    expect(block.slice(block.indexOf('Where the last session left off'))).toContain('Next steps: earlier');
+  });
+
   it('opens a seam with the timeline alone when the project has no session summary yet', () => {
     for (let i = 0; i < 12; i++) insertEntry(db, { project: PROJECT, title: `Item ${i}`, narrative: 'n', type: 'change' });
     const block = recall(db, config(), { project: PROJECT, index: true }).block!;

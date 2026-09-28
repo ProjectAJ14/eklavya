@@ -119,11 +119,23 @@ function timelineLine(entry: EntryRow): string {
   return `[#${entry.id}] ${localTime(entry.occurred_at)} ${kind} · ${title}`;
 }
 
+/**
+ * Characters kept per checkpoint section at session start. Five sections at
+ * this length stay near 450 estimated tokens, so the checkpoint cannot take
+ * the whole detail budget and push every observation out of the block; the
+ * full text is one `memory_get` away.
+ */
+const CHECKPOINT_SECTION_CHARS = 350;
+
 /** The last session's checkpoint, closing the block: where the work was left. */
 function renderCheckpoint(entry: EntryRow): string {
+  const body = (entry.narrative || entry.title)
+    .split(/\n{2,}/)
+    .map((section) => (section.length > CHECKPOINT_SECTION_CHARS ? `${section.slice(0, CHECKPOINT_SECTION_CHARS - 1)}…` : section))
+    .join('\n\n');
   return [
     `Where the last session left off ([#${entry.id}], ${localDay(entry.occurred_at)} ${localTime(entry.occurred_at)}):`,
-    defangFence(entry.narrative || entry.title),
+    defangFence(body),
   ].join('\n');
 }
 
@@ -231,9 +243,12 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // the detail budget; the rest of the detail is observations, newest first.
   // Session summaries otherwise appear only as timeline lines — in full they
   // were a list of titles the timeline already shows.
+  // Not this session's own summary: on a resume or after a compaction it is
+  // the session carrying on, not "the last session", and its work is already
+  // in the context the host kept.
   const checkpoint = opts.index
-    ? timeline(db, { project: config.retrieval.cross_project ? null : opts.project, kind: 'session_summary', limit: 1 }).filter(
-        (e) => allowed(e.id),
+    ? timeline(db, { project: config.retrieval.cross_project ? null : opts.project, kind: 'session_summary', limit: 3 }).filter(
+        (e) => allowed(e.id) && (!opts.sessionId || e.session_id !== opts.sessionId),
       )[0]
     : undefined;
   const detailPool = opts.index
@@ -306,7 +321,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     timelineCount = chosen.length;
     if (chosen.length) {
       indexLines.unshift(
-        'Recent work, oldest first: [#id] time type · title. A "session" line is what was asked in that session. Read any entry in full with the memory_get tool (pass the ids); look further back with memory_search.',
+        'Recent work, oldest first: [#id] time type · title. A "session" line stands for a whole session, usually what was asked in it. Read any entry in full with the memory_get tool (pass the ids); look further back with memory_search.',
       );
       delivered += estimateTokens(indexLines.join('\n'));
     }
@@ -319,9 +334,11 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // top to bottom it ends where the last session stopped.
   const full = kept.map((e, i) => ({ e, text: rendered[i]! }));
   const detail = full.filter((x) => x.e !== checkpoint).map((x) => x.text);
+  const DETAIL_HEADING = 'Latest, in full:';
+  if (opts.index && detail.length) delivered += estimateTokens(DETAIL_HEADING);
   const closing = full.filter((x) => x.e === checkpoint).map((x) => x.text);
   const block = opts.index
-    ? [header, note, ...indexLines, ...(detail.length ? ['Latest, in full:', ...detail] : []), ...closing, footer].join('\n')
+    ? [header, note, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
     : [header, note, ...rendered, footer].join('\n');
 
   const receiptId = recordReceipt(db, {
@@ -330,7 +347,10 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     scope: opts.scope ?? 'session_start',
     method: ESTIMATOR,
     delivery: opts.delivery ?? 'confirmed',
-    wrapperTokens: wrapperTokens + (indexLines.length ? estimateTokens(indexLines.join('\n')) : 0),
+    wrapperTokens:
+      wrapperTokens +
+      (indexLines.length ? estimateTokens(indexLines.join('\n')) : 0) +
+      (opts.index && detail.length ? estimateTokens(DETAIL_HEADING) : 0),
     items: kept.map((entry, i) => ({
       entryId: entry.id,
       sourceTokens: base.get(entry.id) ?? 0,

@@ -88,6 +88,12 @@ const SESSION_SUMMARY_GENERATOR = 'session-rollup-v1';
  * `processPending` if the provider path ever stops being asynchronous.
  */
 export function writeSessionSummary(db: DB, project: string, sessionId: string): number | null {
+  // Immediate: the check below and the write after it are one step, so a
+  // worker committing a checkpoint in between cannot be overwritten by it.
+  return db.transaction(() => writeRollup(db, project, sessionId)).immediate();
+}
+
+function writeRollup(db: DB, project: string, sessionId: string): number | null {
   const existing = timeline(db, { project, sessionId, kind: 'session_summary', limit: 1 })[0];
   // A model's checkpoint says what was learned and what comes next; a roll-up
   // of titles says less, so it never replaces one.
@@ -145,13 +151,25 @@ function firstPrompt(db: DB, project: string, sessionId: string): string | null 
  * the observations already recorded. Bounded, newest kept.
  */
 export function sessionSoFar(db: DB, project: string, sessionId: string): string | undefined {
+  // Each part bounded on its own and cut at whole lines: the checkpoint keeps
+  // its opening Request, the titles keep their newest lines.
+  const PART = 3_000;
   const parts: string[] = [];
   const last = timeline(db, { project, sessionId, kind: 'session_summary', limit: 1 })[0];
-  if (last && last.generator !== SESSION_SUMMARY_GENERATOR) parts.push(`Last checkpoint:\n${last.narrative}`);
-  const recorded = timeline(db, { project, sessionId, kind: 'observation', limit: 30 }).reverse();
-  if (recorded.length) parts.push(`Recorded so far:\n${recorded.map((e) => `- ${e.type ?? 'change'}: ${e.title}`).join('\n')}`);
-  const text = parts.join('\n\n');
-  return text ? text.slice(-6_000) : undefined;
+  if (last && last.generator !== SESSION_SUMMARY_GENERATOR) {
+    const text = last.narrative.length > PART ? `${last.narrative.slice(0, PART)}…` : last.narrative;
+    parts.push(`Last checkpoint:\n${text}`);
+  }
+  const lines: string[] = [];
+  let size = 0;
+  for (const e of timeline(db, { project, sessionId, kind: 'observation', limit: 60 })) {
+    const line = `- ${e.type ?? 'change'}: ${e.title}`;
+    if (size + line.length + 1 > PART) break;
+    lines.unshift(line);
+    size += line.length + 1;
+  }
+  if (lines.length) parts.push(`Recorded so far:\n${lines.join('\n')}`);
+  return parts.length ? parts.join('\n\n') : undefined;
 }
 
 /**

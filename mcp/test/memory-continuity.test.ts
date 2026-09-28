@@ -11,6 +11,7 @@ import { appendEvent, batchSession, insertEntry, timeline } from '../src/memory/
 import { processPending, sessionSoFar, writeSessionSummary } from '../src/memory/worker.js';
 import { ProviderSummarizer } from '../src/memory/provider.js';
 import { projectKey } from '../src/store.js';
+import { relativeToProject } from '../src/memory/identity.js';
 
 /**
  * Session continuity, as Claude Mem does it: a checkpoint of where each session
@@ -162,6 +163,23 @@ describe.skipIf(process.platform === 'win32')('the checkpoint, through a stubbed
     expect(summaries()[0]!.narrative).toMatch(/Learned: x{1199}…/);
   });
 
+  it('drops a checkpoint of the wrong shape and keeps the observations', async () => {
+    for (const bad of ['"just text"', '["a","b"]', '{"request":"r"}']) {
+      const out = JSON.stringify({
+        subtype: 'success',
+        is_error: false,
+        structured_output: { observations: [{ title: 't', type: 'change', narrative: 'n', facts: [], files: [], tags: [] }] },
+      }).replace(/}}$/, `,"checkpoint":${bad}}}`);
+      stub(out);
+      event('assistant', 'Done.', `bad${bad.length}`);
+      batchSession(db, { project: PROJECT, sessionId: `bad${bad.length}`, reason: 'session_seam' });
+      const result = await processPending(db, observed(), { maxJobs: 1 });
+      expect(result.failed).toBe(0);
+      expect(result.entries).toBe(1);
+      expect(summaries(`bad${bad.length}`)).toHaveLength(0);
+    }
+  });
+
   it('keeps the observations when the model returns no checkpoint for a turn', async () => {
     stub(reply(null));
     event('assistant', 'Done.');
@@ -205,6 +223,16 @@ describe('the local roll-up and the session so far', () => {
     expect(prior).toContain('Last checkpoint:\nNext steps: merge');
     expect(prior).toContain('Recorded so far:\n- change: first\n- bugfix: second');
     expect(sessionSoFar(db, PROJECT, 'other')).toBeUndefined();
+  });
+
+  it('keeps the checkpoint request and whole title lines when the session is long', () => {
+    insertEntry(db, { project: PROJECT, sessionId: 's1', kind: 'session_summary', title: 'r', narrative: `Request: the original ask\n\nLearned: ${'x'.repeat(5000)}`, generator: 'anthropic:m' });
+    for (let i = 0; i < 60; i++) insertEntry(db, { project: PROJECT, sessionId: 's1', title: `title ${i} ${'y'.repeat(80)}`, type: 'change' });
+    const prior = sessionSoFar(db, PROJECT, 's1')!;
+    expect(prior.startsWith('Last checkpoint:\nRequest: the original ask')).toBe(true);
+    const titles = prior.slice(prior.indexOf('Recorded so far:\n') + 17).split('\n');
+    for (const line of titles) expect(line).toMatch(/^- change: title \d+ y+$/);
+    expect(prior.length).toBeLessThan(6_200);
   });
 });
 
@@ -267,10 +295,37 @@ describe('file history on Read, through the built hook', () => {
     expect(ctx).not.toContain('other project');
   });
 
+  it('matches a file at the repository root, and only the exact path', () => {
+    const root = path.join(repo, 'package.json');
+    fs.writeFileSync(root, 'x'.repeat(3000));
+    fs.writeFileSync(path.join(repo, 'src', 'my_file.ts'), 'x'.repeat(3000));
+    insertEntry(db, { project, title: 'bumped the version', type: 'change', files: ['package.json'] });
+    insertEntry(db, { project, title: 'wildcard neighbour', type: 'change', files: ['src/myXfile.ts', 'src/my_file.tsx'] });
+    expect(read(root)).toContain('bumped the version');
+    expect(read(path.join(repo, 'src', 'my_file.ts'))).toBe('');
+  });
+
   it('prefers entries about this file to ones that listed it among many', () => {
     const wide = Array.from({ length: 20 }, (_, i) => `src/f${i}.ts`);
     for (let i = 0; i < 10; i++) insertEntry(db, { project, title: `wide ${i}`, type: 'change', files: ['src/auth/session.ts', ...wide] });
     insertEntry(db, { project, title: 'focused', type: 'bugfix', files: ['src/auth/session.ts'], occurredAt: '2026-01-01T00:00:00.000Z' });
     expect(read(big)).toContain('focused');
+  });
+});
+
+describe.skipIf(process.platform === 'win32')('a path reported through a symlink', () => {
+  it('is relative to the checkout for a file at its root too', () => {
+    const real = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-real-')));
+    const link = `${real}-link`;
+    fs.symlinkSync(real, link);
+    fs.mkdirSync(path.join(real, 'src'));
+    try {
+      expect(relativeToProject(path.join(link, 'package.json'), real)).toBe('package.json');
+      expect(relativeToProject(path.join(link, 'src', 'a.ts'), real)).toBe(path.join('src', 'a.ts'));
+      expect(relativeToProject('/elsewhere/package.json', real)).toBe('/elsewhere/package.json');
+    } finally {
+      fs.unlinkSync(link);
+      fs.rmSync(real, { recursive: true, force: true });
+    }
   });
 });

@@ -109,7 +109,7 @@ A session that recorded no observations, such as a quick question, gets no check
 
 At session start, Claude receives recent project history in an `<eklavya-memory>` block, in three parts that read top to bottom as the story of the last few days:
 
-1. **A timeline.** Up to 50 recent entries, oldest first and grouped by day, one line each: `[#id] time type · title`. A `session` line is what was asked in that session. This part has its own allowance of about 1,100 estimated tokens.
+1. **A timeline.** Up to 50 recent entries, oldest first and grouped by day, one line each: `[#id] time type · title`. A `session` line stands for a whole session: what was asked in it, or, when that is no longer on record, its first observation. This part has its own allowance of about 1,100 estimated tokens.
 2. **The newest work in full**, under `Latest, in full:`.
 3. **Where the last session left off**: the newest session summary, usually a checkpoint ending in its next steps.
 
