@@ -212,6 +212,9 @@ function writeCheckpoint(
   };
   const existing = timeline(db, { project, sessionId, kind: 'session_summary', limit: 1 })[0];
   if (existing) {
+    // A retried batch from an earlier turn can finish after a later turn's
+    // checkpoint; it must not put the session back to where it stood then.
+    if (existing.generator !== SESSION_SUMMARY_GENERATOR && existing.occurred_at > occurredAt) return existing.id;
     replaceEntry(db, existing.id, fields);
     return existing.id;
   }

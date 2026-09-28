@@ -154,6 +154,26 @@ describe.skipIf(process.platform === 'win32')('the checkpoint, through a stubbed
     expect(summaries()[0]).toMatchObject({ generator: 'anthropic:m', title: CP.request });
   });
 
+  it("keeps a later turn's checkpoint when an earlier turn's batch finishes after it", async () => {
+    const later = 'Next steps: merge the configmap change';
+    insertEntry(db, {
+      project: PROJECT,
+      sessionId: 's1',
+      kind: 'session_summary',
+      title: CP.request,
+      narrative: later,
+      type: 'change',
+      generator: 'anthropic:m',
+      occurredAt: new Date(Date.UTC(2026, 8, 27)).toISOString(),
+    });
+    stub(reply(CP));
+    event('assistant', 'Done.');
+    batchSession(db, { project: PROJECT, sessionId: 's1', reason: 'session_seam' });
+    await processPending(db, observed(), { maxJobs: 1 });
+    expect(summaries()).toHaveLength(1);
+    expect(summaries()[0]!.narrative).toBe(later);
+  });
+
   it('trims an over-long checkpoint instead of failing the batch', async () => {
     stub(reply({ ...CP, learned: 'x'.repeat(3000) }));
     event('assistant', 'Done.');
