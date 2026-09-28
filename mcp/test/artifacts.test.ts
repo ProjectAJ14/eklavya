@@ -239,6 +239,8 @@ describe('record_attempt and explain_on_wrong', () => {
     const r = await attempt({ answer: 'B', grade: 1, outcome: 'answered', format: 'mcq', options });
     expect(r.explain).toMatchObject({ options, answer: 'B' });
     expect(r.explain.instruction).toMatch(/every option offered/);
+    expect(r.explain.instruction).toContain('A. A | B. B | C. C | D. D');
+    expect(r.explain.instruction).toMatch(/all 4 options/);
   });
 
   it('hands back an explain block on a miss and a taught blank, never on a pass, skip or decline', async () => {
