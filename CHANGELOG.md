@@ -1,3 +1,10 @@
+# [1.36.0](https://github.com/ProjectAJ14/eklavya/compare/v1.35.1...v1.36.0) (2026-09-28)
+
+
+### Features
+
+* **artifacts:** explainer on by default, restates the missed question ([5c5b7dc](https://github.com/ProjectAJ14/eklavya/commit/5c5b7dcc7825dcbb904771b0cfa46caa6f7a26ed))
+
 ## [1.35.1](https://github.com/ProjectAJ14/eklavya/compare/v1.35.0...v1.35.1) (2026-09-26)
 
 
