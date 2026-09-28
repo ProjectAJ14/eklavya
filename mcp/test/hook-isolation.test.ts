@@ -115,6 +115,19 @@ describe.skipIf(!hasSyncHooks)('hot paths load only what they run', () => {
     }
   });
 
+  it('file-context looks up a file without the seam graph', () => {
+    const mods = loaded('hooks/file-context.js', [], {
+      session_id: 'iso',
+      cwd,
+      tool_name: 'Read',
+      tool_input: { file_path: path.join(cwd, 'missing.ts') },
+    });
+    expect(mods).toContain('hooks/lib.js');
+    for (const heavy of [...MEMORY_HEAVY, 'memory/recall.js']) {
+      expect(mods, `file-context loaded ${heavy}`).not.toContain(heavy);
+    }
+  });
+
   it('prompt-submit-nudge records and recalls without the seam graph', () => {
     const mods = loaded('hooks/prompt-submit-nudge.js', [], {
       session_id: 'iso',

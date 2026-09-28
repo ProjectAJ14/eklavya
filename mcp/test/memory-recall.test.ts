@@ -83,27 +83,65 @@ describe('recall', () => {
     expect(result.deliveredTokens).toBeLessThanOrEqual(1200);
   });
 
-  it('lists the entries after the full ones by title and id, with how to read them, at a seam', () => {
+  it('opens a seam with a timeline, then the newest work in full, and ends on the last checkpoint', () => {
+    const at = (day: number, minute: number) => new Date(Date.UTC(2026, 8, day, 12, minute)).toISOString();
     for (let i = 0; i < 40; i++) {
-      insertEntry(db, {
-        project: PROJECT,
-        title: `Work item ${i}`,
-        narrative: 'n',
-        type: 'change',
-        occurredAt: new Date(Date.UTC(2026, 8, 1, 0, i)).toISOString(),
-      });
+      insertEntry(db, { project: PROJECT, title: `Work item ${i}`, narrative: 'n', type: 'change', occurredAt: at(i < 20 ? 1 : 4, i) });
     }
+    insertEntry(db, {
+      project: PROJECT,
+      sessionId: 'old',
+      kind: 'session_summary',
+      title: 'Fix the login redirect',
+      narrative: 'rolled up',
+      generator: 'session-rollup-v1',
+      occurredAt: at(1, 30),
+    });
+    insertEntry(db, {
+      project: PROJECT,
+      sessionId: 'last',
+      kind: 'session_summary',
+      title: 'Ship the settings page',
+      narrative: 'Request: Ship the settings page\n\nCompleted: page built\n\nNext steps: merge PR #12',
+      generator: 'anthropic:claude-haiku-4-5',
+      occurredAt: at(4, 50),
+    });
     const cfg = config();
     const result = recall(db, cfg, { project: PROJECT, index: true });
-    expect(result.entries).toHaveLength(cfg.retrieval.max_items);
-    expect(result.indexed).toBeGreaterThan(10);
+    const block = result.block!;
+
+    const legend = block.indexOf('Recent work, oldest first');
+    const full = block.indexOf('Latest, in full:');
+    const closing = block.indexOf('Where the last session left off');
+    expect(legend).toBeGreaterThan(0);
+    expect(full).toBeGreaterThan(legend);
+    expect(closing).toBeGreaterThan(full);
+    expect(block.slice(closing)).toContain('Next steps: merge PR #12');
+    expect(block.trimEnd().endsWith('</eklavya-memory>')).toBe(true);
+
+    // Oldest first, grouped by day, with what was asked in each session.
+    expect(block.indexOf('Work item 5 ')).toBeLessThan(block.indexOf('Work item 25'));
+    expect(block.match(/^### \d{4}-\d{2}-\d{2}$/gm)!.length).toBeGreaterThanOrEqual(2);
+    expect(block).toMatch(/\[#\d+\] \d{2}:\d{2} session · Fix the login redirect/);
+    // The checkpoint is the newest summary and is not also a timeline line.
+    expect(block.match(/Ship the settings page/g)).toHaveLength(1); // its Request section, once
+    expect(block).not.toMatch(/session · Ship the settings page/);
+    // Nothing is sent both in full and in the timeline.
+    for (const e of result.entries) expect(block.match(new RegExp(`\\[#${e.id}\\]`, 'g'))).toHaveLength(1);
+
+    expect(result.entries[0]!.title).toBe('Ship the settings page');
+    expect(result.entries.length).toBeLessThanOrEqual(cfg.retrieval.max_items);
+    expect(result.indexed).toBeGreaterThan(20);
     expect(result.indexed).toBeLessThanOrEqual(INDEX_MAX_ITEMS);
-    expect(result.block).toContain('Read any in full with the memory_get tool');
-    // Newest first, and none listed twice.
-    expect(result.block).toMatch(/- \[#\d+\] 2026-09-01 change · Work item 33/);
-    expect(result.block!.match(/Work item 39\b/g)).toHaveLength(1);
-    // The receipt counts the full entries; the index is delivered, not a saving.
+    // The timeline is delivered and charged, never counted as a saving.
     expect(result.deliveredTokens).toBeGreaterThan(recall(db, cfg, { project: PROJECT, sessionId: 'x' }).deliveredTokens);
+  });
+
+  it('opens a seam with the timeline alone when the project has no session summary yet', () => {
+    for (let i = 0; i < 12; i++) insertEntry(db, { project: PROJECT, title: `Item ${i}`, narrative: 'n', type: 'change' });
+    const block = recall(db, config(), { project: PROJECT, index: true }).block!;
+    expect(block).toContain('Recent work, oldest first');
+    expect(block).not.toContain('Where the last session left off');
   });
 
   it('keeps a prompt recall inside its cap even when the best match alone would overrun it', () => {

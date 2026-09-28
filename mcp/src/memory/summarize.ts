@@ -32,7 +32,33 @@ export interface SummarizeInput {
   project: string;
   sessionId: string;
   events: EvidenceRow[];
+  /**
+   * The session so far — its last checkpoint and the titles already recorded —
+   * given with a batch that ends a turn, so the checkpoint written from it
+   * describes the whole session rather than its last few minutes.
+   */
+  prior?: string;
 }
+
+/**
+ * Where a session stands at the end of a turn: what was asked, investigated,
+ * learned and done, and what comes next.
+ *
+ * Claude Mem writes one of these on every Stop and ends each session-start
+ * context with the latest, and that closing "next steps" is much of why a new
+ * session read as picking up where the last one stopped. The fields are Claude
+ * Mem's, so its imported summaries and these render the same way.
+ */
+export interface Checkpoint {
+  request: string;
+  investigated: string;
+  learned: string;
+  completed: string;
+  next_steps: string;
+}
+
+/** A batch's observations, plus a checkpoint when the batch ended a turn. */
+export type Summary = EntryDraft[] & { checkpoint?: Checkpoint };
 
 export interface SummarizeOptions {
   /** Aborted when memory is turned off mid-call; the provider ends its child. */
@@ -43,7 +69,7 @@ export interface SummarizeOptions {
 
 export interface Summarizer {
   readonly id: string;
-  summarize(input: SummarizeInput, opts?: SummarizeOptions): Promise<EntryDraft[]>;
+  summarize(input: SummarizeInput, opts?: SummarizeOptions): Promise<Summary>;
 }
 
 function jsonList(value: string | null): string[] {
@@ -184,7 +210,7 @@ const SUMMARY_MAX_LINES = 12;
  * near-duplicate row competing with its own source for a bounded recall budget
  * costs more than it tells anyone.
  */
-export function summarizeSession(observations: EntryRow[]): EntryDraft | null {
+export function summarizeSession(observations: EntryRow[], request?: string | null): EntryDraft | null {
   if (observations.length < 2) return null;
   const ordered = [...observations].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
 
@@ -203,7 +229,10 @@ export function summarizeSession(observations: EntryRow[]): EntryDraft | null {
     .join('\n');
 
   return {
-    title: `Session: ${firstLine(ordered[0]!.title, 80)}`,
+    // What was asked, when the prompt is still on record: it is the session's
+    // line in every later session-start timeline, and "what I asked" says more
+    // there than the title of whichever observation happened to come first.
+    title: request?.trim() ? firstLine(request, 160) : `Session: ${firstLine(ordered[0]!.title, 80)}`,
     type: commonest,
     narrative,
     facts: files.slice(0, 10).map((f) => `Touched ${f}`),

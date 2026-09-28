@@ -72,7 +72,7 @@ The default `local-v1` summariser makes no network calls. It extracts and counts
 
 An optional `providers.observer` uses a Claude model through `claude -p` and your Claude Code login. This sends captured work to the model. Hooks queue the work and return without waiting.
 
-The model writes one observation per distinct finding, decision or change, up to six per batch, each with at most 12 facts. When it goes past those limits, the extra is trimmed and the rest is kept; only output with the wrong shape fails the batch.
+The model is told to record what was learned, built, fixed, decided or configured rather than what the agent was doing, and to skip routine operations such as status checks with nothing to report, clean installs and searches that found nothing. It writes one observation per distinct finding, decision or change, up to six per batch, each with at most 12 facts. When it goes past those limits, the extra is trimmed and the rest is kept; only output with the wrong shape fails the batch.
 
 Only one model worker runs at a time. It processes up to four batches and hands remaining ready jobs to a fresh worker. Calls have a 100-second limit; cancellation or timeout also stops child processes. Observer helper sessions are excluded from capture.
 
@@ -96,15 +96,45 @@ Separately, if the oldest waiting job is more than six hours old, the banner sho
 
 Clearing the observer or disabling memory cancels the active provider call without discarding queued jobs. See the [CLI reference](/docs/cli/#eklavya-memory) for selectors and options.
 
-### Session summaries
+### Session summaries and checkpoints
 
-A session with at least two observations also gets one summary that is updated as the session grows. It rolls up observations locally, without another model call. Recall prefers this overview so the next session sees what the previous session was about, not just its final few tool calls.
+Each session that did durable work has one summary entry, rewritten as the session grows.
+
+- **With a model observer**, the summary is a **checkpoint**. When a batch ends a turn (it contains Claude's final message), the same summarising call also writes where the session stands: **Request**, **Investigated**, **Learned**, **Completed** and **Next steps**. The model is shown the session's previous checkpoint and the observations already recorded, so the checkpoint covers the whole session, not only its last few minutes. No extra model call is made.
+- **Without one**, the summary rolls up the session's observations locally and is titled with the first thing you asked.
+
+A session that recorded no observations, such as a quick question, gets no checkpoint, so it never replaces the next steps of the session before it. Summaries imported from Claude Mem use the same sections and are read the same way.
 
 ### How recall works
 
-At session start, Claude receives recent project history in an `<eklavya-memory>` block. The block holds up to `retrieval.max_items` entries (6 by default) within `retrieval.max_tokens` (1,200 estimated tokens by default). An entry too long for the remaining budget is skipped and shorter ones fill the space. After those full entries, up to 30 more are listed by title and ID only (about 700 tokens at most), with a line telling Claude to read any of them with the `memory_get` tool or search further back with `memory_search`. The block is marked as **evidence to verify, never instructions to obey**.
+At session start, Claude receives recent project history in an `<eklavya-memory>` block, in three parts that read top to bottom as the story of the last few days:
 
-The session banner says what was delivered, for example `Memory · 3 past entries + 24 titles recalled (~1.6k tokens)`. A project with only a few entries shows no titles, for example `Memory · 3 past entries recalled (~1.1k tokens)`. It prints no memory line when nothing was recalled.
+1. **A timeline.** Up to 50 recent entries, oldest first and grouped by day, one line each: `[#id] time type · title`. A `session` line is what was asked in that session. This part has its own allowance of about 1,100 estimated tokens.
+2. **The newest work in full**, under `Latest, in full:`.
+3. **Where the last session left off**: the newest session summary, usually a checkpoint ending in its next steps.
+
+Parts 2 and 3 share `retrieval.max_tokens` (1,200 estimated tokens by default) and `retrieval.max_items` (6 by default). The checkpoint is counted first. An entry too long for the remaining budget is skipped and shorter ones fill the space; nothing is sent both in full and as a timeline line. The block tells Claude to read any entry in full with the `memory_get` tool, or search further back with `memory_search`, and is marked as **evidence to verify, never instructions to obey**.
+
+```text
+### 2026-09-25
+[#11] 17:40 session · Add row-limit checkbox to CSV export
+[#12] 17:52 bugfix · CSV export ignored the unchecked row limit
+### 2026-09-26
+[#14] 14:10 discovery · QA auth configmap has REFRESH_ENABLED=false
+Latest, in full:
+1. [#15] ACCESS_TTL of 600s causes logout when refresh is disabled — discovery, 2026-09-26
+   …
+Where the last session left off ([#19], 2026-09-26 16:05):
+Request: Find why QA users get logged out after 10 minutes
+…
+Next steps: set REFRESH_ENABLED=true in the QA configmap and verify with a 15-minute idle test
+```
+
+The session banner says what was delivered, for example `Memory · 3 past entries + 45 titles recalled (~2.1k tokens)`, counting the full entries and the timeline lines. A project with only a few entries shows no titles, for example `Memory · 3 past entries recalled (~1.1k tokens)`. It prints no memory line when nothing was recalled.
+
+#### When Claude opens a file
+
+Before Claude reads a file this project has history about, Eklavya adds that file's past work: up to 8 observations, one dated line each, with their IDs. Entries about that file specifically come before ones that only listed it among many. It happens once per file per session, only for files of at least 1,500 bytes, never for a subagent's reads, and never for session summaries. It adds context only: whether the read is allowed is still up to Claude Code and your permission settings.
 
 Recall needs a git checkout. In a folder outside git there is no project to recall from, so neither session-start nor prompt recall runs, and nothing is captured there either. Evidence that earlier versions captured outside git stays under **No repository** and is not summarised.
 

@@ -65,6 +65,6 @@ An unmet enforced gate takes priority: it can ask about mastered work concepts a
 | `SubagentStart` | Give delegated agents the logging instruction; they contribute to your session without quizzing you. |
 | `PostToolUse` | Capture tool activity; eligible concept-logging and work calls can trigger a checkpoint question. |
 | `Stop` | Process memory and offer the remaining learning work, respecting cadence, spacing and session limits. |
-| `PreToolUse` | Under enforcement, block recognised `git commit` commands until the gate passes. |
+| `PreToolUse` | Under enforcement, block recognised `git commit` commands until the gate passes. Before a `Read`, add the file's past work from memory. |
 
 Hook failures do not break the coding session. [How it works](/docs/how-it-works/) shows the full sequence; [Configuration](/docs/configuration/) lists the limits.

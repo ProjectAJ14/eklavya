@@ -48,6 +48,17 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "^Read$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "file-context"],
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [

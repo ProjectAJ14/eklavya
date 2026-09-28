@@ -127,6 +127,8 @@ describe('pruneEvidence', () => {
     const meta = db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)');
     meta.run('recalled:dead', '1');
     meta.run('recalled:live', '1');
+    meta.run('filectx:dead', '[]');
+    meta.run('filectx:live', '[]');
     meta.run('notified:session:dead:abc', JSON.stringify({ ok: true, n: 1, first: ago(30) }));
     meta.run('notified:session:live:abc', JSON.stringify({ ok: true, n: 1, first: ago(1) }));
     meta.run('notified:legacy-shape', 'not json');
@@ -142,6 +144,10 @@ describe('pruneEvidence', () => {
       key: string;
     }[]).map((r) => r.key);
     expect(keys).toEqual(['notified:legacy-shape', 'notified:session:live:abc', 'recalled:live']);
+    // The file-context hook's once-per-file rows follow the same rule.
+    expect((db.prepare("SELECT key FROM meta WHERE key LIKE 'filectx:%'").all() as { key: string }[]).map((r) => r.key)).toEqual([
+      'filectx:live',
+    ]);
     // The memory itself is never retention's to delete.
     expect(count('SELECT COUNT(*) AS n FROM memory_entries')).toBe(1);
   });

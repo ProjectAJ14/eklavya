@@ -581,13 +581,14 @@
     },
     {
       "dot": "amber",
-      "title": "Seven hooks, six events",
+      "title": "Eight hooks, six events",
       "items": [
         "SessionStart — banner + context; SubagentStart — context",
         "UserPromptSubmit — one line, only when a session logged nothing",
         "PostToolUse — capture plus two checkpoint matchers",
         "Stop — context continues work; memory closes due batches",
-        "PreToolUse(Bash) — permissionDecision \"deny\" on git commit"
+        "PreToolUse(Bash) — permissionDecision \"deny\" on git commit",
+        "PreToolUse(Read) — the file's past work as additionalContext"
       ]
     },
     {
