@@ -114,7 +114,7 @@ const COOLDOWN_MINUTES = 25;
 const MAX_NUDGES = 3;
 
 /** The user-invocable skills under `skills/`, bare or plugin-qualified. */
-const SLASH = /^\/(?:eklavya:)?(gate|learn|level|memory|mode|pack|progress|quiz|setup)(?![\w-])/;
+const SLASH = /^\/(?:eklavya:)?(gate|learn|level|memory|mode|pack|progress|quiz|setup|skip)(?![\w-])/;
 
 /**
  * `<first-seen ISO>|<last-nudge ISO or empty>|<nudges so far>`

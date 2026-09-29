@@ -127,6 +127,7 @@ and [every setting](https://eklavya-run.web.app/docs/configuration/).
 |---|---|
 | `/eklavya:quiz [topic]` | Take a quiz now. |
 | `/eklavya:mode [value]` | Show or change the dials. |
+| `/eklavya:skip` | Skip questions for this session only. |
 | `/eklavya:learn <topic>` | Take a short lesson. |
 | `/eklavya:level [level]` | See your level or pick one. |
 | `/eklavya:pack [topic]` | Add new topics, or topics from your code. |

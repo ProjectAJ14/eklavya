@@ -24,7 +24,7 @@ Automatic questions only come in sessions that change code. With the default `qu
 
 Setting `quiz.enabled: false` disables questions and enforcement. It does not stop memory; when memory is on, the session banner reports “memory on · questions off”. To stop both halves, also set `memory.enabled: false`.
 
-For temporary quiet, use `/eklavya:mode off --session`. This silences questions and the banner for this session without changing a file, but **keeps an enforced commit gate active**. See [session scope](/docs/configuration/#turning-it-off-for-one-session).
+For temporary quiet, use `/eklavya:skip` or `/eklavya:mode off --session`. This silences questions and the banner for this session without changing a file, but **keeps an enforced commit gate active**. See [session scope](/docs/configuration/#turning-it-off-for-one-session).
 
 ### `focus` — what it teaches
 

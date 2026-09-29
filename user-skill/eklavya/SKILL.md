@@ -319,6 +319,7 @@ let the user run it:
 | `/eklavya:quiz [topic]` | a quiz right now, ignoring the cooldown |
 | `/eklavya:learn <topic>` | a structured lesson ordered by prerequisites |
 | `/eklavya:mode` | the dials, explained and changed in a conversation |
+| `/eklavya:skip` | no questions for the rest of this session; memory keeps recording |
 | `/eklavya:level` | the per-project difficulty band and progress through it |
 | `/eklavya:gate` | commit-gate status for this session |
 | `/eklavya:pack [domain]` | write a concept pack, so Eklavya can quiz on a domain or a codebase it does not know |

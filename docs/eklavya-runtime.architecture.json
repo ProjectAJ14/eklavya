@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "4dc80a684ac2fc29a3e7f60da6b3d5f0b3d611df"
+      "revision": "f229771945664b372bfe86547f1274cde721418b"
     },
     "views": [
       {
@@ -103,7 +103,7 @@
       "id": "skills",
       "type": "frontend",
       "label": "Skills & Tutor Agent",
-      "sublabel": "9 slash commands + tutor",
+      "sublabel": "10 slash commands + tutor",
       "pos": [
         268,
         40
