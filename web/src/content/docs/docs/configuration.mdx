@@ -31,7 +31,7 @@ Project folders encode the main checkout's absolute path, such as `-Users-you-co
 
 ### Turning it off for one session
 
-Say **“Turn the questions off for this session”**, or run `/eklavya:mode off --session`. Questions, checkpoints, the banner and the status line stay silent until the session ends. Ask to turn Eklavya back on to resume sooner. No configuration file changes, and concepts logged while silent remain available later.
+Say **“Turn the questions off for this session”**, or run `/eklavya:skip` (the same as `/eklavya:mode off --session`). Questions, checkpoints, the banner and the status line stay silent until the session ends. Ask to turn Eklavya back on to resume sooner. No configuration file changes, and concepts logged while silent remain available later.
 
 Memory keeps recording. An enforced commit gate also remains active and can accumulate work while questions are silenced. Change `memory.enabled` to stop recording; change `quiz.enforced` at project or global scope to remove enforcement.
 

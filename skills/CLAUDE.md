@@ -9,7 +9,7 @@ sentence can change the product without raising an error. Read the root
 Each skill has a directory and `SKILL.md` with `name` and `description`.
 `disable-model-invocation: true` makes the entry user-invoked only. The shipped
 slash commands are `gate`, `learn`, `level`, `memory`, `mode`, `pack`, `progress`,
-`quiz` and `setup`. Recount from frontmatter when changing this inventory.
+`quiz`, `setup` and `skip`. Recount from frontmatter when changing this inventory.
 
 | Location | Responsibility |
 |---|---|

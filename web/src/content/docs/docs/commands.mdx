@@ -5,12 +5,13 @@ sidebar:
   order: 7
 ---
 
-Nine slash commands are available inside Claude Code when the plugin is loaded. Use the table to choose a task, or [ask in ordinary conversation](#or-just-ask).
+Ten slash commands are available inside Claude Code when the plugin is loaded. Use the table to choose a task, or [ask in ordinary conversation](#or-just-ask).
 
 | Command | Use it to |
 | --- | --- |
 | [`/eklavya:quiz [topic]`](#eklavyaquiz-topic) | Take a quiz now. |
 | [`/eklavya:mode [value]`](#eklavyamode-value) | Show or change when and what you learn. |
+| [`/eklavya:skip`](#eklavyaskip) | Skip questions for the rest of this session. |
 | [`/eklavya:learn <topic>`](#eklavyalearn-topic) | Work through a short lesson. |
 | [`/eklavya:level [auto\|easy\|medium\|hard]`](#eklavyalevel-autoeasymediumhard) | See your level or pin the difficulty. |
 | [`/eklavya:pack [domain or repo]`](#eklavyapack-domain-or-repo) | Add a domain or concepts from your codebase. |
@@ -62,6 +63,16 @@ It asks for global or project scope when unclear. Project settings are personal 
 :::note
 Session-only `off` silences questions until the session ends. Memory still records, and an enforced commit gate still applies. To remove enforcement, change `quiz.enforced` at project or global scope.
 :::
+
+### `/eklavya:skip`
+
+A shortcut for `/eklavya:mode off --session`. Questions, checkpoints, the banner and the status line stay silent until this session ends. It changes no configuration file, so other sessions in the same project, open now or started later, still ask as usual.
+
+```text
+/eklavya:skip
+```
+
+Memory keeps recording, and concepts logged while skipped come back in a later session. An enforced commit gate still applies. To resume sooner, run `/eklavya:mode on --session` or ask to turn Eklavya back on.
 
 ### `/eklavya:learn <topic>`
 

@@ -61,6 +61,8 @@ Same tool, `quiz: { enforced: true }`. Follow `/eklavya:setup` step 4 when they 
 
 ## "Turn it off for this session"
 
+`/eklavya:skip` is the shortcut for exactly this call.
+
 **Hear this phrasing — "for now", "for this session", "I'm in the middle of something", `--session` — and use `set_config` with `scope: "session"` and `quiz: { enabled: false }`.** Not global scope. Global is a file, the file outlives the afternoon, and a developer who silenced one urgent hour in April finds out in June that they turned the questions off for good. Session scope writes nothing: every question, checkpoint, banner and status bar stops until this session ends, and it forgets by itself.
 
 It takes `quiz` and nothing else. `quiz: { enabled: true }` at that scope brings the session back — that is what "turn Eklavya back on" does — and the file-backed settings are whatever they always were. **Memory has no session switch at all**, deliberately: a day of work nobody recorded is a day nobody can look up later, and the request was for quiet, not for a hole in the history. Say so if they ask.
