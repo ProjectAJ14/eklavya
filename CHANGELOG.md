@@ -1,3 +1,10 @@
+# [1.38.0](https://github.com/ProjectAJ14/eklavya/compare/v1.37.0...v1.38.0) (2026-09-29)
+
+
+### Features
+
+* **skills:** add /eklavya:skip for session-only quiet ([ed01fe7](https://github.com/ProjectAJ14/eklavya/commit/ed01fe7f7e0d1af21ffe04bf2309b11cfd8a7edb))
+
 # [1.37.0](https://github.com/ProjectAJ14/eklavya/compare/v1.36.1...v1.37.0) (2026-09-28)
 
 
