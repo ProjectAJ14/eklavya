@@ -90,8 +90,9 @@ with diagrams that you can print or save as PDF.
 ## Dashboard
 
 Run `eklavya dashboard` to open a local page in your browser. It keeps running
-in the background, and each session start restarts it if needed. It has four
-parts:
+in the background, and each session start restarts it if needed. You can also
+[install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
+and open it from Spotlight or the Dock. It has four parts:
 
 | Part | What you can see | Read more |
 |---|---|---|

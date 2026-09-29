@@ -770,6 +770,29 @@ describe('the new endpoints', () => {
       close();
     }
   });
+
+  it('is installable: the page links a manifest whose icons are served', async () => {
+    const { url, close } = await startBuilt(db as any, { port: 0 });
+    try {
+      const html = await (await fetch(url)).text();
+      expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest">');
+      const res = await fetch(`${url}/manifest.webmanifest`);
+      expect(res.headers.get('content-type')).toBe('application/manifest+json');
+      const m = (await res.json()) as any;
+      // What Chrome needs before it offers Install.
+      expect(m).toMatchObject({ name: 'Eklavya Dashboard', start_url: '/', display: 'standalone' });
+      const sizes = m.icons.map((i: any) => i.sizes);
+      expect(sizes).toEqual(expect.arrayContaining(['192x192', '512x512']));
+      for (const src of [...m.icons.map((i: any) => i.src), '/apple-touch-icon.png']) {
+        const icon = await fetch(`${url}${src}`);
+        expect(icon.status, src).toBe(200);
+        expect(icon.headers.get('content-type'), src).toBe('image/png');
+        expect(Buffer.from(await icon.arrayBuffer()).subarray(1, 4).toString(), src).toBe('PNG');
+      }
+    } finally {
+      close();
+    }
+  });
 });
 
 describe('search takes the box literally', () => {
@@ -814,7 +837,7 @@ describe('the server says what a browser may do with its pages', () => {
       req.end();
     });
 
-  const ROUTES = ['/', '/tokens.css', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/nope'];
+  const ROUTES = ['/', '/tokens.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/nope'];
 
   it('sends the security headers on every response, errors included', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });
