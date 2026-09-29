@@ -1,3 +1,10 @@
+# [1.39.0](https://github.com/ProjectAJ14/eklavya/compare/v1.38.0...v1.39.0) (2026-09-29)
+
+
+### Features
+
+* **dashboard:** make the dashboard installable as an app ([4b37c3c](https://github.com/ProjectAJ14/eklavya/commit/4b37c3c1f4320cd452760c508af9cb771f5b4630))
+
 # [1.38.0](https://github.com/ProjectAJ14/eklavya/compare/v1.37.0...v1.38.0) (2026-09-29)
 
 
