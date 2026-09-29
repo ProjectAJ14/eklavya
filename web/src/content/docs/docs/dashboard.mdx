@@ -34,6 +34,17 @@ The background copy writes errors to `~/.eklavya/dashboard.log`, cleared each ti
 
 `/eklavya:progress` gives a short summary in chat. The dashboard is where you inspect full histories and follow links between a concept, its questions, the session and the memory behind it.
 
+## Open it as an app
+
+Install the dashboard as an app to open it in its own window from Spotlight, Launchpad, the Dock or the Start menu instead of a browser tab. Open `http://127.0.0.1:41729`, then:
+
+- **Chrome or Edge**: choose the install icon at the end of the address bar, or **Install Eklavya Dashboard** in the browser menu.
+- **Safari on macOS**: choose **File → Add to Dock**.
+
+On a Mac, press **Command+Space** and type `Eklavya Dashboard` to open it.
+
+The app is the page at that exact address, so install it from `127.0.0.1:41729`, not from a `--port` dashboard or `localhost`. It shows live data only while the dashboard is running; if the window cannot connect, run `eklavya dashboard` or start a Claude Code session. Safari keeps the app's browser storage separate, so choose the ground there once.
+
 ## Switching workflow
 
 Use the caret beside the workflow name to choose **Learning**, **Memory**, **Artifacts** or **Settings**. Clicking the name or Eklavya wordmark returns to that workflow's Dashboard.

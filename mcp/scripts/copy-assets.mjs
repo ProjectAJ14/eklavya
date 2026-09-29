@@ -39,6 +39,15 @@ try {
 } catch (err) {
   console.warn(`warning: could not bundle the design tokens (${err.code ?? err.message})`);
 }
+// The site's icons double as the dashboard's app icons: the manifest served at
+// /manifest.webmanifest points at them so the page installs as an app.
+for (const icon of ['brand/icon-192.png', 'brand/icon-512.png', 'apple-touch-icon.png']) {
+  try {
+    await cp(path.join(path.dirname(root), 'web', 'public', icon), path.join(assets, path.basename(icon)));
+  } catch (err) {
+    console.warn(`warning: could not bundle ${icon} (${err.code ?? err.message})`);
+  }
+}
 
 // The user-level skill travels the same way, for the same reason: `eklavya
 // install` copies it into ~/.claude/skills/, so it must be in the tarball. It

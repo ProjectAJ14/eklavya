@@ -1332,6 +1332,31 @@ const ARTIFACT_CSP = [
   "form-action 'none'",
 ].join('; ');
 
+/**
+ * What makes the page installable as an app (Chrome and Edge "Install",
+ * Safari "Add to Dock"), so it opens from Spotlight or the Dock in its own
+ * window. Loopback counts as a secure context, so no certificate is needed, and
+ * no service worker either: an offline copy of a live record would only lie.
+ * The app belongs to this exact origin, port included.
+ */
+const MANIFEST = JSON.stringify({
+  id: '/',
+  name: 'Eklavya Dashboard',
+  short_name: 'Eklavya',
+  description: 'Your Eklavya learning progress, project memory, artifacts and settings.',
+  start_url: '/',
+  scope: '/',
+  display: 'standalone',
+  background_color: '#17171a',
+  theme_color: '#17171a',
+  icons: [
+    { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+  ],
+});
+/** Served from the bundled assets as-is; copied in from `web/public` at build. */
+const APP_ICONS = new Set(['/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']);
+
 function send(
   res: http.ServerResponse,
   status: number,
@@ -1531,6 +1556,12 @@ export function startDashboard(
         return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(file), {
           'content-security-policy': ARTIFACT_CSP,
         });
+      }
+      if (url.pathname === '/manifest.webmanifest') {
+        return send(res, 200, 'application/manifest+json', MANIFEST);
+      }
+      if (APP_ICONS.has(url.pathname)) {
+        return send(res, 200, 'image/png', fs.readFileSync(path.join(assets, url.pathname.slice(1))));
       }
       if (url.pathname === '/tokens.css') {
         return send(res, 200, 'text/css', localTokens(fs.readFileSync(path.join(assets, 'tokens.css'), 'utf8')));
