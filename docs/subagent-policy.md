@@ -51,9 +51,10 @@ logging directive. A background agent may stop on a permission prompt and
 report back without finishing.
 
 End-of-task questions come from the Stop sweep, after the task answer (one
-question under `interleaved`, the remaining budget under `end`). The sweep's
-instruction ends with "Back to your task:" and a 2-4 line restatement of the
-answer, which is what keeps the answer last. The standing directive only says
+question under `interleaved`, the remaining budget under `end`). The sweep itself
+is one line the developer also sees; the plan it points to returns `on_finish`,
+which asks for "Back to your task:" and a 2-4 line restatement of the answer.
+That is what keeps the answer last. The standing directive only says
 never to end a turn on a question or a verdict: an earlier line asking the
 parent to quiz before its final answer was not followed in live sessions and
 was removed. Every plan Eklavya asks for itself is capped at what is left of

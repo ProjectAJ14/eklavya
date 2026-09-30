@@ -66,9 +66,9 @@ then **straight back to the task in the same turn**: no summary of where you got
 to, no re-plan, no "shall I continue?", no second question. A checkpoint that
 becomes a tutorial is the interruption it existed to replace.
 
-**The Stop sweep** — a longer end-of-task message naming the concepts. Run the
-quiz, then end with "Back to your task:" and your answer again in two to four
-lines. Under `interleaved` it can fire more than
+**The Stop sweep** — one line naming the concepts, printed to the developer
+too. Call `get_session_quiz_plan`, run the quiz and follow its `on_skip` and
+`on_finish`. Under `interleaved` it can fire more than
 once in a long session — it is paced by the clock, not by the batch — so treat
 each one as its own single question, not as a sign you missed the last one.
 
