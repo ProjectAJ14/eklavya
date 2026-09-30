@@ -1993,6 +1993,69 @@ describe('the delegation nudge on a second edited file', () => {
     expect(edit('b.ts', { tool_name: 'Read' }).spoke).toBe(false);
   });
 
+  describe('through Bash, read from git', () => {
+    // Heredocs and `sed -i` change files without an edit tool: a 39-call
+    // session made no Edit at all, and both headless acceptance runs did the
+    // same. Git's view between Bash calls is what counts them.
+    const bash = () => edit('', { tool_name: 'Bash', tool_input: { command: 'sed -i ...' } });
+    const write = (file: string, text: string) => fs.writeFileSync(path.join(cwd, file), text);
+    beforeEach(() => {
+      spawnSync('git', ['init', '-q'], { cwd });
+      write('a.ts', 'a');
+      write('b.ts', 'b');
+      write('dirty.ts', 'was dirty before the session');
+    });
+
+    it('nudges when Bash calls change a second file, not before', () => {
+      expect(bash().spoke).toBe(false); // first snapshot
+      write('a.ts', 'a2');
+      expect(bash().spoke).toBe(false);
+      write('b.ts', 'b2');
+      expect(bash().context).toMatch(/more than one file/);
+      write('a.ts', 'a3');
+      expect(bash().spoke).toBe(false);
+    });
+
+    it('counts one Bash call that changes two files', () => {
+      bash();
+      write('a.ts', 'a2');
+      write('b.ts', 'b2');
+      expect(bash().spoke).toBe(true);
+    });
+
+    it('does not count a file that was already dirty and did not move', () => {
+      bash();
+      write('a.ts', 'a2');
+      expect(bash().spoke).toBe(false);
+      expect(bash().spoke).toBe(false);
+    });
+
+    it('joins an Edit and a Bash change into two files', () => {
+      bash();
+      edit('a.ts');
+      write('a.ts', 'a2'); // the Edit's own write, seen by git: still one file
+      expect(bash().spoke).toBe(false);
+      write('b.ts', 'b2');
+      expect(bash().spoke).toBe(true);
+    });
+
+    it('ignores a subagent Bash call', () => {
+      const sub = { tool_name: 'Bash', tool_input: { command: 'x' }, agent_id: 'agent-1' };
+      edit('', sub);
+      write('a.ts', 'a2');
+      write('b.ts', 'b2');
+      expect(edit('', sub).spoke).toBe(false);
+    });
+  });
+
+  it('says nothing for Bash outside a git repository', () => {
+    const bash = () => edit('', { tool_name: 'Bash', tool_input: { command: 'ls' } });
+    expect(bash().spoke).toBe(false);
+    fs.writeFileSync(path.join(cwd, 'a.ts'), 'a');
+    fs.writeFileSync(path.join(cwd, 'b.ts'), 'b');
+    expect(bash().spoke).toBe(false);
+  });
+
   it('fails open on garbage input', () => {
     const res = spawnSync(process.execPath, [DELEGATE_NUDGE], {
       input: 'not json',

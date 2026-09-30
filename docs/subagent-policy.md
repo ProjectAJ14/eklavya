@@ -36,9 +36,14 @@ does everything when the host cannot run agents in the background.
 
 The session-start instruction alone was not followed in live sessions: by the
 time the model chooses how to build, it is far back in context. So
-`delegate-nudge` (PostToolUse on the edit tools) repeats it once per session,
-the first time the parent edits a second distinct file. Subagent edits neither
-trigger nor count toward it; it needs questions on and `delegate_work` true.
+`delegate-nudge` (PostToolUse on Bash and the edit tools) repeats it once per
+session, the first time the parent changes a second distinct file. An edit tool
+names its file; after a Bash call, a file counts when `git status` shows its
+size or mtime moved since the previous Bash call, so heredocs and `sed -i`
+count too. The first snapshot is taken after the first Bash call, so changes
+that call made are seen only once another file moves. Subagent edits neither
+trigger nor count; it needs questions on and `delegate_work` true, and stops
+calling git once it has fired.
 
 The parent asks because a delegate cannot: it has no `AskUserQuestion` and
 nobody reads its transcript. Background implementers still get the SubagentStart
