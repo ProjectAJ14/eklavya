@@ -1,3 +1,10 @@
+## [1.42.2](https://github.com/ProjectAJ14/eklavya/compare/v1.42.1...v1.42.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* correct docs drift from the past week and the skip command's claim ([e43999a](https://github.com/ProjectAJ14/eklavya/commit/e43999ace25f7083dbaf906bf9ccf46574080ac2))
+
 ## [1.42.1](https://github.com/ProjectAJ14/eklavya/compare/v1.42.0...v1.42.1) (2026-09-30)
 
 
