@@ -1,3 +1,10 @@
+## [1.42.3](https://github.com/ProjectAJ14/eklavya/compare/v1.42.2...v1.42.3) (2026-09-30)
+
+
+### Bug Fixes
+
+* follow a leading cd so the delegation nudge sees worktree edits ([05ab1a8](https://github.com/ProjectAJ14/eklavya/commit/05ab1a8fa20db9c2264e3de11b9c8430a36050a3))
+
 ## [1.42.2](https://github.com/ProjectAJ14/eklavya/compare/v1.42.1...v1.42.2) (2026-09-30)
 
 
