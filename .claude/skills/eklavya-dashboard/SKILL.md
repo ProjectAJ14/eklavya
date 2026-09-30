@@ -335,6 +335,14 @@ file; do not join paths here. `test/artifacts.test.ts` covers traversal, a
 planted symlink and the rebound host, and the browser suite checks the opened
 page cannot read the API.
 
+The Artifacts Dashboard is a gallery: one `.art` card per page, its thumbnail
+an `<img>` of `/artifacts/<id>?thumb=ink|paper&v=<bytes>`. `artifactThumb`
+cuts the page's first `<figure>` `<svg>` out with the page's `<style>` blocks
+and sets `data-mode` on its root; a page with no diagram gets the cover sheet.
+An image runs no script and loads nothing, which is why this is safe where an
+iframe is not. `eklavyaGround.apply` swaps every `img[data-thumb]` to the new
+ground; `v` busts the hour-long cache when a page is rewritten.
+
 ## Escaping is not optional
 
 Learning rows are written by the tutor. **Memory rows are arbitrary tool output

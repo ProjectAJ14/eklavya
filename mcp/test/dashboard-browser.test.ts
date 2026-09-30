@@ -529,6 +529,13 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await link.count()).toBe(1);
       expect(await link.getAttribute('href')).toMatch(/^\/artifacts\/.+\.html$/);
       expect(await link.getAttribute('rel')).toBe('noopener');
+      // The card's thumbnail loads, and follows the ground when it changes.
+      const img = w.page.locator('#view img[data-thumb]');
+      await img.evaluate((i: HTMLImageElement) => i.decode());
+      expect(await img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
+      await w.page.evaluate(() => (window as any).eklavyaGround.set('paper'));
+      expect(await img.getAttribute('src')).toContain('thumb=paper');
+      await w.page.evaluate(() => (window as any).eklavyaGround.set('ink'));
 
       await w.page.fill('#aq', 'no such page');
       expect(await link.count()).toBe(0);

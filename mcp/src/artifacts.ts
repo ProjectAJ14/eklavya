@@ -236,3 +236,41 @@ export function resolveArtifact(id: string, root: string = artifactsDir()): stri
     return null;
   }
 }
+
+/** Past this, a page is not scanned for its diagram; the gallery shows the cover. */
+const THUMB_MAX_BYTES = 4 * 1024 * 1024;
+
+/** A page with no diagram still gets a picture: a sheet with ruled lines, drawn in the tokens. */
+const COVER =
+  '<svg viewBox="0 0 320 200"><g fill="none" style="stroke:var(--faint-2)" stroke-width="2" stroke-linecap="round">' +
+  '<path d="M136 52h36l14 14v82h-50z"/><path d="M172 52v14h14"/><path d="M148 96h26M148 112h26M148 128h16"/></g></svg>';
+
+/**
+ * A page's thumbnail for the gallery: its first diagram — the first `<svg>`
+ * inside a `<figure>` — as a standalone SVG document, or the cover when it has
+ * none. The page's own `<style>` blocks go with it, so the `.svg-*` classes and
+ * the inlined tokens resolve as they do in the page, and `data-mode` on the
+ * root picks the ground (the tokens key it off `:root`). An `<img>` runs no
+ * script and fetches nothing, so the markup needs no cleaning; served with
+ * `ARTIFACT_CSP` it is sandboxed when opened directly too.
+ */
+export function artifactThumb(file: string, mode: 'ink' | 'paper'): string {
+  // Comments first: the template's own instructions mention a <figure>.
+  const html = fs.statSync(file).size > THUMB_MAX_BYTES ? ''
+    : fs.readFileSync(file, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+  const css = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).join('\n');
+  const fig = html.search(/<figure[\s>]/i);
+  const start = fig < 0 ? -1 : html.indexOf('<svg', fig);
+  const figEnd = html.indexOf('</figure>', fig);
+  // ponytail: the first </svg> closes it, so a nested <svg> cuts the diagram
+  // short and the image fails to decode. Upgrade: count nesting if one appears.
+  const end = start < 0 ? -1 : html.indexOf('</svg>', start);
+  const found = start >= 0 && end >= 0 && (figEnd < 0 || start < figEnd);
+  const svg = found ? html.slice(start, end + '</svg>'.length) : COVER;
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + svg.replace(/^<svg\b[^>]*>/, (tag) =>
+    tag
+      .replace(/\s(xmlns|width|height|data-mode)="[^"]*"/g, '')
+      .replace(/^<svg/, `<svg xmlns="http://www.w3.org/2000/svg" data-mode="${mode}"`)
+      .replace(/>$/, `><style><![CDATA[${css.replaceAll(']]>', '')}\n:root{color:var(--dim)}]]></style>`),
+  );
+}

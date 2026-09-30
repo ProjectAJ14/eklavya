@@ -27,6 +27,9 @@
       document.querySelectorAll('[data-ground]').forEach(function (b) {
         b.setAttribute('aria-pressed', String(b.dataset.ground === mode));
       });
+      document.querySelectorAll('img[data-thumb]').forEach(function (i) {
+        i.src = i.dataset.thumb.replace('thumb=@', 'thumb=' + mode);
+      });
       return mode;
     },
     set: function (mode) {
@@ -248,6 +251,17 @@
 
   .g2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-6); }
   .g3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-6); }
+  /* Artifacts gallery: a card per page, its first diagram as the thumbnail. */
+  .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:var(--space-5); }
+  .art { display:flex; flex-direction:column; gap:var(--space-2); min-width:0; }
+  .art p { margin:0; }
+  .art .ctx { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .art__open { display:flex; flex-direction:column; gap:var(--space-3); color:var(--ink); text-decoration:none; }
+  .art__open:focus-visible { outline:2px solid var(--spot); outline-offset:2px; }
+  .art__open:hover .title { color:var(--spot); }
+  .art__thumb { display:block; aspect-ratio:16/10; background:var(--panel); border:1px solid var(--line-2); padding:var(--space-3); }
+  .art__open:hover .art__thumb { border-color:var(--spot); }
+  .art__thumb img { display:block; width:100%; height:100%; object-fit:contain; }
   .g2 > *, .g3 > * { margin-top:0 !important; }
 
   /* ---------- stat tiles ---------- */
@@ -2446,17 +2460,21 @@ const ARTIFACT_KINDS = ['all', 'explainer', 'artifact'];
 const artifactsInScope = () => (S.artifacts ?? []).filter((a) => inScope(a.project));
 const artifactUrl = (a) => '/artifacts/' + a.id.split('/').map(encodeURIComponent).join('/');
 
-function artifactRow(a) {
+// The thumbnail's URL names the ground, and the size busts its cache when a page is rewritten.
+const thumbUrl = (a, mode) => `${artifactUrl(a)}?thumb=${mode}&v=${a.bytes}`;
+
+function artifactCard(a) {
   const known = a.concept && S.concepts.some((c) => c.slug === a.concept);
-  const concept = !a.concept ? '<span class="slug">—</span>'
-    : known ? `<a class="link slug" data-go="${esc(LH('concept', a.concept))}">${esc(a.concept)}</a>`
-    : `<span class="slug">${esc(a.concept)}</span>`;
-  return `<tr>
-    <td style="min-width:260px"><a class="link title" href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">${esc(a.title)}</a>
-      ${a.description ? `<div class="ctx">${esc(a.description)}</div>` : ''}</td>
-    <td><span class="pill">${esc(a.kind)}</span></td>
-    <td>${concept}</td>
-    <td class="num slug" style="white-space:nowrap">${esc(stamp(a.created))}</td></tr>`;
+  const concept = !a.concept ? ''
+    : known ? ` · <a class="link" data-go="${esc(LH('concept', a.concept))}">${esc(a.concept)}</a>`
+    : ` · ${esc(a.concept)}`;
+  return `<article class="art">
+    <a class="art__open" href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">
+      <span class="art__thumb"><img src="${esc(thumbUrl(a, window.eklavyaGround.read()))}" data-thumb="${esc(thumbUrl(a, '@'))}" alt="" loading="lazy" decoding="async"></span>
+      <span class="title">${esc(a.title)}</span></a>
+    ${a.description ? `<p class="ctx">${esc(a.description)}</p>` : ''}
+    <p class="slug">${esc(a.kind)} · ${esc(stamp(a.created))}${concept}</p>
+  </article>`;
 }
 
 function viewArtifacts(param) {
@@ -2481,12 +2499,11 @@ function viewArtifacts(param) {
   counts.artifact = all.length - counts.explainer;
   const projects = new Set(all.map((a) => pid(a.project))).size;
   const chip = (k, label) => `<button class="chip" data-go="${esc(AH('dashboard', k === 'all' ? null : k))}" aria-pressed="${kind === k}">${label} ${counts[k]}</button>`;
-  const cols = [{t:'Page'},{t:'Kind'},{t:'Concept'},{t:'Written',n:1}];
   const body = !list.length
     ? `<p class="empty">${all.length ? 'Nothing matches that search.' : 'No artifacts yet. Ask for an Eklavya artifact, or miss a question with explain_on_wrong on, and they land here.'}</p>`
     : [...groups].map(([id, rows]) =>
         `<h3 class="slug" style="margin:var(--space-5) 0 var(--space-2)">${esc(projectById(id)?.name ?? (id === '~' ? 'no project' : base(id)))}</h3>`
-        + table(cols, rows.map(artifactRow))).join('') + pager('artifacts', list.length, p);
+        + `<div class="gallery">${rows.map(artifactCard).join('')}</div>`).join('') + pager('artifacts', list.length, p);
   return [
     pageHead('Artifacts', [
       plural(all.length, 'page'), plural(counts.explainer, 'explainer'),

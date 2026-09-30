@@ -74,7 +74,8 @@ Draw them as **inline SVG** inside `<figure>`, with the template's classes —
 `.svg-line-spot`, `.svg-label`, `.svg-small`, `.svg-muted` — and a
 `<figcaption>` that states the takeaway, not the title. Never a raster image,
 ASCII boxes or a Mermaid script: inline SVG themes and prints, the others do
-not.
+not. The first `<figure>` diagram is the page's thumbnail in the dashboard's
+Artifacts gallery, so put the one that explains the page first.
 
 **Stay on the design system.** Components already in the template: `.eyebrow`,
 `.lede`, `.card`, `.grid`, `.chip` (`.warn`, `.bad`), `.stat` (`.k`, `.v`,
