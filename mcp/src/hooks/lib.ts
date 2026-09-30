@@ -126,7 +126,7 @@ export function openOrDiagnose(): { db: DB | null; problem: DbProblem | null } {
     } catch {
       /* already unusable */
     }
-    const code = String((err as { code?: string }).code);
+    const code = String(Object(err).code);
     return { db: null, problem: /^SQLITE_(BUSY|LOCKED)/.test(code) ? null : 'unreadable' };
   }
 }
