@@ -1,3 +1,16 @@
+# [1.40.0](https://github.com/ProjectAJ14/eklavya/compare/v1.39.1...v1.40.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* keep automatic plans within the session budget and honour end cadence ([d364e7b](https://github.com/ProjectAJ14/eklavya/commit/d364e7be3ca538c48ac04b283c0434197cee6f80))
+
+
+### Features
+
+* colour code blocks in artifact pages ([f4f7ca5](https://github.com/ProjectAJ14/eklavya/commit/f4f7ca5f4644997585653846200c6b5e19699876))
+* delegate work to background agents and keep the task answer last ([679f1fb](https://github.com/ProjectAJ14/eklavya/commit/679f1fb70a0c56b5a644fbfa445367ff2c4c21d2))
+
 ## [1.39.1](https://github.com/ProjectAJ14/eklavya/compare/v1.39.0...v1.39.1) (2026-09-30)
 
 
