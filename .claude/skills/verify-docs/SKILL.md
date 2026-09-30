@@ -244,8 +244,8 @@ Report mode returns, per surface:
 ## Manual (N findings, M files checked)
 - web/src/content/docs/docs/dials.mdx:42  §2 wrong default
   now:    "cadence defaults to end"
-  source: mcp/src/config.ts:118  cadence: 'interleaved'
-  fix:    "cadence defaults to interleaved"
+  source: mcp/src/config.ts:118  cadence: 'as-you-go'
+  fix:    "cadence defaults to as-you-go"
 
 ## Landing page (...)
 ## README (...)

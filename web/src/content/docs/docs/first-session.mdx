@@ -28,7 +28,7 @@ command for each question.
 
 For example, ask Claude to “Add JWT authentication to the Express API.” As it
 implements the change, it logs concepts tied to the actual code. With the
-default `interleaved` cadence, that logging call can trigger a question. Later
+default `as-you-go` cadence, that logging call can trigger a question. Later
 edits and shell commands provide further checkpoints, paced by a four-minute
 interval. Task completion can bring one more question, subject to the same
 pacing and session budget. It comes after Claude's answer, and Claude then
@@ -39,7 +39,7 @@ For a change that spans several files, [`delegate_work`](/docs/configuration/#ev
 changes a second file itself, with an edit tool or a shell command, Eklavya
 reminds it once. That includes a worktree: a command that starts with
 `cd <worktree> &&` is checked in that worktree's repository. Under the
-default `interleaved` cadence, questions then come one at a time while they
+default `as-you-go` cadence, questions then come one at a time while they
 work, and the task answer arrives last.
 
 Answers are graded from 0 to 5. Concepts you struggle with return sooner;
@@ -73,7 +73,7 @@ instead begins with `[Eklavya]`.
 The terminal status bar shows the current focus, cadence and difficulty:
 
 ```text
-[EKLAVYA concept · interleaved · easy]
+[EKLAVYA concept · as-you-go · easy]
 ```
 
 The installer configures this status line when possible. If you already have a

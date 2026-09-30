@@ -25,7 +25,7 @@ scheduling, hooks, installer, CLI and dashboard. Read the root `CLAUDE.md` first
 ## Configuration and trust
 
 Read defaults from `DEFAULT_CONFIG`: quiz enabled, unenforced; focus `concept`;
-cadence `interleaved`; difficulty `auto`. Tool descriptions and skills must use
+cadence `as-you-go`; difficulty `auto`. Tool descriptions and skills must use
 the same values. Normalize legacy `mode` per file before merging, permanently:
 otherwise a global `quiz` can incorrectly override a project's old `mode`.
 `quiz.enabled: false` forces enforcement off; `doctor` reports the conflict.
@@ -71,7 +71,7 @@ Read `countAnswered`, `syncGate` and `gateRetryConcepts` before modifying gates:
   Decline plus feedback is contradictory: the tool returns `outcome_conflict`,
   and legacy contradictory rows remain retryable. Never guess an outcome.
 
-The planner owns the interleaved cap: one question only when unenforced and no
+The planner owns the as-you-go cap: one question only when unenforced and no
 explicit domain/slugs. An explicit `max` wins; a resolved `learn` focus topic
 does not count as an explicit request. Keep hooks, skills and docs aligned.
 

@@ -72,7 +72,7 @@ changing.
 | `quiz.enforced` | Do questions hold commits? | `true`, `false` | `false` |
 | `quiz.only_on_changes` | Only ask once the session has changed code in a git repository? | `true`, `false` | `true` |
 | `focus` | What does it teach? | `project`, `concept`, `learn` | `concept` |
-| `cadence` | When do the questions land? | `interleaved`, `end` | `interleaved` |
+| `cadence` | When do the questions land? | `as-you-go`, `end` | `as-you-go` |
 | `difficulty` | How hard may they get? | `auto`, `easy`, `medium`, `hard` | `auto` |
 | `memory.enabled` | Is the work recorded? | `true`, `false` | `true` |
 
@@ -87,7 +87,7 @@ still using it keep working everywhere — `off` reads as `quiz.enabled: false`,
   questions for could never be passed.
 - `project` quizzes the code just written. `concept` asks the transferable
   version of the same idea. `learn` follows `focus_topic`.
-- `interleaved` asks one question mid-task, at the seam where a concept was
+- `as-you-go` asks one question mid-task, at the seam where a concept was
   logged. `end` holds everything until the task finishes. Neither asks *more*
   questions: `max_questions_per_task` is the budget either way.
 - `auto` earns the level per project — everyone starts at `easy` and climbs on
@@ -165,7 +165,7 @@ questions while they work, then give the task answer last; the first time
 Claude edits a second file itself, a hook repeats that once. `false` keeps the
 building in the conversation. The session-start part applies from the next
 session start, and neither does anything while `quiz.enabled` is false.
-Questions while agents build need `cadence: interleaved`: under `end` it still
+Questions while agents build need `cadence: as-you-go`: under `end` it still
 delegates but asks nothing until the task is done.
 
 ## Reading state

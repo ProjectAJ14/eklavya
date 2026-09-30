@@ -955,7 +955,7 @@ describe('/api/settings', () => {
       const d = await (await fetch(`${url}/api/settings?project=${encodeURIComponent(repo)}`)).json();
       expect(d.projects.map((p: any) => p.id)).toEqual([repo]);
       expect(d.project.id).toBe(repo);
-      expect(d.user.effective['cadence']).toBe('interleaved');
+      expect(d.user.effective['cadence']).toBe('as-you-go');
       expect(d.global_only).toEqual(expect.arrayContaining(['telemetry', 'auto_update']));
     });
   });
@@ -968,10 +968,10 @@ describe('/api/settings', () => {
       expect(JSON.parse(fs.readFileSync(userFile, 'utf8')).cadence).toBe('end');
 
       expect((await post(port, { scope: 'project', project: repo, key: 'memory.capture', value: 'minimal' }, h)).status).toBe(200);
-      expect((await post(port, { scope: 'project', project: repo, key: 'cadence', value: 'interleaved' }, h)).status).toBe(200);
+      expect((await post(port, { scope: 'project', project: repo, key: 'cadence', value: 'as-you-go' }, h)).status).toBe(200);
       let d = await (await fetch(`${url}/api/settings?project=${encodeURIComponent(repo)}`)).json();
-      expect(d.project.set).toEqual({ 'memory.capture': 'minimal', cadence: 'interleaved' });
-      expect(d.project.effective.cadence).toBe('interleaved');
+      expect(d.project.set).toEqual({ 'memory.capture': 'minimal', cadence: 'as-you-go' });
+      expect(d.project.effective.cadence).toBe('as-you-go');
 
       // A second write keeps the previous bytes beside the file.
       expect(fs.existsSync(`${d.project.path}.eklavya-bak`)).toBe(true);

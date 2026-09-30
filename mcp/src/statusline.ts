@@ -25,7 +25,7 @@
  *   stays, and it is the part that explained the pitch: `easy` already says
  *   tiers 1-2. The exact tier is still in the plan, still recorded on every
  *   attempt, and still in the dashboard.
- * - **`question: N of M`.** Same reason, and under the default `interleaved`
+ * - **`question: N of M`.** Same reason, and under the default `as-you-go`
  *   cadence a plan is one question anyway, so it was rarely shown.
  *
  * `stripAskHeader` in `ask.ts` stays regardless, and must: rows recorded while

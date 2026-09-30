@@ -274,7 +274,7 @@ describe('log_session_concepts', () => {
 });
 
 describe('get_session_quiz_plan', () => {
-  // The model reads this on every interleaved question; "ask, grade, back to
+  // The model reads this on every as-you-go question; "ask, grade, back to
   // work" alone left the developer never told whether they were right.
   it('tells the model to give the verdict before getting back to the work', () => {
     expect(getSessionQuizPlan.description).toMatch(/grade it, tell them whether they were right[^.]*get back to the work/);
@@ -309,12 +309,12 @@ describe('get_session_quiz_plan', () => {
     expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).concepts).toHaveLength(1);
   });
 
-  // The bug this suite exists for: `interleaved` promised a question at a time
+  // The bug this suite exists for: `as-you-go` promised a question at a time
   // and the planner handed back four, which the tutor then asked end to end at
   // the moment the developer wanted to be finished.
   describe('cadence caps the plan', () => {
-    it('plans one question under the interleaved cadence', () => {
-      configure({ cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+    it('plans one question under the as-you-go cadence', () => {
+      configure({ cadence: 'as-you-go', min_minutes_between_quizzes: 0 });
       logAuthWork();
       const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
       expect(plan.questions_needed).toBe(1);
@@ -330,13 +330,13 @@ describe('get_session_quiz_plan', () => {
     // impossible. The gate needs several passing answers and the Stop hook only
     // re-arms on new work, so enforced quizzing keeps the whole plan.
     it('plans the whole budget when enforced, cadence notwithstanding', () => {
-      configure({ quiz: { enabled: true, enforced: true }, cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+      configure({ quiz: { enabled: true, enforced: true }, cadence: 'as-you-go', min_minutes_between_quizzes: 0 });
       logAuthWork();
       expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(3);
     });
 
     it('still plans the budget when the developer asked to be quizzed', () => {
-      configure({ cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+      configure({ cadence: 'as-you-go', min_minutes_between_quizzes: 0 });
       logAuthWork();
       // An explicit max, or a named topic, is a request rather than an ambient
       // interruption — the cap is there to stop nagging, not to refuse.
@@ -457,7 +457,7 @@ describe('get_session_quiz_plan', () => {
   // delegate_work: questions while background agents build skip the cooldown
   // but spend the session budget the hooks spend, one at a time.
   it('plans one question while waiting, until the session budget is spent', () => {
-    configure({ max_questions_per_task: 2, cadence: 'interleaved', quiz: { enabled: true, enforced: false } });
+    configure({ max_questions_per_task: 2, cadence: 'as-you-go', quiz: { enabled: true, enforced: false } });
     logAuthWork();
     const answer = (slug: string) =>
       call(recordAttempt, { session_id: SESSION, slug, question: `q-${slug}`, grade: 4, difficulty: 2 });
@@ -478,7 +478,7 @@ describe('get_session_quiz_plan', () => {
   // The ask before a final answer and the wait on agents are Eklavya deciding
   // to ask, so they follow the rule the hooks follow.
   it('holds automatic plans back under quiz.only_on_changes until the session edits code', () => {
-    configure({ cadence: 'interleaved', min_minutes_between_checkpoints: 0, quiz: { enabled: true, enforced: false, only_on_changes: true } });
+    configure({ cadence: 'as-you-go', min_minutes_between_checkpoints: 0, quiz: { enabled: true, enforced: false, only_on_changes: true } });
     logAuthWork();
     expect(call<any>(getSessionQuizPlan, { session_id: SESSION }))
       .toMatchObject({ questions_needed: 0, reason: 'no_code_change' });
@@ -505,7 +505,7 @@ describe('get_session_quiz_plan', () => {
   // The ask before a final answer is a plain call. It used to serve a question
   // past the session budget once the checkpoint clock had run out.
   it('caps a plain plan at what is left of the session budget', () => {
-    configure({ max_questions_per_task: 2, cadence: 'interleaved', min_minutes_between_checkpoints: 0, quiz: { enabled: true, enforced: false } });
+    configure({ max_questions_per_task: 2, cadence: 'as-you-go', min_minutes_between_checkpoints: 0, quiz: { enabled: true, enforced: false } });
     logAuthWork();
     call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q1', grade: 4, difficulty: 2 });
     expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(1);
@@ -648,7 +648,7 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('serves the concept the hooks name: newest first, then last logged in a batch', () => {
-    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    configure({ min_minutes_between_quizzes: 0, cadence: 'as-you-go' });
     call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'earlier' }] });
     db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-30 minutes') WHERE session_id = ?`).run(SESSION);
     call(logSessionConcepts, {
@@ -793,10 +793,10 @@ describe('get_session_quiz_plan', () => {
   // hook clears its 4-minute checkpoint gap, blocks the turn, and this function
   // then refuses on a 20-minute quiz gap -- which reads to the model as being told
   // to teach and handed nothing to teach.
-  it('paces interleaved on the checkpoint clock, never the quiz clock', () => {
+  it('paces as-you-go on the checkpoint clock, never the quiz clock', () => {
     configure({
       quiz: { enabled: true, enforced: false },
-      cadence: 'interleaved',
+      cadence: 'as-you-go',
       min_minutes_between_quizzes: 0,
       min_minutes_between_checkpoints: 30,
     });

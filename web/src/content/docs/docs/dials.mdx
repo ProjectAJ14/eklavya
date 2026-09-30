@@ -12,7 +12,7 @@ Choose what Eklavya teaches and how often it asks. These settings are independen
 | `quiz.enabled` | `true`: offer questions | `false`: no questions or gate; memory can continue. |
 | `quiz.enforced` | `false`: commits are unrestricted | `true`: require passing answers before committing. |
 | `focus` | `concept`: the idea behind the code | `project`: this codebase; `learn`: a chosen topic. |
-| `cadence` | `interleaved`: one question during work | `end`: questions when the task finishes. |
+| `cadence` | `as-you-go`: one question during work | `end`: questions when the task finishes. |
 | `difficulty` | `auto`: earn a level per project | Pin `easy`, `medium` or `hard`. |
 | `memory.enabled` | `true`: record and recall work | `false`: learning continues without memory capture or recall. |
 
@@ -38,17 +38,17 @@ For temporary quiet, use `/eklavya:skip` or `/eklavya:mode off --session`. This 
 
 ### `cadence` — when it asks
 
-**Interleaved** offers one question when concepts are logged, then at eligible shell commands, edits or completed turns. Offered questions are at least `min_minutes_between_checkpoints` apart (four minutes by default).
+**As-you-go** offers one question when concepts are logged, then at eligible shell commands, edits or completed turns. Offered questions are at least `min_minutes_between_checkpoints` apart (four minutes by default).
 
 **End** waits until a task finishes, then asks the remaining budget one question at a time. `min_minutes_between_quizzes` spaces these offered quizzes (20 minutes by default).
 
-Automatic checkpoints and the final sweep share `max_questions_per_task`: four questions across the session by default. Interleaving moves that budget earlier without adding automatic questions. Enforcement removes the planner's one-question cap and normal quiz cooldown, but automatic hooks still stop when their session budget is spent.
+Automatic checkpoints and the final sweep share `max_questions_per_task`: four questions across the session by default. As-you-go moves that budget earlier without adding automatic questions. Enforcement removes the planner's one-question cap and normal quiz cooldown, but automatic hooks still stop when their session budget is spent.
 
 Each explicit `/eklavya:quiz` round can plan up to `max_questions_per_task` eligible questions even after that automatic budget is exhausted. Use it to continue learning or retry a taught miss when an enforced gate remains blocked.
 
 Unasked work does not return in a later session. Questions you declined, left blank or got wrong come back once their review is due, after current work is covered. Raise checkpoint spacing if you want fewer interruptions; choose `end` if you want none during the task.
 
-With [`delegate_work`](/docs/configuration/#every-key) on (the default), a larger code change goes to background agents (Eklavya reminds Claude once if it changes a second file itself, with an edit tool or a shell command), and Claude asks one question at a time while they build instead of waiting for checkpoints. These questions skip the spacing above but come out of the same `max_questions_per_task` budget. Questions while agents build need `interleaved`: under `end` none are asked while agents build, and questions wait for the end of the task. They stop when an agent reports or the budget is spent, and Claude writes its task answer last. Set `delegate_work` to `false` to keep the building in the main conversation.
+With [`delegate_work`](/docs/configuration/#every-key) on (the default), a larger code change goes to background agents (Eklavya reminds Claude once if it changes a second file itself, with an edit tool or a shell command), and Claude asks one question at a time while they build instead of waiting for checkpoints. These questions skip the spacing above but come out of the same `max_questions_per_task` budget. Questions while agents build need `as-you-go`: under `end` none are asked while agents build, and questions wait for the end of the task. They stop when an agent reports or the budget is spent, and Claude writes its task answer last. Set `delegate_work` to `false` to keep the building in the main conversation.
 
 ### `difficulty` — how hard it may get
 

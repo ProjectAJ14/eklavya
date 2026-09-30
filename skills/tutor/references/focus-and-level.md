@@ -162,7 +162,7 @@ ever promote, so never imply progress toward a next level.
 
 ## Cadence — when to ask
 
-- **interleaved** (the default) — one question at a time, mid-task, at the seam
+- **as-you-go** (the default) — one question at a time, mid-task, at the seam
   where you logged the concept. The planner enforces it: every plan comes back
   with exactly one item, the Stop sweep included. Enforced quizzing is exempt,
   because the gate has to stay passable, and so is a plan the developer asked for
