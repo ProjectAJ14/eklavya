@@ -154,6 +154,12 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+function errorText(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  /* c8 ignore next 2 -- everything that throws here throws an Error; a thrown string still prints */
+  return String(err);
+}
+
 /**
  * The pedagogy is one SKILL.md plus `references/*.md`, and Claude Code reads
  * those on demand -- SKILL.md says "read references/grading.md before you
@@ -191,7 +197,8 @@ function tutorSections(): string[] {
   // and a rules file carrying the dispatch logic and none of the craft is worse
   // than no rules file at all -- the split's whole failure mode, re-created at
   // the last step.
-  const cited = [...skill.matchAll(/references\/([a-z0-9-]+\.md)/g)].flatMap((m) => (m[1] ? [m[1]] : []));
+  // The group always matches when the pattern does.
+  const cited = [...skill.matchAll(/references\/([a-z0-9-]+\.md)/g)].map((m) => m[1]!);
   const required = [...new Set(cited)];
   const missing = required.filter((name) => !fs.existsSync(path.join(refsDir, name)));
   if (missing.length > 0) {
@@ -337,7 +344,7 @@ function configCommand(args: string[]): void {
       const { target } = applySetting(key, undefined, projectRoot);
       process.stdout.write(`${key} unset  ->  ${target}\n`);
     } catch (err) {
-      fail(err instanceof Error ? err.message : String(err));
+      fail(errorText(err));
     }
     return;
   }
@@ -369,7 +376,7 @@ function configCommand(args: string[]): void {
     ({ patch, target } = applySetting(key, parsed, projectRoot,
       topic !== undefined && key === 'focus' ? { focus_topic: topic } : {}));
   } catch (err) {
-    fail(err instanceof Error ? err.message : String(err));
+    fail(errorText(err));
   }
   for (const [k, v] of Object.entries(patch!)) {
     process.stdout.write(`${k} = ${JSON.stringify(v)}  ->  ${target!}\n`);
@@ -573,7 +580,7 @@ async function doctor(): Promise<void> {
     );
   } catch (err) {
     ok = false;
-    add('fail', 'database', `FAILED — ${err instanceof Error ? err.message : String(err)}`);
+    add('fail', 'database', `FAILED — ${errorText(err)}`);
   }
 
   // The memory half. `eklavya memory status` says more, but it is scoped to one
@@ -896,9 +903,11 @@ async function statuslineCommand(argv: string[]): Promise<void> {
     const color = !process.env.NO_COLOR && !argv.includes('--no-color');
     const line = statusLine({ config: resolved.config, level, pinned, color });
     if (line) process.stdout.write(`${line}\n`);
+  /* c8 ignore start -- every read above already fails soft; this is the last guard for the status bar */
   } catch {
     /* A status bar with nothing to say says nothing. */
   }
+  /* c8 ignore stop */
 }
 
 async function dashboardCommand(argv: string[]): Promise<void> {
@@ -1015,7 +1024,7 @@ async function artifactsCommand(argv: string[]): Promise<void> {
         },
       });
     } catch (err) {
-      fail(`eklavya artifacts new: ${err instanceof Error ? err.message : String(err)}`);
+      fail(`eklavya artifacts new: ${errorText(err)}`);
     }
     const { values, positionals } = parsed;
     const title = positionals.join(' ').trim();
@@ -1078,6 +1087,7 @@ async function updateCommand(argv: string[]): Promise<void> {
     case 'busy':
       verdict('an update is already running · try again in a few minutes', '');
       return;
+    /* c8 ignore next 2 -- only a background run is skipped, and it returned above */
     case 'skipped':
       return;
     case 'failed':
@@ -1114,6 +1124,7 @@ async function forwardToNewerRuntime(): Promise<boolean> {
     stdio: 'inherit',
     env: { ...process.env, EKLAVYA_FORWARDED: '1' },
   });
+  /* c8 ignore next -- spawning this same node binary does not fail to start */
   if (child.error) return false;
   process.exit(child.status ?? 1);
 }
@@ -1133,9 +1144,11 @@ async function main(): Promise<void> {
     // version is what the next session compares against.
     !(command === 'dashboard' && rest.includes('--serve')) &&
     (await forwardToNewerRuntime())
+  /* c8 ignore start -- a forward exits with the runtime's status instead of returning */
   ) {
     return;
   }
+  /* c8 ignore stop */
   // The command's name only, for the usage ping; never its arguments. After the
   // forward, so a forwarded command is counted once, by the runtime that ran it.
   // Not the server or the status line, which run constantly and say nothing
@@ -1152,7 +1165,7 @@ async function main(): Promise<void> {
       // nothing above may print. It never returns -- the process ends when the
       // stdio transport closes.
       void import('./server.js').catch((err: unknown) => {
-        process.stderr.write(`eklavya serve: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.stderr.write(`eklavya serve: ${errorText(err)}\n`);
         process.exit(1);
       });
       return;
@@ -1160,7 +1173,7 @@ async function main(): Promise<void> {
       const { install } = await import('./install.js');
       // Async only because the settings walk waits on a terminal.
       install(rest).catch((err: unknown) => {
-        process.stderr.write(`eklavya install: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.stderr.write(`eklavya install: ${errorText(err)}\n`);
         process.exit(1);
       });
       return;
