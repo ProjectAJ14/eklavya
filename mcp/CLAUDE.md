@@ -150,6 +150,7 @@ their dedicated pages and diagrams. Check package README and landing claims.
 
 ```bash
 npm test             # pretest builds before tests execute dist files
+npm run coverage     # CI's check: the suite under c8, 100% on every metric
 npm run build        # TypeScript and bundled assets
 npm run dev          # MCP server from source
 ```
