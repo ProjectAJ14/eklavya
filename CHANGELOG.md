@@ -1,3 +1,10 @@
+## [1.42.1](https://github.com/ProjectAJ14/eklavya/compare/v1.42.0...v1.42.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **hooks:** keep the Stop sweep to one line for the developer ([980f5d2](https://github.com/ProjectAJ14/eklavya/commit/980f5d2870d0ac5da1f8bfd718068c39740716f0)), closes [#16](https://github.com/ProjectAJ14/eklavya/issues/16)
+
 # [1.42.0](https://github.com/ProjectAJ14/eklavya/compare/v1.41.0...v1.42.0) (2026-09-30)
 
 
