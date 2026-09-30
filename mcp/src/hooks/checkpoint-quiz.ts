@@ -125,11 +125,7 @@ await run(async (input) => {
          (SELECT last_checkpoint_at FROM checkpoints WHERE session_id = @sid) AS last_checkpoint,
          (SELECT ts FROM attempts WHERE session_id = @sid ORDER BY id DESC LIMIT 1) AS last_answer`,
     )
-    .get(bind) as
-    | { candidates: number; spent: number; last_checkpoint: string | null; last_answer: string | null }
-    | undefined;
-
-  if (!stats) return 0;
+    .get(bind) as { candidates: number; spent: number; last_checkpoint: string | null; last_answer: string | null };
 
   // Nothing unmastered and unasked. Concepts already attempted this session are
   // excluded above -- they have had their turn.
@@ -162,6 +158,7 @@ await run(async (input) => {
     )
     .get(bind) as { concept: string } | undefined;
 
+  /* c8 ignore next -- a concurrent answer between the two reads; the count above found one */
   if (!row?.concept) return 0;
 
   // Last, because it spawns git: every cheaper reason not to ask goes first.

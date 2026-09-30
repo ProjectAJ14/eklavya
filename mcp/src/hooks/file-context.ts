@@ -96,7 +96,7 @@ await run(async (input) => {
   // among many: a batch touching thirty files says little about any one.
   const width = (files: string | null) => {
     try {
-      return (JSON.parse(files ?? '[]') as unknown[]).length;
+      return (JSON.parse(files!) as unknown[]).length;
     } catch {
       return 99;
     }

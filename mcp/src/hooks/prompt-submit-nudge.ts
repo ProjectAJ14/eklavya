@@ -74,7 +74,6 @@ function promptRecall(
   prompt: string,
 ): string | null {
   try {
-    if (!resolved.config.memory.enabled) return null;
     const result = recallForPrompt(db, resolved.config, {
       project: identity.project,
       sessionId: identity.sessionId,
@@ -231,8 +230,8 @@ await run(async (input) => {
   // is logging needs nothing said to it.
   const logged = db
     .prepare('SELECT count(*) AS n FROM session_concepts WHERE session_id = ?')
-    .get(sid) as { n: number } | undefined;
-  if ((logged?.n ?? 0) > 0) return emit(context);
+    .get(sid) as { n: number };
+  if (logged.n > 0) return emit(context);
 
   const key = `${NUDGE_KEY_PREFIX}${sid}`;
   const now = new Date().toISOString();
