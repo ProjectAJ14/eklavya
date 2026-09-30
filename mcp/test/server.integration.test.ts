@@ -100,6 +100,25 @@ describe('eklavya-mcp over stdio', () => {
     }
   });
 
+  it('exits 1 with a fatal line on stderr when the database cannot be opened', async () => {
+    // A directory is not a database: openDb throws before the transport starts.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-server-bad-'));
+    try {
+      const child = spawn(process.execPath, [serverEntry], {
+        env: { ...process.env, EKLAVYA_DB: dir },
+        cwd: os.tmpdir(),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      let stderr = '';
+      child.stderr.on('data', (c) => (stderr += c));
+      const code = await new Promise<number | null>((resolve) => child.on('close', resolve));
+      expect(code).toBe(1);
+      expect(stderr).toContain('[eklavya-mcp] fatal:');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('creates and migrates the database it was pointed at', async () => {
     dbFile = tempDbPath('server-db');
     proc = spawn(process.execPath, [serverEntry], {

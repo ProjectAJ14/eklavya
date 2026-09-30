@@ -84,6 +84,7 @@ export function readStdinBounded(bounds: StdinBounds = HOOK_STDIN): Promise<stri
     let idle: NodeJS.Timeout | undefined;
 
     const done = (): void => {
+      /* c8 ignore next -- defensive: listeners and timers are removed on the first call */
       if (settled) return;
       settled = true;
       if (idle) clearTimeout(idle);

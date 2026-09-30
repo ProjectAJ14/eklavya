@@ -84,8 +84,9 @@ export const memoryCollections: ToolDef = {
             project: args.all_projects ? null : project,
           },
         });
-        const built = rebuildCollection(db, config, args.name, { force: true });
-        return { created: args.name, members: built?.members ?? 0 };
+        // Found: it was created on the line above.
+        const built = rebuildCollection(db, config, args.name, { force: true })!;
+        return { created: args.name, members: built.members };
       }
       case 'show': {
         if (!collectionByName(db, args.name)) return { error: 'not_found', name: args.name };
