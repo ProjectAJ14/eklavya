@@ -107,6 +107,7 @@ function alive(pid: number | null | undefined): boolean {
 /** Whether any process is still in group `pgid`. Windows has no groups: the leader alone. */
 export function groupAlive(pgid: number | null | undefined): boolean {
   if (!pgid) return false;
+  /* c8 ignore next -- win32 only */
   if (!posix) return alive(pgid);
   try {
     process.kill(-pgid, 0);
@@ -133,6 +134,7 @@ export function startStamp(pid: number | null | undefined): string | null {
       env: { ...process.env, LC_ALL: 'C' },
       timeout: 2_000,
     });
+    /* c8 ignore next -- ps exits non-zero for a missing pid rather than printing nothing */
     return out.trim() || null;
   } catch {
     return null;
@@ -179,8 +181,10 @@ function stateOf(holder: WorkerHolder | null, now: number): SlotState {
 
 function signalGroup(pgid: number, sig: NodeJS.Signals): void {
   try {
+    /* c8 ignore next 2 -- the else arm is win32 only */
     if (posix) process.kill(-pgid, sig);
     else process.kill(pgid, sig);
+    /* c8 ignore next 3 -- reached only when the target exits between the identity check and the signal */
   } catch {
     /* Already gone. */
   }
@@ -189,6 +193,7 @@ function signalGroup(pgid: number, sig: NodeJS.Signals): void {
 function signalPid(pid: number, sig: NodeJS.Signals): void {
   try {
     process.kill(pid, sig);
+    /* c8 ignore next 3 -- reached only when the target exits between the identity check and the signal */
   } catch {
     /* Already gone. */
   }

@@ -74,10 +74,11 @@ export const HOSTS: Record<string, HostCapabilities> = {
 };
 
 export function capabilitiesOf(host: string | null | undefined): HostCapabilities {
+  const id = host ?? 'claude-code';
   return (
-    HOSTS[host ?? 'claude-code'] ?? {
-      id: host ?? 'unknown',
-      label: host ?? 'unknown host',
+    HOSTS[id] ?? {
+      id,
+      label: id,
       status: 'unverified',
       hooks: false,
       transcripts: false,
