@@ -79,7 +79,7 @@ function steps(c: EklavyaConfig, claudeMem: boolean): Step[] {
       title: 'when it asks',
       current: c.cadence,
       options: [
-        { value: 'interleaved', detail: 'one question at a time while the agent works' },
+        { value: 'as-you-go', detail: 'one question at a time while the agent works' },
         { value: 'end', detail: 'a batch once the agent is done' },
       ],
     },

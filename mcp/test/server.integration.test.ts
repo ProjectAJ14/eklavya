@@ -138,7 +138,7 @@ describe('the full teaching loop over the real transport', () => {
       // it logged. The shipped default widens beyond them by design.
       //
       // Both clocks at 0, because the loop below asks, answers and asks again in
-      // the same millisecond. On the shipped `interleaved` cadence the plan's
+      // the same millisecond. On the shipped `as-you-go` cadence the plan's
       // cooldown reads `min_minutes_between_checkpoints`, not the quiz clock --
       // zeroing only the latter leaves a 4-minute floor that step 5 would trip.
       JSON.stringify({
@@ -190,7 +190,7 @@ describe('the full teaching loop over the real transport', () => {
       expect(logged.session_id).toBe('e2e');
 
       // 2. The quiz plan comes back grounded in that code — and one question
-      //    long, because the shipped cadence is `interleaved` and that is what
+      //    long, because the shipped cadence is `as-you-go` and that is what
       //    it means. Asking outright still plans the whole budget.
       const plan = await callTool('get_session_quiz_plan');
       expect(plan.questions_needed).toBe(1);

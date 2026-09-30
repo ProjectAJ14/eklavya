@@ -51,7 +51,7 @@ context-saving design.
 
 - Read defaults from `mcp/src/config.ts`: focus is `concept`. Search every skill,
   user skill, agent and manual page when changing a shared setting.
-- Planner output is authoritative. Interleaved questions are capped at one only
+- Planner output is authoritative. As-you-go questions are capped at one only
   when unenforced and without an explicit topic; explicit `max` wins. Unenforced
   Stop hooks can still ask questions.
 - Settings belong in `eklavya statusline`, not a hand-composed question header.

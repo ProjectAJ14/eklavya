@@ -32,7 +32,7 @@ Starts questions immediately. With no topic, it covers the work this session log
 
 A topic selects a domain or concept slugs for this quiz only. Prerequisites come first; ordinary plans exclude mastered concepts and concepts already answered this session. An unmet enforced gate can revisit taught misses. Questions arrive one at a time, with a grade before the next.
 
-An explicit quiz bypasses normal spacing and the interleaved one-question cap. Each requested round can plan up to `max_questions_per_task` questions (four by default), even after the automatic session budget is spent. It still respects disabled questions and needs eligible concepts; an unmet gate can offer taught misses as retries. When nothing can be asked, it gives a specific reason:
+An explicit quiz bypasses normal spacing and the as-you-go one-question cap. Each requested round can plan up to `max_questions_per_task` questions (four by default), even after the automatic session budget is spent. It still respects disabled questions and needs eligible concepts; an unmet gate can offer taught misses as retries. When nothing can be asked, it gives a specific reason:
 
 | Reason | Next step |
 | --- | --- |
@@ -56,7 +56,7 @@ With no argument, shows quiz, focus, cadence, difficulty and memory settings, in
 /eklavya:mode off --session
 ```
 
-The value identifies the dial: `on`, `off` or `enforced` for questions; `concept`, `project` or `learn <topic>` for focus; `interleaved` or `end` for timing. Difficulty uses `/eklavya:level`.
+The value identifies the dial: `on`, `off` or `enforced` for questions; `concept`, `project` or `learn <topic>` for focus; `as-you-go` or `end` for timing. Difficulty uses `/eklavya:level`.
 
 It asks for global or project scope when unclear. Project settings are personal files under `~/.eklavya/projects/`, shared by that checkout's worktrees. Enabling enforcement also offers the [git hook](/docs/commit-gate/) needed for commits outside Claude Code.
 

@@ -649,7 +649,7 @@ The board lists four harnesses. Three are built.
   asserting one checkpoint per task, exactly one question, and the work resuming
   with no summary. The S321 regression belongs here, and it is the one that
   matters most: the suite proves the *planner* returns one item under
-  `interleaved` cadence, and nothing proves the *model* asked one and then got
+  `as-you-go` cadence, and nothing proves the *model* asked one and then got
   back to work.
 
 That one needs a real session — the plugin installed into a throwaway

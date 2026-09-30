@@ -71,7 +71,7 @@ messages. Tell the teaching pane what is being built if it lacks context.
 
 Both panes capture their own tool calls. Both can also receive a Stop quiz;
 their shared pacing markers prevent immediate duplicate sweeps. Adjust
-`min_minutes_between_checkpoints` for `interleaved`, or
+`min_minutes_between_checkpoints` for `as-you-go`, or
 `min_minutes_between_quizzes` for `end`, when unenforced. `quiet` only hides
 status; it does not silence questions. Session-scoped silence is shared too.
 

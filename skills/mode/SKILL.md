@@ -1,10 +1,10 @@
 ---
 name: mode
-description: Show or change how Eklavya teaches — whether it quizzes at all and whether it gates commits (quiz.enabled, quiz.enforced), the focus (project, concept, learn), the cadence (interleaved, end) and the difficulty (auto, easy, medium, hard).
+description: Show or change how Eklavya teaches — whether it quizzes at all and whether it gates commits (quiz.enabled, quiz.enforced), the focus (project, concept, learn), the cadence (as-you-go, end) and the difficulty (auto, easy, medium, hard).
 disable-model-invocation: true
 ---
 
-# /eklavya:mode [on|off|enforced|project|concept|learn|interleaved|end] [topic] [--session]
+# /eklavya:mode [on|off|enforced|project|concept|learn|as-you-go|end] [topic] [--session]
 
 Eklavya has **independent switches**, and conflating them is the most common confusion. Say which one you are changing.
 
@@ -13,7 +13,7 @@ Eklavya has **independent switches**, and conflating them is the most common con
 | `quiz.enabled` | Does it ask questions at all? | `true` (default), `false` |
 | `quiz.enforced` | Do unanswered questions hold commits? | `false` (default), `true` |
 | `focus` | What does it teach? | `concept` (default), `project`, `learn` |
-| `cadence` | When does it ask? | `interleaved` (default), `end` |
+| `cadence` | When does it ask? | `as-you-go` (default), `end` |
 | `difficulty` | How hard may the questions get? | `auto` (default), `easy`, `medium`, `hard` |
 | `memory.enabled` | Is the work recorded and recalled? | `true` (default), `false` |
 
@@ -39,7 +39,7 @@ Then offer the three focus choices below in one line each. Do not lecture.
 
 ## The two cadence values
 
-- **interleaved** *(default)* — one question mid-task, at the moment a concept is logged, while the code is still on screen. A quiz is capped at one question under this cadence, the end-of-task sweep included — except when `quiz.enforced` is set, where the gate needs a full round, and when the developer asked for a quiz themselves — and it draws on `max_questions_per_task`, which is a session budget rather than a batch size. This is the tool working as advertised: learning while the agent builds, not a pile of questions once it stops.
+- **as-you-go** *(default)* — one question mid-task, at the moment a concept is logged, while the code is still on screen. A quiz is capped at one question under this cadence, the end-of-task sweep included — except when `quiz.enforced` is set, where the gate needs a full round, and when the developer asked for a quiz themselves — and it draws on `max_questions_per_task`, which is a session budget rather than a batch size. This is the tool working as advertised: learning while the agent builds, not a pile of questions once it stops.
 - **end** — no mid-task questions at all. Everything waits for the end of the task. Reach for it when someone is pairing, demoing, or genuinely cannot be interrupted — and mention `min_minutes_between_checkpoints` first, since spacing the questions out is usually what they actually want.
 
 ## Setting it
@@ -73,4 +73,4 @@ Nothing is lost while a session is silent: concepts logged stay unmastered, and 
 
 ## Confirm
 
-Say the new state back in one line — `Questions: on. Focus: learn (caching). Cadence: interleaved. Difficulty: auto (easy on this repo). Memory: on.` — and what changes next time they build something. If they set `learn`, add that `/eklavya:learn` teaches the topic on demand rather than waiting for a task to touch it.
+Say the new state back in one line — `Questions: on. Focus: learn (caching). Cadence: as-you-go. Difficulty: auto (easy on this repo). Memory: on.` — and what changes next time they build something. If they set `learn`, add that `/eklavya:learn` teaches the topic on demand rather than waiting for a task to touch it.
