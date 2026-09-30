@@ -129,7 +129,8 @@ pacing, block cap and question budget must prevent loops independently. Current
 upstream documentation also describes an eight-continuation host cap; it is not
 a substitute for the product's own guard.
 
-`agent_id` suppresses automatic checkpoint and Stop quizzing inside delegates.
+`agent_id` suppresses automatic checkpoint and Stop quizzing inside delegates,
+and the second-file delegation nudge.
 SubagentStart inspects the agent type to exempt the tutor from the implementer's
 “do not ask” directive. Missing type fails open by supplying the directive.
 See [subagent policy](subagent-policy.md) for capture, replay and host limits.

@@ -45,10 +45,7 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
     interruption is the product -- learning while the work happens, not a pile of questions after
     it. One question, no summary, no re-plan, no second question -- but always tell them whether
     they were right, and the right answer if not, before you resume.
-  - Your answer about the task is the last thing the developer reads. When a task that changed
-    code is done, call get_session_quiz_plan BEFORE writing your final answer; ask what it returns
-    one at a time, grading each and giving the verdict, then write the answer. Never end a turn
-    on a question or a verdict.`;
+  - Never end a turn on a question or a verdict: the developer's last read is your task answer.`;
 
 /**
  * `delegate_work`: the building goes to background agents and the waiting goes

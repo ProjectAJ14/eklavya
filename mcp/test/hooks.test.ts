@@ -22,6 +22,7 @@ const CHECKPOINT = path.join(hooksDir, 'checkpoint-quiz.js');
 const NUDGE = path.join(hooksDir, 'prompt-submit-nudge.js');
 const SUBAGENT = path.join(hooksDir, 'subagent-start.js');
 const CAPTURE = path.join(hooksDir, 'capture-tool.js');
+const DELEGATE_NUDGE = path.join(hooksDir, 'delegate-nudge.js');
 
 const SESSION = 'hook-session';
 
@@ -398,10 +399,14 @@ describe('SessionStart output', () => {
     expect(sessionStart().context).toMatch(/always tell them whether\s+they were right/);
   });
 
-  // The task answer used to sit above the question, verdict and answer, so the
-  // developer scrolled up to find it. Asking first keeps it at the bottom.
-  it('tells the model to ask before its final answer, never after', () => {
-    expect(sessionStart().context).toMatch(/BEFORE writing your final answer/);
+  // Asking before the final answer was an instruction no live session followed:
+  // the answer came first and the Stop sweep asked after it. The sweep's "Back
+  // to your task:" restatement is what keeps the answer last, so the session
+  // start only forbids ending on a question and no longer asks for the order.
+  it('forbids ending a turn on a question, without asking to quiz before the answer', () => {
+    const ctx = sessionStart().context;
+    expect(ctx).toMatch(/Never end a turn on a question or a verdict/);
+    expect(ctx).not.toMatch(/BEFORE writing your final answer/);
   });
 
   it('asks the model to delegate and quiz while agents build, unless delegate_work is off', () => {
@@ -1925,5 +1930,139 @@ describe('the per-session off switch', () => {
     setSessionOff(db, SESSION, false);
     logConcepts(['csrf']);
     expect(stop().spoke).toBe(true);
+  });
+});
+
+describe('the delegation nudge on a second edited file', () => {
+  // The session-start DELEGATE block was followed in none of eleven live
+  // sessions; this says the same thing at the edit that shows the change spans
+  // files, once.
+  const edit = (file: string, extra: Record<string, unknown> = {}) =>
+    runHook(DELEGATE_NUDGE, {
+      session_id: SESSION,
+      cwd,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Edit',
+      tool_input: { file_path: path.join(cwd, file) },
+      ...extra,
+    });
+
+  it('says nothing on the first edited file, or on that file again', () => {
+    expect(edit('a.ts').spoke).toBe(false);
+    expect(edit('a.ts').spoke).toBe(false);
+  });
+
+  it('nudges once the main thread edits a second file', () => {
+    edit('a.ts');
+    const res = edit('b.ts');
+    expect(res.status).toBe(0);
+    expect(res.context).toMatch(/more than one file/);
+    expect(res.context).toMatch(/background/);
+    expect(res.context).toMatch(/while_waiting: true/);
+  });
+
+  it('does not repeat on a third file', () => {
+    edit('a.ts');
+    edit('b.ts');
+    expect(edit('c.ts', { tool_name: 'Write' }).spoke).toBe(false);
+  });
+
+  it('counts a notebook and a relative path as files', () => {
+    edit('a.ts', { tool_input: { file_path: 'a.ts' } });
+    expect(edit('n.ipynb', { tool_name: 'NotebookEdit', tool_input: { notebook_path: path.join(cwd, 'n.ipynb') } }).spoke).toBe(true);
+  });
+
+  it('stays silent with delegate_work off, or with questions off', () => {
+    configure({ delegate_work: false });
+    edit('a.ts');
+    expect(edit('b.ts').spoke).toBe(false);
+    configure({ quiz: { enabled: false } });
+    expect(edit('c.ts').spoke).toBe(false);
+  });
+
+  it('ignores a subagent: its edits are the delegation working', () => {
+    const sub = { agent_id: 'agent-1', agent_type: 'general-purpose' };
+    expect(edit('a.ts', sub).spoke).toBe(false);
+    expect(edit('b.ts', sub).spoke).toBe(false);
+    // And they did not count towards the parent's two files.
+    expect(edit('c.ts').spoke).toBe(false);
+  });
+
+  it('ignores tools that are not edits', () => {
+    edit('a.ts');
+    expect(edit('b.ts', { tool_name: 'Read' }).spoke).toBe(false);
+  });
+
+  describe('through Bash, read from git', () => {
+    // Heredocs and `sed -i` change files without an edit tool: a 39-call
+    // session made no Edit at all, and both headless acceptance runs did the
+    // same. Git's view between Bash calls is what counts them.
+    const bash = () => edit('', { tool_name: 'Bash', tool_input: { command: 'sed -i ...' } });
+    const write = (file: string, text: string) => fs.writeFileSync(path.join(cwd, file), text);
+    beforeEach(() => {
+      spawnSync('git', ['init', '-q'], { cwd });
+      write('a.ts', 'a');
+      write('b.ts', 'b');
+      write('dirty.ts', 'was dirty before the session');
+    });
+
+    it('nudges when Bash calls change a second file, not before', () => {
+      expect(bash().spoke).toBe(false); // first snapshot
+      write('a.ts', 'a2');
+      expect(bash().spoke).toBe(false);
+      write('b.ts', 'b2');
+      expect(bash().context).toMatch(/more than one file/);
+      write('a.ts', 'a3');
+      expect(bash().spoke).toBe(false);
+    });
+
+    it('counts one Bash call that changes two files', () => {
+      bash();
+      write('a.ts', 'a2');
+      write('b.ts', 'b2');
+      expect(bash().spoke).toBe(true);
+    });
+
+    it('does not count a file that was already dirty and did not move', () => {
+      bash();
+      write('a.ts', 'a2');
+      expect(bash().spoke).toBe(false);
+      expect(bash().spoke).toBe(false);
+    });
+
+    it('joins an Edit and a Bash change into two files', () => {
+      bash();
+      edit('a.ts');
+      write('a.ts', 'a2'); // the Edit's own write, seen by git: still one file
+      expect(bash().spoke).toBe(false);
+      write('b.ts', 'b2');
+      expect(bash().spoke).toBe(true);
+    });
+
+    it('ignores a subagent Bash call', () => {
+      const sub = { tool_name: 'Bash', tool_input: { command: 'x' }, agent_id: 'agent-1' };
+      edit('', sub);
+      write('a.ts', 'a2');
+      write('b.ts', 'b2');
+      expect(edit('', sub).spoke).toBe(false);
+    });
+  });
+
+  it('says nothing for Bash outside a git repository', () => {
+    const bash = () => edit('', { tool_name: 'Bash', tool_input: { command: 'ls' } });
+    expect(bash().spoke).toBe(false);
+    fs.writeFileSync(path.join(cwd, 'a.ts'), 'a');
+    fs.writeFileSync(path.join(cwd, 'b.ts'), 'b');
+    expect(bash().spoke).toBe(false);
+  });
+
+  it('fails open on garbage input', () => {
+    const res = spawnSync(process.execPath, [DELEGATE_NUDGE], {
+      input: 'not json',
+      encoding: 'utf8',
+      env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
+    });
+    expect(res.status).toBe(0);
+    expect(res.stdout).toBe('');
   });
 });

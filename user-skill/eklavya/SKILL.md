@@ -161,10 +161,12 @@ project, so default to `--project`. The pages themselves are the
 `delegate_work` (default `true`) is asked about the same way: "stop using
 background agents", "why are you quizzing me while agents build?". On, session
 start tells Claude to hand non-trivial code changes to background agents and ask
-questions while they work, then give the task answer last. `false` keeps the
-building in the conversation. It applies from the next session start and does
-nothing while `quiz.enabled` is false. Under `cadence: end` it still delegates
-but asks nothing until the task is done.
+questions while they work, then give the task answer last; the first time
+Claude edits a second file itself, a hook repeats that once. `false` keeps the
+building in the conversation. The session-start part applies from the next
+session start, and neither does anything while `quiz.enabled` is false.
+Questions while agents build need `cadence: interleaved`: under `end` it still
+delegates but asks nothing until the task is done.
 
 ## Reading state
 
