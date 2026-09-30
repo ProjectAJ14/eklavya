@@ -511,8 +511,6 @@ export function coerce(raw: Record<string, unknown>, base: EklavyaConfig): Eklav
 
   if (raw.focus === 'project' || raw.focus === 'concept' || raw.focus === 'learn') out.focus = raw.focus;
   if (raw.cadence === 'as-you-go' || raw.cadence === 'end') out.cadence = raw.cadence;
-  // Renamed from `interleaved`; configs saved before the rename keep the old spelling.
-  if (raw.cadence === 'interleaved') out.cadence = 'as-you-go';
   if (
     raw.difficulty === 'auto' ||
     raw.difficulty === 'easy' ||
@@ -867,8 +865,12 @@ export function migrateLegacyRepoConfig(
  * lying beside it, and across files the project should beat the global whichever
  * spelling each one used. Merged first, a global `quiz` silently outranked a
  * project `mode`.
+ *
+ * The cadence `interleaved`, renamed `as-you-go`, is the same kind of alias and
+ * stays for the same reason: dropped, the dial would silently revert.
  */
-function normalizeLegacyKeys(raw: Record<string, unknown>): Record<string, unknown> {
+export function normalizeLegacyKeys(input: Record<string, unknown>): Record<string, unknown> {
+  const raw = input.cadence === 'interleaved' ? { ...input, cadence: 'as-you-go' } : input;
   const fromMode =
     raw.mode === 'ambient'
       ? { enabled: true, enforced: false }
@@ -1081,6 +1083,8 @@ export function writeConfigFile(file: string, patch: Record<string, unknown>): R
     );
   }
   let merged: Record<string, unknown> = { ...existing, ...patch };
+  // Any write retires the pre-rename spelling rather than carrying it forward.
+  if (merged.cadence === 'interleaved') merged.cadence = 'as-you-go';
 
   // A `quiz` written today retires a `mode` left beside it, folded in rather
   // than dropped. Left in place, `mode: enforced` under a new `quiz.enabled:

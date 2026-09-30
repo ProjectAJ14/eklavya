@@ -26,7 +26,7 @@ scheduling, hooks, installer, CLI and dashboard. Read the root `CLAUDE.md` first
 
 Read defaults from `DEFAULT_CONFIG`: quiz enabled, unenforced; focus `concept`;
 cadence `as-you-go`; difficulty `auto`. Tool descriptions and skills must use
-the same values. Normalize legacy `mode` per file before merging, permanently:
+the same values. Normalize legacy `mode` and cadence `interleaved` per file before merging, permanently:
 otherwise a global `quiz` can incorrectly override a project's old `mode`.
 `quiz.enabled: false` forces enforcement off; `doctor` reports the conflict.
 

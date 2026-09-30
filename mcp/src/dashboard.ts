@@ -29,7 +29,7 @@ import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
 import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile,
+  loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
@@ -1222,12 +1222,14 @@ export function configurableProjects(db: DB): { id: string; name: string; invent
 }
 
 const settingKeys = () => [...SETTINGS.map((f) => f.key), ...CLI_ONLY.map((c) => c.key)];
-/** What one file sets, key by key: a key absent here inherits. */
-const setIn = (raw: Record<string, unknown>) =>
-  Object.fromEntries(settingKeys().flatMap((k) => {
+/** What one file sets, key by key, in today's spelling: a key absent here inherits. */
+const setIn = (file: Record<string, unknown>) => {
+  const raw = normalizeLegacyKeys(file);
+  return Object.fromEntries(settingKeys().flatMap((k) => {
     const v = valueAt(raw as unknown as EklavyaConfig, k);
     return v === undefined ? [] : [[k, v]];
   }));
+};
 const effectiveOf = (c: EklavyaConfig) => Object.fromEntries(settingKeys().map((k) => [k, valueAt(c, k)]));
 
 /** `GET /api/settings?project=<checkout>`: both files and what they resolve to. */

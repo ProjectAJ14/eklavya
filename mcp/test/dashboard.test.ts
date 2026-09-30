@@ -960,6 +960,15 @@ describe('/api/settings', () => {
     });
   });
 
+  it('shows a pre-rename `interleaved` cadence under its new name', async () => {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ cadence: 'interleaved' }));
+    await withServer(async (_port, _token, url) => {
+      const d = await (await fetch(`${url}/api/settings?project=${encodeURIComponent(repo)}`)).json();
+      expect(d.user.set.cadence).toBe('as-you-go');
+      expect(d.user.effective.cadence).toBe('as-you-go');
+    });
+  });
+
   it('writes a user setting and a project one, and unsets back to inherit', async () => {
     await withServer(async (port, token, url) => {
       const h = ok(port, token);
