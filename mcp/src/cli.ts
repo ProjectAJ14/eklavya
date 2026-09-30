@@ -100,6 +100,10 @@ Memory:
                                         state; or set aside, delete or bring back the ones you select with
                                         --helpers, --project <key>, --session <id> or --batch <id>
   eklavya memory prune                  Delete this project's raw evidence past its memory.retention_days
+  eklavya memory move [<old> [<new>]]   Re-file the history of a moved or renamed checkout under <new>
+                                        (default: this one). With no path, lists folders that have
+                                        history but no longer exist. Refuses an <old> that still
+                                        exists without --force
   eklavya memory import <source.db>     Import a Claude Mem database [--dry-run] [--verify] [--resume]
                                         --dry-run reads the source and reports; it writes nothing
                                         --verify checks every source row by id is here and where each

@@ -71,7 +71,7 @@ export function kebab(title: string): string {
   return s || 'artifact';
 }
 
-const escHtml = (s: string) =>
+export const escHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 function assetPath(name: string): string {

@@ -12,7 +12,8 @@ import path from 'node:path';
 import { openDb, type DB } from './db.js';
 import { dbPath } from './paths.js';
 import { loadConfig, findRepoConfig } from './config.js';
-import { projectKey } from './store.js';
+import { GLOBAL_PROJECT, projectKey } from './store.js';
+import { missingProjects, moveProject } from './relocate.js';
 import { claudeHome } from './install.js';
 import { guessProjectMap } from './claude-mem.js';
 import { spin } from './theme.js';
@@ -66,7 +67,7 @@ function fail(message: string): never {
  * to ask for it.
  */
 const MEMORY_USAGE =
-  'Usage: eklavya memory status|search|timeline|show|replay|process|stop|backlog|prune|import|export|restore|sync\n' +
+  'Usage: eklavya memory status|search|timeline|show|replay|process|stop|backlog|prune|move|import|export|restore|sync\n' +
   '       run `eklavya --help` for the full list\n';
 
 function flag(argv: string[], name: string, fallback?: string): string | undefined {
@@ -565,6 +566,53 @@ function memoryPrune(): void {
   }
 }
 
+/**
+ * `eklavya memory move [<old> [<new>]]` -- the manual half of `relocate.ts`, for
+ * the moves SessionStart declines and for folders moved before their roots
+ * were recorded.
+ */
+function memoryMove(argv: string[]): void {
+  const force = argv.includes('--force');
+  const [oldArg, newArg] = argv.filter((a) => !a.startsWith('--'));
+  const db = openDb();
+  try {
+    if (!oldArg) {
+      const missing = missingProjects(db);
+      process.stdout.write(
+        missing.length
+          ? `History filed under folders that no longer exist:\n${missing
+              .map((m) => `  ${m.project}  (${m.entries} entries)`)
+              .join('\n')}\nRe-file one here: eklavya memory move <old>\n`
+          : 'No history is filed under a folder that no longer exists.\n',
+      );
+      return;
+    }
+    const from = path.resolve(oldArg);
+    if (newArg && !fs.existsSync(newArg)) fail(`${newArg} does not exist.`);
+    const to = identityFor({ cwd: newArg ? path.resolve(newArg) : process.cwd(), sessionId: 'cli' }).project;
+    if (to === GLOBAL_PROJECT) fail('The new folder is not inside a git repository, so there is nothing to file history under.');
+    if (from === to) fail(`${from} is already this project.`);
+    if (fs.existsSync(from) && !force) {
+      fail(`${from} still exists, so it is a separate checkout, not an old name for this one. Pass --force to merge its history anyway.`);
+    }
+    const held = db
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM evidence_events WHERE project = ?)
+              + (SELECT COUNT(*) FROM memory_entries WHERE project = ?)
+              + (SELECT COUNT(*) FROM attempts WHERE repo = ?) AS n`,
+      )
+      .get(from, from, from) as { n: number };
+    if (!held.n) fail(`No history is filed under ${from}. Run \`eklavya memory move\` to list the folders that have some.`);
+    const report = moveProject(db, from, to);
+    process.stdout.write(
+      `Moved ${from} → ${to}: ${report.rows} rows re-filed, ${report.entries} memory entries here now.\n` +
+        report.left.map((f) => `Left in place, because ${to} already has one: ${f}\n`).join(''),
+    );
+  } finally {
+    db.close();
+  }
+}
+
 /** The field-disposition report, printed before anything is written. */
 function dispositionReport(fields: FieldDisposition[]): string {
   const lines: string[] = [];
@@ -906,6 +954,8 @@ export function memoryCommand(argv: string[]): void {
       return memoryBacklog(rest);
     case 'prune':
       return memoryPrune();
+    case 'move':
+      return memoryMove(rest);
     case 'import':
       // Async only so the spinner turns: the import itself runs on a worker.
       void memoryImport(rest);
