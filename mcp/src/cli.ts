@@ -60,7 +60,7 @@ Usage:
                                         quiz.only_on_changes true|false,
                                         focus project|concept|learn, cadence interleaved|end,
                                         difficulty auto|easy|medium|hard,
-                                        explain_on_wrong true|false
+                                        explain_on_wrong true|false, delegate_work true|false
                                         add --topic <topic> when setting focus to "learn"
   eklavya config unset <key>            Remove a setting from that file so it inherits again: a project
                                         falls back to your user setting, your user file to the default
@@ -125,7 +125,7 @@ Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              level_up_accuracy, pass_threshold, max_questions_per_task,
              min_minutes_between_quizzes, min_minutes_between_checkpoints,
              max_new_concepts_per_session, max_stop_blocks_per_session, quiet,
-             explain_on_wrong,
+             explain_on_wrong, delegate_work,
              auto_update, telemetry, dashboard_autostart (global only)
 Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
   quiz.{enabled, enforced, only_on_changes} — whether questions happen, whether

@@ -141,6 +141,10 @@ export const setConfig: ToolDef = {
       .boolean()
       .optional()
       .describe('Whether a missed question also gets an explainer page, written in the background and opened (default true). Usually turned off per project.'),
+    delegate_work: z
+      .boolean()
+      .optional()
+      .describe('Whether non-trivial code changes go to background agents while the developer is quizzed, so the task answer arrives last (default true). Takes effect at the next session start.'),
     auto_update: z
       .boolean()
       .optional()

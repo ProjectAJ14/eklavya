@@ -114,7 +114,7 @@ export const getSessionQuizPlan: ToolDef = {
   // already re-pointed on Cowork. A description that still promised a diff
   // while the framing said otherwise would set the two against each other.
   description: withSurfaceNote(
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. Only work logged in the current stretch counts as this session\'s own -- since its first prompt, or the first after more than an hour without one (an enforced gate counts all of it). When that runs out, it serves questions this project already asked that the learner declined, blanked on or got wrong and that are due again -- never one they answered correctly -- soonest first, in any domain (outside a git repository, only the domains this session touched), with reason "project_review" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Concepts that were logged but never asked are not carried into later sessions. In enforced mode, while the gate is unpassed, it serves only this session\'s own work -- no widening, no review -- including work concepts mastered in another session since they were logged, with reason "gate_work"; once everything else is exhausted it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context -- except while an enforced gate is unpassed, when the session\'s work comes first and the topic resumes once the gate passes. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it, tell them whether they were right (and the right answer if not) and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Returns questions_needed: 0 when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts are due there) when any do.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. Only work logged in the current stretch counts as this session\'s own -- since its first prompt, or the first after more than an hour without one (an enforced gate counts all of it). When that runs out, it serves questions this project already asked that the learner declined, blanked on or got wrong and that are due again -- never one they answered correctly -- soonest first, in any domain (outside a git repository, only the domains this session touched), with reason "project_review" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Concepts that were logged but never asked are not carried into later sessions. In enforced mode, while the gate is unpassed, it serves only this session\'s own work -- no widening, no review -- including work concepts mastered in another session since they were logged, with reason "gate_work"; once everything else is exhausted it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context -- except while an enforced gate is unpassed, when the session\'s work comes first and the topic resumes once the gate passes. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it, tell them whether they were right (and the right answer if not) and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Any other plan is capped at what is left of this session\'s max_questions_per_task, and returns reason "budget_spent" once it is gone. Returns questions_needed: 0 when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts are due there) when any do.',
     ' ',
   ),
   inputSchema: {
@@ -135,6 +135,10 @@ export const getSessionQuizPlan: ToolDef = {
       .boolean()
       .optional()
       .describe('Set true when the developer asked to be quizzed. The cadence limit exists to stop nagging, not to refuse a request.'),
+    while_waiting: z
+      .boolean()
+      .optional()
+      .describe('Set true while background agents build the task (delegate_work). Plans one question with no cooldown, and returns questions_needed: 0 with reason "budget_spent" once this session has had max_questions_per_task questions, or "cadence_end" under the end cadence. Ignored when max, domain, slugs or ignore_cooldown is passed.'),
     focus: z
       .enum(['project', 'concept', 'learn'])
       .optional()
@@ -148,6 +152,7 @@ export const getSessionQuizPlan: ToolDef = {
       domain?: string;
       slugs?: string[];
       ignore_cooldown?: boolean;
+      while_waiting?: boolean;
       focus?: Focus;
     },
     { db },
@@ -192,9 +197,14 @@ export const getSessionQuizPlan: ToolDef = {
     // would never be offered that many one at a time -- the Stop hook only
     // re-arms when new work is logged. A pacing rule must never be the thing
     // that makes a commit impossible.
+    //
+    // A request -- an explicit max, topic or ignore_cooldown -- also outranks
+    // `while_waiting`: the developer asking beats Eklavya filling a wait.
+    const requested = explicitTopic || args.max !== undefined || Boolean(args.ignore_cooldown);
+    const waiting = Boolean(args.while_waiting) && !requested;
     const capped =
       config.cadence === 'interleaved' && !config.quiz.enforced && !explicitTopic;
-    const max = args.max ?? (capped ? 1 : config.max_questions_per_task);
+    let max = waiting ? 1 : args.max ?? (capped ? 1 : config.max_questions_per_task);
 
     // An enforced gate that is open and not yet passed. While it is, the plan
     // serves only what can pass it -- see (a') and the widening guards below.
@@ -246,6 +256,26 @@ export const getSessionQuizPlan: ToolDef = {
       };
     }
 
+    // Eklavya deciding to ask -- the Stop sweep, the ask before a final answer,
+    // the wait on background agents -- spends the session budget the checkpoint
+    // and Stop hooks spend, counted the way they count it. Without this the ask
+    // before a final answer served a fifth question on a budget of four, and
+    // under `end` planned the whole budget rather than what was left. Requests
+    // are exempt, and so is enforced mode outside a wait: the gate can need more
+    // passing answers than the budget holds (decision G5).
+    if (waiting || (!requested && !config.quiz.enforced)) {
+      // `end` promises no questions during the task, and a wait is during it.
+      if (waiting && config.cadence === 'end') {
+        return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'cadence_end' };
+      }
+      const { n } = db.prepare('SELECT count(*) AS n FROM attempts WHERE session_id = ?').get(sessionId) as { n: number };
+      const left = config.max_questions_per_task - n;
+      if (left <= 0) {
+        return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'budget_spent' };
+      }
+      max = Math.min(max, left);
+    }
+
     // Cooldown keeps ambient mode from nagging. It must never apply in enforced
     // mode, or a cooldown could make a commit gate unpassable (decision G5), and
     // it must never override an explicit request (`ignore_cooldown`).
@@ -259,7 +289,8 @@ export const getSessionQuizPlan: ToolDef = {
     // the model as being told to teach and handed nothing to teach.
     // `quiz.enabled` is a given by here -- the disabled case returned above --
     // so the only question left is whether the gate exempts this from the clock.
-    if (!config.quiz.enforced && !args.ignore_cooldown) {
+    // A wait on background agents skips it too: the wait is the moment.
+    if (!config.quiz.enforced && !args.ignore_cooldown && !waiting) {
       const gap =
         config.cadence === 'interleaved'
           ? config.min_minutes_between_checkpoints

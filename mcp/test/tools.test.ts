@@ -447,6 +447,50 @@ describe('get_session_quiz_plan', () => {
     expect(asked.questions_needed).toBeGreaterThan(0);
   });
 
+  // delegate_work: questions while background agents build skip the cooldown
+  // but spend the session budget the hooks spend, one at a time.
+  it('plans one question while waiting, until the session budget is spent', () => {
+    configure({ max_questions_per_task: 2, cadence: 'interleaved', quiz: { enabled: true, enforced: false } });
+    logAuthWork();
+    const answer = (slug: string) =>
+      call(recordAttempt, { session_id: SESSION, slug, question: `q-${slug}`, grade: 4, difficulty: 2 });
+
+    answer('csrf');
+    const waiting = call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true });
+    expect(waiting.questions_needed).toBe(1);
+
+    answer('jwt-structure');
+    const spent = call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true });
+    expect(spent).toMatchObject({ questions_needed: 0, reason: 'budget_spent' });
+
+    // A request outranks the wait, and is never trimmed by the budget.
+    const asked = call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true, max: 3, ignore_cooldown: true });
+    expect(asked.questions_needed).toBeGreaterThan(0);
+  });
+
+  // `end` promises no questions during the task, and a wait is during it.
+  it('asks nothing while waiting under the end cadence', () => {
+    configure({ cadence: 'end', quiz: { enabled: true, enforced: false } });
+    logAuthWork();
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true }))
+      .toMatchObject({ questions_needed: 0, reason: 'cadence_end' });
+  });
+
+  // The ask before a final answer is a plain call. It used to serve a question
+  // past the session budget once the checkpoint clock had run out.
+  it('caps a plain plan at what is left of the session budget', () => {
+    configure({ max_questions_per_task: 2, cadence: 'interleaved', min_minutes_between_checkpoints: 0, quiz: { enabled: true, enforced: false } });
+    logAuthWork();
+    call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q1', grade: 4, difficulty: 2 });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBe(1);
+    call(recordAttempt, { session_id: SESSION, slug: 'jwt-structure', question: 'q2', grade: 4, difficulty: 2 });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION })).toMatchObject({ questions_needed: 0, reason: 'budget_spent' });
+
+    configure({ max_questions_per_task: 2, cadence: 'end', min_minutes_between_quizzes: 0, quiz: { enabled: true, enforced: false } });
+    call(recordAttempt, { session_id: SESSION, slug: 'jwt-structure', question: 'q3', grade: 4, difficulty: 2 });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).reason).toBe('budget_spent');
+  });
+
   it('plans a topic quiz on a domain the session never touched', () => {
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'git', max: 3 });
     expect(plan.questions_needed).toBe(3);
@@ -473,6 +517,8 @@ describe('get_session_quiz_plan', () => {
   });
 
   it('pays down review debt from the same domain once session work is covered', () => {
+    // Setup answers spend the session budget; this test is about what comes after it.
+    configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 10 });
     logAuthWork();
     master('httponly-cookies');
     master('jwt-structure');
@@ -521,6 +567,8 @@ describe('get_session_quiz_plan', () => {
   }
 
   it('asks a question the learner declined earlier in this project, in any domain', () => {
+    // Setup answers spend the session budget; this test is about what comes after it.
+    configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 10 });
     inProject();
     decline('git-commit');
     overdue('git-commit');
@@ -1844,7 +1892,8 @@ describe('difficulty levels, earned per project', () => {
   });
 
   it('promotes once the answers, the accuracy and the spread all clear', () => {
-    configure({ min_minutes_between_quizzes: 0, level_up_after: 6 });
+    // Six setup answers spend the session budget; the plan after them is the point.
+    configure({ min_minutes_between_quizzes: 0, level_up_after: 6, max_questions_per_task: 10 });
     const where = repo('proj');
     try {
       const slugs = seedSlugs(6);

@@ -1,19 +1,50 @@
 # Subagent policy
 
 Implementers log the concepts they use. The parent asks the learner about that
-work. A tutor explicitly requested by the learner can teach in its own
-conversation; an explainer only creates an artifact.
+work. With `delegate_work` on (the default), the parent delegates non-trivial
+code changes to background implementers and asks while they build. A tutor
+explicitly requested by the learner can teach in its own conversation; an explainer only creates an artifact.
 
 | Role | Logs concepts | Asks questions | Memory capture | Instructions |
 |---|---|---|---|---|
-| Parent | Yes | Yes | Prompts, tools and lifecycle | SessionStart and prompt nudge |
+| Parent | Yes | Yes | Prompts, tools and lifecycle | SessionStart (directive, plus `DELEGATE` when `delegate_work`) and prompt nudge |
 | Implementer | Yes, when its tools permit | No | Tools | SubagentStart directive |
 | `eklavya-tutor` | No | Yes, when delegated to teach | Tools | `agents/tutor.md` |
 | `eklavya-explainer` | No | No | Tools | `agents/explainer.md` |
 
 Sources: [`subagent-start.ts`](../mcp/src/hooks/subagent-start.ts),
+[`session-start.ts`](../mcp/src/hooks/session-start.ts),
 [`checkpoint-quiz.ts`](../mcp/src/hooks/checkpoint-quiz.ts),
 [`stop-quiz-check.ts`](../mcp/src/hooks/stop-quiz-check.ts) and the agent files.
+
+## The parent delegates and asks
+
+When questions are on and `delegate_work` is true, SessionStart adds a
+`DELEGATE` instruction after the standing directive. For a non-trivial code
+change (several files, or research before editing) the parent plans, starts one
+or more background agents with self-contained briefs, logs the plan's concepts,
+then asks one question at a time (`get_session_quiz_plan` with
+`while_waiting: true`, `AskUserQuestion`, `record_attempt`, verdict) until an
+agent reports or `questions_needed` is 0. `while_waiting` plans one question,
+skips the cooldown and spends the session's `max_questions_per_task`, counted
+from `attempts` as the hooks count it. Under `cadence: end` it returns nothing
+(`cadence_end`): that cadence keeps questions out of the task. Passing `max`,
+`domain`, `slugs` or `ignore_cooldown` makes it an ordinary request instead. It checks the report and writes the
+task answer last. Questions, one-line fixes and lookups stay inline, and so
+does everything when the host cannot run agents in the background.
+
+The parent asks because a delegate cannot: it has no `AskUserQuestion` and
+nobody reads its transcript. Background implementers still get the SubagentStart
+logging directive. A background agent may stop on a permission prompt and
+report back without finishing.
+
+The standing directive also tells the parent, once a code-changing task is
+done, to call `get_session_quiz_plan` before its final answer and ask what it
+returns one at a time (one question under `interleaved`, the remaining budget
+under `end`), and never to end a turn on a question or verdict. Every plan
+Eklavya asks for itself is capped at what is left of the session budget, so
+this step cannot add questions past it. The Stop sweep's instruction ends with "Back to your task:"
+and a 2-4 line restatement of the answer for the same reason.
 
 ## Implementers log; automatic hooks do not quiz them
 

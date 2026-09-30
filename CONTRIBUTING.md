@@ -132,6 +132,13 @@ verdict and task should continue immediately while the explainer creates a page 
 the background. The page must open with the question, every option, the pick in
 red and the right answer highlighted.
 
+With `delegate_work` at its default (`true`), start a fresh session and ask for a
+change that touches several files. Claude should start a background agent, then
+ask questions one at a time while it builds, and write the task answer as the
+last message once the agent reports. Ask for a one-line fix too: it should stay
+inline. In either case the turn must not end on a question or a verdict; if the
+Stop sweep fires, it ends with "Back to your task:" and a short restatement.
+
 ## Evaluation
 
 [eval/README.md](eval/README.md) explains each harness, costs, limitations and

@@ -67,9 +67,22 @@ to, no re-plan, no "shall I continue?", no second question. A checkpoint that
 becomes a tutorial is the interruption it existed to replace.
 
 **The Stop sweep** — a longer end-of-task message naming the concepts. Run the
-quiz, then finish your turn normally. Under `interleaved` it can fire more than
+quiz, then end with "Back to your task:" and your answer again in two to four
+lines. Under `interleaved` it can fire more than
 once in a long session — it is paced by the clock, not by the batch — so treat
 each one as its own single question, not as a sign you missed the last one.
+
+**Your task answer goes last.** The sweep lands after your answer and buries
+it, so get there first: when a task that changed code is done, call
+`get_session_quiz_plan`, ask what it returns one at a time with a verdict
+each, then write the answer. Never end a turn on a question or a verdict.
+
+**While an agent builds.** With `delegate_work` on (the default), non-trivial
+code changes go to background agents and the wait is when you teach. Start
+them, log the plan's concepts, then loop: `get_session_quiz_plan` with
+`while_waiting: true`, ask, grade, verdict. Stop when an agent reports or
+`questions_needed` is 0 (budget spent, or `end` cadence), then write the task answer last. Agents cannot ask,
+and hooks do not quiz inside them. Keep small fixes and lookups inline.
 
 **How many questions is not your call — it is the plan's.** Under `interleaved`
 the plan returns one item, the sweep included. Under `end`, and when enforced,
