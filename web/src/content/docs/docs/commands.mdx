@@ -72,7 +72,7 @@ A shortcut for `/eklavya:mode off --session`. Questions, checkpoints, the banner
 /eklavya:skip
 ```
 
-Memory keeps recording, and concepts logged while skipped come back in a later session. An enforced commit gate still applies. To resume sooner, run `/eklavya:mode on --session` or ask to turn Eklavya back on.
+Memory keeps recording. Concepts logged while skipped are not asked later: once the session is over, a later session start removes logged work that no question reached. An enforced commit gate still applies. To resume sooner, run `/eklavya:mode on --session` or ask to turn Eklavya back on.
 
 ### `/eklavya:learn <topic>`
 
@@ -151,7 +151,7 @@ This skill uses the same settings and CLI as the commands and reports what chang
 
 ### The artifacts skill
 
-A second user skill, `~/.claude/skills/eklavya-artifacts/SKILL.md`, turns an explanation into an HTML page with diagrams, a print theme, and PDF and HTML download buttons. Each page carries the Eklavya mark as its favicon, a header and footer that link to this website, and title and description tags for link previews.
+A second user skill, `~/.claude/skills/eklavya-artifacts/SKILL.md`, turns an explanation into an HTML page with diagrams, coloured code blocks, a print theme, and PDF and HTML download buttons. Each page carries the Eklavya mark as its favicon, a header and footer that link to this website, and title and description tags for link previews.
 
 > Explain refresh-token rotation as an Eklavya artifact.
 

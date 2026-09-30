@@ -49,6 +49,7 @@ Eklavya notices the ideas behind Claude's work, like "database index" or
 | What it does | How it works | Read more |
 |---|---|---|
 | Asks while you work | One question at a time, in the middle of the task. Answer or skip. | [First session](https://eklavya-run.web.app/docs/first-session/) |
+| Asks while agents build | For a larger change, Claude hands the building to background agents and asks you questions while they work. | [The dials](https://eklavya-run.web.app/docs/dials/#cadence--when-it-asks) |
 | Grades your answer | Each answer gets a grade and a short explanation. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
 | Brings topics back | Spaced reviews bring an idea back before you forget it. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
 | Grows with you | Each project starts easy. Good answers unlock harder questions. | [Levels and tiers](https://eklavya-run.web.app/docs/levels-and-tiers/) |
@@ -67,7 +68,7 @@ notes to check against the code.
 | Captures your work | Saves prompts, file edits and tool calls as you work. | [What gets captured](https://eklavya-run.web.app/docs/memory/#what-gets-captured) |
 | Hides secrets | Skips files like `.env` and keys. Removes tokens and passwords before saving. | [What is never captured](https://eklavya-run.web.app/docs/memory/#what-is-never-captured) |
 | Writes summaries | Groups work into observations and session summaries, on your machine. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
-| Recalls history | Gives Claude past work at session start and on related prompts. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |
+| Recalls history | Gives Claude past work and where the last session left off at session start, on related prompts, and before it reads a file with history. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |
 | Search and notes | Ask `/eklavya:memory` about a past change, save a note or fix a wrong entry. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyamemory) |
 | Shows the savings | Estimates how much smaller recall is than the raw history. | [Savings](https://eklavya-run.web.app/docs/memory/#what-the-savings-percentage-measures) |
 | Imports Claude Mem | Brings in your history from Claude Mem. | [Migrating](https://eklavya-run.web.app/docs/migrating/) |
@@ -92,13 +93,13 @@ with diagrams that you can print or save as PDF.
 Run `eklavya dashboard` to open a local page in your browser. It keeps running
 in the background, and each session start restarts it if needed. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
-and open it from Spotlight or the Dock. It has four parts:
+and open it from Spotlight, the Dock or the Start menu. It has four parts:
 
 | Part | What you can see | Read more |
 |---|---|---|
 | Learning | Accuracy, mastery, reviews due, weak topics, sessions and projects. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
-| Artifacts | Every saved page, grouped by project. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
+| Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.
@@ -117,8 +118,8 @@ questions off and keep memory on.
 | `difficulty` | `auto`: grows with you | `easy`, `medium` or `hard` |
 | `memory.enabled` | `true`: record and recall | `false`: learning only |
 
-By default Eklavya asks up to four questions per session on its own, at
-least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
+By default Eklavya asks only in sessions that change code, up to four
+questions per session on its own, at least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
 `eklavya config set` in a terminal, or the dashboard's Settings pages. See [the dials](https://eklavya-run.web.app/docs/dials/)
 and [every setting](https://eklavya-run.web.app/docs/configuration/).
 

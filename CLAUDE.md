@@ -21,14 +21,17 @@ Read the nearest nested `CLAUDE.md` before editing `mcp/`, `hooks/`, `cli/`,
 | `docs/` | Contributor references and generated runtime architecture |
 | `eval/` | Question, extraction, history, retrieval and performance evaluation; dated results are historical evidence |
 | `CONTRIBUTING.md` | Setup, verification, acceptance checks and releases |
-| `.claude/skills/` | Repository design and dashboard contracts |
+| `.claude/skills/` | Repository design, dashboard and documentation-verification contracts |
 
 ## Documentation is part of every feature
 
-A behavior change is complete only when its documentation ships in the same PR.
-Check the manual, landing page and both READMEs against the diff; edit each surface
-whose claims changed. If a surface needs no edit, state why in the PR. Do not add
-duplicate reference material just to touch a file.
+A code change is complete only when the manual, the landing page and a README
+change in the same PR. There is no exemption. `.github/scripts/check-docs-sync.sh`
+fails the PR otherwise, and its header lists what counts as product code. When
+the change alters no existing claim on a surface, add one source-backed sentence
+where that surface's reader looks for the feature rather than duplicating
+reference material. Run `/verify-docs` (`.claude/skills/verify-docs/`) before
+opening the PR; it runs weekly on `main` as well.
 
 Read the source before documenting names, defaults, limits, paths or output.
 `mcp/src/config.ts` owns configuration; each other claim belongs to the module

@@ -18,4 +18,4 @@ Say one line back:
 
 If `set_config` returns a `note`, the project enforces the commit gate: say that a commit still waits for the quiz, and keeps growing while the session is silent. If it returns `no_session`, no hook has registered this session — say so and offer `/eklavya:mode off` at global scope instead, which they will have to turn back on themselves. Do not fall back to it without asking.
 
-Nothing is lost: concepts logged while skipped stay unmastered, and a later session offers them again.
+Memory keeps recording, but concepts logged while skipped are not asked later: a later session start removes logged work that no question reached.
