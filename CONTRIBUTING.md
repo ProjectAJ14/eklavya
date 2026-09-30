@@ -160,6 +160,15 @@ conclusion. Dated results are historical records, not current product guarantees
 
 ## Documentation review
 
+Every PR that changes product code must also change the manual
+(`web/src/content/docs/docs/`), the landing page (`web/public/index.html` or
+`app.js`) and a README (`README.md` or `mcp/README.md`). The `docs-sync` job in
+the test workflow enforces this; run it locally with
+`.github/scripts/check-docs-sync.sh`. The `/verify-docs` skill finds the claims
+each surface must change and can write them (`/verify-docs --fix`). The
+`Verify docs` workflow runs it every Monday on the past week of `main` and opens
+a PR; it needs the `CLAUDE_CODE_OAUTH_TOKEN` secret from `claude setup-token`.
+
 Use the source maps in root and [web guidance](web/CLAUDE.md). Keep the install
 guide short; move alternate routes, maintenance and full flag lists to their
 own pages. Verify all new commands, defaults, limits and paths from code. Update

@@ -56,6 +56,21 @@ jobs:
           npx playwright-core install --with-deps chromium
           npm test
 
+  # A PR that changes product code must also change the manual, the landing
+  # page and a README. The script's header lists what counts as product code.
+  docs-sync:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: .github/scripts/check-docs-sync.sh "origin/${{ github.base_ref }}"
+
   website:
     runs-on: ubuntu-latest
     timeout-minutes: 5
