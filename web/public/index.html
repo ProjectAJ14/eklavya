@@ -216,7 +216,7 @@
             <div class="ln ln--hook" data-line="hook1" hidden>Eklavya active &middot; concept &middot; interleaved &middot; easy (4/100)</div>
             <div class="ln ln--hook ln--save" data-line="hook2" hidden>Memory &middot; 3 past entries recalled (~1.1k tokens)</div>
             <div class="ln ln--hook" data-line="hook3" hidden>Learning 9 &middot; Mastered 12 &middot; Due 3</div>
-            <div class="ln ln--hook ln--faint" data-line="hook4" hidden>Dashboard &amp; observations: eklavya dashboard</div>
+            <div class="ln ln--hook ln--faint" data-line="hook4" hidden>Dashboard http://127.0.0.1:41729 &middot; Observations http://127.0.0.1:41729/#/memory</div>
 
             <!-- ...and how it looks once sent -->
             <div class="ln ln--user" data-line="sent" hidden><span class="ln__p">&gt;</span><span data-sent>add JWT auth to the Express API</span></div>
@@ -243,7 +243,7 @@
             <div class="ln tool tool--ek" data-line="t4" hidden>
               <div class="tool__head"><span class="tool__dot">&#9679;</span> eklavya &middot; log_session_concepts(<span class="tool__arg">3 concepts</span>)</div>
               <div class="tool__res"><span class="tool__el">&#9151;</span> logged jwt-structure, httponly-cookies, middleware-order-auth</div>
-              <div class="tool__res tool__res--sub">[Eklavya checkpoint] ask one question about httponly-cookies before the next line of code</div>
+              <div class="tool__res tool__res--sub">Eklavya: quick question on what you just built</div>
             </div>
 
             <!-- the picker, drawn the way AskUserQuestion draws it -->
@@ -497,12 +497,12 @@
       <li data-reveal data-delay="200">
         <span class="steps__n">3</span>
         <h3>A question arrives while you work</h3>
-        <p>A checkpoint asks one question, then work resumes. Later checkpoints are at least four minutes apart by default. Prefer to wait? Set <code class="code-inline">cadence: end</code>.</p>
+        <p>A checkpoint asks one question, then work resumes. Later checkpoints are at least four minutes apart by default. Prefer to wait? Set <code class="code-inline">cadence: end</code>. With <code class="code-inline">delegate_work</code> on (the default), Claude hands larger changes to background agents and asks while they build.</p>
       </li>
       <li data-reveal data-delay="300">
         <span class="steps__n">4</span>
         <h3>You answer, it grades honestly</h3>
-        <p>Pick from four options, or use Other to answer in your own words or say “I don’t know.” Answers score 0–5; multiple-choice recognition is capped at 4.</p>
+        <p>Pick from four options, or use Other to answer in your own words or say “I don’t know.” Answers score 0–5; multiple-choice recognition is capped at 4. A missed answer also gets an explainer page that restates the question and shows the right answer.</p>
       </li>
       <li data-reveal data-delay="400">
         <span class="steps__n">5</span>
@@ -517,7 +517,7 @@
       <li data-reveal data-delay="600">
         <span class="steps__n steps__n--solid">7</span>
         <h3>Return with context</h3>
-        <p>Claude receives your learner profile and relevant project history. Spaced reviews revisit concepts when they are due, with difficulty based on your progress.</p>
+        <p>Claude receives your learner profile, a timeline of recent project work and where the last session left off. Reading a file brings back what was recorded about it. Spaced reviews revisit concepts when they are due, with difficulty based on your progress.</p>
       </li>
     </ol>
   </div>
@@ -576,7 +576,7 @@
         <div class="dial__opt dial__opt--default">
           <span class="dial__pill">default</span>
           <code class="dial__val">enabled</code>
-          <p>Questions are on, enforcement is off. Skip a question when you need to keep moving.</p>
+          <p>Questions are on, enforcement is off. Skip a question when you need to keep moving. By default, a session gets questions only after it changes code.</p>
         </div>
         <div class="dial__opt">
           <code class="dial__val">enforced</code>
@@ -699,7 +699,7 @@
       </span>
       <h3>Your data stays yours</h3>
       <p>Your learning history and captured work live in <code>~/.eklavya/knowledge.db</code>. Explainer pages live under <code>~/.eklavya/artifacts/</code>. You can inspect, export, or remove your data.</p>
-      <p><b>Local storage and processing by default.</b> Recalled history becomes context for Claude. Optional observers, notifications, and sync use the services or directories you configure. Automatic update checks contact npm without sending your learning history.</p>
+      <p><b>Local storage and processing by default.</b> Recalled history becomes context for Claude. Optional observers, notifications, and sync use the services or directories you configure. Automatic update checks contact npm without sending your learning history. An anonymous daily usage ping sends counts and setting values, never paths or text; <code class="code-inline">eklavya telemetry off</code> turns it off.</p>
       <p>Capture filters exclude sensitive paths and redact known secret patterns. Filters cannot recognize every secret; add exclusions for your project. <a href="/docs/memory/#what-is-never-captured">Capture and privacy controls</a></p>
       <p>The optional <a href="/docs/commit-gate/">Git gate</a> also covers terminal commits after you install its hook and enable enforcement for that project.</p>
     </div>
@@ -724,6 +724,7 @@
       <div class="dash__cmd" data-reveal data-delay="200">
         <div><span>$</span> eklavya dashboard</div>
         <div class="dash__cmd-out">Eklavya dashboard on http://127.0.0.1:41729 (started in the background)</div>
+        <div class="dash__cmd-out">Reading /Users/you/.eklavya/knowledge.db — stop it: eklavya dashboard stop</div>
         <div class="dash__cmd-out">Opening it in your browser&hellip;</div>
       </div>
       <ul class="dash__list" data-reveal data-delay="250">

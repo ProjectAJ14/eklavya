@@ -1,0 +1,60 @@
+name: Verify docs
+
+# Every Monday, and on demand: run the verify-docs skill over the past week of
+# main and open a PR with the documentation fixes. Claude Code runs on the
+# maintainer's subscription through CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
+# Without that secret the job skips rather than fails.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'Start of the window: a ref or a date git understands'
+        default: '7 days ago'
+
+concurrency:
+  group: verify-docs
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write        # push the docs/verify-docs-<date> branch
+      pull-requests: write   # open the PR
+    steps:
+      - name: Check for the Claude token
+        id: token
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: echo "present=${TOKEN:+yes}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        if: steps.token.outputs.present == 'yes'
+        with:
+          fetch-depth: 0     # the skill diffs a week of history
+
+      - uses: actions/setup-node@v5
+        if: steps.token.outputs.present == 'yes'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # The default GITHUB_TOKEN, deliberately not the release bot App: the App
+      # can bypass main's ruleset, and an agent should never hold that. The cost
+      # is that a PR opened with GITHUB_TOKEN does not start the Test workflow;
+      # close and reopen it, or push to it, to run the checks.
+      - uses: anthropics/claude-code-action@v1
+        if: steps.token.outputs.present == 'yes'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Use the verify-docs skill with --since "${{ inputs.since || '7 days ago' }}" --fix --pr.
+            Edit documentation only; never change product code. If the window has
+            no product code changes and no findings, open no PR and say so.
+          claude_args: >-
+            --allowedTools "Skill,Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(gh pr create:*),Bash(npm:*),Bash(cd:*),Bash(.github/scripts/check-docs-sync.sh:*)"
