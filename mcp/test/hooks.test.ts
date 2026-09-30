@@ -122,8 +122,19 @@ function checkpointContext(res: HookResult): string | null {
 const sessionStart = (extra: Record<string, unknown> = {}) =>
   runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart', session_start_reason: 'startup', ...extra });
 
+/**
+ * `cwd` is a plain temp folder, and outside a git repository
+ * `quiz.only_on_changes` keeps every question back until an edit lands in one.
+ * These tests are about the hooks, not that rule, so it is off unless a test
+ * says otherwise; the rule's own describe block writes the real default.
+ */
 function configure(patch: Record<string, unknown>): void {
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(patch));
+  const quiz = { only_on_changes: false, ...(patch.quiz as Record<string, unknown> | undefined) };
+  writeConfig({ ...patch, quiz });
+}
+
+function writeConfig(raw: Record<string, unknown>): void {
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(raw));
 }
 
 /**
@@ -1298,7 +1309,7 @@ describe('quiz.only_on_changes — no questions for a session that changed nothi
   }
   const edit = () => fs.writeFileSync(path.join(cwd, 'a.ts'), 'export const a = 2;\n');
 
-  beforeEach(() => configure({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 }));
+  beforeEach(() => writeConfig({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 }));
 
   it('keeps the checkpoint quiet while the session has only read', () => {
     realRepo();
@@ -1394,10 +1405,19 @@ describe('quiz.only_on_changes — no questions for a session that changed nothi
     expect(stop().spoke).toBe(true);
   });
 
-  it('asks as before outside a git repository, where there is nothing to compare', () => {
+  it('stays quiet outside a git repository until an edit lands in one below it', () => {
+    // A folder of repositories, like ~/Workspace: a question asked and
+    // answered there is research, and was once quizzed as if it were code.
     sessionStart();
     logConcepts(['csrf']);
-    expect(checkpoint().spoke).toBe(true);
+    expect(checkpoint().spoke).toBe(false);
+    expect(stop().spoke).toBe(false);
+    const repo = path.join(cwd, 'app');
+    fs.mkdirSync(repo);
+    spawnSync('git', ['init', '-q'], { cwd: repo });
+    const file = path.join(repo, 'a.ts');
+    fs.writeFileSync(file, 'x\n');
+    expect(checkpoint({ tool_name: 'Write', tool_input: { file_path: file, content: 'x' } }).spoke).toBe(true);
   });
 });
 

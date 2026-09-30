@@ -221,11 +221,13 @@ describe('sessionChangedCode', () => {
     expect(sessionChangedCode(db, 's1', repo)).toBe(true);
   });
 
-  it('answers true outside a git repository, and records nothing there', () => {
+  it('answers from the edit marker alone outside a git repository, and records nothing there', () => {
     const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-plain-'));
     try {
       recordBaseline(db, 's1', plain);
       expect(db.prepare(`SELECT count(*) AS n FROM meta WHERE key LIKE 'tree_fp:%'`).get()).toEqual({ n: 0 });
+      expect(sessionChangedCode(db, 's1', plain)).toBe(false);
+      noteEdit(db, 's1', file('a.ts'));
       expect(sessionChangedCode(db, 's1', plain)).toBe(true);
     } finally {
       fs.rmSync(plain, { recursive: true, force: true });
