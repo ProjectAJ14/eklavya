@@ -57,9 +57,19 @@ jobs:
           npx playwright-core install --with-deps chromium
           npm test
 
+      # main's ruleset requires a PR and green checks, which the default
+      # GITHUB_TOKEN can never bypass, so the version-bump push would fail with
+      # GH006. The release bot App is the ruleset's only bypass actor.
+      - name: Mint release bot token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: npx semantic-release
