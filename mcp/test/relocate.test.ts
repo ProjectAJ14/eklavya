@@ -178,6 +178,47 @@ describe('moveProject', () => {
     expect(JSON.parse(fs.readFileSync(projectConfigPath(to), 'utf8'))).toEqual({ project: to });
   });
 
+  it('moves a level to a project without one, and keeps the higher level when the old one is lower', () => {
+    const to = repo('here');
+    db.prepare("INSERT INTO project_levels (repo, level) VALUES ('/gone-a', 'hard')").run();
+    moveProject(db, '/gone-a', to);
+    expect(db.prepare('SELECT repo, level FROM project_levels').all()).toEqual([{ repo: to, level: 'hard' }]);
+    db.prepare("INSERT INTO project_levels (repo, level) VALUES ('/gone-b', 'easy')").run();
+    moveProject(db, '/gone-b', to);
+    expect(db.prepare('SELECT repo, level FROM project_levels').all()).toEqual([{ repo: to, level: 'hard' }]);
+  });
+
+  it('retags in place when both keys share a slug, and skips folders or files it cannot use', () => {
+    // `/a/b-c` and `/a-b/c` share one slug: nothing to rename, nothing there yet.
+    expect(moveProject(db, '/a/b-c', '/a-b/c').left).toEqual([]);
+
+    const from = '/x/y-z';
+    const to = '/x-y/z';
+    const settings = projectConfigPath(from);
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, '{ not json');
+    const art = path.join(home, 'artifacts', projectSlug(from));
+    fs.mkdirSync(path.join(art, 'nested.html'), { recursive: true });
+    fs.writeFileSync(path.join(art, 'notes.txt'), `content="${from}"`);
+    fs.writeFileSync(path.join(art, 'page.html'), `<meta name="eklavya:project" content="${from}">`);
+
+    expect(moveProject(db, from, to).left).toEqual([]);
+    expect(fs.readFileSync(settings, 'utf8')).toBe('{ not json');
+    expect(fs.readFileSync(path.join(art, 'notes.txt'), 'utf8')).toBe(`content="${from}"`);
+    expect(fs.readFileSync(path.join(art, 'page.html'), 'utf8')).toContain(`content="${to}"`);
+  });
+
+  it('leaves a folder in place, named, when renaming it fails', () => {
+    const from = path.join(work, 'gone');
+    const to = repo('here');
+    const src = path.dirname(projectConfigPath(from));
+    fs.mkdirSync(src, { recursive: true });
+    // A dangling link is "not there" to existsSync, but a directory cannot be renamed over it.
+    fs.symlinkSync(path.join(work, 'nowhere'), path.dirname(projectConfigPath(to)));
+    expect(moveProject(db, from, to).left).toEqual([src]);
+    expect(fs.existsSync(src)).toBe(true);
+  });
+
   it('refuses a move onto itself or into the no-repository bucket', () => {
     expect(() => moveProject(db, '/a', '/a')).toThrow(/same/);
     expect(() => moveProject(db, '/a', '*')).toThrow(/outside a git repository/);

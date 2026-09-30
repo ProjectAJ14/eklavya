@@ -185,3 +185,22 @@ describe('writeWithBackup', () => {
     expect(fs.readFileSync(file, 'utf8')).toBe('{\n  "a": 1\n}\n');
   });
 });
+
+describe('writeWithBackup failure paths', () => {
+  it.skipIf(!posix)('throws on a symlink loop instead of treating it as a new file', () => {
+    const loop = path.join(dir, 'loop.json');
+    fs.symlinkSync(loop, loop);
+    expect(() => writeWithBackup(loop, 'x')).toThrow(/ELOOP/);
+  });
+
+  it('removes its temp file and rethrows when the rename cannot land', () => {
+    const file = path.join(dir, 'settings.json');
+    fs.writeFileSync(file, 'old');
+    const blocker = `${file}${BACKUP_SUFFIX}`;
+    fs.mkdirSync(blocker);
+    fs.writeFileSync(path.join(blocker, 'keep'), '');
+    expect(() => writeWithBackup(file, 'new')).toThrow();
+    expect(fs.readFileSync(file, 'utf8')).toBe('old');
+    expect(fs.readdirSync(dir).filter((n) => n.includes('.tmp-'))).toEqual([]);
+  });
+});

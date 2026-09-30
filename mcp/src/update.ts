@@ -190,6 +190,7 @@ export function markAnnounced(version: string): void {
 
 // --- the run ----------------------------------------------------------------
 
+/* c8 ignore next -- the win32 name is only reachable on Windows */
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 function run(cmd: string, args: string[], timeout: number) {
@@ -207,6 +208,7 @@ function run(cmd: string, args: string[], timeout: number) {
  * `Node.js v…` trailer.
  */
 function lastLine(text: string | undefined): string {
+  /* c8 ignore next -- defensive: spawnSync with an encoding hands back strings for every child that started */
   const lines = (text ?? '').split('\n').map((l) => l.replace(/^npm (ERR!|error)\s*/, '').trim()).filter(Boolean);
   const why =
     lines.find((l) => /^[A-Za-z]*Error:/.test(l)) ??
@@ -311,6 +313,7 @@ export async function runUpdate(opts: { background: boolean; say?: (line: string
     if (readState().applied !== version) {
       say(`refreshing the plugin, skill and registration for ${version}…`);
       const refresh = run(process.execPath, [runtimeCli(), 'install', '--auto'], 5 * 60_000);
+      /* c8 ignore next -- defensive: node itself always starts, so both streams are strings */
       log(`${refresh.stdout ?? ''}${refresh.stderr ?? ''}`);
       if (refresh.error || refresh.status !== 0) {
         throw new UpdateError(`eklavya install failed: ${lastLine(refresh.stderr || refresh.stdout)}`, 'install');
@@ -325,6 +328,7 @@ export async function runUpdate(opts: { background: boolean; say?: (line: string
     log(`failed: ${error}\n`);
     writeState({ checked_at: now, error, error_class: err instanceof UpdateError ? err.cls : 'install' });
     return { status: 'failed', error };
+    /* c8 ignore next -- V8 counts a fall-through into finally that cannot happen: try and catch both return */
   } finally {
     releaseInstall(claim);
   }

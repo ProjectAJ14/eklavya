@@ -26,6 +26,7 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 export function ownVersion(): string {
   try {
     return JSON.parse(fs.readFileSync(path.join(moduleDir, '..', 'package.json'), 'utf8')).version as string;
+    /* c8 ignore next 3 -- a build always ships beside its package.json */
   } catch {
     return '0.0.0';
   }
@@ -53,6 +54,7 @@ export function probeDashboard(port = dashboardPort(), timeoutMs = 150): Promise
       res.setEncoding('utf8');
       res.on('data', (chunk: string) => {
         body += chunk;
+        /* c8 ignore next -- untestable as written: destroy() without an error settles neither 'end' nor 'error', so the probe hangs (defect, reported) */
         if (body.length > 4096) req.destroy();
       });
       res.on('end', () => {
@@ -157,6 +159,7 @@ export async function ensureDashboard(): Promise<EnsureResult> {
     if (probe.kind === 'foreign' || !samePath(probe.health.db, dbPath())) return 'other';
     if (compareVersions(probe.health.version, ownVersion()) >= 0) return 'running';
     return (await stopDashboard()) && spawnDashboard() ? 'replaced' : 'failed';
+    /* c8 ignore next 3 -- defensive: every call above already catches its own failures */
   } catch {
     return 'failed';
   }
