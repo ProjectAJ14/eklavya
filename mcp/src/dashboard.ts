@@ -35,7 +35,7 @@ import {
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
 import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
-import { listArtifacts, resolveArtifact } from './artifacts.js';
+import { artifactThumb, listArtifacts, resolveArtifact } from './artifacts.js';
 import { NOT_HELPER_RECEIPT, receiptTotals } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
@@ -1555,6 +1555,16 @@ export function startDashboard(
         }
         const file = resolveArtifact(id);
         if (!file) return send(res, 404, 'text/plain', 'no such artifact');
+        // `?thumb=ink|paper`: the page's first diagram (or a cover), for the gallery. The
+        // gallery's URL carries the file size, so a rewritten page is refetched.
+        const thumb = url.searchParams.get('thumb');
+        if (thumb !== null) {
+          if (thumb !== 'ink' && thumb !== 'paper') return send(res, 400, 'text/plain', 'thumb is ink or paper');
+          return send(res, 200, 'image/svg+xml; charset=utf-8', artifactThumb(file, thumb), {
+            'content-security-policy': ARTIFACT_CSP,
+            'cache-control': 'private, max-age=3600',
+          });
+        }
         return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(file), {
           'content-security-policy': ARTIFACT_CSP,
         });

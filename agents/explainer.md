@@ -50,7 +50,8 @@ In this order, each under its own `<h2>`:
 - **How it works.** At least one inline-SVG diagram in a `<figure>`: a
   sequence, a before/after, a decision. Use the template's `.svg-box`,
   `.svg-box-spot`, `.svg-line`, `.svg-line-spot`, `.svg-label`, `.svg-small`
-  classes, and a `<figcaption>` that states the takeaway.
+  classes, and a `<figcaption>` that states the takeaway. The first
+  `<figure>` is the page's thumbnail in the dashboard's Artifacts gallery.
 - **A concrete example.** A tiny snippet or a timeline, broken versus fixed,
   ideally in the language the developer was working in, as
   `<pre data-lang="…"><code>` so the template labels and colours it.

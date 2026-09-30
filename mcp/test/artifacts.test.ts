@@ -8,7 +8,7 @@ import { createArtifact, listArtifacts, resolveArtifact, artifactProject, kebab 
 import { artifactsDir, projectSlug } from '../src/paths.js';
 import { openDb, type DB } from '../src/db.js';
 // The template and tokens are copied in by the build, so these run the built modules.
-import { createArtifact as createBuilt } from '../dist/artifacts.js';
+import { createArtifact as createBuilt, artifactThumb } from '../dist/artifacts.js';
 import { startDashboard as startBuilt, dashboardState } from '../dist/dashboard.js';
 
 const CLI = path.resolve(__dirname, '..', 'dist', 'cli.js');
@@ -123,6 +123,32 @@ describe('listArtifacts', () => {
   });
 });
 
+describe('artifactThumb', () => {
+  const figure = '<figure><svg viewBox="0 0 10 10" width="100%" xmlns="http://www.w3.org/2000/svg"><rect class="svg-box" width="4" height="4"/></svg><figcaption>x</figcaption></figure>';
+  const page = (body: string) => {
+    const made = createBuilt({ title: 'Thumb', cwd: repo });
+    const html = fs.readFileSync(made.path, 'utf8').replace('</main>', body + '</main>');
+    fs.writeFileSync(made.path, html);
+    return made.path;
+  };
+
+  it('is the first diagram, carrying the page styles and the ground, never the brand mark', () => {
+    const svg = artifactThumb(page(figure), 'paper');
+    expect(svg).toMatch(/^<\?xml[^>]*>\n<svg xmlns="http:\/\/www.w3.org\/2000\/svg" data-mode="paper" viewBox="0 0 10 10"><style><!\[CDATA\[/);
+    expect(svg).toContain('.svg-box{');
+    expect(svg).toContain('<rect class="svg-box"');
+    expect(svg).not.toContain('width="100%"');
+    expect(svg.match(/xmlns=/g)).toHaveLength(1);
+    expect(svg.endsWith('</svg>')).toBe(true);
+  });
+
+  it('is the cover for a page with no diagram, ignoring the template comment that mentions <figure>', () => {
+    const svg = artifactThumb(page('<p>prose only</p>'), 'ink');
+    expect(svg).toContain('data-mode="ink"');
+    expect(svg).toContain('M136 52');
+  });
+});
+
 describe('resolveArtifact', () => {
   it('serves only an html file directly inside one project folder', () => {
     const made = createBuilt({ title: 'Real', cwd: repo });
@@ -192,6 +218,12 @@ describe('the dashboard', () => {
       expect(csp).not.toContain('allow-same-origin');
       expect(csp).toContain("default-src 'none'");
       expect(ok.headers['x-frame-options']).toBe('DENY');
+
+      const thumb = await get(port, '/artifacts/' + made.id.split('/').map(encodeURIComponent).join('/') + '?thumb=ink&v=1');
+      expect(thumb.status).toBe(200);
+      expect(thumb.headers['content-type']).toMatch(/^image\/svg\+xml/);
+      expect(String(thumb.headers['content-security-policy'])).toMatch(/^sandbox /);
+      expect((await get(port, '/artifacts/' + made.id + '?thumb=neon')).status).toBe(400);
 
       for (const bad of ['/artifacts/..%2F..%2Fknowledge.db', '/artifacts/%E0%A4%A', '/artifacts/x/../../k.db']) {
         const r = await get(port, bad);
