@@ -55,6 +55,23 @@ describe('retryOnBusy', () => {
     expect(calls).toBe(1);
   });
 
+  it('rethrows a thrown non-object, including null, without retrying', () => {
+    for (const thrown of ['busy', null]) {
+      let calls = 0;
+      let caught: unknown = 'none';
+      try {
+        retryOnBusy(() => {
+          calls += 1;
+          throw thrown;
+        });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBe(thrown);
+      expect(calls).toBe(1);
+    }
+  });
+
   it('gives up rather than spinning forever', () => {
     let calls = 0;
     expect(() =>

@@ -122,17 +122,18 @@ export function openOrDiagnose(): { db: DB | null; problem: DbProblem | null } {
   } catch (err) {
     try {
       db.close();
+      /* c8 ignore next 3 -- closing an open handle does not throw; defensive */
     } catch {
       /* already unusable */
     }
-    const code = (err as { code?: string })?.code ?? '';
+    const code = String((err as { code?: string }).code);
     return { db: null, problem: /^SQLITE_(BUSY|LOCKED)/.test(code) ? null : 'unreadable' };
   }
 }
 
 function isNativeLoadError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return /NODE_MODULE_VERSION|better_sqlite3\.node|bindings file|dlopen|ERR_DLOPEN_FAILED/i.test(message);
+  // `String(err)` of an Error is `Name: message`, so its message is matched too.
+  return /NODE_MODULE_VERSION|better_sqlite3\.node|bindings file|dlopen|ERR_DLOPEN_FAILED/i.test(String(err));
 }
 
 /**
@@ -259,8 +260,9 @@ export async function run(body: (input: HookInput) => Promise<number | void>): P
     // the one place it is still counted, by hook name only.
     try {
       // `node hooks/run.mjs <hook>` in production; `node dist/hooks/<hook>.js` when run directly.
-      const hook = process.argv[2] ?? (process.argv[1] ?? '').split(/[\\/]/).pop()?.replace(/\.js$/, '') ?? '';
+      const hook = process.argv[2] ?? process.argv[1]!.split(/[\\/]/).pop()!.replace(/\.js$/, '');
       if (/^[a-z-]{1,40}$/.test(hook)) (await import('../telemetry.js')).countCommand(`hook_error:${hook}`);
+      /* c8 ignore next 3 -- countCommand swallows its own failures; defensive */
     } catch {
       /* uncounted */
     }

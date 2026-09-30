@@ -92,7 +92,7 @@ function dirtyStamps(root: string): Record<string, string> | null {
   if (entries.length > MAX_SNAPSHOT) return null;
   const out: Record<string, string> = {};
   for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i] ?? '';
+    const entry = entries[i]!;
     if (entry.length < 4) continue;
     // `R` and `C` entries carry the source path as the next NUL field.
     if (entry[0] === 'R' || entry[0] === 'C') i++;
@@ -161,6 +161,7 @@ await run(async (input) => {
         `${KEY_PREFIX}%`,
       );
       const state = read();
+      /* c8 ignore next -- another hook finished the nudge while this one ran git */
       if (state.done) return false;
       if (snaps) {
         // ponytail: a repository's first snapshot is taken after the first Bash
