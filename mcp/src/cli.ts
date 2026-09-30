@@ -129,8 +129,9 @@ Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              auto_update, telemetry, dashboard_autostart (global only)
 Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
   quiz.{enabled, enforced, only_on_changes} — whether questions happen, whether
-             they gate commits, and whether they wait for a git change (default
-             true: sessions that only read or research are not quizzed).
+             they gate commits, and whether they wait for a code change in a
+             git repository (default true: sessions that only read, research
+             or answer questions are not quizzed, even outside a repository).
              Separate from memory: silencing questions never stops
              recording. (mode: ambient|enforced|off is the retired spelling,
              still read so older configs keep working)

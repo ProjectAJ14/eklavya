@@ -105,17 +105,22 @@ export function recordBaseline(db: DB, sessionId: string, cwd: string, fp = tree
 /**
  * True when the working tree differs from the session's baseline.
  *
- * Unknown answers true: outside a git repository, on a git failure, or when
- * the database will not answer, there is nothing to measure, and the setting
- * restricts questions only where it can tell. The one exception is a session
- * with no baseline but a readable tree -- one that started before this shipped,
- * or whose start-up git call timed out. It takes its baseline now and answers
- * false, so its changes from here on still count.
+ * Outside a git repository the edit marker is the whole answer. A folder of
+ * repositories (`~/Workspace`) is where general questions get asked, and
+ * answering true there quizzed a session that had only answered one -- on
+ * the question it had just answered. An edit into any repository below it
+ * still marks the session; an edit to a file in no repository never counts.
+ *
+ * Unknown answers true: on a git failure inside a repository, or when the
+ * database will not answer. The one exception is a session with no baseline
+ * but a readable tree -- one that started before this shipped, or whose
+ * start-up git call timed out. It takes its baseline now and answers false, so
+ * its changes from here on still count.
  */
 export function sessionChangedCode(db: DB, sessionId: string, cwd: string): boolean {
   if (editMarked(db, sessionId)) return true;
   const now = treeFingerprint(cwd);
-  if (now === null) return true;
+  if (now === null) return !outsideRepo(cwd);
   try {
     const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`${KEY_PREFIX}${sessionId}`) as
       | { value: string }
@@ -128,6 +133,26 @@ export function sessionChangedCode(db: DB, sessionId: string, cwd: string): bool
   } catch {
     return true;
   }
+}
+
+/**
+ * Git ran and said no. A timeout or a missing git binary is not an answer, and
+ * neither is any other refusal: a repository owned by another user (a
+ * devcontainer, a bind mount, WSL's `/mnt`) fails with "dubious ownership",
+ * and reading that as "no repository" would silence it for good. `LC_ALL=C`
+ * keeps the message in English. Inside `.git` or a bare repository git answers
+ * "false" with a clean exit.
+ */
+function outsideRepo(cwd: string): boolean {
+  const res = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, LC_ALL: 'C' },
+    timeout: GIT_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (res.status === 0) return res.stdout.trim() === 'false';
+  return typeof res.status === 'number' && /not a git repository/i.test(res.stderr ?? '');
 }
 
 const EDIT_PREFIX = 'code_edit:';

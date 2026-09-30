@@ -146,6 +146,9 @@ describe('the full teaching loop over the real transport', () => {
         min_minutes_between_checkpoints: 0,
         max_questions_per_task: 4,
         focus: 'project',
+        // `home` is a plain folder, where the rule would hold every automatic
+        // plan back until an edit lands in a repository.
+        quiz: { only_on_changes: false },
       }),
     );
 

@@ -1120,7 +1120,7 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
   { key: 'quiz.enforced', group: 'Questions', label: 'Gate commits',
     help: 'Hold commits until the session\'s questions are passed. Off whenever questions are off.' },
   { key: 'quiz.only_on_changes', group: 'Questions', label: 'Only after code changes',
-    help: 'Ask only in sessions that changed the git working tree, so reading and research are not quizzed.' },
+    help: 'Ask only in sessions that changed code in a git repository, so reading, research and plain questions are not quizzed.' },
   { key: 'focus', group: 'Questions', label: 'Focus',
     help: 'What is taught: the transferable concept, this codebase, or a topic you chose (needs a topic).' },
   { key: 'focus_topic', group: 'Questions', label: 'Learn topic',
