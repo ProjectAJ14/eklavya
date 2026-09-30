@@ -167,7 +167,9 @@ the test workflow enforces this; run it locally with
 `.github/scripts/check-docs-sync.sh`. The `/verify-docs` skill finds the claims
 each surface must change and can write them (`/verify-docs --fix`). The
 `Verify docs` workflow runs it every Monday on the past week of `main` and opens
-a PR; it needs the `CLAUDE_CODE_OAUTH_TOKEN` secret from `claude setup-token`.
+a PR with the fixes. What it cannot fix (claims in product code, and claims it
+could not confirm) goes into one open `Verify docs:` issue, which later runs
+comment on. It needs the `CLAUDE_CODE_OAUTH_TOKEN` secret from `claude setup-token`.
 
 Use the source maps in root and [web guidance](web/CLAUDE.md). Keep the install
 guide short; move alternate routes, maintenance and full flag lists to their

@@ -1,7 +1,8 @@
 name: Verify docs
 
 # Every Monday, and on demand: run the verify-docs skill over the past week of
-# main and open a PR with the documentation fixes. Claude Code runs on the
+# main, open a PR with the documentation fixes, and file what it could not fix
+# (product code, unverified claims) as one issue. Claude Code runs on the
 # maintainer's subscription through CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
 # Without that secret the job skips rather than fails.
 on:
@@ -24,6 +25,7 @@ jobs:
     permissions:
       contents: write        # push the docs/verify-docs-<date> branch
       pull-requests: write   # open the PR
+      issues: write          # file what the run could not fix
     steps:
       - name: Check for the Claude token
         id: token
@@ -53,8 +55,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
-            Use the verify-docs skill with --since "${{ inputs.since || '7 days ago' }}" --fix --pr.
+            Use the verify-docs skill with --since "${{ inputs.since || '7 days ago' }}" --fix --pr --issue.
             Edit documentation only; never change product code. If the window has
             no product code changes and no findings, open no PR and say so.
+            Findings in product code and unverified claims go in the issue.
           claude_args: >-
-            --allowedTools "Skill,Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(gh pr create:*),Bash(npm:*),Bash(cd:*),Bash(.github/scripts/check-docs-sync.sh:*)"
+            --allowedTools "Skill,Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(gh pr create:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue comment:*),Bash(npm:*),Bash(cd:*),Bash(.github/scripts/check-docs-sync.sh:*)"
