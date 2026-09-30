@@ -20,7 +20,7 @@ registrations, for ten rows total.
 | PostToolUse (all tools) | `capture-tool` | Record one memory event with a bounded result excerpt (none for reads and edits); no quiz, summarization or provider call |
 | PostToolUse (`mcp__.*log_session_concepts`) | `checkpoint-quiz` | Ask a due interleaved question after concepts are logged |
 | PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `checkpoint-quiz` | Mark an edit into a git tree for `only_on_changes`; recheck pacing as work continues; no spinner on every tool call |
-| PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `delegate-nudge` | With questions on and `delegate_work`, tell the parent once per session, at its second distinct changed file (edit tool path, or `git status` moving between Bash calls), to hand the rest to background agents; parent only; one git call per Bash until it fires; no inference |
+| PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `delegate-nudge` | With questions on and `delegate_work`, tell the parent once per session, at its second distinct changed file (edit tool path, or `git status` moving between Bash calls in the session's repository and in the one a leading `cd <dir> &&` names), to hand the rest to background agents; parent only; git for at most two repositories per Bash until it fires; no inference |
 | Stop | `stop-quiz-check` | Record the turn's final message (parent only), flush the memory seam and request the remaining eligible quiz |
 
 The MCP matcher accepts both standalone and plugin-scoped names. Do not narrow

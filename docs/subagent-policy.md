@@ -40,8 +40,12 @@ time the model chooses how to build, it is far back in context. So
 session, the first time the parent changes a second distinct file. An edit tool
 names its file; after a Bash call, a file counts when `git status` shows its
 size or mtime moved since the previous Bash call, so heredocs and `sed -i`
-count too. The first snapshot is taken after the first Bash call, so changes
-that call made are seen only once another file moves. Subagent edits neither
+count too. Git is read in the session's own repository and in the one a
+leading `cd <dir> &&` names, one snapshot per repository (up to four), so a
+session started in the main checkout that works in a sibling worktree is
+counted. A `cd` later in the command, `pushd`, a subshell or `cd $VAR` is not
+followed. A repository's first snapshot is taken after the first Bash call that
+reaches it, so changes that call made are seen only once another file moves. Subagent edits neither
 trigger nor count; it needs questions on and `delegate_work` true, and stops
 calling git once it has fired.
 

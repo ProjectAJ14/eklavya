@@ -2036,6 +2036,37 @@ describe('the delegation nudge on a second edited file', () => {
       expect(bash().spoke).toBe(true);
     });
 
+    it('follows a leading cd into a sibling worktree', () => {
+      // The /wt layout: the session starts in the main checkout, every edit is
+      // `cd <worktree> && …`, and the main checkout's tree never moves.
+      const git = (...args: string[]) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+      git('add', '-A');
+      git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init');
+      const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-wt-'));
+      fs.rmSync(wt, { recursive: true });
+      git('worktree', 'add', '-q', wt);
+      try {
+        const inWt = (cmd: string) => edit('', { tool_name: 'Bash', tool_input: { command: `cd "${wt}" && ${cmd}` } });
+        expect(inWt('cat a.ts').spoke).toBe(false); // first snapshot of the worktree
+        fs.writeFileSync(path.join(wt, 'a.ts'), 'a2');
+        expect(inWt('python3 edit a').spoke).toBe(false);
+        fs.writeFileSync(path.join(wt, 'b.ts'), 'b2');
+        expect(inWt('python3 edit b').context).toMatch(/more than one file/);
+      } finally {
+        git('worktree', 'remove', '--force', wt);
+      }
+    });
+
+    it('does not follow a cd through a variable', () => {
+      bash();
+      const viaVar = () => edit('', { tool_name: 'Bash', tool_input: { command: 'cd $WT && make' } });
+      write('a.ts', 'a2');
+      expect(viaVar().spoke).toBe(false);
+      write('b.ts', 'b2');
+      // The session's own tree is still watched, so its changes still count.
+      expect(viaVar().spoke).toBe(true);
+    });
+
     it('ignores a subagent Bash call', () => {
       const sub = { tool_name: 'Bash', tool_input: { command: 'x' }, agent_id: 'agent-1' };
       edit('', sub);
