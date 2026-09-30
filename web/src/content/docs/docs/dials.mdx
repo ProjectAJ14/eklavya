@@ -46,9 +46,9 @@ Automatic checkpoints and the final sweep share `max_questions_per_task`: four q
 
 Each explicit `/eklavya:quiz` round can plan up to `max_questions_per_task` eligible questions even after that automatic budget is exhausted. Use it to continue learning or retry a taught miss when an enforced gate remains blocked.
 
-Unasked work can return in a later session in the same project, after current work is covered. Raise checkpoint spacing if you want fewer interruptions; choose `end` if you want none during the task.
+Unasked work does not return in a later session. Questions you declined, left blank or got wrong come back once their review is due, after current work is covered. Raise checkpoint spacing if you want fewer interruptions; choose `end` if you want none during the task.
 
-With [`delegate_work`](/docs/configuration/#every-key) on (the default), a larger code change goes to background agents (Eklavya reminds Claude once if it starts editing a second file itself), and Claude asks one question at a time while they build instead of waiting for checkpoints. These questions skip the spacing above but come out of the same `max_questions_per_task` budget. Questions while agents build need `interleaved`: under `end` none are asked while agents build, and questions wait for the end of the task. They stop when an agent reports or the budget is spent, and Claude writes its task answer last. Set `delegate_work` to `false` to keep the building in the main conversation.
+With [`delegate_work`](/docs/configuration/#every-key) on (the default), a larger code change goes to background agents (Eklavya reminds Claude once if it changes a second file itself, with an edit tool or a shell command), and Claude asks one question at a time while they build instead of waiting for checkpoints. These questions skip the spacing above but come out of the same `max_questions_per_task` budget. Questions while agents build need `interleaved`: under `end` none are asked while agents build, and questions wait for the end of the task. They stop when an agent reports or the budget is spent, and Claude writes its task answer last. Set `delegate_work` to `false` to keep the building in the main conversation.
 
 ### `difficulty` — how hard it may get
 

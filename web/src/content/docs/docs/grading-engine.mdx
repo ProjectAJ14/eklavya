@@ -63,7 +63,7 @@ An unmet enforced gate takes priority: it can ask about mastered work concepts a
 | `SessionStart` | Load the learner profile and project memory, initialise the session and give logging instructions. |
 | `UserPromptSubmit` | Capture your prompt, recall relevant memory and occasionally remind the agent to log concepts when it has not. |
 | `SubagentStart` | Give delegated agents the logging instruction; they contribute to your session without quizzing you. |
-| `PostToolUse` | Capture tool activity; eligible concept-logging and work calls can trigger a checkpoint question. |
+| `PostToolUse` | Capture tool activity; eligible concept-logging and work calls can trigger a checkpoint question; with `delegate_work` on, the first time the main conversation changes a second file, remind Claude once to delegate the rest. |
 | `Stop` | Process memory and offer the remaining learning work, respecting cadence, spacing and session limits. |
 | `PreToolUse` | Under enforcement, block recognised `git commit` commands until the gate passes. Before a `Read`, add the file's past work from memory. |
 
