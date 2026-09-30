@@ -117,7 +117,9 @@ node bin/archify.mjs visual-check <repo>/docs/eklavya-runtime.html --json
 
 Require all delivery checks with no errors/warnings and every visual viewport
 passing. Remove generated PNG/JSON inspection sidecars; they are evidence, not
-deliverables. The website copies this artifact during its build. Small manual
+deliverables. The website copies this artifact during its build. Generated
+ignored files such as that copy get `talea-regenerable` in the root
+`.gitattributes`, so worktree cleanup can remove them. Small manual
 flows use `DocFlow.astro`; they do not require regenerating the architecture.
 
 ## Communicating with the maintainer
