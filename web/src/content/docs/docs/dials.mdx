@@ -48,6 +48,8 @@ Each explicit `/eklavya:quiz` round can plan up to `max_questions_per_task` elig
 
 Unasked work can return in a later session in the same project, after current work is covered. Raise checkpoint spacing if you want fewer interruptions; choose `end` if you want none during the task.
 
+With [`delegate_work`](/docs/configuration/#every-key) on (the default), a larger code change goes to background agents, and Claude asks one question at a time while they build instead of waiting for checkpoints. These questions skip the spacing above but come out of the same `max_questions_per_task` budget. They stop when an agent reports or the budget is spent, and Claude writes its task answer last. Set `delegate_work` to `false` to keep the building in the main conversation.
+
 ### `difficulty` — how hard it may get
 
 With `auto`, each project starts at `easy` and can earn promotion. Pinning a value stops progression. A level sets the allowed tier range, not the tier of every question: `easy` allows 1–2, `medium` 2–4, and `hard` 3–5. See [Levels and tiers](/docs/levels-and-tiers/).

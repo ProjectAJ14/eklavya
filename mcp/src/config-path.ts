@@ -217,6 +217,7 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   domains_enabled: lines({ maxLength: 100 }),
   quiet: bool,
   explain_on_wrong: bool,
+  delegate_work: bool,
   auto_update: bool,
   telemetry: bool,
   dashboard_autostart: bool,

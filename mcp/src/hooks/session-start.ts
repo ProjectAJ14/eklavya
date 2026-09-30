@@ -41,7 +41,31 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
     ask right then, before the next line of code, then back to the task in the same turn. That
     interruption is the product -- learning while the work happens, not a pile of questions after
     it. One question, no summary, no re-plan, no second question -- but always tell them whether
-    they were right, and the right answer if not, before you resume.`;
+    they were right, and the right answer if not, before you resume.
+  - Your answer about the task is the last thing the developer reads. When a task that changed
+    code is done, call get_session_quiz_plan BEFORE writing your final answer; ask what it returns
+    one at a time, grading each and giving the verdict, then write the answer. Never end a turn
+    on a question or a verdict.`;
+
+/**
+ * `delegate_work`: the building goes to background agents and the waiting goes
+ * to questions. The explainer already works this way; this is the same pattern
+ * applied to the task itself. The parent asks because a delegate cannot — it
+ * has no AskUserQuestion and nobody reads its transcript — and the agent's
+ * report arriving last is what keeps the task answer at the bottom of the chat.
+ * Starting the agent before logging matters: the log call is what fires the
+ * first checkpoint, and by then the work is already under way.
+ */
+const DELEGATE = `[Eklavya] Delegation is on for this session (delegate_work):
+  - For a non-trivial code change (several files, or research before editing), plan it, then hand
+    the building to one or more agents run in the background, each with a self-contained brief.
+    Keep file dumps and edits out of this conversation; take back a short report.
+  - Once they are running, log the concepts the plan uses, then ask questions while they work:
+    get_session_quiz_plan with while_waiting: true, AskUserQuestion, record_attempt, verdict.
+    One at a time; stop when an agent reports or questions_needed is 0 (the budget is spent).
+  - When the report arrives, check it and write the task answer as your last message.
+  - Questions, one-line fixes and quick lookups: do them yourself. If agents cannot run in the
+    background here, work inline as usual.`;
 
 /**
  * The auto-updater's one line, if it has one: "updated to X" once, or "can't
@@ -241,6 +265,7 @@ await run(async (input) => {
   // is what to do about it.
   context.push(...memoryContext);
   context.push(withSurfaceNote(DIRECTIVE));
+  if (resolved.config.delegate_work) context.push(DELEGATE);
   return emit(shown, context);
 });
 

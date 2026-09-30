@@ -135,6 +135,10 @@ export const getSessionQuizPlan: ToolDef = {
       .boolean()
       .optional()
       .describe('Set true when the developer asked to be quizzed. The cadence limit exists to stop nagging, not to refuse a request.'),
+    while_waiting: z
+      .boolean()
+      .optional()
+      .describe('Set true while background agents build the task (delegate_work). Plans one question with no cooldown, and returns questions_needed: 0 with reason "budget_spent" once this session has had max_questions_per_task questions.'),
     focus: z
       .enum(['project', 'concept', 'learn'])
       .optional()
@@ -148,6 +152,7 @@ export const getSessionQuizPlan: ToolDef = {
       domain?: string;
       slugs?: string[];
       ignore_cooldown?: boolean;
+      while_waiting?: boolean;
       focus?: Focus;
     },
     { db },
@@ -194,7 +199,7 @@ export const getSessionQuizPlan: ToolDef = {
     // that makes a commit impossible.
     const capped =
       config.cadence === 'interleaved' && !config.quiz.enforced && !explicitTopic;
-    const max = args.max ?? (capped ? 1 : config.max_questions_per_task);
+    const max = args.while_waiting ? 1 : args.max ?? (capped ? 1 : config.max_questions_per_task);
 
     // An enforced gate that is open and not yet passed. While it is, the plan
     // serves only what can pass it -- see (a') and the widening guards below.
@@ -259,7 +264,17 @@ export const getSessionQuizPlan: ToolDef = {
     // the model as being told to teach and handed nothing to teach.
     // `quiz.enabled` is a given by here -- the disabled case returned above --
     // so the only question left is whether the gate exempts this from the clock.
-    if (!config.quiz.enforced && !args.ignore_cooldown) {
+    // Waiting on background agents is Eklavya deciding to ask, so it spends the
+    // same session budget the checkpoint and Stop hooks spend -- counted the way
+    // they count it. The cooldown is what it skips: the wait is the moment.
+    if (args.while_waiting) {
+      const { n } = db.prepare('SELECT count(*) AS n FROM attempts WHERE session_id = ?').get(sessionId) as { n: number };
+      if (n >= config.max_questions_per_task) {
+        return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'budget_spent' };
+      }
+    }
+
+    if (!config.quiz.enforced && !args.ignore_cooldown && !args.while_waiting) {
       const gap =
         config.cadence === 'interleaved'
           ? config.min_minutes_between_checkpoints

@@ -387,6 +387,25 @@ describe('SessionStart output', () => {
     expect(sessionStart().context).toMatch(/always tell them whether\s+they were right/);
   });
 
+  // The task answer used to sit above the question, verdict and answer, so the
+  // developer scrolled up to find it. Asking first keeps it at the bottom.
+  it('tells the model to ask before its final answer, never after', () => {
+    expect(sessionStart().context).toMatch(/BEFORE writing your final answer/);
+  });
+
+  it('asks the model to delegate and quiz while agents build, unless delegate_work is off', () => {
+    expect(sessionStart().context).toMatch(/Delegation is on for this session/);
+    configure({ delegate_work: false });
+    const off = sessionStart().context ?? '';
+    expect(off).not.toMatch(/Delegation is on/);
+    expect(off).toMatch(/Standing instruction/);
+  });
+
+  it('does not ask for delegation when questions are off', () => {
+    configure({ quiz: { enabled: false } });
+    expect(sessionStart().context ?? '').not.toMatch(/Delegation is on/);
+  });
+
   it('tells the model to log concepts on a fresh install, where nothing else will', () => {
     const res = sessionStart();
     expect(res.context).toMatch(/Standing instruction/);
@@ -985,6 +1004,12 @@ describe('Signing the question for the host it is running on', () => {
     logConcepts(['csrf']);
     const ctx = stopOn(terminal).context;
     expect(ctx).toMatch(/record_attempt[^.]*then tell them whether they were right/);
+  });
+
+  it('tells the Stop sweep to end on the task answer, not the verdict', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
+    logConcepts(['csrf']);
+    expect(stopOn(terminal).context).toMatch(/Back to your task:/);
   });
 
   it('does the same at the mid-work checkpoint', () => {

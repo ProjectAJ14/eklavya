@@ -51,7 +51,7 @@ These are the learning and general settings. Memory-related namespaces follow be
 | `level_up_after` | `100` | Passing answers needed at the current level in this project. Promotion also needs accuracy and distinct concepts. |
 | `level_up_accuracy` | `0.7` | Required fraction of passing answers at that level. Declines are excluded. |
 | `pass_threshold` | `0.7` | Gate passes needed: `ceil(required concepts × threshold)`. At default settings, at most three passes out of four required concepts. |
-| `max_questions_per_task` | `4` | Automatic-question budget shared by checkpoints and the final sweep. Also the maximum size of each explicit `/eklavya:quiz` round; a requested round can continue after the automatic budget is spent. |
+| `max_questions_per_task` | `4` | Automatic-question budget shared by checkpoints, questions asked while delegated agents build (`delegate_work`), and the final sweep. Also the maximum size of each explicit `/eklavya:quiz` round; a requested round can continue after the automatic budget is spent. |
 | `min_minutes_between_quizzes` | `20` | Spacing for offered `end` quizzes. Explicit requests and enforcement bypass it. |
 | `min_minutes_between_checkpoints` | `4` | Spacing between offered interleaved questions, including the final sweep. At `0`, checkpoints can ask at each eligible seam; the final sweep retains a one-minute floor. |
 | `max_new_concepts_per_session` | `8` | Maximum new concepts the agent may create in a session. |
@@ -59,6 +59,7 @@ These are the learning and general settings. Memory-related namespaces follow be
 | `domains_enabled` | `["*"]` | Filters the learner profile (including its due list) and memory-derived concept candidates. `*` includes all. It is not a strict block on explicitly selected or logged concepts. |
 | `quiet` | `false` | Suppresses the banner and status line. Logging, memory and questions continue. |
 | `explain_on_wrong` | `true` | Writes a background explainer page after a wrong or “I don't know” answer. The page opens with the question, its options, your pick in red and the right answer highlighted. Skips and declines do not create pages. |
+| `delegate_work` | `true` | Session start asks Claude to hand non-trivial code changes (several files, or research before editing) to background agents and ask you questions while they build, then write the task answer last. One-line fixes, lookups and questions stay in the main conversation; where background agents cannot run, Claude works inline. Takes effect at the next session start. Has no effect when `quiz.enabled` is false. |
 | `auto_update` | `true` | Global only. Checks for a newer release at session start, at most hourly, and permits runtime catch-up. A missing runtime is still installed when false; manual `eklavya update` remains available. |
 | `telemetry` | `true` | Global only. Sends anonymous daily usage counts: numbers and setting values, never paths, names or text. `EKLAVYA_TELEMETRY=0` or `DO_NOT_TRACK=1` turns it off whatever this says. See [Usage analytics](/docs/usage-analytics/). |
 | `dashboard_autostart` | `true` | Global only. Session start keeps the [dashboard running in the background](/docs/dashboard/#keeping-it-running), replacing an older version after an update. When false, `eklavya dashboard` runs in the foreground until **Ctrl+C**. |

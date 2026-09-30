@@ -1131,6 +1131,8 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
     help: 'Auto earns the level per project. A literal level pins it and stops progression.' },
   { key: 'explain_on_wrong', group: 'Questions', label: 'Explainer after a miss',
     help: 'Write and open an explainer page in the background when a question is missed.' },
+  { key: 'delegate_work', group: 'Questions', label: 'Delegate while you learn',
+    help: 'Hand non-trivial code changes to background agents and ask questions while they build. Next session.' },
   { key: 'quiet', group: 'Questions', label: 'Quiet',
     help: 'Fewer status lines from Eklavya in the session.' },
   { key: 'max_questions_per_task', group: 'Pacing', label: 'Questions per task',

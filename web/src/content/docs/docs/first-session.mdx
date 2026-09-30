@@ -19,7 +19,7 @@ command for each question.
   caption="Work produces concepts, answers schedule reviews, and memory carries context into a later session."
   steps={[
     { label: 'Open', detail: 'Your settings and relevant project memories load.' },
-    { label: 'Build', detail: 'Claude implements your request and logs the concepts it uses.' },
+    { label: 'Build', detail: 'Claude, or background agents it starts, implements your request; the concepts used are logged.' },
     { label: 'Answer', detail: 'One question connects a concept to the work on screen.' },
     { label: 'Continue', detail: 'Claude grades the answer, schedules a review and resumes work.' },
     { label: 'Return', detail: 'A later session recalls project history and revisits due concepts.' },
@@ -31,7 +31,13 @@ implements the change, it logs concepts tied to the actual code. With the
 default `interleaved` cadence, that logging call can trigger a question. Later
 edits and shell commands provide further checkpoints, paced by a four-minute
 interval. Task completion can bring one more question, subject to the same
-pacing and session budget.
+pacing and session budget, and comes before Claude's final answer.
+
+For a change that spans several files, [`delegate_work`](/docs/configuration/#every-key)
+(on by default) has Claude hand the building to background agents. Questions
+then come one at a time while they work, and the task answer arrives last. If
+an end-of-task question does come after the answer, Claude repeats a short
+version under “Back to your task:”.
 
 Answers are graded from 0 to 5. Concepts you struggle with return sooner;
 successful reviews are spaced further apart. A new session also shows a short

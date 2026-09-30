@@ -296,6 +296,14 @@ export interface EklavyaConfig {
    */
   explain_on_wrong: boolean;
   /**
+   * Whether session start asks the model to hand non-trivial code changes to
+   * background agents and quiz the developer while they build, so waiting time
+   * becomes learning time and the main context stays small. On by default:
+   * that is the product. Read only by `session-start.ts`, and only while
+   * questions are on — without questions delegating just costs tokens.
+   */
+  delegate_work: boolean;
+  /**
    * Whether Eklavya updates itself: a background check at session start, at
    * most hourly, that installs a newer release into `~/.eklavya/runtime` and
    * re-runs `eklavya install --auto` (see `update.ts`). On by default, like
@@ -346,6 +354,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   domains_enabled: ['*'],
   quiet: false,
   explain_on_wrong: true,
+  delegate_work: true,
   auto_update: true,
   telemetry: true,
   dashboard_autostart: true,
@@ -545,6 +554,7 @@ export function coerce(raw: Record<string, unknown>, base: EklavyaConfig): Eklav
   }
   if (typeof raw.quiet === 'boolean') out.quiet = raw.quiet;
   if (typeof raw.explain_on_wrong === 'boolean') out.explain_on_wrong = raw.explain_on_wrong;
+  if (typeof raw.delegate_work === 'boolean') out.delegate_work = raw.delegate_work;
   if (typeof raw.auto_update === 'boolean') out.auto_update = raw.auto_update;
   if (typeof raw.telemetry === 'boolean') out.telemetry = raw.telemetry;
   if (typeof raw.dashboard_autostart === 'boolean') out.dashboard_autostart = raw.dashboard_autostart;

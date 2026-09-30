@@ -447,6 +447,23 @@ describe('get_session_quiz_plan', () => {
     expect(asked.questions_needed).toBeGreaterThan(0);
   });
 
+  // delegate_work: questions while background agents build skip the cooldown
+  // but spend the session budget the hooks spend, one at a time.
+  it('plans one question while waiting, until the session budget is spent', () => {
+    configure({ max_questions_per_task: 2, cadence: 'end', quiz: { enabled: true, enforced: false } });
+    logAuthWork();
+    const answer = (slug: string) =>
+      call(recordAttempt, { session_id: SESSION, slug, question: `q-${slug}`, grade: 4, difficulty: 2 });
+
+    answer('csrf');
+    const waiting = call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true });
+    expect(waiting.questions_needed).toBe(1);
+
+    answer('jwt-structure');
+    const spent = call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true });
+    expect(spent).toMatchObject({ questions_needed: 0, reason: 'budget_spent' });
+  });
+
   it('plans a topic quiz on a domain the session never touched', () => {
     const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'git', max: 3 });
     expect(plan.questions_needed).toBe(3);

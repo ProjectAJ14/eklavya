@@ -158,6 +158,13 @@ options, the pick and the right answer. Turning it off is usually wanted per
 project, so default to `--project`. The pages themselves are the
 `eklavya-artifacts` skill's job, not this one's.
 
+`delegate_work` (default `true`) is asked about the same way: "stop using
+background agents", "why are you quizzing me while agents build?". On, session
+start tells Claude to hand non-trivial code changes to background agents and ask
+questions while they work, then give the task answer last. `false` keeps the
+building in the conversation. It applies from the next session start and does
+nothing while `quiz.enabled` is false.
+
 ## Reading state
 
 ```bash
