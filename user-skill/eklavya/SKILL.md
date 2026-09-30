@@ -163,7 +163,8 @@ background agents", "why are you quizzing me while agents build?". On, session
 start tells Claude to hand non-trivial code changes to background agents and ask
 questions while they work, then give the task answer last. `false` keeps the
 building in the conversation. It applies from the next session start and does
-nothing while `quiz.enabled` is false.
+nothing while `quiz.enabled` is false. Under `cadence: end` it still delegates
+but asks nothing until the task is done.
 
 ## Reading state
 

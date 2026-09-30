@@ -34,10 +34,10 @@ interval. Task completion can bring one more question, subject to the same
 pacing and session budget, and comes before Claude's final answer.
 
 For a change that spans several files, [`delegate_work`](/docs/configuration/#every-key)
-(on by default) has Claude hand the building to background agents. Questions
-then come one at a time while they work, and the task answer arrives last. If
-an end-of-task question does come after the answer, Claude repeats a short
-version under “Back to your task:”.
+(on by default) has Claude hand the building to background agents. Under the
+default `interleaved` cadence, questions then come one at a time while they
+work, and the task answer arrives last. If an end-of-task question does come
+after the answer, Claude repeats a short version under “Back to your task:”.
 
 Answers are graded from 0 to 5. Concepts you struggle with return sooner;
 successful reviews are spaced further apart. A new session also shows a short

@@ -4,7 +4,8 @@ Eklavya normally asks a short question during work in the same conversation.
 With `delegate_work` on (the default), the parent already hands larger code
 changes to background agents and quizzes you while they build; see
 [subagent policy](subagent-policy.md#the-parent-delegates-and-asks). For a
-separate teaching conversation, use the tutor subagent or two terminal panes. Both use the same local database; sharing a gate also requires the same
+separate teaching conversation, use the tutor subagent or two terminal panes.
+Both use the same local database; sharing a gate also requires the same
 session identity.
 
 ## Use the tutor subagent

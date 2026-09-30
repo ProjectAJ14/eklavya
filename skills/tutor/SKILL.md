@@ -81,7 +81,7 @@ each, then write the answer. Never end a turn on a question or a verdict.
 code changes go to background agents and the wait is when you teach. Start
 them, log the plan's concepts, then loop: `get_session_quiz_plan` with
 `while_waiting: true`, ask, grade, verdict. Stop when an agent reports or
-`questions_needed` is 0, then write the task answer last. Agents cannot ask,
+`questions_needed` is 0 (budget spent, or `end` cadence), then write the task answer last. Agents cannot ask,
 and hooks do not quiz inside them. Keep small fixes and lookups inline.
 
 **How many questions is not your call — it is the plan's.** Under `interleaved`

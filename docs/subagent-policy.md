@@ -2,8 +2,8 @@
 
 Implementers log the concepts they use. The parent asks the learner about that
 work. With `delegate_work` on (the default), the parent delegates non-trivial
-code changes to background implementers and asks while they build. A tutor explicitly requested by the learner can teach in its own
-conversation; an explainer only creates an artifact.
+code changes to background implementers and asks while they build. A tutor
+explicitly requested by the learner can teach in its own conversation; an explainer only creates an artifact.
 
 | Role | Logs concepts | Asks questions | Memory capture | Instructions |
 |---|---|---|---|---|
@@ -27,7 +27,9 @@ then asks one question at a time (`get_session_quiz_plan` with
 `while_waiting: true`, `AskUserQuestion`, `record_attempt`, verdict) until an
 agent reports or `questions_needed` is 0. `while_waiting` plans one question,
 skips the cooldown and spends the session's `max_questions_per_task`, counted
-from `attempts` as the hooks count it. It checks the report and writes the
+from `attempts` as the hooks count it. Under `cadence: end` it returns nothing
+(`cadence_end`): that cadence keeps questions out of the task. Passing `max`,
+`domain`, `slugs` or `ignore_cooldown` makes it an ordinary request instead. It checks the report and writes the
 task answer last. Questions, one-line fixes and lookups stay inline, and so
 does everything when the host cannot run agents in the background.
 
@@ -39,8 +41,9 @@ report back without finishing.
 The standing directive also tells the parent, once a code-changing task is
 done, to call `get_session_quiz_plan` before its final answer and ask what it
 returns one at a time (one question under `interleaved`, the remaining budget
-under `end`), and never to end a turn on a
-question or verdict. The Stop sweep's instruction ends with "Back to your task:"
+under `end`), and never to end a turn on a question or verdict. Every plan
+Eklavya asks for itself is capped at what is left of the session budget, so
+this step cannot add questions past it. The Stop sweep's instruction ends with "Back to your task:"
 and a 2-4 line restatement of the answer for the same reason.
 
 ## Implementers log; automatic hooks do not quiz them

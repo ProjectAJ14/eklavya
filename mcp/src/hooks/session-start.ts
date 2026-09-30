@@ -62,7 +62,8 @@ const DELEGATE = `[Eklavya] Delegation is on for this session (delegate_work):
     Keep file dumps and edits out of this conversation; take back a short report.
   - Once they are running, log the concepts the plan uses, then ask questions while they work:
     get_session_quiz_plan with while_waiting: true, AskUserQuestion, record_attempt, verdict.
-    One at a time; stop when an agent reports or questions_needed is 0 (the budget is spent).
+    One at a time; stop when an agent reports or questions_needed is 0 (budget spent, or the
+    end cadence, which saves questions for the end of the task).
   - When the report arrives, check it and write the task answer as your last message.
   - Questions, one-line fixes and quick lookups: do them yourself. If agents cannot run in the
     background here, work inline as usual.`;

@@ -129,6 +129,7 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
       cadence: c.cadence,
       difficulty: c.difficulty,
       explain_on_wrong: c.explain_on_wrong,
+      delegate_work: c.delegate_work,
       quiet: c.quiet,
       auto_update: c.auto_update,
       memory_enabled: c.memory.enabled,
