@@ -36,7 +36,8 @@ repeats a short version of the answer under “Back to your task:”.
 
 For a change that spans several files, [`delegate_work`](/docs/configuration/#every-key)
 (on by default) has Claude hand the building to background agents; if Claude
-starts editing a second file itself, Eklavya reminds it once. Under the
+changes a second file itself, with an edit tool or a shell command, Eklavya
+reminds it once. Under the
 default `interleaved` cadence, questions then come one at a time while they
 work, and the task answer arrives last.
 
