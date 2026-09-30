@@ -144,7 +144,7 @@ export const setConfig: ToolDef = {
     delegate_work: z
       .boolean()
       .optional()
-      .describe('Whether non-trivial code changes go to background agents while the developer is quizzed, so the task answer arrives last (default true). Takes effect at the next session start.'),
+      .describe('Whether non-trivial code changes go to background agents while the developer is quizzed, so the task answer arrives last (default true). Questions while agents build need cadence interleaved; under end they wait for the end of the task. The session-start instruction takes effect at the next session start; the nudge on a second edited file reads it on every edit.'),
     auto_update: z
       .boolean()
       .optional()

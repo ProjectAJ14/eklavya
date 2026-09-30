@@ -61,6 +61,8 @@ Usage:
                                         focus project|concept|learn, cadence interleaved|end,
                                         difficulty auto|easy|medium|hard,
                                         explain_on_wrong true|false, delegate_work true|false
+                                        (delegate_work asks while agents build only under
+                                        cadence interleaved; under end questions wait)
                                         add --topic <topic> when setting focus to "learn"
   eklavya config unset <key>            Remove a setting from that file so it inherits again: a project
                                         falls back to your user setting, your user file to the default

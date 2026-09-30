@@ -1132,7 +1132,7 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
   { key: 'explain_on_wrong', group: 'Questions', label: 'Explainer after a miss',
     help: 'Write and open an explainer page in the background when a question is missed.' },
   { key: 'delegate_work', group: 'Questions', label: 'Delegate while you learn',
-    help: 'Hand non-trivial code changes to background agents and ask questions while they build. Next session.' },
+    help: 'Hand non-trivial code changes to background agents and ask questions while they build. Needs interleaved cadence for questions while waiting; under end they wait for the end of the task. Next session.' },
   { key: 'quiet', group: 'Questions', label: 'Quiet',
     help: 'Fewer status lines from Eklavya in the session.' },
   { key: 'max_questions_per_task', group: 'Pacing', label: 'Questions per task',

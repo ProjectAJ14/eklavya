@@ -7,7 +7,7 @@ explicitly requested by the learner can teach in its own conversation; an explai
 
 | Role | Logs concepts | Asks questions | Memory capture | Instructions |
 |---|---|---|---|---|
-| Parent | Yes | Yes | Prompts, tools and lifecycle | SessionStart (directive, plus `DELEGATE` when `delegate_work`) and prompt nudge |
+| Parent | Yes | Yes | Prompts, tools and lifecycle | SessionStart (directive, plus `DELEGATE` when `delegate_work`), prompt nudge and the second-file delegation nudge |
 | Implementer | Yes, when its tools permit | No | Tools | SubagentStart directive |
 | `eklavya-tutor` | No | Yes, when delegated to teach | Tools | `agents/tutor.md` |
 | `eklavya-explainer` | No | No | Tools | `agents/explainer.md` |
@@ -15,6 +15,7 @@ explicitly requested by the learner can teach in its own conversation; an explai
 Sources: [`subagent-start.ts`](../mcp/src/hooks/subagent-start.ts),
 [`session-start.ts`](../mcp/src/hooks/session-start.ts),
 [`checkpoint-quiz.ts`](../mcp/src/hooks/checkpoint-quiz.ts),
+[`delegate-nudge.ts`](../mcp/src/hooks/delegate-nudge.ts),
 [`stop-quiz-check.ts`](../mcp/src/hooks/stop-quiz-check.ts) and the agent files.
 
 ## The parent delegates and asks
@@ -33,18 +34,25 @@ from `attempts` as the hooks count it. Under `cadence: end` it returns nothing
 task answer last. Questions, one-line fixes and lookups stay inline, and so
 does everything when the host cannot run agents in the background.
 
+The session-start instruction alone was not followed in live sessions: by the
+time the model chooses how to build, it is far back in context. So
+`delegate-nudge` (PostToolUse on the edit tools) repeats it once per session,
+the first time the parent edits a second distinct file. Subagent edits neither
+trigger nor count toward it; it needs questions on and `delegate_work` true.
+
 The parent asks because a delegate cannot: it has no `AskUserQuestion` and
 nobody reads its transcript. Background implementers still get the SubagentStart
 logging directive. A background agent may stop on a permission prompt and
 report back without finishing.
 
-The standing directive also tells the parent, once a code-changing task is
-done, to call `get_session_quiz_plan` before its final answer and ask what it
-returns one at a time (one question under `interleaved`, the remaining budget
-under `end`), and never to end a turn on a question or verdict. Every plan
-Eklavya asks for itself is capped at what is left of the session budget, so
-this step cannot add questions past it. The Stop sweep's instruction ends with "Back to your task:"
-and a 2-4 line restatement of the answer for the same reason.
+End-of-task questions come from the Stop sweep, after the task answer (one
+question under `interleaved`, the remaining budget under `end`). The sweep's
+instruction ends with "Back to your task:" and a 2-4 line restatement of the
+answer, which is what keeps the answer last. The standing directive only says
+never to end a turn on a question or a verdict: an earlier line asking the
+parent to quiz before its final answer was not followed in live sessions and
+was removed. Every plan Eklavya asks for itself is capped at what is left of
+the session budget.
 
 ## Implementers log; automatic hooks do not quiz them
 

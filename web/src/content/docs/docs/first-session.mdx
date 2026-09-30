@@ -31,13 +31,14 @@ implements the change, it logs concepts tied to the actual code. With the
 default `interleaved` cadence, that logging call can trigger a question. Later
 edits and shell commands provide further checkpoints, paced by a four-minute
 interval. Task completion can bring one more question, subject to the same
-pacing and session budget, and comes before Claude's final answer.
+pacing and session budget. It comes after Claude's answer, and Claude then
+repeats a short version of the answer under “Back to your task:”.
 
 For a change that spans several files, [`delegate_work`](/docs/configuration/#every-key)
-(on by default) has Claude hand the building to background agents. Under the
+(on by default) has Claude hand the building to background agents; if Claude
+starts editing a second file itself, Eklavya reminds it once. Under the
 default `interleaved` cadence, questions then come one at a time while they
-work, and the task answer arrives last. If an end-of-task question does come
-after the answer, Claude repeats a short version under “Back to your task:”.
+work, and the task answer arrives last.
 
 Answers are graded from 0 to 5. Concepts you struggle with return sooner;
 successful reviews are spaced further apart. A new session also shows a short
