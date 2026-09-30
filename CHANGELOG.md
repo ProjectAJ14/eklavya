@@ -1,3 +1,10 @@
+## [1.39.1](https://github.com/ProjectAJ14/eklavya/compare/v1.39.0...v1.39.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **memory:** keep history when a checkout is moved or renamed ([40775ac](https://github.com/ProjectAJ14/eklavya/commit/40775ac551c0638e4cf4eb00494b61e461340aff))
+
 # [1.39.0](https://github.com/ProjectAJ14/eklavya/compare/v1.38.0...v1.39.0) (2026-09-29)
 
 

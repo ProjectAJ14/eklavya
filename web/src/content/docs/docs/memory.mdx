@@ -209,6 +209,18 @@ With an observer model, observations are written in the background, so they can 
 
 Memory does not record quiz attempts, grant mastery, clear review debt, promote a level or open a gate. Remembered work is not assessed knowledge.
 
+### When you move or rename a checkout
+
+History is filed under the checkout's folder path, so a moved folder would otherwise start empty. To prevent that, the first session start in a folder records the repository's root commits, which stay the same when the folder moves. If exactly one other project has the same root commits and its folder no longer exists, that project is the same repository before the move. Its memory, answers, level, project settings and pages are re-filed under the new folder, and the banner says so:
+
+```text
+Memory · moved from ~/Workspace/QF · 64 entries re-filed
+```
+
+Nothing moves when the old folder still exists, because that is a second clone or a fork, a separate checkout. Nothing moves when more than one missing folder matches either; the banner says the history is under that many moved folders instead. A repository with no commits yet is checked again at each session start until it has one.
+
+Root commits are recorded from this release on. For a folder moved earlier, or to choose between several matches, run `eklavya memory move` from the new checkout to list folders that have history but no longer exist, then `eklavya memory move <old path>`. Synced entries carry the new path to your other devices.
+
 ### Where it lives, and turning it off
 
 Memory and learning share `~/.eklavya/knowledge.db`. Set `memory.enabled: false` to stop capture and recall, or `memory.capture: off` to stop only new capture. Set `memory.retention_days` to prune summarised evidence, finished jobs and receipts while keeping observations; the default keeps everything.

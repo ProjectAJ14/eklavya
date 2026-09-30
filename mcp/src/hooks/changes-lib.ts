@@ -45,7 +45,7 @@ const KEY_PREFIX = 'tree_fp:';
 /** A hook has ten seconds in all; git gets a fraction of it. */
 const GIT_TIMEOUT_MS = 2000;
 
-function git(cwd: string, args: string[]): string | null {
+export function git(cwd: string, args: string[]): string | null {
   const res = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: GIT_TIMEOUT_MS, windowsHide: true });
   return res.status === 0 && typeof res.stdout === 'string' ? res.stdout : null;
 }
