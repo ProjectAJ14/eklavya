@@ -1,0 +1,9 @@
+{
+  "all": true,
+  "src": ["src"],
+  "include": ["dist/**/*.js", "src/**/*.ts"],
+  "exclude": ["test/**"],
+  "exclude-after-remap": true,
+  "reporter": ["text-summary", "json-summary", "html"],
+  "reports-dir": "coverage"
+}

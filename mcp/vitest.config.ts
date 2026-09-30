@@ -1,7 +1,15 @@
 import { defineConfig } from 'vitest/config';
 
+// `npm run coverage` measures the whole process tree with c8, because most of
+// the CLI, installer and hooks are exercised as spawned `dist/` processes. For
+// one consistent map, the suites then import the same compiled `dist/` files
+// natively (not through vite's transform) and c8 remaps both to `src/`.
+const coverage = !!process.env.EKLAVYA_COVERAGE;
+
 export default defineConfig({
+  resolve: coverage ? { alias: [{ find: /^(\.\.\/)+src\/(.*)$/, replacement: `${import.meta.dirname}/dist/$2` }] } : {},
   test: {
+    ...(coverage ? { server: { deps: { external: [/\/mcp\/dist\//] } }, setupFiles: ['test/coverage-setup.ts'] } : {}),
     env: {
       // Every `git commit` starts a detached `git maintenance run --auto` that
       // can still be writing into `.git` when a test deletes its temp repo,

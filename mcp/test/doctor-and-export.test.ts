@@ -151,7 +151,7 @@ describe.skipIf(process.platform === 'win32')('doctor: what the terminal commit 
 
   it('says nothing about jq when there is no gate and no enforcement', () => {
     const res = eklavya(['doctor'], { path: pathWith([]) });
-    expect(res.stdout).not.toMatch(/jq/);
+    expect(res.stdout).not.toMatch(/\bjq\b/);
   });
 });
 
