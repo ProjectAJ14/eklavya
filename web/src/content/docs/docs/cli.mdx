@@ -50,7 +50,7 @@ Settings are backed up to `config.json.eklavya-bak` before a change. Unknown key
 
 ### `eklavya memory`
 
-Run project-specific commands from inside the checkout. Memory maintenance does not change quiz attempts, mastery or gates.
+Run project-specific commands from inside the checkout. Memory maintenance does not change quiz attempts, mastery or gates; `move` only re-files them under the new folder.
 
 | Subcommand | Purpose and options |
 | --- | --- |
@@ -64,6 +64,7 @@ Run project-specific commands from inside the checkout. Memory maintenance does 
 | `backlog` | Lists unfinished jobs by project and status, plus Eklavya observer helper sessions in any state, marked as such. |
 | `backlog quarantine\|discard\|restore` | Changes selected jobs. Requires `--helpers`, `--project <key>`, `--session <id>` or `--batch <id>`. Quarantine preserves jobs without processing; restore re-enables them; discard deletes unfinished jobs and their raw evidence, plus any helper sessions the selector matches, finished or not, with the memories they produced. Your own finished sessions are never selected. |
 | `prune` | Applies this project's `memory.retention_days` now, removing old summarised evidence, finished jobs and reuse receipts. Keeps observations; does nothing when retention is unset. |
+| `move [<old> [<new>]]` | Re-files the history of a moved or renamed checkout, including its answers, level, project settings and pages, under `<new>` (default: this checkout). With no path, lists folders that have history but no longer exist. Refuses an `<old>` that still exists without `--force`, because that is a separate checkout. Session start already does this by itself when it can tell which folder moved; see [moved checkouts](/docs/memory/#when-you-move-or-rename-a-checkout). |
 | `import <source.db>` | Imports Claude Mem history. Options are [below](#importing-claude-mem-history). |
 | `export <file> [--force]` | Writes a private, versioned JSON memory backup. Refuses to replace an existing file without `--force`. |
 | `restore <file>` | Adds missing memory from an export and rebuilds its search data. Repeating the restore adds no duplicates. |

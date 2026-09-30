@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 16;
+const LATEST_SCHEMA_VERSION = 17;
 
 const LEARNING_TABLES = [
   'attempts',
@@ -68,9 +68,13 @@ const SYNC_TABLES = ['sync_conflicts', 'sync_records', 'sync_state'];
 /** Migration 016: feature-use counts for the anonymous usage ping. */
 const USAGE_TABLES = ['usage_counts'];
 
+/** Migration 017: the root commits a moved checkout is recognised by. */
+const IDENTITY_TABLES = ['project_roots'];
+
 const EXPECTED_TABLES = [
   ...LEARNING_TABLES,
   ...USAGE_TABLES,
+  ...IDENTITY_TABLES,
   ...MEMORY_TABLES,
   ...IMPORT_TABLES,
   ...SYNC_TABLES,
@@ -140,6 +144,7 @@ describe('migrations', () => {
         '014_batch_events_index.sql',
         '015_event_link_indexes.sql',
         '016_usage_counts.sql',
+        '017_project_roots.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -195,7 +200,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });

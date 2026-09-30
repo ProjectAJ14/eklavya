@@ -4,6 +4,8 @@
  * Hard rule: this must never break a session. Every failure path
  * exits 0 with no output — `run()` enforces it.
  */
+import os from 'node:os';
+import path from 'node:path';
 import { findRepoConfig, loadGlobalConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
 import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding, pruneUnasked } from '../store.js';
@@ -15,6 +17,7 @@ import { startupDisplay, type RecallResult } from '../memory/recall.js';
 import { recalledLine } from '../memory/tokens.js';
 import { AMBER, dialParts, paint } from '../statusline.js';
 import { dashboardPort } from '../paths.js';
+import { followMove } from '../relocate.js';
 import { ensureDashboard, probeDashboard } from '../dashboard-daemon.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
 import { canSend, disabledReason, markTelemetryAnnounced, readState, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
@@ -107,6 +110,23 @@ await run(async (input) => {
   // no history. Three jobs, all silent on failure -- replay whatever the spool
   // holds, mark the seam, and drain any batch the last session left queued.
   const identity = identityOf(input, cwd, sid);
+
+  // A checkout seen for the first time may be an old one moved or renamed.
+  // Before anything is recorded here, so this session's first event lands on
+  // the re-filed history, and outside the memory switch, because a move takes
+  // answers and levels with it too. Fails open: no move is the old behaviour.
+  let moveLine: string | null = null;
+  try {
+    const followed = followMove(db, identity.project, identity.checkout);
+    if (followed?.moved) {
+      moveLine = `Memory · moved from ${tilde(followed.moved.from)} · ${followed.moved.entries} entries re-filed`;
+    } else if (followed?.candidates.length) {
+      moveLine = `Memory · this repo's history is under ${followed.candidates.length} moved folders · eklavya memory move`;
+    }
+  } catch {
+    /* fail open */
+  }
+
   const memoryContext: string[] = [];
   let recalled: RecallResult | null = null;
   const memoryEnabled = resolved.config.memory.enabled;
@@ -150,6 +170,7 @@ await run(async (input) => {
         project: identity.project,
         memory: true,
         recalled,
+        moved: moveLine,
         dials: ['memory on', 'questions off'],
         overrides: resolved.overrides,
         dashboard: dashboardState,
@@ -191,6 +212,7 @@ await run(async (input) => {
       project: identity.project,
       memory: resolved.config.memory.enabled,
       recalled,
+      moved: moveLine,
       dials: dialParts(resolved.config, levelLabel),
       overrides: resolved.overrides,
       dashboard: dashboardState,
@@ -283,6 +305,8 @@ interface BannerParts {
   memory: boolean;
   /** What this session start just handed the model, if anything. */
   recalled: RecallResult | null;
+  /** A move `followMove` made or declined at this start, already worded. */
+  moved: string | null;
   dials: string[];
   overrides: string[];
   dashboard: DashboardState;
@@ -315,6 +339,7 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   if (parts.memory && parts.recalled) {
     out.push(paint(recalledLine(parts.recalled.entries.length, parts.recalled.deliveredTokens, parts.recalled.indexed), 114, color));
   }
+  if (parts.moved) out.push(paint(parts.moved, parts.moved.includes(' re-filed') ? 114 : AMBER, color));
   // Stale memory is recalled as confidently as fresh memory, so the one state
   // worth a warning is a queue that has stopped turning evidence into entries.
   const health = parts.memory ? memoryHealthLine(db) : null;
@@ -340,6 +365,12 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
           : 'Dashboard & observations: eklavya dashboard',
     ),
   );
+}
+
+/** `~/Workspace/QF`, not the full home path: the banner line has to fit. */
+function tilde(p: string): string {
+  const home = os.homedir();
+  return p === home || p.startsWith(`${home}${path.sep}`) ? `~${p.slice(home.length)}` : p;
 }
 
 /** State and fix, one line: read in a glance, acted on without the manual. */
