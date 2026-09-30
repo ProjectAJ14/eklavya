@@ -1,3 +1,11 @@
+# [1.42.0](https://github.com/ProjectAJ14/eklavya/compare/v1.41.0...v1.42.0) (2026-09-30)
+
+
+### Features
+
+* count shell edits toward the delegation nudge ([2a42afb](https://github.com/ProjectAJ14/eklavya/commit/2a42afbfae4e7be45cd8d0aae3a3018d8c656f0a))
+* nudge delegation at the second edited file and drop the ask-first line ([530a9e8](https://github.com/ProjectAJ14/eklavya/commit/530a9e81b999dfc5d07daf8f90455597ecfb4e56))
+
 # [1.41.0](https://github.com/ProjectAJ14/eklavya/compare/v1.40.1...v1.41.0) (2026-09-30)
 
 
