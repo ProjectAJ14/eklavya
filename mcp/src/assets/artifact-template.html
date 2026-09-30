@@ -56,8 +56,20 @@
   strong{font-weight:600}
 
   code{font-family:var(--font-mono);font-size:.88em;background:var(--mass);padding:.1em .38em}
-  pre{background:var(--panel);border:1px solid var(--line-2);padding:14px 16px;overflow:auto;font-size:13px}
-  pre code{background:none;padding:0}
+  pre{background:var(--panel);border:1px solid var(--line-2);border-left:2px solid var(--spot);
+    padding:16px 18px;margin:1.4em 0;overflow:auto;font:13.5px/1.7 var(--font-mono);tab-size:2;color:var(--ink)}
+  pre code{background:none;padding:0;font-size:inherit}
+  /* The label a block carries with data-lang="css", e.g. <pre data-lang="css">. */
+  pre[data-lang]::before{content:attr(data-lang);display:block;margin:-4px 0 10px;
+    font:400 11px/1 var(--font-mono);letter-spacing:var(--tracking-caps);text-transform:uppercase;color:var(--faint)}
+  /* Syntax roles, painted by the highlighter script below. One accent for keywords;
+     comments recede, so the code reads before its commentary. */
+  .tok-c{color:var(--faint);font-style:italic}
+  .tok-k{color:var(--spot)}
+  .tok-s{color:var(--code-str)}
+  .tok-n{color:var(--code-num)}
+  .tok-f{font-weight:600}
+  .tok-p{color:var(--dim)}
 
   table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:14px}
   th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
@@ -167,6 +179,36 @@ function saveHtml(){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
 }
+</script>
+<script>
+/* Colours every <pre> once, from its text. A block that already carries markup
+   (hand-written spans, <mark>) is left as written. Language-agnostic on purpose:
+   comments, strings, numbers, keywords and calls cover every snippet a page shows. */
+document.addEventListener('DOMContentLoaded',function(){
+  var KW='abstract|and|as|async|await|break|case|catch|class|const|continue|def|default|defer|del|do|elif|else|enum|except|export|extends|false|False|finally|fn|for|from|func|function|go|if|impl|import|in|instanceof|interface|is|lambda|let|loop|match|mod|mut|new|nil|none|None|not|null|of|or|package|pass|pub|raise|return|self|static|struct|super|switch|this|throw|trait|true|True|try|type|typeof|undefined|use|var|void|while|with|yield|SELECT|FROM|WHERE|INSERT|INTO|UPDATE|DELETE|JOIN|LEFT|ON|AND|OR|NOT|CREATE|TABLE|INDEX|VALUES|SET|GROUP|BY|ORDER|LIMIT|PRIMARY|KEY|then|fi|esac|done|echo|local|!important';
+  var RE=new RegExp([
+    '(\\/\\*[\\s\\S]*?\\*\\/|<!--[\\s\\S]*?-->|(?<!:)\\/\\/[^\\n]*|(?:^|(?<=\\s))(?:#(?=[\\s!]|$)|-- )[^\\n]*)',
+    '("(?:\\\\.|[^"\\\\\\n])*"|\'(?:\\\\.|[^\'\\\\\\n])*\'|`(?:\\\\.|[^`\\\\])*`)',
+    '((?<![\\w.#-])(?:0x[\\da-fA-F]+|\\d[\\d_]*(?:\\.\\d+)?(?:e[+-]?\\d+)?)(?:%|[a-z]{1,4}\\b)?)',
+    '(@[\\w-]+|(?<![\\w-])(?:'+KW+')(?![\\w-]))',
+    '([A-Za-z_$][\\w$-]*(?=\\())',
+    '([{}()\\[\\];,])'
+  ].join('|'),'gm');
+  var CLS=['c','s','n','k','f','p'];
+  function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+  document.querySelectorAll('pre').forEach(function(pre){
+    var el=pre.querySelector('code')||pre;
+    if(el.children.length) return;
+    var src=el.textContent, out='', last=0;
+    src.replace(RE,function(m){
+      var off=arguments[arguments.length-2], i=0;
+      while(arguments[i+1]===undefined) i++;
+      out+=esc(src.slice(last,off))+'<span class="tok-'+CLS[i]+'">'+esc(m)+'</span>';
+      last=off+m.length; return m;
+    });
+    el.innerHTML=out+esc(src.slice(last));
+  });
+});
 </script>
 
 <main>

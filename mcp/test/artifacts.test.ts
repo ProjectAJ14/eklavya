@@ -84,6 +84,25 @@ describe('createArtifact', () => {
     });
   });
 
+  it('colours code blocks once, and leaves hand-marked blocks alone', () => {
+    const html = fs.readFileSync(createBuilt({ title: 'Code', cwd: repo }).path, 'utf8');
+    const js = html.match(/<script>\n\/\* Colours every[\s\S]*?<\/script>/)![0].replace(/<\/?script>/g, '');
+    const run = (src: string, children: unknown[] = []) => {
+      const pre = { textContent: src, children, innerHTML: '', querySelector: () => null };
+      new Function('document', js)({ addEventListener: (_: string, f: () => void) => f(), querySelectorAll: () => [pre] });
+      return pre.innerHTML;
+    };
+    const out = run('/* note */\n@media (min-width: 640px) { a { color: #fff; font-size: clamp(1rem, 2vw, 2rem); } }\nconst u = "a<b"; // https://x.dev');
+    expect(out).toContain('<span class="tok-c">/* note */</span>');
+    expect(out).toContain('<span class="tok-k">@media</span>');
+    expect(out).toContain('<span class="tok-n">640px</span>');
+    expect(out).toContain('color: #fff');
+    expect(out).toContain('<span class="tok-f">clamp</span>');
+    expect(out).toContain('<span class="tok-s">"a&lt;b"</span>');
+    expect(out).toContain('<span class="tok-c">// https://x.dev</span>');
+    expect(run('x', [{}])).toBe('');
+  });
+
   it('refuses an empty title', () => {
     expect(() => createArtifact({ title: '   ', cwd: repo })).toThrow(/title/);
   });

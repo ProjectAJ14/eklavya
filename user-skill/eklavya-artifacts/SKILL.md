@@ -79,11 +79,14 @@ not.
 **Stay on the design system.** Components already in the template: `.eyebrow`,
 `.lede`, `.card`, `.grid`, `.chip` (`.warn`, `.bad`), `.stat` (`.k`, `.v`,
 `.d`), `.callout`, `td.num`, and `ol.options` with `li.picked` / `li.right`
-for restating a missed question. Reuse them before adding CSS. Any CSS you add
+for restating a missed question. Code goes in `<pre><code>`, escaped, with
+`data-lang="css"` (or `ts`, `sql`, …) on the `<pre>` for its label; the template
+colours comments, keywords, strings and numbers itself, so never hand-colour it.
+Reuse these before adding CSS. Any CSS you add
 follows Eklavya's rules:
 
 - **Colour names a role**, never a raw hex, `rgba()` or `--vd-*` step. Grounds
-  `--bg`, `--panel` (cards), `--mass` (wells, inline code), `--code-bg`; text
+  `--bg`, `--panel` (cards, code blocks), `--mass` (wells, inline code), `--code-bg`; text
   `--ink`, `--dim` (body), `--faint` (captions, labels); hairlines `--line`,
   `--line-2`; accent `--spot`, `--spot-soft` (tints), `--spot-ink` (text on a
   `--spot` fill); state `--warning`, `--error`. `--faint-2` is for disabled

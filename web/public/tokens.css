@@ -145,6 +145,8 @@
   --warning:  #E8920C;
   --error:    #FF6166;               /* 4.82:1 on its own 12% tint over --panel */
   --code-bg:  var(--mass);           /* the well behind a code block */
+  --code-str: #E6C060;               /* strings in an artifact's code — 9.55:1 on --panel */
+  --code-num: #D4A5F5;               /* numbers and literals — 8.31:1 on --panel */
   --shadow-lg: 0 12px 28px rgba(0,0,0,.45);
   --ring:     0 0 0 2px var(--bg), 0 0 0 4px var(--spot);
 }
@@ -178,6 +180,8 @@
      well is lightened rather than the theme repainted, which lifts every
      token at once; the frame's border is what still reads it as a block. */
   --code-bg:  #EDEAE2;
+  --code-str: #6F5300;               /* 5.63:1 on --panel */
+  --code-num: #6B3FA0;               /* 5.77:1 on --panel */
   --shadow-lg: 0 12px 28px rgba(22,21,15,.10);
   --ring:     0 0 0 2px var(--bg), 0 0 0 4px var(--spot);
 }
