@@ -1,3 +1,11 @@
+## [1.40.1](https://github.com/ProjectAJ14/eklavya/compare/v1.40.0...v1.40.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* apply only_on_changes to the planner and keep refused repos quizzed ([e5cc8c0](https://github.com/ProjectAJ14/eklavya/commit/e5cc8c073ea42e42356f6c090ec61bed861e41dd))
+* stop quizzing sessions outside a git repository that changed no code ([34942e4](https://github.com/ProjectAJ14/eklavya/commit/34942e441f64593d3312fb298a2f442edd03803e))
+
 # [1.40.0](https://github.com/ProjectAJ14/eklavya/compare/v1.39.1...v1.40.0) (2026-09-30)
 
 
