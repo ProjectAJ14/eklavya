@@ -49,7 +49,7 @@ Eklavya notices the ideas behind Claude's work, like "database index" or
 | What it does | How it works | Read more |
 |---|---|---|
 | Asks while you work | One question at a time, in the middle of the task. Answer or skip. | [First session](https://eklavya-run.web.app/docs/first-session/) |
-| Asks while agents build | For a larger change, Claude hands the building to background agents and asks you questions while they work. | [The dials](https://eklavya-run.web.app/docs/dials/#cadence--when-it-asks) |
+| Asks while agents build | For a larger change, Claude hands the building to background agents and asks you questions while they work. If Claude starts changing a second file itself, in this checkout or a worktree, Eklavya reminds it once. | [The dials](https://eklavya-run.web.app/docs/dials/#cadence--when-it-asks) |
 | Grades your answer | Each answer gets a grade and a short explanation. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
 | Brings topics back | Spaced reviews bring an idea back before you forget it. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
 | Grows with you | Each project starts easy. Good answers unlock harder questions. | [Levels and tiers](https://eklavya-run.web.app/docs/levels-and-tiers/) |

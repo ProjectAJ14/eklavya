@@ -17,6 +17,10 @@
  *   snapshot the previous Bash call left. Agents edit through heredocs and
  *   `sed -i` as often as through Edit -- a 39-call session made no Edit at all.
  *   Files already dirty at the first snapshot count only if they move again.
+ *   The snapshot covers the session's own tree and the one a leading
+ *   `cd <dir> &&` names, one per repository: a session started in the main
+ *   checkout that works in a sibling worktree edits only there, and the
+ *   session's cwd never moves (36 Bash calls in one talea session, no nudge).
  *
  * PostToolUse rather than PreToolUse: a failed edit never gets here, so only an
  * edit that happened counts, and the nudge lands after the tool result the model
@@ -31,6 +35,7 @@
  *   costs no git. No inference; fails open.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
 import { git } from './changes-lib.js';
@@ -39,14 +44,16 @@ const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
 const KEY_PREFIX = 'delegate_nudge:';
 /** More dirty entries than this and the Bash snapshot is skipped: the row would be large and the signal is noise. */
 const MAX_SNAPSHOT = 2000;
+/** Repositories whose snapshots are kept; the least recently touched goes first. */
+const MAX_ROOTS = 4;
 
 const NUDGE = `[Eklavya] This task now edits more than one file. Hand the remaining work to one or more agents run in the background, each with a self-contained brief (goal, files, constraints, how to verify), and take back a short report. While they build, ask questions: get_session_quiz_plan with while_waiting: true, then AskUserQuestion, record_attempt and the verdict, one at a time, until an agent reports or questions_needed is 0. If the rest is a line or two, or agents cannot run in the background here, carry on inline.`;
 
 interface State {
   /** The first changed file, once one is known. */
   first?: string;
-  /** Bash only: `git status` entries at the previous Bash call, path -> size:mtime. */
-  snap?: Record<string, string>;
+  /** Bash only: per repository root, its `git status` entries at the previous Bash call, path -> size:mtime. */
+  snaps?: Record<string, Record<string, string>>;
   done?: boolean;
 }
 
@@ -59,10 +66,26 @@ function canonical(file: string): string {
   }
 }
 
-/** Every entry `git status` reports, by absolute path, with its size and mtime; null outside a repository. */
-function dirtyStamps(cwd: string): Record<string, string> | null {
-  const root = git(cwd, ['rev-parse', '--show-toplevel'])?.trim();
-  if (!root) return null;
+/**
+ * The directory a command's leading `cd` moves to, or null. Only the first
+ * word: `cd <dir> && …` is how agents work in another checkout. A `cd` later in
+ * the command, `pushd`, a subshell or a variable is not followed.
+ */
+function leadingCd(command: string, cwd: string): string | null {
+  const m = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))\s*(?:&&|;|\n|$)/.exec(command);
+  const dir = m?.[1] ?? m?.[2] ?? m?.[3];
+  if (!dir || dir.includes('$')) return null;
+  const home = dir === '~' || dir.startsWith('~/') ? path.join(os.homedir(), dir.slice(1)) : dir;
+  return path.resolve(cwd, home);
+}
+
+/** The repository root `dir` sits in, or null. */
+function rootOf(dir: string): string | null {
+  return git(dir, ['rev-parse', '--show-toplevel'])?.trim() || null;
+}
+
+/** Every entry `git status` reports under `root`, by absolute path, with its size and mtime; null on failure. */
+function dirtyStamps(root: string): Record<string, string> | null {
   const status = git(root, ['status', '--porcelain=v1', '-z', '-uall']);
   if (status === null) return null;
   const entries = status.split('\0');
@@ -116,12 +139,18 @@ await run(async (input) => {
 
   // Outside the lock: git can take a moment, and nothing here needs the row.
   let changed: string[];
-  let snap: Record<string, string> | undefined;
+  let snaps: Record<string, Record<string, string>> | undefined;
   if (isBash) {
-    const now = dirtyStamps(cwd);
-    if (!now) return 0;
-    snap = now;
-    changed = []; // filled against the stored snapshot below
+    const command = typeof input.tool_input?.command === 'string' ? input.tool_input.command : '';
+    const target = leadingCd(command, cwd);
+    const roots = new Set([cwd, target].filter((d): d is string => Boolean(d)).map(rootOf).filter((r): r is string => Boolean(r)));
+    snaps = {};
+    for (const root of roots) {
+      const now = dirtyStamps(root);
+      if (now) snaps[root] = now;
+    }
+    if (!Object.keys(snaps).length) return 0;
+    changed = []; // filled against the stored snapshots below
   } else {
     changed = [canonical(path.resolve(cwd, raw as string))];
   }
@@ -133,22 +162,26 @@ await run(async (input) => {
       );
       const state = read();
       if (state.done) return false;
-      if (snap) {
-        // ponytail: the first snapshot is taken after the first Bash call, so a
-        // first command that already changed two files is caught only when a
-        // later call changes one more. A PreToolUse snapshot would close it at
-        // the cost of a second process on every Bash call.
-        if (state.snap) {
-          const before = state.snap;
-          changed = Object.keys(snap).filter((f) => before[f] !== snap![f]);
+      if (snaps) {
+        // ponytail: a repository's first snapshot is taken after the first Bash
+        // call that reaches it, so a first command there that already changed
+        // two files is caught only when a later call changes one more. A
+        // PreToolUse snapshot would close it at the cost of a second process on
+        // every Bash call.
+        const kept = { ...state.snaps };
+        for (const [root, now] of Object.entries(snaps)) {
+          const before = kept[root];
+          if (before) changed.push(...Object.keys(now).filter((f) => before[f] !== now[f]));
+          delete kept[root];
+          kept[root] = now; // re-inserted last: most recently touched
         }
-        state.snap = snap;
+        state.snaps = Object.fromEntries(Object.entries(kept).slice(-MAX_ROOTS));
       }
       const others = [...new Set(changed)].filter((f) => f !== state.first);
       if (!state.first && others.length) state.first = others.shift();
       if (others.length) {
         state.done = true;
-        delete state.snap;
+        delete state.snaps;
       }
       db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
         key,
