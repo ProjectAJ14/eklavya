@@ -91,12 +91,11 @@ function systemMessage(stdout: string): string | null {
 }
 
 /**
- * The concepts line, not the whole message: prose elsewhere may legitimately
- * contain a semicolon, and matching on that made these asserts something they
- * did not mean.
+ * The concept list, not the whole message: the sweep's one line names them
+ * comma-separated, after "on" or inside "due again (...)".
  */
 const conceptsLine = (message: string): string =>
-  message.split('\n').find((l) => l.startsWith('Concepts:')) ?? '';
+  /due again \(([^)]*)\)/.exec(message)?.[1] ?? / on (.*?) before this turn ends/.exec(message)?.[1] ?? '';
 
 const stop = (extra: Record<string, unknown> = {}) =>
   runHook(STOP_CHECK, { session_id: SESSION, cwd, hook_event_name: 'Stop', stop_reason: 'end_turn', ...extra });
@@ -856,13 +855,14 @@ describe('Stop hook — when not to fire', () => {
 });
 
 describe('Stop hook — what it tells Claude', () => {
-  it('names the concepts and the code context behind them', () => {
+  // The harness prints this text to the developer verbatim, so it is one line
+  // for them. The model's rules live in the plan; see get_session_quiz_plan.
+  it('is one line naming the concepts, with no model instructions', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure']);
     const res = stop();
-    expect(res.context).toMatch(/csrf \(touched csrf in auth\.ts\)/);
-    expect(res.context).toMatch(/get_session_quiz_plan/);
-    expect(res.context).toMatch(/ONE question at a time/);
+    expect(res.context).toMatch(/^Eklavya: up to 2 questions, one at a time, on (csrf, jwt-structure|jwt-structure, csrf) before this turn ends -- call get_session_quiz_plan and follow it\.$/);
+    expect(res.context).not.toMatch(/\n|touched csrf|record_attempt|AskUserQuestion|say skip|Back to your task/);
   });
 
   // The cadence decides the size of the sweep, and this is the failure it was
@@ -875,23 +875,22 @@ describe('Stop hook — what it tells Claude', () => {
     const line = conceptsLine(res.context);
     // Newest first: the last one logged is the work on screen.
     expect(line).toMatch(/pkce/);
-    expect(line.match(/;/g) ?? []).toHaveLength(0);
-    expect(res.context).toMatch(/One question, then let them finish/);
-    expect(res.context).not.toMatch(/ONE question at a time/);
+    expect(line.match(/,/g) ?? []).toHaveLength(0);
+    expect(res.context).toMatch(/^Eklavya: one question on pkce /);
   });
 
   it('sweeps the whole remaining budget in enforced mode, cadence notwithstanding', () => {
     // Decision G5 again: the gate has to stay passable inside the session.
     configure({ quiz: { enabled: true, enforced: true }, cadence: 'interleaved', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
-    expect(conceptsLine(stop().context).match(/;/g) ?? []).toHaveLength(2);
+    expect(conceptsLine(stop().context).match(/,/g) ?? []).toHaveLength(2);
   });
 
   it('sweeps the whole remaining budget under the end cadence', () => {
     configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const line = conceptsLine(stop().context);
-    expect(line.match(/;/g) ?? []).toHaveLength(2);
+    expect(line.match(/,/g) ?? []).toHaveLength(2);
   });
 
   it('caps the list at the configured questions per task', () => {
@@ -900,7 +899,7 @@ describe('Stop hook — what it tells Claude', () => {
     const res = stop();
     const line = conceptsLine(res.context);
     expect(line).toMatch(/pkce/);
-    expect(line.match(/;/g) ?? []).toHaveLength(0);
+    expect(line.match(/,/g) ?? []).toHaveLength(0);
   });
 
   /** A prompt from the developer, with the previous one `idle` minutes back. */
@@ -953,15 +952,23 @@ describe('Stop hook — what it tells Claude', () => {
     expect(conceptsLine(stop().context)).toMatch(/csrf/);
   });
 
-  it('says the gate needs it when enforced, and offers the skip when not', () => {
+  it('says the gate needs it when enforced, and nothing about it when not', () => {
     configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
     logConcepts(['csrf']);
-    expect(stop().context).toMatch(/Quizzing is enforced/);
+    expect(stop().context).toMatch(/The commit gate needs it\.$/);
 
     configure({ quiz: { enabled: true, enforced: false }, min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['jwt-structure']);
     ageClocks();
-    expect(stop().context).toMatch(/say skip/);
+    expect(stop().context).not.toMatch(/gate|skip/);
+  });
+
+  it('drops the gate clause on Cowork, which does not commit', () => {
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
+    logConcepts(['csrf']);
+    const res = runHook(STOP_CHECK, { session_id: SESSION, cwd, hook_event_name: 'Stop', stop_reason: 'end_turn' }, { EKLAVYA_SURFACE: 'cowork' });
+    expect(res.context).toMatch(/^Eklavya: one question on csrf /);
+    expect(res.context).not.toMatch(/gate/);
   });
 });
 
@@ -1009,24 +1016,14 @@ describe('Signing the question for the host it is running on', () => {
       configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
       logConcepts([slug]);
       const ctx = stopOn(env).context;
-      expect(ctx).toMatch(/ask_attribution/);
+      expect(ctx).toMatch(/call get_session_quiz_plan and follow it/);
       expect(ctx).not.toMatch(/Header "Eklavya"/);
       expect(ctx).not.toMatch(/\[Eklavya\]/);
     }
   });
 
-  it('tells the Stop sweep to say whether the answer was right', () => {
-    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
-    logConcepts(['csrf']);
-    const ctx = stopOn(terminal).context;
-    expect(ctx).toMatch(/record_attempt[^.]*then tell them whether they were right/);
-  });
-
-  it('tells the Stop sweep to end on the task answer, not the verdict', () => {
-    configure({ min_minutes_between_quizzes: 0, cadence: 'end' });
-    logConcepts(['csrf']);
-    expect(stopOn(terminal).context).toMatch(/Back to your task:/);
-  });
+  // The verdict and the "Back to your task:" restatement are the plan's
+  // on_finish now (tools.test.ts), not text printed above the question.
 
   it('does the same at the mid-work checkpoint', () => {
     configure({ min_minutes_between_checkpoints: 0 });
@@ -1265,7 +1262,7 @@ describe('Stop hook — the project backlog', () => {
     earlierDecline('pkce');
     const res = stop();
     expect(res.spoke).toBe(true);
-    expect(res.context).toMatch(/due again/);
+    expect(res.context).toMatch(/^Eklavya: one question on earlier work in this project that is due again \(pkce\) before this turn ends -- call get_session_quiz_plan and follow it\.$/);
     expect(conceptsLine(res.context)).toMatch(/pkce/);
   });
 

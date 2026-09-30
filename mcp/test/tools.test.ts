@@ -1386,6 +1386,35 @@ describe('ask_attribution travels with the plan', () => {
   });
 });
 
+// The Stop sweep's text is printed to the developer, so the rules it used to
+// recite travel here, where only the model reads them.
+describe('on_skip and on_finish travel with the plan', () => {
+  it('lets a skip go when not enforced, and ends on the task answer', () => {
+    logAuthWork();
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    expect(plan.on_skip).toMatch(/record grade 0 \(outcome declined\) and let them go/);
+    expect(plan.on_finish).toMatch(/record_attempt, then tell them whether they were right/);
+    expect(plan.on_finish).toMatch(/Back to your task:/);
+  });
+
+  it('says the gate needs the answer when enforced', () => {
+    configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
+    logAuthWork();
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).on_skip).toMatch(/commit gate needs this quiz/);
+  });
+
+  it('says nothing is blocked when enforced on Cowork, which does not commit', () => {
+    process.env.EKLAVYA_SURFACE = 'cowork';
+    try {
+      configure({ quiz: { enabled: true, enforced: true }, min_minutes_between_quizzes: 0 });
+      logAuthWork();
+      expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).on_skip).toMatch(/Nothing is blocked/);
+    } finally {
+      delete process.env.EKLAVYA_SURFACE;
+    }
+  });
+});
+
 // `quiz` is whether and how hard Eklavya pushes; `focus` is what it teaches. The two
 // are independent, and these pin that they stay that way.
 describe('focus', () => {
