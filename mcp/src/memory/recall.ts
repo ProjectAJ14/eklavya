@@ -39,8 +39,8 @@ export function alreadyRecalled(db: DB, sessionId: string): Set<number> {
   }
 }
 
+/** Called only with a non-empty `ids`: `recall` returns before this when it kept nothing. */
 function markRecalled(db: DB, sessionId: string, ids: number[]): void {
-  if (!ids.length) return;
   try {
     const merged = [...alreadyRecalled(db, sessionId), ...ids];
     // Bounded: a long session must not grow an unbounded row, and an entry
@@ -371,7 +371,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
       (opts.index && detail.length ? estimateTokens(DETAIL_HEADING) : 0),
     items: kept.map((entry, i) => ({
       entryId: entry.id,
-      sourceTokens: base.get(entry.id) ?? 0,
+      sourceTokens: base.get(entry.id)!,
       sentTokens: estimateTokens(rendered[i]!),
     })),
   });
@@ -383,7 +383,8 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     receiptId,
     entries: kept,
     indexed: timelineCount,
-    baseTokens: kept.reduce((sum, e) => sum + (base.get(e.id) ?? 0), 0),
+    // `baseTokensFor` sets every kept entry.
+    baseTokens: kept.reduce((sum, e) => sum + base.get(e.id)!, 0),
     deliveredTokens: delivered,
   };
 }

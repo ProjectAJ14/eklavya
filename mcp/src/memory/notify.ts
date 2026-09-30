@@ -244,6 +244,7 @@ function runCommand(command: string, args: string[], payload: unknown): Promise<
       });
       child.stdin.end(JSON.stringify(payload));
     } catch (error) {
+      /* c8 ignore next -- spawn only throws Error instances; the String() arm is defensive */
       done({ sink: 'command', ok: false, detail: error instanceof Error ? error.message : String(error) });
     }
   });

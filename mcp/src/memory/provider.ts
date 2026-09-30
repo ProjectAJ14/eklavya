@@ -280,6 +280,7 @@ const NOT_THE_SUBSCRIPTION = [
  * nothing in the group is alive.
  */
 async function reapGroup(pgid: number, graceMs: number): Promise<boolean> {
+  /* c8 ignore next -- win32 only */
   if (process.platform === 'win32') return true;
   const settle = async (ms: number) => {
     const deadline = Date.now() + ms;
@@ -436,6 +437,7 @@ export function runClaude(
     let killedBy: NodeJS.Signals | null = null;
     child.once('exit', (_code, sig) => {
       killedBy = sig;
+      /* c8 ignore next -- 'exit' only follows a successful spawn, which always has a pid */
       reaping = child.pid ? reapGroup(child.pid, ended ? 0 : graceMs) : Promise.resolve(true);
       // A descendant that left the group can still hold the pipe; stop waiting for it.
       unstick = setTimeout(() => child.stdout?.destroy(), graceMs + 3_000);
@@ -445,6 +447,7 @@ export function runClaude(
       if (force) clearTimeout(force);
       opts.signal?.removeEventListener('abort', onAbort);
 
+      /* c8 ignore next -- 'close' without 'exit' is a failed spawn, which never has a pid */
       const reaped = reaping ?? (child.pid ? reapGroup(child.pid, 0) : Promise.resolve(true));
       void reaped.then((clear) => {
         if (unstick) clearTimeout(unstick);

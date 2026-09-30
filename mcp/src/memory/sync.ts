@@ -422,6 +422,7 @@ function rebuildPayload(db: DB, rec: RecordRow): { entry: EntryPayload | null; t
   const row = db
     .prepare(`SELECT ${ENTRY_COLUMNS.join(', ')} FROM memory_entries WHERE entry_uid = ?`)
     .get(rec.entry_uid) as EntryPayload | undefined;
+  /* c8 ignore next -- unreachable: an upsert record whose row is gone is re-staged as an orphan tombstone first */
   if (!row) return null;
   const tags = (
     db
@@ -672,6 +673,7 @@ function materialize(db: DB, rec: SyncRecord): 'applied' | 'tombstone' {
   indexVector(
     db,
     id,
+    /* c8 ignore next -- narrative is NOT NULL, so a null one fails the insert above before reaching here */
     [entry.title, entry.narrative ?? '', entry.facts ?? '', entry.files ?? ''].join('\n'),
   );
   return 'applied';

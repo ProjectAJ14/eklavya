@@ -659,7 +659,8 @@ function projectMapper(options: ImportOptions, used: Set<string>): (name: string
 export function importFrom(db: DB, sourceDb: string, opts: ImportOptions = {}): ImportReport {
   const dryRun = opts.dryRun ?? false;
   const found = inventory(sourceDb);
-  if (!found.supported) throw new ImportError(found.problem ?? 'Unsupported source database.');
+  // `inventory` names the problem whenever it reports a source unsupported.
+  if (!found.supported) throw new ImportError(found.problem!);
 
   const read = EMPTY_COUNTS();
   for (const table of IMPORTED_TABLES) {
@@ -1138,6 +1139,7 @@ function reindex(db: DB, entryIds: number[]): number {
     const row = get.get(id) as
       | { title: string; narrative: string; facts: string | null; files: string | null }
       | undefined;
+    /* c8 ignore next -- defensive: both callers pass ids inserted moments earlier in the same run */
     if (!row) continue;
     indexVector(db, id, [row.title, row.narrative, row.facts ?? '', row.files ?? ''].join('\n'));
     done++;
