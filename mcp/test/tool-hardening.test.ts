@@ -253,7 +253,7 @@ describe('slugs and clocks the planner is handed', () => {
   it('a last attempt stamped in the future reads as just now, not as a negative age', () => {
     fs.writeFileSync(
       path.join(home, 'config.json'),
-      JSON.stringify({ cadence: 'interleaved', min_minutes_between_checkpoints: 4 }),
+      JSON.stringify({ cadence: 'interleaved', min_minutes_between_checkpoints: 4, quiz: { only_on_changes: false } }),
     );
     call(logSessionConcepts, { session_id: 's1', concepts: [{ slug: 'csrf' }, { slug: 'pkce' }] });
     call(recordAttempt, { session_id: 's1', slug: 'csrf', question: 'q', answer: 'a', grade: 4, difficulty: 1 });

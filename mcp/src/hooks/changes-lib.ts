@@ -135,10 +135,24 @@ export function sessionChangedCode(db: DB, sessionId: string, cwd: string): bool
   }
 }
 
-/** Git ran and said no. A timeout or a missing git binary is not an answer. */
+/**
+ * Git ran and said no. A timeout or a missing git binary is not an answer, and
+ * neither is any other refusal: a repository owned by another user (a
+ * devcontainer, a bind mount, WSL's `/mnt`) fails with "dubious ownership",
+ * and reading that as "no repository" would silence it for good. `LC_ALL=C`
+ * keeps the message in English. Inside `.git` or a bare repository git answers
+ * "false" with a clean exit.
+ */
 function outsideRepo(cwd: string): boolean {
-  const res = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd, timeout: GIT_TIMEOUT_MS, windowsHide: true });
-  return typeof res.status === 'number' && res.status !== 0;
+  const res = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, LC_ALL: 'C' },
+    timeout: GIT_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (res.status === 0) return res.stdout.trim() === 'false';
+  return typeof res.status === 'number' && /not a git repository/i.test(res.stderr ?? '');
 }
 
 const EDIT_PREFIX = 'code_edit:';

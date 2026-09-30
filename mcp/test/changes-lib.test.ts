@@ -234,6 +234,21 @@ describe('sessionChangedCode', () => {
     }
   });
 
+  it('still asks in a repository git refuses to read, such as one owned by another user', () => {
+    // Git's own switch for its safe.directory check (git 2.35.2+).
+    process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER = '1';
+    try {
+      expect(treeFingerprint(repo)).toBeNull();
+      expect(sessionChangedCode(db, 's1', repo)).toBe(true);
+    } finally {
+      delete process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;
+    }
+  });
+
+  it('stays quiet inside .git, where git answers that there is no working tree', () => {
+    expect(sessionChangedCode(db, 's1', path.join(repo, '.git'))).toBe(false);
+  });
+
   it('prunes baselines older than a week and keeps recent ones', () => {
     const old = new Date(Date.now() - 8 * 86_400_000).toISOString();
     db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run('tree_fp:stale', `${old}|x`);

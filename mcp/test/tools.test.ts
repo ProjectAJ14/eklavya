@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,6 +14,7 @@ import { getConceptGraph } from '../src/tools/get_concept_graph.js';
 import { gateRetryConcepts } from '../src/store.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
 import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID, noteActivity, workSince } from '../src/session.js';
+import { noteEdit } from '../src/hooks/changes-lib.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 let dbFile = '';
@@ -33,9 +35,14 @@ function configure(patch: Record<string, unknown>): void {
   // `end` cadence for the same reason: the shipped default caps a plan at one
   // question, which is right for a learner and useless for a test asserting the
   // order and contents of a whole plan. The cap has its own suite below.
+  //
+  // `quiz.only_on_changes` off for the same reason: `cwd` is a plain temp
+  // folder, where the rule holds every automatic plan back until an edit lands
+  // in a repository. Its own tests set it.
+  const quiz = { only_on_changes: false, ...(patch.quiz as Record<string, unknown> | undefined) };
   fs.writeFileSync(
     path.join(home, 'config.json'),
-    JSON.stringify({ focus: 'project', cadence: 'end', ...patch }),
+    JSON.stringify({ focus: 'project', cadence: 'end', ...patch, quiz }),
   );
 }
 
@@ -466,6 +473,25 @@ describe('get_session_quiz_plan', () => {
     // A request outranks the wait, and is never trimmed by the budget.
     const asked = call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true, max: 3, ignore_cooldown: true });
     expect(asked.questions_needed).toBeGreaterThan(0);
+  });
+
+  // The ask before a final answer and the wait on agents are Eklavya deciding
+  // to ask, so they follow the rule the hooks follow.
+  it('holds automatic plans back under quiz.only_on_changes until the session edits code', () => {
+    configure({ cadence: 'interleaved', min_minutes_between_checkpoints: 0, quiz: { enabled: true, enforced: false, only_on_changes: true } });
+    logAuthWork();
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }))
+      .toMatchObject({ questions_needed: 0, reason: 'no_code_change' });
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, while_waiting: true }))
+      .toMatchObject({ questions_needed: 0, reason: 'no_code_change' });
+    // A request is the developer asking, and is never held back.
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, ignore_cooldown: true }).questions_needed).toBeGreaterThan(0);
+
+    const repo = path.join(cwd, 'app');
+    fs.mkdirSync(repo);
+    spawnSync('git', ['init', '-q'], { cwd: repo });
+    noteEdit(db, SESSION, path.join(repo, 'a.ts'));
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION }).questions_needed).toBeGreaterThan(0);
   });
 
   // `end` promises no questions during the task, and a wait is during it.
@@ -1369,7 +1395,9 @@ describe('focus', () => {
     fs.rmSync(path.join(home, 'config.json'), { force: true });
     logAuthWork();
 
-    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION });
+    // Asked for, because `quiz.only_on_changes` holds an automatic plan back
+    // in this plain temp folder; a request still reads focus from the config.
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, ignore_cooldown: true });
     expect(plan.focus).toBe('concept');
     expect(plan.framing).toContain('transferable');
   });
@@ -1714,7 +1742,7 @@ describe('config tools', () => {
 
   it('writes global config', () => {
     call(setConfig, { quiz: { enabled: true, enforced: true } });
-    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true });
+    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: false });
   });
 
   // The schema still takes the retired word, so it still has to land somewhere.
@@ -1722,7 +1750,7 @@ describe('config tools', () => {
   // more -- without the fold, set_config would accept it and drop it silently.
   it('folds a legacy `mode` write onto the quiz flags', () => {
     call(setConfig, { mode: 'enforced' });
-    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true });
+    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: false });
   });
 
   it('lets an explicit quiz win when a call sends both', () => {
@@ -1753,7 +1781,7 @@ describe('config tools', () => {
       expect(res.session_id).toBe(SESSION);
 
       // The file-backed config is exactly what it was.
-      expect(call<any>(getConfig).config.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: true });
+      expect(call<any>(getConfig).config.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: false });
       expect(call<any>(getConfig, { session_id: SESSION }).session_off).toBe(true);
 
       logAuthWork();

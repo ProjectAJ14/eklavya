@@ -31,7 +31,7 @@ const envBackup = { ...process.env };
 const WORK = ['httponly-cookies', 'jwt-structure', 'csrf'];
 
 function configure(patch: Record<string, unknown>): void {
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ min_minutes_between_quizzes: 0, ...patch }));
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ min_minutes_between_quizzes: 0, ...patch, quiz: { only_on_changes: false, ...(patch.quiz as object | undefined) } }));
 }
 
 const call = <T>(tool: { handler: (a: any, c: any) => unknown }, args: Record<string, unknown> = {}): T =>
