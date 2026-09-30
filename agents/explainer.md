@@ -52,7 +52,8 @@ In this order, each under its own `<h2>`:
   `.svg-box-spot`, `.svg-line`, `.svg-line-spot`, `.svg-label`, `.svg-small`
   classes, and a `<figcaption>` that states the takeaway.
 - **A concrete example.** A tiny snippet or a timeline, broken versus fixed,
-  ideally in the language the developer was working in.
+  ideally in the language the developer was working in, as
+  `<pre data-lang="…"><code>` so the template labels and colours it.
 - **The rule that transfers.** When this applies in a different codebase, and
   the one gotcha to watch for.
 
