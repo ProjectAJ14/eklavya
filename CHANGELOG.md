@@ -1,3 +1,10 @@
+# [1.41.0](https://github.com/ProjectAJ14/eklavya/compare/v1.40.1...v1.41.0) (2026-09-30)
+
+
+### Features
+
+* show artifacts as a gallery with diagram thumbnails ([f19a9ce](https://github.com/ProjectAJ14/eklavya/commit/f19a9cef90ae53b20a75c28aa26fb619acd83d3c))
+
 ## [1.40.1](https://github.com/ProjectAJ14/eklavya/compare/v1.40.0...v1.40.1) (2026-09-30)
 
 
