@@ -190,5 +190,9 @@ Automatic checks occur at session start, at most hourly, so update timing depend
 on an active session and network access. Fix a bad release forward: the updater
 does not downgrade, and unpublishing cannot repair an installed version.
 
-Release credentials are configured in the workflow (`NPM_TOKEN`; Actions supplies
-`GITHUB_TOKEN`). Do not run a publish or change credentials as part of a docs PR.
+Release credentials are configured in the workflow: `NPM_TOKEN`, plus the
+`projectaj14-release-bot` GitHub App (`RELEASE_APP_ID` variable,
+`RELEASE_APP_PRIVATE_KEY` secret). The App is the only bypass actor on `main`'s
+ruleset, so it alone can push the version-bump commit and tag; the default
+`GITHUB_TOKEN` is rejected with `GH006`. Do not run a publish or change
+credentials as part of a docs PR.
