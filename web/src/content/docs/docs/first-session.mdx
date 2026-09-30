@@ -37,7 +37,8 @@ repeats a short version of the answer under “Back to your task:”.
 For a change that spans several files, [`delegate_work`](/docs/configuration/#every-key)
 (on by default) has Claude hand the building to background agents; if Claude
 changes a second file itself, with an edit tool or a shell command, Eklavya
-reminds it once. Under the
+reminds it once. That includes a worktree: a command that starts with
+`cd <worktree> &&` is checked in that worktree's repository. Under the
 default `interleaved` cadence, questions then come one at a time while they
 work, and the task answer arrives last.
 
