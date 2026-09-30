@@ -371,7 +371,10 @@ export function runClaude(
       try {
         // Negative pid: the whole group. Windows has no groups; the child alone.
         // ponytail: Windows leaves grandchildren; `taskkill /T /F` if that matters.
-        if (process.platform === 'win32' || !child.pid) child.kill(sig);
+        // No pid means the spawn failed: nothing to signal, and `child.kill()`
+        // on a failed spawn is `kill(0)`, which signals our own process group.
+        if (!child.pid) return;
+        if (process.platform === 'win32') child.kill(sig);
         else process.kill(-child.pid, sig);
       } catch {
         /* Already gone. */

@@ -133,6 +133,30 @@ describe.skipIf(!posix)('runClaude and probeLogin against a stand-in claude', ()
     expect(seen).toEqual([null, null]);
   });
 
+  it('signals nothing when the spawn failed and onSpawn throws', async () => {
+    // A failed spawn has no pid, and `child.kill()` then is `kill(0)`: our own
+    // process group, this test runner included. Catch it rather than die of it.
+    process.env.PATH = bin + '-nowhere';
+    const got: string[] = [];
+    const trap = (sig: string) => void got.push(sig);
+    process.on('SIGTERM', trap);
+    try {
+      const err = await errorOf(
+        runClaude('m', 'x', {
+          graceMs: 10,
+          onSpawn: () => {
+            throw new Error('cannot record');
+          },
+        }),
+      );
+      expect(err.errorClass).toBe('missing');
+      await new Promise((r) => setTimeout(r, 50));
+      expect(got).toEqual([]);
+    } finally {
+      process.off('SIGTERM', trap);
+    }
+  });
+
   it('reports a spawn failure other than ENOENT as transient', async () => {
     stand('echo never', 0o644);
     process.env.PATH = bin;
