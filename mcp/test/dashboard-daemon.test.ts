@@ -80,6 +80,17 @@ describe('the always-on dashboard', () => {
     expect(await daemon.ensureDashboard()).toBe('running');
   }, 15_000);
 
+  it('calls an oversized health answer foreign instead of waiting on it forever', async () => {
+    const big = await freePort();
+    const server = http.createServer((_q, r) => r.end('x'.repeat(5000)));
+    await new Promise<void>((r) => server.listen(big, '127.0.0.1', () => r()));
+    try {
+      expect(await daemon.probeDashboard(big, 2000)).toEqual({ kind: 'foreign' });
+    } finally {
+      server.close();
+    }
+  });
+
   it("leaves another database's dashboard and a foreign server alone", async () => {
     const other = await fakeDashboard(port, '0.0.1', path.join(home, 'someone-else.db'));
     children.push(other);

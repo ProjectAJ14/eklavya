@@ -54,8 +54,8 @@ export function probeDashboard(port = dashboardPort(), timeoutMs = 150): Promise
       res.setEncoding('utf8');
       res.on('data', (chunk: string) => {
         body += chunk;
-        /* c8 ignore next -- untestable as written: destroy() without an error settles neither 'end' nor 'error', so the probe hangs (defect, reported) */
-        if (body.length > 4096) req.destroy();
+        // With an error: a bare destroy() emits neither 'end' nor 'error'.
+        if (body.length > 4096) req.destroy(new Error('too large'));
       });
       res.on('end', () => {
         try {
