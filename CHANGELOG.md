@@ -1,3 +1,16 @@
+# [1.44.0](https://github.com/ProjectAJ14/eklavya/compare/v1.43.2...v1.44.0) (2026-10-01)
+
+
+### Bug Fixes
+
+* **hooks:** read Bash edits in the command's window; stand down after delegating ([7f39009](https://github.com/ProjectAJ14/eklavya/commit/7f39009bde12ce7c1839089587a6084f63397f1e))
+* **hooks:** record a host-backgrounded agent as background ([31b0bc4](https://github.com/ProjectAJ14/eklavya/commit/31b0bc4decaac7ccfc216eaa77316bd5665a8a73))
+
+
+### Features
+
+* **hooks:** state the delegation contract next to the task ([e116fb4](https://github.com/ProjectAJ14/eklavya/commit/e116fb4060acb6bc9bf9802e05816b5d1e3a629b)), closes [#78](https://github.com/ProjectAJ14/eklavya/issues/78)
+
 ## [1.43.2](https://github.com/ProjectAJ14/eklavya/compare/v1.43.1...v1.43.2) (2026-10-01)
 
 
