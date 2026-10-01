@@ -1,0 +1,11 @@
+{
+  "name": "textstats",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "textstats": "src/cli.js" },
+  "scripts": {
+    "test": "node --test",
+    "lint": "node scripts/lint.mjs"
+  }
+}
