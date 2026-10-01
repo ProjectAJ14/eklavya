@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { leadingCd, noteBashEdit, noteEdit, recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
+import { leadingCd, noteBashEdit, noteBuilder, noteEdit, recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
 import { openDb, type DB } from '../src/db.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
@@ -328,5 +328,22 @@ describe('leadingCd', () => {
     expect(leadingCd('cd ~/x', '/r')).toBe(path.join(os.homedir(), 'x'));
     expect(leadingCd('ls && cd /a', '/r')).toBeNull();
     expect(leadingCd('cd $DIR && ls', '/r')).toBeNull();
+  });
+});
+
+describe('noteBuilder', () => {
+  it('counts a session that started a builder as having changed code, before its first edit', () => {
+    git('init', '-q');
+    write('a.ts', 'a');
+    recordBaseline(db, 's1', repo);
+    expect(sessionChangedCode(db, 's1', repo)).toBe(false);
+    noteBuilder(db, 's1');
+    expect(sessionChangedCode(db, 's1', repo)).toBe(true);
+    expect(sessionChangedCode(db, 's2', repo)).toBe(false);
+  });
+
+  it('fails silently on a database it cannot write', () => {
+    db.exec('DROP TABLE meta');
+    expect(() => noteBuilder(db, 's1')).not.toThrow();
   });
 });

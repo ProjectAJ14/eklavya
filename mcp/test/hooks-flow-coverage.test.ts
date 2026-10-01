@@ -254,7 +254,8 @@ describe('delegate-nudge', () => {
       { session_id: SESSION, cwd, hook_event_name: 'PostToolUse', tool_name: tool, tool_input: toolInput, ...extra },
       env,
     );
-  const bash = (command: unknown, env: Record<string, string> = {}) => hook('Bash', { command }, {}, env);
+  const bash = (command: unknown, env: Record<string, string> = {}, extra: Record<string, unknown> = { duration_ms: 50 }) =>
+    hook('Bash', { command }, extra, env);
   const state = () => meta(`delegate_nudge:${SESSION}`);
 
   it('ignores an edit with an empty path', () => {
@@ -275,16 +276,18 @@ describe('delegate-nudge', () => {
     expect(hook('Edit', { file_path: path.join(cwd, 'b.ts') }).context).toMatch(/more than one file/);
   });
 
+  it('reads an agent with no subagent_type as a builder', () => {
+    hook('Agent', { prompt: 'brief' });
+    expect(state()).toMatch(/"delegated":"[^"]+","background":false/);
+  });
+
   describe('through Bash', () => {
     const write = (dir: string, file: string, text: string) => fs.writeFileSync(path.join(dir, file), text);
 
-    it('reads a non-string command as no command, and still snapshots the session tree', () => {
+    it('reads a non-string command as no command, and still reads the session tree', () => {
       git(cwd, 'init', '-q');
       write(cwd, 'a.ts', 'a');
       write(cwd, 'b.ts', 'b');
-      expect(bash(42).context).toBe('');
-      write(cwd, 'a.ts', 'a2');
-      write(cwd, 'b.ts', 'b2');
       expect(bash(42).context).toMatch(/more than one file/);
     });
 
@@ -295,24 +298,26 @@ describe('delegate-nudge', () => {
       write(repo, 'a.ts', 'a');
       write(repo, 'b.ts', 'b');
       const env = { HOME: tmp, USERPROFILE: tmp };
-      expect(bash('cd ~/proj && make', env).context).toBe('');
-      write(repo, 'a.ts', 'a2');
-      write(repo, 'b.ts', 'b2');
       expect(bash('cd ~/proj && make', env).context).toMatch(/more than one file/);
     });
 
-    it('records a deleted tracked file as gone', () => {
+    it('treats a negative duration as none, and reads from the previous Bash call', () => {
+      git(cwd, 'init', '-q');
+      write(cwd, 'a.ts', 'a');
+      write(cwd, 'b.ts', 'b');
+      expect(bash('ls', {}, { duration_ms: -1 }).context).toBe('');
+      expect(state()).toMatch(/"bashAt":\d+/);
+    });
+
+    it('does not count a deleted file, which has no mtime to place it', () => {
       git(cwd, 'init', '-q');
       write(cwd, 'a.ts', 'a');
       git(cwd, 'add', 'a.ts');
       git(cwd, 'commit', '-q', '-m', 'a');
       fs.rmSync(path.join(cwd, 'a.ts'));
       write(cwd, 'new.ts', 'n');
-      bash('ls');
-      const snap = JSON.parse(state()!.slice(state()!.indexOf('|') + 1)) as { snaps: Record<string, Record<string, string>> };
-      const files = Object.values(snap.snaps)[0]!;
-      expect(files[path.join(cwd, 'a.ts')]).toBe('gone');
-      expect(files[path.join(cwd, 'new.ts')]).toMatch(/^1:/);
+      expect(bash('ls').context).toBe('');
+      expect(state()).toContain(`"first":${JSON.stringify(path.join(cwd, 'new.ts'))}`);
     });
 
     it('reads a staged rename as one entry, skipping its source path', () => {
@@ -321,24 +326,25 @@ describe('delegate-nudge', () => {
       git(cwd, 'add', 'old.ts');
       git(cwd, 'commit', '-q', '-m', 'o');
       git(cwd, 'mv', 'old.ts', 'new.ts');
-      bash('ls');
-      const snap = JSON.parse(state()!.slice(state()!.indexOf('|') + 1)) as { snaps: Record<string, Record<string, string>> };
-      expect(Object.keys(Object.values(snap.snaps)[0]!)).toEqual([path.join(cwd, 'new.ts')]);
+      fs.utimesSync(path.join(cwd, 'new.ts'), new Date(), new Date());
+      expect(bash('ls').context).toBe('');
+      expect(state()).toContain(`"first":${JSON.stringify(path.join(cwd, 'new.ts'))}`);
     });
 
-    it('takes no snapshot when git status fails', () => {
+    it('counts nothing when git status fails', () => {
       git(cwd, 'init', '-q');
       write(cwd, 'a.ts', 'a');
+      write(cwd, 'b.ts', 'b');
       fs.writeFileSync(path.join(cwd, '.git', 'index'), 'not an index');
       expect(bash('ls').context).toBe('');
-      expect(state()).toBeUndefined();
+      expect(state()).not.toContain('"first"');
     });
 
-    it('takes no snapshot of a tree with too many changed files', () => {
+    it('counts nothing in a tree with too many changed files', () => {
       git(cwd, 'init', '-q');
       for (let i = 0; i <= 2000; i++) write(cwd, `f${i}.txt`, '');
       expect(bash('ls').context).toBe('');
-      expect(state()).toBeUndefined();
+      expect(state()).not.toContain('"first"');
     });
   });
 });

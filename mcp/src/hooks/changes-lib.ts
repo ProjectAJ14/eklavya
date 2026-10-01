@@ -260,6 +260,24 @@ export function noteBashEdit(db: DB, sessionId: string, cwd: string, command: st
   }
 }
 
+/**
+ * Marks the session, once, when the parent hands the build to an agent
+ * (`delegate-nudge` sees the launch). The builder's first edit can be minutes
+ * away, and that wait is exactly what `get_session_quiz_plan` with
+ * `while_waiting: true` is for: unmarked, it answered "no_code_change" the
+ * moment the agent started and the parent sat out the build in silence. A
+ * session that started a builder is not the research `only_on_changes` exists
+ * to leave alone. Read-only agents (Explore, Plan, the tutor, the explainer)
+ * never get here.
+ */
+export function noteBuilder(db: DB, sessionId: string): void {
+  try {
+    markEdit(db, sessionId);
+  } catch {
+    /* Unmarked falls back to the git comparison and the builder's own edits. */
+  }
+}
+
 function markEdit(db: DB, sessionId: string): void {
   db.prepare(`DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`).run(
     `${EDIT_PREFIX}%`,

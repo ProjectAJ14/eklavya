@@ -45,6 +45,8 @@ export interface HookInput {
   prompt?: string;
   tool_name?: string;
   tool_response?: unknown;
+  /** PostToolUse: how long the tool ran (Claude Code 2.1.x). */
+  duration_ms?: unknown;
   source?: string;
   /** Stop: the turn's final assistant text (Claude Code 2.1.x). */
   last_assistant_message?: string;

@@ -2016,7 +2016,7 @@ describe('the per-session off switch', () => {
 describe('the delegation nudge on a second edited file', () => {
   // The session-start DELEGATE block was followed in none of eleven live
   // sessions; this says the same thing at the edit that shows the change spans
-  // files, once.
+  // files, once, and stands down for good once the parent has delegated.
   const edit = (file: string, extra: Record<string, unknown> = {}) =>
     runHook(DELEGATE_NUDGE, {
       session_id: SESSION,
@@ -2026,6 +2026,12 @@ describe('the delegation nudge on a second edited file', () => {
       tool_input: { file_path: path.join(cwd, file) },
       ...extra,
     });
+  const agent = (input: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    edit('', { tool_name: 'Agent', tool_input: { description: 'build', prompt: 'brief', ...input }, ...extra });
+  const state = () => {
+    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(`delegate_nudge:${SESSION}`) as { value: string } | undefined;
+    return row ? (JSON.parse(row.value.slice(row.value.indexOf('|') + 1)) as Record<string, unknown>) : null;
+  };
 
   it('says nothing on the first edited file, or on that file again', () => {
     expect(edit('a.ts').spoke).toBe(false);
@@ -2039,6 +2045,7 @@ describe('the delegation nudge on a second edited file', () => {
     expect(res.context).toMatch(/more than one file/);
     expect(res.context).toMatch(/background/);
     expect(res.context).toMatch(/while_waiting: true/);
+    expect(state()).toMatchObject({ done: true });
   });
 
   it('does not repeat on a third file', () => {
@@ -2056,8 +2063,10 @@ describe('the delegation nudge on a second edited file', () => {
     configure({ delegate_work: false });
     edit('a.ts');
     expect(edit('b.ts').spoke).toBe(false);
+    expect(agent({ run_in_background: true }).spoke).toBe(false);
     configure({ quiz: { enabled: false } });
     expect(edit('c.ts').spoke).toBe(false);
+    expect(state()).toBe(null);
   });
 
   it('ignores a subagent: its edits are the delegation working', () => {
@@ -2073,76 +2082,154 @@ describe('the delegation nudge on a second edited file', () => {
     expect(edit('b.ts', { tool_name: 'Read' }).spoke).toBe(false);
   });
 
+  describe('once the parent has delegated', () => {
+    it('stands down after a background building agent starts', () => {
+      expect(agent({ subagent_type: 'general-purpose', run_in_background: true }).spoke).toBe(false);
+      expect(state()).toMatchObject({ background: true });
+      expect(typeof state()!.delegated).toBe('string');
+      // Reviews and fixes around the builder are not a reason to ask for another.
+      edit('a.ts');
+      expect(edit('b.ts').spoke).toBe(false);
+    });
+
+    it('records a delegation that follows the nudge, and counts it as the session changing code', () => {
+      edit('a.ts');
+      edit('b.ts');
+      agent({ run_in_background: true });
+      expect(state()).toMatchObject({ done: true, background: true });
+      // `while_waiting` must not answer "no_code_change" while the builder has
+      // yet to make its first edit: that wait is what the questions are for.
+      expect(db.prepare('SELECT 1 AS ok FROM meta WHERE key = ?').get(`code_edit:${SESSION}`)).toEqual({ ok: 1 });
+    });
+
+    it('does not mark a session that only started a research agent', () => {
+      agent({ subagent_type: 'Explore', run_in_background: true });
+      expect(db.prepare('SELECT 1 AS ok FROM meta WHERE key = ?').get(`code_edit:${SESSION}`)).toBeUndefined();
+    });
+
+    it('stands down after a foreground building agent too, recording that it was not in the background', () => {
+      agent({});
+      expect(state()).toMatchObject({ background: false });
+      edit('a.ts');
+      expect(edit('b.ts').spoke).toBe(false);
+    });
+
+    it('does not count a research, tutoring or explainer agent as delegation', () => {
+      for (const type of ['Explore', 'Plan', 'eklavya:eklavya-explainer', 'eklavya-tutor']) {
+        expect(agent({ subagent_type: type, run_in_background: true }).spoke).toBe(false);
+      }
+      expect(state()).toBe(null);
+      edit('a.ts');
+      expect(edit('b.ts').spoke).toBe(true);
+    });
+
+    it("does not count an agent a subagent started, or the Task tool's older name differently", () => {
+      agent({ run_in_background: true }, { agent_id: 'agent-1' });
+      expect(state()).toBe(null);
+      edit('', { tool_name: 'Task', tool_input: { prompt: 'brief', run_in_background: true } });
+      expect(state()).toMatchObject({ background: true });
+    });
+
+    it('keeps the delegation across a resume, and keeps it to its own session', () => {
+      agent({ run_in_background: true });
+      runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart', source: 'resume' });
+      edit('a.ts');
+      expect(edit('b.ts').spoke).toBe(false);
+      // Another chat in the same project delegated nothing.
+      const other = (file: string) => edit(file, { session_id: 'other-chat' });
+      other('a.ts');
+      expect(other('b.ts').spoke).toBe(true);
+    });
+  });
+
   describe('through Bash, read from git', () => {
     // Heredocs and `sed -i` change files without an edit tool: a 39-call
-    // session made no Edit at all, and both headless acceptance runs did the
-    // same. Git's view between Bash calls is what counts them.
-    const bash = () => edit('', { tool_name: 'Bash', tool_input: { command: 'sed -i ...' } });
-    const write = (file: string, text: string) => fs.writeFileSync(path.join(cwd, file), text);
+    // session made no Edit at all. A file counts when git lists it with an
+    // mtime inside the command's own window.
+    const bash = (command = 'sed -i ...', extra: Record<string, unknown> = {}) =>
+      edit('', { tool_name: 'Bash', tool_input: { command }, ...extra });
+    const write = (file: string, text: string, dir = cwd) => fs.writeFileSync(path.join(dir, file), text);
+    const age = (file: string, dir = cwd) => {
+      const old = (Date.now() - 60_000) / 1000;
+      fs.utimesSync(path.join(dir, file), old, old);
+    };
     beforeEach(() => {
       spawnSync('git', ['init', '-q'], { cwd });
       write('a.ts', 'a');
       write('b.ts', 'b');
       write('dirty.ts', 'was dirty before the session');
+      for (const f of ['a.ts', 'b.ts', 'dirty.ts']) age(f);
     });
 
-    it('nudges when Bash calls change a second file, not before', () => {
-      expect(bash().spoke).toBe(false); // first snapshot
+    it('counts the first command in a tree when it changed two files', () => {
+      // The gap the snapshot design had: nothing to diff against on first sight.
+      write('a.ts', 'a2');
+      write('b.ts', 'b2');
+      expect(bash('python3 gen.py', { duration_ms: 50 }).context).toMatch(/more than one file/);
+    });
+
+    it('does not count files changed before the command ran', () => {
+      // A builder, another chat or an editor moved them earlier; this command did not.
+      write('a.ts', 'a2');
+      write('b.ts', 'b2');
+      age('a.ts');
+      age('b.ts');
+      expect(bash('git status', { duration_ms: 50 }).spoke).toBe(false);
+      expect(state()).not.toHaveProperty('first');
+    });
+
+    it('does not count a file that was already dirty and did not move', () => {
+      write('a.ts', 'a2');
+      expect(bash('sed -i a', { duration_ms: 50 }).spoke).toBe(false);
+      expect(state()).toMatchObject({ first: path.join(cwd, 'a.ts') });
+    });
+
+    it('without a duration from the host, reads the window since the previous Bash call', () => {
+      expect(bash().spoke).toBe(false); // nothing to compare with yet
       write('a.ts', 'a2');
       expect(bash().spoke).toBe(false);
       write('b.ts', 'b2');
       expect(bash().context).toMatch(/more than one file/);
-      write('a.ts', 'a3');
-      expect(bash().spoke).toBe(false);
-    });
-
-    it('counts one Bash call that changes two files', () => {
-      bash();
-      write('a.ts', 'a2');
-      write('b.ts', 'b2');
-      expect(bash().spoke).toBe(true);
-    });
-
-    it('does not count a file that was already dirty and did not move', () => {
-      bash();
-      write('a.ts', 'a2');
-      expect(bash().spoke).toBe(false);
-      expect(bash().spoke).toBe(false);
     });
 
     it('joins an Edit and a Bash change into two files', () => {
-      bash();
       edit('a.ts');
       write('a.ts', 'a2'); // the Edit's own write, seen by git: still one file
-      expect(bash().spoke).toBe(false);
+      expect(bash('ls', { duration_ms: 50 }).spoke).toBe(false);
       write('b.ts', 'b2');
-      expect(bash().spoke).toBe(true);
+      expect(bash('ls', { duration_ms: 50 }).spoke).toBe(true);
     });
 
-    it('follows a leading cd into a sibling worktree', () => {
-      // The /wt layout: the session starts in the main checkout, every edit is
-      // `cd <worktree> && …`, and the main checkout's tree never moves.
+    it('follows a cd into a sibling worktree whose path has a space, then git -C and absolute paths', () => {
+      // The /wt layout: the session starts in the main checkout and works in a
+      // sibling worktree, whose tree is the only one that moves.
       const git = (...args: string[]) => spawnSync('git', args, { cwd, encoding: 'utf8' });
       git('add', '-A');
       git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init');
-      const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-wt-'));
-      fs.rmSync(wt, { recursive: true });
-      git('worktree', 'add', '-q', wt);
+      const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-wt-')));
+      const wt = path.join(parent, 'task worktree');
+      git('worktree', 'add', '-q', '-b', 'task', wt);
       try {
-        const inWt = (cmd: string) => edit('', { tool_name: 'Bash', tool_input: { command: `cd "${wt}" && ${cmd}` } });
-        expect(inWt('cat a.ts').spoke).toBe(false); // first snapshot of the worktree
-        fs.writeFileSync(path.join(wt, 'a.ts'), 'a2');
-        expect(inWt('python3 edit a').spoke).toBe(false);
-        fs.writeFileSync(path.join(wt, 'b.ts'), 'b2');
-        expect(inWt('python3 edit b').context).toMatch(/more than one file/);
+        expect(bash(`cd "${wt}" && git status`, { duration_ms: 50 }).spoke).toBe(false);
+        write('a.ts', 'a2', wt);
+        expect(bash(`git -C "${wt}" diff && sed -i '' s/a/b/ "${wt}/a.ts"`, { duration_ms: 50 }).spoke).toBe(false);
+        write('b.ts', 'b2', wt);
+        expect(bash(`cat > "${wt}/b.ts" <<EOF`, { duration_ms: 50 }).context).toMatch(/more than one file/);
       } finally {
         git('worktree', 'remove', '--force', wt);
+        fs.rmSync(parent, { recursive: true, force: true });
       }
     });
 
+    it("does not count a builder's writes after the parent delegated", () => {
+      agent({ run_in_background: true });
+      write('a.ts', 'a2');
+      write('b.ts', 'b2');
+      expect(bash('git status', { duration_ms: 50 }).spoke).toBe(false);
+    });
+
     it('does not follow a cd through a variable', () => {
-      bash();
-      const viaVar = () => edit('', { tool_name: 'Bash', tool_input: { command: 'cd $WT && make' } });
+      const viaVar = () => bash('cd $WT && make', { duration_ms: 50 });
       write('a.ts', 'a2');
       expect(viaVar().spoke).toBe(false);
       write('b.ts', 'b2');
@@ -2151,16 +2238,15 @@ describe('the delegation nudge on a second edited file', () => {
     });
 
     it('ignores a subagent Bash call', () => {
-      const sub = { tool_name: 'Bash', tool_input: { command: 'x' }, agent_id: 'agent-1' };
-      edit('', sub);
       write('a.ts', 'a2');
       write('b.ts', 'b2');
-      expect(edit('', sub).spoke).toBe(false);
+      expect(bash('x', { agent_id: 'agent-1', duration_ms: 50 }).spoke).toBe(false);
+      expect(state()).toBe(null);
     });
   });
 
   it('says nothing for Bash outside a git repository', () => {
-    const bash = () => edit('', { tool_name: 'Bash', tool_input: { command: 'ls' } });
+    const bash = () => edit('', { tool_name: 'Bash', tool_input: { command: 'ls' }, duration_ms: 50 });
     expect(bash().spoke).toBe(false);
     fs.writeFileSync(path.join(cwd, 'a.ts'), 'a');
     fs.writeFileSync(path.join(cwd, 'b.ts'), 'b');
@@ -2177,3 +2263,4 @@ describe('the delegation nudge on a second edited file', () => {
     expect(res.stdout).toBe('');
   });
 });
+

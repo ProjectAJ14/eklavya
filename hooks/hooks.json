@@ -96,7 +96,7 @@
         ]
       },
       {
-        "matcher": "^(Bash|Edit|Write|MultiEdit|NotebookEdit)$",
+        "matcher": "^(Bash|Edit|Write|MultiEdit|NotebookEdit|Agent|Task)$",
         "hooks": [
           {
             "type": "command",
