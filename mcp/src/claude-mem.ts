@@ -256,6 +256,7 @@ function relocate(lost: string, name: string): string[] {
   let dir = path.dirname(lost);
   while (!fs.existsSync(dir)) {
     const up = path.dirname(dir);
+    /* c8 ignore next -- the filesystem root always exists, so the walk stops before it */
     if (up === dir) return [];
     dir = up;
   }
