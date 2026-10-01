@@ -299,8 +299,9 @@ export interface EklavyaConfig {
    * Whether session start asks the model to hand non-trivial code changes to
    * background agents and quiz the developer while they build, so waiting time
    * becomes learning time and the main context stays small. On by default:
-   * that is the product. Read by `session-start.ts` and `delegate-nudge.ts`, and
-   * only while questions are on — without questions delegating just costs tokens.
+   * that is the product. Read by `session-start.ts`, `prompt-submit-nudge.ts` and
+   * `delegate-nudge.ts` (wording in `delegation-lib.ts`), and only while questions
+   * are on — without questions delegating just costs tokens.
    */
   delegate_work: boolean;
   /**

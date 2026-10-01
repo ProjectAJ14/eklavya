@@ -59,6 +59,7 @@ import type { ResolvedConfig } from '../config.js';
 import type { EvidenceIdentity } from '../memory/identity.js';
 import { recallForPrompt } from '../memory/recall.js';
 import { countUse } from '../telemetry.js';
+import { promptLine } from './delegation-lib.js';
 
 /**
  * Recall for one prompt, mid-session, or null.
@@ -111,6 +112,21 @@ const COOLDOWN_MINUTES = 25;
  * between three nudges and four is not something anyone needs to tune.
  */
 const MAX_NUDGES = 3;
+
+/**
+ * Shorter than this and a prompt is a reply -- "yes", "commit it", "go on" --
+ * not a task to decide how to build. Not a classifier: a long question still
+ * gets the delegation line, and the line says to answer questions yourself.
+ * `/wt implement the 0.2 handoff` is 31 characters, and a real task.
+ */
+const TASK_PROMPT_CHARS = 25;
+
+/**
+ * What the host sends through UserPromptSubmit on its own: a background agent's
+ * hand-back and its completion notice. Neither is the developer asking for work,
+ * and a session with four builders and three explainers received seven of them.
+ */
+const HOST_PROMPT = /^<(agent-message|task-notification)\b/;
 
 /** The user-invocable skills under `skills/`, bare or plugin-qualified. */
 const SLASH = /^\/(?:eklavya:)?(gate|learn|level|memory|mode|pack|progress|quiz|setup|skip)(?![\w-])/;
@@ -225,6 +241,20 @@ await run(async (input) => {
   if (!quiz.enabled) return emit(context);
 
   if (isSessionOff(db, sid)) return emit(context);
+
+  // The task-time seam for delegation. The session-start block is far back by
+  // the time a task arrives, and the second-file nudge arrives after the model
+  // has already chosen to build inline: in the issue-78 sessions it was handed a
+  // staged plan, started stage 1 itself and kept going. Said here, the contract
+  // sits next to the plan it is about, before the first edit. Every task-sized
+  // prompt, not once: a session's first prompt is often `/wt <issue>` and the
+  // plan comes later.
+  if (resolved.config.delegate_work && typeof input.prompt === 'string') {
+    const text = input.prompt.trim();
+    if (text.length >= TASK_PROMPT_CHARS && !SLASH.test(text) && !HOST_PROMPT.test(text)) {
+      context.push(promptLine(resolved.config.cadence));
+    }
+  }
 
   // The fast path, and the one that runs on almost every prompt: a session that
   // is logging needs nothing said to it.

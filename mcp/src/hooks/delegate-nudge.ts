@@ -9,7 +9,9 @@
  * time the model decides how to build, it is far back in context. So this is the
  * same instruction, moved to where it applies: the main thread has just changed
  * a second distinct file, which is what "a change across several files" looks
- * like from the outside.
+ * like from the outside. The prompt hook says it first, next to the task
+ * (`prompt-submit-nudge.ts`); this is the recovery for a session that started
+ * building inline anyway.
  *
  * Two ways a file counts as changed:
  * - an edit tool wrote it (its path, from the tool input);
@@ -51,18 +53,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
 import { git, leadingCd, noteBuilder } from './changes-lib.js';
+import { DELEGATE_KEY_PREFIX, nudge as nudgeText } from './delegation-lib.js';
 
 const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
 const AGENT_TOOLS = /^(Agent|Task)$/;
 /** Agents that only read: starting one is research, not handing off the build. */
 const READ_ONLY_AGENTS = /^(Explore|Plan|claude-code-guide)$|eklavya-(tutor|explainer)/;
-const DELEGATE_KEY_PREFIX = 'delegate_nudge:';
 /** More dirty entries than this and the Bash read is skipped: the signal is noise. */
 const MAX_ENTRIES = 2000;
 /** From the command finishing to this hook reading the clock: a node start, under load. */
 const WINDOW_MARGIN_MS = 3000;
-
-const NUDGE = `[Eklavya] This task now edits more than one file. Hand the remaining work to one or more agents run in the background, each with a self-contained brief (goal, files, constraints, how to verify), and take back a short report. While they build, ask questions: get_session_quiz_plan with while_waiting: true, then AskUserQuestion, record_attempt and the verdict, one at a time, until an agent reports or questions_needed is 0. If the rest is a line or two, or agents cannot run in the background here, carry on inline.`;
 
 
 interface State {
@@ -125,7 +125,7 @@ await run(async (input) => {
   if (isAgent && READ_ONLY_AGENTS.test(String(input.tool_input?.subagent_type ?? ''))) return 0;
 
   const cwd = cwdOf(input);
-  const { quiz, delegate_work } = config(cwd).config;
+  const { quiz, delegate_work, cadence } = config(cwd).config;
   if (!quiz.enabled || !delegate_work) return 0;
 
   const db = openExisting();
@@ -199,7 +199,7 @@ await run(async (input) => {
   if (!nudge) return 0;
 
   process.stdout.write(
-    `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: NUDGE } })}\n`,
+    `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: nudgeText(cadence) } })}\n`,
   );
   return 0;
 });

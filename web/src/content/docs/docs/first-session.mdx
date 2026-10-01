@@ -35,12 +35,14 @@ pacing and session budget. It comes after Claude's answer, and Claude then
 repeats a short version of the answer under “Back to your task:”.
 
 For a change that spans several files, [`delegate_work`](/docs/configuration/#every-key)
-(on by default) has Claude hand the building to background agents; if Claude
-changes a second file itself, with an edit tool or a shell command, Eklavya
-reminds it once. That includes a worktree: a command that starts with
-`cd <worktree> &&` is checked in that worktree's repository. Under the
-default `as-you-go` cadence, questions then come one at a time while they
-work, and the task answer arrives last.
+(on by default) asks Claude to hand the building to a background agent. Eklavya
+says so next to your prompt, before the first edit, and reminds Claude once if
+it changes a second file itself anyway. If you started the chat in your main
+checkout and Claude made a worktree for the task, the agent works in that
+worktree. A staged plan goes one stage per agent, in order, and Claude reviews,
+runs your checks and commits each stage before the next. If you say to work
+inline, Claude does. Under the default `as-you-go` cadence, questions come one
+at a time while the agent works, and the task answer arrives last.
 
 Answers are graded from 0 to 5. Concepts you struggle with return sooner;
 successful reviews are spaced further apart. A new session also shows a short

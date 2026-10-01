@@ -2038,13 +2038,21 @@ describe('the delegation nudge on a second edited file', () => {
     expect(edit('a.ts').spoke).toBe(false);
   });
 
-  it('nudges once the main thread edits a second file', () => {
+  it('nudges once the main thread edits a second file, with the delegation contract', () => {
     edit('a.ts');
     const res = edit('b.ts');
     expect(res.status).toBe(0);
-    expect(res.context).toMatch(/more than one file/);
+    expect(res.context).toMatch(/spans files/);
+    expect(res.context).toMatch(/Unless the user said to work inline/);
     expect(res.context).toMatch(/background/);
-    expect(res.context).toMatch(/while_waiting: true/);
+    // The builder works where the parent was working, not in the session's cwd.
+    expect(res.context).toMatch(/absolute directory to work in \(the task worktree/);
+    // A staged plan stays staged, and the parent keeps review, checks and commits.
+    expect(res.context).toMatch(/one stage per agent, in order/);
+    expect(res.context).toMatch(/commit before starting the next/);
+    expect(res.context).toMatch(/while_waiting: true, then AskUserQuestion, record_attempt and the verdict/);
+    // Staying inline is allowed, but said out loud.
+    expect(res.context).toMatch(/Say why in one line/);
     expect(state()).toMatchObject({ done: true });
   });
 
@@ -2165,7 +2173,7 @@ describe('the delegation nudge on a second edited file', () => {
       // The gap the snapshot design had: nothing to diff against on first sight.
       write('a.ts', 'a2');
       write('b.ts', 'b2');
-      expect(bash('python3 gen.py', { duration_ms: 50 }).context).toMatch(/more than one file/);
+      expect(bash('python3 gen.py', { duration_ms: 50 }).context).toMatch(/spans files/);
     });
 
     it('does not count files changed before the command ran', () => {
@@ -2189,7 +2197,7 @@ describe('the delegation nudge on a second edited file', () => {
       write('a.ts', 'a2');
       expect(bash().spoke).toBe(false);
       write('b.ts', 'b2');
-      expect(bash().context).toMatch(/more than one file/);
+      expect(bash().context).toMatch(/spans files/);
     });
 
     it('joins an Edit and a Bash change into two files', () => {
@@ -2214,7 +2222,7 @@ describe('the delegation nudge on a second edited file', () => {
         write('a.ts', 'a2', wt);
         expect(bash(`git -C "${wt}" diff && sed -i '' s/a/b/ "${wt}/a.ts"`, { duration_ms: 50 }).spoke).toBe(false);
         write('b.ts', 'b2', wt);
-        expect(bash(`cat > "${wt}/b.ts" <<EOF`, { duration_ms: 50 }).context).toMatch(/more than one file/);
+        expect(bash(`cat > "${wt}/b.ts" <<EOF`, { duration_ms: 50 }).context).toMatch(/spans files/);
       } finally {
         git('worktree', 'remove', '--force', wt);
         fs.rmSync(parent, { recursive: true, force: true });
@@ -2264,3 +2272,64 @@ describe('the delegation nudge on a second edited file', () => {
   });
 });
 
+describe('the delegation contract at session start and next to a task', () => {
+  // The issue-78 sessions were handed a staged plan, started stage 1 inline and
+  // never looked back: the session-start block was far behind them and the
+  // second-file nudge arrived after the choice was made. The prompt hook says
+  // the contract next to the plan, before the first edit.
+  const TASK =
+    'Implement HANDOFF.md in the worktree at /tmp/repo-worktrees/task. Implement the stages in order, one commit per stage, and run the checks after every stage.';
+  const prompt = (text: string, extra: Record<string, unknown> = {}) =>
+    runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit', prompt: text, ...extra });
+
+  it('states the staged, worktree-aware contract at session start', () => {
+    const ctx = sessionStart().context;
+    expect(ctx).toMatch(/A worktree you create or were given is setup, not delegation: the agent works in it/);
+    expect(ctx).toMatch(/You stay the lead: plan, answer the developer, review what comes back, run the checks the user asked for and commit/);
+    expect(ctx).toMatch(/one stage per agent, in order/);
+    expect(ctx).toMatch(/say so in one line and work inline/);
+    expect(ctx).not.toMatch(/work inline as usual/);
+  });
+
+  it('puts the contract next to a task-sized prompt', () => {
+    const ctx = prompt(TASK).context;
+    expect(ctx).toMatch(/If this asks for a code change across several files, do not build it inline/);
+    expect(ctx).toMatch(/absolute directory to work in \(the task worktree/);
+    expect(ctx).toMatch(/one stage per agent, in order/);
+    expect(ctx).toMatch(/get_session_quiz_plan with while_waiting: true/);
+    expect(ctx).toMatch(/the user said to work inline/);
+  });
+
+  it('counts a slash command that carries a task, but not a short reply or an Eklavya command', () => {
+    expect(prompt('/wt implement the 0.2 handoff').context).toMatch(/do not build it inline/);
+    expect(prompt('yes, commit it').context).not.toMatch(/do not build it inline/);
+    expect(prompt(`/eklavya:quiz ${TASK}`).context).not.toMatch(/do not build it inline/);
+  });
+
+  it("is not said to the host's own hand-backs and completion notices", () => {
+    // Both arrive through UserPromptSubmit; neither is the developer asking for work.
+    const handBack = '<agent-message from="a1">\n[Subagent hand-back] Stage 1 is done: tokenize.js and its tests, lint and tests pass.';
+    const notice = '<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>';
+    expect(prompt(handBack).context).not.toMatch(/do not build it inline/);
+    expect(prompt(notice).context).not.toMatch(/do not build it inline/);
+  });
+
+  it('is not said with delegate_work off, questions off, the session silenced, or to a subagent', () => {
+    expect(prompt(TASK, { agent_id: 'agent-1' }).context).toBe('');
+    setSessionOff(db, SESSION, true);
+    expect(prompt(TASK).context).not.toMatch(/do not build it inline/);
+    setSessionOff(db, SESSION, false);
+    configure({ delegate_work: false });
+    expect(prompt(TASK).context).not.toMatch(/do not build it inline/);
+    configure({ quiz: { enabled: false } });
+    expect(prompt(TASK).context).not.toMatch(/do not build it inline/);
+  });
+
+  it('promises no questions while building under the end cadence', () => {
+    configure({ cadence: 'end' });
+    for (const ctx of [prompt(TASK).context, sessionStart().context]) {
+      expect(ctx).toMatch(/Questions wait for the end of the task \(cadence: end\)/);
+      expect(ctx).not.toMatch(/while_waiting/);
+    }
+  });
+});

@@ -273,7 +273,7 @@ describe('delegate-nudge', () => {
     const today = new Date().toISOString();
     db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(`delegate_nudge:${SESSION}`, `${today}|{not json`);
     expect(hook('Edit', { file_path: path.join(cwd, 'a.ts') }).context).toBe('');
-    expect(hook('Edit', { file_path: path.join(cwd, 'b.ts') }).context).toMatch(/more than one file/);
+    expect(hook('Edit', { file_path: path.join(cwd, 'b.ts') }).context).toMatch(/spans files/);
   });
 
   it('reads an agent with no subagent_type as a builder', () => {
@@ -288,7 +288,7 @@ describe('delegate-nudge', () => {
       git(cwd, 'init', '-q');
       write(cwd, 'a.ts', 'a');
       write(cwd, 'b.ts', 'b');
-      expect(bash(42).context).toMatch(/more than one file/);
+      expect(bash(42).context).toMatch(/spans files/);
     });
 
     it('follows a leading cd into a repository under ~', () => {
@@ -298,7 +298,7 @@ describe('delegate-nudge', () => {
       write(repo, 'a.ts', 'a');
       write(repo, 'b.ts', 'b');
       const env = { HOME: tmp, USERPROFILE: tmp };
-      expect(bash('cd ~/proj && make', env).context).toMatch(/more than one file/);
+      expect(bash('cd ~/proj && make', env).context).toMatch(/spans files/);
     });
 
     it('treats a negative duration as none, and reads from the previous Bash call', () => {

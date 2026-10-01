@@ -160,11 +160,14 @@ project, so default to `--project`. The pages themselves are the
 
 `delegate_work` (default `true`) is asked about the same way: "stop using
 background agents", "why are you quizzing me while agents build?". On, session
-start tells Claude to hand non-trivial code changes to background agents and ask
-questions while they work, then give the task answer last; the first time
-Claude edits a second file itself, a hook repeats that once. `false` keeps the
-building in the conversation. The session-start part applies from the next
-session start, and neither does anything while `quiz.enabled` is false.
+start tells Claude to hand non-trivial code changes to a background agent and ask
+questions while it works, then review, check, commit and give the task answer
+last. A staged plan goes one stage per agent, in order. The same request is
+repeated next to each task-sized prompt, and once more the first time Claude
+edits a second file itself, unless it has already started a building agent.
+`false` keeps the building in the conversation. The session-start part applies
+from the next session start, and none of it does anything while `quiz.enabled`
+is false.
 Questions while agents build need `cadence: as-you-go`: under `end` it still
 delegates but asks nothing until the task is done.
 

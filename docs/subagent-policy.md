@@ -7,7 +7,7 @@ explicitly requested by the learner can teach in its own conversation; an explai
 
 | Role | Logs concepts | Asks questions | Memory capture | Instructions |
 |---|---|---|---|---|
-| Parent | Yes | Yes | Prompts, tools and lifecycle | SessionStart (directive, plus `DELEGATE` when `delegate_work`), prompt nudge and the second-file delegation nudge |
+| Parent | Yes | Yes | Prompts, tools and lifecycle | SessionStart (directive, plus `DELEGATE` when `delegate_work`), the prompt nudges (logging, and the delegation line next to a task) and the second-file delegation nudge |
 | Implementer | Yes, when its tools permit | No | Tools | SubagentStart directive |
 | `eklavya-tutor` | No | Yes, when delegated to teach | Tools | `agents/tutor.md` |
 | `eklavya-explainer` | No | No | Tools | `agents/explainer.md` |
@@ -16,38 +16,90 @@ Sources: [`subagent-start.ts`](../mcp/src/hooks/subagent-start.ts),
 [`session-start.ts`](../mcp/src/hooks/session-start.ts),
 [`checkpoint-quiz.ts`](../mcp/src/hooks/checkpoint-quiz.ts),
 [`delegate-nudge.ts`](../mcp/src/hooks/delegate-nudge.ts),
+[`prompt-submit-nudge.ts`](../mcp/src/hooks/prompt-submit-nudge.ts),
+[`delegation-lib.ts`](../mcp/src/hooks/delegation-lib.ts),
 [`stop-quiz-check.ts`](../mcp/src/hooks/stop-quiz-check.ts) and the agent files.
 
 ## The parent delegates and asks
 
-When questions are on and `delegate_work` is true, SessionStart adds a
-`DELEGATE` instruction after the standing directive. For a non-trivial code
-change (several files, or research before editing) the parent plans, starts one
-or more background agents with self-contained briefs, logs the plan's concepts,
-then asks one question at a time (`get_session_quiz_plan` with
-`while_waiting: true`, `AskUserQuestion`, `record_attempt`, verdict) until an
-agent reports or `questions_needed` is 0. `while_waiting` plans one question,
-skips the cooldown and spends the session's `max_questions_per_task`, counted
-from `attempts` as the hooks count it. Under `cadence: end` it returns nothing
-(`cadence_end`): that cadence keeps questions out of the task. Passing `max`,
-`domain`, `slugs` or `ignore_cooldown` makes it an ordinary request instead. It checks the report and writes the
-task answer last. Questions, one-line fixes and lookups stay inline, and so
-does everything when the host cannot run agents in the background.
+With questions on and `delegate_work` true, the parent hears one contract in
+three places, all built from the sentences in
+[`delegation-lib.ts`](../mcp/src/hooks/delegation-lib.ts):
 
-The session-start instruction alone was not followed in live sessions: by the
-time the model chooses how to build, it is far back in context. So
-`delegate-nudge` (PostToolUse on Bash and the edit tools) repeats it once per
-session, the first time the parent changes a second distinct file. An edit tool
-names its file; after a Bash call, a file counts when `git status` shows its
-size or mtime moved since the previous Bash call, so heredocs and `sed -i`
-count too. Git is read in the session's own repository and in the one a
-leading `cd <dir> &&` names, one snapshot per repository (up to four), so a
-session started in the main checkout that works in a sibling worktree is
-counted. A `cd` later in the command, `pushd`, a subshell or `cd $VAR` is not
-followed. A repository's first snapshot is taken after the first Bash call that
-reaches it, so changes that call made are seen only once another file moves. Subagent edits neither
-trigger nor count; it needs questions on and `delegate_work` true, and stops
-calling git once it has fired.
+- **SessionStart** adds the `DELEGATE` block after the standing directive.
+- **UserPromptSubmit** adds one line next to every parent prompt of 25
+  characters or more that is not an Eklavya slash command, a subagent's
+  hand-back or a background-task notice (the host sends both through the same
+  event). This is where a task arrives, before the first edit.
+  `/wt implement the 0.2 handoff` counts; "yes, commit it" does not.
+- **The second-file nudge** (PostToolUse) repeats it once, the first time the
+  parent changes a second distinct file itself.
+
+The contract:
+
+- A code change across several files is built by an agent run in the
+  background, with a self-contained brief: the absolute directory to work in
+  (the task worktree, if there is one), the goal, the files, the user's
+  constraints and the checks to run. Creating or reusing a worktree is setup,
+  not delegation: the agent works in it.
+- The parent stays the lead. It plans, answers the developer, reviews what comes
+  back, runs the checks the user asked for and commits. Its task answer comes
+  last.
+- A staged plan goes one stage per agent, in order. The parent reviews, checks
+  and commits each stage before starting the next, and does not edit an agent's
+  files while it runs.
+- While an agent builds, the parent asks one question at a time:
+  `get_session_quiz_plan` with `while_waiting: true`, `AskUserQuestion`,
+  `record_attempt`, verdict, until an agent reports or `questions_needed` is 0.
+  Under `cadence: end` all three say questions wait for the end of the task
+  instead. `while_waiting` plans one question, skips the cooldown and spends the
+  session's `max_questions_per_task`, counted from `attempts` as the hooks count
+  it. Under `cadence: end` it returns nothing (`cadence_end`). Passing `max`,
+  `domain`, `slugs` or `ignore_cooldown` makes it an ordinary request instead.
+- Questions, lookups, docs or design-only work, a fix of a line or two, and
+  anything the user said to do inline stay inline. If agents cannot run in the
+  background, the parent says so in one line and works inline. The nudge asks for
+  that one line whenever the parent stays inline after it.
+
+The contract is advice in the model's context, not enforcement. Nothing blocks an
+inline edit, and the [delegation eval](../eval/README.md#the-delegation-eval)
+measures how often it is followed.
+
+**What the nudge counts.** An edit tool names its file. After a Bash call, a file
+counts when `git status` lists it with an mtime inside that command's own
+window: `duration_ms` from the hook input, plus 3 seconds for the hook to start.
+If the host sends no duration, the window runs from the session's previous Bash
+call. This means:
+
+- the first command in a tree counts, even if it changed two files;
+- a file a builder, another chat or an editor changed between the parent's
+  commands does not count.
+
+Git is read in up to two trees: the session's own, and the one a leading
+`cd <dir> &&` names. When a command has no leading `cd`, the second tree is the
+last one such a `cd` named. So after one `cd` into a sibling worktree, `git -C`
+and absolute-path commands there count too. A `cd` through a variable is not
+followed. A deleted file has no mtime and does not count. Subagent edits neither
+trigger the nudge nor count towards it.
+
+**When the nudge stands down.** It stands down for good once the parent starts an
+`Agent`/`Task` whose `subagent_type` is not Explore, Plan, `claude-code-guide`,
+the tutor or the explainer. That launch is also recorded: whether it ran in the
+background, and the fact that the session is now building. That mark is what
+`quiz.only_on_changes` reads, so `while_waiting` can ask before the builder's
+first edit lands. Without it, the planner answered `no_code_change` the moment
+the agent started.
+
+**Recorded state.** The nudge's state is one `meta` row per session id. A resume
+or a compaction keeps it, and another chat in the same project has its own. The
+row holds:
+
+- whether the nudge fired;
+- the delegation, and whether it ran in the background.
+
+It does not record whether the builder finished, or why a parent stayed inline.
+The eval reads those from transcripts. It needs questions on and `delegate_work`
+true, and stops calling git once it has fired or the parent has delegated.
 
 The parent asks because a delegate cannot: it has no `AskUserQuestion` and
 nobody reads its transcript. Background implementers still get the SubagentStart
