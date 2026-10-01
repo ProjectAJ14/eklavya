@@ -62,7 +62,7 @@ export function treeFingerprint(cwd: string): string | null {
     const hash = createHash('sha1').update(head);
     const entries = status.split('\0');
     for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i] ?? '';
+      const entry = entries[i]!;
       if (entry.length < 4) continue;
       // `R` and `C` entries carry the source path as the next NUL field.
       if (entry[0] === 'R' || entry[0] === 'C') i++;
@@ -152,7 +152,7 @@ function outsideRepo(cwd: string): boolean {
     windowsHide: true,
   });
   if (res.status === 0) return res.stdout.trim() === 'false';
-  return typeof res.status === 'number' && /not a git repository/i.test(res.stderr ?? '');
+  return typeof res.status === 'number' && /not a git repository/i.test(res.stderr);
 }
 
 const EDIT_PREFIX = 'code_edit:';

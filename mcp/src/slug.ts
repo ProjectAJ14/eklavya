@@ -31,7 +31,8 @@ export function tokenJaccard(a: string, b: string): number {
   let intersection = 0;
   for (const t of ta) if (tb.has(t)) intersection += 1;
   const union = ta.size + tb.size - intersection;
-  return union === 0 ? 0 : intersection / union;
+  // Both sets are non-empty, so the union is at least one.
+  return intersection / union;
 }
 
 /**

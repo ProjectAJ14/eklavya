@@ -18,7 +18,9 @@ import { claudeHome } from './install.js';
 import { guessProjectMap } from './claude-mem.js';
 import { spin } from './theme.js';
 import { importOffThread } from './memory/import-worker.js';
-import { isInternalObserver, releaseWorker, renewWorker, reserveWorker, stopWorker, workerStatus } from './memory/reservation.js';
+import {
+  isInternalObserver, releaseWorker, renewWorker, reserveWorker, stopWorker, workerStatus, type StopOutcome,
+} from './memory/reservation.js';
 import { identityFor } from './memory/identity.js';
 import {
   backlogSummary,
@@ -212,7 +214,8 @@ function memorySearch(argv: string[]): void {
   if (!query.trim()) fail('Usage: eklavya memory search <query> [--mode keyword|semantic|hybrid] [--limit <n>] [--all-projects]');
 
   const { config } = loadConfig();
-  const mode = (flag(argv, '--mode', config.retrieval.mode) ?? 'hybrid') as SearchMode;
+  // `flag` returns its fallback when the flag is absent, and the config always has a mode.
+  const mode = flag(argv, '--mode', config.retrieval.mode) as SearchMode;
   if (mode !== 'keyword' && mode !== 'semantic' && mode !== 'hybrid') {
     fail('--mode must be keyword, semantic or hybrid.');
   }
@@ -398,10 +401,12 @@ function runWorker(
       }
       db.close();
     },
+    /* c8 ignore start -- superviseWorker catches its own failures; kept so one cannot vanish silently */
     (err: Error) => {
       db.close();
       fail(`eklavya memory process: ${err.message}`);
     },
+    /* c8 ignore stop */
   );
 }
 
@@ -473,16 +478,7 @@ function memoryStop(): void {
   const db = openDb();
   void stopWorker(db).then((outcome) => {
     const { config } = loadConfig();
-    if (!outcome.stopped) {
-      process.stdout.write('no memory worker is running.\n');
-    } else {
-      process.stdout.write(
-        `stopped the memory worker${outcome.pid ? ` (pid ${outcome.pid})` : ''}${
-          outcome.child ? ` and its claude call (pid ${outcome.child})` : ''
-        }${outcome.forced ? ' — it had to be killed' : ''}. Unfinished jobs stay queued.\n` +
-          (outcome.released ? '' : 'something it started would not exit; the slot stays held until it does.\n'),
-      );
-    }
+    process.stdout.write(stopMessage(outcome));
     if (config.providers.observer) {
       process.stdout.write(
         'the next session seam starts a new one. To keep it stopped: eklavya config set providers.observer null\n',
@@ -490,6 +486,17 @@ function memoryStop(): void {
     }
     db.close();
   });
+}
+
+/** What `memory stop` says it did. Exported for the outcomes a test cannot stage in time. */
+export function stopMessage(outcome: StopOutcome): string {
+  if (!outcome.stopped) return 'no memory worker is running.\n';
+  return (
+    `stopped the memory worker${outcome.pid ? ` (pid ${outcome.pid})` : ''}${
+      outcome.child ? ` and its claude call (pid ${outcome.child})` : ''
+    }${outcome.forced ? ' — it had to be killed' : ''}. Unfinished jobs stay queued.\n` +
+    (outcome.released ? '' : 'something it started would not exit; the slot stays held until it does.\n')
+  );
 }
 
 /**
@@ -729,6 +736,7 @@ async function memoryImport(argv: string[]): Promise<void> {
     ];
     process.stdout.write(`${lines.join('\n')}\n`);
 
+    /* c8 ignore next -- inventory always names the problem when it refuses; the fallback is defensive */
     if (!found.supported) fail(`\n${found.problem ?? 'Unsupported source database.'}`);
     if (dryRun) {
       const planned = Object.entries(projectMap);

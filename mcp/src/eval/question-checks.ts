@@ -80,7 +80,7 @@ export function longestSharedRun(a: string, b: string): number {
   for (let i = 1; i <= x.length; i++) {
     let diagonal = 0;
     for (let j = 1; j <= y.length; j++) {
-      const above = prev[j] ?? 0;
+      const above = prev[j]!;
       const run = x[i - 1] === y[j - 1] ? diagonal + 1 : 0;
       diagonal = above;
       prev[j] = run;
@@ -188,7 +188,7 @@ export function checkQuestion(q: GeneratedQuestion): Check[] {
     inRange,
     inRange ? `correct = ${q.correct}` : `correct = ${JSON.stringify(q.correct)}, options = ${q.options.length}`,
   );
-  const correct = inRange ? (q.options[q.correct - 1] ?? '') : '';
+  const correct = inRange ? q.options[q.correct - 1]! : '';
   const run = longestSharedRun(q.stem, correct);
   push(
     'answer_not_in_stem',

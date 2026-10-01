@@ -369,7 +369,8 @@ export const setConfig: ToolDef = {
       // file the CLI had already stamped for another checkout would be mutated
       // here while this project's own read discarded it, with the tool still
       // reporting success for a setting that never applied.
-      patch.project = resolved.repoRoot ? mainRepoRoot(resolved.repoRoot) : undefined;
+      // `projectPath` is set only when there is a repo root, so it is set here.
+      patch.project = mainRepoRoot(resolved.repoRoot!);
     } else {
       target = resolved.globalPath;
     }
@@ -414,7 +415,8 @@ export const setConfig: ToolDef = {
       if (err instanceof UnreadableFileError) {
         return { error: 'unreadable_config', file: err.file, detail: err.message };
       }
-      return { error: 'project_collision', detail: err instanceof Error ? err.message : String(err) };
+      // Only Errors reach here: `writeConfigFile` and fs throw nothing else.
+      return { error: 'project_collision', detail: (err as Error).message };
     }
 
     return { written_to: target, scope, config: loadConfig(cwd).config };

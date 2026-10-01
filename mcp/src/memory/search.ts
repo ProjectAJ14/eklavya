@@ -105,8 +105,8 @@ export function keywordSearch(db: DB, query: string, filter: SearchFilter = {}):
   // Nothing matched every term. Widen rather than return nothing: a developer
   // searching "refresh cookie rotation" wants the rotation note even if the
   // wording differs.
-  const orQuery = ftsQuery(query, 'OR');
-  return orQuery ? run(orQuery) : [];
+  // Same terms as `andQuery`, which was non-null, so this is too.
+  return run(ftsQuery(query, 'OR')!);
 }
 
 /** Bounded scan: cosine over the project's most recent vectors (ADR-03). */

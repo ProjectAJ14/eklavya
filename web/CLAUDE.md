@@ -58,7 +58,7 @@ links and preserving useful anchors or adding a redirect.
 | `usage-analytics.mdx` | `buildEvents` in `mcp/src/telemetry-send.ts` (every event and field of the tool's ping, and `assertSafe`), `disabledReason`, `canSend` and `startBackgroundTelemetry` in `mcp/src/telemetry.ts` (the off switches, when it sends), `countUse` callers for `feature_use` names, and `public/analytics.js` for the website: its consent banner, the `eklavya-analytics` key and every event. Each table must list exactly what the code sends |
 | `migrating.mdx` | `mcp/src/memory/import.ts` and the `memory import` handler in `mcp/src/cli-memory.ts` — the flags and the field-disposition report are quoted from there |
 | `troubleshooting.mdx` | `doctor` in `mcp/src/cli.ts`, and the fail-open paths — `mcp/src/hooks/lib.ts`, `cli/eklavya-gate` |
-| `faq.mdx` | `mcp/src/paths.ts`, the `AttemptOutcome` handling in `mcp/src/store.ts` (what a decline does), `uninstall` in `mcp/src/install.ts`, and `localTokens` in `mcp/src/dashboard.ts` — the dashboard strips the shared tokens' Google Fonts import and loads no font of its own, which is what lets the FAQ say it makes no outbound request at all |
+| `faq.mdx` | `mcp/src/paths.ts`, the `AttemptOutcome` handling in `mcp/src/store.ts` (what a decline does), `uninstall` in `mcp/src/install.ts`, and `localTokens` in `mcp/src/dashboard.ts` — the dashboard strips the shared tokens' Google Fonts import and loads no font of its own, which is what lets the FAQ say it makes no outbound request at all; its testing answer comes from `mcp/.c8rc.json`, `mcp/vitest.config.ts` and the `test` job in `.github/workflows/test.yml` |
 
 
 ## Write for a developer's first week

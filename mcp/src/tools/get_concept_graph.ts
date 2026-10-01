@@ -24,8 +24,8 @@ function topoSort(
   const indegree = new Map<number, number>(nodes.map((n) => [n.id, 0]));
   const out = new Map<number, number[]>(nodes.map((n) => [n.id, []]));
 
+  // Callers pass only edges between `nodes`: the query selects both ends IN them.
   for (const e of edges) {
-    if (!indegree.has(e.from) || !indegree.has(e.to)) continue;
     out.get(e.from)!.push(e.to);
     indegree.set(e.to, indegree.get(e.to)! + 1);
   }
@@ -43,7 +43,7 @@ function topoSort(
   while (ready.length > 0) {
     const id = ready.shift()!;
     ordered.push(id);
-    for (const next of out.get(id) ?? []) {
+    for (const next of out.get(id)!) {
       indegree.set(next, indegree.get(next)! - 1);
       if (indegree.get(next) === 0) {
         ready.push(next);

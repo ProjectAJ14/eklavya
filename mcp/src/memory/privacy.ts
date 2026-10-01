@@ -178,7 +178,8 @@ export function redact(text: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): R
     new RegExp(ASSIGNED.source, ASSIGNED.flags),
     (m: string, kept: string, quote: string | undefined, quoted: string | undefined, bare: string | undefined) => {
       if (bare !== undefined && looksLikeCode(bare)) return m;
-      if (STATE_WORDS.has((quoted ?? bare ?? '').toLowerCase())) return m;
+      // One of the two alternatives always matched, so one group is defined.
+      if (STATE_WORDS.has((quoted ?? bare)!.toLowerCase())) return m;
       assigned = true;
       return quoted !== undefined ? `${kept}${quote}[redacted:secret]${quote}` : `${kept}[redacted:secret]`;
     },

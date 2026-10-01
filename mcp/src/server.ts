@@ -12,6 +12,7 @@ import { registerTools } from './tools/index.js';
 function serverVersion(): string {
   try {
     const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    /* c8 ignore next 4 -- package.json always ships beside dist/ with a version */
     return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
   } catch {
     return '0.0.0';
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
   const shutdown = () => {
     try {
       db.close();
+      /* c8 ignore next 3 -- better-sqlite3's close() is idempotent and does not throw */
     } catch {
       // closing a already-closed handle on shutdown is not worth reporting
     }
@@ -56,6 +58,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
+  /* c8 ignore next -- only the Error-with-stack arm is reachable from openDb */
   log(`fatal: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
   process.exit(1);
 });

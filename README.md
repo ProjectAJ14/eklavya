@@ -172,7 +172,8 @@ Or start at the [full manual](https://eklavya-run.web.app/docs/).
 ## Contributing
 
 Development setup, the manual test scripts and the release process are in
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
+[`CONTRIBUTING.md`](CONTRIBUTING.md). CI fails any change that leaves a line,
+branch or function of the runtime untested (`npm run coverage` in `mcp/`).
 
 ## License
 

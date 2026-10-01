@@ -17,7 +17,16 @@ claude plugin validate ..
 
 `npm test` builds first, then runs unit and integration tests. Tests that spawn
 hooks or the CLI execute `mcp/dist/`, so rebuild before using watch mode after
-source changes. For interactive development, run `claude --plugin-dir
+source changes.
+
+CI runs `npm run coverage` instead: the same suite under c8, which also counts
+the hooks and CLI the tests spawn, and fails below 100% lines, statements,
+functions or branches. The HTML report lands in `mcp/coverage/index.html`, and
+the run page lists every file under 100%. New code needs tests that reach it; a
+`/* c8 ignore next -- reason */` is only for code a test cannot reach
+deterministically, such as a branch for another operating system.
+
+For interactive development, run `claude --plugin-dir
 /path/to/eklavya` from a scratch project; replace that path with your checkout.
 
 To work on the website:

@@ -5,13 +5,13 @@
  * `hooks/run.mjs` — against a fake `npm` that logs when each install starts and
  * ends, under a temp HOME. Nothing touches the network or the real ~/.eklavya.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { claimInstall, releaseInstall } from '../src/install-lock.js';
+import { LOCK_TTL_MS, claimInstall, installHolder, releaseInstall } from '../src/install-lock.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(mcpRoot, 'dist', 'cli.js');
@@ -253,6 +253,77 @@ describe('claimInstall', () => {
     expect(claim).toBeNull();
     expect(owner()).toBe(fresh);
     expect(fs.readdirSync(runtime)).toEqual(['.installing']);
+  });
+
+  it('names the holder of a live claim, and nobody for a missing, expired or ownerless one', () => {
+    expect(installHolder(runtime)).toBeNull();
+    const claim = claimInstall(runtime)!;
+    expect(installHolder(runtime)).toBe(process.pid);
+    // Past the TTL no claim is live, whatever its pid says.
+    const old = new Date(Date.now() - LOCK_TTL_MS - 1000);
+    fs.utimesSync(stamp, old, old);
+    expect(installHolder(runtime)).toBeNull();
+    releaseInstall(claim);
+    // A stamp with no usable pid or token is a legacy date stamp: live, but naming nobody.
+    fs.writeFileSync(stamp, JSON.stringify({ pid: 'x', token: 7 }));
+    expect(installHolder(runtime)).toBeNull();
+    expect(claimInstall(runtime)).toBeNull();
+    fs.writeFileSync(stamp, 'not a stamp');
+    expect(installHolder(runtime)).toBeNull();
+    expect(claimInstall(runtime)).toBeNull();
+  });
+
+  it('cannot claim a runtime directory that cannot be created', () => {
+    const file = path.join(tmp, 'file');
+    fs.writeFileSync(file, '');
+    expect(claimInstall(path.join(file, 'runtime'))).toBeNull();
+  });
+
+  it('takes a stale claim that vanished before it could be broken', async () => {
+    fs.writeFileSync(stamp, JSON.stringify({ pid: await deadPid(), token: 'stale' }));
+    const claim = claimInstall(runtime, { beforeTake: () => fs.rmSync(stamp) });
+    expect(claim).not.toBeNull();
+    expect(JSON.parse(owner()).token).toBe(claim!.token);
+  });
+
+  it('gives up, leaving no stray file, when breaking a stale claim fails', async () => {
+    fs.writeFileSync(stamp, JSON.stringify({ pid: await deadPid(), token: 'stale' }));
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw Object.assign(new Error('cross-device'), { code: 'EXDEV' });
+    });
+    try {
+      expect(claimInstall(runtime)).toBeNull();
+    } finally {
+      rename.mockRestore();
+    }
+    // A rename that landed yet reported ENOENT: the taken file is cleaned up, nothing is claimed.
+    const real = fs.renameSync;
+    const landed = vi.spyOn(fs, 'renameSync').mockImplementationOnce((from, to) => {
+      real(from, to);
+      throw Object.assign(new Error('gone'), { code: 'ENOENT' });
+    });
+    try {
+      expect(claimInstall(runtime)).toBeNull();
+    } finally {
+      landed.mockRestore();
+    }
+    expect(fs.readdirSync(runtime)).toEqual([]);
+  });
+
+  it('drops a fresh claim it cannot put back, rather than overwrite one', async () => {
+    fs.writeFileSync(stamp, JSON.stringify({ pid: await deadPid(), token: 'stale' }));
+    const link = vi.spyOn(fs, 'linkSync').mockImplementationOnce(() => {
+      throw Object.assign(new Error('exists'), { code: 'EEXIST' });
+    });
+    try {
+      const claim = claimInstall(runtime, {
+        beforeTake: () => fs.writeFileSync(stamp, JSON.stringify({ pid: process.pid, token: 'fresh' })),
+      });
+      expect(claim).toBeNull();
+    } finally {
+      link.mockRestore();
+    }
+    expect(fs.readdirSync(runtime)).toEqual([]);
   });
 
   it('releases only its own claim', () => {

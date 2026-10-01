@@ -2,7 +2,7 @@
  * The auto-updater, against a fake npm and a fake runtime under a temp
  * EKLAVYA_HOME. Nothing here touches the network or the real ~/.eklavya.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,9 +10,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   OFFLINE_GRACE_MS,
+  compareVersions,
   readState,
   runUpdate,
   runtimeVersion,
+  startBackgroundUpdate,
   updateDue,
   updateNotice,
   writeState,
@@ -259,6 +261,169 @@ describe('runUpdate', () => {
     const result = await runUpdate({ background: false });
     expect(result.status).toBe('failed');
     expect(runtimeVersion()).toBe('1.0.0');
+  });
+});
+
+/** Polls for `check`, up to two seconds: for what a detached child writes. */
+async function eventually(check: () => boolean): Promise<boolean> {
+  for (let i = 0; i < 40 && !check(); i++) await new Promise((r) => setTimeout(r, 50));
+  return check();
+}
+
+describe('runUpdate, the paths that fail', () => {
+  it('names a missing npm', async () => {
+    fakeRuntime('1.0.0');
+    process.env.PATH = bin;
+    expect(await runUpdate({ background: false })).toEqual({ status: 'failed', error: 'npm not found on PATH' });
+    expect(readState().error_class).toBe('npm');
+  });
+
+  it('says "unknown error" when npm view prints nothing at all', async () => {
+    fakeRuntime('1.0.0');
+    fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    expect(await runUpdate({ background: false })).toEqual({
+      status: 'failed',
+      error: 'npm view returned no version: unknown error',
+    });
+  });
+
+  it('classes an install that could not even start by its reason', async () => {
+    fakeNpm('1.2.0');
+    // `view` answers, then takes its own execute bit away, so `install` cannot spawn.
+    const npmPath = path.join(bin, 'npm');
+    fs.writeFileSync(npmPath, fs.readFileSync(npmPath, 'utf8').replace('view) echo 1.2.0', `view) /bin/chmod -x "$0"; echo 1.2.0`));
+    // Only the fake on PATH: a lookup that skips it must not reach a real npm.
+    process.env.PATH = bin;
+    const result = await runUpdate({ background: false });
+    expect(result.status).toBe('failed');
+    expect(result.status === 'failed' && result.error).toMatch(/^npm install failed: /);
+  });
+
+  it('classes a network failure during install as network', async () => {
+    fakeRuntime('1.0.0');
+    fakeNpm('1.2.0', { cmd: 'install', stderr: 'npm error code ECONNRESET' });
+    expect((await runUpdate({ background: false })).status).toBe('failed');
+    expect(readState().error_class).toBe('network');
+  });
+
+  it('fails when npm install reported success but left no runtime', async () => {
+    fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\n[ "$1" = view ] && echo 1.2.0\nexit 0\n', { mode: 0o755 });
+    const lines: string[] = [];
+    const result = await runUpdate({ background: false, say: (l) => lines.push(l) });
+    expect(result).toEqual({ status: 'failed', error: 'the runtime is missing after npm install' });
+    expect(lines[0]).toBe('latest 1.2.0, runtime not installed');
+  });
+
+  it('records a failure that is not an update error as an install failure, whatever was thrown', async () => {
+    fakeRuntime('1.0.0');
+    fakeNpm('1.0.0');
+    expect(
+      await runUpdate({
+        background: false,
+        say: () => {
+          throw new Error('say broke');
+        },
+      }),
+    ).toEqual({ status: 'failed', error: 'say broke' });
+    expect(readState().error_class).toBe('install');
+    expect(
+      await runUpdate({
+        background: false,
+        say: () => {
+          throw 'plain string';
+        },
+      }),
+    ).toEqual({ status: 'failed', error: 'plain string' });
+    expect(fs.existsSync(path.join(home, 'runtime', '.installing'))).toBe(false);
+  });
+
+  it('logs a background run, and carries on when the log cannot be written', async () => {
+    fakeRuntime('1.0.0');
+    fakeNpm('1.2.0');
+    expect(await runUpdate({ background: true })).toMatchObject({ status: 'updated', to: '1.2.0' });
+    const logged = fs.readFileSync(path.join(home, 'update.log'), 'utf8');
+    expect(logged).toMatch(/eklavya update\nlatest 1\.2\.0, runtime 1\.0\.0\n/);
+    expect(logged).toContain('fake runtime 1.2.0');
+
+    writeState({ checked_at: undefined });
+    fs.rmSync(path.join(home, 'update.log'));
+    fs.mkdirSync(path.join(home, 'update.log'));
+    fakeNpm('1.3.0');
+    expect(await runUpdate({ background: true })).toMatchObject({ status: 'updated', to: '1.3.0' });
+  });
+
+  it('restarts a dashboard it stopped for the install, on the new runtime', async () => {
+    const { spawn } = await import('node:child_process');
+    const net = await import('node:net');
+    const port = await new Promise<number>((resolve) => {
+      const s = net.createServer().listen(0, '127.0.0.1', () => {
+        const p = (s.address() as { port: number }).port;
+        s.close(() => resolve(p));
+      });
+    });
+    const savedPort = process.env.EKLAVYA_DASHBOARD_PORT;
+    process.env.EKLAVYA_DASHBOARD_PORT = String(port);
+    const src = `require('http').createServer((q, r) => r.end(JSON.stringify({ app: 'eklavya', version: '0.0.1', pid: process.pid, db: 'x' })))
+      .listen(${port}, '127.0.0.1', () => console.log('up'));`;
+    const dash = spawn(process.execPath, ['-e', src], { stdio: ['ignore', 'pipe', 'ignore'] });
+    try {
+      await new Promise((r) => dash.stdout!.once('data', r));
+      fakeRuntime('1.0.0');
+      fakeNpm('1.2.0');
+      expect(await runUpdate({ background: false })).toMatchObject({ status: 'updated', to: '1.2.0' });
+      expect(await eventually(() => ran().includes('dashboard --serve'))).toBe(true);
+    } finally {
+      dash.kill('SIGKILL');
+      if (savedPort === undefined) delete process.env.EKLAVYA_DASHBOARD_PORT;
+      else process.env.EKLAVYA_DASHBOARD_PORT = savedPort;
+    }
+  });
+});
+
+describe('the small state helpers', () => {
+  it('reads a runtime without a version, and a state file that is not an object, as nothing', () => {
+    const pkg = path.join(home, 'runtime', 'node_modules', 'eklavya');
+    fs.mkdirSync(pkg, { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'package.json'), '{}');
+    expect(runtimeVersion()).toBeNull();
+    fs.writeFileSync(path.join(home, 'update.json'), 'null');
+    expect(readState()).toEqual({});
+  });
+
+  it('never throws when the state cannot be written', () => {
+    const file = path.join(home, 'a-file');
+    fs.writeFileSync(file, '');
+    process.env.EKLAVYA_HOME = file;
+    expect(() => writeState({ latest: '1.0.0' })).not.toThrow();
+  });
+
+  it('compares versions of different lengths, ignoring a prerelease tag', () => {
+    expect(compareVersions('1.2', '1.2.0')).toBe(0);
+    expect(compareVersions('1.2.1', '1.2')).toBe(1);
+    expect(compareVersions('1.2.0-beta.1', '1.3')).toBe(-1);
+  });
+});
+
+describe('startBackgroundUpdate', () => {
+  it('starts `update --background` from the runtime when one is due, and nothing when not', async () => {
+    startBackgroundUpdate();
+    expect(fs.existsSync(path.join(home, 'ran'))).toBe(false);
+    fakeRuntime('1.0.0');
+    startBackgroundUpdate();
+    expect(await eventually(() => ran() === 'update --background\n')).toBe(true);
+  });
+
+  it('swallows a failure to start', () => {
+    fakeRuntime('1.0.0');
+    const mkdir = vi.spyOn(fs, 'mkdirSync').mockImplementationOnce(() => {
+      throw new Error('disk full');
+    });
+    try {
+      expect(() => startBackgroundUpdate()).not.toThrow();
+    } finally {
+      mkdir.mockRestore();
+    }
+    expect(fs.existsSync(path.join(home, 'ran'))).toBe(false);
   });
 });
 

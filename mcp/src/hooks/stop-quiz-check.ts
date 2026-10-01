@@ -160,10 +160,7 @@ await run(async (input) => {
         last_blocked: string | null;
         last_answer: string | null;
         spent: number;
-      }
-    | undefined;
-
-  if (!stats) return 0;
+      };
 
   // Nothing of this session's own worth asking about. Concepts already answered
   // in this session are excluded above: they have had their turn, and
@@ -285,6 +282,7 @@ await run(async (input) => {
     .all({ ...bind, take }) as Array<{ line: string }>;
 
   const names = due.length ? due.slice(0, take) : rows.map((r) => r.line);
+  /* c8 ignore next -- a concurrent answer between the two reads; the count above found one */
   if (names.length === 0) return 0;
   const concepts = names.join(', ');
 

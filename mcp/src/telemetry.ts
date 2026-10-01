@@ -94,9 +94,11 @@ export function disabledReason(): string | null {
   if (truthy(process.env.DO_NOT_TRACK)) return 'DO_NOT_TRACK is set';
   try {
     if (!loadGlobalConfig().telemetry) return 'telemetry is false';
+  /* c8 ignore start -- loadGlobalConfig reads a bad file as defaults and does not throw; defensive */
   } catch {
     /* an unreadable config keeps the default */
   }
+  /* c8 ignore stop */
   return null;
 }
 
@@ -151,9 +153,11 @@ export function telemetryNotice(): string | null {
     // Only where a ping can go out: a checkout or CI has nothing to announce.
     if (disabledReason() || !canSend() || readState().announced_at) return null;
     return 'Eklavya now sends anonymous daily usage counts, never code, paths or text · turn off: eklavya telemetry off';
+  /* c8 ignore start -- every call above swallows its own errors; defensive for a hook */
   } catch {
     return null;
   }
+  /* c8 ignore stop */
 }
 
 export function markTelemetryAnnounced(now = Date.now()): void {

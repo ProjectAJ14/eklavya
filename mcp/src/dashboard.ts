@@ -131,8 +131,7 @@ interface ConceptRow {
 const parseTs = (s: string): number =>
   Date.parse(/([zZ]|[+-]\d\d:?\d\d)$/.test(s) ? s : s.replace(' ', 'T') + 'Z');
 
-const days = (from: string | null, now: Date): number | null => {
-  if (from === null) return null;
+const days = (from: string, now: Date): number | null => {
   const t = parseTs(from);
   return Number.isFinite(t) ? Math.floor((now.getTime() - t) / MS_PER_DAY) : null;
 };
@@ -878,7 +877,8 @@ export function dashboardState(db: DB): Record<string, unknown> {
       mastered,
       owed,
       due,
-      overdue_days: due ? days(row.next_review, now) : null,
+      // `due` implies a parseable `next_review` (`isDue`), so it is never null here.
+      overdue_days: due ? days(row.next_review!, now) : null,
       next_review: row.next_review,
       last_seen: row.last_seen,
       first_asked: row.first_asked,
@@ -1453,6 +1453,9 @@ export function startDashboard(
       chunks.push(c);
     });
     req.on('end', () => {
+      // The 413 above destroys the request once it is sent, so this end only
+      // arrives first when the socket is backed up.
+      /* c8 ignore next -- needs socket backpressure to order 'end' before 'finish' */
       if (res.headersSent) return;
       let body: unknown;
       try {
@@ -1479,6 +1482,7 @@ export function startDashboard(
     if (!fromLoopback(req.headers.host, req.headers.origin)) {
       return send(res, 403, 'text/plain', 'Eklavya serves loopback only.\n');
     }
+    /* c8 ignore next -- a server-side request always carries its url; the fallback is for the type */
     const url = new URL(req.url ?? '/', `http://${host}`);
     // One route writes: a setting, through the same `applySetting` the CLI
     // uses. Everything else reads, and any other method is refused rather
@@ -1600,6 +1604,7 @@ export function startDashboard(
     });
     server.on('listening', () => {
       const addr = server.address();
+      /* c8 ignore next -- a TCP listener's address() is always an object; a string is a pipe */
       const port = typeof addr === 'object' && addr ? addr.port : wanted;
       resolve({ url: `http://${host}:${port}`, close: () => server.close() });
     });

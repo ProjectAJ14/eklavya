@@ -93,24 +93,22 @@ function bodyFor(input: HookInput, failed: boolean): string {
     // JSON for anything that is not a string: `String()` of an object is
     // "[object Object]", which is how every AskUserQuestion was remembered as
     // `questions=[object Object] answers=[object Object]`.
-    const text = (v: unknown) => (typeof v === 'string' ? v : (JSON.stringify(v) ?? String(v)));
+    const text = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v));
     if (keys.length) parts.push(keys.map((k) => `${k}=${clip(text(toolInput[k]), 200)}`).join(' '));
   }
   if (failed) parts.push(clip(String(errorText(input.tool_response)), 800));
   else {
-    const result = excerpt(input.tool_name ?? '', input.tool_response);
+    const result = excerpt(input.tool_name!, input.tool_response);
     if (result) parts.push(`→ ${result}`);
   }
   return parts.join('\n');
 }
 
+/** Only called once `failed` has seen an object. */
 function errorText(response: unknown): string {
-  if (typeof response === 'string') return response;
-  if (response && typeof response === 'object') {
-    const r = response as Record<string, unknown>;
-    if (typeof r.error === 'string') return r.error;
-    if (typeof r.stderr === 'string') return r.stderr;
-  }
+  const r = response as Record<string, unknown>;
+  if (typeof r.error === 'string') return r.error;
+  if (typeof r.stderr === 'string') return r.stderr;
   return '';
 }
 

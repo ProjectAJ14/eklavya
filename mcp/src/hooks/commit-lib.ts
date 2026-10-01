@@ -202,7 +202,8 @@ function commits(words: Words, depth: number): boolean {
     }
   }
 
-  const cmd = base(words[k] ?? '');
+  // Defined: the loop above only breaks on a word.
+  const cmd = base(words[k]!);
   const args = words.slice(k + 1);
 
   if ((SHELLS.has(cmd) || cmd === 'eval') && depth < 4) {

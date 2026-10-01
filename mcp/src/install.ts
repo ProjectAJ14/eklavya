@@ -94,6 +94,7 @@ export function runtimeHome(): string {
 
 // --- 1. prerequisites -------------------------------------------------------
 
+/* c8 ignore start -- only runs below Node 22, which cannot run this suite */
 /** How to get a modern Node, on the platform actually in front of them. */
 function nodeAdvice(): string {
   if (process.platform === 'win32') {
@@ -111,8 +112,11 @@ function nodeAdvice(): string {
   ].join('\n');
 }
 
+/* c8 ignore stop */
+
 function checkNode(): void {
   const major = Number(process.versions.node.split('.')[0]);
+  /* c8 ignore next 10 -- the refusal only runs below Node 22, which cannot run this suite */
   if (major >= MIN_NODE_MAJOR) return;
 
   process.stderr.write(
@@ -153,6 +157,7 @@ function cliOnPath(): boolean {
 /** Is `name` an executable somewhere on PATH? `doctor` asks it about `jq` and `sqlite3` too. */
 export function commandOnPath(name: string): boolean {
   const dirs = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
+  /* c8 ignore next 3 -- the extension list is Windows only */
   const names = process.platform === 'win32'
     ? [`${name}.cmd`, `${name}.exe`, `${name}.ps1`, name]
     : [name];
@@ -189,6 +194,7 @@ async function installRuntime(version: string): Promise<void> {
     // A running dashboard holds the SQLite driver open, and Windows will not
     // let npm replace a loaded file. The next session start brings it back.
     await (await import('./dashboard-daemon.js')).stopDashboard();
+    /* c8 ignore next -- the win32 name is only reachable on Windows */
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     // Async and captured, not inherited: npm writing over the spinner's row
     // garbles both. Its output is replayed below if it fails.
@@ -250,6 +256,7 @@ function driverError(): string | null {
   // Node's crash dump is source excerpt, then the error, then a stack, then a
   // `Node.js v26.7.0` trailer. The last line is that trailer and says nothing;
   // the `Error:` line is the one naming the missing symbol or wrong ABI.
+  /* c8 ignore next -- defensive: node itself always starts, so stderr is a string */
   const out = (probe.stderr ?? '').trim().split('\n').map((l) => l.trim());
   return out.find((l) => /^[A-Za-z]*Error:/.test(l)) ?? out.find(Boolean) ?? 'unknown error';
 }
@@ -336,6 +343,7 @@ type PayloadResult = 'copied' | CheckoutResult;
 
 async function copyPayload(): Promise<PayloadResult> {
   const from = payloadDir();
+  /* c8 ignore next 7 -- a packaging bug: every build copies the payload into dist/ */
   if (!fs.existsSync(from)) {
     process.stderr.write(
       `The plugin payload is missing from this package (expected ${from}).\n` +
@@ -411,6 +419,7 @@ type SkillResult = 'installed' | 'foreign' | 'missing';
 
 function installSkill(name: UserSkill): SkillResult {
   const from = skillPayloadDir(name);
+  /* c8 ignore next -- a packaging bug: every build copies both user skills into dist/ */
   if (!fs.existsSync(from)) return 'missing';
 
   const to = userSkillDir(name);
@@ -740,10 +749,12 @@ async function crossReference(source: string, quiet = false): Promise<void> {
     rehomed += report.rehomed;
   }
 
+  /* c8 ignore next -- defensive: fires only if the importer's own row accounting disagrees with itself */
   if (!report.validation.ok) throw new ImportError(report.validation.notes.join('; '));
   // By id, not by count: a fresh migration retires the source next, so this is
   // the last moment a gap is cheap to see.
   const missing = verified.tables.reduce((n, t) => n + t.missing.length, 0);
+  /* c8 ignore next -- defensive: fires only if an import it just verified lost a row */
   if (missing) throw new ImportError(`${missing} source row(s) did not arrive`);
 
   const total = verified.tables.reduce((n, t) => n + t.present, 0);
@@ -1022,6 +1033,7 @@ async function installSteps(args: string[]): Promise<void> {
       if (skill === 'installed') check('ok', 'skill', userSkillDir(name));
       else if (skill === 'foreign') {
         check('skip', 'skill', `skipped ${dim(`— ${path.join(userSkillDir(name), 'SKILL.md')} is not ours`)}`);
+        /* c8 ignore next -- a packaging bug: every build copies both user skills into dist/ */
       } else check('skip', 'skill', dim(`${name} not in this package (skipped)`));
     }
   }

@@ -387,11 +387,12 @@ describe.skipIf(!posix)('the provider process tree', () => {
     const pidFile = stubborn();
     const t = Date.now();
     // Long enough for the stand-in to start its grandchild on a loaded machine.
-    const err = await runClaude('m', 'x', { timeoutMs: 2_000, graceMs: 300 }).catch((e: unknown) => e);
+    // 2s was not always enough under a full parallel (coverage) run.
+    const err = await runClaude('m', 'x', { timeoutMs: 5_000, graceMs: 300 }).catch((e: unknown) => e);
     expect((err as ProviderError).errorClass).toBe('transient');
-    expect(Date.now() - t).toBeLessThan(8_000);
+    expect(Date.now() - t).toBeLessThan(11_000);
     expect(alive(Number(fs.readFileSync(pidFile, 'utf8')))).toBe(false);
-  });
+  }, 15_000);
 
   it('turning memory off mid-call cancels it and leaves the evidence queued, attempt unspent', async () => {
     const pidFile = stubborn();

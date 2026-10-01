@@ -38,6 +38,7 @@ function spooledBytes(file: string): number {
   const dir = path.dirname(file);
   const base = path.basename(file);
   let total = 0;
+  /* c8 ignore next -- the only caller mkdirs `dir` first; the missing-dir arm is defensive */
   for (const name of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
     if (name === base || name.startsWith(`${base}${TAKING}`) || name.startsWith(`${base}${LEGACY_TAKING}`)) {
       try {

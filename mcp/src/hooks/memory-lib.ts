@@ -192,6 +192,7 @@ function shortDate(iso: string): string {
 export function replaySpool(db: DB): void {
   try {
     drainSpool(db);
+    /* c8 ignore next 3 -- drainSpool swallows every failure it can meet; defensive */
   } catch {
     /* The spool keeps what it could not replay. */
   }

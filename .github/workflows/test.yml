@@ -45,8 +45,9 @@ jobs:
           cache: npm
           cache-dependency-path: mcp/package-lock.json
 
-      # `npm test` has a `pretest` that builds, so there is no separate build
-      # step: tsc and copy-assets run first, then vitest over mcp/test/.
+      # `npm run coverage` builds, then runs vitest over mcp/test/ under c8,
+      # which also counts the hooks and CLI the suites spawn from dist/. It
+      # fails below the thresholds in mcp/.c8rc.json (100% on every metric).
       - name: Install and test the server
         working-directory: mcp
         run: |
@@ -54,7 +55,28 @@ jobs:
           # The dashboard's browser suite drives a real Chromium, and fails rather
           # than skips on CI when there is none -- a skipped suite is a green one.
           npx playwright-core install --with-deps chromium
-          npm test
+          npm run coverage
+
+      # The per-file table on the run page, and the HTML report to download
+      # when a line is uncovered.
+      - name: Coverage summary
+        if: always()
+        working-directory: mcp
+        run: |
+          {
+            echo '```'
+            npx c8 report --reporter=text | grep -v '|     100 |      100 |     100 |     100 |'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          # Not tmp/: the raw per-process V8 dumps run to hundreds of MB.
+          path: |
+            mcp/coverage/
+            !mcp/coverage/tmp/
+          retention-days: 7
 
   # A PR that changes product code must also change the manual, the landing
   # page and a README. The script's header lists what counts as product code.

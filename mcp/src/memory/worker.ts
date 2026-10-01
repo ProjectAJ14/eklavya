@@ -517,6 +517,7 @@ export async function superviseWorker(
 
   // Descendants outlived SIGKILL: keep the slot, so no other worker starts
   // beside them. The record names the group; recovery can see and end it.
+  /* c8 ignore next -- needs a provider tree that survives SIGKILL, which no test can make on demand */
   if (child !== null) return { ...result, handedOff: false, released: false };
 
   // A stop that landed after the last job — SIGTERM, Ctrl-C, a closed

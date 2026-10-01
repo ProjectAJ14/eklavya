@@ -80,6 +80,17 @@ describe('the always-on dashboard', () => {
     expect(await daemon.ensureDashboard()).toBe('running');
   }, 15_000);
 
+  it('calls an oversized health answer foreign instead of waiting on it forever', async () => {
+    const big = await freePort();
+    const server = http.createServer((_q, r) => r.end('x'.repeat(5000)));
+    await new Promise<void>((r) => server.listen(big, '127.0.0.1', () => r()));
+    try {
+      expect(await daemon.probeDashboard(big, 2000)).toEqual({ kind: 'foreign' });
+    } finally {
+      server.close();
+    }
+  });
+
   it("leaves another database's dashboard and a foreign server alone", async () => {
     const other = await fakeDashboard(port, '0.0.1', path.join(home, 'someone-else.db'));
     children.push(other);
@@ -115,6 +126,44 @@ describe('the always-on dashboard', () => {
     expect(cli('stop').stdout).toMatch(/Stopped the dashboard/);
     expect(cli('stop').stdout).toMatch(/No Eklavya dashboard was running/);
   }, 20_000);
+
+  it('fails instead of throwing when the home cannot hold its log', async () => {
+    const file = path.join(home, 'not-a-dir');
+    fs.writeFileSync(file, '');
+    process.env.EKLAVYA_HOME = file;
+    expect(daemon.spawnDashboard()).toBe(false);
+    expect(await daemon.ensureDashboard()).toBe('failed');
+    expect(await daemon.waitForDashboard(100, port)).toBe(false);
+  });
+
+  it('reports failure when the dashboard names a pid that cannot be signalled', async () => {
+    const bogus = http.createServer((_q, r) =>
+      r.end(JSON.stringify({ app: 'eklavya', version: '0.0.1', pid: 2 ** 30, db: process.env.EKLAVYA_DB })),
+    );
+    await new Promise<void>((r) => bogus.listen(port, '127.0.0.1', () => r()));
+    try {
+      expect(await daemon.stopDashboard(port)).toBe(false);
+      expect(await daemon.ensureDashboard()).toBe('failed');
+    } finally {
+      bogus.close();
+    }
+  });
+
+  it('gives up after two seconds on a dashboard that ignores SIGTERM', async () => {
+    const src = `process.on('SIGTERM', () => {});
+      require('http').createServer((q, r) => r.end(JSON.stringify({ app: 'eklavya', version: '0.0.1', pid: process.pid, db: 'x' })))
+      .listen(${port}, '127.0.0.1', () => console.log('up'));`;
+    const stubborn = spawn(process.execPath, ['-e', src], { stdio: ['ignore', 'pipe', 'ignore'] });
+    await new Promise((r) => stubborn.stdout!.once('data', r));
+    try {
+      expect(await daemon.stopDashboard(port)).toBe(false);
+      expect(stubborn.exitCode).toBeNull();
+    } finally {
+      const exited = new Promise((r) => stubborn.once('exit', r));
+      stubborn.kill('SIGKILL');
+      await exited;
+    }
+  }, 10_000);
 
   it('SessionStart starts it outside a test run, and never inside one', async () => {
     const hook = path.join(mcpRoot, 'dist', 'hooks', 'session-start.js');

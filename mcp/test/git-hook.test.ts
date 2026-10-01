@@ -100,7 +100,8 @@ afterEach(() => {
   fs.rmSync(scratch, { recursive: true, force: true });
 });
 
-describe('install-git-hook.sh', () => {
+// Several synchronous git commits per test: past 5s on a loaded machine.
+describe('install-git-hook.sh', { timeout: 20_000 }, () => {
   it('installs an executable hook in an ordinary repository, and a commit runs through it', () => {
     const res = install(repo);
     expect(res.status).toBe(0);

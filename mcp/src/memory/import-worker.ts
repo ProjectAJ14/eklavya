@@ -58,6 +58,7 @@ export function importOffThread(job: Job): Promise<OffThreadResult> {
     });
     worker.once('error', reject);
     worker.once('exit', (code) => {
+      /* c8 ignore next -- a non-zero exit needs the thread to die outside its own try (OOM, terminated); not reproducible in a test */
       if (code !== 0) reject(new Error(`import worker exited with code ${code}`));
     });
   });

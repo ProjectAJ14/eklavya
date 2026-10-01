@@ -421,6 +421,7 @@ async function keepDashboard(): Promise<DashboardState> {
     }
     // 150ms: refused is instant, and a silent port is not waited on.
     return (await probeDashboard()).kind === 'down' ? 'down' : 'live';
+    /* c8 ignore next 3 -- unreachable: every call above fails open on its own */
   } catch {
     return 'down';
   }
