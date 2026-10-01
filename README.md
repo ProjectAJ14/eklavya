@@ -118,7 +118,8 @@ questions off and keep memory on.
 | `difficulty` | `auto`: grows with you | `easy`, `medium` or `hard` |
 | `memory.enabled` | `true`: record and recall | `false`: learning only |
 
-By default Eklavya asks only in sessions that change code, up to four
+By default Eklavya asks only in sessions that change code (edit tools or
+shell commands, in this checkout or a sibling worktree), up to four
 questions per session on its own, at least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
 `eklavya config set` in a terminal, or the dashboard's Settings pages. See [the dials](https://eklavya-run.web.app/docs/dials/)
 and [every setting](https://eklavya-run.web.app/docs/configuration/).

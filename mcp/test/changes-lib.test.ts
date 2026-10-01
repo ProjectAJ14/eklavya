@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { noteEdit, recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
+import { leadingCd, noteBashEdit, noteEdit, recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
 import { openDb, type DB } from '../src/db.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
@@ -180,6 +180,62 @@ describe('sessionChangedCode', () => {
     }
   });
 
+  it('counts a Bash edit in the tree a leading cd names, and nothing before the session began', () => {
+    const sibling = `${repo}-worktrees/feat`;
+    git('worktree', 'add', '-q', '-b', 'feat', sibling);
+    try {
+      // Dirty before the session, and untouched since: not this session's work.
+      fs.writeFileSync(path.join(sibling, 'old.ts'), 'o\n');
+      const past = Date.now() / 1000 - 60;
+      fs.utimesSync(path.join(sibling, 'old.ts'), past, past);
+      recordBaseline(db, 's1', repo);
+      recordBaseline(db, 's2', repo);
+      noteBashEdit(db, 's1', repo, `cd ${sibling} && git status`);
+      expect(sessionChangedCode(db, 's1', repo)).toBe(false);
+      // No leading cd: the session's own tree, which the fingerprint covers.
+      fs.writeFileSync(path.join(sibling, 'b.ts'), 'b\n');
+      noteBashEdit(db, 's1', repo, `sed -i '' s/a/b/ ${sibling}/b.ts`);
+      expect(sessionChangedCode(db, 's1', repo)).toBe(false);
+      noteBashEdit(db, 's1', repo, `cd "${sibling}"; sed -i '' s/a/b/ b.ts`);
+      expect(sessionChangedCode(db, 's1', repo)).toBe(true);
+      expect(sessionChangedCode(db, 's2', repo)).toBe(false);
+    } finally {
+      fs.rmSync(`${repo}-worktrees`, { recursive: true, force: true });
+    }
+  });
+
+  it('does not count a deletion there, which has no mtime to date it, and stops looking once marked', () => {
+    const sibling = `${repo}-worktrees/feat`;
+    git('worktree', 'add', '-q', '-b', 'feat', sibling);
+    try {
+      recordBaseline(db, 's1', repo);
+      fs.rmSync(path.join(sibling, 'a.ts'));
+      noteBashEdit(db, 's1', repo, `cd ${sibling} && rm a.ts`);
+      expect(sessionChangedCode(db, 's1', repo)).toBe(false);
+      fs.writeFileSync(path.join(sibling, 'b.ts'), 'b\n');
+      noteBashEdit(db, 's1', repo, `cd ${sibling} && true`);
+      noteBashEdit(db, 's1', repo, `cd ${sibling} && true`);
+      expect(sessionChangedCode(db, 's1', repo)).toBe(true);
+    } finally {
+      fs.rmSync(`${repo}-worktrees`, { recursive: true, force: true });
+    }
+  });
+
+  it('marks nothing from a Bash edit without a baseline, or outside any tree', () => {
+    const plain = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-plain-')));
+    try {
+      edit();
+      noteBashEdit(db, 's1', repo, `cd ${repo} && true`);
+      recordBaseline(db, 's2', repo);
+      fs.writeFileSync(path.join(plain, 'x.ts'), 'x\n');
+      noteBashEdit(db, 's2', repo, `cd ${plain} && true`);
+      noteBashEdit(db, 's2', repo, 'cd $HOME && true');
+      expect(db.prepare(`SELECT count(*) AS n FROM meta WHERE key LIKE 'code_edit:%'`).get()).toEqual({ n: 0 });
+    } finally {
+      fs.rmSync(plain, { recursive: true, force: true });
+    }
+  });
+
   it('does not count research writes outside any tree, or ignored files', () => {
     const notes = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-notes-')));
     try {
@@ -262,5 +318,15 @@ describe('sessionChangedCode', () => {
       (r) => r.key,
     );
     expect(keys).toEqual(['tree_fp:s1']);
+  });
+});
+
+describe('leadingCd', () => {
+  it('follows only a leading cd, resolving it against cwd and home', () => {
+    expect(leadingCd('cd ../wt && ls', '/r/main')).toBe('/r/wt');
+    expect(leadingCd("cd '/a b'; ls", '/r')).toBe('/a b');
+    expect(leadingCd('cd ~/x', '/r')).toBe(path.join(os.homedir(), 'x'));
+    expect(leadingCd('ls && cd /a', '/r')).toBeNull();
+    expect(leadingCd('cd $DIR && ls', '/r')).toBeNull();
   });
 });
