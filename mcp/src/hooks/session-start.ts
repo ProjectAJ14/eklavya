@@ -11,6 +11,7 @@ import { isSessionOff, setCurrentSession } from '../session.js';
 import { levelStanding, pruneUnasked } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
 import { recordBaseline } from './changes-lib.js';
+import { sessionBlock } from './delegation-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
 import { flushAtSeam, identityOf, memoryHealthLine, recallBlock, record, replaySpool } from './memory-lib.js';
 import { startupDisplay, type RecallResult } from '../memory/recall.js';
@@ -53,20 +54,8 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
  * applied to the task itself. The parent asks because a delegate cannot — it
  * has no AskUserQuestion and nobody reads its transcript — and the agent's
  * report arriving last is what keeps the task answer at the bottom of the chat.
- * Starting the agent before logging matters: the log call is what fires the
- * first checkpoint, and by then the work is already under way.
+ * The wording is shared with the prompt and second-file nudges (`delegation-lib.ts`).
  */
-const DELEGATE = `[Eklavya] Delegation is on for this session (delegate_work):
-  - For a non-trivial code change (several files, or research before editing), plan it, then hand
-    the building to one or more agents run in the background, each with a self-contained brief.
-    Keep file dumps and edits out of this conversation; take back a short report.
-  - Once they are running, log the concepts the plan uses, then ask questions while they work:
-    get_session_quiz_plan with while_waiting: true, AskUserQuestion, record_attempt, verdict.
-    One at a time; stop when an agent reports or questions_needed is 0 (budget spent, or the
-    end cadence, which saves questions for the end of the task).
-  - When the report arrives, check it and write the task answer as your last message.
-  - Questions, one-line fixes and quick lookups: do them yourself. If agents cannot run in the
-    background here, work inline as usual.`;
 
 /**
  * The auto-updater's one line, if it has one: "updated to X" once, or "can't
@@ -285,7 +274,7 @@ await run(async (input) => {
   // is what to do about it.
   context.push(...memoryContext);
   context.push(withSurfaceNote(DIRECTIVE));
-  if (resolved.config.delegate_work) context.push(DELEGATE);
+  if (resolved.config.delegate_work) context.push(sessionBlock(resolved.config.cadence));
   return emit(shown, context);
 });
 

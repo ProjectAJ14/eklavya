@@ -293,7 +293,12 @@ describe('recall mid-session, on a change of subject', () => {
     if (!stdout.trim().startsWith('{')) return null;
     try {
       const parsed = JSON.parse(stdout) as { hookSpecificOutput?: { additionalContext?: string } };
-      return parsed.hookSpecificOutput?.additionalContext ?? null;
+      // The delegation line shares the envelope; this suite is about recall.
+      const recall = (parsed.hookSpecificOutput?.additionalContext ?? '')
+        .split('\n')
+        .filter((line) => !line.startsWith('[Eklavya] If this asks for a code change'))
+        .join('\n');
+      return recall || null;
     } catch {
       return null;
     }

@@ -17,6 +17,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Retrieval quality | `node eval/retrieval-harness.mjs` | None |
 | Memory performance | `node eval/memory-perf.mjs` | None |
 | Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
+| Whether sessions delegate building and ask while it runs | `node eval/delegation-harness.mjs run --plugin <checkout> --label <name>` | Whole Claude Code sessions |
 
 Replace `<run>` with a saved run directory. Model-based stages use the configured
 Claude command and can incur usage. These harnesses do not run in CI. Before
@@ -641,9 +642,78 @@ is not a baseline; it is a shape you chose.
 
 </details>
 
+## The delegation eval
+
+`eval/delegation-harness.mjs` measures a whole session, because delegation is a
+choice the model makes across many turns, after hook context arrives. It runs real
+`claude` sessions against a scratch repository built from
+`fixtures/delegation/project/`, a small Node CLI with a four-stage `HANDOFF.md`.
+It then reads the tool calls back from the stream and checks the branch the
+session built.
+
+```bash
+cd mcp && npm run build && cd ..
+node eval/delegation-harness.mjs run --plugin "$PWD" --label candidate --trials 4 --out /tmp/deleg-candidate
+node eval/delegation-harness.mjs score /tmp/deleg-candidate     # free; writes score.json
+```
+
+Each trial gets a bare `origin`, a main checkout cloned from it and, for most
+scenarios, a sibling worktree on `task`. The session always starts in the main
+checkout, as in the workflow it models. `worktree-flow` makes no worktree
+up front: the session creates one with the developer's `worktree-session` skill,
+copied in as a project skill (`--worktree-skill <dir>`, default
+`~/.claude/skills/worktree-session`). When that directory has no `SKILL.md`, the
+session has to use `git worktree add`, and `run.json` records which.
+
+| Scenario | Prompt | Expected |
+|---|---|---|
+| `open` | An open-ended `compare` command with tests and docs | A background builder |
+| `staged` | The handoff, with the staged rules a design-handoff workflow writes | A background builder, one stage at a time |
+| `worktree-flow` | Create a worktree with the skill, then the handoff | The same, in the new worktree |
+| `docs` | A design doc and an HTML mockup, no code | No builder |
+| `tiny` | Rename one function across two files | No builder |
+| `inline` | The handoff, plus "do the implementation yourself" | No builder |
+| `nobg` | The handoff, with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` | No background builder, and a visible reason |
+
+**Isolation.** `--setting-sources project,local` and exactly one `--plugin-dir`
+keep the developer's own plugins and hooks out (the contamination trap above);
+`ENABLE_CLAUDEAI_MCP_SERVERS=false` keeps claude.ai connectors out. A fresh
+`EKLAVYA_HOME` per trial has its database created before the session, because
+SessionStart says nothing on a first-ever start and would drop the instructions
+under test. Memory, updates, telemetry and the dashboard are off there. `score`
+marks a trial invalid unless the stream's init event lists exactly one
+non-builtin plugin, the session ended inside the timeout and no result reported an
+error. A usage or spend limit ends a session with an error result, often seconds in.
+
+**Questions.** `--print` removes AskUserQuestion, so sessions run over
+`--input-format stream-json` with `--permission-prompt-tool stdio`, and the
+harness answers every question with its first option. Without an answer the host
+reports "The user did not answer", the model records a skip and no verdict can
+be observed.
+
+**What counts as delegation.** A parent `Agent`/`Task` call with
+`run_in_background: true` whose subagent then wrote at least one file. An agent
+with no writes (a reviewer, for example) never counts. Neither does an Explore,
+Plan, `claude-code-guide`, `statusline-setup`, tutor or explainer agent, or a
+launch on its own. `score.json` carries the definition of
+every metric next to the numbers. Parent writes and the fallback text are word and
+command heuristics, so `score.json` keeps raw counts and the first parent text of
+each trial for reading.
+
+**Freeze the harness.** Run both arms with the same copy of `eval/`: the
+fixture and the scorer are part of the measurement.
+
+**What would disprove a result.** The model varies from trial to trial, so a
+rate needs several trials per arm; four is the minimum used here. A candidate
+that wins on `staged` while `docs`, `tiny` or `inline` start growing builders has
+traded one failure for another. The fixture is small next to the live sessions
+that motivated it, so a session's judgement that it is small enough to do inline
+is not always wrong here.
+
 ## Not built yet
 
-The board lists four harnesses. Three are built.
+The board lists four harnesses. Three are built. The delegation eval above
+is a whole-session harness of the kind described below, scoped to delegation.
 
 - **Loop behaviour** — headless `claude -p` against a pinned public repo,
   asserting one checkpoint per task, exactly one question, and the work resuming

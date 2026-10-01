@@ -1,26 +1,39 @@
 /**
- * PostToolUse (edit tools and Bash): the moment a change turns out to span
- * files, say "delegate the rest" -- once.
+ * PostToolUse (edit tools, Bash and Agent): the moment a change turns out to
+ * span files, say "delegate the rest" -- once, and never after the parent has
+ * already delegated.
  *
  * The session-start `DELEGATE` block asks for the same thing, and in eleven live
  * sessions on 1.40 it was followed zero times: changes of 8, 10 and 12 edits all
  * ran in the main conversation. It arrives before the task exists, and by the
- * time the model decides how to build, it is far back in context. The Stop
- * sweep, which arrives exactly when it applies, was followed every time. So this
- * is the same instruction, moved to where it applies: the main thread has just
- * changed a second distinct file, which is what "a change across several files"
- * looks like from the outside.
+ * time the model decides how to build, it is far back in context. So this is the
+ * same instruction, moved to where it applies: the main thread has just changed
+ * a second distinct file, which is what "a change across several files" looks
+ * like from the outside. The prompt hook says it first, next to the task
+ * (`prompt-submit-nudge.ts`); this is the recovery for a session that started
+ * building inline anyway.
  *
  * Two ways a file counts as changed:
  * - an edit tool wrote it (its path, from the tool input);
- * - after a Bash call, git lists it with a size or mtime that differs from the
- *   snapshot the previous Bash call left. Agents edit through heredocs and
- *   `sed -i` as often as through Edit -- a 39-call session made no Edit at all.
- *   Files already dirty at the first snapshot count only if they move again.
- *   The snapshot covers the session's own tree and the one a leading
- *   `cd <dir> &&` names, one per repository: a session started in the main
- *   checkout that works in a sibling worktree edits only there, and the
- *   session's cwd never moves (36 Bash calls in one talea session, no nudge).
+ * - after a Bash call, git lists it with an mtime inside that command's own
+ *   window: from `duration_ms` (plus a margin for the hook starting) before now.
+ *   Agents edit through heredocs and `sed -i` as often as through Edit -- a
+ *   39-call session made no Edit at all. Reading the window rather than diffing
+ *   snapshots means the first command in a tree counts, and a file someone else
+ *   changed between this session's commands -- a background builder, another
+ *   chat in the same worktree, an editor -- does not. A host that sends no
+ *   `duration_ms` gets the window since this session's previous Bash call.
+ *   The trees read are the session's own, the one a leading `cd <dir> &&`
+ *   names, and the last tree such a `cd` named: a session started in the main
+ *   checkout that works in a sibling worktree edits only there, its cwd never
+ *   moves, and after one `cd` it reaches the same tree by `git -C` and
+ *   absolute paths too.
+ *
+ * And one way to stand down for good: the parent starts an agent that is not a
+ * read-only researcher. From then on its edits are reviews and fixes around a
+ * delegation that already happened, and git in the worktree is moving because
+ * the builder is working -- the nudge firing there would ask for a second
+ * builder on top of the first.
  *
  * PostToolUse rather than PreToolUse: a failed edit never gets here, so only an
  * edit that happened counts, and the nudge lands after the tool result the model
@@ -31,29 +44,39 @@
  *   cannot start the background agents or ask the questions this asks for.
  * - Only while questions are on and `delegate_work` is true -- the same switch
  *   session-start reads for `DELEGATE`.
- * - Once per session. The state is read first, so after the nudge a Bash call
- *   costs no git. No inference; fails open.
+ * - Once per session, keyed by the session id, so a resume or a compaction keeps
+ *   it and another chat in the same project has its own. The state is read
+ *   first, so after the nudge or a delegation a Bash call costs no git. No
+ *   inference; fails open.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
-import { git, leadingCd } from './changes-lib.js';
+import { git, leadingCd, noteBuilder } from './changes-lib.js';
+import { DELEGATE_KEY_PREFIX, nudge as nudgeText } from './delegation-lib.js';
 
 const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
-const KEY_PREFIX = 'delegate_nudge:';
-/** More dirty entries than this and the Bash snapshot is skipped: the row would be large and the signal is noise. */
-const MAX_SNAPSHOT = 2000;
-/** Repositories whose snapshots are kept; the least recently touched goes first. */
-const MAX_ROOTS = 4;
+const AGENT_TOOLS = /^(Agent|Task)$/;
+/** Agents that only read: starting one is research, not handing off the build. */
+const READ_ONLY_AGENTS = /^(Explore|Plan|claude-code-guide)$|eklavya-(tutor|explainer)/;
+/** More dirty entries than this and the Bash read is skipped: the signal is noise. */
+const MAX_ENTRIES = 2000;
+/** From the command finishing to this hook reading the clock: a node start, under load. */
+const WINDOW_MARGIN_MS = 3000;
 
-const NUDGE = `[Eklavya] This task now edits more than one file. Hand the remaining work to one or more agents run in the background, each with a self-contained brief (goal, files, constraints, how to verify), and take back a short report. While they build, ask questions: get_session_quiz_plan with while_waiting: true, then AskUserQuestion, record_attempt and the verdict, one at a time, until an agent reports or questions_needed is 0. If the rest is a line or two, or agents cannot run in the background here, carry on inline.`;
 
 interface State {
   /** The first changed file, once one is known. */
   first?: string;
-  /** Bash only: per repository root, its `git status` entries at the previous Bash call, path -> size:mtime. */
-  snaps?: Record<string, Record<string, string>>;
+  /** The tree the last leading `cd` named. */
+  tree?: string;
+  /** Epoch ms of the previous Bash call: the window when the host sends no duration. */
+  bashAt?: number;
+  /** The nudge was emitted. */
   done?: boolean;
+  /** When the parent started a building agent, and whether in the background. */
+  delegated?: string;
+  background?: boolean;
 }
 
 /** The same file under every spelling: a symlinked temp dir, `./a.ts`, `a.ts`. */
@@ -70,13 +93,13 @@ function rootOf(dir: string): string | null {
   return git(dir, ['rev-parse', '--show-toplevel'])?.trim() || null;
 }
 
-/** Every entry `git status` reports under `root`, by absolute path, with its size and mtime; null on failure. */
-function dirtyStamps(root: string): Record<string, string> | null {
+/** Every file `git status` reports under `root` whose mtime is at or after `since`; null on failure. */
+function changedSince(root: string, since: number): string[] | null {
   const status = git(root, ['status', '--porcelain=v1', '-z', '-uall']);
   if (status === null) return null;
   const entries = status.split('\0');
-  if (entries.length > MAX_SNAPSHOT) return null;
-  const out: Record<string, string> = {};
+  if (entries.length > MAX_ENTRIES) return null;
+  const out: string[] = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!;
     if (entry.length < 4) continue;
@@ -84,10 +107,9 @@ function dirtyStamps(root: string): Record<string, string> | null {
     if (entry[0] === 'R' || entry[0] === 'C') i++;
     const file = canonical(path.join(root, entry.slice(3)));
     try {
-      const st = fs.statSync(file);
-      out[file] = `${st.size}:${st.mtimeMs}`;
+      if (fs.statSync(file).mtimeMs >= since) out.push(file);
     } catch {
-      out[file] = 'gone';
+      /* Deleted: no mtime to say when. */
     }
   }
   return out;
@@ -96,12 +118,14 @@ function dirtyStamps(root: string): Record<string, string> | null {
 await run(async (input) => {
   const tool = input.tool_name ?? '';
   const isBash = tool === 'Bash';
-  if (input.agent_id || !(isBash || EDIT_TOOLS.test(tool))) return 0;
+  const isAgent = AGENT_TOOLS.test(tool);
+  if (input.agent_id || !(isBash || isAgent || EDIT_TOOLS.test(tool))) return 0;
   const raw = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
-  if (!isBash && (typeof raw !== 'string' || !raw)) return 0;
+  if (EDIT_TOOLS.test(tool) && (typeof raw !== 'string' || !raw)) return 0;
+  if (isAgent && READ_ONLY_AGENTS.test(String(input.tool_input?.subagent_type ?? ''))) return 0;
 
   const cwd = cwdOf(input);
-  const { quiz, delegate_work } = config(cwd).config;
+  const { quiz, delegate_work, cadence } = config(cwd).config;
   if (!quiz.enabled || !delegate_work) return 0;
 
   const db = openExisting();
@@ -109,7 +133,7 @@ await run(async (input) => {
   const sid = sessionId(input, db);
   if (!sid) return 0;
 
-  const key = `${KEY_PREFIX}${sid}`;
+  const key = `${DELEGATE_KEY_PREFIX}${sid}`;
   // Value: `<iso date>|<json State>`. The date prefix is what the prune reads,
   // the same way `noteEdit` ages its marks.
   const read = (): State => {
@@ -121,66 +145,64 @@ await run(async (input) => {
       return {};
     }
   };
-  if (read().done) return 0;
+  const before = read();
+  // After the nudge an edit or a Bash call has nothing left to do, but an agent
+  // starting is the nudge being followed, and is recorded.
+  if (before.delegated || (before.done && !isAgent)) return 0;
 
   // Outside the lock: git can take a moment, and nothing here needs the row.
-  let changed: string[];
-  let snaps: Record<string, Record<string, string>> | undefined;
+  const now = Date.now();
+  let changed: string[] = [];
+  let tree: string | undefined;
   if (isBash) {
     const command = typeof input.tool_input?.command === 'string' ? input.tool_input.command : '';
     const target = leadingCd(command, cwd);
-    const roots = new Set([cwd, target].filter((d): d is string => Boolean(d)).map(rootOf).filter((r): r is string => Boolean(r)));
-    snaps = {};
-    for (const root of roots) {
-      const now = dirtyStamps(root);
-      if (now) snaps[root] = now;
+    tree = (target && rootOf(target)) || before.tree;
+    const duration = input.duration_ms;
+    const since = typeof duration === 'number' && duration >= 0 ? now - duration - WINDOW_MARGIN_MS : before.bashAt;
+    if (since !== undefined) {
+      const roots = new Set([rootOf(cwd), tree].filter((r): r is string => Boolean(r)));
+      for (const root of roots) changed.push(...(changedSince(root, since) ?? []));
     }
-    if (!Object.keys(snaps).length) return 0;
-    changed = []; // filled against the stored snapshots below
-  } else {
+  } else if (!isAgent) {
     changed = [canonical(path.resolve(cwd, raw as string))];
   }
 
   const nudge = db
     .transaction(() => {
       db.prepare(`DELETE FROM meta WHERE key LIKE ? AND substr(value, 1, 10) < date('now', '-7 day')`).run(
-        `${KEY_PREFIX}%`,
+        `${DELEGATE_KEY_PREFIX}%`,
       );
       const state = read();
-      /* c8 ignore next -- another hook finished the nudge while this one ran git */
-      if (state.done) return false;
-      if (snaps) {
-        // ponytail: a repository's first snapshot is taken after the first Bash
-        // call that reaches it, so a first command there that already changed
-        // two files is caught only when a later call changes one more. A
-        // PreToolUse snapshot would close it at the cost of a second process on
-        // every Bash call.
-        const kept = { ...state.snaps };
-        for (const [root, now] of Object.entries(snaps)) {
-          const before = kept[root];
-          if (before) changed.push(...Object.keys(now).filter((f) => before[f] !== now[f]));
-          delete kept[root];
-          kept[root] = now; // re-inserted last: most recently touched
-        }
-        state.snaps = Object.fromEntries(Object.entries(kept).slice(-MAX_ROOTS));
+      /* c8 ignore next -- another hook finished while this one ran git */
+      if (state.delegated || (state.done && !isAgent)) return false;
+      if (isAgent) {
+        state.delegated = new Date(now).toISOString();
+        // The host can run an agent in the background without being asked to:
+        // its launch result says so (2.1.286 sessions omitted the flag).
+        const response = input.tool_response as { status?: unknown } | undefined;
+        state.background = input.tool_input?.run_in_background === true || response?.status === 'async_launched';
+      }
+      if (isBash) {
+        state.bashAt = now;
+        if (tree) state.tree = tree;
       }
       const others = [...new Set(changed)].filter((f) => f !== state.first);
       if (!state.first && others.length) state.first = others.shift();
-      if (others.length) {
-        state.done = true;
-        delete state.snaps;
-      }
+      const emit = !state.done && others.length > 0;
+      if (emit) state.done = true;
       db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
         key,
-        `${new Date().toISOString()}|${JSON.stringify(state)}`,
+        `${new Date(now).toISOString()}|${JSON.stringify(state)}`,
       );
-      return Boolean(state.done);
+      return emit;
     })
     .immediate();
+  if (isAgent) noteBuilder(db, sid);
   if (!nudge) return 0;
 
   process.stdout.write(
-    `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: NUDGE } })}\n`,
+    `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: nudgeText(cadence) } })}\n`,
   );
   return 0;
 });

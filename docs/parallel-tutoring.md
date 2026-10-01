@@ -1,8 +1,10 @@
 # Parallel tutoring
 
 Eklavya normally asks a short question during work in the same conversation.
-With `delegate_work` on (the default), the parent already hands larger code
-changes to background agents and quizzes you while they build; see
+With `delegate_work` on (the default), the parent is asked to hand larger code
+changes to a background agent and quiz you while it builds. It is told to keep
+review, checks and commits for itself, and to take a staged plan one stage at a
+time. A worktree the session made or was given is where the agent works. See
 [subagent policy](subagent-policy.md#the-parent-delegates-and-asks). For a
 separate teaching conversation, use the tutor subagent or two terminal panes.
 Both use the same local database; sharing a gate also requires the same

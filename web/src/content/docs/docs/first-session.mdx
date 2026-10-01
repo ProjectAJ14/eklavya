@@ -35,12 +35,14 @@ pacing and session budget. It comes after Claude's answer, and Claude then
 repeats a short version of the answer under “Back to your task:”.
 
 For a change that spans several files, [`delegate_work`](/docs/configuration/#every-key)
-(on by default) has Claude hand the building to background agents; if Claude
-changes a second file itself, with an edit tool or a shell command, Eklavya
-reminds it once. That includes a worktree: a command that starts with
-`cd <worktree> &&` is checked in that worktree's repository. Under the
-default `as-you-go` cadence, questions then come one at a time while they
-work, and the task answer arrives last.
+(on by default) asks Claude to hand the building to a background agent. Eklavya
+says so next to your prompt, before the first edit, and reminds Claude once if
+it changes a second file itself anyway. If you started the chat in your main
+checkout and Claude made a worktree for the task, Claude is asked to point the
+agent at that worktree. A staged plan goes one stage per agent, in order, and Claude reviews,
+runs your checks and commits each stage before the next. If you say to work
+inline, Claude is asked to do so. Under the default `as-you-go` cadence, questions come one
+at a time while the agent works, and the task answer arrives last.
 
 Answers are graded from 0 to 5. Concepts you struggle with return sooner;
 successful reviews are spaced further apart. A new session also shows a short
@@ -48,7 +50,7 @@ settings and progress banner. `quiet: true` hides that banner without disabling
 questions or memory.
 
 
-Nothing is asked until the session changes a file: through Claude's edit tools in any git repository, including a sibling worktree; through a shell command that starts with `cd` into a git repository; or in the git working tree it started in. A session spent reading, researching or answering questions gets no questions, including one started in a folder that holds repositories but is not one. Enforced quizzing and `/eklavya:quiz` are not held back.
+Nothing is asked until the session changes a file: through Claude's edit tools in any git repository, including a sibling worktree; through a shell command that starts with `cd` into a git repository; or in the git working tree it started in. With `delegate_work` on, Claude starting a building agent counts too. A session spent reading, researching or answering questions gets no questions, including one started in a folder that holds repositories but is not one. Enforced quizzing and `/eklavya:quiz` are not held back.
 
 The default budget is **four questions per session**, even though the setting
 is named `max_questions_per_task`. Explicit practice and enforced gate retries
