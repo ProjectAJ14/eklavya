@@ -1,3 +1,10 @@
+## [1.43.1](https://github.com/ProjectAJ14/eklavya/compare/v1.43.0...v1.43.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **memory:** never signal our own process group after a failed spawn ([58667d5](https://github.com/ProjectAJ14/eklavya/commit/58667d5842f169ea65d0819503696f614a9ca13d))
+
 # [1.43.0](https://github.com/ProjectAJ14/eklavya/compare/v1.42.3...v1.43.0) (2026-09-30)
 
 
