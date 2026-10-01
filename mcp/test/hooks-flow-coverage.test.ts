@@ -383,6 +383,29 @@ describe('session-start', () => {
     expect(left).toEqual([{ s: 'older' }]);
   });
 
+  it('announces the usage ping once, and keeps a day of logged work before any ping', () => {
+    // A runtime install that can send but has never pinged. `CI` is cleared
+    // explicitly: GitHub sets it, and it switches sending off.
+    const pkg = path.join(home, 'runtime', 'node_modules', 'eklavya');
+    fs.mkdirSync(pkg, { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ version: '1.0.0' }));
+    configure({ auto_update: false });
+    const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+    logConcepts(['csrf'], 'older');
+    logConcepts(['pkce'], 'oldest');
+    db.prepare(`UPDATE session_concepts SET ts = ? WHERE session_id = 'older'`).run(hoursAgo(20));
+    db.prepare(`UPDATE session_concepts SET ts = ? WHERE session_id = 'oldest'`).run(hoursAgo(40));
+    const sending = { CI: '', EKLAVYA_RUNTIME: '', EKLAVYA_TELEMETRY: '', DO_NOT_TRACK: '' };
+
+    const first = start({}, sending);
+    expect(first.shown).toMatch(/now sends anonymous daily usage counts/);
+    // No ping yet: the window is the last day, not the usual 12 hours.
+    expect(db.prepare('SELECT DISTINCT session_id AS s FROM session_concepts').all()).toEqual([{ s: 'older' }]);
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'telemetry.json'), 'utf8')).announced_at).toEqual(expect.any(String));
+
+    expect(start({}, sending).shown).not.toMatch(/usage counts/);
+  });
+
   it('still starts the session when pruning unasked work fails', () => {
     logConcepts(['csrf'], 'old');
     db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-2 days')`).run();
