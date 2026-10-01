@@ -565,7 +565,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
       await w.page.goto(base + '/' + `#/settings/project?project=${enc(fx.repo.mixed)}`); await ready(w.page);
       expect(await w.page.textContent('#view')).toContain('inherited from user settings');
-      await pickOption(w.page, '#set-cadence', 'interleaved');
+      await pickOption(w.page, '#set-cadence', 'as-you-go');
       await w.page.waitForSelector('[data-unset="cadence"]');
       // A global-only key is shown, not editable, on a project.
       expect(await w.page.isDisabled('#set-telemetry')).toBe(true);

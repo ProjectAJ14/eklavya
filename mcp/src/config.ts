@@ -39,7 +39,7 @@ export interface QuizConfig {
    *
    * It is one flag rather than two because the gate is unshippable without the
    * rest: `get_session_quiz_plan` exempts it from the cooldown, refuses to pad
-   * a plan with weaker picks, overrides an `interleaved` cadence and guarantees
+   * a plan with weaker picks, overrides an `as-you-go` cadence and guarantees
    * at least one question -- all so that a commit being held is always a commit
    * the developer has been *given a way through*. A `gate.enabled` that did not
    * carry those would block commits behind questions the planner had already
@@ -77,17 +77,17 @@ export type Focus = 'project' | 'concept' | 'learn';
  *
  * `quiz.enforced` is how hard Eklavya pushes, `focus` is what it teaches, and
  * this is when it asks. Kept separate for the same reason `focus` was: every
- * combination is coherent. unenforced+interleaved is the default experience --
+ * combination is coherent. unenforced+as-you-go is the default experience --
  * one question at the seam where a concept was logged, while the agent works --
  * and enforced+end is a team lead who wants the gate but not the interruption.
  *
- * `interleaved` does not mean "more questions". `max_questions_per_task` becomes
+ * `as-you-go` does not mean "more questions". `max_questions_per_task` becomes
  * a session budget: questions answered mid-work are questions the Stop hook no
  * longer asks. A session that answered its whole budget while the agent worked
  * finishes in silence, which is the entire point -- the old behaviour spent that
  * time at the end, when the developer wanted to be done.
  *
- * It is also the batch size. Under `interleaved` a plan is one question -- the
+ * It is also the batch size. Under `as-you-go` a plan is one question -- the
  * planner caps it, so "one at a time" is a property of the data rather than an
  * instruction the tutor has to remember -- and the Stop sweep asks one too.
  * Concepts the budget never reaches are not lost: they stay unmastered and
@@ -97,7 +97,7 @@ export type Focus = 'project' | 'concept' | 'learn';
  * `end` is the pre-1.4 behaviour, unchanged: nothing until Stop, then a batch of
  * whatever the budget has left.
  */
-export type Cadence = 'interleaved' | 'end';
+export type Cadence = 'as-you-go' | 'end';
 
 /**
  * The fourth dial, and the only one that is normally *earned* rather than set.
@@ -253,7 +253,7 @@ export interface EklavyaConfig {
   /** Required by `learn` focus; ignored by the others. */
   focus_topic: string | null;
   /**
-   * When to ask. Defaults to `interleaved`: the promise is learning while your
+   * When to ask. Defaults to `as-you-go`: the promise is learning while your
    * coding agent works, and a question that only ever arrives after the work is
    * finished is not that.
    */
@@ -343,7 +343,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
   quiz: { enabled: true, enforced: false, only_on_changes: true },
   focus: 'concept',
   focus_topic: null,
-  cadence: 'interleaved',
+  cadence: 'as-you-go',
   difficulty: 'auto',
   level_up_after: 100,
   level_up_accuracy: 0.7,
@@ -510,7 +510,7 @@ export function coerce(raw: Record<string, unknown>, base: EklavyaConfig): Eklav
   const out: EklavyaConfig = { ...base };
 
   if (raw.focus === 'project' || raw.focus === 'concept' || raw.focus === 'learn') out.focus = raw.focus;
-  if (raw.cadence === 'interleaved' || raw.cadence === 'end') out.cadence = raw.cadence;
+  if (raw.cadence === 'as-you-go' || raw.cadence === 'end') out.cadence = raw.cadence;
   if (
     raw.difficulty === 'auto' ||
     raw.difficulty === 'easy' ||
@@ -865,8 +865,12 @@ export function migrateLegacyRepoConfig(
  * lying beside it, and across files the project should beat the global whichever
  * spelling each one used. Merged first, a global `quiz` silently outranked a
  * project `mode`.
+ *
+ * The cadence `interleaved`, renamed `as-you-go`, is the same kind of alias and
+ * stays for the same reason: dropped, the dial would silently revert.
  */
-function normalizeLegacyKeys(raw: Record<string, unknown>): Record<string, unknown> {
+export function normalizeLegacyKeys(input: Record<string, unknown>): Record<string, unknown> {
+  const raw = input.cadence === 'interleaved' ? { ...input, cadence: 'as-you-go' } : input;
   const fromMode =
     raw.mode === 'ambient'
       ? { enabled: true, enforced: false }
@@ -1079,6 +1083,8 @@ export function writeConfigFile(file: string, patch: Record<string, unknown>): R
     );
   }
   let merged: Record<string, unknown> = { ...existing, ...patch };
+  // Any write retires the pre-rename spelling rather than carrying it forward.
+  if (merged.cadence === 'interleaved') merged.cadence = 'as-you-go';
 
   // A `quiz` written today retires a `mode` left beside it, folded in rather
   // than dropped. Left in place, `mode: enforced` under a new `quiz.enabled:

@@ -1,3 +1,15 @@
+# [1.43.0](https://github.com/ProjectAJ14/eklavya/compare/v1.42.3...v1.43.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* normalize legacy interleaved cadence per file ([a2c1abc](https://github.com/ProjectAJ14/eklavya/commit/a2c1abc29096946c427cef8e45265209c875021b))
+
+
+### Features
+
+* rename interleaved cadence to as-you-go ([4e29cf5](https://github.com/ProjectAJ14/eklavya/commit/4e29cf5b22696c2b564d01a027f6664ad361e003))
+
 ## [1.42.3](https://github.com/ProjectAJ14/eklavya/compare/v1.42.2...v1.42.3) (2026-09-30)
 
 

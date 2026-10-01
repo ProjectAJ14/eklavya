@@ -29,7 +29,7 @@ import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
 import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile,
+  loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
@@ -1126,21 +1126,21 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
   { key: 'focus_topic', group: 'Questions', label: 'Learn topic',
     help: 'The topic "learn" focus teaches, e.g. caching. Ignored by the other focuses.' },
   { key: 'cadence', group: 'Questions', label: 'Cadence',
-    help: 'Interleaved asks one question mid-task; end waits until the task is finished.' },
+    help: 'As-you-go asks one question mid-task; end waits until the task is finished.' },
   { key: 'difficulty', group: 'Questions', label: 'Difficulty',
     help: 'Auto earns the level per project. A literal level pins it and stops progression.' },
   { key: 'explain_on_wrong', group: 'Questions', label: 'Explainer after a miss',
     help: 'Write and open an explainer page in the background when a question is missed.' },
   { key: 'delegate_work', group: 'Questions', label: 'Delegate while you learn',
-    help: 'Hand non-trivial code changes to background agents and ask questions while they build. Needs interleaved cadence for questions while waiting; under end they wait for the end of the task. Next session.' },
+    help: 'Hand non-trivial code changes to background agents and ask questions while they build. Needs as-you-go cadence for questions while waiting; under end they wait for the end of the task. Next session.' },
   { key: 'quiet', group: 'Questions', label: 'Quiet',
     help: 'Fewer status lines from Eklavya in the session.' },
   { key: 'max_questions_per_task', group: 'Pacing', label: 'Questions per task',
-    help: 'The session budget. Under interleaved cadence, questions asked mid-work come out of it.' },
+    help: 'The session budget. Under as-you-go cadence, questions asked mid-work come out of it.' },
   { key: 'min_minutes_between_quizzes', group: 'Pacing', label: 'Minutes between quizzes',
     help: 'Cooldown between whole quizzes. Enforced quizzing ignores it.' },
   { key: 'min_minutes_between_checkpoints', group: 'Pacing', label: 'Minutes between mid-work questions',
-    help: 'Floor on the gap between single interleaved questions. 0 asks at every seam.' },
+    help: 'Floor on the gap between single as-you-go questions. 0 asks at every seam.' },
   { key: 'max_new_concepts_per_session', group: 'Pacing', label: 'New concepts per session',
     help: 'Cap on concepts the agent may add to the catalogue in one session.' },
   { key: 'max_stop_blocks_per_session', group: 'Pacing', label: 'Stop-hook blocks per session',
@@ -1222,12 +1222,14 @@ export function configurableProjects(db: DB): { id: string; name: string; invent
 }
 
 const settingKeys = () => [...SETTINGS.map((f) => f.key), ...CLI_ONLY.map((c) => c.key)];
-/** What one file sets, key by key: a key absent here inherits. */
-const setIn = (raw: Record<string, unknown>) =>
-  Object.fromEntries(settingKeys().flatMap((k) => {
+/** What one file sets, key by key, in today's spelling: a key absent here inherits. */
+const setIn = (file: Record<string, unknown>) => {
+  const raw = normalizeLegacyKeys(file);
+  return Object.fromEntries(settingKeys().flatMap((k) => {
     const v = valueAt(raw as unknown as EklavyaConfig, k);
     return v === undefined ? [] : [[k, v]];
   }));
+};
 const effectiveOf = (c: EklavyaConfig) => Object.fromEntries(settingKeys().map((k) => [k, valueAt(c, k)]));
 
 /** `GET /api/settings?project=<checkout>`: both files and what they resolve to. */

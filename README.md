@@ -114,7 +114,7 @@ questions off and keep memory on.
 | `quiz.enabled` | `true`: ask questions | `false`: no questions |
 | `quiz.enforced` | `false`: commit freely | `true`: pass a quiz before a commit |
 | `focus` | `concept`: the idea behind the code | `project`: this codebase · `learn`: a topic you pick |
-| `cadence` | `interleaved`: during the task | `end`: after the task |
+| `cadence` | `as-you-go`: during the task | `end`: after the task |
 | `difficulty` | `auto`: grows with you | `easy`, `medium` or `hard` |
 | `memory.enabled` | `true`: record and recall | `false`: learning only |
 

@@ -143,7 +143,7 @@ describe('SETTING_RULES: what every interface accepts', () => {
 
   it('refuses each kind of bad value, and accepts the good ones', () => {
     expect(settingProblem('quiet', 'yes')).toBe('quiet is true or false.');
-    expect(settingProblem('cadence', 'bogus')).toBe('cadence is one of interleaved, end.');
+    expect(settingProblem('cadence', 'bogus')).toBe('cadence is one of as-you-go, end.');
     expect(settingProblem('max_questions_per_task', 11)).toBe('max_questions_per_task is a whole number from 1 to 10.');
     expect(settingProblem('max_questions_per_task', 2.5)).toMatch(/whole number/);
     expect(settingProblem('max_questions_per_task', 0)).toMatch(/from 1 to 10/);

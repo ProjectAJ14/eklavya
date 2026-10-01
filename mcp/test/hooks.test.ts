@@ -187,7 +187,7 @@ function answer(slug: string, grade: number, session = SESSION): void {
 /**
  * Push both pacing clocks back, so a test about the loop guard or the message body
  * is not also a test of the gap. `min_minutes_between_checkpoints: 0` used to do
- * this job, but the interleaved sweep floors its gap at one minute -- there the
+ * this job, but the as-you-go sweep floors its gap at one minute -- there the
  * clock is the only loop guard, and without a floor a model that ignores the
  * instruction gets blocked again on the very next Stop.
  */
@@ -354,7 +354,7 @@ describe('SessionStart output', () => {
     expect(res.status).toBe(0);
     const lines = res.shown.split('\n');
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toBe('Eklavya active · concept · interleaved · easy (0/100)');
+    expect(lines[0]).toBe('Eklavya active · concept · as-you-go · easy (0/100)');
     expect(lines[1]).toMatch(/^Learning \d+ · Mastered \d+ · Due \d+$/);
     expect(lines[2]).toMatch(
       /Dashboard (http:\/\/127\.0\.0\.1:\d+ · Observations \S+#\/memory|& observations: eklavya dashboard)/,
@@ -645,13 +645,13 @@ describe('Stop hook — the loop guard (P0)', () => {
     expect(stop().spoke).toBe(false);
   });
 
-  // --- interleaved: the clock is the guard ----------------------------------
+  // --- as-you-go: the clock is the guard ----------------------------------
   // The `logged > last_logged` rule above re-arms only on newly logged work, and
   // the model logs its whole batch in one call at the start of a task. Under
-  // `interleaved` that made the sweep a once-per-session event: a session that
+  // `as-you-go` that made the sweep a once-per-session event: a session that
   // logged eight concepts was asked one question against a budget of four.
 
-  it('re-arms on the clock under interleaved: one batch of work is more than one question', () => {
+  it('re-arms on the clock under as-you-go: one batch of work is more than one question', () => {
     configure({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0 });
     logConcepts(['csrf', 'jwt-structure']);
 
@@ -668,7 +668,7 @@ describe('Stop hook — the loop guard (P0)', () => {
     expect(stop().spoke).toBe(false);
   });
 
-  it('floors the interleaved gap at a minute, so a gap of 0 is not a loop', () => {
+  it('floors the as-you-go gap at a minute, so a gap of 0 is not a loop', () => {
     // `0` is a supported value and means "every seam" for the PostToolUse
     // checkpoint, which has a logged concept behind each firing. A Stop sweep has
     // no such event, so at 0 a model that ignores the instruction and stops again
@@ -681,9 +681,9 @@ describe('Stop hook — the loop guard (P0)', () => {
     expect(stop().spoke, 'blocked twice inside the floor').toBe(false);
   });
 
-  it('does not loop under interleaved: repeat Stops inside the pacing gap pass', () => {
+  it('does not loop under as-you-go: repeat Stops inside the pacing gap pass', () => {
     // The default min_minutes_between_checkpoints of 4, left alone. This is the
-    // interleaved counterpart of "blocks exactly once for one batch of work":
+    // as-you-go counterpart of "blocks exactly once for one batch of work":
     // what bounds it is the clock rather than the logged count.
     configure({ min_minutes_between_quizzes: 0 });
     logConcepts(['csrf', 'jwt-structure']);
@@ -694,7 +694,7 @@ describe('Stop hook — the loop guard (P0)', () => {
     }
   });
 
-  it('paces interleaved on the checkpoint clock, never the quiz clock', () => {
+  it('paces as-you-go on the checkpoint clock, never the quiz clock', () => {
     // A whole-quiz cooldown gating a one-question sweep was the bug: the
     // checkpoint question the learner had just answered silenced the sweep for
     // the rest of a normal-length task.
@@ -749,7 +749,7 @@ describe('Stop hook — the loop guard (P0)', () => {
     // Enforced is exempt from the pacing clock (decision G5), so the clock cannot
     // be its guard -- it keeps `logged > last_logged` or it would block on every
     // single Stop until the cap.
-    configure({ quiz: { enabled: true, enforced: true }, cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, cadence: 'as-you-go', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf']);
 
     expect(stop().spoke).toBe(true);
@@ -868,8 +868,8 @@ describe('Stop hook — what it tells Claude', () => {
   // The cadence decides the size of the sweep, and this is the failure it was
   // written for: three questions in a row at the exact moment the developer
   // wanted to be finished, under the setting that promises the opposite.
-  it('sweeps one concept only under the interleaved cadence', () => {
-    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+  it('sweeps one concept only under the as-you-go cadence', () => {
+    configure({ min_minutes_between_quizzes: 0, cadence: 'as-you-go' });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     const res = stop();
     const line = conceptsLine(res.context);
@@ -881,7 +881,7 @@ describe('Stop hook — what it tells Claude', () => {
 
   it('sweeps the whole remaining budget in enforced mode, cadence notwithstanding', () => {
     // Decision G5 again: the gate has to stay passable inside the session.
-    configure({ quiz: { enabled: true, enforced: true }, cadence: 'interleaved', min_minutes_between_quizzes: 0 });
+    configure({ quiz: { enabled: true, enforced: true }, cadence: 'as-you-go', min_minutes_between_quizzes: 0 });
     logConcepts(['csrf', 'jwt-structure', 'pkce']);
     expect(conceptsLine(stop().context).match(/,/g) ?? []).toHaveLength(2);
   });
@@ -913,7 +913,7 @@ describe('Stop hook — what it tells Claude', () => {
   it('drops work logged before an idle break, and asks about what came after', () => {
     // A session left open overnight was asked about the previous day's code
     // while its developer was checking a server mount.
-    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    configure({ min_minutes_between_quizzes: 0, cadence: 'as-you-go' });
     logConcepts(['csrf']);
     db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-16 hours') WHERE session_id = ?`).run(SESSION);
     promptAfter(15 * 60);
@@ -938,7 +938,7 @@ describe('Stop hook — what it tells Claude', () => {
   it('keeps a long task\'s early work askable while the developer stays active', () => {
     // Concepts are logged once, at the start. A two-hour task with prompts
     // every few minutes must not fall silent after its first hour.
-    configure({ min_minutes_between_quizzes: 0, cadence: 'interleaved' });
+    configure({ min_minutes_between_quizzes: 0, cadence: 'as-you-go' });
     logConcepts(['csrf']);
     db.prepare(`UPDATE session_concepts SET ts = datetime('now', '-100 minutes') WHERE session_id = ?`).run(SESSION);
     promptAfter(5);

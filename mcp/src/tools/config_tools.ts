@@ -110,10 +110,10 @@ export const setConfig: ToolDef = {
         'What Eklavya teaches, independent of mode. "project" quizzes the code just written; "concept" asks the transferable version of the same ideas; "learn" follows focus_topic. Defaults to concept.',
       ),
     cadence: z
-      .enum(['interleaved', 'end'])
+      .enum(['as-you-go', 'end'])
       .optional()
       .describe(
-        'When the questions land. "interleaved" (default) asks one question mid-task, at the seam where a concept was logged, and the Stop hook then only sweeps up what is left of max_questions_per_task. "end" is the old behaviour: nothing until the task is finished.',
+        'When the questions land. "as-you-go" (default) asks one question mid-task, at the seam where a concept was logged, and the Stop hook then only sweeps up what is left of max_questions_per_task. "end" is the old behaviour: nothing until the task is finished.',
       ),
     min_minutes_between_checkpoints: num('min_minutes_between_checkpoints'),
     difficulty: z
@@ -144,7 +144,7 @@ export const setConfig: ToolDef = {
     delegate_work: z
       .boolean()
       .optional()
-      .describe('Whether non-trivial code changes go to background agents while the developer is quizzed, so the task answer arrives last (default true). Questions while agents build need cadence interleaved; under end they wait for the end of the task. The session-start instruction takes effect at the next session start; the nudge on a second changed file reads it on every edit or shell call.'),
+      .describe('Whether non-trivial code changes go to background agents while the developer is quizzed, so the task answer arrives last (default true). Questions while agents build need cadence as-you-go; under end they wait for the end of the task. The session-start instruction takes effect at the next session start; the nudge on a second changed file reads it on every edit or shell call.'),
     auto_update: z
       .boolean()
       .optional()

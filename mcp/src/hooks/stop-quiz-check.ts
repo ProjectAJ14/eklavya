@@ -1,7 +1,7 @@
 /**
  * Stop: turn a finished task into a quiz, at most once per batch of work.
  *
- * How much of a quiz is the cadence's call, not this file's. Under `interleaved`
+ * How much of a quiz is the cadence's call, not this file's. Under `as-you-go`
  * this sweep asks exactly one question: that setting promises a question at the
  * seam where the work happened, and a sweep that ends the task with three in a
  * row is precisely the pile-up it was sold as replacing. Under `end`, or in
@@ -28,7 +28,7 @@
  *              block, whatever happened in between — quiz answered, quiz
  *              skipped, model ignored us entirely.
  *
- *   `interleaved`  block whenever the pacing clock has elapsed. This cadence
+ *   `as-you-go`  block whenever the pacing clock has elapsed. This cadence
  *              asks one question per block and means to ask several across a
  *              task, and the `end` rule cannot deliver that: the model logs its
  *              whole batch in one call, so "new work since the last block" is
@@ -180,10 +180,10 @@ await run(async (input) => {
     if (due.length === 0) return 0;
   }
 
-  // Under `interleaved` this sweep asks exactly ONE question (see `take` below),
+  // Under `as-you-go` this sweep asks exactly ONE question (see `take` below),
   // so it is paced by the single-question clock rather than the whole-quiz one.
   // Enforced quizzing is exempt from both, as it always was (decision G5).
-  const interleaved = cadence === 'interleaved' && !quiz.enforced;
+  const asYouGo = cadence === 'as-you-go' && !quiz.enforced;
 
   // --- the pacing clock ------------------------------------------------------
   // Unenforced quizzing respects the cadence. Enforced must not, or a cooldown
@@ -191,7 +191,7 @@ await run(async (input) => {
   //
   // Which clock depends on what is being paced. `min_minutes_between_quizzes` is
   // the anti-nagging floor between whole quizzes, and under `end` that is exactly
-  // what a sweep is. Under `interleaved` a sweep is one question, so gating it on
+  // what a sweep is. Under `as-you-go` a sweep is one question, so gating it on
   // the quiz clock is a category error -- and it was the bug: a 20-minute floor
   // measured from the last *answer* meant the checkpoint question the learner had
   // just answered silenced the sweep for the rest of a typical task, so a session
@@ -204,14 +204,14 @@ await run(async (input) => {
   // teach. Whichever happened more recently wins. The plan reads whichever of the
   // two keys this line does, keyed on the same cadence, so the pair cannot desync.
   //
-  // Floored at one minute under `interleaved`, because there the clock is the only
+  // Floored at one minute under `as-you-go`, because there the clock is the only
   // loop guard left (see below) and `min_minutes_between_checkpoints: 0` is a
   // supported value -- it means "ask at every seam" for the PostToolUse checkpoint,
   // which has a logged concept behind each firing. A Stop sweep has no such event:
   // at a gap of 0 a model that ignores the instruction and stops again immediately
   // gets blocked again immediately, three times in a row with no pause.
   if (!quiz.enforced) {
-    const gap = interleaved
+    const gap = asYouGo
       ? Math.max(1, min_minutes_between_checkpoints)
       : min_minutes_between_quizzes;
     if (minutesSince(stats.last_blocked) < gap) return 0;
@@ -220,7 +220,7 @@ await run(async (input) => {
   // ---------------------------------------------------------------------------
 
   // --- the loop guard --------------------------------------------------------
-  // Under `interleaved` the clock above IS this guard, and it has to be: the
+  // Under `as-you-go` the clock above IS this guard, and it has to be: the
   // `logged > last_logged` rule re-arms only on newly logged work, and the model
   // logs its whole batch in one call at the start of a task. That made the sweep
   // a once-per-session event no matter how long the session ran -- a ceiling of
@@ -230,14 +230,14 @@ await run(async (input) => {
   //
   // Under `end` the original rule stands. That cadence delivers the whole budget
   // in one sweep, so a second sweep genuinely does need new work behind it.
-  if (!interleaved && !(stats.logged > stats.last_logged)) return 0;
+  if (!asYouGo && !(stats.logged > stats.last_logged)) return 0;
   if (stats.blocks >= max_stop_blocks_per_session) return 0;
   // ---------------------------------------------------------------------------
 
   // --- what is left of the session budget ------------------------------------
   // `max_questions_per_task` is a SESSION allowance, not an end-of-session batch
   // size. Every question answered while the agent was working is one this hook
-  // must not ask again -- that is the whole trade the interleaved cadence makes,
+  // must not ask again -- that is the whole trade the as-you-go cadence makes,
   // and without this subtraction it would be a lie: four questions mid-task and
   // then four more at the end is worse than what it replaced.
   //
@@ -246,7 +246,7 @@ await run(async (input) => {
   if (remaining <= 0) return 0;
   // ---------------------------------------------------------------------------
 
-  // How many of those to ask here. Under `interleaved` the answer is always one:
+  // How many of those to ask here. Under `as-you-go` the answer is always one:
   // that cadence promises a question at a time, at the seam where the concept was
   // logged, and a sweep that ends the task with three questions in a row is the
   // thing it was sold as replacing. What the sweep leaves unasked is dropped
@@ -255,7 +255,7 @@ await run(async (input) => {
   // Under `end`, a batch is the setting. Enforced mode is exempt, as it is from
   // the cooldown (decision G5): the gate needs several passing answers, so pacing
   // it to one would leave a commit that cannot be made.
-  const take = interleaved ? 1 : remaining;
+  const take = asYouGo ? 1 : remaining;
 
   // A session that only read and searched has nothing new to ask about, and
   // that includes review: research is not the moment to be quizzed on an

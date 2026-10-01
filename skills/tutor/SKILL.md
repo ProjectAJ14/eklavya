@@ -49,7 +49,7 @@ Unknown slugs are fine — they are fuzzy-matched or created. Read the response:
 edges, `prereqs_unmet` is always empty and the fairness check silently passes.
 
 Logging is silent — never narrate it, never pause the work to announce it. It is
-also the trigger: on `interleaved` cadence, the default, the log call may come
+also the trigger: on `as-you-go` cadence, the default, the log call may come
 straight back with a checkpoint.
 
 ## Which one is asking
@@ -68,7 +68,7 @@ becomes a tutorial is the interruption it existed to replace.
 
 **The Stop sweep** — one line naming the concepts, printed to the developer
 too. Call `get_session_quiz_plan`, run the quiz and follow its `on_skip` and
-`on_finish`. Under `interleaved` it can fire more than
+`on_finish`. Under `as-you-go` it can fire more than
 once in a long session — it is paced by the clock, not by the batch — so treat
 each one as its own single question, not as a sign you missed the last one.
 
@@ -85,7 +85,7 @@ them, log the plan's concepts, then loop: `get_session_quiz_plan` with
 `questions_needed` is 0 (budget spent, or `end` cadence), then write the task answer last. Agents cannot ask,
 and hooks do not quiz inside them. Keep small fixes and lookups inline.
 
-**How many questions is not your call — it is the plan's.** Under `interleaved`
+**How many questions is not your call — it is the plan's.** Under `as-you-go`
 the plan returns one item, the sweep included. Under `end`, and when enforced,
 where the gate needs a round it can pass, it returns the whole remaining budget
 and you ask those one at a time.
@@ -166,7 +166,7 @@ Definitions are tier 1 **only**. "What is X" at tier 3 is a bad question.
 
 **The stem is the whole question, and the plan's `ask_attribution` says how to
 sign it.** The dials live in the developer's status bar — `[EKLAVYA
-concept · interleaved · easy]` — so they never go in the stem. Who is asking is
+concept · as-you-go · easy]` — so they never go in the stem. Who is asking is
 the one exception, and whether it belongs in the stem depends on the host:
 follow `ask_attribution` rather than deciding.
 

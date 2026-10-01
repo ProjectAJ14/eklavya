@@ -79,9 +79,31 @@ describe('config precedence', () => {
 });
 
 describe('cadence — the third dial', () => {
-  it('interleaves by default: the promise is learning while the agent works', () => {
-    expect(DEFAULT_CONFIG.cadence).toBe('interleaved');
-    expect(loadConfig(repo).config.cadence).toBe('interleaved');
+  it('asks as you go by default: the promise is learning while the agent works', () => {
+    expect(DEFAULT_CONFIG.cadence).toBe('as-you-go');
+    expect(loadConfig(repo).config.cadence).toBe('as-you-go');
+  });
+
+  it('reads the pre-rename `interleaved` spelling as as-you-go', () => {
+    writeGlobal({ cadence: 'end' });
+    writeRepo({ cadence: 'interleaved' });
+    const resolved = loadConfig(repo);
+    expect(resolved.config.cadence).toBe('as-you-go');
+    expect(resolved.raw.cadence).toBe('as-you-go');
+    expect(resolved.overrides).toEqual(['cadence']);
+  });
+
+  it('does not call the old spelling an override of the same value', () => {
+    writeGlobal({ cadence: 'as-you-go' });
+    writeRepo({ cadence: 'interleaved' });
+    expect(loadConfig(repo).overrides).toEqual([]);
+  });
+
+  it('retires the old spelling on the next write to that file', () => {
+    const file = path.join(home, 'config.json');
+    writeGlobal({ cadence: 'interleaved' });
+    writeConfigFile(file, { focus: 'project' });
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toMatchObject({ cadence: 'as-you-go', focus: 'project' });
   });
 
   it('can be turned off per repo without touching the other dials', () => {
@@ -96,7 +118,7 @@ describe('cadence — the third dial', () => {
 
   it('ignores a cadence it does not recognise rather than failing the session', () => {
     writeGlobal({ cadence: 'whenever' });
-    expect(loadConfig(repo).config.cadence).toBe('interleaved');
+    expect(loadConfig(repo).config.cadence).toBe('as-you-go');
   });
 
   it('reads the checkpoint gap, and refuses a negative one', () => {

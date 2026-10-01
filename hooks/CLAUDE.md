@@ -18,7 +18,7 @@ registrations, for ten rows total.
 | PreToolUse (`Bash`) | `pre-tool-gate` | Deny recognized commits when the enforced session gate has not passed |
 | PreToolUse (`^Read$`) | `file-context` | Add the file's past observations as `additionalContext`, once per file per session; parent only; never a permission decision; capture-path imports only |
 | PostToolUse (all tools) | `capture-tool` | Record one memory event with a bounded result excerpt (none for reads and edits); no quiz, summarization or provider call |
-| PostToolUse (`mcp__.*log_session_concepts`) | `checkpoint-quiz` | Ask a due interleaved question after concepts are logged |
+| PostToolUse (`mcp__.*log_session_concepts`) | `checkpoint-quiz` | Ask a due as-you-go question after concepts are logged |
 | PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `checkpoint-quiz` | Mark an edit into a git tree for `only_on_changes`; recheck pacing as work continues; no spinner on every tool call |
 | PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `delegate-nudge` | With questions on and `delegate_work`, tell the parent once per session, at its second distinct changed file (edit tool path, or `git status` moving between Bash calls in the session's repository and in the one a leading `cd <dir> &&` names), to hand the rest to background agents; parent only; git for at most two repositories per Bash until it fires; no inference |
 | Stop | `stop-quiz-check` | Record the turn's final message (parent only), flush the memory seam and request the remaining eligible quiz |
@@ -89,12 +89,12 @@ session's questions but never bypasses an enforced commit gate; `pre-tool-gate`
 reads it only to explain how to resume and clear the gate.
 
 Unenforced sessions can still receive Stop questions. Enforcement skips cooldown,
-lifts the planner's interleaved cap and adds commit checks. It does not override
+lifts the planner's as-you-go cap and adds commit checks. It does not override
 the developer's session silence.
 
 | Cadence | Pacing and loop guard |
 |---|---|
-| `interleaved` | `min_minutes_between_checkpoints` (default 4) paces single questions; Stop floors its gap at one minute. Time can re-arm Stop without new logged work. |
+| `as-you-go` | `min_minutes_between_checkpoints` (default 4) paces single questions; Stop floors its gap at one minute. Time can re-arm Stop without new logged work. |
 | `end` | `min_minutes_between_quizzes` (default 20) paces the full sweep; work-origin concept count must grow since the previous block. |
 
 Hooks and planner must use the same clock, checking both the last block and

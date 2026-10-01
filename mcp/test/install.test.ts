@@ -436,7 +436,7 @@ describe('install --auto, the updater\'s run', () => {
 describe('install walks the dials', () => {
   it('without a terminal, shows every setting and writes nothing', () => {
     const res = install();
-    for (const row of [/quiz\s+on/, /focus\s+concept/, /cadence\s+interleaved/, /difficulty\s+auto/, /memory\s+on/]) {
+    for (const row of [/quiz\s+on/, /focus\s+concept/, /cadence\s+as-you-go/, /difficulty\s+auto/, /memory\s+on/]) {
       expect(res.stdout).toMatch(row);
     }
     expect(res.stdout).toContain('unchanged');
