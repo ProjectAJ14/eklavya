@@ -57,13 +57,19 @@ describe('dashboardState on rows the tools never write', () => {
     expect(s.config.focus).toBe(DEFAULT_CONFIG.focus);
   });
 
-  it('names a configured embeddings provider by kind and model only', () => {
+  it('names configured providers by kind and model only', () => {
     fs.mkdirSync(process.env.EKLAVYA_HOME!, { recursive: true });
     fs.writeFileSync(
       path.join(process.env.EKLAVYA_HOME!, 'config.json'),
-      JSON.stringify({ providers: { embeddings: { kind: 'anthropic', model: 'claude-haiku', api_key_env: 'SECRET' } } }),
+      JSON.stringify({
+        providers: {
+          observer: { kind: 'anthropic', model: 'haiku' },
+          embeddings: { kind: 'anthropic', model: 'claude-haiku', api_key_env: 'SECRET' },
+        },
+      }),
     );
     const s = dashboardState(db) as any;
+    expect(s.health.providers.observer).toEqual({ kind: 'anthropic', model: 'haiku' });
     expect(s.health.providers.embeddings).toEqual({ kind: 'anthropic', model: 'claude-haiku' });
     expect(JSON.stringify(s.health.providers)).not.toContain('SECRET');
   });
