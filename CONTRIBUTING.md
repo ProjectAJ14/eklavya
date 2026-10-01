@@ -69,7 +69,7 @@ The product-level check is:
 > agent resumes the task immediately after the answer.
 
 1. Build the plugin and use a fresh scratch project. Confirm `eklavya doctor`
-   reports questions on, focus `concept`, cadence `interleaved`, without project
+   reports questions on, focus `concept`, cadence `as-you-go`, without project
    enforcement left over from a gate test.
 2. Start `claude --plugin-dir /path/to/eklavya` and request a small feature.
 3. Confirm the model called `log_session_concepts`. Without that call the result
@@ -95,7 +95,7 @@ Ask for a feature, answer a question, and inspect `/eklavya:progress`. Confirm
 the recorded grade and review state. Decline a question and confirm it is not
 immediately repeated for the same work. A new session should show its profile;
 `quiet: true` should hide visible status while leaving the logging directive
-and questions active. Check both `interleaved` and `end` when changing pacing.
+and questions active. Check both `as-you-go` and `end` when changing pacing.
 
 ### Commit gate
 

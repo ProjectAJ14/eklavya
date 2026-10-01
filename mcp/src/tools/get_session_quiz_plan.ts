@@ -115,7 +115,7 @@ export const getSessionQuizPlan: ToolDef = {
   // already re-pointed on Cowork. A description that still promised a diff
   // while the framing said otherwise would set the two against each other.
   description: withSurfaceNote(
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. Only work logged in the current stretch counts as this session\'s own -- since its first prompt, or the first after more than an hour without one (an enforced gate counts all of it). When that runs out, it serves questions this project already asked that the learner declined, blanked on or got wrong and that are due again -- never one they answered correctly -- soonest first, in any domain (outside a git repository, only the domains this session touched), with reason "project_review" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Concepts that were logged but never asked are not carried into later sessions. In enforced mode, while the gate is unpassed, it serves only this session\'s own work -- no widening, no review -- including work concepts mastered in another session since they were logged, with reason "gate_work"; once everything else is exhausted it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context -- except while an enforced gate is unpassed, when the session\'s work comes first and the topic resumes once the gate passes. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries on_skip (what a skip means here, which depends on whether the gate needs this answer) and on_finish (the verdict, and the task restatement after an end-of-turn sweep) — follow both. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the interleaved cadence a plan is ONE question: ask it, grade it, tell them whether they were right (and the right answer if not) and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Any other plan is capped at what is left of this session\'s max_questions_per_task, and returns reason "budget_spent" once it is gone; while quiz.only_on_changes is on (the default), it also returns reason "no_code_change" until this session has changed code. Returns questions_needed: 0 when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts are due there) when any do.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. Only work logged in the current stretch counts as this session\'s own -- since its first prompt, or the first after more than an hour without one (an enforced gate counts all of it). When that runs out, it serves questions this project already asked that the learner declined, blanked on or got wrong and that are due again -- never one they answered correctly -- soonest first, in any domain (outside a git repository, only the domains this session touched), with reason "project_review" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Concepts that were logged but never asked are not carried into later sessions. In enforced mode, while the gate is unpassed, it serves only this session\'s own work -- no widening, no review -- including work concepts mastered in another session since they were logged, with reason "gate_work"; once everything else is exhausted it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context -- except while an enforced gate is unpassed, when the session\'s work comes first and the topic resumes once the gate passes. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries on_skip (what a skip means here, which depends on whether the gate needs this answer) and on_finish (the verdict, and the task restatement after an end-of-turn sweep) — follow both. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the as-you-go cadence a plan is ONE question: ask it, grade it, tell them whether they were right (and the right answer if not) and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Any other plan is capped at what is left of this session\'s max_questions_per_task, and returns reason "budget_spent" once it is gone; while quiz.only_on_changes is on (the default), it also returns reason "no_code_change" until this session has changed code. Returns questions_needed: 0 when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts are due there) when any do.',
     ' ',
   ),
   inputSchema: {
@@ -180,7 +180,7 @@ export const getSessionQuizPlan: ToolDef = {
     const explicitTopic = Boolean(args.domain || (effSlugs && effSlugs.length > 0));
 
     // The cadence decides how big a plan is allowed to be, and this is the only
-    // place that can enforce it. `interleaved` promises one question at a time,
+    // place that can enforce it. `as-you-go` promises one question at a time,
     // at the seam where the concept was logged -- but a plan of four is a plan
     // the caller works through end to end, so handing one back is how "learning
     // while the agent works" turns into the pile-up at the end of the task that
@@ -204,7 +204,7 @@ export const getSessionQuizPlan: ToolDef = {
     const requested = explicitTopic || args.max !== undefined || Boolean(args.ignore_cooldown);
     const waiting = Boolean(args.while_waiting) && !requested;
     const capped =
-      config.cadence === 'interleaved' && !config.quiz.enforced && !explicitTopic;
+      config.cadence === 'as-you-go' && !config.quiz.enforced && !explicitTopic;
     let max = waiting ? 1 : args.max ?? (capped ? 1 : config.max_questions_per_task);
 
     // An enforced gate that is open and not yet passed. While it is, the plan
@@ -290,7 +290,7 @@ export const getSessionQuizPlan: ToolDef = {
     //
     // Which clock it reads depends on the cadence, for the same reason the Stop
     // hook picks between them: `min_minutes_between_quizzes` is the floor between
-    // whole quizzes, and under `interleaved` a call here asks one question, not a
+    // whole quizzes, and under `as-you-go` a call here asks one question, not a
     // quiz. Reading the quiz clock on every cadence is what desynced the two --
     // the Stop hook would clear its 4-minute checkpoint clock, block the turn,
     // and then this function would refuse on a 20-minute floor, which reads to
@@ -300,7 +300,7 @@ export const getSessionQuizPlan: ToolDef = {
     // A wait on background agents skips it too: the wait is the moment.
     if (!config.quiz.enforced && !args.ignore_cooldown && !waiting) {
       const gap =
-        config.cadence === 'interleaved'
+        config.cadence === 'as-you-go'
           ? config.min_minutes_between_checkpoints
           : config.min_minutes_between_quizzes;
       // The shared clock policy: both stored timestamp shapes parsed as UTC, and
@@ -459,7 +459,7 @@ export const getSessionQuizPlan: ToolDef = {
       const sinceS = sinceMs === null ? null : Math.floor(sinceMs / 1000);
       const loggedS = (c: (typeof touched)[number]) => Math.floor((parseStamp(c.logged_at) ?? 0) / 1000);
       // Newest first, in the hooks' exact order (ts DESC, rowid DESC): under the
-      // interleaved cadence the plan is one item, and the concept a hook just
+      // as-you-go cadence the plan is one item, and the concept a hook just
       // named has to be that item.
       const current = (sinceS === null ? [...touched] : touched.filter((c) => loggedS(c) >= sinceS)).sort(
         (a, b) => loggedS(b) - loggedS(a) || b.logged_seq - a.logged_seq,

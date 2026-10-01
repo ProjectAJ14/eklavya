@@ -206,7 +206,7 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   'quiz.only_on_changes': bool,
   focus: { type: 'enum', options: ['concept', 'project', 'learn'] },
   focus_topic: text(true, 200),
-  cadence: { type: 'enum', options: ['interleaved', 'end'] },
+  cadence: { type: 'enum', options: ['as-you-go', 'end'] },
   difficulty: { type: 'enum', options: ['auto', 'easy', 'medium', 'hard'] },
   level_up_after: whole(1, 1000),
   level_up_accuracy: share,

@@ -137,7 +137,7 @@ describe('the status-bar dials', () => {
     statusLine({ config: config(patch), level, pinned, color: false });
 
   it('shows the dials, unlabelled — a bar you learn once, not a line you decode', () => {
-    expect(plain({ focus: 'concept' })).toBe('[EKLAVYA concept · interleaved · easy]');
+    expect(plain({ focus: 'concept' })).toBe('[EKLAVYA concept · as-you-go · easy]');
   });
 
   // The slot that used to hold `ambient` on three bars out of four, restating
@@ -145,7 +145,7 @@ describe('the status-bar dials', () => {
   // actually in force.
   it('names enforcement only when it is on', () => {
     expect(plain({ quiz: { enabled: true, enforced: true } })).toBe(
-      '[EKLAVYA enforced · concept · interleaved · easy]',
+      '[EKLAVYA enforced · concept · as-you-go · easy]',
     );
   });
 
@@ -153,12 +153,12 @@ describe('the status-bar dials', () => {
     // Parenthesised rather than `learn: caching`: a colon in a bar reads as a
     // key, and the topic has no key of its own here.
     expect(plain({ focus: 'learn', focus_topic: 'caching' }, 'medium')).toBe(
-      '[EKLAVYA learn (caching) · interleaved · medium]',
+      '[EKLAVYA learn (caching) · as-you-go · medium]',
     );
   });
 
   it('says when the level is pinned — otherwise questions just stop getting harder', () => {
-    expect(plain({}, 'hard', true)).toBe('[EKLAVYA concept · interleaved · hard (pinned)]');
+    expect(plain({}, 'hard', true)).toBe('[EKLAVYA concept · as-you-go · hard (pinned)]');
   });
 
   it('includes cadence, which the old question-line deliberately left out', () => {

@@ -1094,7 +1094,7 @@ describe('doctor names where each setting came from', () => {
     expect(out).toMatch(/quiz\s.*\(set for this project\)/);
     // focus and cadence are defaults here, and must say nothing.
     expect(out).toMatch(/focus\s+concept\s*$/m);
-    expect(out).toMatch(/cadence\s+interleaved[^\n]*$/m);
+    expect(out).toMatch(/cadence\s+as-you-go[^\n]*$/m);
     expect(out).not.toMatch(/focus\s.*set for this project/);
     expect(out).not.toMatch(/cadence\s.*set for this project/);
   });
@@ -1176,8 +1176,8 @@ describe('providers are global-only', () => {
 describe('config unset, and values config set would silently drop', () => {
   it('unset removes a project key so the user setting applies again', () => {
     expect(eklavya(['config', 'set', 'cadence', 'end']).status).toBe(0);
-    expect(eklavya(['config', 'set', 'cadence', 'interleaved', '--project']).status).toBe(0);
-    expect(JSON.parse(eklavya(['config', 'get']).stdout.split('\n\n')[0]!).cadence).toBe('interleaved');
+    expect(eklavya(['config', 'set', 'cadence', 'as-you-go', '--project']).status).toBe(0);
+    expect(JSON.parse(eklavya(['config', 'get']).stdout.split('\n\n')[0]!).cadence).toBe('as-you-go');
     const res = eklavya(['config', 'unset', 'cadence', '--project']);
     expect(res.status).toBe(0);
     expect(res.stdout).toMatch(/cadence unset/);
@@ -1194,7 +1194,7 @@ describe('config unset, and values config set would silently drop', () => {
   it('refuses a value the config would ignore, and writes nothing', () => {
     const res = eklavya(['config', 'set', 'cadence', 'bogus']);
     expect(res.status).not.toBe(0);
-    expect(res.stderr).toMatch(/cadence is one of interleaved, end\./);
+    expect(res.stderr).toMatch(/cadence is one of as-you-go, end\./);
     expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
   });
 

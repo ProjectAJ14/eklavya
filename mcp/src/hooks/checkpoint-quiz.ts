@@ -18,7 +18,7 @@
  * rules keep it to a trickle:
  *
  *   1. one question per checkpoint, never a batch -- we ask for `max: 1`, and
- *      the planner caps an interleaved plan at one anyway, so a model that drops
+ *      the planner caps an as-you-go plan at one anyway, so a model that drops
  *      the argument still cannot be handed four;
  *   2. min_minutes_between_checkpoints since the last one, wall clock;
  *   3. the session budget is max_questions_per_task, shared with the Stop hook.
@@ -81,7 +81,7 @@ await run(async (input) => {
   if (input.agent_id) return 0;
   // The whole feature behind one switch. `end` is the pre-1.4 behaviour: silence
   // until Stop.
-  if (cadence !== 'interleaved') return 0;
+  if (cadence !== 'as-you-go') return 0;
 
   const sid = workSid;
   if (!sid) return 0;

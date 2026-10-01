@@ -96,7 +96,7 @@ function answerEverything(session: string): { slug: string; reason: string; gate
 
 describe('an enforced gate is always passable', () => {
   for (const focus of ['project', 'concept'] as const) {
-    for (const cadence of ['interleaved', 'end'] as const) {
+    for (const cadence of ['as-you-go', 'end'] as const) {
       it(`clears after a work concept is mastered in another session (focus ${focus}, cadence ${cadence})`, () => {
         configure({ quiz: { enabled: true, enforced: true }, focus, cadence });
         const opened = logWork('sess-A');
