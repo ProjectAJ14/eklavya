@@ -23,7 +23,7 @@
  "metrics": {
   "valid": "exactly one non-builtin plugin loaded (the build under test), the session finished inside the timeout, and no result reported an error (a usage limit ends a session that way)",
   "nudged": "the second-file delegation nudge fired (hook event in the stream, or its done row in meta)",
-  "builder": "the parent started an Agent/Task call with run_in_background: true whose subagent made at least one write (Edit/Write/MultiEdit/NotebookEdit, or a Bash command matching the write heuristic); Explore, Plan, eklavya-tutor and eklavya-explainer never count",
+  "builder": "the parent started an Agent/Task call that ran in the background (run_in_background: true, or a launch result saying the host ran it async) whose subagent made at least one write (Edit/Write/MultiEdit/NotebookEdit, or a Bash command matching the write heuristic); Explore, Plan, claude-code-guide, statusline-setup, eklavya-tutor and eklavya-explainer never count",
   "foregroundBuilder": "an implementation agent ran in the foreground (run_in_background not true)",
   "builderWithinNudge": "the first background builder started fewer than 3 parent tool calls after the nudge",
   "builderBeforeNudge": "the first background builder started before the nudge fired",

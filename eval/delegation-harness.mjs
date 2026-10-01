@@ -343,6 +343,8 @@ export function parseStream(lines) {
         if (c.type === 'tool_result') {
           const call = parent.find((p) => p.id === c.tool_use_id);
           if (call) call.result = typeof c.content === 'string' ? c.content : JSON.stringify(c.content);
+          // The host may run an agent in the background without `run_in_background`.
+          if (call && isAgentTool(call.name) && /Async agent launched/.test(call.result)) call.async = true;
           // A foreground agent finishes when its result comes back.
           if (call && isAgentTool(call.name) && !done.has(c.tool_use_id)) done.set(c.tool_use_id, { pos, status: 'returned' });
         }
@@ -379,7 +381,7 @@ export function scoreTrial(trial, lines) {
 
   const agents = tools.filter((p) => isAgentTool(p.name));
   const builders = agents.filter((a) => !NON_BUILDERS.test(String(a.input.subagent_type ?? '')) && (sub.get(a.id) ?? 0) > 0);
-  const bgBuilders = builders.filter((a) => a.input.run_in_background === true);
+  const bgBuilders = builders.filter((a) => a.input.run_in_background === true || a.async);
   const first = bgBuilders[0] ?? null;
   const parentWrites = (beforePos) => tools.filter((p) => p.pos < beforePos && isMutation(p.name, p.input)).length;
   const wt = trial.work.worktree ? fs.realpathSync.native?.(trial.work.worktree) ?? trial.work.worktree : trial.wt;
@@ -504,7 +506,7 @@ function scoreCommand() {
 const METRICS = {
   valid: 'exactly one non-builtin plugin loaded (the build under test), the session finished inside the timeout, and no result reported an error (a usage limit ends a session that way)',
   nudged: 'the second-file delegation nudge fired (hook event in the stream, or its done row in meta)',
-  builder: 'the parent started an Agent/Task call with run_in_background: true whose subagent made at least one write (Edit/Write/MultiEdit/NotebookEdit, or a Bash command matching the write heuristic); Explore, Plan, claude-code-guide, statusline-setup, eklavya-tutor and eklavya-explainer never count',
+  builder: 'the parent started an Agent/Task call that ran in the background (run_in_background: true, or a launch result saying the host ran it async) whose subagent made at least one write (Edit/Write/MultiEdit/NotebookEdit, or a Bash command matching the write heuristic); Explore, Plan, claude-code-guide, statusline-setup, eklavya-tutor and eklavya-explainer never count',
   foregroundBuilder: 'an implementation agent ran in the foreground (run_in_background not true)',
   builderWithinNudge: `the first background builder started fewer than ${WITHIN} parent tool calls after the nudge`,
   builderBeforeNudge: 'the first background builder started before the nudge fired',
