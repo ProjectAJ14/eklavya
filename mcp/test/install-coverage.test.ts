@@ -13,12 +13,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { PassThrough, Writable } from 'node:stream';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
 import { buildSource } from './claude-mem-fixture.js';
-import { claudeHome as claudeHomeFn, commandOnPath, gateHookFailsOpen, health, install } from '../src/install.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+// The built module, not `src/`: `install` copies the plugin payload that sits
+// beside it, and only `dist/` has one (`pretest` builds it).
+const { claudeHome: claudeHomeFn, commandOnPath, gateHookFailsOpen, health, install } = (await import(
+  pathToFileURL(path.join(mcpRoot, 'dist', 'install.js')).href
+)) as typeof import('../src/install.js');
 const CLI = path.join(mcpRoot, 'dist', 'cli.js');
 const posix = process.platform !== 'win32';
 

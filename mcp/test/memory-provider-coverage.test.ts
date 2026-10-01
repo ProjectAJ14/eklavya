@@ -251,6 +251,24 @@ describe.skipIf(!posix)('runClaude and probeLogin against a stand-in claude', ()
     expect(await probeLogin()).toBe('unknown');
   });
 
+  it('kills a leftover group member that ignores SIGTERM after the call exits', async () => {
+    const pidFile = path.join(bin, 'stubborn.pid');
+    fs.rmSync(pidFile, { force: true });
+    // The subshell ignores TERM and `sleep` inherits that; it also keeps stdout
+    // open, so only the reap at 'exit' can end it.
+    stand(`cat >/dev/null
+(trap '' TERM; exec sleep 30) &
+echo $! > "${pidFile}"
+echo '${envelope({ observations: [] })}'
+exit 0`);
+    const started = Date.now();
+    const out = await runClaude('m', 'x', { graceMs: 100 });
+    expect(JSON.parse(out)).toMatchObject({ subtype: 'success' });
+    expect(Date.now() - started).toBeLessThan(10_000);
+    const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+    expect(() => process.kill(pid, 0)).toThrow();
+  });
+
   it('an overflow from a descendant that left the group still ends the call', async () => {
     // The grandchild moves to its own session, so the group is already empty
     // when the output limit trips: signalling it finds nobody, and that is fine.

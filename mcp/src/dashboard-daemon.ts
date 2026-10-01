@@ -54,8 +54,9 @@ export function probeDashboard(port = dashboardPort(), timeoutMs = 150): Promise
       res.setEncoding('utf8');
       res.on('data', (chunk: string) => {
         body += chunk;
-        // With an error: a bare destroy() emits neither 'end' nor 'error'.
-        if (body.length > 4096) req.destroy(new Error('too large'));
+        // Settles through 'error' (socket hang up). Not destroy(err): that is
+        // also re-emitted on `res`, where nothing listens.
+        if (body.length > 4096) req.destroy();
       });
       res.on('end', () => {
         try {

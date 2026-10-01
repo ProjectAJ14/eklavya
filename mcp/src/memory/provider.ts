@@ -289,6 +289,7 @@ async function reapGroup(pgid: number, graceMs: number): Promise<boolean> {
   const signal = (sig: NodeJS.Signals) => {
     try {
       process.kill(-pgid, sig);
+      /* c8 ignore next 3 -- only if the group exits between groupAlive() and the signal */
     } catch {
       /* Already gone. */
     }
@@ -374,6 +375,7 @@ export function runClaude(
         // No pid means the spawn failed: nothing to signal, and `child.kill()`
         // on a failed spawn is `kill(0)`, which signals our own process group.
         if (!child.pid) return;
+        /* c8 ignore next -- win32 only */
         if (process.platform === 'win32') child.kill(sig);
         else process.kill(-child.pid, sig);
       } catch {

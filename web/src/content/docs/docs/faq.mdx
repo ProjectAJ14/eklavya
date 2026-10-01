@@ -117,6 +117,15 @@ while keeping history. Git hooks, project-scoped plugin installs and Cowork
 may need separate removal. Follow the
 [uninstall guide](/docs/updates/#uninstalling) for those steps or to delete data.
 
+## How is Eklavya tested?
+
+Every pull request runs the whole test suite under coverage, including the
+hooks and CLI commands the tests start as separate processes, and fails unless
+100% of lines, branches and functions run. Code that only runs on another
+operating system or in a timing race is excluded line by line, with the reason
+beside it. The suite runs on Linux; [CONTRIBUTING.md](https://github.com/ProjectAJ14/eklavya/blob/main/CONTRIBUTING.md)
+has the details.
+
 ## Still stuck?
 
 Start with [Troubleshooting](/docs/troubleshooting/). If the tool and the manual
