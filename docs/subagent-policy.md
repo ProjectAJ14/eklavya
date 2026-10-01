@@ -94,6 +94,9 @@ the agent started.
 or a compaction keeps it, and another chat in the same project has its own. The
 row holds:
 
+- the first changed file;
+- the tree the last leading `cd` named;
+- the time of the previous Bash call;
 - whether the nudge fired;
 - the delegation, and whether it ran in the background.
 

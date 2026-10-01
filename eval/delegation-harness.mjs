@@ -323,6 +323,7 @@ export function parseStream(lines) {
   const done = new Map(); // tool_use_id -> index of its completion
   const hooks = [];
   let init = null;
+  let failed = false;
   let pos = 0;
   for (const line of lines) {
     let o;
@@ -333,6 +334,8 @@ export function parseStream(lines) {
     }
     pos++;
     if (o.type === 'system' && o.subtype === 'init' && !init) init = o;
+    // A usage or spend limit ends the session with an error result, often seconds in.
+    if (o.type === 'result' && o.is_error) failed = true;
     if (o.type === 'system' && o.subtype === 'task_notification' && o.tool_use_id) done.set(o.tool_use_id, { pos, status: o.status });
     if (o.type === 'system' && /^hook_/.test(o.subtype ?? '')) hooks.push({ pos, ...o });
     if (o.type === 'user' && !o.parent_tool_use_id && Array.isArray(o.message?.content)) {
@@ -355,7 +358,7 @@ export function parseStream(lines) {
       else if (c.type === 'text' && c.text.trim()) parent.push({ pos, kind: 'text', text: c.text });
     }
   }
-  return { parent, sub, done, hooks, init };
+  return { parent, sub, done, hooks, init, failed };
 }
 
 function isMutation(name, input) {
@@ -367,7 +370,7 @@ const STAGES = [1, 2, 3, 4];
 
 export function scoreTrial(trial, lines) {
   const s = SCENARIOS[trial.scenario];
-  const { parent, sub, done, hooks, init } = parseStream(lines);
+  const { parent, sub, done, hooks, init, failed } = parseStream(lines);
   const tools = parent.filter((p) => p.kind === 'tool');
   const plugins = (init?.plugins ?? []).filter((p) => p.path !== 'builtin').map((p) => p.name);
   const nudgeHook = hooks.find((h) => /delegat|This task now edits|edits more than one file/i.test(JSON.stringify(h.output ?? h.stdout ?? h)) && /PostToolUse/.test(JSON.stringify(h)));
@@ -411,7 +414,8 @@ export function scoreTrial(trial, lines) {
   return {
     scenario: trial.scenario,
     trial: trial.trial,
-    valid: plugins.length === 1 && !trial.timedOut,
+    valid: plugins.length === 1 && !trial.timedOut && !failed,
+    failed,
     plugins,
     timedOut: trial.timedOut,
     seconds: trial.seconds,
@@ -498,9 +502,9 @@ function scoreCommand() {
 
 /** What each number means; copied into every result so a reader needs no source. */
 const METRICS = {
-  valid: 'exactly one non-builtin plugin loaded (the build under test) and the session finished inside the timeout',
+  valid: 'exactly one non-builtin plugin loaded (the build under test), the session finished inside the timeout, and no result reported an error (a usage limit ends a session that way)',
   nudged: 'the second-file delegation nudge fired (hook event in the stream, or its done row in meta)',
-  builder: 'the parent started an Agent/Task call with run_in_background: true whose subagent made at least one write (Edit/Write/MultiEdit/NotebookEdit, or a Bash command matching the write heuristic); Explore, Plan, eklavya-tutor and eklavya-explainer never count',
+  builder: 'the parent started an Agent/Task call with run_in_background: true whose subagent made at least one write (Edit/Write/MultiEdit/NotebookEdit, or a Bash command matching the write heuristic); Explore, Plan, claude-code-guide, statusline-setup, eklavya-tutor and eklavya-explainer never count',
   foregroundBuilder: 'an implementation agent ran in the foreground (run_in_background not true)',
   builderWithinNudge: `the first background builder started fewer than ${WITHIN} parent tool calls after the nudge`,
   builderBeforeNudge: 'the first background builder started before the nudge fired',

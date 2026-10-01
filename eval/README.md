@@ -661,8 +661,9 @@ Each trial gets a bare `origin`, a main checkout cloned from it and, for most
 scenarios, a sibling worktree on `task`. The session always starts in the main
 checkout, as in the workflow it models. `worktree-flow` makes no worktree
 up front: the session creates one with the developer's `worktree-session` skill,
-copied in as a project skill (`--worktree-skill <dir>`; without one, the session
-has to use `git worktree add`, and `run.json` records which).
+copied in as a project skill (`--worktree-skill <dir>`, default
+`~/.claude/skills/worktree-session`). When that directory has no `SKILL.md`, the
+session has to use `git worktree add`, and `run.json` records which.
 
 | Scenario | Prompt | Expected |
 |---|---|---|
@@ -681,7 +682,8 @@ keep the developer's own plugins and hooks out (the contamination trap above);
 SessionStart says nothing on a first-ever start and would drop the instructions
 under test. Memory, updates, telemetry and the dashboard are off there. `score`
 marks a trial invalid unless the stream's init event lists exactly one
-non-builtin plugin.
+non-builtin plugin, the session ended inside the timeout and no result reported an
+error. A usage or spend limit ends a session with an error result, often seconds in.
 
 **Questions.** `--print` removes AskUserQuestion, so sessions run over
 `--input-format stream-json` with `--permission-prompt-tool stdio`, and the
@@ -691,8 +693,9 @@ be observed.
 
 **What counts as delegation.** A parent `Agent`/`Task` call with
 `run_in_background: true` whose subagent then wrote at least one file. An agent
-that only reads (a reviewer, Explore, the tutor or the explainer) never counts,
-and neither does a launch on its own. `score.json` carries the definition of
+with no writes (a reviewer, for example) never counts. Neither does an Explore,
+Plan, `claude-code-guide`, `statusline-setup`, tutor or explainer agent, or a
+launch on its own. `score.json` carries the definition of
 every metric next to the numbers. Parent writes and the fallback text are word and
 command heuristics, so `score.json` keeps raw counts and the first parent text of
 each trial for reading.
