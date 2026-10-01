@@ -127,7 +127,8 @@ export function loadPacks(cwd: string = process.cwd()): LoadedPack[] {
         validateSeedGraph(parsed, path.basename(file), { allowExternalEdges: true });
         out.push({ file, scope, pack: parsed });
       } catch (err) {
-        out.push({ file, scope, error: err instanceof Error ? err.message : String(err) });
+        // JSON.parse, fs and `validateSeedGraph` throw only Errors.
+        out.push({ file, scope, error: (err as Error).message });
       }
     }
   }
@@ -182,7 +183,8 @@ function applyLoaded(db: Database, loaded: LoadedPack[], dirs: string[]): PackSu
 
   for (const entry of loaded) {
     if (!entry.pack) {
-      summary.errors.push({ file: entry.file, error: entry.error ?? 'unreadable' });
+      // `loadPacks` sets `error` on every entry it could not read.
+      summary.errors.push({ file: entry.file, error: entry.error! });
       continue;
     }
     const s = applySeedGraph(db, entry.pack, 'pack');

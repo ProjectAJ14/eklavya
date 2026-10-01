@@ -229,7 +229,7 @@ export function tierStats(rows: AttemptRow[], includeUnknownOutcome = true): Tie
 
   let monotonic = true;
   for (let i = 1; i < out.length; i++) {
-    if ((out[i]?.meanGrade ?? 0) > (out[i - 1]?.meanGrade ?? 0)) monotonic = false;
+    if (out[i]!.meanGrade > out[i - 1]!.meanGrade) monotonic = false;
   }
 
   return {
@@ -298,9 +298,8 @@ export function gapStats(rows: AttemptRow[], minDays = 1): GapStats {
     const ordered = [...list].sort((a, b) => a.id - b.id);
 
     for (let i = 1; i < ordered.length; i++) {
-      const before = ordered[i - 1];
-      const after = ordered[i];
-      if (!before || !after) continue;
+      const before = ordered[i - 1]!;
+      const after = ordered[i]!;
       if (after.outcome === 'declined') continue;
 
       // `datetime('now')` writes UTC without a zone; treat it as UTC rather than

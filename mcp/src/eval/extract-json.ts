@@ -75,5 +75,6 @@ export function extractJson(text: string): unknown | null {
   const outermost = found.filter(
     (a) => !found.some((b) => b !== a && b.start <= a.start && a.end <= b.end),
   );
-  return outermost[outermost.length - 1]?.value ?? null;
+  // Never empty: the widest object is contained in no other.
+  return outermost[outermost.length - 1]!.value;
 }
