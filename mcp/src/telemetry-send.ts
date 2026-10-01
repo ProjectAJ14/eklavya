@@ -77,9 +77,11 @@ function artifactCounts(since: number): Record<string, number> {
       if (a.kind === 'explainer') { out.explainers_total++; if (fresh) out.explainers_new++; }
       else { out.artifacts_total++; if (fresh) out.artifacts_new++; }
     }
+  /* c8 ignore start -- listArtifacts never throws; kept so a future one cannot cost the ping */
   } catch {
     /* no artifacts yet */
   }
+  /* c8 ignore stop */
   return out;
 }
 
@@ -247,6 +249,7 @@ export function assertSafe(events: TelemetryEvent[]): void {
 
 /** POSTs events in GA4's batches of 25. True when every batch was accepted. */
 export async function post(events: TelemetryEvent[], id = installId()): Promise<boolean> {
+  /* c8 ignore next -- both ship non-empty; emptying one is the maintainer's off switch */
   if (!MEASUREMENT_ID || !API_SECRET) return false;
   assertSafe(events);
   const url = `${ENDPOINT}?measurement_id=${MEASUREMENT_ID}&api_secret=${API_SECRET}`;
@@ -281,5 +284,6 @@ export async function sendNow(db: DB, now = Date.now()): Promise<boolean> {
 /** A single event, sent in the open — `uninstall` uses it before the runtime goes. */
 export async function sendOne(name: string, params: Record<string, Value> = {}): Promise<void> {
   if (disabledReason() || !canSend()) return;
-  await post([{ name, params: { version: runtimeVersion() ?? 'unknown', os: process.platform, ...params } }]).catch(() => false);
+  // `canSend` has already required a runtime version.
+  await post([{ name, params: { version: runtimeVersion()!, os: process.platform, ...params } }]).catch(() => false);
 }
