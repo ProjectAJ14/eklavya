@@ -178,7 +178,10 @@ await run(async (input) => {
       if (state.delegated || (state.done && !isAgent)) return false;
       if (isAgent) {
         state.delegated = new Date(now).toISOString();
-        state.background = input.tool_input?.run_in_background === true;
+        // The host can run an agent in the background without being asked to:
+        // its launch result says so (2.1.286 sessions omitted the flag).
+        const response = input.tool_response as { status?: unknown } | undefined;
+        state.background = input.tool_input?.run_in_background === true || response?.status === 'async_launched';
       }
       if (isBash) {
         state.bashAt = now;

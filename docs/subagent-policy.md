@@ -85,7 +85,7 @@ trigger the nudge nor count towards it.
 **When the nudge stands down.** It stands down for good once the parent starts an
 `Agent`/`Task` whose `subagent_type` is not Explore, Plan, `claude-code-guide`,
 the tutor or the explainer. That launch is also recorded: whether it ran in the
-background, and the fact that the session is now building. That mark is what
+background (`run_in_background`, or a launch result of `async_launched`, since the host can background an agent unasked), and the fact that the session is now building. That mark is what
 `quiz.only_on_changes` reads, so `while_waiting` can ask before the builder's
 first edit lands. Without it, the planner answered `no_code_change` the moment
 the agent started.

@@ -2115,6 +2115,11 @@ describe('the delegation nudge on a second edited file', () => {
       expect(db.prepare('SELECT 1 AS ok FROM meta WHERE key = ?').get(`code_edit:${SESSION}`)).toBeUndefined();
     });
 
+    it('reads a launch the host ran in the background without being asked as a background one', () => {
+      agent({ subagent_type: 'general-purpose' }, { tool_response: { status: 'async_launched', agentId: 'a1' } });
+      expect(state()).toMatchObject({ background: true });
+    });
+
     it('stands down after a foreground building agent too, recording that it was not in the background', () => {
       agent({});
       expect(state()).toMatchObject({ background: false });
