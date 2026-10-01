@@ -1,3 +1,10 @@
+## [1.43.2](https://github.com/ProjectAJ14/eklavya/compare/v1.43.1...v1.43.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* **quiz:** count Bash edits in sibling worktrees; ask to log at Stop ([1ee2d2f](https://github.com/ProjectAJ14/eklavya/commit/1ee2d2f767653f12f4f5f158c7f3070224990517))
+
 ## [1.43.1](https://github.com/ProjectAJ14/eklavya/compare/v1.43.0...v1.43.1) (2026-10-01)
 
 
