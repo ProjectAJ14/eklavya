@@ -35,10 +35,9 @@
  *   costs no git. No inference; fails open.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
-import { git } from './changes-lib.js';
+import { git, leadingCd } from './changes-lib.js';
 
 const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
 const KEY_PREFIX = 'delegate_nudge:';
@@ -64,19 +63,6 @@ function canonical(file: string): string {
   } catch {
     return path.resolve(file);
   }
-}
-
-/**
- * The directory a command's leading `cd` moves to, or null. Only the first
- * word: `cd <dir> && …` is how agents work in another checkout. A `cd` later in
- * the command, `pushd`, a subshell or a variable is not followed.
- */
-function leadingCd(command: string, cwd: string): string | null {
-  const m = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))\s*(?:&&|;|\n|$)/.exec(command);
-  const dir = m?.[1] ?? m?.[2] ?? m?.[3];
-  if (!dir || dir.includes('$')) return null;
-  const home = dir === '~' || dir.startsWith('~/') ? path.join(os.homedir(), dir.slice(1)) : dir;
-  return path.resolve(cwd, home);
 }
 
 /** The repository root `dir` sits in, or null. */

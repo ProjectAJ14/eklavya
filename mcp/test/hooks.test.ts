@@ -1353,6 +1353,29 @@ describe('quiz.only_on_changes — no questions for a session that changed nothi
     }
   });
 
+  it('asks after a Bash edit in a sibling worktree, and the Stop sweep does too', () => {
+    // The same layout through Bash: `cd <worktree>; sed -i …` uses no edit
+    // tool and leaves this tree alone. The quietflip session that found this
+    // ran 250 Bash calls with no Edit and was asked nothing.
+    realRepo();
+    const sibling = `${cwd}-worktrees/feat`;
+    spawnSync('git', ['worktree', 'add', '-q', '-b', 'feat', sibling], { cwd });
+    try {
+      sessionStart();
+      logConcepts(['csrf']);
+      const bash = (command: string) => checkpoint({ tool_name: 'Bash', tool_input: { command } });
+      // Reading there is not a change.
+      expect(bash(`cd ${sibling} && git status`).spoke).toBe(false);
+      expect(stop().spoke).toBe(false);
+      // The first edit there counts: no earlier snapshot of that tree is needed.
+      fs.appendFileSync(path.join(sibling, 'a.ts'), '// more\n');
+      expect(bash(`cd ${sibling}; sed -i '' s/1/2/ a.ts`).spoke).toBe(true);
+      expect(stop().spoke).toBe(true);
+    } finally {
+      fs.rmSync(`${cwd}-worktrees`, { recursive: true, force: true });
+    }
+  });
+
   it('counts an edit to a file that was already dirty at session start', () => {
     realRepo();
     edit();
@@ -1380,6 +1403,66 @@ describe('quiz.only_on_changes — no questions for a session that changed nothi
     earlierDecline('pkce');
     logConcepts(['csrf']);
     expect(stop().spoke).toBe(false);
+  });
+
+  describe('a session that changed code and logged nothing', () => {
+    // The fill at Stop mines this session's memory entries, and with a
+    // provider configured the batch it just queued is summarised after the
+    // hook returns: a one-turn task had nothing to fill from. So the sweep asks
+    // the model to log first, then ask.
+    it('asks to log the work and then one question, once per pacing window', () => {
+      realRepo();
+      sessionStart();
+      edit();
+      const res = stop();
+      expect(res.spoke).toBe(true);
+      expect(res.context).toBe(
+        'Eklavya: one question on this work before this turn ends -- call log_session_concepts with the concepts it used, then get_session_quiz_plan, and follow it.',
+      );
+      // The model ignored it: the clock keeps the next Stop quiet.
+      expect(stop().spoke).toBe(false);
+      // It logged after all: the sweep is back to naming the work.
+      logConcepts(['csrf']);
+      ageClocks();
+      expect(conceptsLine(stop().context ?? '')).toBe('csrf');
+    });
+
+    it('asks for the whole remaining budget under end cadence', () => {
+      writeConfig({ min_minutes_between_quizzes: 0, cadence: 'end' });
+      realRepo();
+      sessionStart();
+      edit();
+      expect(stop().context).toContain('up to 4 questions, one at a time, on this work');
+    });
+
+    it('takes precedence over review that is due, and asks nothing without a change', () => {
+      realRepo();
+      sessionStart();
+      earlierDecline('pkce');
+      expect(stop().spoke).toBe(false);
+      edit();
+      expect(stop().context).toContain('call log_session_concepts');
+    });
+
+    it('keeps review, not a request to log, when the rule is off and nothing changed', () => {
+      writeConfig({ min_minutes_between_quizzes: 0, min_minutes_between_checkpoints: 0, quiz: { only_on_changes: false } });
+      realRepo();
+      sessionStart();
+      earlierDecline('pkce');
+      const res = stop();
+      expect(res.context).toContain('due again (pkce)');
+      expect(res.context).not.toContain('log_session_concepts');
+    });
+
+    it('stays quiet under learn focus and enforced quizzing, as before', () => {
+      writeConfig({ min_minutes_between_quizzes: 0, focus: 'learn', focus_topic: 'oauth' });
+      realRepo();
+      sessionStart();
+      edit();
+      expect(stop().spoke).toBe(false);
+      writeConfig({ min_minutes_between_quizzes: 0, quiz: { enforced: true } });
+      expect(stop().spoke).toBe(false);
+    });
   });
 
   it('keeps the baseline across a resume, so earlier changes still count', () => {

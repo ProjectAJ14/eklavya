@@ -172,9 +172,24 @@ await run(async (input) => {
   // Same helper and scope as the plan, so a block here is a plan there. Never
   // under `quiz.enforced`, where an open gate asks only this session's work,
   // nor under `learn` focus, where the plan asks from the topic instead.
+  //
+  // Unless the session logged nothing at all. That is the model skipping
+  // `log_session_concepts`, not a session with nothing to ask, and the fill
+  // above cannot cover it with a provider configured: it mines this session's
+  // memory entries, and the batch it just queued is summarised after this hook
+  // returns. One quietflip turn stopped at 10:28:30 and got its entries at
+  // 10:29:50 -- a whole task, no question. So a session that changed code and
+  // logged nothing is told to log first, then ask; review waits for a turn
+  // that has its own work behind it. Whatever `only_on_changes` says: with
+  // nothing logged, the change is the only evidence there was work to ask
+  // about, and a session without one keeps the review it always had.
   let due: string[] = [];
+  let logFirst = false;
   if (stats.unmastered <= 0) {
     if (quiz.enforced || focus === 'learn') return 0;
+    logFirst = stats.logged === 0 && sessionChangedCode(db, sid, cwd);
+  }
+  if (stats.unmastered <= 0 && !logFirst) {
     const domains = [...new Set(sessionConcepts(db, sid).map((c) => c.domain))];
     due = dueInProject(db, repoRoot, new Date(), domains, max_questions_per_task).map((c) => c.slug);
     if (due.length === 0) return 0;
@@ -262,28 +277,30 @@ await run(async (input) => {
   // earlier session's work. Enforced quizzing is exempt -- the gate exists for
   // commits, and a commit is a change. Last among the guards because it spawns
   // git, and before the stamp so a skipped sweep spends no block.
-  if (quiz.only_on_changes && !quiz.enforced && !sessionChangedCode(db, sid, cwd)) return 0;
+  if (quiz.only_on_changes && !quiz.enforced && !logFirst && !sessionChangedCode(db, sid, cwd)) return 0;
 
-  const rows = db
-    .prepare(
-      `SELECT c.slug AS line
-         FROM session_concepts sc
-         JOIN concepts c ON c.id = sc.concept_id
-         LEFT JOIN mastery m ON m.concept_id = c.id
-        WHERE sc.session_id = @sid
-          AND COALESCE(sc.origin,'work') = 'work'
-          ${recent}
-          AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
-          AND sc.concept_id NOT IN
-              (SELECT concept_id FROM attempts WHERE session_id = @sid)
-        ORDER BY sc.ts DESC, sc.rowid DESC
-        LIMIT @take`,
-    )
-    .all({ ...bind, take }) as Array<{ line: string }>;
+  const rows = logFirst
+    ? []
+    : (db
+        .prepare(
+          `SELECT c.slug AS line
+             FROM session_concepts sc
+             JOIN concepts c ON c.id = sc.concept_id
+             LEFT JOIN mastery m ON m.concept_id = c.id
+            WHERE sc.session_id = @sid
+              AND COALESCE(sc.origin,'work') = 'work'
+              ${recent}
+              AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
+              AND sc.concept_id NOT IN
+                  (SELECT concept_id FROM attempts WHERE session_id = @sid)
+            ORDER BY sc.ts DESC, sc.rowid DESC
+            LIMIT @take`,
+        )
+        .all({ ...bind, take }) as Array<{ line: string }>);
 
   const names = due.length ? due.slice(0, take) : rows.map((r) => r.line);
   /* c8 ignore next -- a concurrent answer between the two reads; the count above found one */
-  if (names.length === 0) return 0;
+  if (names.length === 0 && !logFirst) return 0;
   const concepts = names.join(', ');
 
   // Stamp the guard BEFORE blocking. If anything below fails, the worst case is a
@@ -312,15 +329,21 @@ await run(async (input) => {
   // each item's `context`). It is the next call the model makes, and only the
   // model reads its result. This hook has been re-grown into a page of
   // instructions before; do not put them back here.
-  const count = names.length === 1 ? 'one question' : `up to ${names.length} questions, one at a time,`;
-  const what = due.length
-    ? `${count} on earlier work in this project that is due again (${concepts})`
-    : `${count} on ${concepts}`;
+  const asked = logFirst ? take : names.length;
+  const count = asked === 1 ? 'one question' : `up to ${asked} questions, one at a time,`;
+  const what = logFirst
+    ? `${count} on this work`
+    : due.length
+      ? `${count} on earlier work in this project that is due again (${concepts})`
+      : `${count} on ${concepts}`;
+  const call = logFirst
+    ? 'call log_session_concepts with the concepts it used, then get_session_quiz_plan, and follow it.'
+    : 'call get_session_quiz_plan and follow it.';
   // The gate clause is true everywhere the gate can fire. On Cowork it cannot
   // -- it matches `git commit`, and Cowork does not commit -- and session-start
   // has already told this session that nothing is blocked.
   const gate = quiz.enforced && !isCowork() ? ' The commit gate needs it.' : '';
-  const context = `Eklavya: ${what} before this turn ends -- call get_session_quiz_plan and follow it.${gate}`;
+  const context = `Eklavya: ${what} before this turn ends -- ${call}${gate}`;
 
   // exit 0 + JSON, not exit 2 + stderr. Both continue the turn and both pass
   // through the same loop protections; only one of them tells the developer

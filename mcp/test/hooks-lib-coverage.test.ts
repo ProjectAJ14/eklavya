@@ -12,7 +12,7 @@ import { appendEvent, batchSession } from '../src/memory/store.js';
 import { clearNudgeState, framingFor, NUDGE_KEY_PREFIX, openOrDiagnose, sessionId } from '../src/hooks/lib.js';
 import { batchIfFull, record } from '../src/hooks/capture-lib.js';
 import { flushAtSeam, memoryHealthLine, recallBlock, wrapUpAtSeam } from '../src/hooks/memory-lib.js';
-import { noteEdit, recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
+import { noteBashEdit, noteEdit, recordBaseline, sessionChangedCode, treeFingerprint } from '../src/hooks/changes-lib.js';
 import { isCommitCommand } from '../src/hooks/commit-lib.js';
 import { cleanup, tempDbPath } from './helpers.js';
 
@@ -249,6 +249,15 @@ describe('hooks/changes-lib', () => {
     expect(() => recordBaseline(broken, 's1', repo, 'fp')).not.toThrow();
     expect(sessionChangedCode(broken, 's1', repo)).toBe(true);
     expect(() => noteEdit(broken, 's1', path.join(repo, 'a.ts'))).not.toThrow();
+    expect(() => noteBashEdit(broken, 's1', repo, `cd ${repo} && true`)).not.toThrow();
+  });
+
+  it('marks nothing from a Bash command when git cannot read the tree it names', () => {
+    recordBaseline(db, 's1', repo, 'fp');
+    fs.writeFileSync(path.join(repo, 'a.ts'), 'changed\n');
+    fs.writeFileSync(path.join(repo, '.git', 'index'), 'corrupt index');
+    noteBashEdit(db, 's1', repo, `cd ${repo} && true`);
+    expect(db.prepare(`SELECT count(*) AS n FROM meta WHERE key LIKE 'code_edit:%'`).get()).toEqual({ n: 0 });
   });
 
   it('answers changed when git itself is missing, since unknown errs towards asking', () => {

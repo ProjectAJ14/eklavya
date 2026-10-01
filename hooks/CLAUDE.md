@@ -19,9 +19,9 @@ registrations, for ten rows total.
 | PreToolUse (`^Read$`) | `file-context` | Add the file's past observations as `additionalContext`, once per file per session; parent only; never a permission decision; capture-path imports only |
 | PostToolUse (all tools) | `capture-tool` | Record one memory event with a bounded result excerpt (none for reads and edits); no quiz, summarization or provider call |
 | PostToolUse (`mcp__.*log_session_concepts`) | `checkpoint-quiz` | Ask a due as-you-go question after concepts are logged |
-| PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `checkpoint-quiz` | Mark an edit into a git tree for `only_on_changes`; recheck pacing as work continues; no spinner on every tool call |
+| PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `checkpoint-quiz` | Mark an edit into a git tree for `only_on_changes` (edit tool path, or a Bash command whose leading `cd` tree lists a file modified since session start); recheck pacing as work continues; no spinner on every tool call |
 | PostToolUse (`^(Bash|Edit|Write|MultiEdit|NotebookEdit)$`) | `delegate-nudge` | With questions on and `delegate_work`, tell the parent once per session, at its second distinct changed file (edit tool path, or `git status` moving between Bash calls in the session's repository and in the one a leading `cd <dir> &&` names), to hand the rest to background agents; parent only; git for at most two repositories per Bash until it fires; no inference |
-| Stop | `stop-quiz-check` | Record the turn's final message (parent only), flush the memory seam and request the remaining eligible quiz |
+| Stop | `stop-quiz-check` | Record the turn's final message (parent only), flush the memory seam and request the remaining eligible quiz; a session that changed code and logged nothing is asked to call `log_session_concepts` first |
 
 The MCP matcher accepts both standalone and plugin-scoped names. Do not narrow
 it to one prefix. Keep the work-tool regex anchored. Hook timeouts are 10 seconds,
@@ -108,7 +108,10 @@ work tool call, and a gap over `IDLE_BREAK_MINUTES` starts a new stretch),
 newest first then last inserted, and so does the planner;
 enforced gates are exempt. `quiz.only_on_changes` counts an edit-tool write
 into any git working tree, not ignored (`noteEdit`, marked by the checkpoint
-before its subagent and cadence exits), before comparing git trees.
+before its subagent and cadence exits), and a Bash command whose leading
+`cd` names a git tree with a file modified since the session's baseline was
+recorded (`noteBashEdit`; `leadingCd` is shared with `delegate-nudge`), before
+comparing git trees.
 
 The shell lexer in `commit-lib.ts` recognizes common wrappers and nested shell
 forms, with deliberate misses for aliases, variables and scripts. The optional

@@ -43,7 +43,7 @@ import { attributionRule } from '../surface.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor, type DB } from './lib.js';
 import { isSessionOff, noteActivity, workSince } from '../session.js';
 import { countUse } from '../telemetry.js';
-import { noteEdit, sessionChangedCode } from './changes-lib.js';
+import { noteBashEdit, noteEdit, sessionChangedCode } from './changes-lib.js';
 
 const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
 
@@ -71,6 +71,10 @@ await run(async (input) => {
     const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
     if (quiz.only_on_changes && !quiz.enforced && EDIT_TOOLS.test(input.tool_name ?? '') && typeof file === 'string') {
       noteEdit(db, workSid, file);
+    }
+    const command = input.tool_input?.command;
+    if (quiz.only_on_changes && !quiz.enforced && input.tool_name === 'Bash' && typeof command === 'string') {
+      noteBashEdit(db, workSid, cwd, command);
     }
   }
 
