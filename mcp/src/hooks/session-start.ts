@@ -14,7 +14,7 @@ import { recordBaseline } from './changes-lib.js';
 import { sessionBlock } from './delegation-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
 import { flushAtSeam, identityOf, memoryHealthLine, recallBlock, record, replaySpool } from './memory-lib.js';
-import { startupDisplay, type RecallResult } from '../memory/recall.js';
+import { markEmitted, startupDisplay, type RecallResult } from '../memory/recall.js';
 import { recalledLine } from '../memory/tokens.js';
 import { AMBER, dialParts, paint } from '../statusline.js';
 import { dashboardPort } from '../paths.js';
@@ -163,6 +163,12 @@ await run(async (input) => {
     recalled = recallBlock(db, resolved, identity, 'session_start');
     if (recalled?.block) memoryContext.push(recalled.block);
   }
+  // Every emit below that carries `memoryContext` passes this, so the receipt
+  // says `emitted` and the entries count as handed over only once the block
+  // has actually been written — never for a path that dropped it.
+  const sent = () => {
+    if (recalled) markEmitted(db, recalled, identity.sessionId);
+  };
 
   if (!quiz.enabled) {
     // Recall still has a job here: the developer turned quizzing off, not
@@ -190,11 +196,14 @@ await run(async (input) => {
     } else if (!quiet) {
       shown.push('Eklavya off · no questions, nothing recorded');
     }
-    return emit(shown, memoryContext);
+    return emit(shown, memoryContext, sent);
   }
   // Fires on resume and after a compaction too, with the same session id, so a
   // session silenced an hour ago stays silent rather than greeting its way back.
-  if (isSessionOff(db, sid)) return 0;
+  // Silence is about questions, not memory: the recalled block still goes to
+  // the model. It used to return here with the block prepared, its receipt
+  // written and its entries marked as handed over — and nothing sent.
+  if (isSessionOff(db, sid)) return emit([], memoryContext, sent, false);
 
   // Two audiences, two channels. `shown` is for the developer; `context` is for
   // the model. See `emit` for why they cannot share one.
@@ -275,7 +284,7 @@ await run(async (input) => {
   context.push(...memoryContext);
   context.push(withSurfaceNote(DIRECTIVE));
   if (resolved.config.delegate_work) context.push(sessionBlock(resolved.config.cadence));
-  return emit(shown, context);
+  return emit(shown, context, sent);
 });
 
 /**
@@ -290,13 +299,16 @@ await run(async (input) => {
  * developer (top level, not inside `hookSpecificOutput`, where it is dropped);
  * `additionalContext` is the model's. Nothing is sent to both: the model has
  * `get_config` and `get_learner_profile` for anything the banner says.
+ *
+ * `sent` runs only once the envelope has been written. `announce: false` is a
+ * silenced session: no update or telemetry line, which would be a greeting.
  */
-function emit(shown: string[], context: string[]): number {
-  if (updateLine) {
+function emit(shown: string[], context: string[], sent?: () => void, announce = true): number {
+  if (updateLine && announce) {
     shown = [...shown, updateLine.text];
     if (updateLine.announces) markAnnounced(updateLine.announces);
   }
-  if (telemetryLine) {
+  if (telemetryLine && announce) {
     shown = [...shown, telemetryLine];
     markTelemetryAnnounced();
   }
@@ -309,6 +321,7 @@ function emit(shown: string[], context: string[]): number {
       }),
     })}\n`,
   );
+  sent?.();
   return 0;
 }
 

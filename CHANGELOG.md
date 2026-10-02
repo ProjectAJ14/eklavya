@@ -1,3 +1,10 @@
+# [1.45.0](https://github.com/ProjectAJ14/eklavya/compare/v1.44.1...v1.45.0) (2026-10-02)
+
+
+### Features
+
+* **memory:** honest recall delivery, read log and lookup guidance ([22b329a](https://github.com/ProjectAJ14/eklavya/commit/22b329ac909127e76d833b1a1bb19025f60c3341)), closes [#83](https://github.com/ProjectAJ14/eklavya/issues/83)
+
 ## [1.44.1](https://github.com/ProjectAJ14/eklavya/compare/v1.44.0...v1.44.1) (2026-10-02)
 
 

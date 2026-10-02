@@ -2,12 +2,27 @@ import { z } from 'zod';
 import { loadConfig, type EklavyaConfig } from '../config.js';
 import { projectKey } from '../store.js';
 import { resolveSessionId } from '../session.js';
-import { chargeDetail, countEntries, entriesByIds, entryEvents, entryTags, pendingEventCount, receiptTotals, timeline, type EntryRow } from '../memory/store.js';
+import {
+  chargeDetail,
+  countEntries,
+  entriesByIds,
+  entryEvents,
+  entryTags,
+  pendingEventCount,
+  readTotals,
+  receiptExists,
+  receiptTotals,
+  recordRead,
+  timeline,
+  totalsDelivery,
+  type EntryRow,
+} from '../memory/store.js';
 import { fileHistory, search } from '../memory/search.js';
 import { estimateTokens, savingsFrom } from '../memory/tokens.js';
 import { queueDepth, summarizerFor } from '../memory/worker.js';
 import { droppedCount } from '../memory/spool.js';
-import { CWD_HINT, type ToolDef } from './types.js';
+import { isBusy } from '../concurrency.js';
+import { CWD_HINT, type ToolContext, type ToolDef } from './types.js';
 
 /**
  * The read half of the memory tools (PRD RET-01/02/03).
@@ -64,7 +79,60 @@ const EVIDENCE_RULE =
 const SCOPE_RULE =
   'Scoped to this project by default; cross-project recall is explicit.';
 
-export const memorySearch: ToolDef = {
+/**
+ * Logs every call to a read tool in `memory_reads`, whether or not it named a
+ * receipt. `receipt_id` is optional, so the receipts alone cannot tell a
+ * session that never read memory from one that read it without linking the
+ * read; this can. Ids, outcome, latency and size only — never the query or what
+ * came back. Logging never changes the tool's answer: a failed log is a
+ * missing row, and a busy database is left to the retry around the handler.
+ */
+function logged(def: ToolDef): ToolDef {
+  return {
+    ...def,
+    handler: (args: { cwd?: string; receipt_id?: number }, ctx) => {
+      const started = performance.now();
+      let payload: unknown;
+      try {
+        payload = def.handler(args, ctx);
+      } catch (err) {
+        if (!isBusy(err)) noteRead(ctx.db, def.name, args, null, started);
+        throw err;
+      }
+      noteRead(ctx.db, def.name, args, payload, started);
+      return payload;
+    },
+  };
+}
+
+function noteRead(
+  db: ToolContext['db'],
+  tool: string,
+  args: { cwd?: string; receipt_id?: number },
+  payload: unknown,
+  started: number,
+): void {
+  try {
+    const result = payload as { results?: { id: number }[]; entries?: { id: number }[]; charged_to?: number | null } | null;
+    const ids = (result?.results ?? result?.entries ?? []).map((r) => r.id);
+    recordRead(db, {
+      tool,
+      project: safely(() => memoryScope(args.cwd).project, null),
+      sessionId: safely(() => resolveSessionId(db, undefined, args.cwd), null),
+      // The receipt this read was actually charged to, not merely the one named:
+      // a receipt retention removed links to nothing.
+      receiptId: result?.charged_to ?? null,
+      entryIds: ids,
+      outcome: !result ? 'error' : ids.length ? 'ok' : 'empty',
+      latencyMs: performance.now() - started,
+      resultTokens: result ? estimateTokens(JSON.stringify(result)) : 0,
+    });
+  } catch {
+    /* A read that could not be logged is still answered. */
+  }
+}
+
+export const memorySearch: ToolDef = logged({
   name: 'memory_search',
   title: 'Search memory',
   description:
@@ -122,13 +190,13 @@ export const memorySearch: ToolDef = {
       truncated: hits.length >= limit,
     };
   },
-};
+});
 
-export const memoryGet: ToolDef = {
+export const memoryGet: ToolDef = logged({
   name: 'memory_get',
   title: 'Get memory entries',
   description:
-    `Read the full entries behind ids from memory_search or memory_timeline: narrative, facts, files, tags and the evidence events each claim came from. Pass the receipt_id a recall block carried so the saving stays honest. Set include_evidence only to check one specific claim against the raw events it was built from — it is expensive, and browsing with it spends the context this two-stage read exists to save. ${SCOPE_RULE} ${EVIDENCE_RULE}`,
+    `Read the full entries behind ids from memory_search or memory_timeline: narrative, facts, files, tags and the evidence events each claim came from. Pass the receipt_id a recall block carried (its receipt="…" attribute) so the read is linked to that recall; without it the read is still logged, just not linked. Set include_evidence only to check one specific claim against the raw events it was built from — it is expensive, and browsing with it spends the context this two-stage read exists to save. ${SCOPE_RULE} ${EVIDENCE_RULE}`,
   inputSchema: {
     ids: z
       .array(z.number().int())
@@ -195,13 +263,16 @@ export const memoryGet: ToolDef = {
         };
       });
 
-    if (args.receipt_id) {
+    // A receipt that retention has removed, or a number the model made up, is
+    // not an error: the entries are still answered, just not charged.
+    const receipt = args.receipt_id && receiptExists(db, args.receipt_id) ? args.receipt_id : null;
+    if (receipt) {
       // Charged per entry with the cost of what was actually returned — which
       // is why the evidence bodies are folded in above rather than appended
       // after: the index stage's optimistic figure is only honest if the whole
       // detail fetch it led to is added to the same receipt (PRD MET-01).
       for (const entry of entries) {
-        chargeDetail(db, args.receipt_id, entry.id, estimateTokens(JSON.stringify(entry)));
+        chargeDetail(db, receipt, entry.id, estimateTokens(JSON.stringify(entry)));
       }
     }
 
@@ -209,12 +280,12 @@ export const memoryGet: ToolDef = {
       entries,
       count: entries.length,
       missing: ids.filter((id) => !byId.has(id)),
-      charged_to: args.receipt_id ?? null,
+      charged_to: receipt,
     };
   },
-};
+});
 
-export const memoryTimeline: ToolDef = {
+export const memoryTimeline: ToolDef = logged({
   name: 'memory_timeline',
   title: 'Memory timeline',
   description:
@@ -255,9 +326,9 @@ export const memoryTimeline: ToolDef = {
       project,
     };
   },
-};
+});
 
-export const memoryFileHistory: ToolDef = {
+export const memoryFileHistory: ToolDef = logged({
   name: 'memory_file_history',
   title: 'Memory file history',
   description:
@@ -272,7 +343,7 @@ export const memoryFileHistory: ToolDef = {
     const rows = fileHistory(db, args.file, { project, limit: Math.min(args.limit ?? 20, TIMELINE_LIMIT_CAP) });
     return { file: args.file, entries: rows.map(indexRow), count: rows.length, project };
   },
-};
+});
 
 /** Never throws: a half-built or half-migrated database still has to report. */
 function safely<T>(fn: () => T, fallback: T): T {
@@ -293,7 +364,7 @@ export const memoryStatus: ToolDef = {
   },
   handler: (args: { cwd?: string }, { db }) => {
     const { config, project } = memoryScope(args.cwd);
-    const totals = safely(() => receiptTotals(db, project), { base: 0, delivered: 0, receipts: 0, confirmed: 0 });
+    const totals = safely(() => receiptTotals(db, project), { base: 0, delivered: 0, receipts: 0, confirmed: 0, emitted: 0 });
 
     return {
       project,
@@ -310,10 +381,14 @@ export const memoryStatus: ToolDef = {
         null as string | null,
       ),
       receipts: totals,
+      // `emitted` is as far as Eklavya can see: Claude Code does not
+      // acknowledge hook context, so no receipt says the model received it.
+      host_acknowledgement: 'unavailable',
+      reads: safely(() => readTotals(db, project), { reads: 0, linked: 0, unlinked: 0, empty: 0, errors: 0, tokens: 0 }),
       savings: savingsFrom({
         baseTokens: totals.base,
         deliveredTokens: totals.delivered,
-        delivery: totals.confirmed > 0 ? 'confirmed' : 'unknown',
+        delivery: totalsDelivery(totals),
       }),
       summarizer: safely(() => summarizerFor(config).id, 'unknown'),
       provider_configured: Boolean(config.providers.observer),

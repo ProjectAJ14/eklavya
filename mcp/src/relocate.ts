@@ -39,6 +39,7 @@ const KEYED: ReadonlyArray<readonly [table: string, column: string]> = [
   ['memory_batches', 'project'],
   ['memory_entries', 'project'],
   ['context_receipts', 'project'],
+  ['memory_reads', 'project'],
   ['learning_sources', 'project'],
   ['memory_collections', 'project'],
   ['attempts', 'repo'],

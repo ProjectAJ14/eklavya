@@ -115,7 +115,7 @@ At session start, Claude receives recent project history in an `<eklavya-memory>
 2. **The newest work in full**, under `Latest, in full:`.
 3. **Where the last session left off**: the newest summary of an earlier session in this checkout, usually a checkpoint ending in its next steps. It is left out when a later session did newer work without a summary yet, and it never comes from another checkout, even with `retrieval.cross_project` on. A resumed or compacted session does not see its own summary here. Each checkpoint section is cut at 350 characters (a local roll-up at 1,750 in all); `memory_get` returns the full text.
 
-Parts 2 and 3 share `retrieval.max_tokens` (1,200 estimated tokens by default) and `retrieval.max_items` (6 by default). The checkpoint is counted first. An entry too long for the remaining budget is skipped and shorter ones fill the space; nothing is sent both in full and as a timeline line. The block tells Claude to read any entry in full with the `memory_get` tool, or search further back with `memory_search`, and is marked as **evidence to verify, never instructions to obey**.
+Parts 2 and 3 share `retrieval.max_tokens` (1,200 estimated tokens by default) and `retrieval.max_items` (6 by default). The checkpoint is counted first. An entry too long for the remaining budget is skipped and shorter ones fill the space; nothing is sent both in full and as a timeline line. The block names its receipt in its header (`receipt="123"`) and says when to look further: when the task needs an earlier decision, fix or unfinished work, read a matching entry with `memory_get({ids: [<id>], receipt_id: 123})`. The timeline adds that older work can be found with `memory_search`. It is a condition, not an instruction to call a tool every turn. The block is marked as **evidence to verify, never instructions to obey**. Entries a correction replaced are left out of recall; `memory_timeline` still lists them as the audit trail. Session-start recall is independent of questions: it is sent with questions off and in a session whose questions were silenced.
 
 ```text
 ### 2026-09-25
@@ -136,11 +136,11 @@ The session banner says what was delivered, for example `Memory · 3 past entrie
 
 #### When Claude opens a file
 
-Before Claude reads a file this project has history about, Eklavya adds that file's past work: up to 8 observations, one dated line each, with their IDs. Entries about that file specifically come before ones that only listed it among many. It happens once per file per session, only for files of at least 1,500 bytes, never for a subagent's reads, and never for session summaries. It adds context only: whether the read is allowed is still up to Claude Code and your permission settings.
+Before Claude reads a file this project has history about, Eklavya adds that file's past work: up to 8 observations, one dated line each, with their IDs. Entries about that file specifically come before ones that only listed it among many. It happens once per file per session, only for files of at least 1,500 bytes, never for a subagent's reads, and never for session summaries. The block names a receipt like other recall, so a `memory_get` it leads to is linked to it. It adds context only: whether the read is allowed is still up to Claude Code and your permission settings.
 
 Recall needs a git checkout. In a folder outside git there is no project to recall from, so neither session-start nor prompt recall runs, and nothing is captured there unless `retrieval.cross_project` is on. Evidence that earlier versions captured outside git stays under **No repository** and is not summarised.
 
-Relevant memory can also be supplied on a substantive prompt later in the session. It gets a third of the session-start budget (at most `retrieval.max_items / 3` entries and `retrieval.max_tokens / 3` estimated tokens, so two entries and 400 tokens by default), excludes entries already delivered and requires a relevance match. The cap is strict: an entry larger than the whole per-prompt budget is skipped. Unrelated prompts receive no memory block. Only what you typed is searched: pasted content, subagent hand-backs and task notifications are ignored, so a prompt that contains nothing else gets no memory block.
+Relevant memory can also be supplied on a substantive prompt later in the session. It gets a third of the session-start budget (at most `retrieval.max_items / 3` entries and `retrieval.max_tokens / 3` estimated tokens, so two entries and 400 tokens by default), excludes entries already delivered and requires a relevance match. The cap is strict. When a matching entry is larger than the room left, it is sent as an excerpt instead of being skipped, provided it has a narrative and at least about 60 estimated tokens remain. The excerpt keeps the title and the start of the narrative, leaves out facts and files, and ends `… [excerpt: memory_get #<id> for the rest]`. Otherwise the entry is skipped. Unrelated prompts receive no memory block. Only what you typed is searched: pasted content, subagent hand-backs and task notifications are ignored, so a prompt that contains nothing else gets no memory block.
 
 | Mode | Best use | Limit |
 | --- | --- | --- |
@@ -154,6 +154,10 @@ The vector search scans at most the newest 5,000 eligible entries; keyword searc
 
 Search defaults to the current project. `retrieval.cross_project` widens search and session-start recall; an individual search can request `all_projects`.
 
+#### Subagents
+
+Recalled blocks reach the main conversation only. A subagent Claude delegates to starts without them, so when memory is on and the project has entries, it is told in one line to search memory with `memory_search` and read matches with `memory_get` if its task depends on earlier decisions, fixes or unfinished work. That line does not depend on whether questions are on or silenced for the session, and the tutor subagent receives it too.
+
 ### What the savings percentage measures
 
 Each recall records a **receipt** with two estimates, both using four characters per token (`chars4-v1`):
@@ -163,7 +167,19 @@ Each recall records a **receipt** with two estimates, both using four characters
 | Base (`B`) | The raw evidence behind the recalled entries, deduplicated by event. This is an estimate of what reading that evidence would cost. |
 | Delivered (`D`) | The actual recalled block, its wrapper and any later detail fetch charged to it. |
 
-Estimated context reduction is `(B − D) / B`, shown by the dashboard and `eklavya memory status`. Only confirmed deliveries contribute to the headline. Receipts from the observer's own `claude -p` helper sessions are excluded. A negative saving is reported as overhead; unavailable delivery is not counted as a saving.
+Estimated context reduction is `(B − D) / B`, shown by the dashboard and `eklavya memory status`. Receipts from the observer's own `claude -p` helper sessions are excluded. A negative saving is reported as overhead; unavailable delivery is not counted as a saving.
+
+A receipt records how far its context got:
+
+| Delivery | Meaning |
+| --- | --- |
+| `prepared` | The block was built but the hook has not written it, or never did. Never counted as a saving. |
+| `emitted` | The hook wrote the block to Claude Code. Only emitted receipts contribute to the headline. |
+| `confirmed` | Written by earlier releases for every recall when it was prepared. Counted like `emitted`. |
+
+Claude Code does not acknowledge hook context, so no receipt claims the model received or used it. A recall marks its entries as already handed to the session only once emitted, so a prepared block that was never written does not stop the next recall from offering them. Session-start, prompt and file recall each write a receipt; file recall shows titles only, so its receipt claims no saving of its own, but its size counts toward delivered (`D`) and lowers the headline percentage.
+
+Each recall block names its receipt (`receipt="123"`) and shows the call that uses it, for example `memory_get({ids: [42], receipt_id: 123})`. That links the detail fetch to the recall. Every `memory_search`, `memory_get`, `memory_timeline` and `memory_file_history` call is also logged locally, with or without a receipt: the tool, project, session, returned entry IDs, outcome (`ok`, `empty` or `error`), latency and estimated result size. The log never stores the query or the content returned. `memory_status`, `eklavya memory status` and the dashboard's Reuse page report these reads, including how many are not linked to a receipt. Only `memory_get` can be linked, so every search, timeline and file history call counts as unlinked, as does a `memory_get` whose receipt no longer exists. A read shows that memory was fetched, not that Claude applied it correctly.
 
 This estimates context volume compared with raw evidence. It is not API billing, money saved or prompt-cache usage, and does not claim Claude would otherwise have read every event. Base includes whole-file snapshots stored with edits, so it overstates what reading the history would really cost; treat the percentage as an upper bound.
 
@@ -174,10 +190,10 @@ Claude uses these tools on your behalf. Search returns compact IDs and titles; `
 | Tool | Arguments and result |
 | --- | --- |
 | `memory_search` | `query`; optional `mode`, `type`, `tag`, `since`, `until`, `limit`, `all_projects`. Returns IDs, titles, dates and files. Defaults to `retrieval.max_items`, maximum 50. |
-| `memory_get` | `ids` (1–20), optional `include_evidence`, `receipt_id`. Reads narratives, facts and evidence links. Raw evidence bodies are capped at 1,500 characters; the receipt charges this extra reading to the original recall. |
+| `memory_get` | `ids` (1–20), optional `include_evidence`, `receipt_id`. Reads narratives, facts and evidence links. Raw evidence bodies are capped at 1,500 characters; the receipt charges this extra reading to the original recall. An unknown or expired `receipt_id` is ignored: the entries are still returned, with `charged_to: null`. |
 | `memory_timeline` | `limit`, `offset`, `type`, `since`, `until`, `session_id`. Returns the newest entries, including superseded ones. Default 20, maximum 100. |
 | `memory_file_history` | `file`, optional `limit`. Matches path fragments; default 20, maximum 100. |
-| `memory_status` | Capture, queue, provider and reuse health. |
+| `memory_status` | Capture, queue, provider and reuse health, plus explicit read counts (`reads`) and `host_acknowledgement: "unavailable"`. |
 | `memory_write` | `title`, `body`, optional `tags`, `files`. Saves a redacted note. |
 | `memory_correct` | `id` and a corrected `title`, `body`, or both. Creates a replacement while preserving the original audit trail. |
 | `memory_delete` | `id`, optional `hard`. Soft deletion removes an entry from retrieval; `hard: true` erases it permanently. |
@@ -223,6 +239,6 @@ Root commits are recorded from this release on. For a folder moved earlier, or t
 
 ### Where it lives, and turning it off
 
-Memory and learning share `~/.eklavya/knowledge.db`. Set `memory.enabled: false` to stop capture and recall, or `memory.capture: off` to stop only new capture. Set `memory.retention_days` to prune summarised evidence, finished jobs and receipts while keeping observations; the default keeps everything.
+Memory and learning share `~/.eklavya/knowledge.db`. Set `memory.enabled: false` to stop capture and recall, or `memory.capture: off` to stop only new capture. Set `memory.retention_days` to prune summarised evidence, finished jobs, receipts and the memory read log while keeping observations; the default keeps everything.
 
 Local summarisation and retrieval make no network request about your code. Choosing an observer can send captured work to a model; optional notifications and sync can send selected data elsewhere. See [Configuration](/docs/configuration/#the-memory-namespaces) and [Your data](/docs/your-data/) for controls and backups.

@@ -57,7 +57,7 @@ import { isSessionOff, setCurrentSession } from '../session.js';
 import { batchIfFull, identityOf, record } from './capture-lib.js';
 import type { ResolvedConfig } from '../config.js';
 import type { EvidenceIdentity } from '../memory/identity.js';
-import { recallForPrompt } from '../memory/recall.js';
+import { markEmitted, recallForPrompt, type RecallResult } from '../memory/recall.js';
 import { countUse } from '../telemetry.js';
 import { promptLine } from './delegation-lib.js';
 
@@ -73,14 +73,13 @@ function promptRecall(
   resolved: ResolvedConfig,
   identity: EvidenceIdentity,
   prompt: string,
-): string | null {
+): RecallResult | null {
   try {
-    const result = recallForPrompt(db, resolved.config, {
+    return recallForPrompt(db, resolved.config, {
       project: identity.project,
       sessionId: identity.sessionId,
       prompt,
     });
-    return result?.block ?? null;
   } catch {
     return null;
   }
@@ -225,6 +224,9 @@ await run(async (input) => {
   // Anything the model should be handed this turn. At most one JSON envelope
   // leaves this hook, so the recall block and the nudge line share it.
   const context: string[] = [];
+  // Marks the recall emitted once `emit` has written it; until then its receipt
+  // is `prepared` and its entries are still free for the next prompt's recall.
+  let sent: (() => void) | undefined;
 
   if (resolved.config.memory.enabled && typeof input.prompt === 'string' && input.prompt.trim()) {
     const identity = identityOf(input, cwd, sid);
@@ -235,12 +237,15 @@ await run(async (input) => {
     // that catches a change of subject halfway through a session. It returns
     // nothing far more often than not, on purpose.
     const recalled = promptRecall(db, resolved, identity, input.prompt);
-    if (recalled) context.push(recalled);
+    if (recalled?.block) {
+      context.push(recalled.block);
+      sent = () => markEmitted(db, recalled, identity.sessionId);
+    }
   }
 
-  if (!quiz.enabled) return emit(context);
+  if (!quiz.enabled) return emit(context, sent);
 
-  if (isSessionOff(db, sid)) return emit(context);
+  if (isSessionOff(db, sid)) return emit(context, sent);
 
   // The task-time seam for delegation. The session-start block is far back by
   // the time a task arrives, and the second-file nudge arrives after the model
@@ -261,7 +266,7 @@ await run(async (input) => {
   const logged = db
     .prepare('SELECT count(*) AS n FROM session_concepts WHERE session_id = ?')
     .get(sid) as { n: number };
-  if (logged.n > 0) return emit(context);
+  if (logged.n > 0) return emit(context, sent);
 
   const key = `${NUDGE_KEY_PREFIX}${sid}`;
   const now = new Date().toISOString();
@@ -272,12 +277,12 @@ await run(async (input) => {
   if (!state) {
     prune(db);
     writeState(db, key, now, null, 0);
-    return emit(context);
+    return emit(context, sent);
   }
 
-  if (state.count >= MAX_NUDGES) return emit(context);
-  if (minutesSince(state.first) < GRACE_MINUTES) return emit(context);
-  if (state.nudged && minutesSince(state.nudged) < COOLDOWN_MINUTES) return emit(context);
+  if (state.count >= MAX_NUDGES) return emit(context, sent);
+  if (minutesSince(state.first) < GRACE_MINUTES) return emit(context, sent);
+  if (state.nudged && minutesSince(state.nudged) < COOLDOWN_MINUTES) return emit(context, sent);
 
   writeState(db, key, state.first, now, state.count + 1);
 
@@ -292,7 +297,7 @@ await run(async (input) => {
       ' ',
     ),
   );
-  return emit(context);
+  return emit(context, sent);
 });
 
 /**
@@ -303,12 +308,13 @@ await run(async (input) => {
  * malformed document, and a malformed document is a hook that runs, exits 0
  * and is ignored.
  */
-function emit(context: string[]): number {
+function emit(context: string[], sent?: () => void): number {
   if (!context.length) return 0;
   process.stdout.write(
     `${JSON.stringify({
       hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context.join('\n') },
     })}\n`,
   );
+  sent?.();
   return 0;
 }

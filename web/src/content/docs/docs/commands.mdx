@@ -61,7 +61,7 @@ The value identifies the dial: `on`, `off` or `enforced` for questions; `concept
 It asks for global or project scope when unclear. Project settings are personal files under `~/.eklavya/projects/`, shared by that checkout's worktrees. Enabling enforcement also offers the [git hook](/docs/commit-gate/) needed for commits outside Claude Code.
 
 :::note
-Session-only `off` silences questions until the session ends. Memory still records, and an enforced commit gate still applies. To remove enforcement, change `quiz.enforced` at project or global scope.
+Session-only `off` silences questions until the session ends. Memory still records and recalls, and an enforced commit gate still applies. To remove enforcement, change `quiz.enforced` at project or global scope.
 :::
 
 ### `/eklavya:skip`
@@ -72,7 +72,7 @@ A shortcut for `/eklavya:mode off --session`. Questions, checkpoints, the banner
 /eklavya:skip
 ```
 
-Memory keeps recording. Concepts logged while skipped are not asked later: once the session is over, a later session start removes logged work that no question reached. An enforced commit gate still applies. To resume sooner, run `/eklavya:mode on --session` or ask to turn Eklavya back on.
+Memory keeps recording and recalling. Concepts logged while skipped are not asked later: once the session is over, a later session start removes logged work that no question reached. An enforced commit gate still applies. To resume sooner, run `/eklavya:mode on --session` or ask to turn Eklavya back on.
 
 ### `/eklavya:learn <topic>`
 

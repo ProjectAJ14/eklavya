@@ -8,8 +8,8 @@ explicitly requested by the learner can teach in its own conversation; an explai
 | Role | Logs concepts | Asks questions | Memory capture | Instructions |
 |---|---|---|---|---|
 | Parent | Yes | Yes | Prompts, tools and lifecycle | SessionStart (directive, plus `DELEGATE` when `delegate_work`), the prompt nudges (logging, and the delegation line next to a task) and the second-file delegation nudge |
-| Implementer | Yes, when its tools permit | No | Tools | SubagentStart directive |
-| `eklavya-tutor` | No | Yes, when delegated to teach | Tools | `agents/tutor.md` |
+| Implementer | Yes, when its tools permit | No | Tools | SubagentStart directive, plus the memory line when the project has memory |
+| `eklavya-tutor` | No | Yes, when delegated to teach | Tools | `agents/tutor.md`, plus the memory line when the project has memory |
 | `eklavya-explainer` | No | No | Tools | `agents/explainer.md` |
 
 Sources: [`subagent-start.ts`](../mcp/src/hooks/subagent-start.ts),
@@ -126,8 +126,8 @@ context. SubagentStart supplies a short logging directive and says not to ask
 the developer questions. It emits `hookSpecificOutput.additionalContext` JSON;
 plain stdout is not the contract used here.
 
-The hook checks `quiz.enabled` and session silence, but a missing database does
-not suppress its directive. It may open an existing database to check silence;
+The hook checks `quiz.enabled` and session silence for the logging directive,
+but a missing database does not suppress it. It may open an existing database to check silence;
 the old claim that it never reads the database is incorrect.
 
 The logging tool normally resolves the parent's session from the host: a
@@ -135,6 +135,19 @@ subagent's tool calls go through the parent's MCP server, which carries the
 parent's `CLAUDE_CODE_SESSION_ID` (the checkout's session pointer is the
 fallback on hosts without it). Neither directive nor model needs to invent a
 session ID. See [parallel tutoring](parallel-tutoring.md) for concurrent sessions.
+
+## Delegates get a pointer to memory, not the recall
+
+Session-start and prompt recall reach the parent only, and file recall skips
+subagent reads, so no recalled block enters a subagent's context. When memory is
+enabled and the checkout's project has live entries, SubagentStart adds one line
+telling the delegate to search with `memory_search` and read matches with
+`memory_get` when its task depends on an earlier decision, a previous fix or
+unfinished work, and to check what it uses against the current code. The line
+follows the memory switch only: it is sent with questions off, in a silenced
+session and to the tutor (which has the memory read tools). A parent that knows
+which entries matter can still name their IDs in the delegated prompt. The
+hook tests in `mcp/test/hooks.test.ts` (`the memory line`) cover each case.
 
 Checkpoint and Stop hooks return on `agent_id`. Keep both guards: an automatic
 question in an unwatched implementation transcript cannot reach the learner.

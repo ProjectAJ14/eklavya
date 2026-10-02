@@ -738,7 +738,7 @@ export function queueDepth(db: DB): {
  * **One project per call.** `retention_days` is resolved per project (a project
  * config can set it or unset it) over one shared database, so the sweep only
  * touches rows it can attribute to `project`: that project's evidence, its
- * batches' finished jobs, its receipts, and the `recalled:`/`notified:` rows of
+ * batches' finished jobs, its receipts and memory reads, and the `recalled:`/`notified:` rows of
  * sessions that belong to it and to no other project. A bookkeeping row it
  * cannot place is left alone — a few stale `meta` rows are cheaper than one
  * project's policy deleting another's state, which it once did to every
@@ -818,6 +818,8 @@ export function pruneEvidence(
          (SELECT id FROM context_receipts WHERE project = ? AND created_at < ?)`,
     ).run(project, cutoff);
     db.prepare('DELETE FROM context_receipts WHERE project = ? AND created_at < ?').run(project, cutoff);
+    // The read log is the receipts' other half, kept for the same window.
+    db.prepare('DELETE FROM memory_reads WHERE project = ? AND created_at < ?').run(project, cutoff);
     // `recalled:<session>` has no date of its own; every recall writes a
     // receipt, so a session of this project with none left is over.
     db.prepare(

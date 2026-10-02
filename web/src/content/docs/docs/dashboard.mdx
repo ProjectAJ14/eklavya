@@ -148,7 +148,7 @@ The Memory Dashboard shows observations, sessions, pending evidence and reuse as
 | Observations | Live entries, excluding superseded and deleted ones; also reports how many are indexed as vectors. |
 | Pending | Captured raw events not yet summarised into an observation, out of all evidence events. |
 | Sessions | Sessions that captured evidence or wrote observations. |
-| Reused | Entries selected for recall and those confirmed as delivered. |
+| Reused | Entries selected for recall and those in a block a hook emitted. |
 | Assessed | Concepts proposed from evidence that you actually answered a question about. |
 
 With a project selected, observations, evidence and sessions are scoped to it. Indexing, reuse, delivery and assessment totals that remain database-wide are labelled “all projects”. Captured or recalled material does not count as understanding.
@@ -157,7 +157,7 @@ With a project selected, observations, evidence and sessions are scoped to it. I
 
 A recall receipt compares **base (`B`)**, the raw evidence behind the entries, with **delivered (`D`)**, the context actually supplied, including later detail fetches. Both use the same four-characters-per-token estimate. Estimated reduction is `(B − D) / B`.
 
-Receipts can be `confirmed`, `unknown` or `prepared`. Only confirmed delivery contributes to headline savings. Unconfirmed receipts stay visible without a saving claim. Longer summaries can produce overhead, which is reported rather than hidden.
+Receipts can be `prepared`, `emitted`, `confirmed` or `unknown`. `emitted` means the hook wrote the context to Claude Code, which does not acknowledge it; older receipts say `confirmed` for the same thing. Only emitted and confirmed receipts contribute to headline savings. Prepared and unknown receipts stay visible without a saving claim. Longer summaries can produce overhead, which is reported rather than hidden. The page also counts explicit memory reads, including those made without a receipt.
 
 This measures estimated context volume compared with raw evidence, not your bill, API cache hits or model spend. See [Memory](/docs/memory/#what-the-savings-percentage-measures).
 
