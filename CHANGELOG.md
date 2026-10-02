@@ -1,3 +1,10 @@
+## [1.44.1](https://github.com/ProjectAJ14/eklavya/compare/v1.44.0...v1.44.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* **gate:** hold terminal commits in linked worktrees ([bd19c8d](https://github.com/ProjectAJ14/eklavya/commit/bd19c8d263094297bfbd9b89e8ea94bec1c5b3d6)), closes [#81](https://github.com/ProjectAJ14/eklavya/issues/81)
+
 # [1.44.0](https://github.com/ProjectAJ14/eklavya/compare/v1.43.2...v1.44.0) (2026-10-01)
 
 
