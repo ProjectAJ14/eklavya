@@ -27,7 +27,7 @@ export function estimateTokensOf(parts: (string | null | undefined)[]): number {
 export interface SavingsInput {
   baseTokens: number;
   deliveredTokens: number;
-  delivery: 'confirmed' | 'unknown' | 'prepared';
+  delivery: 'confirmed' | 'emitted' | 'unknown' | 'prepared';
 }
 
 export type Savings =
@@ -47,7 +47,8 @@ export type Savings =
 export function savingsFrom(input: SavingsInput): Savings {
   const { baseTokens: base, deliveredTokens: delivered, delivery } = input;
   if (base <= 0 && delivered <= 0) return { kind: 'none' };
-  if (delivery !== 'confirmed' || base <= 0) return { kind: 'unavailable' };
+  // Context that left the hook. A prepared receipt may never have been sent.
+  if ((delivery !== 'confirmed' && delivery !== 'emitted') || base <= 0) return { kind: 'unavailable' };
   if (delivered > base) return { kind: 'overhead', tokens: delivered - base, base, delivered };
   return { kind: 'saving', percent: Math.round((100 * (base - delivered)) / base), base, delivered };
 }
@@ -75,3 +76,19 @@ export function recalledLine(entries: number, tokens: number, indexed = 0): stri
   const titles = indexed ? ` + ${indexed} ${indexed === 1 ? 'title' : 'titles'}` : '';
   return `Memory · ${entries} past ${entries === 1 ? 'entry' : 'entries'}${titles} recalled (~${size} tokens)`;
 }
+
+/**
+ * The line that says when to look further, and how, with the receipt the
+ * fetch should name. Without the receipt id a detail fetch had nothing to link
+ * to; without a trigger, "read any entry in full" described a capability and
+ * no inspected session ever used it (issue #83). A condition rather than an
+ * order: a lookup on every turn is noise, and most turns need none. A "none
+ * listed: search" clause was measured and removed: it added searches in
+ * sessions with nothing relevant to find and no gain where there was
+ * (eval/results/2026-10-02-memory-use.md).
+ *
+ * Here rather than in `recall.ts` so the file-context hook, which runs before
+ * every Read, can say it too.
+ */
+export const RECEIPT_HINT = (receiptId: number) =>
+  `Task needs an earlier decision, fix or unfinished work? Read a matching entry: memory_get({ids: [<id>], receipt_id: ${receiptId}}).`;

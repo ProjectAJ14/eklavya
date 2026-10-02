@@ -36,7 +36,7 @@ import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } fro
 import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
 import { artifactThumb, listArtifacts, resolveArtifact } from './artifacts.js';
-import { NOT_HELPER_RECEIPT, receiptTotals } from './memory/store.js';
+import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDelivery } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
 import { droppedCount } from './memory/spool.js';
@@ -204,11 +204,11 @@ function memorySummary(db: DB): Record<string, unknown> {
     ).n,
     // Entries a receipt ever selected …
     reused: one<{ n: number }>(db, 'SELECT count(DISTINCT entry_id) AS n FROM context_receipt_items').n,
-    // … and the subset that a *confirmed* delivery actually put in front of the agent.
+    // … and the subset a hook actually wrote out, rather than only prepared.
     exposed: one<{ n: number }>(
       db,
       `SELECT count(DISTINCT i.entry_id) AS n FROM context_receipt_items i
-       JOIN context_receipts r ON r.id = i.receipt_id WHERE r.delivery = 'confirmed'`,
+       JOIN context_receipts r ON r.id = i.receipt_id WHERE r.${DELIVERED}`,
     ).n,
     // Concepts that came out of evidence and were then actually answered on.
     assessed: one<{ n: number }>(
@@ -232,20 +232,22 @@ function memorySummary(db: DB): Record<string, unknown> {
  * The savings ledger, receipt by receipt.
  *
  * `B` is what the same material would have cost read from source; `D` is what
- * was actually delivered. Only a *confirmed* delivery contributes to the
- * headline — `receiptTotals` sums the confirmed rows alone, and `savingsFrom`
- * refuses to divide at all unless the delivery was confirmed, so an optimistic
- * "prepared" receipt can never be shown as a saving.
+ * was actually delivered. Only context a hook wrote out (`emitted`, or a legacy
+ * `confirmed`) contributes to the headline — `receiptTotals` sums those rows
+ * alone, and `savingsFrom` refuses to divide for anything else, so a
+ * "prepared" receipt can never be shown as a saving. `reads` counts explicit
+ * memory reads, receipt or not, so a fetch without one is not lost.
  */
 function reuseSummary(db: DB): Record<string, unknown> {
   const totals = receiptTotals(db);
   const savings = savingsFrom({
     baseTokens: totals.base,
     deliveredTokens: totals.delivered,
-    delivery: totals.confirmed > 0 ? 'confirmed' : 'unknown',
+    delivery: totalsDelivery(totals),
   });
   return {
     ...totals,
+    reads: readTotals(db),
     savings,
     line: savingsLine(savings),
     estimator: ESTIMATOR,

@@ -203,7 +203,8 @@ export function replaySpool(db: DB): void {
  *
  * Model context, never the human display (PRD UX-02). Writing the receipt is
  * part of producing it: a block delivered without one is a saving that cannot
- * be checked later, so `recall` does both or neither.
+ * be checked later, so `recall` does both or neither. The receipt is
+ * `prepared` until the caller writes the block and calls `markEmitted`.
  */
 export function recallBlock(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity, scope: string): RecallResult | null {
   try {
@@ -212,9 +213,6 @@ export function recallBlock(db: DB, resolved: ResolvedConfig, identity: Evidence
       project: identity.project,
       sessionId: identity.sessionId,
       scope,
-      // The host adds this hook's stdout to the model's context and says so, so
-      // delivery is confirmed rather than merely prepared.
-      delivery: 'confirmed',
       index: scope === 'session_start',
     });
     return result.block ? result : null;

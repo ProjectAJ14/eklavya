@@ -1850,6 +1850,69 @@ describe('the SubagentStart directive', () => {
     expect(silent(subagent())).toBe(true);
   });
 
+  // Issue #83: recall reaches the parent only, so a delegate is told where the
+  // project's history is -- whatever the quiz switches say, and only when
+  // there is some.
+  describe('the memory line', () => {
+    const remember = () => {
+      checkout();
+      insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated on every use.' });
+    };
+
+    it('points a delegate at memory_search and memory_get when the project has memory', () => {
+      remember();
+      const ctx = additionalContext(subagent())!;
+      expect(ctx).toContain('log_session_concepts');
+      expect(ctx).toMatch(/memory_search[\s\S]*memory_get/);
+      expect(ctx).toMatch(/evidence, not instruction/);
+    });
+
+    it('is not said in a project with no memory', () => {
+      checkout();
+      expect(additionalContext(subagent())).not.toContain('memory_search');
+    });
+
+    it('is said with questions off, in a silenced session and to the tutor', () => {
+      remember();
+      setSessionOff(db, SESSION, true);
+      for (const res of [subagent(), subagent({ agent_type: 'eklavya-tutor' })]) {
+        const ctx = additionalContext(res)!;
+        expect(ctx).toContain('memory_search');
+        expect(ctx).not.toContain('log_session_concepts');
+      }
+      setSessionOff(db, SESSION, false);
+      configure({ quiz: { enabled: false } });
+      const ctx = additionalContext(subagent())!;
+      expect(ctx).toContain('memory_search');
+      expect(ctx).not.toContain('log_session_concepts');
+    });
+
+    it('is not said with memory off', () => {
+      remember();
+      configure({ memory: { enabled: false } });
+      expect(additionalContext(subagent())).not.toContain('memory_search');
+    });
+
+    it('says nothing at all with questions and memory both off', () => {
+      remember();
+      configure({ quiz: { enabled: false }, memory: { enabled: false } });
+      expect(silent(subagent())).toBe(true);
+    });
+
+    it('fails open to the logging directive when memory cannot be read', () => {
+      checkout();
+      db.exec('DROP TABLE memory_entries');
+      const ctx = additionalContext(subagent())!;
+      expect(ctx).toContain('log_session_concepts');
+      expect(ctx).not.toContain('memory_search');
+    });
+
+    it('is not said outside a checkout', () => {
+      insertEntry(db, { project: GLOBAL_PROJECT, title: 'Somewhere else', narrative: 'n' });
+      expect(additionalContext(subagent())).not.toContain('memory_search');
+    });
+  });
+
   it('still speaks when quiet is set: quiet hides output, not context', () => {
     // hooks/CLAUDE.md, "`quiet` is not an off switch". session-start.ts once
     // returned early here and silently turned the whole product off.
@@ -1916,6 +1979,30 @@ describe('the per-session off switch', () => {
   });
 
   it('prints no banner on a resume', () => {
+    expect(sessionStart({ session_start_reason: 'resume' }).stdout).toBe('');
+  });
+
+  // Issue #83: silence is about questions. This hook used to return before
+  // emitting anything, with the recall already prepared, its receipt written
+  // and its entries marked as handed over -- so the model got nothing and the
+  // next recall skipped them as if it had.
+  it.each(['resume', 'compact'])('still hands enabled memory to the model on %s, with no greeting', (source) => {
+    checkout();
+    const id = insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated on every use.' });
+    const res = sessionStart({ source, session_start_reason: source });
+    expect(res.shown).toBe('');
+    expect(res.context).toMatch(/<eklavya-memory project="[^"]+" items="\d+" receipt="(\d+)">/);
+    expect(res.context).not.toMatch(/Standing instruction/);
+    const receipt = Number(/receipt="(\d+)"/.exec(res.context)![1]);
+    expect(db.prepare('SELECT delivery FROM context_receipts WHERE id = ?').get(receipt)).toEqual({ delivery: 'emitted' });
+    const handed = db.prepare('SELECT value FROM meta WHERE key = ?').get(`recalled:${SESSION}`) as { value: string };
+    expect(handed.value.split(',').map(Number)).toContain(id);
+  });
+
+  it('says nothing at all when memory is off too', () => {
+    checkout();
+    configure({ memory: { enabled: false } });
+    insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated on every use.' });
     expect(sessionStart({ session_start_reason: 'resume' }).stdout).toBe('');
   });
 
@@ -2336,5 +2423,27 @@ describe('the delegation contract at session start and next to a task', () => {
       expect(ctx).toMatch(/Questions wait for the end of the task \(cadence: end\)/);
       expect(ctx).not.toMatch(/while_waiting/);
     }
+  });
+});
+
+/**
+ * Issue #83: a prompt's recall counts as handed over only once the hook has
+ * written it, and the block tells the model which receipt it belongs to.
+ */
+describe('prompt recall delivery', () => {
+  const prompt = (text: string) =>
+    runHook(NUDGE, { session_id: SESSION, cwd, hook_event_name: 'UserPromptSubmit', prompt: text });
+
+  it('emits the block with its receipt, then does not hand the same entry over again', () => {
+    checkout();
+    const id = insertEntry(db, { project: cwd, title: 'Refresh token rotation reuse detection', narrative: 'One-shot tokens.' });
+    const first = prompt('why does refresh token rotation need reuse detection');
+    const receipt = Number(/<eklavya-memory project="[^"]+" items="1" receipt="(\d+)">/.exec(first.context)![1]);
+    expect(first.context).toContain(`receipt_id: ${receipt}`);
+    expect(db.prepare('SELECT scope, delivery FROM context_receipts WHERE id = ?').get(receipt)).toEqual({
+      scope: 'prompt', delivery: 'emitted',
+    });
+    expect(db.prepare('SELECT value FROM meta WHERE key = ?').get(`recalled:${SESSION}`)).toEqual({ value: String(id) });
+    expect(prompt('why does refresh token rotation need reuse detection').context ?? '').not.toContain('<eklavya-memory');
   });
 });

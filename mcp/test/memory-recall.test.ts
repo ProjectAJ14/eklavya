@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
-import { INDEX_MAX_ITEMS, learningCounts, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
-import { appendEvent, insertEntry } from '../src/memory/store.js';
-import { estimateTokens } from '../src/memory/tokens.js';
+import { INDEX_MAX_ITEMS, alreadyRecalled, learningCounts, markEmitted, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
+import { appendEvent, insertEntry, receiptTotals, supersedeEntry, timeline } from '../src/memory/store.js';
+import { estimateTokens, savingsFrom } from '../src/memory/tokens.js';
 import { GLOBAL_PROJECT } from '../src/store.js';
 
 const PROJECT = '/tmp/demo-repo';
@@ -198,10 +198,23 @@ describe('recall', () => {
 
   it('keeps a prompt recall inside its cap even when the best match alone would overrun it', () => {
     const words = (n: number) => Array.from({ length: n }, (_, i) => `rotation${i}`).join(' ');
+    const id = insertEntry(db, { project: PROJECT, title: 'Refresh token rotation, long', narrative: words(900), type: 'change' });
+    const cfg = config();
+    // Cut to the room left and marked, rather than skipped (issue #83).
+    const result = recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's1', prompt: 'refresh token rotation long' })!;
+    expect(result.entries.map((e) => e.id)).toEqual([id]);
+    expect(result.block).toContain(`[excerpt: memory_get #${id} for the rest]`);
+    expect(result.deliveredTokens).toBeLessThanOrEqual(Math.floor(cfg.retrieval.max_tokens / 3));
+    expect(estimateTokens(result.block)).toBeLessThanOrEqual(Math.floor(cfg.retrieval.max_tokens / 3) + 5);
+  });
+
+  it('sends nothing when the room left is too small for a useful excerpt', () => {
+    const words = (n: number) => Array.from({ length: n }, (_, i) => `rotation${i}`).join(' ');
     insertEntry(db, { project: PROJECT, title: 'Refresh token rotation, long', narrative: words(900), type: 'change' });
     const cfg = config();
-    const result = recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's1', prompt: 'refresh token rotation long' });
-    expect(result).toBeNull();
+    // A third of this is the prompt cap; the wrapper leaves under 60 tokens of it.
+    cfg.retrieval.max_tokens = 330;
+    expect(recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's1', prompt: 'refresh token rotation long' })).toBeNull();
   });
 
   it('still stops at max_items when every entry fits', () => {
@@ -226,7 +239,8 @@ describe('recall', () => {
       result.receiptId,
     ) as { base_tokens: number; delivery: string; method: string };
     expect(receipt.base_tokens).toBe(evidenceTokens);
-    expect(receipt.delivery).toBe('confirmed');
+    // Prepared, not delivered: the caller has not written the block yet.
+    expect(receipt.delivery).toBe('prepared');
     expect(receipt.method).toBe('chars4-v1');
 
     // Whichever entry is rendered second pays nothing: double-counting shared
@@ -418,5 +432,94 @@ describe('ownWords', () => {
     expect(ownWords('compare a < b and b > c')).toBe('compare a < b and b > c');
     expect(ownWords('why does <Button>Save</Button> fire twice')).toBe('why does <Button>Save</Button> fire twice');
     expect(ownWords('<pasted_content id="x">log</pasted_content> explain')).toBe('explain');
+  });
+});
+
+/**
+ * Issue #83: a recall's receipt is created when the block is prepared, and
+ * until the hook has written the block nothing may treat it as delivered —
+ * not the receipt, not the savings, and not the session's "already handed
+ * over" list that keeps the next recall from repeating it.
+ */
+describe('delivery states', () => {
+  const delivery = (id: number | null) =>
+    (db.prepare('SELECT delivery FROM context_receipts WHERE id = ?').get(id) as { delivery: string }).delivery;
+
+  it('carries its receipt id in the block, with the call that uses it', () => {
+    insertEntry(db, { project: PROJECT, title: 'Refresh cookie rotation', narrative: 'Rotated on every use.' });
+    for (const index of [false, true]) {
+      const result = recall(db, config(), { project: PROJECT, sessionId: 's1', index });
+      expect(result.receiptId).toBeGreaterThan(0);
+      expect(result.block).toContain(`receipt="${result.receiptId}">`);
+      expect(result.block).toContain(`memory_get({ids: [<id>], receipt_id: ${result.receiptId}})`);
+    }
+  });
+
+  it('is prepared until emitted, and only an emitted recall is excluded next time', () => {
+    insertEntry(db, { project: PROJECT, title: 'Refresh token rotation reuse detection', narrative: 'One-shot tokens.' });
+    const prompt = 'why does refresh token rotation need reuse detection';
+
+    const first = recallForPrompt(db, config(), { project: PROJECT, sessionId: 's1', prompt })!;
+    expect(delivery(first.receiptId)).toBe('prepared');
+    expect(alreadyRecalled(db, 's1').size).toBe(0);
+    // A prepared receipt claims nothing.
+    expect(receiptTotals(db, PROJECT)).toMatchObject({ receipts: 1, emitted: 0, base: 0, delivered: 0 });
+
+    // The hook never wrote it — suppressed, or failed — so the next prompt is
+    // offered the same entry rather than finding it already "handed over".
+    const second = recallForPrompt(db, config(), { project: PROJECT, sessionId: 's1', prompt })!;
+    expect(second.entries.map((e) => e.id)).toEqual(first.entries.map((e) => e.id));
+
+    markEmitted(db, second, 's1');
+    expect(delivery(second.receiptId)).toBe('emitted');
+    expect(delivery(first.receiptId)).toBe('prepared');
+    expect([...alreadyRecalled(db, 's1')]).toEqual(second.entries.map((e) => e.id));
+    expect(receiptTotals(db, PROJECT)).toMatchObject({ receipts: 2, emitted: 1 });
+    expect(recallForPrompt(db, config(), { project: PROJECT, sessionId: 's1', prompt })).toBeNull();
+  });
+
+  it('marks nothing for an empty result, and only moves a receipt forward', () => {
+    markEmitted(db, recall(db, config(), { project: PROJECT, sessionId: 's1' }), 's1');
+    expect(alreadyRecalled(db, 's1').size).toBe(0);
+
+    insertEntry(db, { project: PROJECT, title: 'Something', narrative: 'n' });
+    const legacy = recall(db, config(), { project: PROJECT, delivery: 'confirmed' });
+    markEmitted(db, legacy);
+    expect(delivery(legacy.receiptId)).toBe('confirmed');
+  });
+
+  it('keeps going when the bookkeeping after an emission cannot be written', () => {
+    insertEntry(db, { project: PROJECT, title: 'Something', narrative: 'n' });
+    const result = recall(db, config(), { project: PROJECT, sessionId: 's1' });
+    db.exec("CREATE TRIGGER no_update BEFORE UPDATE ON context_receipts BEGIN SELECT RAISE(ABORT, 'locked'); END");
+    db.exec("CREATE TRIGGER no_meta BEFORE INSERT ON meta BEGIN SELECT RAISE(ABORT, 'locked'); END");
+    expect(() => markEmitted(db, result, 's1')).not.toThrow();
+    // Under-claims rather than over-claims: still prepared, nothing marked.
+    expect(delivery(result.receiptId)).toBe('prepared');
+    expect(alreadyRecalled(db, 's1').size).toBe(0);
+  });
+
+  it('computes a saving from emitted and legacy confirmed receipts, never a prepared one', () => {
+    const totals = { baseTokens: 1000, deliveredTokens: 100 };
+    expect(savingsFrom({ ...totals, delivery: 'emitted' })).toMatchObject({ kind: 'saving', percent: 90 });
+    expect(savingsFrom({ ...totals, delivery: 'confirmed' })).toMatchObject({ kind: 'saving', percent: 90 });
+    expect(savingsFrom({ ...totals, delivery: 'prepared' })).toEqual({ kind: 'unavailable' });
+  });
+});
+
+describe('superseded entries', () => {
+  // Issue #83, found by the memory-use eval: the seam's timeline listed the
+  // entry a correction had replaced, so the stale decision was recalled as if
+  // it still held.
+  it('are left out of a seam recall, in full and in the timeline, but stay on the audit trail', () => {
+    const stale = insertEntry(db, { project: PROJECT, title: 'Delimiter is a comma', narrative: 'Use ,', occurredAt: '2026-09-01T10:00:00.000Z' });
+    const fresh = insertEntry(db, { project: PROJECT, title: 'Delimiter is a semicolon', narrative: 'Use ;', occurredAt: '2026-09-02T10:00:00.000Z' });
+    supersedeEntry(db, stale, fresh);
+    for (const index of [false, true]) {
+      const result = recall(db, config(), { project: PROJECT, sessionId: 's1', index });
+      expect(result.block).toContain(`[#${fresh}]`);
+      expect(result.block).not.toContain(`[#${stale}]`);
+    }
+    expect(timeline(db, { project: PROJECT }).map((e) => e.id)).toContain(stale);
   });
 });

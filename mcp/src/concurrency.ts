@@ -13,7 +13,7 @@ const BUSY_CODES = new Set(['SQLITE_BUSY', 'SQLITE_BUSY_SNAPSHOT', 'SQLITE_LOCKE
 
 export const MAX_BUSY_ATTEMPTS = 5;
 
-function isBusy(err: unknown): boolean {
+export function isBusy(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
   const code = (err as { code?: string }).code;
   return typeof code === 'string' && BUSY_CODES.has(code);

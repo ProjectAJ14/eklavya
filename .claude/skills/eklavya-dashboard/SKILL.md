@@ -373,10 +373,12 @@ The page is a record of someone's learning; it does not get to flatter them.
   "memories" number: evidence can be captured and never processed, an entry
   indexed and never retrieved, retrieved and never delivered, delivered and
   never asked about. Only `assessed` required the developer to answer something.
-- **An unconfirmed receipt is never a saving.** `savingsFrom` in
+- **A receipt no hook wrote out is never a saving.** `savingsFrom` in
   `memory/tokens.ts` is the only place the percentage is computed and it refuses
-  to divide unless the delivery was `confirmed`; the page shows `unknown` and
-  `prepared` rows in the ledger with no verdict beside them. Say "estimated
+  to divide unless the delivery was `emitted` (or a legacy `confirmed`, the same
+  fact); the page shows `unknown` and `prepared` rows in the ledger with no
+  verdict beside them. Never call emitted context host-confirmed: Claude Code
+  does not acknowledge hook context. Say "estimated
   context volume", never a cost or a bill.
 - **Superseded and deleted rows stay visible, marked.** The timeline is the
   audit trail — a correction that erases what it corrected is not one. Strike

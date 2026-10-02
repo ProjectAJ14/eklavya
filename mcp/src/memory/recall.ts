@@ -2,9 +2,9 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isKnown, isOwed } from '../srs.js';
 import { GLOBAL_PROJECT, projectKey } from '../store.js';
-import { ESTIMATOR, estimateTokens } from './tokens.js';
+import { ESTIMATOR, RECEIPT_HINT, estimateTokens } from './tokens.js';
 import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
-import { entryEvents, recordReceipt, timeline, type EntryRow } from './store.js';
+import { entryEvents, markReceiptEmitted, recordReceipt, timeline, type Delivery, type EntryRow } from './store.js';
 import { defangFence } from './privacy.js';
 
 /**
@@ -39,7 +39,7 @@ export function alreadyRecalled(db: DB, sessionId: string): Set<number> {
   }
 }
 
-/** Called only with a non-empty `ids`: `recall` returns before this when it kept nothing. */
+/** Called only with a non-empty `ids`: `markEmitted` is only reached with a block. */
 function markRecalled(db: DB, sessionId: string, ids: number[]): void {
   try {
     const merged = [...alreadyRecalled(db, sessionId), ...ids];
@@ -60,8 +60,11 @@ export interface RecallOptions {
   sessionId?: string | null;
   query?: string | null;
   scope?: string;
-  /** Only `confirmed` may ever be shown as a saving. */
-  delivery?: 'confirmed' | 'unknown' | 'prepared';
+  /**
+   * What the receipt says when it is written. `prepared` by default: the block
+   * exists but has not left the hook. `markEmitted` moves it on once it has.
+   */
+  delivery?: Delivery;
   /** Entry ids to leave out — what this session has already been handed. */
   exclude?: Set<number>;
   /**
@@ -171,17 +174,30 @@ function parseList(json: string | null): string[] {
  * that closes `</eklavya-memory>` would otherwise end the evidence frame early
  * and leave the rest of itself reading as instruction.
  */
-function renderEntry(entry: EntryRow, index: number): string {
+function renderEntry(entry: EntryRow, index: number, narrativeChars?: number): string {
   const files = parseList(entry.files).map((f) => defangFence(String(f)));
   const facts = parseList(entry.facts).map((f) => defangFence(String(f)));
   const title = defangFence(entry.title);
   const type = defangFence(entry.type ?? 'change');
   const lines = [`${index}. [#${entry.id}] ${title} — ${type}, ${entry.occurred_at.slice(0, 10)}`];
-  if (entry.narrative) lines.push(`   ${defangFence(entry.narrative).replace(/\n/g, '\n   ')}`);
+  if (entry.narrative) {
+    const cut = narrativeChars !== undefined && entry.narrative.length > narrativeChars;
+    const text = cut ? `${entry.narrative.slice(0, narrativeChars)}… [excerpt: memory_get #${entry.id} for the rest]` : entry.narrative;
+    lines.push(`   ${defangFence(text).replace(/\n/g, '\n   ')}`);
+  }
+  // An excerpt is the title and the start of the story; facts and files would
+  // spend what little room it has on the parts least likely to answer.
+  if (narrativeChars !== undefined) return lines.join('\n');
   for (const fact of facts.slice(0, 3)) lines.push(`   - ${fact}`);
   if (files.length) lines.push(`   files: ${files.slice(0, 6).join(', ')}`);
   return lines.join('\n');
 }
+
+/**
+ * The least an excerpt is worth sending: below this the title alone is left,
+ * and a title is what the index already gives.
+ */
+const MIN_EXCERPT_TOKENS = 60;
 
 /**
  * What the evidence behind an entry would have cost to read.
@@ -241,6 +257,8 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
         // that only applied when someone typed a query would be off precisely
         // where a developer with two checkouts open would notice it.
         project: config.retrieval.cross_project ? null : opts.project,
+        // A corrected entry is history, not memory to act on (issue #83).
+        excludeSuperseded: true,
         limit: limit + exclude.size + (opts.index ? INDEX_MAX_ITEMS : 0),
         }).filter((entry) => allowed(entry.id));
   if (!pool.length) return empty;
@@ -255,7 +273,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // Always this project's: another checkout's next steps are not where this one
   // left off, even when cross_project widens the rest of the recall.
   const newest = opts.index
-    ? timeline(db, { project: opts.project, kind: 'session_summary', limit: 3 }).filter(
+    ? timeline(db, { project: opts.project, kind: 'session_summary', excludeSuperseded: true, limit: 3 }).filter(
         (e) => allowed(e.id) && (!opts.sessionId || e.session_id !== opts.sessionId),
       )[0]
     : undefined;
@@ -283,7 +301,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   // after the last one. Counting it afterwards means the block the model
   // receives is reliably larger than the budget that was supposed to bound it.
   const wrapperTokens = estimateTokens(
-    [`<eklavya-memory project="${projectAttr}" items="00">`, note, footer].join('\n'),
+    [`<eklavya-memory project="${projectAttr}" items="00" receipt="000000">`, note, RECEIPT_HINT(0), footer].join('\n'),
   );
 
   // Fill to the token budget rather than the item count: six short notes and
@@ -297,11 +315,24 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   let delivered = wrapperTokens;
   for (const entry of detailPool) {
     if (kept.length >= limit) break;
-    const text = entry === checkpoint ? renderCheckpoint(entry) : renderEntry(entry, kept.length + (checkpoint ? 0 : 1));
-    const cost = estimateTokens(text);
+    const number = kept.length + (checkpoint ? 0 : 1);
+    let text = entry === checkpoint ? renderCheckpoint(entry) : renderEntry(entry, number);
+    let cost = estimateTokens(text);
+    // A prompt's candidates are ranked, so the best one that does not fit is
+    // cut to the room left rather than skipped: skipping it handed that room to
+    // whatever ranked below it, which on a prompt about one large entry was
+    // unrelated filler (issue #83). The cut is marked, and the rest is one
+    // `memory_get` away. A seam's entries are only newest-first, so there a
+    // shorter one may as well take the place.
+    const room = maxTokens - delivered;
+    if (opts.scope === 'prompt' && delivered + cost > maxTokens && entry.narrative && room >= MIN_EXCERPT_TOKENS) {
+      const overhead = estimateTokens(renderEntry({ ...entry, narrative: 'x' }, number, 0));
+      text = renderEntry(entry, number, Math.max(0, (room - overhead) * 4));
+      cost = estimateTokens(text);
+    }
     // The first entry may overrun at a seam, where one long summary is still the
-    // best thing to say. A prompt's budget is a cap: a 660-token entry against
-    // 400 tokens is skipped in favour of one that fits, or nothing is sent.
+    // best thing to say. A prompt's budget is a cap: what still does not fit is
+    // skipped in favour of one that does, or nothing is sent.
     if ((kept.length || opts.scope === 'prompt') && delivered + cost > maxTokens) continue;
     kept.push(entry);
     rendered.push(text);
@@ -339,7 +370,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     timelineCount = chosen.length;
     if (chosen.length) {
       indexLines.unshift(
-        'Recent work, oldest first: [#id] time type · title. A "session" line stands for a whole session, usually what was asked in it. Read any entry in full with the memory_get tool (pass the ids); look further back with memory_search.',
+        'Recent work, oldest first: [#id] time type · title. A "session" line stands for a whole session, usually what was asked in it. Look further back with memory_search.',
       );
       delivered += estimateTokens(indexLines.join('\n'));
     }
@@ -347,7 +378,6 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
 
   const base = baseTokensFor(db, kept);
 
-  const header = `<eklavya-memory project="${projectAttr}" items="${kept.length + timelineCount}">`;
   // Timeline first, then the newest work in full, then the checkpoint: read
   // top to bottom it ends where the last session stopped.
   const full = kept.map((e, i) => ({ e, text: rendered[i]! }));
@@ -355,16 +385,16 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   const DETAIL_HEADING = 'Latest, in full:';
   if (opts.index && detail.length) delivered += estimateTokens(DETAIL_HEADING);
   const closing = full.filter((x) => x.e === checkpoint).map((x) => x.text);
-  const block = opts.index
-    ? [header, note, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
-    : [header, note, ...rendered, footer].join('\n');
 
+  // Written before the block is put together, because the block carries its
+  // id: a `memory_get` the model makes from it can only be charged to this
+  // receipt if the model was told which receipt that is.
   const receiptId = recordReceipt(db, {
     project: opts.project,
     sessionId: opts.sessionId ?? null,
     scope: opts.scope ?? 'session_start',
     method: ESTIMATOR,
-    delivery: opts.delivery ?? 'confirmed',
+    delivery: opts.delivery ?? 'prepared',
     wrapperTokens:
       wrapperTokens +
       (indexLines.length ? estimateTokens(indexLines.join('\n')) : 0) +
@@ -376,7 +406,11 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     })),
   });
 
-  if (opts.sessionId) markRecalled(db, opts.sessionId, kept.map((e) => e.id));
+  const header = `<eklavya-memory project="${projectAttr}" items="${kept.length + timelineCount}" receipt="${receiptId}">`;
+  const hint = RECEIPT_HINT(receiptId);
+  const block = opts.index
+    ? [header, note, hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
+    : [header, note, hint, ...rendered, footer].join('\n');
 
   return {
     block,
@@ -387,6 +421,25 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     baseTokens: kept.reduce((sum, e) => sum + base.get(e.id)!, 0),
     deliveredTokens: delivered,
   };
+}
+
+/**
+ * The hook has written `result.block` to the host: the receipt moves from
+ * `prepared` to `emitted`, and this session stops being offered those entries
+ * again. Called only after the write, so a block that was prepared and then
+ * suppressed or never written leaves the entries free for the next recall.
+ *
+ * `emitted` is as far as Eklavya can see. The host does not acknowledge hook
+ * context, so nothing here claims the model received it.
+ */
+export function markEmitted(db: DB, result: RecallResult, sessionId?: string | null): void {
+  if (!result.block || result.receiptId === null) return;
+  try {
+    markReceiptEmitted(db, result.receiptId);
+  } catch {
+    /* The context is out; a receipt left `prepared` under-claims, never over-claims. */
+  }
+  if (sessionId) markRecalled(db, sessionId, result.entries.map((e) => e.id));
 }
 
 export interface LearningCounts {
@@ -566,7 +619,6 @@ export function recallForPrompt(
     sessionId: opts.sessionId,
     query,
     scope: 'prompt',
-    delivery: 'confirmed',
     maxItems: Math.max(1, Math.floor(config.retrieval.max_items / 3)),
     maxTokens: Math.floor(config.retrieval.max_tokens / 3),
     exclude: alreadyRecalled(db, opts.sessionId),

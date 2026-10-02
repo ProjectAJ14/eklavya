@@ -311,12 +311,52 @@ describe('file history on Read, through the built hook', () => {
     expect(out.hookSpecificOutput.hookEventName).toBe('PreToolUse');
     expect(out.hookSpecificOutput).not.toHaveProperty('permissionDecision');
     const ctx = out.hookSpecificOutput.additionalContext!;
-    expect(ctx).toContain('<eklavya-memory file="src/auth/session.ts" items="1">');
+    expect(ctx).toMatch(/<eklavya-memory file="src\/auth\/session.ts" items="1" receipt="\d+">/);
     expect(ctx).toMatch(/\[#\d+\] 2026-09-20 discovery · ACCESS_TTL is 600s/);
     expect(ctx).toContain('memory_get');
     expect(ctx).not.toContain('Unrelated work');
     // Once per file per session.
     expect(read(big)).toBe('');
+  });
+
+  // Issue #83: file context is recall too, and is accounted like it -- a receipt
+  // whose id the block carries, emitted only once written, and claiming no
+  // saving for titles.
+  it('writes an emitted receipt the block names, with no saving claimed', () => {
+    const id = insertEntry(db, { project, title: 'ACCESS_TTL is 600s', type: 'discovery', files: ['src/auth/session.ts'] });
+    const ctx = (JSON.parse(read(big)) as { hookSpecificOutput: Record<string, string> }).hookSpecificOutput.additionalContext!;
+    const receipt = Number(/receipt="(\d+)"/.exec(ctx)![1]);
+    expect(ctx).toContain(`receipt_id: ${receipt}`);
+    expect(db.prepare('SELECT scope, delivery, session_id, base_tokens FROM context_receipts WHERE id = ?').get(receipt)).toEqual({
+      scope: 'file_context', delivery: 'emitted', session_id: 's1', base_tokens: 0,
+    });
+    expect(db.prepare('SELECT entry_id, stage FROM context_receipt_items WHERE receipt_id = ?').all(receipt)).toEqual([
+      { entry_id: id, stage: 'index' },
+    ]);
+  });
+
+  it('shows the file again on the next read when its block could not be prepared', () => {
+    insertEntry(db, { project, title: 'ACCESS_TTL is 600s', type: 'discovery', files: ['src/auth/session.ts'] });
+    db.exec("CREATE TRIGGER no_receipts BEFORE INSERT ON context_receipts BEGIN SELECT RAISE(ABORT, 'locked'); END");
+    expect(read(big)).toBe('');
+    db.exec('DROP TRIGGER no_receipts');
+    expect(read(big)).toContain('ACCESS_TTL is 600s');
+  });
+
+  it('fails open when it can neither prepare the block nor release the file', () => {
+    insertEntry(db, { project, title: 'ACCESS_TTL is 600s', type: 'discovery', files: ['src/auth/session.ts'] });
+    db.exec("CREATE TRIGGER no_receipts BEFORE INSERT ON context_receipts BEGIN SELECT RAISE(ABORT, 'locked'); END");
+    db.exec("CREATE TRIGGER no_release BEFORE UPDATE ON meta BEGIN SELECT RAISE(ABORT, 'locked'); END");
+    expect(read(big)).toBe('');
+    db.exec('DROP TRIGGER no_receipts');
+    // Still marked seen: one file's history is not shown again this session.
+    expect(read(big)).toBe('');
+  });
+
+  it('writes no receipt for a file with no history', () => {
+    insertEntry(db, { project, title: 'Unrelated work', type: 'change', files: ['src/other.ts'] });
+    expect(read(big)).toBe('');
+    expect(db.prepare('SELECT count(*) AS n FROM context_receipts').get()).toEqual({ n: 0 });
   });
 
   it('finds history Windows stored with backslashes before paths were normalised', () => {

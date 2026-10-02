@@ -31,7 +31,10 @@ import {
   entryTags,
   pendingEventCount,
   quarantineBacklog,
+  readTotals,
+  type ReadTotals,
   receiptTotals,
+  totalsDelivery,
   restoreBacklog,
   resumePaused,
   timeline,
@@ -143,6 +146,11 @@ export function workerLine(db: DB): string {
     .join(' · ');
 }
 
+/** Explicit memory reads in one line: linked to a recall or not, every one counted. */
+function readLine(r: ReadTotals): string {
+  return `${r.reads} (${r.linked} with a receipt, ${r.unlinked} without) · ${r.empty} empty · ${r.errors} failed · ~${r.tokens} tokens returned`;
+}
+
 /**
  * Why the queue is paused, by class — never `last_error`, which is the
  * provider's own prose and has carried a URL with a token in it.
@@ -175,7 +183,7 @@ function memoryStatus(): void {
     const savings = savingsFrom({
       baseTokens: totals.base,
       deliveredTokens: totals.delivered,
-      delivery: totals.confirmed > 0 ? 'confirmed' : 'unknown',
+      delivery: totalsDelivery(totals),
     });
 
     const lines = [
@@ -200,7 +208,8 @@ function memoryStatus(): void {
       }`,
       `summarizer: ${summarizerFor(config).id}`,
       `spool drops: ${droppedCount()}`,
-      `receipts:   ${totals.receipts} (${totals.confirmed} confirmed) · base ${totals.base} → delivered ${totals.delivered} tokens`,
+      `receipts:   ${totals.receipts} (${totals.emitted + totals.confirmed} emitted to Claude Code; it does not acknowledge them) · base ${totals.base} → delivered ${totals.delivered} tokens`,
+      `reads:      ${readLine(readTotals(db))}`,
       savingsLine(savings),
     ];
     process.stdout.write(`${lines.join('\n')}\n`);
