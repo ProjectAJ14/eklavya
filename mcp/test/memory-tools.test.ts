@@ -7,7 +7,9 @@ import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { findRepoConfig } from '../src/config.js';
 import { projectKey } from '../src/store.js';
-import { appendEvent, insertEntry, recordReceipt } from '../src/memory/store.js';
+import { appendEvent, insertEntry, readTotals, recordReceipt } from '../src/memory/store.js';
+import { recall } from '../src/memory/recall.js';
+import { DEFAULT_CONFIG } from '../src/config.js';
 import { ESTIMATOR } from '../src/memory/tokens.js';
 import {
   memoryFileHistory,
@@ -291,5 +293,85 @@ describe('memory_status', () => {
   it('counts what this project has remembered', () => {
     write({ title: 'Something' });
     expect(call<any>(memoryStatus).entries).toBe(1);
+  });
+});
+
+/**
+ * Issue #83: `receipt_id` is optional, so the receipts alone could not tell a
+ * session that never read memory from one that read it without linking the
+ * read. Every read tool call is logged on its own, ids and sizes only.
+ */
+describe('memory read log', () => {
+  type Read = { tool: string; project: string; session_id: string; receipt_id: number | null; entry_ids: string; outcome: string; latency_ms: number; result_tokens: number };
+  const reads = () => db.prepare('SELECT * FROM memory_reads ORDER BY id').all() as Read[];
+
+  it('links a detail fetch to the receipt its recall block carried', () => {
+    const id = write({ title: 'Quota backoff', body: 'Retry with jitter; the provider 429s in bursts.' });
+    const block = recall(db, structuredClone(DEFAULT_CONFIG), { project, sessionId: 'session-1' });
+    // What the model reads is the block, so the id comes from the block.
+    const receiptId = Number(/receipt="(\d+)"/.exec(block.block!)![1]);
+    expect(receiptId).toBe(block.receiptId);
+
+    const result = call<any>(memoryGet, { ids: [id], receipt_id: receiptId });
+    expect(result.charged_to).toBe(receiptId);
+    const detail = db
+      .prepare("SELECT entry_id FROM context_receipt_items WHERE receipt_id = ? AND stage = 'detail'")
+      .all(receiptId);
+    expect(detail).toEqual([{ entry_id: id }]);
+    expect(reads()).toEqual([
+      expect.objectContaining({ tool: 'memory_get', project, receipt_id: receiptId, entry_ids: `[${id}]`, outcome: 'ok' }),
+    ]);
+  });
+
+  it('logs a read without a receipt as unlinked, rather than losing it', () => {
+    const id = write({ title: 'Quota backoff', body: 'Retry with jitter; the provider 429s in bursts.' });
+    call<any>(memoryGet, { ids: [id] });
+    call<any>(memorySearch, { query: 'quota backoff' });
+    call<any>(memoryTimeline, {});
+    call<any>(memoryFileHistory, { file: 'nothing-here.ts' });
+
+    expect(reads().map((r) => [r.tool, r.receipt_id, r.outcome])).toEqual([
+      ['memory_get', null, 'ok'],
+      ['memory_search', null, 'ok'],
+      ['memory_timeline', null, 'ok'],
+      ['memory_file_history', null, 'empty'],
+    ]);
+    const [get] = reads();
+    expect(get!.session_id).toBeTruthy();
+    expect(get!.result_tokens).toBeGreaterThan(0);
+    expect(get!.latency_ms).toBeGreaterThanOrEqual(0);
+    expect(readTotals(db, project)).toMatchObject({ reads: 4, linked: 0, unlinked: 4, empty: 1, errors: 0 });
+    // And memory_status reports them next to the receipts.
+    const status = call<any>(memoryStatus);
+    expect(status.reads).toMatchObject({ reads: 4, unlinked: 4 });
+    expect(status.host_acknowledgement).toBe('unavailable');
+  });
+
+  it('never stores what was asked or what came back', () => {
+    write({ title: 'Secretive title', body: 'A narrative nobody should find in the read log.' });
+    call<any>(memorySearch, { query: 'secretive narrative query words' });
+    const row = JSON.stringify(reads());
+    expect(row).not.toMatch(/Secretive|narrative|query words/);
+  });
+
+  it('answers a receipt that is gone, unlinked, instead of failing the read', () => {
+    const id = write({ title: 'Quota backoff', body: 'Retry with jitter.' });
+    const result = call<any>(memoryGet, { ids: [id], receipt_id: 999_999 });
+    expect(result.count).toBe(1);
+    expect(result.charged_to).toBeNull();
+    expect(reads()[0]).toMatchObject({ receipt_id: null, outcome: 'ok' });
+  });
+
+  it('logs a failed read as an error and still throws it', () => {
+    const id = write({ title: 'Quota backoff', body: 'Retry with jitter.' });
+    db.exec('DROP TABLE memory_entry_tags');
+    expect(() => call<any>(memoryGet, { ids: [id] })).toThrow();
+    expect(reads()).toEqual([expect.objectContaining({ tool: 'memory_get', outcome: 'error', entry_ids: '[]', result_tokens: 0 })]);
+  });
+
+  it('answers the read even when the log cannot be written', () => {
+    const id = write({ title: 'Quota backoff', body: 'Retry with jitter.' });
+    db.exec('DROP TABLE memory_reads');
+    expect(call<any>(memoryGet, { ids: [id] }).count).toBe(1);
   });
 });

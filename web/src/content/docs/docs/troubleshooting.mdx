@@ -86,7 +86,7 @@ eklavya memory status
 | Search misses another project's work | Add `--all-projects` to the search. Searches otherwise use the current checkout. |
 | Imported entries are `unplaced` | Rerun the import from the source database; use `--map-here` for a project name that cannot be resolved. See [Moving from Claude Mem](/docs/migrating/). |
 | Searches miss Japanese or Chinese text | Prefer `retrieval.mode: hybrid`; keyword search struggles with unspaced scripts. Try a filename or identifier as the query. |
-| Savings say “unavailable” or show overhead | No confirmed delivered reuse means unavailable. On small histories, recalled observations can cost more tokens than the original evidence. This is reported rather than hidden. |
+| Savings say “unavailable” or show overhead | No emitted reuse means unavailable: a recall that was only prepared is never counted. On small histories, recalled observations can cost more tokens than the original evidence. This is reported rather than hidden. |
 | Unwanted content was recorded | Ask Claude to delete the affected memory entry with `memory_delete`, then adjust `privacy.exclude_paths`, `privacy.exclude_tools` or `privacy.redact_patterns` to prevent recurrence. |
 
 To switch from Claude Mem, run `eklavya install --memory eklavya` after reviewing

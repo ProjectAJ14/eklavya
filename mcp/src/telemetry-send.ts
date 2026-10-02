@@ -21,6 +21,8 @@ const ENDPOINT = 'https://www.google-analytics.com/mp/collect';
 /** The observer's own `claude -p` sessions, recognised as `HELPER_SESSION` does. Not the developer's work. */
 const HELPERS = `(SELECT session_id FROM evidence_events WHERE kind = 'prompt' AND body LIKE '<evidence project=%')`;
 const NOT_HELPER = `(session_id IS NULL OR session_id NOT IN ${HELPERS})`;
+/** Not a recall that was only prepared: one a hook never wrote out was not handed to Claude. */
+const HANDED_OVER = "delivery <> 'prepared'";
 const DAY_MS = 86_400_000;
 
 type Value = number | boolean | string;
@@ -184,14 +186,14 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
       corrected_new: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE superseded_by IS NOT NULL AND datetime(created_at) >= ?', t),
       deleted_new: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE datetime(deleted_at) >= ?', t),
       entries_total: num(db, 'SELECT COUNT(*) FROM memory_entries WHERE deleted_at IS NULL AND superseded_by IS NULL'),
-      recalls_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
-      recalls_session_start_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE scope = 'session_start' AND datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
-      recalls_search_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE scope = 'search' AND datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
-      recall_items_new: num(db, `SELECT COALESCE(SUM(item_count), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
-      recall_tokens_new: num(db, `SELECT COALESCE(SUM(delivered_tokens), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER}`, t),
+      recalls_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER} AND ${HANDED_OVER}`, t),
+      recalls_session_start_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE scope = 'session_start' AND datetime(created_at) >= ? AND ${NOT_HELPER} AND ${HANDED_OVER}`, t),
+      recalls_search_new: num(db, `SELECT COUNT(*) FROM context_receipts WHERE scope = 'search' AND datetime(created_at) >= ? AND ${NOT_HELPER} AND ${HANDED_OVER}`, t),
+      recall_items_new: num(db, `SELECT COALESCE(SUM(item_count), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER} AND ${HANDED_OVER}`, t),
+      recall_tokens_new: num(db, `SELECT COALESCE(SUM(delivered_tokens), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER} AND ${HANDED_OVER}`, t),
       recall_tokens_saved_new: num(
         db,
-        `SELECT COALESCE(SUM(MAX(base_tokens - delivered_tokens, 0)), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER}`,
+        `SELECT COALESCE(SUM(MAX(base_tokens - delivered_tokens, 0)), 0) FROM context_receipts WHERE datetime(created_at) >= ? AND ${NOT_HELPER} AND ${HANDED_OVER}`,
         t,
       ),
       jobs_pending: num(db, "SELECT COUNT(*) FROM memory_jobs WHERE status IN ('pending','claimed','paused')"),

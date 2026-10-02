@@ -65,7 +65,7 @@ Per project: `project_configs` (projects with their own settings file), `project
 | `events_new` | work observations captured |
 | `entries_new`, `entries_total` | memory entries written, and entries kept |
 | `corrected_new`, `deleted_new` | entries replaced by a correction, and deleted |
-| `recalls_new`, `recalls_session_start_new`, `recalls_search_new` | times memory was handed to Claude, in total, at session start, and from a search |
+| `recalls_new`, `recalls_session_start_new`, `recalls_search_new` | times a hook wrote recalled memory to Claude Code, in total (session start, prompt and file recall) and at session start alone; `recalls_search_new` counts receipts with the `search` scope, which no current recall writes. A recall that was prepared but never written is not counted |
 | `recall_items_new`, `recall_tokens_new`, `recall_tokens_saved_new` | entries handed over, their size in tokens, and tokens saved against the full text |
 | `jobs_pending`, `jobs_failed` | memory processing jobs waiting and failed |
 | `collections`, `db_mb` | saved collections, database size in megabytes |

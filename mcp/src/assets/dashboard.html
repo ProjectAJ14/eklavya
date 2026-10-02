@@ -1351,24 +1351,26 @@ function memScope(params) {
   return params;
 }
 
+// `confirmed` is what earlier releases wrote for the same fact as `emitted`.
+const delivered = (d) => d === 'emitted' || d === 'confirmed';
 const deliveryPill = (d) =>
-  d === 'confirmed' ? '<span class="pill ok">confirmed</span>'
+  delivered(d) ? `<span class="pill ok">${esc(d)}</span>`
   : d === 'prepared' ? '<span class="pill due">prepared</span>'
   : '<span class="pill">unknown</span>';
 
 /**
  * The one sentence that says what a savings verdict means, in words, not a bare
  * percentage. `none` has two readings and they are not the same story: nothing
- * was ever reused, or plenty was and none of it was ever confirmed delivered —
+ * was ever reused, or plenty was and none of it ever left the hook —
  * which is why the receipt count is part of the sentence.
  */
 function savingsText(s, receipts) {
   if (!s) return 'No receipts yet.';
   if (s.kind === 'saving') return `${s.percent}% less context than reading the same material from source (estimated).`;
   if (s.kind === 'overhead') return `${s.tokens} tokens more than reading from source — reuse cost more than it saved.`;
-  if (s.kind === 'unavailable') return 'No confirmed delivery yet, so there is no saving to report.';
+  if (s.kind === 'unavailable') return 'Nothing emitted yet, so there is no saving to report.';
   return receipts
-    ? `${plural(receipts, 'receipt')}, none of them a confirmed delivery — so there is no saving to report.`
+    ? `${plural(receipts, 'receipt')}, none of them emitted — so there is no saving to report.`
     : 'No context has been reused yet.';
 }
 
@@ -2157,10 +2159,10 @@ function viewMemoryDashboard() {
   // The pipeline in two lines: is reuse paying for itself, and is capture alive.
   // Each opens its page; the arithmetic lives there.
   const verdict = R.savings.kind === 'saving' ? `${R.savings.percent}% less context`
-    : R.savings.kind === 'overhead' ? `+${R.savings.tokens} tokens of overhead` : 'no confirmed receipts yet';
+    : R.savings.kind === 'overhead' ? `+${R.savings.tokens} tokens of overhead` : 'nothing emitted yet';
   const stuck = Q.failed + Q.paused;
   const pipeline = lines([
-    { t: 'Context reuse', s: `${plural(R.receipts, 'receipt')}, ${R.confirmed} confirmed · estimated, all projects`,
+    { t: 'Context reuse', s: `${plural(R.receipts, 'receipt')}, ${R.emitted + R.confirmed} emitted · ${plural(R.reads.reads, 'read')} · estimated, all projects`,
       v: esc(verdict), go: MH('reuse') },
     { t: 'Health', s: `last capture ${esc(H.capture.newest_event ? ago(H.capture.newest_event) : 'never')} · capture ${H.capture.enabled ? esc(H.capture.mode) : 'off'} · ${Q.pending} queued`,
       v: stuck ? `<span style="color:var(--warning)">${stuck} stalled</span>` : 'running', go: MH('health') },
@@ -2327,10 +2329,10 @@ function viewReuse() {
   const verdict = R.savings.kind === 'saving' ? R.savings.percent + '%'
     : R.savings.kind === 'overhead' ? '+' + R.savings.tokens : '—';
   const body = slice(rows, p).map((r) => {
-    // A saving is only a saving when the delivery was confirmed. An unknown or
+    // A saving is only a saving when the context left the hook. An unknown or
     // prepared receipt has a B and a D but no verdict, and printing one would
     // be counting context that may never have reached the model.
-    const saved = r.delivery === 'confirmed' && r.base_tokens > 0
+    const saved = delivered(r.delivery) && r.base_tokens > 0
       ? Math.round((100 * (r.base_tokens - r.delivered_tokens)) / r.base_tokens) + '%'
       : '—';
     const sub = [esc(pname(r.project)), plural(r.item_count, 'item'), r.detail_tokens ? `+${r.detail_tokens} detail` : '', esc(r.method)]
@@ -2346,15 +2348,20 @@ function viewReuse() {
   });
   return [
     pageHead('Context reuse', [
-      `${R.confirmed} of ${plural(R.receipts, 'receipt')} confirmed`, `net ${net} tokens`, `estimated with <code class="slug">${esc(R.estimator)}</code>`,
+      `${R.emitted + R.confirmed} of ${plural(R.receipts, 'receipt')} emitted`, `net ${net} tokens`,
+      `${plural(R.reads.reads, 'memory read')}, ${R.reads.unlinked} without a receipt`, `estimated with <code class="slug">${esc(R.estimator)}</code>`,
     ], `<strong>B</strong> is what the same material would have cost to read from source. <strong>D</strong> is
        what was actually delivered instead. Both are counted with the same estimator, and the percentage is an
        estimate of how much <em>context volume</em> was avoided — not a bill, not a price, and not a measure of
-       model spend. Receipts whose delivery is <code>unknown</code> or <code>prepared</code> are listed in the
-       ledger but never counted in the verdict: an injection that may not have reached the model is not a saving.`),
+       model spend. <code>emitted</code> means the hook wrote the context to Claude Code, which does not
+       acknowledge it; older receipts say <code>confirmed</code> for the same thing. Receipts whose delivery is
+       <code>unknown</code> or <code>prepared</code> are listed in the ledger but never counted in the verdict:
+       an injection that may not have reached the model is not a saving. Memory reads count every
+       <code>memory_search</code>, <code>memory_get</code>, <code>memory_timeline</code> and
+       <code>memory_file_history</code> call, with or without a receipt.`),
     tiles([
       ['Verdict', verdict, savingsText(R.savings, R.receipts), R.savings.kind === 'saving' ? 'good' : R.savings.kind === 'overhead' ? 'warn' : ''],
-      ['B — from source', R.base, 'estimated tokens, confirmed receipts'],
+      ['B — from source', R.base, 'estimated tokens, emitted receipts'],
       ['D — delivered', R.delivered, 'estimated tokens actually injected'],
     ]),
     card('Every receipt', `${plural(rows.length, 'receipt')} in scope. One row per injection.`,
@@ -2375,7 +2382,7 @@ function viewHealth() {
     ['Processed', M.processed, 'distilled into an observation'],
     ['Indexed', M.indexed, 'reachable by semantic search'],
     ['Reused', M.reused, 'selected for a context injection'],
-    ['Exposed', M.exposed, 'in a confirmed delivery'],
+    ['Exposed', M.exposed, 'in context a hook emitted'],
     ['Assessed', M.assessed, 'concepts you were actually asked about'],
   ];
   const oldest = Q.oldest ? ago(Q.oldest) : '—';

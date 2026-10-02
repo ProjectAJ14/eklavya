@@ -100,6 +100,46 @@ describe('eklavya-mcp over stdio', () => {
     }
   });
 
+  // Issue #83: listed is not the same as callable. Each read tool answers over
+  // the real transport, and each call lands in the read log.
+  it('answers every memory read tool over the transport, and logs each call', async () => {
+    dbFile = tempDbPath('server-memory');
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-home-'));
+    try {
+      proc = spawn(process.execPath, [serverEntry], {
+        env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
+        cwd: home,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }) as ChildProcessWithoutNullStreams;
+      const client = new StdioClient(proc);
+      await client.request('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'eklavya-test', version: '0' },
+      });
+      client.notify('notifications/initialized');
+
+      const calls: [string, Record<string, unknown>][] = [
+        ['memory_search', { query: 'refresh cookie' }],
+        ['memory_get', { ids: [1], receipt_id: 1 }],
+        ['memory_timeline', {}],
+        ['memory_file_history', { file: 'src/auth.ts' }],
+        ['memory_status', {}],
+      ];
+      for (const [name, args] of calls) {
+        const res = await client.request('tools/call', { name, arguments: { cwd: home, ...args } });
+        expect(res.error, `${name} returned a protocol error`).toBeUndefined();
+        expect(res.result.isError, `${name}: ${res.result.content[0].text}`).toBe(false);
+      }
+      const db = new Database(dbFile, { readonly: true });
+      const tools = (db.prepare('SELECT tool FROM memory_reads ORDER BY id').all() as { tool: string }[]).map((r) => r.tool);
+      db.close();
+      expect(tools).toEqual(['memory_search', 'memory_get', 'memory_timeline', 'memory_file_history']);
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   it('exits 1 with a fatal line on stderr when the database cannot be opened', async () => {
     // A directory is not a database: openDb throws before the transport starts.
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-server-bad-'));

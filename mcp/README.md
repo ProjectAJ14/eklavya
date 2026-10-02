@@ -49,7 +49,10 @@ Code's learning loop.
 | Inspect code | `code_outline`, `code_find_symbol` |
 
 Search first, choose relevant entries, then use `memory_get` for their full
-content. Session-aware learning and configuration tools resolve the current session
+content. Pass `memory_get` the `receipt_id` a recall block names to link the
+read to that recall. Calls to `memory_search`, `memory_get`, `memory_timeline`
+and `memory_file_history` are logged locally either way, with entry IDs,
+outcome, latency and size but never the query or content. Session-aware learning and configuration tools resolve the current session
 when `session_id` is omitted. In `memory_timeline`, it instead filters results
 to one session; omission shows the project timeline. Other tools may not accept
 that argument.

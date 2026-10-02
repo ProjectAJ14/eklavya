@@ -148,7 +148,7 @@ describe('workerLine', () => {
 });
 
 describe('memory status', () => {
-  it('reports memory off, quarantined and paused jobs, a provider and confirmed receipts', () => {
+  it('reports memory off, quarantined and paused jobs, a provider, legacy confirmed receipts and reads', () => {
     globalConfig({ memory: { enabled: false }, providers: { observer: { kind: 'anthropic', model: 'haiku' } } });
     withDb((db) => {
       const batch = () => db.prepare("INSERT INTO memory_batches (project, session_id, reason) VALUES (?, 's1', 'manual')").run(repo).lastInsertRowid;
@@ -163,7 +163,8 @@ describe('memory status', () => {
     expect(res.stdout).toMatch(/· 1 quarantined$/m);
     expect(res.stdout).toMatch(/^paused:.*1 on auth \(claude is not logged in\), since .*1 on unclassified, since /m);
     expect(res.stdout).toMatch(/^provider:\s+anthropic:haiku \(via claude -p, on your subscription\)$/m);
-    expect(res.stdout).toMatch(/^receipts:\s+1 \(1 confirmed\) · base 1000 → delivered 100 tokens$/m);
+    expect(res.stdout).toMatch(/^receipts:\s+1 \(1 emitted to Claude Code; it does not acknowledge them\) · base 1000 → delivered 100 tokens$/m);
+    expect(res.stdout).toMatch(/^reads:\s+0 \(0 with a receipt, 0 without\) · 0 empty · 0 failed · ~0 tokens returned$/m);
   });
 
   it('counts imported history here, and names what no checkout matches', () => {

@@ -588,6 +588,12 @@ export interface TimelineFilter {
   since?: string | null;
   until?: string | null;
   includeDeleted?: boolean;
+  /**
+   * Leave out entries a correction replaced. The timeline tool keeps them, as
+   * the audit trail; recall must not, or the stale version is handed over as
+   * if it were current.
+   */
+  excludeSuperseded?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -621,6 +627,7 @@ export function timeline(db: DB, filter: TimelineFilter = {}): EntryRow[] {
     args.push(filter.until);
   }
   if (!filter.includeDeleted) where.push('deleted_at IS NULL');
+  if (filter.excludeSuperseded) where.push('superseded_by IS NULL');
 
   const sql = `SELECT * FROM memory_entries
      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
@@ -648,9 +655,21 @@ export interface ReceiptItem {
 }
 
 /**
- * Writes one reuse receipt (PRD MET-01). `delivery` is the honesty valve: an
- * adapter that cannot confirm the host consumed the context records `prepared`,
- * and nothing derived from that row is ever shown as a confirmed saving.
+ * How far a receipt's context got. `prepared`: rendered, not yet written out.
+ * `emitted`: the hook wrote it to the host. `confirmed`: what earlier releases
+ * wrote for every recall the moment it was prepared — at best the same fact as
+ * `emitted`, under a name that claimed more; no host acknowledges hook context
+ * today, so nothing writes it now. `unknown`: an adapter that cannot tell.
+ */
+export type Delivery = 'confirmed' | 'emitted' | 'unknown' | 'prepared';
+
+/** The deliveries a saving may be computed from: context that left the hook. */
+export const DELIVERED = "delivery IN ('confirmed', 'emitted')";
+
+/**
+ * Writes one reuse receipt (PRD MET-01). `delivery` is the honesty valve: a
+ * receipt starts `prepared`, and nothing derived from it is shown as a saving
+ * until `markReceiptEmitted` says the context actually left the hook.
  */
 export function recordReceipt(
   db: DB,
@@ -659,7 +678,7 @@ export function recordReceipt(
     sessionId?: string | null;
     scope: string;
     method: string;
-    delivery: 'confirmed' | 'unknown' | 'prepared';
+    delivery: Delivery;
     items: ReceiptItem[];
     wrapperTokens?: number;
   },
@@ -697,6 +716,16 @@ export function recordReceipt(
   })();
 }
 
+/** A prepared receipt's context was written to the host. Only ever forward. */
+export function markReceiptEmitted(db: DB, receiptId: number): void {
+  db.prepare("UPDATE context_receipts SET delivery = 'emitted' WHERE id = ? AND delivery = 'prepared'").run(receiptId);
+}
+
+/** Whether `receiptId` names a receipt this database still holds. */
+export function receiptExists(db: DB, receiptId: number): boolean {
+  return Boolean(db.prepare('SELECT 1 FROM context_receipts WHERE id = ?').get(receiptId));
+}
+
 /**
  * Charges a later detail fetch to the receipt that proposed the entry, so the
  * episode's percentage falls to what the reuse actually cost instead of keeping
@@ -720,7 +749,9 @@ export interface ReceiptTotals {
   base: number;
   delivered: number;
   receipts: number;
+  /** Legacy rows, written before `emitted` existed. */
   confirmed: number;
+  emitted: number;
 }
 
 export function receiptTotals(db: DB, project?: string | null, sinceDays?: number): ReceiptTotals {
@@ -739,14 +770,78 @@ export function receiptTotals(db: DB, project?: string | null, sinceDays?: numbe
   }
   const row = db
     .prepare(
-      `SELECT COALESCE(SUM(CASE WHEN delivery = 'confirmed' THEN base_tokens ELSE 0 END), 0) AS base,
-              COALESCE(SUM(CASE WHEN delivery = 'confirmed' THEN delivered_tokens ELSE 0 END), 0) AS delivered,
+      `SELECT COALESCE(SUM(CASE WHEN ${DELIVERED} THEN base_tokens ELSE 0 END), 0) AS base,
+              COALESCE(SUM(CASE WHEN ${DELIVERED} THEN delivered_tokens ELSE 0 END), 0) AS delivered,
               COUNT(*) AS receipts,
-              COALESCE(SUM(CASE WHEN delivery = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed
+              COALESCE(SUM(CASE WHEN delivery = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed,
+              COALESCE(SUM(CASE WHEN delivery = 'emitted' THEN 1 ELSE 0 END), 0) AS emitted
        FROM context_receipts WHERE ${where.join(' AND ')}`,
     )
     .get(...args) as ReceiptTotals;
   return row;
+}
+
+/** The delivery a savings total is computed under: any context that left a hook. */
+export function totalsDelivery(totals: ReceiptTotals): Delivery {
+  return totals.confirmed + totals.emitted > 0 ? 'emitted' : 'unknown';
+}
+
+/**
+ * One call to a memory read tool, receipt or not (`memory_reads`, migration
+ * 018). Ids, counts and timings only: never the query, never a narrative.
+ */
+export interface MemoryRead {
+  tool: string;
+  project: string | null;
+  sessionId: string | null;
+  receiptId: number | null;
+  entryIds: number[];
+  outcome: 'ok' | 'empty' | 'error';
+  latencyMs: number;
+  resultTokens: number;
+}
+
+export function recordRead(db: DB, read: MemoryRead): void {
+  db.prepare(
+    `INSERT INTO memory_reads
+       (created_at, project, session_id, tool, receipt_id, entry_ids, outcome, latency_ms, result_tokens)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    nowIso(),
+    read.project,
+    read.sessionId,
+    read.tool,
+    read.receiptId,
+    JSON.stringify(read.entryIds),
+    read.outcome,
+    Math.max(0, Math.round(read.latencyMs)),
+    read.resultTokens,
+  );
+}
+
+export interface ReadTotals {
+  reads: number;
+  /** Reads that named a receipt still on record. */
+  linked: number;
+  unlinked: number;
+  empty: number;
+  errors: number;
+  tokens: number;
+}
+
+/** Explicit memory reads, linked to a recall or not: consumption no receipt shows. */
+export function readTotals(db: DB, project?: string | null): ReadTotals {
+  return db
+    .prepare(
+      `SELECT COUNT(*) AS reads,
+              COALESCE(SUM(receipt_id IS NOT NULL), 0) AS linked,
+              COALESCE(SUM(receipt_id IS NULL), 0) AS unlinked,
+              COALESCE(SUM(outcome = 'empty'), 0) AS empty,
+              COALESCE(SUM(outcome = 'error'), 0) AS errors,
+              COALESCE(SUM(result_tokens), 0) AS tokens
+       FROM memory_reads WHERE ${project ? 'project = ?' : '1'}`,
+    )
+    .get(...(project ? [project] : [])) as ReadTotals;
 }
 
 export interface CandidateInput {

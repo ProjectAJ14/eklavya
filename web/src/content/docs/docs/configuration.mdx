@@ -33,7 +33,7 @@ Project folders encode the main checkout's absolute path, such as `-Users-you-co
 
 Say **“Turn the questions off for this session”**, or run `/eklavya:skip` (the same as `/eklavya:mode off --session`). Questions, checkpoints, the banner and the status line stay silent until the session ends. Ask to turn Eklavya back on to resume sooner. No configuration file changes. Concepts logged while silent are not carried into later sessions.
 
-Memory keeps recording. An enforced commit gate also remains active and can accumulate work while questions are silenced. Change `memory.enabled` to stop recording; change `quiz.enforced` at project or global scope to remove enforcement.
+Memory keeps recording, and recall still reaches Claude: a silenced session that resumes or compacts still gets its session-start memory, without the banner. An enforced commit gate also remains active and can accumulate work while questions are silenced. Change `memory.enabled` to stop recording; change `quiz.enforced` at project or global scope to remove enforcement.
 
 ### Every key
 
@@ -116,7 +116,7 @@ A change that would not take effect is refused too: `focus learn` when no `focus
 | `memory.enabled` | `true` | Enables capture and recall independently of quizzes. |
 | `memory.capture` | `"full"` | `full`: prompts, tool activity, edits, reads and session events. `minimal`: prompts, assistant messages, session events and notes. `off`: stop capture while keeping stored history searchable. |
 | `memory.batch_max_events` | `40` | Maximum events per observation batch. A turn end also closes batches at eight events or 20 minutes old; a session start closes leftovers. |
-| `memory.retention_days` | `null` | Days to keep summarised raw evidence, finished jobs and reuse receipts. Observations survive. Applies per project, automatically at most every six hours or through `eklavya memory prune`. `null` keeps everything. |
+| `memory.retention_days` | `null` | Days to keep summarised raw evidence, finished jobs, reuse receipts and the memory read log. Observations survive. Applies per project, automatically at most every six hours or through `eklavya memory prune`. `null` keeps everything. |
 
 #### `privacy`
 
