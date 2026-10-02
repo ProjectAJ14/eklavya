@@ -112,16 +112,20 @@ fi
 DB=$(eklavya_db)
 [ -f "$DB" ] || exit 0
 
+# In a linked worktree the session usually keys its gate on the main checkout,
+# where Claude was started, not on the worktree it built in. Either row counts
+# and the latest wins. Outside a worktree both names are the same checkout.
 ESCAPED=$(printf '%s' "$REPO" | sed "s/'/''/g")
+ESCAPED_PROJECT=$(printf '%s' "$PROJECT" | sed "s/'/''/g")
 GATE=$(sqlite3 -noheader -batch -cmd ".timeout 2000" "$DB" "
   SELECT passed || '|' || required || '|' || answered
     FROM gates
-   WHERE repo = '$ESCAPED'
+   WHERE repo IN ('$ESCAPED', '$ESCAPED_PROJECT')
    ORDER BY updated_at DESC
    LIMIT 1;" 2>/dev/null) || exit 0
 
-# No gate for this repo means Eklavya never taught anything here, so there is
-# nothing to have passed.
+# No gate for this checkout means Eklavya never taught anything here, so there
+# is nothing to have passed.
 [ -n "$GATE" ] || exit 0
 
 PASSED=$(printf '%s' "$GATE" | cut -d'|' -f1)

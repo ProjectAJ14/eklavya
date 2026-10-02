@@ -109,7 +109,9 @@ eklavya config set quiz.enforced true --project
 Have Claude build and attempt a commit before the gate passes; confirm the
 in-session denial. Try a terminal commit and confirm the installed Git hook
 also blocks it. Answer enough work-concept questions, check `/eklavya:gate`, and
-confirm both paths succeed. A project without enforcement must remain ungated.
+confirm both paths succeed. Repeat the terminal commit from a linked worktree of
+that repository while Claude runs in the main checkout; it must also be held.
+A project without enforcement must remain ungated.
 Settings must stay outside the checkout. Finally run the installer with
 `--uninstall` and confirm any previous hook is restored.
 

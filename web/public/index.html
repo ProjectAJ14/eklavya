@@ -701,7 +701,7 @@
       <p>Your learning history and captured work live in <code>~/.eklavya/knowledge.db</code>. Explainer pages live under <code>~/.eklavya/artifacts/</code>. You can inspect, export, or remove your data.</p>
       <p><b>Local storage and processing by default.</b> Recalled history becomes context for Claude. Optional observers, notifications, and sync use the services or directories you configure. Automatic update checks contact npm without sending your learning history. An anonymous daily usage ping sends counts and setting values, never paths or text; <code class="code-inline">eklavya telemetry off</code> turns it off.</p>
       <p>Capture filters exclude sensitive paths and redact known secret patterns. Filters cannot recognize every secret; add exclusions for your project. <a href="/docs/memory/#what-is-never-captured">Capture and privacy controls</a></p>
-      <p>The optional <a href="/docs/commit-gate/">Git gate</a> also covers terminal commits after you install its hook and enable enforcement for that project.</p>
+      <p>The optional <a href="/docs/commit-gate/">Git gate</a> also covers terminal commits after you install its hook and enable enforcement for that project, including commits from the project's linked worktrees.</p>
     </div>
   </div>
 </section>

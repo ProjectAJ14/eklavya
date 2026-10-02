@@ -376,6 +376,76 @@ describe('eklavya-gate CLI (the editor-agnostic half)', () => {
   });
 });
 
+// A session started in the main checkout keys its gate there, even while it
+// builds in a linked worktree; one started in the worktree keys it there. A
+// terminal commit in the worktree has to find either, or it fails open.
+describe('eklavya-gate CLI in a linked worktree', () => {
+  let parent = '';
+  let worktree = '';
+  let sibling = '';
+
+  const gateRow = (session: string, key: string, passed: 0 | 1, at: string) =>
+    db
+      .prepare(
+        `INSERT INTO gates (session_id, mode, required, answered, passed, updated_at, repo)
+         VALUES (?, 'enforced', 2, 0, ?, ?, ?)`,
+      )
+      .run(session, passed, at, key);
+
+  beforeEach(() => {
+    // The project file the hook reads, keyed on the main checkout.
+    const target = path.join(home, 'projects', repo.replace(/[/\\:]/g, '-'), 'config.json');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify({ quiz: { enforced: true }, pass_threshold: 1, project: repo }));
+
+    const git = (...args: string[]) =>
+      sh('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: repo });
+    git('commit', '-q', '--allow-empty', '-m', 'init');
+    parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-wt-')));
+    worktree = path.join(parent, 'wt');
+    sibling = path.join(parent, 'sibling');
+    expect(git('worktree', 'add', '-q', worktree).status).toBe(0);
+    expect(git('worktree', 'add', '-q', sibling).status).toBe(0);
+  });
+
+  afterEach(() => {
+    fs.rmSync(parent, { recursive: true, force: true });
+  });
+
+  it('holds a worktree commit gated on the main checkout, as a real session saves it', () => {
+    expect(gateCli(worktree).status).toBe(0);
+    repoConfig({ quiz: { enforced: true }, pass_threshold: 1 });
+    openGate({ required: 2 });
+    expect(db.prepare('SELECT repo FROM gates').get()).toEqual({ repo });
+
+    const res = gateCli(worktree);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/holding this commit/);
+  });
+
+  it('holds a worktree commit gated on the worktree itself', () => {
+    gateRow('s1', worktree, 0, '2026-01-01 00:00:00');
+    expect(gateCli(worktree).status).toBe(1);
+  });
+
+  it('ignores a gate keyed on a sibling worktree', () => {
+    gateRow('s1', sibling, 0, '2026-01-01 00:00:00');
+    expect(gateCli(sibling).status).toBe(1);
+    expect(gateCli(worktree).status).toBe(0);
+  });
+
+  it.each([
+    ['a passed worktree gate after an unpassed main one', ['main', 0], ['wt', 1], 0],
+    ['an unpassed worktree gate after a passed main one', ['main', 1], ['wt', 0], 1],
+    ['an unpassed main gate after a passed worktree one', ['wt', 1], ['main', 0], 1],
+  ] as const)('obeys the newest of both keys: %s', (_label, older, newer, status) => {
+    const key = (k: 'main' | 'wt') => (k === 'wt' ? worktree : repo);
+    gateRow('old', key(older[0]), older[1], '2026-01-01 00:00:00');
+    gateRow('new', key(newer[0]), newer[1], '2026-01-02 00:00:00');
+    expect(gateCli(worktree).status).toBe(status);
+  });
+});
+
 // ---------------------------------------------------------------------------
 
 describe('install-git-hook.sh', () => {

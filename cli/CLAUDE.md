@@ -32,7 +32,8 @@ Use POSIX `sh`; the installed hook runs through `/bin/sh`. Missing repository,
 config, `jq`, `sqlite3`, database or gate row allows the commit. Database query
 errors also allow it. Missing dependencies warn on stderr.
 
-Exit 1 only when a gate row exists for this repository and `passed` is not `1`.
+Exit 1 only when the latest gate row for this checkout or, in a linked worktree,
+its main checkout exists and `passed` is not `1`.
 Do not add an operational error that prevents a commit.
 
 ## Keep duplicated logic aligned
@@ -45,8 +46,9 @@ Do not add an operational error that prevents a commit.
 | In-session commit detection | `mcp/src/hooks/pre-tool-gate.ts` and `commit-lib.ts` |
 
 The script trusts persisted `passed`; it must not duplicate passing-grade or
-threshold arithmetic. It looks up the latest gate by repository, whereas the
-in-session hook uses a session ID. In jq, use explicit `if`/`elif` for booleans:
+threshold arithmetic. It looks up the latest gate keyed on the checkout or its
+main checkout, whereas the in-session hook uses a session ID. In jq, use explicit
+`if`/`elif` for booleans:
 `//` treats `false` as absent and can re-enable a disabled legacy gate.
 
 ## Documentation and verification
