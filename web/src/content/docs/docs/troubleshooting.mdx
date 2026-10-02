@@ -116,7 +116,7 @@ If configuring a memory model created many `claude` or `node` processes:
 |---|---|
 | Commit blocked | `/eklavya:gate` shows outstanding concepts. `/eklavya:quiz` starts the required practice; a passing result clears the gate. |
 | You did not expect enforcement | Check the effective `quiz.enforced` value. To disable a project's override, run `eklavya config set quiz.enforced false --project`. |
-| Enforcement enabled but commits pass | Questions must also be enabled. Doctor reports `quiz.enabled: false` with enforcement. For terminal commits, verify the git hook plus `jq` and `sqlite3`. |
+| Enforcement enabled but commits pass | Questions must also be enabled. Doctor reports `quiz.enabled: false` with enforcement. For terminal commits, verify the git hook plus `jq` and `sqlite3`. If only commits from a linked worktree pass, update Eklavya: older hooks missed a gate saved under the main checkout. |
 | Git hook never runs | If `core.hooksPath` points to husky or another manager, add the line printed by Eklavya's hook installer to that manager's pre-commit hook. |
 | Claude's commit escaped enforcement | Shell aliases, command variables and scripts can bypass the Claude-side check. The [git hook](/docs/commit-gate/#installing-the-git-hook) covers commits at git itself. |
 | Every commit says the gate script is missing | Reinstall Eklavya, or remove its git hook using the command printed by uninstall. |

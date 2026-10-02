@@ -41,7 +41,7 @@ and `eklavya telemetry off` stops them.
 | Artifacts | Turn any explanation into a page with diagrams. | [Artifacts](https://eklavya-run.web.app/docs/commands/#the-artifacts-skill) |
 | Dashboard | See your progress, memory and pages in the browser. | [Dashboard](https://eklavya-run.web.app/docs/dashboard/) |
 | Dials | Choose what it teaches, when it asks and how hard. | [The dials](https://eklavya-run.web.app/docs/dials/) |
-| Commit gate | Optional: pass a quiz before you can commit. | [Commit gate](https://eklavya-run.web.app/docs/commit-gate/) |
+| Commit gate | Optional: pass a quiz before you can commit. The terminal hook also holds commits in linked worktrees. | [Commit gate](https://eklavya-run.web.app/docs/commit-gate/) |
 
 ## Learning
 

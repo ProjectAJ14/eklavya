@@ -69,7 +69,7 @@ If you work from a source checkout, use its `scripts/install-git-hook.sh` instea
 <details>
 <summary>Worktrees and existing hook managers</summary>
 
-Linked worktrees share the main repository's hooks directory. Installing once covers those worktrees and uses the main checkout's project settings.
+Linked worktrees share the main repository's hooks directory. Installing once covers those worktrees and uses the main checkout's project settings. A commit in a worktree is held by the latest gate saved for either the worktree or its main checkout, so a session started in the main checkout still gates the worktree it builds in.
 
 If `core.hooksPath` is set, the installer exits with code 2 and prints the line to add to your hook manager's pre-commit file. It does not install an unused hook in the standard location. Follow that output for Husky, Lefthook, or another hook manager.
 
