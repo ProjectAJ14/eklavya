@@ -31,7 +31,7 @@ import {
   correctionStates, correctionTarget, CorrectionError, GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey, recordRetry,
   type CorrectionErrorCode,
 } from './store.js';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
   type EklavyaConfig,
@@ -39,7 +39,7 @@ import {
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
 import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
-import { artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
+import { artifactsStamp, artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
 import { LIMITS } from './tools/types.js';
 import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDelivery } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
@@ -713,6 +713,28 @@ export function projectInventory(db: DB): {
   return { projects, aliases, sessions: sessionProjects };
 }
 
+/**
+ * What an open page polls to notice that work landed while it was reading it
+ * (PRD DASH-01), served alone at `/api/cursor` so a poll builds no payload.
+ *
+ * Three parts, one per place the page's content comes from:
+ * - `change_version` (migration 021), which triggers move on every write to a
+ *   table the page shows. In-place edits count: a session summary rewritten
+ *   as the session runs, a receipt delivered, a memory read logged.
+ * - The effective config, hashed: the dials the page prints.
+ * - The artifact files' count, total size and newest mtime (`artifactsStamp`).
+ *
+ * Deliberately not `generated_at`, and not a hash of the payload: both change
+ * on every call -- scores are decayed against the clock -- and a page that
+ * announces new activity every minute is a page whose banner is ignored inside
+ * a day. Not watched: the prune stamp and spool drop count in the health panel.
+ */
+export function changeCursor(db: DB, config: EklavyaConfig = readConfig()): string {
+  const version = one<{ n: number }>(db, 'SELECT n FROM change_version WHERE id = 1').n;
+  const dials = createHash('sha256').update(JSON.stringify(config)).digest('hex').slice(0, 12);
+  return `${version}:${dials}:${artifactsStamp()}`;
+}
+
 /** One entry with its tags, its raw evidence and the candidates it proposed. */
 export function memoryEntry(db: DB, id: number): Record<string, unknown> | null {
   const entry = one<Record<string, unknown> | undefined>(db, 'SELECT * FROM memory_entries WHERE id = ?', id);
@@ -760,6 +782,9 @@ export function memoryEntry(db: DB, id: number): Record<string, unknown> | null 
 export function dashboardState(db: DB): Record<string, unknown> {
   const now = new Date();
   const config = readConfig();
+  // First, before any of the payload is read: a write that lands while it is
+  // being built then shows as a notice on the next poll, never as a miss.
+  const cursor = changeCursor(db, config);
 
   // One row per calendar day per project, split three ways. `grade >= 3` is the
   // same pass line the level ladder uses, so the chart and the promotion agree.
@@ -987,33 +1012,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
   return {
     generated_at: now.toISOString(),
     db_path: dbPath(),
-    /**
-     * What an open page polls to notice that work landed while it was reading
-     * it (PRD DASH-01). Counts of rows the payload already carries, so it costs
-     * no extra query and moves exactly when the page's content does.
-     *
-     * Deliberately not `generated_at`, and not a hash of the payload: both
-     * change on every call — scores are decayed against the clock — and a page
-     * that announces new activity every minute is a page whose banner is
-     * ignored inside a day.
-     *
-     * Ceiling: counts cannot see an edit that leaves the counts alone. Every
-     * such edit here (a superseded entry, a deleted one) moves a *different*
-     * count in this list, so the gap is theoretical today; a real event cursor
-     * is the upgrade if that stops being true.
-     */
-    cursor: [
-      allTime.answers,
-      allTime.corrected,
-      logged.length,
-      sessionCount,
-      memory.captured,
-      memory.processed,
-      memory.entries_total,
-      memory.superseded,
-      memory.deleted,
-      reuse.receipts,
-    ].join(':'),
+    cursor,
     timeline_days: TIMELINE_DAYS,
     attempts_shown: attempts.length,
     attempts_total: allTime.answers,
@@ -1685,6 +1684,9 @@ export function startDashboard(
       }
       if (url.pathname === '/api/settings') {
         return send(res, 200, 'application/json', JSON.stringify(settingsState(db, url.searchParams.get('project'))));
+      }
+      if (url.pathname === '/api/cursor') {
+        return send(res, 200, 'application/json', JSON.stringify({ cursor: changeCursor(db) }));
       }
       if (url.pathname === '/api/state') {
         return send(res, 200, 'application/json', JSON.stringify(dashboardState(db)));

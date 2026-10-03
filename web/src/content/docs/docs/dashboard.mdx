@@ -209,7 +209,7 @@ Most lists show 20 rows per page; the memory timeline shows 25, and a concept's 
 
 ## While you leave it open
 
-The dashboard is a snapshot. Once a minute, while the tab is visible, it checks for new activity and offers a **refresh** notice. It does not redraw automatically while you are reading. Refresh preserves your route and filters; stopping the server leaves the loaded view visible.
+The dashboard is a snapshot. Once a minute, while the tab is visible, it checks for new activity and offers a **refresh** notice. New activity is any change the page would show: an answer, captured evidence, a memory entry added, rewritten or removed (including a session summary updated while that session runs), a memory read, a recall receipt, a change to your user settings, or an artifact page written or removed. It does not redraw automatically while you are reading, and an unchanged database never raises the notice. Refresh preserves your route and filters; stopping the server leaves the loaded view visible. The memory health panel's last-prune time and dropped-capture count do not raise the notice on their own.
 
 ## Old links still work
 
@@ -237,7 +237,7 @@ An old link without a project can pick up the previous saved project once. New-s
 
 The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except its two writes, validates loopback request addresses, escapes stored content and refuses framing by other pages. A request whose address is not a valid URL gets a `400` reply, and the server keeps running. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above.
 
-Its read-only JSON endpoints serve summary state (`/api/state`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`), settings (`/api/settings`) and a missed question to correct (`/api/attempts/correction?id=`, without its answer). There are two writes:
+Its read-only JSON endpoints serve summary state (`/api/state`), the change cursor an open page polls (`/api/cursor`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`), settings (`/api/settings`) and a missed question to correct (`/api/attempts/correction?id=`, without its answer). There are two writes:
 
 | Write | What it does |
 | --- | --- |

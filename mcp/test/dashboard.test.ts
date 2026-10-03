@@ -8,15 +8,18 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
-  SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT,
+  changeCursor, SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT,
 } from '../src/dashboard.js';
 import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
-import { appendEvent, insertEntry, recordReceipt, supersedeEntry, deleteEntry, addCandidate } from '../src/memory/store.js';
+import {
+  appendEvent, insertEntry, recordReceipt, supersedeEntry, deleteEntry, addCandidate, replaceEntry, recordRead,
+} from '../src/memory/store.js';
 import { tempDbPath, cleanup } from './helpers.js';
-import { gradeConcept, recordRetry } from '../src/store.js';
+import { gradeConcept, recordRetry, syncGate } from '../src/store.js';
 import { seedFixture, type Fixture } from './dashboard-fixture.js';
+import { DEFAULT_CONFIG } from '../src/config.js';
 // `tokens.css` is copied in by the build, so the served-asset case runs the built server.
 import { startDashboard as startBuilt } from '../dist/dashboard.js';
 
@@ -413,6 +416,78 @@ describe('the change cursor', () => {
     remember({ title: 'fixed the cookie flag' });
     expect((dashboardState(db) as any).cursor).not.toBe(answered);
   });
+
+  describe('beyond row counts', () => {
+    // The artifact and config parts read EKLAVYA_HOME, so never the learner's own.
+    const saved = process.env.EKLAVYA_HOME;
+    let home = '';
+    beforeEach(() => {
+      home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-cursor-'));
+      process.env.EKLAVYA_HOME = home;
+    });
+    afterEach(() => {
+      if (saved === undefined) delete process.env.EKLAVYA_HOME;
+      else process.env.EKLAVYA_HOME = saved;
+      fs.rmSync(home, { recursive: true, force: true });
+    });
+
+    it('moves when a session summary is rewritten in place', () => {
+      // The rolling summary is the one entry updated rather than superseded, so
+      // no count moves -- the open page kept yesterday's next steps.
+      const id = remember({ title: 'session so far', type: 'session_summary', narrative: 'next: add the test' });
+      const before = changeCursor(db);
+      replaceEntry(db, id, { title: 'session so far', type: 'session_summary', narrative: 'next: ship it' });
+      expect(changeCursor(db)).not.toBe(before);
+    });
+
+    it('moves when a memory read is logged', () => {
+      const before = changeCursor(db);
+      recordRead(db, {
+        tool: 'memory_get', project: PROJECT, sessionId: SESSION, receiptId: null, entryIds: [1],
+        outcome: 'ok', latencyMs: 3, resultTokens: 40,
+      });
+      expect(changeCursor(db)).not.toBe(before);
+    });
+
+    it('moves when an artifact page is written or removed, and only then', () => {
+      const empty = changeCursor(db);
+      expect(changeCursor(db)).toBe(empty);
+      const page = path.join(home, 'artifacts', 'p', 'x.html');
+      fs.mkdirSync(path.dirname(page), { recursive: true });
+      fs.writeFileSync(page, '<title>x</title>');
+      const written = changeCursor(db);
+      expect(written).not.toBe(empty);
+      expect(changeCursor(db)).toBe(written);
+      fs.rmSync(page);
+      expect(changeCursor(db)).toBe(empty);
+    });
+
+    it('moves when the effective config does', () => {
+      const before = changeCursor(db);
+      fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ cadence: 'end' }));
+      expect(changeCursor(db)).not.toBe(before);
+    });
+
+    it('holds still for a gate re-synced with nothing the page shows', () => {
+      work();
+      syncGate(db, SESSION, DEFAULT_CONFIG);
+      const before = changeCursor(db);
+      syncGate(db, SESSION, DEFAULT_CONFIG);
+      expect(changeCursor(db)).toBe(before);
+    });
+
+    it('is what the payload carries and what /api/cursor serves', async () => {
+      work();
+      expect((dashboardState(db) as any).cursor).toBe(changeCursor(db));
+      const { url, close } = await startDashboard(db, { port: 0 });
+      try {
+        const served = (await (await fetch(`${url}/api/cursor`)).json()) as any;
+        expect(served).toEqual({ cursor: changeCursor(db) });
+      } finally {
+        close();
+      }
+    });
+  });
 });
 
 describe('the dashboard page', () => {
@@ -445,6 +520,8 @@ describe('the dashboard page', () => {
     // that the notice appears and that nothing on the page moves when it does.
     const poll = html.slice(html.indexOf('function poll()'), html.indexOf('/* ---------- boot'));
     expect(poll).toContain('s.cursor !== S.cursor');
+    // The cursor alone, never the whole payload rebuilt to read one field.
+    expect(poll).toContain("fetch('/api/cursor')");
     // Never while the tab is hidden, and never two requests at once.
     expect(poll).toContain("document.visibilityState !== 'visible'");
     expect(poll).toMatch(/if \(!S \|\| polling/);
