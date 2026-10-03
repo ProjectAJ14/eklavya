@@ -12,8 +12,8 @@
 import { run, openExisting, config, cwdOf, sessionId } from './lib.js';
 import type { HookInput } from './lib.js';
 import { batchIfFull, identityOf, record } from './capture-lib.js';
-import type { HostEvent } from '../memory/capture.js';
-import { clip } from '../memory/privacy.js';
+import { policyFrom, type HostEvent } from '../memory/capture.js';
+import { clip, clipTail, type PrivacyPolicy } from '../memory/privacy.js';
 
 /** Tools whose result is a file's contents rather than a change to one. */
 const READ_TOOLS = new Set(['Read', 'NotebookRead', 'Glob', 'Grep']);
@@ -61,15 +61,16 @@ function resultText(response: unknown): string {
  * What the result showed, head and tail — the tail is where a test summary or
  * a stack trace ends up. This is what an observation is made from: without it
  * the summariser saw that `git log` ran, never what it showed, and could record
- * that work happened but not what was found. Redaction runs on the whole body
- * before it is stored.
+ * that work happened but not what was found. Each piece is redacted before it
+ * is cut, over a bounded window: a cut first could leave half a secret that the
+ * redaction of the stored body no longer recognises.
  */
-function excerpt(tool: string, response: unknown): string {
+function excerpt(tool: string, response: unknown, policy: PrivacyPolicy): string {
   if (NO_RESULT.has(tool)) return '';
   const text = resultText(response).trim();
   if (!text) return '';
   if (text.length <= RESULT_HEAD + RESULT_TAIL) return text;
-  return `${text.slice(0, RESULT_HEAD)}\n…\n${text.slice(-RESULT_TAIL)}`;
+  return `${clip(text, RESULT_HEAD, policy)}\n…\n${clipTail(text, RESULT_TAIL, policy)}`;
 }
 
 /**
@@ -79,14 +80,14 @@ function excerpt(tool: string, response: unknown): string {
  * for reads and edits: a `Read` returning a whole file would make the corpus a
  * second copy of the repository, and an edit's result only echoes its input.
  */
-function bodyFor(input: HookInput, failed: boolean): string {
+function bodyFor(input: HookInput, failed: boolean, policy: PrivacyPolicy): string {
   const toolInput = input.tool_input ?? {};
   const parts: string[] = [];
   if (typeof toolInput.command === 'string') parts.push(toolInput.command);
   if (typeof toolInput.description === 'string') parts.push(toolInput.description);
   if (typeof toolInput.prompt === 'string') parts.push(toolInput.prompt);
   if (typeof toolInput.old_string === 'string' && typeof toolInput.new_string === 'string') {
-    parts.push(`- ${clip(toolInput.old_string, 600)}`, `+ ${clip(toolInput.new_string, 600)}`);
+    parts.push(`- ${clip(toolInput.old_string, 600, policy)}`, `+ ${clip(toolInput.new_string, 600, policy)}`);
   }
   if (!parts.length) {
     const keys = Object.keys(toolInput).filter((k) => k !== 'content');
@@ -94,11 +95,11 @@ function bodyFor(input: HookInput, failed: boolean): string {
     // "[object Object]", which is how every AskUserQuestion was remembered as
     // `questions=[object Object] answers=[object Object]`.
     const text = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v));
-    if (keys.length) parts.push(keys.map((k) => `${k}=${clip(text(toolInput[k]), 200)}`).join(' '));
+    if (keys.length) parts.push(keys.map((k) => `${k}=${clip(text(toolInput[k]), 200, policy)}`).join(' '));
   }
-  if (failed) parts.push(clip(String(errorText(input.tool_response)), 800));
+  if (failed) parts.push(clip(String(errorText(input.tool_response)), 800, policy));
   else {
-    const result = excerpt(input.tool_name!, input.tool_response);
+    const result = excerpt(input.tool_name!, input.tool_response, policy);
     if (result) parts.push(`→ ${result}`);
   }
   return parts.join('\n');
@@ -141,7 +142,7 @@ await run(async (input) => {
   const sid = sessionId(input, db);
   const identity = identityOf(input, cwd, sid);
   const isError = failed(input.tool_response);
-  const body = bodyFor(input, isError);
+  const body = bodyFor(input, isError, policyFrom(resolved.config));
   if (!body.trim()) return 0;
 
   record(db, resolved, identity, {
