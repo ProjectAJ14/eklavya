@@ -94,7 +94,9 @@ with diagrams that you can print or save as PDF.
 
 Run `eklavya dashboard` to open a local page in your browser. It keeps running
 in the background, and each session start restarts it if needed. A malformed
-request gets an error reply instead of stopping it. You can also
+request gets an error reply instead of stopping it. A page left open offers a
+refresh when anything it shows changes, including a session summary rewritten
+in place. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. It has four parts:
 

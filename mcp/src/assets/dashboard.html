@@ -4077,11 +4077,10 @@ document.querySelectorAll('[data-ground]').forEach((b) => {
 });
 
 /* ---------- staying honest about how old this page is ---------- */
-// ponytail: a poll, not SSE. Ceiling: a change shows up to POLL_MS late, and
-// each tick rebuilds the whole payload server-side to read one field off it.
-// Both are nothing for one reader over loopback once a minute. The upgrade is
-// SSE over an event cursor (PRD DASH-01) — `s.cursor` is already the cursor,
-// so that swap is this function, not the page.
+// ponytail: a poll, not SSE. Ceiling: a change shows up to POLL_MS late. Each
+// tick asks `/api/cursor` for the one string, which costs a single-row read and
+// a stat of the artifact files, never the payload. The upgrade is SSE over the
+// same cursor (PRD DASH-01), so that swap is this function, not the page.
 const POLL_MS = 60000;
 let polling = false;
 
@@ -4100,7 +4099,7 @@ function poll() {
   // already up, or nobody is looking — a background tab must not poll at all.
   if (!S || polling || !$('stale').hidden || document.visibilityState !== 'visible') return;
   polling = true;
-  fetch('/api/state')
+  fetch('/api/cursor')
     .then((r) => r.json())
     .then((s) => { if (s.cursor !== S.cursor) $('stale').hidden = false; })
     // A failed poll changes nothing: the page keeps working on the data it has.

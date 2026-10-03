@@ -81,8 +81,9 @@ npx eklavya db-path
 
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
 flags. The dashboard reads the database and has two guarded writes: a setting
-change and a correction of a missed answer. A request it cannot parse gets a 400
-without stopping the server
+change and a correction of a missed answer. An open page polls `/api/cursor`, a
+counter that moves on every write it would show, and offers a refresh. A request
+it cannot parse gets a 400 without stopping the server
 ([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)). [Configuration](https://eklavya-run.web.app/docs/configuration/) lists
 defaults and scopes. The [memory guide](https://eklavya-run.web.app/docs/memory/)
 covers retrieval, processing, providers, privacy and sync.
