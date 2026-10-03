@@ -38,7 +38,7 @@ secrets.  .eklavya/knowledge.db
 
 Nothing is captured in a folder outside a git checkout unless `retrieval.cross_project` is on: only a cross-project search serves that folder, so otherwise its evidence would only take up space. An excluded read or edit is dropped when it has no remaining allowed file. Eklavya's own tool calls, CLI traffic and checkpoint messages are excluded to prevent its output feeding back into memory.
 
-Secret detection redacts private keys, URL passwords, common provider tokens, JWTs, bearer tokens and secret assignments such as `DB_PASSWORD=…`. It preserves markers such as `[redacted:github-token]` so the surrounding event remains understandable. The built-in rules also apply to saved notes and imported entries.
+Secret detection redacts private keys, URL passwords, common provider tokens, JWTs, bearer tokens and secret assignments such as `DB_PASSWORD=…`. It preserves markers such as `[redacted:github-token]` so the surrounding event remains understandable. The built-in rules also apply to saved notes and imported entries. Redaction, including your `privacy.redact_patterns`, runs before any excerpt or length limit cuts the text: a quoted secret whose closing quote was cut off is still redacted, and the partial word at a cut is dropped so a shortened token cannot slip past its pattern.
 
 <details>
 <summary>Built-in secret shapes</summary>

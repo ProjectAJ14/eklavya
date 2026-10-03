@@ -5,7 +5,7 @@ import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import { prepare } from '../src/memory/capture.js';
 import type { EvidenceIdentity } from '../src/memory/identity.js';
-import { defangFence, redact } from '../src/memory/privacy.js';
+import { clip, clipTail, DEFAULT_PRIVACY, defangFence, redact } from '../src/memory/privacy.js';
 import { renderEvidence } from '../src/memory/provider.js';
 import { recall } from '../src/memory/recall.js';
 
@@ -184,6 +184,81 @@ describe('capture redacts before it truncates', () => {
     const body = `-----BEGIN OPENSSH PRIVATE KEY-----\n${'b3BlbnNzaC1rZXktdjEAAAAA'.repeat(400)}\n-----END OPENSSH PRIVATE KEY-----`;
     const input = prepare(config(), identity, { kind: 'tool_use', body });
     expect(input!.body).toBe('[redacted:private-key]');
+  });
+});
+
+describe('a cut never leaves half a secret behind', () => {
+  // Synthetic values only: a run of S stands in for the secret.
+  const identity: EvidenceIdentity = {
+    project: '/tmp/demo',
+    checkout: '/tmp/demo',
+    sessionId: 's1',
+    agentId: null,
+    host: 'claude-code',
+  };
+  const config = (): EklavyaConfig => structuredClone(DEFAULT_CONFIG);
+  const quoted = `password="${'S'.repeat(2600)}"`;
+
+  it('redacts a quoted value whose closing quote the clip window cut off', () => {
+    const out = clip(quoted, 600);
+    expect(out).toBe('password="[redacted:secret]');
+    const input = prepare(config(), identity, { kind: 'tool_use', body: out });
+    expect(input!.body).not.toContain('SSSS');
+  });
+
+  it('redacts an unterminated quoted value of any length at the end of the text', () => {
+    expect(redact('DB_PASSWORD="hu').text).toBe('DB_PASSWORD="[redacted:secret]');
+    expect(redact("token: 'expired").text).toBe("token: '[redacted:secret]");
+    expect(redact('password: "two words cut').text).toBe('password: "[redacted:secret]');
+  });
+
+  it('leaves a complete string that spans a line break to the ordinary rules', () => {
+    const text = 'tokenizer: "cl100k\nbase" and more';
+    expect(redact(text).text).toBe(text);
+  });
+
+  it('drops the partial word at a cut, so a short vendor-key prefix does not survive', () => {
+    // Redacting the long secret first frees room, so the window's cut, 10
+    // characters into a key that needs 16 to be recognised, lands in the output.
+    const lead = `password="${'S'.repeat(2000)}" `;
+    const text = `${lead}${'w '.repeat((2390 - lead.length) / 2)}sk-ant-abcdefghij${'k'.repeat(40)}`;
+    expect(text.indexOf('sk-ant-') + 17).toBe(2407);
+    const out = clip(text, 600);
+    expect(out).not.toContain('sk-ant');
+    expect(out).not.toContain('abcdefghij');
+  });
+
+  it('drops the partial word at the start of a tail cut', () => {
+    const text = `${'S'.repeat(30)}" ${'end '.repeat(150)}`;
+    const out = clipTail(`password="${text}`, 150);
+    expect(out).not.toContain('S');
+    expect(out.length).toBeLessThanOrEqual(150);
+  });
+
+  it('redacts a quoted secret straddling the capture window', () => {
+    const lead = `token="${'S'.repeat(15_000)}" `;
+    const body = `${lead}${'x '.repeat(400)}password="${'T'.repeat(2000)}"`;
+    expect(body.indexOf('password')).toBeLessThan(16_000);
+    expect(body.length).toBeGreaterThan(16_000);
+    const input = prepare(config(), identity, { kind: 'tool_use', body });
+    // The word the window cut through is dropped whole, key and all.
+    expect(input!.body).not.toContain('TTTT');
+  });
+
+  it('applies configured patterns before the cut', () => {
+    const policy = { ...DEFAULT_PRIVACY, redactPatterns: ['ACME-[0-9]{12}'] };
+    const text = `${'z'.repeat(2390)} ACME-123456789012`;
+    expect(clip(text, 2400 / 4, policy)).not.toMatch(/ACME-\d/);
+    expect(clip(`ticket ACME-123456789012 ${'q'.repeat(50)}`, 20, policy)).toBe('ticket [redacted:con');
+    expect(clipTail(`${'q'.repeat(50)} ACME-123456789012 done`, 30, policy)).toBe('qqq [redacted:configured] done');
+  });
+
+  it('stays bounded on a huge unbroken input', () => {
+    const huge = `password="${'S'.repeat(2_000_000)}`;
+    const started = Date.now();
+    expect(clip(huge, 600)).toBe('password="[redacted:secret]');
+    expect(clipTail(huge, 600)).not.toContain('password');
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 });
 
