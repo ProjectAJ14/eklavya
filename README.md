@@ -96,7 +96,7 @@ Run `eklavya dashboard` to open a local page in your browser. It keeps running
 in the background, and each session start restarts it if needed. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
-[tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out each feature;
+[tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
 dismiss them one by one or switch them off in the sidebar. It has four parts:
 
 | Part | What you can see | Read more |
