@@ -174,15 +174,6 @@ function readHead(file: string): string {
   }
 }
 
-/** The attempt a page was written for, from its head; null when none or unreadable. */
-export function readAttempt(file: string): number | null {
-  try {
-    return attemptId(meta(readHead(file), 'eklavya:attempt'));
-  } catch {
-    return null;
-  }
-}
-
 /** The dashboard id (`<folder>/<file>`) of a file inside the artifact root, or null. */
 export function artifactIdOf(file: string, root: string = artifactsDir()): string | null {
   let id: string;

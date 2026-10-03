@@ -557,14 +557,14 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
   });
 
   describe('artifacts', () => {
-    it('searches as you type, and opens a page in a new tab that cannot read the dashboard', async () => {
+    it('searches as you type, and opens a page here, or in a new tab that cannot read the dashboard', async () => {
       const w = await open('#/artifacts/dashboard');
-      const link = w.page.locator('#view a[target="_blank"]');
+      const link = w.page.locator('#view .art:not(:has(.tag)) .art__open');
       expect(await link.count()).toBe(1);
-      expect(await link.getAttribute('href')).toMatch(/^\/artifacts\/.+\.html$/);
-      expect(await link.getAttribute('rel')).toBe('noopener');
+      expect(await link.getAttribute('href')).toMatch(/^#\/artifacts\/view\/.+\.html$/);
+      expect(await link.getAttribute('target')).toBeNull();
       // The card's thumbnail loads, and follows the ground when it changes.
-      const img = w.page.locator('#view a[target="_blank"] img[data-thumb]');
+      const img = link.locator('img[data-thumb]');
       await img.evaluate((i: HTMLImageElement) => i.decode());
       expect(await img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
       await w.page.evaluate(() => (window as any).eklavyaGround.set('paper'));
@@ -577,7 +577,14 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.fill('#aq', 'samesite');
       expect(await link.count()).toBe(1);
 
-      const href = await link.getAttribute('href');
+      await link.click();
+      await ready(w.page);
+      const out = w.page.locator('#view .viewer__bar a');
+      expect(await out.textContent()).toContain('Open in new browser tab');
+      expect(await out.getAttribute('target')).toBe('_blank');
+      expect(await out.getAttribute('rel')).toBe('noopener');
+      const href = await out.getAttribute('href');
+      expect(href).toMatch(/^\/artifacts\/.+\.html$/);
       const tab = await w.ctx.newPage();
       await tab.goto(base + href);
       expect(await tab.locator('h1').textContent()).toBe('Why CSRF needs SameSite');
@@ -638,7 +645,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(db.prepare('SELECT picked, correct FROM attempt_retries WHERE attempt_id = ? ORDER BY id').all(fix.attempt))
         .toEqual([{ picked: 'A queue', correct: 0 }, { picked: 'A lock', correct: 1 }]);
 
-      await w.page.click('#view .page__back');
+      // Its tab's dot turned with it.
+      expect(await w.page.locator('#view [role="tab"][aria-selected="true"] .tab__dot.is-done').count()).toBe(1);
+      await w.page.click('#view [role="tab"]:has-text("All artifacts")');
       await ready(w.page);
       expect(await w.page.textContent(`#view .art:has(a[href*="${enc(fix.open)}"])`)).toContain('Corrected');
       expect(w.errors).toEqual([]);
@@ -657,8 +666,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.goto(base + '/#/artifacts/dashboard'); await ready(w.page);
       expect(await armed(w.page)).toBe(false);
       // A page with no attempt behind it gets no bar and no prompt.
-      const plain = (await w.page.getAttribute('#view a[target="_blank"]', 'href'))!.replace('/artifacts/', '');
-      await w.page.goto(base + `/#/artifacts/view/${enc(decodeURIComponent(plain))}`); await ready(w.page);
+      const plain = (await w.page.getAttribute('#view .art:not(:has(.tag)) .art__open', 'href'))!;
+      await w.page.goto(base + '/' + plain); await ready(w.page);
       expect(await w.page.locator('#fixbar').count()).toBe(0);
       expect(await armed(w.page)).toBe(false);
       expect(w.errors).toEqual([]);
@@ -785,6 +794,166 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await w.page.locator('#view .loader').count()).toBe(0);
       await w.ctx.close();
     });
+  });
+
+  describe('artifact tabs', () => {
+    // Nine plain pages; the first two are taller than any window.
+    const P: string[] = [];
+    const title = (i: number) => `Tab page ${i}`;
+    beforeAll(() => {
+      if (!OPTS) return;
+      for (let i = 1; i <= 9; i++) {
+        const made = createArtifact({ title: title(i), description: 'a page' });
+        if (i <= 2) fs.writeFileSync(made.path, fs.readFileSync(made.path, 'utf8').replace('<!-- CONTENT:', '<p>Read this line.</p>'.repeat(150) + '<!-- CONTENT:'));
+        P[i] = made.id;
+      }
+    });
+    afterAll(() => {
+      if (!OPTS) return;
+      for (const id of P.slice(1)) fs.rmSync(path.join(process.env.EKLAVYA_HOME!, 'artifacts', id), { force: true });
+    });
+
+    const tabs = (page: Page) => page.$$eval('#view [role="tab"]', (t) => t.map((x) => (x.getAttribute('aria-selected') === 'true' ? '*' : '') + x.textContent!.trim()));
+    const go = async (page: Page, id: string) => {
+      await page.evaluate((h) => { location.hash = h; }, `#/artifacts/view/${encodeURIComponent(id)}`);
+      await ready(page);
+    };
+    const all = async (page: Page) => { await page.click('#view [role="tab"]:has-text("All artifacts")'); await ready(page); };
+
+    it('opens every card in the dashboard, as tabs in order, with no duplicates', async () => {
+      const w = await open('#/artifacts/dashboard');
+      expect(await w.page.locator('#view .art a[target="_blank"]').count()).toBe(0);
+      for (const i of [1, 2, 3]) {
+        await w.page.click(`#view .art__open[href*="${enc(P[i]!)}"]`);
+        await ready(w.page);
+        if (i < 3) await all(w.page);
+      }
+      expect(await tabs(w.page)).toEqual(['All artifacts', title(1), title(2), '*' + title(3)]);
+      expect(await w.page.locator('#view .page__back').count()).toBe(0);
+      await all(w.page);
+      await w.page.click(`#view .art__open[href*="${enc(P[2]!)}"]`);
+      await ready(w.page);
+      expect(await tabs(w.page)).toEqual(['All artifacts', title(1), '*' + title(2), title(3)]);
+      expect(await w.page.getAttribute('#view [role="tablist"]', 'aria-label')).toBeTruthy();
+      expect(await w.page.getAttribute('#view [role="tab"][aria-selected="true"]', 'aria-controls')).toBe('view');
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
+    it('closes the active tab to its right neighbour, and a reload brings the same tabs back', async () => {
+      const w = await open(`#/artifacts/view/${enc(P[1]!)}`);
+      await go(w.page, P[2]!);
+      await go(w.page, P[3]!);
+      await w.page.click('#view [role="tab"]:has-text("Tab page 2")');
+      await ready(w.page);
+      await w.page.click(`#view button[aria-label="Close ${title(2)}"]`);
+      await ready(w.page);
+      expect(await tabs(w.page)).toEqual(['All artifacts', title(1), '*' + title(3)]);
+      expect(await w.page.evaluate(() => location.hash)).toBe(`#/artifacts/view/${enc(P[3]!)}`);
+      // The last one closes to its left neighbour; with none left, to All artifacts.
+      await w.page.click(`#view button[aria-label="Close ${title(3)}"]`);
+      await ready(w.page);
+      expect(await tabs(w.page)).toEqual(['All artifacts', '*' + title(1)]);
+      await go(w.page, P[3]!);
+      await w.page.reload();
+      await ready(w.page);
+      expect(await tabs(w.page)).toEqual(['All artifacts', title(1), '*' + title(3)]);
+      // A middle click closes a tab too.
+      await w.page.click('#view [role="tab"]:has-text("Tab page 1")', { button: 'middle' });
+      expect(await tabs(w.page)).toEqual(['All artifacts', '*' + title(3)]);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
+    it('closes the least recently viewed tab without an open correction when a ninth opens', async () => {
+      const w = await open(`#/artifacts/view/${enc(fix.other)}`);
+      for (let i = 1; i <= 7; i++) await go(w.page, P[i]!);
+      expect((await tabs(w.page)).length).toBe(9);
+      await go(w.page, P[8]!);
+      const now = await tabs(w.page);
+      expect(now.length).toBe(9);
+      expect(now).toContain('Queues, explained');
+      expect(now).not.toContain(title(1));
+      expect(now.at(-1)).toBe('*' + title(8));
+      await w.ctx.close();
+    }, 60000);
+
+    it('scrolls the strip to the open tab on a phone', async () => {
+      const w = await open(`#/artifacts/view/${enc(P[3]!)}`, { width: 560 });
+      for (const i of [4, 5, 6, 7]) await go(w.page, P[i]!);
+      const r = await w.page.evaluate(() => {
+        const strip = document.querySelector('#view [role="tablist"]')!.getBoundingClientRect();
+        const tab = document.querySelector('#view [role="tab"][aria-selected="true"]')!.getBoundingClientRect();
+        return { strip: strip.right, tab: tab.right, left: tab.left, sl: strip.left };
+      });
+      expect(r.tab).toBeLessThanOrEqual(r.strip + 1);
+      expect(r.left).toBeGreaterThanOrEqual(r.sl - 1);
+      expect(await w.page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(560);
+      await w.ctx.close();
+    }, 60000);
+
+    it('still opens tabs when storage throws', async () => {
+      const w = await open(`#/artifacts/view/${enc(P[4]!)}`, {
+        init: 'Storage.prototype.getItem = () => { throw new Error("denied"); }; Storage.prototype.setItem = () => { throw new Error("denied"); };',
+      });
+      await go(w.page, P[5]!);
+      expect(await tabs(w.page)).toEqual(['All artifacts', title(4), '*' + title(5)]);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
+    it('works from the keyboard: arrows, Home and End move, Enter opens, Delete closes', async () => {
+      const w = await open(`#/artifacts/view/${enc(P[4]!)}`);
+      await go(w.page, P[5]!);
+      await go(w.page, P[6]!);
+      const focused = () => w.page.evaluate(() => document.activeElement?.textContent?.trim());
+      // One tab stop for the whole strip: the selected tab.
+      expect(await w.page.$$eval('#view [role="tab"]', (t) => t.map((x) => (x as HTMLElement).tabIndex))).toEqual([-1, -1, -1, 0]);
+      await w.page.focus('#view [role="tab"][aria-selected="true"]');
+      await w.page.keyboard.press('ArrowLeft');
+      expect(await focused()).toBe(title(5));
+      await w.page.keyboard.press('Home');
+      expect(await focused()).toBe('All artifacts');
+      await w.page.keyboard.press('End');
+      expect(await focused()).toBe(title(6));
+      await w.page.keyboard.press('ArrowRight');
+      expect(await focused()).toBe('All artifacts');
+      await w.page.keyboard.press('ArrowRight');
+      await w.page.keyboard.press('Enter');
+      await ready(w.page);
+      expect(await tabs(w.page)).toEqual(['All artifacts', '*' + title(4), title(5), title(6)]);
+      await w.page.keyboard.press('ArrowRight');
+      expect(await focused()).toBe(title(5));
+      await w.page.keyboard.press(' ');
+      await ready(w.page);
+      expect(await tabs(w.page)).toEqual(['All artifacts', title(4), '*' + title(5), title(6)]);
+      expect(await focused()).toBe(title(5));
+      await w.page.keyboard.press('Delete');
+      await ready(w.page);
+      expect(await tabs(w.page)).toEqual(['All artifacts', title(4), '*' + title(6)]);
+      expect(await focused()).toBe(title(6));
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
+    it('comes back to where you were reading when you switch back', async () => {
+      const w = await open(`#/artifacts/view/${enc(P[1]!)}`);
+      await go(w.page, P[2]!);
+      const half = await w.page.evaluate(() => {
+        const y = Math.round((document.documentElement.scrollHeight - innerHeight) / 2);
+        window.scrollTo({ top: y, behavior: 'instant' });
+        return y;
+      });
+      expect(half).toBeGreaterThan(500);
+      await w.page.click('#view [role="tab"]:has-text("Tab page 1")');
+      await ready(w.page);
+      await w.page.click('#view [role="tab"]:has-text("Tab page 2")');
+      await ready(w.page);
+      await w.page.waitForFunction((y) => Math.abs(scrollY - y) <= 1, half);
+      // The strip stays on screen while you read.
+      expect(await w.page.evaluate(() => document.querySelector('#view [role="tablist"]')!.getBoundingClientRect().top)).toBe(0);
+      await w.ctx.close();
+    }, 60000);
   });
 
   describe('settings', () => {

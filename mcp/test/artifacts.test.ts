@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createArtifact, listArtifacts, resolveArtifact, artifactProject, kebab, artifactIdOf, readAttempt } from '../src/artifacts.js';
+import { createArtifact, listArtifacts, resolveArtifact, artifactProject, kebab, artifactIdOf } from '../src/artifacts.js';
 import { artifactsDir, projectSlug } from '../src/paths.js';
 import { openDb, type DB } from '../src/db.js';
 // The template and tokens are copied in by the build, so these run the built modules.
@@ -380,7 +380,6 @@ describe('review fixes', () => {
     const file = run('new', 'Inside').trim();
     expect(artifactIdOf(file)).toBe(`${path.basename(path.dirname(file))}/${path.basename(file)}`);
     expect(artifactIdOf(file, path.join(tmp, 'no-such-root'))).toBeNull();
-    expect(readAttempt(path.join(tmp, 'missing.html'))).toBeNull();
   });
 
   it('shows each option note under its option', () => {
