@@ -269,7 +269,7 @@ export const getSessionQuizPlan: ToolDef = {
       if (waiting && config.cadence === 'end') {
         return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'cadence_end' };
       }
-      const { n } = db.prepare('SELECT count(*) AS n FROM attempts WHERE session_id = ?').get(sessionId) as { n: number };
+      const { n } = db.prepare('SELECT count(*) AS n FROM attempts WHERE session_id = ? AND retry_of IS NULL').get(sessionId) as { n: number };
       const left = config.max_questions_per_task - n;
       if (left <= 0) {
         return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'budget_spent' };

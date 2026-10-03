@@ -7,6 +7,7 @@ import {
   conceptBySlug,
   gradeConcept,
   hasAskedQuestion,
+  isMissed,
   levelStanding,
   logSessionConcept,
   promoteIfEarned,
@@ -188,7 +189,7 @@ export const recordAttempt: ToolDef = {
     // field it was handed far more reliably than a rule it has to remember, and
     // the instruction is composed once, where the config is visible. A decline
     // and a bare skip get nothing -- they asked to move on.
-    const missed = grade <= 2 && args.outcome !== 'declined' && (grade > 0 || args.outcome === 'dont_know');
+    const missed = isMissed(grade, args.outcome ?? null);
     const explain = config.explain_on_wrong && missed
       ? {
           concept: concept.slug,

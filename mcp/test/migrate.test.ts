@@ -9,9 +9,10 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 18;
+const LATEST_SCHEMA_VERSION = 19;
 
 const LEARNING_TABLES = [
+  'attempt_retries',
   'attempts',
   'checkpoints',
   'concepts',
@@ -150,6 +151,7 @@ describe('migrations', () => {
         '016_usage_counts.sql',
         '017_project_roots.sql',
         '018_memory_reads.sql',
+        '019_attempt_corrections.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -157,6 +159,10 @@ describe('migrations', () => {
       // And the upgraded table really has the new column.
       const cols = (db.prepare('PRAGMA table_info(gates)').all() as { name: string }[]).map((c) => c.name);
       expect(cols).toContain('repo');
+
+      // Migration 019: the answer key and the correction link on attempts.
+      const attemptCols = (db.prepare('PRAGMA table_info(attempts)').all() as { name: string }[]).map((c) => c.name);
+      expect(attemptCols).toEqual(expect.arrayContaining(['correct', 'option_notes', 'retry_of']));
 
       // 012 adds a column to a table 009 created, so it only survives if the
       // two ran in order on the same database rather than each from scratch.
@@ -205,7 +211,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });

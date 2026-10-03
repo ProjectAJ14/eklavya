@@ -145,11 +145,12 @@ await run(async (input) => {
          COALESCE((SELECT last_logged_count FROM stop_markers WHERE session_id = @sid), -1) AS last_logged,
          COALESCE((SELECT block_count FROM stop_markers WHERE session_id = @sid), 0) AS blocks,
          (SELECT last_blocked_at FROM stop_markers WHERE session_id = @sid) AS last_blocked,
-         (SELECT ts FROM attempts WHERE session_id = @sid ORDER BY id DESC LIMIT 1) AS last_answer,
+         (SELECT ts FROM attempts WHERE session_id = @sid AND retry_of IS NULL ORDER BY id DESC LIMIT 1) AS last_answer,
          -- Budget already spent, wherever it was spent. Since 1.4 the mid-work
          -- checkpoint hook asks from the same allowance, so this is what turns the
          -- Stop quiz from a fixed batch of four into a sweep of whatever is left.
-         (SELECT count(*) FROM attempts WHERE session_id = @sid) AS spent`,
+         -- A correction (retry_of) was picked on the dashboard, never asked.
+         (SELECT count(*) FROM attempts WHERE session_id = @sid AND retry_of IS NULL) AS spent`,
     )
     .get(bind) as
     | {

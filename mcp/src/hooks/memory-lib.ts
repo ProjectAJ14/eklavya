@@ -254,7 +254,7 @@ export async function wrapUpAtSeam(
   if (!resolved.config.notifications.enabled) return;
   try {
     const attempts = db
-      .prepare('SELECT COUNT(*) AS n, COALESCE(SUM(grade >= 3), 0) AS passed FROM attempts WHERE session_id = ?')
+      .prepare('SELECT COUNT(*) AS n, COALESCE(SUM(grade >= 3), 0) AS passed FROM attempts WHERE session_id = ? AND retry_of IS NULL')
       .get(identity.sessionId) as { n: number; passed: number };
     const sends: Promise<unknown>[] = [
       notify(

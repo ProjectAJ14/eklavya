@@ -120,14 +120,15 @@ await run(async (input) => {
                  (SELECT concept_id FROM attempts WHERE session_id = @sid)) AS candidates,
          -- Spent budget. Every attempt counts, wherever it was asked: a question
          -- the Stop hook already got answered is one this hook must not re-spend.
-         (SELECT count(*) FROM attempts WHERE session_id = @sid) AS spent,
+         -- A correction (retry_of) was picked on the dashboard, never asked.
+         (SELECT count(*) FROM attempts WHERE session_id = @sid AND retry_of IS NULL) AS spent,
          -- Both clocks, for the same reason stop-quiz-check.ts checks both: a
          -- checkpoint stamped without a question ever being asked (the model
          -- ignored us) should still pace the next one, and an answer given
          -- without a checkpoint (the Stop hook ran, or the developer asked for a
          -- quiz) should too.
          (SELECT last_checkpoint_at FROM checkpoints WHERE session_id = @sid) AS last_checkpoint,
-         (SELECT ts FROM attempts WHERE session_id = @sid ORDER BY id DESC LIMIT 1) AS last_answer`,
+         (SELECT ts FROM attempts WHERE session_id = @sid AND retry_of IS NULL ORDER BY id DESC LIMIT 1) AS last_answer`,
     )
     .get(bind) as { candidates: number; spent: number; last_checkpoint: string | null; last_answer: string | null };
 
