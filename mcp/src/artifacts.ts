@@ -192,16 +192,62 @@ export function artifactIdOf(file: string, root: string = artifactsDir()): strin
  */
 export function listArtifacts(root: string = artifactsDir()): ArtifactRow[] {
   const rows: ArtifactRow[] = [];
+  for (const { folder, name, file, st } of artifactFiles(root)) {
+    try {
+      const head = readHead(file);
+      const title = /<title>([^<]*)<\/title>/i.exec(head)?.[1]?.trim();
+      const kind = meta(head, 'eklavya:kind');
+      rows.push({
+        id: `${folder}/${name}`,
+        title: title ? unescHtml(title) : name.replace(/\.html?$/i, ''),
+        description: meta(head, 'description') ?? '',
+        project: meta(head, 'eklavya:project') || null,
+        kind: kind === 'explainer' ? 'explainer' : 'artifact',
+        concept: meta(head, 'eklavya:concept') || null,
+        attempt: attemptId(meta(head, 'eklavya:attempt')),
+        created: meta(head, 'eklavya:created') || st.mtime.toISOString(),
+        bytes: st.size,
+      });
+    } catch {
+      continue;
+    }
+  }
+  return rows.sort((a, b) => (a.created < b.created ? 1 : a.created > b.created ? -1 : 0));
+}
+
+/**
+ * What changes when the artifact list would: how many pages, their total size
+ * and the newest modification time. `lstat` only, never a read, so the
+ * dashboard's poll can afford it once a minute. Same folder and file rules as
+ * `listArtifacts`; the stamp is only for comparing with an earlier one.
+ */
+export function artifactsStamp(root: string = artifactsDir()): string {
+  let count = 0;
+  let bytes = 0;
+  let newest = 0;
+  for (const { st } of artifactFiles(root)) {
+    count += 1;
+    bytes += st.size;
+    newest = Math.max(newest, st.mtimeMs);
+  }
+  return `${count}.${bytes}.${Math.floor(newest)}`;
+}
+
+/**
+ * Every page file under the root, stat'ed but not read. The rules
+ * `resolveArtifact` serves by, so nothing is listed that the dashboard would
+ * then refuse: no dot-names, no symlinks -- a link's `<head>` would otherwise
+ * be read from wherever it points. An unreadable folder or file costs itself.
+ */
+function artifactFiles(root: string): { folder: string; name: string; file: string; st: fs.Stats }[] {
+  const out: { folder: string; name: string; file: string; st: fs.Stats }[] = [];
   let folders: fs.Dirent[];
   try {
     folders = fs.readdirSync(root, { withFileTypes: true });
   } catch {
-    return rows;
+    return out;
   }
   for (const folder of folders) {
-    // The same rules `resolveArtifact` serves by, so nothing is listed that
-    // the dashboard would then refuse: no dot-names, no symlinks — a link's
-    // `<head>` would otherwise be read from wherever it points.
     if (!folder.isDirectory() || folder.name.startsWith('.')) continue;
     let files: string[];
     try {
@@ -214,27 +260,14 @@ export function listArtifacts(root: string = artifactsDir()): ArtifactRow[] {
       const file = path.join(root, folder.name, name);
       try {
         const st = fs.lstatSync(file);
-        if (!st.isFile()) continue;
-        const head = readHead(file);
-        const title = /<title>([^<]*)<\/title>/i.exec(head)?.[1]?.trim();
-        const kind = meta(head, 'eklavya:kind');
-        rows.push({
-          id: `${folder.name}/${name}`,
-          title: title ? unescHtml(title) : name.replace(/\.html?$/i, ''),
-          description: meta(head, 'description') ?? '',
-          project: meta(head, 'eklavya:project') || null,
-          kind: kind === 'explainer' ? 'explainer' : 'artifact',
-          concept: meta(head, 'eklavya:concept') || null,
-          attempt: attemptId(meta(head, 'eklavya:attempt')),
-          created: meta(head, 'eklavya:created') || st.mtime.toISOString(),
-          bytes: st.size,
-        });
+        if (st.isFile()) out.push({ folder: folder.name, name, file, st });
+        /* c8 ignore next 3 -- removed between the listing and the lstat */
       } catch {
         continue;
       }
     }
   }
-  return rows.sort((a, b) => (a.created < b.created ? 1 : a.created > b.created ? -1 : 0));
+  return out;
 }
 
 /**

@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 20;
+const LATEST_SCHEMA_VERSION = 21;
 
 const LEARNING_TABLES = [
   'attempt_retries',
@@ -75,11 +75,15 @@ const IDENTITY_TABLES = ['project_roots'];
 /** Migration 018: every memory read tool call, linked to a receipt or not. */
 const READ_TABLES = ['memory_reads'];
 
+/** Migration 021: the counter the dashboard's stale-data notice polls. */
+const CHANGE_TABLES = ['change_version'];
+
 const EXPECTED_TABLES = [
   ...LEARNING_TABLES,
   ...USAGE_TABLES,
   ...IDENTITY_TABLES,
   ...READ_TABLES,
+  ...CHANGE_TABLES,
   ...MEMORY_TABLES,
   ...IMPORT_TABLES,
   ...SYNC_TABLES,
@@ -153,6 +157,7 @@ describe('migrations', () => {
         '018_memory_reads.sql',
         '019_attempt_corrections.sql',
         '020_memory_fts_live.sql',
+        '021_change_version.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -212,7 +217,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
@@ -267,7 +272,7 @@ describe('migrations', () => {
       ).run();
       expect(() => db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run()).toThrow(/malformed/);
 
-      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql']);
+      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql']);
       db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
       expect(db.prepare('SELECT id, deleted_at FROM memory_entries ORDER BY id').all()).toEqual([
         { id: 1, deleted_at: 'then' },
@@ -287,6 +292,42 @@ describe('migrations', () => {
     } finally {
       fs.rmSync(oldDir, { recursive: true, force: true });
     }
+  });
+
+  it('counts the writes a dashboard shows and not the bookkeeping it does not', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    const n = () => (db.prepare('SELECT n FROM change_version').get() as { n: number }).n;
+    expect(n()).toBe(0);
+
+    db.prepare("INSERT INTO memory_entries (id, entry_uid, project, title, occurred_at) VALUES (1, 'e', 'p', 't', 'now')").run();
+    expect(n()).toBe(1);
+    // In place, which no row count can see: the rolling session summary.
+    db.prepare("UPDATE memory_entries SET narrative = 'next steps' WHERE id = 1").run();
+    expect(n()).toBe(2);
+
+    // A gate is upserted every turn; the page reads only which repo it names.
+    db.prepare("INSERT INTO gates (session_id, mode) VALUES ('s', 'ambient')").run();
+    const gate = n();
+    db.prepare("UPDATE gates SET answered = 1, updated_at = 'later' WHERE session_id = 's'").run();
+    expect(n()).toBe(gate);
+    db.prepare("UPDATE gates SET repo = '/r' WHERE session_id = 's'").run();
+    expect(n()).toBe(gate + 1);
+
+    // A lease renewal is not a queue change; a status move is.
+    db.prepare("INSERT INTO memory_batches (id, project, session_id, reason) VALUES (1, 'p', 's', 'manual')").run();
+    db.prepare("INSERT INTO memory_jobs (id, batch_id) VALUES (1, 1)").run();
+    const job = n();
+    db.prepare("UPDATE memory_jobs SET lease_until = 'later', updated_at = 'later' WHERE id = 1").run();
+    expect(n()).toBe(job);
+    db.prepare("UPDATE memory_jobs SET status = 'claimed' WHERE id = 1").run();
+    expect(n()).toBe(job + 1);
+
+    // Bookkeeping the page never shows.
+    db.prepare("INSERT INTO meta (key, value) VALUES ('x', 'y')").run();
+    db.prepare("INSERT INTO usage_counts (day, name, n) VALUES ('2026-10-03', 'k', 1)").run();
+    expect(n()).toBe(job + 1);
+    db.close();
   });
 
   it('is idempotent — a second run applies nothing', () => {
