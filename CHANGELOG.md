@@ -1,3 +1,10 @@
+# [1.48.0](https://github.com/ProjectAJ14/eklavya/compare/v1.47.6...v1.48.0) (2026-10-03)
+
+
+### Features
+
+* feature tips on the dashboard ([#105](https://github.com/ProjectAJ14/eklavya/issues/105)) ([502e70a](https://github.com/ProjectAJ14/eklavya/commit/502e70ae86d9fb3e4f594922f6f8b3caaacc9dd6))
+
 ## [1.47.6](https://github.com/ProjectAJ14/eklavya/compare/v1.47.5...v1.47.6) (2026-10-03)
 
 
