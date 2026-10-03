@@ -183,7 +183,8 @@ scales, how long feedback may be, the sequence a blank earns, and what
 `already_taught` changes.
 
 **A missed answer can come back with `explain`.** That is `explain_on_wrong` at
-work: follow its `instruction` exactly. The page is written in the background
+work: follow its `instruction` exactly. Hand the explainer its `attempt_id` and
+`option_notes` too: the page shows the notes and can be corrected. The page is written in the background
 and opens by itself, so give the verdict, say the page is on its way, and go
 back to the task — no longer explanation, no waiting. When the developer asks
 for something to be explained as a page ("explain this to me", "make me a page

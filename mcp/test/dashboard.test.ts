@@ -860,6 +860,43 @@ describe('the server says what a browser may do with its pages', () => {
     }
   });
 
+  it('lets the dashboard frame an artifact, and nothing else frame anything', async () => {
+    const saved = process.env.EKLAVYA_HOME;
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-frame-'));
+    process.env.EKLAVYA_HOME = home;
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'artifacts', 'p', 'x.html'), '<title>x</title>');
+    const { url, close } = await startBuilt(db, { port: 0 });
+    const port = Number(new URL(url).port);
+    try {
+      const art = await request(port, 'GET', '/artifacts/p/x.html');
+      expect(art.status).toBe(200);
+      expect(art.headers['x-frame-options']).toBe('SAMEORIGIN');
+      expect(art.headers['content-security-policy']).toContain("frame-ancestors 'self'");
+      // Still an opaque origin: the frame can never read or write the API.
+      expect(art.headers['content-security-policy']).toMatch(/^sandbox allow-scripts[^;]*;/);
+      expect(art.headers['content-security-policy']).not.toContain('allow-same-origin');
+      // Framed in the viewer, it reaches no other host: no font links, and a CSP that would refuse one.
+      fs.writeFileSync(path.join(home, 'artifacts', 'p', 'f.html'),
+        '<title>f</title><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">\n<p>ok</p>');
+      const framed = await request(port, 'GET', '/artifacts/p/f.html?embed');
+      expect(framed.body).toBe('<title>f</title><p>ok</p>');
+      expect(framed.headers['content-security-policy']).not.toMatch(/fonts\.g/);
+      expect(framed.headers['content-security-policy']).toContain("font-src 'none'");
+      expect((await request(port, 'GET', '/artifacts/p/f.html')).body).toContain('fonts.googleapis.com');
+      for (const route of ['/', '/api/state']) {
+        const r = await request(port, 'GET', route);
+        expect(r.headers['x-frame-options'], route).toBe('DENY');
+        expect(r.headers['content-security-policy'], route).toContain("frame-ancestors 'none'");
+      }
+    } finally {
+      close();
+      if (saved === undefined) delete process.env.EKLAVYA_HOME;
+      else process.env.EKLAVYA_HOME = saved;
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   it('answers 405 to anything but GET and HEAD, and still serves those', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });
     const port = Number(new URL(url).port);
@@ -1177,6 +1214,26 @@ describe('/api/settings', () => {
         const done = await (await fetch(`${url}/api/attempts/correction?id=${id}`)).json();
         expect(done).toMatchObject({ tries: 2, corrected_at: expect.any(String) });
       });
+    });
+
+    it('counts a corrected miss as corrected, and never the correction as an answer', () => {
+      const fixed = missed();
+      missed();
+      recordRetry(db, fixed, 'A queue', new Date());
+      recordRetry(db, fixed, 'A lock', new Date());
+      const st = dashboardState(db) as any;
+      const today = st.daily.filter((d: any) => d.day === new Date().toISOString().slice(0, 10));
+      const sum = (k: string) => today.reduce((n: number, d: any) => n + d[k], 0);
+      expect([sum('passed'), sum('missed'), sum('corrected')]).toEqual([0, 1, 1]);
+      expect(st.totals).toMatchObject({ answers: 2, passed: 0, missed: 1, corrected: 1 });
+      // The attempt list is questions asked: the miss is kept, marked, and its correction row is not a second answer.
+      const rows = st.attempts.filter((a: any) => a.slug === 'csrf');
+      expect(rows).toHaveLength(2);
+      expect(rows.find((a: any) => a.id === fixed)).toMatchObject({ grade: 1, corrected_try: 2, corrected_at: expect.any(String) });
+      expect(rows.find((a: any) => a.id !== fixed)).toMatchObject({ corrected_at: null, corrected_try: null });
+      const csrf = st.concepts.find((c: any) => c.slug === 'csrf');
+      expect(csrf).toMatchObject({ attempts: 2, passed: 0, corrected: 1, last_grade: 1 });
+      expect(st.projects.reduce((n: number, p: any) => n + p.answers, 0)).toBe(2);
     });
 
     it('tells the artifact gallery which explainers are open or done', () => {

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { DB } from './db.js';
-import { dbPath, eklavyaHome } from './paths.js';
+import { dashboardPort, dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
 import {
   loadConfig,
@@ -74,9 +74,11 @@ Usage:
   eklavya dashboard status|stop         Show or stop the background dashboard
   eklavya artifacts new <title>         Start a page under ~/.eklavya/artifacts/<project>/ from the
                                         Eklavya template and print its path [--description <text>]
-                                        [--kind artifact|explainer] [--concept <slug>] [--open]
+                                        [--kind artifact|explainer] [--concept <slug>]
+                                        [--attempt <attempt_id>: the missed answer it explains] [--open]
   eklavya artifacts list [--json]       Every artifact, newest first [--here: this project only]
-  eklavya artifacts open <path|id>      Open one in your browser
+  eklavya artifacts open <path|id>      Open one in your browser; a page made with --attempt opens
+                                        in the dashboard's viewer, where the answer can be corrected
   eklavya statusline                    Print the dials for a status bar (one line, or nothing)
   eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
@@ -912,7 +914,6 @@ async function statuslineCommand(argv: string[]): Promise<void> {
 
 async function dashboardCommand(argv: string[]): Promise<void> {
   const daemon = await import('./dashboard-daemon.js');
-  const { dashboardPort } = await import('./paths.js');
   const url = `http://127.0.0.1:${dashboardPort()}`;
 
   if (argv[0] === 'status') {
@@ -960,9 +961,8 @@ async function dashboardCommand(argv: string[]): Promise<void> {
   // terminal. A port of your own, or a port someone else holds, still gets a
   // foreground server as before.
   if (!serve && port === undefined && loadGlobalConfig().dashboard_autostart) {
-    const state = await daemon.ensureDashboard();
-    const up = state === 'running' || ((state === 'started' || state === 'replaced') && (await daemon.waitForDashboard()));
-    if (up) {
+    const state = await backgroundDashboard();
+    if (state) {
       process.stdout.write(
         `Eklavya dashboard on ${url} (${state === 'running' ? 'already running' : 'started'} in the background)\n` +
           `Reading ${dbPath()} — stop it: eklavya dashboard stop\n`,
@@ -1003,8 +1003,37 @@ async function dashboardCommand(argv: string[]): Promise<void> {
  * explainer agent. `new` is the one place a page's path and metadata are
  * decided, so a model never has to work out the project folder itself.
  */
+/**
+ * Reuses, starts or replaces the background dashboard, and says how once one
+ * answers; null when none does.
+ */
+async function backgroundDashboard(): Promise<'running' | 'started' | 'replaced' | null> {
+  const daemon = await import('./dashboard-daemon.js');
+  const state = await daemon.ensureDashboard();
+  if (state === 'running') return state;
+  return (state === 'started' || state === 'replaced') && (await daemon.waitForDashboard()) ? state : null;
+}
+
+/**
+ * Opens an artifact and returns what was opened. An explainer linked to a
+ * missed attempt opens in the dashboard's viewer, where the learner can correct
+ * their answer -- a `file://` page has no way to reach the database. Anything
+ * else, or no background dashboard (autostart off, or the port taken), opens
+ * the file as before.
+ */
+async function openArtifact(file: string): Promise<string> {
+  const { artifactIdOf, readAttempt } = await import('./artifacts.js');
+  const id = readAttempt(file) !== null ? artifactIdOf(file) : null;
+  let target = file;
+  if (id && loadGlobalConfig().dashboard_autostart && (await backgroundDashboard())) {
+    target = `http://127.0.0.1:${dashboardPort()}/#/artifacts/view/${encodeURIComponent(id)}`;
+  }
+  (await import('./dashboard.js')).openInBrowser(target);
+  return target;
+}
+
 async function artifactsCommand(argv: string[]): Promise<void> {
-  const { createArtifact, listArtifacts, resolveArtifact, artifactProject } = await import('./artifacts.js');
+  const { attemptId, createArtifact, listArtifacts, resolveArtifact, artifactProject } = await import('./artifacts.js');
   const [sub, ...rest] = argv;
   if (sub === 'new') {
     // `parseArgs` rather than a hand loop: an agent writes `--kind=explainer`
@@ -1020,6 +1049,7 @@ async function artifactsCommand(argv: string[]): Promise<void> {
           description: { type: 'string' },
           kind: { type: 'string' },
           concept: { type: 'string' },
+          attempt: { type: 'string' },
           open: { type: 'boolean' },
         },
       });
@@ -1031,9 +1061,13 @@ async function artifactsCommand(argv: string[]): Promise<void> {
     if (!title) fail('eklavya artifacts new: give the page a title');
     const kind = values.kind ?? 'artifact';
     if (kind !== 'artifact' && kind !== 'explainer') fail('eklavya artifacts new: --kind is artifact or explainer');
-    const made = createArtifact({ title, description: values.description, kind, concept: values.concept ?? null });
+    const attempt = values.attempt === undefined ? null : attemptId(values.attempt);
+    if (values.attempt !== undefined && attempt === null) {
+      fail('eklavya artifacts new: --attempt is the attempt_id record_attempt returned, a positive integer');
+    }
+    const made = createArtifact({ title, description: values.description, kind, concept: values.concept ?? null, attempt });
     process.stdout.write(`${made.path}\n`);
-    if (values.open) (await import('./dashboard.js')).openInBrowser(made.path);
+    if (values.open) await openArtifact(made.path);
     return;
   }
   if (sub === 'list') {
@@ -1059,8 +1093,7 @@ async function artifactsCommand(argv: string[]): Promise<void> {
     // A path the caller already has, or an id from `list --json`.
     const file = fs.existsSync(target) ? path.resolve(target) : resolveArtifact(target);
     if (!file) fail(`eklavya artifacts open: no artifact at ${target}`);
-    (await import('./dashboard.js')).openInBrowser(file);
-    process.stdout.write(`${file}\n`);
+    process.stdout.write(`${await openArtifact(file)}\n`);
     return;
   }
   fail('Usage: eklavya artifacts new <title> | list [--json] [--here] | open <path|id>');

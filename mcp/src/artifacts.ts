@@ -97,6 +97,8 @@ export interface CreateOptions {
   description?: string;
   kind?: ArtifactKind;
   concept?: string | null;
+  /** The missed attempt this explainer is for: what lets the dashboard offer a correction. */
+  attempt?: number | null;
   cwd?: string;
   now?: Date;
 }
@@ -130,6 +132,7 @@ export function createArtifact(opts: CreateOptions): { path: string; id: string;
     '{{PROJECT_NAME}}': escHtml(path.basename(project) || project),
     '{{KIND}}': kind,
     '{{CONCEPT}}': escHtml(opts.concept ?? ''),
+    '{{ATTEMPT}}': opts.attempt ? String(opts.attempt) : '',
     '{{CREATED}}': now.toISOString(),
     '{{EYEBROW}}': kind === 'explainer' ? 'Explainer' : 'Artifact',
   };
@@ -169,6 +172,26 @@ function readHead(file: string): string {
   } finally {
     fs.closeSync(fd);
   }
+}
+
+/** The attempt a page was written for, from its head; null when none or unreadable. */
+export function readAttempt(file: string): number | null {
+  try {
+    return attemptId(meta(readHead(file), 'eklavya:attempt'));
+  } catch {
+    return null;
+  }
+}
+
+/** The dashboard id (`<folder>/<file>`) of a file inside the artifact root, or null. */
+export function artifactIdOf(file: string, root: string = artifactsDir()): string | null {
+  let id: string;
+  try {
+    id = path.relative(fs.realpathSync(root), fs.realpathSync(file)).split(path.sep).join('/');
+  } catch {
+    return null;
+  }
+  return resolveArtifact(id, root) ? id : null;
 }
 
 /**

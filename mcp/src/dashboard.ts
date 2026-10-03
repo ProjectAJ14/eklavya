@@ -91,7 +91,17 @@ interface DayRow {
   passed: number;
   missed: number;
   skipped: number;
+  /** Misses (and taught blanks) answered right later from their explainer. */
+  corrected: number;
 }
+
+/**
+ * A correction row (`retry_of`, migration 019) is a pick made on this page
+ * after the explainer showed the answer, not a question asked: no count here
+ * includes it. The miss it corrects is counted once, as `corrected` instead of
+ * missed or skipped, by joining that row as `fix`.
+ */
+const NOT_CORRECTION = 'retry_of IS NULL';
 
 interface ProjectRow {
   repo: string | null;
@@ -120,6 +130,8 @@ interface ConceptRow {
   attempts: number;
   passed: number;
   skipped: number;
+  /** Correction rows: misses answered right later from their explainer. */
+  corrected: number;
   first_asked: string | null;
   last_grade: number | null;
   last_context: string | null;
@@ -604,7 +616,7 @@ export function projectInventory(db: DB): {
             COALESCE(SUM(grade >= ${PASSING_GRADE}), 0) AS passed,
             COALESCE(SUM(outcome IN ('declined','dont_know')), 0) AS skipped,
             min(ts) AS first, max(ts) AS last
-     FROM attempts GROUP BY repo, session_id, concept_id`,
+     FROM attempts WHERE ${NOT_CORRECTION} GROUP BY repo, session_id, concept_id`,
   )) {
     const p = at(r.repo, 'attempts');
     p.learning.answers += r.n;
@@ -753,14 +765,15 @@ export function dashboardState(db: DB): Record<string, unknown> {
   // same pass line the level ladder uses, so the chart and the promotion agree.
   const daily = db
     .prepare(
-      `SELECT date(ts) AS day,
-              NULLIF(trim(COALESCE(repo, '')), '') AS repo,
-              sum(CASE WHEN grade >= ? THEN 1 ELSE 0 END) AS passed,
-              sum(CASE WHEN grade < ? AND (outcome IS NULL OR outcome = 'answered') THEN 1 ELSE 0 END) AS missed,
-              sum(CASE WHEN outcome IN ('declined','dont_know') THEN 1 ELSE 0 END) AS skipped
-       FROM attempts
-       WHERE ts >= date('now', ?)
-       GROUP BY day, repo
+      `SELECT date(a.ts) AS day,
+              NULLIF(trim(COALESCE(a.repo, '')), '') AS repo,
+              sum(CASE WHEN a.grade >= ? THEN 1 ELSE 0 END) AS passed,
+              sum(CASE WHEN a.grade < ? AND (a.outcome IS NULL OR a.outcome = 'answered') AND fix.id IS NULL THEN 1 ELSE 0 END) AS missed,
+              sum(CASE WHEN a.outcome IN ('declined','dont_know') AND fix.id IS NULL THEN 1 ELSE 0 END) AS skipped,
+              count(fix.id) AS corrected
+       FROM attempts a LEFT JOIN attempts fix ON fix.retry_of = a.id
+       WHERE a.${NOT_CORRECTION} AND a.ts >= date('now', ?)
+       GROUP BY 1, 2
        ORDER BY day`,
     )
     .all(PASSING_GRADE, PASSING_GRADE, `-${TIMELINE_DAYS} days`) as DayRow[];
@@ -777,6 +790,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
               min(a.ts) AS first_active,
               max(a.ts) AS last_active
        FROM attempts a
+       WHERE a.${NOT_CORRECTION}
        GROUP BY repo
        ORDER BY last_active DESC`,
     )
@@ -786,12 +800,14 @@ export function dashboardState(db: DB): Record<string, unknown> {
     .prepare(
       `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
               m.score, m.ease, m.interval_d, m.reps, m.next_review, m.last_seen,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id) AS attempts,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.grade >= ${PASSING_GRADE}) AS passed,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id
+              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}) AS attempts,
+              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION} AND a.grade >= ${PASSING_GRADE}) AS passed,
+              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}
                 AND a.outcome IN ('declined','dont_know')) AS skipped,
-              (SELECT min(a.ts) FROM attempts a WHERE a.concept_id = c.id) AS first_asked,
-              (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id ORDER BY a.id DESC LIMIT 1) AS last_grade,
+              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NOT NULL) AS corrected,
+              (SELECT min(a.ts) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}) AS first_asked,
+              -- The backlog rule's grade (OWED_SQL in store.ts): a correction does not clear it.
+              (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION} ORDER BY a.id DESC LIMIT 1) AS last_grade,
               (SELECT sc.context FROM session_concepts sc
                 WHERE sc.concept_id = c.id AND sc.context IS NOT NULL
                 ORDER BY sc.ts DESC LIMIT 1) AS last_context,
@@ -880,6 +896,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
       attempts: row.attempts,
       passed: row.passed,
       skipped: row.skipped,
+      corrected: row.corrected,
       last_grade: row.last_grade,
       mastered,
       owed,
@@ -904,8 +921,14 @@ export function dashboardState(db: DB): Record<string, unknown> {
     .prepare(
       `SELECT a.id, c.slug, c.name, c.domain, a.session_id, a.question, a.answer, a.feedback,
               a.grade, a.difficulty AS tier, a.outcome, a.format, a.options, a.ts,
-              NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.level
+              NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.level,
+              -- A miss corrected from its explainer: when, and on which try.
+              fix.ts AS corrected_at,
+              CASE WHEN fix.id IS NULL THEN NULL
+                   ELSE (SELECT count(*) FROM attempt_retries r WHERE r.attempt_id = a.id) END AS corrected_try
        FROM attempts a JOIN concepts c ON c.id = a.concept_id
+       LEFT JOIN attempts fix ON fix.retry_of = a.id
+       WHERE a.${NOT_CORRECTION}
        ORDER BY a.id DESC
        LIMIT ?`,
     )
@@ -935,18 +958,21 @@ export function dashboardState(db: DB): Record<string, unknown> {
   const allTime = db
     .prepare(
       `SELECT count(*) AS answers,
-              sum(CASE WHEN grade >= ? THEN 1 ELSE 0 END) AS passed,
-              sum(CASE WHEN grade < ? AND (outcome IS NULL OR outcome = 'answered') THEN 1 ELSE 0 END) AS missed,
-              sum(CASE WHEN outcome IN ('declined','dont_know') THEN 1 ELSE 0 END) AS skipped,
-              count(DISTINCT date(ts)) AS active_days,
-              min(ts) AS first_answer
-       FROM attempts`,
+              sum(CASE WHEN a.grade >= ? THEN 1 ELSE 0 END) AS passed,
+              sum(CASE WHEN a.grade < ? AND (a.outcome IS NULL OR a.outcome = 'answered') AND fix.id IS NULL THEN 1 ELSE 0 END) AS missed,
+              sum(CASE WHEN a.outcome IN ('declined','dont_know') AND fix.id IS NULL THEN 1 ELSE 0 END) AS skipped,
+              count(fix.id) AS corrected,
+              count(DISTINCT date(a.ts)) AS active_days,
+              min(a.ts) AS first_answer
+       FROM attempts a LEFT JOIN attempts fix ON fix.retry_of = a.id
+       WHERE a.${NOT_CORRECTION}`,
     )
     .get(PASSING_GRADE, PASSING_GRADE) as {
     answers: number;
     passed: number | null;
     missed: number | null;
     skipped: number | null;
+    corrected: number;
     active_days: number;
     first_answer: string | null;
   };
@@ -978,6 +1004,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
      */
     cursor: [
       allTime.answers,
+      allTime.corrected,
       logged.length,
       sessionCount,
       memory.captured,
@@ -1007,6 +1034,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
       passed: allTime.passed ?? 0,
       missed: allTime.missed ?? 0,
       skipped: allTime.skipped ?? 0,
+      corrected: allTime.corrected,
       mastered: concepts.filter((c) => c.mastered).length,
       due: concepts.filter((c) => c.due).length,
       touched: concepts.filter((c) => c.seen).length,
@@ -1406,10 +1434,27 @@ const ARTIFACT_CSP = [
   "style-src 'unsafe-inline' https://fonts.googleapis.com",
   'font-src https://fonts.gstatic.com',
   'img-src data: blob:',
-  "frame-ancestors 'none'",
+  // The dashboard's explainer viewer frames it (`#/artifacts/view/`); the
+  // sandbox above still keeps the framed page off the API.
+  "frame-ancestors 'self'",
   "base-uri 'none'",
   "form-action 'none'",
 ].join('; ');
+
+/**
+ * The same page framed in the dashboard's viewer (`?embed`). The dashboard
+ * makes no request to any other host, and a framed page's requests are the
+ * dashboard's, so the web fonts go: the template's links are cut out
+ * (`withoutWebFonts`), and this CSP refuses any that an agent added.
+ */
+const ARTIFACT_EMBED_CSP = ARTIFACT_CSP
+  .replace(" https://fonts.googleapis.com", '')
+  .replace('font-src https://fonts.gstatic.com', "font-src 'none'");
+
+/** An artifact without its Google Fonts links; it falls back to the system faces in the token stacks. */
+export function withoutWebFonts(html: string): string {
+  return html.replace(/<link\b[^>]*\bhref="https:\/\/fonts\.(?:googleapis|gstatic)\.com[^>]*>\s*/gi, '');
+}
 
 /**
  * What makes the page installable as an app (Chrome and Edge "Install",
@@ -1655,8 +1700,10 @@ export function startDashboard(
             'cache-control': 'private, max-age=3600',
           });
         }
-        return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(file), {
-          'content-security-policy': ARTIFACT_CSP,
+        const embed = url.searchParams.has('embed');
+        return send(res, 200, 'text/html; charset=utf-8', embed ? withoutWebFonts(fs.readFileSync(file, 'utf8')) : fs.readFileSync(file), {
+          'content-security-policy': embed ? ARTIFACT_EMBED_CSP : ARTIFACT_CSP,
+          'x-frame-options': 'SAMEORIGIN',
         });
       }
       if (url.pathname === '/manifest.webmanifest') {

@@ -35,7 +35,10 @@ eklavya artifacts new "<Title>" --description "<one line: what this page answers
 ```
 
 Add `--kind explainer --concept <slug>` when the page explains an Eklavya
-concept, so the dashboard links it to that concept.
+concept, so the dashboard links it to that concept. When the page is for a
+missed question and you were handed its `attempt_id`, also add
+`--attempt <attempt_id>`: the page then opens in the dashboard's viewer with a
+**Correct your answer** button under it.
 
 It prints the path of a new file, already carrying the Eklavya template: the
 design tokens inlined, dark by default, the print stylesheet, the PDF and HTML
@@ -80,7 +83,8 @@ Artifacts gallery, so put the one that explains the page first.
 **Stay on the design system.** Components already in the template: `.eyebrow`,
 `.lede`, `.card`, `.grid`, `.chip` (`.warn`, `.bad`), `.stat` (`.k`, `.v`,
 `.d`), `.callout`, `td.num`, and `ol.options` with `li.picked` / `li.right`
-for restating a missed question. Code goes in `<pre><code>`, escaped, with
+for restating a missed question; put the one-line note shown under an option
+in the question in `<span class="note">…</span>` inside its `<li>`. Code goes in `<pre><code>`, escaped, with
 `data-lang="css"` (or `ts`, `sql`, …) on the `<pre>` for its label; the template
 colours comments, keywords, strings and numbers itself, so never hand-colour it.
 Reuse these before adding CSS. Any CSS you add
@@ -123,7 +127,9 @@ figures); never on a tall wrapper, or the PDF gets half-empty pages. No
 eklavya artifacts open "<the path new printed>"
 ```
 
-Report the path in one line. Do not mention links, publishing or sharing.
+It prints what it opened: the file, or for a page made with `--attempt`, its
+address in the dashboard's viewer (when the background dashboard is on). Report
+the path in one line. Do not mention links, publishing or sharing.
 
 `eklavya artifacts list` shows every page, newest first (`--here` for this
 project, `--json` for the ids); `eklavya dashboard` then **Artifacts** is the

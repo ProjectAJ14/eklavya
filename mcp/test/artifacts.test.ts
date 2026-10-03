@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createArtifact, listArtifacts, resolveArtifact, artifactProject, kebab } from '../src/artifacts.js';
+import { createArtifact, listArtifacts, resolveArtifact, artifactProject, kebab, artifactIdOf, readAttempt } from '../src/artifacts.js';
 import { artifactsDir, projectSlug } from '../src/paths.js';
 import { openDb, type DB } from '../src/db.js';
 // The template and tokens are copied in by the build, so these run the built modules.
@@ -217,7 +217,8 @@ describe('the dashboard', () => {
       expect(csp).toMatch(/^sandbox /);
       expect(csp).not.toContain('allow-same-origin');
       expect(csp).toContain("default-src 'none'");
-      expect(ok.headers['x-frame-options']).toBe('DENY');
+      // Framable by the dashboard's own explainer viewer only; still sandboxed.
+      expect(ok.headers['x-frame-options']).toBe('SAMEORIGIN');
 
       const thumb = await get(port, '/artifacts/' + made.id.split('/').map(encodeURIComponent).join('/') + '?thumb=ink&v=1');
       expect(thumb.status).toBe(200);
@@ -355,6 +356,32 @@ describe('review fixes', () => {
     expect(() => run('new', 'x', '--kinda', 'explainer')).toThrow();
     expect(() => run('new', 'x', '--kind')).toThrow();
     expect(path.basename(run('new', '--', '--dry-run flag').trim())).toMatch(/-dry-run-flag\.html$/);
+  });
+
+  it('links an explainer to its attempt with --attempt, and refuses anything but a positive integer', () => {
+    const file = run('new', 'Linked', '--kind', 'explainer', '--attempt', '42').trim();
+    expect(fs.readFileSync(file, 'utf8')).toContain('<meta name="eklavya:attempt" content="42">');
+    expect(listArtifacts().find((r) => r.title === 'Linked')?.attempt).toBe(42);
+    const plain = run('new', 'Unlinked').trim();
+    expect(fs.readFileSync(plain, 'utf8')).toContain('<meta name="eklavya:attempt" content="">');
+    expect(listArtifacts().find((r) => r.title === 'Unlinked')?.attempt).toBeNull();
+    for (const bad of ['0', '-1', '1.5', 'abc', '07']) {
+      expect(() => run('new', 'x', '--attempt', bad), bad).toThrow();
+    }
+  });
+
+  it('names the dashboard id of a file only inside the artifact root', () => {
+    const file = run('new', 'Inside').trim();
+    expect(artifactIdOf(file)).toBe(`${path.basename(path.dirname(file))}/${path.basename(file)}`);
+    expect(artifactIdOf(file, path.join(tmp, 'no-such-root'))).toBeNull();
+    expect(readAttempt(path.join(tmp, 'missing.html'))).toBeNull();
+  });
+
+  it('shows each option note under its option, and reports its height only when framed', () => {
+    const html = fs.readFileSync(run('new', 'Notes').trim(), 'utf8');
+    expect(html).toMatch(/ol\.options li \.note\{display:block;color:var\(--dim\)/);
+    expect(html).toContain("type:'eklavya:height'");
+    expect(html).toContain('if(window.parent===window) return;');
   });
 
   it('lists nothing the server would refuse: no symlinks, no dot-names', () => {
