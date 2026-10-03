@@ -1,3 +1,10 @@
+# [1.46.0](https://github.com/ProjectAJ14/eklavya/compare/v1.45.0...v1.46.0) (2026-10-03)
+
+
+### Features
+
+* correct a missed answer from its explainer ([#98](https://github.com/ProjectAJ14/eklavya/issues/98)) ([919de4e](https://github.com/ProjectAJ14/eklavya/commit/919de4eef4bd9f3c4028640dbde1ac0387038c09))
+
 # [1.45.0](https://github.com/ProjectAJ14/eklavya/compare/v1.44.1...v1.45.0) (2026-10-02)
 
 
