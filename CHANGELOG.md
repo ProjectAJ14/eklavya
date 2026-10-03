@@ -1,3 +1,10 @@
+## [1.47.4](https://github.com/ProjectAJ14/eklavya/compare/v1.47.3...v1.47.4) (2026-10-03)
+
+
+### Bug Fixes
+
+* write quiz questions a learner can answer without the agent's context ([#104](https://github.com/ProjectAJ14/eklavya/issues/104)) ([b258e55](https://github.com/ProjectAJ14/eklavya/commit/b258e55a19b0f41a3047b382fc8cb0a32ffef45d))
+
 ## [1.47.3](https://github.com/ProjectAJ14/eklavya/compare/v1.47.2...v1.47.3) (2026-10-03)
 
 
