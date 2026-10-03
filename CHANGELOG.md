@@ -1,3 +1,10 @@
+# [1.47.0](https://github.com/ProjectAJ14/eklavya/compare/v1.46.0...v1.47.0) (2026-10-03)
+
+
+### Features
+
+* open every artifact in the dashboard, as tabs ([#99](https://github.com/ProjectAJ14/eklavya/issues/99)) ([daa05f1](https://github.com/ProjectAJ14/eklavya/commit/daa05f1b5e2c8623f9eaac30482da20d517c05de))
+
 # [1.46.0](https://github.com/ProjectAJ14/eklavya/compare/v1.45.0...v1.46.0) (2026-10-03)
 
 
