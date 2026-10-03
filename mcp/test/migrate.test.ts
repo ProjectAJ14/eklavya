@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 19;
+const LATEST_SCHEMA_VERSION = 20;
 
 const LEARNING_TABLES = [
   'attempt_retries',
@@ -152,6 +152,7 @@ describe('migrations', () => {
         '017_project_roots.sql',
         '018_memory_reads.sql',
         '019_attempt_corrections.sql',
+        '020_memory_fts_live.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -211,7 +212,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
@@ -236,6 +237,52 @@ describe('migrations', () => {
         expect(plan).toContain(index);
         expect(plan).not.toMatch(/^SCAN/);
       }
+      db.close();
+    } finally {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+    }
+  });
+
+  it('repairs a v19 memory index that a repeated soft delete had corrupted', () => {
+    // Before 020, a soft delete removed the row's terms twice: once through the
+    // update trigger and once by hand. Reproduce that on a v19 database, then
+    // check the upgrade rebuilds the index without losing any row or state.
+    const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-mig-'));
+    try {
+      for (const f of fs.readdirSync(migrationsDir()).filter((f) => f < '020')) {
+        fs.copyFileSync(path.join(migrationsDir(), f), path.join(oldDir, f));
+      }
+      const db = new Database(':memory:');
+      runMigrations(db, oldDir);
+      expect(schemaVersion(db)).toBe(19);
+      const insert = db.prepare(
+        "INSERT INTO memory_entries (id, entry_uid, project, title, narrative, occurred_at) VALUES (?, ?, 'p', ?, ?, 'now')",
+      );
+      insert.run(1, 'a', 'Lease renewal', 'The worker renews its lease.');
+      insert.run(2, 'b', 'Checkpoint starvation', 'Readers starve the checkpoint.');
+      db.prepare("UPDATE memory_entries SET deleted_at = 'then' WHERE id = 1").run();
+      db.prepare(
+        `INSERT INTO memory_fts(memory_fts, rowid, title, narrative, facts, files)
+         SELECT 'delete', id, title, narrative, facts, files FROM memory_entries WHERE id = 1`,
+      ).run();
+      expect(() => db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run()).toThrow(/malformed/);
+
+      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql']);
+      db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
+      expect(db.prepare('SELECT id, deleted_at FROM memory_entries ORDER BY id').all()).toEqual([
+        { id: 1, deleted_at: 'then' },
+        { id: 2, deleted_at: null },
+      ]);
+      const hits = (q: string) =>
+        (db.prepare('SELECT rowid FROM memory_fts WHERE memory_fts MATCH ?').all(q) as { rowid: number }[]).map((r) => r.rowid);
+      expect(hits('checkpoint')).toEqual([2]);
+      expect(hits('lease')).toEqual([]);
+
+      db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run();
+      db.prepare('DELETE FROM memory_entries WHERE id = 1').run();
+      db.prepare('DELETE FROM memory_entries WHERE id = 2').run();
+      db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
+      expect(hits('checkpoint')).toEqual([]);
       db.close();
     } finally {
       fs.rmSync(oldDir, { recursive: true, force: true });

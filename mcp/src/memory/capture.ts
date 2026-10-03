@@ -2,7 +2,7 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { nowIso } from '../time.js';
 import { eventUid, relativeToProject, type EvidenceIdentity } from './identity.js';
-import { DEFAULT_PRIVACY, isOwnTraffic, pathExcluded, redact, toolExcluded, type PrivacyPolicy } from './privacy.js';
+import { DEFAULT_PRIVACY, isOwnTraffic, pathExcluded, redact, redactHead, toolExcluded, type PrivacyPolicy } from './privacy.js';
 import { appendEvent, type EvidenceInput } from './store.js';
 import { spoolEvent, takeSpooled } from './spool.js';
 
@@ -63,9 +63,13 @@ export function policyFrom(config: EklavyaConfig): PrivacyPolicy {
   };
 }
 
-/** A body as evidence stores it: redacted over the window, then capped. */
+/**
+ * A body as evidence stores it: redacted over the window, then capped. The
+ * window's own cut is handled by `redactHead`, so a secret straddling it leaves
+ * no recognisable-only-when-whole prefix behind.
+ */
 export function redactBody(body: string, policy: PrivacyPolicy = DEFAULT_PRIVACY) {
-  const redacted = redact(body.slice(0, REDACT_WINDOW), policy);
+  const redacted = redactHead(body, REDACT_WINDOW, policy);
   return { ...redacted, text: redacted.text.slice(0, MAX_BODY) };
 }
 

@@ -658,7 +658,7 @@
       <div class="cmd-row"><code>Collections and code</code><span>Group useful entries and index a project's code for later lookup.</span></div>
       <div class="cmd-row"><code>Import and sync</code><span>Import existing Claude Code or claude-mem history. Optionally share memory through a directory you manage; quiz scores and gates stay local.</span></div>
       <div class="cmd-row"><code>Observers and alerts</code><span>Choose an optional observer for richer summaries, or send session wrap-ups to a file, command, or webhook.</span></div>
-      <div class="cmd-row"><code>Privacy controls</code><span>Exclude paths and tools, add redaction rules, and choose retention. <a href="/docs/memory/">Explore memory</a></span></div>
+      <div class="cmd-row"><code>Privacy controls</code><span>Exclude paths and tools, add redaction rules, choose retention, and delete any entry, permanently if you choose. <a href="/docs/memory/">Explore memory</a></span></div>
     </div>
 
     <p class="modes__foot" data-reveal data-delay="300">
@@ -700,7 +700,7 @@
       <h3>Your data stays yours</h3>
       <p>Your learning history and captured work live in <code>~/.eklavya/knowledge.db</code>. Explainer pages live under <code>~/.eklavya/artifacts/</code>. You can inspect, export, or remove your data.</p>
       <p><b>Local storage and processing by default.</b> Recalled history becomes context for Claude. Optional observers, notifications, and sync use the services or directories you configure. Automatic update checks contact npm without sending your learning history. An anonymous daily usage ping sends counts and setting values, never paths or text; <code class="code-inline">eklavya telemetry off</code> turns it off.</p>
-      <p>Capture filters exclude sensitive paths and redact known secret patterns. Filters cannot recognize every secret; add exclusions for your project. <a href="/docs/memory/#what-is-never-captured">Capture and privacy controls</a></p>
+      <p>Capture filters exclude sensitive paths and redact known secret patterns before any excerpt is cut, so a trimmed secret is not stored half-visible. Filters cannot recognize every secret; add exclusions for your project. <a href="/docs/memory/#what-is-never-captured">Capture and privacy controls</a></p>
       <p>The optional <a href="/docs/commit-gate/">Git gate</a> also covers terminal commits after you install its hook and enable enforcement for that project, including commits from the project's linked worktrees.</p>
     </div>
   </div>
