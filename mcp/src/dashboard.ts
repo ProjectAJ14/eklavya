@@ -27,7 +27,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
 import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
-import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
+import {
+  correctionStates, correctionTarget, CorrectionError, GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey, recordRetry,
+  type CorrectionErrorCode,
+} from './store.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
@@ -36,7 +39,8 @@ import {
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
 import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
-import { artifactThumb, listArtifacts, resolveArtifact } from './artifacts.js';
+import { artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
+import { LIMITS } from './tools/types.js';
 import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDelivery } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
@@ -1041,8 +1045,20 @@ export function dashboardState(db: DB): Record<string, unknown> {
     memory_sessions: memorySessions(db),
     // The third workflow. Read from the files themselves on every load
     // (`artifacts.ts`): there is no table to fall out of step with the disk.
-    artifacts: listArtifacts(),
+    artifacts: artifactRows(db),
   };
+}
+
+/**
+ * `listArtifacts`, plus whether each explainer can still be corrected:
+ * `open`, `done`, or null for a page with no attempt, a plain artifact, or an
+ * attempt recorded without its right answer. One query for all of them.
+ */
+function artifactRows(db: DB): (ArtifactRow & { correction: 'open' | 'done' | null })[] {
+  const rows = listArtifacts();
+  const ids = rows.filter((r) => r.kind === 'explainer' && r.attempt !== null).map((r) => r.attempt!);
+  const states = correctionStates(db, ids);
+  return rows.map((r) => ({ ...r, correction: (r.kind === 'explainer' && states.get(r.attempt!)) || null }));
 }
 
 /**
@@ -1295,6 +1311,46 @@ export function updateSetting(db: DB, body: unknown): { status: number; body: Re
 // characters, JSON-escaped — so the page refuses nothing the CLI would take.
 const MAX_SETTINGS_BODY = 256 * 1024;
 
+/** Each refusal a correction can meet: its status and the words the modal shows. */
+const CORRECTION_ERRORS: Record<CorrectionErrorCode, { status: number; error: string }> = {
+  not_found: { status: 404, error: 'No such question.' },
+  not_correctable: { status: 409, error: 'This answer cannot be corrected: it was recorded without its right answer, or it was not a miss.' },
+  already_corrected: { status: 409, error: 'Already corrected.' },
+  not_an_option: { status: 400, error: 'That is not one of the options.' },
+};
+
+function correctionError(code: CorrectionErrorCode): { status: number; body: Record<string, unknown> } {
+  const e = CORRECTION_ERRORS[code];
+  return { status: e.status, body: { error: e.error, code } };
+}
+
+/**
+ * `GET /api/attempts/correction?id=`: the missed question the correction modal
+ * shows. Never the right answer -- the server grades a pick, the page does not.
+ */
+export function correctionState(db: DB, id: number): { status: number; body: Record<string, unknown> } {
+  const t = correctionTarget(db, id);
+  if (!t) return correctionError('not_found');
+  if (!t.correctable) return correctionError('not_correctable');
+  const { correct: _answer, correctable: _c, ...shown } = t;
+  return { status: 200, body: shown };
+}
+
+/** `POST /api/attempts/retry`: `{ attempt_id, picked }`, one pick on the correction modal. */
+export function retryAttempt(db: DB, body: unknown): { status: number; body: Record<string, unknown> } {
+  const bad = (error: string) => ({ status: 400, body: { error } });
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return bad('Expected a JSON object.');
+  const { attempt_id: id, picked } = body as Record<string, unknown>;
+  if (typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1) return bad('attempt_id is a positive integer.');
+  if (typeof picked !== 'string' || picked.length > LIMITS.option) return bad('picked is the option label, as text.');
+  try {
+    return { status: 200, body: recordRetry(db, id, picked, new Date()) };
+  } catch (err) {
+    if (err instanceof CorrectionError) return correctionError(err.code);
+    throw err;
+  }
+}
+
 /** One write: validates its own body, never trusts it, and answers with JSON. */
 export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Record<string, unknown> };
 
@@ -1306,6 +1362,9 @@ export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Re
  */
 export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }> = {
   '/api/settings': { handler: updateSetting, maxBytes: MAX_SETTINGS_BODY },
+  // An option label is at most LIMITS.option characters; 16 KiB holds one
+  // JSON-escaped with room to spare.
+  '/api/attempts/retry': { handler: retryAttempt, maxBytes: 16 * 1024 },
 };
 
 /**
@@ -1567,6 +1626,10 @@ export function startDashboard(
             }),
           ),
         );
+      }
+      if (url.pathname === '/api/attempts/correction') {
+        const out = correctionState(db, Number(url.searchParams.get('id')));
+        return send(res, out.status, 'application/json', JSON.stringify(out.body));
       }
       if (url.pathname === '/api/memory/entry') {
         const entry = memoryEntry(db, Number(url.searchParams.get('id')));

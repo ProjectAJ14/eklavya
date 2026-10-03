@@ -247,6 +247,10 @@ interface TargetRow {
 }
 
 function targetRow(db: DB, attemptId: number): TargetRow | undefined {
+  return targetRows(db, [attemptId])[0];
+}
+
+function targetRows(db: DB, attemptIds: number[]): TargetRow[] {
   return db
     .prepare(
       `SELECT a.id, a.concept_id, c.slug, a.session_id, a.question, a.grade, a.difficulty, a.outcome,
@@ -254,9 +258,22 @@ function targetRow(db: DB, attemptId: number): TargetRow | undefined {
               (SELECT count(*) FROM attempt_retries r WHERE r.attempt_id = a.id) AS tries,
               (SELECT x.ts FROM attempts x WHERE x.retry_of = a.id) AS corrected_at
          FROM attempts a JOIN concepts c ON c.id = a.concept_id
-        WHERE a.id = ?`,
+        WHERE a.id IN (SELECT value FROM json_each(?))`,
     )
-    .get(attemptId) as TargetRow | undefined;
+    .all(JSON.stringify(attemptIds)) as TargetRow[];
+}
+
+/**
+ * `open` or `done` for each correctable attempt among `attemptIds`, in one
+ * query; an id that is missing or cannot be corrected is left out.
+ */
+export function correctionStates(db: DB, attemptIds: number[]): Map<number, 'open' | 'done'> {
+  const out = new Map<number, 'open' | 'done'>();
+  for (const row of targetRows(db, attemptIds)) {
+    const t = toTarget(row);
+    if (t.correctable) out.set(t.id, t.corrected_at === null ? 'open' : 'done');
+  }
+  return out;
 }
 
 /** Stored JSON that is not a string array reads as absent rather than throwing. */

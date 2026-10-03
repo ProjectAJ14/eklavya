@@ -13,6 +13,7 @@ import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryEntry, memorySessionPage, projectInventory, settingsState, updateSetting,
   startDashboard, openInBrowser,
+  retryAttempt,
 } from '../src/dashboard.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { conceptBySlug } from '../src/store.js';
@@ -272,5 +273,15 @@ describe('startDashboard', () => {
     } finally {
       blocker.close();
     }
+  });
+});
+
+describe('retryAttempt', () => {
+  it('lets a database failure surface instead of dressing it as a refusal', () => {
+    const file = tempDbPath('retry-closed');
+    const other = openDb(file);
+    other.close();
+    expect(() => retryAttempt(other, { attempt_id: 1, picked: 'x' })).toThrow(/not open/);
+    cleanup(file);
   });
 });

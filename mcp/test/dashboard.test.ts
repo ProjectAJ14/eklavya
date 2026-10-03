@@ -14,6 +14,7 @@ import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { appendEvent, insertEntry, recordReceipt, supersedeEntry, deleteEntry, addCandidate } from '../src/memory/store.js';
 import { tempDbPath, cleanup } from './helpers.js';
+import { gradeConcept, recordRetry } from '../src/store.js';
 import { seedFixture, type Fixture } from './dashboard-fixture.js';
 // `tokens.css` is copied in by the build, so the served-asset case runs the built server.
 import { startDashboard as startBuilt } from '../dist/dashboard.js';
@@ -837,7 +838,7 @@ describe('the server says what a browser may do with its pages', () => {
       req.end();
     });
 
-  const ROUTES = ['/', '/tokens.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/nope'];
+  const ROUTES = ['/', '/tokens.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/api/attempts/correction?id=1', '/nope'];
 
   it('sends the security headers on every response, errors included', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });
@@ -1111,6 +1112,103 @@ describe('/api/settings', () => {
         expect(JSON.parse(JSON.stringify({ type, options, min, max, int, nullable, maxLength, maxItems, regex })), f.key)
           .toEqual(JSON.parse(JSON.stringify(SETTING_RULES[f.key])));
       }
+    });
+  });
+
+  describe('corrections', () => {
+    const OPTS = ['A cache', 'A lock', 'A queue', 'A log'];
+    const NOTES = ['keeps reads', 'serialises writers', 'orders work', 'appends history'];
+    const missed = (correct: string | null = 'A lock') => {
+      const c = db.prepare(`SELECT id FROM concepts WHERE slug = 'csrf'`).get() as { id: number };
+      return gradeConcept(db, {
+        conceptId: c.id, sessionId: 'corr', question: 'Which one stops two writers?', answer: 'A cache', grade: 1,
+        difficulty: 2, feedback: null, outcome: 'answered', format: 'mcq', options: OPTS, correct, optionNotes: NOTES,
+        repo: null, level: null, now: new Date(),
+      }).attemptId;
+    };
+    const retry = (port: number, token: string, body: unknown) => post(port, body, ok(port, token), '/api/attempts/retry');
+
+    it('serves the question without its answer, and refuses what cannot be corrected', async () => {
+      const id = missed();
+      const legacy = missed(null);
+      await withServer(async (_port, _token, url) => {
+        const r = await fetch(`${url}/api/attempts/correction?id=${id}`);
+        expect(r.status).toBe(200);
+        const body = await r.json();
+        expect(body).toEqual({
+          id, concept: 'csrf', question: 'Which one stops two writers?', options: OPTS, option_notes: NOTES, tries: 0, corrected_at: null,
+        });
+        // The server grades; the answer never reaches the page.
+        expect(JSON.stringify(body)).not.toContain('"correct"');
+        expect((await fetch(`${url}/api/attempts/correction?id=999999`)).status).toBe(404);
+        const no = await fetch(`${url}/api/attempts/correction?id=${legacy}`);
+        expect(no.status).toBe(409);
+        expect((await no.json()).code).toBe('not_correctable');
+      });
+    });
+
+    it('grades each try through the write path and records every one', async () => {
+      const id = missed();
+      const legacy = missed(null);
+      await withServer(async (port, token, url) => {
+        expect(await retry(port, token, { attempt_id: id, picked: 'A queue' })).toEqual({
+          status: 200, body: { correct: false, tries: 1, corrected: false },
+        });
+        const bad = await retry(port, token, { attempt_id: id, picked: 'nope' });
+        expect([bad.status, bad.body.code]).toEqual([400, 'not_an_option']);
+        expect(await retry(port, token, { attempt_id: id, picked: 'A lock' })).toEqual({
+          status: 200, body: { correct: true, tries: 2, corrected: true },
+        });
+        const again = await retry(port, token, { attempt_id: id, picked: 'A lock' });
+        expect([again.status, again.body.code]).toEqual([409, 'already_corrected']);
+        const gone = await retry(port, token, { attempt_id: 999999, picked: 'A lock' });
+        expect([gone.status, gone.body.code]).toEqual([404, 'not_found']);
+        const old = await retry(port, token, { attempt_id: legacy, picked: 'A lock' });
+        expect([old.status, old.body.code]).toEqual([409, 'not_correctable']);
+        for (const body of [[], null, { attempt_id: '1', picked: 'A lock' }, { attempt_id: 1.5, picked: 'x' }, { attempt_id: 0, picked: 'x' }, { attempt_id: id }, { attempt_id: id, picked: 'x'.repeat(1001) }]) {
+          const r = await retry(port, token, body);
+          expect(r.status, JSON.stringify(body)).toBe(400);
+          expect(typeof r.body.error).toBe('string');
+        }
+        expect(db.prepare('SELECT picked, correct FROM attempt_retries WHERE attempt_id = ? ORDER BY id').all(id)).toEqual([
+          { picked: 'A queue', correct: 0 },
+          { picked: 'A lock', correct: 1 },
+        ]);
+        const done = await (await fetch(`${url}/api/attempts/correction?id=${id}`)).json();
+        expect(done).toMatchObject({ tries: 2, corrected_at: expect.any(String) });
+      });
+    });
+
+    it('tells the artifact gallery which explainers are open or done', () => {
+      const open = missed();
+      const done = missed();
+      const legacy = missed(null);
+      recordRetry(db, done, 'A lock', new Date());
+      const dir = path.join(home, 'artifacts', 'proj');
+      fs.mkdirSync(dir, { recursive: true });
+      const page = (name: string, kind: string, attempt: string | null) =>
+        fs.writeFileSync(path.join(dir, name), `<html><head><title>${name}</title><meta name="eklavya:kind" content="${kind}">${
+          attempt === null ? '' : `<meta name="eklavya:attempt" content="${attempt}">`}</head></html>`);
+      page('open.html', 'explainer', String(open));
+      page('done.html', 'explainer', String(done));
+      page('legacy.html', 'explainer', String(legacy));
+      page('old.html', 'explainer', null);
+      page('missing.html', 'explainer', '999999');
+      page('junk.html', 'explainer', 'abc');
+      page('plain.html', 'artifact', String(open));
+      const rows = Object.fromEntries(
+        (dashboardState(db).artifacts as { title: string; attempt: number | null; correction: string | null }[])
+          .map((a) => [a.title, [a.attempt, a.correction]]),
+      );
+      expect(rows).toEqual({
+        'open.html': [open, 'open'],
+        'done.html': [done, 'done'],
+        'legacy.html': [legacy, null],
+        'old.html': [null, null],
+        'missing.html': [999999, null],
+        'junk.html': [null, null],
+        'plain.html': [open, null],
+      });
     });
   });
 });

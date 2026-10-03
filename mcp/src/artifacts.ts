@@ -44,6 +44,8 @@ export interface ArtifactRow {
   project: string | null;
   kind: ArtifactKind;
   concept: string | null;
+  /** The missed attempt an explainer was written for (`--attempt`), or null. */
+  attempt: number | null;
   created: string;
   bytes: number;
 }
@@ -147,6 +149,11 @@ function meta(head: string, name: string): string | null {
   return m ? unescHtml(m[1]!) : null;
 }
 
+/** A positive integer, or null: an `--attempt` that is anything else links nothing. */
+export function attemptId(raw: string | null | undefined): number | null {
+  return raw && /^[1-9]\d{0,15}$/.test(raw) ? Number(raw) : null;
+}
+
 function unescHtml(s: string): string {
   return s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) =>
     ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[e]!,
@@ -204,6 +211,7 @@ export function listArtifacts(root: string = artifactsDir()): ArtifactRow[] {
           project: meta(head, 'eklavya:project') || null,
           kind: kind === 'explainer' ? 'explainer' : 'artifact',
           concept: meta(head, 'eklavya:concept') || null,
+          attempt: attemptId(meta(head, 'eklavya:attempt')),
           created: meta(head, 'eklavya:created') || st.mtime.toISOString(),
           bytes: st.size,
         });
