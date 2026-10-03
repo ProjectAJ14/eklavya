@@ -267,9 +267,11 @@
   .tag.ok { color:var(--spot); }
 
   /* The explainer viewer: the agent's page, framed sandboxed, then this page's
-     own correction bar. The frame takes the page's reported height, so the two
-     scroll as one document; with no report it stays 80vh and scrolls inside. */
-  .viewer { display:block; width:100%; height:80vh; border:0; background:var(--bg); }
+     own correction bar. The server adds a script to every framed page that
+     reports its height; the frame takes it, so the window is the one scrollbar.
+     Until the first report the frame is 0 tall behind a loader; with none in
+     1.5s (script blocked) it falls back to 80vh and scrolls inside. */
+  .viewer { display:block; width:100%; height:0; border:0; background:var(--bg); }
   .fixbar { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2);
             padding:var(--space-5); border:1px solid var(--line-2); background:var(--panel); }
   .fixbar p { margin:0; }
@@ -2620,7 +2622,12 @@ function viewArtifact(id) {
     const f = $('art-frame');
     f?.addEventListener('load', () => f.contentWindow?.postMessage({ type:'eklavya:mode', mode:window.eklavyaGround.read() }, '*'));
   });
+  AFTER.push(() => {
+    const f = $('art-frame'), gen = GEN;
+    setTimeout(() => { if (gen === GEN && !f.style.height) sized(f, '80vh'); }, 1500);
+  });
   return `<a class="page__back" data-go="${esc(AH('dashboard'))}">← Artifacts</a>
+    <div id="art-wait">${loader('Opening the page…')}</div>
     <iframe class="viewer" id="art-frame" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
     ${a.correction ? `<div class="fixbar" id="fixbar">${loader('Loading the question…')}</div>` : ''}`;
 }
@@ -2726,12 +2733,20 @@ function armLeave(on) {
   window[on ? 'addEventListener' : 'removeEventListener']('beforeunload', holdLeave);
 }
 
+/** Gives the frame its height and takes the loader down. */
+function sized(f, h) {
+  f.style.height = h;
+  $('art-wait')?.remove();
+}
+
 // The framed page reports its height; only that frame's message counts.
+// Clamped to [200, 20000]: past that a page scrolls inside its frame (the
+// server's script lets it), since one giant frame costs memory for nothing.
 addEventListener('message', (e) => {
   const f = $('art-frame');
   if (!f || e.source !== f.contentWindow || e.data?.type !== 'eklavya:height') return;
   const h = Number(e.data.h);
-  if (Number.isFinite(h)) f.style.height = Math.min(20000, Math.max(200, h)) + 'px';
+  if (Number.isFinite(h)) sized(f, Math.min(20000, Math.max(200, h)) + 'px');
 });
 
 function viewArtifactProjects() {

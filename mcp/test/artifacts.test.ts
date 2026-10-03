@@ -47,6 +47,12 @@ describe('createArtifact', () => {
     expect(artifactProject(wt)).toBe(repo);
   });
 
+  it('writes no frame code: the dashboard adds its own to the pages it frames', () => {
+    const html = fs.readFileSync(createBuilt({ title: 'Framed', cwd: repo }).path, 'utf8');
+    expect(html).not.toMatch(/eklavya:height|eklavya:mode|framed|window\.parent/);
+    expect(html).toContain('function saveHtml()');
+  });
+
   it('never overwrites: the same title twice on one day gets a suffix', () => {
     const now = new Date(2026, 8, 24);
     const a = createBuilt({ title: 'Same', cwd: repo, now });
@@ -377,11 +383,9 @@ describe('review fixes', () => {
     expect(readAttempt(path.join(tmp, 'missing.html'))).toBeNull();
   });
 
-  it('shows each option note under its option, and reports its height only when framed', () => {
+  it('shows each option note under its option', () => {
     const html = fs.readFileSync(run('new', 'Notes').trim(), 'utf8');
     expect(html).toMatch(/ol\.options li \.note\{display:block;color:var\(--dim\)/);
-    expect(html).toContain("type:'eklavya:height'");
-    expect(html).toContain('if(window.parent===window) return;');
   });
 
   it('lists nothing the server would refuse: no symlinks, no dot-names', () => {

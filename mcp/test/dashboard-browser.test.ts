@@ -666,6 +666,72 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     });
   });
 
+  describe('one scroll', () => {
+    // A page written without the template's frame script, as every page before 1.46 was.
+    const id = 'plain/tall.html';
+    const dir = () => path.join(process.env.EKLAVYA_HOME!, 'artifacts', 'plain');
+    beforeAll(() => {
+      if (!OPTS) return;
+      fs.mkdirSync(dir(), { recursive: true });
+      fs.writeFileSync(path.join(dir(), 'tall.html'), '<!doctype html><html><head><title>Tall plain page</title>'
+        + '<style>main{min-height:100vh}</style></head><body><main>'
+        + '<p>A line of text that wraps on a narrow screen and stays on one line on a wide one.</p>'.repeat(200)
+        + '</main></body></html>');
+    });
+    afterAll(() => { if (OPTS) fs.rmSync(dir(), { recursive: true, force: true }); });
+
+    /**
+     * The frame element's height, and the framed document's own heights, once
+     * the framed page has caught up with its new size (that crosses a process).
+     */
+    const sizes = async (page: Page) => {
+      const frame = page.frames().find((f) => f.url().includes('tall.html?embed'))!;
+      const read = async () => ({
+        frame: await page.evaluate(() => document.getElementById('art-frame')!.clientHeight),
+        ...await frame.evaluate(() => ({ scroll: document.documentElement.scrollHeight, client: document.documentElement.clientHeight })),
+      });
+      await expect.poll(async () => { const s = await read(); return s.frame === s.client; }).toBe(true);
+      return read();
+    };
+    const settled = (page: Page, h: number) => page.waitForFunction((was) => {
+      const now = document.getElementById('art-frame')!.clientHeight;
+      return now !== was;
+    }, h);
+
+    it('sizes the frame to a page that carries no frame script, so only the window scrolls', async () => {
+      const w = await open(`#/artifacts/view/${enc(id)}`);
+      const s = await sizes(w.page);
+      expect(s.frame).toBeGreaterThan(900);
+      expect(s.frame).toBe(s.client);
+      expect(s.scroll).toBeLessThanOrEqual(s.client);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('shrinks the frame back when the window widens again', async () => {
+      const w = await open(`#/artifacts/view/${enc(id)}`);
+      const wide = (await sizes(w.page)).frame;
+      await w.page.setViewportSize({ width: 560, height: 900 });
+      await settled(w.page, wide);
+      const narrow = (await sizes(w.page)).frame;
+      expect(narrow).toBeGreaterThan(wide);
+      await w.page.setViewportSize({ width: 1280, height: 900 });
+      await settled(w.page, narrow);
+      const back = await sizes(w.page);
+      expect(back.frame).toBe(wide);
+      expect(back.scroll).toBeLessThanOrEqual(back.client);
+      await w.ctx.close();
+    });
+
+    it('falls back to a frame that scrolls on its own when the page never reports', async () => {
+      // As if the script were blocked: the guard sees it already ran, and stays silent.
+      const w = await open(`#/artifacts/view/${enc(id)}`, { init: 'window.__eklavyaEmbed = 1' });
+      expect(await w.page.evaluate(() => document.getElementById('art-frame')!.style.height)).toBe('80vh');
+      expect(await w.page.locator('#view .loader').count()).toBe(0);
+      await w.ctx.close();
+    });
+  });
+
   describe('settings', () => {
     it('saves a user setting, overrides it for a project and inherits it back, from the keyboard', async () => {
       const userFile = path.join(home, 'home', 'config.json');
