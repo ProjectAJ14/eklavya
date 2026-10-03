@@ -563,6 +563,10 @@ export function supersedeEntry(db: DB, staleId: number, replacementId: number): 
  * Soft delete by default so a deletion is auditable, with a hard mode that also
  * removes the derived index rows — a deletion that leaves the vector behind is
  * a deletion the search can still surface (PRD SEC-02).
+ *
+ * The keyword index belongs to the triggers (migration 020): they drop a row's
+ * terms when it stops being live. Removing them here as well is what corrupted
+ * the index. A repeated soft delete keeps the first deletion time.
  */
 export function deleteEntry(db: DB, id: number, hard = false): void {
   if (hard) {
@@ -570,12 +574,8 @@ export function deleteEntry(db: DB, id: number, hard = false): void {
     return;
   }
   db.transaction(() => {
-    db.prepare('UPDATE memory_entries SET deleted_at = ? WHERE id = ?').run(nowIso(), id);
+    db.prepare('UPDATE memory_entries SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL').run(nowIso(), id);
     db.prepare('DELETE FROM memory_vectors WHERE entry_id = ?').run(id);
-    db.prepare(
-      `INSERT INTO memory_fts(memory_fts, rowid, title, narrative, facts, files)
-       SELECT 'delete', id, title, narrative, facts, files FROM memory_entries WHERE id = ?`,
-    ).run(id);
   })();
 }
 

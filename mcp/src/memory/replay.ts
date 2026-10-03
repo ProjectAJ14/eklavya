@@ -4,8 +4,8 @@ import path from 'node:path';
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { identityFor } from './identity.js';
-import { prepare, type HostEvent } from './capture.js';
-import { clip } from './privacy.js';
+import { policyFrom, prepare, type HostEvent } from './capture.js';
+import { clip, type PrivacyPolicy } from './privacy.js';
 import { appendEvent } from './store.js';
 
 /**
@@ -100,17 +100,17 @@ function kindFor(tool: string): HostEvent['kind'] {
   return 'tool_use';
 }
 
-function bodyFor(input: Record<string, unknown>): string {
+function bodyFor(input: Record<string, unknown>, policy: PrivacyPolicy): string {
   const parts: string[] = [];
   for (const key of ['command', 'description', 'prompt', 'pattern', 'query']) {
     if (typeof input[key] === 'string') parts.push(input[key] as string);
   }
   if (typeof input.old_string === 'string' && typeof input.new_string === 'string') {
-    parts.push(`- ${clip(input.old_string as string, 600)}`, `+ ${clip(input.new_string as string, 600)}`);
+    parts.push(`- ${clip(input.old_string as string, 600, policy)}`, `+ ${clip(input.new_string as string, 600, policy)}`);
   }
   if (!parts.length) {
     const keys = Object.keys(input).filter((k) => k !== 'content');
-    if (keys.length) parts.push(keys.map((k) => `${k}=${clip(String(input[k]), 200)}`).join(' '));
+    if (keys.length) parts.push(keys.map((k) => `${k}=${clip(String(input[k]), 200, policy)}`).join(' '));
   }
   return parts.join('\n');
 }
@@ -146,6 +146,7 @@ export function replayTranscript(
     return result;
   }
 
+  const policy = policyFrom(config);
   const lines = text.split('\n').filter(Boolean).slice(0, opts.maxLines ?? 20_000);
   for (const raw of lines) {
     let line: TranscriptLine;
@@ -177,7 +178,7 @@ export function replayTranscript(
       }
     } else {
       for (const use of toolUsesOf(line.message?.content)) {
-        const body = bodyFor(use.input);
+        const body = bodyFor(use.input, policy);
         if (!body.trim()) continue;
         events.push({
           kind: kindFor(use.name),

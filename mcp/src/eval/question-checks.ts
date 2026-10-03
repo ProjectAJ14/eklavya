@@ -90,8 +90,35 @@ export function longestSharedRun(a: string, b: string): number {
   return best;
 }
 
-/** Stems this long stop being read and start being pattern-matched. */
+/**
+ * The question sentence: this long and it stops being read and starts being
+ * pattern-matched.
+ */
 export const STEM_WORD_LIMIT = 25;
+
+/**
+ * The situation that may come before the question. A stem is one plain
+ * sentence of setup and then the question, because a learner who never saw the
+ * code needs somewhere to be told what "the plan" or "this hook" is. Before
+ * this existed, the single 25-word limit squeezed that setup into a bare name.
+ */
+export const SETUP_WORD_LIMIT = 25;
+
+/**
+ * A stem split into its setup and the question that ends it.
+ *
+ * The question is the last sentence; everything before it is setup. Sentences
+ * end at `.`, `!` or `?` followed by whitespace, so `auth.ts` and `res.json()`
+ * stay whole.
+ */
+export function splitStem(stem: string): { setup: string; question: string } {
+  const sentences = stem
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .filter((s) => s.length > 0);
+  if (sentences.length <= 1) return { setup: '', question: stem.trim() };
+  return { setup: sentences.slice(0, -1).join(' '), question: sentences[sentences.length - 1]! };
+}
 
 /** A shared run this long means the stem contains the answer's sentence. */
 export const ANSWER_RUN_LIMIT = 4;
@@ -174,8 +201,14 @@ export function checkQuestion(q: GeneratedQuestion): Check[] {
       : `plan said ${q.answer_position}, model used ${q.correct}`,
   );
 
-  const stemWords = words(q.stem).length;
-  push('stem_length', stemWords <= STEM_WORD_LIMIT, `${stemWords} words (limit ${STEM_WORD_LIMIT})`);
+  const { setup, question } = splitStem(q.stem);
+  const setupWords = words(setup).length;
+  const questionWords = words(question).length;
+  push(
+    'stem_length',
+    setupWords <= SETUP_WORD_LIMIT && questionWords <= STEM_WORD_LIMIT,
+    `setup ${setupWords} words (limit ${SETUP_WORD_LIMIT}), question ${questionWords} words (limit ${STEM_WORD_LIMIT})`,
+  );
 
   // Indexed into `q.options`, never `labels`. `labels` drops empty options, so
   // one blank before the answer shifts every later index by one -- and the

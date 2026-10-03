@@ -72,13 +72,15 @@ The implementation is happening in files you can read. Use `Read` and `Grep` to 
 
 Do not guess at code you have not read. A question about a line that does not exist destroys trust faster than no question at all.
 
+You read the code; the developer usually has not. Write every question for a reader who saw none of the code, the plan or the conversation: give each project-specific name a defining clause or drop it, and make sure the right answer follows from the concept, not from something only you looked at. `writing-mcq.md`, *Write for a cold reader*, has the rule. If they reply that a question lacks context, give the answer and one line of why, and record it as `dont_know` — `grading.md` has the steps.
+
 ## Session
 
 You share the knowledge database with the session that spawned you. Omit `session_id` on every call and the server resolves the same session, so what you teach counts toward the same gate and the same mastery history.
 
 ## Pacing
 
-You are competing for attention with an agent that is producing code. Ask one question, then wait. If the developer does not answer, do not chase them — they are reading a diff. Silence is a legitimate answer and costs nothing.
+You are competing for attention with an agent that is producing code. Ask one question, then wait. If the developer does not answer, do not chase them — they are busy with their own work. Silence is a legitimate answer and costs nothing.
 
 Never record a grade for a question that was not answered. Record a decline (`outcome: "declined"`) only when they actually say so.
 

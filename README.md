@@ -50,7 +50,7 @@ Eklavya notices the ideas behind Claude's work, like "database index" or
 
 | What it does | How it works | Read more |
 |---|---|---|
-| Asks while you work | One question at a time, in the middle of the task. Answer or skip. | [First session](https://eklavya-run.web.app/docs/first-session/) |
+| Asks while you work | One question at a time, in the middle of the task, written so you can answer without having read the code. Answer or skip. | [First session](https://eklavya-run.web.app/docs/first-session/) |
 | Asks while agents build | For a larger change, Eklavya asks Claude to hand the building to a background agent (in your task's worktree, one stage at a time for a staged plan) and ask you questions while it works. If Claude starts changing a second file itself, Eklavya reminds it once. | [The dials](https://eklavya-run.web.app/docs/dials/#cadence--when-it-asks) |
 | Grades your answer | Each answer gets a grade and a short explanation. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
 | Brings topics back | Spaced reviews bring an idea back before you forget it. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
@@ -68,7 +68,7 @@ notes to check against the code.
 | What it does | How it works | Read more |
 |---|---|---|
 | Captures your work | Saves prompts, file edits and tool calls as you work. | [What gets captured](https://eklavya-run.web.app/docs/memory/#what-gets-captured) |
-| Hides secrets | Skips files like `.env` and keys. Removes tokens and passwords before saving. | [What is never captured](https://eklavya-run.web.app/docs/memory/#what-is-never-captured) |
+| Hides secrets | Skips files like `.env` and keys. Removes tokens and passwords before saving or trimming. | [What is never captured](https://eklavya-run.web.app/docs/memory/#what-is-never-captured) |
 | Writes summaries | Groups work into observations and session summaries, on your machine. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
 | Recalls history | Gives Claude past work and where the last session left off at session start, on related prompts, and before it reads a file with history. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |
 | Search and notes | Ask `/eklavya:memory` about a past change, save a note or fix a wrong entry. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyamemory) |

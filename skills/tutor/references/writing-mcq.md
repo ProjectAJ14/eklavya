@@ -3,16 +3,54 @@
 Required reading before you write a question. `SKILL.md` decides *whether* to
 ask and *at what tier*; this is how to build the thing itself.
 
+## Write for a cold reader
+
+Assume the learner saw none of it: not the code, not the plan, not the task
+list, not the conversation. A background agent usually writes the code, so the
+diff you are looking at is one they have never opened. The question has to work
+from the stem and the four options alone.
+
+- **Every project-specific name gets a defining clause, or goes.** "Task 6",
+  "the brief", "the plan", "the island", a component nickname, a file they never
+  opened: each one is a puzzle the learner must solve before the real question.
+  Say what it is — *"the hook that runs when a session starts"* — or ask
+  without it.
+- **The key follows from the concept, never from something only you
+  observed.** A finding in a write-up they never read, the data from one
+  session, your own experiment, the keyframes in a file they never opened: a
+  question whose answer depends on these is unfair, not hard.
+- **Situations beat abstractions.** A stem with no host, no situation and no
+  example cannot be placed. Name the setting in plain words.
+- **Drop the name, keep the constraint.** The project's details are often what
+  made the key the only right answer: *no stored state*, *runs on every prompt*,
+  *one writer*. When you replace a name with a general situation, carry those
+  constraints into it, or a distractor that was wrong in the project becomes
+  right in the abstract.
+
+> Opaque: *Task 6 moves the instruction from SessionStart to UserPromptSubmit.
+> What does that change?*
+>
+> Cold: *A Claude Code hook can inject text once when a session starts, or on
+> every prompt the user sends. Why move a reminder to the per-prompt hook?*
+
 ## Build it in this order
 
 Six parts, then the call. Build them in the order below — not the order they
 appear on screen — because each one constrains the next.
 
-**1. The stem.** One question about one idea, in about 25 words, grounded per
-the plan's `framing`. Ordinary words: "sent with the request" rather than
-"transmitted alongside the request context". Expand an acronym the first time it
-appears for this learner — CSRF once, then CSRF. The answer lives in the
-options, so the stem asks and stops.
+**1. The stem.** Two parts, grounded per the plan's `framing`:
+
+- **The situation** — one plain sentence of 25 words or fewer, saying what is
+  happening and defining any name the question uses. One sentence, not two:
+  if it will not fit, the question is carrying more setup than one idea needs.
+  Leave it out when the question already stands on its own.
+- **The question** — one question about one idea, 25 words or fewer. The
+  answer lives in the options, so the question asks and stops.
+
+Ordinary words: "sent with the request" rather than "transmitted alongside the
+request context". Expand an acronym the first time it appears for this learner —
+CSRF once, then CSRF. The situation sets the scene and never hints at the
+answer.
 
 Ask the positive form, and ask it once: negation makes the stem a reading test
 rather than a question about the idea, and a stem needing a second clause to be
@@ -22,6 +60,12 @@ precise is doing two jobs — ask the first one and keep the other for later.
 
 **2. The correct option.** Write it before the distractors. It sets the length
 and the grammar the other three have to match.
+
+Each option is a complete claim on its own: read alone, it says something that
+is true or false. "Re-point from an ancestor" or "How often, and how recent" is
+a riddle, not an option. When the options differ in length, meet parity by
+lengthening the short ones, never by cutting every option down until none of
+them says anything.
 
 **3. Three distractors**, each drawn from one of these:
 
@@ -92,8 +136,14 @@ quietly drops one of its fields is the other case, and it is what
 Read yours against this. Each line is a property of the question, so a "no" is
 telling you which part to rebuild.
 
-- The stem asks one thing, and it fits in one breath.
+- Someone who saw none of the code, plan or conversation could answer it: every
+  project-specific name is defined, and the key follows from the concept.
+- The stem asks one thing: at most one sentence of situation, then a question,
+  each 25 words or fewer.
+- Read without the project, every wrong option is still wrong: the situation
+  kept the constraints the names carried.
 - The answer appears among the options and nowhere in the stem.
+- Each option is a complete claim when read on its own.
 - All four options are within a few words of the same length and use the same
   grammar. A visibly longer or more careful option reads as the correct one, and
   gets picked without engaging — the same leak as always answering first.

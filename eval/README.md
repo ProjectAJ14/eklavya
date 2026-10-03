@@ -39,7 +39,7 @@ own.
 | `plan` | Builds a throwaway home and repo, upserts the fixture concepts, logs them as session work, and calls the **real** `get_session_quiz_plan`. | none |
 | `generate` | Gives a model the **shipped** `skills/tutor/SKILL.md` and `references/writing-mcq.md`, the fixture's code, and one plan item. Asks for one question. | one per question |
 | `score` | Deterministic checks. No model, free, same answer every time. | none |
-| `judge` | A model reads each question and answers six questions about it. | one per question |
+| `judge` | A model reads each question and answers seven questions about it: six with the code in view, and one cold read of the stem and options alone. | two per question |
 
 `plan` and `score` import the built server from `mcp/dist`, so run
 `npm run build` in `mcp/` first — on a fresh clone `dist/` does not exist.
@@ -71,7 +71,8 @@ Deterministic (`mcp/src/eval/question-checks.ts`, unit-tested in
 - `answer_at_position` — the correct option is in the slot the plan assigned.
   The obedience check: `answerPosition` is a server-side hash precisely so the
   answer cannot cluster, and that only works if the model obeys it
-- `stem_length` — 25 words or fewer
+- `stem_length` — the question sentence is 25 words or fewer, and any situation
+  sentences before it are 25 words or fewer in total
 - `answer_not_in_stem` — longest word-run shared with the correct option, so the
   subject can appear in both (it always does) while the *sentence* cannot
 - `option_parity` — longest/shortest option ratio
@@ -94,10 +95,15 @@ reading one question at a time could ever report them:
 - which slot the answer landed in, across the run
 - how often the correct option was the longest — against a 25% chance baseline
 
-Judged — six, and each needs reading comprehension, which is the only reason a
+Judged — seven, and each needs reading comprehension, which is the only reason a
 model is involved:
 
 - is the question answerable from what is shown
+- is it answerable **cold** (`answerable_cold`): a second call sees only the stem
+  and the four options, with no code, no concept description and no keyed
+  answer, and lists any project-specific name it would need explained
+  (`unexplained_names`). The first judge is shown the diff, so it always has
+  context a learner whose code a background agent wrote does not
 - is the option marked correct actually correct
 - how many of the three distractors a competent person could believe (0–3)
 - how many of the three distractors an expert could argue also answer the stem
@@ -173,7 +179,7 @@ Stated first, because a number that cannot be wrong is not a measurement.
   wrote it. The concepts are therefore unusually clean, and question quality on
   them is an upper bound. Fixtures drawn from an unfamiliar codebase would score
   worse, and that gap is the honest error bar.
-- **Three fixtures, eight concepts.** Nothing here is significant at that size.
+- **Four fixtures, ten concepts.** Nothing here is significant at that size.
   A result that survives one run and not the next is noise, and the run-level
   rates need tens of questions before they mean anything.
 - **The deterministic checks are proxies.** A question can pass all ten and

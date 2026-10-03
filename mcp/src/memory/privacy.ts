@@ -89,15 +89,27 @@ const BUILT_IN: { name: string; re: RegExp }[] = [
  * Group 1 is everything kept (key, separator, an auth scheme); group 2 the
  * quote, group 3 a quoted value, group 4 a bare one.
  */
-const ASSIGNED = new RegExp(
+const ASSIGNED_KEPT =
   String.raw`((?<![A-Za-z0-9_.-])[A-Za-z0-9_.-]*?` +
-    String.raw`(?:password|passwd|passphrase|secret|credentials?|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization)` +
-    String.raw`(?:[_.-]?key)?(?:[_.-]base)?["']?\]?[ \t]*(?::|=>?)(?![=:])[ \t]*` +
-    String.raw`(?:(?:basic|bearer|token|digest)[ \t]+)?)` +
+  String.raw`(?:password|passwd|passphrase|secret|credentials?|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization)` +
+  String.raw`(?:[_.-]?key)?(?:[_.-]base)?["']?\]?[ \t]*(?::|=>?)(?![=:])[ \t]*` +
+  String.raw`(?:(?:basic|bearer|token|digest)[ \t]+)?)`;
+const ASSIGNED = new RegExp(
+  ASSIGNED_KEPT +
     String.raw`(?:(["'])(?!\[redacted)([^"'\n]{4,})\2` +
     String.raw`|(?!\[redacted)([^\s"'\x60,;&(){}\[\]<>$][^\s"'\x60,;&<>)}\]]{5,}))`,
   'gi',
 );
+
+/**
+ * A quoted assignment whose value runs to the end of the text without its
+ * closing quote: `password="hunter2` once a cut has taken the quote `ASSIGNED`
+ * needs. Any length and no state-word exemption, because an unterminated value
+ * is only a prefix — `expired` may be the start of `expired2024`. Anchored to
+ * the end of the text, not of a line, so a complete string that merely spans a
+ * line break is left to the rules above.
+ */
+const UNTERMINATED = new RegExp(ASSIGNED_KEPT + String.raw`(["'])(?!\[redacted)([^"'\n]+)$`, 'i');
 
 /**
  * Bare values that are code, not secrets. Judged only for an unquoted value: a
@@ -184,6 +196,12 @@ export function redact(text: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): R
       return quoted !== undefined ? `${kept}${quote}[redacted:secret]${quote}` : `${kept}[redacted:secret]`;
     },
   );
+  // Linear: the value class stops at a newline, so each candidate key scans
+  // at most the rest of its own line before the end anchor fails.
+  out = out.replace(new RegExp(UNTERMINATED.source, UNTERMINATED.flags), (_m: string, kept: string, quote: string) => {
+    assigned = true;
+    return `${kept}${quote}[redacted:secret]`;
+  });
   if (assigned) kinds.push('assigned-secret');
 
   for (const source of policy.redactPatterns) {
@@ -205,6 +223,67 @@ export function redact(text: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): R
 }
 
 /**
+ * How far back from a cut a partial word is dropped. Longer than every vendor
+ * token shape above, so a key the cut left too short to recognise goes whole;
+ * bounded, so a cut through a long unbroken dump costs this much and no more.
+ */
+const CUT_GUARD = 256;
+
+/** `text` without the word a cut at its end went through. */
+function dropCutHead(text: string): string {
+  let i = text.length;
+  const stop = Math.max(0, text.length - CUT_GUARD);
+  while (i > stop && !/\s/.test(text[i - 1]!)) i--;
+  return text.slice(0, i > stop ? i : stop);
+}
+
+/** `text` without the word a cut at its start went through. */
+function dropCutTail(text: string): string {
+  let i = 0;
+  const stop = Math.min(text.length, CUT_GUARD);
+  while (i < stop && !/\s/.test(text[i]!)) i++;
+  return text.slice(i < stop ? i : stop);
+}
+
+/**
+ * The first `window` characters of `text`, redacted, handling the cut.
+ *
+ * A cut can land inside a secret and leave a piece no pattern recognises: a
+ * quoted value without its closing quote, a bare value under the six
+ * characters `ASSIGNED` wants, or a vendor key under its minimum length. So
+ * when the window did cut, the partial word at the cut is dropped, and an
+ * unterminated quoted value before it is redacted by `redact` itself.
+ */
+export function redactHead(text: string, window: number, policy: PrivacyPolicy = DEFAULT_PRIVACY): RedactionResult {
+  return redact(text.length > window ? dropCutHead(text.slice(0, window)) : text, policy);
+}
+
+/**
+ * The last `window` characters of `text`, redacted, handling the cut: the
+ * partial word at the start goes, since a suffix of a secret has lost the key
+ * or prefix that would identify it.
+ */
+export function redactTail(text: string, window: number, policy: PrivacyPolicy = DEFAULT_PRIVACY): RedactionResult {
+  return redact(text.length > window ? dropCutTail(text.slice(-window)) : text, policy);
+}
+
+/**
+ * `text` cut to `max` characters, redacted first. A cut made before redaction
+ * can land inside a secret and leave a head no pattern recognises
+ * (`DB_PASSWORD="hunter2` has lost the quote the rule needs), so every place
+ * that trims a piece of a body goes through here, not `.slice()`. Pass the
+ * configured policy so configured patterns see the text before the cut too.
+ */
+export function clip(text: string, max: number, policy: PrivacyPolicy = DEFAULT_PRIVACY): string {
+  return redactHead(text, max * 4, policy).text.slice(0, max);
+}
+
+/** The last `max` characters of `text`, redacted before the cut. */
+export function clipTail(text: string, max: number, policy: PrivacyPolicy = DEFAULT_PRIVACY): string {
+  return redactTail(text, max * 4, policy).text.slice(-max);
+}
+
+/**
  * True when this path must never be captured at all.
  *
  * Case-insensitive, and it follows a symlink where one exists. Both matter for
@@ -217,16 +296,6 @@ export function redact(text: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): R
  * common case costs nothing, and a path that does not exist keeps the answer
  * the literal comparison gave.
  */
-/**
- * `text` cut to `max` characters, redacted first. A cut made before redaction
- * can land inside a secret and leave a head no pattern recognises
- * (`DB_PASSWORD="hunter2` has lost the quote the rule needs), so every place
- * that trims a piece of a body goes through here, not `.slice()`.
- */
-export function clip(text: string, max: number): string {
-  return redact(text.slice(0, max * 4)).text.slice(0, max);
-}
-
 export function pathExcluded(file: string, policy: PrivacyPolicy = DEFAULT_PRIVACY): boolean {
   const matches = (candidate: string): boolean => {
     const normalised = candidate.replace(/\\/g, '/').toLowerCase();

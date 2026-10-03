@@ -114,6 +114,23 @@ it rebuilds footing. If they want to stop, they will say so; wait to be told.
 **Never dump the remaining answers as a list.** If the quiz ends early, it ends.
 A wall of four explanations at the door is not teaching, it is a receipt.
 
+## When they say the question lacks context
+
+"This question does not have enough context" is a verdict on the question, not
+a decline. The question assumed something they never saw, so the miss is
+yours. Never drop it untaught:
+
+1. **Own it** in a few words — the question leaned on something you had not
+   shown them.
+2. **Give the answer and one line of why**, defining the name or situation the
+   stem skipped.
+3. **Record it as a blank**: `grade: 0`, `outcome: "dont_know"`, with that
+   answer in `feedback`. It is not `declined` — a decline is never offered
+   again, and they did not ask to be left alone.
+
+The next question about it, now or later, starts with the situation sentence
+the first one was missing (`writing-mcq.md`, *Write for a cold reader*).
+
 ## `already_taught`
 
 When it is true on a plan item, they blanked on this before and you explained
