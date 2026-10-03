@@ -294,6 +294,39 @@ describe('record_attempt and explain_on_wrong', () => {
     expect(r.explain.instruction).toMatch(/all 4 options/);
   });
 
+  const options = ['A cache', 'A lock', 'A queue', 'A log'];
+  const notes = ['keeps reads', 'serialises writers', 'orders work', 'appends history'];
+  const row = (id: number) =>
+    db.prepare('SELECT correct, option_notes FROM attempts WHERE id = ?').get(id) as { correct: string | null; option_notes: string | null };
+
+  it('stores the answer key and returns the attempt id', async () => {
+    const r = await attempt({ answer: 'A cache', grade: 1, outcome: 'answered', format: 'mcq', options, correct: 'A lock', option_notes: notes });
+    expect(r.attempt_id).toEqual(expect.any(Number));
+    expect(row(r.attempt_id)).toEqual({ correct: 'A lock', option_notes: JSON.stringify(notes) });
+    expect(r.correct_mismatch).toBeUndefined();
+    expect(r.option_notes_mismatch).toBeUndefined();
+    // The explainer gets what it needs to link the page and show each note.
+    expect(r.explain).toMatchObject({ attempt_id: r.attempt_id, correct: 'A lock', option_notes: notes });
+    expect(r.explain.instruction).toContain(`--attempt ${r.attempt_id}`);
+    expect(r.explain.instruction).toMatch(/note/);
+    // A pass still returns its id, and has nothing to explain.
+    const pass = await attempt({ answer: 'A lock', grade: 4, outcome: 'answered', format: 'mcq', options, correct: 'A lock' });
+    expect(pass.attempt_id).toBe(r.attempt_id + 1);
+  });
+
+  it('keeps the answer but stores NULL for a key that does not match the options', async () => {
+    const r = await attempt({ answer: 'A cache', grade: 1, outcome: 'answered', format: 'mcq', options, correct: 'a lock', option_notes: notes.slice(1) });
+    expect(row(r.attempt_id)).toEqual({ correct: null, option_notes: null });
+    expect(r.correct_mismatch).toMatch(/verbatim/);
+    expect(r.option_notes_mismatch).toMatch(/one note per option/);
+    expect(r.explain).toMatchObject({ correct: null, option_notes: null });
+    // With no options at all there is nothing for a key to match.
+    const bare = await attempt({ answer: 'x', grade: 1, outcome: 'answered', correct: 'A lock', option_notes: notes });
+    expect(row(bare.attempt_id)).toEqual({ correct: null, option_notes: null });
+    expect(bare.correct_mismatch).toBeDefined();
+    expect(bare.option_notes_mismatch).toBeDefined();
+  });
+
   it('hands back an explain block on a miss and a taught blank, never on a pass, skip or decline', async () => {
     setExplain(true);
     const miss = await attempt({ answer: 'wrong', grade: 2, outcome: 'answered' });

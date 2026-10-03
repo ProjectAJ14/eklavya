@@ -140,7 +140,17 @@ concept has unmet prerequisites:
 ## Recording it
 
 `record_attempt` with `format: "mcq"`, `options` as the labels you offered,
-`answer` as the one they picked, and `question` as the **stem only**.
+`answer` as the one they picked, `correct` as the right option's label
+verbatim, `option_notes` as the `description` you wrote under each option (same
+order as `options`), and `question` as the **stem only**.
+
+`correct` and `option_notes` are what let the learner correct a missed answer
+from its explainer page: the dashboard grades the new pick against `correct`
+and shows each note under its option. A `correct` that is not one of the
+options, or a notes list of the wrong length, is stored as nothing and the
+response says so (`correct_mismatch`, `option_notes_mismatch`) — the answer
+itself is still recorded. The response's `attempt_id` names the row; on a miss
+the `explain` block carries it for the explainer.
 
 Options belong in `options`. The stem is what gets fingerprinted, so options
 baked into it would make every reshuffle look like a brand-new question and
