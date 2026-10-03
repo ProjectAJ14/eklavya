@@ -93,7 +93,8 @@ with diagrams that you can print or save as PDF.
 ## Dashboard
 
 Run `eklavya dashboard` to open a local page in your browser. It keeps running
-in the background, and each session start restarts it if needed. You can also
+in the background, and each session start restarts it if needed. A malformed
+request gets an error reply instead of stopping it. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. It has four parts:
 
