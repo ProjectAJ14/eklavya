@@ -1,3 +1,10 @@
+## [1.47.5](https://github.com/ProjectAJ14/eklavya/compare/v1.47.4...v1.47.5) (2026-10-03)
+
+
+### Bug Fixes
+
+* answer a malformed dashboard request with 400 instead of crashing ([#106](https://github.com/ProjectAJ14/eklavya/issues/106)) ([242fc65](https://github.com/ProjectAJ14/eklavya/commit/242fc65fd3a7fbe8b6695920033d175fd9778d8b))
+
 ## [1.47.4](https://github.com/ProjectAJ14/eklavya/compare/v1.47.3...v1.47.4) (2026-10-03)
 
 
