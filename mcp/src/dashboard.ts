@@ -1459,32 +1459,40 @@ export function withoutWebFonts(html: string): string {
 /**
  * Added to every page the viewer frames, so the window is the one scrollbar:
  * the page stops scrolling itself and reports its height, which the viewer
- * gives the frame. The height is the body's bottom edge, which shrinks when the
- * window widens; `scrollHeight` cannot drop below the frame's own height. Pages
- * on disk carry `main{min-height:100vh}`, and 100vh is the frame, so that floor
- * goes too. Past the viewer's 20000px cap the page scrolls itself again.
+ * gives the frame. The height is where an empty block appended after the
+ * content sits, margins included: it shrinks when the window widens
+ * (`scrollHeight` cannot drop below the frame) and ignores a body set to 100%
+ * of the frame. Pages on disk carry
+ * `main{min-height:100vh}`, and 100vh is the frame, so that floor goes too.
+ * Content that still grows with the frame (another 100vh box) outruns every
+ * report: after three in a row the page asks to scroll itself
+ * (`eklavya:scroll`). Past the viewer's 20000px cap it scrolls itself too.
  */
+// ponytail: in-flow content only, watched as it was when the script ran: an absolutely
+// positioned box below the end, or a block a page script appends to <body> later, is not counted.
 export const EMBED_SCRIPT = `<script>
 (function () {
   if (parent === window || window.__eklavyaEmbed) return; window.__eklavyaEmbed = 1;
-  var root = document.documentElement, body = document.body, last = 0, css = document.createElement('style');
-  root.classList.add('framed');
-  css.textContent = 'html,body{overflow-y:hidden !important}.framed main{min-height:0 !important}';
-  (document.head || root).appendChild(css);
+  var root = document.documentElement, body = document.body, kids = [].slice.call(body.children), last = 0, strikes = 0, width = innerWidth;
+  var css = document.createElement('style'), end = body.appendChild(document.createElement('div')), seen = window.ResizeObserver && new ResizeObserver(post);
+  css.textContent = 'html,body{overflow-y:hidden !important}.framed main{min-height:0 !important}'; end.style.clear = 'both';
+  root.classList.add('framed'); (document.head || root).appendChild(css);
+  function measure() {
+    var s = getComputedStyle(body);
+    return Math.ceil(end.getBoundingClientRect().top + scrollY + parseFloat(s.paddingBottom) + parseFloat(s.marginBottom));
+  }
   function post() {
-    var h = Math.ceil(body.getBoundingClientRect().bottom + scrollY + parseFloat(getComputedStyle(body).marginBottom));
-    css.disabled = h > 20000;
+    var h = strikes > 2 ? last : measure();
+    css.disabled = strikes > 2 || h > 20000;
     if (h !== last) { last = h; parent.postMessage({ type: 'eklavya:height', h: h }, '*'); }
   }
-  post();
-  addEventListener('DOMContentLoaded', post);
-  addEventListener('load', post);
-  if (window.ResizeObserver) new ResizeObserver(post).observe(body);
-  if (document.fonts) document.fonts.ready.then(post);
-  addEventListener('message', function (e) {
-    var d = e.data;
-    if (e.source === parent && d && d.type === 'eklavya:mode' && (d.mode === 'ink' || d.mode === 'paper')) root.setAttribute('data-mode', d.mode);
+  addEventListener('resize', function () {
+    strikes = innerWidth === width && measure() > innerHeight + 1 ? strikes + 1 : 0; width = innerWidth;
+    if (strikes > 2) { css.disabled = true; parent.postMessage({ type: 'eklavya:scroll' }, '*'); }
   });
+  post(); addEventListener('DOMContentLoaded', post); addEventListener('load', post); if (document.fonts) document.fonts.ready.then(post);
+  if (seen) [body].concat(kids).forEach(function (el) { seen.observe(el); });
+  addEventListener('message', function (e) { var d = e.data; if (e.source === parent && d && d.type === 'eklavya:mode' && (d.mode === 'ink' || d.mode === 'paper')) root.setAttribute('data-mode', d.mode); });
 })();
 </script>`;
 

@@ -335,7 +335,11 @@ is not null, the pinned correction bar and a native `<dialog>` for the modal.
 `?embed` goes through `embedHtml`: it strips the template's Google Fonts links,
 renames a 1.46.0 page's own height message out of the race, and adds
 `EMBED_SCRIPT` before `</body>`, which hides the page's overflow and reports
-the body's bottom edge (it can shrink; `scrollHeight` cannot). The response
+where an empty block appended after the content sits (it can shrink, and it
+ignores `html,body{height:100%}`; `scrollHeight` does neither). Content that
+grows with the frame (a `100vh` box) outruns three reports in a row; the page
+then sends `eklavya:scroll` and the viewer gives it the 80vh frame to scroll
+in. The response
 carries `ARTIFACT_EMBED_CSP` (no font hosts), so the viewer keeps the
 no-outbound-request promise. The framed page may only `postMessage` its
 height (`eklavya:height`, accepted from that frame's `contentWindow` alone, and
@@ -347,7 +351,8 @@ back to 80vh after 1.5s without one.
 `eklavya-dash-tabs`, least-recently-viewed eviction that spares open
 corrections); `drawTabs(active)` draws the strip at the top of the gallery and
 the viewer. The URL names the active tab. Scroll per tab lives in memory and is
-restored on the frame's first height report. Every write
+restored once the page is tall enough to reach it, or abandoned when the
+reader scrolls first. Every write
 is page code calling `postJson('/api/attempts/retry', …)`; the server grades and
 never sends `correct`. `armLeave` holds a `beforeunload` prompt while the bar is
 open and `render()` disarms it on every navigation. The resize handler skips
