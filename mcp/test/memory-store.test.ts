@@ -232,6 +232,44 @@ describe('entries and retrieval', () => {
   });
 });
 
+describe('keyword index across the entry lifecycle', () => {
+  /** Throws when the index and the live rows disagree; `rank = 1` compares content too. */
+  function ftsIntact(): void {
+    db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
+  }
+
+  it('survives a repeated soft delete followed by a hard delete', () => {
+    const id = insertEntry(db, { project: PROJECT, title: 'Lease renewal', narrative: 'The worker renews its lease.' });
+    ftsIntact();
+    deleteEntry(db, id);
+    ftsIntact();
+    const first = (db.prepare('SELECT deleted_at FROM memory_entries WHERE id = ?').get(id) as { deleted_at: string })
+      .deleted_at;
+    deleteEntry(db, id);
+    ftsIntact();
+    expect(db.prepare('SELECT deleted_at FROM memory_entries WHERE id = ?').get(id)).toEqual({ deleted_at: first });
+    deleteEntry(db, id, true);
+    ftsIntact();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entries WHERE id = ?').get(id)).toEqual({ n: 0 });
+  });
+
+  it('leaves the index alone when a deleted row is corrected or superseded, and reindexes it if restored', () => {
+    const id = insertEntry(db, { project: PROJECT, title: 'Lease renewal', narrative: 'The worker renews its lease.' });
+    const other = insertEntry(db, { project: PROJECT, title: 'Unrelated', narrative: 'Nothing here.' });
+    deleteEntry(db, id);
+    db.prepare("UPDATE memory_entries SET narrative = 'The worker extends its lease.' WHERE id = ?").run(id);
+    ftsIntact();
+    supersedeEntry(db, id, other);
+    ftsIntact();
+    expect(db.prepare("SELECT COUNT(*) AS n FROM memory_fts WHERE memory_fts MATCH 'extends'").get()).toEqual({ n: 0 });
+
+    db.prepare('UPDATE memory_entries SET deleted_at = NULL, superseded_by = NULL WHERE id = ?').run(id);
+    ftsIntact();
+    expect(keywordSearch(db, 'extends', { project: PROJECT }).map((h) => h.entry.id)).toEqual([id]);
+    expect(keywordSearch(db, 'renews', { project: PROJECT })).toHaveLength(0);
+  });
+});
+
 describe('savings receipts', () => {
   it('records base and delivered tokens, and a detail fetch revises the same episode', () => {
     const entry = insertEntry(db, { project: PROJECT, title: 'A thing', narrative: 'x'.repeat(400) });

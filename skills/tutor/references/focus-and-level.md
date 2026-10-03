@@ -50,7 +50,9 @@ The code is the subject. Name the file, the line, the decision.
 The same subject matter, asked so the answer transfers to a different codebase.
 **This does not mean textbook questions.** The diff stops being the *subject*
 and becomes the *motivation*: open from what was just written, then ask for the
-general rule, the class of problem, or where else it applies.
+general rule, the class of problem, or where else it applies. Open from it in
+words the learner can follow without having read it — they usually have not
+(`writing-mcq.md`, *Write for a cold reader*).
 
 - Right: *"We gave the profile cache a 60s TTL in `profile.ts`. TTL is one
   answer to cache invalidation — what problem is it actually solving, and what

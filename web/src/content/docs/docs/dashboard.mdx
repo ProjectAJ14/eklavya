@@ -249,7 +249,7 @@ An old link without a project can pick up the previous saved project once. New-s
 
 ## What it is, underneath
 
-The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except its two writes, validates loopback request addresses, escapes stored content and refuses framing by other pages. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above. The tips library (Driver.js) ships inside the package, and the dashboard serves it itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`.
+The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except its two writes, validates loopback request addresses, escapes stored content and refuses framing by other pages. A request whose address is not a valid URL gets a `400` reply, and the server keeps running. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above. The tips library (Driver.js) ships inside the package, and the dashboard serves it itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`.
 
 Its read-only JSON endpoints serve summary state (`/api/state`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`), settings (`/api/settings`) and a missed question to correct (`/api/attempts/correction?id=`, without its answer). There are two writes:
 

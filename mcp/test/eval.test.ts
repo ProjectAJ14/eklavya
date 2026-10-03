@@ -4,6 +4,8 @@ import {
   scoreAll,
   longestSharedRun,
   STEM_WORD_LIMIT,
+  SETUP_WORD_LIMIT,
+  splitStem,
   ANSWER_RUN_LIMIT,
   OPTION_RATIO_LIMIT,
   PARITY_MIN_WORDS,
@@ -64,7 +66,34 @@ describe('question checks', () => {
     });
 
     it('does not count bare punctuation as a word', () => {
-      expect(find(good({ stem: 'Why is httpOnly set here ?' }), 'stem_length').detail).toContain('5 words');
+      expect(find(good({ stem: 'Why is httpOnly set here ?' }), 'stem_length').detail).toContain('question 5 words');
+    });
+
+    it('gives a sentence of setup its own budget', () => {
+      // Twenty words of situation and twenty of question: over the old single
+      // limit, and the shape a cold reader needs.
+      const q = good({ stem: `${'word '.repeat(19)}end. ${'word '.repeat(19)}why?` });
+      const c = find(q, 'stem_length');
+      expect(c.ok).toBe(true);
+      expect(c.detail).toContain('setup 20 words');
+    });
+
+    it('fails setup over its own limit', () => {
+      const q = good({ stem: `${'word '.repeat(26)}end. Why?` });
+      expect(find(q, 'stem_length').ok).toBe(false);
+    });
+  });
+
+  describe('splitStem', () => {
+    it('takes the last sentence as the question', () => {
+      expect(splitStem('A hook prints to stdout. Who reads it?')).toEqual({
+        setup: 'A hook prints to stdout.',
+        question: 'Who reads it?',
+      });
+    });
+
+    it('keeps file names and calls whole', () => {
+      expect(splitStem('Why does auth.ts call res.json() here?').setup).toBe('');
     });
   });
 
@@ -270,6 +299,13 @@ describe('the thresholds themselves', () => {
     expect(STEM_WORD_LIMIT).toBe(25);
     expect(find(good({ stem: stem(25) }), 'stem_length').ok).toBe(true);
     expect(find(good({ stem: stem(26) }), 'stem_length').ok).toBe(false);
+  });
+
+  it('pins SETUP_WORD_LIMIT at the boundary', () => {
+    expect(SETUP_WORD_LIMIT).toBe(25);
+    const setup = (n: number) => `${'word '.repeat(n - 1)}end. Why?`;
+    expect(find(good({ stem: setup(25) }), 'stem_length').ok).toBe(true);
+    expect(find(good({ stem: setup(26) }), 'stem_length').ok).toBe(false);
   });
 
   it('pins ANSWER_RUN_LIMIT at the boundary', () => {

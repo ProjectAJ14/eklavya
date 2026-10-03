@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -554,6 +555,40 @@ describe('the dashboard is loopback-only, and says so to a browser', () => {
       const rebound = await get({ host: 'evil.example' });
       expect(rebound.status).toBe(403);
       expect(rebound.body).toContain('loopback');
+    } finally {
+      close();
+    }
+  });
+
+  it('answers 400 to a malformed request target and keeps serving', async () => {
+    const { url, close } = await startDashboard(db, { port: 0 });
+    const port = Number(new URL(url).port);
+
+    /** Raw socket: no HTTP client will send a target that is not a URL. */
+    const raw = (target: string) =>
+      new Promise<string>((resolve, reject) => {
+        const sock = net.connect(port, '127.0.0.1', () => {
+          sock.end(`GET ${target} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`);
+        });
+        let out = '';
+        sock.on('data', (c) => (out += String(c)));
+        sock.on('end', () => resolve(out));
+        sock.on('error', reject);
+      });
+
+    try {
+      const bad = await raw('http://[');
+      expect(bad).toMatch(/^HTTP\/1\.1 400 /);
+      expect(bad).toContain('Bad request target.');
+
+      // A bad percent-escape in an artifact id is still the route's own 400.
+      expect(await raw('/artifacts/%E0%A4%A')).toMatch(/^HTTP\/1\.1 400 [\s\S]*bad artifact path/);
+
+      // The same process answers the next request.
+      const health = await fetch(`${url}/api/health`);
+      expect(health.status).toBe(200);
+      expect((await health.json()).pid).toBe(process.pid);
+      expect((await fetch(`${url}/api/state`)).status).toBe(200);
     } finally {
       close();
     }

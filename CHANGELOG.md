@@ -1,3 +1,31 @@
+## [1.47.5](https://github.com/ProjectAJ14/eklavya/compare/v1.47.4...v1.47.5) (2026-10-03)
+
+
+### Bug Fixes
+
+* answer a malformed dashboard request with 400 instead of crashing ([#106](https://github.com/ProjectAJ14/eklavya/issues/106)) ([242fc65](https://github.com/ProjectAJ14/eklavya/commit/242fc65fd3a7fbe8b6695920033d175fd9778d8b))
+
+## [1.47.4](https://github.com/ProjectAJ14/eklavya/compare/v1.47.3...v1.47.4) (2026-10-03)
+
+
+### Bug Fixes
+
+* write quiz questions a learner can answer without the agent's context ([#104](https://github.com/ProjectAJ14/eklavya/issues/104)) ([b258e55](https://github.com/ProjectAJ14/eklavya/commit/b258e55a19b0f41a3047b382fc8cb0a32ffef45d))
+
+## [1.47.3](https://github.com/ProjectAJ14/eklavya/compare/v1.47.2...v1.47.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* redact secrets before clipping so a cut cannot leave a raw prefix ([#102](https://github.com/ProjectAJ14/eklavya/issues/102)) ([68f12b4](https://github.com/ProjectAJ14/eklavya/commit/68f12b4f73136e727ca0fa045a9b0ec21d9805fc))
+
+## [1.47.2](https://github.com/ProjectAJ14/eklavya/compare/v1.47.1...v1.47.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* keep the memory keyword index consistent across deletes ([#103](https://github.com/ProjectAJ14/eklavya/issues/103)) ([b568fcb](https://github.com/ProjectAJ14/eklavya/commit/b568fcb88541a4694a462a10343d7cc0dc47523e))
+
 ## [1.47.1](https://github.com/ProjectAJ14/eklavya/compare/v1.47.0...v1.47.1) (2026-10-03)
 
 

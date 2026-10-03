@@ -95,6 +95,19 @@ describe('capture-tool: what a result looks like, whatever shape it came in', ()
     expect(bodyOf('ToolE')?.body).toBe('e\n');
   });
 
+  it('applies configured patterns and quoted-secret rules before clipping inputs and results', () => {
+    writeConfig({ privacy: { redact_patterns: ['ACME-[0-9]{12}'] } });
+    // Synthetic values only. Each would be cut mid-value by a clip or excerpt.
+    const longQuoted = `password="${'S'.repeat(2600)}"`;
+    const result = `${'r '.repeat(790)}ACME-123456789012 ${'m '.repeat(2000)}password="${'T'.repeat(900)}" ${'e '.repeat(100)}`;
+    capture('ToolG', { query: `${'w '.repeat(98)}ACME-123456789012`, secret_blob: longQuoted }, result);
+    const body = bodyOf('ToolG')!.body;
+    expect(body).not.toMatch(/ACME-\d/);
+    expect(body).not.toContain('SSSS');
+    expect(body).not.toContain('TTTT');
+    expect(body).toContain('[redacted:secret]');
+  });
+
   it('does nothing without a database', () => {
     fs.rmSync(dbFile);
     expect(capture('ToolF', { command: 'f' }, 'x').status).toBe(0);
