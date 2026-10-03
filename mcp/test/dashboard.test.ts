@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
-  SETTINGS, CLI_ONLY, WRITES,
+  SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT,
 } from '../src/dashboard.js';
 import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
@@ -563,6 +563,55 @@ describe('the dashboard is loopback-only, and says so to a browser', () => {
 /* ------------------------------------------------------------------
    One project inventory for both workflows (`/api/projects`).
    ------------------------------------------------------------------ */
+/** The frame script the 1.46.0 template wrote into every page, verbatim. */
+const TEMPLATE_146 = `<script>
+/* Inside the dashboard's explainer viewer: report this page's height so the
+   viewer shows it as one document, and take the viewer's ground. Opened on its
+   own, it does neither. */
+(function(){
+  if(window.parent===window) return;
+  var root=document.documentElement;
+  root.classList.add('framed');
+  function post(){ parent.postMessage({type:'eklavya:height',h:root.scrollHeight},'*'); }
+  addEventListener('load',post);
+  if(window.ResizeObserver) new ResizeObserver(post).observe(root);
+  addEventListener('message',function(e){
+    var d=e.data;
+    if(e.source===parent&&d&&d.type==='eklavya:mode'&&(d.mode==='ink'||d.mode==='paper')) root.setAttribute('data-mode',d.mode);
+  });
+})();
+function saveHtml(){ return 1; }
+</script>`;
+
+describe('embedHtml', () => {
+  const count = (s: string, x: string) => s.split(x).length - 1;
+
+  it('adds the frame script once, just before the last </body>', () => {
+    const out = embedHtml('<html><body><p>a</p><!-- </body> --></body></html>');
+    expect(out).toBe('<html><body><p>a</p><!-- </body> -->' + EMBED_SCRIPT + '</body></html>');
+    expect(count(out, EMBED_SCRIPT)).toBe(1);
+  });
+
+  it('appends it when the page has no </body>', () => {
+    expect(embedHtml('<p>a</p>')).toBe('<p>a</p>' + EMBED_SCRIPT);
+  });
+
+  it("takes the 1.46 template's height report out of the race, and keeps the rest of its script", () => {
+    const out = embedHtml(`<html><body><p>a</p>${TEMPLATE_146}</body></html>`);
+    // The only height report left is the injected one, whose height can shrink.
+    expect(count(out, "'eklavya:height'")).toBe(1);
+    expect(count(EMBED_SCRIPT, "'eklavya:height'")).toBe(1);
+    expect(out).toContain('function saveHtml(){ return 1; }');
+  });
+
+  it('is one guarded inline script of at most 25 lines', () => {
+    expect(EMBED_SCRIPT).toMatch(/^<script>[\s\S]*<\/script>$/);
+    expect(count(EMBED_SCRIPT, '<script')).toBe(1);
+    expect(EMBED_SCRIPT.split('\n').length).toBeLessThanOrEqual(25);
+    expect(EMBED_SCRIPT).toContain('if (parent === window || window.__eklavyaEmbed) return;');
+  });
+});
+
 describe('projectInventory', () => {
   let home = '';
   let fdb: DB;
@@ -880,10 +929,12 @@ describe('the server says what a browser may do with its pages', () => {
       fs.writeFileSync(path.join(home, 'artifacts', 'p', 'f.html'),
         '<title>f</title><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">\n<p>ok</p>');
       const framed = await request(port, 'GET', '/artifacts/p/f.html?embed');
-      expect(framed.body).toBe('<title>f</title><p>ok</p>');
+      expect(framed.body).toBe('<title>f</title><p>ok</p>' + EMBED_SCRIPT);
       expect(framed.headers['content-security-policy']).not.toMatch(/fonts\.g/);
       expect(framed.headers['content-security-policy']).toContain("font-src 'none'");
-      expect((await request(port, 'GET', '/artifacts/p/f.html')).body).toContain('fonts.googleapis.com');
+      const raw = (await request(port, 'GET', '/artifacts/p/f.html')).body;
+      expect(raw).toContain('fonts.googleapis.com');
+      expect(raw).not.toContain('eklavya:height');
       for (const route of ['/', '/api/state']) {
         const r = await request(port, 'GET', route);
         expect(r.headers['x-frame-options'], route).toBe('DENY');

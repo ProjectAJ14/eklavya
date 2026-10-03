@@ -1015,15 +1015,15 @@ async function backgroundDashboard(): Promise<'running' | 'started' | 'replaced'
 }
 
 /**
- * Opens an artifact and returns what was opened. An explainer linked to a
- * missed attempt opens in the dashboard's viewer, where the learner can correct
- * their answer -- a `file://` page has no way to reach the database. Anything
- * else, or no background dashboard (autostart off, or the port taken), opens
- * the file as before.
+ * Opens an artifact and returns what was opened. Every page in the artifact
+ * folder opens as a tab in the dashboard's viewer, where an explainer for a
+ * missed question can be corrected -- a `file://` page has no way to reach
+ * the database. A file outside the folder, or no background dashboard
+ * (autostart off, or the port taken), opens the file itself.
  */
 async function openArtifact(file: string): Promise<string> {
-  const { artifactIdOf, readAttempt } = await import('./artifacts.js');
-  const id = readAttempt(file) !== null ? artifactIdOf(file) : null;
+  const { artifactIdOf } = await import('./artifacts.js');
+  const id = artifactIdOf(file);
   let target = file;
   if (id && loadGlobalConfig().dashboard_autostart && (await backgroundDashboard())) {
     target = `http://127.0.0.1:${dashboardPort()}/#/artifacts/view/${encodeURIComponent(id)}`;

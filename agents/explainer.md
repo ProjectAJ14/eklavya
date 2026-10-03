@@ -30,7 +30,8 @@ Work with what you have; do not go looking for a conversation you cannot see.
    It prints the file's path. Never pick a path yourself.
 4. Replace the `<!-- CONTENT … -->` comment in that file with the explanation.
    Leave the `<head>`, the download buttons, the `.brand` header and the
-   `.made-with` footer alone.
+   `.made-with` footer alone. Add no frame or height script: the dashboard
+   adds its own when it shows the page.
 5. `eklavya artifacts open "<path>"`, then reply with the path, one line.
 
 ## What goes on it

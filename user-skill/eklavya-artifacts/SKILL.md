@@ -37,9 +37,8 @@ eklavya artifacts new "<Title>" --description "<one line: what this page answers
 Add `--kind explainer --concept <slug>` when the page explains an Eklavya
 concept, so the dashboard links it to that concept. When the page is for a
 missed question and you were handed its `attempt_id`, also add
-`--attempt <attempt_id>`: when the background dashboard is running, the page
-opens in the dashboard's viewer, and when the right option was recorded it shows
-a **Correct your answer** button under it.
+`--attempt <attempt_id>`: when the right option was recorded, the page shows a
+**Correct your answer** bar in the dashboard's viewer.
 
 It prints the path of a new file, already carrying the Eklavya template: the
 design tokens inlined, dark by default, the print stylesheet, the PDF and HTML
@@ -53,7 +52,9 @@ filename.
 Edit the file: replace the `<!-- CONTENT … -->` comment with the page, and
 adjust the lede if the description was too short. Leave the `<head>`, the
 `.actions` toolbar and its script, the `.brand` header and the `.made-with`
-footer alone: they carry the Eklavya favicon, share tags and link home.
+footer alone: they carry the Eklavya favicon, share tags and link home. Add no
+script for the dashboard's viewer (height reports, scrolling, theme messages):
+the dashboard adds its own to every page it frames.
 
 **Write for the person reading it.** Plain English first: what the thing *does*
 before what it is called. One idea per section under an `<h2>`. A concrete
@@ -128,8 +129,8 @@ figures); never on a tall wrapper, or the PDF gets half-empty pages. No
 eklavya artifacts open "<the path new printed>"
 ```
 
-It prints what it opened: the file, or for a page made with `--attempt`, its
-address in the dashboard's viewer (when the background dashboard is on). Report
+It prints what it opened: the page's address in the dashboard's viewer, where
+it opens as a tab (when the background dashboard is on), or else the file. Report
 the path in one line. Do not mention links, publishing or sharing.
 
 `eklavya artifacts list` shows every page, newest first (`--here` for this

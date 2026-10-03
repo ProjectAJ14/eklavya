@@ -136,7 +136,9 @@ a loopback Origin, JSON, the per-start page token and the route's size cap. A ne
 write is a `WRITES` row plus a handler; the page posts through its one `postJson`.
 Artifact resolution must reject traversal and stay inside the real artifact
 root. Artifact creation never overwrites or publishes; metadata lives in HTML
-heads, not a database table. The template inlines shared design tokens.
+heads, not a database table. The template inlines shared design tokens and
+carries no frame code: `embedHtml` adds `EMBED_SCRIPT` to every `?embed`
+response, so pages on disk of any age report their height to the viewer.
 
 ## Documentation and verification
 

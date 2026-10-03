@@ -267,15 +267,66 @@
   .tag.ok { color:var(--spot); }
 
   /* The explainer viewer: the agent's page, framed sandboxed, then this page's
-     own correction bar. The frame takes the page's reported height, so the two
-     scroll as one document; with no report it stays 80vh and scrolls inside. */
-  .viewer { display:block; width:100%; height:80vh; border:0; background:var(--bg); }
-  .fixbar { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2);
-            padding:var(--space-5); border:1px solid var(--line-2); background:var(--panel); }
+     own correction bar. The server adds a script to every framed page that
+     reports its height; the frame takes it, so the window is the one scrollbar.
+     Until the first report the frame is 0 tall behind a loader; with none in
+     1.5s (script blocked) it falls back to 80vh and scrolls inside. */
+  .viewer { display:block; width:100%; height:0; border:0; background:var(--bg); }
+  /* Artifact tabs: the gallery, then up to TAB_MAX open pages. Pinned to the
+     top of the window (under the top bar on a phone) so switching never needs
+     a scroll up. One row; it scrolls sideways rather than wrapping. */
+  .tabs { position:sticky; top:0; z-index:6; display:flex; height:40px; background:var(--bg); overscroll-behavior-x:contain;
+          border-bottom:1px solid var(--line-2); overflow-x:auto; overflow-y:hidden; }
+  @media (hover:none) { .tabs { scrollbar-width:none; } .tabs::-webkit-scrollbar { display:none; } }
+  .tabw { flex:none; display:flex; align-items:center; max-width:220px; border-bottom:2px solid transparent; }
+  .tabw.is-active { border-bottom-color:var(--spot); }
+  .tab { display:flex; align-items:center; gap:var(--space-2); min-width:0; height:100%; padding:0 var(--space-3);
+         font-family:var(--font-mono); font-size:12px; color:var(--dim); text-decoration:none; white-space:nowrap; }
+  .tab span { overflow:hidden; text-overflow:ellipsis; }
+  .tab:hover, .tabw.is-active .tab { color:var(--ink); }
+  .tab:focus-visible, .tab__x:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--spot); }
+  .tab__dot { width:6px; height:6px; border-radius:50%; flex:none; }
+  .tab__dot.is-open { background:var(--warning); }
+  .tab__dot.is-done { background:var(--spot); }
+  .tab__x { flex:none; width:20px; height:20px; margin-right:var(--space-2); display:grid; place-items:center;
+            background:none; border:0; padding:0; color:var(--dim); cursor:pointer; visibility:hidden; }
+  .tab__x svg { width:12px; height:12px; }
+  .tab__x:hover { color:var(--spot); }
+  .tabw.is-active .tab__x, .tabw:hover .tab__x, .tabw:focus-within .tab__x { visibility:visible; }
+  /* Above the frame, on the right: the page on its own, for anyone who wants that. */
+  .viewer__bar { display:flex; justify-content:flex-end; }
+  .viewer__bar a { display:inline-flex; align-items:center; gap:var(--space-2); font-family:var(--font-mono);
+                   font-size:11.5px; color:var(--dim); text-decoration:none; }
+  .viewer__bar a:hover { color:var(--spot); }
+  .viewer__bar svg { width:14px; height:14px; }
+  .stack > .viewer__bar + * { margin-top:var(--space-2); }
+
+  /* The correction bar: pinned to the window's bottom edge while you read, and
+     resting under the page at its end, so it never covers the last lines. The
+     left rule is the state: warning while open, verdigris once corrected. */
+  .fixbar { position:sticky; bottom:0; z-index:5; min-height:64px; display:flex; align-items:center;
+            justify-content:space-between; gap:var(--space-4); padding:12px var(--space-5);
+            background:var(--panel); border-top:1px solid var(--line-2); border-left:3px solid transparent; }
+  .fixbar.is-open { border-left-color:var(--warning); }
+  .fixbar.is-done { border-left-color:var(--spot); }
+  .fixbar.is-fresh > * { animation:loader-in 180ms var(--ease); }
   .fixbar p { margin:0; }
+  .fixbar .loader { padding:0; }
+  /* Two lines at 1.4 fit the 64px row, so open and corrected are one height and nothing moves. */
+  .fixbar__text { min-width:0; line-height:1.4; }
+  .fixbar__lead { color:var(--ink); font-size:14px; }
   .fixbar__note { color:var(--dim); font-size:13px; }
-  .fixbar__done { display:flex; align-items:center; gap:var(--space-2); color:var(--ink); }
+  .fixbar__lead, .fixbar__note, .fixbar__done { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fixbar__done { display:flex; align-items:center; gap:var(--space-2); color:var(--ink); min-width:0; }
   .fixbar__done svg { width:16px; height:16px; color:var(--spot); flex:none; }
+  .fixbar__done span { color:var(--dim); }
+  .fixbar__err { color:var(--warning); overflow-wrap:anywhere; }
+  .fixbar .btn, .fixbar .set__btn { flex:none; }
+  .fixbar .set__btn { padding:8px 14px; }
+  @media (max-width:560px) {
+    .fixbar__note { display:none; }
+    .fixbar .btn { padding:10px 12px; }
+  }
   .btn { font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; text-transform:uppercase;
          background:var(--spot); color:var(--spot-ink); border:1px solid var(--spot); padding:10px 16px; cursor:pointer;
          transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
@@ -616,6 +667,7 @@
      `inert` while closed, so a hidden drawer is never in the Tab order. */
   @media (max-width:900px) {
     .app { grid-template-columns:minmax(0,1fr); }
+    .tabs { top:55px; }
     .topbar { display:flex; align-items:center; gap:var(--space-3); position:sticky; top:0; z-index:20;
               background:var(--panel); border-bottom:1px solid var(--line-2); padding:var(--space-2) var(--space-4); }
     .topbar__menu { background:none; border:1px solid var(--line-2); color:var(--ink); width:38px; height:38px;
@@ -2526,10 +2578,9 @@ function viewHealth() {
    ============================================================ */
 /* ============================================================
    Artifacts — the pages an agent wrote under ~/.eklavya/artifacts/.
-   `S.artifacts` is read from the files on every load; opening one is a plain
-   link to `/artifacts/<id>`, which the server serves sandboxed, in a new tab.
-   An explainer for a missed question that can still be corrected opens in
-   the viewer instead (`#/artifacts/view/<id>`), with the correction bar.
+   `S.artifacts` is read from the files on every load. Every page opens in the
+   viewer (`#/artifacts/view/<id>`) as a tab; an explainer for a missed
+   question carries the correction bar there.
    ============================================================ */
 const ARTIFACT_KINDS = ['all', 'explainer', 'artifact', 'to-correct'];
 const artifactsInScope = () => (S.artifacts ?? []).filter((a) => inScope(a.project));
@@ -2545,11 +2596,8 @@ function artifactCard(a) {
     : ` · ${esc(a.concept)}`;
   const tag = a.correction === 'open' ? ' · <span class="tag warn">To correct</span>'
     : a.correction === 'done' ? ' · <span class="tag ok">Corrected</span>' : '';
-  // A correctable explainer opens in the viewer, where the correction lives;
-  // every other page is a plain link to the sandboxed file, in a new tab.
-  const open = a.correction ? `href="${esc(AH('view', a.id))}"` : `href="${esc(artifactUrl(a))}" target="_blank" rel="noopener"`;
   return `<article class="art">
-    <a class="art__open" ${open}>
+    <a class="art__open" href="${esc(AH('view', a.id))}">
       <span class="art__thumb"><img src="${esc(thumbUrl(a, window.eklavyaGround.read()))}" data-thumb="${esc(thumbUrl(a, '@'))}" alt="" loading="lazy" decoding="async"></span>
       <span class="title">${esc(a.title)}</span></a>
     ${a.description ? `<p class="ctx">${esc(a.description)}</p>` : ''}
@@ -2586,12 +2634,13 @@ function viewArtifacts(param) {
         `<h3 class="slug" style="margin:var(--space-5) 0 var(--space-2)">${esc(projectById(id)?.name ?? (id === '~' ? 'no project' : base(id)))}</h3>`
         + `<div class="gallery">${rows.map(artifactCard).join('')}</div>`).join('') + pager('artifacts', list.length, p);
   return [
+    (TABS.ids ?? TABS.load()).length ? drawTabs(null) : '',
     pageHead('Artifacts', [
       plural(all.length, 'page'), plural(counts.explainer, 'explainer'),
       `<a class="link" data-go="${esc(AH('projects'))}">${plural(projects, 'project')}</a>`,
     ], `Pages your agent wrote for you — explainers after a missed question, and anything you asked to have
-       turned into a page. Each opens in a new tab, from <code>~/.eklavya/artifacts/</code>. An explainer for a
-       missed question opens here instead, with a <b>Correct your answer</b> button under it: pick the right
+       turned into a page, from <code>~/.eklavya/artifacts/</code>. Each opens here, as a tab; up to
+       ${TAB_MAX} stay open. An explainer for a missed question carries a <b>Correct your answer</b> bar: pick the right
        option and the miss shows as corrected. That counts as a pass for the concept's score, but not toward a
        commit gate or a level, and the concept still comes back for review.`),
     card(null, null,
@@ -2614,25 +2663,60 @@ let FIX = null;
 function viewArtifact(id) {
   const a = (S.artifacts ?? []).find((x) => x.id === id);
   if (!a) return viewNotFound(id, false);
-  if (a.correction) fill('fixbar', `/api/attempts/correction?id=${a.attempt}`, (d) => fixBar(a, d));
+  if (a.correction) AFTER.push(() => loadFix(a));
   // The page's own ground follows this one; a page made before the viewer ignores it.
   AFTER.push(() => {
     const f = $('art-frame');
     f?.addEventListener('load', () => f.contentWindow?.postMessage({ type:'eklavya:mode', mode:window.eklavyaGround.read() }, '*'));
   });
-  return `<a class="page__back" data-go="${esc(AH('dashboard'))}">← Artifacts</a>
+  AFTER.push(() => {
+    const f = $('art-frame'), gen = GEN;
+    setTimeout(() => { if (gen === GEN && !f.style.height) sized(f, '80vh'); }, 1500);
+  });
+  TABS.open(id);
+  TABS.reading = null;
+  return `${drawTabs(id)}
+    <div class="viewer__bar"><a href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">${ICON_OUT}Open in new browser tab</a></div>
+    <div id="art-wait">${loader('Opening the page…')}</div>
     <iframe class="viewer" id="art-frame" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
-    ${a.correction ? `<div class="fixbar" id="fixbar">${loader('Loading the question…')}</div>` : ''}`;
+    ${a.correction ? `<div class="fixbar" id="fixbar" role="region" aria-label="Correction">${loader('Loading the question…')}</div>` : ''}`;
 }
 
-function fixBar(a, d) {
+/**
+ * Asks the server for the question behind the bar. Not `fill()`: a refusal
+ * shows the server's own words and a Retry, in the bar's one row.
+ */
+function loadFix(a) {
+  const gen = GEN;
+  const bar = () => (gen === GEN ? $('fixbar') : null);
+  bar().className = 'fixbar';
+  bar().innerHTML = loader('Loading the question…');
+  fetch(`/api/attempts/correction?id=${a.attempt}`)
+    .then((r) => r.json().catch(() => ({})).then((d) => {
+      if (!r.ok) throw new Error(d.error || `${r.status} ${r.statusText}`);
+      const el = bar();
+      if (el) paintFix(el, a, d);
+    }))
+    .catch((e) => {
+      const el = bar();
+      if (!el) return;
+      el.innerHTML = `<p class="fixbar__err">${esc(e.message)}</p><button type="button" class="set__btn" id="fix-retry">Retry</button>`;
+    });
+}
+
+/** Draws the bar for `d`, /api/attempts/correction's answer; `fresh` crossfades into it. */
+function paintFix(el, a, d, fresh) {
   FIX = { attempt: a.attempt, artifact: a.id, q: d };
   const done = d.corrected_at !== null;
   armLeave(!done);
-  return done
-    ? `<p class="fixbar__done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Corrected on try ${d.tries} · ${esc(stamp(d.corrected_at))}</p>`
-    : `<button type="button" class="btn" id="fix-open">Correct your answer</button>
-       <p class="fixbar__note">Not now? Correct it later from Dashboard → Artifacts.</p>`;
+  el.className = `fixbar ${done ? 'is-done' : 'is-open'}${fresh ? ' is-fresh' : ''}`;
+  const dot = document.querySelector('#view [aria-selected="true"] .tab__dot');
+  if (dot) dot.className = `tab__dot is-${done ? 'done' : 'open'}`;
+  el.innerHTML = done
+    ? `<p class="fixbar__done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Corrected on try ${d.tries} <span>· ${esc(stamp(d.corrected_at))}</span></p>`
+    : `<div class="fixbar__text"><p class="fixbar__lead">You missed this one.</p>
+         <p class="fixbar__note">Read it, then correct your answer. Not now? It stays under To correct.</p></div>
+       <button type="button" class="btn" id="fix-open">Correct your answer</button>`;
 }
 
 /** The options in a new order each time: the page above shows the right one at its letter. */
@@ -2710,9 +2794,12 @@ $('fix-close').addEventListener('click', () => $('fix').close());
 $('fix').addEventListener('close', () => {
   const bar = $('fixbar');
   const a = FIX && S.artifacts.find((x) => x.id === FIX.artifact);
-  if (bar && a) { bar.innerHTML = fixBar(a, FIX.q); $('fix-open')?.focus(); }
+  if (bar && a) { paintFix(bar, a, FIX.q, FIX.q.corrected_at !== null); $('fix-open')?.focus(); }
 });
-$('view').addEventListener('click', (e) => { if (e.target.closest('#fix-open')) openFix(); });
+$('view').addEventListener('click', (e) => {
+  if (e.target.closest('#fix-open')) openFix();
+  if (e.target.closest('#fix-retry')) loadFix(S.artifacts.find((x) => x.id === CUR.param));
+});
 
 /**
  * Closing the tab with a correction still open asks first. Browsers show their
@@ -2726,12 +2813,151 @@ function armLeave(on) {
   window[on ? 'addEventListener' : 'removeEventListener']('beforeunload', holdLeave);
 }
 
+/**
+ * Gives the frame its height and takes the loader down. The first time, the
+ * page goes back to where this tab was last read; from then on, scrolling is
+ * remembered for it.
+ */
+function sized(f, h) {
+  f.style.height = h;
+  $('art-wait')?.remove();
+  if (TABS.reading === CUR.param) return;
+  TABS.reading = CUR.param;
+  window.scrollTo({ top: TABS.scroll.get(CUR.param) ?? 0, behavior: 'instant' });
+}
+addEventListener('scroll', () => { if (CUR?.page === 'view' && TABS.reading === CUR.param) TABS.scroll.set(CUR.param, scrollY); }, { passive: true });
+
+/* ---------- artifact tabs ----------
+   Open pages stay open as tabs. The URL names the active one; the list itself
+   is a per-viewer convenience in localStorage (never the URL, never the
+   server), and scroll positions live only in memory. */
+const TAB_MAX = 8;
+const TABS_KEY = 'eklavya-dash-tabs';
+const ICON_OUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>';
+const TABS = {
+  ids: null,          // open pages, in strip order
+  recent: [],         // the same ids, least recently viewed first
+  scroll: new Map(),  // id → scrollY
+  reading: null,      // the tab whose scroll is being remembered
+  focus: false,       // put focus back on the selected tab after the next draw
+  active: null,       // the page the strip last showed as selected; new tabs open right of it
+  load() {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(TABS_KEY)); } catch (e) { /* no tabs */ }
+    // A page deleted since drops out here.
+    this.ids = (Array.isArray(v) ? v : []).filter((id) => (S.artifacts ?? []).some((a) => a.id === id)).slice(0, TAB_MAX);
+    this.recent = [...this.ids];
+    return this.ids;
+  },
+  save() { try { localStorage.setItem(TABS_KEY, JSON.stringify(this.ids)); } catch (e) { /* this load only */ } },
+  touch(id) { this.recent = [...this.recent.filter((x) => x !== id), id]; },
+  /** Viewing `id`: its tab, new ones right of the tab you were on, past the limit the stalest one goes. */
+  open(id) {
+    if (!this.ids) this.load();
+    if (!this.ids.includes(id)) {
+      const from = this.ids.indexOf(this.active);
+      this.ids.splice(from < 0 ? this.ids.length : from + 1, 0, id);
+      if (this.ids.length > TAB_MAX) {
+        const open = (x) => (S.artifacts ?? []).find((a) => a.id === x)?.correction === 'open';
+        const old = this.recent.filter((x) => x !== id);
+        this.close(old.find((x) => !open(x)) ?? old[0]);
+      }
+    }
+    this.touch(id);
+    this.save();
+  },
+  /** Drops a tab and returns where to go if it was the visible one: right, else left, else the gallery. */
+  close(id) {
+    const at = this.ids.indexOf(id);
+    this.ids.splice(at, 1);
+    this.recent = this.recent.filter((x) => x !== id);
+    this.scroll.delete(id);
+    this.save();
+    const next = this.ids[at] ?? this.ids[at - 1];
+    return next ? AH('view', next) : AH('dashboard');
+  },
+};
+
+/** The strip: All artifacts, then each open page. `active` is the visible page's id, or null for the gallery. */
+function drawTabs(active) {
+  if (!TABS.ids) TABS.load();
+  TABS.active = active;
+  // On a narrow strip the open tab can sit past the edge; bring it in, sideways only.
+  AFTER.push(() => {
+    const on = document.querySelector('#view .tabw.is-active');
+    const strip = on?.parentElement;
+    if (on) strip.scrollLeft = Math.min(Math.max(strip.scrollLeft, on.offsetLeft + on.offsetWidth - strip.clientWidth), on.offsetLeft);
+  });
+  if (TABS.focus) {
+    TABS.focus = false;
+    AFTER.push(() => document.querySelector('#view [role="tab"][aria-selected="true"]')?.focus());
+  }
+  const tab = (id, label, dot, closable) => {
+    const on = id === active;
+    return `<span class="tabw${on ? ' is-active' : ''}" role="presentation">
+      <a class="tab" role="tab" href="${esc(id ? AH('view', id) : AH('dashboard'))}" aria-selected="${on}" aria-controls="view"
+         tabindex="${on ? 0 : -1}" title="${esc(label)}"${id ? ` data-tab-id="${esc(id)}"` : ''}>${dot}<span>${esc(label)}</span></a>
+      ${closable ? `<button type="button" class="tab__x" tabindex="-1" data-close="${esc(id)}" aria-label="Close ${esc(label)}">${ICON_X}</button>` : ''}</span>`;
+  };
+  const rows = TABS.ids.map((id) => {
+    const a = (S.artifacts ?? []).find((x) => x.id === id);
+    const dot = a?.correction ? `<i class="tab__dot is-${a.correction}" aria-hidden="true"></i>` : '';
+    return tab(id, a?.title ?? id, dot, true);
+  });
+  return `<div class="tabs" role="tablist" aria-label="Open artifacts">${tab(null, 'All artifacts', '', false)}${rows.join('')}</div>`;
+}
+
+/** Closes a tab. The visible one hands over to its neighbour; any other just leaves the strip, and the page stays put. */
+function closeTab(id, fromKeys) {
+  const next = TABS.close(id);
+  if (CUR.page === 'view' && CUR.param === id) { TABS.focus = fromKeys; location.replace(next); return; }
+  const strip = document.querySelector('#view .tabs');
+  const active = CUR.page === 'view' ? CUR.param : null;
+  strip.outerHTML = active || TABS.ids.length ? drawTabs(active) : '';
+  if (fromKeys) document.querySelector('#view [role="tab"][aria-selected="true"]')?.focus();
+}
+
+$('view').addEventListener('click', (e) => {
+  const x = e.target.closest('[data-close]');
+  if (x) { e.preventDefault(); closeTab(x.dataset.close, false); }
+});
+// A middle click closes, as it does on a browser tab, instead of opening another window.
+$('view').addEventListener('auxclick', (e) => {
+  const t = e.target.closest('[data-tab-id]');
+  if (t && e.button === 1) { e.preventDefault(); closeTab(t.dataset.tabId, false); }
+});
+$('view').addEventListener('mousedown', (e) => { if (e.button === 1 && e.target.closest('[data-tab-id]')) e.preventDefault(); });
+// Roving focus: ←/→ and Home/End move, Enter (native) and Space open, Delete closes.
+$('view').addEventListener('keydown', (e) => {
+  const t = e.target.closest('[role="tab"]');
+  if (!t) return;
+  const all = [...document.querySelectorAll('#view [role="tab"]')];
+  const i = all.indexOf(t);
+  const to = { ArrowLeft: i - 1, ArrowRight: i + 1, Home: 0, End: all.length - 1 }[e.key];
+  if (to !== undefined) {
+    e.preventDefault();
+    const n = all[(to + all.length) % all.length];
+    all.forEach((x) => { x.tabIndex = x === n ? 0 : -1; });
+    n.focus();
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    // Enter follows the link natively; Space is ours. Either way focus comes back to the strip.
+    TABS.focus = true;
+    if (e.key === ' ') { e.preventDefault(); t.click(); }
+  } else if (e.key === 'Delete' && t.dataset.tabId) {
+    e.preventDefault();
+    closeTab(t.dataset.tabId, true);
+  }
+});
+
 // The framed page reports its height; only that frame's message counts.
+// Clamped to [200, 20000]: past that a page scrolls inside its frame (the
+// server's script lets it), since one giant frame costs memory for nothing.
 addEventListener('message', (e) => {
   const f = $('art-frame');
   if (!f || e.source !== f.contentWindow || e.data?.type !== 'eklavya:height') return;
   const h = Number(e.data.h);
-  if (Number.isFinite(h)) f.style.height = Math.min(20000, Math.max(200, h)) + 'px';
+  if (Number.isFinite(h)) sized(f, Math.min(20000, Math.max(200, h)) + 'px');
 });
 
 function viewArtifactProjects() {

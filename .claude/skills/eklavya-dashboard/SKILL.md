@@ -328,14 +328,26 @@ write is one `WRITES` row and one `WriteHandler`; the page calls it with
 
 ## An artifact page is not the dashboard
 
-**The one frame: the explainer viewer.** An explainer whose `correction` is not
-null opens at `#/artifacts/view/<id>`: an `<iframe>` of `/artifacts/<id>?embed`
-with `sandbox` lacking `allow-same-origin` (never add it), the correction bar,
-and a native `<dialog>` for the modal. `?embed` strips the template's Google
-Fonts links and sends `ARTIFACT_EMBED_CSP` (no font hosts), so the viewer keeps
-the no-outbound-request promise. The framed page may only `postMessage` its
+**The one frame: the viewer.** Every page opens at `#/artifacts/view/<id>`, as
+a tab: an `<iframe>` of `/artifacts/<id>?embed` with `sandbox` lacking
+`allow-same-origin` (never add it), plus, for an explainer whose `correction`
+is not null, the pinned correction bar and a native `<dialog>` for the modal.
+`?embed` goes through `embedHtml`: it strips the template's Google Fonts links,
+renames a 1.46.0 page's own height message out of the race, and adds
+`EMBED_SCRIPT` before `</body>`, which hides the page's overflow and reports
+the body's bottom edge (it can shrink; `scrollHeight` cannot). The response
+carries `ARTIFACT_EMBED_CSP` (no font hosts), so the viewer keeps the
+no-outbound-request promise. The framed page may only `postMessage` its
 height (`eklavya:height`, accepted from that frame's `contentWindow` alone, and
-clamped) and receive the ground (`eklavya:mode`); it never writes. Every write
+clamped to [200, 20000]) and receive the ground (`eklavya:mode`); it never
+writes. The frame is 0 tall behind a loader until the first report and falls
+back to 80vh after 1.5s without one.
+
+`TABS` holds the open tabs (at most `TAB_MAX`, persisted under
+`eklavya-dash-tabs`, least-recently-viewed eviction that spares open
+corrections); `drawTabs(active)` draws the strip at the top of the gallery and
+the viewer. The URL names the active tab. Scroll per tab lives in memory and is
+restored on the frame's first height report. Every write
 is page code calling `postJson('/api/attempts/retry', …)`; the server grades and
 never sends `correct`. `armLeave` holds a `beforeunload` prompt while the bar is
 open and `render()` disarms it on every navigation. The resize handler skips
@@ -348,8 +360,8 @@ goes out with `ARTIFACT_CSP` instead of the page's CSP: `sandbox` without
 `allow-same-origin` gives it an opaque origin, so its scripts run (the PDF and
 HTML buttons need them) but a fetch to `/api/state` is refused, and
 `default-src 'none'` plus the Google Fonts hosts is all it may load. The page
-links to one with a plain `<a target="_blank" rel="noopener">`, never `data-go`,
-with one exception below. `resolveArtifact` is the only way from a URL to a
+opens every page in the viewer; the viewer's **Open in new browser tab** is the
+one plain `<a target="_blank" rel="noopener">` to the raw file, never `data-go`. `resolveArtifact` is the only way from a URL to a
 file; do not join paths here. `test/artifacts.test.ts` covers traversal, a
 planted symlink and the rebound host, and the browser suite checks the opened
 page cannot read the API.

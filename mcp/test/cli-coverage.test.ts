@@ -653,6 +653,8 @@ describe('artifacts', () => {
   });
 
   it('opens a page by path or id, and refuses one it cannot find', () => {
+    // The file itself: no background dashboard to open it in.
+    globalConfig({ dashboard_autostart: false });
     const opened = path.join(scratch, 'opened');
     const opener = bin({ open: `echo "$1" >> "${opened}"`, 'xdg-open': `echo "$1" >> "${opened}"` });
     const PATH = `${opener}${path.delimiter}${process.env.PATH}`;
@@ -666,7 +668,7 @@ describe('artifacts', () => {
   });
 });
 
-describe('artifacts open, for an explainer linked to an attempt', () => {
+describe('artifacts open, in the dashboard', () => {
   const opener = () => {
     const opened = path.join(scratch, 'opened');
     const dir = bin({ open: `echo "$1" > "${opened}"`, 'xdg-open': `echo "$1" > "${opened}"` });
@@ -691,6 +693,18 @@ describe('artifacts open, for an explainer linked to an attempt', () => {
     expect(await o.read()).toBe(url);
   });
 
+  it('opens a page with no question behind it in the viewer too', async () => {
+    const file = eklavya(['artifacts', 'new', 'Plain page']).stdout.trim();
+    const id = JSON.parse(eklavya(['artifacts', 'list', '--json']).stdout)[0].id as string;
+    const url = `http://127.0.0.1:${port}/#/artifacts/view/${encodeURIComponent(id)}`;
+    const o = opener();
+    await listen(health({}));
+    const run = eklavyaAsync(['artifacts', 'open', id], { PATH: o.PATH });
+    expect((await run.done).stdout).toBe(`${url}\n`);
+    expect(await o.read()).toBe(url);
+    expect(file.endsWith(id.split('/')[1]!)).toBe(true);
+  });
+
   it('starts the background dashboard for it when nothing answers', async () => {
     const o = opener();
     const run = eklavyaAsync(['artifacts', 'new', 'Again', '--kind', 'explainer', '--attempt', '8', '--open'], { PATH: o.PATH });
@@ -702,12 +716,15 @@ describe('artifacts open, for an explainer linked to an attempt', () => {
     expect((await stop.done).stdout).toMatch(/^Stopped the dashboard/);
   });
 
-  it('opens the file when the port is someone else\'s, autostart is off, or the page links nothing', async () => {
+  it('opens the file when the port is someone else\'s, autostart is off, or the page is outside the folder', async () => {
     const { file } = linked();
+    const plain = eklavya(['artifacts', 'new', 'Plain page']).stdout.trim();
     const o = opener();
     await listen((_req, res) => res.end('hello'));
     let run = eklavyaAsync(['artifacts', 'open', file], { PATH: o.PATH });
     expect((await run.done).stdout).toBe(`${file}\n`);
+    run = eklavyaAsync(['artifacts', 'open', plain], { PATH: o.PATH });
+    expect((await run.done).stdout).toBe(`${plain}\n`);
     globalConfig({ dashboard_autostart: false });
     run = eklavyaAsync(['artifacts', 'open', file], { PATH: o.PATH });
     expect((await run.done).stdout).toBe(`${file}\n`);

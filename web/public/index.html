@@ -733,14 +733,14 @@
         <li>Sessions, Projects, Domains: every project that logged work, including ones with no assessments yet</li>
         <li>Memory Dashboard and Timeline: every observation, filterable, down to the raw evidence behind each one</li>
         <li>Reuse and Health: an estimate of what each recall saved once a hook wrote it out, how many memory reads ran and how many had no receipt, and where capture stops</li>
-        <li>Artifacts: a gallery of every explainer and page your agent wrote, each with its diagram as the thumbnail, searchable, grouped by project; an explainer for a missed multiple-choice question opens in the dashboard with a Correct your answer button under it</li>
+        <li>Artifacts: a gallery of every explainer and page your agent wrote, each with its diagram as the thumbnail, searchable, grouped by project; every page opens inside the dashboard as a tab, and an explainer for a missed multiple-choice question keeps a Correct your answer bar pinned to the bottom of the window</li>
         <li>Settings: your user settings and each project's, showing what a project overrides and what it inherits</li>
       </ul>
       <p class="dash__note" data-reveal data-delay="300">
         Bound to loopback, reading the same <code>~/.eklavya/knowledge.db</code>, and making no
-        request to any other host — not even for fonts. An artifact opens in its own tab,
-        sandboxed away from your history; an explainer you can correct opens inside the dashboard,
-        in the same sandbox. It keeps running in the background;
+        request to any other host — not even for fonts. Every artifact opens inside the
+        dashboard as a tab, sandboxed away from your history; Open in new browser tab shows it on
+        its own, in the same sandbox. It keeps running in the background;
         <code>dashboard_autostart</code> turns that off. Install it from Chrome, Edge or Safari
         to open it like an app, from Spotlight or the Dock.
       </p>

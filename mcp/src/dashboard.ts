@@ -1457,6 +1457,50 @@ export function withoutWebFonts(html: string): string {
 }
 
 /**
+ * Added to every page the viewer frames, so the window is the one scrollbar:
+ * the page stops scrolling itself and reports its height, which the viewer
+ * gives the frame. The height is the body's bottom edge, which shrinks when the
+ * window widens; `scrollHeight` cannot drop below the frame's own height. Pages
+ * on disk carry `main{min-height:100vh}`, and 100vh is the frame, so that floor
+ * goes too. Past the viewer's 20000px cap the page scrolls itself again.
+ */
+export const EMBED_SCRIPT = `<script>
+(function () {
+  if (parent === window || window.__eklavyaEmbed) return; window.__eklavyaEmbed = 1;
+  var root = document.documentElement, body = document.body, last = 0, css = document.createElement('style');
+  root.classList.add('framed');
+  css.textContent = 'html,body{overflow-y:hidden !important}.framed main{min-height:0 !important}';
+  (document.head || root).appendChild(css);
+  function post() {
+    var h = Math.ceil(body.getBoundingClientRect().bottom + scrollY + parseFloat(getComputedStyle(body).marginBottom));
+    css.disabled = h > 20000;
+    if (h !== last) { last = h; parent.postMessage({ type: 'eklavya:height', h: h }, '*'); }
+  }
+  post();
+  addEventListener('DOMContentLoaded', post);
+  addEventListener('load', post);
+  if (window.ResizeObserver) new ResizeObserver(post).observe(body);
+  if (document.fonts) document.fonts.ready.then(post);
+  addEventListener('message', function (e) {
+    var d = e.data;
+    if (e.source === parent && d && d.type === 'eklavya:mode' && (d.mode === 'ink' || d.mode === 'paper')) root.setAttribute('data-mode', d.mode);
+  });
+})();
+</script>`;
+
+/**
+ * The page as the viewer frames it: no web fonts, and `EMBED_SCRIPT` just
+ * before the last `</body>` (or at the end). A 1.46.0 page carries its own
+ * height report, inside the script that also holds its HTML button; renaming
+ * its message keeps that button and takes the stale height out of the race.
+ */
+export function embedHtml(html: string): string {
+  const page = withoutWebFonts(html).replace(/type:'eklavya:height'/g, "type:'eklavya:height-1.46'");
+  const at = page.toLowerCase().lastIndexOf('</body>');
+  return at < 0 ? page + EMBED_SCRIPT : page.slice(0, at) + EMBED_SCRIPT + page.slice(at);
+}
+
+/**
  * What makes the page installable as an app (Chrome and Edge "Install",
  * Safari "Add to Dock"), so it opens from Spotlight or the Dock in its own
  * window. Loopback counts as a secure context, so no certificate is needed, and
@@ -1701,7 +1745,7 @@ export function startDashboard(
           });
         }
         const embed = url.searchParams.has('embed');
-        return send(res, 200, 'text/html; charset=utf-8', embed ? withoutWebFonts(fs.readFileSync(file, 'utf8')) : fs.readFileSync(file), {
+        return send(res, 200, 'text/html; charset=utf-8', embed ? embedHtml(fs.readFileSync(file, 'utf8')) : fs.readFileSync(file), {
           'content-security-policy': embed ? ARTIFACT_EMBED_CSP : ARTIFACT_CSP,
           'x-frame-options': 'SAMEORIGIN',
         });
