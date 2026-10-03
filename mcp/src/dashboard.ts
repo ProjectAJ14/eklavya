@@ -1659,8 +1659,15 @@ export function startDashboard(
     if (!fromLoopback(req.headers.host, req.headers.origin)) {
       return send(res, 403, 'text/plain', 'Eklavya serves loopback only.\n');
     }
-    /* c8 ignore next -- a server-side request always carries its url; the fallback is for the type */
-    const url = new URL(req.url ?? '/', `http://${host}`);
+    // An absolute-form target such as `http://[` is not a URL, and a throw from
+    // this callback would take the whole server down with it.
+    let url: URL;
+    try {
+      /* c8 ignore next -- a server-side request always carries its url; the fallback is for the type */
+      url = new URL(req.url ?? '/', `http://${host}`);
+    } catch {
+      return send(res, 400, 'text/plain', 'Bad request target.\n');
+    }
     // The routes in `WRITES` take a POST, through `acceptWrite`. Everything
     // else reads, and any other method is refused rather than answered as a GET.
     const write = WRITES[url.pathname];
