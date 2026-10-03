@@ -2882,7 +2882,29 @@ for (const ev of ['wheel', 'touchmove', 'keydown']) {
    is the feature, `text` says what it does, and an optional `when()` limits
    it to data that makes it true. Order is priority. The browser suite's
    registry guard checks every row against the fixture. */
-const TIPS = [];
+const TIPS = [
+  { id: 'wf-switch', where: ['learning/dashboard'], el: '#wf-caret', side: 'right', title: 'Switch workflow',
+    text: 'Eklavya has four workflows: Learning, Memory, Artifacts and Settings. Switch between them here.' },
+  { id: 'how-this-works', where: ['learning/dashboard', 'memory/dashboard'], el: '#view details.about > summary', title: 'How this works',
+    text: 'Every page explains where its numbers come from. Open this to read it.' },
+  { id: 'project-scope', where: ['learning/sessions', 'memory/timeline'], el: '#proj', side: 'right', title: 'Project scope',
+    text: 'Pick a project to narrow every page to its activity. Your scores stay the same everywhere.' },
+  { id: 'concept-filters', where: ['learning/concepts'], el: '#chips', title: 'Concept filters',
+    text: 'Filter concepts by state. The filter is part of the link, so you can bookmark it.' },
+  { id: 'review-tabs', where: ['learning/review'], el: '#tabs', title: 'Review lists',
+    text: 'Due, missed and skipped answers each have their own list here.' },
+  { id: 'timeline-open', where: ['memory/timeline'], el: '#view .tl-item > summary', title: 'Open an entry',
+    text: 'Open a line to read what was remembered and the evidence it came from.' },
+  { id: 'to-correct', where: ['artifacts/dashboard'], el: '#view .chips [data-go*="to-correct"]', title: 'Answers to correct',
+    text: 'Missed answers wait here. Open one, read the page, then correct your answer.',
+    when: () => (S.artifacts ?? []).some((a) => a.correction === 'open') },
+  { id: 'artifact-tabs', where: ['artifacts/view'], el: '#view [role="tablist"]', title: 'Open pages',
+    text: 'Pages you open stay here as tabs, up to eight. All artifacts takes you back.' },
+  { id: 'settings-scope', where: ['settings/dashboard'], el: '#nav', side: 'right', title: 'User or project',
+    text: 'User settings apply everywhere. Project settings override them for one project.' },
+  { id: 'ground', where: ['settings/dashboard'], el: '.ground[aria-label="Colour ground"]', side: 'right', title: 'Ink or paper',
+    text: 'Switch the dashboard between a dark and a light ground.' },
+];
 const TIPS_KEY = 'eklavya-dash-tips';
 const ICON_TIP = '<svg class="coach__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>';
 const TIP = {

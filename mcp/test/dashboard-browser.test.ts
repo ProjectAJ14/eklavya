@@ -1216,6 +1216,36 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
+    // The registry guard: what makes "add a row to TIPS" safe. A typo in a
+    // selector, a page that does not exist or a reused id fails here.
+    it('every tip in TIPS is well formed and points at a real feature on its pages', async () => {
+      const w = await open('#/learning/dashboard', { tips: true });
+      const list = await w.page.evaluate('TIPS.map((t) => ({ ...t, when: !!t.when }))') as { id: string; where: string[]; el: string; title: string; text: string; side?: string; when: boolean }[];
+      const pages = await w.page.evaluate('Object.fromEntries(Object.entries(WORKFLOWS).map(([k, W]) => [k, Object.keys(W.pages)]))') as Record<string, string[]>;
+      expect(list.length).toBeGreaterThan(0);
+      expect(new Set(list.map((t) => t.id)).size).toBe(list.length);
+      // A detail page needs a parameter to open.
+      const PARAM: Record<string, string> = { 'artifacts/view': enc(fix.other) };
+      for (const t of list) {
+        expect(t.id, t.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+        expect(t.title.length, t.id).toBeLessThanOrEqual(32);
+        expect(t.text.length, t.id).toBeLessThanOrEqual(140);
+        expect(t.text, t.id).not.toMatch(/click here|\p{Extended_Pictographic}/iu);
+        expect(['top', 'right', 'bottom', 'left', undefined], t.id).toContain(t.side);
+        expect(t.where.length, t.id).toBeGreaterThan(0);
+        for (const where of t.where) {
+          const [wf, pg] = where.split('/');
+          expect(pages[wf!] ?? [], `${t.id}: ${where}`).toContain(pg);
+          await w.page.goto(`${base}/#/${where}${PARAM[where] ? '/' + PARAM[where] : ''}`); await ready(w.page);
+          if (t.when && !(await w.page.evaluate(`TIPS.find((t) => t.id === ${JSON.stringify(t.id)}).when()`))) continue;
+          const rendered = await w.page.evaluate((sel) => !!document.querySelector(sel)?.getClientRects().length, t.el);
+          expect(rendered, `${t.id}: ${t.el} on ${where}`).toBe(true);
+        }
+      }
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
     it('waits behind the drawer, and fits a phone', async () => {
       const w = await open('#/learning/dashboard', { tips: true, width: 560, height: 800, init: tips([TWO]) });
       await w.page.click('#menu');
