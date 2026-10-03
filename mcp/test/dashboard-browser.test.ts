@@ -745,8 +745,33 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         + '<style>main{min-height:100vh}</style></head><body><main>'
         + '<p>A line of text that wraps on a narrow screen and stays on one line on a wide one.</p>'.repeat(200)
         + '</main></body></html>');
+      const lines = '<p>A line of text that wraps on a narrow screen and stays on one line on a wide one.</p>'.repeat(120);
+      // Two hand-written layouts that size themselves from the window, which inside the frame is the frame.
+      fs.writeFileSync(path.join(dir(), 'full.html'), `<!doctype html><html><head><title>Full</title><style>html,body{height:100%;margin:0}</style></head><body>${lines}</body></html>`);
+      fs.writeFileSync(path.join(dir(), 'hero.html'), `<!doctype html><html><head><title>Hero</title><style>.hero{min-height:100vh}</style></head><body><section class="hero"><h1>Hero</h1></section>${lines}</body></html>`);
     });
     afterAll(() => { if (OPTS) fs.rmSync(dir(), { recursive: true, force: true }); });
+
+    it('sizes a page whose html and body are 100% tall to its content, not to the frame', async () => {
+      const w = await open(`#/artifacts/view/${enc('plain/full.html')}`);
+      const frame = w.page.frames().find((f) => f.url().includes('full.html?embed'))!;
+      const content = await frame.evaluate(() => [...document.querySelectorAll('p')].at(-1)!.getBoundingClientRect().bottom + scrollY);
+      expect(await w.page.evaluate(() => document.getElementById('art-frame')!.clientHeight)).toBeGreaterThanOrEqual(Math.floor(content));
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('lets a page that grows with its frame scroll on its own, instead of growing to the cap', async () => {
+      const w = await open(`#/artifacts/view/${enc('plain/hero.html')}`);
+      await w.page.waitForFunction(() => document.getElementById('art-frame')!.style.height === '80vh');
+      const frame = w.page.frames().find((f) => f.url().includes('hero.html?embed'))!;
+      expect(await frame.evaluate(() => document.documentElement.scrollHeight > document.documentElement.clientHeight
+        && getComputedStyle(document.documentElement).overflowY !== 'hidden')).toBe(true);
+      // And it stays that way: no report pulls it back into the loop.
+      await new Promise((r) => setTimeout(r, 500));
+      expect(await w.page.evaluate(() => document.getElementById('art-frame')!.style.height)).toBe('80vh');
+      await w.ctx.close();
+    });
 
     /**
      * The frame element's height, and the framed document's own heights, once
@@ -811,6 +836,11 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         if (i <= 2) fs.writeFileSync(made.path, fs.readFileSync(made.path, 'utf8').replace('<!-- CONTENT:', '<p>Read this line.</p>'.repeat(150) + '<!-- CONTENT:'));
         P[i] = made.id;
       }
+      // A page that is still growing when it first reports its height.
+      const late = createArtifact({ title: 'Late page', description: 'grows after it loads' });
+      fs.writeFileSync(late.path, fs.readFileSync(late.path, 'utf8').replace('<!-- CONTENT:', '<p>Read this line.</p>'.repeat(40)
+        + '<div id="later"></div><script>setTimeout(function(){document.getElementById("later").innerHTML="<p>And this one.</p>".repeat(150)},400)</script><!-- CONTENT:'));
+      P[10] = late.id;
     });
     afterAll(() => {
       if (!OPTS) return;
@@ -937,6 +967,31 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await tabs(w.page)).toEqual(['All artifacts', title(4), '*' + title(6)]);
       expect(await focused()).toBe(title(6));
       expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
+    it('waits for a page that is still growing before taking you back to where you were', async () => {
+      const w = await open(`#/artifacts/view/${enc(P[10]!)}`);
+      await w.page.waitForFunction(() => document.documentElement.scrollHeight > 6000);
+      const deep = await w.page.evaluate(() => {
+        const y = document.documentElement.scrollHeight - innerHeight - 100;
+        window.scrollTo({ top: y, behavior: 'instant' });
+        return y;
+      });
+      await w.page.waitForFunction((y) => Math.abs(scrollY - y) <= 1, deep);
+      await go(w.page, P[1]!);
+      await go(w.page, P[10]!);
+      await w.page.waitForFunction((y) => Math.abs(scrollY - y) <= 1, deep, { timeout: 5000 });
+      await w.ctx.close();
+    }, 60000);
+
+    it('leaves focus alone after Enter on the tab that is already open', async () => {
+      const w = await open(`#/artifacts/view/${enc(P[4]!)}`);
+      await w.page.focus('#view [role="tab"][aria-selected="true"]');
+      await w.page.keyboard.press('Enter');
+      await w.page.click('#view [role="tab"]:has-text("All artifacts")');
+      await ready(w.page);
+      expect(await w.page.evaluate(() => document.activeElement === document.body)).toBe(true);
       await w.ctx.close();
     }, 60000);
 

@@ -2814,18 +2814,28 @@ function armLeave(on) {
 }
 
 /**
- * Gives the frame its height and takes the loader down. The first time, the
- * page goes back to where this tab was last read; from then on, scrolling is
- * remembered for it.
+ * Gives the frame its height and takes the loader down. The page goes back to
+ * where this tab was last read once it is tall enough to (a page can still be
+ * growing at its first report); from then on, scrolling is remembered for it.
  */
 function sized(f, h) {
   f.style.height = h;
   $('art-wait')?.remove();
   if (TABS.reading === CUR.param) return;
+  const want = TABS.scroll.get(CUR.param) ?? 0;
+  if (want > document.documentElement.scrollHeight - innerHeight) return;
   TABS.reading = CUR.param;
-  window.scrollTo({ top: TABS.scroll.get(CUR.param) ?? 0, behavior: 'instant' });
+  window.scrollTo({ top: want, behavior: 'instant' });
 }
 addEventListener('scroll', () => { if (CUR?.page === 'view' && TABS.reading === CUR.param) TABS.scroll.set(CUR.param, scrollY); }, { passive: true });
+// Scrolling yourself before the page grew that far: stop waiting, and remember from here.
+const SCROLL_KEYS = ['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '];
+for (const ev of ['wheel', 'touchmove', 'keydown']) {
+  addEventListener(ev, (e) => {
+    if (ev === 'keydown' && (!SCROLL_KEYS.includes(e.key) || e.target.closest?.('[role="tab"], input, textarea, select, button'))) return;
+    if (CUR?.page === 'view' && $('art-frame')?.style.height) TABS.reading = CUR.param;
+  }, { passive: true });
+}
 
 /* ---------- artifact tabs ----------
    Open pages stay open as tabs. The URL names the active one; the list itself
@@ -2940,7 +2950,7 @@ $('view').addEventListener('keydown', (e) => {
     const n = all[(to + all.length) % all.length];
     all.forEach((x) => { x.tabIndex = x === n ? 0 : -1; });
     n.focus();
-  } else if (e.key === 'Enter' || e.key === ' ') {
+  } else if ((e.key === 'Enter' || e.key === ' ') && t.getAttribute('aria-selected') !== 'true') {
     // Enter follows the link natively; Space is ours. Either way focus comes back to the strip.
     TABS.focus = true;
     if (e.key === ' ') { e.preventDefault(); t.click(); }
@@ -2955,7 +2965,10 @@ $('view').addEventListener('keydown', (e) => {
 // server's script lets it), since one giant frame costs memory for nothing.
 addEventListener('message', (e) => {
   const f = $('art-frame');
-  if (!f || e.source !== f.contentWindow || e.data?.type !== 'eklavya:height') return;
+  if (!f || e.source !== f.contentWindow) return;
+  // A page whose content grows with its frame asked to scroll itself instead.
+  if (e.data?.type === 'eklavya:scroll') return sized(f, '80vh');
+  if (e.data?.type !== 'eklavya:height') return;
   const h = Number(e.data.h);
   if (Number.isFinite(h)) sized(f, Math.min(20000, Math.max(200, h)) + 'px');
 });
