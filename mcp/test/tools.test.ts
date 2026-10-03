@@ -11,7 +11,7 @@ import { recordAttempt } from '../src/tools/record_attempt.js';
 import { getGateStatus } from '../src/tools/get_gate_status.js';
 import { upsertConcepts } from '../src/tools/upsert_concepts.js';
 import { getConceptGraph } from '../src/tools/get_concept_graph.js';
-import { gateRetryConcepts } from '../src/store.js';
+import { gateRetryConcepts, levelCounts } from '../src/store.js';
 import { getConfig, setConfig } from '../src/tools/config_tools.js';
 import { resolveSessionId, setCurrentSession, isSessionOff, FALLBACK_SESSION_ID, noteActivity, workSince } from '../src/session.js';
 import { noteEdit } from '../src/hooks/changes-lib.js';
@@ -2207,6 +2207,72 @@ describe('a decline that was explained anyway', () => {
       outcome: 'declined',
     });
     expect(gateRetryConcepts(db, SESSION).map((c) => c.slug)).not.toContain('csrf');
+  });
+});
+
+describe('a skip that claims a passing grade', () => {
+  const ask = (extra: Record<string, unknown>) =>
+    call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: 'Why is a CSRF token needed here?',
+      difficulty: 2,
+      ...extra,
+    });
+
+  beforeEach(() => {
+    configure({ quiz: { enabled: true, enforced: true } });
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'the csrf token check in auth.ts' }] });
+    call(getGateStatus, { session_id: SESSION });
+  });
+
+  for (const outcome of ['declined', 'dont_know']) {
+    it(`rejects ${outcome} at grade 3 or more without writing anything`, () => {
+      const res = ask({ grade: 4, outcome });
+      expect(res.error).toBe('outcome_grade_conflict');
+      expect(db.prepare('SELECT count(*) AS n FROM attempts').get()).toEqual({ n: 0 });
+      expect(db.prepare("SELECT reps FROM mastery m JOIN concepts c ON c.id = m.concept_id WHERE c.slug = 'csrf'").get() ?? { reps: 0 }).toEqual({ reps: 0 });
+      expect(call<any>(getGateStatus, { session_id: SESSION }).passed_count).toBe(0);
+    });
+  }
+
+  it('still records grade-0 declines and blanks, and a real pass', () => {
+    expect(ask({ grade: 0, outcome: 'declined' }).error).toBeUndefined();
+    expect(ask({ grade: 0, outcome: 'dont_know', feedback: 'taught it' }).error).toBeUndefined();
+    const pass = ask({ grade: 5, outcome: 'answered', answer: 'b', format: 'mcq' });
+    expect(pass.error).toBeUndefined();
+    expect(pass.recorded_grade).toBe(4);
+    expect(pass.gate.passed_count).toBe(1);
+  });
+
+  it('does not count a legacy contradictory row as a gate pass, and keeps it retryable', () => {
+    // Written straight to the table, as a version before the check could have.
+    const id = (db.prepare("SELECT id FROM concepts WHERE slug = 'csrf'").get() as { id: number }).id;
+    for (const outcome of ['declined', 'dont_know']) {
+      db.prepare(
+        `INSERT INTO attempts (concept_id, session_id, question, grade, difficulty, outcome, repo, level)
+         VALUES (?, ?, 'q', 4, 2, ?, NULL, NULL)`,
+      ).run(id, SESSION, outcome);
+    }
+    const gate = call<any>(getGateStatus, { session_id: SESSION });
+    expect(gate.passed_count).toBe(0);
+    expect(gate.passed).toBe(false);
+    // The latest row is dont_know, so the concept stays on the route out.
+    expect(gateRetryConcepts(db, SESSION).map((c) => c.slug)).toContain('csrf');
+  });
+
+  it('does not count a legacy contradictory row toward a promotion', () => {
+    const id = (db.prepare("SELECT id FROM concepts WHERE slug = 'csrf'").get() as { id: number }).id;
+    const insert = db.prepare(
+      `INSERT INTO attempts (concept_id, session_id, question, grade, difficulty, outcome, repo, level)
+       VALUES (?, ?, 'q', 4, 2, ?, 'r', 'easy')`,
+    );
+    insert.run(id, SESSION, 'declined');
+    insert.run(id, SESSION, 'dont_know');
+    // The decline is not answered at all; the blank is answered and failed.
+    expect(levelCounts(db, 'r', 'easy', null)).toEqual({ passed: 0, answered: 1, concepts: 0 });
+    insert.run(id, SESSION, 'answered');
+    expect(levelCounts(db, 'r', 'easy', null)).toEqual({ passed: 1, answered: 2, concepts: 1 });
   });
 });
 

@@ -70,6 +70,9 @@ Read `countAnswered`, `syncGate` and `gateRetryConcepts` before modifying gates:
 - A clean `declined` outcome is excluded from retries. `dont_know` is eligible.
   Decline plus feedback is contradictory: the tool returns `outcome_conflict`,
   and legacy contradictory rows remain retryable. Never guess an outcome.
+- A pass needs `outcome` answered (or NULL). `declined`/`dont_know` with grade
+  >= 3 is rejected as `outcome_grade_conflict` before any write; gate passes,
+  retry eligibility and level counts ignore legacy rows of that shape.
 
 The planner owns the as-you-go cap: one question only when unenforced and no
 explicit domain/slugs. An explicit `max` wins; a resolved `learn` focus topic

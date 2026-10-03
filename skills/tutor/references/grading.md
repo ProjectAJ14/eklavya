@@ -81,7 +81,9 @@ alone" is a choice. So labelling a blank as a decline removes that concept from
 the gate-retry path, which when enforced is the only route out of a blocked
 commit. If you explained it, it was a blank: `dont_know`. `record_attempt`
 returns `outcome_conflict` when it is given `declined` together with feedback,
-because a decline you dropped immediately has nothing to explain.
+because a decline you dropped immediately has nothing to explain. It rejects
+`declined` or `dont_know` with a grade of 3 or more (`outcome_grade_conflict`)
+and records nothing: call again with the pair that is true.
 
 **Teach it. Properly, in this order:**
 
