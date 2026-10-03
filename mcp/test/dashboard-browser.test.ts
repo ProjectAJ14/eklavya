@@ -630,6 +630,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.waitForSelector('#fix-msg:text("Corrected. Your stats now count this as answered.")');
       expect(await w.page.textContent('#fix-opts [data-pick="A lock"]')).toContain('Right answer');
       expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('fix-close');
+      // The rest of the page was drawn from the old payload, and says so.
+      expect(await w.page.isHidden('#stale')).toBe(false);
       expect(await armed(w.page)).toBe(false);
       await w.page.keyboard.press('Enter');
       await w.page.waitForFunction(() => /Corrected on try 2 · /.test(document.getElementById('fixbar')?.textContent ?? ''));

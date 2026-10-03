@@ -2675,6 +2675,9 @@ function pickFix(btn) {
         FIX.q = { ...FIX.q, tries: r.tries, corrected_at: new Date().toISOString() };
         const row = S.artifacts.find((x) => x.id === FIX.artifact);
         if (row) row.correction = 'done';
+        // Every other count on the page was drawn from the payload it booted with:
+        // say so now rather than waiting for the poll.
+        $('stale').hidden = false;
         armLeave(false);
         $('fix-close').focus();
         return;
