@@ -82,7 +82,10 @@ npx eklavya db-path
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
 flags. The dashboard reads the database and has two guarded writes: a setting
 change and a correction of a missed answer
-([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)). [Configuration](https://eklavya-run.web.app/docs/configuration/) lists
+([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)).
+Its feature tips use Driver.js, bundled in `dist/` at build and served by the
+dashboard itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`, so
+the page still requests nothing from another host. [Configuration](https://eklavya-run.web.app/docs/configuration/) lists
 defaults and scopes. The [memory guide](https://eklavya-run.web.app/docs/memory/)
 covers retrieval, processing, providers, privacy and sync.
 

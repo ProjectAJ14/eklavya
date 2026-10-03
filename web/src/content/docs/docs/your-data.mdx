@@ -22,6 +22,8 @@ Choosing an observer sends captured work through Claude Code to a model. Enablin
 | `~/.eklavya/dashboard.log` | Errors from the background dashboard's latest start. |
 | `~/.eklavya/runtime/` | Installed runtime and dependencies. |
 
+The dashboard keeps a few display choices in your browser's own storage, never in `~/.eklavya/` and never sent anywhere: the ink/paper ground, opened or closed sections, collapsed sidebar groups, the last project you picked, open artifact tabs, and which tips you have seen or switched off (`eklavya-dash-tips`).
+
 Concepts a session logged but never asked about are deleted at a later session start, at least 12 hours after they were logged. Asked questions, their answers and review dates are kept.
 
 ### Who can read it
