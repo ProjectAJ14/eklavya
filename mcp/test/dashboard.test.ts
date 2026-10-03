@@ -7,13 +7,14 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
-  SETTINGS, CLI_ONLY,
+  SETTINGS, CLI_ONLY, WRITES,
 } from '../src/dashboard.js';
 import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { appendEvent, insertEntry, recordReceipt, supersedeEntry, deleteEntry, addCandidate } from '../src/memory/store.js';
 import { tempDbPath, cleanup } from './helpers.js';
+import { gradeConcept, recordRetry } from '../src/store.js';
 import { seedFixture, type Fixture } from './dashboard-fixture.js';
 // `tokens.css` is copied in by the build, so the served-asset case runs the built server.
 import { startDashboard as startBuilt } from '../dist/dashboard.js';
@@ -837,7 +838,7 @@ describe('the server says what a browser may do with its pages', () => {
       req.end();
     });
 
-  const ROUTES = ['/', '/tokens.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/nope'];
+  const ROUTES = ['/', '/tokens.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/api/attempts/correction?id=1', '/nope'];
 
   it('sends the security headers on every response, errors included', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });
@@ -859,6 +860,43 @@ describe('the server says what a browser may do with its pages', () => {
     }
   });
 
+  it('lets the dashboard frame an artifact, and nothing else frame anything', async () => {
+    const saved = process.env.EKLAVYA_HOME;
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-frame-'));
+    process.env.EKLAVYA_HOME = home;
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'artifacts', 'p', 'x.html'), '<title>x</title>');
+    const { url, close } = await startBuilt(db, { port: 0 });
+    const port = Number(new URL(url).port);
+    try {
+      const art = await request(port, 'GET', '/artifacts/p/x.html');
+      expect(art.status).toBe(200);
+      expect(art.headers['x-frame-options']).toBe('SAMEORIGIN');
+      expect(art.headers['content-security-policy']).toContain("frame-ancestors 'self'");
+      // Still an opaque origin: the frame can never read or write the API.
+      expect(art.headers['content-security-policy']).toMatch(/^sandbox allow-scripts[^;]*;/);
+      expect(art.headers['content-security-policy']).not.toContain('allow-same-origin');
+      // Framed in the viewer, it reaches no other host: no font links, and a CSP that would refuse one.
+      fs.writeFileSync(path.join(home, 'artifacts', 'p', 'f.html'),
+        '<title>f</title><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">\n<p>ok</p>');
+      const framed = await request(port, 'GET', '/artifacts/p/f.html?embed');
+      expect(framed.body).toBe('<title>f</title><p>ok</p>');
+      expect(framed.headers['content-security-policy']).not.toMatch(/fonts\.g/);
+      expect(framed.headers['content-security-policy']).toContain("font-src 'none'");
+      expect((await request(port, 'GET', '/artifacts/p/f.html')).body).toContain('fonts.googleapis.com');
+      for (const route of ['/', '/api/state']) {
+        const r = await request(port, 'GET', route);
+        expect(r.headers['x-frame-options'], route).toBe('DENY');
+        expect(r.headers['content-security-policy'], route).toContain("frame-ancestors 'none'");
+      }
+    } finally {
+      close();
+      if (saved === undefined) delete process.env.EKLAVYA_HOME;
+      else process.env.EKLAVYA_HOME = saved;
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   it('answers 405 to anything but GET and HEAD, and still serves those', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });
     const port = Number(new URL(url).port);
@@ -872,13 +910,17 @@ describe('the server says what a browser may do with its pages', () => {
           const res = await request(port, method, route);
           expect(res.status, `${method} ${route}`).toBe(405);
           expect(res.headers.allow, `${method} ${route}`).toBe('GET, HEAD');
+          // The refusal names every route that does take a write.
+          expect(res.body).toBe(`This route is read-only. Writes: ${Object.keys(WRITES).join(', ')}.\n`);
           expect(res.headers['x-frame-options']).toBe('DENY');
         }
       }
-      // The one writable route still refuses every other write method.
-      const put = await request(port, 'PUT', '/api/settings');
-      expect(put.status).toBe(405);
-      expect(put.headers.allow).toBe('GET, HEAD, POST');
+      // A writable route still refuses every other write method.
+      for (const route of Object.keys(WRITES)) {
+        const put = await request(port, 'PUT', route);
+        expect(put.status, route).toBe(405);
+        expect(put.headers.allow, route).toBe('GET, HEAD, POST');
+      }
     } finally {
       close();
     }
@@ -920,9 +962,9 @@ describe('/api/settings', () => {
     fs.rmSync(repo, { recursive: true, force: true });
   });
 
-  const post = (port: number, body: unknown, headers: Record<string, string>) =>
+  const post = (port: number, body: unknown, headers: Record<string, string>, route = '/api/settings') =>
     new Promise<{ status: number; body: any }>((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port, path: '/api/settings', method: 'POST', headers }, (res) => {
+      const req = http.request({ host: '127.0.0.1', port, path: route, method: 'POST', headers }, (res) => {
         let text = '';
         res.on('data', (c) => (text += String(c)));
         res.on('end', () => {
@@ -1014,6 +1056,43 @@ describe('/api/settings', () => {
     });
   });
 
+  it('makes every page write through postJson', () => {
+    const page = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'assets', 'dashboard.html'), 'utf8');
+    const posts = [...page.matchAll(/method: 'POST'/g)];
+    expect(posts).toHaveLength(1);
+    const helper = page.indexOf('function postJson(');
+    expect(helper).toBeGreaterThan(-1);
+    expect(posts[0]!.index! - helper).toBeLessThan(400);
+  });
+
+  // Table-driven over WRITES, so a new write route inherits every guard test.
+  it('guards every write route the same way, in the same words', async () => {
+    expect(Object.keys(WRITES)).toContain('/api/settings');
+    await withServer(async (port, token) => {
+      for (const [route, { maxBytes }] of Object.entries(WRITES)) {
+        const to = (body: unknown, headers: Record<string, string>) => post(port, body, headers, route);
+        const h = ok(port, token);
+        const { origin: _o, ...noOrigin } = h;
+        const cases: [string, Promise<{ status: number; body: any }>, number, string | RegExp][] = [
+          ['no origin', to({}, noOrigin), 403, 'A write needs a loopback Origin.'],
+          ['null origin', to({}, { ...h, origin: 'null' }), 403, 'A write needs a loopback Origin.'],
+          ['foreign origin', to({}, { ...h, origin: 'https://evil.example' }), 403, /loopback only/],
+          ['form', to('a=1', { ...h, 'content-type': 'application/x-www-form-urlencoded' }), 415, 'Send application/json.'],
+          ['no token', to({}, { ...h, 'x-eklavya-token': '' }), 403, 'Stale or missing dashboard token. Reload the page.'],
+          ['too large', to('x'.repeat(maxBytes + 1), h), 413, 'Request too large.'],
+          ['not json', to('{', h), 400, 'Not valid JSON.'],
+        ];
+        for (const [what, pending, status, error] of cases) {
+          const r = await pending;
+          expect(r.status, `${route}: ${what}`).toBe(status);
+          const text = typeof r.body === 'string' ? r.body : r.body.error;
+          if (typeof error === 'string') expect(text, `${route}: ${what}`).toBe(error);
+          else expect(text, `${route}: ${what}`).toMatch(error);
+        }
+      }
+    });
+  });
+
   it('refuses unknown, terminal-only, global-only-for-a-project and out-of-range writes', async () => {
     await withServer(async (port, token) => {
       const h = ok(port, token);
@@ -1070,6 +1149,123 @@ describe('/api/settings', () => {
         expect(JSON.parse(JSON.stringify({ type, options, min, max, int, nullable, maxLength, maxItems, regex })), f.key)
           .toEqual(JSON.parse(JSON.stringify(SETTING_RULES[f.key])));
       }
+    });
+  });
+
+  describe('corrections', () => {
+    const OPTS = ['A cache', 'A lock', 'A queue', 'A log'];
+    const NOTES = ['keeps reads', 'serialises writers', 'orders work', 'appends history'];
+    const missed = (correct: string | null = 'A lock') => {
+      const c = db.prepare(`SELECT id FROM concepts WHERE slug = 'csrf'`).get() as { id: number };
+      return gradeConcept(db, {
+        conceptId: c.id, sessionId: 'corr', question: 'Which one stops two writers?', answer: 'A cache', grade: 1,
+        difficulty: 2, feedback: null, outcome: 'answered', format: 'mcq', options: OPTS, correct, optionNotes: NOTES,
+        repo: null, level: null, now: new Date(),
+      }).attemptId;
+    };
+    const retry = (port: number, token: string, body: unknown) => post(port, body, ok(port, token), '/api/attempts/retry');
+
+    it('serves the question without its answer, and refuses what cannot be corrected', async () => {
+      const id = missed();
+      const legacy = missed(null);
+      await withServer(async (_port, _token, url) => {
+        const r = await fetch(`${url}/api/attempts/correction?id=${id}`);
+        expect(r.status).toBe(200);
+        const body = await r.json();
+        expect(body).toEqual({
+          id, concept: 'csrf', question: 'Which one stops two writers?', options: OPTS, option_notes: NOTES, tries: 0, corrected_at: null,
+        });
+        // The server grades; the answer never reaches the page.
+        expect(JSON.stringify(body)).not.toContain('"correct"');
+        expect((await fetch(`${url}/api/attempts/correction?id=999999`)).status).toBe(404);
+        const no = await fetch(`${url}/api/attempts/correction?id=${legacy}`);
+        expect(no.status).toBe(409);
+        expect((await no.json()).code).toBe('not_correctable');
+      });
+    });
+
+    it('grades each try through the write path and records every one', async () => {
+      const id = missed();
+      const legacy = missed(null);
+      await withServer(async (port, token, url) => {
+        expect(await retry(port, token, { attempt_id: id, picked: 'A queue' })).toEqual({
+          status: 200, body: { correct: false, tries: 1, corrected: false },
+        });
+        const bad = await retry(port, token, { attempt_id: id, picked: 'nope' });
+        expect([bad.status, bad.body.code]).toEqual([400, 'not_an_option']);
+        expect(await retry(port, token, { attempt_id: id, picked: 'A lock' })).toEqual({
+          status: 200, body: { correct: true, tries: 2, corrected: true },
+        });
+        const again = await retry(port, token, { attempt_id: id, picked: 'A lock' });
+        expect([again.status, again.body.code]).toEqual([409, 'already_corrected']);
+        const gone = await retry(port, token, { attempt_id: 999999, picked: 'A lock' });
+        expect([gone.status, gone.body.code]).toEqual([404, 'not_found']);
+        const old = await retry(port, token, { attempt_id: legacy, picked: 'A lock' });
+        expect([old.status, old.body.code]).toEqual([409, 'not_correctable']);
+        for (const body of [[], null, { attempt_id: '1', picked: 'A lock' }, { attempt_id: 1.5, picked: 'x' }, { attempt_id: 0, picked: 'x' }, { attempt_id: id }, { attempt_id: id, picked: 'x'.repeat(1001) }]) {
+          const r = await retry(port, token, body);
+          expect(r.status, JSON.stringify(body)).toBe(400);
+          expect(typeof r.body.error).toBe('string');
+        }
+        expect(db.prepare('SELECT picked, correct FROM attempt_retries WHERE attempt_id = ? ORDER BY id').all(id)).toEqual([
+          { picked: 'A queue', correct: 0 },
+          { picked: 'A lock', correct: 1 },
+        ]);
+        const done = await (await fetch(`${url}/api/attempts/correction?id=${id}`)).json();
+        expect(done).toMatchObject({ tries: 2, corrected_at: expect.any(String) });
+      });
+    });
+
+    it('counts a corrected miss as corrected, and never the correction as an answer', () => {
+      const fixed = missed();
+      missed();
+      recordRetry(db, fixed, 'A queue', new Date());
+      recordRetry(db, fixed, 'A lock', new Date());
+      const st = dashboardState(db) as any;
+      const today = st.daily.filter((d: any) => d.day === new Date().toISOString().slice(0, 10));
+      const sum = (k: string) => today.reduce((n: number, d: any) => n + d[k], 0);
+      expect([sum('passed'), sum('missed'), sum('corrected')]).toEqual([0, 1, 1]);
+      expect(st.totals).toMatchObject({ answers: 2, passed: 0, missed: 1, corrected: 1 });
+      // The attempt list is questions asked: the miss is kept, marked, and its correction row is not a second answer.
+      const rows = st.attempts.filter((a: any) => a.slug === 'csrf');
+      expect(rows).toHaveLength(2);
+      expect(rows.find((a: any) => a.id === fixed)).toMatchObject({ grade: 1, corrected_try: 2, corrected_at: expect.any(String) });
+      expect(rows.find((a: any) => a.id !== fixed)).toMatchObject({ corrected_at: null, corrected_try: null });
+      const csrf = st.concepts.find((c: any) => c.slug === 'csrf');
+      expect(csrf).toMatchObject({ attempts: 2, passed: 0, corrected: 1, last_grade: 1 });
+      expect(st.projects.reduce((n: number, p: any) => n + p.answers, 0)).toBe(2);
+    });
+
+    it('tells the artifact gallery which explainers are open or done', () => {
+      const open = missed();
+      const done = missed();
+      const legacy = missed(null);
+      recordRetry(db, done, 'A lock', new Date());
+      const dir = path.join(home, 'artifacts', 'proj');
+      fs.mkdirSync(dir, { recursive: true });
+      const page = (name: string, kind: string, attempt: string | null) =>
+        fs.writeFileSync(path.join(dir, name), `<html><head><title>${name}</title><meta name="eklavya:kind" content="${kind}">${
+          attempt === null ? '' : `<meta name="eklavya:attempt" content="${attempt}">`}</head></html>`);
+      page('open.html', 'explainer', String(open));
+      page('done.html', 'explainer', String(done));
+      page('legacy.html', 'explainer', String(legacy));
+      page('old.html', 'explainer', null);
+      page('missing.html', 'explainer', '999999');
+      page('junk.html', 'explainer', 'abc');
+      page('plain.html', 'artifact', String(open));
+      const rows = Object.fromEntries(
+        (dashboardState(db).artifacts as { title: string; attempt: number | null; correction: string | null }[])
+          .map((a) => [a.title, [a.attempt, a.correction]]),
+      );
+      expect(rows).toEqual({
+        'open.html': [open, 'open'],
+        'done.html': [done, 'done'],
+        'legacy.html': [legacy, null],
+        'old.html': [null, null],
+        'missing.html': [999999, null],
+        'junk.html': [null, null],
+        'plain.html': [open, null],
+      });
     });
   });
 });

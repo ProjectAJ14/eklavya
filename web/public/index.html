@@ -502,7 +502,7 @@
       <li data-reveal data-delay="300">
         <span class="steps__n">4</span>
         <h3>You answer, it grades honestly</h3>
-        <p>Pick from four options, or use Other to answer in your own words or say “I don’t know.” Answers score 0–5; multiple-choice recognition is capped at 4. A missed answer also gets an explainer page that restates the question and shows the right answer.</p>
+        <p>Pick from four options, or use Other to answer in your own words or say “I don’t know.” Answers score 0–5; multiple-choice recognition is capped at 4. A missed answer also gets an explainer page that restates the question and shows the right answer. Once you have read it, you can correct a missed multiple-choice answer from that page in the dashboard: the right pick counts for that concept’s score, though not for a commit gate or a level, and the concept still comes back for review.</p>
       </li>
       <li data-reveal data-delay="400">
         <span class="steps__n">5</span>
@@ -733,13 +733,14 @@
         <li>Sessions, Projects, Domains: every project that logged work, including ones with no assessments yet</li>
         <li>Memory Dashboard and Timeline: every observation, filterable, down to the raw evidence behind each one</li>
         <li>Reuse and Health: an estimate of what each recall saved once a hook wrote it out, how many memory reads ran and how many had no receipt, and where capture stops</li>
-        <li>Artifacts: a gallery of every explainer and page your agent wrote, each with its diagram as the thumbnail, searchable, grouped by project</li>
+        <li>Artifacts: a gallery of every explainer and page your agent wrote, each with its diagram as the thumbnail, searchable, grouped by project; an explainer for a missed multiple-choice question opens in the dashboard with a Correct your answer button under it</li>
         <li>Settings: your user settings and each project's, showing what a project overrides and what it inherits</li>
       </ul>
       <p class="dash__note" data-reveal data-delay="300">
         Bound to loopback, reading the same <code>~/.eklavya/knowledge.db</code>, and making no
         request to any other host — not even for fonts. An artifact opens in its own tab,
-        sandboxed away from your history. It keeps running in the background;
+        sandboxed away from your history; an explainer you can correct opens inside the dashboard,
+        in the same sandbox. It keeps running in the background;
         <code>dashboard_autostart</code> turns that off. Install it from Chrome, Edge or Safari
         to open it like an app, from Spotlight or the Dock.
       </p>

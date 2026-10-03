@@ -118,15 +118,21 @@ export function recordAttemptRow(
     outcome: AttemptOutcome | null;
     format: QuestionFormat | null;
     options: string[] | null;
+    /** The right option's label, verbatim; NULL when not recorded (migration 019). */
+    correct?: string | null;
+    /** One note per option, parallel to `options`. */
+    optionNotes?: string[] | null;
+    /** Set only on a correction row: the missed attempt it corrects. */
+    retryOf?: number | null;
     repo: string | null;
     level: Level | null;
   },
-): void {
-  db.prepare(
+): number {
+  return Number(db.prepare(
     `INSERT INTO attempts
        (concept_id, session_id, question, answer, grade, difficulty, feedback, outcome, format,
-        options, repo, level)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        options, repo, level, correct, option_notes, retry_of)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     a.conceptId,
     a.sessionId,
@@ -144,7 +150,10 @@ export function recordAttemptRow(
     // toward the next level is counted from these two (migration 008).
     a.repo,
     a.level,
-  );
+    a.correct ?? null,
+    a.optionNotes ? JSON.stringify(a.optionNotes) : null,
+    a.retryOf ?? null,
+  ).lastInsertRowid);
 }
 
 /** Applies one grade end to end: attempt row, then recomputed SM-2 state. */
@@ -161,17 +170,197 @@ export function gradeConcept(
     outcome: AttemptOutcome | null;
     format: QuestionFormat | null;
     options: string[] | null;
+    correct?: string | null;
+    optionNotes?: string[] | null;
+    retryOf?: number | null;
     repo: string | null;
     level: Level | null;
     now: Date;
   },
-): MasteryState {
+): MasteryState & { attemptId: number } {
   const before = masteryFor(db, input.conceptId);
-  recordAttemptRow(db, input);
+  const attemptId = recordAttemptRow(db, input);
   const grades = gradesFor(db, input.conceptId);
   const after = applyGrade({ state: before, grade: input.grade, grades, now: input.now });
   writeMastery(db, input.conceptId, after);
-  return after;
+  return { ...after, attemptId };
+}
+
+/**
+ * A missed answer: wrong, or a blank the tutor taught. A decline and a bare
+ * skip are not -- the learner asked to move on. The one rule for both "does
+ * this get an explainer" and "can this be corrected".
+ */
+export function isMissed(grade: number, outcome: AttemptOutcome | null): boolean {
+  return grade < PASSING_GRADE && outcome !== 'declined' && (grade > 0 || outcome === 'dont_know');
+}
+
+// ---------------------------------------------------------------------------
+// Corrections (migration 019)
+//
+// After reading the explainer for a missed question, the learner may pick
+// again. Every pick lands in `attempt_retries`; the right one also writes a
+// grade-3 attempt row with `retry_of` set, through `gradeConcept`, so mastery
+// moves as for any pass. That row is recognition, not recall, so the gate,
+// level progress and the review backlog skip it.
+// ---------------------------------------------------------------------------
+
+export type CorrectionErrorCode = 'not_found' | 'not_correctable' | 'already_corrected' | 'not_an_option';
+
+export class CorrectionError extends Error {
+  constructor(readonly code: CorrectionErrorCode) {
+    super(code);
+  }
+}
+
+export interface CorrectionTarget {
+  id: number;
+  concept: string;
+  question: string;
+  options: string[] | null;
+  option_notes: string[] | null;
+  /** The answer key. Never send this to the page: the server grades. */
+  correct: string | null;
+  /** False for a row recorded without a key, a pass, a decline or a correction itself. */
+  correctable: boolean;
+  tries: number;
+  corrected_at: string | null;
+}
+
+interface TargetRow {
+  id: number;
+  concept_id: number;
+  slug: string;
+  session_id: string;
+  question: string;
+  grade: number;
+  difficulty: number;
+  outcome: AttemptOutcome | null;
+  options: string | null;
+  option_notes: string | null;
+  correct: string | null;
+  retry_of: number | null;
+  repo: string | null;
+  level: Level | null;
+  tries: number;
+  corrected_at: string | null;
+}
+
+function targetRow(db: DB, attemptId: number): TargetRow | undefined {
+  return targetRows(db, [attemptId])[0];
+}
+
+function targetRows(db: DB, attemptIds: number[]): TargetRow[] {
+  return db
+    .prepare(
+      `SELECT a.id, a.concept_id, c.slug, a.session_id, a.question, a.grade, a.difficulty, a.outcome,
+              a.options, a.option_notes, a.correct, a.retry_of, a.repo, a.level,
+              (SELECT count(*) FROM attempt_retries r WHERE r.attempt_id = a.id) AS tries,
+              (SELECT x.ts FROM attempts x WHERE x.retry_of = a.id) AS corrected_at
+         FROM attempts a JOIN concepts c ON c.id = a.concept_id
+        WHERE a.id IN (SELECT value FROM json_each(?))`,
+    )
+    .all(JSON.stringify(attemptIds)) as TargetRow[];
+}
+
+/**
+ * `open` or `done` for each correctable attempt among `attemptIds`, in one
+ * query; an id that is missing or cannot be corrected is left out.
+ */
+export function correctionStates(db: DB, attemptIds: number[]): Map<number, 'open' | 'done'> {
+  const out = new Map<number, 'open' | 'done'>();
+  for (const row of targetRows(db, attemptIds)) {
+    const t = toTarget(row);
+    if (t.correctable) out.set(t.id, t.corrected_at === null ? 'open' : 'done');
+  }
+  return out;
+}
+
+/** Stored JSON that is not a string array reads as absent rather than throwing. */
+function stringArray(json: string | null): string[] | null {
+  try {
+    const v: unknown = JSON.parse(json ?? 'null');
+    return Array.isArray(v) && v.every((x) => typeof x === 'string') ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The missed attempt a correction would target, or null when there is no such row. */
+export function correctionTarget(db: DB, attemptId: number): CorrectionTarget | null {
+  const row = targetRow(db, attemptId);
+  return row ? toTarget(row) : null;
+}
+
+function toTarget(row: TargetRow): CorrectionTarget {
+  const options = stringArray(row.options);
+  return {
+    id: row.id,
+    concept: row.slug,
+    question: row.question,
+    options,
+    option_notes: stringArray(row.option_notes),
+    correct: row.correct,
+    correctable:
+      row.correct !== null && options !== null && row.retry_of === null && isMissed(row.grade, row.outcome),
+    tries: row.tries,
+    corrected_at: row.corrected_at,
+  };
+}
+
+/** SQLite's own `datetime('now')` shape, so a retry sorts and parses like every other row. */
+function sqliteStamp(now: Date): string {
+  return now.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
+ * One pick on the correction modal. Logged whatever it is; graded only when
+ * right. Throws `CorrectionError` before writing anything when the pick cannot
+ * count. One transaction, so a crash cannot leave a right try without its row.
+ */
+export function recordRetry(
+  db: DB,
+  attemptId: number,
+  picked: string,
+  now: Date,
+): { correct: boolean; tries: number; corrected: boolean } {
+  return db.transaction(() => {
+    const row = targetRow(db, attemptId);
+    if (!row) throw new CorrectionError('not_found');
+    const target = toTarget(row);
+    if (!target.correctable) throw new CorrectionError('not_correctable');
+    if (target.corrected_at !== null) throw new CorrectionError('already_corrected');
+    if (!target.options!.includes(picked)) throw new CorrectionError('not_an_option');
+
+    const correct = picked === target.correct;
+    db.prepare('INSERT INTO attempt_retries (attempt_id, picked, correct, ts) VALUES (?, ?, ?, ?)').run(
+      attemptId,
+      picked,
+      correct ? 1 : 0,
+      sqliteStamp(now),
+    );
+    if (correct) {
+      gradeConcept(db, {
+        conceptId: row.concept_id,
+        sessionId: row.session_id,
+        question: row.question,
+        answer: picked,
+        grade: PASSING_GRADE,
+        difficulty: row.difficulty,
+        feedback: null,
+        outcome: 'answered',
+        format: 'mcq',
+        options: target.options,
+        correct: target.correct,
+        optionNotes: target.option_notes,
+        retryOf: attemptId,
+        repo: row.repo,
+        level: row.level,
+        now,
+      });
+    }
+    return { correct, tries: target.tries + 1, corrected: correct };
+  })();
 }
 
 /**
@@ -241,7 +430,8 @@ export function newConceptsThisSession(db: DB, sessionId: string): number {
 
 export function lastAttemptAt(db: DB, sessionId: string): string | null {
   const row = db
-    .prepare('SELECT ts FROM attempts WHERE session_id = ? ORDER BY id DESC LIMIT 1')
+    // A correction made from the dashboard is not a question asked in the session.
+    .prepare('SELECT ts FROM attempts WHERE session_id = ? AND retry_of IS NULL ORDER BY id DESC LIMIT 1')
     .get(sessionId) as { ts: string } | undefined;
   return row?.ts ?? null;
 }
@@ -281,6 +471,8 @@ function countAnswered(db: DB, sessionId: string): { answered: number; passedCou
       // `learn` focus selecting from an unrelated topic, would let a gate whose
       // bar was set by today's diff be cleared without a single question about
       // today's diff. NULL is pre-migration and reads as 'work' (migration 005).
+      // A correction row (`retry_of`) is excluded from both: picking the
+      // answer straight after reading the explainer must not clear a gate.
       `SELECT
          count(DISTINCT a.concept_id) AS answered,
          count(DISTINCT CASE
@@ -290,7 +482,7 @@ function countAnswered(db: DB, sessionId: string): { answered: number; passedCou
        FROM attempts a
        JOIN session_concepts sc
          ON sc.concept_id = a.concept_id AND sc.session_id = a.session_id
-       WHERE a.session_id = ?`,
+       WHERE a.session_id = ? AND a.retry_of IS NULL`,
     )
     .get(PASSING_GRADE, sessionId) as { answered: number; passedCount: number };
   return row;
@@ -446,6 +638,9 @@ export function questionFingerprint(question: string): string {
 export function hasAskedQuestion(db: DB, conceptId: number, question: string): boolean {
   const target = questionFingerprint(question);
   if (!target) return false;
+  // Correction rows are left in: one repeats the stem of the miss it corrects,
+  // which is already here, so it can only push older stems out of the window
+  // by one row -- never make a new question look asked.
   const rows = db
     .prepare('SELECT question FROM attempts WHERE concept_id = ? ORDER BY id DESC LIMIT 20')
     .all(conceptId) as { question: string }[];
@@ -508,13 +703,13 @@ export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[
            SELECT a.concept_id,
                   max(a.grade) AS best_grade,
                   (SELECT x.outcome FROM attempts x
-                    WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id
+                    WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id AND x.retry_of IS NULL
                     ORDER BY x.id DESC LIMIT 1) AS last_outcome,
                   (SELECT length(trim(coalesce(x.feedback, ''), ' ' || char(9) || char(10) || char(13))) FROM attempts x
-                    WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id
+                    WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id AND x.retry_of IS NULL
                     ORDER BY x.id DESC LIMIT 1) AS last_feedback_len
              FROM attempts a
-            WHERE a.session_id = ?
+            WHERE a.session_id = ? AND a.retry_of IS NULL
             GROUP BY a.concept_id
          ) t ON t.concept_id = c.id
         WHERE t.best_grade < ?
@@ -660,9 +855,13 @@ export function projectKey(repoRoot: string | null | undefined): string {
   return mainRepoRoot(repoRoot);
 }
 
-/** `isOwed` in SQL: the concept's latest answer, anywhere, did not pass. */
+/**
+ * `isOwed` in SQL: the concept's latest answer, anywhere, did not pass. A
+ * correction (`retry_of`) is not an answer here: the concept stays in the
+ * backlog until it is passed from recall.
+ */
 const OWED_SQL = (conceptId: string): string =>
-  `(SELECT grade FROM attempts WHERE concept_id = ${conceptId} ORDER BY id DESC LIMIT 1) < ${PASSING_GRADE}`;
+  `(SELECT grade FROM attempts WHERE concept_id = ${conceptId} AND retry_of IS NULL ORDER BY id DESC LIMIT 1) < ${PASSING_GRADE}`;
 
 /**
  * Questions this project already asked that are due again, soonest first.
@@ -847,7 +1046,8 @@ export function projectLevelRow(db: DB, repo: string): ProjectLevelRow | undefin
  * `since` is the level's `promoted_at`: answers from the previous band are spent.
  * Declines are excluded from both halves of the accuracy fraction -- skipping a
  * question honestly must never cost a level, or the level becomes a reason to
- * guess.
+ * guess. Corrections (`retry_of`) are excluded too: a pick made after reading
+ * the answer must not buy a promotion.
  */
 export function levelCounts(db: DB, repo: string, level: Level, since: string | null): LevelCounts {
   const row = db
@@ -859,6 +1059,7 @@ export function levelCounts(db: DB, repo: string, level: Level, since: string | 
        FROM attempts
        WHERE repo = ? AND level = ?
          AND COALESCE(outcome, 'answered') <> 'declined'
+         AND retry_of IS NULL
          AND (? IS NULL OR ts >= ?)`,
     )
     .get(PASSING_GRADE, PASSING_GRADE, repo, level, since, since) as LevelCounts;

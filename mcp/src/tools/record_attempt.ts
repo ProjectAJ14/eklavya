@@ -7,6 +7,7 @@ import {
   conceptBySlug,
   gradeConcept,
   hasAskedQuestion,
+  isMissed,
   levelStanding,
   logSessionConcept,
   promoteIfEarned,
@@ -23,21 +24,32 @@ import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
  * contract: the grade and the one-line verdict are already given, the page is
  * written by a background agent, and the session goes back to the work.
  */
-export function explainInstruction(name: string, options: string[] | null = null): string {
+export function explainInstruction(
+  name: string,
+  options: string[] | null,
+  attemptId: number,
+  notes: string[] | null,
+): string {
   // The tutor relays this in its own words, and a paraphrase kept only the
   // picked and right options. Spelling them out makes the full list the thing
   // it copies.
   const list = options?.length
     ? ` Copy all ${options.length} options into its prompt, in this order, not just the picked and right ones: ${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join(' | ')}.`
     : '';
-  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent (eklavya:eklavya-explainer when Eklavya is installed as a plugin) in the background, handing it the concept slug, the question, every option offered, the learner's answer and the right answer, so the page can show the question as it was asked.${list} It writes an explainer page on ${name} and opens it. Tell the learner in one line that they missed it, what the right answer is, and that a page on it is on its way, then carry on with the task.`;
+  // The note under each option is what the learner read in the question; the
+  // page shows it too, so the two look alike.
+  const noteLine = notes?.length ? ' Hand it the one-line note under each option as well, so the page shows each note under its option.' : '';
+  // The attempt id links the page to this row, which is what lets the
+  // dashboard offer "Correct your answer" on it.
+  const link = ` Tell it to pass --attempt ${attemptId} to eklavya artifacts new.`;
+  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent (eklavya:eklavya-explainer when Eklavya is installed as a plugin) in the background, handing it the concept slug, the question, every option offered, the learner's answer and the right answer, so the page can show the question as it was asked.${list}${noteLine}${link} It writes an explainer page on ${name} and opens it. Tell the learner in one line that they missed it, what the right answer is, and that a page on it is on its way, then carry on with the task.`;
 }
 
 export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on. Returns explain on a missed answer when explain_on_wrong is on: follow its instruction.',
+    'Grade one answer on the 0-5 SM-2 scale and persist it, returning its attempt_id. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. With every mcq also pass correct (the right option\'s label, verbatim) and option_notes (the description under each option, same order): they are what lets the learner correct a missed answer after reading its explainer. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on. Returns explain on a missed answer when explain_on_wrong is on: follow its instruction.',
   inputSchema: {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
@@ -74,6 +86,16 @@ export const recordAttempt: ToolDef = {
       .max(LIMITS.options)
       .optional()
       .describe('For mcq: the option labels you offered, in the order shown. Not the stem.'),
+    correct: z
+      .string()
+      .max(LIMITS.option)
+      .optional()
+      .describe('For mcq: the right option\'s label, exactly as it appears in options. Grades a later correction; never shown to the learner by the server.'),
+    option_notes: z
+      .array(z.string().max(LIMITS.option))
+      .max(LIMITS.options)
+      .optional()
+      .describe('For mcq: the one-line description shown under each option (AskUserQuestion\'s description), in the same order as options.'),
     outcome: z
       .enum(['answered', 'dont_know', 'declined'])
       .optional()
@@ -94,6 +116,8 @@ export const recordAttempt: ToolDef = {
       outcome?: AttemptOutcome;
       format?: QuestionFormat;
       options?: string[];
+      correct?: string;
+      option_notes?: string[];
     },
     { db },
   ) => {
@@ -136,6 +160,15 @@ export const recordAttempt: ToolDef = {
     const outcomeConflict =
       args.outcome === 'declined' && typeof args.feedback === 'string' && args.feedback.trim().length > 0;
 
+    // A key that does not line up with the options cannot grade a correction,
+    // so it is stored as NULL -- but the answer is real, and losing it would be
+    // the worse trade, so the attempt is recorded and the tutor told.
+    const options = args.options ?? null;
+    const correctOk = args.correct === undefined || (options?.includes(args.correct) ?? false);
+    const correct = correctOk ? (args.correct ?? null) : null;
+    const notesOk = args.option_notes === undefined || args.option_notes.length === (options?.length ?? 0);
+    const optionNotes = notesOk ? (args.option_notes ?? null) : null;
+
     const capped = args.format === 'mcq' && args.grade > MAX_MCQ_GRADE;
     const grade = capped ? MAX_MCQ_GRADE : args.grade;
 
@@ -155,7 +188,9 @@ export const recordAttempt: ToolDef = {
         difficulty: args.difficulty,
         feedback: args.feedback ?? null,
         format: args.format ?? null,
-        options: args.options ?? null,
+        options,
+        correct,
+        optionNotes,
         // Left NULL rather than guessed when the tutor does not say. An absent
         // answer is a fair hint that nothing was attempted, but it cannot tell
         // "teach me" from "leave it" -- and inventing the difference here would
@@ -188,15 +223,18 @@ export const recordAttempt: ToolDef = {
     // field it was handed far more reliably than a rule it has to remember, and
     // the instruction is composed once, where the config is visible. A decline
     // and a bare skip get nothing -- they asked to move on.
-    const missed = grade <= 2 && args.outcome !== 'declined' && (grade > 0 || args.outcome === 'dont_know');
+    const missed = isMissed(grade, args.outcome ?? null);
     const explain = config.explain_on_wrong && missed
       ? {
           concept: concept.slug,
           name: concept.name,
           question,
-          options: args.options ?? null,
+          options,
+          option_notes: optionNotes,
           answer: args.answer ?? null,
-          instruction: explainInstruction(concept.name, args.options ?? null),
+          correct,
+          attempt_id: state.attemptId,
+          instruction: explainInstruction(concept.name, options, state.attemptId, optionNotes),
         }
       : null;
     const after = levelStanding(db, config, repoRoot);
@@ -204,6 +242,7 @@ export const recordAttempt: ToolDef = {
 
     return {
       slug: concept.slug,
+      attempt_id: state.attemptId,
       recorded_grade: grade,
       // Silence here would let the tutor keep miscalibrating; say what was
       // changed and why.
@@ -224,6 +263,18 @@ export const recordAttempt: ToolDef = {
       // question can be a new one.
       repeat_question: repeatQuestion,
       ...(explain ? { explain } : {}),
+      ...(correctOk
+        ? {}
+        : {
+            correct_mismatch:
+              'correct was not one of the options, so this answer cannot be corrected later. Pass the right option\'s label verbatim, exactly as it appears in options.',
+          }),
+      ...(notesOk
+        ? {}
+        : {
+            option_notes_mismatch:
+              'option_notes needs one note per option, in the same order as options. They were not stored.',
+          }),
       ...(outcomeConflict
         ? {
             outcome_conflict:

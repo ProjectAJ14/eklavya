@@ -131,7 +131,9 @@ Memory tool use is “search, choose, then get”: index tools return small resu
 morphology and character overlap are not general semantic understanding.
 
 The dashboard is loopback-only and read-only (GET/HEAD, security headers), except
-`POST /api/settings`, which needs a loopback Origin, JSON and the per-start page token.
+the routes in `WRITES` (`dashboard.ts`). Every write goes through `acceptWrite`:
+a loopback Origin, JSON, the per-start page token and the route's size cap. A new
+write is a `WRITES` row plus a handler; the page posts through its one `postJson`.
 Artifact resolution must reject traversal and stay inside the real artifact
 root. Artifact creation never overwrites or publishes; metadata lives in HTML
 heads, not a database table. The template inlines shared design tokens.

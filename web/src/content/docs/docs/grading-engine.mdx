@@ -27,6 +27,17 @@ A multiple-choice selection is capped at **4**. A written explanation through �
 
 With [`explain_on_wrong`](/docs/configuration/#every-key) on (the default), wrong or unknown answers also start a background explainer page. The verdict arrives immediately; the quiz does not wait for the page. Skips and declines do not create one.
 
+### Correcting from an explainer
+
+When the tutor records a multiple-choice question it also stores the right option (`correct`) and the note under each option (`option_notes`). After reading the explainer for a missed question, you can pick again from the [dashboard](/docs/dashboard/#correcting-a-missed-answer):
+
+| Pick | What is recorded |
+| --- | --- |
+| Wrong | The pick, as a numbered try. Nothing else: the miss already cost the grade. |
+| Right | The pick, plus a new answer at grade **3** that updates the concept's score and review date like any pass. |
+
+The original miss is kept unchanged. The corrected answer does not count toward a commit gate, toward level promotion, or toward clearing the review backlog: choosing the answer straight after reading it is recognition, not recall. So the concept still returns for review, and the level accuracy still includes the miss. Each miss can be corrected once. A question recorded without its right option, including everything recorded before this feature, cannot be corrected.
+
 ### Why the questions are multiple choice
 
 Questions offer four options so you can respond while working. Exactly one option should answer the question; the other three are meant to be believable but wrong. The plan assigns the correct answer's position to avoid always putting it first. “Other” lets you say you do not know or give an explanation in your own words.

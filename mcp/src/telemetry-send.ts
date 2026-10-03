@@ -155,16 +155,18 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
     },
   };
 
+  // A correction row (`retry_of`) is a pick made on the dashboard after the
+  // explainer showed the answer, not a question: none of these counts it.
   const learning: TelemetryEvent = {
     name: 'learning',
     params: {
-      questions_new: num(db, 'SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ?', t),
-      answered_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND COALESCE(outcome, 'answered') = 'answered'", t),
-      passed_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND COALESCE(outcome, 'answered') = 'answered' AND grade >= ?", t, PASSING_GRADE),
-      dont_know_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND outcome = 'dont_know'", t),
-      declined_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND outcome = 'declined'", t),
-      mcq_new: num(db, "SELECT COUNT(*) FROM attempts WHERE datetime(ts) >= ? AND format = 'mcq'", t),
-      questions_total: num(db, 'SELECT COUNT(*) FROM attempts'),
+      questions_new: num(db, 'SELECT COUNT(*) FROM attempts WHERE retry_of IS NULL AND datetime(ts) >= ?', t),
+      answered_new: num(db, "SELECT COUNT(*) FROM attempts WHERE retry_of IS NULL AND datetime(ts) >= ? AND COALESCE(outcome, 'answered') = 'answered'", t),
+      passed_new: num(db, "SELECT COUNT(*) FROM attempts WHERE retry_of IS NULL AND datetime(ts) >= ? AND COALESCE(outcome, 'answered') = 'answered' AND grade >= ?", t, PASSING_GRADE),
+      dont_know_new: num(db, "SELECT COUNT(*) FROM attempts WHERE retry_of IS NULL AND datetime(ts) >= ? AND outcome = 'dont_know'", t),
+      declined_new: num(db, "SELECT COUNT(*) FROM attempts WHERE retry_of IS NULL AND datetime(ts) >= ? AND outcome = 'declined'", t),
+      mcq_new: num(db, "SELECT COUNT(*) FROM attempts WHERE retry_of IS NULL AND datetime(ts) >= ? AND format = 'mcq'", t),
+      questions_total: num(db, 'SELECT COUNT(*) FROM attempts WHERE retry_of IS NULL'),
       concepts_logged_new: num(db, 'SELECT COUNT(DISTINCT concept_id) FROM session_concepts WHERE datetime(ts) >= ?', t),
       concepts_mastered: num(db, `SELECT COUNT(*) FROM mastery WHERE ${known}`),
       concepts_learning: num(db, `SELECT COUNT(*) FROM mastery WHERE reps > 0 AND NOT (${known})`),

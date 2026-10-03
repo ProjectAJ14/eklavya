@@ -66,9 +66,11 @@ export const getLearnerProfile: ToolDef = {
       .prepare(
         `SELECT c.id, c.slug, c.domain, c.tier,
                 m.score, m.reps, m.next_review,
-                (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id) AS attempts,
-                (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id ORDER BY a.id DESC LIMIT 1) AS last_grade,
-                (SELECT a.difficulty FROM attempts a WHERE a.concept_id = c.id ORDER BY a.id DESC LIMIT 1) AS last_difficulty
+                -- Corrections (retry_of) are not questions asked: a concept
+                -- corrected after its explainer is still owed (OWED_SQL in store.ts).
+                (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NULL) AS attempts,
+                (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NULL ORDER BY a.id DESC LIMIT 1) AS last_grade,
+                (SELECT a.difficulty FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NULL ORDER BY a.id DESC LIMIT 1) AS last_difficulty
          FROM concepts c
          LEFT JOIN mastery m ON m.concept_id = c.id
          ${args.domain ? 'WHERE c.domain = ?' : ''}`,

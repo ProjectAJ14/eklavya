@@ -48,6 +48,14 @@ Code's learning loop.
 | Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |
 | Inspect code | `code_outline`, `code_find_symbol` |
 
+`record_attempt` returns the `attempt_id` of the row it wrote. For a
+multiple-choice question, also pass `correct` (the right option's label,
+verbatim), which lets the learner correct a missed answer from its explainer
+page in the dashboard, where the server grades the new pick, and `option_notes`
+(the note under each option, in order), which that page shows under each option. A `correct` that is not one of
+the options, or notes of the wrong length, is stored as nothing and reported
+back (`correct_mismatch`, `option_notes_mismatch`); the answer is still kept.
+
 Search first, choose relevant entries, then use `memory_get` for their full
 content. Pass `memory_get` the `receipt_id` a recall block names to link the
 read to that recall. Calls to `memory_search`, `memory_get`, `memory_timeline`
@@ -68,7 +76,9 @@ npx eklavya db-path
 ```
 
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
-flags. [Configuration](https://eklavya-run.web.app/docs/configuration/) lists
+flags. The dashboard reads the database and has two guarded writes: a setting
+change and a correction of a missed answer
+([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)). [Configuration](https://eklavya-run.web.app/docs/configuration/) lists
 defaults and scopes. The [memory guide](https://eklavya-run.web.app/docs/memory/)
 covers retrieval, processing, providers, privacy and sync.
 

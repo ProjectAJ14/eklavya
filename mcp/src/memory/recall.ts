@@ -462,7 +462,7 @@ export function learningCounts(db: DB, project: string, now = new Date()): Learn
   const rows = db
     .prepare(
       `SELECT c.id, m.score, m.reps, m.next_review,
-              (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id ORDER BY a.id DESC LIMIT 1) AS last_grade
+              (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NULL ORDER BY a.id DESC LIMIT 1) AS last_grade
        FROM concepts c
        LEFT JOIN mastery m ON m.concept_id = c.id
        WHERE c.id IN (

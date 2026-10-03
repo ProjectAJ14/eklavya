@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, type DB } from '../src/db.js';
-import { conceptBySlug, gradeConcept, logSessionConcept, projectKey, syncGate } from '../src/store.js';
+import { conceptBySlug, gradeConcept, logSessionConcept, projectKey, recordRetry, syncGate } from '../src/store.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { getCurrentSession, setCurrentSession, setSessionOff } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
@@ -1130,6 +1130,18 @@ describe('PostToolUse checkpoint — the burst guard', () => {
     answer('jwt-structure', 3);
 
     expect(checkpoint().stdout).toBe('');
+  });
+
+  it('does not charge a dashboard correction to the session budget', () => {
+    configure({ min_minutes_between_checkpoints: 0, max_questions_per_task: 2 });
+    logConcepts(['csrf', 'jwt-structure', 'pkce']);
+    answer('csrf', 1);
+    const missed = (db.prepare('SELECT max(id) AS id FROM attempts').get() as { id: number }).id;
+    db.prepare(`UPDATE attempts SET format = 'mcq', outcome = 'answered', options = ?, correct = 'b' WHERE id = ?`)
+      .run(JSON.stringify(['a', 'b']), missed);
+    recordRetry(db, missed, 'b', new Date());
+    ageClocks();
+    expect(checkpointContext(checkpoint())).toMatch(/\w/);
   });
 
   it('stays quiet when everything logged has already been asked about', () => {

@@ -666,6 +666,60 @@ describe('artifacts', () => {
   });
 });
 
+describe('artifacts open, for an explainer linked to an attempt', () => {
+  const opener = () => {
+    const opened = path.join(scratch, 'opened');
+    const dir = bin({ open: `echo "$1" > "${opened}"`, 'xdg-open': `echo "$1" > "${opened}"` });
+    const read = async () => {
+      for (let i = 0; i < 200 && !fs.existsSync(opened); i++) await new Promise((r) => setTimeout(r, 25));
+      return fs.readFileSync(opened, 'utf8').trim();
+    };
+    return { PATH: `${dir}${path.delimiter}${process.env.PATH}`, read };
+  };
+  const linked = () => {
+    const file = eklavya(['artifacts', 'new', 'Why locks', '--kind', 'explainer', '--attempt', '7']).stdout.trim();
+    const id = JSON.parse(eklavya(['artifacts', 'list', '--json']).stdout)[0].id as string;
+    return { file, url: `http://127.0.0.1:${port}/#/artifacts/view/${encodeURIComponent(id)}` };
+  };
+
+  it('opens it in the dashboard viewer when the background dashboard answers', async () => {
+    const { file, url } = linked();
+    const o = opener();
+    await listen(health({}));
+    const run = eklavyaAsync(['artifacts', 'open', file], { PATH: o.PATH });
+    expect((await run.done).stdout).toBe(`${url}\n`);
+    expect(await o.read()).toBe(url);
+  });
+
+  it('starts the background dashboard for it when nothing answers', async () => {
+    const o = opener();
+    const run = eklavyaAsync(['artifacts', 'new', 'Again', '--kind', 'explainer', '--attempt', '8', '--open'], { PATH: o.PATH });
+    const made = (await run.done).stdout;
+    // `new` still prints only the path; the page itself opened in the viewer.
+    expect(made.trim().split('\n')).toHaveLength(1);
+    expect(await o.read()).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/#/artifacts/view/[^/]+%2F[^/]+-again\\.html$`));
+    const stop = eklavyaAsync(['dashboard', 'stop']);
+    expect((await stop.done).stdout).toMatch(/^Stopped the dashboard/);
+  });
+
+  it('opens the file when the port is someone else\'s, autostart is off, or the page links nothing', async () => {
+    const { file } = linked();
+    const o = opener();
+    await listen((_req, res) => res.end('hello'));
+    let run = eklavyaAsync(['artifacts', 'open', file], { PATH: o.PATH });
+    expect((await run.done).stdout).toBe(`${file}\n`);
+    globalConfig({ dashboard_autostart: false });
+    run = eklavyaAsync(['artifacts', 'open', file], { PATH: o.PATH });
+    expect((await run.done).stdout).toBe(`${file}\n`);
+    // A linked page copied outside the artifact folder has no dashboard id.
+    const outside = path.join(scratch, 'copy.html');
+    fs.copyFileSync(file, outside);
+    globalConfig({ dashboard_autostart: true });
+    run = eklavyaAsync(['artifacts', 'open', outside], { PATH: o.PATH });
+    expect((await run.done).stdout).toBe(`${outside}\n`);
+  });
+});
+
 describe('update', () => {
   /** npm, as far as the updater can tell: `view` prints `latest`, `install` lays down that version. */
   function npm(latest: string, opts: { fail?: boolean } = {}): string {

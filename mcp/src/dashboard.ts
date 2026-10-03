@@ -9,8 +9,9 @@
  * Deliberately a static page plus JSON endpoints: no framework, no build
  * step, same rule the landing page follows. It binds to loopback only — the
  * data never leaves the machine, and that is a promise the landing page makes
- * on Eklavya's behalf. The one write, a setting, also needs the page's token
- * (see `postSettings`).
+ * on Eklavya's behalf. It is read-only except the routes in `WRITES`, and every
+ * one of those goes through `acceptWrite`: loopback Origin, JSON, the page's
+ * per-start token and a size cap.
  *
  * The endpoint ships mostly *flat rows* — every attempt, every logged context,
  * one row per day — and lets the page derive the views. One aggregate query per
@@ -26,7 +27,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
 import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
-import { GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey } from './store.js';
+import {
+  correctionStates, correctionTarget, CorrectionError, GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey, recordRetry,
+  type CorrectionErrorCode,
+} from './store.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
@@ -35,7 +39,8 @@ import {
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
 import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
-import { artifactThumb, listArtifacts, resolveArtifact } from './artifacts.js';
+import { artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
+import { LIMITS } from './tools/types.js';
 import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDelivery } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
@@ -86,7 +91,17 @@ interface DayRow {
   passed: number;
   missed: number;
   skipped: number;
+  /** Misses (and taught blanks) answered right later from their explainer. */
+  corrected: number;
 }
+
+/**
+ * A correction row (`retry_of`, migration 019) is a pick made on this page
+ * after the explainer showed the answer, not a question asked: no count here
+ * includes it. The miss it corrects is counted once, as `corrected` instead of
+ * missed or skipped, by joining that row as `fix`.
+ */
+const NOT_CORRECTION = 'retry_of IS NULL';
 
 interface ProjectRow {
   repo: string | null;
@@ -115,6 +130,8 @@ interface ConceptRow {
   attempts: number;
   passed: number;
   skipped: number;
+  /** Correction rows: misses answered right later from their explainer. */
+  corrected: number;
   first_asked: string | null;
   last_grade: number | null;
   last_context: string | null;
@@ -599,7 +616,7 @@ export function projectInventory(db: DB): {
             COALESCE(SUM(grade >= ${PASSING_GRADE}), 0) AS passed,
             COALESCE(SUM(outcome IN ('declined','dont_know')), 0) AS skipped,
             min(ts) AS first, max(ts) AS last
-     FROM attempts GROUP BY repo, session_id, concept_id`,
+     FROM attempts WHERE ${NOT_CORRECTION} GROUP BY repo, session_id, concept_id`,
   )) {
     const p = at(r.repo, 'attempts');
     p.learning.answers += r.n;
@@ -748,14 +765,15 @@ export function dashboardState(db: DB): Record<string, unknown> {
   // same pass line the level ladder uses, so the chart and the promotion agree.
   const daily = db
     .prepare(
-      `SELECT date(ts) AS day,
-              NULLIF(trim(COALESCE(repo, '')), '') AS repo,
-              sum(CASE WHEN grade >= ? THEN 1 ELSE 0 END) AS passed,
-              sum(CASE WHEN grade < ? AND (outcome IS NULL OR outcome = 'answered') THEN 1 ELSE 0 END) AS missed,
-              sum(CASE WHEN outcome IN ('declined','dont_know') THEN 1 ELSE 0 END) AS skipped
-       FROM attempts
-       WHERE ts >= date('now', ?)
-       GROUP BY day, repo
+      `SELECT date(a.ts) AS day,
+              NULLIF(trim(COALESCE(a.repo, '')), '') AS repo,
+              sum(CASE WHEN a.grade >= ? THEN 1 ELSE 0 END) AS passed,
+              sum(CASE WHEN a.grade < ? AND (a.outcome IS NULL OR a.outcome = 'answered') AND fix.id IS NULL THEN 1 ELSE 0 END) AS missed,
+              sum(CASE WHEN a.outcome IN ('declined','dont_know') AND fix.id IS NULL THEN 1 ELSE 0 END) AS skipped,
+              count(fix.id) AS corrected
+       FROM attempts a LEFT JOIN attempts fix ON fix.retry_of = a.id
+       WHERE a.${NOT_CORRECTION} AND a.ts >= date('now', ?)
+       GROUP BY 1, 2
        ORDER BY day`,
     )
     .all(PASSING_GRADE, PASSING_GRADE, `-${TIMELINE_DAYS} days`) as DayRow[];
@@ -772,6 +790,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
               min(a.ts) AS first_active,
               max(a.ts) AS last_active
        FROM attempts a
+       WHERE a.${NOT_CORRECTION}
        GROUP BY repo
        ORDER BY last_active DESC`,
     )
@@ -781,12 +800,14 @@ export function dashboardState(db: DB): Record<string, unknown> {
     .prepare(
       `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
               m.score, m.ease, m.interval_d, m.reps, m.next_review, m.last_seen,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id) AS attempts,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.grade >= ${PASSING_GRADE}) AS passed,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id
+              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}) AS attempts,
+              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION} AND a.grade >= ${PASSING_GRADE}) AS passed,
+              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}
                 AND a.outcome IN ('declined','dont_know')) AS skipped,
-              (SELECT min(a.ts) FROM attempts a WHERE a.concept_id = c.id) AS first_asked,
-              (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id ORDER BY a.id DESC LIMIT 1) AS last_grade,
+              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NOT NULL) AS corrected,
+              (SELECT min(a.ts) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}) AS first_asked,
+              -- The backlog rule's grade (OWED_SQL in store.ts): a correction does not clear it.
+              (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION} ORDER BY a.id DESC LIMIT 1) AS last_grade,
               (SELECT sc.context FROM session_concepts sc
                 WHERE sc.concept_id = c.id AND sc.context IS NOT NULL
                 ORDER BY sc.ts DESC LIMIT 1) AS last_context,
@@ -875,6 +896,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
       attempts: row.attempts,
       passed: row.passed,
       skipped: row.skipped,
+      corrected: row.corrected,
       last_grade: row.last_grade,
       mastered,
       owed,
@@ -899,8 +921,14 @@ export function dashboardState(db: DB): Record<string, unknown> {
     .prepare(
       `SELECT a.id, c.slug, c.name, c.domain, a.session_id, a.question, a.answer, a.feedback,
               a.grade, a.difficulty AS tier, a.outcome, a.format, a.options, a.ts,
-              NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.level
+              NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.level,
+              -- A miss corrected from its explainer: when, and on which try.
+              fix.ts AS corrected_at,
+              CASE WHEN fix.id IS NULL THEN NULL
+                   ELSE (SELECT count(*) FROM attempt_retries r WHERE r.attempt_id = a.id) END AS corrected_try
        FROM attempts a JOIN concepts c ON c.id = a.concept_id
+       LEFT JOIN attempts fix ON fix.retry_of = a.id
+       WHERE a.${NOT_CORRECTION}
        ORDER BY a.id DESC
        LIMIT ?`,
     )
@@ -930,18 +958,21 @@ export function dashboardState(db: DB): Record<string, unknown> {
   const allTime = db
     .prepare(
       `SELECT count(*) AS answers,
-              sum(CASE WHEN grade >= ? THEN 1 ELSE 0 END) AS passed,
-              sum(CASE WHEN grade < ? AND (outcome IS NULL OR outcome = 'answered') THEN 1 ELSE 0 END) AS missed,
-              sum(CASE WHEN outcome IN ('declined','dont_know') THEN 1 ELSE 0 END) AS skipped,
-              count(DISTINCT date(ts)) AS active_days,
-              min(ts) AS first_answer
-       FROM attempts`,
+              sum(CASE WHEN a.grade >= ? THEN 1 ELSE 0 END) AS passed,
+              sum(CASE WHEN a.grade < ? AND (a.outcome IS NULL OR a.outcome = 'answered') AND fix.id IS NULL THEN 1 ELSE 0 END) AS missed,
+              sum(CASE WHEN a.outcome IN ('declined','dont_know') AND fix.id IS NULL THEN 1 ELSE 0 END) AS skipped,
+              count(fix.id) AS corrected,
+              count(DISTINCT date(a.ts)) AS active_days,
+              min(a.ts) AS first_answer
+       FROM attempts a LEFT JOIN attempts fix ON fix.retry_of = a.id
+       WHERE a.${NOT_CORRECTION}`,
     )
     .get(PASSING_GRADE, PASSING_GRADE) as {
     answers: number;
     passed: number | null;
     missed: number | null;
     skipped: number | null;
+    corrected: number;
     active_days: number;
     first_answer: string | null;
   };
@@ -973,6 +1004,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
      */
     cursor: [
       allTime.answers,
+      allTime.corrected,
       logged.length,
       sessionCount,
       memory.captured,
@@ -1002,6 +1034,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
       passed: allTime.passed ?? 0,
       missed: allTime.missed ?? 0,
       skipped: allTime.skipped ?? 0,
+      corrected: allTime.corrected,
       mastered: concepts.filter((c) => c.mastered).length,
       due: concepts.filter((c) => c.due).length,
       touched: concepts.filter((c) => c.seen).length,
@@ -1040,8 +1073,20 @@ export function dashboardState(db: DB): Record<string, unknown> {
     memory_sessions: memorySessions(db),
     // The third workflow. Read from the files themselves on every load
     // (`artifacts.ts`): there is no table to fall out of step with the disk.
-    artifacts: listArtifacts(),
+    artifacts: artifactRows(db),
   };
+}
+
+/**
+ * `listArtifacts`, plus whether each explainer can still be corrected:
+ * `open`, `done`, or null for a page with no attempt, a plain artifact, or an
+ * attempt recorded without its right answer. One query for all of them.
+ */
+function artifactRows(db: DB): (ArtifactRow & { correction: 'open' | 'done' | null })[] {
+  const rows = listArtifacts();
+  const ids = rows.filter((r) => r.kind === 'explainer' && r.attempt !== null).map((r) => r.attempt!);
+  const states = correctionStates(db, ids);
+  return rows.map((r) => ({ ...r, correction: (r.kind === 'explainer' && states.get(r.attempt!)) || null }));
 }
 
 /**
@@ -1294,6 +1339,62 @@ export function updateSetting(db: DB, body: unknown): { status: number; body: Re
 // characters, JSON-escaped — so the page refuses nothing the CLI would take.
 const MAX_SETTINGS_BODY = 256 * 1024;
 
+/** Each refusal a correction can meet: its status and the words the modal shows. */
+const CORRECTION_ERRORS: Record<CorrectionErrorCode, { status: number; error: string }> = {
+  not_found: { status: 404, error: 'No such question.' },
+  not_correctable: { status: 409, error: 'This answer cannot be corrected: it was recorded without its right answer, or it was not a miss.' },
+  already_corrected: { status: 409, error: 'Already corrected.' },
+  not_an_option: { status: 400, error: 'That is not one of the options.' },
+};
+
+function correctionError(code: CorrectionErrorCode): { status: number; body: Record<string, unknown> } {
+  const e = CORRECTION_ERRORS[code];
+  return { status: e.status, body: { error: e.error, code } };
+}
+
+/**
+ * `GET /api/attempts/correction?id=`: the missed question the correction modal
+ * shows. Never the right answer -- the server grades a pick, the page does not.
+ */
+export function correctionState(db: DB, id: number): { status: number; body: Record<string, unknown> } {
+  const t = correctionTarget(db, id);
+  if (!t) return correctionError('not_found');
+  if (!t.correctable) return correctionError('not_correctable');
+  const { correct: _answer, correctable: _c, ...shown } = t;
+  return { status: 200, body: shown };
+}
+
+/** `POST /api/attempts/retry`: `{ attempt_id, picked }`, one pick on the correction modal. */
+export function retryAttempt(db: DB, body: unknown): { status: number; body: Record<string, unknown> } {
+  const bad = (error: string) => ({ status: 400, body: { error } });
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return bad('Expected a JSON object.');
+  const { attempt_id: id, picked } = body as Record<string, unknown>;
+  if (typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1) return bad('attempt_id is a positive integer.');
+  if (typeof picked !== 'string' || picked.length > LIMITS.option) return bad('picked is the option label, as text.');
+  try {
+    return { status: 200, body: recordRetry(db, id, picked, new Date()) };
+  } catch (err) {
+    if (err instanceof CorrectionError) return correctionError(err.code);
+    throw err;
+  }
+}
+
+/** One write: validates its own body, never trusts it, and answers with JSON. */
+export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Record<string, unknown> };
+
+/**
+ * Every route that writes, and nothing else does. Exact paths, no parameters:
+ * a write carries its target in its JSON body. A new write is one row here and
+ * one handler; `acceptWrite` gives it the same guard as the rest, and the
+ * table-driven test in `dashboard.test.ts` runs every guard against it.
+ */
+export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }> = {
+  '/api/settings': { handler: updateSetting, maxBytes: MAX_SETTINGS_BODY },
+  // An option label is at most LIMITS.option characters; 16 KiB holds one
+  // JSON-escaped with room to spare.
+  '/api/attempts/retry': { handler: retryAttempt, maxBytes: 16 * 1024 },
+};
+
 /**
  * What a browser may do with anything this server sends. The page is one file
  * with an inline script and inline styles, a `data:` favicon, and same-origin
@@ -1333,10 +1434,27 @@ const ARTIFACT_CSP = [
   "style-src 'unsafe-inline' https://fonts.googleapis.com",
   'font-src https://fonts.gstatic.com',
   'img-src data: blob:',
-  "frame-ancestors 'none'",
+  // The dashboard's explainer viewer frames it (`#/artifacts/view/`); the
+  // sandbox above still keeps the framed page off the API.
+  "frame-ancestors 'self'",
   "base-uri 'none'",
   "form-action 'none'",
 ].join('; ');
+
+/**
+ * The same page framed in the dashboard's viewer (`?embed`). The dashboard
+ * makes no request to any other host, and a framed page's requests are the
+ * dashboard's, so the web fonts go: the template's links are cut out
+ * (`withoutWebFonts`), and this CSP refuses any that an agent added.
+ */
+const ARTIFACT_EMBED_CSP = ARTIFACT_CSP
+  .replace(" https://fonts.googleapis.com", '')
+  .replace('font-src https://fonts.gstatic.com', "font-src 'none'");
+
+/** An artifact without its Google Fonts links; it falls back to the system faces in the token stacks. */
+export function withoutWebFonts(html: string): string {
+  return html.replace(/<link\b[^>]*\bhref="https:\/\/fonts\.(?:googleapis|gstatic)\.com[^>]*>\s*/gi, '');
+}
 
 /**
  * What makes the page installable as an app (Chrome and Edge "Install",
@@ -1415,19 +1533,25 @@ export function startDashboard(
   const wanted = opts.port ?? dashboardPort();
   const assets = path.join(moduleDir, 'assets');
 
-  // Per server start. Every write must carry it (see `postSettings`).
+  // Per server start. Every write must carry it (see `acceptWrite`).
   const token = randomBytes(24).toString('hex');
   const json = (res: http.ServerResponse, status: number, body: Record<string, unknown>) =>
     send(res, status, 'application/json', JSON.stringify(body));
 
   /**
-   * The one mutating route, and why the loopback check alone is not enough for
-   * it: a sandboxed frame on any page sends `Origin: null`, which the read
-   * routes accept. So a write also needs a real loopback `Origin`, a JSON
-   * content type (which a cross-origin form cannot send without a preflight
-   * this server never grants), and the token only this page was served.
+   * The guard every write goes through, and why the loopback check alone is
+   * not enough for one: a sandboxed frame on any page sends `Origin: null`,
+   * which the read routes accept. So a write also needs a real loopback
+   * `Origin`, a JSON content type (which a cross-origin form cannot send
+   * without a preflight this server never grants), and the token only this
+   * page was served. Only then is the body read, capped, parsed and handed to
+   * the route's handler.
    */
-  const postSettings = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+  const acceptWrite = (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    route: (typeof WRITES)[string],
+  ): void => {
     const origin = req.headers.origin;
     if (!origin || origin === 'null') return json(res, 403, { error: 'A write needs a loopback Origin.' });
     if (!/^application\/json\b/i.test(req.headers['content-type'] ?? '')) {
@@ -1438,14 +1562,14 @@ export function startDashboard(
     if (sent.length !== want.length || !timingSafeEqual(sent, want)) {
       return json(res, 403, { error: 'Stale or missing dashboard token. Reload the page.' });
     }
-    if (Number(req.headers['content-length'] ?? 0) > MAX_SETTINGS_BODY) {
+    if (Number(req.headers['content-length'] ?? 0) > route.maxBytes) {
       return json(res, 413, { error: 'Request too large.' });
     }
     const chunks: Buffer[] = [];
     let size = 0;
     req.on('data', (c: Buffer) => {
       size += c.length;
-      if (size > MAX_SETTINGS_BODY) {
+      if (size > route.maxBytes) {
         // Answer first and drop the connection only once the answer is out,
         // so the browser reads the 413 instead of a reset.
         res.on('finish', () => req.destroy());
@@ -1465,7 +1589,7 @@ export function startDashboard(
       } catch {
         return json(res, 400, { error: 'Not valid JSON.' });
       }
-      const out = updateSetting(db, body);
+      const out = route.handler(db, body);
       json(res, out.status, out.body);
     });
   };
@@ -1475,8 +1599,7 @@ export function startDashboard(
     // A page the developer happens to have open can point a hostname it
     // controls at 127.0.0.1 and fetch from here -- DNS rebinding -- and the
     // same-origin policy does not help, because the page's origin *is* that
-    // hostname. The risk is a write to settings (`postSettings` adds a token
-    // for that) and that this payload contains the developer's prompts, code and project
+    // hostname. The risk is a write (`acceptWrite` adds a token for those) and that this payload contains the developer's prompts, code and project
     // history, and a hostile page would be reading all of it.
     //
     // The check is the standard one: the request has to have been addressed to
@@ -1486,13 +1609,13 @@ export function startDashboard(
     }
     /* c8 ignore next -- a server-side request always carries its url; the fallback is for the type */
     const url = new URL(req.url ?? '/', `http://${host}`);
-    // One route writes: a setting, through the same `applySetting` the CLI
-    // uses. Everything else reads, and any other method is refused rather
-    // than answered as a GET.
-    if (url.pathname === '/api/settings' && req.method === 'POST') return postSettings(req, res);
+    // The routes in `WRITES` take a POST, through `acceptWrite`. Everything
+    // else reads, and any other method is refused rather than answered as a GET.
+    const write = WRITES[url.pathname];
+    if (write && req.method === 'POST') return acceptWrite(req, res, write);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      return send(res, 405, 'text/plain', 'Only /api/settings accepts a write; everything else here is read-only.\n', {
-        allow: url.pathname === '/api/settings' ? 'GET, HEAD, POST' : 'GET, HEAD',
+      return send(res, 405, 'text/plain', `This route is read-only. Writes: ${Object.keys(WRITES).join(', ')}.\n`, {
+        allow: write ? 'GET, HEAD, POST' : 'GET, HEAD',
       });
     }
     try {
@@ -1549,6 +1672,10 @@ export function startDashboard(
           ),
         );
       }
+      if (url.pathname === '/api/attempts/correction') {
+        const out = correctionState(db, Number(url.searchParams.get('id')));
+        return send(res, out.status, 'application/json', JSON.stringify(out.body));
+      }
       if (url.pathname === '/api/memory/entry') {
         const entry = memoryEntry(db, Number(url.searchParams.get('id')));
         if (!entry) return send(res, 404, 'application/json', '{"error":"no such entry"}');
@@ -1573,8 +1700,10 @@ export function startDashboard(
             'cache-control': 'private, max-age=3600',
           });
         }
-        return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(file), {
-          'content-security-policy': ARTIFACT_CSP,
+        const embed = url.searchParams.has('embed');
+        return send(res, 200, 'text/html; charset=utf-8', embed ? withoutWebFonts(fs.readFileSync(file, 'utf8')) : fs.readFileSync(file), {
+          'content-security-policy': embed ? ARTIFACT_EMBED_CSP : ARTIFACT_CSP,
+          'x-frame-options': 'SAMEORIGIN',
         });
       }
       if (url.pathname === '/manifest.webmanifest') {

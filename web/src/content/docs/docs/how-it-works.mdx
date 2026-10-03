@@ -37,6 +37,21 @@ Questions wait until the session changes code: Claude edits a tracked or new, no
 
 Delegated agents can log concepts, but questions return to the main conversation. This keeps a quiz out of a background transcript you cannot answer. With [`delegate_work`](/docs/configuration/#every-key) on (the default), Claude is asked to use that split on purpose: a background agent builds a multi-file change in the task's directory (your worktree, if there is one), and Claude asks you questions while it builds, then reviews, checks and commits. Eklavya says this next to each task-sized prompt, and reminds Claude once if it changes a second file in the main conversation itself, with an edit tool or a shell command. Once Claude has started a building agent, the reminder stays quiet. Whichever way the work runs, any end-of-task questions (one under `as-you-go`, the remaining budget under `end`) come after Claude's answer, and Claude then restates the answer in a few lines under “Back to your task:”, so the answer about your task is the last thing on screen. The [first-session walkthrough](/docs/first-session/) shows what you see as a developer.
 
+### After a missed question
+
+<DocFlow
+  title="From a miss to a correction"
+  caption="The page teaches the answer; the dashboard lets you pick it, and the server decides what that pick is worth."
+  steps={[
+    { label: 'Record the miss', detail: 'record_attempt stores your answer, the right option and the note under each option, and returns the attempt id.' },
+    { label: 'Write the explainer', detail: 'A background agent writes a page on the concept, linked to that attempt id.' },
+    { label: 'Open it in the dashboard', detail: 'With the background dashboard running, the page opens in its viewer, with a Correct your answer button when the right option was recorded.' },
+    { label: 'Correct it', detail: 'Each pick is checked on the server. Only the right one is recorded as an answer, a grade-3 pass.' },
+  ]}
+/>
+
+This needs [`explain_on_wrong`](/docs/configuration/#every-key) on (the default), the background dashboard, and a question recorded with its right option; otherwise the page opens as a file or has no button. A correction updates the concept's score but does not count toward a commit gate or a level, and the concept still comes back for review, because picking the answer right after reading it is recognition rather than recall. [Grading](/docs/grading-engine/#correcting-from-an-explainer) has the details.
+
 ## From work to useful memory
 
 <DocFlow

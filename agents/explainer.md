@@ -11,8 +11,8 @@ do not ask anything, and do not quiz. Write one page, open it, and report its
 path in one line.
 
 You were handed some of: the concept slug and name, the question as it was
-asked, the options offered, the developer's answer, the right answer, and the
-code it came from.
+asked, the options offered with the one-line note under each, the developer's
+answer, the right answer, the attempt id, and the code it came from.
 Work with what you have; do not go looking for a conversation you cannot see.
 
 ## Make the page
@@ -24,7 +24,9 @@ Work with what you have; do not go looking for a conversation you cannot see.
    `command -v eklavya || command -v "$HOME/.eklavya/runtime/node_modules/.bin/eklavya"`
    (on Windows, `eklavya.cmd` in that `.bin`; failing both, `npx -y eklavya`).
 3. Start the page from the directory you were started in:
-   `eklavya artifacts new "<Concept name>, explained" --kind explainer --concept <slug> --description "<the one-line answer>"`.
+   `eklavya artifacts new "<Concept name>, explained" --kind explainer --concept <slug> --description "<the one-line answer>"`,
+   adding `--attempt <id>` when you were handed an attempt id: it links the
+   page to the missed answer, so the developer can correct it from the page.
    It prints the file's path. Never pick a path yourself.
 4. Replace the `<!-- CONTENT … -->` comment in that file with the explanation.
    Leave the `<head>`, the download buttons, the `.brand` header and the
@@ -40,8 +42,10 @@ In this order, each under its own `<h2>`:
   pick gets `class="picked"`, the right one `class="right"`. List every
   option you were handed, including the ones nobody picked. Copy each
   verbatim, and keep the text labels the classes add; colour is not the only
-  signal. With no options (a typed answer), show the stem, their answer and the
-  right answer in the same list. Skip this section for a page someone asked for.
+  signal. Under each option's text, its note as `<span class="note">…</span>`
+  when you were handed one, so the page reads like the question did. With no
+  options (a typed answer), show the stem, their answer and the right answer in
+  the same list. Skip this section for a page someone asked for.
 - **The short answer.** Two or three sentences a newcomer could repeat: what the
   thing *does*, before what it is called.
 - **Where the answer went wrong.** Name the misconception in the answer given

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createArtifact, listArtifacts, resolveArtifact, artifactProject, kebab } from '../src/artifacts.js';
+import { createArtifact, listArtifacts, resolveArtifact, artifactProject, kebab, artifactIdOf, readAttempt } from '../src/artifacts.js';
 import { artifactsDir, projectSlug } from '../src/paths.js';
 import { openDb, type DB } from '../src/db.js';
 // The template and tokens are copied in by the build, so these run the built modules.
@@ -217,7 +217,8 @@ describe('the dashboard', () => {
       expect(csp).toMatch(/^sandbox /);
       expect(csp).not.toContain('allow-same-origin');
       expect(csp).toContain("default-src 'none'");
-      expect(ok.headers['x-frame-options']).toBe('DENY');
+      // Framable by the dashboard's own explainer viewer only; still sandboxed.
+      expect(ok.headers['x-frame-options']).toBe('SAMEORIGIN');
 
       const thumb = await get(port, '/artifacts/' + made.id.split('/').map(encodeURIComponent).join('/') + '?thumb=ink&v=1');
       expect(thumb.status).toBe(200);
@@ -294,6 +295,39 @@ describe('record_attempt and explain_on_wrong', () => {
     expect(r.explain.instruction).toMatch(/all 4 options/);
   });
 
+  const options = ['A cache', 'A lock', 'A queue', 'A log'];
+  const notes = ['keeps reads', 'serialises writers', 'orders work', 'appends history'];
+  const row = (id: number) =>
+    db.prepare('SELECT correct, option_notes FROM attempts WHERE id = ?').get(id) as { correct: string | null; option_notes: string | null };
+
+  it('stores the answer key and returns the attempt id', async () => {
+    const r = await attempt({ answer: 'A cache', grade: 1, outcome: 'answered', format: 'mcq', options, correct: 'A lock', option_notes: notes });
+    expect(r.attempt_id).toEqual(expect.any(Number));
+    expect(row(r.attempt_id)).toEqual({ correct: 'A lock', option_notes: JSON.stringify(notes) });
+    expect(r.correct_mismatch).toBeUndefined();
+    expect(r.option_notes_mismatch).toBeUndefined();
+    // The explainer gets what it needs to link the page and show each note.
+    expect(r.explain).toMatchObject({ attempt_id: r.attempt_id, correct: 'A lock', option_notes: notes });
+    expect(r.explain.instruction).toContain(`--attempt ${r.attempt_id}`);
+    expect(r.explain.instruction).toMatch(/note/);
+    // A pass still returns its id, and has nothing to explain.
+    const pass = await attempt({ answer: 'A lock', grade: 4, outcome: 'answered', format: 'mcq', options, correct: 'A lock' });
+    expect(pass.attempt_id).toBe(r.attempt_id + 1);
+  });
+
+  it('keeps the answer but stores NULL for a key that does not match the options', async () => {
+    const r = await attempt({ answer: 'A cache', grade: 1, outcome: 'answered', format: 'mcq', options, correct: 'a lock', option_notes: notes.slice(1) });
+    expect(row(r.attempt_id)).toEqual({ correct: null, option_notes: null });
+    expect(r.correct_mismatch).toMatch(/verbatim/);
+    expect(r.option_notes_mismatch).toMatch(/one note per option/);
+    expect(r.explain).toMatchObject({ correct: null, option_notes: null });
+    // With no options at all there is nothing for a key to match.
+    const bare = await attempt({ answer: 'x', grade: 1, outcome: 'answered', correct: 'A lock', option_notes: notes });
+    expect(row(bare.attempt_id)).toEqual({ correct: null, option_notes: null });
+    expect(bare.correct_mismatch).toBeDefined();
+    expect(bare.option_notes_mismatch).toBeDefined();
+  });
+
   it('hands back an explain block on a miss and a taught blank, never on a pass, skip or decline', async () => {
     setExplain(true);
     const miss = await attempt({ answer: 'wrong', grade: 2, outcome: 'answered' });
@@ -322,6 +356,32 @@ describe('review fixes', () => {
     expect(() => run('new', 'x', '--kinda', 'explainer')).toThrow();
     expect(() => run('new', 'x', '--kind')).toThrow();
     expect(path.basename(run('new', '--', '--dry-run flag').trim())).toMatch(/-dry-run-flag\.html$/);
+  });
+
+  it('links an explainer to its attempt with --attempt, and refuses anything but a positive integer', () => {
+    const file = run('new', 'Linked', '--kind', 'explainer', '--attempt', '42').trim();
+    expect(fs.readFileSync(file, 'utf8')).toContain('<meta name="eklavya:attempt" content="42">');
+    expect(listArtifacts().find((r) => r.title === 'Linked')?.attempt).toBe(42);
+    const plain = run('new', 'Unlinked').trim();
+    expect(fs.readFileSync(plain, 'utf8')).toContain('<meta name="eklavya:attempt" content="">');
+    expect(listArtifacts().find((r) => r.title === 'Unlinked')?.attempt).toBeNull();
+    for (const bad of ['0', '-1', '1.5', 'abc', '07']) {
+      expect(() => run('new', 'x', '--attempt', bad), bad).toThrow();
+    }
+  });
+
+  it('names the dashboard id of a file only inside the artifact root', () => {
+    const file = run('new', 'Inside').trim();
+    expect(artifactIdOf(file)).toBe(`${path.basename(path.dirname(file))}/${path.basename(file)}`);
+    expect(artifactIdOf(file, path.join(tmp, 'no-such-root'))).toBeNull();
+    expect(readAttempt(path.join(tmp, 'missing.html'))).toBeNull();
+  });
+
+  it('shows each option note under its option, and reports its height only when framed', () => {
+    const html = fs.readFileSync(run('new', 'Notes').trim(), 'utf8');
+    expect(html).toMatch(/ol\.options li \.note\{display:block;color:var\(--dim\)/);
+    expect(html).toContain("type:'eklavya:height'");
+    expect(html).toContain('if(window.parent===window) return;');
   });
 
   it('lists nothing the server would refuse: no symlinks, no dot-names', () => {

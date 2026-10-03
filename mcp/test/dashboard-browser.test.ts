@@ -13,12 +13,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext, type Page, type Request } from 'playwright-core';
 import { openDb, type DB } from '../src/db.js';
 // The built server, so the page under test is the one `npm run build` ships.
 import { startDashboard } from '../dist/dashboard.js';
 import { createArtifact } from '../dist/artifacts.js';
 import { seedFixture, type Fixture } from './dashboard-fixture.js';
+import { gradeConcept } from '../src/store.js';
 
 function launchOptions(): Parameters<typeof chromium.launch>[0] | null {
   const explicit = process.env.EKLAVYA_TEST_BROWSER;
@@ -40,6 +41,9 @@ let home = '';
 let db: DB;
 let fx: Fixture;
 let base = '';
+/** Two explainers for missed questions with an answer key: ids in the gallery, and their attempts. */
+const fix = { open: '', other: '', attempt: 0 };
+const KEY = { options: ['A cache', 'A lock', 'A queue', 'A log'], notes: ['keeps reads', 'serialises writers', 'orders work', 'appends history'] };
 let close = () => {};
 let browser: Browser;
 const savedHome = process.env.EKLAVYA_HOME;
@@ -51,6 +55,15 @@ beforeAll(async () => {
   db = openDb(path.join(home, 'knowledge.db'));
   fx = seedFixture(db, path.join(home, 'root'));
   createArtifact({ title: 'Why CSRF needs SameSite', description: 'an explainer', kind: 'explainer', concept: 'csrf' });
+  const missed = () => gradeConcept(db, {
+    conceptId: (db.prepare(`SELECT id FROM concepts WHERE slug = 'csrf'`).get() as { id: number }).id,
+    sessionId: 's-fix', question: 'What stops two writers clobbering a row?', answer: 'A cache', grade: 1, difficulty: 2,
+    feedback: null, outcome: 'answered', format: 'mcq', options: KEY.options, correct: 'A lock', optionNotes: KEY.notes,
+    repo: null, level: null, now: new Date(),
+  }).attemptId;
+  fix.attempt = missed();
+  fix.open = createArtifact({ title: 'Locks, explained', kind: 'explainer', concept: 'csrf', attempt: fix.attempt }).id;
+  fix.other = createArtifact({ title: 'Queues, explained', kind: 'explainer', concept: 'csrf', attempt: missed() }).id;
   const srv = await startDashboard(db as any, { port: 0 });
   base = srv.url;
   close = srv.close;
@@ -74,9 +87,11 @@ async function open(
   opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper' } = {},
 ): Promise<Watched> {
   const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 } });
-  if (opts.ground) await ctx.addInitScript((g) => localStorage.setItem('eklavya-ground', g), opts.ground);
+  // Init scripts run in every frame, and the viewer's sandboxed frame has no storage.
+  if (opts.ground) await ctx.addInitScript((g) => { try { localStorage.setItem('eklavya-ground', g); } catch { /* the framed page */ } }, opts.ground);
   if (opts.init) await ctx.addInitScript(opts.init);
   const page = await ctx.newPage();
+  track(page);
   const errors: string[] = [];
   const outbound: string[] = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -94,7 +109,26 @@ async function open(
 async function ready(page: Page) {
   await page.waitForFunction(() => document.documentElement.dataset.rendered === location.hash
     && !document.querySelector('.booting, #view .loader'));
-  await page.waitForLoadState('networkidle');
+  // Not `waitForLoadState('networkidle')`: once the explainer viewer's
+  // sandboxed frame has been attached, Playwright never reports the page idle
+  // again, with nothing in flight. The page's own count of open requests does.
+  const open = inflight.get(page);
+  if (!open) return page.waitForLoadState('networkidle');
+  for (let quiet = 0, waited = 0; quiet < 500; waited += 50) {
+    if (waited > 30000) throw new Error(`still loading: ${[...open].map((r) => r.url()).join(', ')}`);
+    await new Promise((r) => setTimeout(r, 50));
+    quiet = open.size ? 0 : quiet + 50;
+  }
+}
+
+/** Requests each page has open, for `ready()`. */
+const inflight = new WeakMap<Page, Set<Request>>();
+function track(page: Page) {
+  const open = new Set<Request>();
+  inflight.set(page, open);
+  page.on('request', (r) => open.add(r));
+  page.on('requestfinished', (r) => open.delete(r));
+  page.on('requestfailed', (r) => open.delete(r));
 }
 
 const screen = (page: Page) => page.evaluate(() => ({
@@ -530,7 +564,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await link.getAttribute('href')).toMatch(/^\/artifacts\/.+\.html$/);
       expect(await link.getAttribute('rel')).toBe('noopener');
       // The card's thumbnail loads, and follows the ground when it changes.
-      const img = w.page.locator('#view img[data-thumb]');
+      const img = w.page.locator('#view a[target="_blank"] img[data-thumb]');
       await img.evaluate((i: HTMLImageElement) => i.decode());
       expect(await img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
       await w.page.evaluate(() => (window as any).eklavyaGround.set('paper'));
@@ -549,6 +583,85 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await tab.locator('h1').textContent()).toBe('Why CSRF needs SameSite');
       const read = await tab.evaluate(() => fetch('/api/state').then(() => 'read', () => 'blocked'));
       expect(read).toBe('blocked');
+      await w.ctx.close();
+    });
+  });
+
+  describe('correcting a missed answer', () => {
+    const armed = (page: Page) => page.evaluate(() => {
+      const e = new Event('beforeunload', { cancelable: true });
+      dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+
+    it('frames the explainer sandboxed, corrects it in the modal and flips the bar and the gallery', async () => {
+      const w = await open('#/artifacts/dashboard/to-correct');
+      const card = w.page.locator(`#view a[href*="${enc(fix.open)}"]`);
+      expect(await w.page.locator('#view .art').count()).toBe(2);
+      expect(await w.page.textContent('#view')).toContain('To correct');
+      await card.click();
+      await ready(w.page);
+      expect(await w.page.evaluate(() => location.hash)).toBe(`#/artifacts/view/${enc(fix.open)}`);
+      const frame = w.page.locator('#art-frame');
+      expect(await frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+      // The page reported its own height (ready() waits for it), so the two scroll as one document.
+      expect(await frame.evaluate((f: HTMLIFrameElement) => f.style.height)).toMatch(/^\d+px$/);
+      expect(await w.page.textContent('#fixbar')).toContain('Not now? Correct it later from Dashboard → Artifacts.');
+      expect(await armed(w.page)).toBe(true);
+
+      await w.page.click('#fix-open');
+      expect(await w.page.evaluate(() => (document.getElementById('fix') as HTMLDialogElement).open)).toBe(true);
+      const labels = await w.page.$$eval('#fix-opts .fix__opt', (b) => b.map((x) => (x as HTMLElement).dataset.pick));
+      expect([...labels].sort()).toEqual([...KEY.options].sort());
+      expect(await w.page.textContent('#fix-opts')).toContain('serialises writers');
+      // The options are keyboard-walkable: an arrow moves focus to the next one.
+      const first = await w.page.evaluate(() => (document.activeElement as HTMLElement).dataset.pick);
+      await w.page.keyboard.press('ArrowDown');
+      expect(await w.page.evaluate(() => (document.activeElement as HTMLElement).dataset.pick)).not.toBe(first);
+
+      await w.page.click('#fix-opts [data-pick="A queue"]');
+      await w.page.waitForSelector('#fix-msg:text("Still incorrect. Please correct your answer.")');
+      expect(await w.page.isDisabled('#fix-opts [data-pick="A queue"]')).toBe(true);
+      expect(await w.page.textContent('#fix-opts [data-pick="A queue"]')).toContain('Not this one');
+      expect(await w.page.isDisabled('#fix-opts [data-pick="A lock"]')).toBe(false);
+
+      await w.page.focus('#fix-opts [data-pick="A lock"]');
+      await w.page.keyboard.press('Enter');
+      await w.page.waitForSelector('#fix-msg:text("Corrected. Your stats now count this as answered.")');
+      expect(await w.page.textContent('#fix-opts [data-pick="A lock"]')).toContain('Right answer');
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('fix-close');
+      // The rest of the page was drawn from the old payload, and says so.
+      expect(await w.page.isHidden('#stale')).toBe(false);
+      expect(await armed(w.page)).toBe(false);
+      await w.page.keyboard.press('Enter');
+      await w.page.waitForFunction(() => /Corrected on try 2 · /.test(document.getElementById('fixbar')?.textContent ?? ''));
+      expect(db.prepare('SELECT picked, correct FROM attempt_retries WHERE attempt_id = ? ORDER BY id').all(fix.attempt))
+        .toEqual([{ picked: 'A queue', correct: 0 }, { picked: 'A lock', correct: 1 }]);
+
+      await w.page.click('#view .page__back');
+      await ready(w.page);
+      expect(await w.page.textContent(`#view .art:has(a[href*="${enc(fix.open)}"])`)).toContain('Corrected');
+      expect(w.errors).toEqual([]);
+      expect(w.outbound).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
+    it('asks before leaving only while a correction is open, and Escape is "not now"', async () => {
+      const w = await open(`#/artifacts/view/${enc(fix.other)}`);
+      expect(await armed(w.page)).toBe(true);
+      await w.page.click('#fix-open');
+      await w.page.keyboard.press('Escape');
+      expect(await w.page.evaluate(() => (document.getElementById('fix') as HTMLDialogElement).open)).toBe(false);
+      expect(await w.page.textContent('#fixbar')).toContain('Correct your answer');
+      expect(await armed(w.page)).toBe(true);
+      await w.page.goto(base + '/#/artifacts/dashboard'); await ready(w.page);
+      expect(await armed(w.page)).toBe(false);
+      // A page with no attempt behind it gets no bar and no prompt.
+      const plain = (await w.page.getAttribute('#view a[target="_blank"]', 'href'))!.replace('/artifacts/', '');
+      await w.page.goto(base + `/#/artifacts/view/${enc(decodeURIComponent(plain))}`); await ready(w.page);
+      expect(await w.page.locator('#fixbar').count()).toBe(0);
+      expect(await armed(w.page)).toBe(false);
+      expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
   });
@@ -608,7 +721,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     it('makes no outbound request, logs no error, and fits the width', async () => {
       const hashes = ['#/learning/dashboard', '#/learning/projects', '#/memory/dashboard', '#/memory/timeline',
         '#/memory/sessions', '#/memory/projects', '#/memory/health', `#/memory/entry/${fx.entries.mixed}`,
-        '#/artifacts/dashboard', '#/artifacts/dashboard/explainer', '#/artifacts/projects',
+        '#/artifacts/dashboard', '#/artifacts/dashboard/explainer', '#/artifacts/dashboard/to-correct',
+        `#/artifacts/view/${enc(fix.other)}`, '#/artifacts/projects',
         '#/settings/dashboard', '#/settings/user', `#/settings/project?project=${enc(fx.repo.mixed)}`];
       for (const width of [1280, 900, 560, 390]) {
         for (const ground of ['ink', 'paper'] as const) {

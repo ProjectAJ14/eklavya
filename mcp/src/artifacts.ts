@@ -44,6 +44,8 @@ export interface ArtifactRow {
   project: string | null;
   kind: ArtifactKind;
   concept: string | null;
+  /** The missed attempt an explainer was written for (`--attempt`), or null. */
+  attempt: number | null;
   created: string;
   bytes: number;
 }
@@ -95,6 +97,8 @@ export interface CreateOptions {
   description?: string;
   kind?: ArtifactKind;
   concept?: string | null;
+  /** The missed attempt this explainer is for: what lets the dashboard offer a correction. */
+  attempt?: number | null;
   cwd?: string;
   now?: Date;
 }
@@ -128,6 +132,7 @@ export function createArtifact(opts: CreateOptions): { path: string; id: string;
     '{{PROJECT_NAME}}': escHtml(path.basename(project) || project),
     '{{KIND}}': kind,
     '{{CONCEPT}}': escHtml(opts.concept ?? ''),
+    '{{ATTEMPT}}': opts.attempt ? String(opts.attempt) : '',
     '{{CREATED}}': now.toISOString(),
     '{{EYEBROW}}': kind === 'explainer' ? 'Explainer' : 'Artifact',
   };
@@ -147,6 +152,11 @@ function meta(head: string, name: string): string | null {
   return m ? unescHtml(m[1]!) : null;
 }
 
+/** A positive integer, or null: an `--attempt` that is anything else links nothing. */
+export function attemptId(raw: string | null | undefined): number | null {
+  return raw && /^[1-9]\d{0,15}$/.test(raw) ? Number(raw) : null;
+}
+
 function unescHtml(s: string): string {
   return s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) =>
     ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[e]!,
@@ -162,6 +172,26 @@ function readHead(file: string): string {
   } finally {
     fs.closeSync(fd);
   }
+}
+
+/** The attempt a page was written for, from its head; null when none or unreadable. */
+export function readAttempt(file: string): number | null {
+  try {
+    return attemptId(meta(readHead(file), 'eklavya:attempt'));
+  } catch {
+    return null;
+  }
+}
+
+/** The dashboard id (`<folder>/<file>`) of a file inside the artifact root, or null. */
+export function artifactIdOf(file: string, root: string = artifactsDir()): string | null {
+  let id: string;
+  try {
+    id = path.relative(fs.realpathSync(root), fs.realpathSync(file)).split(path.sep).join('/');
+  } catch {
+    return null;
+  }
+  return resolveArtifact(id, root) ? id : null;
 }
 
 /**
@@ -204,6 +234,7 @@ export function listArtifacts(root: string = artifactsDir()): ArtifactRow[] {
           project: meta(head, 'eklavya:project') || null,
           kind: kind === 'explainer' ? 'explainer' : 'artifact',
           concept: meta(head, 'eklavya:concept') || null,
+          attempt: attemptId(meta(head, 'eklavya:attempt')),
           created: meta(head, 'eklavya:created') || st.mtime.toISOString(),
           bytes: st.size,
         });

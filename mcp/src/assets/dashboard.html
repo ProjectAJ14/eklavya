@@ -262,6 +262,53 @@
   .art__thumb { display:block; aspect-ratio:16/10; background:var(--panel); border:1px solid var(--line-2); padding:var(--space-3); }
   .art__open:hover .art__thumb { border-color:var(--spot); }
   .art__thumb img { display:block; width:100%; height:100%; object-fit:contain; }
+  .tag { font-family:var(--font-mono); font-size:11px; letter-spacing:var(--tracking-caps); text-transform:uppercase; }
+  .tag.warn { color:var(--warning); }
+  .tag.ok { color:var(--spot); }
+
+  /* The explainer viewer: the agent's page, framed sandboxed, then this page's
+     own correction bar. The frame takes the page's reported height, so the two
+     scroll as one document; with no report it stays 80vh and scrolls inside. */
+  .viewer { display:block; width:100%; height:80vh; border:0; background:var(--bg); }
+  .fixbar { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2);
+            padding:var(--space-5); border:1px solid var(--line-2); background:var(--panel); }
+  .fixbar p { margin:0; }
+  .fixbar__note { color:var(--dim); font-size:13px; }
+  .fixbar__done { display:flex; align-items:center; gap:var(--space-2); color:var(--ink); }
+  .fixbar__done svg { width:16px; height:16px; color:var(--spot); flex:none; }
+  .btn { font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; text-transform:uppercase;
+         background:var(--spot); color:var(--spot-ink); border:1px solid var(--spot); padding:10px 16px; cursor:pointer;
+         transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
+  .btn:hover { background:var(--mass); color:var(--spot); }
+  .btn:focus-visible, .fix__opt:focus-visible, .set__btn:focus-visible { outline:none; box-shadow:var(--ring); }
+
+  /* The correction modal: a native <dialog>, so focus, Escape and the top
+     layer come with it. Square, hairline, no shadow; the backdrop blurs. */
+  dialog.fix { width:min(560px, calc(100vw - 32px)); max-height:calc(100vh - 32px); overflow:auto; margin:auto;
+               padding:var(--space-6); border:1px solid var(--line-2); border-radius:0; background:var(--panel); color:var(--ink); }
+  dialog.fix::backdrop { background:color-mix(in srgb, var(--ink) 40%, transparent); backdrop-filter:blur(6px); }
+  dialog.fix[open] { animation:fix-in 180ms var(--ease); }
+  @keyframes fix-in { from { opacity:0; transform:translateY(8px); } }
+  .fix__eyebrow { margin:0 0 var(--space-3); font:400 11px/1 var(--font-mono); letter-spacing:var(--tracking-caps-wide);
+                  text-transform:uppercase; color:var(--spot); }
+  .fix__q { margin:0 0 var(--space-5); font:800 clamp(20px,3vw,26px)/1.15 var(--font-disp); letter-spacing:var(--tracking-tight); }
+  .fix__opts { display:flex; flex-direction:column; gap:var(--space-2); }
+  .fix__opt { display:flex; flex-direction:column; gap:2px; text-align:left; width:100%; padding:10px 14px;
+              border:1px solid var(--line-2); background:var(--bg); color:var(--ink); font:inherit; cursor:pointer; }
+  .fix__opt:hover:not(:disabled) { border-color:var(--spot); }
+  .fix__opt:disabled { cursor:default; }
+  .fix__n { color:var(--dim); font-size:13px; }
+  .fix__tag { font:400 11px var(--font-mono); letter-spacing:var(--tracking-caps); text-transform:uppercase; }
+  .fix__tag:empty { display:none; }
+  .fix__opt.is-wrong { border-color:var(--error); }
+  .fix__opt.is-wrong .fix__tag { color:var(--error); }
+  .fix__opt.is-right { border-color:var(--spot); background:var(--spot-soft); }
+  .fix__opt.is-right .fix__tag { color:var(--spot); }
+  .fix__foot { display:flex; align-items:center; gap:var(--space-4); margin-top:var(--space-5); }
+  .fix__msg { flex:1; margin:0; font-size:13.5px; }
+  .fix__msg.wrong { color:var(--error); }
+  .fix__msg.warn { color:var(--warning); }
+  .fix__msg.ok { color:var(--spot); }
   .g2 > *, .g3 > * { margin-top:0 !important; }
 
   /* ---------- stat tiles ---------- */
@@ -720,6 +767,16 @@
   </main>
 </div>
 
+<dialog class="fix" id="fix" aria-labelledby="fix-q">
+  <p class="fix__eyebrow">Correct your answer</p>
+  <h2 class="fix__q" id="fix-q"></h2>
+  <div class="fix__opts" id="fix-opts" role="group" aria-labelledby="fix-q"></div>
+  <div class="fix__foot">
+    <p class="fix__msg" id="fix-msg" role="status"></p>
+    <button type="button" class="set__btn" id="fix-close">Close</button>
+  </div>
+</dialog>
+
 <div class="picker" id="wf-menu" role="menu" aria-label="Workflows" hidden></div>
 <div class="picker" id="proj-menu" role="listbox" aria-labelledby="proj-label" hidden></div>
 <div class="picker" id="sel-menu" role="listbox" hidden></div>
@@ -832,14 +889,14 @@ const scopeName = () => (PROJECT === null ? 'all projects' : projectById(PROJECT
 /** Inventory rows in scope — one, or all of them. */
 const projectsInScope = () => INV.projects.filter((p) => PROJECT === null || p.id === PROJECT);
 
-/** One row per calendar day in scope: { day, passed, missed, skipped, total }. */
+/** One row per calendar day in scope: { day, passed, corrected, missed, skipped, total }. */
 function dailyInScope() {
   const m = new Map();
   for (const d of S.daily) {
     if (!inScope(d.repo)) continue;
-    const cur = m.get(d.day) ?? { day:d.day, passed:0, missed:0, skipped:0, total:0 };
-    cur.passed += d.passed; cur.missed += d.missed; cur.skipped += d.skipped;
-    cur.total = cur.passed + cur.missed + cur.skipped;
+    const cur = m.get(d.day) ?? { day:d.day, passed:0, corrected:0, missed:0, skipped:0, total:0 };
+    cur.passed += d.passed; cur.corrected += d.corrected ?? 0; cur.missed += d.missed; cur.skipped += d.skipped;
+    cur.total = cur.passed + cur.corrected + cur.missed + cur.skipped;
     m.set(d.day, cur);
   }
   return m;
@@ -853,7 +910,7 @@ function fillDays(map, n, endKey) {
   const cur = new Date(end.getTime() - (n - 1) * DAY_MS);
   for (let i = 0; i < n; i++) {
     const k = dayKey(cur);
-    out.push(map.get(k) ?? { day:k, passed:0, missed:0, skipped:0, total:0 });
+    out.push(map.get(k) ?? { day:k, passed:0, corrected:0, missed:0, skipped:0, total:0 });
     cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return out;
@@ -935,6 +992,8 @@ function sessionLabel(s) {
    ============================================================ */
 const meter = (p, kind) => `<div class="meter${kind ? ' ' + kind : ''}"><i style="width:${Math.max(0, Math.min(100, p))}%"></i></div>`;
 const gradeBadge = (a) => {
+  // A miss corrected from its explainer: the row stays, labelled for what it became.
+  if (a.corrected_at) return `<span class="grade pass">corrected${a.corrected_try ? ` · try ${a.corrected_try}` : ''}</span>`;
   if (a.outcome === 'declined') return '<span class="grade">skipped</span>';
   if (a.outcome === 'dont_know') return '<span class="grade">blanked</span>';
   return `<span class="grade ${a.grade >= 3 ? 'pass' : 'miss'}">${a.grade}/5</span>`;
@@ -1084,7 +1143,11 @@ const slice = (arr, p, per = PER) => arr.slice((p - 1) * per, p * per);
    Charts — hand-rolled SVG. No library, no network, both grounds.
    ============================================================ */
 
-/** Stacked daily bars: right at the base, then missed, then skipped. */
+/**
+ * Stacked daily bars: right at the base, then corrected (a miss answered right
+ * later from its explainer, counted once, on the day of the miss), then
+ * missed, then skipped.
+ */
 function chartActivity(el, days) {
   const tip = el.parentElement.querySelector('.tip');
   const W = Math.max(320, el.parentElement.clientWidth || 900);
@@ -1093,7 +1156,7 @@ function chartActivity(el, days) {
   const step = (W - PAD_L) / days.length;
   const bw = Math.min(26, Math.max(4, step - 5));
   const y = (v) => (H - PAD_B) - (v / max) * (H - PAD_B - 10);
-  const SEGMENTS = [['passed', 'var(--spot)'], ['missed', 'var(--warning)'], ['skipped', 'var(--faint-2)']];
+  const SEGMENTS = [['passed', 'var(--spot)'], ['corrected', 'var(--spot-soft)'], ['missed', 'var(--warning)'], ['skipped', 'var(--faint-2)']];
 
   let out = '';
   for (let i = 0; i <= 2; i++) {
@@ -1109,7 +1172,9 @@ function chartActivity(el, days) {
       if (!d[key]) continue;
       const h = (d[key] / max) * (H - PAD_B - 10);
       const inset = acc ? 2 : 0;   // a 2px surface gap between stacked fills
-      seg += `<rect x="${x}" y="${y(acc) - h + inset}" width="${bw}" height="${Math.max(1, h - inset)}" fill="${color}"/>`;
+      // The soft fill gets a hairline in the accent, or it vanishes against the panel.
+      const edge = key === 'corrected' ? ' stroke="var(--spot)" stroke-width="1"' : '';
+      seg += `<rect x="${x}" y="${y(acc) - h + inset}" width="${bw}" height="${Math.max(1, h - inset)}" fill="${color}"${edge}/>`;
       acc += d[key]; top = color;
     }
     out += `<rect class="hit" x="${PAD_L + i * step}" y="0" width="${step}" height="${H - PAD_B}" data-i="${i}" tabindex="0"/>`
@@ -1127,7 +1192,7 @@ function chartActivity(el, days) {
     const show = () => {
       const d = days[+hit.dataset.i];
       tip.innerHTML = `<div class="mono">${esc(fmtDay(d.day))}</div>`
-        + [['Right', d.passed], ['Missed', d.missed], ['Skipped', d.skipped]]
+        + [['Right', d.passed], ['Corrected', d.corrected], ['Missed', d.missed], ['Skipped', d.skipped]]
           .map(([k, v]) => `<div class="r"><span>${k}</span><span>${v}</span></div>`).join('');
       const r = hit.getBoundingClientRect(), p = el.parentElement.getBoundingClientRect();
       tip.style.left = (r.left - p.left + r.width / 2) + 'px';
@@ -1440,11 +1505,12 @@ function viewLearningDashboard() {
     card('Answers, last 30 days', null,
       `<div class="legend">
          <span><b style="background:var(--spot)"></b>Right</span>
+         <span><b style="background:var(--spot-soft);box-shadow:inset 0 0 0 1px var(--spot)"></b>Corrected</span>
          <span><b style="background:var(--warning)"></b>Missed</span>
          <span><b style="background:var(--faint-2)"></b>Skipped</span>
        </div>
        <div class="chart"><div class="tip" id="tip"></div><svg id="c-activity" role="img"
-         aria-label="Daily answers, split into right, missed and skipped"></svg></div>`),
+         aria-label="Daily answers, split into right, corrected, missed and skipped"></svg></div>`),
 
     `<div class="g2">
        ${card('Weakest five', null,
@@ -1587,7 +1653,7 @@ function viewConcept(slug) {
 
     tiles([
       ['Score', c.seen ? Math.round(c.score * 100) + '%' : '—', decayed ? `decayed from ${Math.round(c.stored_score * 100)}%` : 'last five grades, recent first', c.mastered ? 'good' : c.score < 0.5 && c.seen ? 'warn' : ''],
-      ['State', c.mastered ? 'mastered' : c.seen ? (c.due ? 'due' : 'learning') : 'not asked', c.seen ? `${c.passed} of ${c.attempts} right` : 'no questions yet', c.due ? 'warn' : ''],
+      ['State', c.mastered ? 'mastered' : c.seen ? (c.due ? 'due' : 'learning') : 'not asked', c.seen ? `${c.passed} of ${c.attempts} right${c.corrected ? ` · ${c.corrected} corrected` : ''}` : 'no questions yet', c.due ? 'warn' : ''],
       ['Next review', c.owed ? whenDue(c.next_review) : '—', c.interval_d ? `every ${Math.round(c.interval_d)}d · ease ${c.ease ? c.ease.toFixed(2) : '—'} · ${plural(c.reps, 'rep')}` : 'not scheduled', c.due ? 'warn' : ''],
     ]),
 
@@ -1856,9 +1922,9 @@ function viewProjects() {
       const m = new Map();
       for (const d of S.daily) {
         if (pid(d.repo) !== p.id) continue;
-        const cur = m.get(d.day) ?? { day:d.day, passed:0, missed:0, skipped:0, total:0 };
-        cur.passed += d.passed; cur.missed += d.missed; cur.skipped += d.skipped;
-        cur.total = cur.passed + cur.missed + cur.skipped;
+        const cur = m.get(d.day) ?? { day:d.day, passed:0, corrected:0, missed:0, skipped:0, total:0 };
+        cur.passed += d.passed; cur.corrected += d.corrected ?? 0; cur.missed += d.missed; cur.skipped += d.skipped;
+        cur.total = cur.passed + cur.corrected + cur.missed + cur.skipped;
         m.set(d.day, cur);
       }
       chartActivity(el, fillDays(m, 30));
@@ -2462,8 +2528,10 @@ function viewHealth() {
    Artifacts — the pages an agent wrote under ~/.eklavya/artifacts/.
    `S.artifacts` is read from the files on every load; opening one is a plain
    link to `/artifacts/<id>`, which the server serves sandboxed, in a new tab.
+   An explainer for a missed question that can still be corrected opens in
+   the viewer instead (`#/artifacts/view/<id>`), with the correction bar.
    ============================================================ */
-const ARTIFACT_KINDS = ['all', 'explainer', 'artifact'];
+const ARTIFACT_KINDS = ['all', 'explainer', 'artifact', 'to-correct'];
 const artifactsInScope = () => (S.artifacts ?? []).filter((a) => inScope(a.project));
 const artifactUrl = (a) => '/artifacts/' + a.id.split('/').map(encodeURIComponent).join('/');
 
@@ -2475,12 +2543,17 @@ function artifactCard(a) {
   const concept = !a.concept ? ''
     : known ? ` · <a class="link" data-go="${esc(LH('concept', a.concept))}">${esc(a.concept)}</a>`
     : ` · ${esc(a.concept)}`;
+  const tag = a.correction === 'open' ? ' · <span class="tag warn">To correct</span>'
+    : a.correction === 'done' ? ' · <span class="tag ok">Corrected</span>' : '';
+  // A correctable explainer opens in the viewer, where the correction lives;
+  // every other page is a plain link to the sandboxed file, in a new tab.
+  const open = a.correction ? `href="${esc(AH('view', a.id))}"` : `href="${esc(artifactUrl(a))}" target="_blank" rel="noopener"`;
   return `<article class="art">
-    <a class="art__open" href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">
+    <a class="art__open" ${open}>
       <span class="art__thumb"><img src="${esc(thumbUrl(a, window.eklavyaGround.read()))}" data-thumb="${esc(thumbUrl(a, '@'))}" alt="" loading="lazy" decoding="async"></span>
       <span class="title">${esc(a.title)}</span></a>
     ${a.description ? `<p class="ctx">${esc(a.description)}</p>` : ''}
-    <p class="slug">${esc(a.kind)} · ${esc(stamp(a.created))}${concept}</p>
+    <p class="slug">${esc(a.kind)} · ${esc(stamp(a.created))}${concept}${tag}</p>
   </article>`;
 }
 
@@ -2490,7 +2563,7 @@ function viewArtifacts(param) {
   const all = artifactsInScope();
   const q = t.q.trim().toLowerCase();
   const list = all.filter((a) => {
-    if (kind !== 'all' && a.kind !== kind) return false;
+    if (kind === 'to-correct' ? a.correction !== 'open' : kind !== 'all' && a.kind !== kind) return false;
     if (q && ![a.title, a.description, a.concept ?? '', pname(a.project), a.id].join(' ').toLowerCase().includes(q)) return false;
     return true;
   });
@@ -2504,6 +2577,7 @@ function viewArtifacts(param) {
   }
   const counts = { all: all.length, explainer: all.filter((a) => a.kind === 'explainer').length };
   counts.artifact = all.length - counts.explainer;
+  counts['to-correct'] = all.filter((a) => a.correction === 'open').length;
   const projects = new Set(all.map((a) => pid(a.project))).size;
   const chip = (k, label) => `<button class="chip" data-go="${esc(AH('dashboard', k === 'all' ? null : k))}" aria-pressed="${kind === k}">${label} ${counts[k]}</button>`;
   const body = !list.length
@@ -2516,15 +2590,149 @@ function viewArtifacts(param) {
       plural(all.length, 'page'), plural(counts.explainer, 'explainer'),
       `<a class="link" data-go="${esc(AH('projects'))}">${plural(projects, 'project')}</a>`,
     ], `Pages your agent wrote for you — explainers after a missed question, and anything you asked to have
-       turned into a page. Each opens in a new tab, from <code>~/.eklavya/artifacts/</code>.`),
+       turned into a page. Each opens in a new tab, from <code>~/.eklavya/artifacts/</code>. An explainer for a
+       missed question opens here instead, with a <b>Correct your answer</b> button under it: pick the right
+       option and the miss shows as corrected. That counts as a pass for the concept's score, but not toward a
+       commit gate or a level, and the concept still comes back for review.`),
     card(null, null,
       `<div class="filters">
          <div class="grow"><input type="search" id="aq" value="${esc(t.q)}" placeholder="Search artifacts" aria-label="Search artifacts"></div>
        </div>
-       <div class="chips">${chip('all','All')}${chip('explainer','Explainers')}${chip('artifact','Other pages')}</div>
+       <div class="chips">${chip('all','All')}${chip('explainer','Explainers')}${chip('to-correct','To correct')}${chip('artifact','Other pages')}</div>
        <div style="margin-top:var(--space-4)">${body}</div>`),
   ].join('');
 }
+
+/* ---------- the explainer viewer and its correction ----------
+   The agent's page is framed sandboxed without same-origin, so it can never
+   read or write the API; the bar and the modal around it are this page's own
+   code, and the server grades every pick. */
+const FRAME_SANDBOX = 'allow-scripts allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox';
+/** The correction on screen: `{ attempt, artifact, q }`, `q` being /api/attempts/correction's answer. */
+let FIX = null;
+
+function viewArtifact(id) {
+  const a = (S.artifacts ?? []).find((x) => x.id === id);
+  if (!a) return viewNotFound(id, false);
+  if (a.correction) fill('fixbar', `/api/attempts/correction?id=${a.attempt}`, (d) => fixBar(a, d));
+  // The page's own ground follows this one; a page made before the viewer ignores it.
+  AFTER.push(() => {
+    const f = $('art-frame');
+    f?.addEventListener('load', () => f.contentWindow?.postMessage({ type:'eklavya:mode', mode:window.eklavyaGround.read() }, '*'));
+  });
+  return `<a class="page__back" data-go="${esc(AH('dashboard'))}">← Artifacts</a>
+    <iframe class="viewer" id="art-frame" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
+    ${a.correction ? `<div class="fixbar" id="fixbar">${loader('Loading the question…')}</div>` : ''}`;
+}
+
+function fixBar(a, d) {
+  FIX = { attempt: a.attempt, artifact: a.id, q: d };
+  const done = d.corrected_at !== null;
+  armLeave(!done);
+  return done
+    ? `<p class="fixbar__done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Corrected on try ${d.tries} · ${esc(stamp(d.corrected_at))}</p>`
+    : `<button type="button" class="btn" id="fix-open">Correct your answer</button>
+       <p class="fixbar__note">Not now? Correct it later from Dashboard → Artifacts.</p>`;
+}
+
+/** The options in a new order each time: the page above shows the right one at its letter. */
+function shuffled(n) {
+  const order = [...Array(n).keys()];
+  for (let tries = 0; tries < 5; tries++) {
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    if (order.some((v, i) => v !== i)) break;
+  }
+  return order;
+}
+
+function fixSay(text, kind) {
+  const m = $('fix-msg');
+  m.textContent = text;
+  m.className = 'fix__msg' + (kind ? ' ' + kind : '');
+}
+
+function openFix() {
+  const d = FIX.q;
+  $('fix-q').textContent = d.question;
+  $('fix-opts').innerHTML = shuffled(d.options.length).map((i) =>
+    `<button type="button" class="fix__opt" data-pick="${esc(d.options[i])}"><span>${esc(d.options[i])}</span>`
+    + `${d.option_notes?.[i] ? `<span class="fix__n">${esc(d.option_notes[i])}</span>` : ''}<span class="fix__tag"></span></button>`).join('');
+  fixSay('', '');
+  $('fix').showModal();
+  $('fix-opts').querySelector('button').focus();
+}
+
+function pickFix(btn) {
+  const all = [...$('fix-opts').querySelectorAll('button')];
+  const reopen = () => all.forEach((b) => { b.disabled = !!b.dataset.wrong; });
+  all.forEach((b) => { b.disabled = true; });
+  postJson('/api/attempts/retry', { attempt_id: FIX.attempt, picked: btn.dataset.pick })
+    .then((r) => {
+      if (r.corrected) {
+        btn.classList.add('is-right');
+        btn.querySelector('.fix__tag').textContent = 'Right answer';
+        fixSay('Corrected. Your stats now count this as answered.', 'ok');
+        FIX.q = { ...FIX.q, tries: r.tries, corrected_at: new Date().toISOString() };
+        const row = S.artifacts.find((x) => x.id === FIX.artifact);
+        if (row) row.correction = 'done';
+        // Every other count on the page was drawn from the payload it booted with:
+        // say so now rather than waiting for the poll.
+        $('stale').hidden = false;
+        armLeave(false);
+        $('fix-close').focus();
+        return;
+      }
+      btn.classList.add('is-wrong');
+      btn.dataset.wrong = '1';
+      btn.querySelector('.fix__tag').textContent = 'Not this one';
+      reopen();
+      fixSay('Still incorrect. Please correct your answer.', 'wrong');
+      all.find((b) => !b.disabled)?.focus();
+    })
+    .catch((e) => { reopen(); fixSay(e.message, 'warn'); });
+}
+
+$('fix-opts').addEventListener('click', (e) => {
+  const b = e.target.closest('.fix__opt');
+  if (b && !b.disabled) pickFix(b);
+});
+// Arrow keys walk the options that can still be picked; Enter and Space pick (native buttons).
+$('fix-opts').addEventListener('keydown', (e) => {
+  const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  const live = [...$('fix-opts').querySelectorAll('button:not(:disabled)')];
+  const i = live.indexOf(document.activeElement);
+  live[(i + step + live.length) % live.length]?.focus();
+});
+$('fix-close').addEventListener('click', () => $('fix').close());
+// However it closes -- the button, Escape -- the bar shows where things stand.
+$('fix').addEventListener('close', () => {
+  const bar = $('fixbar');
+  const a = FIX && S.artifacts.find((x) => x.id === FIX.artifact);
+  if (bar && a) { bar.innerHTML = fixBar(a, FIX.q); $('fix-open')?.focus(); }
+});
+$('view').addEventListener('click', (e) => { if (e.target.closest('#fix-open')) openFix(); });
+
+/**
+ * Closing the tab with a correction still open asks first. Browsers show their
+ * own generic prompt -- a page cannot set its text -- so the bar carries ours.
+ */
+const holdLeave = (e) => { e.preventDefault(); e.returnValue = ''; };
+let LEAVE = false;
+function armLeave(on) {
+  if (on === LEAVE) return;
+  LEAVE = on;
+  window[on ? 'addEventListener' : 'removeEventListener']('beforeunload', holdLeave);
+}
+
+// The framed page reports its height; only that frame's message counts.
+addEventListener('message', (e) => {
+  const f = $('art-frame');
+  if (!f || e.source !== f.contentWindow || e.data?.type !== 'eklavya:height') return;
+  const h = Number(e.data.h);
+  if (Number.isFinite(h)) f.style.height = Math.min(20000, Math.max(200, h)) + 'px';
+});
 
 function viewArtifactProjects() {
   const by = new Map();
@@ -2731,6 +2939,20 @@ function controlValue(f, el) {
 }
 
 /**
+ * Every write the page makes. The server's `acceptWrite` wants the per-start
+ * token from the page's own meta tag and JSON; this sends both. Resolves with
+ * the parsed reply, rejects with the server's own error text.
+ */
+function postJson(path, body) {
+  const token = document.querySelector('meta[name="eklavya-token"]')?.content ?? '';
+  return fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-eklavya-token': token },
+    body: JSON.stringify(body),
+  }).then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || `${r.status}`); return d; }));
+}
+
+/**
  * Saves one setting and redraws the settings in place — not through `render()`,
  * which would scroll to the top and lose the control the reader just used.
  */
@@ -2740,14 +2962,8 @@ function saveSetting(key, change) {
   const say = (text, warn) => { if (msg) { msg.textContent = text; msg.className = warn ? 'warn' : 'here'; } };
   fieldError(key, null);
   say('saving…');
-  const token = document.querySelector('meta[name="eklavya-token"]')?.content ?? '';
   const gen = GEN;
-  fetch('/api/settings', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-eklavya-token': token },
-    body: JSON.stringify({ scope, project: SETS?.project?.id, key, ...change }),
-  })
-    .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || `${r.status}`); }))
+  postJson('/api/settings', { scope, project: SETS?.project?.id, key, ...change })
     .then(() => fetch(settingsUrl()).then((r) => r.json()))
     .then((d) => {
       const el = $('settings');
@@ -2848,6 +3064,7 @@ const WORKFLOWS = {
     ],
     pages: {
       dashboard: { label: 'Dashboard', view: (p) => viewArtifacts(p) },
+      view:      { parent: 'dashboard', view: (p) => viewArtifact(p) },
       projects:  { label: 'Projects', view: () => viewArtifactProjects() },
     },
   },
@@ -3470,6 +3687,8 @@ function render(keepFocus) {
 
   AFTER.length = 0;
   LAZY.clear();
+  // A screen that still has a correction open re-arms this when it draws its bar.
+  armLeave(false);
   $('view').innerHTML = !pg ? viewNotFound('#/' + CUR.wf + '/' + CUR.page, false)
     : CUR.bad ? viewNotFound(CUR.param, true)
     : pg.view(CUR.param);
@@ -3610,7 +3829,8 @@ addEventListener('hashchange', () => { if (INV) { closePicker(false); syncFromUr
 let resizeTimer = 0;
 addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { if (S) render({ id:'q', pos:null }); }, 120);
+  // Not the viewer: a re-render would reload the framed page and lose its scroll.
+  resizeTimer = setTimeout(() => { if (S && CUR.page !== 'view') render({ id:'q', pos:null }); }, 120);
 });
 
 document.querySelectorAll('[data-ground]').forEach((b) => {

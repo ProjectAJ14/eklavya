@@ -8,6 +8,7 @@
 <meta name="eklavya:project" content="{{PROJECT}}">
 <meta name="eklavya:kind" content="{{KIND}}">
 <meta name="eklavya:concept" content="{{CONCEPT}}">
+<meta name="eklavya:attempt" content="{{ATTEMPT}}">
 <meta name="eklavya:created" content="{{CREATED}}">
 <!-- Branding and share metadata. The icon is the fixed mark, inlined so the page
      stays one file; og:image is only fetched by whatever the page is shared to. -->
@@ -98,6 +99,8 @@
   ol.options li.right{border-color:var(--spot);background:var(--spot-soft)}
   ol.options li.picked::after,ol.options li.right::after{display:block;margin-top:4px;
     font:400 11px var(--font-mono);letter-spacing:var(--tracking-caps);text-transform:uppercase}
+  /* The one-line note under each option, as the question showed it. */
+  ol.options li .note{display:block;color:var(--dim);font-size:13px;margin-top:2px}
   ol.options li.picked::after{content:"Your answer";color:var(--error)}
   ol.options li.right::after{content:"Right answer";color:var(--spot)}
 
@@ -138,6 +141,9 @@
       linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:72px 72px}
     main{background:var(--bg);border-left:1px solid var(--line-2);border-right:1px solid var(--line-2);
       padding-left:40px;padding-right:40px;min-height:100vh}
+    /* In the dashboard's viewer the frame is as tall as the page, so a
+       viewport-high floor would grow it every time it reported its height. */
+    .framed main{min-height:0}
   }
   @media (max-width:640px){ main{padding:76px 16px 64px!important} .actions{top:12px;right:12px} }
 
@@ -171,6 +177,21 @@
   <button type="button" onclick="saveHtml()" aria-label="Download this page as an HTML file">HTML</button>
 </div>
 <script>
+/* Inside the dashboard's explainer viewer: report this page's height so the
+   viewer shows it as one document, and take the viewer's ground. Opened on its
+   own, it does neither. */
+(function(){
+  if(window.parent===window) return;
+  var root=document.documentElement;
+  root.classList.add('framed');
+  function post(){ parent.postMessage({type:'eklavya:height',h:root.scrollHeight},'*'); }
+  addEventListener('load',post);
+  if(window.ResizeObserver) new ResizeObserver(post).observe(root);
+  addEventListener('message',function(e){
+    var d=e.data;
+    if(e.source===parent&&d&&d.type==='eklavya:mode'&&(d.mode==='ink'||d.mode==='paper')) root.setAttribute('data-mode',d.mode);
+  });
+})();
 function saveHtml(){
   var name=(location.pathname.split('/').pop()||'').replace(/\.html?$/,'')||'artifact';
   var blob=new Blob(['<!DOCTYPE html>\n'+document.documentElement.outerHTML],{type:'text/html'});
