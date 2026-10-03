@@ -187,8 +187,8 @@ reader saw under `eklavya-dash-tips`).
   `text` (at most 140) says what the feature does, plain, no emoji, no "click here".
   Both go through `esc()`.
 - Order is priority: only the first eligible tip on a screen opens by itself, once;
-  the rest stay beacons until it is dismissed. A feature that is hidden (the closed
-  phone drawer) or not laid out is not eligible.
+  the rest stay beacons until it is dismissed. A feature that is not laid out, or sits in
+  the sidebar while it is the phone drawer (900px and below), is not eligible.
 - `TIP.sync()` runs after every `render()` and every `fill()` draw, and when
   the drawer, a picker or the correction dialog opens or closes. A new overlay
   that a beacon must not sit on calls it too.
