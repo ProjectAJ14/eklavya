@@ -33,7 +33,7 @@ import {
 } from './store.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  loadConfig, loadGlobalConfig, loadProjectConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
+  loadConfig, loadGlobalConfig, loadProjectConfig, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
@@ -158,17 +158,11 @@ const days = (from: string, now: Date): number | null => {
  *
  * Per project, never the server's own cwd: the daemon serves every project from
  * one process, and started inside a checkout with `difficulty: "hard"` it used
- * to show every other project pinned at hard. A dashboard must still open if a
- * config file is half-written or owned by another user; the defaults describe
- * the same product.
+ * to show every other project pinned at hard. Nothing here can stop the page
+ * opening: a half-written or unreadable file reads as empty, and no working
+ * directory is consulted, so a deleted one is no longer a failure to catch.
  */
-function readConfig(repo: string | null = null): EklavyaConfig {
-  try {
-    return loadProjectConfig(repo).config;
-  } catch {
-    return DEFAULT_CONFIG;
-  }
-}
+const readConfig = (repo: string | null = null): EklavyaConfig => loadProjectConfig(repo).config;
 
 /** Every project that has answers, by the key its rows carry. */
 const answeredRepos = (db: DB): (string | null)[] =>
