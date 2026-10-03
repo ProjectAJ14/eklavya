@@ -199,11 +199,25 @@ Use the health page to locate a gap between capture, processing, indexing, retri
 
 Provider error classes are shown without raw messages, which can quote captured content. `eklavya memory status` gives the terminal view of the same health information.
 
-## Projects, scope, ground and paging
+## Tips
+
+On your first visits, a dot marks each feature the current page has a tip for (it pulses unless your system asks for reduced motion). The page's first tip opens by itself, once, about half a second after the page draws: a bubble pointing at the feature that says what it does. The others stay dots. For example, the Learning Dashboard points at the caret beside the workflow name and marks **How this works** with a dot. Once you dismiss a page's first tip, the next one opens by itself on a later visit.
+
+| You do | What happens |
+| --- | --- |
+| Click **Got it** | The tip and its dot go for good. |
+| Press Escape, click **×** or click elsewhere | The bubble closes and the dot stays. Click the dot, or Tab to it and press Enter, to open it again. |
+| Use the feature itself | The tip counts as seen and goes for good. |
+
+Only one bubble is open at a time, and moving to another page closes it. No dot or bubble shows while the menu drawer, a dropdown or the correction dialog is open, and at 900 px or narrower, where the sidebar becomes the drawer, its features get no tips. A dot hides while its feature is scrolled out of view, and a tip does not open by itself until its feature is on screen. A tip that has opened once does not open by itself again; its dot stays until you dismiss it.
+
+The sidebar's **Tips** switch, below **Ground**, sets it: **off** hides every dot and bubble, and **on** shows every tip again from the start. Which tips you have seen is remembered in this browser only, so another browser, or a dashboard on a different `--port`, shows them again. If the browser blocks site storage, the dashboard shows no tips.
+
+## Projects, scope, ground, tips and paging
 
 The project selector includes projects with attempts, logged concepts, evidence, observations, reuse receipts or earned levels. Folder names identify projects; duplicate names include a parent folder. Worktrees resolve to their main checkout when that relationship is known. Missing checkouts remain listed as “checkout gone”. **No repository** means work outside git; **Unattributed** means older rows without a project.
 
-Selecting a project scopes lists and activity, but concept mastery and review dates remain shared. The selected project is saved in the URL. The ink/paper theme is remembered in your browser.
+Selecting a project scopes lists and activity, but concept mastery and review dates remain shared. The selected project is saved in the URL. The ink/paper theme and the tips switch are remembered in your browser.
 
 Most lists show 20 rows per page; the memory timeline shows 25, and a concept's question history shows ten, one line each.
 
@@ -235,7 +249,7 @@ An old link without a project can pick up the previous saved project once. New-s
 
 ## What it is, underneath
 
-The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except its two writes, validates loopback request addresses, escapes stored content and refuses framing by other pages. A request whose address is not a valid URL gets a `400` reply, and the server keeps running. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above.
+The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except its two writes, validates loopback request addresses, escapes stored content and refuses framing by other pages. A request whose address is not a valid URL gets a `400` reply, and the server keeps running. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above. The tips library (Driver.js) ships inside the package, and the dashboard serves it itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`.
 
 Its read-only JSON endpoints serve summary state (`/api/state`), the change cursor an open page polls (`/api/cursor`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`), settings (`/api/settings`) and a missed question to correct (`/api/attempts/correction?id=`, without its answer). There are two writes:
 

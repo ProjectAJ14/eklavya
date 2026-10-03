@@ -165,7 +165,8 @@ describe('settings', () => {
 
 describe('openInBrowser', () => {
   const waitFor = async (file: string) => {
-    for (let i = 0; i < 100 && !fs.existsSync(file); i++) await new Promise((r) => setTimeout(r, 20));
+    // Up to 5s: under the full suite, with the browser tests running beside it, spawning sh can take over 2.
+    for (let i = 0; i < 250 && !fs.existsSync(file); i++) await new Promise((r) => setTimeout(r, 20));
     // The opener writes the line and exits; give the write a moment to land whole.
     for (let i = 0; i < 20 && !fs.readFileSync(file, 'utf8').endsWith('\n'); i++) await new Promise((r) => setTimeout(r, 20));
     return fs.readFileSync(file, 'utf8');

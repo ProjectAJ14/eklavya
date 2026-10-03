@@ -11,11 +11,15 @@ now*, this answers *am I getting better* and *what did that session actually
 teach me*. It is four workflows in one shell, **Learning**, **Memory**, **Artifacts** and
 **Settings**, each with its own Dashboard and sidebar.
 
-Two files, and there is deliberately nothing else:
+Two files, plus one vendored library and nothing else. The exception is the tips
+library: Driver.js's `hints` module, pinned exactly (`"driver.js": "1.9.0"`, a
+devDependency), copied from `node_modules` into `dist/assets/vendor/` by
+`copy-assets.mjs` (the build fails without it) and served from this origin. A
+second library needs the same case made, and never comes from a CDN.
 
 | File | What it is |
 |---|---|
-| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with sixteen read routes: `/api/health` (app, version, pid and database, read by `dashboard-daemon.ts`), `/api/state`, `/api/cursor` (`changeCursor`, what the open page polls), `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/api/attempts/correction`, `/tokens.css`, `/manifest.webmanifest` and the three PNG icons it and the page name (`MANIFEST`, `APP_ICONS`: what makes the page installable as an app), `/artifacts/<folder>/<file>`, `/` — and the writes in `WRITES` (`POST /api/settings`, `POST /api/attempts/retry`), all through `acceptWrite`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`; an artifact overrides the framing pair to `'self'` / `SAMEORIGIN` for the viewer) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
+| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with eighteen read routes: `/api/health` (app, version, pid and database, read by `dashboard-daemon.ts`), `/api/state`, `/api/cursor` (`changeCursor`, what the open page polls), `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/api/attempts/correction`, `/tokens.css`, `/vendor/driver-hints.js` and `/vendor/driver-hints.css` (the tips library, `VENDOR`, cached an hour), `/manifest.webmanifest` and the three PNG icons it and the page name (`MANIFEST`, `APP_ICONS`: what makes the page installable as an app), `/artifacts/<folder>/<file>`, `/` — and the writes in `WRITES` (`POST /api/settings`, `POST /api/attempts/retry`), all through `acceptWrite`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`; an artifact overrides the framing pair to `'self'` / `SAMEORIGIN` for the viewer) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
 | `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, workflow registry, router, views, charts. One file, no framework, no build step. |
 | `mcp/test/dashboard.test.ts` | The payload's contract, the inventory's rules, and `/api/state`'s key set. |
 | `mcp/test/dashboard-browser.test.ts` | The page in a real Chromium: every legacy redirect, the workflow control, collapse persistence, the drawer, picker bounds, overflow, console errors and outbound requests. |
@@ -168,6 +172,36 @@ top bar `inert` behind it. `syncDrawer()` strips every one of those on a wide
 screen — the desktop rail must never be hidden from assistive technology. The
 workflow picker is `#wf-menu` at the end of `<body>`, outside the rail's scroll
 clip, positioned by `placePicker()` and clamped to the viewport.
+
+## Adding a tip
+
+A tip is one row of `TIPS` in `dashboard.html`; `TIP` does the rest (Driver.js
+places the bubble and beacons; `TIP` decides which apply and remembers what the
+reader saw under `eklavya-dash-tips`).
+
+```js
+{ id: 'concept-filters', where: ['learning/concepts'], el: '#chips', title: 'Concept filters',
+  text: 'Filter concepts by state. The filter is part of the link, so you can bookmark it.',
+  side: 'bottom',                 // optional: top | right | bottom | left
+  when: () => S.concepts.length } // optional: only when the data makes it true
+```
+
+- `id` is kebab-case and never reused. Renaming one shows the tip again to
+  everyone who dismissed it: reword `text` instead, and give a new message a new id.
+- `where` lists `<workflow>/<page>` keys of `WORKFLOWS`; `el` is the feature on
+  each of them. `title` (at most 32 characters) is the beacon's accessible name;
+  `text` (at most 140) says what the feature does, plain, no emoji, no "click here".
+  Both go through `esc()`.
+- Order is priority: only the first eligible tip on a screen opens by itself, once;
+  the rest stay beacons until it is dismissed. A feature that is not laid out, or sits in
+  the sidebar while it is the phone drawer (900px and below), is not eligible.
+- `TIP.sync()` runs after every `render()` and every `fill()` draw, and when
+  the drawer, a picker or the correction dialog opens or closes. A new overlay
+  that a beacon must not sit on calls it too.
+- The registry guard in `dashboard-browser.test.ts` opens every `where` on the
+  fixture and fails if `el` does not resolve to a rendered element. A typo
+  fails CI, not a reader. Browser tests run with tips off unless they pass
+  `tips: true` to `open()`; `window.__eklavyaTestTips` replaces `TIPS` for engine tests.
 
 ## Adding a chart
 

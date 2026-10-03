@@ -1532,6 +1532,9 @@ const MANIFEST = JSON.stringify({
 /** Served from the bundled assets as-is; copied in from `web/public` at build. */
 const APP_ICONS = new Set(['/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']);
 
+/** The tips library, copied from node_modules at build by `copy-assets.mjs`. */
+const VENDOR: Record<string, string> = { '/vendor/driver-hints.js': 'text/javascript', '/vendor/driver-hints.css': 'text/css' };
+
 function send(
   res: http.ServerResponse,
   status: number,
@@ -1772,6 +1775,12 @@ export function startDashboard(
       }
       if (APP_ICONS.has(url.pathname)) {
         return send(res, 200, 'image/png', fs.readFileSync(path.join(assets, url.pathname.slice(1))));
+      }
+      const vendor = VENDOR[url.pathname];
+      if (vendor) {
+        return send(res, 200, vendor, fs.readFileSync(path.join(assets, url.pathname.slice(1))), {
+          'cache-control': 'max-age=3600',
+        });
       }
       if (url.pathname === '/tokens.css') {
         return send(res, 200, 'text/css', localTokens(fs.readFileSync(path.join(assets, 'tokens.css'), 'utf8')));
