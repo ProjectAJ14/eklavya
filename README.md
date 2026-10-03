@@ -88,7 +88,7 @@ with diagrams that you can print or save as PDF.
 |---|---|---|
 | Explainer pages | "Explain refresh-token rotation as an Eklavya artifact." | [Artifacts skill](https://eklavya-run.web.app/docs/commands/#the-artifacts-skill) |
 | Help after a miss | On by default: after a wrong answer, a page restates the question and explains the idea in the background. Then correct your answer from it in the dashboard. | [Correcting a missed answer](https://eklavya-run.web.app/docs/dashboard/#correcting-a-missed-answer) |
-| One library | Pages are saved on your computer, listed in the dashboard and opened there as tabs. | [Artifacts dashboard](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
+| One library | Pages are saved on your computer, listed in the dashboard and opened there as tabs; a page made from the Eklavya template scrolls with the dashboard as one page. | [Artifacts dashboard](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 
 ## Dashboard
 
