@@ -1,3 +1,10 @@
+## [1.47.1](https://github.com/ProjectAJ14/eklavya/compare/v1.47.0...v1.47.1) (2026-10-03)
+
+
+### Bug Fixes
+
+* keep hand-written pages readable in the artifact viewer ([#100](https://github.com/ProjectAJ14/eklavya/issues/100)) ([e1be369](https://github.com/ProjectAJ14/eklavya/commit/e1be369b0a57a0bbc3db2e872773a0ea5ac419e8)), closes [#99](https://github.com/ProjectAJ14/eklavya/issues/99)
+
 # [1.47.0](https://github.com/ProjectAJ14/eklavya/compare/v1.46.0...v1.47.0) (2026-10-03)
 
 
