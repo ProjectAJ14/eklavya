@@ -1,3 +1,10 @@
+## [1.47.3](https://github.com/ProjectAJ14/eklavya/compare/v1.47.2...v1.47.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* redact secrets before clipping so a cut cannot leave a raw prefix ([#102](https://github.com/ProjectAJ14/eklavya/issues/102)) ([68f12b4](https://github.com/ProjectAJ14/eklavya/commit/68f12b4f73136e727ca0fa045a9b0ec21d9805fc))
+
 ## [1.47.2](https://github.com/ProjectAJ14/eklavya/compare/v1.47.1...v1.47.2) (2026-10-03)
 
 
