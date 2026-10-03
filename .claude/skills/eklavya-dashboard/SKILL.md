@@ -15,7 +15,7 @@ Two files, and there is deliberately nothing else:
 
 | File | What it is |
 |---|---|
-| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with fourteen read routes: `/api/health` (app, version, pid and database, read by `dashboard-daemon.ts`), `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/tokens.css`, `/manifest.webmanifest` and the three PNG icons it and the page name (`MANIFEST`, `APP_ICONS`: what makes the page installable as an app), `/artifacts/<folder>/<file>`, `/` — and one write, `POST /api/settings`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
+| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with fifteen read routes: `/api/health` (app, version, pid and database, read by `dashboard-daemon.ts`), `/api/state`, `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/api/attempts/correction`, `/tokens.css`, `/manifest.webmanifest` and the three PNG icons it and the page name (`MANIFEST`, `APP_ICONS`: what makes the page installable as an app), `/artifacts/<folder>/<file>`, `/` — and the writes in `WRITES` (`POST /api/settings`, `POST /api/attempts/retry`), all through `acceptWrite`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`; an artifact overrides the framing pair to `'self'` / `SAMEORIGIN` for the viewer) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
 | `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, workflow registry, router, views, charts. One file, no framework, no build step. |
 | `mcp/test/dashboard.test.ts` | The payload's contract, the inventory's rules, and `/api/state`'s key set. |
 | `mcp/test/dashboard-browser.test.ts` | The page in a real Chromium: every legacy redirect, the workflow control, collapse persistence, the drawer, picker bounds, overflow, console errors and outbound requests. |
@@ -102,7 +102,7 @@ runs them. Otherwise `draw` is a pure function of the response; keep it that way
 | `reuse` | `receiptTotals` (confirmed rows only), the `savingsFrom` verdict and `savingsLine`, the estimator's name, counts by delivery, and the newest `RECEIPT_LIMIT` receipts with their index/detail split |
 | `health` | capture heartbeat and mode, `queueDepth`, stalled jobs grouped by `error_class`, the spool's drop count, and whether a provider is configured |
 | `memory_sessions` | one row per session that captured evidence: events, entries, candidates, first/last — what lets the Sessions view line the two halves up |
-| `artifacts` | `listArtifacts()` from `artifacts.ts`: every page under `~/.eklavya/artifacts/`, newest first — `id` (`<folder>/<file>`), title, description, project, kind (`explainer` or `artifact`), concept, created, bytes. Read from the files' heads on each load; there is no table |
+| `artifacts` | `listArtifacts()` from `artifacts.ts`: every page under `~/.eklavya/artifacts/`, newest first — `id` (`<folder>/<file>`), title, description, project, kind (`explainer` or `artifact`), concept, `attempt` (the `eklavya:attempt` meta, or null), created, bytes, plus `correction` (`open`, `done` or null, one query for all rows). Read from the files' heads on each load; there is no table |
 
 Two things that have bitten this file already:
 
@@ -177,7 +177,8 @@ needs a laid-out parent to measure. Inside a chart function:
 
 - Size from `el.parentElement.clientWidth` and set `viewBox` to real pixels, so
   10px axis labels stay 10px. `addEventListener('resize', …)` re-renders the view.
-- Fill with role tokens: `var(--spot)` for right, `var(--warning)` for missed,
+- Fill with role tokens: `var(--spot)` for right, `var(--spot-soft)` with a
+  `var(--spot)` hairline for corrected, `var(--warning)` for missed,
   `var(--faint-2)` for skipped. Sequential ramps are
   `color-mix(in srgb, var(--spot) N%, var(--mass))` — a `--vd-*` step is legible on
   one ground and invisible on the other.
@@ -270,7 +271,7 @@ contract is `web/CLAUDE.md`. The parts this page is strict about:
 - Both grounds are the product. `data-mode` is applied by the head script before
   paint and re-applied on boot (the toggle does not exist yet when the head runs).
 
-## Settings: the one write
+## Settings: the first write
 
 The Settings workflow is the dashboard's half of a promise: **configuration has
 two interfaces, `eklavya config` and this page, and they change together.**
@@ -327,13 +328,28 @@ write is one `WRITES` row and one `WriteHandler`; the page calls it with
 
 ## An artifact page is not the dashboard
 
+**The one frame: the explainer viewer.** An explainer whose `correction` is not
+null opens at `#/artifacts/view/<id>`: an `<iframe>` of `/artifacts/<id>?embed`
+with `sandbox` lacking `allow-same-origin` (never add it), the correction bar,
+and a native `<dialog>` for the modal. `?embed` strips the template's Google
+Fonts links and sends `ARTIFACT_EMBED_CSP` (no font hosts), so the viewer keeps
+the no-outbound-request promise. The framed page may only `postMessage` its
+height (`eklavya:height`, accepted from that frame's `contentWindow` alone, and
+clamped) and receive the ground (`eklavya:mode`); it never writes. Every write
+is page code calling `postJson('/api/attempts/retry', …)`; the server grades and
+never sends `correct`. `armLeave` holds a `beforeunload` prompt while the bar is
+open and `render()` disarms it on every navigation. The resize handler skips
+the viewer, since a re-render reloads the frame. In the browser suite, `ready()`
+counts the page's own open requests: Playwright never reports `networkidle`
+again once a sandboxed frame has attached.
+
 `/artifacts/<folder>/<file>` serves HTML an agent wrote, from this origin. It
 goes out with `ARTIFACT_CSP` instead of the page's CSP: `sandbox` without
 `allow-same-origin` gives it an opaque origin, so its scripts run (the PDF and
 HTML buttons need them) but a fetch to `/api/state` is refused, and
 `default-src 'none'` plus the Google Fonts hosts is all it may load. The page
-links to one with a plain `<a target="_blank" rel="noopener">` — never an
-iframe, never `data-go`. `resolveArtifact` is the only way from a URL to a
+links to one with a plain `<a target="_blank" rel="noopener">`, never `data-go`,
+with one exception below. `resolveArtifact` is the only way from a URL to a
 file; do not join paths here. `test/artifacts.test.ts` covers traversal, a
 planted symlink and the rebound host, and the browser suite checks the opened
 page cannot read the API.

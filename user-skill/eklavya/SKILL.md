@@ -154,7 +154,9 @@ Other keys, same `config set` shape: `pass_threshold`,
 "when I get one wrong, make me a page explaining it", or "stop opening pages".
 On, a missed answer also gets an explainer page, written in the background and
 opened, while the session carries on; the page restates the question, its
-options, the pick and the right answer. Turning it off is usually wanted per
+options, the pick and the right answer. When the right option was recorded, the
+page opens in the dashboard with a **Correct your answer** button: a right pick
+counts for the concept's score, not for a commit gate or a level. Turning it off is usually wanted per
 project, so default to `--project`. The pages themselves are the
 `eklavya-artifacts` skill's job, not this one's.
 
@@ -284,8 +286,9 @@ eklavya dashboard status       # is it running, which version, which database
 eklavya dashboard stop         # stop the background copy
 ```
 
-It binds to loopback only and reads the local database; its one write is a
-settings change, guarded by a per-start token in the page. Worth saying when
+It binds to loopback only and reads the local database; its two writes, a
+settings change and a correction of a missed answer, are guarded by a per-start
+token in the page. Worth saying when
 someone asks where their data goes. It keeps running in the background: session
 start starts it when it is down and replaces an older version after an update, so
 the command returns at once with the URL. `dashboard_autostart false` (global
@@ -317,6 +320,7 @@ project; the ids are the ones `/api/projects` lists.
 | what has recall actually saved | `/#/memory/reuse` |
 | is capture healthy | `/#/memory/health` |
 | the pages Eklavya wrote me, search them | `/#/artifacts/dashboard` (or `/explainer` for explainers only) |
+| which explainers can I still correct | `/#/artifacts/dashboard/to-correct`; one opens at `/#/artifacts/view/<id>` (the id from `eklavya artifacts list --json`, URL-encoded) |
 | which projects have pages | `/#/artifacts/projects` |
 | change my settings in a page, see what a project overrides | `/#/settings/dashboard`, `/#/settings/user`, `/#/settings/project?project=<path>` |
 
