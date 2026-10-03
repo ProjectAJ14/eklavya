@@ -298,11 +298,12 @@ two interfaces, `eklavya config` and this page, and they change together.**
   in the same words, `ruleHint` prints the accepted range under the help, and
   `fieldError` puts a refusal — the page's or the server's — in the field's
   `-e` element with `aria-invalid`, keeping the typed value.
-- `POST /api/settings` needs a loopback `Origin` (not `null`: a sandboxed
-  frame sends that), `application/json` (no cross-origin form can), a body of
-  at most 256 KB, and `x-eklavya-token` equal to the per-start token the `/`
-  response writes into `<meta name="eklavya-token">`. A hostile origin cannot
-  read that page, so it cannot learn the token.
+- `POST /api/settings` is a row in `WRITES`, so `acceptWrite` guards it: a
+  loopback `Origin` (not `null`: a sandboxed frame sends that),
+  `application/json` (no cross-origin form can), a body of at most 256 KB, and
+  `x-eklavya-token` equal to the per-start token the `/` response writes into
+  `<meta name="eklavya-token">`. A hostile origin cannot read that page, so it
+  cannot learn the token. The page sends it through `postJson`.
 - The page saves on `change` and redraws `#settings` in place (not via
   `render()`, which scrolls to the top), restoring focus to the control used.
   Errors come back as `{ error }` and show in that row's `data-msg`.
@@ -318,9 +319,11 @@ same-origin rule does not stop it because the page's origin *is* that hostname.
 Two consequences for anything added here. A new endpoint inherits the check
 because it sits behind the same handler — keep it that way rather than
 registering a second server. And a mutating endpoint needs more than this
-check: `POST /api/settings` adds the page token, a required loopback `Origin`
-and a JSON content type (see *Settings: the one write*). Any future write
-follows the same pattern, inside `postSettings`' shape.
+check: every route in `WRITES` goes through `acceptWrite`, which adds the page
+token, a required loopback `Origin`, a JSON content type and a size cap. A new
+write is one `WRITES` row and one `WriteHandler`; the page calls it with
+`postJson(path, body)`, never its own `fetch`. The table-driven guard test in
+`dashboard.test.ts` covers every row, so the new route inherits it.
 
 ## An artifact page is not the dashboard
 

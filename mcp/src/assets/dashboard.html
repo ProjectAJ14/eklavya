@@ -2731,6 +2731,20 @@ function controlValue(f, el) {
 }
 
 /**
+ * Every write the page makes. The server's `acceptWrite` wants the per-start
+ * token from the page's own meta tag and JSON; this sends both. Resolves with
+ * the parsed reply, rejects with the server's own error text.
+ */
+function postJson(path, body) {
+  const token = document.querySelector('meta[name="eklavya-token"]')?.content ?? '';
+  return fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-eklavya-token': token },
+    body: JSON.stringify(body),
+  }).then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || `${r.status}`); return d; }));
+}
+
+/**
  * Saves one setting and redraws the settings in place — not through `render()`,
  * which would scroll to the top and lose the control the reader just used.
  */
@@ -2740,14 +2754,8 @@ function saveSetting(key, change) {
   const say = (text, warn) => { if (msg) { msg.textContent = text; msg.className = warn ? 'warn' : 'here'; } };
   fieldError(key, null);
   say('saving…');
-  const token = document.querySelector('meta[name="eklavya-token"]')?.content ?? '';
   const gen = GEN;
-  fetch('/api/settings', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-eklavya-token': token },
-    body: JSON.stringify({ scope, project: SETS?.project?.id, key, ...change }),
-  })
-    .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || `${r.status}`); }))
+  postJson('/api/settings', { scope, project: SETS?.project?.id, key, ...change })
     .then(() => fetch(settingsUrl()).then((r) => r.json()))
     .then((d) => {
       const el = $('settings');

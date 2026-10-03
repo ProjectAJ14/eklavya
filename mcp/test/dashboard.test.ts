@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
-  SETTINGS, CLI_ONLY,
+  SETTINGS, CLI_ONLY, WRITES,
 } from '../src/dashboard.js';
 import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
@@ -872,13 +872,17 @@ describe('the server says what a browser may do with its pages', () => {
           const res = await request(port, method, route);
           expect(res.status, `${method} ${route}`).toBe(405);
           expect(res.headers.allow, `${method} ${route}`).toBe('GET, HEAD');
+          // The refusal names every route that does take a write.
+          expect(res.body).toBe(`This route is read-only. Writes: ${Object.keys(WRITES).join(', ')}.\n`);
           expect(res.headers['x-frame-options']).toBe('DENY');
         }
       }
-      // The one writable route still refuses every other write method.
-      const put = await request(port, 'PUT', '/api/settings');
-      expect(put.status).toBe(405);
-      expect(put.headers.allow).toBe('GET, HEAD, POST');
+      // A writable route still refuses every other write method.
+      for (const route of Object.keys(WRITES)) {
+        const put = await request(port, 'PUT', route);
+        expect(put.status, route).toBe(405);
+        expect(put.headers.allow, route).toBe('GET, HEAD, POST');
+      }
     } finally {
       close();
     }
@@ -920,9 +924,9 @@ describe('/api/settings', () => {
     fs.rmSync(repo, { recursive: true, force: true });
   });
 
-  const post = (port: number, body: unknown, headers: Record<string, string>) =>
+  const post = (port: number, body: unknown, headers: Record<string, string>, route = '/api/settings') =>
     new Promise<{ status: number; body: any }>((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port, path: '/api/settings', method: 'POST', headers }, (res) => {
+      const req = http.request({ host: '127.0.0.1', port, path: route, method: 'POST', headers }, (res) => {
         let text = '';
         res.on('data', (c) => (text += String(c)));
         res.on('end', () => {
@@ -1011,6 +1015,43 @@ describe('/api/settings', () => {
       fs.rmSync(path.join(home, 'config.json'), { force: true });
       fs.rmSync(path.join(home, 'config.json.eklavya-bak'), { force: true });
       expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
+    });
+  });
+
+  it('makes every page write through postJson', () => {
+    const page = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'assets', 'dashboard.html'), 'utf8');
+    const posts = [...page.matchAll(/method: 'POST'/g)];
+    expect(posts).toHaveLength(1);
+    const helper = page.indexOf('function postJson(');
+    expect(helper).toBeGreaterThan(-1);
+    expect(posts[0]!.index! - helper).toBeLessThan(400);
+  });
+
+  // Table-driven over WRITES, so a new write route inherits every guard test.
+  it('guards every write route the same way, in the same words', async () => {
+    expect(Object.keys(WRITES)).toContain('/api/settings');
+    await withServer(async (port, token) => {
+      for (const [route, { maxBytes }] of Object.entries(WRITES)) {
+        const to = (body: unknown, headers: Record<string, string>) => post(port, body, headers, route);
+        const h = ok(port, token);
+        const { origin: _o, ...noOrigin } = h;
+        const cases: [string, Promise<{ status: number; body: any }>, number, string | RegExp][] = [
+          ['no origin', to({}, noOrigin), 403, 'A write needs a loopback Origin.'],
+          ['null origin', to({}, { ...h, origin: 'null' }), 403, 'A write needs a loopback Origin.'],
+          ['foreign origin', to({}, { ...h, origin: 'https://evil.example' }), 403, /loopback only/],
+          ['form', to('a=1', { ...h, 'content-type': 'application/x-www-form-urlencoded' }), 415, 'Send application/json.'],
+          ['no token', to({}, { ...h, 'x-eklavya-token': '' }), 403, 'Stale or missing dashboard token. Reload the page.'],
+          ['too large', to('x'.repeat(maxBytes + 1), h), 413, 'Request too large.'],
+          ['not json', to('{', h), 400, 'Not valid JSON.'],
+        ];
+        for (const [what, pending, status, error] of cases) {
+          const r = await pending;
+          expect(r.status, `${route}: ${what}`).toBe(status);
+          const text = typeof r.body === 'string' ? r.body : r.body.error;
+          if (typeof error === 'string') expect(text, `${route}: ${what}`).toBe(error);
+          else expect(text, `${route}: ${what}`).toMatch(error);
+        }
+      }
     });
   });
 

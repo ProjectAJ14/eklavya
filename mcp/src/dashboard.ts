@@ -9,8 +9,9 @@
  * Deliberately a static page plus JSON endpoints: no framework, no build
  * step, same rule the landing page follows. It binds to loopback only — the
  * data never leaves the machine, and that is a promise the landing page makes
- * on Eklavya's behalf. The one write, a setting, also needs the page's token
- * (see `postSettings`).
+ * on Eklavya's behalf. It is read-only except the routes in `WRITES`, and every
+ * one of those goes through `acceptWrite`: loopback Origin, JSON, the page's
+ * per-start token and a size cap.
  *
  * The endpoint ships mostly *flat rows* — every attempt, every logged context,
  * one row per day — and lets the page derive the views. One aggregate query per
@@ -1294,6 +1295,19 @@ export function updateSetting(db: DB, body: unknown): { status: number; body: Re
 // characters, JSON-escaped — so the page refuses nothing the CLI would take.
 const MAX_SETTINGS_BODY = 256 * 1024;
 
+/** One write: validates its own body, never trusts it, and answers with JSON. */
+export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Record<string, unknown> };
+
+/**
+ * Every route that writes, and nothing else does. Exact paths, no parameters:
+ * a write carries its target in its JSON body. A new write is one row here and
+ * one handler; `acceptWrite` gives it the same guard as the rest, and the
+ * table-driven test in `dashboard.test.ts` runs every guard against it.
+ */
+export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }> = {
+  '/api/settings': { handler: updateSetting, maxBytes: MAX_SETTINGS_BODY },
+};
+
 /**
  * What a browser may do with anything this server sends. The page is one file
  * with an inline script and inline styles, a `data:` favicon, and same-origin
@@ -1415,19 +1429,25 @@ export function startDashboard(
   const wanted = opts.port ?? dashboardPort();
   const assets = path.join(moduleDir, 'assets');
 
-  // Per server start. Every write must carry it (see `postSettings`).
+  // Per server start. Every write must carry it (see `acceptWrite`).
   const token = randomBytes(24).toString('hex');
   const json = (res: http.ServerResponse, status: number, body: Record<string, unknown>) =>
     send(res, status, 'application/json', JSON.stringify(body));
 
   /**
-   * The one mutating route, and why the loopback check alone is not enough for
-   * it: a sandboxed frame on any page sends `Origin: null`, which the read
-   * routes accept. So a write also needs a real loopback `Origin`, a JSON
-   * content type (which a cross-origin form cannot send without a preflight
-   * this server never grants), and the token only this page was served.
+   * The guard every write goes through, and why the loopback check alone is
+   * not enough for one: a sandboxed frame on any page sends `Origin: null`,
+   * which the read routes accept. So a write also needs a real loopback
+   * `Origin`, a JSON content type (which a cross-origin form cannot send
+   * without a preflight this server never grants), and the token only this
+   * page was served. Only then is the body read, capped, parsed and handed to
+   * the route's handler.
    */
-  const postSettings = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+  const acceptWrite = (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    route: (typeof WRITES)[string],
+  ): void => {
     const origin = req.headers.origin;
     if (!origin || origin === 'null') return json(res, 403, { error: 'A write needs a loopback Origin.' });
     if (!/^application\/json\b/i.test(req.headers['content-type'] ?? '')) {
@@ -1438,14 +1458,14 @@ export function startDashboard(
     if (sent.length !== want.length || !timingSafeEqual(sent, want)) {
       return json(res, 403, { error: 'Stale or missing dashboard token. Reload the page.' });
     }
-    if (Number(req.headers['content-length'] ?? 0) > MAX_SETTINGS_BODY) {
+    if (Number(req.headers['content-length'] ?? 0) > route.maxBytes) {
       return json(res, 413, { error: 'Request too large.' });
     }
     const chunks: Buffer[] = [];
     let size = 0;
     req.on('data', (c: Buffer) => {
       size += c.length;
-      if (size > MAX_SETTINGS_BODY) {
+      if (size > route.maxBytes) {
         // Answer first and drop the connection only once the answer is out,
         // so the browser reads the 413 instead of a reset.
         res.on('finish', () => req.destroy());
@@ -1465,7 +1485,7 @@ export function startDashboard(
       } catch {
         return json(res, 400, { error: 'Not valid JSON.' });
       }
-      const out = updateSetting(db, body);
+      const out = route.handler(db, body);
       json(res, out.status, out.body);
     });
   };
@@ -1475,8 +1495,7 @@ export function startDashboard(
     // A page the developer happens to have open can point a hostname it
     // controls at 127.0.0.1 and fetch from here -- DNS rebinding -- and the
     // same-origin policy does not help, because the page's origin *is* that
-    // hostname. The risk is a write to settings (`postSettings` adds a token
-    // for that) and that this payload contains the developer's prompts, code and project
+    // hostname. The risk is a write (`acceptWrite` adds a token for those) and that this payload contains the developer's prompts, code and project
     // history, and a hostile page would be reading all of it.
     //
     // The check is the standard one: the request has to have been addressed to
@@ -1486,13 +1505,13 @@ export function startDashboard(
     }
     /* c8 ignore next -- a server-side request always carries its url; the fallback is for the type */
     const url = new URL(req.url ?? '/', `http://${host}`);
-    // One route writes: a setting, through the same `applySetting` the CLI
-    // uses. Everything else reads, and any other method is refused rather
-    // than answered as a GET.
-    if (url.pathname === '/api/settings' && req.method === 'POST') return postSettings(req, res);
+    // The routes in `WRITES` take a POST, through `acceptWrite`. Everything
+    // else reads, and any other method is refused rather than answered as a GET.
+    const write = WRITES[url.pathname];
+    if (write && req.method === 'POST') return acceptWrite(req, res, write);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      return send(res, 405, 'text/plain', 'Only /api/settings accepts a write; everything else here is read-only.\n', {
-        allow: url.pathname === '/api/settings' ? 'GET, HEAD, POST' : 'GET, HEAD',
+      return send(res, 405, 'text/plain', `This route is read-only. Writes: ${Object.keys(WRITES).join(', ')}.\n`, {
+        allow: write ? 'GET, HEAD, POST' : 'GET, HEAD',
       });
     }
     try {
