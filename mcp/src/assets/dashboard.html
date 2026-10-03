@@ -744,7 +744,11 @@
     filter:none; box-shadow:var(--shadow-lg); min-width:0; max-width:min(320px, calc(100vw - 32px));
     padding:14px 16px; font-family:var(--font-body); animation:coach-in 160ms var(--ease); }
   @keyframes coach-in { from { opacity:0; } }
-  .coach .driver-popover-arrow { border-color:var(--spot); }
+  /* The arrow is a border triangle: only the side it points from takes the fill. */
+  .coach .driver-popover-arrow-side-left { border-left-color:var(--spot); }
+  .coach .driver-popover-arrow-side-right { border-right-color:var(--spot); }
+  .coach .driver-popover-arrow-side-top { border-top-color:var(--spot); }
+  .coach .driver-popover-arrow-side-bottom { border-bottom-color:var(--spot); }
   .coach .driver-popover-title { position:absolute; width:1px; height:1px; overflow:hidden;
     clip-path:inset(50%); white-space:nowrap; }
   .coach .driver-popover-description { position:relative; margin:0 !important; padding:0 28px 0 30px;
