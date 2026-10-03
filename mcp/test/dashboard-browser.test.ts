@@ -616,6 +616,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await w.page.textContent('#fixbar')).toContain('Not now? It stays under To correct.');
       expect(await armed(w.page)).toBe(true);
 
+      const barHeight = () => w.page.evaluate(() => document.getElementById('fixbar')!.getBoundingClientRect().height);
+      const openHeight = await barHeight();
       await w.page.click('#fix-open');
       expect(await w.page.evaluate(() => (document.getElementById('fix') as HTMLDialogElement).open)).toBe(true);
       const labels = await w.page.$$eval('#fix-opts .fix__opt', (b) => b.map((x) => (x as HTMLElement).dataset.pick));
@@ -642,6 +644,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await armed(w.page)).toBe(false);
       await w.page.keyboard.press('Enter');
       await w.page.waitForFunction(() => /Corrected on try 2 · /.test(document.getElementById('fixbar')?.textContent ?? ''));
+      // The bar changes state in place: same height, so nothing under or above it moves.
+      expect(await barHeight()).toBe(openHeight);
       expect(db.prepare('SELECT picked, correct FROM attempt_retries WHERE attempt_id = ? ORDER BY id').all(fix.attempt))
         .toEqual([{ picked: 'A queue', correct: 0 }, { picked: 'A lock', correct: 1 }]);
 

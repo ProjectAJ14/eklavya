@@ -312,7 +312,8 @@
   .fixbar.is-fresh > * { animation:loader-in 180ms var(--ease); }
   .fixbar p { margin:0; }
   .fixbar .loader { padding:0; }
-  .fixbar__text { min-width:0; }
+  /* Two lines at 1.4 fit the 64px row, so open and corrected are one height and nothing moves. */
+  .fixbar__text { min-width:0; line-height:1.4; }
   .fixbar__lead { color:var(--ink); font-size:14px; }
   .fixbar__note { color:var(--dim); font-size:13px; }
   .fixbar__lead, .fixbar__note, .fixbar__done { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
