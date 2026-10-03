@@ -1,3 +1,10 @@
+## [1.47.2](https://github.com/ProjectAJ14/eklavya/compare/v1.47.1...v1.47.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* keep the memory keyword index consistent across deletes ([#103](https://github.com/ProjectAJ14/eklavya/issues/103)) ([b568fcb](https://github.com/ProjectAJ14/eklavya/commit/b568fcb88541a4694a462a10343d7cc0dc47523e))
+
 ## [1.47.1](https://github.com/ProjectAJ14/eklavya/compare/v1.47.0...v1.47.1) (2026-10-03)
 
 

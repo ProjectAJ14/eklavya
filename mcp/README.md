@@ -65,6 +65,10 @@ when `session_id` is omitted. In `memory_timeline`, it instead filters results
 to one session; omission shows the project timeline. Other tools may not accept
 that argument.
 
+`memory_delete` can be repeated safely: a second soft delete changes nothing,
+and `hard: true` erases an entry that was already soft-deleted. The keyword
+index holds only entries that are not deleted.
+
 ## CLI and data
 
 ```bash
