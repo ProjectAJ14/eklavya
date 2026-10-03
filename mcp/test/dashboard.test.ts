@@ -821,6 +821,54 @@ describe('the new endpoints', () => {
     }
   });
 
+  it('serves the pinned tips library from this origin, cached an hour, under the security headers', async () => {
+    const { url, close } = await startBuilt(db as any, { port: 0 });
+    try {
+      const html = await (await fetch(url)).text();
+      expect(html).toContain('<link rel="stylesheet" href="/vendor/driver-hints.css">');
+      expect(html).toContain('<script src="/vendor/driver-hints.js" defer></script>');
+      for (const [route, type, needle] of [
+        ['/vendor/driver-hints.js', 'text/javascript', 'driverHints'],
+        ['/vendor/driver-hints.css', 'text/css', '.driver-hint'],
+      ]) {
+        const res = await fetch(url + route);
+        expect(res.status, route).toBe(200);
+        expect(res.headers.get('content-type'), route).toBe(type);
+        expect(res.headers.get('cache-control'), route).toBe('max-age=3600');
+        expect(res.headers.get('x-content-type-options'), route).toBe('nosniff');
+        expect(res.headers.get('content-security-policy'), route).toContain("default-src 'self'");
+        const body = await res.text();
+        expect(body, route).toContain(needle);
+        // The library reaches nowhere: no storage, no fetch, no URL but the SVG namespace.
+        expect(body.replace(/http:\/\/www\.w3\.org\/2000\/svg/g, ''), route).not.toMatch(/https?:\/\/|localStorage|fetch\(/);
+      }
+    } finally {
+      close();
+    }
+  });
+
+  it('fails the build when the tips library is missing, rather than shipping a page without it', async () => {
+    const { execFileSync } = await import('node:child_process');
+    // A copy of the build script in a tree with everything it needs but driver.js.
+    const tree = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-build-'));
+    const pkg = path.join(tree, 'mcp');
+    try {
+      for (const d of ['scripts', 'src/migrations', 'src/seed', 'src/assets']) fs.mkdirSync(path.join(pkg, d), { recursive: true });
+      const script = path.join(pkg, 'scripts', 'copy-assets.mjs');
+      fs.copyFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'copy-assets.mjs'), script);
+      let failure = '';
+      try {
+        execFileSync(process.execPath, [script], { stdio: 'pipe' });
+      } catch (err: any) {
+        failure = String(err.stderr);
+      }
+      expect(failure).toMatch(/driver\.js/);
+      expect(fs.existsSync(path.join(pkg, 'dist', 'assets', 'vendor', 'driver-hints.js'))).toBe(false);
+    } finally {
+      fs.rmSync(tree, { recursive: true, force: true });
+    }
+  });
+
   it('is installable: the page links a manifest whose icons are served', async () => {
     const { url, close } = await startBuilt(db as any, { port: 0 });
     try {
@@ -887,7 +935,7 @@ describe('the server says what a browser may do with its pages', () => {
       req.end();
     });
 
-  const ROUTES = ['/', '/tokens.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/api/attempts/correction?id=1', '/nope'];
+  const ROUTES = ['/', '/tokens.css', '/vendor/driver-hints.js', '/vendor/driver-hints.css', '/manifest.webmanifest', '/icon-192.png', '/api/state', '/api/projects', '/api/memory', '/api/memory/sessions', '/api/memory/entry?id=1', '/api/settings', '/api/attempts/correction?id=1', '/nope'];
 
   it('sends the security headers on every response, errors included', async () => {
     const { url, close } = await startBuilt(db, { port: 0 });

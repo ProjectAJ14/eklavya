@@ -33,6 +33,19 @@ try {
 // The dashboard page and the design tokens ship with the package: `eklavya
 // dashboard` must work from a plain npm install, with no repo checked out.
 await cp(path.join(root, 'src', 'assets'), assets, { recursive: true });
+// The dashboard's tips library (driver.js, pinned exactly in devDependencies),
+// served from this origin so the page still makes no request to another host.
+// Unlike the files around it, a missing copy fails the build: the page links it.
+const driver = path.join(root, 'node_modules', 'driver.js');
+await mkdir(path.join(assets, 'vendor'), { recursive: true });
+for (const [from, to] of [['dist/hints.iife.js', 'driver-hints.js'], ['dist/hints.css', 'driver-hints.css'], ['license', 'driver-hints.LICENSE']]) {
+  try {
+    await cp(path.join(driver, from), path.join(assets, 'vendor', to));
+  } catch (err) {
+    console.error(`error: could not bundle driver.js ${from} (${err.code ?? err.message}); run npm install in mcp/`);
+    process.exit(1);
+  }
+}
 const tokens = path.join(path.dirname(root), 'web', 'public', 'tokens.css');
 try {
   await cp(tokens, path.join(assets, 'tokens.css'));

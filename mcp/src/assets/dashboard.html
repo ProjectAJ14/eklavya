@@ -44,6 +44,9 @@
      this page is fetched from anywhere but this loopback server. The font
      stacks fall through to the system faces they already name. -->
 <link rel="stylesheet" href="/tokens.css">
+<!-- Feature tips: Driver.js's hints module, pinned and served by this server (see TIP). -->
+<link rel="stylesheet" href="/vendor/driver-hints.css">
+<script src="/vendor/driver-hints.js" defer></script>
 <style>
   /* ============================================================
      Layout: a fixed rail and one scrolling column.
@@ -735,6 +738,27 @@
   .set__btn:hover { color:var(--ink); border-color:var(--spot); }
   /* A config path is one unbroken word; on a phone it has to break anywhere. */
   .counts .mono, .lines .mono { overflow-wrap:anywhere; }
+  /* ---------- feature tips: Driver.js hints restyled, vendor CSS untouched ---------- */
+  .driver-hint { --driver-hint-color:var(--spot); --driver-hint-size:14px; }
+  .driver-popover.driver-hint-popover.coach { background:var(--spot); color:var(--spot-ink); border-radius:0;
+    filter:none; box-shadow:var(--shadow-lg); min-width:0; max-width:min(320px, calc(100vw - 32px));
+    padding:14px 16px; font-family:var(--font-body); animation:coach-in 160ms var(--ease); }
+  @keyframes coach-in { from { opacity:0; } }
+  .coach .driver-popover-arrow { border-color:var(--spot); }
+  .coach .driver-popover-title { position:absolute; width:1px; height:1px; overflow:hidden;
+    clip-path:inset(50%); white-space:nowrap; }
+  .coach .driver-popover-description { position:relative; margin:0 !important; padding:0 28px 0 30px;
+    font-size:14px; line-height:1.45; color:var(--spot-ink); }
+  .coach .driver-popover-description b { font-weight:600; }
+  .coach__icon { position:absolute; left:0; top:1px; width:18px; height:18px; }
+  .coach__x { position:absolute; z-index:1; top:8px; right:8px; width:24px; height:24px; padding:3px; border:0;
+    background:none; color:var(--spot-ink); cursor:pointer; display:grid; place-items:center; }
+  .coach__x svg { width:16px; height:16px; }
+  .coach__x:focus-visible, .coach .driver-popover-footer-btn:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--spot-ink); }
+  .coach .driver-popover-footer { margin-top:10px; justify-content:flex-end; }
+  .coach .driver-popover-footer-btn { font-family:var(--font-mono); font-size:12px; color:var(--spot-ink);
+    background:none; border:0; border-radius:0; padding:2px 4px; text-shadow:none; }
+  .coach .driver-popover-footer-btn:hover, .coach .driver-popover-footer-btn:focus { background:none; text-decoration:underline; }
   @media (prefers-reduced-motion:reduce) {
     html { scroll-behavior:auto; }
     * { transition:none !important; animation:none !important; }
@@ -797,6 +821,14 @@
         <div class="ground" role="group" aria-label="Colour ground">
           <button type="button" data-ground="ink" aria-pressed="true">ink</button>
           <button type="button" data-ground="paper" aria-pressed="false">paper</button>
+        </div>
+      </div>
+
+      <div class="side__group">
+        <p class="side__label">Tips</p>
+        <div class="ground" role="group" aria-label="Feature tips">
+          <button type="button" data-tips="on" aria-pressed="true">on</button>
+          <button type="button" data-tips="off" aria-pressed="false">off</button>
         </div>
       </div>
     </div>
@@ -1429,6 +1461,7 @@ function fill(id, url, draw) {
       el.removeAttribute('aria-busy');
       focusable(el);
       for (const fn of AFTER.splice(0)) fn();
+      TIP.sync();
     }).catch((e) => {
       const el = $(id);
       if (el && gen === GEN) { el.innerHTML = `<p class="empty">Could not load: ${esc(e.message)}</p>`; el.removeAttribute('aria-busy'); }
@@ -2743,6 +2776,7 @@ function openFix() {
     + `${d.option_notes?.[i] ? `<span class="fix__n">${esc(d.option_notes[i])}</span>` : ''}<span class="fix__tag"></span></button>`).join('');
   fixSay('', '');
   $('fix').showModal();
+  TIP.sync();
   $('fix-opts').querySelector('button').focus();
 }
 
@@ -2792,6 +2826,7 @@ $('fix-opts').addEventListener('keydown', (e) => {
 $('fix-close').addEventListener('click', () => $('fix').close());
 // However it closes -- the button, Escape -- the bar shows where things stand.
 $('fix').addEventListener('close', () => {
+  TIP.sync();
   const bar = $('fixbar');
   const a = FIX && S.artifacts.find((x) => x.id === FIX.artifact);
   if (bar && a) { paintFix(bar, a, FIX.q, FIX.q.corrected_at !== null); $('fix-open')?.focus(); }
@@ -2836,6 +2871,122 @@ for (const ev of ['wheel', 'touchmove', 'keydown']) {
     if (CUR?.page === 'view' && $('art-frame')?.style.height) TABS.reading = CUR.param;
   }, { passive: true });
 }
+
+/* ---------- feature tips ----------
+   A beacon on each feature this screen has a tip for, and the first of them
+   opened once, by itself. Driver.js's hints module does the placing, the
+   arrow, Escape and click-outside; this keeps the list and what the reader
+   has seen, per browser, in localStorage. Add a tip as one row of TIPS:
+   `id` is never reused (renaming it shows the tip again to everyone who
+   dismissed it), `where` names `<workflow>/<page>` pages from WORKFLOWS, `el`
+   is the feature, `text` says what it does, and an optional `when()` limits
+   it to data that makes it true. Order is priority. The browser suite's
+   registry guard checks every row against the fixture. */
+const TIPS = [];
+const TIPS_KEY = 'eklavya-dash-tips';
+const ICON_TIP = '<svg class="coach__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>';
+const TIP = {
+  state: undefined,   // { off, done, opened }; null when storage throws, which means no tips
+  hints: null,
+  shown: [],          // [id, element] pairs the beacons were last drawn for
+  timer: 0,
+  load() {
+    if (this.state !== undefined) return this.state;
+    let raw = null, v = null;
+    // Without memory a tip would reopen on every load, so no storage means no tips.
+    try { raw = localStorage.getItem(TIPS_KEY); } catch (e) { return (this.state = null); }
+    try { v = JSON.parse(raw); } catch (e) { /* malformed: the defaults */ }
+    const ids = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string') : []);
+    return (this.state = { off: v?.off === true, done: ids(v?.done), opened: ids(v?.opened) });
+  },
+  save() { try { localStorage.setItem(TIPS_KEY, JSON.stringify(this.state)); } catch (e) { this.state = null; } },
+  mark(list, id) { if (this.state && !this.state[list].includes(id)) { this.state[list].push(id); this.save(); } },
+  lib() {
+    if (!this.hints && window.driverHints) {
+      this.hints = window.driverHints.hints({
+        overlay: false,
+        onOpen: (el, h) => this.mark('opened', h.id),
+        onDismiss: (el, h) => this.mark('done', h.id),
+      });
+    }
+    return this.hints;
+  },
+  /** Which tips this screen shows: called after every render and every fill. */
+  sync() {
+    const h = this.lib();
+    const st = S && h ? this.load() : null;
+    clearTimeout(this.timer);
+    if (!st || st.off || drawerOpen || $('fix').open || !menu.hidden || !pmenu.hidden || !smenu.hidden) {
+      h?.hide();
+      this.shown = [];
+      return;
+    }
+    const at = `${CUR.wf}/${CUR.page}`;
+    const eligible = (window.__eklavyaTestTips ?? TIPS).flatMap((t) => {
+      const node = t.where.includes(at) && !st.done.includes(t.id) && (!t.when || t.when()) ? document.querySelector(t.el) : null;
+      return node?.getClientRects().length ? [[t, node]] : [];
+    });
+    // Same features, same nodes: leave a bubble the reader opened alone.
+    if (eligible.length !== this.shown.length || eligible.some(([t, n], i) => this.shown[i][0] !== t.id || this.shown[i][1] !== n)) {
+      this.shown = eligible.map(([t, n]) => [t.id, n]);
+      h.setHints(eligible.map(([t, n]) => ({
+        id: t.id,
+        element: n,
+        popover: {
+          title: esc(t.title),
+          description: `${ICON_TIP}<span><b>Tip:</b> ${esc(t.text)}</span>`,
+          side: t.side ?? 'bottom', align: 'start', buttonText: 'Got it', popoverClass: 'coach',
+          onPopoverRender: (p) => {
+            const x = document.createElement('button');
+            x.type = 'button';
+            x.className = 'coach__x';
+            x.setAttribute('aria-label', 'Close');
+            x.innerHTML = ICON_X;
+            // The library's own × is hidden and its click goes nowhere; this one keeps the beacon.
+            x.addEventListener('click', () => {
+              const beacon = document.querySelector('.driver-hint[aria-expanded="true"]');
+              h.close();
+              beacon?.focus();
+            });
+            p.wrapper.prepend(x);
+          },
+        },
+      })));
+    }
+    h.show();
+    const first = eligible.find(([t, n]) => !st.opened.includes(t.id));
+    if (!first) return;
+    const gen = GEN;
+    this.timer = setTimeout(() => {
+      const r = first[1].getBoundingClientRect();
+      // Off screen, the bubble would scroll the page to itself; the beacon waits instead.
+      if (gen !== GEN || h.getActive() || !first[1].isConnected || r.bottom <= 0 || r.top >= innerHeight) return;
+      // Opening moves focus into the bubble; an automatic one must not take it from the reader.
+      const was = document.activeElement;
+      h.open(first[0].id);
+      if (was && was !== document.body) was.focus({ preventScroll: true });
+      else document.activeElement?.blur();
+    }, 600);
+  },
+  /** The sidebar switch: off hides everything; on starts every tip over. */
+  set(on) {
+    if (!this.load()) return;
+    this.state = on ? { off: false, done: [], opened: [] } : { ...this.state, off: true };
+    this.save();
+    this.paint();
+    this.shown = [];
+    this.sync();
+  },
+  paint() {
+    const on = !this.load()?.off;
+    document.querySelectorAll('[data-tips]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.tips === 'on') === on)));
+  },
+};
+// Using the feature is proof the tip worked: it goes for good.
+document.addEventListener('click', (e) => {
+  for (const [id, n] of TIP.shown) if (n.contains(e.target)) TIP.hints.dismiss(id);
+}, true);
+document.querySelectorAll('[data-tips]').forEach((b) => b.addEventListener('click', () => TIP.set(b.dataset.tips === 'on')));
 
 /* ---------- artifact tabs ----------
    Open pages stay open as tabs. The URL names the active one; the list itself
@@ -3542,6 +3693,7 @@ function openPicker() {
      </button>`).join('');
   menu.hidden = false;
   caret.setAttribute('aria-expanded', 'true');
+  TIP.sync();
   placePicker();
   (pickerItems().find((b) => b.dataset.wf === CUR.wf) ?? pickerItems()[0]).focus();
 }
@@ -3551,6 +3703,7 @@ function closePicker(restore = true) {
   const hadFocus = menu.contains(document.activeElement);
   menu.hidden = true;
   caret.setAttribute('aria-expanded', 'false');
+  TIP.sync();
   if (restore || hadFocus) caret.focus();
 }
 
@@ -3618,6 +3771,7 @@ function openProjects() {
   if (pbtn.disabled) return;
   pmenu.hidden = false;
   pbtn.setAttribute('aria-expanded', 'true');
+  TIP.sync();
   placePicker(pmenu, pbtn);
   const cur = projOptions().find((o) => o.getAttribute('aria-selected') === 'true') ?? projOptions()[0];
   cur.focus();
@@ -3629,6 +3783,7 @@ function closeProjects(restore = true) {
   const hadFocus = pmenu.contains(document.activeElement);
   pmenu.hidden = true;
   pbtn.setAttribute('aria-expanded', 'false');
+  TIP.sync();
   if (restore || hadFocus) pbtn.focus();
 }
 
@@ -3730,6 +3885,7 @@ function openSelect(b) {
   smenu.hidden = false;
   sOpen = b;
   b.setAttribute('aria-expanded', 'true');
+  TIP.sync();
   placePicker(smenu, b);
   const cur = selOptions()[Math.max(0, s.selectedIndex)];
   cur?.focus();
@@ -3743,6 +3899,7 @@ function closeSelect(restore = true) {
   smenu.hidden = true;
   sOpen = null;
   b.setAttribute('aria-expanded', 'false');
+  TIP.sync();
   if ((restore || hadFocus) && b.isConnected) b.focus();
 }
 
@@ -3844,6 +4001,7 @@ function syncDrawer() {
   $('scrim').classList.toggle('is-open', drawerOpen);
   document.body.classList.toggle('drawer-open', drawerOpen);
   $('menu').setAttribute('aria-expanded', String(drawerOpen));
+  TIP.sync();
 }
 
 function openDrawer() {
@@ -3926,6 +4084,8 @@ function render(keepFocus) {
 
   AFTER.length = 0;
   LAZY.clear();
+  // A bubble never survives a navigation.
+  TIP.hints?.close();
   // A screen that still has a correction open re-arms this when it draws its bar.
   armLeave(false);
   $('view').innerHTML = !pg ? viewNotFound('#/' + CUR.wf + '/' + CUR.page, false)
@@ -3934,6 +4094,7 @@ function render(keepFocus) {
   // A clickable row has to be reachable by Tab as well as by mouse.
   focusable($('view'));
   for (const fn of AFTER) fn();
+  TIP.sync();
 
   if (keepFocus) {
     const el = $(keepFocus.id);
@@ -4153,6 +4314,7 @@ Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
   // that logged concepts but was never asked a question, or that only ever
   // captured memory, is a project and is listed.
   buildProjects(inv);
+  TIP.paint();
 
   syncFromUrl();
   $('app').classList.remove('booting');
