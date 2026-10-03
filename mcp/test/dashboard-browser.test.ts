@@ -42,7 +42,7 @@ let db: DB;
 let fx: Fixture;
 let base = '';
 /** Two explainers for missed questions with an answer key: ids in the gallery, and their attempts. */
-const fix = { open: '', other: '', attempt: 0 };
+const fix = { open: '', other: '', attempt: 0, missed: () => 0 };
 const KEY = { options: ['A cache', 'A lock', 'A queue', 'A log'], notes: ['keeps reads', 'serialises writers', 'orders work', 'appends history'] };
 let close = () => {};
 let browser: Browser;
@@ -55,15 +55,15 @@ beforeAll(async () => {
   db = openDb(path.join(home, 'knowledge.db'));
   fx = seedFixture(db, path.join(home, 'root'));
   createArtifact({ title: 'Why CSRF needs SameSite', description: 'an explainer', kind: 'explainer', concept: 'csrf' });
-  const missed = () => gradeConcept(db, {
+  fix.missed = () => gradeConcept(db, {
     conceptId: (db.prepare(`SELECT id FROM concepts WHERE slug = 'csrf'`).get() as { id: number }).id,
     sessionId: 's-fix', question: 'What stops two writers clobbering a row?', answer: 'A cache', grade: 1, difficulty: 2,
     feedback: null, outcome: 'answered', format: 'mcq', options: KEY.options, correct: 'A lock', optionNotes: KEY.notes,
     repo: null, level: null, now: new Date(),
   }).attemptId;
-  fix.attempt = missed();
+  fix.attempt = fix.missed();
   fix.open = createArtifact({ title: 'Locks, explained', kind: 'explainer', concept: 'csrf', attempt: fix.attempt }).id;
-  fix.other = createArtifact({ title: 'Queues, explained', kind: 'explainer', concept: 'csrf', attempt: missed() }).id;
+  fix.other = createArtifact({ title: 'Queues, explained', kind: 'explainer', concept: 'csrf', attempt: fix.missed() }).id;
   const srv = await startDashboard(db as any, { port: 0 });
   base = srv.url;
   close = srv.close;
@@ -606,7 +606,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
       // The page reported its own height (ready() waits for it), so the two scroll as one document.
       expect(await frame.evaluate((f: HTMLIFrameElement) => f.style.height)).toMatch(/^\d+px$/);
-      expect(await w.page.textContent('#fixbar')).toContain('Not now? Correct it later from Dashboard → Artifacts.');
+      expect(await w.page.textContent('#fixbar')).toContain('Not now? It stays under To correct.');
       expect(await armed(w.page)).toBe(true);
 
       await w.page.click('#fix-open');
@@ -662,6 +662,61 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await w.page.locator('#fixbar').count()).toBe(0);
       expect(await armed(w.page)).toBe(false);
       expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+  });
+
+  describe('the correction bar', () => {
+    // An explainer taller than any window, so there is something to read past.
+    let tall = '';
+    beforeAll(() => {
+      if (!OPTS) return;
+      const made = createArtifact({ title: 'Tall locks, explained', kind: 'explainer', concept: 'csrf', attempt: fix.missed() });
+      fs.writeFileSync(made.path, fs.readFileSync(made.path, 'utf8').replace('<!-- CONTENT:', '<p>Read this line.</p>'.repeat(150) + '<!-- CONTENT:'));
+      tall = made.id;
+    });
+
+    const geo = (page: Page) => page.evaluate(() => {
+      const r = (id: string) => document.getElementById(id)!.getBoundingClientRect();
+      const note = document.querySelector('#fixbar .fixbar__note') as HTMLElement;
+      return { inner: innerHeight, bar: r('fixbar').toJSON(), frame: r('art-frame').toJSON(), btn: r('fix-open').toJSON(), note: note.offsetParent !== null };
+    });
+
+    for (const width of [1280, 560]) {
+      it(`sits on the bottom edge while you read and under the page at its end, button on the right, at ${width}px`, async () => {
+        const w = await open(`#/artifacts/view/${enc(tall)}`, { width });
+        await w.page.waitForSelector('#fix-open');
+        expect(await w.page.getAttribute('#fixbar', 'role')).toBe('region');
+        expect(await w.page.getAttribute('#fixbar', 'aria-label')).toBe('Correction');
+        expect(await w.page.textContent('#fixbar')).toContain('You missed this one.');
+        let g = await geo(w.page);
+        expect(Math.round(g.bar.bottom)).toBe(g.inner);
+        expect(g.bar.right - g.btn.right).toBeLessThanOrEqual(24);
+        expect(g.btn.right).toBeLessThanOrEqual(g.bar.right);
+        // One row: the button sits beside the text, never under it.
+        expect(g.btn.top).toBeGreaterThanOrEqual(g.bar.top);
+        expect(g.note).toBe(width > 560);
+        await w.page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+        g = await geo(w.page);
+        expect(g.bar.top).toBeGreaterThanOrEqual(g.frame.bottom);
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      });
+    }
+
+    it("says what went wrong when the question won't load, and retries", async () => {
+      const w = await open('#/artifacts/dashboard');
+      let fail = true;
+      await w.page.route('**/api/attempts/correction*', (r) => fail
+        ? r.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'the database is busy' }) })
+        : r.continue());
+      await w.page.evaluate((h) => { location.hash = h; }, `#/artifacts/view/${enc(tall)}`);
+      await w.page.waitForSelector('#fix-retry');
+      expect(await w.page.textContent('#fixbar')).toContain('the database is busy');
+      fail = false;
+      await w.page.click('#fix-retry');
+      await w.page.waitForSelector('#fix-open');
+      expect(w.errors.filter((e) => !/status of 500/.test(e))).toEqual([]);
       await w.ctx.close();
     });
   });
@@ -859,7 +914,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.keyboard.press('ArrowDown');
       const second = (await w.page.evaluate(() => document.activeElement?.getAttribute('data-value')))!;
       await w.page.keyboard.press('Enter');
-      await w.page.waitForFunction((id) => location.hash === `#/learning/dashboard?project=${encodeURIComponent(id)}`, second);
+      // Compared decoded: the page writes `~` as %7E, which encodeURIComponent leaves alone.
+      await w.page.waitForFunction((id) => location.hash.startsWith('#/learning/dashboard?')
+        && new URLSearchParams(location.hash.split('?')[1]).get('project') === id, second);
       await ready(w.page);
       expect(await projValue(w.page)).toBe(second);
       expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('proj');

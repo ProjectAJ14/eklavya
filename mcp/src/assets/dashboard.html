@@ -272,12 +272,31 @@
      Until the first report the frame is 0 tall behind a loader; with none in
      1.5s (script blocked) it falls back to 80vh and scrolls inside. */
   .viewer { display:block; width:100%; height:0; border:0; background:var(--bg); }
-  .fixbar { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2);
-            padding:var(--space-5); border:1px solid var(--line-2); background:var(--panel); }
+  /* The correction bar: pinned to the window's bottom edge while you read, and
+     resting under the page at its end, so it never covers the last lines. The
+     left rule is the state: warning while open, verdigris once corrected. */
+  .fixbar { position:sticky; bottom:0; z-index:5; min-height:64px; display:flex; align-items:center;
+            justify-content:space-between; gap:var(--space-4); padding:12px var(--space-5);
+            background:var(--panel); border-top:1px solid var(--line-2); border-left:3px solid transparent; }
+  .fixbar.is-open { border-left-color:var(--warning); }
+  .fixbar.is-done { border-left-color:var(--spot); }
+  .fixbar.is-fresh > * { animation:loader-in 180ms var(--ease); }
   .fixbar p { margin:0; }
+  .fixbar .loader { padding:0; }
+  .fixbar__text { min-width:0; }
+  .fixbar__lead { color:var(--ink); font-size:14px; }
   .fixbar__note { color:var(--dim); font-size:13px; }
-  .fixbar__done { display:flex; align-items:center; gap:var(--space-2); color:var(--ink); }
+  .fixbar__lead, .fixbar__note, .fixbar__done { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fixbar__done { display:flex; align-items:center; gap:var(--space-2); color:var(--ink); min-width:0; }
   .fixbar__done svg { width:16px; height:16px; color:var(--spot); flex:none; }
+  .fixbar__done span { color:var(--dim); }
+  .fixbar__err { color:var(--warning); overflow-wrap:anywhere; }
+  .fixbar .btn, .fixbar .set__btn { flex:none; }
+  .fixbar .set__btn { padding:8px 14px; }
+  @media (max-width:560px) {
+    .fixbar__note { display:none; }
+    .fixbar .btn { padding:10px 12px; }
+  }
   .btn { font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; text-transform:uppercase;
          background:var(--spot); color:var(--spot-ink); border:1px solid var(--spot); padding:10px 16px; cursor:pointer;
          transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
@@ -2616,7 +2635,7 @@ let FIX = null;
 function viewArtifact(id) {
   const a = (S.artifacts ?? []).find((x) => x.id === id);
   if (!a) return viewNotFound(id, false);
-  if (a.correction) fill('fixbar', `/api/attempts/correction?id=${a.attempt}`, (d) => fixBar(a, d));
+  if (a.correction) AFTER.push(() => loadFix(a));
   // The page's own ground follows this one; a page made before the viewer ignores it.
   AFTER.push(() => {
     const f = $('art-frame');
@@ -2629,17 +2648,42 @@ function viewArtifact(id) {
   return `<a class="page__back" data-go="${esc(AH('dashboard'))}">← Artifacts</a>
     <div id="art-wait">${loader('Opening the page…')}</div>
     <iframe class="viewer" id="art-frame" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
-    ${a.correction ? `<div class="fixbar" id="fixbar">${loader('Loading the question…')}</div>` : ''}`;
+    ${a.correction ? `<div class="fixbar" id="fixbar" role="region" aria-label="Correction">${loader('Loading the question…')}</div>` : ''}`;
 }
 
-function fixBar(a, d) {
+/**
+ * Asks the server for the question behind the bar. Not `fill()`: a refusal
+ * shows the server's own words and a Retry, in the bar's one row.
+ */
+function loadFix(a) {
+  const gen = GEN;
+  const bar = () => (gen === GEN ? $('fixbar') : null);
+  bar().className = 'fixbar';
+  bar().innerHTML = loader('Loading the question…');
+  fetch(`/api/attempts/correction?id=${a.attempt}`)
+    .then((r) => r.json().catch(() => ({})).then((d) => {
+      if (!r.ok) throw new Error(d.error || `${r.status} ${r.statusText}`);
+      const el = bar();
+      if (el) paintFix(el, a, d);
+    }))
+    .catch((e) => {
+      const el = bar();
+      if (!el) return;
+      el.innerHTML = `<p class="fixbar__err">${esc(e.message)}</p><button type="button" class="set__btn" id="fix-retry">Retry</button>`;
+    });
+}
+
+/** Draws the bar for `d`, /api/attempts/correction's answer; `fresh` crossfades into it. */
+function paintFix(el, a, d, fresh) {
   FIX = { attempt: a.attempt, artifact: a.id, q: d };
   const done = d.corrected_at !== null;
   armLeave(!done);
-  return done
-    ? `<p class="fixbar__done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Corrected on try ${d.tries} · ${esc(stamp(d.corrected_at))}</p>`
-    : `<button type="button" class="btn" id="fix-open">Correct your answer</button>
-       <p class="fixbar__note">Not now? Correct it later from Dashboard → Artifacts.</p>`;
+  el.className = `fixbar ${done ? 'is-done' : 'is-open'}${fresh ? ' is-fresh' : ''}`;
+  el.innerHTML = done
+    ? `<p class="fixbar__done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Corrected on try ${d.tries} <span>· ${esc(stamp(d.corrected_at))}</span></p>`
+    : `<div class="fixbar__text"><p class="fixbar__lead">You missed this one.</p>
+         <p class="fixbar__note">Read it, then correct your answer. Not now? It stays under To correct.</p></div>
+       <button type="button" class="btn" id="fix-open">Correct your answer</button>`;
 }
 
 /** The options in a new order each time: the page above shows the right one at its letter. */
@@ -2717,9 +2761,12 @@ $('fix-close').addEventListener('click', () => $('fix').close());
 $('fix').addEventListener('close', () => {
   const bar = $('fixbar');
   const a = FIX && S.artifacts.find((x) => x.id === FIX.artifact);
-  if (bar && a) { bar.innerHTML = fixBar(a, FIX.q); $('fix-open')?.focus(); }
+  if (bar && a) { paintFix(bar, a, FIX.q, FIX.q.corrected_at !== null); $('fix-open')?.focus(); }
 });
-$('view').addEventListener('click', (e) => { if (e.target.closest('#fix-open')) openFix(); });
+$('view').addEventListener('click', (e) => {
+  if (e.target.closest('#fix-open')) openFix();
+  if (e.target.closest('#fix-retry')) loadFix(S.artifacts.find((x) => x.id === CUR.param));
+});
 
 /**
  * Closing the tab with a correction still open asks first. Browsers show their
