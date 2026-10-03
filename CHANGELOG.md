@@ -1,3 +1,10 @@
+## [1.47.6](https://github.com/ProjectAJ14/eklavya/compare/v1.47.5...v1.47.6) (2026-10-03)
+
+
+### Bug Fixes
+
+* raise the dashboard refresh notice for in-place changes and reads ([#107](https://github.com/ProjectAJ14/eklavya/issues/107)) ([b646add](https://github.com/ProjectAJ14/eklavya/commit/b646add3dcb2346e596159ce46265be0be8285c1)), closes [#95](https://github.com/ProjectAJ14/eklavya/issues/95)
+
 ## [1.47.5](https://github.com/ProjectAJ14/eklavya/compare/v1.47.4...v1.47.5) (2026-10-03)
 
 
