@@ -154,8 +154,8 @@ Other keys, same `config set` shape: `pass_threshold`,
 "when I get one wrong, make me a page explaining it", or "stop opening pages".
 On, a missed answer also gets an explainer page, written in the background and
 opened, while the session carries on; the page restates the question, its
-options, the pick and the right answer. When the right option was recorded, the
-page opens in the dashboard with a **Correct your answer** button: a right pick
+options, the pick and the right answer. When the right option was recorded and the
+background dashboard is running, the page opens in the dashboard with a **Correct your answer** button: a right pick
 counts for the concept's score, not for a commit gate or a level. Turning it off is usually wanted per
 project, so default to `--project`. The pages themselves are the
 `eklavya-artifacts` skill's job, not this one's.

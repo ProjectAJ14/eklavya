@@ -37,8 +37,9 @@ eklavya artifacts new "<Title>" --description "<one line: what this page answers
 Add `--kind explainer --concept <slug>` when the page explains an Eklavya
 concept, so the dashboard links it to that concept. When the page is for a
 missed question and you were handed its `attempt_id`, also add
-`--attempt <attempt_id>`: the page then opens in the dashboard's viewer with a
-**Correct your answer** button under it.
+`--attempt <attempt_id>`: when the background dashboard is running, the page
+opens in the dashboard's viewer, and when the right option was recorded it shows
+a **Correct your answer** button under it.
 
 It prints the path of a new file, already carrying the Eklavya template: the
 design tokens inlined, dark by default, the print stylesheet, the PDF and HTML

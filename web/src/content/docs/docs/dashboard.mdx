@@ -77,7 +77,7 @@ The dashboard remembers which sections you opened or closed, in this browser onl
 
 | Page | What you can inspect |
 | --- | --- |
-| Dashboard (`#/learning/dashboard`) | Accuracy, mastery, due reviews and streak; recorded versus assessed concepts in the counts line; 30 days of answers, split into right, corrected, missed and skipped; the weakest five concepts and recent sessions. Where you stand and the practice calendar are folded. |
+| Dashboard (`#/learning/dashboard`) | Accuracy, mastery, due reviews and streak; recorded versus assessed concepts in the counts line; 30 days of answers, split into right, corrected, missed and skipped (a miss corrected from its explainer also shows as “corrected” with its try in question lists); the weakest five concepts and recent sessions. Where you stand and the practice calendar are folded. |
 | Concepts (`#/learning/concepts`) | Search, sort and filter the graph by domain or state: due, learning, mastered or unseen. |
 | Review (`#/learning/review`) | Due reviews, upcoming reviews with a 14-day forecast, and skipped questions. Due and upcoming list only concepts whose latest answer was declined, blank or wrong; a correct answer is never owed. Tabs use `/upcoming` and `/skipped`. |
 | Sessions (`#/learning/sessions`) | Sessions that logged concepts or asked questions. Memory-only sessions are listed in Memory. |
@@ -107,7 +107,7 @@ Artifacts are HTML pages saved under `~/.eklavya/artifacts/<project>/`: requeste
 | Viewer (`#/artifacts/view/<id>`) | One explainer for a missed question, with a **Correct your answer** bar under it. Reached from its card or from `eklavya artifacts open`; it has no sidebar entry. |
 | Projects (`#/artifacts/projects`) | Page and explainer counts and the latest page in each project. |
 
-An explainer's concept links to its Learning page. A card's thumbnail or title opens the saved HTML in a new tab, except an explainer you can correct, which opens in the viewer. The thumbnail is the first inline SVG inside a `<figure>`, drawn in the ground you have chosen; a page with no diagram shows a plain sheet instead. Thumbnails are read from the file, not rendered from the page, so they fetch nothing and run no script. The file list is reread on refresh, so adding or deleting a file updates the library. A project with artifacts but no other recorded activity appears here but cannot be selected as a global project scope.
+An explainer's concept links to its Learning page. A card's thumbnail or title opens the saved HTML in a new tab, except an explainer linked to a missed answer, corrected yet or not, which opens in the viewer. The thumbnail is the first inline SVG inside a `<figure>`, drawn in the ground you have chosen; a page with no diagram shows a plain sheet instead. Thumbnails are read from the file, not rendered from the page, so they fetch nothing and run no script. The file list is reread on refresh, so adding or deleting a file updates the library. A project with artifacts but no other recorded activity appears here but cannot be selected as a global project scope.
 
 Pages served by the dashboard are sandboxed: their inline scripts and downloads work, but they cannot read dashboard history. Only files under the artifacts directory are served. In a new tab the template's Google Fonts requests are allowed; offline it uses system fonts. The Eklavya link in the header and footer opens the website in a normal tab. Opening the same file directly does not add the dashboard sandbox.
 
@@ -117,11 +117,11 @@ An explainer written for a missed question (a wrong answer, or “I don't know�
 
 1. Read the page, then select **Correct your answer**. A dialog shows the question with each option and its one-line note, in a new order each time.
 2. Pick an option. A wrong pick says “Still incorrect. Please correct your answer.” and that option is disabled; pick again.
-3. The right pick says “Corrected. Your stats now count this as answered.” The bar then reads “Corrected on try 2” (or whichever try it was), and the card is tagged **Corrected**.
+3. The right pick says “Corrected. Your stats now count this as answered.” The bar then reads “Corrected on try 2 · ” and the date (or whichever try it was), and the card is tagged **Corrected**. The rest of the page offers its refresh notice, since its other counts were drawn before the correction.
 
-Every pick is stored, and the server grades it; the page never receives the right answer. A correction is a pass at grade 3 for the concept's score, but it does not count toward a [commit gate](/docs/commit-gate/) or a [level](/docs/levels-and-tiers/), and the concept still comes back for review. See [grading](/docs/grading-engine/#correcting-from-an-explainer).
+Every pick is stored and checked on the server; the correction request never returns the right answer. A correction is a pass at grade 3 for the concept's score, but it does not count toward a [commit gate](/docs/commit-gate/) or a [level](/docs/levels-and-tiers/), and the concept still comes back for review. See [grading](/docs/grading-engine/#correcting-from-an-explainer).
 
-Closing the tab while a correction is still open makes the browser ask whether to leave. Browsers show their own wording for that prompt, so the bar says the rest: you can correct it later from Dashboard → Artifacts. Explainers made before this feature, and pages you asked for yourself, have no bar.
+Closing the tab while a correction is still open makes the browser ask whether to leave. Browsers show their own wording for that prompt, so the bar says the rest: you can correct it later from Dashboard → Artifacts. Explainers made before this feature, explainers for a question recorded without its right option, and pages not linked to a missed answer have no bar.
 
 In the viewer, the framed page loads no web fonts and uses system fonts, so the dashboard still makes no request to another host.
 
@@ -232,6 +232,6 @@ Its read-only JSON endpoints serve summary state (`/api/state`), project invento
 | Write | What it does |
 | --- | --- |
 | `POST /api/settings` | Changes one setting. Body at most 256 KB. |
-| `POST /api/attempts/retry` | Records one pick on the correction dialog and grades it. Body at most 16 KB. |
+| `POST /api/attempts/retry` | Records one pick on the correction dialog and checks it. Body at most 16 KB. |
 
-Each needs a loopback `Origin`, a JSON body and a random token the server puts in the page each time it starts, so another site open in your browser cannot write. Settings never edit learning or memory data; a correction adds rows and never changes the original answer.
+Each needs a loopback `Origin`, a JSON body and a random token the server puts in the page each time it starts, so another site open in your browser cannot write. Settings never edit learning or memory data; a correction adds rows, updates the concept's score and review date, and never changes the original answer.

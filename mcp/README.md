@@ -50,9 +50,9 @@ Code's learning loop.
 
 `record_attempt` returns the `attempt_id` of the row it wrote. For a
 multiple-choice question, also pass `correct` (the right option's label,
-verbatim) and `option_notes` (the note under each option, in order): together
-they let the learner correct a missed answer from its explainer page in the
-dashboard, where the server grades the new pick. A `correct` that is not one of
+verbatim), which lets the learner correct a missed answer from its explainer
+page in the dashboard, where the server grades the new pick, and `option_notes`
+(the note under each option, in order), which that page shows under each option. A `correct` that is not one of
 the options, or notes of the wrong length, is stored as nothing and reported
 back (`correct_mismatch`, `option_notes_mismatch`); the answer is still kept.
 

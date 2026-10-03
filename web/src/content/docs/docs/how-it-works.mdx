@@ -45,12 +45,12 @@ Delegated agents can log concepts, but questions return to the main conversation
   steps={[
     { label: 'Record the miss', detail: 'record_attempt stores your answer, the right option and the note under each option, and returns the attempt id.' },
     { label: 'Write the explainer', detail: 'A background agent writes a page on the concept, linked to that attempt id.' },
-    { label: 'Open it in the dashboard', detail: 'The page opens in the dashboard viewer with a Correct your answer button under it.' },
-    { label: 'Correct it', detail: 'Each pick is graded on the server. The right one is recorded as a grade-3 pass.' },
+    { label: 'Open it in the dashboard', detail: 'With the background dashboard running, the page opens in its viewer, with a Correct your answer button when the right option was recorded.' },
+    { label: 'Correct it', detail: 'Each pick is checked on the server. Only the right one is recorded as an answer, a grade-3 pass.' },
   ]}
 />
 
-This needs [`explain_on_wrong`](/docs/configuration/#every-key) on (the default) and the background dashboard; without it the page opens as a file and has no button. A correction updates the concept's score but does not count toward a commit gate or a level, and the concept still comes back for review, because picking the answer right after reading it is recognition rather than recall. [Grading](/docs/grading-engine/#correcting-from-an-explainer) has the details.
+This needs [`explain_on_wrong`](/docs/configuration/#every-key) on (the default), the background dashboard, and a question recorded with its right option; otherwise the page opens as a file or has no button. A correction updates the concept's score but does not count toward a commit gate or a level, and the concept still comes back for review, because picking the answer right after reading it is recognition rather than recall. [Grading](/docs/grading-engine/#correcting-from-an-explainer) has the details.
 
 ## From work to useful memory
 
