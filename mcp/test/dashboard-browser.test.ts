@@ -1252,6 +1252,13 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.waitForSelector(bubble);
       expect(await w.page.textContent(bubble)).toContain('Every page explains');
       expect(await beacons(w.page)).toEqual(['How this works']);
+      // Closing the drawer slides the rail away; its features stay out while it moves.
+      await w.page.keyboard.press('Escape');
+      await w.page.click('#menu');
+      await w.page.keyboard.press('Escape');
+      await w.page.waitForTimeout(900);
+      expect(await beacons(w.page)).toEqual(['How this works']);
+      expect(await bubbles(w.page)).toBe(0);
       await w.ctx.close();
     });
 

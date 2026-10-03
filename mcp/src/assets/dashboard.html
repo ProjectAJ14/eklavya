@@ -2946,8 +2946,8 @@ const TIP = {
     const at = `${CUR.wf}/${CUR.page}`;
     const eligible = (window.__eklavyaTestTips ?? TIPS).flatMap((t) => {
       const node = t.where.includes(at) && !st.done.includes(t.id) && (!t.when || t.when()) ? document.querySelector(t.el) : null;
-      // A feature in the closed phone drawer is laid out but hidden: no tip until it can be seen.
-      return node?.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' ? [[t, node]] : [];
+      // On a narrow screen the rail is a drawer, closed or sliding away, whenever tips can show.
+      return node?.getClientRects().length && !(narrow.matches && side.contains(node)) ? [[t, node]] : [];
     });
     // Same features, same nodes: leave a bubble the reader opened alone.
     if (eligible.length !== this.shown.length || eligible.some(([t, n], i) => this.shown[i][0] !== t.id || this.shown[i][1] !== n)) {
@@ -4343,8 +4343,6 @@ Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
   syncFromUrl();
   $('app').classList.remove('booting');
   $('view').removeAttribute('aria-busy');
-  // The rail was hidden while booting, so its features join now.
-  TIP.sync();
 }).catch((e) => {
   $('app').classList.remove('booting');
   $('view').removeAttribute('aria-busy');
