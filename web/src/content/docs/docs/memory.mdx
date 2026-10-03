@@ -196,7 +196,7 @@ Claude uses these tools on your behalf. Search returns compact IDs and titles; `
 | `memory_status` | Capture, queue, provider and reuse health, plus explicit read counts (`reads`) and `host_acknowledgement: "unavailable"`. |
 | `memory_write` | `title`, `body`, optional `tags`, `files`. Saves a redacted note. |
 | `memory_correct` | `id` and a corrected `title`, `body`, or both. Creates a replacement while preserving the original audit trail. |
-| `memory_delete` | `id`, optional `hard`. Soft deletion removes an entry from retrieval; `hard: true` erases it permanently. |
+| `memory_delete` | `id`, optional `hard`. Soft deletion removes an entry from retrieval and from the keyword index, and repeating it keeps the first deletion time; `hard: true` erases it permanently, including an entry already soft-deleted. |
 | `memory_collections` | Saves and rebuilds named views; details below. |
 | `code_outline` | `file`, optional `line`. Lists declarations or expands around a line. |
 | `code_find_symbol` | `name`, optional `limit` (default 20, maximum 50). Finds declarations by case-insensitive partial name. |
