@@ -81,7 +81,7 @@ The dashboard remembers which sections you opened or closed, in this browser onl
 | Concepts (`#/learning/concepts`) | Search, sort and filter the graph by domain or state: due, learning, mastered or unseen. |
 | Review (`#/learning/review`) | Due reviews, upcoming reviews with a 14-day forecast, and skipped questions. Due and upcoming list only concepts whose latest answer was declined, blank or wrong; a correct answer is never owed. Tabs use `/upcoming` and `/skipped`. |
 | Sessions (`#/learning/sessions`) | Sessions that logged concepts or asked questions. Memory-only sessions are listed in Memory. |
-| Projects (`#/learning/projects`) | One line per project: level, accuracy and last activity. Open it for logged and assessed concepts, promotion conditions and 30 days of answers. Projects with logged work but no answers say “not assessed”. |
+| Projects (`#/learning/projects`) | One line per project: level, accuracy and last activity. Open it for logged and assessed concepts, promotion conditions and 30 days of answers. Each project's level and promotion conditions come from its own settings, as `/eklavya:progress` reports them from inside it, whichever folder the dashboard was started in; a checkout that has gone keeps its own settings. Projects with logged work but no answers say “not assessed”. |
 | Domains (`#/learning/domains`) | Concept coverage and the spread of question tiers. |
 
 ## Memory pages
@@ -147,7 +147,7 @@ Settings changes the same two files as [`eklavya config set`](/docs/cli/#setting
 
 A control saves when you change it; a text or number box saves when you leave it or press Enter. The row reports **saved** or **inherited**. Each field states what it accepts, and a value outside that is refused under the field before anything is sent, keeping what you typed; the server checks again with the [same rules](/docs/configuration/#what-each-setting-accepts) and reports a refusal, such as `focus: learn` with no topic, in the same place. `auto_update`, `telemetry` and `dashboard_autostart` apply to the whole machine, so a project page shows them read-only with a link to User. Providers, notifications and sync send work off the machine or run a command, so the pages list them under **Changed from the terminal** with their current value instead of offering a control.
 
-Only projects with a git checkout on this machine can be configured. The footer's dial line is read when the page loads, so it updates on the next refresh.
+Only projects with a git checkout on this machine can be configured. The footer's dial line shows your user settings, not any one project's, and is read when the page loads, so it updates on the next refresh.
 
 ## Opening one thing
 

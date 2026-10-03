@@ -13,6 +13,9 @@ import {
 import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
+import { getLearnerProfile } from '../src/tools/get_learner_profile.js';
+import { writeConfigFile } from '../src/config.js';
+import { projectConfigPath } from '../src/paths.js';
 import {
   appendEvent, insertEntry, recordReceipt, supersedeEntry, deleteEntry, addCandidate, replaceEntry, recordRead,
 } from '../src/memory/store.js';
@@ -218,6 +221,85 @@ function remember(opts: {
     occurredAt: opts.occurredAt,
   });
 }
+
+describe('dashboardState — each project row resolves its own settings', () => {
+  const saved = { home: process.env.EKLAVYA_HOME, cwd: process.cwd() };
+  let tmp = '';
+  let hard = '';
+  let plain = '';
+
+  const repoAt = (dir: string) => {
+    fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
+    return fs.realpathSync(dir);
+  };
+  const answer = (cwd: string, slug: string) => {
+    call2(db, logSessionConcepts, { session_id: SESSION, cwd, concepts: [{ slug, context: 'in this repo' }] });
+    call2(db, recordAttempt, { session_id: SESSION, cwd, slug, question: 'q', answer: 'a', grade: 4, difficulty: 1 });
+  };
+  const row = (s: any, repo: string) => s.projects.find((p: any) => p.repo === repo);
+
+  beforeEach(() => {
+    tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-dash-scope-')));
+    process.env.EKLAVYA_HOME = path.join(tmp, 'home');
+    hard = repoAt(path.join(tmp, 'hard'));
+    plain = repoAt(path.join(tmp, 'plain'));
+    writeConfigFile(projectConfigPath(hard), { project: hard, difficulty: 'hard', level_up_after: 7 });
+    answer(hard, 'csrf');
+    answer(plain, 'jwt-structure');
+  });
+
+  afterEach(() => {
+    process.chdir(saved.cwd);
+    if (saved.home === undefined) delete process.env.EKLAVYA_HOME;
+    else process.env.EKLAVYA_HOME = saved.home;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('shows each project its own band and runway, as the profile tool reports them', () => {
+    const s = dashboardState(db) as any;
+    expect(row(s, hard)).toMatchObject({ level: 'hard', pinned: true });
+    expect(row(s, hard).level_needed.answers).toBe(7);
+    expect(row(s, plain)).toMatchObject({ level: 'easy', pinned: false });
+    expect(row(s, plain).level_needed.answers).toBe(DEFAULT_CONFIG.level_up_after);
+
+    for (const repo of [hard, plain]) {
+      const level = call2(db, getLearnerProfile, { cwd: repo }).level;
+      expect(row(s, repo)).toMatchObject({ level: level.level, level_needed: { answers: level.needed } });
+    }
+    // The overview's dials are the user file's, labelled as such.
+    expect(s.config_scope).toBe('user');
+    expect(s.config.difficulty).toBe(DEFAULT_CONFIG.difficulty);
+  });
+
+  it('does not let the server cwd lend its settings to another project', () => {
+    const elsewhere = dashboardState(db) as any;
+    process.chdir(hard);
+    const inside = dashboardState(db) as any;
+    expect(row(inside, plain)).toEqual(row(elsewhere, plain));
+    expect(row(inside, plain)).toMatchObject({ level: 'easy', pinned: false });
+    expect(inside.config.difficulty).toBe(DEFAULT_CONFIG.difficulty);
+  });
+
+  it('keeps a deleted checkout on its own settings, not the repository enclosing its old path', () => {
+    // Nested inside the hard-pinned checkout: walking up from the old path
+    // after it is gone would land there.
+    const nested = repoAt(path.join(hard, 'vendor', 'nested'));
+    writeConfigFile(projectConfigPath(nested), { project: nested, level_up_after: 4 });
+    answer(nested, 'xss');
+    fs.rmSync(nested, { recursive: true, force: true });
+
+    expect(row(dashboardState(db) as any, nested)).toMatchObject({
+      level: 'easy', pinned: false, level_needed: { answers: 4 },
+    });
+  });
+
+  it('moves the change cursor when only a project file changes', () => {
+    const before = changeCursor(db);
+    writeConfigFile(projectConfigPath(plain), { project: plain, level_up_after: 5 });
+    expect(changeCursor(db)).not.toBe(before);
+    expect(row(dashboardState(db) as any, plain).level_needed.answers).toBe(5);
+  });
+});
 
 describe('dashboardState — memory', () => {
   it('carries the memory, reuse and health sections without renaming anything', () => {
@@ -867,7 +949,7 @@ describe('/api/state is unchanged for the page that still reads it', () => {
     const shape = Object.fromEntries(Object.entries(s).map(([k, v]) => [k, Array.isArray(v) ? 'array' : typeof v]));
     expect(shape).toEqual({
       generated_at: 'string', db_path: 'string', cursor: 'string', timeline_days: 'number',
-      attempts_shown: 'number', attempts_total: 'number', config: 'object', totals: 'object',
+      attempts_shown: 'number', attempts_total: 'number', config: 'object', config_scope: 'string', totals: 'object',
       daily: 'array', projects: 'array', domains: 'array', concepts: 'array', attempts: 'array',
       logged: 'array', memory: 'object', reuse: 'object', health: 'object', memory_sessions: 'array',
       artifacts: 'array',

@@ -33,7 +33,7 @@ import {
 } from './store.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  loadConfig, loadGlobalConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
+  loadConfig, loadGlobalConfig, loadProjectConfig, DEFAULT_CONFIG, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
@@ -153,14 +153,47 @@ const days = (from: string, now: Date): number | null => {
   return Number.isFinite(t) ? Math.floor((now.getTime() - t) / MS_PER_DAY) : null;
 };
 
-function readConfig(): EklavyaConfig {
-  // A dashboard must open even if the config file is half-written or owned by
-  // another user; the defaults describe the same product.
+/**
+ * The config in force for one project row: `null` is the global scope.
+ *
+ * Per project, never the server's own cwd: the daemon serves every project from
+ * one process, and started inside a checkout with `difficulty: "hard"` it used
+ * to show every other project pinned at hard. A dashboard must still open if a
+ * config file is half-written or owned by another user; the defaults describe
+ * the same product.
+ */
+function readConfig(repo: string | null = null): EklavyaConfig {
   try {
-    return loadConfig().config;
+    return loadProjectConfig(repo).config;
   } catch {
     return DEFAULT_CONFIG;
   }
+}
+
+/** Every project that has answers, by the key its rows carry. */
+const answeredRepos = (db: DB): (string | null)[] =>
+  many<{ repo: string | null }>(
+    db,
+    `SELECT DISTINCT NULLIF(trim(COALESCE(repo, '')), '') AS repo FROM attempts WHERE ${NOT_CORRECTION} ORDER BY repo`,
+  ).map((r) => r.repo);
+
+interface Configs {
+  user: EklavyaConfig;
+  /** Read so far, keyed as `levelStanding` is. */
+  projects: Map<string | null, EklavyaConfig>;
+  /** One project's config, read once per payload. */
+  of: (repo: string | null) => EklavyaConfig;
+}
+
+/** The user settings, then each answered project's. */
+function readConfigs(db: DB): Configs {
+  const projects = new Map<string | null, EklavyaConfig>();
+  const of = (repo: string | null): EklavyaConfig => {
+    if (!projects.has(repo)) projects.set(repo, readConfig(repo));
+    return projects.get(repo)!;
+  };
+  for (const repo of answeredRepos(db)) of(repo);
+  return { user: readConfig(), projects, of };
 }
 
 const one = <T>(db: DB, sql: string, ...args: unknown[]): T => db.prepare(sql).get(...args) as T;
@@ -721,7 +754,8 @@ export function projectInventory(db: DB): {
  * - `change_version` (migration 021), which triggers move on every write to a
  *   table the page shows. In-place edits count: a session summary rewritten
  *   as the session runs, a receipt delivered, a memory read logged.
- * - The effective config, hashed: the dials the page prints.
+ * - The effective config, hashed: the user dials the page prints and each
+ *   project's own, which set that project's level and promotion runway.
  * - The artifact files' count, total size and newest mtime (`artifactsStamp`).
  *
  * Deliberately not `generated_at`, and not a hash of the payload: both change
@@ -729,9 +763,12 @@ export function projectInventory(db: DB): {
  * announces new activity every minute is a page whose banner is ignored inside
  * a day. Not watched: the prune stamp and spool drop count in the health panel.
  */
-export function changeCursor(db: DB, config: EklavyaConfig = readConfig()): string {
+export function changeCursor(db: DB, configs = readConfigs(db)): string {
   const version = one<{ n: number }>(db, 'SELECT n FROM change_version WHERE id = 1').n;
-  const dials = createHash('sha256').update(JSON.stringify(config)).digest('hex').slice(0, 12);
+  const dials = createHash('sha256')
+    .update(JSON.stringify([configs.user, [...configs.projects]]))
+    .digest('hex')
+    .slice(0, 12);
   return `${version}:${dials}:${artifactsStamp()}`;
 }
 
@@ -781,10 +818,13 @@ export function memoryEntry(db: DB, id: number): Record<string, unknown> | null 
 
 export function dashboardState(db: DB): Record<string, unknown> {
   const now = new Date();
-  const config = readConfig();
+  const configs = readConfigs(db);
+  // The overview's dials are the user settings: one machine-wide line cannot
+  // speak for every project, and the server's cwd is not any project's choice.
+  const config = configs.user;
   // First, before any of the payload is read: a write that lands while it is
   // being built then shows as a notice on the next poll, never as a miss.
-  const cursor = changeCursor(db, config);
+  const cursor = changeCursor(db, configs);
 
   // One row per calendar day per project, split three ways. `grade >= 3` is the
   // same pass line the level ladder uses, so the chart and the promotion agree.
@@ -1016,6 +1056,9 @@ export function dashboardState(db: DB): Record<string, unknown> {
     timeline_days: TIMELINE_DAYS,
     attempts_shown: attempts.length,
     attempts_total: allTime.answers,
+    // The user file's dials, before any project's overrides. Each project row
+    // below carries the level and runway its own settings resolve to.
+    config_scope: 'user',
     config: {
       quiz_enabled: config.quiz.enabled,
       quiz_enforced: config.quiz.enforced,
@@ -1046,7 +1089,8 @@ export function dashboardState(db: DB): Record<string, unknown> {
     projects: projects.map((p) => {
       // The promotion runway, said out loud rather than hinted at — the same
       // numbers `/eklavya:progress` prints, so the two never disagree.
-      const standing = levelStanding(db, config, p.repo);
+      // Its own settings, as the CLI and the tools resolve them from inside it.
+      const standing = levelStanding(db, configs.of(p.repo), p.repo);
       return {
         ...p,
         key: p.repo ?? GLOBAL_PROJECT,
