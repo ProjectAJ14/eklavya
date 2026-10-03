@@ -262,7 +262,14 @@ async function generate(run, model) {
       skill,
       '',
       ...(item.code_shown
-        ? ['=== THE CODE THE DEVELOPER JUST WATCHED YOU WRITE ===', `File: ${item.source}`, '```ts', item.diff, '```', '']
+        ? [
+            '=== THE CODE JUST WRITTEN (often by a background agent; the developer has not read it) ===',
+            `File: ${item.source}`,
+            '```ts',
+            item.diff,
+            '```',
+            '',
+          ]
         : [
             '=== THE CODE IS DELIBERATELY WITHHELD ===',
             'This focus returns context: null so the question reaches for the idea rather than the file.',
@@ -361,9 +368,9 @@ async function score(run) {
 /* ----------------------------------------------------------------- judge --- */
 
 /**
- * The six questions counting cannot answer.
+ * The questions counting cannot answer.
  *
- * Kept to three on purpose. Every criterion handed to a judge is a criterion
+ * Kept few on purpose. Every criterion handed to a judge is a criterion
  * whose verdict moves between runs, so anything decidable by `score` is
  * decided there instead. The judge is also told to give a reason, because a
  * bare verdict from a model is not evidence of anything.
@@ -414,7 +421,23 @@ async function judge(run, model) {
       verdicts.push({ slug: q.slug, error: String(err.message ?? err) });
       continue;
     }
-    verdicts.push({ slug: q.slug, ...(parsed ?? { error: 'unparsable verdict' }) });
+    // The cold read. The judge above is shown the diff, so its `answerable`
+    // always has context the real learner lacks: since background agents
+    // write the code, the learner usually never sees it. This one sees what
+    // the learner sees -- the stem and the four options, nothing else.
+    let cold = null;
+    try {
+      cold = extractJson(ask(coldPrompt(q), model));
+    } catch (err) {
+      cold = { error: String(err.message ?? err) };
+    }
+    verdicts.push({
+      slug: q.slug,
+      ...(parsed ?? { error: 'unparsable verdict' }),
+      answerable_cold: cold && !cold.error ? Boolean(cold.answerable_cold) : null,
+      answerable_cold_why: cold?.answerable_cold_why ?? cold?.error ?? null,
+      unexplained_names: Array.isArray(cold?.unexplained_names) ? cold.unexplained_names.map(String) : [],
+    });
     process.stdout.write(`  judged ${q.slug}\n`);
   }
 
@@ -423,6 +446,9 @@ async function judge(run, model) {
     judged: graded.length,
     errors: verdicts.length - graded.length,
     answerable: graded.filter((v) => v.answerable).length,
+    // Out of the cold verdicts that parsed, which can be fewer than `judged`.
+    cold_judged: graded.filter((v) => v.answerable_cold !== null).length,
+    answerable_cold: graded.filter((v) => v.answerable_cold === true).length,
     correct_is_correct: graded.filter((v) => v.correct_is_correct).length,
     one_idea: graded.filter((v) => v.one_idea).length,
     tier: {
@@ -441,12 +467,37 @@ async function judge(run, model) {
   write(run, 'judge.json', { model: model ?? 'default', summary, verdicts });
   process.stdout.write(
     `\njudge: ${summary.answerable}/${summary.judged} answerable, ` +
+      `${summary.answerable_cold}/${summary.cold_judged} answerable cold, ` +
       `${summary.correct_is_correct}/${summary.judged} keyed right, ` +
       `${summary.distractors_total}/${summary.distractors_possible} plausible distractors, ` +
       `${summary.single_answer}/${summary.judged} with one defensible answer (${summary.defensible_total} defensible distractors), ` +
       `tier ${summary.tier.match} match / ${summary.tier.below} below / ${summary.tier.above} above\n`,
   );
   return summary;
+}
+
+/**
+ * The judge prompt for a reader with no context.
+ *
+ * No diff, no concept description, and no "watched the agent" framing: those
+ * are what made the main judge's `answerable` pass on stems like "Task 6 moves
+ * an instruction from SessionStart to UserPromptSubmit" that a real learner
+ * could not place. Which option is keyed is withheld too, so the judge reads
+ * the question the way the learner does, before knowing the answer.
+ */
+function coldPrompt(q) {
+  return [
+    'You are auditing one multiple-choice question. The reader is a developer who has seen NONE of the code, plan, task list or conversation that prompted it. They see only the text below. Be strict and answer only with JSON.',
+    '',
+    `Question: ${q.stem}`,
+    ...q.options.map((o, i) => `  ${i + 1}. ${o}`),
+    '',
+    'Answer with exactly this JSON:',
+    '{"answerable_cold": true|false, "answerable_cold_why": "...", "unexplained_names": ["..."]}',
+    '',
+    '"answerable_cold": could a developer who understands the underlying concept pick the right option from this text alone. False when the question relies on a name, label, document, file or event the text does not explain (for example "Task 6", "the brief", "the plan", a component nickname), when the right option depends on something only the author observed, or when the options are too terse to state a claim.',
+    '"unexplained_names": every project-specific name the reader would need explained to answer. General technical terms (HTTP, SQLite, a well-known library) do not count. Empty when there are none.',
+  ].join('\n');
 }
 
 /* ------------------------------------------------------------ extraction --- */

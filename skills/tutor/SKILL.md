@@ -27,6 +27,7 @@ yourself thinking one, the right-hand column is what is actually happening.
 | "I'll reword the question they got wrong." | A question in `asked_before` is spent, not recyclable. |
 | "A definition is the transferable version of this." | `concept` focus wants the general rule. "What is X" is tier-1 recall wearing a hat. |
 | "Too easy to be worth asking — I'll add a 'why'." | `easy` is tiers 1–2 and it was earned. A smuggled "why" is a question they cannot answer honestly. |
+| "They know what 'Task 6' means." | They saw none of it. Define the name or drop it. |
 | "I'll put the dials above the stem for context." | The dials are in the status bar. A line you assemble is one the server cannot keep consistent. |
 | "Grade 5 — they picked the right option." | Multiple choice caps at 4. One in four is a coin. |
 

@@ -1,0 +1,24 @@
+{
+  "id": "plan-jargon-in-context",
+  "title": "Moving an instruction to the prompt hook, logged in the plan's own words",
+  "source": "mcp/src/hooks/prompt-submit-nudge.ts",
+  "diff": "/** SessionStart, after the standing directive. */\nexport function sessionBlock(cadence: string): string {\n  return [\n    '[Eklavya] Delegation is on for this session (delegate_work). For a code change across several files:',\n    `  - An agent run in the background builds it, with ${BRIEF}.`,\n    `  - ${asking(cadence)} Write the task answer last.`,\n  ].join('\\n');\n}\n\n/** UserPromptSubmit, next to a task-sized prompt: the moment the model decides how to build. */\nexport function promptLine(cadence: string): string {\n  return `[Eklavya] If this asks for a code change across several files, do not build it inline: start an agent in the background with ${BRIEF}. ${asking(cadence)}`;\n}\n\n// prompt-submit-nudge.ts\n// The task-time seam for delegation. The session-start block is far back by\n// the time a task arrives. Said here, the contract sits next to the plan it is\n// about, before the first edit.\nif (resolved.config.delegate_work && typeof input.prompt === 'string') {\n  const text = input.prompt.trim();\n  if (text.length >= TASK_PROMPT_CHARS && !SLASH.test(text) && !HOST_PROMPT.test(text)) {\n    context.push(promptLine(resolved.config.cadence));\n  }\n}",
+  "concepts": [
+    {
+      "slug": "instruction-placement-in-model-context",
+      "domain": "llm-tooling",
+      "tier": 3,
+      "description": "An instruction given to a model far ahead of the moment it applies is followed less than the same instruction placed next to the decision it governs.",
+      "context": "Task 6 of the plan moves the DELEGATE line from the SessionStart block to UserPromptSubmit, because the brief found it was followed zero times in eleven sessions",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "hook-output-as-model-context",
+      "domain": "llm-tooling",
+      "tier": 2,
+      "description": "Text a Claude Code hook prints on SessionStart or UserPromptSubmit is added to the model's context, so a hook can steer the model without the user typing anything.",
+      "context": "per the brief, the island now re-says the delegation contract next to each task-sized prompt instead of relying on the session-start block",
+      "prerequisite_of": []
+    }
+  ]
+}
