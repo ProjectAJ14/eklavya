@@ -49,6 +49,9 @@ let close = () => {};
 declare const TABS: { scroll: Map<string, number> };
 /** Page globals the day tests call directly. */
 declare function todayKey(): string;
+declare function fromKey(k: string): Date;
+declare function render(): void;
+declare let S: { daily: unknown[] };
 declare function streaks(map: Map<string, { day: string; total: number }>): { current: number; best: number; days: number };
 let browser: Browser;
 const savedHome = process.env.EKLAVYA_HOME;
@@ -262,20 +265,20 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     });
 
     it('folds secondary detail, draws a hidden chart on open and remembers it', async () => {
-      const w = await open('#/learning/dashboard');
+      const w = await open('#/learning/concept/csrf');
       // The page leads with its answer: explanation and secondary cards are closed.
       expect(await w.page.getAttribute('#view details.about', 'open')).toBeNull();
-      const heat = w.page.locator('details[data-fold="learn:heat"]');
+      const heat = w.page.locator('details[data-fold="concept:grades"]');
       expect(await heat.getAttribute('open')).toBeNull();
       // A chart inside a closed fold has no width to measure, so it waits.
-      expect(await w.page.$eval('#c-heat', (s) => s.childElementCount)).toBe(0);
+      expect(await w.page.$eval('#c-grades', (s) => s.childElementCount)).toBe(0);
       await heat.locator('summary').focus();
       await w.page.keyboard.press('Enter');
-      await w.page.waitForFunction(() => document.getElementById('c-heat')!.childElementCount > 0);
+      await w.page.waitForFunction(() => document.getElementById('c-grades')!.childElementCount > 0);
       // Opened once, it stays open across a reload and a re-render.
       await w.page.reload(); await ready(w.page);
       expect(await heat.getAttribute('open')).not.toBeNull();
-      expect(await w.page.$eval('#c-heat', (s) => s.childElementCount)).toBeGreaterThan(0);
+      expect(await w.page.$eval('#c-grades', (s) => s.childElementCount)).toBeGreaterThan(0);
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
@@ -1335,6 +1338,133 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         .toEqual(['2026-10-04', 1]);
       await w.ctx.close();
     });
+  });
+
+  describe('the streak card', () => {
+    /** Replaces the payload's days with `[daysAgo, passed, corrected, missed]` rows and redraws. */
+    const days = (page: Page, rows: number[][]) => page.evaluate((rows) => {
+      const key = (n: number) => { const d = fromKey(todayKey()); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
+      S.daily = rows.map(([n, passed, corrected, missed]) => ({ day: key(n!), repo: null, passed, corrected, missed, skipped: 0 }));
+      render();
+    }, rows);
+    const card = (page: Page) => page.evaluate(() => {
+      const c = document.querySelector('#view .streak')!;
+      return {
+        head: c.querySelector('h2')!.textContent!.trim(),
+        best: c.querySelector('.streak__best')?.textContent!.replace(/\s+/g, ' ').trim() ?? null,
+        sub: c.querySelector('.streak__sub')?.textContent!.trim() ?? null,
+        run: c.querySelectorAll('rect.cell.is-run').length,
+      };
+    });
+
+    it('sits right under the tiles, open, in place of the streak tile and the folded calendar', async () => {
+      const w = await open('#/learning/dashboard');
+      const placed = await w.page.evaluate(() => {
+        const stats = document.querySelector('#view .stats')!;
+        let n = stats.nextElementSibling;
+        while (n && !n.classList.contains('card')) n = n.nextElementSibling;
+        return {
+          first: n?.classList.contains('streak'),
+          tiles: stats.querySelectorAll('.tile').length,
+          fold: !!document.querySelector('[data-fold="learn:heat"]'),
+        };
+      });
+      expect(placed).toEqual({ first: true, tiles: 3, fold: false });
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('counts the current run and the longest one, and outlines the current run', async () => {
+      const w = await open('#/learning/dashboard');
+      await days(w.page, [[0, 1, 0, 0], [1, 1, 0, 0], [2, 0, 0, 1], ...[10, 11, 12, 13, 14].map((n) => [n, 1, 0, 0])]);
+      expect(await card(w.page)).toEqual({ head: '3 day streak', best: 'Longest streak | 5 days', sub: null, run: 3 });
+      expect(await w.page.$eval('#view rect.cell.is-run title', (t) => t.textContent)).toContain(' · current streak');
+      await w.ctx.close();
+    });
+
+    it('asks for today when only yesterday is done, and says the longest when nothing is running', async () => {
+      const w = await open('#/learning/dashboard');
+      await days(w.page, [[1, 1, 0, 0], [2, 1, 0, 0], [3, 1, 0, 0]]);
+      expect(await card(w.page)).toMatchObject({ head: '3 day streak', sub: 'Answer one today to make it 4.' });
+      await days(w.page, [[0, 1, 0, 0]]);
+      expect(await card(w.page)).toMatchObject({ head: '1 day streak', best: 'Longest streak | 1 day', sub: null });
+      await days(w.page, [[5, 1, 0, 0], [6, 1, 0, 0]]);
+      expect(await card(w.page)).toMatchObject({ head: 'No streak yet', sub: 'Your longest was 2 days.' });
+      await days(w.page, []);
+      expect(await card(w.page)).toEqual({ head: 'No streak yet', best: null, sub: 'Answer one question to start one.', run: 0 });
+      expect(await w.page.$$eval('#view rect.cell', (r) => r.length)).toBeGreaterThan(0);
+      await w.ctx.close();
+    });
+
+    it('steps a day by its share of the busiest visible day, and counts a correction as right', async () => {
+      const w = await open('#/learning/dashboard');
+      await days(w.page, [[1, 1, 0, 0], [2, 4, 2, 2], [3, 1, 1, 0]]);
+      const cells = await w.page.$$eval('#view rect.cell', (r) => r.map((x) => ({
+        step: x.getAttribute('data-step'), title: x.querySelector('title')!.textContent!, fill: x.getAttribute('fill'),
+      })));
+      const on = (n: string) => cells.find((c) => c.title.includes(n))!;
+      expect(on('1 answer (1 right)').step).toBe('1');
+      expect(on('8 answers (6 right)').step).toBe('4');
+      expect(on('2 answers (2 right)').step).toBe('1');
+      expect(on('8 answers').fill).toBe('color-mix(in srgb, var(--spot) 100%, var(--mass))');
+      expect(cells.some((c) => c.title.endsWith(' — nothing') && c.fill === 'var(--mass)')).toBe(true);
+      await w.ctx.close();
+    });
+
+    it('pages back and forward on a narrow screen, by mouse and by keyboard', async () => {
+      const w = await open('#/learning/dashboard', { width: 560 });
+      const state = () => w.page.evaluate(() => ({
+        month: document.querySelector('#c-heat text.axis')!.textContent,
+        prev: (document.getElementById('heat-prev') as HTMLButtonElement).disabled,
+        next: (document.getElementById('heat-next') as HTMLButtonElement).disabled,
+        hidden: document.getElementById('heat-prev')!.hidden,
+      }));
+      const before = await state();
+      expect(before).toMatchObject({ prev: false, next: true, hidden: false });
+      await w.page.click('#heat-prev');
+      const back = await state();
+      expect(back.month).not.toBe(before.month);
+      expect(back.next).toBe(false);
+      await w.page.focus('#heat-next');
+      await w.page.keyboard.press('Enter');
+      expect(await state()).toEqual(before);
+      // Tab order: the earlier-weeks arrow is reachable, and Enter works on it.
+      await w.page.focus('#heat-next');
+      await w.page.keyboard.press('Shift+Tab');
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('heat-prev');
+      await w.page.keyboard.press('Enter');
+      expect((await state()).month).toBe(back.month);
+      // Paging stops a year back.
+      for (let i = 0; i < 10; i++) if (!(await state()).prev) await w.page.click('#heat-prev');
+      expect((await state()).prev).toBe(true);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('shows a whole year with no arrows on a wide screen', async () => {
+      const w = await open('#/learning/dashboard', { width: 1280 });
+      expect(await w.page.evaluate(() => ({
+        weeks: document.querySelectorAll('#c-heat rect.cell').length / 7,
+        prev: document.getElementById('heat-prev')!.hidden,
+        next: document.getElementById('heat-next')!.hidden,
+      }))).toEqual({ weeks: 53, prev: true, next: true });
+      await w.ctx.close();
+    });
+
+    for (const ground of ['ink', 'paper'] as const) {
+      it(`draws the outline in the ink colour on ${ground}`, async () => {
+        const w = await open('#/learning/dashboard', { ground });
+        await days(w.page, [[0, 1, 0, 0], [1, 1, 0, 0]]);
+        const [stroke, ink] = await w.page.evaluate(() => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--ink)';
+          document.body.append(probe);
+          return [getComputedStyle(document.querySelector('#view rect.cell.is-run')!).stroke, getComputedStyle(probe).color];
+        });
+        expect(stroke).toBe(ink);
+        await w.ctx.close();
+      });
+    }
   });
 
   describe('every screen', () => {

@@ -484,6 +484,28 @@
   .heat { overflow-x:auto; }
   .heat svg { width:auto; max-width:none; }
   .heat rect.cell { stroke:var(--panel); stroke-width:1; }
+  .heat rect.cell.is-run { stroke:var(--ink); stroke-width:1.5; }
+  .streak__head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-2) var(--space-4);
+                  flex-wrap:wrap; margin-bottom:var(--space-4); }
+  .streak h2 { font-family:var(--font-disp); font-size:var(--text-2xl); font-weight:var(--weight-extra);
+               letter-spacing:-.03em; line-height:1.15; margin:0; }
+  .streak__sub { color:var(--dim); font-size:13.5px; margin:var(--space-1) 0 0; }
+  .streak__best { font-size:10.5px; font-family:var(--font-mono); font-weight:var(--weight-medium); margin:var(--space-2) 0 0;
+                  letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--faint); }
+  .streak__cal { display:flex; align-items:flex-start; gap:var(--space-1); }
+  .streak__cal .heat { flex:1 1 auto; min-width:0; }
+  .streak__arr { flex:none; width:28px; height:22px; padding:0; border:1px solid var(--line-2); background:var(--panel);
+                 color:var(--ink); font:inherit; font-size:15px; line-height:1; cursor:pointer;
+                 transition:border-color var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
+  .streak__arr:hover:not(:disabled) { border-color:var(--spot); color:var(--spot); }
+  .streak__arr:focus-visible { outline:none; box-shadow:var(--ring); }
+  .streak__arr:disabled { color:var(--faint-2); cursor:default; }
+  .streak__arr[hidden] { display:none; }
+  .streak__legend { display:flex; justify-content:space-between; gap:var(--space-2) var(--space-5); flex-wrap:wrap;
+                    margin-top:var(--space-3); font-size:12px; color:var(--faint); }
+  .streak__legend span { display:inline-flex; align-items:center; gap:3px; }
+  .streak__legend b { display:inline-block; width:10px; height:10px; }
+  .streak__legend span:last-child b { margin-right:var(--space-1); }
 
   /* ---------- question & answer records ---------- */
   .qa { border:1px solid var(--line); padding:var(--space-4) var(--space-5); }
@@ -1011,18 +1033,19 @@ function fillDays(map, n, endKey) {
 /** Consecutive days with at least one answer, counting back from today. */
 function streaks(map) {
   const active = new Set([...map.values()].filter((d) => d.total > 0).map((d) => d.day));
-  let current = 0;
+  const run = new Set();
   const cur = fromKey(todayKey());
-  if (!active.has(dayKey(cur))) cur.setUTCDate(cur.getUTCDate() - 1); // today may not have started yet
-  while (active.has(dayKey(cur))) { current += 1; cur.setUTCDate(cur.getUTCDate() - 1); }
+  const today = active.has(dayKey(cur));
+  if (!today) cur.setUTCDate(cur.getUTCDate() - 1); // today may not have started yet
+  while (active.has(dayKey(cur))) { run.add(dayKey(cur)); cur.setUTCDate(cur.getUTCDate() - 1); }
 
-  let best = 0, run = 0, prev = null;
+  let best = 0, len = 0, prev = null;
   for (const k of [...active].sort()) {
-    run = prev && fromKey(k).getTime() - fromKey(prev).getTime() === DAY_MS ? run + 1 : 1;
-    best = Math.max(best, run);
+    len = prev && fromKey(k).getTime() - fromKey(prev).getTime() === DAY_MS ? len + 1 : 1;
+    best = Math.max(best, len);
     prev = k;
   }
-  return { current, best, days: active.size };
+  return { current: run.size, best, days: active.size, run, today };
 }
 
 /** Sessions, rebuilt from the two row sets that mention a session id. */
@@ -1304,35 +1327,52 @@ function chartActivity(el, days) {
  * window gets a cell, empty ones included — a fortnight of silence has to read
  * as a fortnight of silence, not close up into the next session.
  */
-function chartHeatmap(el, map) {
+const HEAT_STEP = [0, 30, 55, 80, 100];            // % of --spot over --mass for steps 1..4
+const heatFill = (s) => `color-mix(in srgb, var(--spot) ${HEAT_STEP[s]}%, var(--mass))`;
+let HEAT_OFF = 0;                                  // weeks paged back; a view position, reset by render()
+const HEAT_ARROWS = 64;                            // the two arrow buttons beside the grid
+
+function chartHeatmap(el, map, run = new Set()) {
   const CELL = 13, GAP = 3, PAD_T = 18, PAD_L = 26;
   // The window is chosen from the width rather than the width from the window:
   // a wide card shows a year, a phone shows a quarter, and the cell stays the
   // same size on both. Capped at 53 because that is all the payload carries.
-  const avail = (el.parentElement.clientWidth || 700) - PAD_L - 2;
-  const weeks = Math.max(12, Math.min(53, Math.floor(avail / (CELL + GAP))));
-  const end = fromKey(todayKey());
-  end.setUTCDate(end.getUTCDate() + (6 - end.getUTCDay()));      // to the end of this week
+  const box = el.closest('.streak__cal') ?? el.parentElement;
+  const fit = (w) => Math.floor((w - PAD_L - 2) / (CELL + GAP));
+  const room = box.clientWidth || 700;
+  const paged = fit(room) < 53;
+  const weeks = paged ? Math.max(12, fit(room - HEAT_ARROWS)) : 53;
+  if (!paged) HEAT_OFF = 0;
+  const today = fromKey(todayKey());
+  const end = new Date(today);
+  end.setUTCDate(end.getUTCDate() + (6 - end.getUTCDay()) - HEAT_OFF * 7);   // to the end of this week, paged back
   const total = weeks * 7;
   const days = fillDays(map, total, dayKey(end));
   const max = Math.max(...days.map((d) => d.total), 1);
+  const year = today.getUTCFullYear();
+  const label = (k) => fromKey(k).toLocaleDateString(undefined,
+    { month:'short', day:'numeric', year: fromKey(k).getUTCFullYear() === year ? undefined : 'numeric', timeZone:'UTC' });
 
-  let out = '', lastMonth = '';
+  let out = '', lastMonth = '', lastCol = -9;
   days.forEach((d, i) => {
     const col = Math.floor(i / 7), row = i % 7;
     const x = PAD_L + col * (CELL + GAP), y = PAD_T + row * (CELL + GAP);
-    const date = fromKey(d.day);
     if (row === 0) {
-      const m = date.toLocaleDateString(undefined, { month:'short', timeZone:'UTC' });
+      const m = fromKey(d.day).toLocaleDateString(undefined, { month:'short', timeZone:'UTC' });
       // Not in the last two columns: a month label starting there runs off the
-      // right edge of the card.
-      if (m !== lastMonth) { if (col < weeks - 2) out += `<text class="axis" x="${x}" y="${PAD_T - 6}">${m}</text>`; lastMonth = m; }
+      // right edge of the card. Nor within three columns of the previous label, which it would overprint.
+      if (m !== lastMonth) {
+        if (col < weeks - 2 && col - lastCol >= 3) { out += `<text class="axis" x="${x}" y="${PAD_T - 6}">${m}</text>`; lastCol = col; }
+        lastMonth = m;
+      }
     }
-    const future = d.day > todayKey();
-    const fill = d.total ? 'var(--spot)' : future ? 'transparent' : 'var(--mass)';
-    const op = d.total ? (0.3 + 0.7 * Math.min(1, d.total / max)).toFixed(2) : 1;
-    out += `<rect class="cell" x="${x}" y="${y}" width="${CELL}" height="${CELL}" fill="${fill}" fill-opacity="${op}">`
-         + `<title>${fmtDate(d.day)} — ${d.total ? plural(d.total, 'answer') + ` (${d.passed} right)` : 'nothing'}</title></rect>`;
+    const step = d.total ? Math.min(4, Math.ceil((4 * d.total) / max)) : 0;
+    const fill = step ? heatFill(step) : d.day > todayKey() ? 'transparent' : 'var(--mass)';
+    // The current run is outlined inside its own cell, so neighbours never touch.
+    const on = run.has(d.day), inset = on ? 0.75 : 0;
+    const title = `${label(d.day)} — ${d.total ? `${plural(d.total, 'answer')} (${d.passed + d.corrected} right)` : 'nothing'}${on ? ' · current streak' : ''}`;
+    out += `<rect class="cell${on ? ' is-run' : ''}" data-step="${step}" x="${x + inset}" y="${y + inset}" width="${CELL - 2 * inset}" height="${CELL - 2 * inset}" fill="${fill}">`
+         + `<title>${esc(title)}</title></rect>`;
   });
   ['Mon', 'Wed', 'Fri'].forEach((label, n) => {
     const row = [1, 3, 5][n];
@@ -1342,6 +1382,41 @@ function chartHeatmap(el, map) {
   el.setAttribute('viewBox', `0 0 ${W} ${H}`);
   el.setAttribute('width', W); el.setAttribute('height', H);
   el.innerHTML = out;
+
+  // The arrows page by the window's own width: back until its first day is a
+  // year old (all the payload carries), forward until this week.
+  const prev = $('heat-prev'), next = $('heat-next');
+  if (prev && next) {
+    prev.hidden = next.hidden = !paged;
+    prev.dataset.weeks = next.dataset.weeks = weeks;
+    next.disabled = HEAT_OFF === 0;
+    prev.disabled = today.getTime() - fromKey(days[0].day).getTime() >= 365 * DAY_MS;
+  }
+}
+
+/** The streak, up front: the run, the longest, and the calendar it is counted from. */
+function streakCard(daily, st) {
+  chart('c-heat', (el) => chartHeatmap(el, daily, st.run));
+  const sub = st.current && !st.today ? `Answer one today to make it ${st.current + 1}.`
+    : !st.current && st.best ? `Your longest was ${plural(st.best, 'day')}.`
+    : !st.best ? 'Answer one question to start one.' : '';
+  const sq = (style) => `<b style="${style}"></b>`;
+  return `<section class="card streak">
+    <div class="streak__head">
+      <div><h2>${st.current ? `${st.current} day streak` : 'No streak yet'}</h2>
+        ${sub ? `<p class="streak__sub">${esc(sub)}</p>` : ''}</div>
+      ${st.best ? `<p class="streak__best">Longest streak <span aria-hidden="true">|</span> ${esc(plural(st.best, 'day'))}</p>` : ''}
+    </div>
+    <div class="streak__cal">
+      <button type="button" class="streak__arr" id="heat-prev" aria-label="Earlier weeks" hidden>‹</button>
+      <div class="heat"><svg id="c-heat" role="img" aria-label="Calendar of daily answers, up to a year back"></svg></div>
+      <button type="button" class="streak__arr" id="heat-next" aria-label="Later weeks" hidden>›</button>
+    </div>
+    <div class="streak__legend">
+      <span>More ${[4, 3, 2, 1].map((n) => sq(`background:${heatFill(n)}`)).join('')} Less</span>
+      <span>${sq('box-shadow:inset 0 0 0 1.5px var(--ink)')} Current streak</span>
+    </div>
+  </section>`;
 }
 
 /** Review load for the next fortnight, with everything overdue in one column. */
@@ -1563,7 +1638,6 @@ function viewLearningDashboard() {
   const unassessed = inv.filter((p) => !p.learning.answers && p.learning.logged_concepts);
 
   chart('c-activity', (el) => chartActivity(el, last30));
-  chart('c-heat', (el) => chartHeatmap(el, daily));
 
   // One next step, the most useful one. Due work outranks an empty scope.
   const next = due.length
@@ -1592,10 +1666,11 @@ function viewLearningDashboard() {
       ['Accuracy', answered ? pct(passed, answered) + '%' : '—', answered ? `${passed} right of ${answered}` : 'No assessments yet', answered && pct(passed, answered) >= 70 ? 'good' : '', LH('sessions')],
       ['Mastered', mastered.length, `of ${seen.length} asked`, mastered.length ? 'good' : '', LH('concepts', 'mastered')],
       ['Due now', due.length, due.length ? 'ready for review' : 'nothing waiting', due.length ? 'warn' : '', LH('review')],
-      ['Streak', st.current ? plural(st.current, 'day') : '—', st.best ? `best ${plural(st.best, 'day')}` : 'no answers yet'],
     ]),
 
     next,
+
+    streakCard(daily, st),
 
     card('Answers, last 30 days', null,
       `<div class="legend">
@@ -1632,10 +1707,6 @@ function viewLearningDashboard() {
         { label:'Learning', n:seen.length - mastered.length, color:'color-mix(in srgb, var(--spot) 45%, var(--mass))' },
         { label:'Not asked', n:Math.max(0, scoped.length - seen.length), color:'var(--mass)' },
       ])),
-
-    fold('learn:heat', 'Practice history', plural(st.days, 'active day'),
-      `<div class="heat"><svg id="c-heat" role="img" aria-label="Calendar heatmap of daily answers"></svg></div>`,
-      { hint: 'One cell per day, up to a year back. Darker means more answered that day.' }),
   ].join('');
 }
 
@@ -4118,6 +4189,7 @@ function render(keepFocus) {
 
   AFTER.length = 0;
   LAZY.clear();
+  HEAT_OFF = 0;
   // A bubble never survives a navigation.
   TIP.hints?.close();
   // A screen that still has a correction open re-arms this when it draws its bar.
@@ -4161,6 +4233,13 @@ function setQuery(changes) {
 }
 
 function onActivate(e) {
+  const arr = e.target.closest('.streak__arr');
+  if (arr) {
+    if (arr.disabled) return;
+    HEAT_OFF = Math.max(0, HEAT_OFF + (arr.id === 'heat-prev' ? 1 : -1) * +arr.dataset.weeks);
+    const st = streaks(dailyInScope());
+    return chartHeatmap($('c-heat'), dailyInScope(), st.run);
+  }
   const pg = e.target.closest('[data-page]');
   if (pg && !pg.disabled) { T[pg.dataset.pager].page = +pg.dataset.page; render(); return; }
   // The filter and the tab live in the hash, so a filtered list is a link the
