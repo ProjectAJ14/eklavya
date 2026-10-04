@@ -201,6 +201,28 @@ describe('the spool', () => {
     expect(drainSpool(db)).toEqual({ replayed: 0, skipped: 1 });
     expect((db.prepare('SELECT COUNT(*) AS n FROM evidence_events').get() as { n: number }).n).toBe(1);
   });
+
+  it('skips a failed read of an excluded file spooled before capture dropped it', () => {
+    // The shape an older release spooled: the excluded path stripped, the
+    // error text kept. Synthetic text only.
+    const base = { project: PROJECT, checkout: PROJECT, sessionId: 's1', agentId: null, host: 'claude-code', source: 'hook' };
+    const line = (uid: string, over: Record<string, unknown>) =>
+      JSON.stringify({ ...base, eventUid: uid, kind: 'tool_error', title: null, body: 'x', occurredAt: '2026-10-01T00:00:00Z', redacted: false, ...over });
+    fs.mkdirSync(path.dirname(spoolPath()), { recursive: true });
+    fs.writeFileSync(
+      spoolPath(),
+      [
+        line('leak', { tool: 'Read', body: 'SYNTHETIC_PRIVATE_TEXT', files: [] }),
+        line('allowed', { tool: 'Read', body: 'File does not exist', files: ['src/auth.ts'] }),
+        line('bash', { tool: 'Bash', body: 'npm test failed' }),
+        line('untooled', { tool: null, body: 'host gave no tool name' }),
+      ].join('\n') + '\n',
+    );
+
+    expect(drainSpool(db)).toEqual({ replayed: 3, skipped: 1 });
+    const bodies = (db.prepare('SELECT body FROM evidence_events ORDER BY id').all() as { body: string }[]).map((r) => r.body);
+    expect(bodies).toEqual(['File does not exist', 'npm test failed', 'host gave no tool name']);
+  });
 });
 
 describe('the job worker', () => {

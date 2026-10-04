@@ -175,6 +175,19 @@ export function captureOrSpool(
   return spoolEvent(input);
 }
 
+/** Tools that name their file in a required argument. */
+const FILE_FAILURE_TOOLS = new Set(['Read', 'NotebookRead', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+
+/**
+ * A failure of a file tool left with no file: before exclusions covered
+ * failures, that was a failed read or edit of an excluded file whose error text
+ * was kept. `prepare` no longer produces one; a spool line written before the
+ * upgrade still can. Migration 024 removes the same shape from the database.
+ */
+function excludedFileFailure(input: EvidenceInput): boolean {
+  return input.kind === 'tool_error' && FILE_FAILURE_TOOLS.has(input.tool ?? '') && !input.files?.length;
+}
+
 /** Replays whatever the spool holds. Idempotent through `event_uid`. */
 export function drainSpool(db: DB): { replayed: number; skipped: number } {
   const { records, commit } = takeSpooled();
@@ -185,7 +198,7 @@ export function drainSpool(db: DB): { replayed: number; skipped: number } {
     // A spool line is data this process wrote earlier, but a truncated write or
     // a hand-edited file is still possible; anything without an identity cannot
     // be replayed idempotently and is discarded rather than guessed at.
-    if (!input || typeof input !== 'object' || !input.eventUid || !input.project) {
+    if (!input || typeof input !== 'object' || !input.eventUid || !input.project || excludedFileFailure(input)) {
       skipped++;
       continue;
     }
