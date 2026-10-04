@@ -542,6 +542,26 @@ describe('get_session_quiz_plan', () => {
     expect(plan.concepts.map((c: any) => c.slug).sort()).toEqual(['csrf', 'jwt-structure']);
   });
 
+  // `/eklavya:quiz csrf` reaches the planner as a domain when the model reads the
+  // argument as one; the dashboard's review commands depend on it landing on the concept.
+  it('plans named slugs passed as a domain, when no domain has that name', () => {
+    for (const domain of ['csrf', 'csrf jwt-structure', 'CSRF, jwt-structure']) {
+      const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, domain });
+      expect(plan.concepts.map((c: any) => c.slug).sort(), domain).toEqual(domain === 'csrf' ? ['csrf'] : ['csrf', 'jwt-structure']);
+    }
+    const both = call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'csrf', slugs: ['jwt-structure'] });
+    expect(both.concepts.map((c: any) => c.slug).sort()).toEqual(['csrf', 'jwt-structure']);
+  });
+
+  it('keeps a real domain, a partly unknown list and an empty one as they were', () => {
+    // A domain wins over a concept that happens to share its name.
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'git', max: 10 }).concepts
+      .every((c: any) => c.domain === 'git')).toBe(true);
+    // One unknown word means the argument is not a slug list: no guessing.
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'csrf caching' }).questions_needed).toBe(0);
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, domain: ',' }).questions_needed).toBe(0);
+  });
+
   it('pays down review debt from the same domain once session work is covered', () => {
     // Setup answers spend the session budget; this test is about what comes after it.
     configure({ min_minutes_between_quizzes: 0, max_questions_per_task: 10 });

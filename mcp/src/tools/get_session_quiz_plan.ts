@@ -126,7 +126,7 @@ export const getSessionQuizPlan: ToolDef = {
       .string()
       .max(LIMITS.domain)
       .optional()
-      .describe('Plan a topic quiz on this domain instead of this session\'s work, e.g. "web-auth". Prerequisites are ordered first.'),
+      .describe('Plan a topic quiz on this domain instead of this session\'s work, e.g. "web-auth". Prerequisites are ordered first. When no domain has this name and every word in it is a concept slug ("csrf jwt-structure"), it plans those concepts as slugs would.'),
     slugs: z
       .array(z.string().max(LIMITS.slug))
       .max(LIMITS.concepts)
@@ -176,6 +176,19 @@ export const getSessionQuizPlan: ToolDef = {
     // stored slug exactly, so "HttpOnly Cookies" found nothing and the plan came
     // back empty for a concept that exists.
     let effSlugs = args.slugs?.map(normalizeSlug).filter(Boolean);
+    // `/eklavya:quiz csrf jwt-structure` reaches here as a domain whenever the
+    // model reads the argument as one, and a domain named after a concept
+    // matches nothing. When no domain has that name and every word is an
+    // existing slug, those concepts are what was asked for. Exact slugs only:
+    // a word that is not one means it was not a slug list, so no guessing.
+    if (effDomain && !db.prepare('SELECT 1 FROM concepts WHERE domain = ?').get(effDomain)) {
+      const words = effDomain.split(/[\s,]+/).map(normalizeSlug).filter(Boolean);
+      const known = db.prepare('SELECT 1 FROM concepts WHERE slug = ?');
+      if (words.length && words.every((w) => known.get(w))) {
+        effSlugs = [...(effSlugs ?? []), ...words];
+        effDomain = undefined;
+      }
+    }
     let topicUnresolved = false;
     const explicitTopic = Boolean(args.domain || (effSlugs && effSlugs.length > 0));
 
