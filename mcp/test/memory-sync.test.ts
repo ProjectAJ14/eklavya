@@ -448,6 +448,300 @@ describe('offline recovery', () => {
   });
 });
 
+describe('out-of-order delivery', () => {
+  const laptopDir = () => path.join(shared, 'devices', 'laptop');
+  const recordFile = (rev: number) => path.join(laptopDir(), `${String(rev).padStart(12, '0')}.json`);
+  const parked = (rev: number) => path.join(shared, `parked-${rev}.json`);
+  /** A cloud client that has not delivered this revision yet. */
+  const delay = (rev: number) => fs.renameSync(recordFile(rev), parked(rev));
+  const deliver = (rev: number) => fs.renameSync(parked(rev), recordFile(rev));
+  const floor = (db: DB) =>
+    (db.prepare("SELECT last_revision FROM sync_state WHERE device_id = 'laptop'").get() as { last_revision: number })
+      .last_revision;
+  const receipts = (db: DB) => (db.prepare('SELECT COUNT(*) AS n FROM sync_received').get() as { n: number }).n;
+
+  it('applies a record that arrives after a later one, exactly once', () => {
+    note(laptop, 'first');
+    note(laptop, 'second');
+    push(laptop, LAPTOP);
+    delay(1);
+
+    const early = pull(desktop, DESKTOP);
+    expect(early).toMatchObject({ applied: 1, stalled: [], outstanding: [{ device_id: 'laptop', missing: 1, first: 1 }] });
+    expect(titles(desktop)).toEqual(['second']);
+    expect(floor(desktop)).toBe(0);
+    expect(syncStatus(desktop, DESKTOP).peers).toEqual([expect.objectContaining({ device_id: 'laptop', outstanding: 1 })]);
+
+    deliver(1);
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, skipped: 0, outstanding: [] });
+    expect(titles(desktop)).toEqual(['first', 'second']);
+    expect(floor(desktop)).toBe(2);
+    expect(receipts(desktop)).toBe(0);
+    expect(syncStatus(desktop, DESKTOP).peers).toEqual([expect.objectContaining({ last_revision: 2, outstanding: 0 })]);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, skipped: 0, conflicts: 0 });
+  });
+
+  it('propagates a deletion that arrives late', () => {
+    const doomed = note(laptop, 'doomed');
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    deleteEntry(laptop, doomed);
+    note(laptop, 'newer');
+    push(laptop, LAPTOP);
+    const tomb = [2, 3].find((r) => JSON.parse(fs.readFileSync(recordFile(r), 'utf8')).op === 'delete')!;
+    delay(tomb);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, tombstones: 0 });
+    expect(titles(desktop)).toEqual(['doomed', 'newer']);
+
+    deliver(tomb);
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, tombstones: 1, outstanding: [] });
+    expect(titles(desktop)).toEqual(['newer']);
+  });
+
+  it('keeps a deletion when the creation it buries arrives after it', () => {
+    const id = note(laptop, 'short-lived');
+    push(laptop, LAPTOP);
+    deleteEntry(laptop, id);
+    push(laptop, LAPTOP);
+    delay(1);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ tombstones: 1 });
+    deliver(1);
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, skipped: 1, conflicts: 0, outstanding: [] });
+    expect(titles(desktop)).toEqual([]);
+  });
+
+  it('does not reapply a record delivered twice or a pull interrupted before its floor moved', () => {
+    note(laptop, 'first');
+    note(laptop, 'second');
+    push(laptop, LAPTOP);
+    delay(1);
+    pull(desktop, DESKTOP);
+
+    // The cloud client hands revision 2 over again.
+    const again = fs.readFileSync(recordFile(2), 'utf8');
+    fs.rmSync(recordFile(2));
+    fs.writeFileSync(recordFile(2), again, 'utf8');
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, skipped: 0 });
+
+    // Both applied, then the process died before the floor caught up.
+    deliver(1);
+    pull(desktop, DESKTOP);
+    desktop.prepare("UPDATE sync_state SET last_revision = 0 WHERE device_id = 'laptop'").run();
+    desktop.prepare("INSERT INTO sync_received (device_id, revision) VALUES ('laptop', 1), ('laptop', 2)").run();
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, skipped: 0, conflicts: 0, outstanding: [] });
+    expect(floor(desktop)).toBe(2);
+    expect(receipts(desktop)).toBe(0);
+    expect(titles(desktop)).toEqual(['first', 'second']);
+  });
+
+  it('steps over a revision its writer abandoned instead of waiting for it', () => {
+    const id = note(laptop, 'draft');
+    const uid = uidOf(laptop, id);
+    push(laptop, LAPTOP);
+    // Revision 1 was staged but its file never landed, and the entry moved on:
+    // the next push stages revision 2 and nothing can ever write revision 1.
+    fs.rmSync(recordFile(1));
+    laptop.prepare("UPDATE memory_entries SET narrative = 'final' WHERE id = ?").run(id);
+    push(laptop, LAPTOP);
+    expect(JSON.parse(fs.readFileSync(path.join(laptopDir(), 'void.json'), 'utf8'))).toEqual({
+      v: 1,
+      device_id: 'laptop',
+      revisions: [[1, 1]],
+    });
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, outstanding: [] });
+    expect(entryByUid(desktop, uid)!.narrative).toBe('final');
+    expect(floor(desktop)).toBe(2);
+    expect(receipts(desktop)).toBe(0);
+  });
+
+  it('does not void a record that iCloud evicted to save space', () => {
+    note(laptop, 'kept');
+    push(laptop, LAPTOP);
+    fs.renameSync(recordFile(1), path.join(laptopDir(), '.000000000001.json.icloud'));
+    note(laptop, 'later');
+    push(laptop, LAPTOP);
+    expect(fs.existsSync(path.join(laptopDir(), 'void.json'))).toBe(false);
+  });
+
+  it('applies the records after an unreadable one, and reads that one once it is whole', () => {
+    note(laptop, 'first');
+    note(laptop, 'second');
+    push(laptop, LAPTOP);
+    const whole = fs.readFileSync(recordFile(1), 'utf8');
+    fs.writeFileSync(recordFile(1), whole.slice(0, 20), 'utf8');
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({
+      applied: 1,
+      stalled: ['laptop'],
+      outstanding: [{ device_id: 'laptop', missing: 1, first: 1 }],
+    });
+    expect(titles(desktop)).toEqual(['second']);
+
+    fs.writeFileSync(recordFile(1), whole, 'utf8');
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, stalled: [], outstanding: [] });
+    expect(titles(desktop)).toEqual(['first', 'second']);
+    expect(floor(desktop)).toBe(2);
+  });
+
+  it('still quarantines a late record that really conflicts', () => {
+    const id = note(laptop, 'shared');
+    const uid = uidOf(laptop, id);
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    desktop.prepare("UPDATE memory_entries SET narrative = 'desktop edit' WHERE entry_uid = ?").run(uid);
+    push(desktop, DESKTOP);
+    laptop.prepare("UPDATE memory_entries SET narrative = 'laptop edit' WHERE id = ?").run(id);
+    push(laptop, LAPTOP); // revision 2
+    note(laptop, 'later');
+    push(laptop, LAPTOP); // revision 3, which shows revision 2 exists
+    delay(2);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ conflicts: 0, outstanding: [{ device_id: 'laptop', missing: 1 }] });
+    deliver(2);
+    expect(pull(desktop, DESKTOP)).toMatchObject({ conflicts: 1, outstanding: [] });
+    expect(entryByUid(desktop, uid)!.narrative).toBe('desktop edit');
+    expect(conflicts(desktop)).toHaveLength(1);
+  });
+
+  it('does not step over a voided revision whose file is present but unreadable', () => {
+    note(laptop, 'first');
+    note(laptop, 'second');
+    push(laptop, LAPTOP);
+    const whole = fs.readFileSync(recordFile(1), 'utf8');
+    fs.writeFileSync(recordFile(1), '{"half":', 'utf8');
+    // A writer that wrongly claims revision 1 will never exist.
+    fs.writeFileSync(path.join(laptopDir(), 'void.json'), JSON.stringify({ v: 1, device_id: 'laptop', revisions: [[1, 1]] }));
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ outstanding: [{ device_id: 'laptop', missing: 1, first: 1 }] });
+    expect(floor(desktop)).toBe(0);
+    fs.writeFileSync(recordFile(1), whole, 'utf8');
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, outstanding: [] });
+    expect(titles(desktop)).toEqual(['first', 'second']);
+  });
+
+  it('does not step past the newest revision on a void list, so a later file still lands', () => {
+    note(laptop, 'first');
+    push(laptop, LAPTOP);
+    fs.writeFileSync(path.join(laptopDir(), 'void.json'), JSON.stringify({ v: 1, device_id: 'laptop', revisions: [[2, 9]] }));
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, outstanding: [] });
+    expect(floor(desktop)).toBe(1);
+
+    note(laptop, 'second');
+    push(laptop, LAPTOP); // revision 2, which the bogus list called void
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1 });
+    expect(titles(desktop)).toEqual(['first', 'second']);
+  });
+
+  it('counts a huge revision gap without walking it', () => {
+    note(laptop, 'first');
+    push(laptop, LAPTOP);
+    const last = 999_999_999_999;
+    fs.writeFileSync(path.join(laptopDir(), `${last}.json`), '{}', 'utf8');
+
+    const started = Date.now();
+    expect(pull(desktop, DESKTOP)).toMatchObject({
+      applied: 1,
+      stalled: ['laptop'],
+      outstanding: [{ device_id: 'laptop', missing: last - 1, first: 2 }],
+    });
+    fs.writeFileSync(path.join(laptopDir(), 'void.json'), JSON.stringify({ v: 1, device_id: 'laptop', revisions: [[1, last]] }));
+    expect(pull(desktop, DESKTOP)).toMatchObject({ outstanding: [{ device_id: 'laptop', missing: 1, first: last }] });
+    expect(floor(desktop)).toBe(last - 1);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it('skips the version a later one replaced, even from another device', () => {
+    const id = note(laptop, 'shared');
+    const uid = uidOf(laptop, id);
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    desktop.prepare("UPDATE memory_entries SET narrative = 'desktop edit' WHERE entry_uid = ?").run(uid);
+    push(desktop, DESKTOP);
+
+    // A third device that sees the desktop's edit before the laptop's original.
+    const tabletFile = tempDbPath('eklavya-sync-tablet');
+    const tablet = openDb(tabletFile);
+    try {
+      expect(pull(tablet, configFor('tablet'))).toMatchObject({ applied: 1, skipped: 1, conflicts: 0 });
+      expect(entryByUid(tablet, uid)!.narrative).toBe('desktop edit');
+      expect(conflicts(tablet)).toEqual([]);
+    } finally {
+      tablet.close();
+      cleanup(tabletFile);
+    }
+  });
+});
+
+describe('recovering records an earlier release stepped over', () => {
+  const recordFile = (rev: number) => path.join(shared, 'devices', 'laptop', `${String(rev).padStart(12, '0')}.json`);
+  const parked = (rev: number) => path.join(shared, `parked-${rev}.json`);
+  /**
+   * The state an older release left behind: it applied what had arrived and
+   * moved the mark past the revision that had not. The upgrade sets
+   * `replay_through` to that mark.
+   */
+  function pulledByOldRelease(missing: number, mark: number): void {
+    fs.renameSync(recordFile(missing), parked(missing));
+    pull(desktop, DESKTOP);
+    desktop.prepare('DELETE FROM sync_received').run();
+    desktop
+      .prepare("UPDATE sync_state SET last_revision = ?, replay_through = ? WHERE device_id = 'laptop'")
+      .run(mark, mark);
+    fs.renameSync(parked(missing), recordFile(missing));
+  }
+
+  it('applies a skipped entry once, on the first pull after upgrading', () => {
+    note(laptop, 'first');
+    note(laptop, 'second');
+    push(laptop, LAPTOP);
+    pulledByOldRelease(1, 2);
+    expect(titles(desktop)).toEqual(['second']);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, recovered: 1, conflicts: 0, outstanding: [] });
+    expect(titles(desktop)).toEqual(['first', 'second']);
+    expect(
+      desktop.prepare("SELECT replay_through FROM sync_state WHERE device_id = 'laptop'").get(),
+    ).toEqual({ replay_through: 0 });
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, recovered: 0, skipped: 0 });
+  });
+
+  it('applies a skipped deletion', () => {
+    const doomed = note(laptop, 'doomed');
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    deleteEntry(laptop, doomed);
+    push(laptop, LAPTOP); // revision 2: the tombstone
+    note(laptop, 'later');
+    push(laptop, LAPTOP); // revision 3
+    pulledByOldRelease(2, 3);
+    expect(titles(desktop)).toEqual(['doomed', 'later']);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ recovered: 1, tombstones: 1 });
+    expect(titles(desktop)).toEqual(['later']);
+  });
+
+  it('leaves a skipped record that would conflict exactly as it is', () => {
+    const id = note(laptop, 'shared');
+    const uid = uidOf(laptop, id);
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    desktop.prepare("UPDATE memory_entries SET narrative = 'desktop edit' WHERE entry_uid = ?").run(uid);
+    push(desktop, DESKTOP);
+    laptop.prepare("UPDATE memory_entries SET narrative = 'laptop edit' WHERE id = ?").run(id);
+    note(laptop, 'other');
+    push(laptop, LAPTOP); // revisions 2 (the conflicting edit) and 3
+    pulledByOldRelease(2, 3);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ recovered: 0, conflicts: 0 });
+    expect(entryByUid(desktop, uid)!.narrative).toBe('desktop edit');
+    expect(conflicts(desktop)).toEqual([]);
+  });
+});
+
 describe('privacy', () => {
   /** Everything SEC-02 says is the developer's own and must not cross. */
   function learningSnapshot(db: DB) {

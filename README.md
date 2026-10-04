@@ -74,7 +74,7 @@ notes to check against the code.
 | Search and notes | Ask `/eklavya:memory` about a past change, save a note or fix a wrong entry. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyamemory) |
 | Shows the savings | Estimates how much smaller recall is than the raw history, counting recall a hook sent. Calls to the memory search and read tools are logged locally. | [Savings](https://eklavya-run.web.app/docs/memory/#what-the-savings-percentage-measures) |
 | Imports Claude Mem | Brings in your history from Claude Mem. | [Migrating](https://eklavya-run.web.app/docs/migrating/) |
-| Syncs machines | Optional: share memory between your computers through a folder. | [Sync](https://eklavya-run.web.app/docs/configuration/#sync--memory-across-your-machines) |
+| Syncs machines | Optional: share memory between your computers through a folder. Files that arrive late are still applied. | [Sync](https://eklavya-run.web.app/docs/configuration/#sync--memory-across-your-machines) |
 
 Memory is only evidence. It never marks a topic as learned. Only a real answer
 does that.

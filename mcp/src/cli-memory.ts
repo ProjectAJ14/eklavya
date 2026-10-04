@@ -902,7 +902,9 @@ function memorySync(argv: string[]): void {
         `conflicts:  ${s.open_conflicts} quarantined`,
         `peers:      ${
           s.peers.length
-            ? s.peers.map((p) => `${p.device_id}@${p.last_revision}`).join(', ')
+            ? s.peers
+                .map((p) => `${p.device_id}@${p.last_revision}${p.outstanding ? ` (${p.outstanding} outstanding)` : ''}`)
+                .join(', ')
             : 'none seen yet'
         }`,
       ];
@@ -935,6 +937,11 @@ function memorySync(argv: string[]): void {
         r.tombstones === 1 ? '' : 's'
       }), ${r.skipped} already known, ${r.conflicts} quarantined.\n`,
     );
+    if (r.recovered) {
+      process.stdout.write(
+        `Recovered ${r.recovered} earlier record${r.recovered === 1 ? '' : 's'} that arrived late before this version.\n`,
+      );
+    }
     if (r.conflicts) {
       process.stdout.write(
         'Quarantined versions are kept whole in sync_conflicts — nothing was overwritten.\n',
@@ -942,7 +949,15 @@ function memorySync(argv: string[]): void {
     }
     if (r.stalled.length) {
       process.stdout.write(
-        `Stopped early on an unreadable record from: ${r.stalled.join(', ')} — likely still being written. Try again.\n`,
+        `Could not read a record from: ${r.stalled.join(', ')} — likely still being written. The next pull reads it.\n`,
+      );
+    }
+    if (r.outstanding.length) {
+      const owed = r.outstanding.map(
+        (o) => `${o.device_id} (${o.missing} revision${o.missing === 1 ? '' : 's'}, from ${o.first})`,
+      );
+      process.stdout.write(
+        `Still owed: ${owed.join(', ')}. Later records were applied; the next pull applies these once they arrive and can be read.\n`,
       );
     }
   } finally {

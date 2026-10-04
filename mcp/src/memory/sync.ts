@@ -27,6 +27,14 @@ import { deleteEntry, indexVector } from './store.js';
  * not cover, such as a cloud client materialising a partial file under the real
  * name.
  *
+ * **Files arrive out of order.** A synced folder can deliver revision 2 before
+ * revision 1, so a reader's high-water mark is a floor -- every revision at or
+ * below it is accounted for -- and never jumps a gap. A revision applied above
+ * the floor is remembered individually (`sync_received`) until the gap fills.
+ * Some gaps never fill: a revision staged and then superseded before its file
+ * was written is gone. The writer says so in `void.json` beside its records, and
+ * the reader's floor steps over a voided revision as if it had been applied.
+ *
  * **What crosses, and what must not.** Memory entries, their tags and their
  * tombstones. Not attempts, not mastery, not gates, not receipts, not raw
  * `evidence_events` (PRD SEC-02). A team that points every member at one shared
@@ -125,8 +133,19 @@ export interface PullResult extends SyncOutcome {
   /** Records already reflected here, or superseded by a local edit of equal content. */
   skipped: number;
   conflicts: number;
-  /** Devices whose stream stopped early on an unreadable record. */
+  /**
+   * Of `applied`, records an earlier release stepped over and the one-time
+   * replay after upgrading recovered.
+   */
+  recovered: number;
+  /** Devices with a record that could not be read yet; it is retried next pull. */
   stalled: string[];
+  /**
+   * Peers with revisions known to exist (a file, or a later revision seen) that
+   * have not been applied: delivery the shared folder still owes. `first` is
+   * the lowest such revision.
+   */
+  outstanding: { device_id: string; missing: number; first: number }[];
 }
 
 export interface SyncStatus extends SyncOutcome {
@@ -136,7 +155,11 @@ export interface SyncStatus extends SyncOutcome {
   /** Local changes a push would stage, tombstones included. */
   pending: number;
   open_conflicts: number;
-  peers: { device_id: string; last_revision: number; last_sync_at: string | null }[];
+  /**
+   * `last_revision` is the floor: every revision up to it is accounted for.
+   * `outstanding` is how many above it the last pull knew of but had not got.
+   */
+  peers: { device_id: string; last_revision: number; last_sync_at: string | null; outstanding: number }[];
 }
 
 const DEVICE_ID_KEY = 'sync_device_id';
@@ -381,6 +404,7 @@ function deviceDir(target: string, device: string): string {
   // segment under `<target>/devices`, and a peer's directory name arrives from
   // `readdirSync` rather than from a record, but a single assertion at the one
   // place paths are built is cheaper than trusting both.
+  /* c8 ignore next -- both sources are already checked: `deviceId` for ours, `peerDevices` for theirs */
   if (!DEVICE_ID.test(device)) throw new Error(`unsafe device id: ${JSON.stringify(device)}`);
   return path.join(target, 'devices', device);
 }
@@ -395,6 +419,109 @@ function writeAtomic(file: string, text: string): void {
   const tmp = `${file}.tmp-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
   fs.writeFileSync(tmp, text, 'utf8');
   fs.renameSync(tmp, file);
+}
+
+const RECORD_NAME = /^\d{12}\.json$/;
+/** iCloud Drive's stand-in for a file it has evicted to save space: still there. */
+const EVICTED_NAME = /^\.(\d{12}\.json)\.icloud$/;
+const VOID_FILE = 'void.json';
+
+/**
+ * Revisions this device handed out and will never write: no file in the
+ * target, and no record left to build one from.
+ *
+ * That happens when an entry is staged, the push is interrupted before its file
+ * lands, and the entry changes again -- the next push stages a new revision and
+ * the old one's record is overwritten. The content it carried is superseded
+ * here, so nothing is lost by declaring it; what matters is that a reader stops
+ * waiting for it. The set only grows: a revision number is never handed out
+ * twice, and a file is only ever written for a record that still exists.
+ */
+function abandonedRevisions(db: DB, target: string, device: string): number[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(deviceDir(target, device));
+  } catch {
+    /* c8 ignore next -- push creates the directory before this runs, unless the target vanished mid-push */
+    return [];
+  }
+  const present = new Set<number>();
+  for (const n of names) {
+    const name = EVICTED_NAME.exec(n)?.[1] ?? n;
+    if (RECORD_NAME.test(name)) present.add(Number(name.slice(0, 12)));
+  }
+  const held = new Set(
+    (db.prepare('SELECT revision FROM sync_records WHERE device_id = ?').all(device) as { revision: number }[]).map(
+      (r) => r.revision,
+    ),
+  );
+  const out: number[] = [];
+  for (let r = 1; r <= highWater(db, device); r += 1) {
+    if (!present.has(r) && !held.has(r)) out.push(r);
+  }
+  return out;
+}
+
+/** `[1, 2, 3, 7]` as `[[1, 3], [7, 7]]`: a void list stays small however old the device. */
+function toRanges(revisions: number[]): [number, number][] {
+  const ranges: [number, number][] = [];
+  for (const r of revisions) {
+    const last = ranges[ranges.length - 1];
+    if (last && last[1] === r - 1) last[1] = r;
+    else ranges.push([r, r]);
+  }
+  return ranges;
+}
+
+/** Publishes the void list, rewriting it only when it changed. */
+function writeVoids(target: string, device: string, revisions: number[]): void {
+  if (!revisions.length) return;
+  const file = path.join(deviceDir(target, device), VOID_FILE);
+  const text = `${JSON.stringify({ v: SYNC_FORMAT_VERSION, device_id: device, revisions: toRanges(revisions) })}\n`;
+  try {
+    if (fs.readFileSync(file, 'utf8') === text) return;
+  } catch {
+    // Not written yet.
+  }
+  writeAtomic(file, text);
+}
+
+/** Larger than any honest list: a void list holds ranges, not one line per record. */
+const VOID_MAX_BYTES = 1024 * 1024;
+
+/**
+ * A peer's voided revisions above `floor`, as sorted, merged ranges, or none if
+ * its list is missing, oversized or unreadable. A torn list is harmless: every
+ * revision it does name is void, and one it fails to name is only waited for a
+ * little longer. Ranges stay ranges -- a list claiming `[1, 1e12]` costs one
+ * pair, not a trillion set entries.
+ */
+function readVoids(target: string, device: string, floor: number): [number, number][] {
+  const file = path.join(deviceDir(target, device), VOID_FILE);
+  let parsed: { v?: unknown; device_id?: unknown; revisions?: unknown };
+  try {
+    if (fs.statSync(file).size > VOID_MAX_BYTES) return [];
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return [];
+  }
+  if (parsed?.v !== SYNC_FORMAT_VERSION || parsed.device_id !== device || !Array.isArray(parsed.revisions)) {
+    return [];
+  }
+  const ranges: [number, number][] = [];
+  for (const range of parsed.revisions) {
+    if (!Array.isArray(range) || !Number.isSafeInteger(range[0]) || !Number.isSafeInteger(range[1])) continue;
+    const lo = Math.max(range[0], floor + 1);
+    if (lo <= range[1]) ranges.push([lo, range[1]]);
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const [lo, hi] of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && lo <= last[1] + 1) last[1] = Math.max(last[1], hi);
+    else merged.push([lo, hi]);
+  }
+  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -445,8 +572,8 @@ export function push(db: DB, config: EklavyaConfig, opts: { target?: string | nu
     const body = payloads.get(rec.entry_uid);
     // A record whose payload this run did not rebuild predates the interruption
     // that lost its file; it is rebuilt from the database below, and dropped if
-    // the entry is gone -- a missing revision file is a gap the peer's reader
-    // stops at, which is correct: it will be filled on the next push.
+    // the entry has changed since -- the peer waits on the gap until the next
+    // push re-stages the entry and the old revision is declared void.
     const rebuilt = body ?? rebuildPayload(db, rec);
     if (!rebuilt) continue;
     const record: SyncRecord = {
@@ -465,6 +592,7 @@ export function push(db: DB, config: EklavyaConfig, opts: { target?: string | nu
     writeAtomic(file, `${JSON.stringify(record)}\n`);
     written += 1;
   }
+  writeVoids(g.target, g.device, abandonedRevisions(db, g.target, g.device));
 
   return { ok: true, device_id: g.device, target: g.target, staged: staged.length, written, already };
 }
@@ -538,7 +666,8 @@ function peerDevices(target: string, local: string): string[] {
   try {
     return fs
       .readdirSync(root, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && d.name !== local)
+      // A directory whose name is not a device id was not written by Eklavya.
+      .filter((d) => d.isDirectory() && d.name !== local && DEVICE_ID.test(d.name))
       .map((d) => d.name)
       .sort();
   } catch {
@@ -550,50 +679,196 @@ function pendingRecordFiles(target: string, device: string, after: number): { re
   let names: string[];
   try {
     names = fs.readdirSync(deviceDir(target, device));
+    /* c8 ignore start -- `peerDevices` just listed this directory; only a folder removed mid-pull lands here */
   } catch {
     return [];
   }
+  /* c8 ignore stop */
   return names
-    .filter((n) => /^\d{12}\.json$/.test(n))
+    .filter((n) => RECORD_NAME.test(n))
     .map((n) => ({ revision: Number(n.slice(0, 12)), file: path.join(deviceDir(target, device), n) }))
     .filter((r) => r.revision > after)
     .sort((a, b) => a.revision - b.revision);
 }
 
+/** Revisions from `device` applied above its floor, waiting for the gap below to fill. */
+function receivedAbove(db: DB, device: string, floor: number): Set<number> {
+  return new Set(
+    (
+      db.prepare('SELECT revision FROM sync_received WHERE device_id = ? AND revision > ?').all(device, floor) as {
+        revision: number;
+      }[]
+    ).map((r) => r.revision),
+  );
+}
+
+/** The void range holding `revision`, by binary search over sorted, disjoint ranges. */
+function voidAt(voids: [number, number][], revision: number): [number, number] | undefined {
+  let lo = 0;
+  let hi = voids.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const [a, b] = voids[mid]!;
+    if (revision < a) hi = mid - 1;
+    else if (revision > b) lo = mid + 1;
+    else return voids[mid];
+  }
+  return undefined;
+}
+
+/**
+ * Moves a peer's floor up through every revision now accounted for, forgets
+ * the individual receipts it covers, and counts what is still owed above it.
+ *
+ * Accounted for means applied, or voided by its writer with no file present: a
+ * file that exists but could not be read yet beats the writer's claim that it
+ * never will, because stepping over it would lose it for good. Everything here
+ * is arithmetic over the receipts, the unread files and the void ranges -- never
+ * a walk over revision numbers, which a stray `999999999999.json` would make a
+ * walk of a trillion steps.
+ */
+function advanceFloor(
+  db: DB,
+  device: string,
+  floor: number,
+  received: Set<number>,
+  unread: Set<number>,
+  voids: [number, number][],
+): { missing: number; first: number } {
+  let newest = floor;
+  for (const r of received) newest = Math.max(newest, r);
+  for (const r of unread) newest = Math.max(newest, r);
+  // A void past the newest revision anyone has seen cannot be owed, so it is not
+  // stepped over either: a later file would otherwise land below the floor.
+  const clamped = voids.filter(([a]) => a <= newest).map(([a, b]): [number, number] => [a, Math.min(b, newest)]);
+  const blockers = [...unread].sort((a, b) => a - b);
+
+  let next = floor;
+  for (;;) {
+    if (received.has(next + 1)) {
+      next += 1;
+      continue;
+    }
+    const range = voidAt(clamped, next + 1);
+    if (!range || unread.has(next + 1)) break;
+    const blocker = blockers.find((u) => u > next + 1 && u <= range[1]);
+    next = blocker ? blocker - 1 : range[1];
+  }
+
+  // Owed = every revision in (next, newest] that is not covered, where covered
+  // is received, or void with no unread file in its place.
+  const above = (r: number) => r > next && r <= newest;
+  let covered = 0;
+  for (const r of received) if (above(r)) covered += 1;
+  for (const [a, b] of clamped) {
+    const lo = Math.max(a, next + 1);
+    if (lo <= b) covered += b - lo + 1;
+  }
+  for (const r of [...received, ...unread]) if (above(r) && voidAt(clamped, r)) covered -= 1;
+  const missing = newest - next - covered;
+
+  db.transaction(() => {
+    setHighWater(db, device, next);
+    db.prepare('DELETE FROM sync_received WHERE device_id = ? AND revision <= ?').run(device, next);
+    db.prepare('UPDATE sync_state SET outstanding = ? WHERE device_id = ?').run(missing, device);
+  })();
+  // The floor stops only at a revision that is not covered, so it is the first owed.
+  return { missing, first: missing ? next + 1 : 0 };
+}
+
+/**
+ * The one-time recovery for an install upgraded from a release whose pull
+ * stepped over late records: every file at or below the mark it had then is
+ * read once more. Only what is unambiguous is applied -- an entry this device
+ * has never seen, or a plain fast-forward of the version it holds. Anything that
+ * would need a person to judge is left exactly as it is, because a record read
+ * now cannot be told from one the old pull already quarantined or superseded.
+ * It runs once: the old pull stopped at an unreadable record rather than
+ * stepping over it, so nothing below its mark is still waiting to be written.
+ */
+function replayEarlier(db: DB, target: string, device: string): { applied: number; tombstones: number } {
+  const through = (
+    db.prepare('SELECT replay_through FROM sync_state WHERE device_id = ?').get(device) as
+      | { replay_through: number }
+      | undefined
+  )?.replay_through;
+  if (!through) return { applied: 0, tombstones: 0 };
+
+  let applied = 0;
+  let tombstones = 0;
+  for (const { revision, file } of pendingRecordFiles(target, device, 0)) {
+    if (revision > through) break;
+    const rec = readRecord(file, device, revision);
+    if (!rec) continue;
+    const outcome = db.transaction(() => applyRecord(db, rec, true))();
+    if (outcome === 'applied') applied += 1;
+    else if (outcome === 'tombstone') {
+      applied += 1;
+      tombstones += 1;
+    }
+  }
+  db.prepare('UPDATE sync_state SET replay_through = 0 WHERE device_id = ?').run(device);
+  return { applied, tombstones };
+}
+
 /**
  * Applies what the peers wrote, one record at a time, in revision order.
  *
- * Each record is applied in its own transaction together with the high-water
- * mark it advances, so an interrupted pull leaves a consistent database and
- * resumes exactly where it stopped. An unreadable record stops that device's
- * stream rather than being skipped past: skipping would advance the mark over a
- * file that is merely still being written, and the record would never be read
- * again.
+ * Each record is applied in its own transaction together with the note that it
+ * was received, so an interrupted pull leaves a consistent database and resumes
+ * without applying anything twice. Order of arrival does not matter: a record
+ * that turns up after a later one is still read, because the floor never moves
+ * past a revision that has neither been applied nor voided by its writer. An
+ * unreadable record -- most likely one still being written -- is left for the
+ * next pull, and the records after it are still applied.
  */
 export function pull(db: DB, config: EklavyaConfig, opts: { target?: string | null } = {}): PullResult {
   const g = guard(db, config, opts.target);
   if (!g.ok) {
-    return { ok: false, reason: g.reason, applied: 0, tombstones: 0, skipped: 0, conflicts: 0, stalled: [] };
+    return {
+      ok: false,
+      reason: g.reason,
+      applied: 0,
+      tombstones: 0,
+      skipped: 0,
+      conflicts: 0,
+      recovered: 0,
+      stalled: [],
+      outstanding: [],
+    };
   }
 
   let applied = 0;
   let tombstones = 0;
   let skipped = 0;
   let conflicts = 0;
+  let recovered = 0;
   const stalled: string[] = [];
+  const outstanding: PullResult['outstanding'] = [];
 
   for (const device of peerDevices(g.target, g.device)) {
-    for (const { revision, file } of pendingRecordFiles(g.target, device, highWater(db, device))) {
+    const replay = replayEarlier(db, g.target, device);
+    recovered += replay.applied;
+    applied += replay.applied;
+    tombstones += replay.tombstones;
+
+    const floor = highWater(db, device);
+    const received = receivedAbove(db, device, floor);
+    const unread = new Set<number>();
+
+    for (const { revision, file } of pendingRecordFiles(g.target, device, floor)) {
+      if (received.has(revision)) continue;
       const rec = readRecord(file, device, revision);
       if (!rec) {
-        stalled.push(device);
-        break;
+        unread.add(revision);
+        continue;
       }
       const outcome = db.transaction(() => {
         const result = applyRecord(db, rec);
-        setHighWater(db, device, revision);
+        db.prepare('INSERT OR IGNORE INTO sync_received (device_id, revision) VALUES (?, ?)').run(device, revision);
         return result;
       })();
+      received.add(revision);
       if (outcome === 'applied') applied += 1;
       else if (outcome === 'tombstone') {
         applied += 1;
@@ -601,9 +876,24 @@ export function pull(db: DB, config: EklavyaConfig, opts: { target?: string | nu
       } else if (outcome === 'conflict') conflicts += 1;
       else skipped += 1;
     }
+
+    if (unread.size) stalled.push(device);
+    const owed = advanceFloor(db, device, floor, received, unread, readVoids(g.target, device, floor));
+    if (owed.missing) outstanding.push({ device_id: device, ...owed });
   }
 
-  return { ok: true, device_id: g.device, target: g.target, applied, tombstones, skipped, conflicts, stalled };
+  return {
+    ok: true,
+    device_id: g.device,
+    target: g.target,
+    applied,
+    tombstones,
+    skipped,
+    conflicts,
+    recovered,
+    stalled,
+    outstanding,
+  };
 }
 
 type ApplyOutcome = 'applied' | 'tombstone' | 'skipped' | 'conflict';
@@ -623,11 +913,33 @@ type ApplyOutcome = 'applied' | 'tombstone' | 'skipped' | 'conflict';
  * edited the same entry, which no timestamp can adjudicate: the local version
  * stays live and the incoming one is quarantined whole, for `repairConflict`.
  */
-function applyRecord(db: DB, rec: SyncRecord): ApplyOutcome {
+function applyRecord(db: DB, rec: SyncRecord, recovering = false): ApplyOutcome {
   const held = localRecord(db, rec.entry_uid);
   const local = localContent(db, rec.entry_uid);
 
+  // A version this one already moved past, delivered late: an earlier revision
+  // from the device that wrote what is held, or the version held one replaced.
+  // Checked first, so a late arrival can neither quarantine nor rename anything.
+  if (
+    held &&
+    ((held.device_id === rec.device_id && rec.revision <= held.revision) ||
+      held.base === ref(rec.device_id, rec.revision))
+  ) {
+    return 'skipped';
+  }
+
+  // Recovery applies only what needs no judgement: an entry with a quarantine
+  // open is already waiting on a person, and settling it here would retire that.
+  if (
+    recovering &&
+    db.prepare('SELECT 1 FROM sync_conflicts WHERE entry_uid = ? AND resolved_at IS NULL').get(rec.entry_uid)
+  ) {
+    return 'skipped';
+  }
+
   if (local && local.hash === rec.hash) {
+    // Renaming the agreed version to an old one is not unambiguous.
+    if (recovering && held) return 'skipped';
     // The two devices reached the same content independently. Adopting the
     // incoming version name costs nothing and lines up the next fast-forward.
     settle(db, rec);
@@ -640,8 +952,8 @@ function applyRecord(db: DB, rec: SyncRecord): ApplyOutcome {
       !dirty &&
       (rec.base === ref(held.device_id, held.revision) ||
         (held.device_id === rec.device_id && rec.revision > held.revision));
-    if (!dirty && held.device_id === rec.device_id && rec.revision <= held.revision) return 'skipped';
     if (!fastForward) {
+      if (recovering) return 'skipped';
       db.prepare(
         `INSERT INTO sync_conflicts (entry_uid, device_id, revision, base, local_ref, payload, detected_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -659,6 +971,7 @@ function applyRecord(db: DB, rec: SyncRecord): ApplyOutcome {
   } else if (local) {
     // No agreed version, but content here already: two independent creations
     // under one uid. Rare enough to be suspicious, so it is not merged either.
+    if (recovering) return 'skipped';
     db.prepare(
       `INSERT INTO sync_conflicts (entry_uid, device_id, revision, base, local_ref, payload, detected_at)
        VALUES (?, ?, ?, ?, 'local:unstaged', ?, ?)`,
@@ -842,11 +1155,9 @@ export function syncStatus(db: DB, config: EklavyaConfig, opts: { target?: strin
 
   const device = deviceId(db, config);
   const peers = (
-    db.prepare('SELECT * FROM sync_state ORDER BY device_id').all() as {
-      device_id: string;
-      last_revision: number;
-      last_sync_at: string | null;
-    }[]
+    db
+      .prepare('SELECT device_id, last_revision, last_sync_at, outstanding FROM sync_state ORDER BY device_id')
+      .all() as SyncStatus['peers']
   ).filter((p) => p.device_id !== device);
 
   return {

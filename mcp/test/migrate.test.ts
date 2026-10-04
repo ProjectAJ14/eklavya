@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 22;
+const LATEST_SCHEMA_VERSION = 23;
 
 const LEARNING_TABLES = [
   'attempt_retries',
@@ -58,13 +58,15 @@ const MEMORY_TABLES = [
 const IMPORT_TABLES = ['import_id_map'];
 
 /**
- * Migration 011: multi-device sync through a shared directory (ADR-09).
+ * Migrations 011, 022 and 023: multi-device sync through a shared directory (ADR-09),
+ * the correction links waiting for a replacement, and the per-revision receipts
+ * that let records arrive out of order.
  *
  * Listed apart from the memory tables for the reason SEC-02 gives: what syncs
  * is memory, and a learning table appearing in this list would be the first
  * sign that a developer's assessment history had started crossing machines.
  */
-const SYNC_TABLES = ['sync_conflicts', 'sync_records', 'sync_state', 'sync_supersessions'];
+const SYNC_TABLES = ['sync_conflicts', 'sync_received', 'sync_records', 'sync_state', 'sync_supersessions'];
 
 /** Migration 016: feature-use counts for the anonymous usage ping. */
 const USAGE_TABLES = ['usage_counts'];
@@ -159,6 +161,7 @@ describe('migrations', () => {
         '020_memory_fts_live.sql',
         '021_change_version.sql',
         '022_sync_supersessions.sql',
+        '023_sync_received.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -173,6 +176,10 @@ describe('migrations', () => {
 
       // 012 adds a column to a table 009 created, so it only survives if the
       // two ran in order on the same database rather than each from scratch.
+      // 023 adds a column to the sync_state table 011 created.
+      const syncCols = (db.prepare('PRAGMA table_info(sync_state)').all() as { name: string }[]).map((c) => c.name);
+      expect(syncCols).toContain('outstanding');
+
       const jobCols = (db.prepare('PRAGMA table_info(memory_jobs)').all() as { name: string }[]).map(
         (c) => c.name,
       );
@@ -218,7 +225,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
@@ -273,7 +280,7 @@ describe('migrations', () => {
       ).run();
       expect(() => db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run()).toThrow(/malformed/);
 
-      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql']);
+      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql']);
       db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
       expect(db.prepare('SELECT id, deleted_at FROM memory_entries ORDER BY id').all()).toEqual([
         { id: 1, deleted_at: 'then' },
