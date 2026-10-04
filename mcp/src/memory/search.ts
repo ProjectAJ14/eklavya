@@ -29,6 +29,13 @@ export interface SearchFilter {
    * is not a reason to spend their context.
    */
   strict?: boolean;
+  /**
+   * Leave out what this session wrote. Its work is already in the context the
+   * host kept, so recalling it back is the model paying to read itself (issue
+   * #117). In SQL rather than after the fact, so the session's own entries
+   * cannot take the places under `limit` that other sessions' work needed.
+   */
+  excludeSessionId?: string | null;
 }
 
 export interface SearchHit {
@@ -76,6 +83,10 @@ export function scopeClause(filter: SearchFilter, alias = 'e'): { sql: string; a
   if (filter.until) {
     where.push(`${alias}.occurred_at <= ?`);
     args.push(filter.until);
+  }
+  if (filter.excludeSessionId) {
+    where.push(`${alias}.session_id IS NOT ?`);
+    args.push(filter.excludeSessionId);
   }
   if (filter.tag) {
     where.push(`EXISTS (SELECT 1 FROM memory_entry_tags t WHERE t.entry_id = ${alias}.id AND t.tag = ?)`);

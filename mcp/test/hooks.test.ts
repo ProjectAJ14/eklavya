@@ -371,6 +371,16 @@ describe('SessionStart output', () => {
     expect(res.context).toContain('<eklavya-memory');
   });
 
+  // Issue #117: a resume restores the transcript, so the session's own entries
+  // are echo; a compaction may have lost them, so there they still come back.
+  it("recalls the session's own entries after a compaction but not on a resume", () => {
+    checkout();
+    insertEntry(db, { project: cwd, sessionId: SESSION, title: 'Refresh cookie rotation', narrative: 'Rotated on every refresh.' });
+    const start = (source: string) => runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart', source });
+    expect(start('resume').context ?? '').not.toContain('<eklavya-memory');
+    expect(start('compact').context).toContain('Refresh cookie rotation');
+  });
+
   // The bug this pins: a folder without git fell into the '*' bucket every
   // other such folder shares, so a brand-new folder was handed their history
   // and greeted with their savings.

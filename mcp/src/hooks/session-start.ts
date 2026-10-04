@@ -160,7 +160,10 @@ await run(async (input) => {
       title: input.source === 'resume' ? 'session resumed' : 'session started',
       body: `source=${input.source ?? 'startup'} cwd=${cwd}`,
     });
-    recalled = recallBlock(db, resolved, identity, 'session_start');
+    // A resume restores the whole transcript, so this session's own entries
+    // are already in front of the model (issue #117). A compaction does not:
+    // there they may be the detail the summary dropped.
+    recalled = recallBlock(db, resolved, identity, 'session_start', input.source === 'resume');
     if (recalled?.block) memoryContext.push(recalled.block);
   }
   // Every emit below that carries `memoryContext` passes this, so the receipt
