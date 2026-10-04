@@ -85,7 +85,9 @@ All launch `node` with `args`. Timeouts are in seconds: 10 for each registration
 [`HookInput`](../mcp/src/hooks/lib.ts) is the exact list Eklavya reads. An
 upstream field existing does not imply the integration uses it. Capture currently
 uses PostToolUse, not PostToolUseFailure; do not promise complete failed-tool
-coverage on hosts that route failures to a separate event.
+coverage on hosts that route failures to a separate event. A failure that does
+arrive is `tool_error` evidence and follows the same path exclusions as a read
+or edit (`prepare` in `mcp/src/memory/capture.ts`).
 
 ## Output and audience
 

@@ -86,12 +86,22 @@ export function prepare(
   if (toolExcluded(event.tool, policy)) return null;
   if (isOwnTraffic(event.tool, event.body)) return null;
 
-  const files = (event.files ?? []).filter((f) => !pathExcluded(f, policy));
-  // A file event whose only file was excluded is the excluded file. Keeping the
-  // event for its body would re-admit through the back door what the path rule
-  // just shut out.
-  if ((event.kind === 'file_edit' || event.kind === 'file_read') && (event.files?.length ?? 0) > 0 && files.length === 0) {
-    return null;
+  const named = event.files ?? [];
+  const files = named.filter((f) => !pathExcluded(f, policy));
+  if (files.length < named.length) {
+    // A file event whose only file was excluded is the excluded file. Keeping
+    // the event for its body would re-admit through the back door what the path
+    // rule just shut out. A read or edit naming an allowed file too keeps that
+    // file: its body is the arguments, not the excluded file's contents.
+    if (event.kind === 'file_edit' || event.kind === 'file_read') {
+      if (files.length === 0) return null;
+    } else {
+      // Any other event naming an excluded file is dropped whole, allowed files
+      // or not. A failed Read is a `tool_error`, and an error or a result
+      // excerpt quotes whichever file it came from — the body cannot be split
+      // by file, so no part of it can be kept safely.
+      return null;
+    }
   }
 
   // Redact, then cut — never the other way round. Cut first, the cap can land
