@@ -785,7 +785,7 @@ kbd {
   background: var(--panel); border: 1px solid var(--line); border-radius: 0;
   padding: 24px;
 }
-.dash__tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.dash__tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .dash__tile {
   background: var(--bg); border-radius: 0; padding: 12px 10px;
 }
@@ -829,7 +829,6 @@ kbd {
   .dash__grid { grid-template-columns: 1fr; gap: 40px; }
 }
 @media (max-width: 560px) {
-  .dash__tiles { grid-template-columns: repeat(2, 1fr); }
   .dash__chart { height: 96px; }
 }
 

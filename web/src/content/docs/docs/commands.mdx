@@ -28,9 +28,10 @@ Starts questions immediately. With no topic, it covers the work this session log
 /eklavya:quiz
 /eklavya:quiz caching
 /eklavya:quiz web-auth
+/eklavya:quiz csrf jwt-structure
 ```
 
-A topic selects a domain or concept slugs for this quiz only. Prerequisites come first; ordinary plans exclude mastered concepts and concepts already answered this session. An unmet enforced gate can revisit taught misses. Questions arrive one at a time, with a grade before the next.
+A topic selects a domain or one or more concept slugs for this quiz only. Unlike a bare `/eklavya:quiz`, which reviews only the current project's backlog, a topic or slug list works from any folder, and puts concepts due for review first. The dashboard's review queue builds this slug form for you, with a `cd` into the right project ([Starting your reviews](/docs/dashboard/#starting-your-reviews)). Prerequisites come first; ordinary plans exclude mastered concepts and concepts already answered this session. An unmet enforced gate can revisit taught misses. Questions arrive one at a time, with a grade before the next.
 
 An explicit quiz bypasses normal spacing and the as-you-go one-question cap. Each requested round can plan up to `max_questions_per_task` questions (four by default), even after the automatic session budget is spent. It still respects disabled questions and needs eligible concepts; an unmet gate can offer taught misses as retries. When nothing can be asked, it gives a specific reason:
 

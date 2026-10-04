@@ -67,9 +67,9 @@ Every page follows the same order, so the answer comes before the detail:
 
 1. **The title and one line of counts.** For example, `85 concepts asked of 334 · 96 answers · since 26 Aug`. A count that needs attention, such as pending evidence, is a link.
 2. **How this works**, folded. Open it for the arithmetic behind the page: mastery thresholds, decay, how savings are estimated.
-3. **The one next step**, when there is one: concepts due for review (questions you declined, did not know or got wrong), or a stalled memory job.
+3. **The one next step**, when there is one: concepts due for review (questions you declined, did not know or got wrong), with a link to the review queue and its commands, or a stalled memory job.
 4. **The lists**, one line per item. Open a line, or its page, for the rest.
-5. **Secondary sections, folded.** The practice calendar, grade history, capture settings and similar detail sit in closed sections whose summary line still shows a count or verdict. Open one with a click, Enter or Space.
+5. **Secondary sections, folded.** Grade history, capture settings and similar detail sit in closed sections whose summary line still shows a count or verdict. Open one with a click, Enter or Space.
 
 The dashboard remembers which sections you opened or closed, in this browser only.
 
@@ -77,12 +77,26 @@ The dashboard remembers which sections you opened or closed, in this browser onl
 
 | Page | What you can inspect |
 | --- | --- |
-| Dashboard (`#/learning/dashboard`) | Accuracy, mastery, due reviews and streak; recorded versus assessed concepts in the counts line; 30 days of answers, split into right, corrected, missed and skipped (a miss corrected from its explainer also shows as “corrected” with its try in question lists); the weakest five concepts and recent sessions. Where you stand and the practice calendar are folded. |
+| Dashboard (`#/learning/dashboard`) | Three tiles (accuracy, mastery, due reviews), then the [streak card](#the-streak) open right under them; recorded versus assessed concepts in the counts line; 30 days of answers, split into right, corrected, missed and skipped (a miss corrected from its explainer also shows as “corrected” with its try in question lists); the weakest five concepts and recent sessions. Where you stand is folded. |
 | Concepts (`#/learning/concepts`) | Search, sort and filter the graph by domain or state: due, learning, mastered or unseen. |
-| Review (`#/learning/review`) | Due reviews, upcoming reviews with a 14-day forecast, and skipped questions. Due and upcoming list only concepts whose latest answer was declined, blank or wrong; a correct answer is never owed. Tabs use `/upcoming` and `/skipped`. |
+| Review (`#/learning/review`) | **Start your reviews**: one command per project with due concepts, most due first, to copy into a terminal (see [Starting your reviews](#starting-your-reviews)). Then due reviews, upcoming reviews with a 14-day forecast, and skipped questions. Due and upcoming list only concepts whose latest answer was declined, blank or wrong; a correct answer is never owed. Tabs use `/upcoming` and `/skipped`. |
 | Sessions (`#/learning/sessions`) | Sessions that logged concepts or asked questions. Memory-only sessions are listed in Memory. |
 | Projects (`#/learning/projects`) | One line per project: level, accuracy and last activity. Open it for logged and assessed concepts, promotion conditions and 30 days of answers. Each project's level and promotion conditions come from its own settings, as `/eklavya:progress` reports them from inside it, whichever folder the dashboard was started in; a checkout that has gone keeps its own settings. Projects with logged work but no answers say “not assessed”. |
 | Domains (`#/learning/domains`) | Concept coverage and the spread of question tiers. |
+
+### The streak
+
+A day counts toward your streak when you answered at least one question that day: right, missed, skipped or corrected. Days are your computer's local calendar days, so an answer at 01:00 counts for the day it is where you are, not the UTC date. The card shows the current run (it still counts while today has no answer yet, and asks for one to extend it), your longest run, and a calendar with one cell per day: four shades, relative to the busiest day on screen, and an outline around the days of the current run. Hover a cell for its date and its answers; corrected misses count as right there, as they do in Accuracy. On a narrow screen the calendar shows fewer weeks and the ‹ › arrows page back up to a year. With a project selected, the streak counts only that project's answers.
+
+### Starting your reviews
+
+A bare `/eklavya:quiz` serves reviews only from the project it runs in. The review queue therefore gives each project its own command, for example:
+
+```bash
+cd '/Users/you/code/api' && claude "/eklavya:quiz csrf jwt-structure"
+```
+
+It opens Claude Code in the project where you last answered those concepts, so the answer counts there, and asks about the named concepts, most overdue first. One command names at most 20 concepts, and each run asks up to your `max_questions_per_task` limit (four by default); run it again for the rest. **Copy** puts it on your clipboard; if the browser refuses, the command is selected for ⌘C or Ctrl+C. On Windows the command uses PowerShell's `Set-Location -LiteralPath`. When the project's checkout is gone, the command has no `cd`: run it inside the project you want the answers counted in. If questions are off for that project, the quiz says so and `/eklavya:mode` turns them back on.
 
 ## Memory pages
 
@@ -153,7 +167,7 @@ Only projects with a git checkout on this machine can be configured. The footer'
 
 | Detail page | Contains |
 | --- | --- |
-| Concept (`#/learning/concept/<slug>`) | Score and decay, review schedule, and every recorded question as one line that opens to its options and feedback. Grade history, logged context and connected concepts are folded. |
+| Concept (`#/learning/concept/<slug>`) | Score and decay, review schedule, a copyable command for this concept alone when it is due, and every recorded question as one line that opens to its options and feedback. Grade history, logged context and connected concepts are folded. |
 | Session (`#/learning/session/<id>` or `#/memory/session/<id>`) | Logged work and the questions asked, then folded sections for review concepts, observations and proposed concepts. Both routes show the same session with the originating workflow's sidebar. |
 | Domain (`#/learning/domain/<name>`) | Concepts ordered by weakness, with mastery and learning state. |
 | Observation (`#/memory/entry/<id>`) | Narrative, facts, files, tags, summariser, confidence, concept candidates, reuse receipts and expandable raw evidence. Corrections link to the replacement. |
