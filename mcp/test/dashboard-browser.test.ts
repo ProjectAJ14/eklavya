@@ -854,6 +854,12 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await page.evaluate((h) => { location.hash = h; }, `#/artifacts/view/${encodeURIComponent(id)}`);
       await ready(page);
     };
+    /**
+     * The page records a tab's position from its scroll event, which fires on
+     * the next frame: a tab switch that lands first keeps the old position.
+     */
+    const recorded = (page: Page, id: string, y: number) => page.waitForFunction(
+      ([id, y]) => Math.abs(((0, eval)('TABS').scroll.get(id) ?? -1e9) - y) <= 1, [id, y] as const, { timeout: 5000 });
     const all = async (page: Page) => { await page.click('#view [role="tab"]:has-text("All artifacts")'); await ready(page); };
 
     it('opens every card in the dashboard, as tabs in order, with no duplicates', async () => {
@@ -980,9 +986,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         window.scrollTo({ top: y, behavior: 'instant' });
         return y;
       });
-      // The page records the position from its scroll event, which fires on the
-      // next frame; switching tabs before then would leave nothing to go back to.
-      await w.page.waitForFunction(([id, y]) => Math.abs(((0, eval)('TABS').scroll.get(id) ?? -1e9) - y) <= 1, [P[10]!, deep] as const, { timeout: 5000 });
+      await recorded(w.page, P[10]!, deep);
       await go(w.page, P[1]!);
       await go(w.page, P[10]!);
       await w.page.waitForFunction((y) => Math.abs(scrollY - y) <= 1, deep, { timeout: 5000 });
@@ -1008,6 +1012,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         return y;
       });
       expect(half).toBeGreaterThan(500);
+      await recorded(w.page, P[2]!, half);
       await w.page.click('#view [role="tab"]:has-text("Tab page 1")');
       await ready(w.page);
       await w.page.click('#view [role="tab"]:has-text("Tab page 2")');
@@ -1079,10 +1084,12 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     const beacons = (page: Page) => page.$$eval('.driver-hint:not(.driver-hint-hidden)', (b) => b.map((x) => x.getAttribute('aria-label')));
     const stored = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('eklavya-dash-tips') ?? 'null'));
     const bubbles = (page: Page) => page.locator(bubble).count();
+    /** Under the block's 12s, so a stall fails on the step that stalled. */
+    const WAIT = { timeout: 5000 };
 
     it('opens the first tip by itself once, and marks every other tip with a beacon', async () => {
       const w = await open('#/learning/dashboard', { tips: true, init: tips([ONE, TWO]) });
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       expect(await w.page.textContent(bubble)).toContain('Tip: The first tip.');
       expect(await w.page.getAttribute(`${bubble}`, 'role')).toBe('dialog');
       expect(await beacons(w.page)).toEqual(['One', 'Two']);
@@ -1095,14 +1102,14 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
     it('Got it dismisses for good', async () => {
       const w = await open('#/learning/dashboard', { tips: true, init: tips([ONE, TWO]) });
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       await w.page.click(`${bubble} .driver-popover-next-btn`);
       expect(await bubbles(w.page)).toBe(0);
       expect(await beacons(w.page)).toEqual(['Two']);
       expect((await stored(w.page)).done).toEqual(['t-one']);
       await w.page.reload(); await ready(w.page);
       // The next tip opens by itself now; the dismissed one never comes back.
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       expect(await w.page.textContent(bubble)).toContain('The second tip.');
       expect(await beacons(w.page)).toEqual(['Two']);
       await w.ctx.close();
@@ -1110,14 +1117,14 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
     it('× and Escape close the bubble and keep the beacon, which reopens it', async () => {
       const w = await open('#/learning/dashboard', { tips: true, init: tips([ONE, TWO]) });
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       await w.page.keyboard.press('Escape');
       expect(await bubbles(w.page)).toBe(0);
       expect(await beacons(w.page)).toEqual(['One', 'Two']);
       expect(await w.page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('One');
       // Enter on the focused beacon reopens it, focus goes in, and the × closes it back to the beacon.
       await w.page.keyboard.press('Enter');
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       expect(await w.page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('Close');
       await w.page.keyboard.press('Tab');
       expect(await w.page.evaluate(() => document.activeElement?.textContent)).toBe('Got it');
@@ -1130,14 +1137,14 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await bubbles(w.page)).toBe(0);
       expect(await beacons(w.page)).toEqual(['One', 'Two']);
       await w.page.click('.driver-hint[aria-label="One"]');
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       expect(await stored(w.page)).toMatchObject({ off: false, done: [], opened: ['t-one'] });
       await w.ctx.close();
     });
 
     it('using the feature dismisses its tip', async () => {
       const w = await open('#/learning/dashboard', { tips: true, init: tips([ONE, TWO]) });
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       await w.page.click('#view details.about > summary');
       expect(await w.page.evaluate(() => (document.querySelector('#view details.about') as HTMLDetailsElement).open)).toBe(true);
       expect(await beacons(w.page)).toEqual(['One']);
@@ -1148,7 +1155,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     it('closes the bubble on navigation, and never shows two', async () => {
       const THREE = { id: 't-three', where: ['learning/concepts'], el: '#chips', title: 'Three', text: 'The third tip.' };
       const w = await open('#/learning/dashboard', { tips: true, init: tips([ONE, TWO, THREE]) });
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       // Opening another closes the first: one bubble at a time.
       await w.page.keyboard.press('Escape');
       await w.page.click('.driver-hint[aria-label="Two"]');
@@ -1157,9 +1164,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await bubbles(w.page)).toBe(1);
       expect(await w.page.textContent(bubble)).toContain('The first tip.');
       await w.page.click('#nav a[data-nav="concepts"]');
-      await w.page.waitForFunction(() => document.documentElement.dataset.rendered === '#/learning/concepts');
+      await w.page.waitForFunction(() => document.documentElement.dataset.rendered === '#/learning/concepts', null, WAIT);
       expect(await bubbles(w.page)).toBe(0);
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       expect(await bubbles(w.page)).toBe(1);
       expect(await w.page.textContent(bubble)).toContain('The third tip.');
       expect(await beacons(w.page)).toEqual(['Three']);
@@ -1168,7 +1175,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
     it('the sidebar switch hides every tip, and on starts them over', async () => {
       const w = await open('#/learning/dashboard', { tips: true, init: tips([ONE, TWO]) });
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       await w.page.click(`${bubble} .driver-popover-next-btn`);
       await w.page.click('[data-tips="off"]');
       expect(await w.page.getAttribute('[data-tips="off"]', 'aria-pressed')).toBe('true');
@@ -1181,7 +1188,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       }
       expect(await w.page.getAttribute('[data-tips="off"]', 'aria-pressed')).toBe('true');
       await w.page.click('[data-tips="on"]');
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       expect(await w.page.textContent(bubble)).toContain('The first tip.');
       expect(await beacons(w.page)).toEqual(['One', 'Two']);
       await w.ctx.close();
@@ -1199,7 +1206,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(w.errors).toEqual([]);
       await w.ctx.close();
       const m = await open('#/learning/dashboard', { tips: true, init: tips([ONE]) + `localStorage.setItem('eklavya-dash-tips', '{nope');` });
-      await m.page.waitForSelector(bubble);
+      await m.page.waitForSelector(bubble, WAIT);
       expect(m.errors).toEqual([]);
       await m.ctx.close();
     });
@@ -1208,8 +1215,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const w = await open(`#/artifacts/view/${enc(fix.other)}`, {
         tips: true, init: tips([{ id: 't-tabs', where: ['artifacts/view'], el: '#view [role="tablist"]', title: 'Tabs', text: 'Open pages.' }]),
       });
-      await w.page.waitForSelector(bubble);
-      await w.page.waitForSelector('#fix-open');
+      await w.page.waitForSelector(bubble, WAIT);
+      await w.page.waitForSelector('#fix-open', WAIT);
       await w.page.click('#fix-open');
       expect(await w.page.evaluate(() => (document.getElementById('fix') as HTMLDialogElement).open)).toBe(true);
       expect(await bubbles(w.page)).toBe(0);
@@ -1251,7 +1258,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
     it('on a phone, leaves out tips whose feature is in the closed drawer', async () => {
       const w = await open('#/learning/dashboard', { tips: true, width: 560, height: 800 });
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, WAIT);
       expect(await w.page.textContent(bubble)).toContain('Every page explains');
       expect(await beacons(w.page)).toEqual(['How this works']);
       // Closing the drawer slides the rail away; its features stay out while it moves.
@@ -1277,7 +1284,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await bubbles(w.page)).toBe(0);
       expect(await beacons(w.page)).toEqual([]);
       await w.page.keyboard.press('Escape');
-      await w.page.waitForSelector(bubble, { timeout: 5000 });
+      await w.page.waitForSelector(bubble, WAIT);
       const r = await w.page.$eval(bubble, (b) => { const x = b.getBoundingClientRect(); return { l: x.left, r: x.right, w: innerWidth }; });
       expect(r.l).toBeGreaterThanOrEqual(8);
       expect(r.r).toBeLessThanOrEqual(r.w - 8);

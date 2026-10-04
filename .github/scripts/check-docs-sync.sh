@@ -5,8 +5,9 @@
 #   .github/scripts/check-docs-sync.sh [base-ref [head-ref]]   # default: origin/main HEAD
 #
 # Product code is what users run or what the manual describes. Contributor
-# tooling (.github/, eval/, docs/) and the documentation surfaces themselves
-# are not product code, so a docs-only change never trips this check.
+# tooling (.github/, eval/, docs/), the runtime's tests (mcp/test/) and the
+# documentation surfaces themselves are not product code, so a docs-only or
+# test-only change never trips this check.
 set -eu
 
 base=${1:-origin/main}
@@ -16,7 +17,7 @@ changed=$(git diff --name-only "$base"..."$head")
 # ponytail: path lists, not a parser. Add a directory here when one ships code.
 code=$(printf '%s\n' "$changed" | grep -E \
   '^(mcp/|hooks/|cli/|scripts/|skills/|agents/|user-skill/|\.claude-plugin/|\.mcp\.json$)' \
-  | grep -vE '(^|/)(README|CLAUDE)\.md$' || true)
+  | grep -vE '(^|/)(README|CLAUDE)\.md$|^mcp/test/' || true)
 
 if [ -z "$code" ]; then
   echo "docs-sync: no product code changed."
