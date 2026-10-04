@@ -4335,7 +4335,8 @@ Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
     c.cadence,
     c.difficulty,
   ].filter(Boolean);
-  $('dials').innerHTML = `<span class="mono">${dials.map(esc).join(' · ')}</span>`;
+  // The user file's dials: a project's own overrides show in its row.
+  $('dials').innerHTML = `<span class="mono" title="Your user settings. A project's own settings can override them; each project shows the level they resolve to.">your settings: ${dials.map(esc).join(' · ')}</span>`;
 
   // One selector for both workflows, built from the one inventory: a project
   // that logged concepts but was never asked a question, or that only ever

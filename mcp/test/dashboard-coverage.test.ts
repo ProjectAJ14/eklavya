@@ -49,12 +49,14 @@ const attempt = (slug: string, grade: number, extra: { repo?: string | null; ts?
     .run(id(slug), extra.session ?? 'cov-s', 'q', grade, extra.repo ?? null, extra.ts ?? new Date().toISOString());
 
 describe('dashboardState on rows the tools never write', () => {
-  it('opens with the default settings when the working directory is gone', () => {
+  it('opens with the user settings when the working directory is gone', () => {
+    fs.mkdirSync(process.env.EKLAVYA_HOME!, { recursive: true });
+    fs.writeFileSync(path.join(process.env.EKLAVYA_HOME!, 'config.json'), JSON.stringify({ cadence: 'end' }));
     vi.spyOn(process, 'cwd').mockImplementation(() => {
       throw Object.assign(new Error('ENOENT: uv_cwd'), { code: 'ENOENT' });
     });
     const s = dashboardState(db) as any;
-    expect(s.config.cadence).toBe(DEFAULT_CONFIG.cadence);
+    expect(s.config.cadence).toBe('end');
     expect(s.config.focus).toBe(DEFAULT_CONFIG.focus);
   });
 
