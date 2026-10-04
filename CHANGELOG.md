@@ -1,3 +1,10 @@
+## [1.48.5](https://github.com/ProjectAJ14/eklavya/compare/v1.48.4...v1.48.5) (2026-10-04)
+
+
+### Bug Fixes
+
+* apply sync records that arrive out of order ([#114](https://github.com/ProjectAJ14/eklavya/issues/114)) ([e89dcd3](https://github.com/ProjectAJ14/eklavya/commit/e89dcd394b94d62fbf8ef2101839c1d631cbc338)), closes [hi#water](https://github.com/hi/issues/water) [#92](https://github.com/ProjectAJ14/eklavya/issues/92)
+
 ## [1.48.4](https://github.com/ProjectAJ14/eklavya/compare/v1.48.3...v1.48.4) (2026-10-04)
 
 

@@ -33,9 +33,9 @@ Every project starts at `easy` with `difficulty: auto`. The planner still choose
 
 All three conditions must hold at the current level in that project:
 
-1. **100 passing answers**, each grade 3 or higher (`level_up_after`).
-2. **70% accuracy** across answered questions (`level_up_accuracy`). Declines are excluded, and so are [corrections](/docs/grading-engine/#correcting-from-an-explainer) made from an explainer page, so a corrected miss still counts as a miss here.
-3. **15 distinct concepts** among those passes.
+1. **100 passing answers**, each grade 3 or higher (`level_up_after`). A miss at this level that you [correct from its explainer page](/docs/grading-engine/#correcting-from-an-explainer) counts as one, and a correction can complete the promotion on its own.
+2. **70% accuracy** across answered questions (`level_up_accuracy`). Declines are excluded. A corrected miss from this level counts as right here too, so its accuracy recovers as you fix those mistakes; the correction does not add an answer.
+3. **15 distinct concepts** among those passes, counting only answers passed when asked, not corrections.
 
 Changing `level_up_after` also scales the distinct-concept minimum to `max(1, min(15, ceil(level_up_after / 3)))`. Promotion starts a new answer count for the next band. Eklavya never demotes you automatically.
 

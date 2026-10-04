@@ -1054,7 +1054,8 @@ function sessions() {
     touch(s, mem.first); touch(s, mem.last);
   }
   return [...m.values()]
-    .map((s) => ({ ...s, passed: s.asked.filter((a) => a.grade >= 3).length }))
+    // A miss corrected from its explainer counts as right, as on the Accuracy tile.
+    .map((s) => ({ ...s, passed: s.asked.filter((a) => a.grade >= 3 || a.corrected_at).length }))
     .sort((a, b) => String(b.last).localeCompare(String(a.last)));
 }
 
@@ -1539,7 +1540,8 @@ function viewLearningDashboard() {
   const scoped = conceptsInScope();
   const atts = attemptsInScope();
   const answered = atts.length;
-  const passed = atts.filter((a) => a.grade >= 3).length;
+  // A miss corrected from its explainer counts as right: fixing it is learning.
+  const passed = atts.filter((a) => a.grade >= 3 || a.corrected_at).length;
   const due = seen.filter((c) => c.due);
   const mastered = seen.filter((c) => c.mastered);
   // Learning's sessions; a memory-only one belongs to the other workflow.
@@ -2793,7 +2795,7 @@ function pickFix(btn) {
       if (r.corrected) {
         btn.classList.add('is-right');
         btn.querySelector('.fix__tag').textContent = 'Right answer';
-        fixSay('Corrected. Your stats now count this as answered.', 'ok');
+        fixSay('Corrected. Your accuracy now counts this as right.', 'ok');
         FIX.q = { ...FIX.q, tries: r.tries, corrected_at: new Date().toISOString() };
         const row = S.artifacts.find((x) => x.id === FIX.artifact);
         if (row) row.correction = 'done';

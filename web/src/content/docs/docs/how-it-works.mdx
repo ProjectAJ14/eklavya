@@ -50,7 +50,7 @@ Delegated agents can log concepts, but questions return to the main conversation
   ]}
 />
 
-This needs [`explain_on_wrong`](/docs/configuration/#every-key) on (the default), the background dashboard, and a question recorded with its right option; otherwise the page opens as a file or has no button. A correction updates the concept's score but does not count toward a commit gate or a level, and the concept still comes back for review, because picking the answer right after reading it is recognition rather than recall. [Grading](/docs/grading-engine/#correcting-from-an-explainer) has the details.
+This needs [`explain_on_wrong`](/docs/configuration/#every-key) on (the default), the background dashboard, and a question recorded with its right option; otherwise the page opens as a file or has no button. A correction updates the concept's score and counts the miss as right in your accuracy and toward your level. It does not count toward a commit gate, and the concept still comes back for review, because picking the answer right after reading it is recognition rather than recall. [Grading](/docs/grading-engine/#correcting-from-an-explainer) has the details.
 
 ## From work to useful memory
 

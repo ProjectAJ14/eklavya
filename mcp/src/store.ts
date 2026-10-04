@@ -202,7 +202,8 @@ export function isMissed(grade: number, outcome: AttemptOutcome | null): boolean
 // again. Every pick lands in `attempt_retries`; the right one also writes a
 // grade-3 attempt row with `retry_of` set, through `gradeConcept`, so mastery
 // moves as for any pass. That row is recognition, not recall, so the gate,
-// level progress and the review backlog skip it.
+// the level's distinct concepts and the review backlog skip it; the corrected
+// miss counts as right in accuracy and in the level's passing answers.
 // ---------------------------------------------------------------------------
 
 export type CorrectionErrorCode = 'not_found' | 'not_correctable' | 'already_corrected' | 'not_an_option';
@@ -1052,15 +1053,20 @@ export function projectLevelRow(db: DB, repo: string): ProjectLevelRow | undefin
  * `since` is the level's `promoted_at`: answers from the previous band are spent.
  * Declines are excluded from both halves of the accuracy fraction -- skipping a
  * question honestly must never cost a level, or the level becomes a reason to
- * guess. Corrections (`retry_of`) are excluded too: a pick made after reading
- * the answer must not buy a promotion. A `dont_know` counts as answered but
- * never as passed, whatever grade a legacy row carries.
+ * guess. A correction (`retry_of`) is not a new answer, but it turns the miss
+ * it corrects into a pass, for both the passing count and accuracy: fixing a
+ * mistake from its explainer is learning, and accuracy that could never recover
+ * from early misses would only discourage. Distinct concepts still need a pass
+ * on the first try. A `dont_know` counts as answered but never as passed on its
+ * own, whatever grade a legacy row carries.
  */
 export function levelCounts(db: DB, repo: string, level: Level, since: string | null): LevelCounts {
   const row = db
     .prepare(
       `SELECT
-         COALESCE(sum(CASE WHEN grade >= ? AND COALESCE(outcome, 'answered') = 'answered' THEN 1 ELSE 0 END), 0) AS passed,
+         COALESCE(sum(CASE WHEN grade >= ? AND COALESCE(outcome, 'answered') = 'answered' THEN 1
+                           WHEN EXISTS (SELECT 1 FROM attempts fix WHERE fix.retry_of = attempts.id) THEN 1
+                           ELSE 0 END), 0) AS passed,
          count(*) AS answered,
          count(DISTINCT CASE WHEN grade >= ? AND COALESCE(outcome, 'answered') = 'answered' THEN concept_id END) AS concepts
        FROM attempts

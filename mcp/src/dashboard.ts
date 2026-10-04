@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
 import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
 import {
-  correctionStates, correctionTarget, CorrectionError, GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey, recordRetry,
+  correctionStates, correctionTarget, CorrectionError, GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey, promoteIfEarned, recordRetry,
   type CorrectionErrorCode,
 } from './store.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -640,7 +640,8 @@ export function projectInventory(db: DB): {
   for (const r of many<{ repo: string | null; session_id: string | null; concept_id: number; n: number; passed: number; skipped: number; first: string; last: string }>(
     db,
     `SELECT repo, session_id, concept_id, count(*) AS n,
-            COALESCE(SUM(grade >= ${PASSING_GRADE}), 0) AS passed,
+            -- A miss corrected from its explainer counts as right, as on the Accuracy tile.
+            COALESCE(SUM(grade >= ${PASSING_GRADE} OR EXISTS (SELECT 1 FROM attempts fix WHERE fix.retry_of = attempts.id)), 0) AS passed,
             COALESCE(SUM(outcome IN ('declined','dont_know')), 0) AS skipped,
             min(ts) AS first, max(ts) AS last
      FROM attempts WHERE ${NOT_CORRECTION} GROUP BY repo, session_id, concept_id`,
@@ -1409,7 +1410,17 @@ export function retryAttempt(db: DB, body: unknown): { status: number; body: Rec
   if (typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1) return bad('attempt_id is a positive integer.');
   if (typeof picked !== 'string' || picked.length > LIMITS.option) return bad('picked is the option label, as text.');
   try {
-    return { status: 200, body: recordRetry(db, id, picked, new Date()) };
+    const out = db.transaction(() => {
+      const r = recordRetry(db, id, picked, new Date());
+      // A corrected miss is a pass for the level, so it can be the one that completes it.
+      if (r.corrected) {
+        const { repo } = db.prepare('SELECT repo FROM attempts WHERE id = ?').get(id) as { repo: string | null };
+        const root = repo && repo !== GLOBAL_PROJECT ? repo : null;
+        promoteIfEarned(db, loadProjectConfig(root).config, root);
+      }
+      return r;
+    })();
+    return { status: 200, body: out };
   } catch (err) {
     if (err instanceof CorrectionError) return correctionError(err.code);
     throw err;

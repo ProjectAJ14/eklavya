@@ -19,7 +19,7 @@ import { openDb, type DB } from '../src/db.js';
 import { startDashboard } from '../dist/dashboard.js';
 import { createArtifact } from '../dist/artifacts.js';
 import { seedFixture, type Fixture } from './dashboard-fixture.js';
-import { gradeConcept } from '../src/store.js';
+import { gradeConcept, recordRetry } from '../src/store.js';
 
 function launchOptions(): Parameters<typeof chromium.launch>[0] | null {
   const explicit = process.env.EKLAVYA_TEST_BROWSER;
@@ -640,7 +640,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
       await w.page.focus('#fix-opts [data-pick="A lock"]');
       await w.page.keyboard.press('Enter');
-      await w.page.waitForSelector('#fix-msg:text("Corrected. Your stats now count this as answered.")');
+      await w.page.waitForSelector('#fix-msg:text("Corrected. Your accuracy now counts this as right.")');
       expect(await w.page.textContent('#fix-opts [data-pick="A lock"]')).toContain('Right answer');
       expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('fix-close');
       // The rest of the page was drawn from the old payload, and says so.
@@ -662,6 +662,33 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(w.outbound).toEqual([]);
       await w.ctx.close();
     }, 60000);
+
+    it('counts a corrected miss as right on the Accuracy tile and in its session, out of the same answers', async () => {
+      const miss = gradeConcept(db, {
+        conceptId: (db.prepare(`SELECT id FROM concepts WHERE slug = 'csrf'`).get() as { id: number }).id,
+        sessionId: 's-acc', question: 'Which one serialises writers?', answer: 'A cache', grade: 1, difficulty: 2,
+        feedback: null, outcome: 'answered', format: 'mcq', options: KEY.options, correct: 'A lock', optionNotes: KEY.notes,
+        repo: null, level: null, now: new Date(),
+      }).attemptId;
+      const tile = async (w: Watched) => {
+        const [, right, of] = (await w.page.textContent('#view'))!.match(/(\d+) right of (\d+)/)!;
+        return [Number(right), Number(of)];
+      };
+      const before = await open('#/learning/dashboard');
+      const [right, of] = await tile(before);
+      await before.ctx.close();
+      const session = await open('#/learning/session/s-acc');
+      expect(await session.page.textContent('#view')).toContain('0/1 right (0%)');
+      await session.ctx.close();
+
+      recordRetry(db, miss, 'A lock', new Date());
+      const after = await open('#/learning/dashboard');
+      expect(await tile(after)).toEqual([right + 1, of]);
+      await after.page.goto(base + '/#/learning/session/s-acc'); await ready(after.page);
+      expect(await after.page.textContent('#view')).toContain('1/1 right (100%)');
+      expect(after.errors).toEqual([]);
+      await after.ctx.close();
+    });
 
     it('asks before leaving only while a correction is open, and Escape is "not now"', async () => {
       const w = await open(`#/artifacts/view/${enc(fix.other)}`);
