@@ -39,7 +39,7 @@ and `eklavya telemetry off` stops them.
 | Learning | Short questions about the code Claude just wrote. | [First session](https://eklavya-run.web.app/docs/first-session/) |
 | Memory | Claude remembers your past work in this project. | [Memory](https://eklavya-run.web.app/docs/memory/) |
 | Artifacts | Turn any explanation into a page with diagrams. | [Artifacts](https://eklavya-run.web.app/docs/commands/#the-artifacts-skill) |
-| Dashboard | See your progress, memory and pages in the browser. | [Dashboard](https://eklavya-run.web.app/docs/dashboard/) |
+| Dashboard | See your progress, streak, memory and pages in the browser, and copy a ready-to-run command for your due reviews. | [Dashboard](https://eklavya-run.web.app/docs/dashboard/) |
 | Dials | Choose what it teaches, when it asks and how hard. | [The dials](https://eklavya-run.web.app/docs/dials/) |
 | Commit gate | Optional: pass a quiz before you can commit. The terminal hook also holds commits in linked worktrees. | [Commit gate](https://eklavya-run.web.app/docs/commit-gate/) |
 
@@ -104,7 +104,7 @@ dismiss them one by one or switch them off in the sidebar. It has four parts:
 
 | Part | What you can see | Read more |
 |---|---|---|
-| Learning | Accuracy, mastery, reviews due, weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
+| Learning | Accuracy, mastery, your streak and its calendar, reviews due with a command to start them, weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |

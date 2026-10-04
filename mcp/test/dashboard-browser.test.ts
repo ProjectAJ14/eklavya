@@ -47,6 +47,15 @@ const KEY = { options: ['A cache', 'A lock', 'A queue', 'A log'], notes: ['keeps
 let close = () => {};
 /** The page's artifact tabs, a top-level const of its script. */
 declare const TABS: { scroll: Map<string, number> };
+/** Page globals the day tests call directly. */
+declare function todayKey(): string;
+declare function fromKey(k: string): Date;
+declare function render(): void;
+declare let S: { daily: unknown[]; concepts: unknown[]; logged: unknown[] };
+declare function inScope(repo: unknown, sid: unknown): boolean;
+declare let INV: { projects: unknown[] };
+declare function startCommand(concepts: unknown[]): { name: string; count: number; command: string; note: string }[];
+declare function streaks(map: Map<string, { day: string; total: number }>): { current: number; best: number; days: number };
 let browser: Browser;
 const savedHome = process.env.EKLAVYA_HOME;
 
@@ -86,15 +95,16 @@ interface Watched { page: Page; ctx: BrowserContext; errors: string[]; outbound:
 
 async function open(
   hash: string,
-  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean } = {},
+  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; tz?: string; now?: string } = {},
 ): Promise<Watched> {
-  const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 } });
+  const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 }, ...(opts.tz ? { timezoneId: opts.tz } : {}) });
   // Tips are switched off unless a test is about them, so a bubble never sits on what a test clicks.
   if (!opts.tips) await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-tips') ?? localStorage.setItem('eklavya-dash-tips', '{"off":true}'); } catch { /* the framed page */ } });
   // Init scripts run in every frame, and the viewer's sandboxed frame has no storage.
   if (opts.ground) await ctx.addInitScript((g) => { try { localStorage.setItem('eklavya-ground', g); } catch { /* the framed page */ } }, opts.ground);
   if (opts.init) await ctx.addInitScript(opts.init);
   const page = await ctx.newPage();
+  if (opts.now) await page.clock.setFixedTime(opts.now);
   track(page);
   const errors: string[] = [];
   const outbound: string[] = [];
@@ -258,20 +268,20 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     });
 
     it('folds secondary detail, draws a hidden chart on open and remembers it', async () => {
-      const w = await open('#/learning/dashboard');
+      const w = await open('#/learning/concept/csrf');
       // The page leads with its answer: explanation and secondary cards are closed.
       expect(await w.page.getAttribute('#view details.about', 'open')).toBeNull();
-      const heat = w.page.locator('details[data-fold="learn:heat"]');
+      const heat = w.page.locator('details[data-fold="concept:grades"]');
       expect(await heat.getAttribute('open')).toBeNull();
       // A chart inside a closed fold has no width to measure, so it waits.
-      expect(await w.page.$eval('#c-heat', (s) => s.childElementCount)).toBe(0);
+      expect(await w.page.$eval('#c-grades', (s) => s.childElementCount)).toBe(0);
       await heat.locator('summary').focus();
       await w.page.keyboard.press('Enter');
-      await w.page.waitForFunction(() => document.getElementById('c-heat')!.childElementCount > 0);
+      await w.page.waitForFunction(() => document.getElementById('c-grades')!.childElementCount > 0);
       // Opened once, it stays open across a reload and a re-render.
       await w.page.reload(); await ready(w.page);
       expect(await heat.getAttribute('open')).not.toBeNull();
-      expect(await w.page.$eval('#c-heat', (s) => s.childElementCount)).toBeGreaterThan(0);
+      expect(await w.page.$eval('#c-grades', (s) => s.childElementCount)).toBeGreaterThan(0);
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
@@ -1319,6 +1329,245 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const r = await w.page.$eval(bubble, (b) => { const x = b.getBoundingClientRect(); return { l: x.left, r: x.right, w: innerWidth }; });
       expect(r.l).toBeGreaterThanOrEqual(8);
       expect(r.r).toBeLessThanOrEqual(r.w - 8);
+      await w.ctx.close();
+    });
+  });
+
+  describe('local days', () => {
+    it("counts today in the learner's time zone, not UTC", async () => {
+      // 19:30 UTC on the 3rd is 01:00 IST on the 4th: an answer then is today's.
+      const w = await open('#/learning/dashboard', { tz: 'Asia/Kolkata', now: '2026-10-03T19:30:00Z' });
+      expect(await w.page.evaluate(() => [todayKey(), streaks(new Map([['2026-10-04', { day: '2026-10-04', total: 1 }]])).current]))
+        .toEqual(['2026-10-04', 1]);
+      await w.ctx.close();
+    });
+  });
+
+  describe('the streak card', () => {
+    /** Replaces the payload's days with `[daysAgo, passed, corrected, missed]` rows and redraws. */
+    const days = (page: Page, rows: number[][]) => page.evaluate((rows) => {
+      const key = (n: number) => { const d = fromKey(todayKey()); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
+      S.daily = rows.map(([n, passed, corrected, missed]) => ({ day: key(n!), repo: null, passed, corrected, missed, skipped: 0 }));
+      render();
+    }, rows);
+    const card = (page: Page) => page.evaluate(() => {
+      const c = document.querySelector('#view .streak')!;
+      return {
+        head: c.querySelector('h2')!.textContent!.trim(),
+        best: c.querySelector('.streak__best')?.textContent!.replace(/\s+/g, ' ').trim() ?? null,
+        sub: c.querySelector('.streak__sub')?.textContent!.trim() ?? null,
+        run: c.querySelectorAll('rect.cell.is-run').length,
+      };
+    });
+
+    it('sits right under the tiles, open, in place of the streak tile and the folded calendar', async () => {
+      const w = await open('#/learning/dashboard');
+      const placed = await w.page.evaluate(() => {
+        const stats = document.querySelector('#view .stats')!;
+        let n = stats.nextElementSibling;
+        while (n && !n.classList.contains('card')) n = n.nextElementSibling;
+        return {
+          first: n?.classList.contains('streak'),
+          tiles: stats.querySelectorAll('.tile').length,
+          fold: !!document.querySelector('[data-fold="learn:heat"]'),
+        };
+      });
+      expect(placed).toEqual({ first: true, tiles: 3, fold: false });
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('counts the current run and the longest one, and outlines the current run', async () => {
+      const w = await open('#/learning/dashboard');
+      await days(w.page, [[0, 1, 0, 0], [1, 1, 0, 0], [2, 0, 0, 1], ...[10, 11, 12, 13, 14].map((n) => [n, 1, 0, 0])]);
+      expect(await card(w.page)).toEqual({ head: '3 day streak', best: 'Longest streak | 5 days', sub: null, run: 3 });
+      expect(await w.page.$eval('#view rect.cell.is-run title', (t) => t.textContent)).toContain(' · current streak');
+      await w.ctx.close();
+    });
+
+    it('asks for today when only yesterday is done, and says the longest when nothing is running', async () => {
+      const w = await open('#/learning/dashboard');
+      await days(w.page, [[1, 1, 0, 0], [2, 1, 0, 0], [3, 1, 0, 0]]);
+      expect(await card(w.page)).toMatchObject({ head: '3 day streak', sub: 'Answer one today to make it 4.' });
+      await days(w.page, [[0, 1, 0, 0]]);
+      expect(await card(w.page)).toMatchObject({ head: '1 day streak', best: 'Longest streak | 1 day', sub: null });
+      await days(w.page, [[5, 1, 0, 0], [6, 1, 0, 0]]);
+      expect(await card(w.page)).toMatchObject({ head: 'No streak yet', sub: 'Your longest was 2 days.' });
+      await days(w.page, []);
+      expect(await card(w.page)).toEqual({ head: 'No streak yet', best: null, sub: 'Answer one question to start one.', run: 0 });
+      expect(await w.page.$$eval('#view rect.cell', (r) => r.length)).toBeGreaterThan(0);
+      await w.ctx.close();
+    });
+
+    it('steps a day by its share of the busiest visible day, and counts a correction as right', async () => {
+      const w = await open('#/learning/dashboard');
+      await days(w.page, [[1, 1, 0, 0], [2, 4, 2, 2], [3, 1, 1, 0]]);
+      const cells = await w.page.$$eval('#view rect.cell', (r) => r.map((x) => ({
+        step: x.getAttribute('data-step'), title: x.querySelector('title')!.textContent!, fill: x.getAttribute('fill'),
+      })));
+      const on = (n: string) => cells.find((c) => c.title.includes(n))!;
+      expect(on('1 answer (1 right)').step).toBe('1');
+      expect(on('8 answers (6 right)').step).toBe('4');
+      expect(on('2 answers (2 right)').step).toBe('1');
+      expect(on('8 answers').fill).toBe('color-mix(in srgb, var(--spot) 100%, var(--mass))');
+      expect(cells.some((c) => c.title.endsWith(' — nothing') && c.fill === 'var(--mass)')).toBe(true);
+      await w.ctx.close();
+    });
+
+    it('pages back and forward on a narrow screen, by mouse and by keyboard', async () => {
+      const w = await open('#/learning/dashboard', { width: 560 });
+      const state = () => w.page.evaluate(() => ({
+        month: document.querySelector('#c-heat text.axis')!.textContent,
+        prev: (document.getElementById('heat-prev') as HTMLButtonElement).disabled,
+        next: (document.getElementById('heat-next') as HTMLButtonElement).disabled,
+        hidden: document.getElementById('heat-prev')!.hidden,
+      }));
+      const before = await state();
+      expect(before).toMatchObject({ prev: false, next: true, hidden: false });
+      await w.page.click('#heat-prev');
+      const back = await state();
+      expect(back.month).not.toBe(before.month);
+      expect(back.next).toBe(false);
+      await w.page.focus('#heat-next');
+      await w.page.keyboard.press('Enter');
+      expect(await state()).toEqual(before);
+      // Tab order: the earlier-weeks arrow is reachable, and Enter works on it.
+      await w.page.focus('#heat-next');
+      await w.page.keyboard.press('Shift+Tab');
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('heat-prev');
+      await w.page.keyboard.press('Enter');
+      expect((await state()).month).toBe(back.month);
+      // Paging stops a year back.
+      for (let i = 0; i < 10; i++) if (!(await state()).prev) await w.page.click('#heat-prev');
+      expect((await state()).prev).toBe(true);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('shows a whole year with no arrows on a wide screen', async () => {
+      const w = await open('#/learning/dashboard', { width: 1280 });
+      expect(await w.page.evaluate(() => ({
+        weeks: document.querySelectorAll('#c-heat rect.cell').length / 7,
+        prev: document.getElementById('heat-prev')!.hidden,
+        next: document.getElementById('heat-next')!.hidden,
+      }))).toEqual({ weeks: 53, prev: true, next: true });
+      await w.ctx.close();
+    });
+
+    for (const ground of ['ink', 'paper'] as const) {
+      it(`draws the outline in the ink colour on ${ground}`, async () => {
+        const w = await open('#/learning/dashboard', { ground });
+        await days(w.page, [[0, 1, 0, 0], [1, 1, 0, 0]]);
+        const [stroke, ink] = await w.page.evaluate(() => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--ink)';
+          document.body.append(probe);
+          return [getComputedStyle(document.querySelector('#view rect.cell.is-run')!).stroke, getComputedStyle(probe).color];
+        });
+        expect(stroke).toBe(ink);
+        await w.ctx.close();
+      });
+    }
+  });
+
+  describe('start-review commands', () => {
+    /** Marks `slugs` due (most overdue first) and every other concept not due, then redraws. */
+    const due = (page: Page, rows: [string, string | null][]) => page.evaluate((rows) => {
+      const want = new Map(rows);
+      S.concepts.forEach((c: any) => {
+        c.due = want.has(c.slug);
+        if (c.due) { c.seen = 1; c.repo = want.get(c.slug); c.overdue_days = rows.length - rows.findIndex(([s]) => s === c.slug); }
+      });
+      render();
+    }, rows);
+
+    it('quotes the path for the shell, caps the slugs and falls back without a project', async () => {
+      const w = await open('#/learning/review');
+      const out = await w.page.evaluate((mixed) => {
+        INV.projects.push({ id: "/Users/a b/it's", path: "/Users/a b/it's", name: "it's", available: true });
+        const c = (slug: string, repo: string | null, overdue = 1) => ({ slug, repo, due: true, overdue_days: overdue });
+        const many = Array.from({ length: 25 }, (_, i) => c(`concept-${i}`, mixed, i));
+        const posix = startCommand([c('csrf', "/Users/a b/it's"), c('bad slug', "/Users/a b/it's")]);
+        const capped = startCommand(many);
+        const loose = startCommand([c('csrf', null)]);
+        Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' });
+        const win = startCommand([c('csrf', "/Users/a b/it's")]);
+        return { posix, capped, loose, win };
+      }, fx.repo.mixed);
+      expect(out.posix).toEqual([{ name: "it's", count: 1, command: `cd '/Users/a b/it'\\''s' && claude "/eklavya:quiz csrf"`, note: '' }]);
+      expect(out.win[0]!.command).toBe(`Set-Location -LiteralPath '/Users/a b/it''s'; claude "/eklavya:quiz csrf"`);
+      expect(out.capped[0]!.count).toBe(25);
+      const named = out.capped[0]!.command.match(/quiz ([^"]+)"/)![1]!.split(' ');
+      expect(named).toHaveLength(20);
+      expect(named[0]).toBe('concept-24');
+      expect(out.loose[0]).toMatchObject({ command: 'claude "/eklavya:quiz csrf"', note: 'Run it inside the project you want these answers counted in.' });
+      await w.ctx.close();
+    });
+
+    it('gives the review queue one block per project, most due first', async () => {
+      const w = await open('#/learning/review');
+      const [a, b, c] = ['csrf', 'jwt-structure', 'git-rebase'];
+      await due(w.page, [[a!, fx.repo.answered], [b!, fx.repo.mixed], [c!, fx.repo.mixed]]);
+      const blocks = await w.page.evaluate(() => ({
+        head: document.querySelector('#view .starts h2')?.textContent,
+        rows: [...document.querySelectorAll('#view .starts .start')].map((x) => ({
+          who: x.querySelector('p')!.textContent!.replace(/\s+/g, ' ').trim(), cmd: x.querySelector('code')!.textContent,
+        })),
+        quiz: document.querySelector('#view .next:not(.start)')?.textContent ?? '',
+      }));
+      expect(blocks.head).toBe('Start your reviews');
+      expect(blocks.rows.map((r) => r.who)).toEqual(['mixed · 2 due', 'answered · 1 due']);
+      expect(blocks.rows[0]!.cmd).toBe(`cd '${fx.repo.mixed}' && claude "/eklavya:quiz ${b} ${c}"`);
+      // A selected project shows its own block alone.
+      await w.page.evaluate((id) => { location.hash = `#/learning/review?project=${encodeURIComponent(id)}`; }, fx.repo.mixed);
+      await ready(w.page);
+      const inMixed = await w.page.evaluate(() => S.logged.find((l: any) => inScope(l.repo, l.session_id))!.slug);
+      await due(w.page, [[inMixed, fx.repo.answered]]);
+      expect(await w.page.$$eval('#view .starts .start p', (x) => x.map((p) => p.textContent!.replace(/\s+/g, ' ').trim())))
+        .toEqual(['mixed · 1 due']);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('puts a one-slug command on a due concept, and none on one that is not due', async () => {
+      const w = await open('#/learning/concept/csrf');
+      await due(w.page, [['csrf', fx.repo.mixed]]);
+      expect(await w.page.evaluate(() => ({
+        head: document.querySelector('#view .starts h2')?.textContent,
+        cmd: document.querySelector('#view .starts code')?.textContent,
+      }))).toEqual({ head: 'This one is due', cmd: `cd '${fx.repo.mixed}' && claude "/eklavya:quiz csrf"` });
+      await due(w.page, []);
+      expect(await w.page.$('#view .starts')).toBeNull();
+      await w.ctx.close();
+    });
+
+    it('sends the Learning next step to the queue instead of naming a bare command', async () => {
+      const w = await open('#/learning/dashboard');
+      await due(w.page, [['csrf', fx.repo.mixed], ['git-rebase', fx.repo.mixed]]);
+      const text = await w.page.$eval('#view .next', (x) => x.textContent!.replace(/\s+/g, ' ').trim());
+      expect(text).toBe('2 concepts are due. Open the review queue for the command to run.');
+      await w.ctx.close();
+    });
+
+    it('copies the exact command, and selects it when the clipboard refuses', async () => {
+      const w = await open('#/learning/concept/csrf');
+      await w.ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
+      await due(w.page, [['csrf', fx.repo.mixed]]);
+      const want = await w.page.$eval('#view .starts code', (x) => x.textContent);
+      await w.page.click('#view [data-copy]');
+      await w.page.waitForFunction(() => document.querySelector('#view [data-copy]')!.textContent === 'Copied');
+      expect(await w.page.evaluate(() => navigator.clipboard.readText())).toBe(want);
+      expect(await w.page.$eval('#copy-live', (x) => x.textContent)).toBe('Command copied');
+      await w.page.waitForFunction(() => document.querySelector('#view [data-copy]')!.textContent === 'Copy', null, { timeout: 3000 });
+
+      await w.page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); });
+      await w.page.focus('#view [data-copy]');
+      await w.page.keyboard.press('Enter');
+      await w.page.waitForFunction(() => /to copy/.test(document.getElementById('copy-live')!.textContent!));
+      expect(await w.page.evaluate(() => String(getSelection()))).toBe(want);
+      const mac = await w.page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.userAgent));
+      expect(await w.page.$eval('#copy-live', (x) => x.textContent)).toBe(`Press ${mac ? '⌘C' : 'Ctrl+C'} to copy`);
+      expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
   });

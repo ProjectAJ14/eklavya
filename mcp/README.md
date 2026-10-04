@@ -100,6 +100,9 @@ change and a correction of a missed answer, which can also complete a level. An 
 counter that moves on every write it would show, and offers a refresh. A request
 it cannot parse gets a 400 without stopping the server
 ([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)).
+Its Learning page shows your streak and its calendar under the summary tiles. The
+review queue gives each project a command to copy that starts Claude Code on its due
+concepts, in the project's folder when that folder is available.
 Its feature tips use Driver.js, bundled in `dist/` at build and served by the
 dashboard itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`, so
 the page still requests nothing from another host. [Configuration](https://eklavya-run.web.app/docs/configuration/) lists

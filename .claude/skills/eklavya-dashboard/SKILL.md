@@ -122,6 +122,11 @@ Two things that have bitten this file already:
   parser that handles both (`parseTs` in `dashboard.ts`, `parse()` in the page).
   Appending `Z` unconditionally gives `...ZZ` → `NaN`, and every overdue count
   silently reads zero. Never write a third parser.
+- **A day is the learner's local day.** The server groups with
+  `date(a.ts, 'localtime')` (the dashboard runs on the learner's machine), and
+  the page reads "today" only through `todayKey()` (`localKey(new Date())`).
+  Stepping between keys (`fromKey`, `+DAY_MS`) stays in UTC. A UTC "today"
+  puts an answer at 01:00 in India on yesterday and breaks a streak.
 - **Scores are decayed at read time**, exactly as `get_learner_profile` does it
   (`decayedScore`, `isKnown`, `isDue` from `srs.ts`). Two surfaces disagreeing
   about one score is worse than either being wrong. Import from `srs.ts`; never
@@ -229,7 +234,11 @@ needs a laid-out parent to measure. Inside a chart function:
 
 Existing ones to copy from: `chartActivity` (stacked bars + hover tip),
 `chartHeatmap` (week columns; picks its *window* from the width and keeps the
-cell fixed), `chartForecast` (14 days plus one overdue column), `chartGrades`
+cell fixed; four colour steps over the visible window's busiest day; the
+current streak's cells outlined inside their own bounds; on a window under 53
+weeks, ‹ › buttons page it by its own width through `HEAT_OFF`, a view offset
+that `render()` resets and the URL does not carry, redrawing only the SVG),
+`chartForecast` (14 days plus one overdue column), `chartGrades`
 (one concept's grades in order), `segbar` (a whole, split — plain HTML).
 
 ## Tables, paging and filters
