@@ -375,10 +375,15 @@ describe('SessionStart output', () => {
   // are echo; a compaction may have lost them, so there they still come back.
   it("recalls the session's own entries after a compaction but not on a resume", () => {
     checkout();
+    insertEntry(db, { project: cwd, sessionId: 'earlier', title: 'Session cookie domain', narrative: 'Scoped to the API host.' });
     insertEntry(db, { project: cwd, sessionId: SESSION, title: 'Refresh cookie rotation', narrative: 'Rotated on every refresh.' });
     const start = (source: string) => runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart', source });
-    expect(start('resume').context ?? '').not.toContain('<eklavya-memory');
-    expect(start('compact').context).toContain('Refresh cookie rotation');
+    const resumed = start('resume').context;
+    expect(resumed).toContain('Session cookie domain');
+    expect(resumed).not.toContain('Refresh cookie rotation');
+    const compacted = start('compact').context;
+    expect(compacted).toContain('Session cookie domain');
+    expect(compacted).toContain('Refresh cookie rotation');
   });
 
   // The bug this pins: a folder without git fell into the '*' bucket every
@@ -2467,5 +2472,15 @@ describe('prompt recall delivery', () => {
     });
     expect(db.prepare('SELECT value FROM meta WHERE key = ?').get(`recalled:${SESSION}`)).toEqual({ value: String(id) });
     expect(prompt('why does refresh token rotation need reuse detection').context ?? '').not.toContain('<eklavya-memory');
+  });
+
+  // Issue #117: what this session wrote is already in its context.
+  it("does not recall an entry this session wrote, and does recall it into another session's prompt", () => {
+    checkout();
+    insertEntry(db, { project: cwd, sessionId: SESSION, title: 'Refresh token rotation reuse detection', narrative: 'One-shot tokens.' });
+    const text = 'why does refresh token rotation need reuse detection';
+    expect(prompt(text).context ?? '').not.toContain('<eklavya-memory');
+    const other = runHook(NUDGE, { session_id: 'other-chat', cwd, hook_event_name: 'UserPromptSubmit', prompt: text });
+    expect(other.context).toContain('Refresh token rotation reuse detection');
   });
 });

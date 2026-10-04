@@ -400,6 +400,18 @@ describe('recall excludeOwnSession', () => {
     const compacted = recall(db, config(), { project: PROJECT, sessionId: 'me', index: true });
     expect(compacted.block).toContain(`[#${mine}]`);
   });
+
+  it('has nothing to leave out without a session id', () => {
+    insertEntry(db, { project: PROJECT, title: 'unattributed work', narrative: 'n', type: 'change' });
+    expect(recall(db, config(), { project: PROJECT, index: true, excludeOwnSession: true }).block).toContain('unattributed work');
+  });
+
+  it('applies to a query search too, not only to supplied candidates', () => {
+    insertEntry(db, { project: PROJECT, sessionId: 'me', title: 'Refresh token rotation mine', narrative: 'n', type: 'change' });
+    const theirs = insertEntry(db, { project: PROJECT, sessionId: 'prev', title: 'Refresh token rotation theirs', narrative: 'n', type: 'change' });
+    const result = recall(db, config(), { project: PROJECT, sessionId: 'me', query: 'refresh token rotation', excludeOwnSession: true });
+    expect(result.entries.map((e) => e.id)).toEqual([theirs]);
+  });
 });
 
 describe('recallForPrompt', () => {
