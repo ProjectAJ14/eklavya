@@ -55,6 +55,10 @@ page in the dashboard, where the server grades the new pick, and `option_notes`
 (the note under each option, in order), which that page shows under each option. A `correct` that is not one of
 the options, or notes of the wrong length, is stored as nothing and reported
 back (`correct_mismatch`, `option_notes_mismatch`); the answer is still kept.
+An `outcome` of `declined` or `dont_know` with a grade of 3 or more is
+contradictory: it returns `error: "outcome_grade_conflict"` and records
+nothing, so a skip can never update mastery, clear a gate or count toward a
+level.
 
 Search first, choose relevant entries, then use `memory_get` for their full
 content. Pass `memory_get` the `receipt_id` a recall block names to link the

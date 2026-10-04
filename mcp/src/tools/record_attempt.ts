@@ -13,6 +13,7 @@ import {
   promoteIfEarned,
   syncGate,
   MAX_MCQ_GRADE,
+  PASSING_GRADE,
   type AttemptOutcome,
   type QuestionFormat,
 } from '../store.js';
@@ -49,7 +50,7 @@ export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it, returning its attempt_id. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined). Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. With every mcq also pass correct (the right option\'s label, verbatim) and option_notes (the description under each option, same order): they are what lets the learner correct a missed answer after reading its explainer. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on. Returns explain on a missed answer when explain_on_wrong is on: follow its instruction.',
+    'Grade one answer on the 0-5 SM-2 scale and persist it, returning its attempt_id. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined); dont_know or declined with a grade of 3 or more is rejected with outcome_grade_conflict and nothing is recorded. Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. With every mcq also pass correct (the right option\'s label, verbatim) and option_notes (the description under each option, same order): they are what lets the learner correct a missed answer after reading its explainer. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on. Returns explain on a missed answer when explain_on_wrong is on: follow its instruction.',
   inputSchema: {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
@@ -124,6 +125,21 @@ export const recordAttempt: ToolDef = {
     const now = new Date();
     const { config, repoRoot } = loadConfig(args.cwd);
     const sessionId = resolveSessionId(db, args.session_id, args.cwd);
+
+    // A skip that claims a pass. "declined" and "dont_know" both say nothing was
+    // answered, and a grade of 3 or more says it was answered correctly; one of
+    // the two is wrong and nothing here can tell which. Rejected before any
+    // write rather than corrected: keeping the grade would grant mastery and
+    // clear a gate on a question nobody answered, and keeping the outcome would
+    // throw away a grade that may have been real.
+    if ((args.outcome === 'declined' || args.outcome === 'dont_know') && args.grade >= PASSING_GRADE) {
+      return {
+        error: 'outcome_grade_conflict',
+        outcome: args.outcome,
+        grade: args.grade,
+        detail: `Outcome "${args.outcome}" means nothing was answered, so its grade is 0; a grade of ${PASSING_GRADE} or more means a correct answer, whose outcome is "answered". Nothing was recorded. Call again with whichever pair is true.`,
+      };
+    }
 
     const slug = normalizeSlug(args.slug);
     const concept = conceptBySlug(db, slug);
