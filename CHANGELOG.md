@@ -1,3 +1,10 @@
+## [1.48.1](https://github.com/ProjectAJ14/eklavya/compare/v1.48.0...v1.48.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* reject a skip recorded with a passing grade ([#108](https://github.com/ProjectAJ14/eklavya/issues/108)) ([758a04f](https://github.com/ProjectAJ14/eklavya/commit/758a04f998d50d3ae61e3eebdf1672147dc61979))
+
 # [1.48.0](https://github.com/ProjectAJ14/eklavya/compare/v1.47.6...v1.48.0) (2026-10-03)
 
 
