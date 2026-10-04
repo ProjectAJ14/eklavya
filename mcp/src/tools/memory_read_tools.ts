@@ -196,7 +196,7 @@ export const memoryGet: ToolDef = logged({
   name: 'memory_get',
   title: 'Get memory entries',
   description:
-    `Read the full entries behind ids from memory_search or memory_timeline: narrative, facts, files, tags and the evidence events each claim came from. Pass the receipt_id a recall block carried (its receipt="…" attribute) so the read is linked to that recall; without it the read is still logged, just not linked. Set include_evidence only to check one specific claim against the raw events it was built from — it is expensive, and browsing with it spends the context this two-stage read exists to save. ${SCOPE_RULE} ${EVIDENCE_RULE}`,
+    `Read the full entries behind ids from memory_search or memory_timeline: narrative, facts, files, tags and the evidence events each claim came from. Pass the receipt_id a recall block carried (its receipt="…" attribute) so the read is linked to that recall; without it the read is still logged, just not linked. Set include_evidence only to check one specific claim against the raw events it was built from — it is expensive, and browsing with it spends the context this two-stage read exists to save. ${SCOPE_RULE} An id that belongs to another project is listed under other_project instead of read, unless all_projects is true. ${EVIDENCE_RULE}`,
   inputSchema: {
     ids: z
       .array(z.number().int())
@@ -214,11 +214,29 @@ export const memoryGet: ToolDef = logged({
       .int()
       .optional()
       .describe('The receipt from the recall block that proposed these entries; charges this fetch against it.'),
+    all_projects: z
+      .boolean()
+      .optional()
+      .describe(
+        'Defaults to false. True reads ids from any project on this machine, as memory_search with all_projects found them — say so when you use it.',
+      ),
     cwd: z.string().optional().describe(CWD_HINT),
   },
-  handler: (args: { ids: number[]; include_evidence?: boolean; receipt_id?: number; cwd?: string }, { db }) => {
+  handler: (
+    args: { ids: number[]; include_evidence?: boolean; receipt_id?: number; all_projects?: boolean; cwd?: string },
+    { db },
+  ) => {
     const ids = args.ids.slice(0, GET_ID_CAP);
-    const byId = new Map(entriesByIds(db, ids).map((e) => [e.id, e]));
+    const found = entriesByIds(db, ids);
+    // An id is only a row number. One remembered from another conversation, or
+    // simply mistyped, can name another codebase's entry, and the read is as
+    // scoped as the search that should have produced it: another project's
+    // entry is withheld unless the call asks for every project. Withheld ids
+    // are named, never described, so the model can tell them from missing ones.
+    const project = args.all_projects ? null : memoryScope(args.cwd).project;
+    const inScope = found.filter((e) => project === null || e.project === project);
+    const byId = new Map(inScope.map((e) => [e.id, e]));
+    const foreign = new Set(found.filter((e) => !byId.has(e.id)).map((e) => e.id));
 
     const entries = ids
       .map((id) => byId.get(id))
@@ -279,7 +297,8 @@ export const memoryGet: ToolDef = logged({
     return {
       entries,
       count: entries.length,
-      missing: ids.filter((id) => !byId.has(id)),
+      missing: ids.filter((id) => !byId.has(id) && !foreign.has(id)),
+      other_project: ids.filter((id) => foreign.has(id)),
       charged_to: receipt,
     };
   },

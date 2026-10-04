@@ -74,6 +74,12 @@ when `session_id` is omitted. In `memory_timeline`, it instead filters results
 to one session; omission shows the project timeline. Other tools may not accept
 that argument.
 
+`memory_get` reads only this project's entries unless `all_projects` is true;
+an ID from another project comes back under `other_project`. `memory_correct`
+and `memory_delete` refuse another project's ID with `other_project` and change
+nothing. A correction writes its replacement and the supersession together, and
+sync carries it to other devices.
+
 `memory_delete` can be repeated safely: a second soft delete changes nothing,
 and `hard: true` erases an entry that was already soft-deleted. The keyword
 index holds only entries that are not deleted.

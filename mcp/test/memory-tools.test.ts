@@ -197,6 +197,46 @@ describe('memory_get', () => {
   });
 });
 
+describe('memory_get scope', () => {
+  const OTHER = '/tmp/some-other-repo';
+
+  it('withholds another project\'s entry unless every project was asked for', () => {
+    const mine = write({ title: 'Heron deploy order', body: 'Database first.' });
+    const theirs = insertEntry(db, { project: OTHER, title: 'Heron elsewhere', narrative: 'Private to them.' });
+
+    const scoped = call<any>(memoryGet, { ids: [mine, theirs, 9999] });
+    expect(scoped.entries.map((e: any) => e.id)).toEqual([mine]);
+    expect(scoped.other_project).toEqual([theirs]);
+    expect(scoped.missing).toEqual([9999]);
+    expect(JSON.stringify(scoped)).not.toContain('Private to them');
+
+    const wide = call<any>(memoryGet, { ids: [mine, theirs], all_projects: true });
+    expect(wide.entries.map((e: any) => [e.id, e.project])).toEqual([
+      [mine, project],
+      [theirs, OTHER],
+    ]);
+    expect(wide.other_project).toEqual([]);
+  });
+
+  it('reads an entry written from a worktree of this checkout', () => {
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init'], {
+      cwd,
+      stdio: 'pipe',
+      env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' },
+    });
+    const tree = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-wt-')), 'tree');
+    execFileSync('git', ['worktree', 'add', '-q', tree], { cwd, stdio: 'pipe', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' } });
+    try {
+      const id = write({ title: 'Egret worktree note', cwd: tree });
+      expect(call<any>(memoryGet, { ids: [id] }).entries).toHaveLength(1);
+      expect(call<any>(memoryGet, { ids: [id], cwd: tree }).entries).toHaveLength(1);
+      expect(call<any>(memoryDelete, { id, cwd: tree }).deleted).toBe(true);
+    } finally {
+      fs.rmSync(path.dirname(tree), { recursive: true, force: true });
+    }
+  });
+});
+
 describe('memory_timeline', () => {
   it('pages stably: two pages, no overlap, no gaps', () => {
     const ids = ['one', 'two', 'three', 'four', 'five'].map((n) => write({ title: `Note ${n}` }));
@@ -261,6 +301,40 @@ describe('memory_correct', () => {
     });
   });
 
+  it('refuses another project\'s entry and changes neither project', () => {
+    const theirs = insertEntry(db, { project: '/tmp/some-other-repo', title: 'Ibis uses UDP', narrative: 'Theirs.' });
+    const before = db.prepare('SELECT * FROM memory_entries ORDER BY id').all();
+
+    const result = call<any>(memoryCorrect, { id: theirs, title: 'Ibis uses TCP' });
+    expect(result).toMatchObject({ error: 'other_project', project: '/tmp/some-other-repo' });
+    expect(db.prepare('SELECT * FROM memory_entries ORDER BY id').all()).toEqual(before);
+  });
+
+  it('writes nothing when the supersession fails, so a retry corrects once', () => {
+    const staleId = write({ title: 'Osprey cache ttl is 60s' });
+    // A fixture-only fault at the last write of the correction.
+    db.exec(`CREATE TRIGGER fail_supersede BEFORE UPDATE OF superseded_by ON memory_entries
+             BEGIN SELECT RAISE(ABORT, 'injected'); END`);
+    expect(() => call<any>(memoryCorrect, { id: staleId, title: 'Osprey cache ttl is 300s' })).toThrow(/injected/);
+    expect(db.prepare('SELECT id, superseded_by FROM memory_entries').all()).toEqual([
+      { id: staleId, superseded_by: null },
+    ]);
+
+    db.exec('DROP TRIGGER fail_supersede');
+    const result = call<any>(memoryCorrect, { id: staleId, title: 'Osprey cache ttl is 300s' });
+    expect(call<any>(memorySearch, { query: 'osprey' }).results.map((r: any) => r.id)).toEqual([result.id]);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entries').get()).toEqual({ n: 2 });
+  });
+
+  it('lets only the first of two corrections of one entry through', () => {
+    const staleId = write({ title: 'Plover runs nightly' });
+    const first = call<any>(memoryCorrect, { id: staleId, title: 'Plover runs hourly' });
+    const second = call<any>(memoryCorrect, { id: staleId, title: 'Plover runs weekly' });
+    expect(second.error).toBe('already_superseded');
+    expect(second.detail).toContain(String(first.id));
+    expect(call<any>(memorySearch, { query: 'plover' }).results.map((r: any) => r.id)).toEqual([first.id]);
+  });
+
   it('refuses an empty correction and an unknown id', () => {
     expect(call<any>(memoryCorrect, { id: 1 }).error).toBe('nothing_to_correct');
     expect(call<any>(memoryCorrect, { id: 9999, title: 'x' }).error).toBe('not_found');
@@ -274,6 +348,15 @@ describe('memory_delete', () => {
 
     expect(call<any>(memoryDelete, { id }).deleted).toBe(true);
     expect(call<any>(memorySearch, { query: 'quokka' }).count).toBe(0);
+  });
+
+  it('refuses another project\'s entry, soft or hard, and leaves it in place', () => {
+    const theirs = insertEntry(db, { project: '/tmp/some-other-repo', title: 'Wren notes', narrative: 'Theirs.' });
+    for (const hard of [false, true]) {
+      expect(call<any>(memoryDelete, { id: theirs, hard })).toMatchObject({ error: 'other_project' });
+    }
+    expect(db.prepare('SELECT deleted_at FROM memory_entries WHERE id = ?').get(theirs)).toEqual({ deleted_at: null });
+    expect(call<any>(memoryDelete, { id: 9999 }).error).toBe('not_found');
   });
 });
 
