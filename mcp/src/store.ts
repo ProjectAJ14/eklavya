@@ -473,10 +473,13 @@ function countAnswered(db: DB, sessionId: string): { answered: number; passedCou
       // today's diff. NULL is pre-migration and reads as 'work' (migration 005).
       // A correction row (`retry_of`) is excluded from both: picking the
       // answer straight after reading the explainer must not clear a gate.
+      // A pass needs an answer: a `declined` or `dont_know` row carrying a
+      // passing grade predates `outcome_grade_conflict` and is not one.
       `SELECT
          count(DISTINCT a.concept_id) AS answered,
          count(DISTINCT CASE
                           WHEN a.grade >= ? AND COALESCE(sc.origin, 'work') = 'work'
+                               AND COALESCE(a.outcome, 'answered') = 'answered'
                           THEN a.concept_id
                         END) AS passedCount
        FROM attempts a
@@ -701,7 +704,10 @@ export function gateRetryConcepts(db: DB, sessionId: string): SessionConceptRow[
          JOIN session_concepts sc ON sc.concept_id = c.id AND sc.session_id = ?
          JOIN (
            SELECT a.concept_id,
-                  max(a.grade) AS best_grade,
+                  -- A non-answer's grade is not evidence: a legacy declined or
+                  -- dont_know row graded as a pass must not end the retries
+                  -- when it cannot count as a pass either.
+                  max(CASE WHEN COALESCE(a.outcome, 'answered') = 'answered' THEN a.grade ELSE 0 END) AS best_grade,
                   (SELECT x.outcome FROM attempts x
                     WHERE x.session_id = a.session_id AND x.concept_id = a.concept_id AND x.retry_of IS NULL
                     ORDER BY x.id DESC LIMIT 1) AS last_outcome,
@@ -1047,15 +1053,16 @@ export function projectLevelRow(db: DB, repo: string): ProjectLevelRow | undefin
  * Declines are excluded from both halves of the accuracy fraction -- skipping a
  * question honestly must never cost a level, or the level becomes a reason to
  * guess. Corrections (`retry_of`) are excluded too: a pick made after reading
- * the answer must not buy a promotion.
+ * the answer must not buy a promotion. A `dont_know` counts as answered but
+ * never as passed, whatever grade a legacy row carries.
  */
 export function levelCounts(db: DB, repo: string, level: Level, since: string | null): LevelCounts {
   const row = db
     .prepare(
       `SELECT
-         COALESCE(sum(CASE WHEN grade >= ? THEN 1 ELSE 0 END), 0) AS passed,
+         COALESCE(sum(CASE WHEN grade >= ? AND COALESCE(outcome, 'answered') = 'answered' THEN 1 ELSE 0 END), 0) AS passed,
          count(*) AS answered,
-         count(DISTINCT CASE WHEN grade >= ? THEN concept_id END) AS concepts
+         count(DISTINCT CASE WHEN grade >= ? AND COALESCE(outcome, 'answered') = 'answered' THEN concept_id END) AS concepts
        FROM attempts
        WHERE repo = ? AND level = ?
          AND COALESCE(outcome, 'answered') <> 'declined'
