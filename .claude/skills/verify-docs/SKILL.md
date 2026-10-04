@@ -27,8 +27,9 @@ Every change to product code updates all three surfaces in the same PR:
 
 Product code is `mcp/`, `hooks/`, `cli/`, `scripts/`, `skills/`, `agents/`,
 `user-skill/`, `.claude-plugin/` and `.mcp.json`, excluding README and
-CLAUDE.md files. `.github/scripts/check-docs-sync.sh` fails the PR when any
-surface is missing. There is no exemption label and no "no docs needed" path.
+CLAUDE.md files and the runtime's tests in `mcp/test/`.
+`.github/scripts/check-docs-sync.sh` fails the PR when any surface is missing.
+There is no exemption label and no "no docs needed" path.
 
 When a change alters no existing claim on a surface, add one true, source-backed
 sentence where that surface's reader would look for it: the manual page that
