@@ -934,8 +934,24 @@ function readWith(file: string, overlay?: ConfigOverlay): Record<string, unknown
 }
 
 export function loadConfig(cwd: string = process.cwd(), overlay?: ConfigOverlay): ResolvedConfig {
+  return resolveConfig(findRepoConfig(cwd).repoRoot, overlay);
+}
+
+/**
+ * One project's effective config, named by the project key recorded on its
+ * rows rather than found by walking up from a directory. The same files and
+ * merge as `loadConfig` from inside that checkout, for a caller that serves
+ * many projects from one process: the dashboard's project rows. A checkout
+ * that has since moved or been deleted still resolves to its own settings file,
+ * never to whatever repository happens to enclose the old path. `null` is the
+ * global scope: the user file alone, as outside any repository.
+ */
+export function loadProjectConfig(projectRoot: string | null): ResolvedConfig {
+  return resolveConfig(projectRoot);
+}
+
+function resolveConfig(repoRoot: string | null, overlay?: ConfigOverlay): ResolvedConfig {
   const globalPath = globalConfigPath();
-  const { repoRoot } = findRepoConfig(cwd);
 
   // A worktree is a branch of the same codebase, not a new project to configure
   // from scratch -- the same fold `projectKey` applies to levels and mastery.
