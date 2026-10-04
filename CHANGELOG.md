@@ -1,3 +1,10 @@
+## [1.48.2](https://github.com/ProjectAJ14/eklavya/compare/v1.48.1...v1.48.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* resolve each dashboard project's level from its own settings ([#109](https://github.com/ProjectAJ14/eklavya/issues/109)) ([6dd2a15](https://github.com/ProjectAJ14/eklavya/commit/6dd2a157c17ef9bfa709555e1577c72c115b7be2)), closes [#94](https://github.com/ProjectAJ14/eklavya/issues/94)
+
 ## [1.48.1](https://github.com/ProjectAJ14/eklavya/compare/v1.48.0...v1.48.1) (2026-10-04)
 
 
