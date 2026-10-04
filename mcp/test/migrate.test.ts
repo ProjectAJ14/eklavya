@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 23;
+const LATEST_SCHEMA_VERSION = 24;
 
 const LEARNING_TABLES = [
   'attempt_retries',
@@ -162,6 +162,7 @@ describe('migrations', () => {
         '021_change_version.sql',
         '022_sync_supersessions.sql',
         '023_sync_received.sql',
+        '024_purge_excluded_file_failures.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -225,7 +226,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
@@ -280,7 +281,7 @@ describe('migrations', () => {
       ).run();
       expect(() => db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run()).toThrow(/malformed/);
 
-      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql']);
+      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql']);
       db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
       expect(db.prepare('SELECT id, deleted_at FROM memory_entries ORDER BY id').all()).toEqual([
         { id: 1, deleted_at: 'then' },
@@ -296,6 +297,45 @@ describe('migrations', () => {
       db.prepare('DELETE FROM memory_entries WHERE id = 2').run();
       db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
       expect(hits('checkpoint')).toEqual([]);
+      db.close();
+    } finally {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+    }
+  });
+
+  it('purges failed reads and edits of excluded files that a v23 database kept', () => {
+    // Before capture applied path exclusions to failures, a failed Read of an
+    // excluded file was stored with its path stripped and its error kept.
+    // Synthetic text only.
+    const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-mig-'));
+    try {
+      for (const f of fs.readdirSync(migrationsDir()).filter((f) => f < '024')) {
+        fs.copyFileSync(path.join(migrationsDir(), f), path.join(oldDir, f));
+      }
+      const db = new Database(':memory:');
+      db.pragma('foreign_keys = ON');
+      runMigrations(db, oldDir);
+      expect(schemaVersion(db)).toBe(23);
+      const event = db.prepare(
+        "INSERT INTO evidence_events (id, event_uid, project, session_id, kind, tool, body, files, occurred_at) VALUES (?, ?, 'p', 's', ?, ?, ?, ?, 'now')",
+      );
+      event.run(1, 'leak-read', 'tool_error', 'Read', 'SYNTHETIC_PRIVATE_TEXT', null);
+      event.run(2, 'leak-edit', 'tool_error', 'Edit', 'SYNTHETIC_PRIVATE_TEXT', '[]');
+      event.run(3, 'allowed', 'tool_error', 'Read', 'File does not exist', '["src/auth.ts"]');
+      event.run(4, 'bash', 'tool_error', 'Bash', 'npm test failed', null);
+      event.run(5, 'read', 'file_read', 'Read', 'file_path=src/auth.ts', '["src/auth.ts"]');
+      db.prepare("INSERT INTO memory_entries (id, entry_uid, project, title, occurred_at) VALUES (1, 'e', 'p', 't', 'now')").run();
+      db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1), (1, 3)').run();
+      db.prepare("INSERT INTO learning_sources (id, event_id, slug, project) VALUES (1, 1, 'x', 'p')").run();
+
+      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql']);
+      expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
+      expect((db.prepare('SELECT id FROM evidence_events ORDER BY id').all() as { id: number }[]).map((r) => r.id)).toEqual([3, 4, 5]);
+      // The entry and the candidate stay; only the links to the purged event go.
+      expect(db.prepare('SELECT event_id FROM memory_entry_events').all()).toEqual([{ event_id: 3 }]);
+      expect(db.prepare('SELECT event_id FROM learning_sources WHERE id = 1').get()).toEqual({ event_id: null });
+      expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entries').get()).toEqual({ n: 1 });
+      expect(tableNames(db)).toEqual(EXPECTED_TABLES);
       db.close();
     } finally {
       fs.rmSync(oldDir, { recursive: true, force: true });

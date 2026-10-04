@@ -115,6 +115,44 @@ describe('privacy on the way in', () => {
     expect(partial?.files).toEqual(['src/auth.ts']);
   });
 
+  it('drops a failure on an excluded file, whose error can quote that file', () => {
+    // Synthetic path and text only. A failed Read is classified `tool_error`,
+    // not `file_read`, so the read rule alone never saw it.
+    const body = `file_path=${PROJECT}/.env\nSYNTHETIC_PRIVATE_TEXT parse error`;
+    for (const tool of ['Read', 'Edit', 'Write']) {
+      expect(prepare(config(), IDENTITY, event({ kind: 'tool_error', tool, body, files: [`${PROJECT}/.env`] }))).toBeNull();
+    }
+    // The hook path persists nothing either: not the database, not the spool.
+    expect(captureOrSpool(db, config(), IDENTITY, event({ kind: 'tool_error', tool: 'Read', body, files: [`${PROJECT}/.env`] }))).toBe(
+      'excluded',
+    );
+    expect(captureOrSpool(null, config(), IDENTITY, event({ kind: 'tool_error', tool: 'Read', body, files: [`${PROJECT}/.env`] }))).toBe(
+      'excluded',
+    );
+    expect((db.prepare('SELECT COUNT(*) AS n FROM evidence_events').get() as { n: number }).n).toBe(0);
+    expect(fs.existsSync(spoolPath())).toBe(false);
+  });
+
+  it('keeps a failure on an allowed file', () => {
+    const kept = prepare(
+      config(),
+      IDENTITY,
+      event({ kind: 'tool_error', tool: 'Read', body: 'File does not exist', files: [`${PROJECT}/src/auth.ts`] }),
+    );
+    expect(kept?.files).toEqual(['src/auth.ts']);
+    expect(kept?.body).toBe('File does not exist');
+  });
+
+  it('drops a failure or result naming an excluded file beside an allowed one, since its body cannot be split', () => {
+    const mixed = [`${PROJECT}/src/auth.ts`, `${PROJECT}/.env`];
+    expect(prepare(config(), IDENTITY, event({ kind: 'tool_error', tool: 'Edit', body: 'x', files: mixed }))).toBeNull();
+    expect(prepare(config(), IDENTITY, event({ kind: 'tool_use', tool: 'LS', body: 'x', files: mixed }))).toBeNull();
+    // A read or edit keeps its allowed file: its body is the arguments.
+    expect(prepare(config(), IDENTITY, event({ kind: 'file_read', tool: 'Read', body: 'x', files: mixed }))?.files).toEqual([
+      'src/auth.ts',
+    ]);
+  });
+
   it('adds configured patterns and paths to the built-ins rather than replacing them', () => {
     const cfg = config();
     cfg.privacy.redact_patterns = ['ACME-\\d{4}'];
@@ -162,6 +200,28 @@ describe('the spool', () => {
     fs.appendFileSync(spoolPath(), `${JSON.stringify(record)}\n`, 'utf8');
     expect(drainSpool(db)).toEqual({ replayed: 0, skipped: 1 });
     expect((db.prepare('SELECT COUNT(*) AS n FROM evidence_events').get() as { n: number }).n).toBe(1);
+  });
+
+  it('skips a failed read of an excluded file spooled before capture dropped it', () => {
+    // The shape an older release spooled: the excluded path stripped, the
+    // error text kept. Synthetic text only.
+    const base = { project: PROJECT, checkout: PROJECT, sessionId: 's1', agentId: null, host: 'claude-code', source: 'hook' };
+    const line = (uid: string, over: Record<string, unknown>) =>
+      JSON.stringify({ ...base, eventUid: uid, kind: 'tool_error', title: null, body: 'x', occurredAt: '2026-10-01T00:00:00Z', redacted: false, ...over });
+    fs.mkdirSync(path.dirname(spoolPath()), { recursive: true });
+    fs.writeFileSync(
+      spoolPath(),
+      [
+        line('leak', { tool: 'Read', body: 'SYNTHETIC_PRIVATE_TEXT', files: [] }),
+        line('allowed', { tool: 'Read', body: 'File does not exist', files: ['src/auth.ts'] }),
+        line('bash', { tool: 'Bash', body: 'npm test failed' }),
+        line('untooled', { tool: null, body: 'host gave no tool name' }),
+      ].join('\n') + '\n',
+    );
+
+    expect(drainSpool(db)).toEqual({ replayed: 3, skipped: 1 });
+    const bodies = (db.prepare('SELECT body FROM evidence_events ORDER BY id').all() as { body: string }[]).map((r) => r.body);
+    expect(bodies).toEqual(['File does not exist', 'npm test failed', 'host gave no tool name']);
   });
 });
 

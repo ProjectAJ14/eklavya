@@ -18,7 +18,7 @@ The result is what lets an observation say what was *found*, not only what ran: 
 | Event kind | Source |
 | --- | --- |
 | `prompt` | A message you send. |
-| `tool_use`, `tool_error` | Successful tool calls with a result excerpt, or failed calls with their error. |
+| `tool_use`, `tool_error` | Successful tool calls with a result excerpt, or failed calls with their error. A failure is recorded only when the PostToolUse hook reports it: Eklavya does not register `PostToolUseFailure`, so a failure a host sends only there is not captured, and transcript replay records tool calls without outcomes. |
 | `file_edit` | Edit, Write, NotebookEdit and MultiEdit. |
 | `file_read` | Read, NotebookRead, Glob and Grep. |
 | `assistant`, `lifecycle` | Claude's final message at the end of each turn (from Claude Code's Stop hook), and session start/stop events. |
@@ -36,7 +36,7 @@ Privacy checks run before evidence is stored. Built-in path exclusions are subst
 secrets.  .eklavya/knowledge.db
 ```
 
-Nothing is captured in a folder outside a git checkout unless `retrieval.cross_project` is on: only a cross-project search serves that folder, so otherwise its evidence would only take up space. An excluded read or edit is dropped when it has no remaining allowed file. Eklavya's own tool calls, CLI traffic and checkpoint messages are excluded to prevent its output feeding back into memory.
+Nothing is captured in a folder outside a git checkout unless `retrieval.cross_project` is on: only a cross-project search serves that folder, so otherwise its evidence would only take up space. An excluded read or edit is dropped when it has no remaining allowed file. Any other event that names an excluded file, including a failed `Read`, `Edit` or `Write`, is dropped whole even when it also names an allowed file, because its error or result can quote the excluded file and cannot be split by file. A failure on an allowed file is still recorded. Earlier releases kept the error text of a failed `Read`, `Edit` or `Write` of an excluded file. The first time the database opens after an upgrade, a migration deletes that evidence. It does not change summaries already written from it; delete any affected entry with `memory_delete`. Eklavya's own tool calls, CLI traffic and checkpoint messages are excluded to prevent its output feeding back into memory.
 
 Secret detection redacts private keys, URL passwords, common provider tokens, JWTs, bearer tokens and secret assignments such as `DB_PASSWORD=…`. It preserves markers such as `[redacted:github-token]` so the surrounding event remains understandable. The built-in rules also apply to saved notes and imported entries. Redaction, including your `privacy.redact_patterns`, runs before any excerpt or length limit cuts the text: a quoted secret whose closing quote was cut off is still redacted, and the partial word at a cut is dropped so a shortened token cannot slip past its pattern.
 
