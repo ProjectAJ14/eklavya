@@ -980,7 +980,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         window.scrollTo({ top: y, behavior: 'instant' });
         return y;
       });
-      await w.page.waitForFunction((y) => Math.abs(scrollY - y) <= 1, deep);
+      // The page records the position from its scroll event, which fires on the
+      // next frame; switching tabs before then would leave nothing to go back to.
+      await w.page.waitForFunction(([id, y]) => Math.abs(((0, eval)('TABS').scroll.get(id) ?? -1e9) - y) <= 1, [P[10]!, deep] as const, { timeout: 5000 });
       await go(w.page, P[1]!);
       await go(w.page, P[10]!);
       await w.page.waitForFunction((y) => Math.abs(scrollY - y) <= 1, deep, { timeout: 5000 });
@@ -1263,13 +1265,19 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     });
 
     it('waits behind the drawer, and fits a phone', async () => {
-      const w = await open('#/learning/dashboard', { tips: true, width: 560, height: 800, init: tips([TWO]) });
-      await w.page.click('#menu');
+      // The drawer opens before the first render: opened after `open()` returns,
+      // it races the tip's own 600ms timer, and a tip that already opened by
+      // itself rightly stays a beacon once the drawer closes.
+      const w = await open('#/learning/dashboard', {
+        tips: true, width: 560, height: 800,
+        init: tips([TWO]) + `document.addEventListener('DOMContentLoaded', () => document.getElementById('menu').click());`,
+      });
+      expect(await w.page.getAttribute('#menu', 'aria-expanded')).toBe('true');
       await w.page.waitForTimeout(900);
       expect(await bubbles(w.page)).toBe(0);
       expect(await beacons(w.page)).toEqual([]);
       await w.page.keyboard.press('Escape');
-      await w.page.waitForSelector(bubble);
+      await w.page.waitForSelector(bubble, { timeout: 5000 });
       const r = await w.page.$eval(bubble, (b) => { const x = b.getBoundingClientRect(); return { l: x.left, r: x.right, w: innerWidth }; });
       expect(r.l).toBeGreaterThanOrEqual(8);
       expect(r.r).toBeLessThanOrEqual(r.w - 8);
