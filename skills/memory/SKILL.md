@@ -81,7 +81,8 @@ Never tell the developer their history is empty when it is queued.
 
 `memory_collections` saves a named view — "everything about auth" — and
 rebuilds it on demand. Offer it when the developer searches the same thing
-twice, not before.
+twice, not before. A member corrected since the last rebuild drops out of
+`show`; rebuild to bring its replacement in.
 
 `code_outline` and `code_find_symbol` read the current code, not the memory.
 Reach for them to ground an answer in what the file says today, when the

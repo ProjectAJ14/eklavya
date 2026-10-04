@@ -48,6 +48,11 @@ Code's learning loop.
 | Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |
 | Inspect code | `code_outline`, `code_find_symbol` |
 
+`memory_collections` applies a saved filter the same way with or without a
+query, and its members are live entries only: a member deleted or corrected
+after the last rebuild drops out of `show`, and its replacement joins at the
+next `rebuild` if the filter matches it.
+
 `record_attempt` returns the `attempt_id` of the row it wrote. For a
 multiple-choice question, also pass `correct` (the right option's label,
 verbatim), which lets the learner correct a missed answer from its explainer

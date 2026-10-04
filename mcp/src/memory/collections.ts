@@ -1,8 +1,8 @@
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { nowIso } from '../time.js';
-import { search, type SearchFilter, type SearchMode } from './search.js';
-import { timeline, type EntryRow } from './store.js';
+import { scopeClause, search, type SearchFilter, type SearchMode } from './search.js';
+import type { EntryRow } from './store.js';
 
 /**
  * Saved knowledge collections (PRD RET-04).
@@ -112,12 +112,7 @@ export function rebuildCollection(
 
   const found: EntryRow[] = filter.query
     ? search(db, filter.query, filter.mode ?? config.retrieval.mode, searchFilter).map((h) => h.entry)
-    : timeline(db, {
-        project: searchFilter.allProjects ? null : searchFilter.project,
-        type: searchFilter.type,
-        since: searchFilter.since,
-        limit: searchFilter.limit,
-      });
+    : filterOnly(db, searchFilter);
 
   if (found.length === 0 && previous > 0 && !opts.force) {
     db.prepare("UPDATE memory_collections SET status = 'failed' WHERE id = ?").run(collection.id);
@@ -139,6 +134,29 @@ export function rebuildCollection(
   return { name, members: found.length, previous, kept: false };
 }
 
+/**
+ * A filter-only collection: the newest live entries the saved filter admits.
+ * It shares `scopeClause` with search, so a tag (or type, or project) means
+ * the same thing with or without a query. The general timeline is not used
+ * because it ignores tags and, for audit, keeps superseded entries.
+ */
+function filterOnly(db: DB, filter: SearchFilter): EntryRow[] {
+  const scope = scopeClause(filter);
+  return db
+    .prepare(
+      `SELECT e.* FROM memory_entries e WHERE ${scope.sql}
+       ORDER BY e.occurred_at DESC, e.id DESC LIMIT ?`,
+    )
+    .all(...scope.args, filter.limit) as EntryRow[];
+}
+
+/**
+ * The stored membership, minus anything deleted or superseded since the last
+ * rebuild. A collection does not follow a correction to its replacement — the
+ * replacement may not match the filter — so a corrected member drops out here
+ * and its replacement joins at the next rebuild if the filter admits it. A
+ * stale claim is never served as a live member.
+ */
 export function collectionEntries(db: DB, name: string, limit = 50): EntryRow[] {
   const collection = collectionByName(db, name);
   if (!collection) return [];
@@ -146,7 +164,7 @@ export function collectionEntries(db: DB, name: string, limit = 50): EntryRow[] 
     .prepare(
       `SELECT e.* FROM memory_entries e
        JOIN memory_collection_items i ON i.entry_id = e.id
-       WHERE i.collection_id = ? AND e.deleted_at IS NULL
+       WHERE i.collection_id = ? AND e.deleted_at IS NULL AND e.superseded_by IS NULL
        ORDER BY i.rank DESC LIMIT ?`,
     )
     .all(collection.id, limit) as EntryRow[];

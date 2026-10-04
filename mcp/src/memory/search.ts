@@ -53,7 +53,12 @@ function ftsQuery(raw: string, join: 'AND' | 'OR'): string | null {
   return terms.join(` ${join} `);
 }
 
-function scopeClause(filter: SearchFilter, alias = 'e'): { sql: string; args: unknown[] } {
+/**
+ * The live-entry and filter rules every search applies: not deleted, not
+ * superseded, then project, type, time and tag. Exported so a filter-only
+ * saved collection applies exactly the constraints a query-backed one does.
+ */
+export function scopeClause(filter: SearchFilter, alias = 'e'): { sql: string; args: unknown[] } {
   const where: string[] = [`${alias}.deleted_at IS NULL`, `${alias}.superseded_by IS NULL`];
   const args: unknown[] = [];
   if (!filter.allProjects && filter.project) {
