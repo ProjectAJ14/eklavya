@@ -389,6 +389,31 @@ describe('learning counts and the worktree spelling', () => {
   });
 });
 
+describe('recall excludeOwnSession', () => {
+  it('leaves the session\'s own entries out of the seam, timeline included, only when asked', () => {
+    insertEntry(db, { project: PROJECT, sessionId: 'prev', title: 'earlier work', narrative: 'n', type: 'change', occurredAt: '2026-09-01T00:00:00.000Z' });
+    const mine = insertEntry(db, { project: PROJECT, sessionId: 'me', title: 'my own work', narrative: 'n', type: 'change' });
+    const resumed = recall(db, config(), { project: PROJECT, sessionId: 'me', index: true, excludeOwnSession: true });
+    expect(resumed.block).toContain('earlier work');
+    expect(resumed.block).not.toContain('my own work');
+    // After a compaction the session's own detail may be what was lost.
+    const compacted = recall(db, config(), { project: PROJECT, sessionId: 'me', index: true });
+    expect(compacted.block).toContain(`[#${mine}]`);
+  });
+
+  it('has nothing to leave out without a session id', () => {
+    insertEntry(db, { project: PROJECT, title: 'unattributed work', narrative: 'n', type: 'change' });
+    expect(recall(db, config(), { project: PROJECT, index: true, excludeOwnSession: true }).block).toContain('unattributed work');
+  });
+
+  it('applies to a query search too, not only to supplied candidates', () => {
+    insertEntry(db, { project: PROJECT, sessionId: 'me', title: 'Refresh token rotation mine', narrative: 'n', type: 'change' });
+    const theirs = insertEntry(db, { project: PROJECT, sessionId: 'prev', title: 'Refresh token rotation theirs', narrative: 'n', type: 'change' });
+    const result = recall(db, config(), { project: PROJECT, sessionId: 'me', query: 'refresh token rotation', excludeOwnSession: true });
+    expect(result.entries.map((e) => e.id)).toEqual([theirs]);
+  });
+});
+
 describe('recallForPrompt', () => {
   it('stays within a third of the item and token budget however many entries match', () => {
     for (let i = 0; i < 12; i++) {
@@ -422,6 +447,30 @@ describe('recallForPrompt', () => {
     // The developer's own words around a paste still search.
     const own = 'why did the refresh token rotation change break? <pasted_content id="y">stack</pasted_content>';
     expect(recallForPrompt(db, cfg, { project: PROJECT, sessionId: 's2', prompt: own })).not.toBeNull();
+  });
+
+  // Issue #117: what a session wrote is already in its context.
+  it('does not hand a session the entries it wrote, and does hand them to another session', () => {
+    const own = insertEntry(db, { project: PROJECT, sessionId: 'S', title: 'Refresh token rotation change', narrative: 'mine', type: 'change' });
+    const prompt = 'why did the refresh token rotation change';
+    expect(recallForPrompt(db, config(), { project: PROJECT, sessionId: 'S', prompt })).toBeNull();
+    expect(recallForPrompt(db, config(), { project: PROJECT, sessionId: 'T', prompt })!.entries.map((e) => e.id)).toEqual([own]);
+  });
+
+  it('keeps the session\'s own entries from taking the search places other work needed', () => {
+    for (let i = 0; i < 15; i++) {
+      insertEntry(db, { project: PROJECT, sessionId: 'S', title: `Refresh token rotation change ${i}`, narrative: 'mine', type: 'change' });
+    }
+    const older = insertEntry(db, {
+      project: PROJECT,
+      sessionId: 'earlier',
+      title: 'Refresh token rotation change from last week',
+      narrative: 'theirs',
+      type: 'change',
+      occurredAt: '2026-09-01T00:00:00.000Z',
+    });
+    const result = recallForPrompt(db, config(), { project: PROJECT, sessionId: 'S', prompt: 'refresh token rotation change' })!;
+    expect(result.entries.map((e) => e.id)).toEqual([older]);
   });
 });
 

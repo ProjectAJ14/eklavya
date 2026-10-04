@@ -68,6 +68,14 @@ export interface RecallOptions {
   /** Entry ids to leave out — what this session has already been handed. */
   exclude?: Set<number>;
   /**
+   * Leave out every entry `sessionId` wrote. Its work is already in the
+   * context the host kept, so recalling it is the model paying to re-read
+   * itself (issue #117): every prompt recall, and a session start on `resume`,
+   * which restores the whole transcript. Not after a compaction, which is the
+   * one seam where the session's own detail may have been lost.
+   */
+  excludeOwnSession?: boolean;
+  /**
    * Already-ranked candidates, best first.
    *
    * A caller that has just run its own search — `recallForPrompt` does, to
@@ -230,11 +238,13 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
   if (opts.project === GLOBAL_PROJECT) return empty;
 
   const limit = opts.maxItems ?? config.retrieval.max_items;
+  const ownSession = opts.excludeOwnSession && opts.sessionId ? opts.sessionId : null;
   const maxTokens = opts.maxTokens ?? config.retrieval.max_tokens;
   const filter = {
     project: opts.project,
     allProjects: config.retrieval.cross_project,
     limit,
+    excludeSessionId: ownSession,
   };
 
   const exclude = opts.exclude ?? new Set<number>();
@@ -245,7 +255,9 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
       : search(db, opts.query, config.retrieval.mode, { ...filter, limit: limit + exclude.size }).filter((h) =>
           allowed(h.entry.id),
         );
-  const ranked: EntryRow[] = opts.candidates ? opts.candidates.filter((e) => allowed(e.id)) : hits.map((h) => h.entry);
+  const ranked: EntryRow[] = opts.candidates
+    ? opts.candidates.filter((e) => allowed(e.id) && (!ownSession || e.session_id !== ownSession))
+    : hits.map((h) => h.entry);
   const pool: EntryRow[] = ranked.length
     ? ranked
     : opts.candidates
@@ -259,6 +271,7 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
         project: config.retrieval.cross_project ? null : opts.project,
         // A corrected entry is history, not memory to act on (issue #83).
         excludeSuperseded: true,
+        excludeSessionId: ownSession,
         limit: limit + exclude.size + (opts.index ? INDEX_MAX_ITEMS : 0),
         }).filter((entry) => allowed(entry.id));
   if (!pool.length) return empty;
@@ -553,7 +566,8 @@ export function startupDisplay(db: DB, project: string, now = new Date()): Start
  * Three things keep it from becoming a tax on every turn. The budget is a
  * third of the seam's, because an interruption has to earn its place. It
  * excludes what this session has already been handed, so the same three
- * entries are not re-sent on every prompt. And it returns nothing at all
+ * entries are not re-sent on every prompt, and what this session wrote, which
+ * the model has in front of it already. And it returns nothing at all
  * rather than filling the space with whatever ranked highest — a prompt that
  * matches nothing should cost nothing.
  */
@@ -587,7 +601,12 @@ export function recallForPrompt(
   // happens to share a word, and a recall on those is pure cost.
   if (query.length < 25) return null;
 
-  const scope = { project: opts.project, allProjects: config.retrieval.cross_project, limit: 12 };
+  const scope = {
+    project: opts.project,
+    allProjects: config.retrieval.cross_project,
+    limit: 12,
+    excludeSessionId: opts.sessionId,
+  };
   // The relevance gate, and the reason this path has one the seam recall does
   // not. At a seam, offering the project's recent work is right whatever the
   // developer types next. Here the developer has said what they are doing, so
@@ -622,6 +641,7 @@ export function recallForPrompt(
     maxItems: Math.max(1, Math.floor(config.retrieval.max_items / 3)),
     maxTokens: Math.floor(config.retrieval.max_tokens / 3),
     exclude: alreadyRecalled(db, opts.sessionId),
+    excludeOwnSession: true,
   });
   return result.block ? result : null;
 }
