@@ -1,3 +1,10 @@
+## [1.49.2](https://github.com/ProjectAJ14/eklavya/compare/v1.49.1...v1.49.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* **memory:** stop recalling a session's own entries back to it ([#119](https://github.com/ProjectAJ14/eklavya/issues/119)) ([e8a86cb](https://github.com/ProjectAJ14/eklavya/commit/e8a86cbd48650a561af4a0eff11469b436a047f2)), closes [#117](https://github.com/ProjectAJ14/eklavya/issues/117)
+
 ## [1.49.1](https://github.com/ProjectAJ14/eklavya/compare/v1.49.0...v1.49.1) (2026-10-04)
 
 
