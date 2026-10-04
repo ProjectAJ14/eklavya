@@ -1,3 +1,10 @@
+# [1.50.0](https://github.com/ProjectAJ14/eklavya/compare/v1.49.2...v1.50.0) (2026-10-04)
+
+
+### Features
+
+* streak card, local days and copyable review commands on the dashboard ([#120](https://github.com/ProjectAJ14/eklavya/issues/120)) ([8eef77f](https://github.com/ProjectAJ14/eklavya/commit/8eef77f1c6f120e7ef405f25a66049cca90f00eb))
+
 ## [1.49.2](https://github.com/ProjectAJ14/eklavya/compare/v1.49.1...v1.49.2) (2026-10-04)
 
 
