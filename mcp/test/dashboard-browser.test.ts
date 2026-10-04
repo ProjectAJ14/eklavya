@@ -45,6 +45,8 @@ let base = '';
 const fix = { open: '', other: '', attempt: 0, missed: () => 0 };
 const KEY = { options: ['A cache', 'A lock', 'A queue', 'A log'], notes: ['keeps reads', 'serialises writers', 'orders work', 'appends history'] };
 let close = () => {};
+/** The page's artifact tabs, a top-level const of its script. */
+declare const TABS: { scroll: Map<string, number> };
 let browser: Browser;
 const savedHome = process.env.EKLAVYA_HOME;
 
@@ -857,9 +859,11 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     /**
      * The page records a tab's position from its scroll event, which fires on
      * the next frame: a tab switch that lands first keeps the old position.
+     * `TABS` is a top-level const of the page's script, reached by name: the
+     * wait polls inside the page, where its security policy refuses `eval`.
      */
     const recorded = (page: Page, id: string, y: number) => page.waitForFunction(
-      ([id, y]) => Math.abs(((0, eval)('TABS').scroll.get(id) ?? -1e9) - y) <= 1, [id, y] as const, { timeout: 5000 });
+      ([id, y]) => Math.abs((TABS.scroll.get(id) ?? -1e9) - y) <= 1, [id, y] as const, { timeout: 5000 });
     const all = async (page: Page) => { await page.click('#view [role="tab"]:has-text("All artifacts")'); await ready(page); };
 
     it('opens every card in the dashboard, as tabs in order, with no duplicates', async () => {
