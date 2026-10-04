@@ -902,7 +902,9 @@ function memorySync(argv: string[]): void {
         `conflicts:  ${s.open_conflicts} quarantined`,
         `peers:      ${
           s.peers.length
-            ? s.peers.map((p) => `${p.device_id}@${p.last_revision}`).join(', ')
+            ? s.peers
+                .map((p) => `${p.device_id}@${p.last_revision}${p.outstanding ? ` (${p.outstanding} outstanding)` : ''}`)
+                .join(', ')
             : 'none seen yet'
         }`,
       ];
@@ -942,7 +944,15 @@ function memorySync(argv: string[]): void {
     }
     if (r.stalled.length) {
       process.stdout.write(
-        `Stopped early on an unreadable record from: ${r.stalled.join(', ')} — likely still being written. Try again.\n`,
+        `Could not read a record from: ${r.stalled.join(', ')} — likely still being written. The next pull reads it.\n`,
+      );
+    }
+    if (r.outstanding.length) {
+      const owed = r.outstanding.map(
+        (o) => `${o.device_id} (${o.missing} revision${o.missing === 1 ? '' : 's'}, from ${o.first})`,
+      );
+      process.stdout.write(
+        `Not yet delivered to this folder: ${owed.join(', ')}. Later records were applied; the next pull applies these when they arrive.\n`,
       );
     }
   } finally {

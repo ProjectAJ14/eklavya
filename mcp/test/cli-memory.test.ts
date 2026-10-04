@@ -632,7 +632,7 @@ describe('memory sync', () => {
     expect(eklavya(['memory', 'sync', 'pull']).stdout).toMatch(/: 0 applied \(0 deletions\), 0 already known, 0 quarantined\.$/m);
   });
 
-  it('pulls deletions and conflicts, stops at a torn record, and lists its peers', () => {
+  it('pulls deletions and conflicts, reports a torn record as owed, and lists its peers', () => {
     on();
     const laptopFile = tempDbPath('laptop');
     const laptop = openDb(laptopFile);
@@ -656,8 +656,13 @@ describe('memory sync', () => {
       expect(res.status).toBe(0);
       expect(res.stdout).toMatch(/: 1 applied \(1 deletion\), 0 already known, 1 quarantined\.$/m);
       expect(res.stdout).toMatch(/^Quarantined versions are kept whole in sync_conflicts/m);
-      expect(res.stdout).toMatch(/^Stopped early on an unreadable record from: phone/m);
-      expect(eklavya(['memory', 'sync', 'status']).stdout).toMatch(/^peers:\s+laptop@\d+/m);
+      expect(res.stdout).toMatch(/^Could not read a record from: phone/m);
+      expect(res.stdout).toMatch(/^Not yet delivered to this folder: phone \(1 revision, from 1\)\./m);
+      expect(eklavya(['memory', 'sync', 'status']).stdout).toMatch(/^peers:\s+laptop@\d+, phone@0 \(1 outstanding\)$/m);
+
+      // Two owed from one device reads as a plural.
+      fs.writeFileSync(path.join(phoneDir, '000000000003.json'), '{"half":');
+      expect(eklavya(['memory', 'sync', 'pull']).stdout).toMatch(/phone \(3 revisions, from 1\)/);
     } finally {
       laptop.close();
       cleanup(laptopFile);

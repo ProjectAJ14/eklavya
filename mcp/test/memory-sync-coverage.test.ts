@@ -251,3 +251,62 @@ describe('merging', () => {
     expect(row(desktop, uidOf(laptop, id))!.title).toBe('bare');
   });
 });
+
+describe('void lists', () => {
+  const voidFile = () => path.join(laptopDir(), 'void.json');
+  const floor = () =>
+    (desktop.prepare("SELECT last_revision FROM sync_state WHERE device_id = 'laptop'").get() as {
+      last_revision: number;
+    }).last_revision;
+
+  /** Revisions 1-2 staged, both files lost, both entries moved on: two abandoned in a row. */
+  function abandonTwo(): void {
+    const a = note(laptop, 'a');
+    const b = note(laptop, 'b');
+    push(laptop, LAPTOP);
+    fs.rmSync(recordFile(1));
+    fs.rmSync(recordFile(2));
+    edit(laptop, a, 'a2');
+    edit(laptop, b, 'b2');
+  }
+
+  it('declares adjacent abandoned revisions as one range, and leaves an unchanged list alone', () => {
+    abandonTwo();
+    push(laptop, LAPTOP);
+    expect(JSON.parse(fs.readFileSync(voidFile(), 'utf8')).revisions).toEqual([[1, 2]]);
+    // Backdated: a rewrite would move the time, and a cloud client would upload it again.
+    fs.utimesSync(voidFile(), new Date(0), new Date(0));
+    push(laptop, LAPTOP);
+    expect(fs.statSync(voidFile()).mtimeMs).toBe(0);
+  });
+
+  it('ignores a list that is not this device’s, or not this format', () => {
+    abandonTwo();
+    push(laptop, LAPTOP);
+    for (const wrong of [
+      { v: 1, device_id: 'desktop', revisions: [[1, 2]] },
+      { v: 2, device_id: 'laptop', revisions: [[1, 2]] },
+      { v: 1, device_id: 'laptop', revisions: 'all of them' },
+      null,
+    ]) {
+      fs.writeFileSync(voidFile(), JSON.stringify(wrong));
+      desktop.prepare('DELETE FROM sync_state').run();
+      desktop.prepare('DELETE FROM sync_received').run();
+      expect(pull(desktop, DESKTOP).outstanding, JSON.stringify(wrong)).toEqual([
+        { device_id: 'laptop', missing: 2, first: 1 },
+      ]);
+    }
+  });
+
+  it('uses the well-formed ranges of a damaged list and only those above the floor', () => {
+    abandonTwo();
+    push(laptop, LAPTOP);
+    fs.writeFileSync(voidFile(), JSON.stringify({ v: 1, device_id: 'laptop', revisions: [7, [1, 'x'], [1, 1]] }));
+    expect(pull(desktop, DESKTOP).outstanding).toEqual([{ device_id: 'laptop', missing: 1, first: 2 }]);
+    expect(floor()).toBe(1);
+
+    fs.writeFileSync(voidFile(), JSON.stringify({ v: 1, device_id: 'laptop', revisions: [[1, 2]] }));
+    expect(pull(desktop, DESKTOP).outstanding).toEqual([]);
+    expect(floor()).toBe(4);
+  });
+});

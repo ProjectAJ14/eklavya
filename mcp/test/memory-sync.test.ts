@@ -330,6 +330,147 @@ describe('offline recovery', () => {
   });
 });
 
+describe('out-of-order delivery', () => {
+  const laptopDir = () => path.join(shared, 'devices', 'laptop');
+  const recordFile = (rev: number) => path.join(laptopDir(), `${String(rev).padStart(12, '0')}.json`);
+  const parked = (rev: number) => path.join(shared, `parked-${rev}.json`);
+  /** A cloud client that has not delivered this revision yet. */
+  const delay = (rev: number) => fs.renameSync(recordFile(rev), parked(rev));
+  const deliver = (rev: number) => fs.renameSync(parked(rev), recordFile(rev));
+  const floor = (db: DB) =>
+    (db.prepare("SELECT last_revision FROM sync_state WHERE device_id = 'laptop'").get() as { last_revision: number })
+      .last_revision;
+  const receipts = (db: DB) => (db.prepare('SELECT COUNT(*) AS n FROM sync_received').get() as { n: number }).n;
+
+  it('applies a record that arrives after a later one, exactly once', () => {
+    note(laptop, 'first');
+    note(laptop, 'second');
+    push(laptop, LAPTOP);
+    delay(1);
+
+    const early = pull(desktop, DESKTOP);
+    expect(early).toMatchObject({ applied: 1, stalled: [], outstanding: [{ device_id: 'laptop', missing: 1, first: 1 }] });
+    expect(titles(desktop)).toEqual(['second']);
+    expect(floor(desktop)).toBe(0);
+    expect(syncStatus(desktop, DESKTOP).peers).toEqual([expect.objectContaining({ device_id: 'laptop', outstanding: 1 })]);
+
+    deliver(1);
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, skipped: 0, outstanding: [] });
+    expect(titles(desktop)).toEqual(['first', 'second']);
+    expect(floor(desktop)).toBe(2);
+    expect(receipts(desktop)).toBe(0);
+    expect(syncStatus(desktop, DESKTOP).peers).toEqual([expect.objectContaining({ last_revision: 2, outstanding: 0 })]);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, skipped: 0, conflicts: 0 });
+  });
+
+  it('propagates a deletion that arrives late', () => {
+    const doomed = note(laptop, 'doomed');
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    deleteEntry(laptop, doomed);
+    note(laptop, 'newer');
+    push(laptop, LAPTOP);
+    const tomb = [2, 3].find((r) => JSON.parse(fs.readFileSync(recordFile(r), 'utf8')).op === 'delete')!;
+    delay(tomb);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, tombstones: 0 });
+    expect(titles(desktop)).toEqual(['doomed', 'newer']);
+
+    deliver(tomb);
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, tombstones: 1, outstanding: [] });
+    expect(titles(desktop)).toEqual(['newer']);
+  });
+
+  it('keeps a deletion when the creation it buries arrives after it', () => {
+    const id = note(laptop, 'short-lived');
+    push(laptop, LAPTOP);
+    deleteEntry(laptop, id);
+    push(laptop, LAPTOP);
+    delay(1);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ tombstones: 1 });
+    deliver(1);
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, skipped: 1, conflicts: 0, outstanding: [] });
+    expect(titles(desktop)).toEqual([]);
+  });
+
+  it('does not reapply a record delivered twice or a pull interrupted before its floor moved', () => {
+    note(laptop, 'first');
+    note(laptop, 'second');
+    push(laptop, LAPTOP);
+    delay(1);
+    pull(desktop, DESKTOP);
+
+    // The cloud client hands revision 2 over again.
+    const again = fs.readFileSync(recordFile(2), 'utf8');
+    fs.rmSync(recordFile(2));
+    fs.writeFileSync(recordFile(2), again, 'utf8');
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, skipped: 0 });
+
+    // Both applied, then the process died before the floor caught up.
+    deliver(1);
+    pull(desktop, DESKTOP);
+    desktop.prepare("UPDATE sync_state SET last_revision = 0 WHERE device_id = 'laptop'").run();
+    desktop.prepare("INSERT INTO sync_received (device_id, revision) VALUES ('laptop', 1), ('laptop', 2)").run();
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 0, skipped: 0, conflicts: 0, outstanding: [] });
+    expect(floor(desktop)).toBe(2);
+    expect(receipts(desktop)).toBe(0);
+    expect(titles(desktop)).toEqual(['first', 'second']);
+  });
+
+  it('steps over a revision its writer abandoned instead of waiting for it', () => {
+    const id = note(laptop, 'draft');
+    const uid = uidOf(laptop, id);
+    push(laptop, LAPTOP);
+    // Revision 1 was staged but its file never landed, and the entry moved on:
+    // the next push stages revision 2 and nothing can ever write revision 1.
+    fs.rmSync(recordFile(1));
+    laptop.prepare("UPDATE memory_entries SET narrative = 'final' WHERE id = ?").run(id);
+    push(laptop, LAPTOP);
+    expect(JSON.parse(fs.readFileSync(path.join(laptopDir(), 'void.json'), 'utf8'))).toEqual({
+      v: 1,
+      device_id: 'laptop',
+      revisions: [[1, 1]],
+    });
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 1, outstanding: [] });
+    expect(entryByUid(desktop, uid)!.narrative).toBe('final');
+    expect(floor(desktop)).toBe(2);
+    expect(receipts(desktop)).toBe(0);
+  });
+
+  it('does not void a record that iCloud evicted to save space', () => {
+    note(laptop, 'kept');
+    push(laptop, LAPTOP);
+    fs.renameSync(recordFile(1), path.join(laptopDir(), '.000000000001.json.icloud'));
+    note(laptop, 'later');
+    push(laptop, LAPTOP);
+    expect(fs.existsSync(path.join(laptopDir(), 'void.json'))).toBe(false);
+  });
+
+  it('skips the version a later one replaced, even from another device', () => {
+    const id = note(laptop, 'shared');
+    const uid = uidOf(laptop, id);
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    desktop.prepare("UPDATE memory_entries SET narrative = 'desktop edit' WHERE entry_uid = ?").run(uid);
+    push(desktop, DESKTOP);
+
+    // A third device that sees the desktop's edit before the laptop's original.
+    const tabletFile = tempDbPath('eklavya-sync-tablet');
+    const tablet = openDb(tabletFile);
+    try {
+      expect(pull(tablet, configFor('tablet'))).toMatchObject({ applied: 1, skipped: 1, conflicts: 0 });
+      expect(entryByUid(tablet, uid)!.narrative).toBe('desktop edit');
+      expect(conflicts(tablet)).toEqual([]);
+    } finally {
+      tablet.close();
+      cleanup(tabletFile);
+    }
+  });
+});
+
 describe('privacy', () => {
   /** Everything SEC-02 says is the developer's own and must not cross. */
   function learningSnapshot(db: DB) {

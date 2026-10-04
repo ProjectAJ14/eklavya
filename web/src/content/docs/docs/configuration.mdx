@@ -192,6 +192,8 @@ eklavya memory sync status
 
 Conflicting edits are quarantined: your local version stays active and the incoming version is retained. `sync status` reports conflicts. Deletions propagate as tombstones so a device with an older copy cannot restore them accidentally. Do not copy a pinned `device_id` between machines.
 
+Synced folders do not always deliver files in the order they were written. A pull applies every record it can read, and remembers any earlier revision that has not arrived yet; the next pull applies it when it does. `sync pull` names the devices still owed records, and `sync status` shows the count beside each peer, as in `laptop@41 (2 outstanding)`. When a push could never write a revision, for example because the entry changed again after an interrupted push, it lists that revision number in `void.json` beside its records so other devices stop waiting for it. The file holds only revision numbers.
+
 ### Nothing Eklavya configures lives in your repository
 
 Project settings are personal files under your home directory, not team policy. Legacy `<repo>/.eklavya.json` files are moved there on the next session; existing personal project settings win. The migration excludes `providers`, `notifications`, `sync` and cross-project retrieval from the cloned file.
