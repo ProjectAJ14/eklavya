@@ -207,6 +207,10 @@ Claude uses these tools on your behalf. Search returns compact IDs and titles; `
 
 A collection saves a filter: optional `description`, `query`, `type`, `tag`, `since` and `all_projects`. `show` returns titles and IDs, with `limit` defaulting to 50 and capped at 200. Fetch the entries you need with `memory_get`.
 
+Every filter field applies the same way with or without a `query`. A collection with only `tag: "auth"` holds entries tagged `auth` and nothing else, newest first. Deleted and corrected entries are never members.
+
+Membership is fixed at the last rebuild, and `show` hides any member deleted or corrected since. A correction's replacement does not join automatically, because it may no longer match the filter; it joins at the next `rebuild` if the filter admits it.
+
 `rebuild` reruns the saved filter. If it would empty a previously populated collection, the previous membership is preserved and marked failed; use `force` only when the empty result is intended. Deleting a collection leaves its entries untouched.
 
 ### Code exploration
