@@ -310,3 +310,111 @@ describe('void lists', () => {
     expect(floor()).toBe(4);
   });
 });
+
+describe('void list edges', () => {
+  const voidFile = () => path.join(laptopDir(), 'void.json');
+  const floor = () =>
+    (desktop.prepare("SELECT last_revision FROM sync_state WHERE device_id = 'laptop'").get() as {
+      last_revision: number;
+    }).last_revision;
+
+  it('merges overlapping ranges and drops those wholly below the floor', () => {
+    note(laptop, 'one');
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP); // floor 1
+    note(laptop, 'four');
+    push(laptop, LAPTOP);
+    fs.renameSync(recordFile(2), recordFile(4)); // revision 4 present, 2 and 3 missing
+    fs.writeFileSync(
+      voidFile(),
+      JSON.stringify({ v: 1, device_id: 'laptop', revisions: [[1, 1], [3, 3], [2, 3]] }),
+    );
+    expect(pull(desktop, DESKTOP).outstanding).toEqual([{ device_id: 'laptop', missing: 1, first: 4 }]);
+    expect(floor()).toBe(3);
+  });
+
+  it('steps over several separate void ranges', () => {
+    for (const t of ['one', 'two', 'three', 'four', 'five', 'six', 'seven']) note(laptop, t);
+    push(laptop, LAPTOP);
+    for (const r of [2, 4, 6]) fs.rmSync(recordFile(r));
+    fs.writeFileSync(voidFile(), JSON.stringify({ v: 1, device_id: 'laptop', revisions: [[2, 2], [4, 4], [6, 6]] }));
+    expect(pull(desktop, DESKTOP)).toMatchObject({ applied: 4, outstanding: [] });
+    expect(floor()).toBe(7);
+  });
+
+  it('ignores a list too large to be honest', () => {
+    note(laptop, 'one');
+    note(laptop, 'two');
+    push(laptop, LAPTOP);
+    fs.rmSync(recordFile(1));
+    fs.writeFileSync(
+      voidFile(),
+      JSON.stringify({ v: 1, device_id: 'laptop', revisions: [[1, 1]], pad: 'x'.repeat(1024 * 1024) }),
+    );
+    expect(pull(desktop, DESKTOP).outstanding).toEqual([{ device_id: 'laptop', missing: 1, first: 1 }]);
+  });
+});
+
+describe('the one-time replay leaves what needs judgement alone', () => {
+  const replay = (device: string, through: number) =>
+    desktop
+      .prepare(
+        "INSERT INTO sync_state (device_id, last_revision, replay_through) VALUES (?, ?, ?) ON CONFLICT(device_id) DO UPDATE SET last_revision = excluded.last_revision, replay_through = excluded.replay_through",
+      )
+      .run(device, through, through);
+
+  it('does not settle an entry with an open quarantine', () => {
+    const uid = uidOf(laptop, note(laptop, 'waiting on a person'));
+    push(laptop, LAPTOP);
+    desktop
+      .prepare(
+        "INSERT INTO sync_conflicts (entry_uid, device_id, revision, local_ref, payload) VALUES (?, 'x', 1, 'x:1', '{}')",
+      )
+      .run(uid);
+    replay('laptop', 1);
+    expect(pull(desktop, DESKTOP)).toMatchObject({ recovered: 0 });
+    expect(row(desktop, uid)).toBeUndefined();
+  });
+
+  it('does not rename the agreed version to an older one with the same content', () => {
+    const uid = uidOf(laptop, note(laptop, 'same text'));
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    // The same content under another device's name, as a third device might hold it.
+    const rec = JSON.parse(fs.readFileSync(recordFile(1), 'utf8'));
+    const tabletDir = path.join(shared, 'devices', 'tablet');
+    fs.mkdirSync(tabletDir);
+    fs.writeFileSync(path.join(tabletDir, '000000000001.json'), JSON.stringify({ ...rec, device_id: 'tablet' }));
+    replay('tablet', 1);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ recovered: 0, skipped: 0 });
+    expect(desktop.prepare('SELECT device_id FROM sync_records WHERE entry_uid = ?').get(uid)).toEqual({
+      device_id: 'laptop',
+    });
+  });
+
+  it('does not quarantine an independent creation under the same uid', () => {
+    const uid = uidOf(laptop, note(laptop, 'laptop original'));
+    push(laptop, LAPTOP);
+    const mine = note(desktop, 'desktop original');
+    desktop.prepare('UPDATE memory_entries SET entry_uid = ? WHERE id = ?').run(uid, mine);
+    replay('laptop', 1);
+
+    expect(pull(desktop, DESKTOP)).toMatchObject({ recovered: 0, conflicts: 0 });
+    expect(row(desktop, uid)!.title).toBe('desktop original');
+    expect(conflicts(desktop)).toEqual([]);
+  });
+
+  it('skips an unreadable file, stops at its mark, and does not replay twice', () => {
+    note(laptop, 'one');
+    note(laptop, 'two');
+    push(laptop, LAPTOP);
+    fs.writeFileSync(recordFile(1), '{"half":');
+    replay('laptop', 1);
+    // Revision 2 is above the old mark: the ordinary pull applies it, not the replay.
+    expect(pull(desktop, DESKTOP)).toMatchObject({ recovered: 0, applied: 1 });
+    expect(desktop.prepare("SELECT replay_through FROM sync_state WHERE device_id = 'laptop'").get()).toEqual({
+      replay_through: 0,
+    });
+  });
+});

@@ -180,7 +180,7 @@ Events are `session_summary` and `queue_paused`. Payloads are redacted; duplicat
 | `sync.target` | `null` | Shared directory, such as a mounted share or synced folder. |
 | `sync.device_id` | `null` | Optional device identity. Normally leave unset: an identity is generated once and stored in the database. |
 
-Sync exchanges entries, tags and deletions. Attempts, mastery, review schedules, gates, raw evidence and reuse receipts stay on their original machine. Eklavya does not supply the shared-folder transport.
+Sync exchanges entries, tags, corrections and deletions. Attempts, mastery, review schedules, gates, raw evidence and reuse receipts stay on their original machine. Eklavya does not supply the shared-folder transport.
 
 ```bash
 eklavya config set sync.target ~/Dropbox/eklavya-sync
@@ -190,9 +190,11 @@ eklavya memory sync pull
 eklavya memory sync status
 ```
 
-Conflicting edits are quarantined: your local version stays active and the incoming version is retained. `sync status` reports conflicts. Deletions propagate as tombstones so a device with an older copy cannot restore them accidentally. Do not copy a pinned `device_id` between machines.
+Conflicting edits are quarantined: your local version stays active and the incoming version is retained. `sync status` reports conflicts. Deletions propagate as tombstones so a device with an older copy cannot restore them accidentally. A correction travels with the entry it replaced, naming the replacement by its portable ID, so other devices recall only the replacement; when the corrected entry arrives first, it stays live until its replacement does. A device running a release from before corrections synced stops at the first correction record (`sync pull` reports that it stopped early on an unreadable record) until it is updated. Do not copy a pinned `device_id` between machines.
 
-Synced folders do not always deliver files in the order they were written. A pull applies every record it can read, and remembers any earlier revision that has not arrived yet; the next pull applies it when it does. `sync pull` names the devices still owed records, and `sync status` shows the count beside each peer, as in `laptop@41 (2 outstanding)`. When a push could never write a revision, for example because the entry changed again after an interrupted push, it lists that revision number in `void.json` beside its records so other devices stop waiting for it. The file holds only revision numbers.
+Synced folders do not always deliver files in the order they were written. A pull applies every record it can read, and remembers any earlier revision that has not arrived yet or cannot be read yet; the next pull applies it when it does. `sync pull` names the devices still owed records, and `sync status` shows the count from the last pull beside each peer that still owes records, as in `laptop@41 (2 outstanding)`. When a push could never write a revision, for example because the entry changed again after an interrupted push, it lists that revision number in `void.json` beside its records so other devices stop waiting for it. The file holds the format version, the device ID and revision numbers, and no memory content.
+
+Earlier releases could step over a record that arrived late. The first pull after updating reads those older records once more and applies the ones that need no decision: an entry or deletion this device never received, or a newer version of one it holds unchanged. An entry with an open conflict is left alone. `sync pull` reports them as recovered. A record that would conflict with your copy is left as it is rather than quarantined.
 
 ### Nothing Eklavya configures lives in your repository
 

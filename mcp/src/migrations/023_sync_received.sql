@@ -15,8 +15,7 @@
 --
 -- Bounded by the files a peer has published above its floor; a writer on this
 -- release voids the revisions it abandoned, so a permanent gap does not keep the
--- table growing. Existing marks are kept as they are: a revision an earlier
--- release already stepped over cannot be told apart from one it applied.
+-- table growing.
 CREATE TABLE IF NOT EXISTS sync_received (
   device_id TEXT NOT NULL,
   revision  INTEGER NOT NULL,
@@ -26,3 +25,10 @@ CREATE TABLE IF NOT EXISTS sync_received (
 -- Revisions from this peer known to exist (a file, or a later revision seen)
 -- that have not yet been applied: what `sync status` reports as outstanding.
 ALTER TABLE sync_state ADD COLUMN outstanding INTEGER NOT NULL DEFAULT 0;
+
+-- The mark each peer had when this ran: an earlier release may have stepped
+-- over late records below it. The first pull re-reads those files once and
+-- applies only what is unambiguous (`replayEarlier` in `src/memory/sync.ts`),
+-- then sets this back to 0. A fresh install has no rows, so nothing to replay.
+ALTER TABLE sync_state ADD COLUMN replay_through INTEGER NOT NULL DEFAULT 0;
+UPDATE sync_state SET replay_through = last_revision;

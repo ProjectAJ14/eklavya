@@ -87,6 +87,7 @@ eklavya memory status
 | Imported entries are `unplaced` | Rerun the import from the source database; use `--map-here` for a project name that cannot be resolved. See [Moving from Claude Mem](/docs/migrating/). |
 | Searches miss Japanese or Chinese text | Prefer `retrieval.mode: hybrid`; keyword search struggles with unspaced scripts. Try a filename or identifier as the query. |
 | Savings say “unavailable” or show overhead | No emitted reuse means unavailable: a recall that was only prepared is never counted. On small histories, recalled observations can cost more tokens than the original evidence. This is reported rather than hidden. |
+| `sync pull` says `Still owed` or `Could not read a record` | The shared folder has not finished delivering, or is still writing, another device's records. Records after them were already applied. Run `eklavya memory sync pull` again once the folder catches up; `eklavya memory sync status` shows the count still owed beside each peer. |
 | Unwanted content was recorded | Ask Claude to delete the affected memory entry with `memory_delete`, then adjust `privacy.exclude_paths`, `privacy.exclude_tools` or `privacy.redact_patterns` to prevent recurrence. |
 
 To switch from Claude Mem, run `eklavya install --memory eklavya` after reviewing

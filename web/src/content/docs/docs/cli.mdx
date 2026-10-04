@@ -68,7 +68,7 @@ Run project-specific commands from inside the checkout. Memory maintenance does 
 | `import <source.db>` | Imports Claude Mem history. Options are [below](#importing-claude-mem-history). |
 | `export <file> [--force]` | Writes a private, versioned JSON memory backup. Refuses to replace an existing file without `--force`. |
 | `restore <file>` | Adds missing memory from an export and rebuilds its search data. Repeating the restore adds no duplicates. |
-| `sync push\|pull\|status [--target <dir>]` | Exchanges memory entries, tags and deletions through a shared folder. Requires `sync.enabled` and a target. A record that arrives late is still applied; `pull` and `status` report what other devices still owe. Learning history, raw evidence and receipts do not sync. |
+| `sync push\|pull\|status [--target <dir>]` | Exchanges memory entries, tags, corrections and deletions through a shared folder. Requires `sync.enabled` and a target. A record that arrives late is still applied; `pull` and `status` report what other devices still owe. Learning history, raw evidence and receipts do not sync. |
 
 If processing paused because of login, quota or a missing `claude` command, fix that problem and run `eklavya memory process` to resume now. Otherwise, automatic seams check at most every 30 minutes and resume once the login is back or an hour has passed since a usage limit; meanwhile they write local observations for waiting work. See [when the model is unavailable](/docs/memory/#when-the-model-is-unavailable). Only one worker runs at a time; it handles up to four batches before handing remaining ready jobs to a fresh worker. To keep model processing off, clear `providers.observer`.
 

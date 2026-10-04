@@ -190,13 +190,15 @@ Claude uses these tools on your behalf. Search returns compact IDs and titles; `
 | Tool | Arguments and result |
 | --- | --- |
 | `memory_search` | `query`; optional `mode`, `type`, `tag`, `since`, `until`, `limit`, `all_projects`. Returns IDs, titles, dates and files. Defaults to `retrieval.max_items`, maximum 50. |
-| `memory_get` | `ids` (1–20), optional `include_evidence`, `receipt_id`. Reads narratives, facts and evidence links. Raw evidence bodies are capped at 1,500 characters; the receipt charges this extra reading to the original recall. An unknown or expired `receipt_id` is ignored: the entries are still returned, with `charged_to: null`. |
+| `memory_get` | `ids` (1–20), optional `include_evidence`, `receipt_id`, `all_projects`. Reads narratives, facts and evidence links. An ID that belongs to another project is listed under `other_project` instead of read, unless `all_projects` is `true`; each entry names its `project`. Raw evidence bodies are capped at 1,500 characters; the receipt charges this extra reading to the original recall. An unknown or expired `receipt_id` is ignored: the entries are still returned, with `charged_to: null`. |
 | `memory_timeline` | `limit`, `offset`, `type`, `since`, `until`, `session_id`. Returns the newest entries, including superseded ones. Default 20, maximum 100. |
 | `memory_file_history` | `file`, optional `limit`. Matches path fragments; default 20, maximum 100. |
 | `memory_status` | Capture, queue, provider and reuse health, plus explicit read counts (`reads`) and `host_acknowledgement: "unavailable"`. |
 | `memory_write` | `title`, `body`, optional `tags`, `files`. Saves a redacted note. |
-| `memory_correct` | `id` and a corrected `title`, `body`, or both. Creates a replacement while preserving the original audit trail. |
+| `memory_correct` | `id` and a corrected `title`, `body`, or both. Creates a replacement while preserving the original audit trail. The replacement and the supersession are one write: if either fails, the original stays the only live entry. A second correction of the same entry returns `already_superseded`. |
 | `memory_delete` | `id`, optional `hard`. Soft deletion removes an entry from retrieval and from the keyword index, and repeating it keeps the first deletion time; `hard: true` erases it permanently, including an entry already soft-deleted. |
+
+`memory_correct` and `memory_delete` change only the current project's entries. An ID from another project returns `error: "other_project"` with that project's key and changes nothing; to change it, pass a `cwd` inside that project. A worktree counts as its main checkout's project.
 | `memory_collections` | Saves and rebuilds named views; details below. |
 | `code_outline` | `file`, optional `line`. Lists declarations or expands around a line. |
 | `code_find_symbol` | `name`, optional `limit` (default 20, maximum 50). Finds declarations by case-insensitive partial name. |

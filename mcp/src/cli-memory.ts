@@ -937,6 +937,11 @@ function memorySync(argv: string[]): void {
         r.tombstones === 1 ? '' : 's'
       }), ${r.skipped} already known, ${r.conflicts} quarantined.\n`,
     );
+    if (r.recovered) {
+      process.stdout.write(
+        `Recovered ${r.recovered} earlier record${r.recovered === 1 ? '' : 's'} that arrived late before this version.\n`,
+      );
+    }
     if (r.conflicts) {
       process.stdout.write(
         'Quarantined versions are kept whole in sync_conflicts — nothing was overwritten.\n',
@@ -952,7 +957,7 @@ function memorySync(argv: string[]): void {
         (o) => `${o.device_id} (${o.missing} revision${o.missing === 1 ? '' : 's'}, from ${o.first})`,
       );
       process.stdout.write(
-        `Not yet delivered to this folder: ${owed.join(', ')}. Later records were applied; the next pull applies these when they arrive.\n`,
+        `Still owed: ${owed.join(', ')}. Later records were applied; the next pull applies these once they arrive and can be read.\n`,
       );
     }
   } finally {

@@ -632,6 +632,37 @@ describe('memory sync', () => {
     expect(eklavya(['memory', 'sync', 'pull']).stdout).toMatch(/: 0 applied \(0 deletions\), 0 already known, 0 quarantined\.$/m);
   });
 
+  it('says how many late records the upgrade recovered', () => {
+    on();
+    const laptopFile = tempDbPath('laptop');
+    const laptop = openDb(laptopFile);
+    try {
+      insertEntry(laptop, { project: repo, title: 'one' });
+      insertEntry(laptop, { project: repo, title: 'two' });
+      push(laptop, device('laptop'));
+      // What an older release left: a mark past records it never applied.
+      const mark = (through: number) =>
+        withDb((db) =>
+          db
+            .prepare(
+              `INSERT INTO sync_state (device_id, last_revision, replay_through) VALUES ('laptop', ?, ?)
+               ON CONFLICT(device_id) DO UPDATE SET last_revision = excluded.last_revision, replay_through = excluded.replay_through`,
+            )
+            .run(through, through),
+        );
+      mark(2);
+      expect(eklavya(['memory', 'sync', 'pull']).stdout).toMatch(/^Recovered 2 earlier records that arrived late/m);
+
+      insertEntry(laptop, { project: repo, title: 'three' });
+      push(laptop, device('laptop'));
+      mark(3);
+      expect(eklavya(['memory', 'sync', 'pull']).stdout).toMatch(/^Recovered 1 earlier record that arrived late/m);
+    } finally {
+      laptop.close();
+      cleanup(laptopFile);
+    }
+  });
+
   it('pulls deletions and conflicts, reports a torn record as owed, and lists its peers', () => {
     on();
     const laptopFile = tempDbPath('laptop');
@@ -657,7 +688,7 @@ describe('memory sync', () => {
       expect(res.stdout).toMatch(/: 1 applied \(1 deletion\), 0 already known, 1 quarantined\.$/m);
       expect(res.stdout).toMatch(/^Quarantined versions are kept whole in sync_conflicts/m);
       expect(res.stdout).toMatch(/^Could not read a record from: phone/m);
-      expect(res.stdout).toMatch(/^Not yet delivered to this folder: phone \(1 revision, from 1\)\./m);
+      expect(res.stdout).toMatch(/^Still owed: phone \(1 revision, from 1\)\./m);
       expect(eklavya(['memory', 'sync', 'status']).stdout).toMatch(/^peers:\s+laptop@\d+, phone@0 \(1 outstanding\)$/m);
 
       // Two owed from one device reads as a plural.
