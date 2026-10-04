@@ -1,3 +1,10 @@
+## [1.48.3](https://github.com/ProjectAJ14/eklavya/compare/v1.48.2...v1.48.3) (2026-10-04)
+
+
+### Bug Fixes
+
+* apply saved collection filters and hide superseded members ([#110](https://github.com/ProjectAJ14/eklavya/issues/110)) ([23880d2](https://github.com/ProjectAJ14/eklavya/commit/23880d23950304524dee87e0a338cefe680687eb)), closes [#96](https://github.com/ProjectAJ14/eklavya/issues/96)
+
 ## [1.48.2](https://github.com/ProjectAJ14/eklavya/compare/v1.48.1...v1.48.2) (2026-10-04)
 
 
