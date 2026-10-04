@@ -1,3 +1,10 @@
+## [1.49.1](https://github.com/ProjectAJ14/eklavya/compare/v1.49.0...v1.49.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* drop failed tool events that name an excluded file ([#115](https://github.com/ProjectAJ14/eklavya/issues/115)) ([84bc962](https://github.com/ProjectAJ14/eklavya/commit/84bc96211563ea0123683515f8d551a6ea87ad28)), closes [#88](https://github.com/ProjectAJ14/eklavya/issues/88)
+
 # [1.49.0](https://github.com/ProjectAJ14/eklavya/compare/v1.48.5...v1.49.0) (2026-10-04)
 
 
