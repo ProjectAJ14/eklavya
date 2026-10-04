@@ -594,6 +594,8 @@ export interface TimelineFilter {
    * if it were current.
    */
   excludeSuperseded?: boolean;
+  /** Leave out what this session wrote; see `SearchFilter.excludeSessionId`. */
+  excludeSessionId?: string | null;
   limit?: number;
   offset?: number;
 }
@@ -628,6 +630,10 @@ export function timeline(db: DB, filter: TimelineFilter = {}): EntryRow[] {
   }
   if (!filter.includeDeleted) where.push('deleted_at IS NULL');
   if (filter.excludeSuperseded) where.push('superseded_by IS NULL');
+  if (filter.excludeSessionId) {
+    where.push('session_id IS NOT ?');
+    args.push(filter.excludeSessionId);
+  }
 
   const sql = `SELECT * FROM memory_entries
      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}

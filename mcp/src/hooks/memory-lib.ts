@@ -205,8 +205,15 @@ export function replaySpool(db: DB): void {
  * part of producing it: a block delivered without one is a saving that cannot
  * be checked later, so `recall` does both or neither. The receipt is
  * `prepared` until the caller writes the block and calls `markEmitted`.
+ * `excludeOwnSession` leaves out what this session wrote (see `RecallOptions`).
  */
-export function recallBlock(db: DB, resolved: ResolvedConfig, identity: EvidenceIdentity, scope: string): RecallResult | null {
+export function recallBlock(
+  db: DB,
+  resolved: ResolvedConfig,
+  identity: EvidenceIdentity,
+  scope: string,
+  excludeOwnSession = false,
+): RecallResult | null {
   try {
     if (!resolved.config.memory.enabled) return null;
     const result = recall(db, resolved.config, {
@@ -214,6 +221,7 @@ export function recallBlock(db: DB, resolved: ResolvedConfig, identity: Evidence
       sessionId: identity.sessionId,
       scope,
       index: scope === 'session_start',
+      excludeOwnSession,
     });
     return result.block ? result : null;
   } catch {

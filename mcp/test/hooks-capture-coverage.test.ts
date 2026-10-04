@@ -95,6 +95,22 @@ describe('capture-tool: what a result looks like, whatever shape it came in', ()
     expect(bodyOf('ToolE')?.body).toBe('e\n');
   });
 
+  it('drops a failed Read of an excluded file and keeps one of an allowed file', () => {
+    // Synthetic path and error text only.
+    capture('Read', { file_path: path.join(repo, '.env') }, { success: false, error: 'SYNTHETIC_PRIVATE_TEXT at .env:1' });
+    expect(bodyOf('Read')).toBeUndefined();
+    capture('Read', { file_path: path.join(repo, 'src', 'missing.ts') }, { success: false, error: 'File does not exist.' });
+    const kept = db.prepare("SELECT kind, body, files FROM evidence_events WHERE tool = 'Read'").all() as {
+      kind: string;
+      body: string;
+      files: string;
+    }[];
+    expect(kept).toHaveLength(1);
+    expect(kept[0].kind).toBe('tool_error');
+    expect(kept[0].body).toContain('File does not exist.');
+    expect(JSON.stringify(kept)).not.toContain('SYNTHETIC_PRIVATE_TEXT');
+  });
+
   it('applies configured patterns and quoted-secret rules before clipping inputs and results', () => {
     writeConfig({ privacy: { redact_patterns: ['ACME-[0-9]{12}'] } });
     // Synthetic values only. Each would be cut mid-value by a clip or excerpt.

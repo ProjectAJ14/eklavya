@@ -1,3 +1,24 @@
+## [1.49.2](https://github.com/ProjectAJ14/eklavya/compare/v1.49.1...v1.49.2) (2026-10-04)
+
+
+### Bug Fixes
+
+* **memory:** stop recalling a session's own entries back to it ([#119](https://github.com/ProjectAJ14/eklavya/issues/119)) ([e8a86cb](https://github.com/ProjectAJ14/eklavya/commit/e8a86cbd48650a561af4a0eff11469b436a047f2)), closes [#117](https://github.com/ProjectAJ14/eklavya/issues/117)
+
+## [1.49.1](https://github.com/ProjectAJ14/eklavya/compare/v1.49.0...v1.49.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* drop failed tool events that name an excluded file ([#115](https://github.com/ProjectAJ14/eklavya/issues/115)) ([84bc962](https://github.com/ProjectAJ14/eklavya/commit/84bc96211563ea0123683515f8d551a6ea87ad28)), closes [#88](https://github.com/ProjectAJ14/eklavya/issues/88)
+
+# [1.49.0](https://github.com/ProjectAJ14/eklavya/compare/v1.48.5...v1.49.0) (2026-10-04)
+
+
+### Features
+
+* count corrected misses toward accuracy and level progress ([#116](https://github.com/ProjectAJ14/eklavya/issues/116)) ([98136b1](https://github.com/ProjectAJ14/eklavya/commit/98136b1dbd40a016782a8a8e7b962c9b6d1dcf91))
+
 ## [1.48.5](https://github.com/ProjectAJ14/eklavya/compare/v1.48.4...v1.48.5) (2026-10-04)
 
 

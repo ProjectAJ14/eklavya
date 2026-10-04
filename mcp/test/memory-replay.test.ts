@@ -119,6 +119,19 @@ describe('transcript replay', () => {
     expect(bodies).toHaveLength(1);
   });
 
+  it('drops a replayed tool call that names an excluded file, and never records a failure', () => {
+    // A transcript carries no outcome, so replay records `tool_use`, never
+    // `tool_error`; a non-file tool naming an excluded path is dropped whole.
+    const file = transcript([
+      assistantLine('LS', { path: `${CWD}/.ssh/` }),
+      assistantLine('LS', { path: `${CWD}/src` }),
+    ]);
+    const result = replayTranscript(db, config, file, { cwd: CWD });
+    expect(result.excluded).toBe(1);
+    const rows = db.prepare('SELECT kind, body FROM evidence_events').all() as { kind: string; body: string }[];
+    expect(rows).toEqual([{ kind: 'tool_use', body: `path=${CWD}/src` }]);
+  });
+
   it('skips a subagent sidechain, which the parent transcript already records', () => {
     const file = transcript([userLine('do the thing', { isSidechain: true })]);
     expect(replayTranscript(db, config, file, { cwd: CWD }).read).toBe(0);

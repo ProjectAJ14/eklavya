@@ -86,12 +86,22 @@ export function prepare(
   if (toolExcluded(event.tool, policy)) return null;
   if (isOwnTraffic(event.tool, event.body)) return null;
 
-  const files = (event.files ?? []).filter((f) => !pathExcluded(f, policy));
-  // A file event whose only file was excluded is the excluded file. Keeping the
-  // event for its body would re-admit through the back door what the path rule
-  // just shut out.
-  if ((event.kind === 'file_edit' || event.kind === 'file_read') && (event.files?.length ?? 0) > 0 && files.length === 0) {
-    return null;
+  const named = event.files ?? [];
+  const files = named.filter((f) => !pathExcluded(f, policy));
+  if (files.length < named.length) {
+    // A file event whose only file was excluded is the excluded file. Keeping
+    // the event for its body would re-admit through the back door what the path
+    // rule just shut out. A read or edit naming an allowed file too keeps that
+    // file: its body is the arguments, not the excluded file's contents.
+    if (event.kind === 'file_edit' || event.kind === 'file_read') {
+      if (files.length === 0) return null;
+    } else {
+      // Any other event naming an excluded file is dropped whole, allowed files
+      // or not. A failed Read is a `tool_error`, and an error or a result
+      // excerpt quotes whichever file it came from — the body cannot be split
+      // by file, so no part of it can be kept safely.
+      return null;
+    }
   }
 
   // Redact, then cut — never the other way round. Cut first, the cap can land
@@ -165,6 +175,19 @@ export function captureOrSpool(
   return spoolEvent(input);
 }
 
+/** Tools that name their file in a required argument. */
+const FILE_FAILURE_TOOLS = new Set(['Read', 'NotebookRead', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+
+/**
+ * A failure of a file tool left with no file: before exclusions covered
+ * failures, that was a failed read or edit of an excluded file whose error text
+ * was kept. `prepare` no longer produces one; a spool line written before the
+ * upgrade still can. Migration 024 removes the same shape from the database.
+ */
+function excludedFileFailure(input: EvidenceInput): boolean {
+  return input.kind === 'tool_error' && FILE_FAILURE_TOOLS.has(input.tool ?? '') && !input.files?.length;
+}
+
 /** Replays whatever the spool holds. Idempotent through `event_uid`. */
 export function drainSpool(db: DB): { replayed: number; skipped: number } {
   const { records, commit } = takeSpooled();
@@ -175,7 +198,7 @@ export function drainSpool(db: DB): { replayed: number; skipped: number } {
     // A spool line is data this process wrote earlier, but a truncated write or
     // a hand-edited file is still possible; anything without an identity cannot
     // be replayed idempotently and is discarded rather than guessed at.
-    if (!input || typeof input !== 'object' || !input.eventUid || !input.project) {
+    if (!input || typeof input !== 'object' || !input.eventUid || !input.project || excludedFileFailure(input)) {
       skipped++;
       continue;
     }
