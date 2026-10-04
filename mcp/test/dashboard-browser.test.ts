@@ -47,6 +47,9 @@ const KEY = { options: ['A cache', 'A lock', 'A queue', 'A log'], notes: ['keeps
 let close = () => {};
 /** The page's artifact tabs, a top-level const of its script. */
 declare const TABS: { scroll: Map<string, number> };
+/** Page globals the day tests call directly. */
+declare function todayKey(): string;
+declare function streaks(map: Map<string, { day: string; total: number }>): { current: number; best: number; days: number };
 let browser: Browser;
 const savedHome = process.env.EKLAVYA_HOME;
 
@@ -86,15 +89,16 @@ interface Watched { page: Page; ctx: BrowserContext; errors: string[]; outbound:
 
 async function open(
   hash: string,
-  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean } = {},
+  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; tz?: string; now?: string } = {},
 ): Promise<Watched> {
-  const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 } });
+  const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 }, timezoneId: opts.tz });
   // Tips are switched off unless a test is about them, so a bubble never sits on what a test clicks.
   if (!opts.tips) await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-tips') ?? localStorage.setItem('eklavya-dash-tips', '{"off":true}'); } catch { /* the framed page */ } });
   // Init scripts run in every frame, and the viewer's sandboxed frame has no storage.
   if (opts.ground) await ctx.addInitScript((g) => { try { localStorage.setItem('eklavya-ground', g); } catch { /* the framed page */ } }, opts.ground);
   if (opts.init) await ctx.addInitScript(opts.init);
   const page = await ctx.newPage();
+  if (opts.now) await page.clock.setFixedTime(opts.now);
   track(page);
   const errors: string[] = [];
   const outbound: string[] = [];
@@ -1319,6 +1323,16 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const r = await w.page.$eval(bubble, (b) => { const x = b.getBoundingClientRect(); return { l: x.left, r: x.right, w: innerWidth }; });
       expect(r.l).toBeGreaterThanOrEqual(8);
       expect(r.r).toBeLessThanOrEqual(r.w - 8);
+      await w.ctx.close();
+    });
+  });
+
+  describe('local days', () => {
+    it("counts today in the learner's time zone, not UTC", async () => {
+      // 19:30 UTC on the 3rd is 01:00 IST on the 4th: an answer then is today's.
+      const w = await open('#/learning/dashboard', { tz: 'Asia/Kolkata', now: '2026-10-03T19:30:00Z' });
+      expect(await w.page.evaluate(() => [todayKey(), streaks(new Map([['2026-10-04', { day: '2026-10-04', total: 1 }]])).current]))
+        .toEqual(['2026-10-04', 1]);
       await w.ctx.close();
     });
   });

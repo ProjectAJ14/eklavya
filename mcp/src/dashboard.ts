@@ -825,7 +825,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
   // same pass line the level ladder uses, so the chart and the promotion agree.
   const daily = db
     .prepare(
-      `SELECT date(a.ts) AS day,
+      `SELECT date(a.ts, 'localtime') AS day,
               NULLIF(trim(COALESCE(a.repo, '')), '') AS repo,
               sum(CASE WHEN a.grade >= ? THEN 1 ELSE 0 END) AS passed,
               sum(CASE WHEN a.grade < ? AND (a.outcome IS NULL OR a.outcome = 'answered') AND fix.id IS NULL THEN 1 ELSE 0 END) AS missed,
@@ -1022,7 +1022,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
               sum(CASE WHEN a.grade < ? AND (a.outcome IS NULL OR a.outcome = 'answered') AND fix.id IS NULL THEN 1 ELSE 0 END) AS missed,
               sum(CASE WHEN a.outcome IN ('declined','dont_know') AND fix.id IS NULL THEN 1 ELSE 0 END) AS skipped,
               count(fix.id) AS corrected,
-              count(DISTINCT date(a.ts)) AS active_days,
+              count(DISTINCT date(a.ts, 'localtime')) AS active_days,
               min(a.ts) AS first_answer
        FROM attempts a LEFT JOIN attempts fix ON fix.retry_of = a.id
        WHERE a.${NOT_CORRECTION}`,

@@ -74,6 +74,22 @@ describe('dashboardState', () => {
     expect(s.totals.passed + s.totals.missed + s.totals.skipped).toBe(s.totals.answers);
   });
 
+  it("groups days in the learner's local time, not UTC", () => {
+    const tz = process.env.TZ;
+    process.env.TZ = 'Asia/Kolkata';
+    try {
+      work();
+      call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q1', answer: 'a', grade: 5, difficulty: 2 });
+      // 19:30 UTC two days ago is 01:00 IST the next day.
+      const utc = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
+      db.prepare(`UPDATE attempts SET ts = ?`).run(`${utc} 19:30:00`);
+      const local = new Date(Date.parse(`${utc}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+      expect((dashboardState(db) as any).daily.map((d: any) => d.day)).toEqual([local]);
+    } finally {
+      if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+    }
+  });
+
   it('ships every attempt with the question, the answer and the tutor reply', () => {
     work();
     call(recordAttempt, {
@@ -1527,7 +1543,7 @@ describe('/api/settings', () => {
       recordRetry(db, fixed, 'A queue', new Date());
       recordRetry(db, fixed, 'A lock', new Date());
       const st = dashboardState(db) as any;
-      const today = st.daily.filter((d: any) => d.day === new Date().toISOString().slice(0, 10));
+      const today = st.daily.filter((d: any) => d.day === new Date().toLocaleDateString('sv'));
       const sum = (k: string) => today.reduce((n: number, d: any) => n + d[k], 0);
       expect([sum('passed'), sum('missed'), sum('corrected')]).toEqual([0, 1, 1]);
       expect(st.totals).toMatchObject({ answers: 2, passed: 0, missed: 1, corrected: 1 });

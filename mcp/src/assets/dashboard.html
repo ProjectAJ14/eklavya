@@ -888,6 +888,11 @@ const DAY_MS = 86400000;
 const parse = (ts) => (ts ? new Date(String(ts).replace(' ', 'T') + (String(ts).endsWith('Z') ? '' : 'Z')) : null);
 const dayKey = (d) => d.toISOString().slice(0, 10);
 const fromKey = (k) => new Date(k + 'T00:00:00Z');
+/* A day is the learner's local calendar day, as the server's `'localtime'`
+   grouping is: an answer at 01:00 in India is today's, not yesterday's. Only
+   "today" is read from the local clock; stepping between keys stays in UTC. */
+const localKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const todayKey = () => localKey(new Date());
 
 const fmtDay = (k) => fromKey(k).toLocaleDateString(undefined, { month:'short', day:'numeric', timeZone:'UTC' });
 const fmtDate = (ts) => {
@@ -993,8 +998,7 @@ function dailyInScope() {
 /** Fills every day in a window, including the empty ones — the gaps are data. */
 function fillDays(map, n, endKey) {
   const out = [];
-  const end = endKey ? fromKey(endKey) : new Date();
-  end.setUTCHours(0, 0, 0, 0);
+  const end = fromKey(endKey ?? todayKey());
   const cur = new Date(end.getTime() - (n - 1) * DAY_MS);
   for (let i = 0; i < n; i++) {
     const k = dayKey(cur);
@@ -1008,7 +1012,7 @@ function fillDays(map, n, endKey) {
 function streaks(map) {
   const active = new Set([...map.values()].filter((d) => d.total > 0).map((d) => d.day));
   let current = 0;
-  const cur = new Date(); cur.setUTCHours(0, 0, 0, 0);
+  const cur = fromKey(todayKey());
   if (!active.has(dayKey(cur))) cur.setUTCDate(cur.getUTCDate() - 1); // today may not have started yet
   while (active.has(dayKey(cur))) { current += 1; cur.setUTCDate(cur.getUTCDate() - 1); }
 
@@ -1307,7 +1311,7 @@ function chartHeatmap(el, map) {
   // same size on both. Capped at 53 because that is all the payload carries.
   const avail = (el.parentElement.clientWidth || 700) - PAD_L - 2;
   const weeks = Math.max(12, Math.min(53, Math.floor(avail / (CELL + GAP))));
-  const end = new Date(); end.setUTCHours(0, 0, 0, 0);
+  const end = fromKey(todayKey());
   end.setUTCDate(end.getUTCDate() + (6 - end.getUTCDay()));      // to the end of this week
   const total = weeks * 7;
   const days = fillDays(map, total, dayKey(end));
@@ -1324,7 +1328,7 @@ function chartHeatmap(el, map) {
       // right edge of the card.
       if (m !== lastMonth) { if (col < weeks - 2) out += `<text class="axis" x="${x}" y="${PAD_T - 6}">${m}</text>`; lastMonth = m; }
     }
-    const future = date.getTime() > Date.now();
+    const future = d.day > todayKey();
     const fill = d.total ? 'var(--spot)' : future ? 'transparent' : 'var(--mass)';
     const op = d.total ? (0.3 + 0.7 * Math.min(1, d.total / max)).toFixed(2) : 1;
     out += `<rect class="cell" x="${x}" y="${y}" width="${CELL}" height="${CELL}" fill="${fill}" fill-opacity="${op}">`
@@ -1790,12 +1794,12 @@ function viewReview(param) {
   // sees.
   const buckets = [{ label:'Overdue', short:'late', n:due.length, overdue:true }];
   for (let i = 0; i < 14; i++) {
-    const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() + i);
+    const d = fromKey(todayKey()); d.setUTCDate(d.getUTCDate() + i);
     const k = dayKey(d);
     buckets.push({
       label: i === 0 ? 'Today' : fmtDay(k),
       short: i === 0 ? 'today' : String(fromKey(k).getUTCDate()),
-      n: upcoming.filter((c) => String(c.next_review).slice(0, 10) === k).length,
+      n: upcoming.filter((c) => localKey(parse(c.next_review)) === k).length,
       overdue: false,
     });
   }
