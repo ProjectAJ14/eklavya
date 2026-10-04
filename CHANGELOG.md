@@ -1,3 +1,10 @@
+# [1.49.0](https://github.com/ProjectAJ14/eklavya/compare/v1.48.5...v1.49.0) (2026-10-04)
+
+
+### Features
+
+* count corrected misses toward accuracy and level progress ([#116](https://github.com/ProjectAJ14/eklavya/issues/116)) ([98136b1](https://github.com/ProjectAJ14/eklavya/commit/98136b1dbd40a016782a8a8e7b962c9b6d1dcf91))
+
 ## [1.48.5](https://github.com/ProjectAJ14/eklavya/compare/v1.48.4...v1.48.5) (2026-10-04)
 
 
