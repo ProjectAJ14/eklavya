@@ -51,7 +51,10 @@ declare const TABS: { scroll: Map<string, number> };
 declare function todayKey(): string;
 declare function fromKey(k: string): Date;
 declare function render(): void;
-declare let S: { daily: unknown[] };
+declare let S: { daily: unknown[]; concepts: unknown[]; logged: unknown[] };
+declare function inScope(repo: unknown, sid: unknown): boolean;
+declare let INV: { projects: unknown[] };
+declare function startCommand(concepts: unknown[]): { name: string; count: number; command: string; note: string }[];
 declare function streaks(map: Map<string, { day: string; total: number }>): { current: number; best: number; days: number };
 let browser: Browser;
 const savedHome = process.env.EKLAVYA_HOME;
@@ -94,7 +97,7 @@ async function open(
   hash: string,
   opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; tz?: string; now?: string } = {},
 ): Promise<Watched> {
-  const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 }, timezoneId: opts.tz });
+  const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 }, ...(opts.tz ? { timezoneId: opts.tz } : {}) });
   // Tips are switched off unless a test is about them, so a bubble never sits on what a test clicks.
   if (!opts.tips) await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-tips') ?? localStorage.setItem('eklavya-dash-tips', '{"off":true}'); } catch { /* the framed page */ } });
   // Init scripts run in every frame, and the viewer's sandboxed frame has no storage.
@@ -1465,6 +1468,107 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         await w.ctx.close();
       });
     }
+  });
+
+  describe('start-review commands', () => {
+    /** Marks `slugs` due (most overdue first) and every other concept not due, then redraws. */
+    const due = (page: Page, rows: [string, string | null][]) => page.evaluate((rows) => {
+      const want = new Map(rows);
+      S.concepts.forEach((c: any) => {
+        c.due = want.has(c.slug);
+        if (c.due) { c.seen = 1; c.repo = want.get(c.slug); c.overdue_days = rows.length - rows.findIndex(([s]) => s === c.slug); }
+      });
+      render();
+    }, rows);
+
+    it('quotes the path for the shell, caps the slugs and falls back without a project', async () => {
+      const w = await open('#/learning/review');
+      const out = await w.page.evaluate((mixed) => {
+        INV.projects.push({ id: "/Users/a b/it's", path: "/Users/a b/it's", name: "it's", available: true });
+        const c = (slug: string, repo: string | null, overdue = 1) => ({ slug, repo, due: true, overdue_days: overdue });
+        const many = Array.from({ length: 25 }, (_, i) => c(`concept-${i}`, mixed, i));
+        const posix = startCommand([c('csrf', "/Users/a b/it's"), c('bad slug', "/Users/a b/it's")]);
+        const capped = startCommand(many);
+        const loose = startCommand([c('csrf', null)]);
+        Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' });
+        const win = startCommand([c('csrf', "/Users/a b/it's")]);
+        return { posix, capped, loose, win };
+      }, fx.repo.mixed);
+      expect(out.posix).toEqual([{ name: "it's", count: 1, command: `cd '/Users/a b/it'\\''s' && claude "/eklavya:quiz csrf"`, note: '' }]);
+      expect(out.win[0]!.command).toBe(`Set-Location -LiteralPath '/Users/a b/it''s'; claude "/eklavya:quiz csrf"`);
+      expect(out.capped[0]!.count).toBe(25);
+      const named = out.capped[0]!.command.match(/quiz ([^"]+)"/)![1]!.split(' ');
+      expect(named).toHaveLength(20);
+      expect(named[0]).toBe('concept-24');
+      expect(out.loose[0]).toMatchObject({ command: 'claude "/eklavya:quiz csrf"', note: 'Run it inside the project you want these answers counted in.' });
+      await w.ctx.close();
+    });
+
+    it('gives the review queue one block per project, most due first', async () => {
+      const w = await open('#/learning/review');
+      const [a, b, c] = ['csrf', 'jwt-structure', 'git-rebase'];
+      await due(w.page, [[a!, fx.repo.answered], [b!, fx.repo.mixed], [c!, fx.repo.mixed]]);
+      const blocks = await w.page.evaluate(() => ({
+        head: document.querySelector('#view .starts h2')?.textContent,
+        rows: [...document.querySelectorAll('#view .starts .start')].map((x) => ({
+          who: x.querySelector('p')!.textContent!.replace(/\s+/g, ' ').trim(), cmd: x.querySelector('code')!.textContent,
+        })),
+        quiz: document.querySelector('#view .next:not(.start)')?.textContent ?? '',
+      }));
+      expect(blocks.head).toBe('Start your reviews');
+      expect(blocks.rows.map((r) => r.who)).toEqual(['mixed · 2 due', 'answered · 1 due']);
+      expect(blocks.rows[0]!.cmd).toBe(`cd '${fx.repo.mixed}' && claude "/eklavya:quiz ${b} ${c}"`);
+      // A selected project shows its own block alone.
+      await w.page.evaluate((id) => { location.hash = `#/learning/review?project=${encodeURIComponent(id)}`; }, fx.repo.mixed);
+      await ready(w.page);
+      const inMixed = await w.page.evaluate(() => S.logged.find((l: any) => inScope(l.repo, l.session_id))!.slug);
+      await due(w.page, [[inMixed, fx.repo.answered]]);
+      expect(await w.page.$$eval('#view .starts .start p', (x) => x.map((p) => p.textContent!.replace(/\s+/g, ' ').trim())))
+        .toEqual(['mixed · 1 due']);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('puts a one-slug command on a due concept, and none on one that is not due', async () => {
+      const w = await open('#/learning/concept/csrf');
+      await due(w.page, [['csrf', fx.repo.mixed]]);
+      expect(await w.page.evaluate(() => ({
+        head: document.querySelector('#view .starts h2')?.textContent,
+        cmd: document.querySelector('#view .starts code')?.textContent,
+      }))).toEqual({ head: 'This one is due', cmd: `cd '${fx.repo.mixed}' && claude "/eklavya:quiz csrf"` });
+      await due(w.page, []);
+      expect(await w.page.$('#view .starts')).toBeNull();
+      await w.ctx.close();
+    });
+
+    it('sends the Learning next step to the queue instead of naming a bare command', async () => {
+      const w = await open('#/learning/dashboard');
+      await due(w.page, [['csrf', fx.repo.mixed], ['git-rebase', fx.repo.mixed]]);
+      const text = await w.page.$eval('#view .next', (x) => x.textContent!.replace(/\s+/g, ' ').trim());
+      expect(text).toBe('2 concepts are due. Open the review queue for the command to run.');
+      await w.ctx.close();
+    });
+
+    it('copies the exact command, and selects it when the clipboard refuses', async () => {
+      const w = await open('#/learning/concept/csrf');
+      await w.ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
+      await due(w.page, [['csrf', fx.repo.mixed]]);
+      const want = await w.page.$eval('#view .starts code', (x) => x.textContent);
+      await w.page.click('#view [data-copy]');
+      await w.page.waitForFunction(() => document.querySelector('#view [data-copy]')!.textContent === 'Copied');
+      expect(await w.page.evaluate(() => navigator.clipboard.readText())).toBe(want);
+      expect(await w.page.$eval('#copy-live', (x) => x.textContent)).toBe('Command copied');
+      await w.page.waitForFunction(() => document.querySelector('#view [data-copy]')!.textContent === 'Copy', null, { timeout: 3000 });
+
+      await w.page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); });
+      await w.page.focus('#view [data-copy]');
+      await w.page.keyboard.press('Enter');
+      await w.page.waitForFunction(() => /to copy/.test(document.getElementById('copy-live')!.textContent!));
+      expect(await w.page.evaluate(() => String(getSelection()))).toBe(want);
+      expect(await w.page.$eval('#copy-live', (x) => x.textContent)).toBe('Press ⌘C to copy');
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
   });
 
   describe('every screen', () => {

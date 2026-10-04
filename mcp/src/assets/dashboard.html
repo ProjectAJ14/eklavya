@@ -660,6 +660,20 @@
   .next p strong { color:var(--ink); }
   .next code { background:var(--mass); padding:2px 6px; font-size:12.5px; color:var(--ink); }
   .next.ok { border-left-color:var(--spot); }
+  .next.start { display:block; }
+  .next.start + .next.start { margin-top:var(--space-3); }
+  .cmd { display:flex; align-items:stretch; gap:var(--space-2); margin-top:var(--space-3); }
+  .cmd code { flex:1 1 auto; min-width:0; overflow-x:auto; white-space:pre; background:var(--code-bg); color:var(--ink);
+              font-family:var(--font-mono); font-size:12.5px; line-height:1.6; padding:var(--space-2) var(--space-3);
+              border:1px solid var(--line-2); }
+  .cmd__copy { flex:none; padding:0 var(--space-4); border:1px solid var(--line-2); background:var(--panel); color:var(--ink);
+               font:inherit; font-size:13px; cursor:pointer; min-width:76px;
+               transition:border-color var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
+  .cmd__copy:hover { border-color:var(--spot); color:var(--spot); }
+  .cmd__copy:focus-visible { outline:none; box-shadow:var(--ring); }
+  .cmd__note { margin:var(--space-2) 0 0; color:var(--dim); font-size:13px; }
+  .starts > .cmd__note { margin-top:var(--space-3); }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 
   /* One line per item: a name, a quiet second line, and one number on the right. */
   .lines { list-style:none; margin:0; padding:0; }
@@ -1181,6 +1195,63 @@ function fold(id, title, peek, body, opts = {}) {
 /** The one thing waiting on the reader, or nothing. `html` is escaped by the caller. */
 const nextStep = (html, ok) => `<div class="next${ok ? ' ok' : ''}"><p>${html}</p></div>`;
 
+/* ---------- start-review commands ---------- */
+
+const isWindows = () => navigator.userAgent.includes('Windows');
+/**
+ * A command per project that starts Claude Code there on the given due
+ * concepts: `[{ name, count, command, note }]`, most due first. An answer
+ * counts in the project of the session it is given in, so the command goes
+ * to the concept's last project, or to `into` (the selected project). Slugs
+ * are kebab-case already; anything else is dropped rather than quoted.
+ */
+function startCommand(concepts, into = null) {
+  const groups = new Map();
+  for (const c of concepts) {
+    if (!c.due || !/^[a-z0-9-]+$/.test(c.slug)) continue;
+    const id = into ?? pid(c.repo);
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(c);
+  }
+  return [...groups].map(([id, cs]) => {
+    const slugs = cs.sort((a, b) => (b.overdue_days ?? 0) - (a.overdue_days ?? 0)).slice(0, 20).map((c) => c.slug);
+    const quiz = `claude "/eklavya:quiz ${slugs.join(' ')}"`;
+    const p = projectById(id);
+    const here = p?.path && p.available;
+    const command = !here ? quiz
+      : isWindows() ? `Set-Location -LiteralPath '${p.path.replace(/'/g, "''")}'; ${quiz}`
+      : `cd '${p.path.replace(/'/g, "'\\''")}' && ${quiz}`;
+    return { name: p?.name ?? base(id), count: cs.length, command,
+      note: here ? '' : 'Run it inside the project you want these answers counted in.' };
+  }).sort((a, b) => b.count - a.count);
+}
+
+/** The commands as copyable blocks under one heading, or nothing. */
+function startBlocks(title, cmds) {
+  if (!cmds.length) return '';
+  return `<section class="starts"><div class="head"><h2>${esc(title)}</h2></div>`
+    + cmds.map((x) => `<div class="next start">
+        <p><strong>${esc(x.name)}</strong> · ${x.count} due</p>
+        <div class="cmd"><code>${esc(x.command)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div>
+        ${x.note ? `<p class="cmd__note">${esc(x.note)}</p>` : ''}</div>`).join('')
+    + `<p class="cmd__note">Each run asks up to your questions-per-task limit, most overdue first. Run it again for the rest.</p>
+      <span class="sr" id="copy-live" aria-live="polite"></span></section>`;
+}
+
+/** Copies a block's command; if the clipboard refuses, selects it for the keyboard shortcut instead. */
+function copyCommand(btn) {
+  const code = btn.parentElement.querySelector('code');
+  const live = $('copy-live');
+  Promise.resolve().then(() => navigator.clipboard.writeText(code.textContent)).then(() => {
+    btn.textContent = 'Copied';
+    live.textContent = 'Command copied';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  }, () => {
+    getSelection().selectAllChildren(code);
+    live.textContent = `Press ${isWindows() ? 'Ctrl+C' : '⌘C'} to copy`;
+  });
+}
+
 /**
  * One line per item: `{ t, s, v, go, cls }` — a title, a quiet mono second
  * line, one value on the right, and where it opens. All HTML the caller escaped.
@@ -1642,8 +1713,7 @@ function viewLearningDashboard() {
   // One next step, the most useful one. Due work outranks an empty scope.
   const next = due.length
     ? nextStep(`<strong>${plural(due.length, 'concept')} ${due.length === 1 ? 'is' : 'are'} due.</strong>
-        Run <code>/eklavya:quiz</code> in Claude Code, or open the
-        <a class="link" data-go="${esc(LH('review'))}">review queue</a>.`)
+        Open the <a class="link" data-go="${esc(LH('review'))}">review queue</a> for the command to run.`)
     : PROJECT !== null && !answered
       ? nextStep(`<strong>No assessments yet in ${esc(scopeName())}.</strong>
           ${logged.size ? `${plural(logged.size, 'concept')} recorded from its work will come up in a quiz.` : 'Nothing has been logged here either.'}`, true)
@@ -1823,6 +1893,8 @@ function viewConcept(slug) {
       ['Next review', c.owed ? whenDue(c.next_review) : '—', c.interval_d ? `every ${Math.round(c.interval_d)}d · ease ${c.ease ? c.ease.toFixed(2) : '—'} · ${plural(c.reps, 'rep')}` : 'not scheduled', c.due ? 'warn' : ''],
     ]),
 
+    startBlocks('This one is due', startCommand([c])),
+
     card('Every question you were asked', atts.length ? `${plural(atts.length, 'attempt')}, newest first. Open one for the options and the feedback.` : '',
       atts.length ? history + pager('concept', atts.length, p, PER_Q)
         : '<p class="empty">Not asked yet. It will come up when your work touches it.</p>'),
@@ -1905,9 +1977,7 @@ function viewReview(param) {
        ease. A score decays about 5% a week while a review is overdue, so this list is also the list of
        things quietly getting weaker. A skipped question comes back a tier lower.`),
 
-    due.length
-      ? nextStep(`<strong>${plural(due.length, 'concept')} waiting.</strong> Run <code>/eklavya:quiz</code> in Claude Code to work through them.`)
-      : '',
+    startBlocks('Start your reviews', startCommand(due, PROJECT)),
 
     card('The next fortnight', null,
       `<div class="chart"><svg id="c-forecast" role="img" aria-label="Scheduled reviews for the next fourteen days"></svg></div>`),
@@ -4233,6 +4303,8 @@ function setQuery(changes) {
 }
 
 function onActivate(e) {
+  const copy = e.target.closest('[data-copy]');
+  if (copy) return copyCommand(copy);
   const arr = e.target.closest('.streak__arr');
   if (arr) {
     if (arr.disabled) return;
