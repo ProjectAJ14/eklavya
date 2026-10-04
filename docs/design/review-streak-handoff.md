@@ -1,6 +1,6 @@
 # Streak card and start-review commands — design handoff
 
-- **Base:** `main` @ `cb255e9` (release 1.48.5)
+- **Base:** `main` @ `98136b1` (includes #116, corrections count toward accuracy and level progress)
 - **Branch:** `feat/review-streak`
 - **Previous brief:** `docs/design/dashboard-tips-handoff.md`
 - **Design source:** the maintainer's screenshot of Wispr Flow's "49 day streak"
@@ -35,15 +35,15 @@ heatmap stays hand-rolled SVG.
 
 | Fact | Where | Status |
 |---|---|---|
-| A streak and a year heatmap already exist. `streaks()` returns `{ current, best, days }`; `chartHeatmap()` draws week columns, picks its window from the card width (12–53 weeks), one colour at 0.3–1.0 opacity. | `dashboard.html:1008-1022`, `:1304-1340` | Verified. Reuse both. |
-| The heatmap is folded at the **bottom** of Learning → Dashboard (`fold('learn:heat', 'Practice history', …)`), and the streak is only the fourth tile. | `dashboard.html:1589`, `:1630-1632` | Verified. That is why it is not seen. |
-| **Days are UTC days.** The payload groups by `date(a.ts)`; the client builds "today" with `setUTCHours(0,0,0,0)`. In India (UTC+5:30) an answer at 00:30–05:29 local lands on the previous day, so a streak can break or a cell shift. | `dashboard.ts:827`, `dashboard.html:1011`, `:1313` | Verified by reading. The dashboard runs on the learner's own machine, so SQLite's `'localtime'` is the learner's zone. |
+| A streak and a year heatmap already exist. `streaks()` returns `{ current, best, days }`; `chartHeatmap()` draws week columns, picks its window from the card width (12–53 weeks), one colour at 0.3–1.0 opacity. | `dashboard.html:1008-1022`, `:1303-1339` | Verified. Reuse both. |
+| The heatmap is folded at the **bottom** of Learning → Dashboard (`fold('learn:heat', 'Practice history', …)`), and the streak is only the fourth tile. | `dashboard.html:1591`, `:1632` | Verified. That is why it is not seen. |
+| **Days are UTC days.** The payload groups by `date(a.ts)`; the client builds "today" with `setUTCHours(0,0,0,0)`. In India (UTC+5:30) an answer at 00:30–05:29 local lands on the previous day, so a streak can break or a cell shift. | `dashboard.ts:828`, `dashboard.html:1012`, `:1311` | Verified by reading. The dashboard runs on the learner's own machine, so SQLite's `'localtime'` is the learner's zone. |
 | The payload carries 365 days (`TIMELINE_DAYS`). | `dashboard.ts:57` | Verified. Paging back is bounded by it. |
-| The review queue's only instruction is "Run `/eklavya:quiz` in Claude Code to work through them". The Learning next step says the same. | `dashboard.html:1832`, `:1564` | Verified. |
+| The review queue's only instruction is "Run `/eklavya:quiz` in Claude Code to work through them". The Learning next step says the same. | `dashboard.html:1834`, `:1567` | Verified. |
 | A bare `/eklavya:quiz` serves reviews only from **the project it runs in** (`reason: "project_review"`, "this project already asked"). | `get_session_quiz_plan.ts:118` (description), the session branch from `:451` | Verified. Running it in another folder misses the queue. |
 | `/eklavya:quiz <slug> [<slug>…]` works **from any folder** and puts due concepts first. It plans the whole `max_questions_per_task` budget (default 4). | `skills/quiz/SKILL.md` "Topic given"; `get_session_quiz_plan.ts:429-440`; `config.ts:352` | Verified. This is the command to hand out. |
 | An answer is recorded against the project of the session it is given in, and levels are per project. So the command should `cd` into the project the concept was last asked in. | `record_attempt`; manual `dashboard.mdx:220` | Verified. |
-| Every concept in the payload already carries `repo` (`last_repo`, the latest attempt's project). The inventory gives each project `path` and `available` (`fs.existsSync`). | `dashboard.ts:873-875`, `:969`, `:612`; client `pid()`, `projectById()` `dashboard.html:957-964` | Verified. No new server data is needed for the command. |
+| Every concept in the payload already carries `repo` (`last_repo`, the latest attempt's project). The inventory gives each project `path` and `available` (`fs.existsSync`). | `dashboard.ts:874-876`, `:970`, `:612`; client `pid()`, `projectById()` `dashboard.html:957-964` | Verified. No new server data is needed for the command. |
 | The page has no clipboard code today. `127.0.0.1` is a secure context, so `navigator.clipboard.writeText` is available. | `grep clipboard dashboard.html` → none | Verified. |
 | `claude "<prompt>"` starts an interactive session with that first prompt. Whether a **slash command** as that first prompt runs as the command (not as plain text) | — | **Hypothesis.** Stage 3 starts by confirming it on the installed Claude Code; fallback below. |
 
@@ -72,14 +72,14 @@ npm run coverage
 
 **Fix, at the two layers every daily view routes through:**
 
-- `dashboard.ts:827`: `date(a.ts)` → `date(a.ts, 'localtime')`. Leave the window
+- `dashboard.ts:828`: `date(a.ts)` → `date(a.ts, 'localtime')`. Leave the window
   filter `a.ts >= date('now', ?)` as is (a day of slack at the edge is harmless).
   Grep `dashboard.ts` for every other `date(` on a timestamp that feeds a day key
-  and change it the same way; list them in the commit message. Known: `:1024` `count(DISTINCT date(a.ts)) AS active_days`.
+  and change it the same way; list them in the commit message. Known: `:1025` `count(DISTINCT date(a.ts)) AS active_days`.
 - `dashboard.html`: add one `todayKey()` that returns the **local** `YYYY-MM-DD`
   (`getFullYear/getMonth/getDate`), and use it wherever "today" is derived:
-  `streaks()` (`:1011`), `chartHeatmap()` end-of-week (`:1312-1313`),
-  `fillDays()` default end (`:996`), `viewReview()` forecast buckets (`:1790`). Key
+  `streaks()` (`:1012`), `chartHeatmap()` end-of-week (`:1311-1312`),
+  `fillDays()` default end (`:996`), `viewReview()` forecast buckets (`:1793`). Key
   arithmetic after that (`fromKey`, `+DAY_MS`) stays in UTC; it only steps keys.
 
 **Test first** (`dashboard.test.ts`): with `TZ=Asia/Kolkata` for the process
@@ -119,6 +119,7 @@ entry for it is ignored, nothing to migrate.
 | Grid | `chartHeatmap()` as today: `CELL 13`, `GAP 3`, week columns, Mon/Wed/Fri labels, month labels, window picked from width (12–53 weeks). |
 | Steps | Day total `t > 0` gets step `s = min(4, ceil(4 * t / max))` over the **visible window's** max. Fill: `color-mix(in srgb, var(--spot) P%, var(--mass))` with P = 30 / 55 / 80 / 100 for s = 1..4. Empty past day `var(--mass)`; future `transparent`. Drop `fill-opacity`. |
 | Current streak | Every cell in the current run gets `stroke="var(--ink)" stroke-width="1.5"` (inset by drawing the rect 0.75 px smaller each side so cells do not touch). Its `<title>` gains " · current streak". |
+| Cell title | `<date> — N answers (M right)` where M = `passed + corrected`, so the calendar agrees with the Accuracy tile after #116 (today it shows `passed` only, `:1331`). Empty day: `<date> — nothing`. |
 | Legend | Bottom row, left: "More", four 10 px squares at steps 4→1, "Less" (matches the screenshot's order). Right: a 10 px hollow square with the same stroke, "Current streak". `--faint`, 12 px. |
 | Arrows | `<button>`s ‹ and › at the ends of the month-label row, `aria-label` "Earlier weeks" / "Later weeks". Shown only when the window holds fewer than 53 weeks. ‹ moves the window back by its own width; › forward; › disabled at the current week, ‹ disabled once the window's first day is ≥ 365 days back. Offset lives in a module variable, reset to 0 on every `render()` (a view offset, not a filter, so not in the URL). Redraw only the SVG, not the page. |
 | Empty | No answers ever: headline "No streak yet", sub-line "Answer one question to start one.", the grid still draws (all `--mass`). |
@@ -130,6 +131,7 @@ entry for it is ignored, nothing to migrate.
 - Fixture with a 3-day current run and a 5-day older run: headline "3 day streak", label "Longest streak | 5 days", exactly 3 outlined cells.
 - Today empty, yesterday active: sub-line reads "make it 4".
 - Steps: day totals 1 and `max` map to steps 1 and 4.
+- A day with one right answer and one corrected miss: its title says "(2 right)".
 - At 560 px: ‹ is enabled, clicking it changes the first month label; › is disabled before it and enabled after; both reachable by Tab and work with Enter.
 - At 1280 px with the 53-week window: no arrows.
 - Both grounds: the outline is visible (stroke resolves to `--ink`).
@@ -174,9 +176,9 @@ questions-per-task limit, most overdue first. Run it again for the rest."
 
 | Place | What changes |
 |---|---|
-| Review queue (`viewReview`, replaces the text at `:1832`) | Heading "Start your reviews", then one block per project with due concepts (one block when a project is selected). Order: most due first. |
+| Review queue (`viewReview`, replaces the text at `:1834`) | Heading "Start your reviews", then one block per project with due concepts (one block when a project is selected). Order: most due first. |
 | Concept page (`viewConcept`, after the tiles) | When `c.due`: one block, heading "This one is due", command for this slug only. Not shown for concepts that are learning but not due, mastered, or never asked. |
-| Learning next step (`:1563-1566`) | Text becomes "**N concepts are due.** Open the review queue for the command to run." Drop the bare `/eklavya:quiz`, which runs in whatever folder the learner is in. |
+| Learning next step (`:1566-1569`) | Text becomes "**N concepts are due.** Open the review queue for the command to run." Drop the bare `/eklavya:quiz`, which runs in whatever folder the learner is in. |
 
 ### Tests
 
@@ -261,3 +263,4 @@ database via `EKLAVYA_DB`.
 7. **Colour steps relative to the visible window's busiest day.** Wispr-like and simple. Cost: one huge day pales the rest; a fixed scale has no defensible thresholds yet.
 8. **Arrow offset is not in the URL.** It is a view position, not a filter. Cost: a shared link opens at the current weeks.
 9. **POSIX single-quoted paths; PowerShell form on Windows only.** `cmd.exe` is not covered. Cost: a `cmd.exe` user edits the `cd`.
+10. **Corrected misses count as "right" in the calendar's hover text.** This matches the Accuracy tile, which counts corrections as right since #116. Cost: the calendar no longer shows first-try passes on their own; the concept page still lists corrections separately.
