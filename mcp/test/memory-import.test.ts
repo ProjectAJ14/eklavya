@@ -322,7 +322,7 @@ describe('importFrom', () => {
 
     // The bug this exists for: imported rows returned an empty evidence block,
     // so the drill-down worked for freshly captured entries and nothing else.
-    const entry = memoryGet.handler({ ids: [fix.id], include_evidence: true }, { db } as never) as {
+    const entry = memoryGet.handler({ ids: [fix.id], include_evidence: true, all_projects: true }, { db } as never) as {
       entries: { evidence_events: { kind: string; body: string }[] }[];
     };
     expect(entry.entries[0].evidence_events).toHaveLength(2);

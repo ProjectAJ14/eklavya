@@ -45,7 +45,10 @@ export const SYNC_FORMAT_VERSION = 1;
  * An allowlist rather than `SELECT *`, so a later migration adding a column to
  * `memory_entries` does not silently start publishing it. `session_id`,
  * `batch_id` and `superseded_by` are left out for a different reason: they are
- * local row ids and mean nothing on the other device.
+ * local row ids and mean nothing on the other device. A correction still
+ * crosses: the record carries the replacement's `entry_uid` beside the payload
+ * (`SyncRecord.superseded_by`), and the receiving device resolves it to its own
+ * row id.
  */
 const ENTRY_COLUMNS = [
   'project',
@@ -64,6 +67,21 @@ const ENTRY_COLUMNS = [
 
 type EntryPayload = Record<(typeof ENTRY_COLUMNS)[number], unknown>;
 
+/**
+ * The columns a version is staged from, with `superseded_by` translated to the
+ * replacement's uid: a resolved link reads it from the replacement's row, and
+ * a link still waiting for its replacement to arrive reads it from
+ * `sync_supersessions`. Either way this device states the correction it holds,
+ * so a push never publishes a corrected entry as live again.
+ */
+const STAGE_COLUMNS = `e.entry_uid, e.deleted_at, ${ENTRY_COLUMNS.map((c) => `e.${c}`).join(', ')},
+  COALESCE(
+    (SELECT r.entry_uid FROM memory_entries r WHERE r.id = e.superseded_by),
+    (SELECT p.replacement_uid FROM sync_supersessions p WHERE p.entry_uid = e.entry_uid)
+  ) AS superseded_by_uid`;
+
+type StageRow = EntryPayload & { entry_uid: string; deleted_at: string | null; superseded_by_uid: string | null };
+
 export interface SyncRecord {
   v: number;
   device_id: string;
@@ -77,6 +95,11 @@ export interface SyncRecord {
   /** Null for a tombstone: a deletion propagates the fact, never the text. */
   entry: EntryPayload | null;
   tags: string[];
+  /**
+   * The `entry_uid` of the entry that corrected this one. Absent when nothing
+   * did, which keeps every uncorrected record, and its hash, as it always was.
+   */
+  superseded_by?: string | null;
 }
 
 export interface SyncOutcome {
@@ -182,12 +205,26 @@ function guard(db: DB, config: EklavyaConfig, override?: string | null):
 // Hashing and the version vector
 // ---------------------------------------------------------------------------
 
-/** Content identity of a version. Equal hashes mean nothing has to be sent. */
-function payloadHash(op: 'upsert' | 'delete', entry: EntryPayload | null, tags: string[]): string {
+/**
+ * Content identity of a version. Equal hashes mean nothing has to be sent.
+ *
+ * A correction is part of the content: superseding an entry changes its hash,
+ * so the push scan stages it and the peer learns of it. The replacement's uid
+ * is hashed only when there is one, so an uncorrected entry keeps the hash it
+ * had before corrections travelled and an upgrade re-sends nothing else.
+ */
+function payloadHash(
+  op: 'upsert' | 'delete',
+  entry: EntryPayload | null,
+  tags: string[],
+  supersededBy: string | null = null,
+): string {
   const h = crypto.createHash('sha256');
   // Canonical by construction: ENTRY_COLUMNS is ordered and tags are sorted, so
   // two devices holding the same content always agree on the hash.
-  h.update(JSON.stringify([op, entry ? ENTRY_COLUMNS.map((c) => entry[c] ?? null) : null, [...tags].sort()]));
+  const parts: unknown[] = [op, entry ? ENTRY_COLUMNS.map((c) => entry[c] ?? null) : null, [...tags].sort()];
+  if (supersededBy) parts.push(supersededBy);
+  h.update(JSON.stringify(parts));
   return h.digest('hex').slice(0, 32);
 }
 
@@ -251,11 +288,19 @@ interface Staged {
   op: 'upsert' | 'delete';
   entry: EntryPayload | null;
   tags: string[];
+  superseded_by: string | null;
   hash: string;
 }
 
 function tombstone(entryUid: string): Staged {
-  return { entry_uid: entryUid, op: 'delete', entry: null, tags: [], hash: payloadHash('delete', null, []) };
+  return {
+    entry_uid: entryUid,
+    op: 'delete',
+    entry: null,
+    tags: [],
+    superseded_by: null,
+    hash: payloadHash('delete', null, []),
+  };
 }
 
 function tagsOf(db: DB, entryUid: string): string[] {
@@ -268,11 +313,19 @@ function tagsOf(db: DB, entryUid: string): string[] {
   ).map((t) => t.tag);
 }
 
-function stage(db: DB, row: EntryPayload & { entry_uid: string; deleted_at: string | null }): Staged {
+function stage(db: DB, row: StageRow): Staged {
   if (row.deleted_at !== null) return tombstone(row.entry_uid);
   const entry = Object.fromEntries(ENTRY_COLUMNS.map((c) => [c, row[c] ?? null])) as EntryPayload;
   const tags = tagsOf(db, row.entry_uid);
-  return { entry_uid: row.entry_uid, op: 'upsert', entry, tags, hash: payloadHash('upsert', entry, tags) };
+  const supersededBy = row.superseded_by_uid;
+  return {
+    entry_uid: row.entry_uid,
+    op: 'upsert',
+    entry,
+    tags,
+    superseded_by: supersededBy,
+    hash: payloadHash('upsert', entry, tags, supersededBy),
+  };
 }
 
 /**
@@ -280,9 +333,9 @@ function stage(db: DB, row: EntryPayload & { entry_uid: string; deleted_at: stri
  * staged. Null when the entry is unknown here in every sense.
  */
 function localContent(db: DB, entryUid: string): Staged | null {
-  const row = db
-    .prepare(`SELECT entry_uid, deleted_at, ${ENTRY_COLUMNS.join(', ')} FROM memory_entries WHERE entry_uid = ?`)
-    .get(entryUid) as (EntryPayload & { entry_uid: string; deleted_at: string | null }) | undefined;
+  const row = db.prepare(`SELECT ${STAGE_COLUMNS} FROM memory_entries e WHERE e.entry_uid = ?`).get(entryUid) as
+    | StageRow
+    | undefined;
   if (row) return stage(db, row);
   // No row, but a record that outlived it: a hard delete. Still a tombstone.
   return localRecord(db, entryUid) ? tombstone(entryUid) : null;
@@ -298,9 +351,7 @@ function localContent(db: DB, entryUid: string): Staged | null {
  * shows up in a profile.
  */
 function scanLocal(db: DB): Staged[] {
-  const rows = db
-    .prepare(`SELECT entry_uid, deleted_at, ${ENTRY_COLUMNS.join(', ')} FROM memory_entries`)
-    .all() as (EntryPayload & { entry_uid: string; deleted_at: string | null })[];
+  const rows = db.prepare(`SELECT ${STAGE_COLUMNS} FROM memory_entries e`).all() as StageRow[];
 
   const out = rows
     .map((row) => stage(db, row))
@@ -409,6 +460,7 @@ export function push(db: DB, config: EklavyaConfig, opts: { target?: string | nu
       written_at: nowIso(),
       entry: rebuilt.entry,
       tags: rebuilt.tags,
+      ...(rebuilt.superseded_by ? { superseded_by: rebuilt.superseded_by } : {}),
     };
     writeAtomic(file, `${JSON.stringify(record)}\n`);
     written += 1;
@@ -417,23 +469,20 @@ export function push(db: DB, config: EklavyaConfig, opts: { target?: string | nu
   return { ok: true, device_id: g.device, target: g.target, staged: staged.length, written, already };
 }
 
-function rebuildPayload(db: DB, rec: RecordRow): { entry: EntryPayload | null; tags: string[] } | null {
-  if (rec.op === 'delete') return { entry: null, tags: [] };
-  const row = db
-    .prepare(`SELECT ${ENTRY_COLUMNS.join(', ')} FROM memory_entries WHERE entry_uid = ?`)
-    .get(rec.entry_uid) as EntryPayload | undefined;
+function rebuildPayload(
+  db: DB,
+  rec: RecordRow,
+): { entry: EntryPayload | null; tags: string[]; superseded_by: string | null } | null {
+  if (rec.op === 'delete') return { entry: null, tags: [], superseded_by: null };
+  const row = db.prepare(`SELECT ${STAGE_COLUMNS} FROM memory_entries e WHERE e.entry_uid = ?`).get(rec.entry_uid) as
+    | StageRow
+    | undefined;
   /* c8 ignore next -- unreachable: an upsert record whose row is gone is re-staged as an orphan tombstone first */
   if (!row) return null;
-  const tags = (
-    db
-      .prepare(
-        'SELECT tag FROM memory_entry_tags t JOIN memory_entries e ON e.id = t.entry_id WHERE e.entry_uid = ? ORDER BY tag',
-      )
-      .all(rec.entry_uid) as { tag: string }[]
-  ).map((t) => t.tag);
-  const entry = Object.fromEntries(ENTRY_COLUMNS.map((c) => [c, row[c] ?? null])) as EntryPayload;
-  if (payloadHash('upsert', entry, tags) !== rec.hash) return null;
-  return { entry, tags };
+  const staged = stage(db, row);
+  // A row deleted since stages as a tombstone, which is not this record either.
+  if (staged.op !== rec.op || staged.hash !== rec.hash) return null;
+  return { entry: staged.entry, tags: staged.tags, superseded_by: staged.superseded_by };
 }
 
 // ---------------------------------------------------------------------------
@@ -465,8 +514,10 @@ function readRecord(file: string, device: string, revision: number): SyncRecord 
   const tags = Array.isArray(rec.tags) ? rec.tags.filter((t) => typeof t === 'string') : [];
   const entry = rec.op === 'delete' ? null : sanitizeEntry(rec.entry);
   if (rec.op === 'upsert' && !entry) return null;
-  if (payloadHash(rec.op, entry, tags) !== rec.hash) return null;
-  return { ...rec, entry, tags, base: rec.base ?? null };
+  const supersededBy =
+    rec.op === 'upsert' && typeof rec.superseded_by === 'string' && rec.superseded_by ? rec.superseded_by : null;
+  if (payloadHash(rec.op, entry, tags, supersededBy) !== rec.hash) return null;
+  return { ...rec, entry, tags, superseded_by: supersededBy, base: rec.base ?? null };
 }
 
 /**
@@ -650,6 +701,7 @@ function materialize(db: DB, rec: SyncRecord): 'applied' | 'tombstone' {
     // after it was hard-deleted. The record alone is enough: it is what stops a
     // peer that still holds the entry from putting it back.
     if (existing) deleteEntry(db, existing.id);
+    db.prepare('DELETE FROM sync_supersessions WHERE entry_uid = ?').run(rec.entry_uid);
     return 'tombstone';
   }
 
@@ -670,6 +722,8 @@ function materialize(db: DB, rec: SyncRecord): 'applied' | 'tombstone' {
   const tag = db.prepare('INSERT OR IGNORE INTO memory_entry_tags (entry_id, tag) VALUES (?, ?)');
   for (const t of rec.tags) tag.run(id, t.toLowerCase());
 
+  linkSupersession(db, id, rec.entry_uid, rec.superseded_by ?? null);
+
   indexVector(
     db,
     id,
@@ -677,6 +731,32 @@ function materialize(db: DB, rec: SyncRecord): 'applied' | 'tombstone' {
     [entry.title, entry.narrative ?? '', entry.facts ?? '', entry.files ?? ''].join('\n'),
   );
   return 'applied';
+}
+
+/**
+ * Applies the correction a record carries, in both directions.
+ *
+ * This entry's own link: to the replacement's local row when it is here, or
+ * held in `sync_supersessions` until it arrives. A record with no link clears
+ * one, because the record is the version this device now agrees on. Then the
+ * other direction: originals that arrived before this entry and were waiting
+ * for it leave retrieval now.
+ */
+function linkSupersession(db: DB, id: number, entryUid: string, replacementUid: string | null): void {
+  db.prepare('DELETE FROM sync_supersessions WHERE entry_uid = ?').run(entryUid);
+  const replacement = replacementUid
+    ? (db.prepare('SELECT id FROM memory_entries WHERE entry_uid = ?').get(replacementUid) as { id: number } | undefined)
+    : undefined;
+  if (replacementUid && !replacement) {
+    db.prepare('INSERT INTO sync_supersessions (entry_uid, replacement_uid) VALUES (?, ?)').run(entryUid, replacementUid);
+  }
+  db.prepare('UPDATE memory_entries SET superseded_by = ? WHERE id = ?').run(replacement?.id ?? null, id);
+
+  db.prepare(
+    `UPDATE memory_entries SET superseded_by = ?
+     WHERE entry_uid IN (SELECT entry_uid FROM sync_supersessions WHERE replacement_uid = ?)`,
+  ).run(id, entryUid);
+  db.prepare('DELETE FROM sync_supersessions WHERE replacement_uid = ?').run(entryUid);
 }
 
 // ---------------------------------------------------------------------------

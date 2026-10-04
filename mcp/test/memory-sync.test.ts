@@ -4,7 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
-import { deleteEntry, insertEntry, entryTags, timeline } from '../src/memory/store.js';
+import { deleteEntry, insertEntry, entryTags, supersedeEntry, timeline } from '../src/memory/store.js';
+import { search } from '../src/memory/search.js';
 import {
   conflicts,
   deviceId,
@@ -214,6 +215,123 @@ describe('tombstones', () => {
     // A device seeing both records in one pull ends deleted, not undeleted.
     pull(desktop, DESKTOP);
     expect(entryByUid(desktop, doomedUid)!.deleted_at).not.toBeNull();
+  });
+});
+
+describe('corrections', () => {
+  /** A correction as `memory_correct` makes one: a new row, then the old one pointed at it. */
+  function correct(db: DB, staleId: number, title: string): number {
+    const id = note(db, title, { occurredAt: '2026-09-01T11:00:00.000Z' });
+    supersedeEntry(db, staleId, id);
+    return id;
+  }
+
+  function live(db: DB, query: string): string[] {
+    return search(db, query, 'keyword', { project: PROJECT }).map((h) => h.entry.title);
+  }
+
+  function supersededBy(db: DB, uid: string): number | null {
+    return (db.prepare('SELECT superseded_by FROM memory_entries WHERE entry_uid = ?').get(uid) as {
+      superseded_by: number | null;
+    }).superseded_by;
+  }
+
+  function recordFile(device: string, revision: number): string {
+    return path.join(shared, 'devices', device, `${String(revision).padStart(12, '0')}.json`);
+  }
+
+  it('carries a correction to the other device, so only the replacement is live there', () => {
+    const oldId = note(laptop, 'quasar uses port 80');
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    expect(live(desktop, 'quasar')).toEqual(['quasar uses port 80']);
+
+    const newId = correct(laptop, oldId, 'quasar uses port 8080');
+    expect(push(laptop, LAPTOP).staged).toBe(2);
+    const pulled = pull(desktop, DESKTOP);
+    expect(pulled).toMatchObject({ applied: 2, conflicts: 0 });
+
+    // The record names the replacement by uid, never by a local row id.
+    const record = [2, 3]
+      .map((r) => JSON.parse(fs.readFileSync(recordFile('laptop', r), 'utf8')))
+      .find((r) => r.entry_uid === uidOf(laptop, oldId));
+    expect(record.superseded_by).toBe(uidOf(laptop, newId));
+
+    expect(live(desktop, 'quasar')).toEqual(['quasar uses port 8080']);
+    // The original stays, as the audit trail, pointing at the local replacement.
+    expect(supersededBy(desktop, uidOf(laptop, oldId))).toBe(entryByUid(desktop, uidOf(laptop, newId))!.id);
+  });
+
+  it('resolves a correction that arrives before its replacement', () => {
+    const oldId = note(laptop, 'nebula retries twice');
+    const newId = correct(laptop, oldId, 'nebula retries three times');
+    push(laptop, LAPTOP);
+    // The original is revision 1 and its replacement revision 2. Hold the
+    // replacement back, as a sync client still copying it would.
+    const held = fs.readFileSync(recordFile('laptop', 2), 'utf8');
+    fs.rmSync(recordFile('laptop', 2));
+
+    pull(desktop, DESKTOP);
+    const oldUid = uidOf(laptop, oldId);
+    expect(entryByUid(desktop, uidOf(laptop, newId))).toBeUndefined();
+    expect(desktop.prepare('SELECT * FROM sync_supersessions').all()).toEqual([
+      { entry_uid: oldUid, replacement_uid: uidOf(laptop, newId) },
+    ]);
+    // Nothing to replace it with yet, so the original is still the claim here;
+    // but the waiting link is part of what this device holds, so its own push
+    // cannot publish the original as uncorrected.
+    expect(live(desktop, 'nebula')).toEqual(['nebula retries twice']);
+    expect(push(desktop, DESKTOP).staged).toBe(0);
+
+    fs.writeFileSync(recordFile('laptop', 2), held);
+    // Reset the mark the gap let past, as a resumed stream would re-read it.
+    desktop.prepare("UPDATE sync_state SET last_revision = 1 WHERE device_id = 'laptop'").run();
+    pull(desktop, DESKTOP);
+    expect(live(desktop, 'nebula')).toEqual(['nebula retries three times']);
+    expect(supersededBy(desktop, oldUid)).toBe(entryByUid(desktop, uidOf(laptop, newId))!.id);
+    expect(desktop.prepare('SELECT COUNT(*) AS n FROM sync_supersessions').get()).toEqual({ n: 0 });
+  });
+
+  it('does not revive the stale claim on a round trip', () => {
+    const oldId = note(laptop, 'pulsar flag defaults on');
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    correct(laptop, oldId, 'pulsar flag defaults off');
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+
+    expect(push(desktop, DESKTOP).staged).toBe(0);
+    expect(pull(laptop, LAPTOP)).toMatchObject({ applied: 0, conflicts: 0 });
+    expect(live(laptop, 'pulsar')).toEqual(['pulsar flag defaults off']);
+    expect(live(desktop, 'pulsar')).toEqual(['pulsar flag defaults off']);
+  });
+
+  it('sends a correction made before corrections travelled, and nothing else', () => {
+    // An upgraded database: both rows were pushed under the old hash, which
+    // left the link out, so the peer holds both as live.
+    const keep = note(laptop, 'comet cache is warm');
+    const oldId = note(laptop, 'comet ttl is 60s');
+    const newId = note(laptop, 'comet ttl is 300s');
+    push(laptop, LAPTOP);
+    pull(desktop, DESKTOP);
+    laptop.prepare('UPDATE memory_entries SET superseded_by = ? WHERE id = ?').run(newId, oldId);
+
+    const pushed = push(laptop, LAPTOP);
+    expect(pushed.staged).toBe(1);
+    pull(desktop, DESKTOP);
+    expect(live(desktop, 'comet ttl')).toEqual(['comet ttl is 300s']);
+    expect(supersededBy(desktop, uidOf(laptop, keep))).toBeNull();
+  });
+
+  it('refuses a record whose correction was altered after it was written', () => {
+    const oldId = note(laptop, 'aurora build is cached');
+    correct(laptop, oldId, 'aurora build is not cached');
+    push(laptop, LAPTOP);
+    const file = recordFile('laptop', 1);
+    const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, JSON.stringify({ ...record, superseded_by: 'someone-else' }));
+
+    expect(pull(desktop, DESKTOP).stalled).toEqual(['laptop']);
   });
 });
 
