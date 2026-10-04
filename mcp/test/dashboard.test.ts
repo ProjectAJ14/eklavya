@@ -1446,6 +1446,18 @@ describe('/api/settings', () => {
   });
 
   describe('corrections', () => {
+    // A correction can promote, which reads the user settings: never the learner's own.
+    const saved = process.env.EKLAVYA_HOME;
+    let home = '';
+    beforeEach(() => {
+      home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-corrections-'));
+      process.env.EKLAVYA_HOME = home;
+    });
+    afterEach(() => {
+      if (saved === undefined) delete process.env.EKLAVYA_HOME;
+      else process.env.EKLAVYA_HOME = saved;
+      fs.rmSync(home, { recursive: true, force: true });
+    });
     const OPTS = ['A cache', 'A lock', 'A queue', 'A log'];
     const NOTES = ['keeps reads', 'serialises writers', 'orders work', 'appends history'];
     const missed = (correct: string | null = 'A lock') => {
@@ -1527,6 +1539,30 @@ describe('/api/settings', () => {
       const csrf = st.concepts.find((c: any) => c.slug === 'csrf');
       expect(csrf).toMatchObject({ attempts: 2, passed: 0, corrected: 1, last_grade: 1 });
       expect(st.projects.reduce((n: number, p: any) => n + p.answers, 0)).toBe(2);
+      // The project's accuracy counts the corrected miss as right, out of the same two answers.
+      const learning = projectInventory(db).projects.map((p) => p.learning).find((l) => l.answers);
+      expect(learning).toMatchObject({ answers: 2, passed: 1 });
+    });
+
+    it.each([['the global scope', () => '*'], ['a checkout', () => home]])('promotes in %s when a correction is the pass that completes the level', async (_, key) => {
+      const repo = key();
+      // Two passes on one concept at 70%: one first-try pass and one corrected miss.
+      writeConfigFile(path.join(home, 'config.json'), { level_up_after: 2 });
+      const c = db.prepare(`SELECT id FROM concepts WHERE slug = 'csrf'`).get() as { id: number };
+      const answer = (grade: number) => gradeConcept(db, {
+        conceptId: c.id, sessionId: 'lvl', question: 'Which one stops two writers?', answer: 'A cache', grade,
+        difficulty: 2, feedback: null, outcome: 'answered', format: 'mcq', options: OPTS, correct: 'A lock', optionNotes: NOTES,
+        repo, level: 'easy', now: new Date(),
+      }).attemptId;
+      answer(3);
+      const miss = answer(1);
+      const level = () => (db.prepare('SELECT level FROM project_levels WHERE repo = ?').get(repo) as { level: string } | undefined)?.level;
+      await withServer(async (port, token) => {
+        await retry(port, token, { attempt_id: miss, picked: 'A queue' });
+        expect(level()).toBeUndefined();
+        expect((await retry(port, token, { attempt_id: miss, picked: 'A lock' })).status).toBe(200);
+      });
+      expect(level()).toBe('medium');
     });
 
     it('tells the artifact gallery which explainers are open or done', () => {

@@ -196,7 +196,7 @@ describe('correctionTarget', () => {
   });
 });
 
-describe('a correction is not recall', () => {
+describe('a correction is not recall, but it is learning', () => {
   it('does not clear the session gate', () => {
     const id = miss();
     syncGate(db, SESSION, config, { requiredHint: 1, repo: REPO });
@@ -213,10 +213,17 @@ describe('a correction is not recall', () => {
     expect(gateRetryConcepts(db, SESSION).map((c) => c.slug)).toEqual(['mutex']);
   });
 
-  it('does not count toward level progress', () => {
+  it('counts the corrected miss as right for level accuracy, without adding an answer', () => {
     const id = miss();
     const before = levelCounts(db, REPO, 'easy', null);
     recordRetry(db, id, 'A lock', new Date());
+    expect(levelCounts(db, REPO, 'easy', null)).toEqual({ ...before, passed: before.passed + 1 });
+  });
+
+  it('leaves level accuracy alone after a wrong pick', () => {
+    const id = miss();
+    const before = levelCounts(db, REPO, 'easy', null);
+    recordRetry(db, id, 'A queue', new Date());
     expect(levelCounts(db, REPO, 'easy', null)).toEqual(before);
   });
 
