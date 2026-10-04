@@ -309,7 +309,7 @@ project; the ids are the ones `/api/projects` lists.
 |---|---|
 | how am I doing, streaks, activity | `/#/learning/dashboard` |
 | what am I learning, search a concept | `/#/learning/concepts` (or `/#/learning/concepts/due`, `/mastered`, `/unseen`), `/#/learning/concept/<slug>` for one |
-| what is due, what is scheduled, what I skipped | `/#/learning/review`, `/#/learning/review/upcoming`, `/#/learning/review/skipped` |
+| what is due, how to start my reviews, what is scheduled, what I skipped | `/#/learning/review`, `/#/learning/review/upcoming`, `/#/learning/review/skipped` |
 | what did that session teach me | `/#/learning/sessions`, `/#/learning/session/<id>` |
 | how hard is this repo allowed to get, which projects have no answers yet | `/#/learning/projects` |
 | where are the gaps | `/#/learning/domains` |

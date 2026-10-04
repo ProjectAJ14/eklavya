@@ -1565,7 +1565,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.keyboard.press('Enter');
       await w.page.waitForFunction(() => /to copy/.test(document.getElementById('copy-live')!.textContent!));
       expect(await w.page.evaluate(() => String(getSelection()))).toBe(want);
-      expect(await w.page.$eval('#copy-live', (x) => x.textContent)).toBe('Press ⌘C to copy');
+      const mac = await w.page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.userAgent));
+      expect(await w.page.$eval('#copy-live', (x) => x.textContent)).toBe(`Press ${mac ? '⌘C' : 'Ctrl+C'} to copy`);
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     });

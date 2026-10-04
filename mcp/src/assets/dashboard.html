@@ -1248,7 +1248,7 @@ function copyCommand(btn) {
     setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
   }, () => {
     getSelection().selectAllChildren(code);
-    live.textContent = `Press ${isWindows() ? 'Ctrl+C' : '⌘C'} to copy`;
+    live.textContent = `Press ${/Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘C' : 'Ctrl+C'} to copy`;
   });
 }
 
