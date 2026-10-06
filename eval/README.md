@@ -13,7 +13,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Question planning and quality | `npm run eval -- run --limit 8 --focus project --difficulty hard` | Generation and judging |
 | Re-score existing questions | `npm run eval -- score eval/results/<run>` | None |
 | Concept extraction | `npm run eval -- extract` | Extraction and judging |
-| Repeats and retention in real history | `npm run eval -- history` | None; reads learner database |
+| Repeats, retention and answer-giveaway rate in real history | `npm run eval -- history` | None; reads learner database |
 | Retrieval quality | `node eval/retrieval-harness.mjs` | None |
 | Memory performance | `node eval/memory-perf.mjs` | None |
 | Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
@@ -78,6 +78,8 @@ Deterministic (`mcp/src/eval/question-checks.ts`, unit-tested in
 - `option_parity` — longest/shortest option ratio
 - `correct_not_conspicuous` — the correct option is not visibly longer than the
   next-longest
+- `description_not_conspicuous` — the same margin for the `description` under
+  each option, when the run has them
 - `correct_in_range` — the model named an option that exists
 - `positive_form`, `options_not_numbered`, `no_settings_line`
 
@@ -93,7 +95,8 @@ Two are properties of the **run**, not of any question, which is why no judge
 reading one question at a time could ever report them:
 
 - which slot the answer landed in, across the run
-- how often the correct option was the longest — against a 25% chance baseline
+- how often the correct option, and separately its description, was the longest
+  — against a 25% chance baseline
 
 Judged — seven, and each needs reading comprehension, which is the only reason a
 model is involved:
@@ -116,7 +119,7 @@ model is involved:
 
 `generate`/`score`/`judge` measure questions before anyone answers them.
 `history` measures what happened after — it reads an actual `knowledge.db`
-read-only and reports three things:
+read-only and reports four things:
 
 ```bash
 npm run eval -- history                 # defaults to ~/.eklavya/knowledge.db
@@ -149,6 +152,10 @@ npm run eval -- history --db <path>
   that **passed**, came back a day or more later, and passed again. The prior
   pass is required — without it the metric counts two failures far apart as
   something that failed to hold, which is what the first run published.
+- **Whether the options gave the answer away.** Among recorded multiple-choice
+  answers, how often the correct label, and separately the note under it
+  (`option_notes`), was the single longest. Correction rows are skipped. The
+  same rate on generated questions comes from `score`.
 
 Aggregates only, by construction — the statistics module is handed rows and
 hands back numbers, and no stem or answer reaches the report. The output is
@@ -182,7 +189,7 @@ Stated first, because a number that cannot be wrong is not a measurement.
 - **Four fixtures, ten concepts.** Nothing here is significant at that size.
   A result that survives one run and not the next is noise, and the run-level
   rates need tens of questions before they mean anything.
-- **The deterministic checks are proxies.** A question can pass all ten and
+- **The deterministic checks are proxies.** A question can pass all eleven and
   still be dull, or fail `correct_not_conspicuous` and be excellent. They catch
   *shapes* known to leak the answer; they do not measure whether anyone learned.
 - **The thing nobody here measures is retention.** The end-to-end claim — that a
