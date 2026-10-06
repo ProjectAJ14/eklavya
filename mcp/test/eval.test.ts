@@ -237,6 +237,29 @@ describe('scoreAll', () => {
     expect(summary.byCheck.correct_not_conspicuous).toEqual({ passed: 3, failed: 0 });
     expect(summary.correctLongest).toBe(3);
   });
+
+  it('flags and counts a correct description that out-explains the distractors', () => {
+    // The shape from issue #118: labels at parity, the key's note twice as long.
+    const leaky = good({
+      descriptions: [
+        'SameSite does that',
+        'Script cannot read it, so an XSS payload cannot lift the long-lived token',
+        'It is not encrypted',
+        'Backwards',
+      ],
+    });
+    const even = good({
+      descriptions: ['SameSite covers cross-origin', 'Script cannot read it', 'No, it is plain text', 'The server still reads it'],
+    });
+    expect(find(leaky, 'description_not_conspicuous').ok).toBe(false);
+    expect(find(even, 'description_not_conspicuous').ok).toBe(true);
+    // Runs from before descriptions were asked for score as before.
+    expect(checkQuestion(good()).some((c) => c.id === 'description_not_conspicuous')).toBe(false);
+
+    const { summary } = scoreAll([leaky, even, good()]);
+    expect(summary.described).toBe(2);
+    expect(summary.correctDescriptionLongest).toBe(1);
+  });
 });
 
 describe('extractJson', () => {

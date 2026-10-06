@@ -34,6 +34,16 @@ describe('question checks edge cases', () => {
     expect(summary.slots).toEqual([0, 0, 0, 1]);
     expect(summary.correctLongest).toBe(0);
   });
+
+  it('ignores descriptions that do not pair one-to-one with the options, or an out-of-range answer', () => {
+    const notes = ['short', 'a much longer note than every other one here', 'short', 'short'];
+    for (const bad of [q({ descriptions: notes.slice(0, 3) }), q({ correct: 9, descriptions: notes })]) {
+      const { scored, summary } = scoreAll([bad]);
+      expect(scored[0]!.checks.some((c) => c.id === 'description_not_conspicuous')).toBe(false);
+      expect(summary.correctDescriptionLongest).toBe(0);
+    }
+    expect(scoreAll([q({ correct: 9, descriptions: notes })]).summary.described).toBe(0);
+  });
 });
 
 describe('extractJson edge cases', () => {

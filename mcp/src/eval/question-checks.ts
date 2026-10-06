@@ -32,6 +32,11 @@ export interface GeneratedQuestion {
   options: string[];
   /** Which of those four the model says is correct, 1-4. */
   correct: number;
+  /**
+   * The one-clause `description` under each option, same order. Optional so
+   * runs generated before descriptions were asked for still score.
+   */
+  descriptions?: string[];
 }
 
 export interface Check {
@@ -172,6 +177,18 @@ const NEGATED_STEM = [
  */
 const OPTION_MARKER = /(^|\s)(?:[a-d]\)|\(?[1-4][).]\s)/gim;
 
+/** The description list, when there is exactly one per option. */
+function descriptionsOf(q: GeneratedQuestion): string[] | null {
+  return Array.isArray(q.descriptions) && q.descriptions.length === q.options.length ? q.descriptions : null;
+}
+
+/** Whether `texts[i]` is the single longest by words. */
+export function strictlyLongest(texts: string[], i: number): boolean {
+  const lengths = texts.map((t) => words(t).length);
+  const mine = lengths[i] ?? 0;
+  return mine === Math.max(...lengths, 0) && lengths.filter((l) => l === mine).length === 1;
+}
+
 function numberedOptions(stem: string): boolean {
   return (stem.match(OPTION_MARKER) ?? []).length >= 2;
 }
@@ -263,6 +280,24 @@ export function checkQuestion(q: GeneratedQuestion): Check[] {
     `correct option is ${correctLength} words against a next-longest ${runnerUp} (margin ${margin}, limit ${LENGTH_MARGIN_WORDS})`,
   );
 
+  // The same tell one line down. The learner reads the description under each
+  // option, and a correct option whose description alone explains the
+  // mechanism -- while each distractor's gets a few words -- is picked for its
+  // care, not its claim. One learner's history showed it in 27 of 30 (issue #118).
+  const descriptions = descriptionsOf(q);
+  if (descriptions && inRange) {
+    const mine = words(descriptions[q.correct - 1]!).length;
+    const next = Math.max(
+      ...descriptions.filter((_, i) => i !== q.correct - 1).map((d) => words(d).length),
+      0,
+    );
+    push(
+      'description_not_conspicuous',
+      mine - next < LENGTH_MARGIN_WORDS,
+      `correct description is ${mine} words against a next-longest ${next} (margin ${mine - next}, limit ${LENGTH_MARGIN_WORDS})`,
+    );
+  }
+
   const negated = NEGATED_STEM.find((re) => re.test(q.stem));
   push('positive_form', !negated, negated ? `stem is negated: ${negated}` : 'stem asks the positive form');
 
@@ -311,6 +346,10 @@ export interface Summary {
    * invisible to a judge reading one question at a time.
    */
   correctLongest: number;
+  /** Questions that carried one description per option. */
+  described: number;
+  /** Of those, how often the correct option's description was the single longest. */
+  correctDescriptionLongest: number;
 }
 
 export function scoreAll(questions: GeneratedQuestion[]): { scored: Scored[]; summary: Summary } {
@@ -330,6 +369,8 @@ export function scoreAll(questions: GeneratedQuestion[]): { scored: Scored[]; su
 
   const slots: [number, number, number, number] = [0, 0, 0, 0];
   let correctLongest = 0;
+  let described = 0;
+  let correctDescriptionLongest = 0;
   for (const { question } of scored) {
     const i = question.correct - 1;
     if (i === 0 || i === 1 || i === 2 || i === 3) slots[i] += 1;
@@ -337,10 +378,11 @@ export function scoreAll(questions: GeneratedQuestion[]): { scored: Scored[]; su
     // malformed question, and counting it as "not the longest" reports a
     // property of a question that does not exist.
     if (i === 0 || i === 1 || i === 2 || i === 3) {
-      const lengths = question.options.map((o) => words(o).length);
-      const mine = lengths[i] ?? 0;
-      if (mine === Math.max(...lengths, 0) && lengths.filter((l) => l === mine).length === 1) {
-        correctLongest++;
+      if (strictlyLongest(question.options, i)) correctLongest++;
+      const descriptions = descriptionsOf(question);
+      if (descriptions) {
+        described++;
+        if (strictlyLongest(descriptions, i)) correctDescriptionLongest++;
       }
     }
   }
@@ -353,6 +395,8 @@ export function scoreAll(questions: GeneratedQuestion[]): { scored: Scored[]; su
       byCheck,
       slots,
       correctLongest,
+      described,
+      correctDescriptionLongest,
     },
   };
 }

@@ -5,7 +5,7 @@
  * them. This measures what happened after: it reads an actual `knowledge.db`
  * and asks whether the claims hold on it.
  *
- * Three, in the order they matter:
+ * Three, in the order they matter, and a fourth on the questions themselves:
  *
  * 1. **The repeat rate.** *Never the same question twice* is the promise the
  *    whole tool rests on, and it is the one claim measurable today with no new
@@ -15,6 +15,8 @@
  * 3. **Whether anything survives a gap.** Not retention -- that needs a study
  *    with people in it -- but the weakest honest version: when a concept came
  *    back days later, did the answer hold.
+ * 4. **Whether the options gave the answer away.** How often the correct
+ *    option, or the note under it, was the single longest.
  *
  * Pure, like `srs.ts`: rows in, numbers out, no database handle and no clock
  * beyond what the rows carry. Aggregates only, and deliberately so -- nothing
@@ -22,6 +24,7 @@
  * that gets committed and the repo rule is that a learner's data never is.
  */
 import { questionFingerprint } from '../store.js';
+import { strictlyLongest } from './question-checks.js';
 
 export interface AttemptRow {
   id: number;
@@ -335,4 +338,61 @@ export function outcomeStats(rows: AttemptRow[]): OutcomeStats {
     declined: count('declined'),
     unrecorded: rows.filter((r) => r.outcome == null).length,
   };
+}
+
+/** The columns `record_attempt` stores for a multiple-choice answer. */
+export interface OptionRow {
+  /** JSON array of the labels shown. */
+  options: string | null;
+  /** The correct option's label, verbatim. */
+  correct: string | null;
+  /** JSON array of the description under each option, parallel to `options`. */
+  option_notes: string | null;
+  /** Set on a correction row, which re-shows a question already counted. */
+  retry_of: number | null;
+}
+
+export interface LongestStats {
+  /** Answers whose correct option is one of their recorded options. */
+  questions: number;
+  /** Of those, how often the correct label was the single longest. */
+  labelLongest: number;
+  /** Of those, how many also stored one note per option. */
+  described: number;
+  /** Of those, how often the correct option's note was the single longest. */
+  descriptionLongest: number;
+}
+
+function stringArray(json: string | null): string[] | null {
+  try {
+    const v: unknown = JSON.parse(json ?? '');
+    return Array.isArray(v) && v.every((x) => typeof x === 'string') ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How often the shape of the options gave the answer away in real questions.
+ *
+ * The question-quality eval measures this on generated questions; this is the
+ * same rate on what learners were actually shown, which is where the leak was
+ * first found (issue #118). Chance is one in the number of options.
+ */
+export function longestOptionStats(rows: OptionRow[]): LongestStats {
+  const stats: LongestStats = { questions: 0, labelLongest: 0, described: 0, descriptionLongest: 0 };
+  for (const r of rows) {
+    if (r.retry_of != null) continue;
+    const options = stringArray(r.options);
+    const i = options && r.correct != null ? options.indexOf(r.correct) : -1;
+    if (!options || i < 0) continue;
+    stats.questions++;
+    if (strictlyLongest(options, i)) stats.labelLongest++;
+    const notes = stringArray(r.option_notes);
+    if (notes && notes.length === options.length) {
+      stats.described++;
+      if (strictlyLongest(notes, i)) stats.descriptionLongest++;
+    }
+  }
+  return stats;
 }

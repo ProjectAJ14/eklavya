@@ -8,6 +8,7 @@ import {
   tierReadings,
   gapStats,
   outcomeStats,
+  longestOptionStats,
   REPEAT_WINDOW,
   PLANNER_HISTORY,
   type AttemptRow,
@@ -327,5 +328,39 @@ describe('outcomeStats', () => {
       attempt({ outcome: null }),
     ]);
     expect(s).toEqual({ answered: 1, dontKnow: 1, declined: 1, unrecorded: 1 });
+  });
+});
+
+describe('longestOptionStats', () => {
+  const opts = JSON.stringify(['one two', 'three four', 'five six seven', 'eight nine']);
+  const row = (over = {}) => ({
+    options: opts,
+    correct: 'five six seven',
+    option_notes: JSON.stringify(['a b', 'c d', 'e f g h i j', 'k l']),
+    retry_of: null,
+    ...over,
+  });
+
+  it('counts the correct label and note when each is the single longest', () => {
+    expect(longestOptionStats([row()])).toEqual({ questions: 1, labelLongest: 1, described: 1, descriptionLongest: 1 });
+  });
+
+  it('does not count a tie or a shorter correct option', () => {
+    const s = longestOptionStats([
+      row({ correct: 'one two', option_notes: JSON.stringify(['a b c', 'c d', 'e f g', 'k l']) }),
+    ]);
+    expect(s).toEqual({ questions: 1, labelLongest: 0, described: 1, descriptionLongest: 0 });
+  });
+
+  it('skips corrections, unknown answers, malformed JSON and notes of the wrong length', () => {
+    const s = longestOptionStats([
+      row({ retry_of: 7 }),
+      row({ correct: null }),
+      row({ correct: 'not an option' }),
+      row({ options: '{bad' }),
+      row({ option_notes: JSON.stringify(['only', 'three', 'notes']) }),
+      row({ option_notes: null }),
+    ]);
+    expect(s).toEqual({ questions: 2, labelLongest: 2, described: 0, descriptionLongest: 0 });
   });
 });
