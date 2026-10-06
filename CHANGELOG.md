@@ -1,3 +1,10 @@
+## [1.50.2](https://github.com/ProjectAJ14/eklavya/compare/v1.50.1...v1.50.2) (2026-10-06)
+
+
+### Bug Fixes
+
+* **dashboard:** centre the page column and stop the artifact frame stalling at the cap ([#127](https://github.com/ProjectAJ14/eklavya/issues/127)) ([c62ea98](https://github.com/ProjectAJ14/eklavya/commit/c62ea982c3ede87aeee0f2d63aeb3f4156bd6029)), closes [#121](https://github.com/ProjectAJ14/eklavya/issues/121)
+
 ## [1.50.1](https://github.com/ProjectAJ14/eklavya/compare/v1.50.0...v1.50.1) (2026-10-06)
 
 
