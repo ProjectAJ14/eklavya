@@ -2777,7 +2777,7 @@ const thumbUrl = (a, mode) => `${artifactUrl(a)}?thumb=${mode}&v=${a.bytes}`;
 /** Missed answers whose explainer still waits for a correction: one tile on both Dashboards. */
 function toCorrectTile() {
   const n = artifactsInScope().filter((a) => a.correction === 'open').length;
-  return ['To be corrected', n, n ? 'missed answers to correct' : 'nothing to correct', n ? 'warn' : '', AH('dashboard', 'to-correct')];
+  return ['To be corrected', n, n ? `missed answer${n === 1 ? '' : 's'} to correct` : 'nothing to correct', n ? 'warn' : '', AH('dashboard', 'to-correct')];
 }
 
 function artifactCard(a) {

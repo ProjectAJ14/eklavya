@@ -626,6 +626,13 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         expect(w.errors).toEqual([]);
         await w.ctx.close();
       }
+      // Scoped to a project that has no explainers waiting, it reads zero and stops warning.
+      const w = await open(`#/learning/dashboard?project=${enc(fx.repo.mixed)}`);
+      const tile = w.page.locator('#view .tile', { hasText: 'To be corrected' });
+      expect(await tile.locator('strong').textContent()).toBe('0');
+      expect(await tile.locator('span').textContent()).toBe('nothing to correct');
+      expect(await tile.getAttribute('class')).not.toContain('is-warn');
+      await w.ctx.close();
     });
 
     it('frames the explainer sandboxed, corrects it in the modal and flips the bar and the gallery', async () => {
@@ -681,6 +688,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.click('#view [role="tab"]:has-text("All artifacts")');
       await ready(w.page);
       expect(await w.page.textContent(`#view .art:has(a[href*="${enc(fix.open)}"])`)).toContain('Corrected');
+      expect(await w.page.textContent('#view .tile:has-text("To be corrected") strong')).toBe('1');
       expect(w.errors).toEqual([]);
       expect(w.outbound).toEqual([]);
       await w.ctx.close();
