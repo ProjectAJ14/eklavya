@@ -98,6 +98,16 @@ prevent") until it cannot, or replace it with a different row.
 **4. One clause of `description` per option.** This is where a near-miss earns
 its place — the sentence that makes the wrong answer tempting.
 
+The parity rule from step 2 holds here too, and this is where it usually
+breaks: the correct option gets the careful sentence that explains the
+mechanism, and each distractor gets a few throwaway words. A learner reads that
+as the answer without reading the claim. Give every description the same
+weight — one clause of similar length, none standing out as the longest or the
+shortest — and spend the effort on the distractors: each one says why it is
+tempting, as specifically as the correct one says why it holds. Overcorrecting
+is a tell too: if the right answer's note is never the longest, a learner
+learns to rule the longest one out.
+
 **5. Placement.** The plan gives each question an `answer_position`, 1 to 4. Put
 the correct option in that slot. Left to your own judgement you will put the
 right answer first nearly every time, and a learner needs only a handful of
@@ -147,6 +157,9 @@ telling you which part to rebuild.
 - All four options are within a few words of the same length and use the same
   grammar. A visibly longer or more careful option reads as the correct one, and
   gets picked without engaging — the same leak as always answering first.
+- The four descriptions are within a few words of each other too, and the
+  correct option's is no more careful than the rest. Each distractor's says why
+  it is tempting, not just that it is wrong.
 - Each of the three wrong options came from a different row of the table above.
 - Only the correct option answers the stem; no expert could argue for another.
 - The correct option sits at `answer_position`.

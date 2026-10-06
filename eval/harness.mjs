@@ -294,8 +294,9 @@ async function generate(run, model) {
       '',
       'Write ONE multiple-choice question for this plan item.',
       'Reply with a single JSON object and nothing else:',
-      '{"stem": "...", "options": ["...","...","...","..."], "correct": <1-4>}',
+      '{"stem": "...", "options": ["...","...","...","..."], "descriptions": ["...","...","...","..."], "correct": <1-4>}',
       '`correct` is the 1-based index of the correct option as you ordered them.',
+      '`descriptions` holds the `description` you would show under each option, in the same order.',
     ].join('\n');
 
     let parsed = null;
@@ -317,6 +318,7 @@ async function generate(run, model) {
       answer_position: item.answer_position,
       stem: String(parsed.stem),
       options: parsed.options.map(String),
+      ...(Array.isArray(parsed.descriptions) ? { descriptions: parsed.descriptions.map(String) } : {}),
       correct: Number(parsed.correct),
     });
     process.stdout.write(`  generated ${item.slug}\n`);
@@ -357,6 +359,12 @@ async function score(run) {
   process.stdout.write(
     `  correct option was the longest: ${summary.correctLongest}/${summary.questions} (${pct}%, chance is 25%)\n`,
   );
+  if (summary.described > 0) {
+    const dpct = Math.round((100 * summary.correctDescriptionLongest) / summary.described);
+    process.stdout.write(
+      `  correct description was the longest: ${summary.correctDescriptionLongest}/${summary.described} (${dpct}%, chance is 25%)\n`,
+    );
+  }
   for (const s of scored) {
     for (const c of s.checks.filter((c) => !c.ok)) {
       process.stdout.write(`\n  ${s.question.slug}: ${c.id} -- ${c.detail}\n    ${s.question.stem}\n`);
@@ -398,7 +406,9 @@ async function judge(run, model) {
       '```',
       '',
       `Question: ${q.stem}`,
-      ...q.options.map((o, i) => `  ${i + 1}. ${o}${i + 1 === q.correct ? '   <- marked correct' : ''}`),
+      ...q.options.map(
+        (o, i) => `  ${i + 1}. ${o}${q.descriptions?.[i] ? ` -- ${q.descriptions[i]}` : ''}${i + 1 === q.correct ? '   <- marked correct' : ''}`,
+      ),
       '',
       'Answer with exactly this JSON:',
       '{"answerable": true|false, "answerable_why": "...",',
@@ -490,7 +500,7 @@ function coldPrompt(q) {
     'You are auditing one multiple-choice question. The reader is a developer who has seen NONE of the code, plan, task list or conversation that prompted it. They see only the text below. Be strict and answer only with JSON.',
     '',
     `Question: ${q.stem}`,
-    ...q.options.map((o, i) => `  ${i + 1}. ${o}`),
+    ...q.options.map((o, i) => `  ${i + 1}. ${o}${q.descriptions?.[i] ? ` -- ${q.descriptions[i]}` : ''}`),
     '',
     'Answer with exactly this JSON:',
     '{"answerable_cold": true|false, "answerable_cold_why": "...", "unexplained_names": ["..."]}',
@@ -705,6 +715,16 @@ async function history(dbFile) {
     .prepare('SELECT id, concept_id, question, grade, difficulty, outcome, ts FROM attempts ORDER BY id')
     .all();
   const span = db.prepare('SELECT min(ts) AS first, max(ts) AS last FROM attempts').get();
+  // `correct` and `option_notes` arrived in migration 019; an older database
+  // has no such columns, and that is "not measured", not a failure.
+  let optionRows = [];
+  try {
+    optionRows = db
+      .prepare("SELECT options, correct, option_notes, retry_of FROM attempts WHERE format = 'mcq'")
+      .all();
+  } catch {
+    // pre-019 database
+  }
   db.close();
 
   if (rows.length === 0) fail(`${file} has no attempts yet -- nothing to measure.`);
@@ -713,7 +733,8 @@ async function history(dbFile) {
   const tiers = stats.tierReadings(rows);
   const gaps = stats.gapStats(rows, 1);
   const outcomes = stats.outcomeStats(rows);
-  const report = { source: path.basename(file), span, repeat, tiers, gaps, outcomes };
+  const longest = stats.longestOptionStats(optionRows);
+  const report = { source: path.basename(file), span, repeat, tiers, gaps, outcomes, longest };
 
   const pct = (n, d) => (d > 0 ? `${((100 * n) / d).toFixed(1)}%` : 'n/a');
   process.stdout.write(`\n${repeat.attempts} attempts on ${repeat.concepts} concepts, ${span.first} -> ${span.last}\n`);
@@ -746,6 +767,10 @@ async function history(dbFile) {
   );
   process.stdout.write(
     `outcomes: ${outcomes.answered} answered, ${outcomes.dontKnow} blank, ${outcomes.declined} declined, ${outcomes.unrecorded} unrecorded\n`,
+  );
+  process.stdout.write(
+    `correct option was the longest: label ${longest.labelLongest}/${longest.questions} (${pct(longest.labelLongest, longest.questions)}), ` +
+      `description ${longest.descriptionLongest}/${longest.described} (${pct(longest.descriptionLongest, longest.described)}); chance is 25%\n`,
   );
 
   // Timestamped, not just dated. The dated file is a published record; a second
