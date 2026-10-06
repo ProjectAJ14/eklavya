@@ -1515,6 +1515,9 @@ export function withoutWebFonts(html: string): string {
  * Content that still grows with the frame (another 100vh box) outruns every
  * report: after three in a row the page asks to scroll itself
  * (`eklavya:scroll`). Past the viewer's 20000px cap it scrolls itself too.
+ * Nothing is reported before the frame has a width: one word per line measures
+ * tens of thousands of pixels, and if that report lands last the frame sits at
+ * the cap, never resizes, and the outrun count never reaches three.
  */
 // ponytail: in-flow content only, watched as it was when the script ran: an absolutely
 // positioned box below the end, or a block a page script appends to <body> later, is not counted.
@@ -1530,7 +1533,7 @@ export const EMBED_SCRIPT = `<script>
     return Math.ceil(end.getBoundingClientRect().top + scrollY + parseFloat(s.paddingBottom) + parseFloat(s.marginBottom));
   }
   function post() {
-    var h = strikes > 2 ? last : measure();
+    if (!innerWidth) return; var h = strikes > 2 ? last : measure();
     css.disabled = strikes > 2 || h > 20000;
     if (h !== last) { last = h; parent.postMessage({ type: 'eklavya:height', h: h }, '*'); }
   }

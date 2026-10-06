@@ -232,6 +232,8 @@
   /* ---------- the column ---------- */
   main { padding:var(--space-8) var(--space-10) var(--space-20); min-width:0; }
   .inner { max-width:1080px; }
+  /* Centred on a wide window; `main >` outranks the margins `.page__eyebrow` and `.stale` set. */
+  main > .inner { margin-inline:auto; }
   .stack > * + * { margin-top:var(--space-6); }
 
   .page__eyebrow { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);

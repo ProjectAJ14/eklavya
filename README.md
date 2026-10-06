@@ -100,7 +100,8 @@ in place. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
 [tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
-dismiss them one by one or switch them off in the sidebar. It has four parts:
+dismiss them one by one or switch them off in the sidebar. On a wide window
+each page sits centred beside the sidebar. It has four parts:
 
 | Part | What you can see | Read more |
 |---|---|---|
