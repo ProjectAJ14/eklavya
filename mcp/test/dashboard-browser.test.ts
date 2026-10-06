@@ -615,6 +615,19 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       return e.defaultPrevented;
     });
 
+    it('shows a To be corrected tile on both Dashboards that opens the To correct list', async () => {
+      for (const route of ['#/learning/dashboard', '#/artifacts/dashboard']) {
+        const w = await open(route);
+        const tile = w.page.locator('#view .tile', { hasText: 'To be corrected' });
+        expect(await tile.locator('strong').textContent()).toBe('2');
+        expect(await tile.getAttribute('class')).toContain('is-warn');
+        await tile.click();
+        expect(await w.page.evaluate(() => location.hash)).toBe('#/artifacts/dashboard/to-correct');
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }
+    });
+
     it('frames the explainer sandboxed, corrects it in the modal and flips the bar and the gallery', async () => {
       const w = await open('#/artifacts/dashboard/to-correct');
       const card = w.page.locator(`#view a[href*="${enc(fix.open)}"]`);
@@ -1372,7 +1385,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           fold: !!document.querySelector('[data-fold="learn:heat"]'),
         };
       });
-      expect(placed).toEqual({ first: true, tiles: 3, fold: false });
+      expect(placed).toEqual({ first: true, tiles: 4, fold: false });
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     });

@@ -77,7 +77,7 @@ The dashboard remembers which sections you opened or closed, in this browser onl
 
 | Page | What you can inspect |
 | --- | --- |
-| Dashboard (`#/learning/dashboard`) | Three tiles (accuracy, mastery, due reviews), the next step when there is one, then the open [streak card](#the-streak); recorded versus assessed concepts in the counts line; 30 days of answers, split into right, corrected, missed and skipped (a miss corrected from its explainer also shows as “corrected” with its try in question lists); the weakest five concepts and recent sessions. Where you stand is folded. |
+| Dashboard (`#/learning/dashboard`) | Four tiles (accuracy, mastery, due reviews, and **To be corrected**: missed answers whose explainer still waits for a correction, linking to the **To correct** list), the next step when there is one, then the open [streak card](#the-streak); recorded versus assessed concepts in the counts line; 30 days of answers, split into right, corrected, missed and skipped (a miss corrected from its explainer also shows as “corrected” with its try in question lists); the weakest five concepts and recent sessions. Where you stand is folded. |
 | Concepts (`#/learning/concepts`) | Search, sort and filter the graph by domain or state: due, learning, mastered or unseen. |
 | Review (`#/learning/review`) | **Start your reviews**: one command per project with due concepts, most due first, to copy into a terminal (see [Starting your reviews](#starting-your-reviews)). Then due reviews, upcoming reviews with a 14-day forecast, and skipped questions. Due and upcoming list only concepts whose latest answer was declined, blank or wrong; a correct answer is never owed. Tabs use `/upcoming` and `/skipped`. |
 | Sessions (`#/learning/sessions`) | Sessions that logged concepts or asked questions. Memory-only sessions are listed in Memory. |
@@ -117,7 +117,7 @@ Artifacts are HTML pages saved under `~/.eklavya/artifacts/<project>/`: requeste
 
 | Page | What you can inspect |
 | --- | --- |
-| Dashboard (`#/artifacts/dashboard`) | A gallery of cards grouped by project, newest first, 20 to a page. Each card shows the page's first diagram as its thumbnail. Search title, description, concept and project; filter with `/explainer`, `/artifact` or `/to-correct`. |
+| Dashboard (`#/artifacts/dashboard`) | Three tiles (pages, explainers and **To be corrected**, the same count the Learning Dashboard shows), each opening its filtered list, then a gallery of cards grouped by project, newest first, 20 to a page. Each card shows the page's first diagram as its thumbnail. Search title, description, concept and project; filter with `/explainer`, `/artifact` or `/to-correct`. |
 | Viewer (`#/artifacts/view/<id>`) | One page, opened as a tab. An explainer for a missed question also has a **Correct your answer** bar. Reached from its card or from `eklavya artifacts open`; it has no sidebar entry. |
 | Projects (`#/artifacts/projects`) | Page and explainer counts and the latest page in each project. |
 

@@ -100,7 +100,9 @@ change and a correction of a missed answer, which can also complete a level. An 
 counter that moves on every write it would show, and offers a refresh. A request
 it cannot parse gets a 400 without stopping the server
 ([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)).
-Its Learning page shows your streak and its calendar under the summary tiles. The
+Its Learning page shows your streak and its calendar under the summary tiles; a
+**To be corrected** tile there and on the Artifacts page counts missed answers still
+waiting for a correction. The
 review queue gives each project a command to copy that starts Claude Code on its due
 concepts, in the project's folder when that folder is available.
 Its feature tips use Driver.js, bundled in `dist/` at build and served by the

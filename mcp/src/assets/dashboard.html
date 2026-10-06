@@ -1736,6 +1736,7 @@ function viewLearningDashboard() {
       ['Accuracy', answered ? pct(passed, answered) + '%' : '—', answered ? `${passed} right of ${answered}` : 'No assessments yet', answered && pct(passed, answered) >= 70 ? 'good' : '', LH('sessions')],
       ['Mastered', mastered.length, `of ${seen.length} asked`, mastered.length ? 'good' : '', LH('concepts', 'mastered')],
       ['Due now', due.length, due.length ? 'ready for review' : 'nothing waiting', due.length ? 'warn' : '', LH('review')],
+      toCorrectTile(),
     ]),
 
     next,
@@ -2773,6 +2774,12 @@ const artifactUrl = (a) => '/artifacts/' + a.id.split('/').map(encodeURIComponen
 // The thumbnail's URL names the ground, and the size busts its cache when a page is rewritten.
 const thumbUrl = (a, mode) => `${artifactUrl(a)}?thumb=${mode}&v=${a.bytes}`;
 
+/** Missed answers whose explainer still waits for a correction: one tile on both Dashboards. */
+function toCorrectTile() {
+  const n = artifactsInScope().filter((a) => a.correction === 'open').length;
+  return ['To be corrected', n, n ? 'missed answers to correct' : 'nothing to correct', n ? 'warn' : '', AH('dashboard', 'to-correct')];
+}
+
 function artifactCard(a) {
   const known = a.concept && S.concepts.some((c) => c.slug === a.concept);
   const concept = !a.concept ? ''
@@ -2827,6 +2834,11 @@ function viewArtifacts(param) {
        ${TAB_MAX} stay open. An explainer for a missed question carries a <b>Correct your answer</b> bar: pick the right
        option and the miss shows as corrected. That counts as a pass for the concept's score, but not toward a
        commit gate or a level, and the concept still comes back for review.`),
+    tiles([
+      ['Pages', all.length, 'in scope', '', AH('dashboard')],
+      ['Explainers', counts.explainer, 'one concept each', '', AH('dashboard', 'explainer')],
+      toCorrectTile(),
+    ]),
     card(null, null,
       `<div class="filters">
          <div class="grow"><input type="search" id="aq" value="${esc(t.q)}" placeholder="Search artifacts" aria-label="Search artifacts"></div>
