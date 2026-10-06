@@ -358,6 +358,8 @@ describe('longestOptionStats', () => {
       row({ correct: null }),
       row({ correct: 'not an option' }),
       row({ options: '{bad' }),
+      row({ options: '{"a":1}' }),
+      row({ options: '[1,2,3,4]' }),
       row({ option_notes: JSON.stringify(['only', 'three', 'notes']) }),
       row({ option_notes: null }),
     ]);
