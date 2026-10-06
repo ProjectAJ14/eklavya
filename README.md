@@ -105,7 +105,7 @@ each page sits centred beside the sidebar. It has four parts:
 
 | Part | What you can see | Read more |
 |---|---|---|
-| Learning | Accuracy, mastery, your streak and its calendar, reviews due with a command to start them, weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
+| Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, reviews due with a command to start them, weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |

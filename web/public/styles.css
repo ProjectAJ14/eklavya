@@ -781,13 +781,17 @@ kbd {
 .dash__note { margin: 22px 0 0; font-size: 14px; line-height: 1.6; color: var(--faint); }
 .dash__note code { font-family: var(--font-mono); font-size: 13px; color: var(--spot); }
 
+/* The dashboard's spot-soft is too faint to read at this size without its outline. */
 .dash__preview {
+  --dash-corrected: color-mix(in srgb, var(--spot) 45%, transparent);
   background: var(--panel); border: 1px solid var(--line); border-radius: 0;
   padding: 24px;
 }
-.dash__tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.dash__tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+/* A label that wraps keeps its number on the same line as its neighbours'. */
 .dash__tile {
   background: var(--bg); border-radius: 0; padding: 12px 10px;
+  display: flex; flex-direction: column; justify-content: space-between;
 }
 .dash__tile b {
   display: block; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em;
@@ -800,35 +804,39 @@ kbd {
 .dash__legend { display: flex; gap: 16px; margin: 22px 0 12px; font-size: 11.5px; color: var(--dim); }
 .dash__legend b { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
 .dash__legend .is-right { background: var(--spot); }
+.dash__legend .is-corrected { background: var(--dash-corrected); box-shadow: inset 0 0 0 1px var(--spot); }
 .dash__legend .is-missed { background: var(--warning); }
 .dash__legend .is-skipped { background: var(--faint); }
 
-/* Each bar is one element; the three segments are gradient stops driven by the
-   --r/--m/--s custom properties, so a bar is markup-free apart from its values. */
+/* Each bar is one element; the four segments are gradient stops driven by the
+   --r/--c/--m/--s custom properties, so a bar is markup-free apart from its values. */
 .dash__chart {
   display: flex; align-items: flex-end; gap: 6px; height: 120px;
   border-bottom: 1px solid var(--line);
 }
 .dash__chart span {
   flex: 1; border-radius: 3px 3px 0 0;
-  height: calc(var(--r) + var(--m) + var(--s));
+  height: calc(var(--r) + var(--c) + var(--m) + var(--s));
   background: linear-gradient(
     to top,
     var(--spot) 0, var(--spot) var(--rs),
-    transparent var(--rs), transparent calc(var(--rs) + 2px),
-    var(--warning) calc(var(--rs) + 2px), var(--warning) var(--ms),
+    var(--dash-corrected) var(--rs), var(--dash-corrected) var(--cs),
+    transparent var(--cs), transparent calc(var(--cs) + 2px),
+    var(--warning) calc(var(--cs) + 2px), var(--warning) var(--ms),
     transparent var(--ms), transparent calc(var(--ms) + 2px),
     var(--faint) calc(var(--ms) + 2px)
   );
-  --total: calc(var(--r) + var(--m) + var(--s));
+  --total: calc(var(--r) + var(--c) + var(--m) + var(--s));
   --rs: calc(var(--r) / var(--total) * 100%);
-  --ms: calc((var(--r) + var(--m)) / var(--total) * 100%);
+  --cs: calc((var(--r) + var(--c)) / var(--total) * 100%);
+  --ms: calc((var(--r) + var(--c) + var(--m)) / var(--total) * 100%);
 }
 
 @media (max-width: 900px) {
   .dash__grid { grid-template-columns: 1fr; gap: 40px; }
 }
 @media (max-width: 560px) {
+  .dash__tiles { grid-template-columns: repeat(2, 1fr); }
   .dash__chart { height: 96px; }
 }
 

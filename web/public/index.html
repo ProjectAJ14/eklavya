@@ -70,7 +70,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="tokens.css?v=2">
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
 <div class="frame">
@@ -733,7 +733,7 @@
         <li>Sessions, Projects, Domains: every project that logged work, including ones with no assessments yet, each at the level its own settings give it</li>
         <li>Memory Dashboard and Timeline: every observation, filterable, down to the raw evidence behind each one</li>
         <li>Reuse and Health: an estimate of what each recall saved once a hook wrote it out, how many memory reads ran and how many had no receipt, and where capture stops</li>
-        <li>Artifacts: a gallery of every explainer and page your agent wrote, each with its diagram as the thumbnail, searchable, grouped by project; every page opens inside the dashboard as a tab, and an explainer for a missed multiple-choice question keeps a Correct your answer bar pinned to the bottom of the window</li>
+        <li>Artifacts: a gallery of every explainer and page your agent wrote, each with its diagram as the thumbnail, searchable, grouped by project; every page opens inside the dashboard as a tab, and an explainer for a missed multiple-choice question keeps a Correct your answer bar pinned to the bottom of the window; a To be corrected tile on both Dashboards counts the ones still waiting</li>
         <li>Settings: your user settings and each project's, showing what a project overrides and what it inherits</li>
       </ul>
       <p class="dash__note" data-reveal data-delay="300">
@@ -755,23 +755,25 @@
         <div class="dash__tile"><b>Accuracy</b><i>67%</i></div>
         <div class="dash__tile"><b>Mastered</b><i>12</i></div>
         <div class="dash__tile"><b>Due now</b><i>8</i></div>
+        <div class="dash__tile"><b>To be corrected</b><i>3</i></div>
       </div>
       <div class="dash__legend">
         <span><b class="is-right"></b>Right</span>
+        <span><b class="is-corrected"></b>Corrected</span>
         <span><b class="is-missed"></b>Missed</span>
         <span><b class="is-skipped"></b>Skipped</span>
       </div>
       <div class="dash__chart">
-        <span style="--r:38%;--m:14%;--s:0%"></span>
-        <span style="--r:22%;--m:26%;--s:8%"></span>
-        <span style="--r:54%;--m:12%;--s:0%"></span>
-        <span style="--r:31%;--m:9%;--s:12%"></span>
-        <span style="--r:62%;--m:10%;--s:0%"></span>
-        <span style="--r:48%;--m:20%;--s:6%"></span>
-        <span style="--r:74%;--m:8%;--s:0%"></span>
-        <span style="--r:58%;--m:6%;--s:9%"></span>
-        <span style="--r:81%;--m:11%;--s:0%"></span>
-        <span style="--r:69%;--m:5%;--s:0%"></span>
+        <span style="--r:38%;--c:4%;--m:14%;--s:0%"></span>
+        <span style="--r:22%;--c:0%;--m:26%;--s:8%"></span>
+        <span style="--r:54%;--c:6%;--m:12%;--s:0%"></span>
+        <span style="--r:31%;--c:3%;--m:9%;--s:12%"></span>
+        <span style="--r:62%;--c:0%;--m:10%;--s:0%"></span>
+        <span style="--r:48%;--c:5%;--m:20%;--s:6%"></span>
+        <span style="--r:74%;--c:2%;--m:8%;--s:0%"></span>
+        <span style="--r:58%;--c:0%;--m:6%;--s:9%"></span>
+        <span style="--r:81%;--c:4%;--m:11%;--s:0%"></span>
+        <span style="--r:69%;--c:0%;--m:5%;--s:0%"></span>
       </div>
     </div>
   </div>
