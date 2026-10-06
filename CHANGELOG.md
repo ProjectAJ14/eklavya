@@ -1,3 +1,10 @@
+# [1.51.0](https://github.com/ProjectAJ14/eklavya/compare/v1.50.2...v1.51.0) (2026-10-06)
+
+
+### Features
+
+* **dashboard:** To be corrected tile on Learning and Artifacts ([#128](https://github.com/ProjectAJ14/eklavya/issues/128)) ([d3b8cdf](https://github.com/ProjectAJ14/eklavya/commit/d3b8cdf1701b46cceaf1042279b87d258aab2097)), closes [#124](https://github.com/ProjectAJ14/eklavya/issues/124)
+
 ## [1.50.2](https://github.com/ProjectAJ14/eklavya/compare/v1.50.1...v1.50.2) (2026-10-06)
 
 
