@@ -388,7 +388,9 @@ where an empty block appended after the content sits (it can shrink, and it
 ignores `html,body{height:100%}`; `scrollHeight` does neither). Content that
 grows with the frame (a `100vh` box) outruns three reports in a row; the page
 then sends `eklavya:scroll` and the viewer gives it the 80vh frame to scroll
-in. The response
+in. Nothing is reported while the frame has no width: one word per line
+measures past the cap, and a frame stuck at the cap never resizes, so the
+outrun count never reaches three. The response
 carries `ARTIFACT_EMBED_CSP` (no font hosts), so the viewer keeps the
 no-outbound-request promise. The framed page may only `postMessage` its
 height (`eklavya:height`, accepted from that frame's `contentWindow` alone, and

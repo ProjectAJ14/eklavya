@@ -814,6 +814,27 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
+    // Measured before the frame has a width, the page is one word per line and
+    // tens of thousands of pixels tall. If that report landed last, the frame sat
+    // at the cap, never resized, and the outrun count behind `eklavya:scroll` stalled.
+    // The frame is held at no width until its page has loaded, so that moment always happens.
+    it('reports no height before the frame has a width', async () => {
+      const w = await open(`#/artifacts/view/${enc('plain/hero.html')}`, {
+        init: `if (window === top) {
+          window.__h = []; addEventListener('message', (e) => { if (e.data?.type === 'eklavya:height') window.__h.push(e.data.h); });
+          document.addEventListener('DOMContentLoaded', () => document.head.append(Object.assign(document.createElement('style'), { id: 'no-width', textContent: '#art-frame{width:0 !important}' })));
+        }`,
+      });
+      const frame = w.page.frames().find((f) => f.url().includes('hero.html?embed'))!;
+      await frame.waitForLoadState('load');
+      expect(await frame.evaluate(() => innerWidth)).toBe(0);
+      expect(await w.page.evaluate(() => (window as any).__h)).toEqual([]);
+      await w.page.evaluate(() => document.getElementById('no-width')!.remove());
+      await w.page.waitForFunction(() => (window as any).__h.length > 0);
+      expect(Math.max(...await w.page.evaluate(() => (window as any).__h as number[]))).toBeLessThan(20000);
+      await w.ctx.close();
+    });
+
     /**
      * The frame element's height, and the framed document's own heights, once
      * the framed page has caught up with its new size (that crosses a process).
@@ -1593,6 +1614,26 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         }
       }
     }, 120000);
+
+    it('centres the content column in a window wider than it', async () => {
+      const w = await open('#/learning/dashboard', { width: 2560 });
+      for (const h of ['#/learning/dashboard', `#/artifacts/view/${enc(fix.other)}`, '#/settings/dashboard']) {
+        await w.page.goto(base + '/' + h); await ready(w.page);
+        // Every band of the column: the refresh notice (shown for this), the crumb, the view and the footer.
+        const gaps = await w.page.evaluate(() => {
+          document.getElementById('stale')!.hidden = false;
+          const main = document.getElementById('main')!;
+          const m = main.getBoundingClientRect(), pad = parseFloat(getComputedStyle(main).paddingLeft);
+          return [...main.querySelectorAll(':scope > .inner')].map((el) => {
+            const r = el.getBoundingClientRect();
+            return { id: el.id || el.tagName, offCentre: Math.round((r.left - m.left) - (m.right - r.right)), clear: r.left - m.left > pad };
+          });
+        });
+        expect(gaps.map((g) => g.id), h).toEqual(['stale', 'crumb', 'view', 'FOOTER']);
+        for (const g of gaps) expect(g, h).toMatchObject({ offCentre: 0, clear: true });
+      }
+      await w.ctx.close();
+    });
 
     // The page is served under a Content-Security-Policy. A directive too tight
     // for what the page really uses -- its inline script, inline styles, the
