@@ -542,6 +542,21 @@ describe('get_session_quiz_plan', () => {
     expect(plan.concepts.map((c: any) => c.slug).sort()).toEqual(['csrf', 'jwt-structure']);
   });
 
+  // The dashboard's review caption says "weakest first". A run asks the weakest
+  // due concept, not the most overdue one, so the caption must not say otherwise.
+  it('asks the weakest due concept first, not the most overdue one', () => {
+    for (const slug of ['csrf', 'jwt-structure']) {
+      call(recordAttempt, { session_id: 'sess-old', slug, question: `about ${slug}`, grade: 3, difficulty: 2 });
+    }
+    const setDue = (slug: string, score: number, daysOverdue: number) =>
+      db.prepare('UPDATE mastery SET score = ?, next_review = ? WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?)')
+        .run(score, new Date(Date.now() - daysOverdue * 86_400_000).toISOString(), slug);
+    setDue('csrf', 0.9, 10); // most overdue, strongest
+    setDue('jwt-structure', 0.2, 1); // least overdue, weakest
+    const plan = call<any>(getSessionQuizPlan, { session_id: SESSION, slugs: ['csrf', 'jwt-structure'], max: 1 });
+    expect(plan.concepts.map((c: any) => c.slug)).toEqual(['jwt-structure']);
+  });
+
   // `/eklavya:quiz csrf` reaches the planner as a domain when the model reads the
   // argument as one; the dashboard's review commands depend on it landing on the concept.
   it('plans named slugs passed as a domain, when no domain has that name', () => {

@@ -1,3 +1,10 @@
+## [1.51.1](https://github.com/ProjectAJ14/eklavya/compare/v1.51.0...v1.51.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **dashboard:** review queue caption says weakest first, matching the planner ([#129](https://github.com/ProjectAJ14/eklavya/issues/129)) ([0c52788](https://github.com/ProjectAJ14/eklavya/commit/0c527882a59444cc42275dd6ea99b73ab65347e6))
+
 # [1.51.0](https://github.com/ProjectAJ14/eklavya/compare/v1.50.2...v1.51.0) (2026-10-06)
 
 
