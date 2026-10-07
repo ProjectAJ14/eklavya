@@ -1,3 +1,10 @@
+# [1.52.0](https://github.com/ProjectAJ14/eklavya/compare/v1.51.1...v1.52.0) (2026-10-07)
+
+
+### Features
+
+* **panel:** experimental quiz side panel behind quiz.panel ([#131](https://github.com/ProjectAJ14/eklavya/issues/131)) ([6bc3ef0](https://github.com/ProjectAJ14/eklavya/commit/6bc3ef07c238d8f44c1b1696cff0380f6c03d060))
+
 ## [1.51.1](https://github.com/ProjectAJ14/eklavya/compare/v1.51.0...v1.51.1) (2026-10-07)
 
 
