@@ -164,6 +164,29 @@ Settings now live in `eklavya statusline`, not a question header. Keep
 `stripAskHeader` for historical stems and host attribution so duplicate-question
 fingerprints remain stable.
 
+## Mods (function hooks): quiz side panel spike
+
+Stage 0 of `docs/design/quiz-side-panel-handoff.md`, run against a throwaway
+mod on the **2.1.292 terminal CLI**, session in auto permission mode, 2026-10-07.
+The Desktop Code tab was **not** tested; no row below holds for Desktop.
+Declarations come from the build's own `claude-code.d.ts`; "observed" rows come
+from a probe log, not from reading.
+
+| # | Observation | Status | Consequence |
+|---|---|---|---|
+| 1 | `$.mcp.call(server, tool, args)`, `$.mcp.connect`, `$.ui.open({id,title,focus,closeOnEscape,holdToasts,rows,columns})` resolving `{isPlaced}` or `{isPlaced:false, reason}`, `$.ui.panes()`, `$.state` / `atom` / `read` / `update`, `$.prompt.submit`, `$.model.complete({model,prompt})` resolving `{isAnswered, text, usage}` or `{isAnswered:false, reason}`, `$.command.register` + `command.run`, `$.session.id()` (a Promise) all exist. Elements come from `$.ui.resolve(e)`. | Declared and used | Handoff names hold, except: there is no post-tool event, see 3 |
+| 1 | `claude plugin validate` rejects a hooks module that passes `$` to a helper function, aliases it, or uses `import()`. | Observed | Every `$.` call is written inline in the mod; helpers return values only |
+| 2 | `$.mcp.call` reached this plugin's server as `plugin:eklavya:eklavya` and `plugin_eklavya_eklavya` (about 1 to 1.7 s for `get_config`). The name `eklavya` failed: "no connected MCP tool". | Observed, terminal | Try the plugin-scoped spellings in order; never assume one |
+| 2 | The first `$.mcp.call` after a reload was refused twice in two reloads: "The server-side auto mode classifier gave no verdict ... Issue the action again once, as-is". The immediate retry succeeded. | Observed in auto mode only; other modes not tried | The mod retries once on this refusal, then shows the error state |
+| 3 | A `tool.call` hook sees the model's own `mcp__plugin_eklavya_eklavya__*` call, and `await next(e)` returns after it completes (413 ms for `get_config`). It also sees the mod's own `$.mcp.call` calls. | Observed, terminal | Option (a): the mod hooks `tool.call` for `present_question`, awaits `next`, then syncs. It must ignore its own `panel_*` calls |
+| 4 | With a 60 s `Bash` and a background `Agent` (6 steps, 8 s apart) both running, 14 pane button presses each awaited a 7 s model call inside the handler. Bash took 60 s end to end and the agent 53 s; neither paused. | Observed, terminal | Blocker 4 passes on the terminal. Feedback rendering during the run was not inspected |
+| 5 | `ui.open` from a command the person typed resolved `{isPlaced:true}`; `$.ui.panes()` listed it shown and not focused. Unasked opens, narrow widths, 110 vs 144 columns, and another mod's pane were not tried. | Partly observed | Treat any `reason` as unplaced; the width floors stay the declaration's words (144 unasked, 110 asked) |
+| 6 | A pane button handler awaited `$.model.complete` for about 5.6 to 7.5 s and was not cut off. A 15 s call was not reached. | Partly observed | Typed-answer grading is feasible at 7 s; the 10 s hook budget is unproven either way, so the mod keeps the model prompt short and treats a cut-off as the error state |
+| 7 | `void $.prompt.submit({text})` returned in 0 ms. Delivery after the turn was not checked. | Partly observed | Decision 4's route stays unconfirmed; the visible "Ask Claude to explain" fallback is the baseline |
+| 8 | A command registered with `$.command.register({name})` ran as `/eklavya-spike`, unprefixed. | Observed | The reopen command is `/eklavya-panel`; it does not collide with `/eklavya:quiz` |
+| 9 | `session.start` fired when the mod loaded, with `surface: "terminal"` and the session id. `session.end` carries `reason`, and after `/clear` **no `session.start` fires**. | Start observed; clear from the declaration | The mod syncs on `session.end`, on its next `tool.call` and on each prompt, not only on `session.start` |
+| 10, 11 | Per-mod disable and where a mod is declared inside a distributed plugin | Not tested | Stage 3 finds the declaration the validator accepts for the packaged plugin |
+
 ## Updating this reference
 
 Record the date, source and scope of verification: upstream docs, source code,
