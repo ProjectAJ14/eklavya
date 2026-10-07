@@ -26,6 +26,9 @@ brief's names in the PR description.**
 
 ## The feedback, verbatim intent
 
+0. (Added after review.) The panel is experimental: ship it behind a setting,
+   `quiz.panel`, **off by default**. Off means no behaviour change anywhere.
+
 1. Eklavya questions should appear in a dedicated, branded pane beside the
    transcript, not as Claude's generic `AskUserQuestion` card.
 2. One question at a time; pick an answer, then press Submit (selecting never
@@ -98,7 +101,7 @@ each row below on **terminal CLI and Desktop Code tab**, writing the result into
 | 7 | Can the mod queue a prompt for the idle session without awaiting (`prompt.submit`)? | One queued prompt delivered after the turn ends, nothing awaited in the handler | Use Decision 4's fallback |
 | 8 | A reopen command name that does not shadow `/eklavya:quiz` | A slash command or key binding that reopens a hidden pane | Propose the closest alternative in the PR |
 | 9 | Lifecycle: `session.start` on startup, `/clear`, resume, branch; plugin reload; session end teardown | The mod can read current session and project identity on each | Reconcile through the server on every sync (Stage 3) |
-| 10 | Is there a host-level per-mod disable a learner can use? | Yes, documented | Add the `quiz.panel` config key (Decision 6) |
+| 10 | Is there a host-level per-mod disable a learner can use? | Yes, documented | Mention it in troubleshooting; `quiz.panel` is the primary switch either way |
 | 11 | Where a mod is declared (plugin manifest vs `hooks/hooks.json`) and whether `hooks/run.mjs`'s background repair affects it | Strict validation passes on the installed plugin | Follow what the validator accepts |
 
 ## Stage 1 — Pending-question store, once-only answers, bridge tools
@@ -206,7 +209,27 @@ answered question without its attempt.
 
 ## Stage 2 — Routing (one path for checkpoint and `/eklavya:quiz`)
 
-**Capability.** The planner reads the `panel_sync` heartbeat for this session and adds
+**The setting (new in this stage, first commit of it).** `quiz.panel`: boolean,
+default `false`, user and project scope like the other `quiz.*` keys. It is the only
+switch that turns the panel on; the mod being installed does nothing by itself.
+Follow `mcp/CLAUDE.md`'s new-key list exactly: type and comment in `config.ts`
+(`QuizConfig`, `DEFAULT_CONFIG.quiz`, coercion next to `only_on_changes`), a
+`'quiz.panel': bool` row in `config-path.ts`, the `quiz` object in `set_config`'s
+schema and description (`tools/config_tools.ts`), a `SETTINGS` registry row in
+`dashboard.ts` (group "Questions", label "Quiz side panel (experimental)", help says
+it needs a supported Claude Code build and what off means), written through
+`applySetting` so CLI and dashboard share one path. Update the dashboard page's
+`fieldProblem` only if the key needs a new rule (a boolean does not). `dashboard.test.ts`
+fails without the registry row; `config.test.ts` and `config-path` tests get the
+default and the scope checks.
+
+**Off means inert.** With `quiz.panel` false: `panel_sync` returns `{disabled: true}`
+without registering a heartbeat or reading a row; the mod renders and opens nothing;
+`present_question` rejects with `panel_disabled`; the plan says `presentation: "tool"`.
+The learner sees today's `AskUserQuestion` flow and no notification, banner or log
+line mentioning the panel.
+
+**Capability.** With the setting on, the planner reads the `panel_sync` heartbeat for this session and adds
 one field to the plan: `presentation: "panel" | "tool"`. `ask_attribution` is returned
 only for `"tool"`. Default and any doubt (no heartbeat, stale, `reason` unplaced on the
 last sync, subagent, Cowork) = `"tool"`. A mod being loaded is not enough; the
@@ -243,7 +266,9 @@ deltas too.
 
 ### Tests
 
-- Planner: `presentation` is `"panel"` only with a fresh heartbeat; every other state `"tool"`; `ask_attribution` absent for `"panel"`.
+- Setting: default `false`; settable at user and project scope through `eklavya config` and `POST /api/settings`; project overrides user; `set_config` accepts it; invalid values rejected the same way as the other booleans.
+- Off is inert: with `quiz.panel` false, `panel_sync` registers nothing, `present_question` errors, the plan says `"tool"`, and hook output is byte-identical to `main` for the same fixtures.
+- Planner: `presentation` is `"panel"` only with the setting on and a fresh heartbeat; every other state `"tool"`; `ask_attribution` absent for `"panel"`.
 - Checkpoint/stop hooks: output text per `presentation`; silent with an open row; Stop does not block for a second question.
 - A plan/directive snapshot proves all four sites name the same tool for each value.
 - Skill/reference text assertions already used by `hooks.test.ts` extended for the new section.
@@ -343,8 +368,8 @@ Never in the stem or any visible control: branding, the dials, option grades, th
 
 ## Data and migrations
 
-One migration (`panel_questions`, indexes). No change to `attempts`. No config key
-unless Stage 0 row 10 fails (Decision 6). No change to learning history, fingerprints
+One migration (`panel_questions`, indexes). No change to `attempts`. One config key,
+`quiz.panel`, default `false` (no config migration: absent means false). No change to learning history, fingerprints
 or SRS.
 
 ## Tests the gate expects
@@ -360,6 +385,7 @@ or SRS.
 Run in a scratch project with a temporary `EKLAVYA_HOME`, on terminal CLI 2.1.287+
 and Desktop Code tab 2.1.286+, with the plugin installed from the worktree.
 
+0. `eklavya config get quiz.panel` prints `false` on a clean home. Items 1–10 and 12–15 below run with it set to `true`.
 1. Start a task that logs a concept. A branded pane opens beside the transcript (or the "question waiting" notice appears if narrow). Typing in the prompt keeps working.
 2. While a long `Bash` runs and a background agent works, answer in the pane. Both keep running; the pane shows feedback; timestamps show no pause.
 3. Click an option, do nothing: nothing is recorded. Submit: "Checking your answer…", then Correct or Needs another look with the why. Dashboard shows exactly one new attempt.
@@ -370,7 +396,7 @@ and Desktop Code tab 2.1.286+, with the plugin installed from the worktree.
 8. Kill the Eklavya server mid-grading: error with Retry, draft intact; restart, Retry: one attempt.
 9. `/clear`, then answer a leftover pane: "belongs to another session", no attempt.
 10. `/eklavya:quiz caching`: same pane, round of up to `max_questions_per_task`, Next advances, Done closes. A named topic does not change the standing focus.
-11. Disable the mod: the next question arrives as today's `AskUserQuestion` card, once.
+11. Fresh install, setting untouched (`quiz.panel` false): questions arrive as today's `AskUserQuestion` card and nothing about the panel appears. `eklavya config set quiz.panel true` (and the dashboard toggle) turns it on for the next question; setting it back to false, or disabling the mod, returns to the card, once.
 12. A miss with `explain_on_wrong` on: feedback appears, an explainer page opens in the background, work is not paused.
 13. Enforced gate: pane answers clear it as the card did; an unanswered pane question does not.
 14. Two Claude sessions in two projects: each shows only its own question.
@@ -378,6 +404,7 @@ and Desktop Code tab 2.1.286+, with the plugin installed from the worktree.
 
 ## Docs to update in the same PR
 
+- Manual `dials` and `configuration`: the `quiz.panel` row (default off, experimental, scopes, what off means); Settings page of the manual's dashboard section if it lists toggles. Landing `#dials` only if it lists `quiz.*` keys; do not advertise the panel as generally available.
 - Manual: `commands` (`/eklavya:quiz`, reopen command), `first-session` and `how-it-works` (where the question appears, one-question flow, non-blocking), `installation-options` (supported hosts, **exact tested versions**, unsupported surfaces: VS Code chat, SDK/print, cloud, Desktop WSL), `troubleshooting` (pane not showing, unplaced notice, how to disable), `your-data` (the `panel_questions` row and its 24 h expiry), `faq` (typed answers use your model usage), `grading-engine` (pane grades come from the same rubric, who evaluates what). `web/CLAUDE.md` rows updated where sources change; sidebar only if a page is added.
 - Landing `web/public/index.html`: one sentence where the quiz is described. Do not advertise anything Stage 0 did not verify.
 - `README.md` and `mcp/README.md` (new tools listed; mark `panel_*` as mod-only).
@@ -392,7 +419,7 @@ and Desktop Code tab 2.1.286+, with the plugin installed from the worktree.
 3. **The pending question lives in a new table, not in mod state or memory.** Why: mods have no SQLite, reload loses state, and idempotency needs a transactional home with the attempt. Cost: one migration, which the issue hoped to avoid.
 4. **Missed-answer explainer and level-up are surfaced by the pane, not by the model's tool reply.** Why: the model no longer sees `record_attempt`'s reply. Cost: depends on Stage 0 row 7; the fallback is a visible "Ask Claude to explain" line.
 5. **One owner per question, decided when it is asked, never changed afterwards.** A panel question that cannot be placed stays pending; it is not re-asked as a card. Cost: a learner on a too-narrow terminal sees a notice and must open it; the alternative is a duplicate.
-6. **No new config key and no settings UI.** The heartbeat is the switch: no mod, no heartbeat, card path. If Stage 0 row 10 finds no host-level per-mod disable, add `quiz.panel` (`auto` | `off`, default `auto`) through the one `applySetting` path, `SETTING_RULES`, the CLI-only list, `set_config`, manual `dials`/`configuration` and the dashboard registry rule. Cost of waiting: a maintainer who wants a kill switch before shipping must say so now.
+6. **`quiz.panel`, boolean, default off, with a dashboard Settings row.** The maintainer asked for it because the panel is experimental. Why a boolean: it matches the other `quiz.*` switches and has no third state worth naming. Why a registry row rather than CLI-only: both config interfaces stay in step (root `CLAUDE.md`), and the toggle is the natural place to read the "experimental" label. Cost: touches config, CLI path table, `set_config`, dashboard registry, two manual pages. The heartbeat still gates the actual routing, so on-but-unsupported hosts quietly keep the card.
 7. **Skip is per question and a decline.** It matches the existing `/eklavya:skip` meaning for one concept (never offered again), not the session-wide silence. "I don't know" has no button; a typed "I don't know" is graded `dont_know` and taught. Cost: no one-click "teach me".
 8. **Open rows expire after 24 h as `expired`, not as declines.** An unanswered question is not evidence either way. Cost: a stale question may be asked again later.
 9. **Version bump is left to release tooling.** The issue asks for a manual bump; `scripts/bump-version.sh` and conventional commits own it.
