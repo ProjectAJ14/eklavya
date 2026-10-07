@@ -7,7 +7,7 @@ import { answerPosition } from '../src/mcq.js';
 import { retryOnBusy } from '../src/concurrency.js';
 import { hasAskedQuestion, masteryFor, conceptBySlug } from '../src/store.js';
 import { panelAnswer, panelSync, presentQuestion, type AnswerInput, type PresentInput } from '../src/panel.js';
-import { recordHeartbeat } from '../src/panel-state.js';
+import { loadRound, recordHeartbeat, saveRound } from '../src/panel-state.js';
 import { TOOLS } from '../src/tools/index.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { tempDbPath, cleanup } from './helpers.js';
@@ -241,6 +241,15 @@ describe('switching the panel off', () => {
     db.prepare("INSERT INTO attempts (concept_id, session_id, question, grade, difficulty, ts) VALUES (?, ?, 'q', 4, 2, datetime('now', '+1 second'))").run(concept.id, SESSION);
     expect(sync()).toEqual({ none: true });
     expect(db.prepare('SELECT phase FROM panel_questions WHERE id = ?').get(q.question_id)).toEqual({ phase: 'expired' });
+  });
+});
+
+describe('a remembered round', () => {
+  it('is forgotten after a day, like the question it belonged to', () => {
+    saveRound(db, SESSION, ['csrf'], new Date(Date.now() - 25 * 3600_000));
+    expect(loadRound(db, SESSION)).toBeNull();
+    saveRound(db, SESSION, ['csrf']);
+    expect(loadRound(db, SESSION)).toEqual(['csrf']);
   });
 });
 
