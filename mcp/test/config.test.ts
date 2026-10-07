@@ -181,18 +181,51 @@ describe('focus — the second dial', () => {
   });
 });
 
+describe('quiz.panel — the experimental side panel switch', () => {
+  const writeProject = (o: unknown) => {
+    const file = projectConfigPath(repo);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(o));
+  };
+
+  it('is off unless somebody turns it on', () => {
+    expect(DEFAULT_CONFIG.quiz.panel).toBe(false);
+    expect(loadConfig(repo).config.quiz.panel).toBe(false);
+  });
+
+  it('reads the user setting, and a project setting overrides it either way', () => {
+    writeGlobal({ quiz: { panel: true } });
+    expect(loadConfig(repo).config.quiz.panel).toBe(true);
+    writeProject({ quiz: { panel: false } });
+    expect(loadConfig(repo).config.quiz.panel).toBe(false);
+    writeGlobal({ quiz: { panel: false } });
+    writeProject({ quiz: { panel: true } });
+    expect(loadConfig(repo).config.quiz.panel).toBe(true);
+  });
+
+  it('ignores a value that is not a boolean rather than treating it as on', () => {
+    writeGlobal({ quiz: { panel: 'yes' } });
+    expect(loadConfig(repo).config.quiz.panel).toBe(false);
+  });
+
+  it('leaves the other quiz flags alone', () => {
+    writeGlobal({ quiz: { panel: true } });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: true, panel: true });
+  });
+});
+
 describe('quiz — the dial that replaced `mode`', () => {
   it('defaults to questions on and nothing gated', () => {
-    expect(DEFAULT_CONFIG.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: true });
+    expect(DEFAULT_CONFIG.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: true, panel: false });
   });
 
   // The compatibility promise. `.eklavya.json` is committed, so a repo written
   // against the old dial outlives the rename by years; dropping the alias would
   // not error, it would silently revert a lead's pinned gate to the default.
   it.each([
-    ['ambient', { enabled: true, enforced: false, only_on_changes: true }],
-    ['enforced', { enabled: true, enforced: true, only_on_changes: true }],
-    ['off', { enabled: false, enforced: false, only_on_changes: true }],
+    ['ambient', { enabled: true, enforced: false, only_on_changes: true, panel: false }],
+    ['enforced', { enabled: true, enforced: true, only_on_changes: true, panel: false }],
+    ['off', { enabled: false, enforced: false, only_on_changes: true, panel: false }],
   ])('reads the retired `mode: %s` as its quiz equivalent', (mode, expected) => {
     writeGlobal({ mode });
     expect(loadConfig(repo).config.quiz).toEqual(expected);
@@ -200,7 +233,7 @@ describe('quiz — the dial that replaced `mode`', () => {
 
   it('lets an explicit quiz win over a mode left behind in the same file', () => {
     writeGlobal({ mode: 'off', quiz: { enabled: true, enforced: true } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true, panel: false });
   });
 
   it('reads a repo `mode` over a global `quiz`, like any other repo override', () => {
@@ -212,7 +245,7 @@ describe('quiz — the dial that replaced `mode`', () => {
   it('takes one flag without resetting the other', () => {
     writeGlobal({ quiz: { enforced: true } });
     const { quiz } = loadConfig(repo).config;
-    expect(quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true });
+    expect(quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true, panel: false });
   });
 
   // The one combination the flags can express and the enum could not. A gate
@@ -220,13 +253,13 @@ describe('quiz — the dial that replaced `mode`', () => {
   // enforcement here is a commit hook nobody can ever get past.
   it('refuses to enforce a gate that has no questions behind it', () => {
     writeGlobal({ quiz: { enabled: false, enforced: true } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true, panel: false });
   });
 
   it('applies that rule across the file boundary too', () => {
     writeGlobal({ quiz: { enforced: true } });
     writeRepo({ quiz: { enabled: false } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true, panel: false });
   });
 });
 

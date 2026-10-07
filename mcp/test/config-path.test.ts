@@ -119,6 +119,44 @@ describe('setting a namespaced key end to end', () => {
   });
 });
 
+describe('quiz.panel through the shared write path', () => {
+  const saved = process.env.EKLAVYA_HOME;
+  let dir = '';
+  let checkout = '';
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-panel-key-'));
+    checkout = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-panel-repo-')));
+    fs.mkdirSync(path.join(checkout, '.git'));
+    process.env.EKLAVYA_HOME = dir;
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(checkout, { recursive: true, force: true });
+    if (saved === undefined) delete process.env.EKLAVYA_HOME;
+    else process.env.EKLAVYA_HOME = saved;
+  });
+
+  it('is a known boolean key that defaults to off', () => {
+    expect(knownKeys()).toContain('quiz.panel');
+    expect(valueAt(DEFAULT_CONFIG, 'quiz.panel')).toBe(false);
+    expect(parseValue('quiz.panel', 'true')).toBe(true);
+    expect(settingProblem('quiz.panel', true)).toBeNull();
+    expect(settingProblem('quiz.panel', 'yes')).not.toBeNull();
+    expect(settingProblem('quiz.panel', 1)).not.toBeNull();
+  });
+
+  it('is written at user scope and at project scope without touching the other flags', () => {
+    applySetting('quiz.enforced', true, null);
+    applySetting('quiz.panel', true, null);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'))).toEqual({ quiz: { enforced: true, panel: true } });
+    applySetting('quiz.panel', false, checkout);
+    const projectFile = path.join(dir, 'projects', checkout.replace(/[/\\:]/g, '-'), 'config.json');
+    expect(JSON.parse(fs.readFileSync(projectFile, 'utf8')).quiz).toEqual({ panel: false });
+    // Nothing lands inside the checkout.
+    expect(fs.existsSync(path.join(checkout, '.eklavya.json'))).toBe(false);
+  });
+});
+
 describe('SETTING_RULES: what every interface accepts', () => {
   const home = { saved: process.env.EKLAVYA_HOME, dir: '' };
   beforeEach(() => {

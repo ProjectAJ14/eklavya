@@ -58,6 +58,7 @@ Usage:
                                         stored under ~/.eklavya/projects/, never in the repo)
                                         e.g. quiz.enabled true|false, quiz.enforced true|false,
                                         quiz.only_on_changes true|false,
+                                        quiz.panel true|false (experimental side panel),
                                         focus project|concept|learn, cadence as-you-go|end,
                                         difficulty auto|easy|medium|hard,
                                         explain_on_wrong true|false, delegate_work true|false
@@ -132,10 +133,12 @@ Config keys: focus, focus_topic, cadence, difficulty, level_up_after,
              explain_on_wrong, delegate_work,
              auto_update, telemetry, dashboard_autostart (global only)
 Config namespaces (nested; edit ~/.eklavya/config.json or this project's file directly):
-  quiz.{enabled, enforced, only_on_changes} — whether questions happen, whether
-             they gate commits, and whether they wait for a code change in a
+  quiz.{enabled, enforced, only_on_changes, panel} — whether questions happen, whether
+             they gate commits, whether they wait for a code change in a
              git repository (default true: sessions that only read, research
-             or answer questions are not quizzed, even outside a repository).
+             or answer questions are not quizzed, even outside a repository),
+             and whether they show in the Claude Code side panel instead of
+             the question card (experimental, default false).
              Separate from memory: silencing questions never stops
              recording. (mode: ambient|enforced|off is the retired spelling,
              still read so older configs keep working)

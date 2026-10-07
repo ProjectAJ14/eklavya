@@ -175,6 +175,7 @@ describe('eklavya config', () => {
       enabled: true,
       enforced: false,
       only_on_changes: true,
+      panel: false,
     });
     expect(res.stdout).toMatch(/project: .+projects./);
   });
@@ -182,6 +183,18 @@ describe('eklavya config', () => {
   it('sets a global value and reads it back', () => {
     expect(eklavya(['config', 'set', 'quiz.enforced', 'true']).status).toBe(0);
     expect(eklavya(['config', 'get']).stdout).toMatch(/"enforced": true/);
+  });
+
+  it('sets quiz.panel at user and project scope and refuses a non-boolean', () => {
+    expect(eklavya(['config', 'get']).stdout).toMatch(/"panel": false/);
+    expect(eklavya(['config', 'set', 'quiz.panel', 'true']).status).toBe(0);
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz.panel).toBe(true);
+    expect(eklavya(['config', 'get']).stdout).toMatch(/"panel": true/);
+    expect(eklavya(['config', 'set', 'quiz.panel', 'false', '--repo']).status).toBe(0);
+    expect(eklavya(['config', 'get']).stdout).toMatch(/"panel": false/);
+    const bad = eklavya(['config', 'set', 'quiz.panel', 'maybe']);
+    expect(bad.status).toBe(1);
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz.panel).toBe(true);
   });
 
   // `mode` is not a settable key any more, but people have it in their fingers

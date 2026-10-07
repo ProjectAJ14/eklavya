@@ -54,6 +54,15 @@ export interface QuizConfig {
    * change by definition, so the gate never waits on this.
    */
   only_on_changes: boolean;
+  /**
+   * Show questions in the Claude Code side panel instead of Claude's own
+   * question card. Experimental, and off until the developer turns it on:
+   * off means no behaviour changes anywhere -- the panel's tools refuse, the
+   * planner says to use the card, and no hook mentions it. On is still only a
+   * request: a host that cannot seat the pane keeps the card (see
+   * `presentation` in `get_session_quiz_plan`).
+   */
+  panel: boolean;
 }
 
 /**
@@ -341,7 +350,7 @@ export interface EklavyaConfig {
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
-  quiz: { enabled: true, enforced: false, only_on_changes: true },
+  quiz: { enabled: true, enforced: false, only_on_changes: true, panel: false },
   focus: 'concept',
   focus_topic: null,
   cadence: 'as-you-go',
@@ -616,6 +625,7 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
     if (typeof quiz.enabled === 'boolean') out.quiz.enabled = quiz.enabled;
     if (typeof quiz.enforced === 'boolean') out.quiz.enforced = quiz.enforced;
     if (typeof quiz.only_on_changes === 'boolean') out.quiz.only_on_changes = quiz.only_on_changes;
+    if (typeof quiz.panel === 'boolean') out.quiz.panel = quiz.panel;
   }
   // The one combination the flag pair can express and the old enum could not:
   // a gate holding commits until questions are passed, with the questions

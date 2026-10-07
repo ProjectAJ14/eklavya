@@ -1791,7 +1791,13 @@ describe('config tools', () => {
 
   it('writes global config', () => {
     call(setConfig, { quiz: { enabled: true, enforced: true } });
-    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: false });
+    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: false, panel: false });
+  });
+
+  it('writes quiz.panel without disturbing the other quiz flags', () => {
+    call(setConfig, { quiz: { enforced: true } });
+    call(setConfig, { quiz: { panel: true } });
+    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: false, panel: true });
   });
 
   // The schema still takes the retired word, so it still has to land somewhere.
@@ -1799,7 +1805,7 @@ describe('config tools', () => {
   // more -- without the fold, set_config would accept it and drop it silently.
   it('folds a legacy `mode` write onto the quiz flags', () => {
     call(setConfig, { mode: 'enforced' });
-    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: false });
+    expect(call<any>(getConfig, {}).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: false, panel: false });
   });
 
   it('lets an explicit quiz win when a call sends both', () => {
@@ -1830,7 +1836,7 @@ describe('config tools', () => {
       expect(res.session_id).toBe(SESSION);
 
       // The file-backed config is exactly what it was.
-      expect(call<any>(getConfig).config.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: false });
+      expect(call<any>(getConfig).config.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: false, panel: false });
       expect(call<any>(getConfig, { session_id: SESSION }).session_off).toBe(true);
 
       logAuthWork();
