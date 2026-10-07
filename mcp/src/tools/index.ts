@@ -21,6 +21,7 @@ import {
   memoryTimeline,
 } from './memory_read_tools.js';
 import { memoryCorrect, memoryDelete, memoryWrite } from './memory_write_tools.js';
+import { panelAnswerTool, panelSyncTool, presentQuestionTool } from './panel_tools.js';
 import { countUse } from '../telemetry.js';
 
 export const TOOLS: ToolDef[] = [
@@ -28,6 +29,9 @@ export const TOOLS: ToolDef[] = [
   logSessionConcepts,
   getSessionQuizPlan,
   recordAttempt,
+  presentQuestionTool,
+  panelSyncTool,
+  panelAnswerTool,
   getGateStatus,
   upsertConcepts,
   getConceptGraph,

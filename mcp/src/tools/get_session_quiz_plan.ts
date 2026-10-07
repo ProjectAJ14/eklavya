@@ -19,6 +19,7 @@ import {
   levelStanding,
   masteryFor,
   recentQuestions,
+  ASKED_HISTORY,
   sessionConcepts,
   unmetPrereqs,
   wasEverTaught,
@@ -104,8 +105,6 @@ const LEVEL_FRAMING: Record<Level, string> = {
   hard:
     'Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.',
 };
-
-const ASKED_HISTORY = 3;
 
 export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',

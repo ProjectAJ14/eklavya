@@ -615,6 +615,13 @@ export interface AskedQuestion {
   taught: boolean;
 }
 
+/**
+ * How many past questions the planner shows the model, and so the count that
+ * places the correct option (`answerPosition`). Anything that checks that
+ * placement afterwards, as `present_question` does, must count the same way.
+ */
+export const ASKED_HISTORY = 3;
+
 /** The last few questions actually asked about a concept, newest first. */
 export function recentQuestions(db: DB, conceptId: number, limit = 3): AskedQuestion[] {
   const rows = db
