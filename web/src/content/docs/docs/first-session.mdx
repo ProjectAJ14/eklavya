@@ -100,8 +100,10 @@ option selects it, and Tab and Enter press the buttons. Picking an option only
 selects it; nothing is graded until you press **Submit answer**. **Skip question**
 is its own button and records a decline for that question. The result replaces the question in the same panel and says **Correct**
 or **Needs another look** in words, with a line on why and, after a miss, the right option. If the answer promotes you, it also says which level you cleared on this project. **Done** closes the result. After
-a miss with `explain_on_wrong` on, an explainer page is started in the background
-as before. Closing the panel with Esc hides the question without grading or
+a miss with `explain_on_wrong` on, the panel starts the explainer page in the
+background itself, without a prompt in your transcript, and the page marks the
+option you picked. If Claude Code refuses to start that agent, the panel falls
+back to a prompt asking Claude to start it. Closing the panel with Esc hides the question without grading or
 skipping it; `/eklavya-panel` opens it again. `/eklavya:quiz` uses the same panel:
 for a round, **Next question** asks Claude for the next one of that same round, on the same topic and up to the number you asked for.
 

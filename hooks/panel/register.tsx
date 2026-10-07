@@ -3,11 +3,13 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   EMPTY,
+  EXPLAINER,
   NEXT_PROMPT,
   PANE,
   REOPEN,
   STR,
   answerWas,
+  explainerBrief,
   gradingRequest,
   levelLine,
   parseVerdict,
@@ -217,11 +219,15 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
       message: null,
     }))
 
-    // A miss with explain_on_wrong on: the explainer is started by a queued
-    // prompt, so the work is not paused and nothing here waits for it.
+    // A miss with explain_on_wrong on: the panel starts the explainer itself in
+    // the background, so no prompt shows in the transcript and nothing waits.
+    // A refused spawn falls back to the queued prompt the model acts on.
     if (out.explain?.instruction && explainedAttempt !== out.attempt_id) {
       explainedAttempt = out.attempt_id
-      await $.prompt.submit({ text: String(out.explain.instruction) })
+      const spawned = await $.agent
+        .spawn({ subagentType: EXPLAINER, description: 'Eklavya explainer', prompt: explainerBrief(out.explain) })
+        .catch(() => null)
+      if (!spawned || spawned.deny) await $.prompt.submit({ text: String(out.explain.instruction) })
     }
   } catch {
     if (epoch === mine) await fail($, STR.unreachable)

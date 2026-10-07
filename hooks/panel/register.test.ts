@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { EMPTY, STR, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice } from './model'
+import { EMPTY, EXPLAINER, STR, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -30,11 +30,12 @@ const reply = (payload: unknown) => ({ content: [{ type: 'text', text: JSON.stri
  * host seats the pane, what the grader says. Every call is recorded.
  */
 function world(on: any, script: Record<string, any> = {}) {
-  const log = { calls: [] as { tool: string; args: any }[], prompts: [] as string[], opens: [] as any[], toasts: [] as string[], graded: [] as string[] }
+  const log = { calls: [] as { tool: string; args: any }[], prompts: [] as string[], opens: [] as any[], toasts: [] as string[], graded: [] as string[], spawns: [] as any[] }
   const s = {
     waiting: QUESTION as any,
     answer: ((args: any) => ({ phase: 'answered', attempt_id: 7, correct: args.option_id === 'o3', correct_label: 'The origin is compared', explanation: 'The Origin cannot be forged.' })) as any,
     placed: true,
+    spawn: { model: 'm', agentId: 'a1' } as any,
     verdict: '{"grade":5,"outcome":"answered","feedback":"Right, and you said why."}' as any,
     ...script,
   }
@@ -59,6 +60,10 @@ function world(on: any, script: Record<string, any> = {}) {
   on('prompt.submit', async (_$: any, e: any) => {
     log.prompts.push(e.text)
     return { text: e.text }
+  })
+  on('agent.spawn', async (_$: any, e: any) => {
+    log.spawns.push(e)
+    return s.spawn
   })
   on('ui.toast', async (_$: any, e: any) => {
     log.toasts.push(e.text)
@@ -303,16 +308,38 @@ describe('the pane, state by state', () => {
     expect(await pane.find({ text: STR.empty })).toBeDefined()
   })
 
-  test('a miss starts the explainer by a queued prompt, once', async ($, on) => {
-    const w = world(on, {
-      answer: () => ({ phase: 'answered', attempt_id: 9, correct: false, correct_label: 'The origin is compared', explanation: 'x', explain: { instruction: 'Start the eklavya-explainer agent.', attempt_id: 9 } }),
-    })
+  const MISS = {
+    phase: 'answered', attempt_id: 9, correct: false, correct_label: 'The origin is compared', explanation: 'x',
+    explain: {
+      instruction: 'Start the eklavya-explainer agent.', attempt_id: 9, concept: 'cors', name: 'CORS',
+      question: 'Why?', options: ['A one', 'The origin is compared'], option_notes: ['n1', 'n2'],
+      answer: 'A one', correct: 'The origin is compared',
+    },
+  }
+
+  test('a miss starts the explainer itself, once, with the pick and the right answer', async ($, on) => {
+    const w = world(on, { answer: () => MISS })
     await boot($)
     const pane = await mount($, 'terminal')
     await press($, 'opt-o1')
     await press($, 'submit')
-    expect(w.log.prompts).toEqual(['Start the eklavya-explainer agent.'])
+    expect(w.log.prompts).toEqual([])
+    expect(w.log.spawns).toHaveLength(1)
+    expect(w.log.spawns[0].subagent_type).toBe(EXPLAINER)
+    expect(w.log.spawns[0].prompt).toContain('The learner answered: A one')
+    expect(w.log.spawns[0].prompt).toContain('The right answer: The origin is compared')
+    expect(w.log.spawns[0].prompt).toContain('B. The origin is compared (note: n2)')
+    expect(w.log.spawns[0].prompt).toContain('--attempt 9')
     expect(await pane.find({ text: STR.explainer })).toBeDefined()
+  })
+
+  test('a refused spawn falls back to the queued prompt', async ($, on) => {
+    const w = world(on, { answer: () => MISS, spawn: { deny: 'no' } })
+    await boot($)
+    await mount($, 'terminal')
+    await press($, 'opt-o1')
+    await press($, 'submit')
+    expect(w.log.prompts).toEqual(['Start the eklavya-explainer agent.'])
   })
 
   test('says "You\'ve cleared" on a level-up', async ($, on) => {
