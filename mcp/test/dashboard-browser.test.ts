@@ -1558,6 +1558,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         quiz: document.querySelector('#view .next:not(.start)')?.textContent ?? '',
       }));
       expect(blocks.head).toBe('Start your reviews');
+      // A run asks the weakest concepts, so the caption must not promise overdue order.
+      expect(await w.page.$eval('#view .starts > .cmd__note', (n) => n.textContent))
+        .toBe('Each run asks up to your questions-per-task limit, weakest first. Run it again for the rest.');
       expect(blocks.rows.map((r) => r.who)).toEqual(['mixed · 2 due', 'answered · 1 due']);
       expect(blocks.rows[0]!.cmd).toBe(`cd '${fx.repo.mixed}' && claude "/eklavya:quiz ${b} ${c}"`);
       // A selected project shows its own block alone.
