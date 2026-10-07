@@ -130,7 +130,7 @@ questions off and keep memory on.
 By default Eklavya asks only in sessions that change code (edit tools or
 shell commands, in this checkout or a sibling worktree), up to four
 questions per session on its own, at least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
-`eklavya config set` in a terminal, or the dashboard's Settings pages. `quiz.panel` is set with `eklavya config set quiz.panel true` or in Settings; a round you ask for with `/eklavya:quiz` keeps its topic and length across the panel's Next button. See [the dials](https://eklavya-run.web.app/docs/dials/)
+`eklavya config set` in a terminal, or the dashboard's Settings pages. `quiz.panel` is set with `eklavya config set quiz.panel true` or in Settings; a round you ask for with `/eklavya:quiz` keeps its topic and length across the panel's Next button. If Claude Code's auto mode denies the panel's tools, allow them as [the manual shows](https://eklavya-run.web.app/docs/first-session/#if-auto-mode-blocks-the-panel), or ask Claude to. See [the dials](https://eklavya-run.web.app/docs/dials/)
 and [every setting](https://eklavya-run.web.app/docs/configuration/).
 
 ## Commands
