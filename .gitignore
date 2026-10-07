@@ -40,3 +40,7 @@ eval/results/*T*Z-extraction.json
 
 # local agent plans and screenshot evidence: never published
 .plan/
+
+# Written by Claude Code when it loads this checkout as a plugin (--plugin-dir)
+/tsconfig.json
+/.claude-plugin/types/
