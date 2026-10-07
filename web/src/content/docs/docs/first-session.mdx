@@ -121,6 +121,39 @@ narrower than 144 columns an unrequested panel waits instead of opening: you see
 "A question is waiting. /eklavya-panel to open it." and the question stays put
 until you open it. With `quiz.panel` off, the panel shows nothing, `/eklavya-panel` opens nothing, and questions use the card.
 
+### If auto mode blocks the panel
+
+The panel calls `panel_sync` and `panel_answer` itself, not at your request in
+the conversation, and Claude hands it each question with `present_question`.
+Claude Code's auto mode can refuse these calls with a message like
+`plugin:eklavya:eklavya - panel_sync (mcp) denied by auto mode`. A plugin cannot
+grant its own permissions. Add the three panel tools to the `permissions.allow`
+list in your user settings, `~/.claude/settings.json`, keeping the entries
+already there:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_eklavya_eklavya__panel_sync",
+      "mcp__plugin_eklavya_eklavya__panel_answer",
+      "mcp__plugin_eklavya_eklavya__present_question"
+    ]
+  }
+}
+```
+
+Or paste this into Claude Code and let Claude make the change:
+
+```text
+Eklavya's quiz panel is being denied by auto mode. Add mcp__plugin_eklavya_eklavya__panel_sync, mcp__plugin_eklavya_eklavya__panel_answer and mcp__plugin_eklavya_eklavya__present_question to permissions.allow in my ~/.claude/settings.json, keeping my existing entries.
+```
+
+An allow rule is checked before auto mode decides, so these three calls run
+without being judged. Allow only these three rather than the whole Eklavya
+server, which would also let tools such as `memory_delete` and `set_config` run
+without asking.
+
 ## If you do not know the answer
 
 Choose “I don't know” to get an explanation grounded in the work. Skipping

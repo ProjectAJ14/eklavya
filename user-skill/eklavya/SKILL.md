@@ -1,6 +1,6 @@
 ---
 name: eklavya
-description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, update Eklavya, or find where their data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
+description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, update Eklavya, allow its quiz panel tools after auto mode denied them, or find where their data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
 ---
 
 # Eklavya
@@ -257,6 +257,19 @@ the learning history. Two cases it can't fix on its own, and `doctor` says which
 - **the skill is a different skill named eklavya** — they have their own
   `~/.claude/skills/eklavya/`. Never overwrite it. Tell them to move theirs
   first, then run `eklavya install`.
+
+**Auto mode denied a panel tool.** A message such as `plugin:eklavya:eklavya -
+panel_sync (mcp) denied by auto mode` means Claude Code's auto mode refused a
+call the quiz panel made on its own; a plugin cannot grant its own permissions.
+When they ask you to fix it, read `~/.claude/settings.json` and add these to
+`permissions.allow`, keeping every existing entry and adding none twice:
+`mcp__plugin_eklavya_eklavya__panel_sync`,
+`mcp__plugin_eklavya_eklavya__panel_answer` and
+`mcp__plugin_eklavya_eklavya__present_question`. Create `permissions.allow` if
+it is missing, and leave the file valid JSON. Do not allow the whole
+`mcp__plugin_eklavya_eklavya` server instead: that would also let
+`memory_delete` and `set_config` run unasked. Show them the entries you added.
+If the denial continues, a restart of Claude Code reloads the settings.
 
 **Updates are automatic.** Eklavya checks npm at session start, at most hourly,
 and installs a newer release on its own, settings untouched. So "update

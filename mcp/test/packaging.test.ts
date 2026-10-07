@@ -391,3 +391,21 @@ describe('the tool registry', () => {
     }
   });
 });
+
+describe('the quiz panel allow rule', () => {
+  it('names the real panel tools under the plugin server prefix, in the manual and the skill', async () => {
+    const { presentQuestionTool, panelSyncTool, panelAnswerTool } = await import('../src/tools/panel_tools.js');
+    const plugin = readJson(path.join(repoRoot, '.claude-plugin', 'plugin.json')).name;
+    const [server] = Object.keys(readJson(path.join(repoRoot, '.mcp.json')).mcpServers);
+    const prefix = `mcp__plugin_${plugin}_${server}__`;
+    const expected = [panelSyncTool, panelAnswerTool, presentQuestionTool].map((t) => prefix + t.name).sort();
+
+    // A renamed tool or server would leave users pasting a rule that allows
+    // nothing, and auto mode would keep denying the panel.
+    for (const doc of ['web/src/content/docs/docs/first-session.mdx', 'user-skill/eklavya/SKILL.md']) {
+      const text = fs.readFileSync(path.join(repoRoot, doc), 'utf8');
+      const named = [...new Set(text.match(/mcp__plugin_\w+?__\w+/g) ?? [])].sort();
+      expect(named, doc).toEqual(expected);
+    }
+  });
+});
