@@ -1236,7 +1236,7 @@ function startBlocks(title, cmds) {
         <p><strong>${esc(x.name)}</strong> · ${x.count} due</p>
         <div class="cmd"><code>${esc(x.command)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div>
         ${x.note ? `<p class="cmd__note">${esc(x.note)}</p>` : ''}</div>`).join('')
-    + `<p class="cmd__note">Each run asks up to your questions-per-task limit, most overdue first. Run it again for the rest.</p>
+    + `<p class="cmd__note">Each run asks up to your questions-per-task limit, weakest first. Run it again for the rest.</p>
       <span class="sr" id="copy-live" aria-live="polite"></span></section>`;
 }
 

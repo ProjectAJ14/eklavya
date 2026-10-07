@@ -170,7 +170,7 @@ mid-path), and a **Copy** `<button>` right of it. Copy uses
 visually hidden `aria-live="polite"` region says "Command copied". If the write
 rejects, select the `<code>` text instead and say "Press ⌘C to copy" (`Ctrl+C`
 on Windows). Under the block, one `--dim` line: "Each run asks up to your
-questions-per-task limit, most overdue first. Run it again for the rest."
+questions-per-task limit, weakest first. Run it again for the rest."
 
 **Where:**
 
@@ -197,7 +197,7 @@ questions-per-task limit, most overdue first. Run it again for the rest."
 | Streak sub-line | `Answer one today to make it N.` · `Your longest was N days.` · `Answer one question to start one.` |
 | Legend | `More` `Less` · `Current streak` |
 | Arrows | aria `Earlier weeks`, `Later weeks` |
-| Review queue | `Start your reviews` · `<project> · N due` · `Copy` / `Copied` · `Run it inside the project you want these answers counted in.` · `Each run asks up to your questions-per-task limit, most overdue first. Run it again for the rest.` |
+| Review queue | `Start your reviews` · `<project> · N due` · `Copy` / `Copied` · `Run it inside the project you want these answers counted in.` · `Each run asks up to your questions-per-task limit, weakest first. Run it again for the rest.` |
 | Concept page | `This one is due` |
 | Next step | `N concepts are due. Open the review queue for the command to run.` |
 
