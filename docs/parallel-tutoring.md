@@ -71,6 +71,12 @@ messages. Tell the teaching pane what is being built if it lacks context.
 | Project settings and level | Main checkout, including its worktrees |
 | Conversation messages | Separate in each pane |
 
+With `quiz.panel` on and the side panel showing, a question is stored by the
+parent's `present_question` and shown by the panel, so the parent keeps
+building while the learner answers; `while_waiting` questions can use this. The
+tutor subagent never presents in the panel (it has no such tool) and still asks
+in lettered text. At most one panel question is open per session.
+
 Both panes capture their own tool calls. Both can also receive a Stop quiz;
 their shared pacing markers prevent immediate duplicate sweeps. Adjust
 `min_minutes_between_checkpoints` for `as-you-go`, or

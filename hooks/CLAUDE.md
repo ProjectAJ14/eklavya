@@ -27,6 +27,24 @@ The MCP matcher accepts both standalone and plugin-scoped names. Do not narrow
 it to one prefix. Keep the work-tool regex anchored. Hook timeouts are 10 seconds,
 except Stop at 15 seconds; consult the manifest before changing them.
 
+## The quiz panel is a mod, not a command hook
+
+`hooks/panel/` is a Claude Code mod: function hooks declared under `modules` in
+`hooks.json` beside the command hooks, in a runtime with no Node and no
+filesystem. Fail-open applies to it exactly as to a command hook: a handler that
+throws is skipped and the question stays in the database (`panel_questions`) for
+the next sync. The rules it is validated against: static relative imports only,
+every `$` call inline or in a function declared at the top of the file, literal
+event names, render only its own pane, and never hold the answer key (the server
+grades; the mod draws and relays). It is opt-in: with `quiz.panel` off, `panel_sync`
+returns `{disabled: true}` and the mod opens and draws nothing. `presentation` in
+`get_session_quiz_plan` is the one source for which tool asks; the checkpoint,
+the Stop sweep and the delegation lines (`delegation-lib.ts`) read it, and an
+open panel question silences the checkpoint and the Stop sweep. Read
+`docs/verified-schemas.md` (mods section) before changing anything it records.
+Run `scripts/test-panel-mod.sh`: it stages the mod as its own plugin, validates
+it, runs `claude plugin test`, then validates the distributed plugin.
+
 ## Failures and latency
 
 Every hook body runs inside `await run(async (input) => { ... })` and returns 0.

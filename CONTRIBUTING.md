@@ -85,6 +85,27 @@ expected behavior does not establish that the live loop works. Project settings
 live outside the checkout; inspect them with `eklavya config get` rather than
 assuming that a clean Git tree means default settings.
 
+## Quiz side panel acceptance
+
+The panel (`quiz.panel`, experimental) needs its own live check, because a
+mounted tree is not a painted pane. With a disposable `EKLAVYA_HOME`, the plugin
+loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
+`eklavya config set quiz.panel true`:
+
+1. Ask for a change that logs a concept. A pane opens beside the transcript (or
+   "A question is waiting. /eklavya-panel to open it." in a narrow terminal) and
+   typing in the prompt still works.
+2. While a long Bash command or a background agent runs, answer in the pane.
+   Neither pauses. Selecting does not record anything; **Submit answer** records
+   exactly one attempt, also on a double click.
+3. Try Other with typed words, Skip, Esc then `/eklavya-panel`, a `/clear` with a
+   leftover pane, and killing the Eklavya server mid-answer then Retry.
+4. Turn `quiz.panel` off and confirm the next question is the card and nothing
+   mentions the panel.
+
+Run `scripts/test-panel-mod.sh` for the mod's validation and tests. Say which of
+terminal and Desktop you ran; only the terminal CLI has been verified.
+
 ## Manual scenarios
 
 Use a disposable project/home and record which scenarios were actually run.

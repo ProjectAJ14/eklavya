@@ -41,9 +41,12 @@ An explicit quiz bypasses normal spacing and the as-you-go one-question cap. Eac
 | `nothing_logged` | Build something first, or name a topic. |
 | `no_candidates` | The topic is mastered and no review is due. |
 | `quiz_disabled` | Turn questions on with `/eklavya:mode`. |
+| `panel_question_open` | A question is already waiting in the [quiz side panel](/docs/first-session/#the-quiz-side-panel-experimental); answer it there. |
 | `session_off` | Ask to turn Eklavya back on for this session. |
 | `no_topic` | Set a topic for `learn` focus. |
 | `topic_unknown` | Choose the suggested domain or add a [pack](/docs/packs/). |
+
+With the experimental `quiz.panel` setting on and the panel showing, the quiz appears in the [side panel](/docs/first-session/#the-quiz-side-panel-experimental) instead of the question card; **Next question** there asks for the next question of the round.
 
 ### `/eklavya:mode [value]`
 
@@ -138,6 +141,10 @@ The required passes are `ceil(required concepts × pass_threshold)`. Only answer
 ### `/eklavya:setup`
 
 Checks prerequisites and the database, asks how you want to learn, and offers the git hook if you choose enforcement. Safe to repeat. See [First run](/docs/first-run/).
+
+### `/eklavya-panel`
+
+Opens the experimental [quiz side panel](/docs/first-session/#the-quiz-side-panel-experimental) and shows the question waiting in it, if any. Use it after you close the panel, or when the terminal was too narrow for the panel to open itself. With `quiz.panel` off it opens nothing and says so. It is a command of the panel, not a skill, so it has no `eklavya:` prefix.
 
 ### Or just ask
 

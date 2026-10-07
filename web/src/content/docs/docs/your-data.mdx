@@ -11,7 +11,7 @@ Choosing an observer sends captured work through Claude Code to a model. Enablin
 
 | Path | Contents |
 | --- | --- |
-| `~/.eklavya/knowledge.db` | Quiz attempts (with the right option and each option's note, for multiple choice), every pick made when correcting a missed answer (`attempt_retries`), concepts, mastery, review schedules, gates and project levels; also memory evidence, observations, search indexes, receipts, a log of memory read tool calls (IDs, outcome, latency and size, never the query or content), collections and candidates; and each project's git root commits, so a moved checkout keeps its history. |
+| `~/.eklavya/knowledge.db` | Quiz attempts (with the right option and each option's note, for multiple choice), every pick made when correcting a missed answer (`attempt_retries`), concepts, mastery, review schedules, gates and project levels; also memory evidence, observations, search indexes, receipts, a log of memory read tool calls (IDs, outcome, latency and size, never the query or content), collections and candidates; and each project's git root commits, so a moved checkout keeps its history. With the experimental `quiz.panel` on, it also holds the question waiting in the side panel (`panel_questions`: the question, its options, the grade the asking model gave each option, and the stored reply), which is dropped from view after 24 hours unanswered and recorded as nothing, and a short heartbeat per session. |
 | `~/.eklavya/config.json` | Your global settings. |
 | `~/.eklavya/projects/<checkout>/config.json` | Your personal settings for one checkout and its worktrees. |
 | `~/.eklavya/packs/*.json` | Global concept packs. |

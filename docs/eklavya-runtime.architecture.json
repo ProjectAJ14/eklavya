@@ -59,6 +59,18 @@
           "session"
         ],
         "note": "Tool evidence is redacted before storage; batches feed a session summary and later recall. Memory does not change mastery."
+      },
+      {
+        "id": "panel-path",
+        "label": "Quiz side panel (opt-in)",
+        "focus": [
+          "session",
+          "mcp",
+          "db",
+          "panel",
+          "developer"
+        ],
+        "note": "With quiz.panel on, the model hands a question to present_question and carries on. The mod shows it from the database, and panel_answer grades and records it once. Off, or on a host that cannot seat the pane, the question card is used."
       }
     ]
   },
@@ -75,6 +87,35 @@
       "size": [
         146,
         76
+      ]
+    },
+    {
+      "id": "panel",
+      "type": "frontend",
+      "label": "Quiz Side Panel",
+      "sublabel": "Claude Code mod · opt-in",
+      "tag": "quiz.panel · experimental",
+      "pos": [
+        30,
+        40
+      ],
+      "size": [
+        146,
+        76
+      ],
+      "sources": [
+        {
+          "path": "hooks/panel/register.tsx",
+          "label": "the mod"
+        },
+        {
+          "path": "mcp/src/panel.ts",
+          "label": "present · sync · answer"
+        },
+        {
+          "path": "mcp/src/panel-state.ts",
+          "label": "heartbeat · presentation"
+        }
       ]
     },
     {
@@ -197,7 +238,7 @@
       "id": "mcp",
       "type": "backend",
       "label": "Eklavya MCP Server",
-      "sublabel": "stdio · 20 tools",
+      "sublabel": "stdio · 23 tools",
       "tag": "local dist, else npx",
       "pos": [
         554,
@@ -565,6 +606,30 @@
         1120,
         392
       ]
+    },
+    {
+      "id": "panel-pane",
+      "from": "panel",
+      "to": "developer",
+      "label": "one question, beside the transcript",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        103,
+        178
+      ]
+    },
+    {
+      "id": "panel-calls",
+      "from": "panel",
+      "to": "session",
+      "label": "panel_sync · panel_answer",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        222,
+        70
+      ]
     }
   ],
   "cards": [
@@ -575,7 +640,7 @@
         "1 · the agent calls log_session_concepts while it works",
         "2 · PostToolUse reads it and returns additionalContext",
         "3 · an instruction to ask — never the question itself",
-        "4 · the model plans, asks, grades with record_attempt",
+        "4 · the model plans, asks, grades with record_attempt (or, with the opt-in panel, hands the question to present_question and carries on)",
         "Mid-task and Stop questions share one session budget"
       ]
     },

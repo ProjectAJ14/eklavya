@@ -82,6 +82,45 @@ The installer configures this status line when possible. If you already have a
 custom one, see [`eklavya statusline`](/docs/cli/#eklavya-statusline). Claude
 Desktop has no equivalent status bar; use the [dashboard](/docs/dashboard/).
 
+## The quiz side panel (experimental)
+
+By default a question arrives in Claude's own question card and Claude waits for
+your answer. With `quiz.panel` on, a question can instead appear in an Eklavya
+panel beside the transcript. Claude hands the question to the panel and carries
+on with the task, so you can read it and answer while it keeps working.
+
+```text
+eklavya config set quiz.panel true
+```
+
+The panel shows one question at a time: the concept and tier, the question, four
+options with a line under each, and **Other — explain in your own words**.
+Press Ctrl+X then Tab to move the keyboard into the panel; the number beside an
+option selects it, and Tab and Enter press the buttons. Picking an option only
+selects it; nothing is graded until you press **Submit answer**. **Skip question**
+is its own button and records a decline for that question. The result replaces the question in the same panel and says **Correct**
+or **Needs another look** in words, with the right option and a line on why. After
+a miss with `explain_on_wrong` on, an explainer page is started in the background
+as before. Closing the panel with Esc hides the question without grading or
+skipping it; `/eklavya-panel` opens it again. `/eklavya:quiz` uses the same panel:
+for a round, **Next question** asks Claude for the next one.
+
+Your answer is graded the same way as in the card. A pick takes the grade the
+asking model wrote with that option when it wrote the question (4 for the right
+one, 2 for a near miss, 1 for one built on a misconception). Words you type under
+Other are graded by one model call from the panel, using the rubric in
+[Grading and scheduling](/docs/grading-engine/), and that call uses your own Claude
+usage. Either way the answer is recorded once, by the same code that records a
+card answer.
+
+The panel is used only when all of these hold: `quiz.panel` is on, the Claude Code
+terminal CLI is the host (tested on 2.1.292; the Desktop Code tab is not
+supported yet and keeps the card), and the panel has reported in within the last
+90 seconds. Otherwise the question uses the card, exactly as before. In a terminal
+narrower than 144 columns an unrequested panel waits instead of opening: you see
+"A question is waiting. /eklavya-panel to open it." and the question stays put
+until you open it. With `quiz.panel` off, nothing about the panel runs.
+
 ## If you do not know the answer
 
 Choose “I don't know” to get an explanation grounded in the work. Skipping
