@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Eklavya — Runtime Architecture",
+    "title": "Eklavya \u2014 Runtime Architecture",
     "output": "eklavya-runtime.html",
     "quality_profile": "showcase",
     "viewBox": [
@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "103180936fbdaf660a355ccd1f6af69b4f2a10eb"
+      "revision": "6cc87e83138a98f2969eaa203bdb5e452847b1df"
     },
     "views": [
       {
@@ -25,7 +25,7 @@
           "db",
           "hooks"
         ],
-        "note": "Concepts logged mid-task come back through the hook, which tells the model to ask — the hook never writes the question itself."
+        "note": "Concepts logged mid-task come back through the hook, which tells the model to ask \u2014 the hook never writes the question itself."
       },
       {
         "id": "what-decides",
@@ -59,18 +59,6 @@
           "session"
         ],
         "note": "Tool evidence is redacted before storage; batches feed a session summary and later recall. Memory does not change mastery."
-      },
-      {
-        "id": "panel-path",
-        "label": "Quiz side panel (opt-in)",
-        "focus": [
-          "session",
-          "mcp",
-          "db",
-          "panel",
-          "developer"
-        ],
-        "note": "With quiz.panel on, the model hands a question to present_question and carries on. The mod shows it from the database, and panel_answer grades and records it once. Off, or on a host that cannot seat the pane, the question card is used."
       }
     ]
   },
@@ -79,7 +67,7 @@
       "id": "developer",
       "type": "external",
       "label": "Developer",
-      "sublabel": "terminal · editor",
+      "sublabel": "terminal \u00b7 editor",
       "pos": [
         30,
         240
@@ -93,8 +81,8 @@
       "id": "panel",
       "type": "frontend",
       "label": "Quiz Side Panel",
-      "sublabel": "Claude Code mod · opt-in",
-      "tag": "quiz.panel · experimental",
+      "sublabel": "Claude Code mod \u00b7 opt-in",
+      "tag": "quiz.panel \u00b7 experimental",
       "pos": [
         30,
         40
@@ -110,11 +98,11 @@
         },
         {
           "path": "mcp/src/panel.ts",
-          "label": "present · sync · answer"
+          "label": "present \u00b7 sync \u00b7 answer"
         },
         {
           "path": "mcp/src/panel-state.ts",
-          "label": "heartbeat · presentation"
+          "label": "heartbeat \u00b7 presentation"
         }
       ]
     },
@@ -197,7 +185,7 @@
       "id": "srs",
       "type": "backend",
       "label": "SRS Engine",
-      "sublabel": "SM-2 · decay · level bands",
+      "sublabel": "SM-2 \u00b7 decay \u00b7 level bands",
       "tag": "pure",
       "pos": [
         840,
@@ -238,7 +226,7 @@
       "id": "mcp",
       "type": "backend",
       "label": "Eklavya MCP Server",
-      "sublabel": "stdio · 23 tools",
+      "sublabel": "stdio \u00b7 23 tools",
       "tag": "local dist, else npx",
       "pos": [
         554,
@@ -263,7 +251,7 @@
       "id": "store",
       "type": "backend",
       "label": "Store & Gate Ledger",
-      "sublabel": "mastery · attempts · gates",
+      "sublabel": "mastery \u00b7 attempts \u00b7 gates",
       "pos": [
         840,
         240
@@ -283,7 +271,7 @@
       "id": "hooks",
       "type": "backend",
       "label": "Hook Scripts",
-      "sublabel": "7 lifecycle hooks · Node",
+      "sublabel": "7 lifecycle hooks \u00b7 Node",
       "tag": "exit 0 on failure",
       "pos": [
         268,
@@ -312,7 +300,7 @@
       "id": "db",
       "type": "database",
       "label": "knowledge.db",
-      "sublabel": "SQLite WAL · learning + memory",
+      "sublabel": "SQLite WAL \u00b7 learning + memory",
       "pos": [
         840,
         440
@@ -365,7 +353,7 @@
       "id": "memory",
       "type": "backend",
       "label": "Memory Pipeline",
-      "sublabel": "capture · summarise · recall",
+      "sublabel": "capture \u00b7 summarise \u00b7 recall",
       "tag": "local by default",
       "pos": [
         1126,
@@ -386,7 +374,7 @@
         },
         {
           "path": "mcp/src/memory/worker.ts",
-          "label": "queue · session summary"
+          "label": "queue \u00b7 session summary"
         }
       ]
     }
@@ -394,7 +382,7 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "Local process space · Claude Code + MCP server",
+      "label": "Local process space \u00b7 Claude Code + MCP server",
       "wraps": [
         "skills",
         "config",
@@ -408,7 +396,7 @@
     },
     {
       "kind": "security-group",
-      "label": "~/.eklavya/ · private learner state",
+      "label": "~/.eklavya/ \u00b7 private learner state",
       "wraps": [
         "db"
       ],
@@ -416,7 +404,7 @@
     },
     {
       "kind": "security-group",
-      "label": "loopback only · 127.0.0.1:41729",
+      "label": "loopback only \u00b7 127.0.0.1:41729",
       "wraps": [
         "dashboard"
       ],
@@ -445,7 +433,7 @@
       "id": "tool-calls",
       "from": "session",
       "to": "mcp",
-      "label": "log · plan · grade",
+      "label": "log \u00b7 plan \u00b7 grade",
       "variant": "emphasis",
       "fromSide": "right",
       "toSide": "left",
@@ -458,7 +446,7 @@
       "id": "resolve",
       "from": "mcp",
       "to": "store",
-      "label": "resolve · schedule",
+      "label": "resolve \u00b7 schedule",
       "variant": "emphasis",
       "fromSide": "right",
       "toSide": "left",
@@ -520,7 +508,7 @@
       "id": "dials",
       "from": "config",
       "to": "mcp",
-      "label": "quiz · focus · cadence · difficulty",
+      "label": "quiz \u00b7 focus \u00b7 cadence \u00b7 difficulty",
       "fromSide": "bottom",
       "toSide": "top",
       "labelAt": [
@@ -532,7 +520,7 @@
       "id": "schedule",
       "from": "store",
       "to": "srs",
-      "label": "SM-2 grade → next review",
+      "label": "SM-2 grade \u2192 next review",
       "fromSide": "top",
       "toSide": "bottom",
       "labelAt": [
@@ -564,7 +552,7 @@
       "id": "gate-check",
       "from": "gate",
       "to": "db",
-      "label": "reads gates.repo · fails open",
+      "label": "reads gates.repo \u00b7 fails open",
       "variant": "security",
       "fromSide": "bottom",
       "toSide": "bottom",
@@ -599,7 +587,7 @@
       "id": "memory-persist",
       "from": "memory",
       "to": "db",
-      "label": "vectors · receipts",
+      "label": "vectors \u00b7 receipts",
       "fromSide": "bottom",
       "toSide": "right",
       "labelAt": [
@@ -611,24 +599,12 @@
       "id": "panel-pane",
       "from": "panel",
       "to": "developer",
-      "label": "one question, beside the transcript",
+      "label": "question + answer",
       "fromSide": "bottom",
       "toSide": "top",
       "labelAt": [
         103,
         178
-      ]
-    },
-    {
-      "id": "panel-calls",
-      "from": "panel",
-      "to": "session",
-      "label": "panel_sync · panel_answer",
-      "fromSide": "right",
-      "toSide": "left",
-      "labelAt": [
-        222,
-        70
       ]
     }
   ],
@@ -637,10 +613,10 @@
       "dot": "emerald",
       "title": "One turn of the loop",
       "items": [
-        "1 · the agent calls log_session_concepts while it works",
-        "2 · PostToolUse reads it and returns additionalContext",
-        "3 · an instruction to ask — never the question itself",
-        "4 · the model plans, asks, grades with record_attempt (or, with the opt-in panel, hands the question to present_question and carries on)",
+        "1 \u00b7 the agent calls log_session_concepts while it works",
+        "2 \u00b7 PostToolUse reads it and returns additionalContext",
+        "3 \u00b7 an instruction to ask \u2014 never the question itself",
+        "4 \u00b7 the model plans, asks, grades with record_attempt (panel: present_question)",
         "Mid-task and Stop questions share one session budget"
       ]
     },
@@ -648,11 +624,11 @@
       "dot": "amber",
       "title": "Eight hooks, six events",
       "items": [
-        "SessionStart — banner + context; SubagentStart — context",
-        "UserPromptSubmit — one line, only when a session logged nothing",
-        "PostToolUse — capture plus two checkpoint matchers",
-        "Stop — context continues work; memory closes due batches",
-        "PreToolUse — deny git commit (Bash); a file's past work (Read)"
+        "SessionStart \u2014 banner + context; SubagentStart \u2014 context",
+        "UserPromptSubmit \u2014 one line, only when a session logged nothing",
+        "PostToolUse \u2014 capture plus two checkpoint matchers",
+        "Stop \u2014 context continues work; memory closes due batches",
+        "PreToolUse \u2014 deny git commit (Bash); a file's past work (Read)"
       ]
     },
     {

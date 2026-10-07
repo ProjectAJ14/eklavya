@@ -83,7 +83,7 @@ One event per feature used on a finished day, with `kind`, `feature` and `count`
 | `kind` | `feature` |
 |---|---|
 | `cli` | the `eklavya` command run, such as `doctor` or `dashboard`, never its arguments |
-| `tool` | the MCP tool Claude called, such as `record_attempt` or `memory_search`; with the experimental quiz panel on, also the panel's own `panel_sync` and `panel_answer` |
+| `tool` | the MCP tool Claude called, such as `record_attempt` or `memory_search`; the quiz panel's `present_question`, `panel_sync` and `panel_answer` count the same way (`panel_sync` also while `quiz.panel` is off, since the panel checks in at each session start) |
 | `slash` | the Eklavya slash command typed, such as `quiz`, never the rest of the prompt |
 | `quiz` | `checkpoint` (a question during work) or `stop` (a question at the end of a turn) |
 | `gate` | `blocked`, a commit held by the gate |

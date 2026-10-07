@@ -99,7 +99,7 @@ Press Ctrl+X then Tab to move the keyboard into the panel; the number beside an
 option selects it, and Tab and Enter press the buttons. Picking an option only
 selects it; nothing is graded until you press **Submit answer**. **Skip question**
 is its own button and records a decline for that question. The result replaces the question in the same panel and says **Correct**
-or **Needs another look** in words, with the right option and a line on why. After
+or **Needs another look** in words, with a line on why and, after a miss, the right option. If the answer promotes you, it also says which level you cleared on this project. **Done** closes the result. After
 a miss with `explain_on_wrong` on, an explainer page is started in the background
 as before. Closing the panel with Esc hides the question without grading or
 skipping it; `/eklavya-panel` opens it again. `/eklavya:quiz` uses the same panel:
@@ -115,11 +115,11 @@ card answer.
 
 The panel is used only when all of these hold: `quiz.panel` is on, the Claude Code
 terminal CLI is the host (tested on 2.1.292; the Desktop Code tab is not
-supported yet and keeps the card), and the panel has reported in within the last
-90 seconds. Otherwise the question uses the card, exactly as before. In a terminal
+supported yet and keeps the card), the panel has reported in within the last
+90 seconds, and its last report did not say the host could not show it. Otherwise the question uses the card, exactly as before. In a terminal
 narrower than 144 columns an unrequested panel waits instead of opening: you see
 "A question is waiting. /eklavya-panel to open it." and the question stays put
-until you open it. With `quiz.panel` off, nothing about the panel runs.
+until you open it. With `quiz.panel` off, the panel shows nothing, `/eklavya-panel` opens nothing, and questions use the card.
 
 ## If you do not know the answer
 

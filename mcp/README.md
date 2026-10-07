@@ -72,8 +72,9 @@ level.
 right one, 2 for a near miss, 1 for a misconception), the right one in the
 plan's `answer_position` slot, and an explanation. It stores the question and
 returns at once; it writes no attempt. The panel records the answer through
-`panel_answer` with the same code `record_attempt` uses, exactly once. Both
-`present_question` and the panel tools refuse while `quiz.panel` is off. This is
+`panel_answer` with the same code `record_attempt` uses, exactly once. `present_question` returns `panel_disabled` while `quiz.panel` is off, and
+`panel_sync` returns `{disabled: true}`; `panel_answer` answers only a question
+that already exists. This is
 a Claude Code mod feature: a standalone MCP client has the tools but not the
 panel that calls the other two.
 
