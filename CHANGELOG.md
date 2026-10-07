@@ -1,3 +1,10 @@
+## [1.52.1](https://github.com/ProjectAJ14/eklavya/compare/v1.52.0...v1.52.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **panel:** document and automate the auto mode allow rule ([#132](https://github.com/ProjectAJ14/eklavya/issues/132)) ([15e3a18](https://github.com/ProjectAJ14/eklavya/commit/15e3a18a99eab72e3ba9660038875f51f738675a))
+
 # [1.52.0](https://github.com/ProjectAJ14/eklavya/compare/v1.51.1...v1.52.0) (2026-10-07)
 
 
