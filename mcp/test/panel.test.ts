@@ -222,6 +222,28 @@ describe('present_question refuses when the panel is not the way to ask', () => 
   });
 });
 
+describe('switching the panel off', () => {
+  const attempts = () => db.prepare('SELECT COUNT(*) AS n FROM attempts').get();
+
+  it('expires the open question without an attempt, so turning it back on revives nothing', () => {
+    present();
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ quiz: { panel: false } }));
+    expect(sync()).toEqual({ disabled: true });
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ quiz: { panel: true } }));
+    expect(sync()).toEqual({ none: true });
+    expect(db.prepare('SELECT phase FROM panel_questions').get()).toEqual({ phase: 'expired' });
+    expect(attempts()).toEqual({ n: 0 });
+  });
+
+  it('also drops a question the card answered while no sync ran', () => {
+    const q = present();
+    const concept = conceptBySlug(db, SLUG)!;
+    db.prepare("INSERT INTO attempts (concept_id, session_id, question, grade, difficulty, ts) VALUES (?, ?, 'q', 4, 2, datetime('now', '+1 second'))").run(concept.id, SESSION);
+    expect(sync()).toEqual({ none: true });
+    expect(db.prepare('SELECT phase FROM panel_questions WHERE id = ?').get(q.question_id)).toEqual({ phase: 'expired' });
+  });
+});
+
 describe('panel_sync', () => {
   it('says none when nothing waits', () => {
     expect(sync()).toEqual({ none: true });

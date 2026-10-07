@@ -129,4 +129,4 @@ export function payloadOf(blocks: readonly { type: string; text?: string }[]): R
 
 /** Prompts the mod queues for the model. Short: the model reads the plan for the rest. */
 export const NEXT_PROMPT =
-  'The learner pressed Next question in the Eklavya panel. Call get_session_quiz_plan with ignore_cooldown: true and present the next question of this round with present_question (more: true unless it is the last), then carry on.'
+  'The learner pressed Next question in the Eklavya panel. Call get_session_quiz_plan with resume_round: true and present the next question of this round with present_question, then carry on.'

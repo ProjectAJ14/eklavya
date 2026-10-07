@@ -27,7 +27,7 @@ import {
   type ConceptRow,
 } from '../store.js';
 import { attributionRule, isCowork, withSurfaceNote } from '../surface.js';
-import { hasOpenPanelQuestion, panelPresentation } from '../panel-state.js';
+import { clearRound, hasOpenPanelQuestion, loadRound, panelPresentation, saveRound } from '../panel-state.js';
 import { sessionChangedCode } from '../hooks/changes-lib.js';
 import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
@@ -140,6 +140,10 @@ export const getSessionQuizPlan: ToolDef = {
       .boolean()
       .optional()
       .describe('Set true while background agents build the task (delegate_work). Plans one question with no cooldown, and returns questions_needed: 0 with reason "budget_spent" once this session has had max_questions_per_task questions, "cadence_end" under the end cadence, or "no_code_change" while quiz.only_on_changes holds questions back. Ignored when max, domain, slugs or ignore_cooldown is passed.'),
+    resume_round: z
+      .boolean()
+      .optional()
+      .describe('Set true when the side panel\'s Next question asks for the next question of a round: plans what is left of the round the last plan started (same topic, same total), and returns questions_needed: 0 with reason "round_over" once it is done. Other arguments are ignored.'),
     focus: z
       .enum(['project', 'concept', 'learn'])
       .optional()
@@ -154,6 +158,7 @@ export const getSessionQuizPlan: ToolDef = {
       slugs?: string[];
       ignore_cooldown?: boolean;
       while_waiting?: boolean;
+      resume_round?: boolean;
       focus?: Focus;
     },
     { db },
@@ -189,6 +194,18 @@ export const getSessionQuizPlan: ToolDef = {
         effDomain = undefined;
       }
     }
+    // Next in the panel: what is left of the round the last plan started, with
+    // its topic and length, not a fresh plan from this session's work.
+    let roundLeft: number | undefined;
+    if (args.resume_round) {
+      const queue = loadRound(db, sessionId) ?? [];
+      if (queue.length === 0) {
+        return { session_id: sessionId, questions_needed: 0, concepts: [], reason: 'round_over' };
+      }
+      effDomain = undefined;
+      effSlugs = queue;
+      roundLeft = queue.length;
+    }
     let topicUnresolved = false;
     const explicitTopic = Boolean(args.domain || (effSlugs && effSlugs.length > 0));
 
@@ -214,11 +231,11 @@ export const getSessionQuizPlan: ToolDef = {
     //
     // A request -- an explicit max, topic or ignore_cooldown -- also outranks
     // `while_waiting`: the developer asking beats Eklavya filling a wait.
-    const requested = explicitTopic || args.max !== undefined || Boolean(args.ignore_cooldown);
+    const requested = explicitTopic || args.max !== undefined || Boolean(args.ignore_cooldown) || roundLeft !== undefined;
     const waiting = Boolean(args.while_waiting) && !requested;
     const capped =
       config.cadence === 'as-you-go' && !config.quiz.enforced && !explicitTopic;
-    let max = waiting ? 1 : args.max ?? (capped ? 1 : config.max_questions_per_task);
+    let max = waiting ? 1 : roundLeft ?? args.max ?? (capped ? 1 : config.max_questions_per_task);
 
     // An enforced gate that is open and not yet passed. While it is, the plan
     // serves only what can pass it -- see (a') and the widening guards below.
@@ -627,6 +644,10 @@ export const getSessionQuizPlan: ToolDef = {
     }
 
     const presentation = panelPresentation(db, config, sessionId, now);
+    // A requested round for the panel is remembered, so Next resumes it and the
+    // last question is known to be last.
+    if (presentation === 'panel' && requested) saveRound(db, sessionId, picked.map((p) => p.slug));
+    else if (requested) clearRound(db, sessionId);
 
     return {
       session_id: sessionId,
@@ -663,7 +684,7 @@ export const getSessionQuizPlan: ToolDef = {
           : 'If they say skip, record grade 0 (outcome declined) and let them go -- do not ask twice.',
       on_finish:
         presentation === 'panel'
-          ? `The panel records each answer and shows the verdict itself: do not call record_attempt, do not announce a result and do not wait. Once present_question returns, go back to the task.${picked.length > 1 ? ' Present only the first question now, with more: true; the panel offers Next and asks for the next when the learner wants it, and you then present the next item (more: true on all but the last).' : ''}`
+          ? `The panel records each answer and shows the verdict itself: do not call record_attempt, do not announce a result and do not wait. Once present_question returns, go back to the task.${picked.length > 1 ? ' Present only the first question now, with more: true; the panel offers Next and the plan is remembered, so when the learner presses it you call get_session_quiz_plan with resume_round: true and present the next item; present_question tracks the round and says when it is the last.' : ''}`
           : 'After each answer, record_attempt, then tell them whether they were right (and the right answer if not) before anything else. If the end-of-turn sweep asked for this quiz, end with "Back to your task:" and your task answer again in 2-4 lines, so it is the last thing on screen.',
       ...(focus === 'learn' && config.focus_topic ? { topic: config.focus_topic } : {}),
       level: standing.level,

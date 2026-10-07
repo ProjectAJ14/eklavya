@@ -7,7 +7,7 @@ import { resolveSessionId } from './session.js';
 import { stripAskHeader } from './ask.js';
 import { conceptBySlug, hasAskedQuestion, projectKey, recentQuestions, ASKED_HISTORY, PASSING_GRADE } from './store.js';
 import { recordAttemptCore } from './tools/record_attempt.js';
-import { OPEN_PHASES, PANEL_EXPIRY_HOURS, panelPresentation, recordHeartbeat, type HostReport } from './panel-state.js';
+import { OPEN_PHASES, PANEL_EXPIRY_HOURS, advanceRound, panelPresentation, recordHeartbeat, type HostReport } from './panel-state.js';
 
 /**
  * Pending questions for the quiz side panel.
@@ -54,6 +54,7 @@ interface Row {
   key: string;
   explanation: string;
   more: number;
+  created_at: string;
   phase: string;
   attempt_id: number | null;
   result: string | null;
@@ -160,11 +161,14 @@ export function presentQuestion(db: DB, args: PresentInput) {
     correct_id: `o${correctAt[0]! + 1}`,
     grades: Object.fromEntries(args.options.map((o, i) => [`o${i + 1}`, o.grade])),
   };
+  // In a round the queue says whether this is the last question; the model's own
+  // `more` only stands for a question outside one.
+  const more = advanceRound(db, sessionId, concept.slug) ?? Boolean(args.more);
   const id = randomUUID();
   db.prepare(
     `INSERT INTO panel_questions (id, session_id, repo, concept_id, tier, stem, options, key, explanation, more)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, sessionId, repo, concept.id, args.difficulty, stem, JSON.stringify(options), JSON.stringify(key), args.explanation, args.more ? 1 : 0);
+  ).run(id, sessionId, repo, concept.id, args.difficulty, stem, JSON.stringify(options), JSON.stringify(key), args.explanation, more ? 1 : 0);
 
   return {
     question_id: id,
@@ -188,13 +192,31 @@ export interface SyncInput {
  */
 export function panelSync(db: DB, args: SyncInput) {
   const { config, repoRoot } = loadConfig(args.cwd);
-  // Off is inert: no heartbeat, no row read, nothing for the mod to show.
-  if (!config.quiz.panel) return { disabled: true };
   const repo = projectKey(repoRoot);
+  // Off is inert: no heartbeat, nothing for the mod to show. A question still
+  // open here is superseded by the card the session falls back to, so it is
+  // expired (no attempt written) and turning the panel back on cannot revive it.
+  if (!config.quiz.panel) {
+    db.prepare(
+      `UPDATE panel_questions SET phase = 'expired', updated_at = datetime('now')
+        WHERE session_id = ? AND repo = ? AND phase IN ${OPEN_PHASES}`,
+    ).run(args.session_id, repo);
+    return { disabled: true };
+  }
   expireStale(db);
   recordHeartbeat(db, args.session_id, args.host, args.placed?.ok);
   const row = openRow(db, args.session_id, repo);
   if (!row) return { none: true };
+
+  // Answered by another route while the panel was off (the sync that would have
+  // expired it never ran): the card's attempt supersedes it.
+  const superseded = db
+    .prepare('SELECT 1 FROM attempts WHERE session_id = ? AND concept_id = ? AND ts > ? LIMIT 1')
+    .get(row.session_id, row.concept_id, row.created_at);
+  if (superseded) {
+    db.prepare("UPDATE panel_questions SET phase = 'expired', updated_at = datetime('now') WHERE id = ?").run(row.id);
+    return { none: true };
+  }
 
   // The mod reports whether the host could seat the pane. An invisible question
   // is never counted as shown: it waits as `unplaced` until a later open works.

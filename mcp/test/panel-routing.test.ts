@@ -16,7 +16,8 @@ import {
   PANEL_SURFACES,
   recordHeartbeat,
 } from '../src/panel-state.js';
-import { panelSync } from '../src/panel.js';
+import { panelSync, presentQuestion } from '../src/panel.js';
+import { answerPosition } from '../src/mcq.js';
 import { getSessionQuizPlan } from '../src/tools/get_session_quiz_plan.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
 import { tempDbPath, cleanup } from './helpers.js';
@@ -189,8 +190,15 @@ describe('an open question', () => {
   });
 });
 
+const LABELS = ['Tokens are checked by the server', 'Cookies are signed', 'The origin is compared', 'The body is hashed'];
+function options(slug: string) {
+  const at = answerPosition(slug, 0) - 1;
+  let d = 0;
+  return LABELS.map((label, i) => ({ label, description: `note ${i}`, grade: i === at ? 4 : [2, 1, 2][d++]!, ...(i === at ? { correct: true } : {}) }));
+}
+
 describe('off is inert', () => {
-  it('registers nothing, reads no row and keeps no heartbeat', () => {
+  it('registers nothing, keeps no heartbeat and shows no row', () => {
     configure(false);
     openQuestion();
     expect(panelSync(db, { session_id: SESSION, cwd, host: { surface: 'terminal' } })).toEqual({ disabled: true });
@@ -276,6 +284,37 @@ describe('the plan\'s presentation', () => {
     const p = plan();
     expect(p.questions_needed).toBeGreaterThan(1);
     expect(p.on_finish).toMatch(/Present only the first question now/);
+  });
+
+  it('Next resumes the round a topic quiz started: same topic, same total, last one known', () => {
+    configure(true);
+    beat();
+    const first = plan({ slugs: ['csrf', 'jwt-structure'] });
+    expect(first.presentation).toBe('panel');
+    expect(first.questions_needed).toBe(2);
+    const order = first.concepts.map((c: any) => c.slug) as string[];
+    // Nothing was logged in this session: a fresh plan from its work would be empty.
+    expect(plan({ ignore_cooldown: true }).questions_needed).toBe(0);
+    const present = (slug: string) =>
+      presentQuestion(db, {
+        slug,
+        question: `About ${slug}?`,
+        options: options(slug),
+        explanation: 'because',
+        difficulty: 2,
+        session_id: SESSION,
+        cwd,
+        more: false,
+      }) as any;
+    expect(present(order[0]!).status).toBe('presented');
+    expect(panelSync(db, { session_id: SESSION, cwd, host: { surface: 'terminal' } }) as any).toMatchObject({ more: true });
+    db.prepare("UPDATE panel_questions SET phase = 'answered'").run();
+    const next = plan({ resume_round: true });
+    expect(next.concepts.map((c: any) => c.slug)).toEqual([order[1]]);
+    expect(present(order[1]!).status).toBe('presented');
+    expect(panelSync(db, { session_id: SESSION, cwd, host: { surface: 'terminal' } }) as any).toMatchObject({ more: false });
+    db.prepare("UPDATE panel_questions SET phase = 'answered'").run();
+    expect(plan({ resume_round: true }).reason).toBe('round_over');
   });
 
   it('keeps an enforced gate\'s skip rule whichever way it is shown', () => {

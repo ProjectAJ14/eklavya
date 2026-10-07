@@ -103,3 +103,45 @@ export function hasOpenPanelQuestion(db: DB, sessionId: string): boolean {
     return false;
   }
 }
+
+/**
+ * The explicit round a learner asked for (a topic quiz, `max` questions): the
+ * slugs still to ask, in order. The planner saves it when it plans a round for
+ * the panel, `present_question` takes each question off it, and Next resumes it,
+ * so the round keeps its topic and its length across the questions and the last
+ * one is known to be last. Stored in `meta`, so it needs no migration.
+ */
+const roundKey = (sessionId: string): string => `panel_round:${sessionId}`;
+
+export function saveRound(db: DB, sessionId: string, queue: string[], now = new Date()): void {
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(roundKey(sessionId), JSON.stringify({ at: now.toISOString(), queue }));
+}
+
+export function clearRound(db: DB, sessionId: string): void {
+  db.prepare('DELETE FROM meta WHERE key = ?').run(roundKey(sessionId));
+}
+
+/** The slugs still to ask, or null when no round is running (or it is a day old). */
+export function loadRound(db: DB, sessionId: string, now = new Date()): string[] | null {
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(roundKey(sessionId)) as { value: string } | undefined;
+  if (!row) return null;
+  const round = JSON.parse(row.value) as { at: string; queue: string[] };
+  return now.getTime() - Date.parse(round.at) <= PANEL_EXPIRY_HOURS * 3600_000 ? round.queue : null;
+}
+
+/**
+ * Takes `slug` off the round as it is presented. Returns whether more remain,
+ * or null when `slug` is not part of a running round (the caller's own `more`
+ * then stands).
+ */
+export function advanceRound(db: DB, sessionId: string, slug: string): boolean | null {
+  const queue = loadRound(db, sessionId);
+  if (!queue || !queue.includes(slug)) return null;
+  const rest = queue.filter((s) => s !== slug);
+  if (rest.length > 0) saveRound(db, sessionId, rest);
+  else clearRound(db, sessionId);
+  return rest.length > 0;
+}

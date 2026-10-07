@@ -53,6 +53,7 @@ function world(on: any, script: Record<string, any> = {}) {
   })
   on('model.complete', async (_$: any, e: any) => {
     log.graded.push(e.prompt)
+    if (typeof s.verdict === 'function') return { value: await s.verdict() }
     return { value: typeof s.verdict === 'string' ? { isAnswered: true, text: s.verdict, usage: {} } : s.verdict }
   })
   on('prompt.submit', async (_$: any, e: any) => {
@@ -286,7 +287,7 @@ describe('the pane, state by state', () => {
     w.s.waiting = null
     await press($, 'next')
     expect(w.log.prompts).toHaveLength(1)
-    expect(w.log.prompts[0]).toMatch(/present_question/)
+    expect(w.log.prompts[0]).toMatch(/resume_round: true/)
     expect(await pane.find({ text: STR.loading })).toBeDefined()
   })
 
@@ -455,6 +456,46 @@ describe('placement and lifecycle', () => {
     const before = w.log.calls.length
     await $.tool.call({ tool: 'mcp__plugin_eklavya_eklavya__panel_sync', tool_input: {} } as any)
     expect(w.log.calls.length).toBe(before)
+  })
+
+  test('a sync that finds nothing while an answer is in flight keeps the answer, so a lost reply can still be retried', async ($, on) => {
+    let first = true
+    const w = world(on)
+    w.s.answer = async () => {
+      if (!first) return { phase: 'answered', attempt_id: 7, correct: true, explanation: 'Stored.' }
+      first = false
+      // The row is closed by the commit; a sync lands before the reply does, then the reply is lost.
+      w.s.waiting = null
+      await $.session.start({ cwd: '/work/proj', surface: 'terminal', isInteractive: true })
+      throw new Error('connection reset')
+    }
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'opt-o3')
+    await press($, 'submit')
+    expect(await pane.find({ text: STR.unreachable })).toBeDefined()
+    expect(await pane.find({ key: 'retry' })).toBeDefined()
+    await press($, 'retry')
+    expect(await pane.find({ text: STR.correct })).toBeDefined()
+  })
+
+  test('a session that ends while a typed answer is being graded records nothing for it', async ($, on) => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>(r => (release = r))
+    const w = world(on, { verdict: async () => (await gate, { isAnswered: true, text: '{"grade":5,"outcome":"answered","feedback":"Right."}', usage: {} }) })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'opt-other')
+    await $.ui.input({ plugin: PLUGIN, key: 'other-text', text: 'my words', kind: 'change' })
+    const pressed = press($, 'submit')
+    // The grader is running: the session ends under it.
+    for (let i = 0; i < 50 && w.log.graded.length === 0; i += 1) await new Promise(r => setTimeout(r, 5))
+    expect(w.log.graded).toHaveLength(1)
+    await $.session.end({ reason: 'clear', sessionId: 'old', resume: { id: 'old' } } as any)
+    release()
+    await pressed
+    expect(answers(w.log).filter((c: any) => c.args.grade !== undefined)).toHaveLength(0)
+    expect(await pane.find({ text: STR.empty })).toBeDefined()
   })
 
   test('a session ending clears the draft; a waiting question comes back on the next sync', async ($, on) => {

@@ -44,6 +44,8 @@ let lastSyncAt = 0
 let openedFor: string | null = null
 let working: string | null = null
 let busy = false
+/** Bumped when the session ends: a submit that began before it is stale and must write nothing. */
+let epoch = 0
 let explainedAttempt = 0
 
 /**
@@ -103,9 +105,14 @@ async function sync($: EngineInterface): Promise<'disabled' | 'none' | 'question
     // The question that was here is gone: answered elsewhere, expired, or this
     // is a new session. A result the learner is still reading is left alone.
     openedFor = null
-    await update($, quiz, (s: PanelState) =>
-      s.step === 'awaiting' || s.step === 'grading' || s.step === 'loading' ? { ...EMPTY, message: s.step === 'loading' ? null : s.message } : s,
-    )
+    // An answer in flight has just closed the row, so "none" is expected while it
+    // is still being sent: keep the question and the answer until it resolves, or
+    // a lost reply leaves nothing to Retry (Retry returns the stored result).
+    if (!busy) {
+      await update($, quiz, (s: PanelState) =>
+        s.step === 'awaiting' || s.step === 'grading' || s.step === 'loading' ? { ...EMPTY, message: s.step === 'loading' ? null : s.message } : s,
+      )
+    }
     return 'none'
   }
 
@@ -151,6 +158,7 @@ async function fail($: EngineInterface, message: string): Promise<void> {
 async function submit($: EngineInterface, wanted: PanelPending | null): Promise<void> {
   if (busy) return
   busy = true
+  const mine = epoch
   try {
     const state: PanelState = (await $.state.get(REF)).value ?? EMPTY
     const q = state.question
@@ -170,6 +178,7 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
 
     await update($, quiz, (s: PanelState) => ({ ...s, step: 'grading', message: null }))
     const where = await whereAmI($)
+    if (epoch !== mine) return
     // The session's id now, not the one the question came from: after a /clear
     // the server then refuses this answer as another session's.
     const base = { question_id: q.question_id, session_id: where.session_id, repo: q.repo, cwd: where.cwd }
@@ -177,10 +186,13 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
     if (!pending && state.draft.other) {
       const typed = state.draft.text.trim()
       const held = await call($, 'panel_answer', { ...base, kind: 'text', text: typed })
+      if (epoch !== mine) return
       if (held.error === 'stale_question') return stale($)
       if (typeof held.correct_label !== 'string') return fail($, STR.unreachable)
       const asked = gradingRequest(q, held.correct_label, typed)
       const reply = await $.model.complete(asked)
+      // The session ended while the grader ran: record nothing for it.
+      if (epoch !== mine) return
       const verdict = reply.isAnswered ? parseVerdict(reply.text) : null
       // A refusal, an empty reply, a timeout or anything that is not a verdict
       // records nothing: the learner keeps their words and may try once more.
@@ -193,6 +205,7 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
     await update($, quiz, (s: PanelState) => ({ ...s, pending: sent }))
 
     const out = await call($, 'panel_answer', { ...base, ...sent })
+    if (epoch !== mine) return
     if (out.error === 'stale_question') return stale($)
     if (out.error) return fail($, STR.unreachable)
 
@@ -211,9 +224,10 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
       await $.prompt.submit({ text: String(out.explain.instruction) })
     }
   } catch {
-    await fail($, STR.unreachable)
+    if (epoch === mine) await fail($, STR.unreachable)
   } finally {
-    busy = false
+    // Only this submission's own flag: a newer session's may be set by now.
+    if (epoch === mine) busy = false
   }
 }
 
@@ -244,6 +258,7 @@ export const register: Register = on => {
   // the next sync.
   on('session.end', async ($, e, next) => {
     try {
+      epoch += 1
       openedFor = null
       busy = false
       await update($, quiz, () => EMPTY)
