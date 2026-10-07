@@ -396,7 +396,7 @@ describe('migrations', () => {
     runMigrations(db);
     const cols = (db.prepare('PRAGMA table_info(panel_questions)').all() as { name: string }[]).map((c) => c.name);
     expect(cols).toEqual([
-      'id', 'session_id', 'repo', 'concept_id', 'tier', 'stem', 'options', 'key', 'explanation',
+      'id', 'session_id', 'repo', 'concept_id', 'tier', 'stem', 'options', 'key', 'explanation', 'more',
       'phase', 'attempt_id', 'result', 'created_at', 'updated_at',
     ]);
     db.prepare("INSERT INTO concepts (id, slug, name, domain) VALUES (1, 'c', 'C', 'd')").run();

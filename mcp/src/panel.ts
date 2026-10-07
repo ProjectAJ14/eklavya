@@ -36,6 +36,8 @@ export interface PresentInput {
   question: string;
   options: PresentOption[];
   explanation: string;
+  /** The model has more questions queued in this round: the pane offers Next. */
+  more?: boolean;
   difficulty: number;
   session_id?: string;
   cwd?: string;
@@ -51,6 +53,7 @@ interface Row {
   options: string;
   key: string;
   explanation: string;
+  more: number;
   phase: string;
   attempt_id: number | null;
   result: string | null;
@@ -155,9 +158,9 @@ export function presentQuestion(db: DB, args: PresentInput) {
   };
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO panel_questions (id, session_id, repo, concept_id, tier, stem, options, key, explanation)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, sessionId, repo, concept.id, args.difficulty, stem, JSON.stringify(options), JSON.stringify(key), args.explanation);
+    `INSERT INTO panel_questions (id, session_id, repo, concept_id, tier, stem, options, key, explanation, more)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, sessionId, repo, concept.id, args.difficulty, stem, JSON.stringify(options), JSON.stringify(key), args.explanation, args.more ? 1 : 0);
 
   return {
     question_id: id,
@@ -210,6 +213,7 @@ export function panelSync(db: DB, args: SyncInput) {
     phase,
     concept_name: concept.name,
     tier: row.tier,
+    more: row.more === 1,
   };
 }
 
@@ -222,7 +226,7 @@ export interface AnswerInput {
   kind: 'choice' | 'text' | 'skip';
   option_id?: string;
   text?: string;
-  /** For `text`: the grader's verdict, validated here. */
+  /** For `text`: the grader's verdict, validated here. Omit all three to ask for the right option first (the question becomes `grading`). */
   grade?: number;
   outcome?: 'answered' | 'dont_know';
   feedback?: string;
@@ -252,6 +256,21 @@ export function panelAnswer(db: DB, args: AnswerInput) {
     const key = JSON.parse(row.key) as Key;
     const picked = options.find((o) => o.id === args.option_id);
     const typed = (args.text ?? '').trim();
+    const correctLabel = options.find((o) => o.id === key.correct_id)!.label;
+
+    // Typed words with no verdict yet: the first half of a typed answer. The
+    // panel's grader needs the right option to judge against, so it is handed
+    // over now, once the learner has committed to words, and never before.
+    // The question is `grading` meanwhile: still open, so nothing else is asked,
+    // and a Retry after an interrupted grading simply asks again.
+    if (args.kind === 'text' && args.grade === undefined && args.outcome === undefined) {
+      if (!typed) return { error: 'invalid_answer', detail: 'Nothing was recorded.' };
+      if (row.phase !== 'grading') {
+        db.prepare("UPDATE panel_questions SET phase = 'grading', updated_at = datetime('now') WHERE id = ?").run(row.id);
+      }
+      return { phase: 'grading', correct_label: correctLabel };
+    }
+
     if (
       (args.kind === 'choice' && !picked) ||
       (args.kind === 'text' &&
@@ -264,7 +283,6 @@ export function panelAnswer(db: DB, args: AnswerInput) {
 
     // The table the handoff fixes: a pick takes the grade the model wrote beside
     // it, typed words take the grader's, a skip is a decline.
-    const correctLabel = options.find((o) => o.id === key.correct_id)!.label;
     const grade = args.kind === 'choice' ? key.grades[picked!.id]! : args.kind === 'text' ? args.grade! : 0;
     const concept = db.prepare('SELECT slug FROM concepts WHERE id = ?').get(row.concept_id) as { slug: string };
     const recorded = recordAttemptCore(db, {

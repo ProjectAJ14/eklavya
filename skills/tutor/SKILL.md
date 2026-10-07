@@ -146,7 +146,8 @@ the plan's `presentation` is `"panel"`: it returns at once and the panel records
 and judges the answer, so never wait, `record_attempt` or give a verdict.
 Nobody mid-task types a paragraph for a quiz they did not ask for. **Read
 `references/writing-mcq.md` before writing one**: the six parts in build order,
-where distractors come from, how to record it, and the panel.
+where distractors come from, how to record it; for `"panel"` also
+`references/panel.md`.
 
 **Ground every question in the diff you just wrote** — the file, the line, the
 decision — *unless the plan's `framing` says otherwise*, which on the default

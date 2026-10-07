@@ -27,6 +27,7 @@ export const presentQuestionTool: ToolDef = {
       .describe('Exactly four options in display order.'),
     explanation: z.string().min(1).max(LIMITS.feedback).describe('The one-line why, shown after the answer.'),
     difficulty: z.number().int().min(1).max(5).describe('The tier you asked at: tier_to_ask from the plan.'),
+    more: z.boolean().optional().describe('true when more questions of this round follow (an explicit quiz): the panel then offers a Next question button. Leave it out for a single question and for the last of a round.'),
   },
   handler: (args: PresentInput, { db }) => presentQuestion(db, args),
 };
@@ -35,7 +36,7 @@ export const panelSyncTool: ToolDef = {
   name: 'panel_sync',
   title: 'Panel: is a question waiting',
   description:
-    'Called only by the Eklavya panel, never by the model. Returns the question waiting for this session and project (its repo, stem, options with ids and notes, phase, concept name, tier), or {none: true}; {disabled: true} when quiz.panel is off. Each call is the heartbeat of the mod: the planner chooses the panel only while one is fresh. Never returns the answer key. Reports whether the host could seat the pane (placed) so an invisible question is never counted as shown. Safe to call on every lifecycle event.',
+    'Called only by the Eklavya panel, never by the model. Returns the question waiting for this session and project (its repo, stem, options with ids and notes, phase, concept name, tier, more), or {none: true}; {disabled: true} when quiz.panel is off. Each call is the heartbeat of the mod: the planner chooses the panel only while one is fresh. Never returns the answer key. Reports whether the host could seat the pane (placed) so an invisible question is never counted as shown. Safe to call on every lifecycle event.',
   inputSchema: {
     session_id: z.string().min(1).max(LIMITS.sessionId).describe('The host session id.'),
     cwd: z.string().max(LIMITS.cwd).describe('The session working directory.'),
@@ -62,7 +63,7 @@ export const panelAnswerTool: ToolDef = {
   name: 'panel_answer',
   title: 'Panel: record the answer',
   description:
-    'Called only by the Eklavya panel, never by the model. Grades and records one answer exactly once: kind "choice" with option_id, kind "text" with the typed text plus the grade (0-5), outcome (answered or dont_know, which needs grade 0) and feedback the panel\'s grader produced, or kind "skip" (a decline). A second call for the same question returns the first reply and writes nothing. A mismatched session or project returns stale_question.',
+    'Called only by the Eklavya panel, never by the model. Grades and records one answer exactly once: kind "choice" with option_id, kind "text" with the typed text, first alone (it replies {phase: "grading", correct_label} so the panel\'s grader can judge), then with the grade (0-5), outcome (answered or dont_know, which needs grade 0) and feedback the grader produced, or kind "skip" (a decline). A second call for the same question returns the first reply and writes nothing. A mismatched session or project returns stale_question.',
   inputSchema: {
     question_id: z.string().max(LIMITS.sessionId),
     session_id: z.string().min(1).max(LIMITS.sessionId),

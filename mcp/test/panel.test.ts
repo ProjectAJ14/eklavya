@@ -237,6 +237,15 @@ describe('panel_sync', () => {
     expect(sync().options[0]).toEqual({ id: 'o1', label: LABELS[0], note: `note for ${LABELS[0]}` });
   });
 
+  it('says whether more questions of the round follow, so the pane offers Next only then', () => {
+    present();
+    expect(sync().more).toBe(false);
+    const q = sync();
+    answer({ question_id: q.question_id, kind: 'skip' });
+    present({ more: true, options: options(SLUG, 1), question: 'What does SameSite=Lax stop?' });
+    expect(sync().more).toBe(true);
+  });
+
   it('marks a question unplaced when the host could not seat it, and back once it can', () => {
     const q = present();
     expect(sync({ placed: { question_id: q.question_id, ok: true } }).phase).toBe('pending');
@@ -367,6 +376,33 @@ describe('panel_answer: the grade table', () => {
     const hit = answer({ question_id: next.question_id, option_id: `o${answerPosition(SLUG, 1)}` });
     expect(hit.level_up).toEqual({ from: 'easy', to: 'medium' });
     expect(hit.explain).toBeUndefined();
+  });
+});
+
+describe('panel_answer: a typed answer in two steps', () => {
+  it('hands the right option to the grader only once words are typed, and holds the question as grading', () => {
+    const q = present();
+    expect(answer({ question_id: q.question_id, kind: 'text', text: '   ' }).error).toBe('invalid_answer');
+    const first = answer({ question_id: q.question_id, kind: 'text', text: 'it checks where the request came from' });
+    expect(first).toEqual({ phase: 'grading', correct_label: LABELS[answerPosition(SLUG, 0) - 1] });
+    expect(attempts()).toHaveLength(0);
+    expect(rowOf(q.question_id)).toMatchObject({ phase: 'grading', attempt_id: null, result: null });
+    // Still open: nothing else is asked, a placement report leaves it alone, and asking again is harmless.
+    expect(present().error).toBe('question_open');
+    expect(sync({ placed: { question_id: q.question_id, ok: false } }).phase).toBe('grading');
+    expect(answer({ question_id: q.question_id, kind: 'text', text: 'it checks where the request came from' })).toEqual(first);
+    // The verdict then records it once, from the grading phase.
+    const done = answer({ question_id: q.question_id, kind: 'text', text: 'it checks where the request came from', grade: 4, outcome: 'answered', feedback: 'Right.' });
+    expect(done).toMatchObject({ phase: 'answered', correct: true });
+    expect(attempts()).toHaveLength(1);
+    expect(answer({ question_id: q.question_id, kind: 'text', text: 'x', grade: 0, outcome: 'dont_know' })).toEqual(done);
+  });
+
+  it('lets a question held as grading be skipped', () => {
+    const q = present();
+    answer({ question_id: q.question_id, kind: 'text', text: 'hmm' });
+    expect(answer({ question_id: q.question_id, kind: 'skip' }).phase).toBe('skipped');
+    expect(attempts().at(-1)).toMatchObject({ outcome: 'declined' });
   });
 });
 

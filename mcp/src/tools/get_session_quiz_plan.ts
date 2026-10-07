@@ -663,7 +663,7 @@ export const getSessionQuizPlan: ToolDef = {
           : 'If they say skip, record grade 0 (outcome declined) and let them go -- do not ask twice.',
       on_finish:
         presentation === 'panel'
-          ? `The panel records each answer and shows the verdict itself: do not call record_attempt, do not announce a result and do not wait. Once present_question returns, go back to the task.${picked.length > 1 ? ' Present only the first question now; the panel asks for the next when the learner wants it, and you then present the next item.' : ''}`
+          ? `The panel records each answer and shows the verdict itself: do not call record_attempt, do not announce a result and do not wait. Once present_question returns, go back to the task.${picked.length > 1 ? ' Present only the first question now, with more: true; the panel offers Next and asks for the next when the learner wants it, and you then present the next item (more: true on all but the last).' : ''}`
           : 'After each answer, record_attempt, then tell them whether they were right (and the right answer if not) before anything else. If the end-of-turn sweep asked for this quiz, end with "Back to your task:" and your task answer again in 2-4 lines, so it is the last thing on screen.',
       ...(focus === 'learn' && config.focus_topic ? { topic: config.focus_topic } : {}),
       level: standing.level,
