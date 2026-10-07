@@ -69,7 +69,10 @@ export function explainerBrief(x: ExplainBlock): string {
     `Write an explainer page on ${x.name} (concept slug ${x.concept}) for a question the learner missed.`,
     `Question: ${x.question}`,
     ...(options.length ? ['Options, in order:', ...options] : []),
-    `The learner answered: ${x.answer ?? '(no answer)'}`,
+    // Words typed under Other match no option, so say so; the page lists them as their own item.
+    x.answer && options.length && !x.options!.includes(x.answer)
+      ? `The learner typed their own answer instead of picking: ${x.answer}`
+      : `The learner answered: ${x.answer ?? '(no answer)'}`,
     ...(x.correct ? [`The right answer: ${x.correct}`] : []),
     `Pass --attempt ${x.attempt_id} to eklavya artifacts new.`,
   ].join('\n')

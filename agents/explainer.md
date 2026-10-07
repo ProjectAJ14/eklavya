@@ -46,7 +46,9 @@ In this order, each under its own `<h2>`:
   signal. Under each option's text, its note as `<span class="note">…</span>`
   when you were handed one, so the page reads like the question did. With no
   options (a typed answer), show the stem, their answer and the right answer in
-  the same list. Skip this section for a page someone asked for.
+  the same list. When they typed their own answer although options were
+  offered, list every option, then their words as one more item with
+  `class="picked"`. Skip this section for a page someone asked for.
 - **The short answer.** Two or three sentences a newcomer could repeat: what the
   thing *does*, before what it is called.
 - **Where the answer went wrong.** Name the misconception in the answer given

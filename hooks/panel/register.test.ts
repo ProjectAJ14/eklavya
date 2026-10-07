@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice } from './model'
+import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -340,6 +340,12 @@ describe('the pane, state by state', () => {
     await press($, 'opt-o1')
     await press($, 'submit')
     expect(w.log.prompts).toEqual(['Start the eklavya-explainer agent.'])
+  })
+
+  test('the brief says when the learner typed instead of picking', () => {
+    const brief = explainerBrief({ ...MISS.explain, answer: 'my own words' })
+    expect(brief).toContain('The learner typed their own answer instead of picking: my own words')
+    expect(explainerBrief(MISS.explain)).toContain('The learner answered: A one')
   })
 
   test('says "You\'ve cleared" on a level-up', async ($, on) => {

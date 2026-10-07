@@ -72,7 +72,7 @@ level.
 right one, 2 for a near miss, 1 for a misconception), the right one in the
 plan's `answer_position` slot, and an explanation. It stores the question and
 returns at once; it writes no attempt. The panel records the answer through
-`panel_answer` with the same code `record_attempt` uses, exactly once. `present_question` returns `panel_disabled` while `quiz.panel` is off, and
+`panel_answer` with the same code `record_attempt` uses, exactly once. On a miss with `explain_on_wrong` on, its reply carries the same `explain` block `record_attempt` returns, and the panel starts the explainer agent from it. `present_question` returns `panel_disabled` while `quiz.panel` is off, and
 `panel_sync` returns `{disabled: true}` and expires the session's open question without recording an attempt, so turning the panel back on cannot revive it; `panel_answer` answers only a question
 that already exists. A round the learner asked for (a topic, `max`) is remembered per session: `present_question` takes each question off it and sets the last one's `more` false, and `get_session_quiz_plan` with `resume_round: true` plans what is left. This is
 a Claude Code mod feature: a standalone MCP client has the tools but not the
