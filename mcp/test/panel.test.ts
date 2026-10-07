@@ -161,6 +161,12 @@ describe('present_question', () => {
     expect(present({ options: options().slice(0, 3) }).error).toBe('invalid_options');
     expect(present({ options: options().map((o) => ({ ...o, correct: undefined })) }).error).toBe('invalid_options');
     expect(present({ options: options().map((o) => ({ ...o, correct: true })) }).error).toBe('invalid_options');
+    // A letter or number is not an option.
+    for (const marker of ['A', ' b ', '1', '(C)', 'D.', 'a)']) {
+      const lettered = options();
+      lettered[1]!.label = marker;
+      expect(present({ options: lettered }).error, marker).toBe('invalid_options');
+    }
     const grades = options();
     const wrong = grades.find((o) => !o.correct)!;
     wrong.grade = 3;

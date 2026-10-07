@@ -126,17 +126,21 @@ export function presentQuestion(db: DB, args: PresentInput) {
   }
 
   const labels = args.options.map((o) => o.label.trim().toLowerCase());
+  // A letter or a number is a marker, not an option: the pane draws its own
+  // numbering, and the text the learner must read belongs in the label.
+  const markers = args.options.some((o) => /^\(?[a-z0-9][.):]?$/i.test(o.label.trim()));
   const correctAt = args.options.flatMap((o, i) => (o.correct ? [i] : []));
   const badGrade = args.options.some((o) => (o.correct ? o.grade !== 4 : o.grade !== 1 && o.grade !== 2));
   if (
     args.options.length !== MCQ_OPTION_COUNT ||
     new Set(labels).size !== labels.length ||
+    markers ||
     correctAt.length !== 1 ||
     badGrade
   ) {
     return {
       error: 'invalid_options',
-      detail: `Give exactly ${MCQ_OPTION_COUNT} options with different labels, exactly one with correct: true and grade 4; every other option grade 2 (right shape, wrong in the way that matters) or 1 (built on a misconception). Nothing was stored.`,
+      detail: `Give exactly ${MCQ_OPTION_COUNT} options with different labels, each label the option's own words (a complete claim, never a letter or number), exactly one with correct: true and grade 4; every other option grade 2 (right shape, wrong in the way that matters) or 1 (built on a misconception). Nothing was stored.`,
     };
   }
 

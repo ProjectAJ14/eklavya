@@ -15,8 +15,10 @@ Make one call to `present_question` instead:
 
 - `slug`, and `question` (the stem alone), and `difficulty` (the plan's
   `tier_to_ask`).
-- `options`: four, in display order, each `{label, description, grade}`, the
-  `description` being the one clause from part 4. Mark the right one
+- `options`: four, in display order, each `{label, description, grade}`. The
+  `label` is the option itself, a complete claim (what `writing-mcq.md` calls the
+  option), never `A` or `1`: the panel numbers them, and a bare marker is rejected.
+  The `description` is the one clause from part 4. Mark the right one
   `correct: true`, **in the `answer_position` slot** (the call is rejected with
   `wrong_answer_position` otherwise, and nothing is stored).
 - Each option's `grade` is what a learner who picks it has shown, on the scale in

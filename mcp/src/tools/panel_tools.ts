@@ -17,7 +17,7 @@ export const presentQuestionTool: ToolDef = {
     options: z
       .array(
         z.object({
-          label: z.string().min(1).max(LIMITS.option).describe('The option text. Labels must differ.'),
+          label: z.string().min(1).max(LIMITS.option).describe('The option text itself, a complete claim in the option\'s own words: never a letter or a number (the panel numbers them). Labels must differ.'),
           description: z.string().max(LIMITS.option).describe('The one-line description shown under the option.'),
           grade: z.number().int().min(1).max(4).describe('4 for the right option, 2 for a near miss, 1 for one built on a misconception.'),
           correct: z.boolean().optional().describe('true on exactly one option, the one graded 4.'),

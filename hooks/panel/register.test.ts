@@ -421,6 +421,29 @@ describe('placement and lifecycle', () => {
     expect(found).toBeUndefined()
   })
 
+  test('a heartbeat that failed because the server was still starting is retried by the next event, before the tool runs', async ($, on) => {
+    let up = false
+    const seen: string[] = []
+    on('mcp.call', async (_$: any, e: any) => {
+      seen.push(e.tool)
+      return up ? { value: reply({ none: true }) } : { deny: 'no connected MCP tool "panel_sync"' }
+    })
+    on('tool.call', async () => {
+      seen.push('TOOL')
+      return { result: '{}' } as any
+    })
+    host(on)
+    await boot($)
+    expect(seen).toEqual(['panel_sync', 'panel_sync', 'panel_sync']) // each server spelling tried, none connected
+    seen.length = 0
+    up = true
+    await $.tool.call({ tool: 'Read', tool_input: { file_path: '/x' } } as any)
+    // Heartbeat first, then the tool, and no 30 s wait was imposed by the failed attempt.
+    expect(seen).toEqual(['panel_sync', 'TOOL'])
+    await $.tool.call({ tool: 'Read', tool_input: { file_path: '/y' } } as any)
+    expect(seen).toEqual(['panel_sync', 'TOOL', 'TOOL'])
+  })
+
   test('the model\'s present_question call brings the question to the pane, and the mod\'s own calls do not loop', async ($, on) => {
     const w = world(on, { waiting: null })
     on('tool.call', async () => ({ result: '{}' }) as any)

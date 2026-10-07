@@ -85,9 +85,12 @@ async function whereAmI($: EngineInterface) {
  * heartbeat: the planner chooses this pane only while a sync is fresh.
  */
 async function sync($: EngineInterface): Promise<'disabled' | 'none' | 'question'> {
-  lastSyncAt = Date.now()
   const where = await whereAmI($)
   const out = await call($, 'panel_sync', where)
+  // Only a sync that reached the server counts as a heartbeat. The server can
+  // still be starting when the session does, and a failed attempt must not hold
+  // the next one back.
+  lastSyncAt = Date.now()
 
   if (out.disabled) {
     await update($, quiz, () => EMPTY)
@@ -251,17 +254,28 @@ export const register: Register = on => {
   })
 
   // The question reaches the pane when the model's present_question call returns
-  // (the tool is Eklavya's, and the model carries on regardless); other calls
-  // refresh the heartbeat now and then. Eklavya's own panel_* calls pass through.
+  // (the tool is Eklavya's, and the model carries on regardless). Any other call
+  // refreshes the heartbeat first, now and then, so it is fresh when the hooks
+  // that choose how to ask run after the tool. Eklavya's own panel_* calls pass
+  // through.
   on('tool.call', async ($, e, next) => {
     const name = String(e.tool)
     if (name.includes('__panel_')) return next(e)
+    const isPresent = /^mcp__(plugin_eklavya_)?eklavya__present_question$/.test(name)
+    if (!isPresent) {
+      try {
+        await beat($)
+      } catch {
+        /* Fail open. */
+      }
+    }
     const ran = await next(e)
-    try {
-      if (/^mcp__(plugin_eklavya_)?eklavya__present_question$/.test(name)) await sync($)
-      else await beat($)
-    } catch {
-      /* Fail open. */
+    if (isPresent) {
+      try {
+        await sync($)
+      } catch {
+        /* Fail open. */
+      }
     }
     return ran
   })
@@ -384,6 +398,7 @@ export const register: Register = on => {
         {s.draft.other ? (
           <Input
             key="other-text"
+            autoFocus
             placeholder={STR.otherPlaceholder}
             value={s.draft.text}
             submitLabel="keep"
