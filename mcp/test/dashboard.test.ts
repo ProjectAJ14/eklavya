@@ -1343,6 +1343,23 @@ describe('/api/settings', () => {
     });
   });
 
+  it('toggles the experimental side panel at user and project scope, and refuses a non-boolean', async () => {
+    await withServer(async (port, token, url) => {
+      const h = ok(port, token);
+      const field = (await (await fetch(`${url}/api/settings`)).json()).fields.find((f: any) => f.key === 'quiz.panel');
+      expect(field).toMatchObject({ group: 'Questions', label: 'Quiz side panel (experimental)', type: 'bool' });
+      expect((await post(port, { scope: 'user', key: 'quiz.panel', value: true }, h)).status).toBe(200);
+      expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz.panel).toBe(true);
+      expect((await post(port, { scope: 'project', project: repo, key: 'quiz.panel', value: false }, h)).status).toBe(200);
+      const d = await (await fetch(`${url}/api/settings?project=${encodeURIComponent(repo)}`)).json();
+      expect(d.project.set['quiz.panel']).toBe(false);
+      expect(d.project.effective['quiz.panel']).toBe(false);
+      const bad = await post(port, { scope: 'user', key: 'quiz.panel', value: 'on' }, h);
+      expect(bad.status).toBe(400);
+      expect(bad.body.error).toBe(settingProblem('quiz.panel', 'on'));
+    });
+  });
+
   it('refuses a write without the token, from another origin, or as a form', async () => {
     await withServer(async (port, token) => {
       const body = { scope: 'user', key: 'cadence', value: 'end' };

@@ -115,9 +115,9 @@ describe('repeatStats', () => {
       'ORDER BY id DESC LIMIT 20',
     );
     expect(REPEAT_WINDOW).toBe(20);
-    expect(fs.readFileSync(path.join(srcDir, 'tools', 'get_session_quiz_plan.ts'), 'utf8')).toContain(
-      'const ASKED_HISTORY = 3',
-    );
+    // Shared by the planner and by present_question's answer-position check, so
+    // it lives in the store.
+    expect(fs.readFileSync(path.join(srcDir, 'store.ts'), 'utf8')).toContain('export const ASKED_HISTORY = 3');
     expect(PLANNER_HISTORY).toBe(3);
   });
 

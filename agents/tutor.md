@@ -42,7 +42,9 @@ Reply with a letter, or "teach me" if you'd rather I explain it.
 
 The plan's `ask_attribution` names a `header` field you do not have. Take the
 rest of it and put `[Eklavya]` on its own line above the stem — always, on
-every host. The chip it describes is what the main session gets instead, and
+every host. If the plan says `presentation: "panel"` it has no `ask_attribution`
+and you have no `present_question` either: ignore it, ask in lettered text as
+here, and `record_attempt` as usual. The chip it describes is what the main session gets instead, and
 without it your question arrives in the transcript unsigned.
 
 The answer is at C there because the plan said `answer_position: 3`, and

@@ -43,6 +43,7 @@ Code's learning loop.
 |---|---|
 | Learner state and concepts | `get_learner_profile`, `log_session_concepts`, `upsert_concepts`, `get_concept_graph` |
 | Questions and assessment | `get_session_quiz_plan`, `record_attempt`, `get_gate_status` |
+| Quiz side panel (experimental) | `present_question` for the model; `panel_sync` and `panel_answer`, called only by the panel mod, never by the model |
 | Settings | `get_config`, `set_config` |
 | Find and read memory | `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` |
 | Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |
@@ -64,6 +65,18 @@ An `outcome` of `declined` or `dont_know` with a grade of 3 or more is
 contradictory: it returns `error: "outcome_grade_conflict"` and records
 nothing, so that call can never update mastery, clear a gate or count toward a
 level.
+
+`present_question` is how the model asks in the experimental side panel
+(`quiz.panel`) instead of `AskUserQuestion`, when the plan's `presentation` is
+`"panel"`: the stem, four options each with a description and a grade (4 for the
+right one, 2 for a near miss, 1 for a misconception), the right one in the
+plan's `answer_position` slot, and an explanation. It stores the question and
+returns at once; it writes no attempt. The panel records the answer through
+`panel_answer` with the same code `record_attempt` uses, exactly once. `present_question` returns `panel_disabled` while `quiz.panel` is off, and
+`panel_sync` returns `{disabled: true}` and expires the session's open question without recording an attempt, so turning the panel back on cannot revive it; `panel_answer` answers only a question
+that already exists. A round the learner asked for (a topic, `max`) is remembered per session: `present_question` takes each question off it and sets the last one's `more` false, and `get_session_quiz_plan` with `resume_round: true` plans what is left. This is
+a Claude Code mod feature: a standalone MCP client has the tools but not the
+panel that calls the other two.
 
 Search first, choose relevant entries, then use `memory_get` for their full
 content. Pass `memory_get` the `receipt_id` a recall block names to link the

@@ -121,6 +121,7 @@ questions off and keep memory on.
 |---|---|---|
 | `quiz.enabled` | `true`: ask questions | `false`: no questions |
 | `quiz.enforced` | `false`: commit freely | `true`: pass a quiz before a commit |
+| `quiz.panel` | `false`: Claude's question card | `true`: experimental side panel on the Claude Code terminal CLI |
 | `focus` | `concept`: the idea behind the code | `project`: this codebase · `learn`: a topic you pick |
 | `cadence` | `as-you-go`: during the task | `end`: after the task |
 | `difficulty` | `auto`: grows with you | `easy`, `medium` or `hard` |
@@ -129,7 +130,7 @@ questions off and keep memory on.
 By default Eklavya asks only in sessions that change code (edit tools or
 shell commands, in this checkout or a sibling worktree), up to four
 questions per session on its own, at least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
-`eklavya config set` in a terminal, or the dashboard's Settings pages. See [the dials](https://eklavya-run.web.app/docs/dials/)
+`eklavya config set` in a terminal, or the dashboard's Settings pages. `quiz.panel` is set with `eklavya config set quiz.panel true` or in Settings; a round you ask for with `/eklavya:quiz` keeps its topic and length across the panel's Next button. See [the dials](https://eklavya-run.web.app/docs/dials/)
 and [every setting](https://eklavya-run.web.app/docs/configuration/).
 
 ## Commands

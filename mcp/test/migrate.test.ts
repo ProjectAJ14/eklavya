@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 24;
+const LATEST_SCHEMA_VERSION = 25;
 
 const LEARNING_TABLES = [
   'attempt_retries',
@@ -20,6 +20,7 @@ const LEARNING_TABLES = [
   'gates',
   'mastery',
   'meta',
+  'panel_questions',
   'project_levels',
   'session_concepts',
   'stop_markers',
@@ -163,6 +164,7 @@ describe('migrations', () => {
         '022_sync_supersessions.sql',
         '023_sync_received.sql',
         '024_purge_excluded_file_failures.sql',
+        '025_panel_questions.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -226,7 +228,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
@@ -281,7 +283,7 @@ describe('migrations', () => {
       ).run();
       expect(() => db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run()).toThrow(/malformed/);
 
-      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql']);
+      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql']);
       db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
       expect(db.prepare('SELECT id, deleted_at FROM memory_entries ORDER BY id').all()).toEqual([
         { id: 1, deleted_at: 'then' },
@@ -328,7 +330,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1), (1, 3)').run();
       db.prepare("INSERT INTO learning_sources (id, event_id, slug, project) VALUES (1, 1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql']);
+      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql', '025_panel_questions.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect((db.prepare('SELECT id FROM evidence_events ORDER BY id').all() as { id: number }[]).map((r) => r.id)).toEqual([3, 4, 5]);
       // The entry and the candidate stay; only the links to the purged event go.
@@ -385,6 +387,31 @@ describe('migrations', () => {
     expect(first.length).toBeGreaterThan(0);
     expect(second).toEqual([]);
     expect(tableNames(db)).toEqual(EXPECTED_TABLES);
+    db.close();
+  });
+
+  it('creates the panel question table with its columns and one-open-per-session index', () => {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');
+    runMigrations(db);
+    const cols = (db.prepare('PRAGMA table_info(panel_questions)').all() as { name: string }[]).map((c) => c.name);
+    expect(cols).toEqual([
+      'id', 'session_id', 'repo', 'concept_id', 'tier', 'stem', 'options', 'key', 'explanation', 'more',
+      'phase', 'attempt_id', 'result', 'created_at', 'updated_at',
+    ]);
+    db.prepare("INSERT INTO concepts (id, slug, name, domain) VALUES (1, 'c', 'C', 'd')").run();
+    const add = db.prepare(
+      "INSERT INTO panel_questions (id, session_id, repo, concept_id, tier, stem, options, key, explanation, phase) VALUES (?, 's', 'r', 1, 1, 'q', '[]', '{}', 'e', ?)",
+    );
+    add.run('a', 'pending');
+    // A second open question for one session is refused, whichever open phase it is in.
+    expect(() => add.run('b', 'unplaced')).toThrow(/UNIQUE/);
+    expect(() => add.run('c', 'grading')).toThrow(/UNIQUE/);
+    // Closed rows are not open: any number may sit beside the open one.
+    add.run('d', 'answered');
+    add.run('e', 'skipped');
+    add.run('f', 'expired');
+    expect(() => add.run('g', 'nonsense')).toThrow(/CHECK/);
     db.close();
   });
 

@@ -204,6 +204,7 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   'quiz.enabled': bool,
   'quiz.enforced': bool,
   'quiz.only_on_changes': bool,
+  'quiz.panel': bool,
   focus: { type: 'enum', options: ['concept', 'project', 'learn'] },
   focus_topic: text(true, 200),
   cadence: { type: 'enum', options: ['as-you-go', 'end'] },

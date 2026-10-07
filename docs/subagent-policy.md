@@ -90,6 +90,12 @@ background (`run_in_background`, or a launch result of `async_launched`, since t
 first edit lands. Without it, the planner answered `no_code_change` the moment
 the agent started.
 
+**The side panel is parent-only.** `present_question` is not on the tutor
+agent's tool list, and a plan's `presentation: "panel"` is meaningless to a
+subagent: the tutor ignores it and asks in lettered text, recording with
+`record_attempt`. Builders never ask. The panel's one open question per session
+also silences the checkpoint and Stop sweep until it is answered.
+
 **Recorded state.** The nudge's state is one `meta` row per session id. A resume
 or a compaction keeps it, and another chat in the same project has its own. The
 row holds:

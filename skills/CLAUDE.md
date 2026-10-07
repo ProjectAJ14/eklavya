@@ -62,6 +62,12 @@ context-saving design.
   stable fingerprints. Removing it changes duplicate detection for history.
 - Honor list caps and truncation. Profile `known` is strongest-first, not most
   recent; graph results can be incomplete. Recount seed totals before quoting.
+- `presentation` in the plan decides the tool: `"tool"` is `AskUserQuestion`
+  (follow `ask_attribution`, then `record_attempt` and the verdict); `"panel"` is
+  `present_question` (no attribution, no `record_attempt`, no verdict, no waiting).
+  The panel instructions live in `tutor/references/panel.md`, not in
+  `writing-mcq.md`, so a card question never reads them. The tutor subagent has no
+  `present_question` and ignores `"panel"`.
 - Keep `declined` distinct from `dont_know`, MCQ grading capped as the runtime
   requires, and one-question/resume behavior intact.
 

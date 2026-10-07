@@ -57,6 +57,10 @@ the cadence or question budget if the default pace is too frequent. A
 configured memory model also uses your Claude subscription. See
 [The dials](/docs/dials/).
 
+## Does the quiz side panel use my Claude usage?
+
+Only for answers you type under **Other**. Each one is graded by a single short model call from the panel, using the same rubric as a card answer. Picking an option or skipping calls no model: the grade comes from what the asking model wrote with the question. See [the quiz side panel](/docs/first-session/#the-quiz-side-panel-experimental).
+
 ## Can I skip a question?
 
 Yes. A skip is recorded as a decline with grade 0 and excluded from accuracy.

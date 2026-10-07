@@ -92,10 +92,11 @@ export const setConfig: ToolDef = {
         enabled: z.boolean().optional(),
         enforced: z.boolean().optional(),
         only_on_changes: z.boolean().optional(),
+        panel: z.boolean().optional(),
       })
       .optional()
       .describe(
-        'Whether questions happen (`enabled`, default true) and whether they gate commits (`enforced`, default false). These are the quiz half only — memory keeps recording either way, under `memory.enabled`. Setting enabled:false forces enforced:false, since a gate with no questions can never be passed. `only_on_changes` (default true) asks only once this session has changed code in a git repository (an edit-tool write into any repository, or a change to the working tree it started in), so research, read-only and question-only sessions are not quizzed, including outside any repository; false asks on any logged work. Enforced quizzing ignores it.',
+        'Whether questions happen (`enabled`, default true) and whether they gate commits (`enforced`, default false). These are the quiz half only — memory keeps recording either way, under `memory.enabled`. Setting enabled:false forces enforced:false, since a gate with no questions can never be passed. `only_on_changes` (default true) asks only once this session has changed code in a git repository (an edit-tool write into any repository, or a change to the working tree it started in), so research, read-only and question-only sessions are not quizzed, including outside any repository; false asks on any logged work. Enforced quizzing ignores it. `panel` (default false, experimental) shows questions in the Claude Code side panel instead of Claude\'s question card, on hosts that can seat it; off changes nothing.',
       ),
     mode: z
       .enum(['ambient', 'enforced', 'off'])

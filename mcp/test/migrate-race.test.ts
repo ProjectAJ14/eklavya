@@ -113,10 +113,10 @@ describe('concurrent migrations', () => {
 
     // Between them the racers applied each pending file once, and no file twice.
     const applied = results.flatMap((r) => JSON.parse(r.stdout) as string[]).sort();
-    expect(applied).toEqual(['013_batch_provenance.sql', '014_batch_events_index.sql', '015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql']);
+    expect(applied).toEqual(['013_batch_provenance.sql', '014_batch_events_index.sql', '015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql']);
 
     const db = new Database(file, { readonly: true });
-    expect(schemaVersion(db)).toBe(24);
+    expect(schemaVersion(db)).toBe(25);
     expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
     db.close();
     expect(columns(file, 'memory_batches')).toEqual(expect.arrayContaining(['summarizer', 'config_digest']));
@@ -176,7 +176,7 @@ describe('concurrent migrations', () => {
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 100');
     try {
-      expect(runMigrations(db)).toEqual(['013_batch_provenance.sql', '014_batch_events_index.sql', '015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql']);
+      expect(runMigrations(db)).toEqual(['013_batch_provenance.sql', '014_batch_events_index.sql', '015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql']);
       // The caller's own timeout is put back: only migrating waits longer.
       expect(Number(db.pragma('busy_timeout', { simple: true }))).toBe(100);
     } finally {
@@ -188,7 +188,7 @@ describe('concurrent migrations', () => {
   it('takes no write lock when nothing is pending, so an up-to-date open never queues', async () => {
     // Every hook opens the database. If an up-to-date open still took a write
     // lock to check the version, one long write anywhere would stall them all.
-    const file = dbAtVersion(24);
+    const file = dbAtVersion(25);
     const lockFile = path.join(tempDir('lock'), 'held');
     const holder = runChild(`
       import fs from 'node:fs';

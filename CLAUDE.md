@@ -13,6 +13,7 @@ Read the nearest nested `CLAUDE.md` before editing `mcp/`, `hooks/`, `cli/`,
 | `mcp/src/hooks/` | Hook implementations and shared helpers; registration lives in `hooks/hooks.json` |
 | `mcp/src/migrations/`, `mcp/test/` | Forward-only migrations and runtime tests |
 | `hooks/run.mjs` | Cross-platform launcher and background repair of an older runtime |
+| `hooks/panel/` | The quiz side panel: a Claude Code mod (not a command hook), its state contract and its tests; opt-in through `quiz.panel` |
 | `skills/` | Slash commands and the tutor entry point with on-demand references |
 | `user-skill/` | Chat and artifact skills installed to `~/.claude/skills/`; never move them into `skills/` or they register twice |
 | `agents/` | Tutor and background explainer |

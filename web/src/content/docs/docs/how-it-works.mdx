@@ -37,6 +37,10 @@ Questions wait until the session changes code: Claude edits a tracked or new, no
 
 Delegated agents can log concepts, but questions return to the main conversation. This keeps a quiz out of a background transcript you cannot answer. With [`delegate_work`](/docs/configuration/#every-key) on (the default), Claude is asked to use that split on purpose: a background agent builds a multi-file change in the task's directory (your worktree, if there is one), and Claude asks you questions while it builds, then reviews, checks and commits. Eklavya says this next to each task-sized prompt, and reminds Claude once if it changes a second file in the main conversation itself, with an edit tool or a shell command. Once Claude has started a building agent, the reminder stays quiet. Whichever way the work runs, any end-of-task questions (one under `as-you-go`, the remaining budget under `end`) come after Claude's answer, and Claude then restates the answer in a few lines under “Back to your task:”, so the answer about your task is the last thing on screen. The [first-session walkthrough](/docs/first-session/) shows what you see as a developer.
 
+### Where the question appears
+
+The planner chooses how a question is shown: Claude's question card (`presentation: "tool"`, always the default) or, with the experimental `quiz.panel` setting on and a Claude Code panel showing, the side panel (`"panel"`). In the card flow Claude asks, waits, records your answer and gives the verdict. In the panel flow Claude writes the question and four graded options, stores it with `present_question` and goes back to work; the panel shows it, sends your answer to the server and records it once. Hooks, the planner and the skills all read the same `presentation` field. See [Your first session](/docs/first-session/#the-quiz-side-panel-experimental).
+
 ### After a missed question
 
 <DocFlow

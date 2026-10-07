@@ -18,6 +18,7 @@ scheduling, hooks, installer, CLI and dashboard. Read the root `CLAUDE.md` first
 | Installation | `install.ts`, `safe-write.ts`, `install-lock.ts`, `onboard.ts`, `claude-mem.ts`, `update.ts`. Preserve user files, lock ownership and recovery paths. |
 | Terminal | `theme.ts` owns CLI styling (keep its talea counterpart aligned); `statusline.ts` owns dials in the host status bar. `stdin.ts` owns bounded input. |
 | Questions | `mcq.ts`: answer positioning. `ask.ts`: historical header stripping. `surface.ts`: host-specific attribution. |
+| Quiz side panel | `panel.ts`: `present_question`, `panel_sync`, `panel_answer` over the `panel_questions` table (migration 025). `panel-state.ts`: heartbeat, `panelPresentation` and `hasOpenPanelQuestion`, light enough for hooks to import. `tools/panel_tools.ts`: the three tool definitions. `recordAttemptCore` in `tools/record_attempt.ts` is the one grading body `record_attempt` and `panel_answer` share; never copy it. |
 | Dashboard and artifacts | `dashboard.ts`, `assets/dashboard.html`, `artifacts.ts`, `assets/artifact-template.html`; read `.claude/skills/eklavya-dashboard/SKILL.md` before dashboard work. `dist/assets/vendor/` (the tips library) is copied from `node_modules/driver.js` at build, and the build fails without it. `dashboard-daemon.ts` keeps one background `dashboard --serve` per machine: the port is the lock, `/api/health` names the process, and only an older version on the same database is replaced. Tests use `EKLAVYA_DASHBOARD_PORT`. |
 | Memory | `memory/`: capture, privacy, spool, queries, search/embeddings, summarization, worker/reservation, recall, replay, learning candidates, collections, code lookup, notifications, sync and import. No MCP or host API dependencies. |
 | Evaluation | `eval/*.ts` is deterministic and I/O-free; root `eval/harness.mjs` orchestrates model calls. |
@@ -90,6 +91,16 @@ must remain distinct. This prevents new duplicates; it does not merge old rows.
 Profile lists and graph responses are capped. Read their constants instead of
 assuming completeness or ordering: `known` is strongest-first, accompanied by
 `known_total` and `truncated`; it is not a recent-history list.
+
+The panel's invariants: a question is a row, and answering it writes the attempt
+and the row's `answered` phase in one `.immediate()` transaction, so a retry or a
+lost reply cannot record twice. `panel_sync` never returns the key, the grades or
+the explanation. Placement of the right option is checked server-side against
+`answerPosition(slug, recentQuestions(..., ASKED_HISTORY).length)`; keep that count
+the planner's. With `quiz.panel` off the three tools refuse and nothing is read,
+and `presentation` is `"tool"`. Typed answers are two calls: the text alone (the
+question becomes `grading`, the right label is returned for the mod's grader),
+then the text with the grader's verdict. A pending row never changes mastery.
 
 ## Persistence, updates and safe writes
 

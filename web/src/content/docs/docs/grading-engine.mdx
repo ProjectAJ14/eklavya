@@ -27,6 +27,10 @@ A multiple-choice selection is capped at **4**. A written explanation through â€
 
 With [`explain_on_wrong`](/docs/configuration/#every-key) on (the default), wrong or unknown answers also start a background explainer page. The verdict arrives immediately; the quiz does not wait for the page. Skips and declines do not create one.
 
+### Who grades in the side panel
+
+The experimental [quiz side panel](/docs/first-session/#the-quiz-side-panel-experimental) records an answer through the same code as a card answer: the 4 ceiling for a pick, declines, `dont_know`, promotion and the gate all apply unchanged. What differs is who produces the grade. When the model writes a panel question it gives each option a grade (4 for the right one, 2 for a distractor with the shape of the idea, 1 for one built on a misconception), and a pick takes that grade; a hesitant 3 is reachable only through typed words. Words typed under Other are graded by one model call from the panel, on this page's 0 to 5 scale, with no conversation history. An unreadable verdict records nothing; the panel keeps your words and shows a **Retry** button. **Skip question** records a decline.
+
 ### Correcting from an explainer
 
 When the tutor records a multiple-choice question it also stores the right option (`correct`) and the note under each option (`option_notes`). After reading the explainer for a missed question, you can pick again from the [dashboard](/docs/dashboard/#correcting-a-missed-answer):

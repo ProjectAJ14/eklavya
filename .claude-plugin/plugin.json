@@ -13,5 +13,6 @@
     "tutor",
     "knowledge-graph",
     "mentorship"
-  ]
+  ],
+  "types": "./hooks/panel/types/index.d.ts"
 }

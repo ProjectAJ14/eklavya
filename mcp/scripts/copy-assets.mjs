@@ -101,7 +101,9 @@ for (const entry of [
   'scripts/install-git-hook.sh',
 ]) {
   try {
-    await cp(path.join(repo, entry), path.join(payload, entry), { recursive: true });
+    // The quiz panel mod's own tests (hooks/panel/*.test.ts) run with
+    // `claude plugin test`, not with this package's runner, and are not shipped.
+    await cp(path.join(repo, entry), path.join(payload, entry), { recursive: true, filter: (src) => !/\.test\.tsx?$/.test(src) });
   } catch (err) {
     console.warn(`warning: could not bundle ${entry} (${err.code ?? err.message})`);
   }

@@ -64,6 +64,8 @@ Surfaces that can access the same local runtime and home directory share
 Cowork keeps its own plugin list, so the Claude Code installer and
 `eklavya doctor` cannot register or verify that copy.
 
+The experimental [quiz side panel](/docs/first-session/#the-quiz-side-panel-experimental) (`quiz.panel`) is a Claude Code panel that ships with the plugin. It has been tested on the Claude Code terminal CLI, version 2.1.292. Only the terminal CLI is enabled; any other surface, including the Desktop Code tab and Cowork, keeps the question card. Setting `quiz.panel` to `false` returns to the card.
+
 Cowork has these differences:
 
 - The commit gate has nothing to block because Cowork does not commit.
