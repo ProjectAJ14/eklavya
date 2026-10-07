@@ -8,7 +8,7 @@ export const presentQuestionTool: ToolDef = {
   name: 'present_question',
   title: 'Present a quiz question in the side panel',
   description:
-    'Hand one multiple-choice question to the Eklavya side panel and return at once. Use it instead of AskUserQuestion only when the plan says presentation "panel". Give the stem alone, four options each with its one-line description and a grade (the right one 4, a near miss 2, one built on a misconception 1) with the right one in the plan\'s answer_position slot, and a one-line explanation shown after the answer. The panel shows it, grades it from those grades and records the attempt itself: do not wait, do not ask anything else, do not call record_attempt, carry on with the task. One question per session may be open; a second is rejected with question_open. Nothing is written to the learner\'s history until they answer.',
+    'Hand one multiple-choice question to the Eklavya side panel and return at once. Use it instead of AskUserQuestion only when the plan says presentation "panel"; it is rejected with panel_disabled or panel_unavailable otherwise, and then you ask with AskUserQuestion. Give the stem alone, four options each with its one-line description and a grade (the right one 4, a near miss 2, one built on a misconception 1) with the right one in the plan\'s answer_position slot, and a one-line explanation shown after the answer. The panel shows it, grades it from those grades and records the attempt itself: do not wait, do not ask anything else, do not call record_attempt, carry on with the task. One question per session may be open; a second is rejected with question_open. Nothing is written to the learner\'s history until they answer.',
   inputSchema: {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
@@ -35,10 +35,17 @@ export const panelSyncTool: ToolDef = {
   name: 'panel_sync',
   title: 'Panel: is a question waiting',
   description:
-    'Called only by the Eklavya panel, never by the model. Returns the question waiting for this session and project (its repo, stem, options with ids and notes, phase, concept name, tier), or {none: true}. Never returns the answer key. Reports whether the host could seat the pane (placed) so an invisible question is never counted as shown. Safe to call on every lifecycle event.',
+    'Called only by the Eklavya panel, never by the model. Returns the question waiting for this session and project (its repo, stem, options with ids and notes, phase, concept name, tier), or {none: true}; {disabled: true} when quiz.panel is off. Each call is the heartbeat of the mod: the planner chooses the panel only while one is fresh. Never returns the answer key. Reports whether the host could seat the pane (placed) so an invisible question is never counted as shown. Safe to call on every lifecycle event.',
   inputSchema: {
     session_id: z.string().min(1).max(LIMITS.sessionId).describe('The host session id.'),
     cwd: z.string().max(LIMITS.cwd).describe('The session working directory.'),
+    host: z
+      .object({
+        surface: z.string().min(1).max(32).describe('The Claude Code surface drawing the pane: terminal, desktop, vscode or mobile.'),
+        version: z.string().max(64).optional(),
+        columns: z.number().int().min(0).max(100000).optional(),
+      })
+      .describe('Where the mod is running. Stamps the heartbeat that lets the planner choose the panel.'),
     placed: z
       .object({
         question_id: z.string().max(LIMITS.sessionId),

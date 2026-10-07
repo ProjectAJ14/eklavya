@@ -24,6 +24,7 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
    - `no_candidates` (topic mode) → that topic is fully mastered and nothing is due; name the closest domain that is not.
    - `quiz_disabled` → "Questions are off for this project. Memory is still recording — `/eklavya:mode` turns the questions back on." Do not say "Eklavya is off": it is not, and saying so is what sent people hunting for a bug that was a setting.
    - `session_off` → they silenced the questions for this session, and then asked for a quiz. Say so and offer the one step back: "Questions are off for this session — say the word and I'll turn them back on." Turn them back on with `set_config`, `scope: "session"`, `quiz: { enabled: true }` if they agree, then run the quiz.
+   - `panel_question_open` → a question is already waiting in the side panel: "There's already a question waiting in the panel — answer it there." Ask nothing else.
    - `no_topic` → focus is `learn` with nothing set; ask what they want to learn, then `/eklavya:mode learn <topic>`.
    - `topic_unknown` → the graph has nothing matching their topic; offer the closest domain rather than inventing questions.
 
@@ -32,3 +33,5 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
 **A named topic overrides the configured focus for this quiz only.** Someone who types `/eklavya:quiz caching` wants caching now; it is not a request to change their standing setting. Do not call `set_config` — `/eklavya:mode` is for that.
 
 Then ask one question at a time at each concept's `tier_to_ask`, following the plan's `framing` field, never repeating anything in `asked_before`, grade every answer with `record_attempt` and tell them whether it was right before the next question, and close with one line: what moved, and what comes back for review when.
+
+When the plan says `presentation: "panel"`, show the first question with `present_question` as the `tutor` skill's `writing-mcq.md` describes and stop there: the panel records each answer and shows the verdict, so do not `record_attempt` or judge it yourself. The panel's Next button asks for the next question of this round; present the next item when it does, and close with the same one line once the round is over.

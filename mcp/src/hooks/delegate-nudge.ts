@@ -202,7 +202,7 @@ await run(async (input) => {
   if (!nudge) return 0;
 
   process.stdout.write(
-    `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: nudgeText(cadence) } })}\n`,
+    `${JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: nudgeText(cadence, quiz.panel) } })}\n`,
   );
   return 0;
 });

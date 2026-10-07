@@ -7,6 +7,7 @@ import { resolveSessionId } from './session.js';
 import { stripAskHeader } from './ask.js';
 import { conceptBySlug, hasAskedQuestion, projectKey, recentQuestions, ASKED_HISTORY, PASSING_GRADE } from './store.js';
 import { recordAttemptCore } from './tools/record_attempt.js';
+import { OPEN_PHASES, PANEL_EXPIRY_HOURS, panelPresentation, recordHeartbeat, type HostReport } from './panel-state.js';
 
 /**
  * Pending questions for the quiz side panel.
@@ -21,10 +22,6 @@ import { recordAttemptCore } from './tools/record_attempt.js';
  * Presenting a question writes no attempt, so a pending row never moves mastery.
  */
 
-/** An unanswered question stops being offered after this long. It is not a decline. */
-export const PANEL_EXPIRY_HOURS = 24;
-
-const OPEN_PHASES = "('pending','unplaced','grading')";
 
 export interface PresentOption {
   label: string;
@@ -90,11 +87,14 @@ function openRow(db: DB, sessionId: string, repo: string): Row | undefined {
  * model that ignores it would put the answer in the same slot every time.
  */
 export function presentQuestion(db: DB, args: PresentInput) {
-  const { repoRoot } = loadConfig(args.cwd);
+  const { config, repoRoot } = loadConfig(args.cwd);
   const sessionId = resolveSessionId(db, args.session_id, args.cwd);
   const repo = projectKey(repoRoot);
+  // Off is inert.
+  if (!config.quiz.panel) {
+    return { error: 'panel_disabled', detail: 'The side panel is off. Ask with AskUserQuestion, as the plan says.' };
+  }
   expireStale(db);
-
   const slug = normalizeSlug(args.slug);
   const concept = conceptBySlug(db, slug);
   if (!concept) {
@@ -112,6 +112,14 @@ export function presentQuestion(db: DB, args: PresentInput) {
       question_id: open.id,
       detail: 'A question is already waiting in the panel for this session. Do not present another; carry on with the task.',
     };
+  }
+
+  // A mod that is not reporting in is no place to leave a question: it would sit
+  // unseen and block this session's next one for a day. The learner gets the
+  // question card instead, which is what `presentation` in the plan said. After
+  // the open-row check, so a question already waiting is named as such.
+  if (panelPresentation(db, config, sessionId) !== 'panel') {
+    return { error: 'panel_unavailable', detail: 'No side panel is showing questions in this session. Ask with AskUserQuestion instead.' };
   }
 
   const labels = args.options.map((o) => o.label.trim().toLowerCase());
@@ -162,6 +170,7 @@ export function presentQuestion(db: DB, args: PresentInput) {
 export interface SyncInput {
   session_id: string;
   cwd: string;
+  host: HostReport;
   placed?: { question_id: string; ok: boolean; reason?: string };
 }
 
@@ -171,8 +180,12 @@ export interface SyncInput {
  * mod holds can reveal the answer before it is given.
  */
 export function panelSync(db: DB, args: SyncInput) {
-  const repo = projectKey(loadConfig(args.cwd).repoRoot);
+  const { config, repoRoot } = loadConfig(args.cwd);
+  // Off is inert: no heartbeat, no row read, nothing for the mod to show.
+  if (!config.quiz.panel) return { disabled: true };
+  const repo = projectKey(repoRoot);
   expireStale(db);
+  recordHeartbeat(db, args.session_id, args.host, args.placed?.ok);
   const row = openRow(db, args.session_id, repo);
   if (!row) return { none: true };
 

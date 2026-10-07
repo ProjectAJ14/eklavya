@@ -7,6 +7,7 @@ import { answerPosition } from '../src/mcq.js';
 import { retryOnBusy } from '../src/concurrency.js';
 import { hasAskedQuestion, masteryFor, conceptBySlug } from '../src/store.js';
 import { panelAnswer, panelSync, presentQuestion, type AnswerInput, type PresentInput } from '../src/panel.js';
+import { recordHeartbeat } from '../src/panel-state.js';
 import { TOOLS } from '../src/tools/index.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { tempDbPath, cleanup } from './helpers.js';
@@ -19,6 +20,7 @@ const envBackup = { ...process.env };
 
 const SESSION = 'sess-panel';
 const SLUG = 'csrf';
+const HOST = { surface: 'terminal', version: '2.1.292', columns: 160 };
 
 /** A checkout: `.git` is all the config reader needs to see a project. */
 function checkout(name: string): string {
@@ -35,7 +37,7 @@ beforeEach(() => {
   process.env.EKLAVYA_HOME = home;
   delete process.env.EKLAVYA_SESSION_ID;
   // Pinned: `loadConfig` reads the real config otherwise.
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ focus: 'project', cadence: 'end' }));
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ focus: 'project', cadence: 'end', quiz: { panel: true } }));
   dbFile = tempDbPath('panel');
   db = openDb(dbFile);
   cwd = checkout('proj');
@@ -65,6 +67,9 @@ function options(slug = SLUG, askedCount = 0, labels = LABELS) {
 }
 
 function present(over: Partial<PresentInput> = {}) {
+  // The mod reports in before anything is presented, or the planner would not
+  // have chosen the panel and `present_question` refuses.
+  recordHeartbeat(db, over.session_id ?? SESSION, { surface: 'terminal' }, undefined);
   return presentQuestion(db, {
     slug: SLUG,
     question: 'Why does the server compare the Origin header?',
@@ -79,7 +84,7 @@ function present(over: Partial<PresentInput> = {}) {
 
 /** The synced question, as the mod would see it. */
 function sync(over: Record<string, unknown> = {}) {
-  return panelSync(db, { session_id: SESSION, cwd, ...over } as any) as any;
+  return panelSync(db, { session_id: SESSION, cwd, host: HOST, ...over } as any) as any;
 }
 
 function answer(over: Partial<AnswerInput> & { question_id: string }) {
@@ -176,6 +181,38 @@ describe('present_question', () => {
 
   it('rejects a concept that does not exist', () => {
     expect(present({ slug: 'no-such-concept' }).error).toBe('unknown_concept');
+  });
+});
+
+describe('present_question refuses when the panel is not the way to ask', () => {
+  const direct = () =>
+    presentQuestion(db, {
+      slug: SLUG,
+      question: 'Why does the server compare the Origin header?',
+      options: options(),
+      explanation: 'Because.',
+      difficulty: 2,
+      session_id: SESSION,
+      cwd,
+    }) as any;
+  const stored = () => db.prepare('SELECT COUNT(*) AS n FROM panel_questions').get();
+
+  it('says panel_disabled while the setting is off, and stores nothing', () => {
+    recordHeartbeat(db, SESSION, { surface: 'terminal' }, undefined);
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ quiz: { panel: false } }));
+    expect(direct().error).toBe('panel_disabled');
+    expect(stored()).toEqual({ n: 0 });
+  });
+
+  it('says panel_unavailable with no heartbeat, a stale one, or a surface that takes no answers', () => {
+    expect(direct().error).toBe('panel_unavailable');
+    recordHeartbeat(db, SESSION, { surface: 'terminal' }, undefined, new Date(Date.now() - 120_000));
+    expect(direct().error).toBe('panel_unavailable');
+    recordHeartbeat(db, SESSION, { surface: 'desktop' }, undefined);
+    expect(direct().error).toBe('panel_unavailable');
+    expect(stored()).toEqual({ n: 0 });
+    recordHeartbeat(db, SESSION, { surface: 'terminal' }, undefined);
+    expect(direct().status).toBe('presented');
   });
 });
 
@@ -325,7 +362,7 @@ describe('panel_answer: the grade table', () => {
     expect(miss.level_up).toBeUndefined();
 
     // One passing answer is enough to promote when the bar is one answer.
-    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ focus: 'project', cadence: 'end', level_up_after: 1, level_up_accuracy: 0.1 }));
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ focus: 'project', cadence: 'end', level_up_after: 1, level_up_accuracy: 0.1, quiz: { panel: true } }));
     const next = present({ options: options(SLUG, 1) });
     const hit = answer({ question_id: next.question_id, option_id: `o${answerPosition(SLUG, 1)}` });
     expect(hit.level_up).toEqual({ from: 'easy', to: 'medium' });
@@ -439,22 +476,22 @@ describe('isolation', () => {
     fs.writeFileSync(path.join(wt, '.git'), `gitdir: ${path.join(cwd, '.git', 'worktrees', 'wt')}\n`);
     const b = present({ session_id: 'sess-b', cwd: wt, options: options() });
     expect(b.status).toBe('presented');
-    expect(panelSync(db, { session_id: 'sess-a', cwd }) as any).toMatchObject({ question_id: a.question_id });
-    expect(panelSync(db, { session_id: 'sess-b', cwd: wt }) as any).toMatchObject({ question_id: b.question_id });
-    expect(panelSync(db, { session_id: 'sess-c', cwd }) as any).toEqual({ none: true });
-    expect((panelSync(db, { session_id: 'sess-a', cwd: wt }) as any).question_id).toBe(a.question_id);
+    expect(panelSync(db, { session_id: 'sess-a', cwd, host: HOST }) as any).toMatchObject({ question_id: a.question_id });
+    expect(panelSync(db, { session_id: 'sess-b', cwd: wt, host: HOST }) as any).toMatchObject({ question_id: b.question_id });
+    expect(panelSync(db, { session_id: 'sess-c', cwd, host: HOST }) as any).toEqual({ none: true });
+    expect((panelSync(db, { session_id: 'sess-a', cwd: wt, host: HOST }) as any).question_id).toBe(a.question_id);
   });
 
   it('does not show a session a question that belongs to another project', () => {
     present();
-    expect(panelSync(db, { session_id: SESSION, cwd: checkout('other') })).toEqual({ none: true });
+    expect(panelSync(db, { session_id: SESSION, cwd: checkout('other'), host: HOST })).toEqual({ none: true });
   });
 
   it('works outside any git project, scoped to the global project', () => {
     const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-plain-'));
     try {
       const q = present({ cwd: plain });
-      const sent = panelSync(db, { session_id: SESSION, cwd: plain }) as any;
+      const sent = panelSync(db, { session_id: SESSION, cwd: plain, host: HOST }) as any;
       expect(sent.repo).toBe('*');
       const out = panelAnswer(db, { question_id: q.question_id, session_id: SESSION, repo: sent.repo, cwd: plain, kind: 'choice', option_id: correctId() }) as any;
       expect(out.phase).toBe('answered');
@@ -477,11 +514,12 @@ describe('the tools', () => {
   });
 
   it('round-trip through their handlers', () => {
+    recordHeartbeat(db, SESSION, { surface: 'terminal' }, undefined);
     const q = tool('present_question').handler(
       { slug: SLUG, question: 'Why compare Origin?', options: options(), explanation: 'Because.', difficulty: 2, session_id: SESSION, cwd },
       { db },
     ) as any;
-    const synced = tool('panel_sync').handler({ session_id: SESSION, cwd }, { db }) as any;
+    const synced = tool('panel_sync').handler({ session_id: SESSION, cwd, host: HOST }, { db }) as any;
     expect(synced.question_id).toBe(q.question_id);
     const done = tool('panel_answer').handler(
       { question_id: q.question_id, session_id: SESSION, repo: synced.repo, cwd, kind: 'choice', option_id: correctId() },

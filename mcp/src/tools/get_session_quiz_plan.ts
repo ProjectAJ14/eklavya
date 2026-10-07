@@ -27,6 +27,7 @@ import {
   type ConceptRow,
 } from '../store.js';
 import { attributionRule, isCowork, withSurfaceNote } from '../surface.js';
+import { hasOpenPanelQuestion, panelPresentation } from '../panel-state.js';
 import { sessionChangedCode } from '../hooks/changes-lib.js';
 import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
@@ -114,7 +115,7 @@ export const getSessionQuizPlan: ToolDef = {
   // already re-pointed on Cowork. A description that still promised a diff
   // while the framing said otherwise would set the two against each other.
   description: withSurfaceNote(
-    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. Only work logged in the current stretch counts as this session\'s own -- since its first prompt, or the first after more than an hour without one (an enforced gate counts all of it). When that runs out, it serves questions this project already asked that the learner declined, blanked on or got wrong and that are due again -- never one they answered correctly -- soonest first, in any domain (outside a git repository, only the domains this session touched), with reason "project_review" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Concepts that were logged but never asked are not carried into later sessions. In enforced mode, while the gate is unpassed, it serves only this session\'s own work -- no widening, no review -- including work concepts mastered in another session since they were logged, with reason "gate_work"; once everything else is exhausted it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context -- except while an enforced gate is unpassed, when the session\'s work comes first and the topic resumes once the gate passes. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt. Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries on_skip (what a skip means here, which depends on whether the gate needs this answer) and on_finish (the verdict, and the task restatement after an end-of-turn sweep) — follow both. Every plan carries ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the as-you-go cadence a plan is ONE question: ask it, grade it, tell them whether they were right (and the right answer if not) and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Any other plan is capped at what is left of this session\'s max_questions_per_task, and returns reason "budget_spent" once it is gone; while quiz.only_on_changes is on (the default), it also returns reason "no_code_change" until this session has changed code. Returns questions_needed: 0 when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts are due there) when any do.',
+    'What to quiz on right now and at what difficulty tier, chosen from this session\'s concepts and whatever is due for review. Pass a domain to plan a topic quiz instead. Every item carries asked_before (questions this learner has already been asked — never repeat one), already_taught (they blanked and you explained it, so the next question is a follow-up) and prereqs_unmet. Only work logged in the current stretch counts as this session\'s own -- since its first prompt, or the first after more than an hour without one (an enforced gate counts all of it). When that runs out, it serves questions this project already asked that the learner declined, blanked on or got wrong and that are due again -- never one they answered correctly -- soonest first, in any domain (outside a git repository, only the domains this session touched), with reason "project_review" -- those carry no context line, so ask about the concept itself rather than about code that is not on screen. Concepts that were logged but never asked are not carried into later sessions. In enforced mode, while the gate is unpassed, it serves only this session\'s own work -- no widening, no review -- including work concepts mastered in another session since they were logged, with reason "gate_work"; once everything else is exhausted it re-offers concepts that were blanked on and taught, a tier lower, with reason "gate_retry". Honours the configured focus: "project" plans from the diff, "concept" widens to prerequisites and domain siblings, "learn" plans from focus_topic and marks overlaps with the session\'s work as bridge_context -- except while an enforced gate is unpassed, when the session\'s work comes first and the topic resumes once the gate passes. Every plan carries focus and framing — follow framing, it is what the setting means. Every question is multiple choice: ask it with AskUserQuestion as four options, never as a blank prompt -- unless the plan says presentation "panel", in which case show it with present_question instead (it returns at once and the side panel records the answer). Each item also carries answer_position (1-4) — put the correct option in exactly that slot, or the right answer ends up first every time and the learner stops reading the options. Every tier is clamped to this project\'s difficulty level (easy 1-2, medium 2-4, hard 3-5), which is earned per project and returned as level with level_framing — obey it: a tier-4 question at level easy is the failure this exists to prevent. Every plan carries on_skip (what a skip means here, which depends on whether the gate needs this answer) and on_finish (the verdict, and the task restatement after an end-of-turn sweep) — follow both. Every plan carries presentation ("tool" for AskUserQuestion, "panel" for present_question; "tool" whenever the panel is off or not showing) and, for "tool", ask_attribution — obey it verbatim: it is the header and stem rule for the host this session is actually running on, and it differs between a terminal and a Claude Desktop question card. The dials this question was pitched from (mode, focus, cadence, level) never go in the stem either way. Under the as-you-go cadence a plan is ONE question: ask it, grade it, tell them whether they were right (and the right answer if not) and get back to the work — there is no second question to come back for. Passing max, domain or slugs means the developer asked to be quizzed, and plans the whole budget; so does enforced mode, where the gate needs a round it can pass. Any other plan is capped at what is left of this session\'s max_questions_per_task, and returns reason "budget_spent" once it is gone; while quiz.only_on_changes is on (the default), it also returns reason "no_code_change" until this session has changed code. Returns questions_needed: 0 (reason "panel_question_open") while a question is still waiting in the side panel, and likewise when there is nothing worth asking; a session plan then also carries pending_elsewhere (up to three other projects, as checkout paths, with how many concepts are due there) when any do.',
     ' ',
   ),
   inputSchema: {
@@ -266,6 +267,19 @@ export const getSessionQuizPlan: ToolDef = {
         concepts: [],
         reason: 'session_off',
         detail: 'Questions are off for this session. set_config scope "session" with quiz {enabled: true} brings them back; nothing was lost, the concepts stay unmastered and resurface later, and memory kept recording throughout.',
+      };
+    }
+
+    // One question at a time, and the panel owns the one it holds: asking another
+    // here, by card or panel, would put two on the learner's screen. With the
+    // panel off nothing is read.
+    if (config.quiz.panel && hasOpenPanelQuestion(db, sessionId)) {
+      return {
+        session_id: sessionId,
+        questions_needed: 0,
+        concepts: [],
+        reason: 'panel_question_open',
+        detail: 'A question is already waiting in the side panel. Say so in one line and carry on; ask nothing else until it is answered.',
       };
     }
 
@@ -612,6 +626,8 @@ export const getSessionQuizPlan: ToolDef = {
           };
     }
 
+    const presentation = panelPresentation(db, config, sessionId, now);
+
     return {
       session_id: sessionId,
       questions_needed: picked.length,
@@ -627,7 +643,14 @@ export const getSessionQuizPlan: ToolDef = {
       // this process can see. A skill file cannot branch on the entrypoint, so
       // a static instruction to set `header` and stop there is right in a
       // terminal and drops the attribution on the floor in Claude Desktop.
-      ask_attribution: attributionRule(),
+      // Where the question goes. `tool` is today's AskUserQuestion card; `panel`
+      // is the side panel, chosen only with the setting on and a fresh heartbeat
+      // from a host known to take answers (`panelPresentation`). The hooks and
+      // skills read this one field, so they cannot disagree about the tool.
+      presentation,
+      // The card's attribution rule means nothing for the panel, which is its own
+      // attribution.
+      ...(presentation === 'tool' ? { ask_attribution: attributionRule() } : {}),
       // The Stop sweep used to say these, but a Stop hook's text is printed to
       // the developer verbatim: "if they say skip, let them go" is an
       // instruction about them, not to them. Here only the model reads it.
@@ -635,9 +658,13 @@ export const getSessionQuizPlan: ToolDef = {
         ? isCowork()
           ? 'Quizzing is enforced here. Nothing is blocked -- Cowork does not commit -- but the gate still records what was answered.'
           : 'Quizzing is enforced in this session: the commit gate needs this quiz. A skip is recorded as grade 0 and does not pass it.'
-        : 'If they say skip, record grade 0 (outcome declined) and let them go -- do not ask twice.',
+        : presentation === 'panel'
+          ? 'A skip is the panel\'s Skip button, which records a decline for you. Record nothing yourself and do not ask twice.'
+          : 'If they say skip, record grade 0 (outcome declined) and let them go -- do not ask twice.',
       on_finish:
-        'After each answer, record_attempt, then tell them whether they were right (and the right answer if not) before anything else. If the end-of-turn sweep asked for this quiz, end with "Back to your task:" and your task answer again in 2-4 lines, so it is the last thing on screen.',
+        presentation === 'panel'
+          ? `The panel records each answer and shows the verdict itself: do not call record_attempt, do not announce a result and do not wait. Once present_question returns, go back to the task.${picked.length > 1 ? ' Present only the first question now; the panel asks for the next when the learner wants it, and you then present the next item.' : ''}`
+          : 'After each answer, record_attempt, then tell them whether they were right (and the right answer if not) before anything else. If the end-of-turn sweep asked for this quiz, end with "Back to your task:" and your task answer again in 2-4 lines, so it is the last thing on screen.',
       ...(focus === 'learn' && config.focus_topic ? { topic: config.focus_topic } : {}),
       level: standing.level,
       level_framing: LEVEL_FRAMING[standing.level],

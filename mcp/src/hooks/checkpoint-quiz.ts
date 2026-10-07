@@ -44,6 +44,7 @@ import { run, openExisting, config, cwdOf, sessionId, minutesSince, framingFor, 
 import { isSessionOff, noteActivity, workSince } from '../session.js';
 import { countUse } from '../telemetry.js';
 import { noteBashEdit, noteEdit, sessionChangedCode } from './changes-lib.js';
+import { hasOpenPanelQuestion, panelPresentation } from '../panel-state.js';
 
 const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
 
@@ -90,6 +91,10 @@ await run(async (input) => {
   const sid = workSid;
   if (!sid) return 0;
   if (isSessionOff(db, sid)) return 0;
+  // A question already waiting in the side panel is the outstanding one. Asking
+  // another would be a second question for the same learner, so stay silent
+  // until it is answered. Only with the panel on: off reads nothing here.
+  if (quiz.panel && hasOpenPanelQuestion(db, sid)) return 0;
 
   // Only work logged in the current stretch is askable -- since the first prompt
   // after an idle break (`workSince`) -- so a session left open overnight is not
@@ -191,21 +196,36 @@ await run(async (input) => {
     ? 'You just logged a concept. Before writing another line, ask'
     : 'The work has moved on since the last question. Before the next step, ask';
 
+  // The same planner field every other site reads: `panel` only with the setting
+  // on and a fresh heartbeat. The steps below differ in exactly the lines that
+  // name the tool and who records the answer.
+  const panel = panelPresentation(db, { quiz }, sid) === 'panel';
+  const ask = panel
+    ? `  2. Show that ONE question in the side panel with present_question: the stem alone, four options each with its one-line description and a grade (the right one 4, a near miss 2, one built on a misconception 1), the correct one in the slot answer_position names, and a one-line explanation. It returns at once.`
+    : `  2. Ask that ONE question with AskUserQuestion: four options, exactly one correct, three plausible but wrong for this stem, and put the correct one in the slot answer_position names.
+     ${attributionRule()}`;
+  const after = panel
+    ? `  3. The panel records the answer and shows the verdict itself. Do not call record_attempt, do not announce a result and do not wait for the answer.
+  4. Resume the task exactly where you left off. Do not summarise, do not re-plan, do not ask a second question.`
+    : `  3. Grade it with record_attempt: format "mcq", the labels in "options", the stem alone in "question".
+  4. Tell them the verdict: right, or wrong and what the right answer is, with one line of why. Never skip this -- an answer with no verdict teaches nothing.
+  5. Resume the task exactly where you left off. Do not summarise, do not re-plan, do not ask a second question.`;
+  const tail = panel
+    ? ''
+    : `
+If they pick Other or say skip, record it as grade 0, teach the answer in two lines, and carry on. Do not ask again.`;
+
   const context = `[Eklavya checkpoint] ${lead} the developer ONE question about it -- this is the whole point of the tool: they learn while you work, not in a pile at the end.
 
 Concept: ${row.concept}
 
 Do exactly this, then get straight back to the task:
   1. get_session_quiz_plan with max: 1 and ignore_cooldown: true (the pacing is already decided -- this hook is the cooldown).
-  2. Ask that ONE question with AskUserQuestion: four options, exactly one correct, three plausible but wrong for this stem, and put the correct one in the slot answer_position names.
-     ${attributionRule()}
-  3. Grade it with record_attempt: format "mcq", the labels in "options", the stem alone in "question".
-  4. Tell them the verdict: right, or wrong and what the right answer is, with one line of why. Never skip this -- an answer with no verdict teaches nothing.
-  5. Resume the task exactly where you left off. Do not summarise, do not re-plan, do not ask a second question.
+${ask}
+${after}
 
 ONE question. Not two, not the whole plan. ${remaining} left in this session's budget, and the Stop hook spends whatever you do not.
-${framing}
-If they pick Other or say skip, record it as grade 0, teach the answer in two lines, and carry on. Do not ask again.`;
+${framing}${tail}`;
 
   // exit 0 + JSON, not exit 2 + stderr: exit 2 renders to the developer as a hook
   // warning -- an error face on a feature that is working. The Stop sweep reached

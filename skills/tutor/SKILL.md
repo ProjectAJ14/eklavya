@@ -55,23 +55,24 @@ straight back with a checkpoint.
 
 ## Which one is asking
 
-Two hooks ask you to teach and they want different things. Neither is the user
-speaking. Treat both as a prompt to teach, never an error, and never mention
-hooks or exit codes to the developer.
+Two hooks ask you to teach and want different things. Neither is the user
+speaking. Treat both as a prompt to teach, never an error; never mention hooks
+or exit codes.
 
 **`[Eklavya checkpoint]`** — one question, now, before you write another line.
 `get_session_quiz_plan` with `max: 1` and `ignore_cooldown: true` (the pacing is
 already decided — the hook only fires when it is time), ask it, `record_attempt`,
 **give the verdict** — right, or wrong plus the right answer and one line of why —
-then **straight back to the task in the same turn**: no summary of where you got
+then **straight back to the task in the same turn** (`presentation: "panel"`:
+no `record_attempt`, no verdict, below): no summary of where you got
 to, no re-plan, no "shall I continue?", no second question. A checkpoint that
 becomes a tutorial is the interruption it existed to replace.
 
 **The Stop sweep** — one line naming the concepts, printed to the developer
 too. Call `get_session_quiz_plan`, run the quiz and follow its `on_skip` and
 `on_finish`. Under `as-you-go` it can fire more than
-once in a long session — it is paced by the clock, not by the batch — so treat
-each one as its own single question, not as a sign you missed the last one.
+once in a long session (paced by the clock), so treat each as its own single
+question, not a sign you missed the last one.
 
 **Your task answer goes last.** Write the answer when the task is done. If the
 Stop sweep then asks for questions, ask them one at a time with a verdict each,
@@ -83,7 +84,7 @@ code changes go to background agents and the wait is when you teach. A hook
 repeats this once, when you edit a second file yourself. Start
 them, log the plan's concepts, then loop: `get_session_quiz_plan` with
 `while_waiting: true`, ask, grade, verdict. Stop when an agent reports or
-`questions_needed` is 0 (budget spent, or `end` cadence), then write the task answer last. Agents cannot ask,
+`questions_needed` is 0, then write the task answer last. Agents cannot ask,
 and hooks do not quiz inside them. Keep small fixes and lookups inline.
 
 **How many questions is not your call — it is the plan's.** Under `as-you-go`
@@ -93,9 +94,8 @@ and you ask those one at a time.
 
 `max_questions_per_task` is a **session budget shared by both**. Every
 checkpoint answered is one the sweep no longer asks, so a session that
-checkpointed through the budget ends in silence. That is intended — do not top it
-up because the ending felt quiet. What the budget never reached is dropped when the
-session ends: it was never shown, so nothing is owed. A question the learner was
+checkpointed through the budget ends in silence. That is intended; do not top it up. What the budget never reached is dropped when the
+session ends: never shown, nothing owed. A question the learner was
 shown and declined, blanked on or missed is different — spaced repetition brings
 it back in a later plan with `reason: "project_review"`.
 
@@ -141,11 +141,12 @@ The promise the whole tool rests on.
 **One question at a time.** Ask, wait, grade, explain tightly, then the next.
 Never post a numbered list of five — that is a test, not teaching.
 
-**Ask it as multiple choice, using `AskUserQuestion`.** Someone mid-task will not
-type a paragraph for a quiz they did not ask for, and their silence is not
-evidence they did not know. **Read `references/writing-mcq.md` before writing
-one** — the six parts in build order, where the distractors come from, and how
-to record it.
+**Ask it as multiple choice, using `AskUserQuestion`** — or `present_question` when
+the plan's `presentation` is `"panel"`: it returns at once and the panel records
+and judges the answer, so never wait, `record_attempt` or give a verdict.
+Nobody mid-task types a paragraph for a quiz they did not ask for. **Read
+`references/writing-mcq.md` before writing one**: the six parts in build order,
+where distractors come from, how to record it, and the panel.
 
 **Ground every question in the diff you just wrote** — the file, the line, the
 decision — *unless the plan's `framing` says otherwise*, which on the default
@@ -173,7 +174,7 @@ follow `ask_attribution` rather than deciding.
 
 ## Grading, and blanks
 
-`record_attempt` for **every** answer, blanks and declines included, with
+`record_attempt` for **every** answer you collect, blanks and declines included, with
 `question` verbatim and `outcome` as `answered`, `dont_know` or `declined`.
 Grade honestly on 0–5; multiple choice caps at 4 and the server enforces it.
 

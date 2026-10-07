@@ -46,6 +46,7 @@ import { fillOmissions } from '../memory/learning.js';
 import { dueInProject, sessionConcepts } from '../store.js';
 import { countUse } from '../telemetry.js';
 import { sessionChangedCode } from './changes-lib.js';
+import { hasOpenPanelQuestion } from '../panel-state.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -115,6 +116,11 @@ await run(async (input) => {
   const { repoRoot } = stopConfig;
 
   if (!quiz.enabled) return 0;
+
+  // A question waiting in the side panel is the outstanding one: do not hold the
+  // turn open to ask another. (The line the card flow prints would continue the
+  // turn for nothing -- the panel is itself the signal.) Only with the panel on.
+  if (quiz.panel && hasOpenPanelQuestion(db, sid)) return 0;
 
   // Only work logged in the current stretch is askable -- since the first prompt
   // after an idle break (`workSince`) -- so a session left open overnight is not

@@ -286,7 +286,7 @@ await run(async (input) => {
   // is what to do about it.
   context.push(...memoryContext);
   context.push(withSurfaceNote(DIRECTIVE));
-  if (resolved.config.delegate_work) context.push(sessionBlock(resolved.config.cadence));
+  if (resolved.config.delegate_work) context.push(sessionBlock(resolved.config.cadence, resolved.config.quiz.panel));
   return emit(shown, context, sent);
 });
 

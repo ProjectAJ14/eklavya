@@ -257,7 +257,7 @@ await run(async (input) => {
   if (resolved.config.delegate_work && typeof input.prompt === 'string') {
     const text = input.prompt.trim();
     if (text.length >= TASK_PROMPT_CHARS && !SLASH.test(text) && !HOST_PROMPT.test(text)) {
-      context.push(promptLine(resolved.config.cadence));
+      context.push(promptLine(resolved.config.cadence, resolved.config.quiz.panel));
     }
   }
 
