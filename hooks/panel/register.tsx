@@ -16,6 +16,8 @@ import {
   codify,
   gradingRequest,
   logoRows,
+  boxRows,
+  boldParagraphs,
   plainLabel,
   levelLine,
   parseVerdict,
@@ -349,20 +351,38 @@ export const register: Register = on => {
     const s: PanelState = await read($, quiz)
     const q = s.question
 
-    // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal.
-    const logo = (
-      <Box flexDirection="column" flexShrink={0}>
-        {logoRows().map((runs, y) => (
-          <Box key={`logo-${y}`} flexDirection="row" flexShrink={0}>
-            {runs.map((run, x) => (
-              <Text key={`logo-${y}-${x}`} color={run.fg} backgroundColor={run.bg} wrap="truncate">
-                {run.text}
-              </Text>
-            ))}
-          </Box>
-        ))}
-      </Box>
-    )
+    // Any surface but the terminal is the desktop app's: it sets the question bold, spaces the answers
+    // apart and draws the mark in boxes. The terminal keeps its text layout.
+    const app = e.surface !== 'terminal'
+    // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal. The
+    // desktop app sets text in a proportional font with its own line height, so glyph cells do not
+    // tile there: it gets the same grid as filled boxes, one per run of a colour. A cell is one unit
+    // wide and half a unit tall, which is square in the app (checked live there; the host's
+    // fractional-height support is not documented, so a failure shows as a stretched mark).
+    const logo =
+      !app ? (
+        <Box flexDirection="column" flexShrink={0}>
+          {logoRows().map((runs, y) => (
+            <Box key={`logo-${y}`} flexDirection="row" flexShrink={0}>
+              {runs.map((run, x) => (
+                <Text key={`logo-${y}-${x}`} color={run.fg} backgroundColor={run.bg} wrap="truncate">
+                  {run.text}
+                </Text>
+              ))}
+            </Box>
+          ))}
+        </Box>
+      ) : (
+        <Box flexDirection="column" flexShrink={0}>
+          {boxRows().map((runs, y) => (
+            <Box key={`logo-${y}`} flexDirection="row" flexShrink={0} height={0.5}>
+              {runs.map((run, x) => (
+                <Box key={`logo-${y}-${x}`} width={run.width} height={0.5} flexShrink={0} backgroundColor={run.color} />
+              ))}
+            </Box>
+          ))}
+        </Box>
+      )
     // A list tile: the mark on the left; the name over the topic beside it.
     const head = (subtitle?: string) => (
       <Box flexDirection="row" alignItems="center" gap={2}>
@@ -419,7 +439,7 @@ export const register: Register = on => {
       )
     }
 
-    const stem = <Markdown text={codify(q.stem)} />
+    const stem = <Markdown text={app ? boldParagraphs(codify(q.stem)) : codify(q.stem)} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
       const r = s.result
@@ -469,7 +489,7 @@ export const register: Register = on => {
 
     return frame(
       stem,
-      <Box flexDirection="column">
+      <Box flexDirection="column" gap={app ? 1 : 0}>
         {options}
         {card(
           'other',

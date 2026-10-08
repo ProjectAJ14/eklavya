@@ -74,6 +74,20 @@ export function logoRows(grid: readonly string[] = LOGO_GRID, palette: Record<st
   return out
 }
 
+/** The grid as rows of boxes for a host whose font cannot tile glyphs: runs of one colour (or none) and their width in cells. */
+export function boxRows(grid: readonly string[] = LOGO_GRID, palette: Record<string, string> = LOGO_PALETTE): { width: number; color?: string }[][] {
+  return grid.map(row => {
+    const runs: { width: number; color?: string }[] = []
+    for (const c of row) {
+      const color = c === '.' ? undefined : palette[c]
+      const last = runs[runs.length - 1]
+      if (last && last.color === color) last.width++
+      else runs.push({ width: 1, color })
+    }
+    return runs
+  })
+}
+
 /** The name as the header sets it: spaced capitals, the nearest a terminal gets to a larger type size. */
 /** A call such as `tester.tap(find.byType(X))`, nested up to three deep, a lowerCamelCase name or a snake_case name. */
 const CODE_LIKE = /[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\((?:[^()\n]|\((?:[^()\n]|\([^()\n]*\))*\))*\)|\b[a-z]{2,}(?:[A-Z][a-z0-9]+)+\b|\b[a-z0-9]+(?:_[a-z0-9]+)+\b/g
@@ -88,6 +102,17 @@ export function codify(text: string): string {
     .split(/(`[^`]*`)/)
     .map((part, i) => (i % 2 ? part : part.replace(CODE_LIKE, '`$&`')))
     .join('')
+}
+
+/** Block Markdown that bold marks around it would break: a fence, heading, list, quote, or bold already in it. */
+const NOT_BOLDABLE = /```|\*\*|^\s*(?:#|[-*+>]|\d+[.)])\s/m
+
+/** Bolds each plain paragraph of a question, so a blank line never sits inside a bold span. */
+export function boldParagraphs(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map(p => (p.trim() && !NOT_BOLDABLE.test(p) ? `**${p.trim()}**` : p))
+    .join('\n\n')
 }
 
 /** What a Button label can show of Markdown: it keeps the words and drops the code and bold marks. */

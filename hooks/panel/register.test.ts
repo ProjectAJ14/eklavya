@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, logoRows, plainLabel } from './model'
+import { EMPTY, EXPLAINER, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, boldParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -146,6 +146,15 @@ describe('the pane, state by state', () => {
     expect(drawn).toContain('Markdown')
     expect(drawn).toContain('card-o1')
     expect(drawn).toContain('card-other')
+    expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
+  })
+
+  test('the desktop app draws the mark as boxes, not glyphs', async ($, on) => {
+    world(on)
+    await boot($)
+    const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
+    expect(drawn).not.toMatch(/[▘▝▀▖▌▞▛▗▚▐▜▄▙▟█]/)
+    expect(drawn).toContain('logo-0')
     expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
   })
 
@@ -791,5 +800,38 @@ describe('the words and the grader', () => {
     expect(payloadOf([{ type: 'image' }, { type: 'text', text: '{"a":1}' }])).toEqual({ a: 1 })
     expect(() => payloadOf([])).toThrow()
     expect(EMPTY.step).toBe('none')
+  })
+})
+
+describe('the logo as boxes', () => {
+  test('every row adds up to the grid width and a colour run never repeats', () => {
+    for (const r of boxRows()) {
+      expect(r.reduce((n, run) => n + run.width, 0)).toBe(LOGO_GRID[0].length)
+      r.slice(1).forEach((run, i) => expect(run.color).not.toBe(r[i].color))
+    }
+  })
+})
+
+describe('the desktop layout', () => {
+  test('boldParagraphs leaves block Markdown and existing bold alone', () => {
+    for (const t of ['```\ncode\n```', '- a\n- b', '# Title', '> quote', '1. step', 'already **bold** here'])
+      expect(boldParagraphs(t)).toBe(t)
+    expect(boldParagraphs('plain\n\n- list')).toBe('**plain**\n\n- list')
+    expect(boldParagraphs('')).toBe('')
+  })
+
+  test('boldParagraphs wraps each paragraph, never a blank line', () => {
+    expect(boldParagraphs('one\ntwo\n\nthree')).toBe('**one\ntwo**\n\n**three**')
+  })
+
+  test('only the desktop app bolds the question and spaces the answers', async ($, on) => {
+    world(on)
+    await boot($)
+    const gaps = (d: string) => (d.match(/"gap":1/g) ?? []).length
+    const desktop = JSON.stringify(await (await mount($, 'desktop')).drawn())
+    const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    expect(desktop).toContain('**' + QUESTION.stem.slice(0, 10))
+    expect(terminal).not.toContain('**' + QUESTION.stem.slice(0, 10))
+    expect(gaps(desktop)).toBe(gaps(terminal) + 1)
   })
 })
