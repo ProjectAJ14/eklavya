@@ -18,12 +18,24 @@ export const EMPTY: PanelState = {
 /** Tier names as the dashboard shows them (`TIER` in `assets/dashboard.html`; a test keeps the two equal). */
 export const TIER: Record<number, string> = { 1: 'recall', 2: 'mechanism', 3: 'judgement', 4: 'failure modes', 5: 'design' }
 
-/** Brand verdigris (`--vd-300`) and its 10% wash over the pane ground: the selected card's border and fill. */
+/** Brand verdigris (`--vd-300`): the selected card's border and the name. */
 export const BRAND = '#79D5C4'
-export const BRAND_WASH = '#233b3a'
 
-/** The bow-and-arrow mark (`web/public/brand/mark.svg`) as a 64px PNG, base64: the mod has no filesystem to read it from. */
-export const LOGO_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABdUlEQVR42u3aP0sDMRjH8XsFvgPfge/Ad+A78A0UJx0Pt9JBKHQSnBxcbnBxUfAFFIRucps4lXa00OnmyE84OeKJl7tLCOb7QCj9dzSfJnlySbKD84lJuWQAAAAAAAAAAAAAAAAAwOByNL00J9eLr8fkAFTpfVUZhR6vnh/TAjgr7owd5XYTfWsYDUD/eFuoNRzPZ+kCxI4QBECx3n2Yw/wiHYCn8vV7UKxj+f6WDoCeKyXaocEyGQC9nj/c/xgPYuoK3gFU1PR/ey8JALsraEDsck1lDuGp+MoiQQDaWsHp7c2f12x+x1cqDQZgzxSL1YsTgC+EYAAqrt1AlbVT6dgIQQE0N2hGl4r4RggKYH+myzjgGyEogJ0NXNKhL4SgAPqxrgOhb4ReAHV+jiWGIPQCiKnyQ2+0AKALMAiSBpkIMRXmZojbYRZEWBJjUZRlcTZG2Bpjc5TtcQ5IcESGQ1Ick+OgJAAAAAAAAAAAAAAAAPz/8gmdXgMVht/NEAAAAABJRU5ErkJggg=='
+/**
+ * The bow-and-arrow mark (`web/public/brand/mark.svg`) as terminal cells, the way
+ * Claude Code draws its own: each cell is a half block whose top pixel is the
+ * foreground and bottom pixel the background. One row per line, one two-letter
+ * cell per pair: W is white, T is the mark's verdigris square.
+ */
+export const LOGO_ROWS = [
+  'TT TT TW TW TT TT TT TT TT TT TT',
+  'TT TT WW WT WW TT TT TW TT TT TT',
+  'TT TW WW TW WW WW TW TW WW TW TT',
+  'TT TT WW TT WW WT TT TW WT TT TT',
+  'TT TT WW WW WT TT TT TT TT TT TT',
+  'TT TT TT TT TT TT TT TT TT TT TT',
+] as const
+export const LOGO_COLORS = { W: '#FFFFFF', T: '#0E6E66' } as const
 
 /** Every sentence the learner reads, in one place. The handoff's table, verbatim. */
 export const STR = {

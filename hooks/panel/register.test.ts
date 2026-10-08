@@ -101,7 +101,7 @@ async function mount($: any, surface: (typeof SURFACES)[number], over: Record<st
 }
 
 const press = ($: any, key: string, surface = 'terminal') => $.ui.press({ plugin: PLUGIN, key, surface })
-/** How many answer cards are ticked: the picked one's key shows ✓ in place of its number. */
+/** How many answer cards are ticked: the picked one's label starts with ✓. */
 const ticks = async (pane: any) => (JSON.stringify(await pane.drawn()).match(/✓/g) ?? []).length
 const answers = (log: any) => log.calls.filter((c: any) => c.tool === 'panel_answer')
 
@@ -142,7 +142,7 @@ describe('the pane, state by state', () => {
     expect(drawn).toContain('Markdown')
     expect(drawn).toContain('card-o1')
     expect(drawn).toContain('card-other')
-    expect(drawn.indexOf('Image')).toBeLessThan(drawn.indexOf(STR.brand))
+    expect(drawn.indexOf('logo-0-0')).toBeLessThan(drawn.indexOf(STR.brand))
   })
 
   test('selecting an option is a draft: it never submits, grades or skips', async ($, on) => {

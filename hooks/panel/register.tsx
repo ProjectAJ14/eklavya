@@ -3,10 +3,10 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   BRAND,
-  BRAND_WASH,
   EMPTY,
   EXPLAINER,
-  LOGO_PNG,
+  LOGO_COLORS,
+  LOGO_ROWS,
   NEXT_PROMPT,
   PANE,
   REOPEN,
@@ -330,14 +330,26 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: 'eklavya-quiz' }, async ($, e, next) => {
     // Only our pane: every other pane, and everything else, is the host's.
     if (e.requestId !== PANE) return next(e)
-    const { Box, Text, Button, Input, Markdown, Image } = $.ui.resolve(e) as any
+    const { Box, Text, Button, Input, Markdown } = $.ui.resolve(e) as any
     const s: PanelState = await read($, quiz)
     const q = s.question
 
-    // The mark is a picture where the terminal draws pictures, and a glyph everywhere else.
-    const logo = Image ? <Image source={{ png: LOGO_PNG }} columns={4} rows={2} alt="➶" /> : <Text color={BRAND}>➶</Text>
+    // The mark is drawn in cells, as Claude Code draws its own, so it shows in every terminal.
+    const logo = (
+      <Box flexDirection="column">
+        {LOGO_ROWS.map((row, y) => (
+          <Box key={`logo-${y}`} flexDirection="row">
+            {row.split(' ').map((c, x) => (
+              <Text key={`logo-${y}-${x}`} color={LOGO_COLORS[c[0] as 'W' | 'T']} backgroundColor={LOGO_COLORS[c[1] as 'W' | 'T']}>
+                ▀
+              </Text>
+            ))}
+          </Box>
+        ))}
+      </Box>
+    )
     const head = (
-      <Box flexDirection="row" alignItems="center" gap={1}>
+      <Box flexDirection="row" alignItems="center" gap={2}>
         {logo}
         <Text bold color={BRAND}>
           {STR.brand}
@@ -345,21 +357,20 @@ export const register: Register = on => {
       </Box>
     )
     const hint = <Text dimColor>{STR.keys}</Text>
-    // One answer: a bordered block. Its key is the Button, so a press and a hotkey both reach it.
-    const card = (id: string, selected: boolean, chip: unknown, body: unknown[]) => (
+    // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it
+    // selects; the border and a tick show the pick, and nothing implies it is right.
+    const card = (id: string, selected: boolean, button: unknown, body: unknown[], roomy = false) => (
       <Box
         key={`card-${id}`}
-        flexDirection="row"
-        gap={1}
+        flexDirection="column"
         paddingX={1}
+        paddingY={roomy ? 1 : 0}
+        gap={roomy ? 1 : 0}
         borderStyle="single"
         borderColor={selected ? BRAND : 'inactive'}
-        backgroundColor={selected ? BRAND_WASH : undefined}
       >
-        {chip}
-        <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-          {body}
-        </Box>
+        {button}
+        {body}
       </Box>
     )
     const frame = (...body: unknown[]) => (
@@ -410,22 +421,25 @@ export const register: Register = on => {
     const locked = s.step === 'grading'
     // Submit looks disabled until there is something to send; pressing it then does nothing.
     const hasDraft = s.draft.other ? s.draft.text.trim().length > 0 : s.draft.picked !== null
-    const chip = (id: string, key: string, face: string, hotkey: string, chosen: boolean) => (
+    // Markdown marks cannot show inside a Button's label, so they are dropped there; the note keeps them.
+    const plain = (text: string) => text.replace(/[`*_]/g, '')
+    const answer = (id: string, key: string, hotkey: string, label: string, chosen: boolean) => (
       <Button
         key={key}
-        label={chosen ? '✓' : face}
-        variant={chosen ? 'primary' : undefined}
-        dimColor={!chosen}
+        plain
         hotkey={hotkey}
+        label={`${chosen ? '✓ ' : ''}${label}`}
         onPress={() => (locked ? undefined : id === 'other' ? chooseOther($) : pick($, id))}
       />
     )
     const options = q.options.map((o, i) => {
       const chosen = !s.draft.other && s.draft.picked === o.id
-      return card(o.id, chosen, chip(o.id, `opt-${o.id}`, String(i + 1), String(i + 1), chosen), [
-        <Markdown key={`label-${o.id}`} text={o.label} />,
-        o.note ? <Markdown key={`note-${o.id}`} text={o.note} dimColor /> : null,
-      ])
+      return card(
+        o.id,
+        chosen,
+        answer(o.id, `opt-${o.id}`, String(i + 1), plain(o.label), chosen),
+        [o.note ? <Box key={`note-${o.id}`} paddingLeft={3}><Markdown text={o.note} dimColor /></Box> : null],
+      )
     })
 
     return frame(
@@ -433,20 +447,27 @@ export const register: Register = on => {
       stem,
       <Box flexDirection="column">
         {options}
-        {card('other', s.draft.other, chip('other', 'opt-other', 'o', 'o', s.draft.other), [
-          <Text key="label-other">{STR.other}</Text>,
-          s.draft.other ? (
-            <Input
-              key="other-text"
-              autoFocus
-              placeholder={STR.otherPlaceholder}
-              value={s.draft.text}
-              submitLabel="keep"
-              onInput={(value: string) => (locked ? undefined : typeOther($, value))}
-              onSubmit={(value: string) => (locked ? undefined : typeOther($, value))}
-            />
-          ) : null,
-        ])}
+        {card(
+          'other',
+          s.draft.other,
+          answer('other', 'opt-other', 'o', STR.other, s.draft.other),
+          [
+            s.draft.other ? (
+              <Box key="other-box" paddingLeft={3}>
+                <Input
+                  key="other-text"
+                  autoFocus
+                  placeholder={STR.otherPlaceholder}
+                  value={s.draft.text}
+                  submitLabel="keep"
+                  onInput={(value: string) => (locked ? undefined : typeOther($, value))}
+                  onSubmit={(value: string) => (locked ? undefined : typeOther($, value))}
+                />
+              </Box>
+            ) : null,
+          ],
+          s.draft.other,
+        )}
       </Box>,
       locked ? <Text dimColor>{STR.grading}</Text> : null,
       s.step === 'error' && s.message ? <Text color="error">{s.message}</Text> : null,
