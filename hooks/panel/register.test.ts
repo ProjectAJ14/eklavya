@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, logoRows, plainLabel } from './model'
+import { EMPTY, EXPLAINER, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -149,12 +149,13 @@ describe('the pane, state by state', () => {
     expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
   })
 
-  test('the desktop app gets the name without the text-drawn mark', async ($, on) => {
+  test('the desktop app draws the mark as boxes, not glyphs', async ($, on) => {
     world(on)
     await boot($)
     const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
-    expect(drawn).not.toContain('logo-0')
-    expect(drawn).toContain(WORDMARK)
+    expect(drawn).not.toMatch(/[▘▝▀▖▌▞▛▗▚▐▜▄▙▟█]/)
+    expect(drawn).toContain('logo-0')
+    expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
   })
 
   test('selecting an option is a draft: it never submits, grades or skips', async ($, on) => {
@@ -799,5 +800,14 @@ describe('the words and the grader', () => {
     expect(payloadOf([{ type: 'image' }, { type: 'text', text: '{"a":1}' }])).toEqual({ a: 1 })
     expect(() => payloadOf([])).toThrow()
     expect(EMPTY.step).toBe('none')
+  })
+})
+
+describe('the logo as boxes', () => {
+  test('every row adds up to the grid width and a colour run never repeats', () => {
+    for (const r of boxRows()) {
+      expect(r.reduce((n, run) => n + run.width, 0)).toBe(LOGO_GRID[0].length)
+      r.slice(1).forEach((run, i) => expect(run.color).not.toBe(r[i].color))
+    }
   })
 })

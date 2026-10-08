@@ -16,6 +16,7 @@ import {
   codify,
   gradingRequest,
   logoRows,
+  boxRows,
   plainLabel,
   levelLine,
   parseVerdict,
@@ -350,21 +351,33 @@ export const register: Register = on => {
     const q = s.question
 
     // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal. The
-    // desktop app sets text in a proportional font with its own line height, so the cells do not
-    // tile there and the mark falls apart: that surface gets the name alone.
-    const logo = e.surface !== 'terminal' ? null : (
-      <Box flexDirection="column" flexShrink={0}>
-        {logoRows().map((runs, y) => (
-          <Box key={`logo-${y}`} flexDirection="row" flexShrink={0}>
-            {runs.map((run, x) => (
-              <Text key={`logo-${y}-${x}`} color={run.fg} backgroundColor={run.bg} wrap="truncate">
-                {run.text}
-              </Text>
-            ))}
-          </Box>
-        ))}
-      </Box>
-    )
+    // desktop app sets text in a proportional font with its own line height, so glyph cells do not
+    // tile there: it gets the same grid as filled boxes, one per run of a colour, which the layout
+    // places exactly whatever the font.
+    const logo =
+      e.surface === 'terminal' ? (
+        <Box flexDirection="column" flexShrink={0}>
+          {logoRows().map((runs, y) => (
+            <Box key={`logo-${y}`} flexDirection="row" flexShrink={0}>
+              {runs.map((run, x) => (
+                <Text key={`logo-${y}-${x}`} color={run.fg} backgroundColor={run.bg} wrap="truncate">
+                  {run.text}
+                </Text>
+              ))}
+            </Box>
+          ))}
+        </Box>
+      ) : (
+        <Box flexDirection="column" flexShrink={0}>
+          {boxRows().map((runs, y) => (
+            <Box key={`logo-${y}`} flexDirection="row" flexShrink={0} height={1}>
+              {runs.map((run, x) => (
+                <Box key={`logo-${y}-${x}`} width={run.width} height={1} flexShrink={0} backgroundColor={run.color} />
+              ))}
+            </Box>
+          ))}
+        </Box>
+      )
     // A list tile: the mark on the left; the name over the topic beside it.
     const head = (subtitle?: string) => (
       <Box flexDirection="row" alignItems="center" gap={2}>

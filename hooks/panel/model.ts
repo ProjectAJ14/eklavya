@@ -74,6 +74,20 @@ export function logoRows(grid: readonly string[] = LOGO_GRID, palette: Record<st
   return out
 }
 
+/** The grid as rows of boxes for a host whose font cannot tile glyphs: runs of one colour (or none) and their width in cells. */
+export function boxRows(grid: readonly string[] = LOGO_GRID, palette: Record<string, string> = LOGO_PALETTE): { width: number; color?: string }[][] {
+  return grid.map(row => {
+    const runs: { width: number; color?: string }[] = []
+    for (const c of row) {
+      const color = c === '.' ? undefined : palette[c]
+      const last = runs[runs.length - 1]
+      if (last && last.color === color) last.width++
+      else runs.push({ width: 1, color })
+    }
+    return runs
+  })
+}
+
 /** The name as the header sets it: spaced capitals, the nearest a terminal gets to a larger type size. */
 /** A call such as `tester.tap(find.byType(X))`, nested up to three deep, a lowerCamelCase name or a snake_case name. */
 const CODE_LIKE = /[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\((?:[^()\n]|\((?:[^()\n]|\([^()\n]*\))*\))*\)|\b[a-z]{2,}(?:[A-Z][a-z0-9]+)+\b|\b[a-z0-9]+(?:_[a-z0-9]+)+\b/g
