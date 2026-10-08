@@ -74,38 +74,8 @@ export function logoRows(grid: readonly string[] = LOGO_GRID, palette: Record<st
   return out
 }
 
-/** Letters of the header name, three pixels wide and six tall; # is a lit pixel. */
-const GLYPHS: Record<string, string[]> = {
-  E: ['###', '#..', '##.', '#..', '#..', '###'],
-  K: ['#.#', '#.#', '##.', '#.#', '#.#', '#.#'],
-  L: ['#..', '#..', '#..', '#..', '#..', '###'],
-  A: ['.#.', '#.#', '#.#', '###', '#.#', '#.#'],
-  V: ['#.#', '#.#', '#.#', '#.#', '#.#', '.#.'],
-  Y: ['#.#', '#.#', '.#.', '.#.', '.#.', '.#.'],
-}
-
-/**
- * The name set in large letters, the nearest a terminal gets to a bigger type size: each
- * letter is three characters wide and three rows tall, drawn with half blocks (two pixels
- * per character). The pane's own title still says "Eklavya" for anything that reads text.
- */
-export function bigName(name = 'EKLAVYA'): string[] {
-  const rows = ['', '', '']
-  for (const [i, letter] of [...name].entries()) {
-    const g = GLYPHS[letter] ?? GLYPHS.E
-    for (let r = 0; r < 3; r++) {
-      for (let c = 0; c < 3; c++) {
-        const top = g[r * 2][c] === '#'
-        const bottom = g[r * 2 + 1][c] === '#'
-        rows[r] += top && bottom ? '█' : top ? '▀' : bottom ? '▄' : ' '
-      }
-      if (i < name.length - 1) rows[r] += ' '
-    }
-  }
-  return rows
-}
-
-export const WORDMARK = bigName()
+/** The name as the header sets it: spaced capitals, the nearest a terminal gets to a larger type size. */
+export const WORDMARK = 'EKLAVYA'.split('').join(' ')
 
 /** Every sentence the learner reads, in one place. The handoff's table, verbatim. */
 /** How long a finished result stays before it closes itself, when no Next is waiting. */
