@@ -398,30 +398,35 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   // background process nobody asked for should say so the first time it appears.
   const url = `http://127.0.0.1:${dashboardPort()}`;
   // With feedback waiting the memory link steps aside for it (one click from the
-  // dashboard), and a dashboard that is down is not linked at all: the red line
-  // names the command instead.
-  if (!(parts.feedback && parts.dashboard === 'down')) {
-    out.push(
-      dim(
-        parts.dashboard === 'started'
-          ? `Dashboard ${url} started in the background · off: eklavya config set dashboard_autostart false`
-          : parts.dashboard === 'live'
-            ? parts.feedback
-              ? `Dashboard ${url}`
-              : `Dashboard ${url} · Observations ${url}/#/memory`
-            : 'Dashboard & observations: eklavya dashboard',
-      ),
-    );
+  // dashboard), and the red segment joins the dashboard link on one line. A
+  // dashboard that is down is not linked at all: the red line names the command.
+  // The state comes first in the segment, so it reads at a glance, and colour is
+  // not the only signal: without it the segment starts with "! ", which the dim
+  // text never does.
+  const flag = parts.feedback
+    ? paint(
+        `${color ? '' : '! '}${
+          parts.dashboard === 'down'
+            ? 'Feedback waiting · run: eklavya dashboard'
+            : `Feedback waiting ${url}/#/feedback/dashboard?via=greeting`
+        }`,
+        196,
+        color,
+      )
+    : '';
+  if (parts.feedback && parts.dashboard === 'down') {
+    out.push(flag);
+    return;
   }
-  // The state comes first, so it reads at a glance. Colour is not the only
-  // signal: without it the line starts with "! ", which the dim lines never do.
-  if (parts.feedback) {
-    const line =
-      parts.dashboard === 'down'
-        ? 'Feedback waiting · run: eklavya dashboard'
-        : `Feedback waiting ${url}/#/feedback/dashboard?via=greeting`;
-    out.push(paint(color ? line : `! ${line}`, 196, color));
-  }
+  const dashboard =
+    parts.dashboard === 'started'
+      ? `Dashboard ${url} started in the background · off: eklavya config set dashboard_autostart false`
+      : parts.dashboard === 'live'
+        ? parts.feedback
+          ? `Dashboard ${url}`
+          : `Dashboard ${url} · Observations ${url}/#/memory`
+        : 'Dashboard & observations: eklavya dashboard';
+  out.push(parts.feedback ? `${dim(`${dashboard} · `)}${flag}` : dim(dashboard));
 }
 
 /** `~/Workspace/QF`, not the full home path: the banner line has to fit. */

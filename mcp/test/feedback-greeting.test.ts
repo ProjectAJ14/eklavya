@@ -73,7 +73,7 @@ function greet(port: number, env: Record<string, string | undefined> = {}): Prom
 const coloured = { NO_COLOR: undefined };
 
 describe('the greeting when feedback is waiting', () => {
-  it('shows the feedback link in red, with the dashboard link dim and no memory link', async () => {
+  it('puts the dim dashboard link and the red feedback link on one line, with no memory link', async () => {
     config();
     pend();
     const srv = await live();
@@ -81,23 +81,21 @@ describe('the greeting when feedback is waiting', () => {
       const res = await greet(srv.port, coloured);
       const url = `http://127.0.0.1:${srv.port}`;
       expect(res.status).toBe(0);
-      expect(res.lines).toContain(RED(`Feedback waiting ${url}/#/feedback/dashboard?via=greeting`));
-      expect(res.lines).toContain(`\u001b[2mDashboard ${url}\u001b[0m`);
+      expect(res.lines).toContain(`\u001b[2mDashboard ${url} · \u001b[0m${RED(`Feedback waiting ${url}/#/feedback/dashboard?via=greeting`)}`);
       expect(res.shown).not.toContain('Observations');
-      // The state is the first words of the line, so it reads at a glance.
-      expect(res.lines.find((l) => l.includes('Feedback waiting'))!.replace(/\u001b\[[0-9;]*m/g, '')).toMatch(/^Feedback waiting /);
     } finally {
       await srv.close();
     }
   });
 
-  it('starts the line with "! " and uses no escapes when colour is off', async () => {
+  it('prefixes the feedback text with "! " and uses no escapes when colour is off', async () => {
     config();
     pend();
     const srv = await live();
     try {
       const res = await greet(srv.port, { NO_COLOR: '1' });
-      expect(res.lines).toContain(`! Feedback waiting http://127.0.0.1:${srv.port}/#/feedback/dashboard?via=greeting`);
+      const url = `http://127.0.0.1:${srv.port}`;
+      expect(res.lines).toContain(`Dashboard ${url} · ! Feedback waiting ${url}/#/feedback/dashboard?via=greeting`);
       expect(res.shown).not.toContain('\u001b');
     } finally {
       await srv.close();

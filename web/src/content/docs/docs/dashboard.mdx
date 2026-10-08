@@ -157,7 +157,7 @@ The rule is written at the top of the page, in every state. While nothing is wai
 
 | Page | What it shows |
 | --- | --- |
-| Dashboard (`#/feedback/dashboard`) | The waiting item, or why there is none: feedback is off (with a button to Settings), memory is off, no observer model is set (with the command to set one and a **Copy** button), the last session could not be reviewed (that session is not tried again; the next start looks at the next one), or nothing to review yet. |
+| Dashboard (`#/feedback/dashboard`) | The waiting item, or why there is none: feedback is off (with a button to Settings), memory is off, no observer model is set (with the command to set one and a **Copy** button), the last session could not be reviewed (the page says it will try again at a later start; that session is not retried, and the next start reviews the next one), or nothing to review yet. |
 | History (`#/feedback/history`) | The items you acknowledged: date, project, the first 80 characters of your prompt and the four statuses. It follows the project selector. Open a row for the item without the buttons. |
 | Item (`#/feedback/item/<id>`) | One item. |
 
@@ -165,7 +165,7 @@ An item has your prompt as you wrote it, **A better prompt** with a **Copy** but
 
 **Acknowledge** is a button you press on purpose, and nothing else acknowledges: opening the page, reloading it, opening it in another tab, going Back or following a link to an item never does. Pressing it clears the badge without a reload, says "Acknowledged. Feedback resumes at your next session." to a screen reader and moves focus to the page heading. **Delete** asks inline, then removes the item, whether waiting or acknowledged. Deleting a waiting item lets the next one be made, and it does not count as acknowledged.
 
-The badge is on the workflow control of every workflow, not only this one, and only while feedback and memory are both on. If `quiet` is set, the session greeting does not mention feedback, but the badge still shows. The greeting otherwise adds a red line with `Feedback waiting` and a link to the Feedback page, and drops the Observations link from the Dashboard line. If the dashboard is not running, the line reads `Feedback waiting · run: eklavya dashboard`. Without colour, the line starts with `! `. It does not show while feedback or memory is off.
+The badge is on the workflow control of every workflow, not only this one, and only while feedback and memory are both on. If `quiet` is set, the session greeting does not mention feedback, but the badge still shows. The greeting otherwise adds a red `Feedback waiting` segment with a link to the Feedback page to the Dashboard line, in place of the Observations link. If the dashboard is not running, the line is just `Feedback waiting · run: eklavya dashboard`. Without colour, the segment starts with `! `. It does not show while feedback or memory is off.
 
 The bottom of the Dashboard page has a card, **Found a problem with Eklavya?**: tell Claude in plain words, for example "That question about retries was wrong. File feedback for Eklavya.", and it drafts a GitHub issue, shows you exactly what it will post with paths, project names and code removed, and files it only after you say yes. **Dismiss** hides it in this browser (`eklavya-dash-feedback-tip`). If the browser blocks site storage the card stays, because it is information and not a nudge. It is a card rather than a tip, so the [Tips](#tips) switch does not touch it, and the Feedback pages have no tips of their own.
 
