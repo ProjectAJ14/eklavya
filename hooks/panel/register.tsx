@@ -2,8 +2,11 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import {
+  BRAND,
+  BRAND_WASH,
   EMPTY,
   EXPLAINER,
+  LOGO_PNG,
   NEXT_PROMPT,
   PANE,
   REOPEN,
@@ -327,19 +330,38 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: 'eklavya-quiz' }, async ($, e, next) => {
     // Only our pane: every other pane, and everything else, is the host's.
     if (e.requestId !== PANE) return next(e)
-    const { Box, Text, Button, Input } = $.ui.resolve(e) as any
+    const { Box, Text, Button, Input, Markdown, Image } = $.ui.resolve(e) as any
     const s: PanelState = await read($, quiz)
     const q = s.question
 
+    // The mark is a picture where the terminal draws pictures, and a glyph everywhere else.
+    const logo = Image ? <Image source={{ png: LOGO_PNG }} columns={4} rows={2} alt="➶" /> : <Text color={BRAND}>➶</Text>
     const head = (
-      <Box flexDirection="row" justifyContent="space-between">
-        <Text bold color="suggestion">
+      <Box flexDirection="row" alignItems="center" gap={1}>
+        {logo}
+        <Text bold color={BRAND}>
           {STR.brand}
         </Text>
-        <Text dimColor>{STR.powered}</Text>
       </Box>
     )
-    const hint = <Text dimColor>Ctrl+X then Tab moves focus here. Enter presses a button. Esc returns to the prompt.</Text>
+    const hint = <Text dimColor>{STR.keys}</Text>
+    // One answer: a bordered block. Its key is the Button, so a press and a hotkey both reach it.
+    const card = (id: string, selected: boolean, chip: unknown, body: unknown[]) => (
+      <Box
+        key={`card-${id}`}
+        flexDirection="row"
+        gap={1}
+        paddingX={1}
+        borderStyle="single"
+        borderColor={selected ? BRAND : 'inactive'}
+        backgroundColor={selected ? BRAND_WASH : undefined}
+      >
+        {chip}
+        <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+          {body}
+        </Box>
+      </Box>
+    )
     const frame = (...body: unknown[]) => (
       <Box flexDirection="column" paddingX={1} gap={1}>
         {head}
@@ -360,7 +382,7 @@ export const register: Register = on => {
     }
 
     const topic = <Text dimColor>{topicLabel(q)}</Text>
-    const stem = <Text bold>{q.stem}</Text>
+    const stem = <Markdown text={q.stem} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
       const r = s.result
@@ -375,7 +397,7 @@ export const register: Register = on => {
           {right ? STR.correct : STR.wrong}
         </Text>,
         right || !r.correct_label ? null : <Text>{answerWas(r.correct_label)}</Text>,
-        r.explanation ? <Text>{r.explanation}</Text> : null,
+        r.explanation ? <Markdown text={r.explanation} /> : null,
         r.level_up ? <Text color="suggestion">{levelLine(r.level_up.from, projectName(q.repo))}</Text> : null,
         r.explain ? <Text dimColor>{STR.explainer}</Text> : null,
         <Box flexDirection="row" gap={2}>
@@ -388,45 +410,43 @@ export const register: Register = on => {
     const locked = s.step === 'grading'
     // Submit looks disabled until there is something to send; pressing it then does nothing.
     const hasDraft = s.draft.other ? s.draft.text.trim().length > 0 : s.draft.picked !== null
+    const chip = (id: string, key: string, face: string, hotkey: string, chosen: boolean) => (
+      <Button
+        key={key}
+        label={chosen ? '✓' : face}
+        variant={chosen ? 'primary' : undefined}
+        dimColor={!chosen}
+        hotkey={hotkey}
+        onPress={() => (locked ? undefined : id === 'other' ? chooseOther($) : pick($, id))}
+      />
+    )
     const options = q.options.map((o, i) => {
       const chosen = !s.draft.other && s.draft.picked === o.id
-      return (
-        <Box key={`row-${o.id}`} flexDirection="column">
-          <Button
-            key={`opt-${o.id}`}
-            plain
-            label={`${chosen ? '●' : '○'} ${o.label}`}
-            hotkey={String(i + 1)}
-            onPress={() => (locked ? undefined : pick($, o.id))}
-          />
-          {o.note ? <Text dimColor>{`  ${o.note}`}</Text> : null}
-        </Box>
-      )
+      return card(o.id, chosen, chip(o.id, `opt-${o.id}`, String(i + 1), String(i + 1), chosen), [
+        <Markdown key={`label-${o.id}`} text={o.label} />,
+        o.note ? <Markdown key={`note-${o.id}`} text={o.note} dimColor /> : null,
+      ])
     })
 
     return frame(
       topic,
       stem,
-      <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column">
         {options}
-        <Button
-          key="opt-other"
-          plain
-          label={`${s.draft.other ? '●' : '○'} ${STR.other}`}
-          hotkey="o"
-          onPress={() => (locked ? undefined : chooseOther($))}
-        />
-        {s.draft.other ? (
-          <Input
-            key="other-text"
-            autoFocus
-            placeholder={STR.otherPlaceholder}
-            value={s.draft.text}
-            submitLabel="keep"
-            onInput={(value: string) => (locked ? undefined : typeOther($, value))}
-            onSubmit={(value: string) => (locked ? undefined : typeOther($, value))}
-          />
-        ) : null}
+        {card('other', s.draft.other, chip('other', 'opt-other', 'o', 'o', s.draft.other), [
+          <Text key="label-other">{STR.other}</Text>,
+          s.draft.other ? (
+            <Input
+              key="other-text"
+              autoFocus
+              placeholder={STR.otherPlaceholder}
+              value={s.draft.text}
+              submitLabel="keep"
+              onInput={(value: string) => (locked ? undefined : typeOther($, value))}
+              onSubmit={(value: string) => (locked ? undefined : typeOther($, value))}
+            />
+          ) : null,
+        ])}
       </Box>,
       locked ? <Text dimColor>{STR.grading}</Text> : null,
       s.step === 'error' && s.message ? <Text color="error">{s.message}</Text> : null,

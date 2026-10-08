@@ -101,6 +101,8 @@ async function mount($: any, surface: (typeof SURFACES)[number], over: Record<st
 }
 
 const press = ($: any, key: string, surface = 'terminal') => $.ui.press({ plugin: PLUGIN, key, surface })
+/** How many answer cards are ticked: the picked one's key shows ✓ in place of its number. */
+const ticks = async (pane: any) => (JSON.stringify(await pane.drawn()).match(/✓/g) ?? []).length
 const answers = (log: any) => log.calls.filter((c: any) => c.tool === 'panel_answer')
 
 describe('the pane, state by state', () => {
@@ -111,7 +113,7 @@ describe('the pane, state by state', () => {
       let pane = await mount($, surface)
       expect(await pane.find({ text: STR.empty })).toBeDefined()
       expect(await pane.find({ text: STR.brand })).toBeDefined()
-      expect(await pane.find({ text: STR.powered })).toBeDefined()
+      expect(JSON.stringify(await pane.drawn())).not.toContain('Powered by')
       expect(w.log.opens).toHaveLength(0)
 
       w.s.waiting = QUESTION
@@ -133,14 +135,24 @@ describe('the pane, state by state', () => {
     })
   }
 
+  test('draws the question as Markdown, each option as a card, and the mark beside the name', async ($, on) => {
+    world(on)
+    await boot($)
+    const drawn = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    expect(drawn).toContain('Markdown')
+    expect(drawn).toContain('card-o1')
+    expect(drawn).toContain('card-other')
+    expect(drawn.indexOf('Image')).toBeLessThan(drawn.indexOf(STR.brand))
+  })
+
   test('selecting an option is a draft: it never submits, grades or skips', async ($, on) => {
     const w = world(on)
     await boot($)
     const pane = await mount($, 'terminal')
     await press($, 'opt-o2')
     await press($, 'opt-o3')
-    expect(await pane.find({ text: /● The origin is compared/ })).toBeDefined()
-    expect(await pane.find({ text: /○ Cookies are signed/ })).toBeDefined()
+    expect(await ticks(pane)).toBe(1)
+    expect(await pane.find({ key: 'opt-o3' })).toBeDefined()
     expect(answers(w.log)).toHaveLength(0)
   })
 
@@ -261,7 +273,7 @@ describe('the pane, state by state', () => {
     await press($, 'opt-o3')
     await press($, 'submit')
     expect(await pane.find({ text: STR.unreachable })).toBeDefined()
-    expect(await pane.find({ text: /● The origin is compared/ })).toBeDefined()
+    expect(await ticks(pane)).toBe(1)
     await press($, 'retry')
     expect(await pane.find({ text: STR.correct })).toBeDefined()
     expect(answers(w.log).map((c: any) => c.args.option_id)).toEqual(['o3', 'o3'])
@@ -539,7 +551,7 @@ describe('placement and lifecycle', () => {
     await $.session.end({ reason: 'clear', sessionId: 'old', resume: { id: 'old' } } as any)
     expect(await pane.find({ text: STR.empty })).toBeDefined()
     await boot($)
-    expect(await pane.find({ text: /○ Cookies are signed/ })).toBeDefined()
+    expect(await ticks(pane)).toBe(0)
   })
 })
 
