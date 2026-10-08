@@ -44,6 +44,40 @@ export const STR = {
   off: 'The quiz panel is off. Turn it on with: eklavya config set quiz.panel true',
 } as const
 
+/** The explainer agent the panel starts itself, so no prompt lands in the transcript. */
+export const EXPLAINER = 'eklavya:eklavya-explainer'
+
+/** What `panel_answer`'s explain block carries; `record_attempt` builds it. */
+export type ExplainBlock = {
+  concept: string
+  name: string
+  question: string
+  options: string[] | null
+  option_notes: (string | null)[] | null
+  answer: string | null
+  correct: string | null
+  attempt_id: number
+}
+
+/** The explainer's task, written from the explain block alone: nothing else saw the question. */
+export function explainerBrief(x: ExplainBlock): string {
+  const options = (x.options ?? []).map((o, i) => {
+    const note = x.option_notes?.[i]
+    return `${String.fromCharCode(65 + i)}. ${o}${note ? ` (note: ${note})` : ''}`
+  })
+  return [
+    `Write an explainer page on ${x.name} (concept slug ${x.concept}) for a question the learner missed.`,
+    `Question: ${x.question}`,
+    ...(options.length ? ['Options, in order:', ...options] : []),
+    // Words typed under Other match no option, so say so; the page lists them as their own item.
+    x.answer && options.length && !x.options!.includes(x.answer)
+      ? `The learner typed their own answer instead of picking: ${x.answer}`
+      : `The learner answered: ${x.answer ?? '(no answer)'}`,
+    ...(x.correct ? [`The right answer: ${x.correct}`] : []),
+    `Pass --attempt ${x.attempt_id} to eklavya artifacts new.`,
+  ].join('\n')
+}
+
 export const answerWas = (label: string): string => `The answer was: ${label}`
 export const unplacedNotice = (): string => `A question is waiting. ${REOPEN} to open it.`
 export const levelLine = (level: string, project: string): string => `You've cleared ${level} on ${project}.`

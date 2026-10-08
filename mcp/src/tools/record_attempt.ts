@@ -31,6 +31,8 @@ export function explainInstruction(
   options: string[] | null,
   attemptId: number,
   notes: string[] | null,
+  answer: string | null = null,
+  correct: string | null = null,
 ): string {
   // The tutor relays this in its own words, and a paraphrase kept only the
   // picked and right options. Spelling them out makes the full list the thing
@@ -41,10 +43,14 @@ export function explainInstruction(
   // The note under each option is what the learner read in the question; the
   // page shows it too, so the two look alike.
   const noteLine = notes?.length ? ' Hand it the one-line note under each option as well, so the page shows each note under its option.' : '';
+  // The panel takes the answer itself, so the agent reading this never saw the
+  // pick; without it spelled out the page cannot mark the learner's option.
+  const picked = answer ? ` The learner answered: ${answer}.` : '';
+  const right = correct ? ` The right answer is: ${correct}.` : '';
   // The attempt id links the page to this row, which is what lets the
   // dashboard offer "Correct your answer" on it.
   const link = ` Tell it to pass --attempt ${attemptId} to eklavya artifacts new.`;
-  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent (eklavya:eklavya-explainer when Eklavya is installed as a plugin) in the background, handing it the concept slug, the question, every option offered, the learner's answer and the right answer, so the page can show the question as it was asked.${list}${noteLine}${link} It writes an explainer page on ${name} and opens it. Tell the learner in one line that they missed it, what the right answer is, and that a page on it is on its way, then carry on with the task.`;
+  return `Do not wait for this and do not explain further here. Start the eklavya-explainer agent (eklavya:eklavya-explainer when Eklavya is installed as a plugin) in the background, handing it the concept slug, the question, every option offered, the learner's answer and the right answer, so the page can show the question as it was asked.${list}${picked}${right}${noteLine}${link} It writes an explainer page on ${name} and opens it. Tell the learner in one line that they missed it, what the right answer is, and that a page on it is on its way, then carry on with the task.`;
 }
 
 export const recordAttempt: ToolDef = {
@@ -258,7 +264,7 @@ export function recordAttemptCore(db: DB, args: RecordAttemptArgs) {
         answer: args.answer ?? null,
         correct,
         attempt_id: state.attemptId,
-        instruction: explainInstruction(concept.name, options, state.attemptId, optionNotes),
+        instruction: explainInstruction(concept.name, options, state.attemptId, optionNotes, args.answer ?? null, correct),
       }
     : null;
   const after = levelStanding(db, config, repoRoot);

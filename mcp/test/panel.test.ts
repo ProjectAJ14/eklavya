@@ -405,6 +405,11 @@ describe('panel_answer: the grade table', () => {
     const miss = answer({ question_id: q.question_id, option_id: wrongId(0) });
     expect(miss.explain).toMatchObject({ concept: SLUG, attempt_id: miss.attempt_id });
     expect(miss.explain.instruction).toMatch(/eklavya-explainer/);
+    // The model never saw the pick, so the instruction has to carry it.
+    expect(miss.explain.instruction).toContain(`The learner answered: ${miss.explain.answer}.`);
+    expect(miss.explain.instruction).toContain(`The right answer is: ${miss.explain.correct}.`);
+    expect(miss.explain.answer).toBeTruthy();
+    expect(miss.explain.correct).toBeTruthy();
     expect(miss.level_up).toBeUndefined();
 
     // One passing answer is enough to promote when the bar is one answer.
