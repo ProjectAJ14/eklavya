@@ -1,3 +1,10 @@
+## [1.52.3](https://github.com/ProjectAJ14/eklavya/compare/v1.52.2...v1.52.3) (2026-10-08)
+
+
+### Bug Fixes
+
+* **quiz:** pick domain or slugs from the profile, and never mint concepts ([#134](https://github.com/ProjectAJ14/eklavya/issues/134)) ([af7f8ff](https://github.com/ProjectAJ14/eklavya/commit/af7f8ffe3d574402cdd88e44b6fddcaf0a60724d)), closes [#125](https://github.com/ProjectAJ14/eklavya/issues/125)
+
 ## [1.52.2](https://github.com/ProjectAJ14/eklavya/compare/v1.52.1...v1.52.2) (2026-10-08)
 
 
