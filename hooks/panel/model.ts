@@ -28,12 +28,9 @@ export const BRAND = '#79D5C4'
  * cell per pair: W is white, T is the mark's verdigris square.
  */
 export const LOGO_ROWS = [
-  'TT TT TW TW TT TT TT TT TT TT TT',
-  'TT TT WW WT WW TT TT TW TT TT TT',
-  'TT TW WW TW WW WW TW TW WW TW TT',
-  'TT TT WW TT WW WT TT TW WT TT TT',
-  'TT TT WW WW WT TT TT TT TT TT TT',
-  'TT TT TT TT TT TT TT TT TT TT TT',
+  'TT WW WT TW TT TT TW TT',
+  'WT WW WT WW WT WT WW WT',
+  'TT WT WT TT TT TT TT TT',
 ] as const
 export const LOGO_COLORS = { W: '#FFFFFF', T: '#0E6E66' } as const
 
