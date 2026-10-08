@@ -360,10 +360,16 @@ export const register: Register = on => {
       <Box flexDirection="row" alignItems="center" gap={2}>
         {logo}
         <Box flexDirection="column" flexShrink={1}>
-          <Text bold color={BRAND}>
-            {WORDMARK}
-          </Text>
-          {subtitle ? <Text>{subtitle}</Text> : null}
+          {WORDMARK.map((line, i) => (
+            <Text key={`name-${i}`} color={BRAND} wrap="truncate">
+              {line}
+            </Text>
+          ))}
+          {subtitle ? (
+            <Box marginTop={1}>
+              <Text>{subtitle}</Text>
+            </Box>
+          ) : null}
         </Box>
       </Box>
     )

@@ -112,7 +112,7 @@ describe('the pane, state by state', () => {
       await boot($)
       let pane = await mount($, surface)
       expect(await pane.find({ text: STR.empty })).toBeDefined()
-      expect(await pane.find({ text: WORDMARK })).toBeDefined()
+      expect(await pane.find({ text: WORDMARK[0] })).toBeDefined()
       expect(JSON.stringify(await pane.drawn())).not.toContain('Powered by')
       expect(w.log.opens).toHaveLength(0)
 
@@ -142,7 +142,7 @@ describe('the pane, state by state', () => {
     expect(drawn).toContain('Markdown')
     expect(drawn).toContain('card-o1')
     expect(drawn).toContain('card-other')
-    expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
+    expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK[0]))
   })
 
   test('selecting an option is a draft: it never submits, grades or skips', async ($, on) => {
@@ -487,7 +487,7 @@ describe('placement and lifecycle', () => {
     let found: unknown
     try {
       const other = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: 'someone-elses-pane', props: { title: 'x', isFocused: false, bodyColumns: 40, placement: 'dock' } as any })
-      found = await other.find({ text: WORDMARK })
+      found = await other.find({ text: WORDMARK[0] })
     } catch {
       found = undefined
     }
@@ -583,6 +583,12 @@ describe('placement and lifecycle', () => {
 })
 
 describe('the logo', () => {
+  test('the name is three rows of block letters, one width throughout', () => {
+    expect(WORDMARK).toHaveLength(3)
+    expect(new Set(WORDMARK.map(r => r.length)).size).toBe(1)
+    expect(WORDMARK[0].length).toBe(7 * 3 + 6)
+  })
+
   test('is six text rows of thirteen cells', () => {
     const rows = logoRows()
     expect(rows).toHaveLength(LOGO_GRID.length / 2)
