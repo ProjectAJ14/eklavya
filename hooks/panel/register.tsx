@@ -343,11 +343,11 @@ export const register: Register = on => {
 
     // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal.
     const logo = (
-      <Box flexDirection="column">
+      <Box flexDirection="column" flexShrink={0}>
         {logoRows().map((runs, y) => (
-          <Box key={`logo-${y}`} flexDirection="row">
+          <Box key={`logo-${y}`} flexDirection="row" flexShrink={0}>
             {runs.map((run, x) => (
-              <Text key={`logo-${y}-${x}`} color={run.fg} backgroundColor={run.bg}>
+              <Text key={`logo-${y}-${x}`} color={run.fg} backgroundColor={run.bg} wrap="truncate">
                 {run.text}
               </Text>
             ))}
