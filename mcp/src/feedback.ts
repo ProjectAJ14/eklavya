@@ -80,6 +80,18 @@ export function feedbackPending(db: Database): FeedbackRow | null {
 }
 
 /**
+ * Whether an item is waiting, as one cheap indexed read for the greeting, which
+ * must never fail: an older schema or an unreadable database means no.
+ */
+export function feedbackWaiting(db: Database): boolean {
+  try {
+    return db.prepare('SELECT 1 FROM feedback_items WHERE acknowledged_at IS NULL LIMIT 1').get() !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Stores an item unless one is already pending. The check and the insert are
  * one statement, so a second writer loses instead of making a second pending
  * item; the unique index is the backstop for any writer that bypasses this.
