@@ -23,6 +23,7 @@ import {
   projectName,
   topicLabel,
   unplacedNotice,
+  hintLines,
 } from './model'
 import type { PanelPending, PanelQuestion, PanelState } from './types'
 
@@ -376,8 +377,11 @@ export const register: Register = on => {
     )
     const hint = (
       <Box flexDirection="column">
-        <Text dimColor>{STR.focus}</Text>
-        <Text dimColor>{STR.keys}</Text>
+        {hintLines(e.surface).map(line => (
+          <Text key={line} dimColor>
+            {line}
+          </Text>
+        ))}
       </Box>
     )
     // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it

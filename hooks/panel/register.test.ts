@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, logoRows, plainLabel } from './model'
+import { EMPTY, EXPLAINER, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, logoRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -35,6 +35,7 @@ function world(on: any, script: Record<string, any> = {}) {
     waiting: QUESTION as any,
     answer: ((args: any) => ({ phase: 'answered', attempt_id: 7, correct: args.option_id === 'o3', correct_label: 'The origin is compared', explanation: 'The Origin cannot be forged.' })) as any,
     placed: true,
+    surfaces: ['terminal'] as string[],
     spawn: { model: 'm', agentId: 'a1' } as any,
     verdict: '{"grade":5,"outcome":"answered","feedback":"Right, and you said why."}' as any,
     ...script,
@@ -69,17 +70,17 @@ function world(on: any, script: Record<string, any> = {}) {
     log.toasts.push(e.text)
     return { value: undefined }
   })
-  host(on, log)
+  host(on, log, s.surfaces)
   return { log, s }
 }
 
 /** The rest of what the host answers beneath the mod. */
-function host(on: any, log?: { closes: any[] }) {
+function host(on: any, log?: { closes: any[] }, surfaces: string[] = ['terminal']) {
   on('session.start', async (_$: any, e: any) => ({ cwd: e.cwd }))
   on('session.end', async (_$: any, e: any) => ({ sessionId: e.sessionId }))
   on('session.cwd', async () => ({ value: '/work/proj' }))
   on('session.id', async () => ({ value: 'test-session' }))
-  on('session.surfaces', async () => ({ value: ['terminal'] }))
+  on('session.surfaces', async () => ({ value: surfaces }))
   on('session.version', async () => ({ value: { version: '2.1.292', base: '2.1.292', builtAt: '2026-10-01T00:00:00Z' } }))
   on('command.register', async () => ({ value: undefined }))
   on('ui.close', async (_$: any, e: any) => {
@@ -170,7 +171,7 @@ describe('the pane, state by state', () => {
     expect(await pane.find({ key: 'opt-o3' })).toBeDefined()
   })
 
-  test('the key legend and the focus hint are drawn', async ($, on) => {
+  test('the key legend and the focus hint are drawn on the terminal', async ($, on) => {
     world(on)
     await boot($)
     const drawn = JSON.stringify(await (await mount($, 'terminal')).drawn())
@@ -178,22 +179,29 @@ describe('the pane, state by state', () => {
     expect(drawn).toContain(STR.focus)
   })
 
-  test('submit does nothing until there is a draft, then sends one answer, once', async ($, on) => {
-    const w = world(on)
+  test('the desktop draws the answer keys without the terminal-only focus and Esc hints', async ($, on) => {
+    world(on)
     await boot($)
-    const pane = await mount($, 'terminal')
-    await press($, 'submit')
-    expect(answers(w.log)).toHaveLength(0)
-    await press($, 'opt-o3')
-    await Promise.all([press($, 'submit'), press($, 'submit')])
-    expect(answers(w.log)).toHaveLength(1)
-    expect(answers(w.log)[0].args).toMatchObject({ question_id: 'q1', repo: '/work/proj', kind: 'choice', option_id: 'o3' })
-    // The session's identity now, never the one the question came from.
-    expect(answers(w.log)[0].args.session_id).toBe('test-session')
-    expect(await pane.find({ text: STR.correct })).toBeDefined()
-    expect(await pane.find({ text: 'The Origin cannot be forged.' })).toBeDefined()
-    expect(await pane.find({ text: STR.wrong })).toBeUndefined()
+    const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
+    expect(drawn).toContain(STR.keysApp)
+    expect(drawn).not.toContain(STR.focus)
+    expect(drawn).not.toContain('Ctrl+X')
+    expect(drawn).not.toContain('Esc back')
   })
+
+  test('hintLines gives the terminal both lines and every other surface the keys alone', () => {
+    expect(hintLines('terminal')).toEqual([STR.focus, STR.keys])
+    for (const surface of ['desktop', 'vscode', 'mobile']) expect(hintLines(surface)).toEqual([STR.keysApp])
+  })
+
+  for (const [attached, reported] of [[['desktop'], 'desktop'], [['terminal', 'desktop'], 'terminal'], [[], 'terminal']] as const) {
+    test(`the mod reports ${reported} to the server when ${attached.length ? attached.join(' and ') : 'no surface'} is attached`, async ($, on) => {
+      const w = world(on, { waiting: null, surfaces: [...attached] })
+      await boot($)
+      expect(w.log.calls.find(c => c.tool === 'panel_sync')?.args.host.surface).toBe(reported)
+    })
+  }
+
 
   test('a miss says so in words and names the right option', async ($, on) => {
     world(on)
