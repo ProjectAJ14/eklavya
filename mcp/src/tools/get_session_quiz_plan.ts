@@ -126,7 +126,7 @@ export const getSessionQuizPlan: ToolDef = {
       .string()
       .max(LIMITS.domain)
       .optional()
-      .describe('Plan a topic quiz on this domain instead of this session\'s work, e.g. "web-auth". Prerequisites are ordered first. When no domain has this name and every word in it is a concept slug ("csrf jwt-structure"), it plans those concepts as slugs would. Otherwise it is matched loosely, as learn focus matches its topic: the domain it names, else up to 40 concepts whose slug or name does, inflection trimmed ("caching" finds cache-headers).'),
+      .describe('Plan a topic quiz on this domain instead of this session\'s work, e.g. "web-auth". Prerequisites are ordered first. When no domain has this name and every word in it is a concept slug ("csrf jwt-structure"), it plans those concepts as slugs would. Otherwise it is matched loosely, as learn focus matches its topic: a domain made of its words ("auth" finds web-auth), else up to 40 concepts with a slug or name word starting with it, an -ing/-es/-ed/-s ending trimmed ("caching" finds cache-headers).'),
     slugs: z
       .array(z.string().max(LIMITS.slug))
       .max(LIMITS.concepts)
@@ -188,21 +188,24 @@ export const getSessionQuizPlan: ToolDef = {
     // a word that is not one means it was not a slug list.
     //
     // Whatever still names neither ("caching") gets the loose match `learn`
-    // focus uses: the domain it names, else concepts whose slug or name contain
-    // it. A topic that matches nothing stays as it was, so the plan comes back
-    // empty and the tutor says so rather than quizzing something else.
+    // focus uses: a domain made of its words, else concepts with a slug or name
+    // word starting with it. A topic that matches nothing stays as it was, so
+    // the plan comes back empty and the tutor says so rather than quizzing
+    // something else.
     const known = db.prepare('SELECT 1 FROM concepts WHERE slug = ?');
     if (effDomain && !db.prepare('SELECT 1 FROM concepts WHERE domain = ?').get(effDomain)) {
       const words = effDomain.split(/[\s,]+/).map(normalizeSlug).filter(Boolean);
-      const match = resolveTopic(db, effDomain);
       if (words.length && words.every((w) => known.get(w))) {
         effSlugs = [...(effSlugs ?? []), ...words];
         effDomain = undefined;
-      } else if (match.domain) {
-        effDomain = match.domain;
-      } else if (match.slugs.length > 0) {
-        effSlugs = [...(effSlugs ?? []), ...match.slugs];
-        effDomain = undefined;
+      } else {
+        const match = resolveTopic(db, effDomain);
+        if (match.domain) {
+          effDomain = match.domain;
+        } else if (match.slugs.length > 0) {
+          effSlugs = [...(effSlugs ?? []), ...match.slugs];
+          effDomain = undefined;
+        }
       }
     }
     if (effSlugs?.some((s) => !known.get(s))) {

@@ -37,7 +37,7 @@ For temporary quiet, use `/eklavya:skip` or `/eklavya:mode off --session`. This 
 | `project` | Files and decisions in this codebase | Why this query uses the new index. |
 | `learn` | A named topic, prerequisites first | Learn database indexing over future sessions. |
 
-`learn` requires `focus_topic`; without it, no topic quiz is planned. An unmet enforced gate takes priority and asks about the current work first, even with `learn` focus. The chosen topic resumes after the gate passes.
+`learn` requires `focus_topic`; without it, no topic quiz is planned. The topic is matched the way a [named quiz topic](/docs/commands/#eklavyaquiz-topic) is: a domain made of its words, else concepts with a word starting with it. An unmet enforced gate takes priority and asks about the current work first, even with `learn` focus. The chosen topic resumes after the gate passes.
 
 ### `cadence` — when it asks
 
