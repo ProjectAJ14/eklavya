@@ -28,6 +28,9 @@ if (!OPTS) {
   console.warn('dashboard-feedback-browser: no Chromium found, skipping');
 }
 
+/** The page's tips registry, a top-level const of its script. */
+declare const TIPS: unknown;
+
 let root = '';
 let home = '';
 let db: DB;
@@ -481,5 +484,98 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       expect(opened()).toEqual({});
       await w.ctx.close();
     });
+  });
+
+  describe('the "Found a problem" card', () => {
+    const KEY = 'eklavya-dash-feedback-tip';
+    const TEXT = 'Tell Claude, in plain words. It drafts a GitHub issue, shows you exactly what it will post with paths, project names and code removed, and files it only after you say yes.';
+    const states: [string, () => void][] = [
+      ['off', () => configure({})],
+      ['memory off', () => configure({ ...ON, memory: { enabled: false } })],
+      ['no observer', () => configure({ feedback: { enabled: true } })],
+      ['empty', () => configure(ON)],
+      ['pending', () => { configure(ON); pending(); }],
+    ];
+
+    it('is on the page by default in all five states, with its words', async () => {
+      for (const [name, setup] of states) {
+        db.exec('DELETE FROM feedback_items');
+        setup();
+        const w = await open('#/feedback/dashboard');
+        expect(await w.page.textContent('#fb-tip h2'), name).toBe('Found a problem with Eklavya?');
+        expect(await w.page.textContent('#fb-tip p'), name).toBe(TEXT);
+        expect(await w.page.textContent('#fb-tip .fb__quote'), name).toBe('That question about retries was wrong. File feedback for Eklavya.');
+        expect(await w.page.textContent('#fb-tip button'), name).toBe('Dismiss');
+        // Last on the page, under everything else.
+        expect(await w.page.evaluate(() => document.querySelector('#view')!.lastElementChild!.previousElementSibling!.id), name).toBe('fb-tip');
+        await w.ctx.close();
+      }
+    });
+
+    it('is a card, not a tip bubble: its words are longer than a bubble holds and it is not in the registry', async () => {
+      configure(ON);
+      const w = await open('#/feedback/dashboard');
+      expect(TEXT.length).toBeGreaterThan(140);
+      expect(await w.page.evaluate(() => (TIPS as { id: string; text: string }[]).some((x) => /feedback-tip|problem/.test(x.id)))).toBe(false);
+      expect(await w.page.evaluate((k) => localStorage.getItem(k), KEY)).toBeNull();
+      await w.ctx.close();
+    });
+
+    it('is dismissed for good by Dismiss, with focus on the heading, and survives a reload', async () => {
+      configure(ON);
+      const w = await open('#/feedback/dashboard');
+      await w.page.click('#fb-tip button');
+      expect(await w.page.locator('#fb-tip').count()).toBe(0);
+      expect(await w.page.evaluate(() => document.activeElement?.tagName)).toBe('H1');
+      expect(await w.page.evaluate((k) => localStorage.getItem(k), KEY)).toBe('1');
+      await w.page.reload(); await ready(w.page);
+      expect(await w.page.locator('#fb-tip').count()).toBe(0);
+      await w.page.goto(base + '/#/feedback/history'); await ready(w.page);
+      await w.page.goto(base + '/#/feedback/dashboard'); await ready(w.page);
+      expect(await w.page.locator('#fb-tip').count()).toBe(0);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('stays shown when storage throws: this is information, not a nag', async () => {
+      configure(ON);
+      const w = await open('#/feedback/dashboard');
+      await w.ctx.addInitScript(() => {
+        Object.defineProperty(window, 'localStorage', { get() { throw new Error('denied'); } });
+      });
+      await w.page.reload(); await ready(w.page);
+      expect(await w.page.locator('#fb-tip').count()).toBe(1);
+      // A press still does something this time, and nothing throws out of the page.
+      await w.page.click('#fb-tip button');
+      expect(await w.page.locator('#fb-tip').count()).toBe(0);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('is operable by keyboard', async () => {
+      configure(ON);
+      const w = await open('#/feedback/dashboard');
+      let found = false;
+      for (let i = 0; i < 60 && !found; i++) {
+        await w.page.keyboard.press('Tab');
+        found = await w.page.evaluate(() => document.activeElement?.closest('#fb-tip') !== null && document.activeElement?.tagName === 'BUTTON');
+      }
+      expect(found).toBe(true);
+      await w.page.keyboard.press('Enter');
+      expect(await w.page.locator('#fb-tip').count()).toBe(0);
+      await w.ctx.close();
+    });
+
+    it('fits the width on both grounds at every size', async () => {
+      configure(ON);
+      for (const width of [1280, 900, 560, 390]) {
+        for (const ground of ['ink', 'paper'] as const) {
+          const w = await open('#/feedback/dashboard', { width, ground });
+          const fits = await w.page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+          expect(fits, `${width} ${ground}`).toBe(true);
+          await w.ctx.close();
+        }
+      }
+    }, 60000);
   });
 });

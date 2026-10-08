@@ -708,6 +708,9 @@
   .fb__ask { display:inline-flex; gap:var(--space-3); flex-wrap:wrap; align-items:center; color:var(--dim); font-size:13.5px; }
   .fb__msg { margin:0; color:var(--warning); font-size:13px; }
   .fb__sts { display:flex; gap:var(--space-2); flex-wrap:wrap; }
+  .fb__tip h2 { font-family:var(--font-disp); font-size:var(--text-md); font-weight:var(--weight-semibold); margin:0 0 var(--space-2); }
+  .fb__tip p { margin:0 0 var(--space-4); color:var(--dim); max-width:70ch; }
+  .fb__tip .fb__quote { margin-bottom:var(--space-4); }
   .fb__why p { margin:0 0 var(--space-3); color:var(--dim); max-width:70ch; }
   @media (max-width:560px) {
     .fb__grid { grid-template-columns:minmax(0, 1fr); }
@@ -3580,8 +3583,33 @@ function viewFeedbackDashboard() {
     pageHead('Feedback', counts, FB.about),
     `<div class="fb__rule" id="fb-rule"><p>${esc(F.pending ? FB.rulePending : FB.ruleEmpty)}</p></div>`,
     F.pending ? `<div id="fb-item">${loader('Loading your feedback…')}</div>` : fbEmpty(F),
+    fbTip(),
     `<span class="sr" id="copy-live" aria-live="polite"></span>`,
   ].join('');
+}
+
+/**
+ * The card that says feedback about Eklavya itself goes through Claude. It is a
+ * card and not a tip bubble: the example and the privacy line run past what a
+ * bubble holds, and it is information rather than a nudge, so storage that
+ * throws means it is shown (the tips engine hides in that case).
+ */
+const FB_TIP_KEY = 'eklavya-dash-feedback-tip';
+function fbTip() {
+  try { if (localStorage.getItem(FB_TIP_KEY) === '1') return ''; } catch (e) { /* shown */ }
+  return `<aside class="card fb__tip" id="fb-tip" aria-labelledby="fb-tip-h">
+    <h2 id="fb-tip-h">Found a problem with Eklavya?</h2>
+    <p>Tell Claude, in plain words. It drafts a GitHub issue, shows you exactly what it will post with paths, project names and code removed, and files it only after you say yes.</p>
+    <blockquote class="fb__quote">That question about retries was wrong. File feedback for Eklavya.</blockquote>
+    <button type="button" class="set__btn" data-fb-tip-dismiss>Dismiss</button>
+  </aside>`;
+}
+
+function fbTipDismiss() {
+  try { localStorage.setItem(FB_TIP_KEY, '1'); } catch (e) { /* hidden for now, shown again next time */ }
+  $('fb-tip')?.remove();
+  const h = document.querySelector('#view h1');
+  if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
 }
 
 function viewFeedbackItem(id) {
@@ -4566,6 +4594,7 @@ function setQuery(changes) {
 function onActivate(e) {
   const copy = e.target.closest('[data-copy]');
   if (copy) return copyCommand(copy);
+  if (e.target.closest('[data-fb-tip-dismiss]')) return fbTipDismiss();
   const ack = e.target.closest('[data-fb-ack]');
   if (ack) return fbAcknowledge(ack);
   const ask = e.target.closest('[data-fb-del]');
