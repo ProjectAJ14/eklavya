@@ -2,15 +2,21 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import {
+  BRAND,
   EMPTY,
   EXPLAINER,
   NEXT_PROMPT,
   PANE,
   REOPEN,
   STR,
+  WORDMARK,
+  CLOSE_MS,
   answerWas,
   explainerBrief,
+  codify,
   gradingRequest,
+  logoRows,
+  plainLabel,
   levelLine,
   parseVerdict,
   payloadOf,
@@ -49,6 +55,8 @@ let busy = false
 /** Bumped when the session ends: a submit that began before it is stale and must write nothing. */
 let epoch = 0
 let explainedAttempt = 0
+/** The result closes itself after CLOSE_MS when nothing else is pending (no Next). */
+let closer: { cancel: () => void } | null = null
 
 /**
  * One call to an Eklavya tool through the host's own connection, as the parsed
@@ -219,6 +227,9 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
       message: null,
     }))
 
+    // The last question of a round has no Next: the result closes itself, as Done would.
+    if (!q.more) arm($, mine, q.question_id)
+
     // A miss with explain_on_wrong on: the panel starts the explainer itself in
     // the background, so no prompt shows in the transcript and nothing waits.
     // Auto mode judges every spawn (it drops Agent allow rules), and its
@@ -270,6 +281,7 @@ export const register: Register = on => {
   on('session.end', async ($, e, next) => {
     try {
       epoch += 1
+      disarm()
       openedFor = null
       busy = false
       await update($, quiz, () => EMPTY)
@@ -332,22 +344,61 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: 'eklavya-quiz' }, async ($, e, next) => {
     // Only our pane: every other pane, and everything else, is the host's.
     if (e.requestId !== PANE) return next(e)
-    const { Box, Text, Button, Input } = $.ui.resolve(e) as any
+    const { Box, Text, Button, Input, Markdown } = $.ui.resolve(e) as any
     const s: PanelState = await read($, quiz)
     const q = s.question
 
-    const head = (
-      <Box flexDirection="row" justifyContent="space-between">
-        <Text bold color="suggestion">
-          {STR.brand}
-        </Text>
-        <Text dimColor>{STR.powered}</Text>
+    // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal.
+    const logo = (
+      <Box flexDirection="column" flexShrink={0}>
+        {logoRows().map((runs, y) => (
+          <Box key={`logo-${y}`} flexDirection="row" flexShrink={0}>
+            {runs.map((run, x) => (
+              <Text key={`logo-${y}-${x}`} color={run.fg} backgroundColor={run.bg} wrap="truncate">
+                {run.text}
+              </Text>
+            ))}
+          </Box>
+        ))}
       </Box>
     )
-    const hint = <Text dimColor>Ctrl+X then Tab moves focus here. Enter presses a button. Esc returns to the prompt.</Text>
+    // A list tile: the mark on the left; the name over the topic beside it.
+    const head = (subtitle?: string) => (
+      <Box flexDirection="row" alignItems="center" gap={2}>
+        {logo}
+        <Box flexDirection="column" flexShrink={1}>
+          <Text bold color={BRAND}>
+            {WORDMARK}
+          </Text>
+          {subtitle ? <Text>{subtitle}</Text> : null}
+        </Box>
+      </Box>
+    )
+    const hint = (
+      <Box flexDirection="column">
+        <Text dimColor>{STR.focus}</Text>
+        <Text dimColor>{STR.keys}</Text>
+      </Box>
+    )
+    // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it
+    // selects; the border and a tick show the pick, and nothing implies it is right.
+    const card = (id: string, selected: boolean, button: unknown, body: unknown[], roomy = false) => (
+      <Box
+        key={`card-${id}`}
+        flexDirection="column"
+        paddingX={1}
+        paddingY={roomy ? 1 : 0}
+        gap={roomy ? 1 : 0}
+        borderStyle="single"
+        borderColor={selected ? BRAND : 'inactive'}
+      >
+        {button}
+        {body}
+      </Box>
+    )
     const frame = (...body: unknown[]) => (
       <Box flexDirection="column" paddingX={1} gap={1}>
-        {head}
+        {head(q ? topicLabel(q) : undefined)}
         {body}
         {hint}
       </Box>
@@ -364,25 +415,24 @@ export const register: Register = on => {
       )
     }
 
-    const topic = <Text dimColor>{topicLabel(q)}</Text>
-    const stem = <Text bold>{q.stem}</Text>
+    const stem = <Markdown text={codify(q.stem)} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
       const r = s.result
       if (s.step === 'skipped' || !r) {
-        return frame(topic, <Text>{STR.skipped}</Text>, <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />)
+        return frame(<Text>{STR.skipped}</Text>, q.more ? null : <Text dimColor>{STR.autoClose}</Text>, <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />)
       }
       const right = r.correct === true
       return frame(
-        topic,
         stem,
         <Text bold color={right ? 'suggestion' : 'error'}>
           {right ? STR.correct : STR.wrong}
         </Text>,
         right || !r.correct_label ? null : <Text>{answerWas(r.correct_label)}</Text>,
-        r.explanation ? <Text>{r.explanation}</Text> : null,
+        r.explanation ? <Markdown text={codify(r.explanation)} /> : null,
         r.level_up ? <Text color="suggestion">{levelLine(r.level_up.from, projectName(q.repo))}</Text> : null,
         r.explain ? <Text dimColor>{STR.explainer}</Text> : null,
+        q.more ? null : <Text dimColor>{STR.autoClose}</Text>,
         <Box flexDirection="row" gap={2}>
           {q.more ? <Button key="next" label={STR.next} hotkey="n" onPress={() => askNext($)} /> : null}
           <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />
@@ -393,45 +443,51 @@ export const register: Register = on => {
     const locked = s.step === 'grading'
     // Submit looks disabled until there is something to send; pressing it then does nothing.
     const hasDraft = s.draft.other ? s.draft.text.trim().length > 0 : s.draft.picked !== null
+    // Markdown marks cannot show inside a Button's label, so the code and bold marks are dropped there; the note keeps them.
+    const answer = (id: string, key: string, hotkey: string, label: string, chosen: boolean) => (
+      <Button
+        key={key}
+        plain
+        hotkey={hotkey}
+        label={`${chosen ? '✓ ' : ''}${label}`}
+        onPress={() => (locked ? undefined : id === 'other' ? chooseOther($) : pick($, id))}
+      />
+    )
     const options = q.options.map((o, i) => {
       const chosen = !s.draft.other && s.draft.picked === o.id
-      return (
-        <Box key={`row-${o.id}`} flexDirection="column">
-          <Button
-            key={`opt-${o.id}`}
-            plain
-            label={`${chosen ? '●' : '○'} ${o.label}`}
-            hotkey={String(i + 1)}
-            onPress={() => (locked ? undefined : pick($, o.id))}
-          />
-          {o.note ? <Text dimColor>{`  ${o.note}`}</Text> : null}
-        </Box>
+      return card(
+        o.id,
+        chosen,
+        answer(o.id, `opt-${o.id}`, String(i + 1), plainLabel(o.label), chosen),
+        [o.note ? <Box key={`note-${o.id}`} paddingLeft={3}><Markdown text={codify(o.note)} dimColor /></Box> : null],
       )
     })
 
     return frame(
-      topic,
       stem,
-      <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column">
         {options}
-        <Button
-          key="opt-other"
-          plain
-          label={`${s.draft.other ? '●' : '○'} ${STR.other}`}
-          hotkey="o"
-          onPress={() => (locked ? undefined : chooseOther($))}
-        />
-        {s.draft.other ? (
-          <Input
-            key="other-text"
-            autoFocus
-            placeholder={STR.otherPlaceholder}
-            value={s.draft.text}
-            submitLabel="keep"
-            onInput={(value: string) => (locked ? undefined : typeOther($, value))}
-            onSubmit={(value: string) => (locked ? undefined : typeOther($, value))}
-          />
-        ) : null}
+        {card(
+          'other',
+          s.draft.other,
+          answer('other', 'opt-other', 'o', STR.other, s.draft.other),
+          [
+            s.draft.other ? (
+              <Box key="other-box" paddingLeft={3}>
+                <Input
+                  key="other-text"
+                  autoFocus
+                  placeholder={STR.otherPlaceholder}
+                  value={s.draft.text}
+                  submitLabel="keep"
+                  onInput={(value: string) => (locked ? undefined : typeOther($, value))}
+                  onSubmit={(value: string) => (locked ? undefined : typeOther($, value))}
+                />
+              </Box>
+            ) : null,
+          ],
+          s.draft.other,
+        )}
       </Box>,
       locked ? <Text dimColor>{STR.grading}</Text> : null,
       s.step === 'error' && s.message ? <Text color="error">{s.message}</Text> : null,
@@ -452,6 +508,12 @@ export const register: Register = on => {
 /** Selecting an option records a draft and nothing else: it never submits, grades or skips. */
 async function pick($: EngineInterface, id: string): Promise<void> {
   await update($, quiz, (s: PanelState) => (s.step === 'awaiting' || s.step === 'error' ? { ...s, draft: { ...s.draft, picked: id, other: false }, message: null } : s))
+  try {
+    // The host's focus mark follows the pick, so the highlighted answer is the chosen one even after a hotkey.
+    await $.ui.focus({ requestId: PANE, key: `opt-${id}` })
+  } catch {
+    /* Fail open: the pick stands without it. */
+  }
 }
 
 async function chooseOther($: EngineInterface): Promise<void> {
@@ -466,8 +528,34 @@ async function skip($: EngineInterface): Promise<void> {
   await submit($, { kind: 'skip' })
 }
 
+/** Starts the auto-close for this result; any later Done, Next or new question cancels it. */
+function arm($: EngineInterface, mine: number, id: string): void {
+  try {
+    closer?.cancel()
+    closer = $.clock.after(CLOSE_MS, async () => {
+      try {
+        closer = null
+        if (epoch !== mine) return
+        const s: PanelState = (await $.state.get(REF)).value ?? EMPTY
+        // Only the result it was started for: an answer-in-progress or a newer question stays.
+        if ((s.step === 'feedback' || s.step === 'skipped') && s.question?.question_id === id) await done($)
+      } catch {
+        /* Fail open. */
+      }
+    })
+  } catch {
+    /* No clock: the learner presses Done. */
+  }
+}
+
+function disarm(): void {
+  closer?.cancel()
+  closer = null
+}
+
 /** Done closes the pane; another question may already be waiting, and then the pane comes straight back. */
 async function done($: EngineInterface): Promise<void> {
+  disarm()
   try {
     openedFor = null
     await update($, quiz, () => EMPTY)
@@ -480,6 +568,7 @@ async function done($: EngineInterface): Promise<void> {
 
 /** Next asks the model, by a queued prompt, for the next question of an explicit round. */
 async function askNext($: EngineInterface): Promise<void> {
+  disarm()
   try {
     openedFor = null
     await update($, quiz, () => ({ ...EMPTY, step: 'loading' }))

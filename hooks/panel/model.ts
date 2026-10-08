@@ -18,14 +18,96 @@ export const EMPTY: PanelState = {
 /** Tier names as the dashboard shows them (`TIER` in `assets/dashboard.html`; a test keeps the two equal). */
 export const TIER: Record<number, string> = { 1: 'recall', 2: 'mechanism', 3: 'judgement', 4: 'failure modes', 5: 'design' }
 
+/** Brand verdigris (`--vd-300`): the selected card's border and the name. */
+export const BRAND = '#79D5C4'
+
+/**
+ * The logo: the Claude mascot (orange) holding an Eklavya bow and arrow (white), drawn on a
+ * grid where one cell is a quarter of a text character. Designed in the logo maker; a letter
+ * names its colour in LOGO_PALETTE and a dot is empty.
+ */
+export const LOGO_GRID = [
+  '.................dd.......',
+  '................d..d......',
+  '................d...d.....',
+  '...aaaaaaaaaaaa.d....d....',
+  '...aa.aaaaaa.aa.d.....d...',
+  '.aaaaaaaaaaaaaaadddddddddd',
+  '...aaaaaaaaaaaa.d.....d...',
+  '....a.a....a.a..d....d....',
+  '................d...d.....',
+  '................d..d......',
+  '.................dd.......',
+  '..........................',
+] as const
+export const LOGO_PALETTE: Record<string, string> = { a: '#D97757', d: '#FFFFFF' }
+
+/** One stretch of text cells that share a colour pair. A text character holds two colours at most. */
+export type LogoRun = { text: string; fg?: string; bg?: string }
+
+/** Quadrant glyphs by which of the four cells (upper left 1, upper right 2, lower left 4, lower right 8) are filled. */
+const QUADRANT = ' ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█'
+
+/**
+ * The grid as rows of text runs: each 2 by 2 block becomes one quadrant character, the
+ * first colour as its foreground and a second, if any, as its background. A third colour
+ * in one block is dropped, so the logo degrades and never throws.
+ */
+export function logoRows(grid: readonly string[] = LOGO_GRID, palette: Record<string, string> = LOGO_PALETTE): LogoRun[][] {
+  const out: LogoRun[][] = []
+  for (let cy = 0; cy < Math.ceil(grid.length / 2); cy++) {
+    const runs: LogoRun[] = []
+    for (let cx = 0; cx < Math.ceil((grid[0]?.length ?? 0) / 2); cx++) {
+      const quad = [grid[cy * 2]?.[cx * 2], grid[cy * 2]?.[cx * 2 + 1], grid[cy * 2 + 1]?.[cx * 2], grid[cy * 2 + 1]?.[cx * 2 + 1]].map(c => (c && c !== '.' ? c : ''))
+      const [first, second] = [...new Set(quad.filter(Boolean))]
+      let run: LogoRun = { text: ' ' }
+      if (first) {
+        const mask = quad.reduce((n, c, i) => (c === first ? n | (1 << i) : n), 0)
+        run = { text: QUADRANT[mask], fg: palette[first], bg: second ? palette[second] : undefined }
+      }
+      const last = runs[runs.length - 1]
+      if (last && last.fg === run.fg && last.bg === run.bg) last.text += run.text
+      else runs.push(run)
+    }
+    out.push(runs)
+  }
+  return out
+}
+
+/** The name as the header sets it: spaced capitals, the nearest a terminal gets to a larger type size. */
+/** A call such as `tester.tap(find.byType(X))`, nested up to three deep, a lowerCamelCase name or a snake_case name. */
+const CODE_LIKE = /[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\((?:[^()\n]|\((?:[^()\n]|\([^()\n]*\))*\))*\)|\b[a-z]{2,}(?:[A-Z][a-z0-9]+)+\b|\b[a-z0-9]+(?:_[a-z0-9]+)+\b/g
+
+/**
+ * Wraps code-looking words in backticks so the pane's Markdown draws them as code. A question
+ * is plain prose unless its author marked the code, and an old or careless one often is not.
+ * Text already in backticks is left as written.
+ */
+export function codify(text: string): string {
+  return text
+    .split(/(`[^`]*`)/)
+    .map((part, i) => (i % 2 ? part : part.replace(CODE_LIKE, '`$&`')))
+    .join('')
+}
+
+/** What a Button label can show of Markdown: it keeps the words and drops the code and bold marks. */
+export function plainLabel(text: string): string {
+  return text.replace(/`|\*\*/g, '')
+}
+
+export const WORDMARK = 'EKLAVYA'.split('').join(' ')
+
+/** How long a finished result stays before it closes itself, when no Next is waiting. */
+export const CLOSE_MS = 15_000
+
 /** Every sentence the learner reads, in one place. The handoff's table, verbatim. */
 export const STR = {
   brand: 'Eklavya',
-  powered: 'Powered by Claude',
   submit: 'Submit answer',
   skip: 'Skip question',
   next: 'Next question',
   done: 'Done',
+  autoClose: 'Closes by itself in 15 seconds.',
   retry: 'Retry',
   close: 'Close',
   other: 'Other — explain in your own words',
@@ -41,6 +123,8 @@ export const STR = {
   nothingTyped: 'Write your answer first, or pick one of the options.',
   graderFailed: "We couldn't check that answer. Your text is saved here — Retry.",
   explainer: 'A page explaining this is being written.',
+  focus: 'Ctrl+X then Tab moves the keys here.',
+  keys: '1–4 pick · o other · s submit · k skip · Esc back to prompt',
   off: 'The quiz panel is off. Turn it on with: eklavya config set quiz.panel true',
 } as const
 

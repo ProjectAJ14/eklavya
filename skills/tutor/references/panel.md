@@ -27,6 +27,10 @@ Make one call to `present_question` instead:
   misconception (rows one and three). Grade 3 is not available to a pick: only
   typed words can show a hesitant "right".
 - `more: true` only in an explicit round (the plan has more items after this one, as for `/eklavya:quiz`): the panel then offers a Next button. Leave it out otherwise. Once a round is planned the server tracks it: the last question's `more` is set false for you, and Next arrives as a prompt telling you to call `get_session_quiz_plan` with `resume_round: true`.
+- **Mark the code.** The panel draws the stem, each `description` and the `explanation` as Markdown, so
+  put every function, call, class, file and flag in backticks (`` `tester.pumpWidget(widget)` ``,
+  `` `shouldRepaint` ``) and nothing else: no headings, lists or emphasis. Option `label`s are drawn as
+  plain text, so write them in words and leave the backticks out of them.
 - `explanation`: one line saying why the right option is right. The panel shows
   it after the answer, so it is the whole of your feedback.
 

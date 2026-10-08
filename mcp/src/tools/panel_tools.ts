@@ -13,7 +13,7 @@ export const presentQuestionTool: ToolDef = {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
     slug: z.string().max(LIMITS.slug).describe('The concept asked about.'),
-    question: z.string().min(1).max(LIMITS.question).describe('The question stem only: no options, no attribution, no settings line.'),
+    question: z.string().min(1).max(LIMITS.question).describe('The question stem only: no options, no attribution, no settings line. Markdown: put code names and calls in backticks.'),
     options: z
       .array(
         z.object({

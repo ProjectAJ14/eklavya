@@ -93,13 +93,19 @@ on with the task, so you can read it and answer while it keeps working.
 eklavya config set quiz.panel true
 ```
 
-The panel shows one question at a time: the concept and tier, the question, four
-options with a line under each, and **Other — explain in your own words**.
+The panel shows one question at a time under the Eklavya mark: the concept and
+tier, the question, four options with a line under each, and **Other — explain
+in your own words**. Each option is its own bordered block that you can press anywhere on, and the
+one you pick gets a ✓ and a highlighted border; the highlight means picked, never
+right. The question and the lines under the options render as Markdown, so `code`
+and **bold** show as written; the panel also marks function calls and
+camelCase or snake_case names as code when the question did not. The option
+text itself is plain, because a button cannot draw code.
 Press Ctrl+X then Tab to move the keyboard into the panel; the number beside an
 option selects it, and Tab and Enter press the buttons. Picking an option only
 selects it; nothing is graded until you press **Submit answer**. **Skip question**
 is its own button and records a decline for that question. The result replaces the question in the same panel and says **Correct**
-or **Needs another look** in words, with a line on why and, after a miss, the right option. If the answer promotes you, it also says which level you cleared on this project. **Done** closes the result. After
+or **Needs another look** in words, with a line on why and, after a miss, the right option. If the answer promotes you, it also says which level you cleared on this project. **Done** closes the result, and so does a 15-second timer when no **Next question** is waiting. After
 a miss with `explain_on_wrong` on, the panel starts the explainer page in the
 background itself, without a prompt in your transcript. The page marks the
 option you picked, or lists the words you typed under Other after the options.

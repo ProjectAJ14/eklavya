@@ -102,6 +102,12 @@ loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
    leftover pane, and killing the Eklavya server mid-answer then Retry.
 4. Turn `quiz.panel` off and confirm the next question is the card and nothing
    mentions the panel.
+5. Pick one answer with its number key and another with a click on its text. Each
+   card shows its border and ✓ only for the pick, with no fill, and the host's
+   focus mark lands on the same card. Names such as `tester.pumpWidget(widget)`
+   in the question appear as code. Answer the last question of a round and
+   confirm the result closes itself after 15 seconds, and that a round with
+   **Next question** waiting never does.
 
 Run `scripts/test-panel-mod.sh` for the mod's validation and tests. Say which of
 terminal and Desktop you ran; only the terminal CLI has been verified.
