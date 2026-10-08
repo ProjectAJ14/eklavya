@@ -118,10 +118,59 @@ const get = async (url: string, p: string) => {
   return { status: r.status, body: await r.json() };
 };
 
+describe('POST /api/feedback/opened', () => {
+  const uses = () =>
+    Object.fromEntries(
+      (db.prepare("SELECT name, SUM(n) AS n FROM usage_counts WHERE name LIKE 'feedback:%' GROUP BY name").all() as { name: string; n: number }[]).map((r) => [r.name, r.n]),
+    );
+  const noTelemetryEnv = () => {
+    delete process.env.EKLAVYA_TELEMETRY;
+    delete process.env.DO_NOT_TRACK;
+  };
+
+  it('counts how a pending item was reached, from a closed list, and anything else is direct', async () => {
+    noTelemetryEnv();
+    insertFeedback(db, item());
+    await withServer(async (port, token) => {
+      const h = hdr(port, token);
+      for (const via of ['greeting', 'badge', 'direct', 'nonsense', undefined, 42, 'greeting; DROP']) {
+        const r = await post(port, '/api/feedback/opened', { via }, h);
+        expect(r.status).toBe(200);
+        expect(r.body).toEqual({ ok: true });
+      }
+    });
+    expect(uses()).toEqual({ 'feedback:opened_greeting': 1, 'feedback:opened_badge': 1, 'feedback:opened_direct': 5 });
+  });
+
+  it('counts nothing with no item pending, and refuses a body that is not an object', async () => {
+    noTelemetryEnv();
+    await withServer(async (port, token) => {
+      const h = hdr(port, token);
+      expect((await post(port, '/api/feedback/opened', { via: 'badge' }, h)).status).toBe(200);
+      expect((await post(port, '/api/feedback/opened', [1], h)).status).toBe(400);
+    });
+    expect(uses()).toEqual({});
+  });
+
+  it('counts nothing when the usage ping is off', async () => {
+    process.env.EKLAVYA_TELEMETRY = '0';
+    insertFeedback(db, item());
+    try {
+      await withServer(async (port, token) => {
+        await post(port, '/api/feedback/opened', { via: 'badge' }, hdr(port, token));
+      });
+    } finally {
+      delete process.env.EKLAVYA_TELEMETRY;
+    }
+    expect(uses()).toEqual({});
+  });
+});
+
 describe('the feedback routes', () => {
   it('registers the writes with a size cap', () => {
     expect(WRITES['/api/feedback/acknowledge']!.maxBytes).toBe(16 * 1024);
     expect(WRITES['/api/feedback/delete']!.maxBytes).toBe(16 * 1024);
+    expect(WRITES['/api/feedback/opened']!.maxBytes).toBe(16 * 1024);
   });
 
   it('GET /api/feedback returns the pending item, and viewing it never acknowledges it', async () => {

@@ -35,6 +35,7 @@ let base = '';
 let closeServer = () => {};
 let browser: Browser;
 const savedHome = process.env.EKLAVYA_HOME;
+const savedEnv = { EKLAVYA_TELEMETRY: process.env.EKLAVYA_TELEMETRY, DO_NOT_TRACK: process.env.DO_NOT_TRACK };
 
 beforeAll(async () => {
   if (!OPTS) return;
@@ -42,6 +43,9 @@ beforeAll(async () => {
   home = path.join(root, 'home');
   fs.mkdirSync(home, { recursive: true });
   process.env.EKLAVYA_HOME = home;
+  // The counts these tests read are skipped while the usage ping is off.
+  delete process.env.EKLAVYA_TELEMETRY;
+  delete process.env.DO_NOT_TRACK;
   db = openDb(path.join(root, 'knowledge.db'));
   const srv = await startDashboard(db as any, { port: 0 });
   base = srv.url;
@@ -56,12 +60,16 @@ afterAll(async () => {
   db?.close();
   if (savedHome === undefined) delete process.env.EKLAVYA_HOME;
   else process.env.EKLAVYA_HOME = savedHome;
+  for (const [k, v] of Object.entries(savedEnv)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
   fs.rmSync(root, { recursive: true, force: true });
 });
 
 afterEach(() => {
   if (!OPTS) return;
-  db.exec('DELETE FROM feedback_items; DELETE FROM feedback_reviewed;');
+  db.exec("DELETE FROM feedback_items; DELETE FROM feedback_reviewed; DELETE FROM usage_counts WHERE name LIKE 'feedback:%'");
   fs.rmSync(path.join(home, 'config.json'), { force: true });
 });
 
@@ -410,6 +418,67 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       expect(await w.page.$$eval('#nav a[data-nav]', (a) => a.map((x) => x.getAttribute('data-nav')))).toEqual(['dashboard', 'history']);
       expect(await w.page.getAttribute('#nav [aria-current="page"]', 'data-nav')).toBe('history');
       expect(await w.page.textContent('#wf-main span')).toBe('Feedback');
+      await w.ctx.close();
+    });
+  });
+
+  describe('how the reader got there, counted', () => {
+    const opened = () =>
+      Object.fromEntries(
+        (db.prepare("SELECT name, SUM(n) AS n FROM usage_counts WHERE name LIKE 'feedback:%' GROUP BY name").all() as { name: string; n: number }[]).map((r) => [r.name, r.n]),
+      );
+    /** The count is the server's, a moment after the page asks. */
+    const settled = async (want: Record<string, number>) => {
+      const same = () => JSON.stringify(Object.entries(opened()).sort()) === JSON.stringify(Object.entries(want).sort());
+      for (let i = 0; i < 60 && !same(); i++) await new Promise((r) => setTimeout(r, 50));
+      expect(opened()).toEqual(want);
+    };
+
+    it('counts the greeting link once and drops it from the URL, whatever re-renders', async () => {
+      configure(ON);
+      pending();
+      const w = await open('#/feedback/dashboard?via=greeting');
+      await settled({ 'feedback:opened_greeting': 1 });
+      expect(await w.page.evaluate(() => location.hash)).toBe('#/feedback/dashboard');
+      await w.page.setViewportSize({ width: 700, height: 900 });
+      await w.page.setViewportSize({ width: 1280, height: 900 });
+      await new Promise((r) => setTimeout(r, 400));
+      expect(opened()).toEqual({ 'feedback:opened_greeting': 1 });
+      await w.ctx.close();
+    });
+
+    it('counts the way in through the badge, and a typed link as direct', async () => {
+      configure(ON);
+      pending();
+      let w = await open('#/learning/dashboard');
+      await w.page.click('#wf-caret');
+      await w.page.click('#wf-menu [data-wf="feedback"]');
+      await ready(w.page);
+      await settled({ 'feedback:opened_badge': 1 });
+      expect(await w.page.evaluate(() => location.hash)).toBe('#/feedback/dashboard');
+      await w.ctx.close();
+      w = await open('#/feedback/dashboard');
+      await settled({ 'feedback:opened_badge': 1, 'feedback:opened_direct': 1 });
+      await w.ctx.close();
+    });
+
+    it('keeps the other query keys when it drops via, and counts again after leaving and returning', async () => {
+      configure(ON);
+      pending();
+      const w = await open('#/feedback/dashboard?via=greeting&project=x');
+      await settled({ 'feedback:opened_greeting': 1 });
+      expect(await w.page.evaluate(() => location.hash)).not.toContain('via=');
+      await w.page.goto(base + '/#/feedback/history'); await ready(w.page);
+      await w.page.goto(base + '/#/feedback/dashboard'); await ready(w.page);
+      await settled({ 'feedback:opened_greeting': 1, 'feedback:opened_direct': 1 });
+      await w.ctx.close();
+    });
+
+    it('counts nothing when no item is waiting', async () => {
+      configure(ON);
+      const w = await open('#/feedback/dashboard?via=greeting');
+      await new Promise((r) => setTimeout(r, 400));
+      expect(opened()).toEqual({});
       await w.ctx.close();
     });
   });

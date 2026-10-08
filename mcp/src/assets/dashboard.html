@@ -3539,6 +3539,7 @@ const FB = {
   status: { strong: 'Strong', mixed: 'Mixed', missing: 'Missing', not_visible: "Can't tell from this prompt" },
   // `not_visible` is the muted role, never a weakness.
   pill: { strong: 'pill ok', mixed: 'pill', missing: 'pill due', not_visible: 'pill gone' },
+  counted: false,
   observerCmd: `eklavya config set providers.observer '{"kind":"anthropic","model":"claude-haiku-4-5"}'`,
   about: `Your prompts are already recorded by memory. After a session ends, in the background and never in the middle of your work,
     Eklavya asks your observer model (the one in <code>providers.observer</code>, running through Claude Code on your own subscription)
@@ -3573,6 +3574,7 @@ function fbEmpty(F) {
 function viewFeedbackDashboard() {
   const F = S.feedback;
   if (F.pending) fill('fb-item', '/api/feedback', (d) => d.item ? drawFbItem(d.item) : fbEmpty(S.feedback));
+  if (F.pending && !FB.counted) { FB.counted = true; AFTER.push(fbOpened); }
   const counts = [F.pending ? '1 waiting' : 'nothing waiting', plural(F.acknowledged, 'acknowledged item')];
   return [
     pageHead('Feedback', counts, FB.about),
@@ -3640,6 +3642,22 @@ function drawFbHistory(d) {
     <td>${esc(i.prompt)}${i.prompt.length >= 80 ? '…' : ''}</td><td>${pills(i.statuses)}</td></tr>`);
   return table([{ t: 'Acknowledged' }, { t: 'Project' }, { t: 'Your prompt' }, { t: 'The four Ds' }], rows)
     + pager('fbhistory', d.total, d.page, d.per);
+}
+
+/**
+ * Counted once per opening with an item waiting: a re-render of the same page
+ * (a resize) is not another opening. `via` says how the reader got here
+ * (the greeting link, the badge) and is dropped from the URL once counted, so a
+ * link they share does not carry it. Anything else is a typed or bookmarked link.
+ */
+function fbOpened() {
+  const via = CUR.query.get('via');
+  postJson('/api/feedback/opened', { via: via === 'greeting' || via === 'badge' ? via : 'direct' }).catch(() => {});
+  if (via === null) return;
+  const q = new URLSearchParams(CUR.query);
+  q.delete('via');
+  const s = q.toString();
+  history.replaceState(history.state, '', location.pathname + location.search + location.hash.replace(/\?.*$/, '') + (s ? '?' + s : ''));
 }
 
 /** After a press: redraw from the new state, put focus on the heading and say so. */
@@ -4373,7 +4391,8 @@ addEventListener('resize', () => { if (sOpen) placePicker(smenu, sOpen); });
  */
 function switchWorkflow(wf) {
   closePicker(false);
-  const target = href(wf, 'dashboard');
+  // Reached from the unread badge: said so, so the count can tell the three ways in apart.
+  const target = wf === 'feedback' && fbUnread() ? href(wf, 'dashboard', null, { via: 'badge' }) : href(wf, 'dashboard');
   closeDrawer(false);
   if (location.hash === target) render(); else location.hash = target;
   (narrow.matches ? $('menu') : caret).focus();
@@ -4500,6 +4519,8 @@ function render(keepFocus) {
   AFTER.length = 0;
   LAZY.clear();
   HEAT_OFF = 0;
+  // Leaving the Feedback page ends the opening that fbOpened counted.
+  if (!(CUR.wf === 'feedback' && CUR.page === 'dashboard')) FB.counted = false;
   // A bubble never survives a navigation.
   TIP.hints?.close();
   // A screen that still has a correction open re-arms this when it draws its bar.

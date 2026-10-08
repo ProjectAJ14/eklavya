@@ -39,6 +39,7 @@ import {
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
 import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
+import { countUse } from './telemetry.js';
 import { acknowledgeFeedback, deleteFeedback, feedbackSummary, getFeedback, feedbackPending, listAcknowledged } from './feedback.js';
 import { artifactsStamp, artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
 import { LIMITS } from './tools/types.js';
@@ -1469,6 +1470,21 @@ export function deleteItem(db: DB, body: unknown): { status: number; body: Recor
   return { status: 200, body: { ok: true, state: feedbackSummary(db, readConfig()) } };
 }
 
+/** How the reader got to the Feedback page. A closed list: anything else is a typed or bookmarked link. */
+const OPENED_VIA = ['greeting', 'badge', 'direct'];
+
+/**
+ * `POST /api/feedback/opened`: `{ via }`, sent once when the Feedback page opens
+ * with an item waiting. Counted as `feedback:opened_<via>` in the usage
+ * counters, a count and a closed word and nothing the reader wrote.
+ */
+export function openedItem(db: DB, body: unknown): { status: number; body: Record<string, unknown> } {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { status: 400, body: { error: 'Expected a JSON object.' } };
+  const via = (body as Record<string, unknown>).via;
+  if (feedbackPending(db)) countUse(db, `feedback:opened_${OPENED_VIA.includes(via as string) ? via : 'direct'}`);
+  return { status: 200, body: { ok: true } };
+}
+
 /** One write: validates its own body, never trusts it, and answers with JSON. */
 export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Record<string, unknown> };
 
@@ -1486,6 +1502,7 @@ export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }>
   // `{ id }` and nothing else.
   '/api/feedback/acknowledge': { handler: acknowledgeItem, maxBytes: 16 * 1024 },
   '/api/feedback/delete': { handler: deleteItem, maxBytes: 16 * 1024 },
+  '/api/feedback/opened': { handler: openedItem, maxBytes: 16 * 1024 },
 };
 
 /**

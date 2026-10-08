@@ -211,6 +211,17 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
 
   const artifacts: TelemetryEvent = { name: 'artifacts', params: artifactCounts(since) };
 
+  // A switch and two counts. Never an item's text, notes, statuses, project,
+  // session or model: nothing a person wrote or a model said about it leaves.
+  const feedback: TelemetryEvent = {
+    name: 'feedback',
+    params: {
+      feedback_enabled: c.feedback.enabled,
+      generated_new: num(db, 'SELECT COUNT(*) FROM feedback_items WHERE datetime(created_at) >= ?', t),
+      acknowledged_new: num(db, 'SELECT COUNT(*) FROM feedback_items WHERE datetime(acknowledged_at) >= ?', t),
+    },
+  };
+
   // Finished days only: today's counts are still growing and go out tomorrow.
   const uses: TelemetryEvent[] = [];
   try {
@@ -225,7 +236,7 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
     /* an older schema */
   }
 
-  return [active, settings, learning, memory, artifacts, ...uses];
+  return [active, settings, learning, memory, artifacts, feedback, ...uses];
 }
 
 /**

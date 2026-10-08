@@ -344,6 +344,10 @@ describe('telemetry', () => {
     const ping = JSON.parse(res.stdout);
     expect(ping.client_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(ping.events.map((e: { name: string }) => e.name)).toContain('daily_active');
+    // The feedback event shows up with no CLI change: `show` prints buildEvents.
+    expect(ping.events.find((e: { name: string }) => e.name === 'feedback').params).toEqual({
+      feedback_enabled: false, generated_new: 0, acknowledged_new: 0,
+    });
   });
 
   it('says why a send did not happen, and nothing in the background', () => {
