@@ -20,6 +20,8 @@ export const TIER: Record<number, string> = { 1: 'recall', 2: 'mechanism', 3: 'j
 
 /** Brand verdigris (`--vd-300`): the selected card's border and the name. */
 export const BRAND = '#79D5C4'
+/** A neutral lift under the pointer: grey, so it never reads as marking the right answer. */
+export const HOVER_FILL = '#2f2f36'
 
 /**
  * The bow-and-arrow mark (`web/public/brand/mark.svg`) as terminal cells, the way

@@ -3,6 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   BRAND,
+  HOVER_FILL,
   EMPTY,
   EXPLAINER,
   LOGO_COLORS,
@@ -368,6 +369,7 @@ export const register: Register = on => {
         gap={roomy ? 1 : 0}
         borderStyle="single"
         borderColor={selected ? BRAND : 'inactive'}
+        hover={{ backgroundColor: HOVER_FILL, borderColor: BRAND }}
       >
         {button}
         {body}
