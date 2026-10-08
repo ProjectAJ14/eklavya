@@ -93,6 +93,12 @@ describe('the skill drafts the same issue', () => {
     }
   });
 
+  it('checks that it can file before it asks, and skips the question when it cannot', () => {
+    expect(section).toMatch(/Before you ask, check whether you can file: run `gh auth status`/);
+    expect(section).toMatch(/If neither works, do not ask: print the draft and the prefilled link \(step 6\)/);
+    expect(section.indexOf('Before you ask')).toBeLessThan(section.indexOf('Post this to ProjectAJ14/eklavya?'));
+  });
+
   it('files with gh and a temporary body file, or falls back to a draft and a prefilled link', () => {
     expect(section).toContain('gh auth status');
     expect(section).toContain('gh issue create --repo ProjectAJ14/eklavya --title "<title>" --body-file <file>');

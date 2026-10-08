@@ -397,7 +397,10 @@ feedback for Eklavya."*
    Ask once about anything you cannot decide. Never attach database contents or
    anything from `~/.eklavya/`.
 4. **Show exactly what will be posted**: the title and the whole body in one
-   fenced block, then ask *"Post this to ProjectAJ14/eklavya?"* Apply any edit
+   fenced block. Before you ask, check whether you can file: run `gh auth
+   status`, or see whether a GitHub tool is available. If neither works, do not
+   ask: print the draft and the prefilled link (step 6) and say nothing was
+   posted. Otherwise ask *"Post this to ProjectAJ14/eklavya?"* Apply any edit
    they ask for and show it again. **No issue is created without a clear yes to
    the exact text on screen.** A "no" posts nothing.
 5. **File it.** The title is `[feedback] <one line>`. The body uses the issue
