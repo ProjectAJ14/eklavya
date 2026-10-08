@@ -1,6 +1,6 @@
 ---
 name: eklavya
-description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, update Eklavya, allow its quiz panel tools after auto mode denied them, or find where their data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
+description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, update Eklavya, allow its quiz panel tools after auto mode denied them, find where their data lives, or reports a wrong or confusing question, a bad grade, or a bug in Eklavya. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
 ---
 
 # Eklavya
@@ -367,6 +367,60 @@ let the user run it:
 If they are asking to *be taught*, that is `/eklavya:learn` or the `tutor`
 skill, not this one.
 
+## Feedback about Eklavya
+
+When someone tells you a question Eklavya asked was wrong, a grade was unfair, a
+hook message was confusing or the dashboard is broken, offer to turn it into a
+GitHub issue on `ProjectAJ14/eklavya`, and file it only after they have seen the
+exact text and said yes. Example: *"That question about retries was wrong. File
+feedback for Eklavya."*
+
+1. **Recognise it.** It is about Eklavya's own behaviour (a question it asked, a
+   grade, a hook message, the dashboard), not about the user's project. If you
+   cannot tell which, ask one question.
+2. **Gather without asking twice.** Take what the conversation already shows:
+   the category (Question quality, Grading, Tutor behaviour, Dashboard, Install
+   and updates or Other), what happened, what they expected, the question stem
+   and the concept slug if either is on screen, the Eklavya version, and the
+   host and OS. The version is the number after `runtime` on the `updates` row
+   of `eklavya doctor` (there is no `--version` flag). Ask only for what is
+   missing.
+3. **Strip.** Remove absolute paths and the home directory, repository and
+   project names, hostnames, anything that looks like a secret, and any code from
+   the user's project. Write `<path>`, `<project>` or `<redacted>` in its place.
+   Ask once about anything you cannot decide. Never attach database contents or
+   anything from `~/.eklavya/`.
+4. **Show exactly what will be posted**: the title and the whole body in one
+   fenced block, then ask *"Post this to ProjectAJ14/eklavya?"* Apply any edit
+   they ask for and show it again. **No issue is created without a clear yes to
+   the exact text on screen.** A "no" posts nothing.
+5. **File it.** The title is `[feedback] <one line>`. The body uses the issue
+   form's headings, in this order, with `_No response_` under an empty optional
+   one:
+
+   ```
+   ### Category
+   ### What happened
+   ### What you expected
+   ### Concept or question slug, if there is one
+   ### Eklavya version
+   ### Host and OS
+   ### A short example (no code from your project)
+   ```
+
+   When `gh auth status` succeeds, write the body to a temporary file in your
+   scratchpad, run `gh issue create --repo ProjectAJ14/eklavya --title "<title>"
+   --body-file <file>`, and delete the file afterwards. With no `gh`, a GitHub
+   MCP tool is the second choice.
+6. **Without access**, print the same draft and a prefilled link, and say that
+   nothing was posted:
+   `https://github.com/ProjectAJ14/eklavya/issues/new?template=eklavya-feedback.yml&title=<urlencoded>&category=<urlencoded>&what=<urlencoded>&expected=<urlencoded>&concept=<urlencoded>&version=<urlencoded>&environment=<urlencoded>&example=<urlencoded>`.
+   Cut it at 6,000 characters of URL and say it was cut.
+7. **Report** the issue URL, or that nothing was posted.
+
+This is separate from the dashboard's Feedback page, which coaches the user on
+their own prompts. It is not this, and it files nothing on GitHub.
+
 ## Rules
 
 - Never run `eklavya uninstall --purge` unless the user has said, in this
@@ -386,3 +440,6 @@ skill, not this one.
   setting that sends this machine's work off it — to a Claude model, on their
   subscription — and it needs their explicit yes. It goes in the global config
   only.
+- Never create a GitHub issue, or send anything to GitHub, without the user's clear
+  yes to the exact title and body you showed them. Silence, "sounds fine" about
+  the idea, and a yes to an earlier draft are not that yes.
