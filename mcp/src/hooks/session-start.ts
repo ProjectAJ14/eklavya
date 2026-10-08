@@ -4,6 +4,7 @@
  * Hard rule: this must never break a session. Every failure path
  * exits 0 with no output — `run()` enforces it.
  */
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { findRepoConfig, loadGlobalConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
@@ -20,6 +21,7 @@ import { AMBER, dialParts, paint } from '../statusline.js';
 import { dashboardPort } from '../paths.js';
 import { followMove } from '../relocate.js';
 import { ensureDashboard, probeDashboard } from '../dashboard-daemon.js';
+import { startBackgroundFeedback } from '../feedback.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
 import { canSend, disabledReason, markTelemetryAnnounced, readState, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
 
@@ -115,6 +117,11 @@ await run(async (input) => {
 
   const resolved = config(cwd);
   const { quiz, difficulty, quiet } = resolved.config;
+
+  // Before the `quiz.enabled` return below, so someone with questions off who
+  // turned feedback on still gets it. A detached process the hook never waits
+  // for: a review is a model call, and a hook may not wait on inference.
+  startBackgroundFeedback(db, resolved.config, { cwd, spawn, now: Date.now() });
 
   // The memory half runs before every learning gate below, because it is not
   // governed by them (PRD CFG-01): `quiz.enabled: false` means no quizzes, not

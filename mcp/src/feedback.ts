@@ -1,8 +1,10 @@
+import type { spawn as nodeSpawn } from 'node:child_process';
 import type { Database } from 'better-sqlite3';
 import type { EklavyaConfig } from './config.js';
 import { ProviderError } from './memory/provider.js';
 import { ownWords } from './memory/recall.js';
 import { reviewPrompts, REVIEW_LIMIT } from './feedback-review.js';
+import { runtimeCli } from './update.js';
 import { HELPERS, HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from './prompt-text.js';
 
 /**
@@ -218,4 +220,47 @@ export async function generateFeedback(
     return { status: 'reviewed', date: s.began.slice(0, 10) };
   }
   return { status: 'nothing' };
+}
+
+/** One start per this long, however many sessions begin. */
+export const FEEDBACK_CLAIM_MS = 30 * 60_000;
+const CLAIM_KEY = 'feedback_attempt_at';
+
+/**
+ * Called by SessionStart: starts the review in a detached process and never
+ * waits for it, because a hook may not wait on inference. Claims first, as the
+ * usage ping does, so two sessions starting together do not both spawn.
+ * Silent on every failure; the next start tries again.
+ *
+ * `cwd` is the project's: the review is scoped to the project it runs in.
+ * `spawn` and `now` are the caller's (the hook passes the real ones) so tests
+ * never start a process.
+ */
+export function startBackgroundFeedback(
+  db: Database,
+  config: EklavyaConfig,
+  opts: { cwd: string; spawn: typeof nodeSpawn; now: number },
+): void {
+  try {
+    if (!feedbackEnabled(config) || !config.providers.observer) return;
+    if (process.env.CI || process.env.VITEST) return;
+    if (feedbackPending(db)) return;
+    const { now } = opts;
+    const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(CLAIM_KEY) as { value: string } | undefined;
+    if (now - Date.parse(row?.value ?? '') < FEEDBACK_CLAIM_MS) return;
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
+      CLAIM_KEY,
+      new Date(now).toISOString(),
+    );
+    const child = opts.spawn(process.execPath, [runtimeCli(), 'feedback', 'generate', '--background'], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      cwd: opts.cwd,
+    });
+    child.on('error', () => {});
+    child.unref();
+  } catch {
+    /* retried at the next session start */
+  }
 }
