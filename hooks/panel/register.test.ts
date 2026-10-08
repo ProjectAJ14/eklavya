@@ -63,7 +63,7 @@ function world(on: any, script: Record<string, any> = {}) {
   })
   on('agent.spawn', async (_$: any, e: any) => {
     log.spawns.push(e)
-    return s.spawn
+    return typeof s.spawn === 'function' ? s.spawn() : s.spawn
   })
   on('ui.toast', async (_$: any, e: any) => {
     log.toasts.push(e.text)
@@ -339,6 +339,34 @@ describe('the pane, state by state', () => {
     await mount($, 'terminal')
     await press($, 'opt-o1')
     await press($, 'submit')
+    expect(w.log.spawns).toHaveLength(2)
+    expect(w.log.prompts).toEqual(['Start the eklavya-explainer agent.'])
+  })
+
+  test('a spawn refused once is asked again and needs no prompt', async ($, on) => {
+    let refused = false
+    const spawn = () => (refused ? { model: 'm', agentId: 'a1' } : ((refused = true), { deny: 'Classifier unavailable' }))
+    const w = world(on, { answer: () => MISS, spawn })
+    await boot($)
+    await mount($, 'terminal')
+    await press($, 'opt-o1')
+    await press($, 'submit')
+    expect(w.log.spawns).toHaveLength(2)
+    expect(w.log.prompts).toEqual([])
+  })
+
+  test('a spawn that throws is asked again, and two throws fall back to the prompt', async ($, on) => {
+    let calls = 0
+    const spawn = () => {
+      calls += 1
+      throw new Error('host failed')
+    }
+    const w = world(on, { answer: () => MISS, spawn })
+    await boot($)
+    await mount($, 'terminal')
+    await press($, 'opt-o1')
+    await press($, 'submit')
+    expect(calls).toBe(2)
     expect(w.log.prompts).toEqual(['Start the eklavya-explainer agent.'])
   })
 

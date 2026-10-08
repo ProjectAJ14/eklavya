@@ -103,8 +103,8 @@ or **Needs another look** in words, with a line on why and, after a miss, the ri
 a miss with `explain_on_wrong` on, the panel starts the explainer page in the
 background itself, without a prompt in your transcript. The page marks the
 option you picked, or lists the words you typed under Other after the options.
-If Claude Code refuses or fails to start that agent, the panel falls back to a
-prompt asking Claude to start it, and that prompt shows in your transcript. Closing the panel with Esc hides the question without grading or
+If Claude Code refuses or fails to start that agent, the panel asks once more,
+then falls back to a prompt asking Claude to start it, and that prompt shows in your transcript. Closing the panel with Esc hides the question without grading or
 skipping it; `/eklavya-panel` opens it again. `/eklavya:quiz` uses the same panel:
 for a round, **Next question** asks Claude for the next one of that same round, on the same topic and up to the number you asked for.
 
@@ -156,6 +156,12 @@ An allow rule is checked before auto mode decides, so these three calls run
 without being judged. Allow only these three rather than the whole Eklavya
 server, which would also let tools such as `memory_delete` and `set_config` run
 without asking.
+
+A miss in the panel starts the explainer agent, and auto mode judges that too.
+It drops `Agent` allow rules, so no setting skips the check. If its classifier
+is briefly unavailable you may see `eklavya:eklavya-explainer denied by auto
+mode`. The panel asks once more, then hands the explainer to Claude, whose own
+start normally gets the page written, so there is nothing to fix.
 
 ## If you do not know the answer
 

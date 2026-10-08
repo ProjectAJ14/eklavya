@@ -270,6 +270,10 @@ it is missing, and leave the file valid JSON. Do not allow the whole
 `mcp__plugin_eklavya_eklavya` server instead: that would also let
 `memory_delete` and `set_config` run unasked. Show them the entries you added.
 If the denial continues, a restart of Claude Code reloads the settings.
+`eklavya:eklavya-explainer denied by auto mode` needs no fix and has none: auto
+mode drops `Agent` allow rules, so do not add one. The panel asks once more,
+then queues a prompt for you to start the explainer; do that and tell them
+the page is on its way.
 
 **Updates are automatic.** Eklavya checks npm at session start, at most hourly,
 and installs a newer release on its own, settings untouched. So "update
