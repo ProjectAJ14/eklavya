@@ -75,6 +75,9 @@ Usage:
                                         change the same settings as config set/unset (--no-open just
                                         prints the URL; --port serves in the foreground on that port)
   eklavya dashboard status|stop         Show or stop the background dashboard
+  eklavya feedback generate             Review one of your prompts from an earlier session against the 4D
+                                        framework (needs feedback.enabled, memory and providers.observer);
+                                        one item at a time, shown on the dashboard's Feedback page
   eklavya artifacts new <title>         Start a page under ~/.eklavya/artifacts/<project>/ from the
                                         Eklavya template and print its path [--description <text>]
                                         [--kind artifact|explainer] [--concept <slug>]
@@ -435,6 +438,56 @@ async function telemetryCommand(args: string[]): Promise<void> {
       `${dim('what is sent: eklavya telemetry show · https://eklavya-run.web.app/docs/usage-analytics/')}\n` +
       `${dim(off ? 'turn on: eklavya telemetry on' : 'turn off: eklavya telemetry off')}\n`,
   );
+}
+
+/**
+ * `eklavya feedback generate [--background]`: review one prompt from an earlier
+ * session, if nothing is waiting. Exits 0 whatever happens: it runs detached
+ * from a session start, and a failure here is only a review that did not
+ * happen. `--background` prints nothing.
+ */
+async function feedbackCommand(args: string[]): Promise<void> {
+  const [sub, ...flags] = args;
+  if (sub !== 'generate') {
+    process.stderr.write('Usage: eklavya feedback generate [--background]\n');
+    process.exit(1);
+  }
+  const quiet = flags.includes('--background');
+  const say = (text: string) => {
+    if (!quiet) process.stdout.write(`${text}\n`);
+  };
+  const later = "couldn't review right now: it will try again at a later start";
+  try {
+    const [{ openDb }, { generateFeedback }, { identityFor }, { hostSession }] = await Promise.all([
+      import('./db.js'),
+      import('./feedback.js'),
+      import('./memory/identity.js'),
+      import('./session.js'),
+    ]);
+    const db = openDb();
+    try {
+      const out = await generateFeedback(db, loadConfig().config, {
+        project: identityFor({ sessionId: '' }).project,
+        currentSession: hostSession(db),
+      });
+      say(
+        {
+          off: 'off',
+          needs_memory: 'needs memory',
+          needs_observer: 'needs providers.observer',
+          pending: 'a feedback item is waiting: acknowledge it first',
+          nothing: 'nothing to review',
+          later,
+          failed: "couldn't review that session",
+          reviewed: out.status === 'reviewed' ? `reviewed 1 prompt from ${out.date}` : '',
+        }[out.status],
+      );
+    } finally {
+      db.close();
+    }
+  } catch {
+    say(later);
+  }
 }
 
 /** Never throws: `doctor` is also what someone runs on a half-built database. */
@@ -1168,7 +1221,7 @@ async function forwardToNewerRuntime(): Promise<boolean> {
 }
 
 const COUNTED = new Set([
-  'install', 'update', 'export-rules', 'config', 'dashboard', 'memory', 'artifacts', 'doctor', 'db-path', 'telemetry',
+  'install', 'update', 'export-rules', 'config', 'dashboard', 'memory', 'artifacts', 'doctor', 'db-path', 'telemetry', 'feedback',
 ]);
 
 async function main(): Promise<void> {
@@ -1246,6 +1299,8 @@ async function main(): Promise<void> {
       return;
     case 'telemetry':
       return telemetryCommand(rest);
+    case 'feedback':
+      return feedbackCommand(rest);
     case undefined:
     case '-h':
     case '--help':

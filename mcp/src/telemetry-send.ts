@@ -16,11 +16,9 @@ import {
   type TelemetryState,
 } from './telemetry.js';
 import type { DB } from './db.js';
+import { HELPERS, NOT_HELPER } from './prompt-text.js';
 
 const ENDPOINT = 'https://www.google-analytics.com/mp/collect';
-/** The observer's own `claude -p` sessions, recognised as `HELPER_SESSION` does. Not the developer's work. */
-const HELPERS = `(SELECT session_id FROM evidence_events WHERE kind = 'prompt' AND body LIKE '<evidence project=%')`;
-const NOT_HELPER = `(session_id IS NULL OR session_id NOT IN ${HELPERS})`;
 /** Not a recall that was only prepared: one a hook never wrote out was not handed to Claude. */
 const HANDED_OVER = "delivery <> 'prepared'";
 const DAY_MS = 86_400_000;

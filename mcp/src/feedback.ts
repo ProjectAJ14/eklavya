@@ -1,5 +1,9 @@
 import type { Database } from 'better-sqlite3';
 import type { EklavyaConfig } from './config.js';
+import { ProviderError } from './memory/provider.js';
+import { ownWords } from './memory/recall.js';
+import { reviewPrompts, REVIEW_LIMIT } from './feedback-review.js';
+import { HELPERS, HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from './prompt-text.js';
 
 /**
  * Prompt feedback: a review of one of the developer's own prompts, one item at
@@ -107,4 +111,111 @@ export function acknowledgeFeedback(db: Database, id: number): 'acknowledged' | 
 /** Deleting the pending item unblocks the next; it is not counted as acknowledged. */
 export function deleteFeedback(db: Database, id: number): boolean {
   return db.prepare('DELETE FROM feedback_items WHERE id = ?').run(id).changes > 0;
+}
+
+/** A session is read only once it has been quiet this long, so a live one is never reviewed. */
+export const SETTLE_MINUTES = 30;
+/** And only if it began within this many days: an old session is not worth a coaching note. */
+export const WINDOW_DAYS = 14;
+/** Sessions looked at in one run, so a long backlog of quiet ones is not one long scan. */
+export const MAX_SESSIONS_PER_RUN = 5;
+
+export type GenerateOutcome =
+  | { status: 'off' | 'needs_memory' | 'needs_observer' | 'pending' | 'nothing' | 'later' | 'failed' }
+  | { status: 'reviewed'; date: string };
+
+interface Candidate {
+  id: number;
+  text: string;
+}
+
+/**
+ * The prompts of one session worth reading: the developer's own words, long
+ * enough to be a task, and neither a slash command nor something the host sent.
+ * Host markup is stripped before the length check, so a pasted log around a
+ * three-word ask does not qualify.
+ */
+function qualifyingPrompts(db: Database, project: string, sessionId: string): Candidate[] {
+  const rows = db
+    .prepare("SELECT id, body FROM evidence_events WHERE project = ? AND session_id = ? AND kind = 'prompt' ORDER BY occurred_at, id")
+    .all(project, sessionId) as { id: number; body: string }[];
+  return rows
+    .filter((r) => !SLASH.test(r.body.trim()) && !HOST_PROMPT.test(r.body.trim()))
+    .map((r) => ({ id: r.id, text: ownWords(r.body) }))
+    .filter((c) => c.text.length >= TASK_PROMPT_CHARS)
+    .slice(0, REVIEW_LIMIT.prompts)
+    .map((c) => ({ id: c.id, text: c.text.slice(0, REVIEW_LIMIT.promptChars) }));
+}
+
+/** The failures a later start may get past: a login, a quota, a busy service, a missing install. */
+const RETRY_LATER = new Set(['auth', 'quota', 'transient', 'missing', 'cancelled']);
+
+/**
+ * Reviews one prompt from the oldest reviewable session of `project`, or says
+ * why not. One item per call: only one may be pending.
+ *
+ * Scoped to one project because the switch is: a project with feedback off must
+ * not have its prompts sent because another project turned it on. Nothing is
+ * written, and no model is called, while an item is pending.
+ */
+export async function generateFeedback(
+  db: Database,
+  config: EklavyaConfig,
+  opts: { project: string; now?: Date; currentSession?: string | null; signal?: AbortSignal },
+): Promise<GenerateOutcome> {
+  if (!config.feedback.enabled) return { status: 'off' };
+  if (!config.memory.enabled) return { status: 'needs_memory' };
+  const observer = config.providers.observer;
+  if (!observer) return { status: 'needs_observer' };
+  if (feedbackPending(db)) return { status: 'pending' };
+
+  const now = opts.now ?? new Date();
+  const settled = new Date(now.getTime() - SETTLE_MINUTES * 60_000).toISOString();
+  const earliest = new Date(now.getTime() - WINDOW_DAYS * 86_400_000).toISOString();
+  const sessions = db
+    .prepare(
+      `SELECT session_id, MIN(occurred_at) AS began FROM evidence_events
+       WHERE project = ? AND session_id <> ? AND session_id NOT IN ${HELPERS}
+         AND session_id NOT IN (SELECT session_id FROM feedback_reviewed)
+       GROUP BY session_id
+       HAVING datetime(MIN(occurred_at)) >= datetime(?) AND datetime(MAX(occurred_at)) <= datetime(?)
+       ORDER BY MIN(occurred_at), session_id`,
+    )
+    .all(opts.project, opts.currentSession ?? '', earliest, settled) as { session_id: string; began: string }[];
+
+  const mark = db.prepare('INSERT OR REPLACE INTO feedback_reviewed (session_id, outcome) VALUES (?, ?)');
+  for (const s of sessions.slice(0, MAX_SESSIONS_PER_RUN)) {
+    const prompts = qualifyingPrompts(db, opts.project, s.session_id);
+    if (!prompts.length) {
+      mark.run(s.session_id, 'nothing');
+      continue;
+    }
+    let got;
+    try {
+      got = await reviewPrompts(observer.model, prompts.map((p) => p.text), { signal: opts.signal });
+    } catch (err) {
+      // `reviewPrompts` rejects only with a ProviderError (the call and the
+      // validation both raise one), so the class is always there to read.
+      if (RETRY_LATER.has((err as ProviderError).errorClass)) return { status: 'later' };
+      mark.run(s.session_id, 'failed');
+      return { status: 'failed' };
+    }
+    const chosen = prompts[got.chosen - 1]!;
+    const id = insertFeedback(db, {
+      session_id: s.session_id,
+      project: opts.project,
+      event_id: chosen.id,
+      prompt: chosen.text,
+      review: got.review,
+      better: got.better,
+      tips: got.tips,
+      model: observer.model,
+    });
+    // Another writer got there while the model was thinking: nothing is marked,
+    // so this session is reviewed once the pending item is acknowledged.
+    if (id === null) return { status: 'pending' };
+    mark.run(s.session_id, 'item');
+    return { status: 'reviewed', date: s.began.slice(0, 10) };
+  }
+  return { status: 'nothing' };
 }

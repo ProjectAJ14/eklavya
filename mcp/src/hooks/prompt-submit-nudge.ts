@@ -60,6 +60,7 @@ import type { EvidenceIdentity } from '../memory/identity.js';
 import { markEmitted, recallForPrompt, type RecallResult } from '../memory/recall.js';
 import { countUse } from '../telemetry.js';
 import { promptLine } from './delegation-lib.js';
+import { HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from '../prompt-text.js';
 
 /**
  * Recall for one prompt, mid-session, or null.
@@ -111,24 +112,6 @@ const COOLDOWN_MINUTES = 25;
  * between three nudges and four is not something anyone needs to tune.
  */
 const MAX_NUDGES = 3;
-
-/**
- * Shorter than this and a prompt is a reply -- "yes", "commit it", "go on" --
- * not a task to decide how to build. Not a classifier: a long question still
- * gets the delegation line, and the line says to answer questions yourself.
- * `/wt implement the 0.2 handoff` is 31 characters, and a real task.
- */
-const TASK_PROMPT_CHARS = 25;
-
-/**
- * What the host sends through UserPromptSubmit on its own: a background agent's
- * hand-back and its completion notice. Neither is the developer asking for work,
- * and a session with four builders and three explainers received seven of them.
- */
-const HOST_PROMPT = /^<(agent-message|task-notification)\b/;
-
-/** The user-invocable skills under `skills/`, bare or plugin-qualified. */
-const SLASH = /^\/(?:eklavya:)?(gate|learn|level|memory|mode|pack|progress|quiz|setup|skip)(?![\w-])/;
 
 /**
  * `<first-seen ISO>|<last-nudge ISO or empty>|<nudges so far>`
