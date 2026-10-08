@@ -118,7 +118,10 @@ const session = (sid: string) => {
 
 const calls = (): string[] => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : []);
 
-async function until(check: () => boolean, ms = 15_000): Promise<void> {
+// A ceiling, not a delay: it returns the moment `check` passes. 15 seconds was
+// enough alone and not under c8, where the second worker of the login test
+// had not drained yet and the assertion after it read `pending: 1`.
+async function until(check: () => boolean, ms = 30_000): Promise<void> {
   const deadline = Date.now() + ms;
   while (!check() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
 }
@@ -353,7 +356,7 @@ echo '${envelope}'
     expect(queueDepth(db)).toMatchObject({ paused: 0, pending: 0 });
     expect(calls().some((c) => c.endsWith(' auth'))).toBe(true);
     expect((db.prepare("SELECT count(*) n FROM memory_entries WHERE title = 'Rotated refresh tokens'").get() as { n: number }).n).toBeGreaterThanOrEqual(1);
-  }, 40_000);
+  }, 90_000);
 });
 
 describe.skipIf(!posix)('the provider process tree', () => {
