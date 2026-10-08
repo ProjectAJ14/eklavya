@@ -123,8 +123,8 @@ usage. Either way the answer is recorded once, by the same code that records a
 card answer.
 
 The panel is used only when all of these hold: `quiz.panel` is on, the Claude Code
-terminal CLI is the host (tested on 2.1.292; the Desktop Code tab is not
-supported yet and keeps the card), the panel has reported in within the last
+terminal CLI (tested on 2.1.292) or the Desktop Code tab (enabled, not yet
+verified on a real Desktop build) is the host, the panel has reported in within the last
 90 seconds, and its last report did not say the host could not show it. Otherwise the question uses the card, exactly as before. In a terminal
 narrower than 144 columns an unrequested panel waits instead of opening: you see
 "A question is waiting. /eklavya-panel to open it." and the question stays put
@@ -158,7 +158,11 @@ Or paste this into Claude Code and let Claude make the change:
 Eklavya's quiz panel is being denied by auto mode. Add mcp__plugin_eklavya_eklavya__panel_sync, mcp__plugin_eklavya_eklavya__panel_answer and mcp__plugin_eklavya_eklavya__present_question to permissions.allow in my ~/.claude/settings.json, keeping my existing entries.
 ```
 
-An allow rule is checked before auto mode decides, so these three calls run
+The Desktop Code tab runs the same engine and reads the same
+`~/.claude/settings.json`, so one rule is meant to cover the terminal and
+Desktop alike; a project's `.claude/settings.json` also applies in both. A
+Desktop session in a different permission mode can still ask or refuse. An allow
+rule is checked before auto mode decides, so these three calls run
 without being judged. Allow only these three rather than the whole Eklavya
 server, which would also let tools such as `memory_delete` and `set_config` run
 without asking.

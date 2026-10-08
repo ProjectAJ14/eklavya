@@ -168,7 +168,10 @@ fingerprints remain stable.
 
 Observed on the **2.1.292 terminal CLI**, with the plugin loaded from a checkout
 (`claude --plugin-dir`), 2026-10-07. The Desktop Code tab was **not** tested and no row
-holds for it; `PANEL_SURFACES` in `mcp/src/panel-state.ts` therefore lists only `terminal`.
+holds for it. `PANEL_SURFACES` in `mcp/src/panel-state.ts` lists `desktop` anyway (enabled
+2026-10-08 at the maintainer's request): the planner still falls back to the card when the
+mod never reports in or reports `placed: false`. Verify rows 5, 12 and 13 on a Desktop build
+and record them here.
 "Declared" rows come from the build's own `claude-code.d.ts`; "observed" rows from a probe
 log or a driven session.
 

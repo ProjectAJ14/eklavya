@@ -17,11 +17,13 @@ import { isCowork } from './surface.js';
 export const PANEL_HEARTBEAT_TTL_MS = 90_000;
 
 /**
- * Host surfaces that have been seen to take an answer. Verified on the terminal
- * only (docs/verified-schemas.md, Stage 0); the Desktop Code tab is added here
- * when it has been tried, not before.
+ * Host surfaces the planner may present the panel on. The terminal was verified
+ * (docs/verified-schemas.md); the Desktop Code tab is enabled but not yet
+ * observed. It is safe to try: a host that cannot seat the pane reports
+ * `placed: false` and the question stays on the card, and a host that never
+ * loads the mod never stamps a heartbeat.
  */
-export const PANEL_SURFACES: readonly string[] = ['terminal'];
+export const PANEL_SURFACES: readonly string[] = ['terminal', 'desktop'];
 
 /** The phases in which a question is still waiting for its answer. */
 export const OPEN_PHASES = "('pending','unplaced','grading')";

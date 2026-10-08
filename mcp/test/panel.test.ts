@@ -214,10 +214,10 @@ describe('present_question refuses when the panel is not the way to ask', () => 
     expect(direct().error).toBe('panel_unavailable');
     recordHeartbeat(db, SESSION, { surface: 'terminal' }, undefined, new Date(Date.now() - 120_000));
     expect(direct().error).toBe('panel_unavailable');
-    recordHeartbeat(db, SESSION, { surface: 'desktop' }, undefined);
+    recordHeartbeat(db, SESSION, { surface: 'vscode' }, undefined);
     expect(direct().error).toBe('panel_unavailable');
     expect(stored()).toEqual({ n: 0 });
-    recordHeartbeat(db, SESSION, { surface: 'terminal' }, undefined);
+    recordHeartbeat(db, SESSION, { surface: 'desktop' }, undefined);
     expect(direct().status).toBe('presented');
   });
 });
