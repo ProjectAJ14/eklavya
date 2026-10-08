@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK } from './model'
+import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, logoRows } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -579,6 +579,21 @@ describe('placement and lifecycle', () => {
     expect(await pane.find({ text: STR.empty })).toBeDefined()
     await boot($)
     expect(await ticks(pane)).toBe(0)
+  })
+})
+
+describe('the logo', () => {
+  test('is six text rows of thirteen cells', () => {
+    const rows = logoRows()
+    expect(rows).toHaveLength(LOGO_GRID.length / 2)
+    for (const r of rows) expect(r.reduce((n, run) => n + run.text.length, 0)).toBe(LOGO_GRID[0].length / 2)
+  })
+
+  test('a block takes its colours as foreground and background', () => {
+    const pal = { a: '#111111', b: '#222222' }
+    expect(logoRows(['a.', '.a'], pal)).toEqual([[{ text: '▚', fg: '#111111', bg: undefined }]])
+    expect(logoRows(['ab', 'ab'], pal)).toEqual([[{ text: '▌', fg: '#111111', bg: '#222222' }]])
+    expect(logoRows(['..', '..'], pal)).toEqual([[{ text: ' ' }]])
   })
 })
 

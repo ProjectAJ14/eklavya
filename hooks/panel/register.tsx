@@ -5,8 +5,6 @@ import {
   BRAND,
   EMPTY,
   EXPLAINER,
-  LOGO_COLORS,
-  LOGO_ROWS,
   NEXT_PROMPT,
   PANE,
   REOPEN,
@@ -16,6 +14,7 @@ import {
   answerWas,
   explainerBrief,
   gradingRequest,
+  logoRows,
   levelLine,
   parseVerdict,
   payloadOf,
@@ -342,14 +341,14 @@ export const register: Register = on => {
     const s: PanelState = await read($, quiz)
     const q = s.question
 
-    // The mark is drawn in cells, as Claude Code draws its own, so it shows in every terminal.
+    // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal.
     const logo = (
       <Box flexDirection="column">
-        {LOGO_ROWS.map((row, y) => (
+        {logoRows().map((runs, y) => (
           <Box key={`logo-${y}`} flexDirection="row">
-            {row.split(' ').map((c, x) => (
-              <Text key={`logo-${y}-${x}`} color={LOGO_COLORS[c[0] as 'W' | 'T']} backgroundColor={LOGO_COLORS[c[1] as 'W' | 'T']}>
-                ▀
+            {runs.map((run, x) => (
+              <Text key={`logo-${y}-${x}`} color={run.fg} backgroundColor={run.bg}>
+                {run.text}
               </Text>
             ))}
           </Box>

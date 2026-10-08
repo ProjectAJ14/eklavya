@@ -22,20 +22,57 @@ export const TIER: Record<number, string> = { 1: 'recall', 2: 'mechanism', 3: 'j
 export const BRAND = '#79D5C4'
 
 /**
- * The bow-and-arrow mark (`web/public/brand/mark.svg`) as terminal cells, the way
- * Claude Code draws its own: each cell is a half block whose top pixel is the
- * foreground and bottom pixel the background. One row per line, one two-letter
- * cell per pair: W is white, T is the mark's verdigris square.
+ * The logo: the Claude mascot (orange) holding an Eklavya bow and arrow (white), drawn on a
+ * grid where one cell is a quarter of a text character. Designed in the logo maker; a letter
+ * names its colour in LOGO_PALETTE and a dot is empty.
  */
-export const LOGO_ROWS = [
-  'TT TT TW TW TT TT TT TT TT TT TT',
-  'TT TT WW WT WW TT TT TW TT TT TT',
-  'TT TW WW TW WW WW TW TW WW TW TT',
-  'TT TT WW TT WW WT TT TW WT TT TT',
-  'TT TT WW WW WT TT TT TT TT TT TT',
-  'TT TT TT TT TT TT TT TT TT TT TT',
+export const LOGO_GRID = [
+  '.................dd.......',
+  '................d..d......',
+  '................d...d.....',
+  '...aaaaaaaaaaaa.d....d....',
+  '...aa.aaaaaa.aa.d.....d...',
+  '.aaaaaaaaaaaaaaadddddddddd',
+  '...aaaaaaaaaaaa.d.....d...',
+  '....a.a....a.a..d....d....',
+  '................d...d.....',
+  '................d..d......',
+  '.................dd.......',
+  '..........................',
 ] as const
-export const LOGO_COLORS = { W: '#FFFFFF', T: '#0E6E66' } as const
+export const LOGO_PALETTE: Record<string, string> = { a: '#D97757', d: '#FFFFFF' }
+
+/** One stretch of text cells that share a colour pair. A text character holds two colours at most. */
+export type LogoRun = { text: string; fg?: string; bg?: string }
+
+/** Quadrant glyphs by which of the four cells (upper left 1, upper right 2, lower left 4, lower right 8) are filled. */
+const QUADRANT = ' ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█'
+
+/**
+ * The grid as rows of text runs: each 2 by 2 block becomes one quadrant character, the
+ * first colour as its foreground and a second, if any, as its background. A third colour
+ * in one block is dropped, so the logo degrades and never throws.
+ */
+export function logoRows(grid: readonly string[] = LOGO_GRID, palette: Record<string, string> = LOGO_PALETTE): LogoRun[][] {
+  const out: LogoRun[][] = []
+  for (let cy = 0; cy < Math.ceil(grid.length / 2); cy++) {
+    const runs: LogoRun[] = []
+    for (let cx = 0; cx < Math.ceil((grid[0]?.length ?? 0) / 2); cx++) {
+      const quad = [grid[cy * 2]?.[cx * 2], grid[cy * 2]?.[cx * 2 + 1], grid[cy * 2 + 1]?.[cx * 2], grid[cy * 2 + 1]?.[cx * 2 + 1]].map(c => (c && c !== '.' ? c : ''))
+      const [first, second] = [...new Set(quad.filter(Boolean))]
+      let run: LogoRun = { text: ' ' }
+      if (first) {
+        const mask = quad.reduce((n, c, i) => (c === first ? n | (1 << i) : n), 0)
+        run = { text: QUADRANT[mask], fg: palette[first], bg: second ? palette[second] : undefined }
+      }
+      const last = runs[runs.length - 1]
+      if (last && last.fg === run.fg && last.bg === run.bg) last.text += run.text
+      else runs.push(run)
+    }
+    out.push(runs)
+  }
+  return out
+}
 
 /** The name as the header sets it: spaced capitals, the nearest a terminal gets to a larger type size. */
 export const WORDMARK = 'EKLAVYA'.split('').join(' ')
