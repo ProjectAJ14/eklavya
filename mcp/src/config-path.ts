@@ -81,6 +81,9 @@ const NULLABLE: Record<string, 'string' | 'number' | 'object'> = {
   'providers.embeddings': 'object',
 };
 
+const PROVIDER_KEYS = new Set(['providers.observer', 'providers.embeddings']);
+const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
+
 export function parseValue(key: string, raw: string): unknown {
   const target = defaultAt(key);
 
@@ -95,7 +98,13 @@ export function parseValue(key: string, raw: string): unknown {
     try {
       return JSON.parse(raw) as unknown;
     } catch {
-      return raw;
+      // `providers.observer claude-haiku-4-5`: a bare model name is the whole
+      // provider, since the model runs through Claude Code and there is no
+      // other kind. Anything that is not a model name stays text, and the
+      // value check refuses it in the usual words. So does `anthropic` itself:
+      // it is the kind, the likeliest thing to type here by mistake, and as a
+      // model name it would be accepted and then never work.
+      return PROVIDER_KEYS.has(key) && MODEL_NAME.test(raw) && raw !== 'anthropic' ? { kind: 'anthropic', model: raw } : raw;
     }
   }
 

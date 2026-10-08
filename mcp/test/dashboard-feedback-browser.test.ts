@@ -198,7 +198,7 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       const cases: [string, () => void, RegExp, RegExp][] = [
         ['off', () => configure({}), /^Eklavya reviews one prompt at a time\./, /Prompt feedback is off/],
         ['memory off', () => configure({ ...ON, memory: { enabled: false } }), /^Eklavya reviews one prompt at a time\./, /Prompt feedback needs memory\. Turn on memory\.enabled\./],
-        ['no observer', () => configure({ feedback: { enabled: true } }), /^Eklavya reviews one prompt at a time\./, /needs an observer model/],
+        ['no observer', () => configure({ feedback: { enabled: true } }), /^Eklavya reviews one prompt at a time\./, /Prompt feedback needs an observer model\. Run eklavya config set providers\.observer <model>\./],
         ['empty', () => configure(ON), /^Eklavya reviews one prompt at a time\./, /Nothing to review yet/],
         ['failed', () => { configure(ON); db.prepare("INSERT INTO feedback_reviewed (session_id, outcome) VALUES ('s', 'failed')").run(); }, /^Eklavya reviews/, /Couldn't review the last session\. It will try again at a later start\./],
       ];

@@ -156,8 +156,10 @@ Provider settings are global because one worker processes all projects on the ma
 The installer offers an observer choice when memory is enabled; upgrades do not enable one silently. With no observer, summaries are generated locally.
 
 ```bash
-eklavya config set providers.observer '{"kind":"anthropic","model":"claude-haiku-4-5"}'
+eklavya config set providers.observer claude-haiku-4-5
 ```
+
+A bare model name is shorthand for `{"kind":"anthropic","model":"<name>"}`, which still works, and `null` clears it. `anthropic` on its own is refused: it is the kind, not a model.
 
 #### `notifications` — what gets sent out
 

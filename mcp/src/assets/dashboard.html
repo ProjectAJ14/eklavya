@@ -3543,7 +3543,7 @@ const FB = {
   // `not_visible` is the muted role, never a weakness.
   pill: { strong: 'pill ok', mixed: 'pill', missing: 'pill due', not_visible: 'pill gone' },
   counted: false,
-  observerCmd: `eklavya config set providers.observer '{"kind":"anthropic","model":"claude-haiku-4-5"}'`,
+  observerCmd: 'eklavya config set providers.observer <model>',
   about: `Your prompts are already recorded by memory. After a session ends, in the background and never in the middle of your work,
     Eklavya asks your observer model (the one in <code>providers.observer</code>, running through Claude Code on your own subscription)
     to review one of that session's prompts against Anthropic's 4D framework: Delegation, Description, Discernment and Diligence.
@@ -3564,8 +3564,8 @@ function fbEmpty(F) {
   } else if (!F.memory) {
     body = `<p>Prompt feedback needs memory. Turn on <code>memory.enabled</code>.</p>`;
   } else if (!F.observer) {
-    body = `<p>Prompt feedback needs an observer model. Run this to set one:</p>${fbCmd(FB.observerCmd)}
-      <p class="cmd__note">Setting it lets Eklavya send your prompts to that model, through your Claude Code login.</p>`;
+    body = `<p>Prompt feedback needs an observer model. Run <code>eklavya config set providers.observer &lt;model&gt;</code>.</p>${fbCmd(FB.observerCmd)}
+      <p class="cmd__note">Put the model's name in place of &lt;model&gt;, for example claude-haiku-4-5. Setting it lets Eklavya send your prompts to that model, through your Claude Code login.</p>`;
   } else if (F.failed) {
     body = `<p>Couldn't review the last session. It will try again at a later start.</p>`;
   } else {
