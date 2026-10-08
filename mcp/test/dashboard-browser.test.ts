@@ -1574,20 +1574,40 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
-    it('folds review blocks past the third into a Show more disclosure', async () => {
+    it('shows the top three review blocks and folds the rest under Show more', async () => {
       const w = await open('#/learning/review');
-      const out = await w.page.evaluate(() => {
-        const mk = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `p${i}`, count: 2, command: `c${i}`, note: '' }));
-        const probe = (n: number) => {
-          const d = document.createElement('div');
-          d.innerHTML = startBlocks('T', mk(n));
-          return { shown: d.querySelectorAll('.starts > .start').length, folded: d.querySelectorAll('.starts__more .start').length,
-            label: d.querySelector('.starts__more summary')?.textContent ?? null };
-        };
-        return { three: probe(3), five: probe(5) };
-      });
-      expect(out.three).toEqual({ shown: 3, folded: 0, label: null });
-      expect(out.five).toEqual({ shown: 3, folded: 2, label: 'Show 2 more · 4 due' });
+      await w.ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
+      // Five projects, counts 2, 2, 1, 1, 1: the top two plus one single show; two singles fold.
+      await due(w.page, [
+        ['csrf', fx.repo.answered], ['jwt-structure', fx.repo.answered],
+        ['git-rebase', fx.repo.mixed], ['refresh-token-rotation', fx.repo.mixed],
+        ['cors-basics', fx.repo.clientApi], ['express-middleware', fx.repo.serverApi], ['git-stash', fx.repo.retired],
+      ]);
+      const read = () => w.page.evaluate(() => ({
+        shown: [...document.querySelectorAll('#view .starts > .start > p:first-child')].map((p) => p.textContent!.replace(/\s+/g, ' ').trim()),
+        folded: [...document.querySelectorAll('#view .starts__more .start > p:first-child')].map((p) => p.textContent!.replace(/\s+/g, ' ').trim()),
+        label: document.querySelector('#view .starts__more > summary')?.textContent,
+        open: (document.querySelector('#view .starts__more') as HTMLDetailsElement | null)?.open,
+      }));
+      const before = await read();
+      expect(before.shown).toHaveLength(3);
+      expect(before.folded).toHaveLength(2);
+      expect(before.label).toBe('Show 2 more · 2 due');
+      expect(before.open).toBe(false);
+      // Folded blocks are not rendered until opened, and the keyboard opens them.
+      expect(await w.page.$eval('#view .starts__more .start', (n) => n.checkVisibility())).toBe(false);
+      await w.page.focus('#view .starts__more > summary');
+      await w.page.keyboard.press('Enter');
+      expect((await read()).open).toBe(true);
+      // A folded block copies exactly its own command.
+      await w.page.click('#view .starts__more .start:last-of-type [data-copy]');
+      const cmd = await w.page.$eval('#view .starts__more .start:last-of-type code', (n) => n.textContent);
+      expect(await w.page.evaluate(() => navigator.clipboard.readText())).toBe(cmd);
+      // Three or fewer projects show no fold at all.
+      await due(w.page, [['csrf', fx.repo.answered], ['git-rebase', fx.repo.mixed], ['cors-basics', fx.repo.clientApi]]);
+      expect(await w.page.$('#view .starts__more')).toBeNull();
+      expect((await read()).shown).toHaveLength(3);
+      expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
 
