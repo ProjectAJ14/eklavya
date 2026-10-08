@@ -149,6 +149,14 @@ describe('the pane, state by state', () => {
     expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
   })
 
+  test('the desktop app gets the name without the text-drawn mark', async ($, on) => {
+    world(on)
+    await boot($)
+    const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
+    expect(drawn).not.toContain('logo-0')
+    expect(drawn).toContain(WORDMARK)
+  })
+
   test('selecting an option is a draft: it never submits, grades or skips', async ($, on) => {
     const w = world(on)
     await boot($)

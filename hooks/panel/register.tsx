@@ -349,8 +349,10 @@ export const register: Register = on => {
     const s: PanelState = await read($, quiz)
     const q = s.question
 
-    // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal.
-    const logo = (
+    // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal. The
+    // desktop app sets text in a proportional font with its own line height, so the cells do not
+    // tile there and the mark falls apart: that surface gets the name alone.
+    const logo = e.surface !== 'terminal' ? null : (
       <Box flexDirection="column" flexShrink={0}>
         {logoRows().map((runs, y) => (
           <Box key={`logo-${y}`} flexDirection="row" flexShrink={0}>

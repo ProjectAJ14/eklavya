@@ -121,7 +121,7 @@ questions off and keep memory on.
 |---|---|---|
 | `quiz.enabled` | `true`: ask questions | `false`: no questions |
 | `quiz.enforced` | `false`: commit freely | `true`: pass a quiz before a commit |
-| `quiz.panel` | `false`: Claude's question card | `true`: experimental side panel on the Claude Code terminal CLI and Desktop Code tab, one bordered card per option |
+| `quiz.panel` | `false`: Claude's question card | `true`: experimental side panel on the Claude Code terminal CLI and Desktop Code tab, one bordered card per option; the text-drawn Eklavya mark shows in a terminal, the desktop app shows the name alone |
 | `focus` | `concept`: the idea behind the code | `project`: this codebase · `learn`: a topic you pick |
 | `cadence` | `as-you-go`: during the task | `end`: after the task |
 | `difficulty` | `auto`: grows with you | `easy`, `medium` or `hard` |
