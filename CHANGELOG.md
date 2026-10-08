@@ -1,3 +1,10 @@
+## [1.54.1](https://github.com/ProjectAJ14/eklavya/compare/v1.54.0...v1.54.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* **panel:** readable logo, bold question and spaced answers on the desktop app ([#141](https://github.com/ProjectAJ14/eklavya/issues/141)) ([480a7cb](https://github.com/ProjectAJ14/eklavya/commit/480a7cbf4a202162cbbeaf94c42e58f986b273a7))
+
 # [1.54.0](https://github.com/ProjectAJ14/eklavya/compare/v1.53.0...v1.54.0) (2026-10-08)
 
 
