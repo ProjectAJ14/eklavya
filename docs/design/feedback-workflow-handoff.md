@@ -1,7 +1,7 @@
 # Feedback workflow — design handoff
 
 - **Base:** `main` @ `19911c0` (1.54.1; includes dashboard tips and the quiz panel)
-- **Branches:** `feat/feedback-workflow-prompt-coaching-and-in` for **Part A**; **Part B** continues in the same session on `feat/feedback-issue-from-chat`, cut from Part A's branch (stacked).
+- **Branches:** `feat/feedback-workflow-prompt-coaching-and-in` for **Part A**, and Part B on the same branch: one PR for the whole brief.
 - **Issue:** [ProjectAJ14/eklavya#140](https://github.com/ProjectAJ14/eklavya/issues/140)
 - **Previous brief:** `docs/design/dashboard-tips-handoff.md` (the `TIPS` engine, `eklavya-dash-*` localStorage keys and the dashboard's no-outbound rule all apply here).
 - **Design source:** the issue text. No Figma; the page follows `.claude/skills/eklavya-design/SKILL.md`.
@@ -46,9 +46,9 @@ Follow the root `CLAUDE.md`, `mcp/CLAUDE.md`, `skills/CLAUDE.md` (Part B touches
 | `gh` is installed and signed in on this machine. The skill must not assume that for users. | `gh auth status` | Verified (here only) |
 | Anthropic's AI Fluency 4D names and one-line meanings match the issue (Delegation, Description, Discernment, Diligence). | issue text; from memory of Anthropic's AI Fluency course | **Hypothesis.** Stage 2 starts by reading Anthropic's published page and copying its definitions into `FOURD` in code with the source URL in a comment. If the names differ, stop and tell the maintainer. |
 
-## Two PRs, one session
+## One PR
 
-The issue asks for separate PRs. **Do the whole brief, in order:** Part A (Stages 1 to 6 plus docs) as PR 1 to `main`. Then, without waiting for the merge, branch `feat/feedback-issue-from-chat` off Part A's branch and do Part B (Stages 7 and 8 plus docs) as PR 2. Part B adds a card to the Feedback page that Part A creates, so it is stacked: PR 2's base is Part A's branch until PR 1 merges, then retarget it to `main`.
+The issue suggests separate PRs; the maintainer chose **a single PR** for the whole brief. Do Part A (Stages 1 to 6), then Part B (Stages 7 and 8), then one docs stage, all on this branch.
 
 After every stage, from `mcp/`:
 
@@ -60,7 +60,7 @@ npm run coverage
 
 100% on every metric. The docs stage also runs `npm run build` in `web/`, `.github/scripts/check-docs-sync.sh` and `/verify-docs`.
 
-### Delivery order, Part A
+### Delivery order
 
 1. `feat:` Migration, config switch, store and the acknowledge gate (no UI, no model).
 2. `feat:` Prompt selection and the review (rubric, schema, model call, `eklavya feedback generate`).
@@ -68,13 +68,9 @@ npm run coverage
 4. `feat:` Dashboard: Feedback workflow, badge, acknowledge, delete, history.
 5. `feat:` Greeting line.
 6. `feat:` Usage counts.
-7. `docs:` Manual, landing, READMEs, skills, diagram.
-
-### Delivery order, Part B (second PR)
-
-1. `feat:` Issue form and the skill's feedback behaviour (Stage 7).
-2. `feat:` Dashboard "Found a problem" card, dismissible (Stage 8).
-3. `docs:` As listed under Docs.
+7. `feat:` Issue form and the skill's feedback behaviour (Stage 7).
+8. `feat:` Dashboard "Found a problem" card, dismissible (Stage 8).
+9. `docs:` Manual, landing, READMEs, skills, diagram (both parts).
 
 ## How it works for the learner
 
@@ -448,8 +444,6 @@ cd mcp && npm run build && node dist/cli.js dashboard --port 41799 --no-open
 
 ## Docs to update in the same PR
 
-**Part A**
-
 - Manual `dashboard`: a **Feedback** section (the rule, the badge, History, Delete), the workflow count (the `description` says "four connected workflows"), and Tips for the new workflow.
 - Manual `configuration` and `dials`: `feedback.enabled`, default off, needs memory and an observer.
 - Manual `commands` and `cli`: `eklavya feedback generate`.
@@ -463,15 +457,13 @@ cd mcp && npm run build && node dist/cli.js dashboard --port 41799 --no-open
 - `docs/eklavya-runtime.architecture.json`: add the background review process and the Feedback workflow; set `meta.repository.revision`; regenerate with `archify` exactly as `CLAUDE.md` says; remove the PNG and JSON sidecars; delivery checks clean and every viewport passing.
 - `docs/subagent-policy.md` only if the review is described as a delegate; it is not, so expect no change.
 
-**Part B**
-
 - Manual `faq` and `commands`: how to report a problem from Claude, what is shared, what is stripped.
 - Manual `dashboard`: the card and its Dismiss.
 - Landing: one sentence under the feature that reports problems from chat.
 - `README.md`: one line.
 - `user-skill/eklavya/SKILL.md` is the code change itself; `skills/CLAUDE.md` mapping if it lists skills.
 
-Run `/verify-docs` and `.github/scripts/check-docs-sync.sh` before each PR. Document only what ships: Part B text goes in the Part B PR.
+Run `/verify-docs` and `.github/scripts/check-docs-sync.sh` before each PR. Document only what ships: 
 
 ## Decisions taken for the user (change here if wrong)
 
@@ -488,5 +480,5 @@ Run `/verify-docs` and `.github/scripts/check-docs-sync.sh` before each PR. Docu
 11. **Part B's card is static and dismissible, not a `TIPS` bubble.** The example sentence and privacy line are longer than a bubble allows. Cost: a second way to remember a dismissal (`eklavya-dash-feedback-tip`, same per-browser rule as the other keys).
 12. **Issue form, with `blank_issues_enabled: true`.** Keeps the current free-form path. The skill posts through `gh` with the same field names, so triage is uniform. Cost: a `gh`-posted issue is not a rendered form; the body follows the same headings.
 13. **No new MCP tools.** The model in a coding session never writes or reads feedback. That makes "feedback never changes mastery" a structural fact. Cost: the in-chat Part B flow uses the shell, not an Eklavya tool.
-14. **Two PRs.** Part A first, Part B after it merges, matching the issue. Cost: a short gap before users can report problems from chat.
+14. **One PR for both parts**, at the maintainer's request (the issue suggested two). Cost: a larger review; stage commits keep Part A and Part B separable.
 15. **4D wording is copied from Anthropic's page, not from memory.** Stage 2 begins by reading it; a mismatch stops the work.
