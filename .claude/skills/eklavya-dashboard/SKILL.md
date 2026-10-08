@@ -113,7 +113,7 @@ changes on every turn without changing the page needs a `WHEN` like `gates`'.
 | `health` | capture heartbeat and mode, `queueDepth`, stalled jobs grouped by `error_class`, the spool's drop count, and whether a provider is configured |
 | `memory_sessions` | one row per session that captured evidence: events, entries, candidates, first/last — what lets the Sessions view line the two halves up |
 | `feedback` | `{ enabled, memory, observer, pending: { id } \| null, notify, acknowledged, failed }` from `feedbackSummary`: switches, whether an item waits (its id, never its text), whether to show the badge (`notify`: waiting, feedback on and memory on), the acknowledged count and whether the last session looked at could not be reviewed. The prompt text is only ever served by `/api/feedback` to the page that shows it |
-| `artifacts` | `listArtifacts() from `artifacts.ts`: every page under `~/.eklavya/artifacts/`, newest first — `id` (`<folder>/<file>`), title, description, project, kind (`explainer` or `artifact`), concept, `attempt` (the `eklavya:attempt` meta, or null), created, bytes, plus `correction` (`open`, `done` or null, one query for all rows). Read from the files' heads on each load; there is no table |
+| `artifacts` | `listArtifacts()` from `artifacts.ts`: every page under `~/.eklavya/artifacts/`, newest first — `id` (`<folder>/<file>`), title, description, project, kind (`explainer` or `artifact`), concept, `attempt` (the `eklavya:attempt` meta, or null), created, bytes, plus `correction` (`open`, `done` or null, one query for all rows). Read from the files' heads on each load; there is no table |
 
 Two things that have bitten this file already:
 

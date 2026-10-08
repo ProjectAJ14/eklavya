@@ -3567,7 +3567,7 @@ function fbEmpty(F) {
     body = `<p>Prompt feedback needs an observer model. Run this to set one:</p>${fbCmd(FB.observerCmd)}
       <p class="cmd__note">Setting it lets Eklavya send your prompts to that model, through your Claude Code login.</p>`;
   } else if (F.failed) {
-    body = `<p>Couldn't review the last session. It will try again at a later start.</p>`;
+    body = `<p>Couldn't review the last session. The next start tries the next one.</p>`;
   } else {
     body = `<p>Nothing to review yet. When a session ends, the next one you start reviews one of its prompts.</p>`;
   }

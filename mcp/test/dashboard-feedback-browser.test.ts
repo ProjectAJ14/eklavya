@@ -200,7 +200,7 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
         ['memory off', () => configure({ ...ON, memory: { enabled: false } }), /^Eklavya reviews one prompt at a time\./, /Prompt feedback needs memory\. Turn on memory\.enabled\./],
         ['no observer', () => configure({ feedback: { enabled: true } }), /^Eklavya reviews one prompt at a time\./, /needs an observer model/],
         ['empty', () => configure(ON), /^Eklavya reviews one prompt at a time\./, /Nothing to review yet/],
-        ['failed', () => { configure(ON); db.prepare("INSERT INTO feedback_reviewed (session_id, outcome) VALUES ('s', 'failed')").run(); }, /^Eklavya reviews/, /Couldn't review the last session\. It will try again at a later start\./],
+        ['failed', () => { configure(ON); db.prepare("INSERT INTO feedback_reviewed (session_id, outcome) VALUES ('s', 'failed')").run(); }, /^Eklavya reviews/, /Couldn't review the last session\. The next start tries the next one\./],
       ];
       for (const [name, setup, ruleText, bodyText] of cases) {
         db.exec('DELETE FROM feedback_reviewed');

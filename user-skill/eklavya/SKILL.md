@@ -389,8 +389,8 @@ feedback for Eklavya."*
    and updates or Other), what happened, what they expected, the question stem
    and the concept slug if either is on screen, the Eklavya version, and the
    host and OS. The version is the number after `runtime` on the `updates` row
-   of `eklavya doctor` (there is no `--version` flag). Ask only for what is
-   missing.
+   of `eklavya doctor` (there is no `--version` flag); if it says `not installed`,
+   ask for the plugin version. Ask only for what is missing.
 3. **Strip.** Remove absolute paths and the home directory, repository and
    project names, hostnames, anything that looks like a secret, and any code from
    the user's project. Write `<path>`, `<project>` or `<redacted>` in its place.

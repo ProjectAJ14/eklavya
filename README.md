@@ -109,7 +109,7 @@ each page sits centred beside the sidebar. It has five parts:
 | Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, reviews due with a command to start them (each run asks the weakest first), weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
-| Feedback | Off until you turn on `feedback.enabled`: one reviewed prompt of yours at a time, against the 4D framework, with a better version. The next waits until you press Acknowledge, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
+| Feedback | Off until you turn on `feedback.enabled` (it also needs memory and an observer model): one reviewed prompt of yours at a time, against the 4D framework, with a better version. The next waits until you press Acknowledge, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
 | Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.
