@@ -118,16 +118,21 @@ describe('the panel heartbeat and where the next question goes', () => {
     expect(panelPresentation(db, on, SESSION)).toBe('tool'); // no heartbeat yet
     beat();
     expect(panelPresentation(db, on, SESSION)).toBe('panel');
-    expect(PANEL_SURFACES).toEqual(['terminal']);
+    expect(PANEL_SURFACES).toEqual(['terminal', 'desktop']);
     // The boundary is inclusive; one millisecond past it the mod is gone.
     const at = new Date();
     beat(SESSION, 'terminal', undefined, at);
     expect(panelPresentation(db, on, SESSION, new Date(at.getTime() + PANEL_HEARTBEAT_TTL_MS))).toBe('panel');
     expect(panelPresentation(db, on, SESSION, new Date(at.getTime() + PANEL_HEARTBEAT_TTL_MS + 1))).toBe('tool');
     // A surface nobody has tried is a surface that keeps the card.
-    beat(SESSION, 'desktop');
+    beat(SESSION, 'vscode');
     expect(panelPresentation(db, on, SESSION)).toBe('tool');
-    beat(SESSION, 'terminal');
+    // The Desktop Code tab is enabled, but a host that could not seat the pane keeps the card.
+    beat(SESSION, 'desktop');
+    expect(panelPresentation(db, on, SESSION)).toBe('panel');
+    beat(SESSION, 'desktop', false);
+    expect(panelPresentation(db, on, SESSION)).toBe('tool');
+    beat(SESSION, 'terminal', true);
     expect(panelPresentation(db, on, SESSION)).toBe('panel');
   });
 
@@ -270,7 +275,7 @@ describe('the plan\'s presentation', () => {
     expect(plan().presentation).toBe('tool');
     beat(SESSION, 'terminal', false);
     expect(plan().presentation).toBe('tool');
-    beat(SESSION, 'desktop');
+    beat(SESSION, 'vscode');
     const p = plan();
     expect(p.presentation).toBe('tool');
     expect(p.ask_attribution).toBe(attributionRule());

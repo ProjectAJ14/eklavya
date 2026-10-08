@@ -110,7 +110,7 @@ loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
    **Next question** waiting never does.
 
 Run `scripts/test-panel-mod.sh` for the mod's validation and tests. Say which of
-terminal and Desktop you ran; only the terminal CLI has been verified.
+terminal and Desktop you ran; only the terminal CLI has been verified. On Desktop, also check that the pane draws without the terminal's `Ctrl+X then Tab` and `Esc` hints, that a click and the number keys pick an answer, and that a host that cannot seat the pane leaves the question on the card.
 
 ## Manual scenarios
 

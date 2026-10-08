@@ -125,6 +125,7 @@ export const STR = {
   explainer: 'A page explaining this is being written.',
   focus: 'Ctrl+X then Tab moves the keys here.',
   keys: '1–4 pick · o other · s submit · k skip · Esc back to prompt',
+  keysApp: '1–4 pick · o other · s submit · k skip',
   off: 'The quiz panel is off. Turn it on with: eklavya config set quiz.panel true',
 } as const
 
@@ -163,6 +164,14 @@ export function explainerBrief(x: ExplainBlock): string {
 }
 
 export const answerWas = (label: string): string => `The answer was: ${label}`
+
+/**
+ * The hint lines under the pane. Moving the keys with Ctrl+X then Tab and
+ * leaving with Esc are the terminal's; an app draws native buttons, so it gets
+ * the answer keys only.
+ */
+export const hintLines = (surface: string): string[] => (surface === 'terminal' ? [STR.focus, STR.keys] : [STR.keysApp])
+
 export const unplacedNotice = (): string => `A question is waiting. ${REOPEN} to open it.`
 export const levelLine = (level: string, project: string): string => `You've cleared ${level} on ${project}.`
 
