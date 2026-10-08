@@ -17,6 +17,7 @@ import {
   gradingRequest,
   logoRows,
   boxRows,
+  boldParagraphs,
   plainLabel,
   levelLine,
   parseVerdict,
@@ -435,7 +436,9 @@ export const register: Register = on => {
       )
     }
 
-    const stem = <Markdown text={codify(q.stem)} />
+    // The desktop app sets the question bold and spaces the answers apart; the terminal keeps both as they were.
+    const app = e.surface !== 'terminal'
+    const stem = <Markdown text={app ? boldParagraphs(codify(q.stem)) : codify(q.stem)} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
       const r = s.result
@@ -485,7 +488,7 @@ export const register: Register = on => {
 
     return frame(
       stem,
-      <Box flexDirection="column">
+      <Box flexDirection="column" gap={app ? 1 : 0}>
         {options}
         {card(
           'other',

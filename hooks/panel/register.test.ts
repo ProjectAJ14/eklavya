@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, logoRows, boxRows, plainLabel } from './model'
+import { EMPTY, EXPLAINER, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, boldParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -809,5 +809,22 @@ describe('the logo as boxes', () => {
       expect(r.reduce((n, run) => n + run.width, 0)).toBe(LOGO_GRID[0].length)
       r.slice(1).forEach((run, i) => expect(run.color).not.toBe(r[i].color))
     }
+  })
+})
+
+describe('the desktop layout', () => {
+  test('boldParagraphs wraps each paragraph, never a blank line', () => {
+    expect(boldParagraphs('one\ntwo\n\nthree')).toBe('**one\ntwo**\n\n**three**')
+  })
+
+  test('only the desktop app bolds the question and spaces the answers', async ($, on) => {
+    world(on)
+    await boot($)
+    const gaps = (d: string) => (d.match(/"gap":1/g) ?? []).length
+    const desktop = JSON.stringify(await (await mount($, 'desktop')).drawn())
+    const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    expect(desktop).toContain('**' + QUESTION.stem.slice(0, 10))
+    expect(terminal).not.toContain('**' + QUESTION.stem.slice(0, 10))
+    expect(gaps(desktop)).toBe(gaps(terminal) + 1)
   })
 })

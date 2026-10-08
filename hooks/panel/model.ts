@@ -104,6 +104,14 @@ export function codify(text: string): string {
     .join('')
 }
 
+/** Bolds each paragraph of a question, so a blank line never sits inside a bold span. */
+export function boldParagraphs(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map(p => (p.trim() ? `**${p.trim()}**` : p))
+    .join('\n\n')
+}
+
 /** What a Button label can show of Markdown: it keeps the words and drops the code and bold marks. */
 export function plainLabel(text: string): string {
   return text.replace(/`|\*\*/g, '')
