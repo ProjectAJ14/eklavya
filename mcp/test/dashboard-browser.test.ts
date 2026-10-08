@@ -1574,6 +1574,23 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
+    it('folds review blocks past the third into a Show more disclosure', async () => {
+      const w = await open('#/learning/review');
+      const out = await w.page.evaluate(() => {
+        const mk = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `p${i}`, count: 2, command: `c${i}`, note: '' }));
+        const probe = (n: number) => {
+          const d = document.createElement('div');
+          d.innerHTML = startBlocks('T', mk(n));
+          return { shown: d.querySelectorAll('.starts > .start').length, folded: d.querySelectorAll('.starts__more .start').length,
+            label: d.querySelector('.starts__more summary')?.textContent ?? null };
+        };
+        return { three: probe(3), five: probe(5) };
+      });
+      expect(out.three).toEqual({ shown: 3, folded: 0, label: null });
+      expect(out.five).toEqual({ shown: 3, folded: 2, label: 'Show 2 more · 4 due' });
+      await w.ctx.close();
+    });
+
     it('puts a one-slug command on a due concept, and none on one that is not due', async () => {
       const w = await open('#/learning/concept/csrf');
       await due(w.page, [['csrf', fx.repo.mixed]]);
