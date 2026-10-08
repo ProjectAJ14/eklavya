@@ -5,8 +5,7 @@ import {
   BRAND,
   EMPTY,
   EXPLAINER,
-  LOGO_BG,
-  LOGO_FG,
+  LOGO_COLORS,
   LOGO_ROWS,
   NEXT_PROMPT,
   PANE,
@@ -335,22 +334,30 @@ export const register: Register = on => {
     const s: PanelState = await read($, quiz)
     const q = s.question
 
-    // The mark is drawn in braille cells, so it shows in every terminal.
+    // The mark is drawn in cells, as Claude Code draws its own, so it shows in every terminal.
     const logo = (
       <Box flexDirection="column">
         {LOGO_ROWS.map((row, y) => (
-          <Text key={`logo-${y}`} color={LOGO_FG} backgroundColor={LOGO_BG}>
-            {row}
-          </Text>
+          <Box key={`logo-${y}`} flexDirection="row">
+            {row.split(' ').map((c, x) => (
+              <Text key={`logo-${y}-${x}`} color={LOGO_COLORS[c[0] as 'W' | 'T']} backgroundColor={LOGO_COLORS[c[1] as 'W' | 'T']}>
+                ▀
+              </Text>
+            ))}
+          </Box>
         ))}
       </Box>
     )
-    const head = (
+    // A list tile: the mark on the left; the name over the topic beside it.
+    const head = (subtitle?: string) => (
       <Box flexDirection="row" alignItems="center" gap={2}>
         {logo}
-        <Text bold color={BRAND}>
-          {STR.brand}
-        </Text>
+        <Box flexDirection="column" flexShrink={1}>
+          <Text bold color={BRAND}>
+            {STR.brand}
+          </Text>
+          {subtitle ? <Text bold>{subtitle}</Text> : null}
+        </Box>
       </Box>
     )
     const hint = <Text dimColor>{STR.keys}</Text>
@@ -372,7 +379,7 @@ export const register: Register = on => {
     )
     const frame = (...body: unknown[]) => (
       <Box flexDirection="column" paddingX={1} gap={1}>
-        {head}
+        {head(q ? topicLabel(q) : undefined)}
         {body}
         {hint}
       </Box>
@@ -389,17 +396,15 @@ export const register: Register = on => {
       )
     }
 
-    const topic = <Text dimColor>{topicLabel(q)}</Text>
     const stem = <Markdown text={q.stem} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
       const r = s.result
       if (s.step === 'skipped' || !r) {
-        return frame(topic, <Text>{STR.skipped}</Text>, <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />)
+        return frame(<Text>{STR.skipped}</Text>, <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />)
       }
       const right = r.correct === true
       return frame(
-        topic,
         stem,
         <Text bold color={right ? 'suggestion' : 'error'}>
           {right ? STR.correct : STR.wrong}
@@ -440,7 +445,6 @@ export const register: Register = on => {
     })
 
     return frame(
-      topic,
       stem,
       <Box flexDirection="column">
         {options}

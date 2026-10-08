@@ -22,18 +22,20 @@ export const TIER: Record<number, string> = { 1: 'recall', 2: 'mechanism', 3: 'j
 export const BRAND = '#79D5C4'
 
 /**
- * The bow-and-arrow mark (`web/public/brand/mark.svg`) in braille dots, white on the
- * mark's verdigris square: 12 by 12 dots in 6 by 3 cells, small enough to sit beside
- * the name and fine enough to read as a bow and arrow. Drawn in text, so it shows in
- * every terminal.
+ * The bow-and-arrow mark (`web/public/brand/mark.svg`) as terminal cells, the way
+ * Claude Code draws its own: each cell is a half block whose top pixel is the
+ * foreground and bottom pixel the background. One row per line, one two-letter
+ * cell per pair: W is white, T is the mark's verdigris square.
  */
 export const LOGO_ROWS = [
-  '⠀⡖⠢⡀⢀⠀',
-  '⠐⡗⠒⡗⢒⠗',
-  '⠀⠓⠊⠀⠀⠀',
+  'TT TT TW TW TT TT TT TT TT TT TT',
+  'TT TT WW WT WW TT TT TW TT TT TT',
+  'TT TW WW TW WW WW TW TW WW TW TT',
+  'TT TT WW TT WW WT TT TW WT TT TT',
+  'TT TT WW WW WT TT TT TT TT TT TT',
+  'TT TT TT TT TT TT TT TT TT TT TT',
 ] as const
-export const LOGO_FG = '#FFFFFF'
-export const LOGO_BG = '#0E6E66'
+export const LOGO_COLORS = { W: '#FFFFFF', T: '#0E6E66' } as const
 
 /** Every sentence the learner reads, in one place. The handoff's table, verbatim. */
 export const STR = {
