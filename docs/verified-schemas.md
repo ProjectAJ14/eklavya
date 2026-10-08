@@ -66,8 +66,9 @@ session.
 
 ## Hooks used by Eklavya
 
-Nine implementations use six events. PreToolUse has two registrations (`Bash`
-for the commit gate, `^Read$` for file history). PostToolUse has four registrations:
+Ten implementations use six events. PreToolUse has three registrations (`Bash`
+for the commit gate, `^Read$` for file history, `^AskUserQuestion$` for the
+`[Eklavya]` line on hosts without a header chip). PostToolUse has four registrations:
 capture for all tools, checkpoints on both concept logging and work tools, and the
 delegation nudge on work tools plus `Agent`/`Task`.
 All launch `node` with `args`. Timeouts are in seconds: 10 for each registration,
@@ -78,7 +79,7 @@ All launch `node` with `args`. Timeouts are in seconds: 10 for each registration
 | SessionStart | Session identity, checkout, `source` | Visible profile plus model recall/directive |
 | UserPromptSubmit | Identity, `agent_id` and `prompt` | Capture, recall, logging nudge and, next to a task-sized prompt, the delegation line |
 | SubagentStart | `agent_type`, session identity | Implementer logging directive; tutor exempt |
-| PreToolUse | `tool_name`, `tool_input.command` or `tool_input.file_path`, `agent_id` | Optional commit denial; before a Read, the file's past work as `additionalContext` |
+| PreToolUse | `tool_name`, `tool_input.command`, `tool_input.file_path` or `tool_input.questions[].header`/`question`, `agent_id` | Optional commit denial; before a Read, the file's past work as `additionalContext`; on a card host, a refusal of an `Eklavya`-headed question that lacks `[Eklavya]` (the refusal is a `permissionDecision: "deny"`; not yet observed on a live Desktop session) |
 | PostToolUse | `tool_name`, `tool_input`, `tool_response`, `agent_id`, `duration_ms` (Bash; 2.1.286) | Capture, eligible checkpoint and the delegation nudge |
 | Stop | Identity, `agent_id`, optional `stop_hook_active`, `last_assistant_message` (2.1.283; absent on older hosts) | Records the turn's final message as memory evidence, then the memory seam and eligible quiz continuation |
 

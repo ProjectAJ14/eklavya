@@ -628,7 +628,7 @@
         "UserPromptSubmit \u2014 one line, only when a session logged nothing",
         "PostToolUse \u2014 capture plus two checkpoint matchers",
         "Stop \u2014 context continues work; memory closes due batches",
-        "PreToolUse \u2014 deny git commit (Bash); a file's past work (Read)"
+        "PreToolUse \u2014 deny git commit (Bash); a file's past work (Read); the [Eklavya] line on card hosts (AskUserQuestion)"
       ]
     },
     {

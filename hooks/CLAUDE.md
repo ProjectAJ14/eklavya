@@ -7,8 +7,8 @@ in `docs/verified-schemas.md`.
 
 ## Event map
 
-Nine implementations are registered across six events. The checkpoint has two
-registrations, for ten rows total.
+Ten implementations are registered across six events. The checkpoint has two
+registrations, for eleven rows total.
 
 | Event | Implementation | Responsibility |
 |---|---|---|
@@ -16,6 +16,7 @@ registrations, for ten rows total.
 | UserPromptSubmit | `prompt-submit-nudge` | Refresh the host session record and checkout pointer, capture the prompt, recall relevant memory, nudge a session that has not logged concepts and, with questions on and `delegate_work`, add the delegation line (`delegation-lib.ts`) next to a parent prompt of 25+ characters that is not an Eklavya slash command or a host-sent `<agent-message>`/`<task-notification>` |
 | SubagentStart | `subagent-start` | Ask implementers to log, without asking questions; exempt the tutor. With memory on and a project that has entries, point every delegate at `memory_search`/`memory_get`, whatever the quiz switches say |
 | PreToolUse (`Bash`) | `pre-tool-gate` | Deny recognized commits when the enforced session gate has not passed |
+| PreToolUse (`^AskUserQuestion$`) | `ask-label` | On a host that paints no header chip (Claude Desktop, Cowork), deny once an `AskUserQuestion` headed `Eklavya` whose stem lacks `[Eklavya]`, naming the fix; any other question, a terminal and subagents pass untouched |
 | PreToolUse (`^Read$`) | `file-context` | Add the file's past observations as `additionalContext`, once per file per session, with a `file_context` receipt marked emitted after the write; parent only; never a permission decision; capture-path imports only |
 | PostToolUse (all tools) | `capture-tool` | Record one memory event with a bounded result excerpt (none for reads and edits); no quiz, summarization or provider call |
 | PostToolUse (`mcp__.*log_session_concepts`) | `checkpoint-quiz` | Ask a due as-you-go question after concepts are logged |

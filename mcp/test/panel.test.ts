@@ -7,7 +7,7 @@ import { answerPosition } from '../src/mcq.js';
 import { retryOnBusy } from '../src/concurrency.js';
 import { hasAskedQuestion, masteryFor, conceptBySlug } from '../src/store.js';
 import { panelAnswer, panelSync, presentQuestion, type AnswerInput, type PresentInput } from '../src/panel.js';
-import { loadRound, recordHeartbeat, saveRound } from '../src/panel-state.js';
+import { loadRound, panelPresentation, recordHeartbeat, saveRound } from '../src/panel-state.js';
 import { TOOLS } from '../src/tools/index.js';
 import { recordAttempt } from '../src/tools/record_attempt.js';
 import { tempDbPath, cleanup } from './helpers.js';
@@ -256,6 +256,11 @@ describe('a remembered round', () => {
 describe('panel_sync', () => {
   it('says none when nothing waits', () => {
     expect(sync()).toEqual({ none: true });
+  });
+
+  it('treats an empty cwd as a session with no folder and still stamps the heartbeat', () => {
+    expect(sync({ cwd: '' })).toEqual({ none: true });
+    expect(panelPresentation(db, { quiz: { panel: true } }, SESSION)).toBe('panel');
   });
 
   it('never carries the key, the grades or the explanation', () => {
