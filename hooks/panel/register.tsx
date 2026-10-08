@@ -230,12 +230,17 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
 
     // A miss with explain_on_wrong on: the panel starts the explainer itself in
     // the background, so no prompt shows in the transcript and nothing waits.
-    // A refused spawn falls back to the queued prompt the model acts on.
+    // Auto mode judges every spawn (it drops Agent allow rules), and its
+    // classifier can be briefly unavailable, so a refusal is asked once more.
+    // A second refusal falls back to the queued prompt the model acts on.
     if (out.explain?.instruction && explainedAttempt !== out.attempt_id) {
       explainedAttempt = out.attempt_id
-      const spawned = await $.agent
-        .spawn({ subagentType: EXPLAINER, description: 'Eklavya explainer', prompt: explainerBrief(out.explain) })
-        .catch(() => null)
+      let spawned = null
+      for (let tries = 0; tries < 2 && (!spawned || spawned.deny); tries += 1) {
+        spawned = await $.agent
+          .spawn({ subagentType: EXPLAINER, description: 'Eklavya explainer', prompt: explainerBrief(out.explain) })
+          .catch(() => null)
+      }
       if (!spawned || spawned.deny) await $.prompt.submit({ text: String(out.explain.instruction) })
     }
   } catch {

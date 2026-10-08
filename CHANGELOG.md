@@ -1,3 +1,10 @@
+## [1.52.5](https://github.com/ProjectAJ14/eklavya/compare/v1.52.4...v1.52.5) (2026-10-08)
+
+
+### Bug Fixes
+
+* **panel:** ask again when auto mode refuses the explainer ([#137](https://github.com/ProjectAJ14/eklavya/issues/137)) ([43bce1d](https://github.com/ProjectAJ14/eklavya/commit/43bce1d1e23536fa8c4bc0540931081885330da1))
+
 ## [1.52.4](https://github.com/ProjectAJ14/eklavya/compare/v1.52.3...v1.52.4) (2026-10-08)
 
 
