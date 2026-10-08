@@ -1,3 +1,10 @@
+## [1.52.2](https://github.com/ProjectAJ14/eklavya/compare/v1.52.1...v1.52.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* **panel:** start the explainer quietly and mark the learner's pick ([#133](https://github.com/ProjectAJ14/eklavya/issues/133)) ([70d0724](https://github.com/ProjectAJ14/eklavya/commit/70d07245e6e9e318875008990dd9756ba0870f42))
+
 ## [1.52.1](https://github.com/ProjectAJ14/eklavya/compare/v1.52.0...v1.52.1) (2026-10-07)
 
 
