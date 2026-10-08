@@ -9,7 +9,7 @@ import { conceptBySlug, gradeConcept, logSessionConcept, projectKey, recordRetry
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { getCurrentSession, setCurrentSession, setSessionOff } from '../src/session.js';
 import { tempDbPath, cleanup } from './helpers.js';
-import { insertEntry } from '../src/memory/store.js';
+import { appendEvent, insertEntry } from '../src/memory/store.js';
 import { GLOBAL_PROJECT } from '../src/store.js';
 
 // The built hooks, not the sources: these are what the plugin actually runs,
@@ -362,7 +362,21 @@ describe('SessionStart output', () => {
     expect(res.shown).not.toMatch(/Your savings|from memory reuse/);
   });
 
-  it('says what it recalled, not a percentage saved', () => {
+  it('adds the estimated saving when the recalled entries cite evidence', () => {
+    checkout();
+    const ev = appendEvent(db, {
+      eventUid: 'banner-saving-1',
+      project: cwd,
+      sessionId: 'old',
+      kind: 'tool_use',
+      body: 'x'.repeat(8000),
+    });
+    insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated.', eventIds: [ev.id] });
+    const res = runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart' }, { NO_COLOR: '1' });
+    expect(res.shown).toMatch(/^Memory · \d+ past entr(y|ies) recalled \(~\d+ tokens\) · ~\d+% less context$/m);
+  });
+
+  it('says only what it recalled when there is no evidence to compare against', () => {
     checkout();
     insertEntry(db, { project: cwd, title: 'Refresh cookie rotation', narrative: 'Rotated on every refresh.' });
     const res = runHook(SESSION_START, { session_id: SESSION, cwd, hook_event_name: 'SessionStart' }, { NO_COLOR: '1' });

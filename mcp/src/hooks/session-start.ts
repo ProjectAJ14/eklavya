@@ -15,7 +15,7 @@ import { sessionBlock } from './delegation-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
 import { flushAtSeam, identityOf, memoryHealthLine, recallBlock, record, replaySpool } from './memory-lib.js';
 import { markEmitted, startupDisplay, type RecallResult } from '../memory/recall.js';
-import { recalledLine } from '../memory/tokens.js';
+import { recalledLine, savingsFrom } from '../memory/tokens.js';
 import { AMBER, dialParts, paint } from '../statusline.js';
 import { dashboardPort } from '../paths.js';
 import { followMove } from '../relocate.js';
@@ -361,11 +361,14 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   const dim = (text: string) => (color ? `\u001b[2m${text}\u001b[0m` : text);
   const { counts } = startupDisplay(db, parts.project);
   out.push(`Eklavya active · ${parts.dials.join(' · ')}`);
-  // What was recalled, not a percentage saved: the saving is a counterfactual
-  // against raw evidence the agent would never have re-read, so the banner
-  // states the delivery it can prove. Nothing recalled earns no line.
+  // What was delivered, then the estimated saving against the evidence behind
+  // the full entries (titles add to delivered, not to the base, so it is
+  // conservative). Left off when it is not a saving. Nothing recalled earns no line.
   if (parts.memory && parts.recalled) {
-    out.push(paint(recalledLine(parts.recalled.entries.length, parts.recalled.deliveredTokens, parts.recalled.indexed), 114, color));
+    const r = parts.recalled;
+    const saving = savingsFrom({ baseTokens: r.baseTokens, deliveredTokens: r.deliveredTokens, delivery: 'emitted' });
+    const percent = saving.kind === 'saving' ? saving.percent : 0;
+    out.push(paint(recalledLine(r.entries.length, r.deliveredTokens, r.indexed, percent), 114, color));
   }
   if (parts.moved) out.push(paint(parts.moved, parts.moved.includes(' re-filed') ? 114 : AMBER, color));
   // Stale memory is recalled as confidently as fresh memory, so the one state
