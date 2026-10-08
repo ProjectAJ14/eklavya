@@ -1,3 +1,10 @@
+## [1.52.4](https://github.com/ProjectAJ14/eklavya/compare/v1.52.3...v1.52.4) (2026-10-08)
+
+
+### Bug Fixes
+
+* **quiz:** match a named topic loosely when it is no domain or slug ([#136](https://github.com/ProjectAJ14/eklavya/issues/136)) ([3f79134](https://github.com/ProjectAJ14/eklavya/commit/3f791346c4f3679e6052feb2de4fe513dc86cb12)), closes [#135](https://github.com/ProjectAJ14/eklavya/issues/135)
+
 ## [1.52.3](https://github.com/ProjectAJ14/eklavya/compare/v1.52.2...v1.52.3) (2026-10-08)
 
 
