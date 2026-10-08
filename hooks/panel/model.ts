@@ -164,6 +164,7 @@ export function explainerBrief(x: ExplainBlock): string {
 }
 
 export const answerWas = (label: string): string => `The answer was: ${label}`
+
 /**
  * The hint lines under the pane. Moving the keys with Ctrl+X then Tab and
  * leaving with Esc are the terminal's; an app draws native buttons, so it gets

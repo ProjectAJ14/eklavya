@@ -202,6 +202,22 @@ describe('the pane, state by state', () => {
     })
   }
 
+  test('submit does nothing until there is a draft, then sends one answer, once', async ($, on) => {
+    const w = world(on)
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'submit')
+    expect(answers(w.log)).toHaveLength(0)
+    await press($, 'opt-o3')
+    await Promise.all([press($, 'submit'), press($, 'submit')])
+    expect(answers(w.log)).toHaveLength(1)
+    expect(answers(w.log)[0].args).toMatchObject({ question_id: 'q1', repo: '/work/proj', kind: 'choice', option_id: 'o3' })
+    // The session's identity now, never the one the question came from.
+    expect(answers(w.log)[0].args.session_id).toBe('test-session')
+    expect(await pane.find({ text: STR.correct })).toBeDefined()
+    expect(await pane.find({ text: 'The Origin cannot be forged.' })).toBeDefined()
+    expect(await pane.find({ text: STR.wrong })).toBeUndefined()
+  })
 
   test('a miss says so in words and names the right option', async ($, on) => {
     world(on)
