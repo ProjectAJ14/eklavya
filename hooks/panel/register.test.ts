@@ -813,6 +813,13 @@ describe('the logo as boxes', () => {
 })
 
 describe('the desktop layout', () => {
+  test('boldParagraphs leaves block Markdown and existing bold alone', () => {
+    for (const t of ['```\ncode\n```', '- a\n- b', '# Title', '> quote', '1. step', 'already **bold** here'])
+      expect(boldParagraphs(t)).toBe(t)
+    expect(boldParagraphs('plain\n\n- list')).toBe('**plain**\n\n- list')
+    expect(boldParagraphs('')).toBe('')
+  })
+
   test('boldParagraphs wraps each paragraph, never a blank line', () => {
     expect(boldParagraphs('one\ntwo\n\nthree')).toBe('**one\ntwo**\n\n**three**')
   })

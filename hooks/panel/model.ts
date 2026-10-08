@@ -104,11 +104,14 @@ export function codify(text: string): string {
     .join('')
 }
 
-/** Bolds each paragraph of a question, so a blank line never sits inside a bold span. */
+/** Block Markdown that bold marks around it would break: a fence, heading, list, quote, or bold already in it. */
+const NOT_BOLDABLE = /```|\*\*|^\s*(?:#|[-*+>]|\d+[.)])\s/m
+
+/** Bolds each plain paragraph of a question, so a blank line never sits inside a bold span. */
 export function boldParagraphs(text: string): string {
   return text
     .split(/\n{2,}/)
-    .map(p => (p.trim() ? `**${p.trim()}**` : p))
+    .map(p => (p.trim() && !NOT_BOLDABLE.test(p) ? `**${p.trim()}**` : p))
     .join('\n\n')
 }
 

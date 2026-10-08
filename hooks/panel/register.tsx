@@ -351,13 +351,16 @@ export const register: Register = on => {
     const s: PanelState = await read($, quiz)
     const q = s.question
 
+    // Any surface but the terminal is the desktop app's: it sets the question bold, spaces the answers
+    // apart and draws the mark in boxes. The terminal keeps its text layout.
+    const app = e.surface !== 'terminal'
     // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal. The
     // desktop app sets text in a proportional font with its own line height, so glyph cells do not
-    // tile there: it gets the same grid as filled boxes, one per run of a colour (a cell is one unit
-    // wide and half a unit tall, which is square in the app), which the layout
-    // places exactly whatever the font.
+    // tile there: it gets the same grid as filled boxes, one per run of a colour. A cell is one unit
+    // wide and half a unit tall, which is square in the app (checked live there; the host's
+    // fractional-height support is not documented, so a failure shows as a stretched mark).
     const logo =
-      e.surface === 'terminal' ? (
+      !app ? (
         <Box flexDirection="column" flexShrink={0}>
           {logoRows().map((runs, y) => (
             <Box key={`logo-${y}`} flexDirection="row" flexShrink={0}>
@@ -436,8 +439,6 @@ export const register: Register = on => {
       )
     }
 
-    // The desktop app sets the question bold and spaces the answers apart; the terminal keeps both as they were.
-    const app = e.surface !== 'terminal'
     const stem = <Markdown text={app ? boldParagraphs(codify(q.stem)) : codify(q.stem)} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
