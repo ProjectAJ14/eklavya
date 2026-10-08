@@ -41,12 +41,16 @@ export const LOGO_COLORS = { W: '#FFFFFF', T: '#0E6E66' } as const
 export const WORDMARK = 'EKLAVYA'.split('').join(' ')
 
 /** Every sentence the learner reads, in one place. The handoff's table, verbatim. */
+/** How long a finished result stays before it closes itself, when no Next is waiting. */
+export const CLOSE_MS = 15_000
+
 export const STR = {
   brand: 'Eklavya',
   submit: 'Submit answer',
   skip: 'Skip question',
   next: 'Next question',
   done: 'Done',
+  autoClose: 'Closes by itself in 15 seconds.',
   retry: 'Retry',
   close: 'Close',
   other: 'Other — explain in your own words',

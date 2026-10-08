@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK } from './model'
 
@@ -318,6 +318,33 @@ describe('the pane, state by state', () => {
     w.s.waiting = null
     await press($, 'done')
     expect(await pane.find({ text: STR.empty })).toBeDefined()
+  })
+
+  test('a finished single question closes itself after 15 seconds; a round with Next does not', async ($, on) => {
+    const clock = mock.clock(on)
+    const w = world(on)
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'opt-o3')
+    await press($, 'submit')
+    expect(await pane.find({ text: STR.autoClose })).toBeDefined()
+    w.s.waiting = null
+    await clock.advance(14_000)
+    expect(await pane.find({ text: STR.correct })).toBeDefined()
+    await clock.advance(1_500)
+    expect(await pane.find({ text: STR.empty })).toBeDefined()
+  })
+
+  test('a result with Next waiting stays until the learner decides', async ($, on) => {
+    const clock = mock.clock(on)
+    world(on, { waiting: { ...QUESTION, more: true } })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'opt-o3')
+    await press($, 'submit')
+    expect(await pane.find({ text: STR.autoClose })).toBeUndefined()
+    await clock.advance(60_000)
+    expect(await pane.find({ text: STR.correct })).toBeDefined()
   })
 
   const MISS = {

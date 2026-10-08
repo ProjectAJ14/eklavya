@@ -12,6 +12,7 @@ import {
   REOPEN,
   STR,
   WORDMARK,
+  CLOSE_MS,
   answerWas,
   explainerBrief,
   gradingRequest,
@@ -53,6 +54,8 @@ let busy = false
 /** Bumped when the session ends: a submit that began before it is stale and must write nothing. */
 let epoch = 0
 let explainedAttempt = 0
+/** The result closes itself after CLOSE_MS when nothing else is pending (no Next). */
+let closer: { cancel: () => void } | null = null
 
 /**
  * One call to an Eklavya tool through the host's own connection, as the parsed
@@ -223,6 +226,9 @@ async function submit($: EngineInterface, wanted: PanelPending | null): Promise<
       message: null,
     }))
 
+    // The last question of a round has no Next: the result closes itself, as Done would.
+    if (!q.more) arm($, mine, q.question_id)
+
     // A miss with explain_on_wrong on: the panel starts the explainer itself in
     // the background, so no prompt shows in the transcript and nothing waits.
     // A refused spawn falls back to the queued prompt the model acts on.
@@ -269,6 +275,7 @@ export const register: Register = on => {
   on('session.end', async ($, e, next) => {
     try {
       epoch += 1
+      disarm()
       openedFor = null
       busy = false
       await update($, quiz, () => EMPTY)
@@ -402,7 +409,7 @@ export const register: Register = on => {
     if (s.step === 'feedback' || s.step === 'skipped') {
       const r = s.result
       if (s.step === 'skipped' || !r) {
-        return frame(<Text>{STR.skipped}</Text>, <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />)
+        return frame(<Text>{STR.skipped}</Text>, q.more ? null : <Text dimColor>{STR.autoClose}</Text>, <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />)
       }
       const right = r.correct === true
       return frame(
@@ -414,6 +421,7 @@ export const register: Register = on => {
         r.explanation ? <Markdown text={r.explanation} /> : null,
         r.level_up ? <Text color="suggestion">{levelLine(r.level_up.from, projectName(q.repo))}</Text> : null,
         r.explain ? <Text dimColor>{STR.explainer}</Text> : null,
+        q.more ? null : <Text dimColor>{STR.autoClose}</Text>,
         <Box flexDirection="row" gap={2}>
           {q.more ? <Button key="next" label={STR.next} hotkey="n" onPress={() => askNext($)} /> : null}
           <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />
@@ -510,8 +518,34 @@ async function skip($: EngineInterface): Promise<void> {
   await submit($, { kind: 'skip' })
 }
 
+/** Starts the auto-close for this result; any later Done, Next or new question cancels it. */
+function arm($: EngineInterface, mine: number, id: string): void {
+  try {
+    closer?.cancel()
+    closer = $.clock.after(CLOSE_MS, async () => {
+      try {
+        closer = null
+        if (epoch !== mine) return
+        const s: PanelState = (await $.state.get(REF)).value ?? EMPTY
+        // Only the result it was started for: an answer-in-progress or a newer question stays.
+        if ((s.step === 'feedback' || s.step === 'skipped') && s.question?.question_id === id) await done($)
+      } catch {
+        /* Fail open. */
+      }
+    })
+  } catch {
+    /* No clock: the learner presses Done. */
+  }
+}
+
+function disarm(): void {
+  closer?.cancel()
+  closer = null
+}
+
 /** Done closes the pane; another question may already be waiting, and then the pane comes straight back. */
 async function done($: EngineInterface): Promise<void> {
+  disarm()
   try {
     openedFor = null
     await update($, quiz, () => EMPTY)
@@ -524,6 +558,7 @@ async function done($: EngineInterface): Promise<void> {
 
 /** Next asks the model, by a queued prompt, for the next question of an explicit round. */
 async function askNext($: EngineInterface): Promise<void> {
+  disarm()
   try {
     openedFor = null
     await update($, quiz, () => ({ ...EMPTY, step: 'loading' }))
