@@ -352,7 +352,8 @@ export const register: Register = on => {
 
     // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal. The
     // desktop app sets text in a proportional font with its own line height, so glyph cells do not
-    // tile there: it gets the same grid as filled boxes, one per run of a colour, which the layout
+    // tile there: it gets the same grid as filled boxes, one per run of a colour (a cell is one unit
+    // wide and half a unit tall, which is square in the app), which the layout
     // places exactly whatever the font.
     const logo =
       e.surface === 'terminal' ? (
@@ -370,9 +371,9 @@ export const register: Register = on => {
       ) : (
         <Box flexDirection="column" flexShrink={0}>
           {boxRows().map((runs, y) => (
-            <Box key={`logo-${y}`} flexDirection="row" flexShrink={0} height={1}>
+            <Box key={`logo-${y}`} flexDirection="row" flexShrink={0} height={0.5}>
               {runs.map((run, x) => (
-                <Box key={`logo-${y}-${x}`} width={run.width} height={1} flexShrink={0} backgroundColor={run.color} />
+                <Box key={`logo-${y}-${x}`} width={run.width} height={0.5} flexShrink={0} backgroundColor={run.color} />
               ))}
             </Box>
           ))}
