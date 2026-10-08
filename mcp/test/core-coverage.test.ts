@@ -288,6 +288,12 @@ describe('store helpers', () => {
 
   it('resolves a blank topic to nothing', () => {
     expect(resolveTopic(db, '   ')).toEqual({ domain: null, slugs: [] });
+    expect(resolveTopic(db, ', --')).toEqual({ domain: null, slugs: [] });
+  });
+
+  it('matches a topic word against concepts without its inflection', () => {
+    insertConcept(db, { slug: 'static-site-cache-headers', name: 'Static site cache headers', domain: 'general', tier: 1 });
+    expect(resolveTopic(db, 'caching').slugs).toContain('static-site-cache-headers');
   });
 
   it('folds a worktree’s answers into its main checkout even with no level row', () => {

@@ -776,7 +776,7 @@ export interface TopicMatch {
 
 /**
  * Resolve a free-text topic ("caching", "web auth") onto the graph, for `learn`
- * focus.
+ * focus and for a named quiz topic that is neither a domain nor a slug.
  *
  * Tried in order of confidence: an exact domain, then a domain whose name the
  * topic contains or is contained by, then concepts matching on slug or name.
@@ -789,8 +789,10 @@ export interface TopicMatch {
  */
 export function resolveTopic(db: DB, topic: string): TopicMatch {
   const needle = topic.trim().toLowerCase();
-  if (!needle) return { domain: null, slugs: [] };
   const slugged = needle.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  // Punctuation alone ("," or "--") slugs to nothing, and every name contains
+  // the empty string: it would match the first domain and 40 concepts.
+  if (!slugged) return { domain: null, slugs: [] };
 
   const domains = (
     db.prepare('SELECT DISTINCT domain FROM concepts').all() as { domain: string }[]
@@ -804,6 +806,10 @@ export function resolveTopic(db: DB, topic: string): TopicMatch {
       return l.includes(slugged) || slugged.includes(l);
     });
 
+  // "caching" is not a substring of "cache-headers", so a long topic loses its
+  // inflection before the concept match.
+  // ponytail: suffix trim, not a stemmer; use one if topics need more than -ing/-es/-ed/-s.
+  const stem = (s: string) => (s.length > 5 ? s.replace(/(ing|es|ed|s)$/, '') : s);
   const rows = db
     .prepare(
       `SELECT slug FROM concepts
@@ -811,7 +817,7 @@ export function resolveTopic(db: DB, topic: string): TopicMatch {
         ORDER BY tier ASC, slug ASC
         LIMIT 40`,
     )
-    .all(`%${slugged}%`, `%${needle}%`) as { slug: string }[];
+    .all(`%${stem(slugged)}%`, `%${stem(needle)}%`) as { slug: string }[];
 
   return { domain: loose ?? null, slugs: rows.map((r) => r.slug) };
 }

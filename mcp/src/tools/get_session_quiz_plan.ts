@@ -126,12 +126,12 @@ export const getSessionQuizPlan: ToolDef = {
       .string()
       .max(LIMITS.domain)
       .optional()
-      .describe('Plan a topic quiz on this domain instead of this session\'s work, e.g. "web-auth". Prerequisites are ordered first. When no domain has this name and every word in it is a concept slug ("csrf jwt-structure"), it plans those concepts as slugs would.'),
+      .describe('Plan a topic quiz on this domain instead of this session\'s work, e.g. "web-auth". Prerequisites are ordered first. When no domain has this name and every word in it is a concept slug ("csrf jwt-structure"), it plans those concepts as slugs would. Otherwise it is matched loosely, as learn focus matches its topic: the domain it names, else up to 40 concepts whose slug or name does, inflection trimmed ("caching" finds cache-headers).'),
     slugs: z
       .array(z.string().max(LIMITS.slug))
       .max(LIMITS.concepts)
       .optional()
-      .describe('Plan around these specific concepts. Use when the developer named a concept rather than a domain.'),
+      .describe('Plan around these specific concepts. Use when the developer named a concept rather than a domain. A slug no concept has is matched loosely, as domain is.'),
     ignore_cooldown: z
       .boolean()
       .optional()
@@ -185,14 +185,36 @@ export const getSessionQuizPlan: ToolDef = {
     // model reads the argument as one, and a domain named after a concept
     // matches nothing. When no domain has that name and every word is an
     // existing slug, those concepts are what was asked for. Exact slugs only:
-    // a word that is not one means it was not a slug list, so no guessing.
+    // a word that is not one means it was not a slug list.
+    //
+    // Whatever still names neither ("caching") gets the loose match `learn`
+    // focus uses: the domain it names, else concepts whose slug or name contain
+    // it. A topic that matches nothing stays as it was, so the plan comes back
+    // empty and the tutor says so rather than quizzing something else.
+    const known = db.prepare('SELECT 1 FROM concepts WHERE slug = ?');
     if (effDomain && !db.prepare('SELECT 1 FROM concepts WHERE domain = ?').get(effDomain)) {
       const words = effDomain.split(/[\s,]+/).map(normalizeSlug).filter(Boolean);
-      const known = db.prepare('SELECT 1 FROM concepts WHERE slug = ?');
+      const match = resolveTopic(db, effDomain);
       if (words.length && words.every((w) => known.get(w))) {
         effSlugs = [...(effSlugs ?? []), ...words];
         effDomain = undefined;
+      } else if (match.domain) {
+        effDomain = match.domain;
+      } else if (match.slugs.length > 0) {
+        effSlugs = [...(effSlugs ?? []), ...match.slugs];
+        effDomain = undefined;
       }
+    }
+    if (effSlugs?.some((s) => !known.get(s))) {
+      const resolved: string[] = [];
+      for (const slug of effSlugs) {
+        const match = known.get(slug) ? undefined : resolveTopic(db, slug);
+        const tookDomain = Boolean(match?.domain && !effDomain);
+        if (tookDomain) effDomain = match!.domain!;
+        if (match?.slugs.length) resolved.push(...match.slugs);
+        else if (!tookDomain) resolved.push(slug);
+      }
+      effSlugs = [...new Set(resolved)];
     }
     // Next in the panel: what is left of the round the last plan started, with
     // its topic and length, not a fresh plan from this session's work.
@@ -207,7 +229,7 @@ export const getSessionQuizPlan: ToolDef = {
       roundLeft = queue.length;
     }
     let topicUnresolved = false;
-    const explicitTopic = Boolean(args.domain || (effSlugs && effSlugs.length > 0));
+    const explicitTopic = Boolean(effDomain || (effSlugs && effSlugs.length > 0));
 
     // The cadence decides how big a plan is allowed to be, and this is the only
     // place that can enforce it. `as-you-go` promises one question at a time,
