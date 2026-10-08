@@ -1,7 +1,7 @@
 # Feedback workflow — design handoff
 
 - **Base:** `main` @ `19911c0` (1.54.1; includes dashboard tips and the quiz panel)
-- **Branches:** `feat/feedback-workflow-prompt-coaching-and-in` for **Part A**; Part B gets its own branch after Part A merges.
+- **Branches:** `feat/feedback-workflow-prompt-coaching-and-in` for **Part A**; **Part B** continues in the same session on `feat/feedback-issue-from-chat`, cut from Part A's branch (stacked).
 - **Issue:** [ProjectAJ14/eklavya#140](https://github.com/ProjectAJ14/eklavya/issues/140)
 - **Previous brief:** `docs/design/dashboard-tips-handoff.md` (the `TIPS` engine, `eklavya-dash-*` localStorage keys and the dashboard's no-outbound rule all apply here).
 - **Design source:** the issue text. No Figma; the page follows `.claude/skills/eklavya-design/SKILL.md`.
@@ -46,9 +46,9 @@ Follow the root `CLAUDE.md`, `mcp/CLAUDE.md`, `skills/CLAUDE.md` (Part B touches
 | `gh` is installed and signed in on this machine. The skill must not assume that for users. | `gh auth status` | Verified (here only) |
 | Anthropic's AI Fluency 4D names and one-line meanings match the issue (Delegation, Description, Discernment, Diligence). | issue text; from memory of Anthropic's AI Fluency course | **Hypothesis.** Stage 2 starts by reading Anthropic's published page and copying its definitions into `FOURD` in code with the source URL in a comment. If the names differ, stop and tell the maintainer. |
 
-## Part A is one PR; Part B is a second PR
+## Two PRs, one session
 
-The issue asks for separate PRs, and `CLAUDE.md` allows it. **Part A ships first** (Stages 1 to 6). Part B (Stages 7 and 8, listed after Part A's stages below) starts after Part A merges, from a fresh worktree off `main`, because it adds a card to the Feedback page Part A creates.
+The issue asks for separate PRs. **Do the whole brief, in order:** Part A (Stages 1 to 6 plus docs) as PR 1 to `main`. Then, without waiting for the merge, branch `feat/feedback-issue-from-chat` off Part A's branch and do Part B (Stages 7 and 8 plus docs) as PR 2. Part B adds a card to the Feedback page that Part A creates, so it is stacked: PR 2's base is Part A's branch until PR 1 merges, then retarget it to `main`.
 
 After every stage, from `mcp/`:
 
