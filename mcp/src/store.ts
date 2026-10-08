@@ -776,10 +776,11 @@ export interface TopicMatch {
 
 /**
  * Resolve a free-text topic ("caching", "web auth") onto the graph, for `learn`
- * focus.
+ * focus and for a named quiz topic that is neither a domain nor a slug.
  *
- * Tried in order of confidence: an exact domain, then a domain whose name the
- * topic contains or is contained by, then concepts matching on slug or name.
+ * Tried in order of confidence: an exact domain, then a domain whose name's
+ * words the topic contains or is contained by, then concepts whose slug or name
+ * has a word starting with the topic.
  * Returning both a domain and slugs lets the caller prefer the domain when the
  * topic names one and fall back to loose concept matches when it does not.
  *
@@ -789,29 +790,39 @@ export interface TopicMatch {
  */
 export function resolveTopic(db: DB, topic: string): TopicMatch {
   const needle = topic.trim().toLowerCase();
-  if (!needle) return { domain: null, slugs: [] };
   const slugged = needle.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  // Punctuation alone ("," or "--") slugs to nothing, and every name contains
+  // the empty string: it would match the first domain and 40 concepts.
+  if (!slugged) return { domain: null, slugs: [] };
 
   const domains = (
     db.prepare('SELECT DISTINCT domain FROM concepts').all() as { domain: string }[]
   ).map((r) => r.domain);
 
   const exact = domains.find((d) => d.toLowerCase() === needle || d.toLowerCase() === slugged);
+  // Whole words, not characters: as a substring, "redux" names the `ux` domain
+  // and "access" names `css`.
+  const words = slugged.split('-');
   const loose =
     exact ??
     domains.find((d) => {
-      const l = d.toLowerCase();
-      return l.includes(slugged) || slugged.includes(l);
+      const own = d.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+      return own.every((w) => words.includes(w)) || words.every((w) => own.includes(w));
     });
 
+  // "caching" is not a substring of "cache-headers", so a long topic loses its
+  // inflection, and it must start a word: "go" is not about "algorithms".
+  // ponytail: suffix trim, not a stemmer; use one if topics need more than -ing/-es/-ed/-s.
+  const stem = slugged.length > 5 ? slugged.replace(/(ing|es|ed|s)$/, '') : slugged;
+  const spaced = stem.replace(/-/g, ' ');
   const rows = db
     .prepare(
       `SELECT slug FROM concepts
-        WHERE slug LIKE ? OR lower(name) LIKE ?
+        WHERE slug LIKE ? OR slug LIKE ? OR lower(name) LIKE ? OR lower(name) LIKE ?
         ORDER BY tier ASC, slug ASC
         LIMIT 40`,
     )
-    .all(`%${slugged}%`, `%${needle}%`) as { slug: string }[];
+    .all(`${stem}%`, `%-${stem}%`, `${spaced}%`, `% ${spaced}%`) as { slug: string }[];
 
   return { domain: loose ?? null, slugs: rows.map((r) => r.slug) };
 }

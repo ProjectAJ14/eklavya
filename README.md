@@ -56,7 +56,7 @@ Eklavya notices the ideas behind Claude's work, like "database index" or
 | Brings topics back | Spaced reviews bring an idea back before you forget it. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
 | Grows with you | Each project starts easy. Good answers unlock harder questions. | [Levels and tiers](https://eklavya-run.web.app/docs/levels-and-tiers/) |
 | Teaches a topic | `/eklavya:learn caching` gives a short lesson, basics first. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyalearn-topic) |
-| Quizzes on demand | `/eklavya:quiz` asks about this session's work right now, or about a domain or concepts you name. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyaquiz-topic) |
+| Quizzes on demand | `/eklavya:quiz` asks about this session's work right now, or about a topic, domain or concepts you name. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyaquiz-topic) |
 | Adds new subjects | Comes with git, Node backend, React and web auth. Add more with `/eklavya:pack`. | [Concept packs](https://eklavya-run.web.app/docs/packs/) |
 
 ## Memory

@@ -572,9 +572,47 @@ describe('get_session_quiz_plan', () => {
     // A domain wins over a concept that happens to share its name.
     expect(call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'git', max: 10 }).concepts
       .every((c: any) => c.domain === 'git')).toBe(true);
-    // One unknown word means the argument is not a slug list: no guessing.
+    // One unknown word means the argument is not a slug list, and the phrase
+    // as a whole matches nothing loosely either.
     expect(call<any>(getSessionQuizPlan, { session_id: SESSION, domain: 'csrf caching' }).questions_needed).toBe(0);
     expect(call<any>(getSessionQuizPlan, { session_id: SESSION, domain: ',' }).questions_needed).toBe(0);
+  });
+
+  // `/eklavya:quiz caching` names a topic word, not a domain or a slug; the
+  // manual's example has to quiz something when the graph has concepts on it.
+  it('matches a named topic loosely when it is neither a domain nor a slug', () => {
+    const slugsOf = (args: Record<string, unknown>) =>
+      call<any>(getSessionQuizPlan, { session_id: SESSION, max: 10, ...args }).concepts.map((c: any) => c.slug).sort();
+    // A word inside a domain's name lands on that domain, given either way.
+    const webAuth = slugsOf({ domain: 'web-auth' });
+    expect(webAuth.length).toBeGreaterThan(0);
+    expect(slugsOf({ domain: 'auth' })).toEqual(webAuth);
+    expect(slugsOf({ slugs: ['auth'] })).toEqual(webAuth);
+    // A word only in concept slugs or names plans those concepts.
+    const cookies = slugsOf({ slugs: ['cookie'] });
+    expect(cookies).toContain('httponly-cookies');
+    expect(cookies.every((s: string) => s.includes('cookie'))).toBe(true);
+    // Known slugs are kept exactly beside a loosely matched one.
+    expect(slugsOf({ slugs: ['git-commit', 'cookie'] })).toEqual([...cookies, 'git-commit'].sort());
+    // A domain the developer named is kept; the loose word adds its concepts.
+    const withGit = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 10, domain: 'git', slugs: ['cookie'] }).concepts;
+    expect(withGit.some((c: any) => c.domain === 'git')).toBe(true);
+    expect(withGit.some((c: any) => cookies.includes(c.slug))).toBe(true);
+    // Given as a domain, a word only in concept slugs plans those concepts too.
+    expect(slugsOf({ domain: 'cookie' })).toEqual(cookies);
+    expect(slugsOf({ domain: 'cookie', slugs: ['csrf'] })).toEqual([...cookies, 'csrf'].sort());
+    // A loose slug naming another domain does not displace the one given.
+    const gitFirst = call<any>(getSessionQuizPlan, { session_id: SESSION, max: 10, domain: 'git', slugs: ['auth'] }).concepts;
+    expect(gitFirst.some((c: any) => c.domain === 'git')).toBe(true);
+    expect(gitFirst.some((c: any) => c.slug.startsWith('auth'))).toBe(true);
+    // A loose slug that names only a domain plans that domain.
+    expect(slugsOf({ slugs: ['backend'] }).length).toBeGreaterThan(0);
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, max: 10, slugs: ['backend'] }).concepts
+      .every((c: any) => c.domain === 'node-backend')).toBe(true);
+    // Nothing matching still means an empty topic plan, not this session's work.
+    const none = call<any>(getSessionQuizPlan, { session_id: SESSION, slugs: ['caching'] });
+    expect(none.questions_needed).toBe(0);
+    expect(none.reason).toBe('no_candidates');
   });
 
   it('pays down review debt from the same domain once session work is covered', () => {

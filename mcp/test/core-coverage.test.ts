@@ -288,6 +288,26 @@ describe('store helpers', () => {
 
   it('resolves a blank topic to nothing', () => {
     expect(resolveTopic(db, '   ')).toEqual({ domain: null, slugs: [] });
+    expect(resolveTopic(db, ', --')).toEqual({ domain: null, slugs: [] });
+  });
+
+  it('matches a topic word against concepts without its inflection', () => {
+    insertConcept(db, { slug: 'static-site-cache-headers', name: 'Static site cache headers', domain: 'general', tier: 1 });
+    expect(resolveTopic(db, 'caching').slugs).toContain('static-site-cache-headers');
+  });
+
+  it('matches domains and concepts by whole words, not inside them', () => {
+    insertConcept(db, { slug: 'ux-heuristics', name: 'UX heuristics', domain: 'ux', tier: 1 });
+    insertConcept(db, { slug: 'redux-store', name: 'Redux store', domain: 'react', tier: 1 });
+    insertConcept(db, { slug: 'algorithm-cost', name: 'Algorithm cost', domain: 'general', tier: 1 });
+    // "redux" contains "ux" as characters, not as a word.
+    expect(resolveTopic(db, 'redux')).toEqual({ domain: null, slugs: ['redux-store'] });
+    expect(resolveTopic(db, 'ux design').domain).toBe('ux');
+    // A topic starts a word of the slug or name; it is not found mid-word.
+    expect(resolveTopic(db, 'go').slugs).toEqual([]);
+    expect(resolveTopic(db, 'heuristic').slugs).toEqual(['ux-heuristics']);
+    // LIKE wildcards in a topic are characters, not patterns.
+    expect(resolveTopic(db, '%_%').slugs).toEqual([]);
   });
 
   it('folds a worktree’s answers into its main checkout even with no level row', () => {
