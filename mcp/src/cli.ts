@@ -59,6 +59,8 @@ Usage:
                                         e.g. quiz.enabled true|false, quiz.enforced true|false,
                                         quiz.only_on_changes true|false,
                                         quiz.panel true|false (experimental side panel),
+                                        feedback.enabled true|false (review one of your prompts per
+                                        session; needs memory and providers.observer),
                                         focus project|concept|learn, cadence as-you-go|end,
                                         difficulty auto|easy|medium|hard,
                                         explain_on_wrong true|false, delegate_work true|false

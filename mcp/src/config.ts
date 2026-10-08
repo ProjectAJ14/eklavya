@@ -150,6 +150,17 @@ export interface MemoryConfig {
   retention_days: number | null;
 }
 
+/**
+ * Prompt feedback. Off by default: it spends the developer's subscription on a
+ * model call over their own prompts, so it starts only when asked. It needs
+ * `memory.enabled` (it reads the prompts memory kept) and `providers.observer`
+ * (the one consent gate for sending evidence to a model). Turning this on sends
+ * nothing by itself, which is why a project may set it.
+ */
+export interface FeedbackConfig {
+  enabled: boolean;
+}
+
 /** What never reaches storage, a log, a provider, an embedding or an export. */
 export interface PrivacyConfig {
   exclude_paths: string[];
@@ -342,6 +353,7 @@ export interface EklavyaConfig {
   /** Hard backstop on the Stop hook's loop guard, read by the stop-quiz-check hook. */
   max_stop_blocks_per_session: number;
   memory: MemoryConfig;
+  feedback: FeedbackConfig;
   privacy: PrivacyConfig;
   retrieval: RetrievalConfig;
   providers: ProvidersConfig;
@@ -376,6 +388,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     batch_max_events: 40,
     retention_days: null,
   },
+  feedback: { enabled: false },
   privacy: {
     exclude_paths: [],
     exclude_tools: [],
@@ -656,6 +669,12 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
     } else if (memory.retention_days === null) {
       out.memory.retention_days = null;
     }
+  }
+
+  const feedback = raw.feedback as Record<string, unknown> | undefined;
+  if (feedback && typeof feedback === 'object') {
+    out.feedback = { ...out.feedback };
+    if (typeof feedback.enabled === 'boolean') out.feedback.enabled = feedback.enabled;
   }
 
   const privacy = raw.privacy as Record<string, unknown> | undefined;

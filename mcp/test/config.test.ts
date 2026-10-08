@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_CONFIG, loadConfig, writeConfigFile, findRepoConfig, isDomainEnabled } from '../src/config.js';
+import { DEFAULT_CONFIG, loadConfig, writeConfigFile, findRepoConfig, isDomainEnabled, isGlobalOnlyKey } from '../src/config.js';
 import { projectConfigPath } from '../src/paths.js';
 
 let home = '';
@@ -382,5 +382,32 @@ describe('the difficulty dial', () => {
     const { config } = loadConfig(repo);
     expect(config.level_up_after).toBe(40);
     expect(config.level_up_accuracy).toBe(0.8);
+  });
+});
+
+describe('feedback.enabled', () => {
+  it('is off by default', () => {
+    expect(DEFAULT_CONFIG.feedback).toEqual({ enabled: false });
+    expect(loadConfig(repo).config.feedback.enabled).toBe(false);
+  });
+
+  it('is read from the user file and overridden by the project file', () => {
+    writeGlobal({ feedback: { enabled: true } });
+    expect(loadConfig(repo).config.feedback.enabled).toBe(true);
+    writeRepo({ feedback: { enabled: false } });
+    expect(loadConfig(repo).config.feedback.enabled).toBe(false);
+  });
+
+  it('ignores a value that is not a boolean', () => {
+    writeGlobal({ feedback: { enabled: 'yes' } });
+    expect(loadConfig(repo).config.feedback.enabled).toBe(false);
+  });
+
+  it('is a project-scope setting: turning it on sends nothing by itself', () => {
+    // The model call is governed by providers.observer, which stays global-only
+    // (and CLI-only in the dashboard), so a project cannot make prompts leave
+    // the machine by switching this on.
+    expect(isGlobalOnlyKey('feedback.enabled')).toBe(false);
+    expect(isGlobalOnlyKey('providers.observer')).toBe(true);
   });
 });

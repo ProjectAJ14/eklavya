@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 25;
+const LATEST_SCHEMA_VERSION = 26;
 
 const LEARNING_TABLES = [
   'attempt_retries',
@@ -81,12 +81,20 @@ const READ_TABLES = ['memory_reads'];
 /** Migration 021: the counter the dashboard's stale-data notice polls. */
 const CHANGE_TABLES = ['change_version'];
 
+/**
+ * Migration 026: prompt feedback. Apart from the learning tables on purpose:
+ * nothing here references attempts, mastery or concepts, so feedback cannot
+ * change a score.
+ */
+const FEEDBACK_TABLES = ['feedback_items', 'feedback_reviewed'];
+
 const EXPECTED_TABLES = [
   ...LEARNING_TABLES,
   ...USAGE_TABLES,
   ...IDENTITY_TABLES,
   ...READ_TABLES,
   ...CHANGE_TABLES,
+  ...FEEDBACK_TABLES,
   ...MEMORY_TABLES,
   ...IMPORT_TABLES,
   ...SYNC_TABLES,
@@ -165,6 +173,7 @@ describe('migrations', () => {
         '023_sync_received.sql',
         '024_purge_excluded_file_failures.sql',
         '025_panel_questions.sql',
+        '026_feedback.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -228,7 +237,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
@@ -283,7 +292,7 @@ describe('migrations', () => {
       ).run();
       expect(() => db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run()).toThrow(/malformed/);
 
-      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql']);
+      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql']);
       db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
       expect(db.prepare('SELECT id, deleted_at FROM memory_entries ORDER BY id').all()).toEqual([
         { id: 1, deleted_at: 'then' },
@@ -330,7 +339,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1), (1, 3)').run();
       db.prepare("INSERT INTO learning_sources (id, event_id, slug, project) VALUES (1, 1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql', '025_panel_questions.sql']);
+      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect((db.prepare('SELECT id FROM evidence_events ORDER BY id').all() as { id: number }[]).map((r) => r.id)).toEqual([3, 4, 5]);
       // The entry and the candidate stay; only the links to the purged event go.
@@ -412,6 +421,28 @@ describe('migrations', () => {
     add.run('e', 'skipped');
     add.run('f', 'expired');
     expect(() => add.run('g', 'nonsense')).toThrow(/CHECK/);
+    db.close();
+  });
+
+  it('creates the feedback tables, a one-pending index and no link to grading', () => {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');
+    runMigrations(db);
+    const cols = (db.prepare('PRAGMA table_info(feedback_items)').all() as { name: string }[]).map((c) => c.name);
+    expect(cols).toEqual([
+      'id', 'session_id', 'project', 'event_id', 'prompt', 'review', 'better', 'tips', 'rubric', 'model',
+      'created_at', 'acknowledged_at',
+    ]);
+    const add = db.prepare(
+      "INSERT INTO feedback_items (session_id, project, prompt, review, better, tips, rubric, model, acknowledged_at) VALUES ('s', 'p', 'x', '{}', 'b', '[]', 1, 'm', ?)",
+    );
+    add.run('2026-01-01');
+    add.run('2026-01-02');
+    add.run(null);
+    expect(() => add.run(null)).toThrow(/UNIQUE/);
+    for (const table of ['feedback_items', 'feedback_reviewed']) {
+      expect(db.prepare(`PRAGMA foreign_key_list(${table})`).all()).toEqual([]);
+    }
     db.close();
   });
 

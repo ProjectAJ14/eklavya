@@ -174,6 +174,12 @@ export const setConfig: ToolDef = {
       .describe(
         'Recording what each session did. Independent of `quiz`: silencing questions means no questions, not no history. Turn capture off with enabled:false, or thin it with capture:"minimal" (prompts and session seams only).',
       ),
+    feedback: z
+      .object({ enabled: z.boolean().optional() })
+      .optional()
+      .describe(
+        'Prompt feedback (default false): reviews one of the developer\'s own prompts from a finished session against the 4D framework, in the background, one item at a time. Needs memory.enabled and providers.observer; turning it on sends nothing by itself. It never changes mastery.',
+      ),
     retrieval: z
       .object({
         mode: z.enum(['keyword', 'semantic', 'hybrid']).optional(),
