@@ -1,3 +1,10 @@
+# [1.53.0](https://github.com/ProjectAJ14/eklavya/compare/v1.52.5...v1.53.0) (2026-10-08)
+
+
+### Features
+
+* **panel:** answer cards, Markdown, Eklavya mark and auto-close for the quiz panel ([#138](https://github.com/ProjectAJ14/eklavya/issues/138)) ([afc0c5c](https://github.com/ProjectAJ14/eklavya/commit/afc0c5c7340907d100f157b9b459a52278cba8ca))
+
 ## [1.52.5](https://github.com/ProjectAJ14/eklavya/compare/v1.52.4...v1.52.5) (2026-10-08)
 
 
