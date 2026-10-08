@@ -1,3 +1,10 @@
+# [1.54.0](https://github.com/ProjectAJ14/eklavya/compare/v1.53.0...v1.54.0) (2026-10-08)
+
+
+### Features
+
+* **panel:** enable the quiz panel on the Desktop Code tab ([#139](https://github.com/ProjectAJ14/eklavya/issues/139)) ([73b1fb4](https://github.com/ProjectAJ14/eklavya/commit/73b1fb4276f349cc936ef809ada8a56e095d7b84))
+
 # [1.53.0](https://github.com/ProjectAJ14/eklavya/compare/v1.52.5...v1.53.0) (2026-10-08)
 
 
