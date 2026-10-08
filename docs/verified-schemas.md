@@ -190,6 +190,8 @@ log or a driven session.
 | 10 | Whether Claude Code can disable one mod separately from its plugin | Not tested | Documented only as `quiz.panel` false |
 | 11 | The distributed plugin (`hooks.json` with command hooks and `modules`, manifest `types`) passes `claude plugin validate`, and loaded from a checkout it ran the mod beside the command hooks. | Observed | `scripts/test-panel-mod.sh` validates the staged mod and the distributed plugin |
 | 12 | Keys: after Ctrl+X then Tab the pane holds the keyboard and a Button's hotkey presses it; Esc closes the pane (`closeOnEscape`); Tab does not reach an `Input` that appears on a later draw unless it is `autoFocus`; a click focuses it. | Observed | The answer box is `autoFocus`, so Other then typing works from the keyboard |
+| 13 | A bordered `Box` card holding a plain `Button` (the whole answer text) and a `Markdown` note drew in the maintainer's terminal; a click on the text selects the card. The block-character logo drew only once its `Box` had `flexShrink={0}`: beside a long topic line it wrapped without it. | Observed | Cards, the press target and the logo rely on those two props |
+| 14 | `$.clock.after` closing a finished result after 15 s, and `$.ui.focus` moving the focus mark onto the picked answer. | Not tested live | Only the mod's test host ran them, and it refuses `$.ui.focus` (it holds no keyboard); a failed move is caught and the pick stands |
 
 ## Updating this reference
 

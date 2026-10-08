@@ -75,12 +75,32 @@ export function logoRows(grid: readonly string[] = LOGO_GRID, palette: Record<st
 }
 
 /** The name as the header sets it: spaced capitals, the nearest a terminal gets to a larger type size. */
+/** A call such as `tester.tap(find.byType(X))`, nested up to three deep, a lowerCamelCase name or a snake_case name. */
+const CODE_LIKE = /[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\((?:[^()\n]|\((?:[^()\n]|\([^()\n]*\))*\))*\)|\b[a-z]{2,}(?:[A-Z][a-z0-9]+)+\b|\b[a-z0-9]+(?:_[a-z0-9]+)+\b/g
+
+/**
+ * Wraps code-looking words in backticks so the pane's Markdown draws them as code. A question
+ * is plain prose unless its author marked the code, and an old or careless one often is not.
+ * Text already in backticks is left as written.
+ */
+export function codify(text: string): string {
+  return text
+    .split(/(`[^`]*`)/)
+    .map((part, i) => (i % 2 ? part : part.replace(CODE_LIKE, '`$&`')))
+    .join('')
+}
+
+/** What a Button label can show of Markdown: it keeps the words and drops the code and bold marks. */
+export function plainLabel(text: string): string {
+  return text.replace(/`|\*\*/g, '')
+}
+
 export const WORDMARK = 'EKLAVYA'.split('').join(' ')
 
-/** Every sentence the learner reads, in one place. The handoff's table, verbatim. */
 /** How long a finished result stays before it closes itself, when no Next is waiting. */
 export const CLOSE_MS = 15_000
 
+/** Every sentence the learner reads, in one place. The handoff's table, verbatim. */
 export const STR = {
   brand: 'Eklavya',
   submit: 'Submit answer',
@@ -103,6 +123,7 @@ export const STR = {
   nothingTyped: 'Write your answer first, or pick one of the options.',
   graderFailed: "We couldn't check that answer. Your text is saved here — Retry.",
   explainer: 'A page explaining this is being written.',
+  focus: 'Ctrl+X then Tab moves the keys here.',
   keys: '1–4 pick · o other · s submit · k skip · Esc back to prompt',
   off: 'The quiz panel is off. Turn it on with: eklavya config set quiz.panel true',
 } as const

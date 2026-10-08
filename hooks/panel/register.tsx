@@ -13,8 +13,10 @@ import {
   CLOSE_MS,
   answerWas,
   explainerBrief,
+  codify,
   gradingRequest,
   logoRows,
+  plainLabel,
   levelLine,
   parseVerdict,
   payloadOf,
@@ -372,7 +374,12 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
-    const hint = <Text dimColor>{STR.keys}</Text>
+    const hint = (
+      <Box flexDirection="column">
+        <Text dimColor>{STR.focus}</Text>
+        <Text dimColor>{STR.keys}</Text>
+      </Box>
+    )
     // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it
     // selects; the border and a tick show the pick, and nothing implies it is right.
     const card = (id: string, selected: boolean, button: unknown, body: unknown[], roomy = false) => (
@@ -408,7 +415,7 @@ export const register: Register = on => {
       )
     }
 
-    const stem = <Markdown text={q.stem} />
+    const stem = <Markdown text={codify(q.stem)} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
       const r = s.result
@@ -422,7 +429,7 @@ export const register: Register = on => {
           {right ? STR.correct : STR.wrong}
         </Text>,
         right || !r.correct_label ? null : <Text>{answerWas(r.correct_label)}</Text>,
-        r.explanation ? <Markdown text={r.explanation} /> : null,
+        r.explanation ? <Markdown text={codify(r.explanation)} /> : null,
         r.level_up ? <Text color="suggestion">{levelLine(r.level_up.from, projectName(q.repo))}</Text> : null,
         r.explain ? <Text dimColor>{STR.explainer}</Text> : null,
         q.more ? null : <Text dimColor>{STR.autoClose}</Text>,
@@ -436,8 +443,7 @@ export const register: Register = on => {
     const locked = s.step === 'grading'
     // Submit looks disabled until there is something to send; pressing it then does nothing.
     const hasDraft = s.draft.other ? s.draft.text.trim().length > 0 : s.draft.picked !== null
-    // Markdown marks cannot show inside a Button's label, so they are dropped there; the note keeps them.
-    const plain = (text: string) => text.replace(/[`*_]/g, '')
+    // Markdown marks cannot show inside a Button's label, so the code and bold marks are dropped there; the note keeps them.
     const answer = (id: string, key: string, hotkey: string, label: string, chosen: boolean) => (
       <Button
         key={key}
@@ -452,8 +458,8 @@ export const register: Register = on => {
       return card(
         o.id,
         chosen,
-        answer(o.id, `opt-${o.id}`, String(i + 1), plain(o.label), chosen),
-        [o.note ? <Box key={`note-${o.id}`} paddingLeft={3}><Markdown text={o.note} dimColor /></Box> : null],
+        answer(o.id, `opt-${o.id}`, String(i + 1), plainLabel(o.label), chosen),
+        [o.note ? <Box key={`note-${o.id}`} paddingLeft={3}><Markdown text={codify(o.note)} dimColor /></Box> : null],
       )
     })
 

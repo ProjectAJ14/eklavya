@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, logoRows } from './model'
+import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, logoRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -30,7 +30,7 @@ const reply = (payload: unknown) => ({ content: [{ type: 'text', text: JSON.stri
  * host seats the pane, what the grader says. Every call is recorded.
  */
 function world(on: any, script: Record<string, any> = {}) {
-  const log = { calls: [] as { tool: string; args: any }[], prompts: [] as string[], opens: [] as any[], toasts: [] as string[], graded: [] as string[], spawns: [] as any[] }
+  const log = { calls: [] as { tool: string; args: any }[], prompts: [] as string[], opens: [] as any[], closes: [] as any[], toasts: [] as string[], graded: [] as string[], spawns: [] as any[] }
   const s = {
     waiting: QUESTION as any,
     answer: ((args: any) => ({ phase: 'answered', attempt_id: 7, correct: args.option_id === 'o3', correct_label: 'The origin is compared', explanation: 'The Origin cannot be forged.' })) as any,
@@ -69,12 +69,12 @@ function world(on: any, script: Record<string, any> = {}) {
     log.toasts.push(e.text)
     return { value: undefined }
   })
-  host(on)
+  host(on, log)
   return { log, s }
 }
 
 /** The rest of what the host answers beneath the mod. */
-function host(on: any) {
+function host(on: any, log?: { closes: any[] }) {
   on('session.start', async (_$: any, e: any) => ({ cwd: e.cwd }))
   on('session.end', async (_$: any, e: any) => ({ sessionId: e.sessionId }))
   on('session.cwd', async () => ({ value: '/work/proj' }))
@@ -82,7 +82,10 @@ function host(on: any) {
   on('session.surfaces', async () => ({ value: ['terminal'] }))
   on('session.version', async () => ({ value: { version: '2.1.292', base: '2.1.292', builtAt: '2026-10-01T00:00:00Z' } }))
   on('command.register', async () => ({ value: undefined }))
-  on('ui.close', async () => ({ value: undefined }))
+  on('ui.close', async (_$: any, e: any) => {
+    log?.closes.push(e)
+    return { value: undefined }
+  })
 }
 
 async function boot($: any) {
@@ -154,6 +157,25 @@ describe('the pane, state by state', () => {
     expect(await ticks(pane)).toBe(1)
     expect(await pane.find({ key: 'opt-o3' })).toBeDefined()
     expect(answers(w.log)).toHaveLength(0)
+  })
+
+  test('a refused move of the focus mark leaves the pick standing', async ($, on) => {
+    // The test host holds no keyboard, so $.ui.focus is refused here, as it is in a real pane the learner has not focused.
+    world(on)
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'opt-o2')
+    await press($, 'opt-o3')
+    expect(await ticks(pane)).toBe(1)
+    expect(await pane.find({ key: 'opt-o3' })).toBeDefined()
+  })
+
+  test('the key legend and the focus hint are drawn', async ($, on) => {
+    world(on)
+    await boot($)
+    const drawn = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    expect(drawn).toContain(STR.keys)
+    expect(drawn).toContain(STR.focus)
   })
 
   test('submit does nothing until there is a draft, then sends one answer, once', async ($, on) => {
@@ -333,6 +355,45 @@ describe('the pane, state by state', () => {
     expect(await pane.find({ text: STR.correct })).toBeDefined()
     await clock.advance(1_500)
     expect(await pane.find({ text: STR.empty })).toBeDefined()
+  })
+
+  test('a skipped question closes itself too', async ($, on) => {
+    const clock = mock.clock(on)
+    const w = world(on, { answer: () => ({ phase: 'skipped' }) })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'skip')
+    expect(await pane.find({ text: STR.skipped })).toBeDefined()
+    w.s.waiting = null
+    await clock.advance(15_500)
+    expect(await pane.find({ text: STR.empty })).toBeDefined()
+  })
+
+  test('Done cancels the timer: it closes nothing a second time', async ($, on) => {
+    const clock = mock.clock(on)
+    const w = world(on)
+    await boot($)
+    await mount($, 'terminal')
+    await press($, 'opt-o3')
+    await press($, 'submit')
+    w.s.waiting = null
+    await press($, 'done')
+    const closed = w.log.closes.length
+    await clock.advance(20_000)
+    expect(w.log.closes).toHaveLength(closed)
+  })
+
+  test('a session end cancels the timer', async ($, on) => {
+    const clock = mock.clock(on)
+    const w = world(on)
+    await boot($)
+    await mount($, 'terminal')
+    await press($, 'opt-o3')
+    await press($, 'submit')
+    await $.session.end({ reason: 'clear', sessionId: 'old', resume: { id: 'old' } } as any)
+    const closed = w.log.closes.length
+    await clock.advance(20_000)
+    expect(w.log.closes).toHaveLength(closed)
   })
 
   test('a result with Next waiting stays until the learner decides', async ($, on) => {
@@ -607,6 +668,38 @@ describe('placement and lifecycle', () => {
     expect(await pane.find({ text: STR.empty })).toBeDefined()
     await boot($)
     expect(await ticks(pane)).toBe(0)
+  })
+})
+
+describe('code in the text', () => {
+  test('calls and camelCase or snake_case names are marked as code, and marked code is left alone', () => {
+    expect(codify('begins with tester.pumpWidget(widget). What next?')).toBe('begins with `tester.pumpWidget(widget)`. What next?')
+    expect(codify('calls tester.tap(find.byType(ElevatedButton)) now')).toBe('calls `tester.tap(find.byType(ElevatedButton))` now')
+    expect(codify('setState and record_attempt and pumpAndSettle')).toBe('`setState` and `record_attempt` and `pumpAndSettle`')
+    expect(codify('already `shouldRepaint(old)` marked')).toBe('already `shouldRepaint(old)` marked')
+  })
+
+  test('brand names and plain prose are not marked', () => {
+    for (const s of ['JavaScript on GitHub and iPhone', 'true of pump with a duration', 'e.g. foo (bar) plain']) expect(codify(s)).toBe(s)
+  })
+
+  test('a button label drops code and bold marks and keeps underscores', () => {
+    expect(plainLabel('Calls `pump()` **now** my_var')).toBe('Calls pump() now my_var')
+  })
+
+  test('the stem, a note and the explanation are drawn marked as code', async ($, on) => {
+    world(on, {
+      waiting: { ...QUESTION, stem: 'It begins with tester.pumpWidget(widget). What does it do?', options: [{ id: 'o1', label: 'Mounts it', note: 'true of pumpAndSettle' }, { id: 'o2', label: 'Other', note: 'n' }] },
+      answer: () => ({ phase: 'answered', attempt_id: 7, correct: false, correct_label: 'Mounts it', explanation: 'See setState(fn) for why.' }),
+    })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    const drawn = JSON.stringify(await pane.drawn())
+    expect(drawn).toContain('`tester.pumpWidget(widget)`')
+    expect(drawn).toContain('`pumpAndSettle`')
+    await press($, 'opt-o2')
+    await press($, 'submit')
+    expect(JSON.stringify(await pane.drawn())).toContain('`setState(fn)`')
   })
 })
 
