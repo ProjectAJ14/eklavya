@@ -813,6 +813,20 @@ describe('the logo as boxes', () => {
 })
 
 describe('the desktop layout', () => {
+  test('only the desktop app pads the inside of an answer card', async ($, on) => {
+    world(on)
+    await boot($)
+    const pads = async (surface: 'terminal' | 'desktop') => {
+      const d = JSON.stringify(await (await mount($, surface)).drawn())
+      return { x: (d.match(/"paddingX":2/g) ?? []).length, y: (d.match(/"paddingY":1/g) ?? []).length }
+    }
+    const [desktop, terminal] = [await pads('desktop'), await pads('terminal')]
+    expect(desktop.x).toBe(QUESTION.options.length + 1)
+    expect(desktop.y).toBeGreaterThanOrEqual(QUESTION.options.length + 1)
+    expect(terminal.x).toBe(0)
+    expect(terminal.y).toBe(0)
+  })
+
   test('boldParagraphs leaves block Markdown and existing bold alone', () => {
     for (const t of ['```\ncode\n```', '- a\n- b', '# Title', '> quote', '1. step', 'already **bold** here'])
       expect(boldParagraphs(t)).toBe(t)

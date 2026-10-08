@@ -405,13 +405,14 @@ export const register: Register = on => {
       </Box>
     )
     // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it
-    // selects; the border and a tick show the pick, and nothing implies it is right.
+    // selects; the border and a tick show the pick, and nothing implies it is right. The desktop app gives
+    // the text more room inside the border; the terminal keeps its tight cards.
     const card = (id: string, selected: boolean, button: unknown, body: unknown[], roomy = false) => (
       <Box
         key={`card-${id}`}
         flexDirection="column"
-        paddingX={1}
-        paddingY={roomy ? 1 : 0}
+        paddingX={app ? 2 : 1}
+        paddingY={app || roomy ? 1 : 0}
         gap={roomy ? 1 : 0}
         borderStyle="single"
         borderColor={selected ? BRAND : 'inactive'}
