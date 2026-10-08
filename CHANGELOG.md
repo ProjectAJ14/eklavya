@@ -1,3 +1,10 @@
+## [1.54.2](https://github.com/ProjectAJ14/eklavya/compare/v1.54.1...v1.54.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* **panel:** pad the answer cards on the desktop app ([#142](https://github.com/ProjectAJ14/eklavya/issues/142)) ([2f4aef4](https://github.com/ProjectAJ14/eklavya/commit/2f4aef490b4b4681405c16b882554f4af7615fd2))
+
 ## [1.54.1](https://github.com/ProjectAJ14/eklavya/compare/v1.54.0...v1.54.1) (2026-10-08)
 
 
