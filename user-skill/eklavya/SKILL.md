@@ -289,7 +289,11 @@ values, never paths, names or text) unless turned off. "Turn off Eklavya
 analytics / telemetry / tracking" means `eklavya telemetry off`, or `set_config`
 with `telemetry: false` at global scope. `eklavya telemetry show` prints
 exactly what is sent; `eklavya telemetry` says whether it is on and why. The
-full field list is https://eklavya-run.web.app/docs/usage-analytics/.
+full field list is https://eklavya-run.web.app/docs/usage-analytics/. Besides the
+learning, memory and settings counts it has a `feedback` event: whether
+`feedback.enabled` is on, how many prompt reviews were made and how many were
+acknowledged, and three `feature_use` counts of how the Feedback page was
+reached. Never the prompt or anything a review says.
 
 Restarting Claude Code is what picks up a repaired install — the plugin and MCP
 server are read at session start. The only background process is the dashboard,
@@ -304,8 +308,9 @@ eklavya dashboard status       # is it running, which version, which database
 eklavya dashboard stop         # stop the background copy
 ```
 
-It binds to loopback only and reads the local database; its two writes, a
-settings change and a correction of a missed answer, are guarded by a per-start
+It binds to loopback only and reads the local database; its five writes (a
+settings change, a correction of a missed answer, and acknowledging, deleting or
+counting the opening of a feedback item) are guarded by a per-start
 token in the page. Worth saying when
 someone asks where their data goes. It keeps running in the background: session
 start starts it when it is down and replaces an older version after an update, so
@@ -318,7 +323,7 @@ It opens the browser itself, so do not tell them to click the URL. Use
 `--no-open` when they only asked *where* the dashboard is, or when the session
 is on a machine with no desktop.
 
-Four workflows, Learning, Memory, Artifacts and Settings, each with its own
+Five workflows, Learning, Memory, Artifacts, Feedback and Settings, each with its own
 Dashboard and every page deep-linkable — hand back the one that answers what was actually asked rather
 than the bare root. Add `?project=<absolute repo path>` to open it scoped to one
 project; the ids are the ones `/api/projects` lists.
@@ -340,6 +345,7 @@ project; the ids are the ones `/api/projects` lists.
 | the pages Eklavya wrote me, search them | `/#/artifacts/dashboard` (or `/explainer` for explainers only) |
 | which explainers can I still correct | `/#/artifacts/dashboard/to-correct`; any page opens as a tab at `/#/artifacts/view/<id>` (the id from `eklavya artifacts list --json`, URL-encoded) |
 | which projects have pages | `/#/artifacts/projects` |
+| my prompt feedback, what is waiting, what I acknowledged | `/#/feedback/dashboard`, `/#/feedback/history`, `/#/feedback/item/<id>` |
 | change my settings in a page, see what a project overrides | `/#/settings/dashboard`, `/#/settings/user`, `/#/settings/project?project=<path>` |
 
 The older single-workflow links (`/#/overview`, `/#/concepts`, `/#/memory`,

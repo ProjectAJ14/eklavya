@@ -40,6 +40,7 @@ and `eklavya telemetry off` stops them.
 | Memory | Claude remembers your past work in this project. | [Memory](https://eklavya-run.web.app/docs/memory/) |
 | Artifacts | Turn any explanation into a page with diagrams. | [Artifacts](https://eklavya-run.web.app/docs/commands/#the-artifacts-skill) |
 | Dashboard | See your progress, streak, memory and pages in the browser, and copy a ready-to-run command for your due reviews. | [Dashboard](https://eklavya-run.web.app/docs/dashboard/) |
+| Report a problem | Tell Claude a question or grade was wrong: it drafts a GitHub issue with paths and code removed, and files it only after you say yes. | [How to report one](https://eklavya-run.web.app/docs/faq/#how-do-i-report-a-problem-with-eklavya) |
 | Dials | Choose what it teaches, when it asks and how hard. | [The dials](https://eklavya-run.web.app/docs/dials/) |
 | Commit gate | Optional: pass a quiz before you can commit. The terminal hook also holds commits in linked worktrees. | [Commit gate](https://eklavya-run.web.app/docs/commit-gate/) |
 
@@ -101,13 +102,14 @@ in place. You can also
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
 [tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
 dismiss them one by one or switch them off in the sidebar. On a wide window
-each page sits centred beside the sidebar. It has four parts:
+each page sits centred beside the sidebar. It has five parts:
 
 | Part | What you can see | Read more |
 |---|---|---|
 | Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, reviews due with a command to start them (each run asks the weakest first), weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
+| Feedback | Off until you turn on `feedback.enabled`: one reviewed prompt of yours at a time, against the 4D framework, with a better version. The next waits until you press Acknowledge, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
 | Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.

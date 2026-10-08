@@ -38,10 +38,18 @@ the background on `127.0.0.1` only and makes no outbound requests;
 Google Fonts, with system font fallbacks when offline; in the dashboard's viewer they use system fonts.
 
 Optional providers send captured work through Claude Code to a configured
-model. Notifications can send wrap-ups to a destination you choose, and sync
+model. With `feedback.enabled` on, the text of up to eight of your own prompts from one finished session goes to that same observer model, and only then. Notifications can send wrap-ups to a destination you choose, and sync
 writes memory to a directory you choose. None is enabled by default. See
 [Memory](/docs/memory/) and [Configuration](/docs/configuration/) before enabling
 them.
+
+## Does feedback on my prompts change my score?
+
+No. Feedback is stored in its own tables, which refer to no answer, score or level, and nothing in a coding session can write to them. Only an answered question changes mastery. Turn it on with `feedback.enabled`; see [the Feedback page](/docs/dashboard/#feedback) and [how it is made](/docs/how-it-works/#prompt-feedback).
+
+## How do I report a problem with Eklavya?
+
+Tell Claude, in plain words: "That question about retries was wrong. File feedback for Eklavya." Claude drafts a GitHub issue on `ProjectAJ14/eklavya` in a fixed format (category, what happened, what you expected, the concept if one is shown, the Eklavya version, your host and OS), removes absolute paths, project and repository names, anything that looks like a secret and any code from your project, shows you the exact title and body, and files it through the `gh` command only after you say yes. Without `gh` signed in it shows the draft and a prefilled link and posts nothing. Nothing from `~/.eklavya/` is ever attached. You can also [open the form yourself](https://github.com/ProjectAJ14/eklavya/issues/new?template=eklavya-feedback.yml).
 
 ## Does it remember my code?
 

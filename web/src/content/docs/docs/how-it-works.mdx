@@ -73,6 +73,25 @@ Raw events, observations, and answers live in `~/.eklavya/knowledge.db` by defau
 
 Local storage does not mean recalled text stays outside Claude: it becomes part of the conversation. Optional observers, notifications, and sync may also move data through services you configure. Installation and update checks contact the package registry. The daily [usage ping](/docs/usage-analytics/) sends anonymous counts to Google Analytics unless you turn it off.
 
+## Prompt feedback
+
+<DocFlow
+  title="The feedback flow"
+  caption="A review happens after a session, in the background, one item at a time. Nothing waits on it."
+  steps={[
+    { label: 'Record', detail: 'Memory already keeps your prompts, redacted. Feedback needs memory on.' },
+    { label: 'Wait', detail: 'A session counts once it has been quiet for 30 minutes and began within 14 days.' },
+    { label: 'Review', detail: 'At the next session start, a background process asks your observer model to review one prompt.' },
+    { label: 'Acknowledge', detail: 'You read it and press Acknowledge. Only then can the next one be made.' },
+  ]}
+/>
+
+With `feedback.enabled` on, the next session start launches `eklavya feedback generate --background` as a detached process, at most every 30 minutes, when memory is on, an observer model is set and no item is waiting. A hook never waits for it, and never runs it inline, because a hook may not wait on a model. It picks the oldest session of the current project that nothing has reviewed, skips short replies such as "yes" and Eklavya's own slash commands, and sends the model up to eight of that session's prompts, each cut to 1,500 characters. The model chooses the one with the most to teach and reviews it against Delegation, Description, Discernment and Diligence. Discernment and Diligence can only be judged from your later prompts, so each needs a short quote from one, or reads "Can't tell from this prompt".
+
+What leaves your machine is the text of those prompts, already redacted when memory captured them, sent to the model named in `providers.observer` through `claude -p` on your own Claude subscription, as session evidence is for memory. With no observer set, no prompt text leaves for this feature and nothing is generated. A quota or login problem leaves the session unreviewed to try again later; a malformed answer marks the session as failed once. There are no scores, no MCP tool a coding session could call to write feedback, and no path from feedback to mastery.
+
+The result waits on the dashboard's [Feedback page](/docs/dashboard/#feedback), in the greeting as `Feedback waiting` and on a badge. Setting `quiet` hides only the greeting line.
+
 ## The runtime, end to end
 
 The interactive architecture view provides a broader component map. The smaller flows above explain the two everyday paths.

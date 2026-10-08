@@ -104,12 +104,15 @@ npx eklavya doctor
 npx eklavya memory status
 npx eklavya config get
 npx eklavya dashboard
+npx eklavya feedback generate
 npx eklavya db-path
 ```
 
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
-flags. The dashboard reads the database and has two guarded writes: a setting
-change and a correction of a missed answer, which can also complete a level. An open page polls `/api/cursor`, a
+flags. `feedback generate` reviews one of your earlier prompts when `feedback.enabled`,
+memory and `providers.observer` are set. The dashboard reads the database and has five guarded writes: a setting
+change, a correction of a missed answer (which can also complete a level), and acknowledging, deleting or counting the opening of a
+feedback item (`POST /api/feedback/acknowledge`, `/delete`, `/opened`; the reads are `GET /api/feedback` and `/api/feedback/list`). An open page polls `/api/cursor`, a
 counter that moves on every write it would show, and offers a refresh. A request
 it cannot parse gets a 400 without stopping the server
 ([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)).

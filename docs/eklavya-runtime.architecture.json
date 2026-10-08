@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "6cc87e83138a98f2969eaa203bdb5e452847b1df"
+      "revision": "6794a843b819fc4aa69be31135df937cc881685a"
     },
     "views": [
       {
@@ -325,7 +325,7 @@
       "type": "frontend",
       "label": "Local Dashboard",
       "sublabel": "kept running by SessionStart",
-      "tag": "settings, corrections",
+      "tag": "settings, corrections, feedback",
       "pos": [
         1126,
         440
@@ -337,7 +337,7 @@
       "sources": [
         {
           "path": "mcp/src/dashboard.ts",
-          "label": "http server"
+          "label": "http server \u00b7 feedback routes"
         },
         {
           "path": "mcp/src/dashboard-daemon.ts",
@@ -375,6 +375,35 @@
         {
           "path": "mcp/src/memory/worker.ts",
           "label": "queue \u00b7 session summary"
+        }
+      ]
+    },
+    {
+      "id": "feedback",
+      "type": "backend",
+      "label": "Prompt Feedback",
+      "sublabel": "background review \u00b7 one item",
+      "tag": "off by default",
+      "pos": [
+        1126,
+        40
+      ],
+      "size": [
+        196,
+        76
+      ],
+      "sources": [
+        {
+          "path": "mcp/src/feedback.ts",
+          "label": "gate \u00b7 selection \u00b7 background start"
+        },
+        {
+          "path": "mcp/src/feedback-review.ts",
+          "label": "4D rubric \u00b7 validation"
+        },
+        {
+          "path": "mcp/src/migrations/026_feedback.sql",
+          "label": "one pending row"
         }
       ]
     }
@@ -604,6 +633,18 @@
       "toSide": "top",
       "labelAt": [
         103,
+        178
+      ]
+    },
+    {
+      "id": "feedback-prompts",
+      "from": "memory",
+      "to": "feedback",
+      "label": "prompts in",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [
+        1224,
         178
       ]
     }

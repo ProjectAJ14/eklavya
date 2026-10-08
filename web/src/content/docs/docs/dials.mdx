@@ -16,6 +16,7 @@ Choose what Eklavya teaches and how often it asks. These settings are independen
 | `cadence` | `as-you-go`: one question during work | `end`: questions when the task finishes. |
 | `difficulty` | `auto`: earn a level per project | Pin `easy`, `medium` or `hard`. |
 | `memory.enabled` | `true`: record and recall work | `false`: learning continues without memory capture or recall. |
+| `feedback.enabled` | `false`: no prompt feedback | `true`: review one of your prompts per finished session. Needs memory and an observer model. |
 
 ### `quiz` — whether it asks, and whether it insists
 
@@ -52,6 +53,10 @@ Each explicit `/eklavya:quiz` round can plan up to `max_questions_per_task` elig
 Unasked work does not return in a later session. Questions you declined, left blank or got wrong come back once their review is due, after current work is covered. Raise checkpoint spacing if you want fewer interruptions; choose `end` if you want none during the task.
 
 With [`delegate_work`](/docs/configuration/#every-key) on (the default), Claude is asked to hand a larger code change to a background agent and ask one question at a time while it builds, instead of waiting for checkpoints. A staged plan goes one stage at a time, and Claude reviews, runs your checks and commits each stage before the next. Eklavya says this next to each task-sized prompt, and once more if Claude changes a second file itself. It is advice, not enforcement: Claude may still build inline, and is asked to say why in one line. These questions skip the spacing above but come out of the same `max_questions_per_task` budget. Questions while agents build need `as-you-go`: under `end` none are asked while agents build, and questions wait for the end of the task. They stop when an agent reports or the budget is spent, and Claude writes its task answer last. Set `delegate_work` to `false` to keep the building in the main conversation.
+
+### `feedback` — coaching on your own prompts
+
+Off by default, because it spends your Claude subscription on a model call over your own prompts. Turned on, Eklavya reviews one prompt from a finished session in the background and shows it on the dashboard's [Feedback page](/docs/dashboard/#feedback), one item at a time: the next waits until you press **Acknowledge**. It needs `memory.enabled` and an observer model (`providers.observer`); with either off, nothing is generated. It is independent of `quiz.enabled`, and it never changes your mastery or your levels.
 
 ### `difficulty` — how hard it may get
 
