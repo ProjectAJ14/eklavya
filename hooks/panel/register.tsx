@@ -3,10 +3,10 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   BRAND,
-  HOVER_FILL,
   EMPTY,
   EXPLAINER,
-  LOGO_COLORS,
+  LOGO_BG,
+  LOGO_FG,
   LOGO_ROWS,
   NEXT_PROMPT,
   PANE,
@@ -335,17 +335,13 @@ export const register: Register = on => {
     const s: PanelState = await read($, quiz)
     const q = s.question
 
-    // The mark is drawn in cells, as Claude Code draws its own, so it shows in every terminal.
+    // The mark is drawn in braille cells, so it shows in every terminal.
     const logo = (
       <Box flexDirection="column">
         {LOGO_ROWS.map((row, y) => (
-          <Box key={`logo-${y}`} flexDirection="row">
-            {row.split(' ').map((c, x) => (
-              <Text key={`logo-${y}-${x}`} color={LOGO_COLORS[c[0] as 'W' | 'T']} backgroundColor={LOGO_COLORS[c[1] as 'W' | 'T']}>
-                ▀
-              </Text>
-            ))}
-          </Box>
+          <Text key={`logo-${y}`} color={LOGO_FG} backgroundColor={LOGO_BG}>
+            {row}
+          </Text>
         ))}
       </Box>
     )
@@ -369,7 +365,6 @@ export const register: Register = on => {
         gap={roomy ? 1 : 0}
         borderStyle="single"
         borderColor={selected ? BRAND : 'inactive'}
-        hover={{ backgroundColor: HOVER_FILL, borderColor: BRAND }}
       >
         {button}
         {body}
@@ -490,6 +485,12 @@ export const register: Register = on => {
 /** Selecting an option records a draft and nothing else: it never submits, grades or skips. */
 async function pick($: EngineInterface, id: string): Promise<void> {
   await update($, quiz, (s: PanelState) => (s.step === 'awaiting' || s.step === 'error' ? { ...s, draft: { ...s.draft, picked: id, other: false }, message: null } : s))
+  try {
+    // The host's focus mark follows the pick, so the highlighted answer is the chosen one even after a hotkey.
+    await $.ui.focus({ requestId: PANE, key: `opt-${id}` })
+  } catch {
+    /* Fail open: the pick stands without it. */
+  }
 }
 
 async function chooseOther($: EngineInterface): Promise<void> {

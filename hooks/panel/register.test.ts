@@ -142,7 +142,7 @@ describe('the pane, state by state', () => {
     expect(drawn).toContain('Markdown')
     expect(drawn).toContain('card-o1')
     expect(drawn).toContain('card-other')
-    expect(drawn.indexOf('logo-0-0')).toBeLessThan(drawn.indexOf(STR.brand))
+    expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(STR.brand))
   })
 
   test('selecting an option is a draft: it never submits, grades or skips', async ($, on) => {
