@@ -198,6 +198,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         ['#/health', '#/memory/health', { wf: 'Memory', active: 'health', h1: /^Health$/ }],
         ['#/artifacts', '#/artifacts/dashboard', { wf: 'Artifacts', active: 'dashboard', h1: /^Artifacts$/ }],
         ['#/artifacts/projects', '#/artifacts/projects', { wf: 'Artifacts', active: 'projects', h1: /^Projects$/ }],
+        ['#/feedback', '#/feedback/dashboard', { wf: 'Feedback', active: 'dashboard', h1: /^Feedback$/ }],
+        ['#/feedback/history', '#/feedback/history', { wf: 'Feedback', active: 'history', h1: /^History$/ }],
         ['#/settings', '#/settings/dashboard', { wf: 'Settings', active: 'dashboard', h1: /^Settings$/ }],
         ['#/settings/user', '#/settings/user', { wf: 'Settings', active: 'user', h1: /^User settings$/ }],
         ['#/settings/project', '#/settings/project', { wf: 'Settings', active: 'project', h1: /^Project settings$/ }],
@@ -1623,6 +1625,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         '#/memory/sessions', '#/memory/projects', '#/memory/health', `#/memory/entry/${fx.entries.mixed}`,
         '#/artifacts/dashboard', '#/artifacts/dashboard/explainer', '#/artifacts/dashboard/to-correct',
         `#/artifacts/view/${enc(fix.other)}`, '#/artifacts/projects',
+        '#/feedback/dashboard', '#/feedback/history',
         '#/settings/dashboard', '#/settings/user', `#/settings/project?project=${enc(fx.repo.mixed)}`];
       for (const width of [1280, 900, 560, 390]) {
         for (const ground of ['ink', 'paper'] as const) {

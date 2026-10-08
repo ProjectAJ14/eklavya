@@ -36,3 +36,13 @@ CREATE TABLE IF NOT EXISTS feedback_reviewed (
   outcome     TEXT NOT NULL,
   reviewed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- The dashboard's stale-data notice (migration 021) watches the tables its pages
+-- show. A review that lands while the page is open, or an item deleted in
+-- another tab, must raise it.
+CREATE TRIGGER IF NOT EXISTS change_version_feedback_items_i AFTER INSERT ON feedback_items
+BEGIN UPDATE change_version SET n = n + 1; END;
+CREATE TRIGGER IF NOT EXISTS change_version_feedback_items_u AFTER UPDATE ON feedback_items
+BEGIN UPDATE change_version SET n = n + 1; END;
+CREATE TRIGGER IF NOT EXISTS change_version_feedback_items_d AFTER DELETE ON feedback_items
+BEGIN UPDATE change_version SET n = n + 1; END;

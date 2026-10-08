@@ -389,6 +389,23 @@ describe('migrations', () => {
     db.close();
   });
 
+  it('counts a feedback item arriving, changing and going, but not the sessions it has looked at', () => {
+    const db = new Database(':memory:');
+    runMigrations(db);
+    const n = () => (db.prepare('SELECT n FROM change_version').get() as { n: number }).n;
+    db.prepare(
+      "INSERT INTO feedback_items (id, session_id, project, prompt, review, better, tips, rubric, model) VALUES (1, 's', 'p', 'x', '{}', 'b', '[]', 1, 'm')",
+    ).run();
+    expect(n()).toBe(1);
+    db.prepare("UPDATE feedback_items SET acknowledged_at = datetime('now') WHERE id = 1").run();
+    expect(n()).toBe(2);
+    db.prepare('DELETE FROM feedback_items WHERE id = 1').run();
+    expect(n()).toBe(3);
+    db.prepare("INSERT INTO feedback_reviewed (session_id, outcome) VALUES ('s', 'nothing')").run();
+    expect(n()).toBe(3);
+    db.close();
+  });
+
   it('is idempotent — a second run applies nothing', () => {
     const db = new Database(':memory:');
     const first = runMigrations(db);

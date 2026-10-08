@@ -264,3 +264,92 @@ export function startBackgroundFeedback(
     /* retried at the next session start */
   }
 }
+
+/** The item, whatever its state, or null. Reading never acknowledges. */
+export function getFeedback(db: Database, id: number): FeedbackRow | null {
+  const row = db.prepare('SELECT * FROM feedback_items WHERE id = ?').get(id) as RawRow | undefined;
+  return row ? parse(row) : null;
+}
+
+export interface FeedbackListRow {
+  id: number;
+  project: string;
+  created_at: string;
+  acknowledged_at: string;
+  /** The first 80 characters only: the list is a table, the item page has the rest. */
+  prompt: string;
+  statuses: Record<'delegation' | 'description' | 'discernment' | 'diligence', DimensionStatus>;
+}
+
+/** Acknowledged items, newest first, one page. `project` narrows to one project's items. */
+export function listAcknowledged(
+  db: Database,
+  q: { project: string | null; page: number; per: number },
+): { total: number; page: number; pages: number; per: number; items: FeedbackListRow[] } {
+  const per = Math.min(50, Math.max(1, Math.floor(q.per)));
+  const scope = q.project ? 'AND project = ?' : '';
+  const args = q.project ? [q.project] : [];
+  const { n: total } = db
+    .prepare(`SELECT COUNT(*) AS n FROM feedback_items WHERE acknowledged_at IS NOT NULL ${scope}`)
+    .get(...args) as { n: number };
+  const pages = Math.max(1, Math.ceil(total / per));
+  const page = Math.min(pages, Math.max(1, Math.floor(q.page)));
+  const rows = db
+    .prepare(
+      `SELECT * FROM feedback_items WHERE acknowledged_at IS NOT NULL ${scope}
+       ORDER BY acknowledged_at DESC, id DESC LIMIT ? OFFSET ?`,
+    )
+    .all(...args, per, (page - 1) * per) as RawRow[];
+  const items = rows.map((r) => {
+    const row = parse(r);
+    const { delegation, description, discernment, diligence } = row.review;
+    return {
+      id: row.id,
+      project: row.project,
+      created_at: row.created_at,
+      acknowledged_at: row.acknowledged_at!,
+      prompt: row.prompt.slice(0, 80),
+      statuses: {
+        delegation: delegation.status,
+        description: description.status,
+        discernment: discernment.status,
+        diligence: diligence.status,
+      },
+    };
+  });
+  return { total, page, pages, per, items };
+}
+
+/**
+ * What the dashboard's state payload says about feedback: switches, whether an
+ * item is waiting (its id, never its text), how many were acknowledged, and
+ * whether the last session looked at could not be reviewed. A database from
+ * before the tables existed reads as nothing.
+ */
+export function feedbackSummary(db: Database, config: EklavyaConfig) {
+  let pending: { id: number } | null = null;
+  let acknowledged = 0;
+  let failed = false;
+  try {
+    const row = feedbackPending(db);
+    pending = row ? { id: row.id } : null;
+    acknowledged = (db.prepare('SELECT COUNT(*) AS n FROM feedback_items WHERE acknowledged_at IS NOT NULL').get() as { n: number }).n;
+    const last = db.prepare('SELECT outcome FROM feedback_reviewed ORDER BY reviewed_at DESC, rowid DESC LIMIT 1').get() as
+      | { outcome: string }
+      | undefined;
+    failed = last?.outcome === 'failed';
+  } catch {
+    /* an older schema: nothing waiting */
+  }
+  return {
+    enabled: config.feedback.enabled,
+    memory: config.memory.enabled,
+    observer: config.providers.observer !== null,
+    pending,
+    // Whether to ask for attention (the badge): a stale item left from before
+    // feedback or memory was switched off waits quietly, and is still there to open.
+    notify: pending !== null && feedbackEnabled(config),
+    acknowledged,
+    failed,
+  };
+}

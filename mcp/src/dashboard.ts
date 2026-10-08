@@ -39,6 +39,7 @@ import {
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
 import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
+import { acknowledgeFeedback, deleteFeedback, feedbackSummary, getFeedback, feedbackPending, listAcknowledged } from './feedback.js';
 import { artifactsStamp, artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
 import { LIMITS } from './tools/types.js';
 import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDelivery } from './memory/store.js';
@@ -1112,6 +1113,8 @@ export function dashboardState(db: DB): Record<string, unknown> {
     // The third workflow. Read from the files themselves on every load
     // (`artifacts.ts`): there is no table to fall out of step with the disk.
     artifacts: artifactRows(db),
+    // Switches and counts only: the prompt text comes from `/api/feedback`, to the page that shows it.
+    feedback: feedbackSummary(db, config),
   };
 }
 
@@ -1431,6 +1434,41 @@ export function retryAttempt(db: DB, body: unknown): { status: number; body: Rec
   }
 }
 
+/** `GET /api/feedback[?id=]`: one item (the pending one without an id). Reading never acknowledges. */
+export function feedbackItem(db: DB, id: string | null): { status: number; body: Record<string, unknown> } {
+  const row = id === null ? feedbackPending(db) : getFeedback(db, Number(id));
+  if (!row) return id === null ? { status: 200, body: { item: null } } : { status: 404, body: { error: 'not_found' } };
+  const { session_id: _s, event_id: _e, model: _m, ...item } = row;
+  return { status: 200, body: { item } };
+}
+
+const feedbackId = (body: unknown): number | null => {
+  const id = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>).id : undefined;
+  return typeof id === 'number' && Number.isSafeInteger(id) && id >= 1 ? id : null;
+};
+const BAD_FEEDBACK_ID = { status: 400, body: { error: 'id is a positive integer.' } };
+const NO_FEEDBACK = { status: 404, body: { error: 'not_found' } };
+
+/**
+ * `POST /api/feedback/acknowledge`: the only thing that sets `acknowledged_at`.
+ * A repeat is a 200 `already` and writes nothing.
+ */
+export function acknowledgeItem(db: DB, body: unknown): { status: number; body: Record<string, unknown> } {
+  const id = feedbackId(body);
+  if (id === null) return BAD_FEEDBACK_ID;
+  const result = acknowledgeFeedback(db, id);
+  if (result === 'not_found') return NO_FEEDBACK;
+  return { status: 200, body: { ok: true, result, state: feedbackSummary(db, readConfig()) } };
+}
+
+/** `POST /api/feedback/delete`: removes an item, pending or not. Not an acknowledgement. */
+export function deleteItem(db: DB, body: unknown): { status: number; body: Record<string, unknown> } {
+  const id = feedbackId(body);
+  if (id === null) return BAD_FEEDBACK_ID;
+  if (!deleteFeedback(db, id)) return NO_FEEDBACK;
+  return { status: 200, body: { ok: true, state: feedbackSummary(db, readConfig()) } };
+}
+
 /** One write: validates its own body, never trusts it, and answers with JSON. */
 export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Record<string, unknown> };
 
@@ -1445,6 +1483,9 @@ export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }>
   // An option label is at most LIMITS.option characters; 16 KiB holds one
   // JSON-escaped with room to spare.
   '/api/attempts/retry': { handler: retryAttempt, maxBytes: 16 * 1024 },
+  // `{ id }` and nothing else.
+  '/api/feedback/acknowledge': { handler: acknowledgeItem, maxBytes: 16 * 1024 },
+  '/api/feedback/delete': { handler: deleteItem, maxBytes: 16 * 1024 },
 };
 
 /**
@@ -1790,6 +1831,19 @@ export function startDashboard(
               per: Number(g('per')) || MEMORY_PER,
             }),
           ),
+        );
+      }
+      if (url.pathname === '/api/feedback') {
+        const out = feedbackItem(db, url.searchParams.get('id'));
+        return send(res, out.status, 'application/json', JSON.stringify(out.body));
+      }
+      if (url.pathname === '/api/feedback/list') {
+        const g = (k: string) => url.searchParams.get(k);
+        return send(
+          res,
+          200,
+          'application/json',
+          JSON.stringify(listAcknowledged(db, { project: g('project'), page: Number(g('page')) || 1, per: Number(g('per')) || 20 })),
         );
       }
       if (url.pathname === '/api/attempts/correction') {
