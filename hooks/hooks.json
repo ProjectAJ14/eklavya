@@ -62,6 +62,20 @@
         ]
       },
       {
+        "matcher": "^AskUserQuestion$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs",
+              "ask-label"
+            ],
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "^Read$",
         "hooks": [
           {

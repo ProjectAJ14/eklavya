@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import os from 'node:os';
 import type { DB } from './db.js';
 import { loadConfig } from './config.js';
 import { answerPosition, MCQ_OPTION_COUNT } from './mcq.js';
@@ -191,7 +192,8 @@ export interface SyncInput {
  * mod holds can reveal the answer before it is given.
  */
 export function panelSync(db: DB, args: SyncInput) {
-  const { config, repoRoot } = loadConfig(args.cwd);
+  // An empty cwd is a session opened without a folder: home, which resolves to no project.
+  const { config, repoRoot } = loadConfig(args.cwd || os.homedir());
   const repo = projectKey(repoRoot);
   // Off is inert: no heartbeat, nothing for the mod to show. A question still
   // open here is superseded by the card the session falls back to, so it is

@@ -538,6 +538,13 @@ describe('placement and lifecycle', () => {
     expect(reports[0]!.args.placed.ok).toBe(true)
   })
 
+  test('a session opened without a folder still reports in, with an empty directory', async ($, on) => {
+    const w = world(on)
+    on('session.cwd', async () => ({ value: undefined }))
+    await boot($)
+    expect(w.log.calls.find(c => c.tool === 'panel_sync')?.args.cwd).toBe('')
+  })
+
   test('the reopen command seats the pane and restores the question', async ($, on) => {
     const w = world(on)
     await boot($)

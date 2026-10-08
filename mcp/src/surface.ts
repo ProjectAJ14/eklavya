@@ -196,7 +196,7 @@ export function needsInlineAttribution(): boolean {
 export function attributionRule(): string {
   return needsInlineAttribution()
     ? 'Header "Eklavya", and — because this host draws a question card with no chip in it — ' +
-        'open the stem with "[Eklavya]" on its own line, then the question. That line is the only ' +
+        'you MUST open the stem with "[Eklavya]" on its own line, then the question (the question is refused without it). That line is the only ' +
         'thing on screen saying who is asking. Nothing else goes in the stem: the dials are not ' +
         'shown here either, and they are not what the prefix is for.'
     : 'Header "Eklavya", so it is clear who is asking. Ask the stem on its own — the dials that ' +
