@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice } from './model'
+import { EMPTY, EXPLAINER, STR, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -112,7 +112,7 @@ describe('the pane, state by state', () => {
       await boot($)
       let pane = await mount($, surface)
       expect(await pane.find({ text: STR.empty })).toBeDefined()
-      expect(await pane.find({ text: STR.brand })).toBeDefined()
+      expect(await pane.find({ text: WORDMARK })).toBeDefined()
       expect(JSON.stringify(await pane.drawn())).not.toContain('Powered by')
       expect(w.log.opens).toHaveLength(0)
 
@@ -142,7 +142,7 @@ describe('the pane, state by state', () => {
     expect(drawn).toContain('Markdown')
     expect(drawn).toContain('card-o1')
     expect(drawn).toContain('card-other')
-    expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(STR.brand))
+    expect(drawn.indexOf('logo-0')).toBeLessThan(drawn.indexOf(WORDMARK))
   })
 
   test('selecting an option is a draft: it never submits, grades or skips', async ($, on) => {
@@ -460,7 +460,7 @@ describe('placement and lifecycle', () => {
     let found: unknown
     try {
       const other = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: 'someone-elses-pane', props: { title: 'x', isFocused: false, bodyColumns: 40, placement: 'dock' } as any })
-      found = await other.find({ text: STR.brand })
+      found = await other.find({ text: WORDMARK })
     } catch {
       found = undefined
     }

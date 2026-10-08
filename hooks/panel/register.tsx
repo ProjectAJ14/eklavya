@@ -11,6 +11,7 @@ import {
   PANE,
   REOPEN,
   STR,
+  WORDMARK,
   answerWas,
   explainerBrief,
   gradingRequest,
@@ -354,9 +355,9 @@ export const register: Register = on => {
         {logo}
         <Box flexDirection="column" flexShrink={1}>
           <Text bold color={BRAND}>
-            {STR.brand}
+            {WORDMARK}
           </Text>
-          {subtitle ? <Text bold>{subtitle}</Text> : null}
+          {subtitle ? <Text>{subtitle}</Text> : null}
         </Box>
       </Box>
     )

@@ -37,6 +37,9 @@ export const LOGO_ROWS = [
 ] as const
 export const LOGO_COLORS = { W: '#FFFFFF', T: '#0E6E66' } as const
 
+/** The name as the header sets it: spaced capitals, the nearest a terminal gets to a larger type size. */
+export const WORDMARK = 'EKLAVYA'.split('').join(' ')
+
 /** Every sentence the learner reads, in one place. The handoff's table, verbatim. */
 export const STR = {
   brand: 'Eklavya',
