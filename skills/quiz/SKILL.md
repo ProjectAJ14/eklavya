@@ -10,10 +10,10 @@ Quiz the developer now. Follow the `tutor` skill for how to ask and grade — th
 
 The developer asked for this, so always pass `ignore_cooldown: true`. The quiz cadence exists to stop Eklavya nagging; it must never refuse a request.
 
-**Topic given** (`$ARGUMENTS` is non-empty): treat it as a domain, or as one or more concept slugs.
-1. `get_learner_profile` with that domain — `known` is the list you must not ask about.
-2. `get_session_quiz_plan` with `domain: "<topic>"` (or `slugs: [...]` if they named specific concepts) and `ignore_cooldown: true`. The plan already drops what they have mastered, orders prerequisites first, sets each `tier_to_ask`, and hands you `asked_before` so nothing repeats.
-3. If the topic is not a known domain, `get_concept_graph` to see what domains exist, and offer the closest one rather than inventing questions.
+**Topic given** (`$ARGUMENTS` is non-empty): decide between a domain and concept slugs from the profile, not by guessing.
+1. `get_learner_profile` with no `domain`. Its `domains` list names every domain there is; `known` is the list you must not ask about.
+2. If the topic exactly names one of those domains, `get_session_quiz_plan` with `domain: "<topic>"`. Otherwise pass every kebab-case word as a concept slug: `/eklavya:quiz csrf jwt-structure` is `slugs: ["csrf", "jwt-structure"]`. Either way pass `ignore_cooldown: true`. The plan already drops what they have mastered, orders prerequisites first, sets each `tier_to_ask`, and hands you `asked_before` so nothing repeats.
+3. If that plan is empty and the topic was not a domain, nothing by that name is due: the concept is unknown, or already mastered and not due. Say that in one line, offer the closest domain from step 1's list, and name `/eklavya:learn <topic>` for a lesson that adds new concepts. A quiz never mints concepts: do not call `upsert_concepts`, do not offer to build concepts from this repository, and do not invent questions.
 
 **No topic**: quiz this session's work.
 1. `get_learner_profile`.
@@ -21,7 +21,7 @@ The developer asked for this, so always pass `ignore_cooldown: true`. The quiz c
 3. If `questions_needed` is 0, say why in one line and stop. The `reason` tells you which:
    - `already_covered` → "Everything from this session has already been asked about. `/eklavya:quiz <topic>` to go wider."
    - `nothing_logged` → "Nothing logged this session yet, so there's nothing grounded to ask about."
-   - `no_candidates` (topic mode) → that topic is fully mastered and nothing is due; name the closest domain that is not.
+   - `no_candidates` (topic mode) → for a domain, it is fully mastered and nothing is due; name the closest domain that is not. For slugs, follow step 3 of the topic branch.
    - `quiz_disabled` → "Questions are off for this project. Memory is still recording — `/eklavya:mode` turns the questions back on." Do not say "Eklavya is off": it is not, and saying so is what sent people hunting for a bug that was a setting.
    - `session_off` → they silenced the questions for this session, and then asked for a quiz. Say so and offer the one step back: "Questions are off for this session — say the word and I'll turn them back on." Turn them back on with `set_config`, `scope: "session"`, `quiz: { enabled: true }` if they agree, then run the quiz.
    - `panel_question_open` → a question is already waiting in the side panel: "There's already a question waiting in the panel — answer it there." Ask nothing else.
