@@ -77,6 +77,7 @@ export const REVIEW_SYSTEM = [
   `- description: ${FOURD.description} Goal, context, constraints, desired output. This is the main one.`,
   `- discernment: ${FOURD.discernment} Only a LATER prompt can show it. Give a status other than not_visible only with "evidence": a quote of fewer than ${REVIEW_LIMIT.evidenceWords} words copied from a later prompt. Otherwise not_visible.`,
   `- diligence: ${FOURD.diligence} Same rule as discernment: a quote from a later prompt, or not_visible.`,
+  'An evidence quote must be copied exactly, character for character, from one prompt that comes after the chosen one: not paraphrased, not from the chosen prompt, not invented. If you cannot copy a quote, the status is not_visible.',
   'Status is strong, mixed, missing or not_visible. not_visible means it cannot be told from the prompts, which is not a weakness. Each note is one or two plain sentences under 240 characters. Set judged_from to "prompt".',
   'Give no numbers: no scores, ratings, grades or counts anywhere in the output. Statuses and words only.',
   'Be plain, kind and specific. Say what was strong before what was missing.',

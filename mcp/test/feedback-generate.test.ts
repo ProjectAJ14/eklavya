@@ -241,6 +241,21 @@ describe.skipIf(!posix)('generateFeedback: the model fails or misbehaves', () =>
     }
   });
 
+  it('keeps the reason a session failed, so a rejected answer can be diagnosed', async () => {
+    stand(success({ nope: true }));
+    session(db, 's', 3 * DAY);
+    expect((await run()).status).toBe('failed');
+    const row = db.prepare('SELECT outcome, detail FROM feedback_reviewed').get() as { outcome: string; detail: string };
+    expect(row.outcome).toBe('failed');
+    expect(row.detail).toMatch(/^malformed: the review failed validation/);
+    expect(row.detail.length).toBeLessThanOrEqual(300);
+    // A session that was reviewed, or had nothing to review, has no reason to give.
+    db.prepare('DELETE FROM feedback_reviewed').run();
+    stand(success(goodOutput({ review: { ...goodOutput().review, discernment: dim('not_visible', '') } })));
+    await run();
+    expect(db.prepare('SELECT outcome, detail FROM feedback_reviewed').get()).toEqual({ outcome: 'item', detail: null });
+  });
+
   it('rejects a Discernment judgement that has no evidence, and marks the session failed', async () => {
     const bad = goodOutput();
     (bad.review as Record<string, unknown>).discernment = dim('strong', 'Looked fine.');

@@ -197,11 +197,11 @@ export async function generateFeedback(
     )
     .all(opts.project, opts.currentSession ?? '', earliest, settled) as { session_id: string; began: string }[];
 
-  const mark = db.prepare('INSERT OR REPLACE INTO feedback_reviewed (session_id, outcome) VALUES (?, ?)');
+  const mark = db.prepare('INSERT OR REPLACE INTO feedback_reviewed (session_id, outcome, detail) VALUES (?, ?, ?)');
   for (const s of sessions.slice(0, MAX_SESSIONS_PER_RUN)) {
     const prompts = qualifyingPrompts(db, opts.project, s.session_id);
     if (!prompts.length) {
-      mark.run(s.session_id, 'nothing');
+      mark.run(s.session_id, 'nothing', null);
       continue;
     }
     let got;
@@ -211,7 +211,8 @@ export async function generateFeedback(
       // `reviewPrompts` rejects only with a ProviderError (the call and the
       // validation both raise one), so the class is always there to read.
       if (RETRY_LATER.has((err as ProviderError).errorClass)) return { status: 'later' };
-      mark.run(s.session_id, 'failed');
+      const why = err as ProviderError;
+      mark.run(s.session_id, 'failed', `${why.errorClass}: ${why.message}`.slice(0, 300));
       return { status: 'failed' };
     }
     const chosen = prompts[got.chosen - 1]!;
@@ -228,7 +229,7 @@ export async function generateFeedback(
     // Another writer got there while the model was thinking: nothing is marked,
     // so this session is reviewed once the pending item is acknowledged.
     if (id === null) return { status: 'pending' };
-    mark.run(s.session_id, 'item');
+    mark.run(s.session_id, 'item', null);
     return { status: 'reviewed', date: s.began.slice(0, 10) };
   }
   return { status: 'nothing' };

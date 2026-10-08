@@ -66,6 +66,13 @@ describe('the review prompt states its rules', () => {
     for (const d of Object.values(FOURD)) expect(REVIEW_SYSTEM).toContain(d);
   });
 
+  it('says a quote must be copied exactly, and what to do when none can be', () => {
+    // A review that claims Discernment or Diligence without a verbatim quote from
+    // a later prompt is rejected, which cost real sessions their review.
+    expect(REVIEW_SYSTEM).toMatch(/copied exactly, character for character/);
+    expect(REVIEW_SYSTEM).toMatch(/If you cannot copy a quote, the status is not_visible/);
+  });
+
   it('runs through the same no-tools, no-MCP, no-hooks flags as the summariser', () => {
     const args = claudeArgs('m', { schema: REVIEW_SCHEMA, system: REVIEW_SYSTEM });
     expect(args[args.indexOf('--system-prompt') + 1]).toBe(REVIEW_SYSTEM);

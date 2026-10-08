@@ -34,6 +34,9 @@ CREATE INDEX IF NOT EXISTS idx_feedback_session ON feedback_items(session_id);
 CREATE TABLE IF NOT EXISTS feedback_reviewed (
   session_id  TEXT PRIMARY KEY,
   outcome     TEXT NOT NULL,
+  -- Why a session is 'failed': the error class and the start of its message, so
+  -- a rejected answer can be diagnosed. Never prompt text. Null otherwise.
+  detail      TEXT,
   reviewed_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
