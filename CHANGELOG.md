@@ -1,3 +1,10 @@
+# [1.56.0](https://github.com/ProjectAJ14/eklavya/compare/v1.55.0...v1.56.0) (2026-10-09)
+
+
+### Features
+
+* **banner:** show estimated context saved on the session-start memory line ([#147](https://github.com/ProjectAJ14/eklavya/issues/147)) ([893b83f](https://github.com/ProjectAJ14/eklavya/commit/893b83fa5b7498338eb194c231267d83d8fd35ba))
+
 # [1.55.0](https://github.com/ProjectAJ14/eklavya/compare/v1.54.3...v1.55.0) (2026-10-09)
 
 
