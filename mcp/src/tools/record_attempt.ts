@@ -9,6 +9,7 @@ import {
   gradeConcept,
   hasAskedQuestion,
   isMissed,
+  recordInvalidQuestion,
   levelStanding,
   logSessionConcept,
   promoteIfEarned,
@@ -57,7 +58,7 @@ export const recordAttempt: ToolDef = {
   name: 'record_attempt',
   title: 'Record a quiz attempt',
   description:
-    'Grade one answer on the 0-5 SM-2 scale and persist it, returning its attempt_id. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined); dont_know or declined with a grade of 3 or more is rejected with outcome_grade_conflict and nothing is recorded. Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. With every mcq also pass correct (the right option\'s label, verbatim) and option_notes (the description under each option, same order): they are what lets the learner correct a missed answer after reading its explainer. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on. Returns explain on a missed answer when explain_on_wrong is on: follow its instruction.',
+    'Grade one answer on the 0-5 SM-2 scale and persist it, returning its attempt_id. Updates mastery, the next review date, the session gate and this project\'s difficulty level. Record every response, including "I don\'t know" (grade 0, outcome dont_know, after you have taught it) and declines (grade 0, outcome declined); a question that was itself at fault (it assumed context the learner never saw, or two options both answer it) is outcome invalid, which grades nothing and moves no mastery, level, review date or gate; dont_know or declined with a grade of 3 or more is rejected with outcome_grade_conflict and nothing is recorded. Pass format "mcq" and the options you offered — question takes the stem alone, which is what the repeat check hashes; the options go in options. With every mcq also pass correct (the right option\'s label, verbatim) and option_notes (the description under each option, same order): they are what lets the learner correct a missed answer after reading its explainer. Multiple choice is capped at grade 4: picking one of four cannot show you know why; omit format only when they typed a real explanation instead of picking. Returns level and level_progress, and level_up on the answer that earns a promotion — say that in one line and move on. Returns explain on a missed answer when explain_on_wrong is on: follow its instruction.',
   inputSchema: {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
@@ -105,10 +106,10 @@ export const recordAttempt: ToolDef = {
       .optional()
       .describe('For mcq: the one-line description shown under each option (AskUserQuestion\'s description), in the same order as options.'),
     outcome: z
-      .enum(['answered', 'dont_know', 'declined'])
+      .enum(['answered', 'dont_know', 'declined', 'invalid'])
       .optional()
       .describe(
-        'Why the grade is what it is. "answered" they attempted it; "dont_know" they said they did not know and you taught it; "declined" they chose to skip and you dropped it without explaining. Grade 0 covers the last two, so this is the only thing that tells them apart later -- and they are not interchangeable: a declined concept is never offered again, so labelling a blank as a decline removes it from the only route out of a blocked commit gate. If you taught it, it is "dont_know".',
+        'Why the grade is what it is. "answered" they attempted it; "dont_know" they said they did not know and you taught it; "declined" they chose to skip and you dropped it without explaining. Grade 0 covers the last two, so this is the only thing that tells them apart later -- and they are not interchangeable: a declined concept is not offered again by this session\'s gate retry, so labelling a blank as a decline removes it from the only route out of a blocked commit gate. If you taught it, it is "dont_know". "invalid" means the question itself was at fault (it assumed context the learner never saw, or two options both answer it): nothing is graded, no mastery, level, review date or gate changes, and no attempt_id comes back. Pass feedback with what was wrong; grade is ignored.',
       ),
   },
   handler: (args: RecordAttemptArgs, { db }) => recordAttemptCore(db, args),
@@ -123,7 +124,7 @@ export interface RecordAttemptArgs {
   grade: number;
   difficulty: number;
   feedback?: string;
-  outcome?: AttemptOutcome;
+  outcome?: AttemptOutcome | 'invalid';
   format?: QuestionFormat;
   options?: string[];
   correct?: string;
@@ -165,6 +166,27 @@ export function recordAttemptCore(db: DB, args: RecordAttemptArgs) {
     };
   }
 
+  // The tutor's mistake, not the learner's: set the question aside and grade
+  // nothing. Before `levelStanding` and the transaction below, so no scoring
+  // path runs at all.
+  if (args.outcome === 'invalid') {
+    recordInvalidQuestion(db, {
+      conceptId: concept.id,
+      sessionId,
+      question: stripAskHeader(args.question),
+      reason: args.feedback?.trim() || null,
+    });
+    return {
+      slug: concept.slug,
+      invalid: true,
+      detail:
+        'Set aside as a bad question: nothing was graded and no mastery, level, review date or gate changed. Own it in a few words, give the answer with one line of why, and where the pacing contract allows another question, offer a replacement that fixes what was missing.',
+    };
+  }
+
+  // 'invalid' returned above; what is left is a real outcome.
+  const outcome = args.outcome as AttemptOutcome | undefined;
+
   // The settings line is presentation. Stripped rather than rejected, because the
   // tutor pasting back the block it displayed is the likely mistake and losing
   // a real answer over it would be the wrong trade.
@@ -188,7 +210,7 @@ export function recordAttemptCore(db: DB, args: RecordAttemptArgs) {
   // reported loudly, because silence here is what let 11 of 16 declines in a
   // real history carry an explanation with nobody noticing.
   const outcomeConflict =
-    args.outcome === 'declined' && typeof args.feedback === 'string' && args.feedback.trim().length > 0;
+    outcome === 'declined' && typeof args.feedback === 'string' && args.feedback.trim().length > 0;
 
   // A key that does not line up with the options cannot grade a correction,
   // so it is stored as NULL -- but the answer is real, and losing it would be
@@ -225,7 +247,7 @@ export function recordAttemptCore(db: DB, args: RecordAttemptArgs) {
       // answer is a fair hint that nothing was attempted, but it cannot tell
       // "teach me" from "leave it" -- and inventing the difference here would
       // put a value in the column that nobody observed.
-      outcome: args.outcome ?? null,
+      outcome: outcome ?? null,
       repo: standing.repo,
       level: standing.level,
       now,
@@ -253,7 +275,7 @@ export function recordAttemptCore(db: DB, args: RecordAttemptArgs) {
   // field it was handed far more reliably than a rule it has to remember, and
   // the instruction is composed once, where the config is visible. A decline
   // and a bare skip get nothing -- they asked to move on.
-  const missed = isMissed(grade, args.outcome ?? null);
+  const missed = isMissed(grade, outcome ?? null);
   const explain = config.explain_on_wrong && missed
     ? {
         concept: concept.slug,
@@ -308,7 +330,7 @@ export function recordAttemptCore(db: DB, args: RecordAttemptArgs) {
     ...(outcomeConflict
       ? {
           outcome_conflict:
-            'You passed outcome "declined" and also feedback. A decline is dropped without explanation, so if you taught this concept it was a blank: record outcome "dont_know". It matters — a declined concept is never offered again, and in enforced mode that is the only way out of a blocked commit.',
+            'You passed outcome "declined" and also feedback. A decline is dropped without explanation, so if you taught this concept it was a blank: record outcome "dont_know". It matters — a declined concept is not offered again by this session\'s gate retry, and in enforced mode that is the only way out of a blocked commit.',
         }
       : {}),
     gate,

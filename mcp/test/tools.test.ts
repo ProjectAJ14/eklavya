@@ -2289,6 +2289,61 @@ describe('a decline that was explained anyway', () => {
   });
 });
 
+describe('an invalid question', () => {
+  const STEM = 'Why does the island need the hook?';
+  const invalid = (extra: Record<string, unknown> = {}) =>
+    call<any>(recordAttempt, {
+      session_id: SESSION,
+      slug: 'csrf',
+      question: STEM,
+      difficulty: 2,
+      grade: 0,
+      outcome: 'invalid',
+      feedback: 'the stem named a component the learner never saw',
+      ...extra,
+    });
+  const counts = () => ({
+    attempts: db.prepare('SELECT count(*) AS n FROM attempts').get(),
+    mastery: db.prepare('SELECT count(*) AS n FROM mastery').get(),
+  });
+
+  beforeEach(() => {
+    configure({ quiz: { enabled: true, enforced: true } });
+    call(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', context: 'the csrf token check in auth.ts' }] });
+    call(getGateStatus, { session_id: SESSION });
+  });
+
+  it('grades nothing: no attempt, no mastery, no gate progress, no attempt_id', () => {
+    const before = { ...counts(), gate: call<any>(getGateStatus, { session_id: SESSION }) };
+    const res = invalid();
+    expect(res).toMatchObject({ slug: 'csrf', invalid: true });
+    expect(res.attempt_id).toBeUndefined();
+    expect(res.explain).toBeUndefined();
+    expect(counts()).toEqual({ attempts: before.attempts, mastery: before.mastery });
+    const gate = call<any>(getGateStatus, { session_id: SESSION });
+    expect(gate.passed_count).toBe(before.gate.passed_count);
+    expect(gate.answered_count).toBe(before.gate.answered_count);
+  });
+
+  it('leaves the concept askable, so an enforced gate is not blocked by it', () => {
+    invalid();
+    expect(call<any>(getSessionQuizPlan, { session_id: SESSION, ignore_cooldown: true }).concepts.map((i: any) => i.slug)).toContain('csrf');
+  });
+
+  it('keeps the broken stem spent, and stores the reason', () => {
+    invalid();
+    const retry = call<any>(recordAttempt, { session_id: SESSION, slug: 'csrf', question: STEM, difficulty: 2, grade: 4, outcome: 'answered', answer: 'b', format: 'mcq' });
+    expect(retry.repeat_question).toBe(true);
+    expect(db.prepare('SELECT reason FROM invalid_questions').get()).toEqual({ reason: 'the stem named a component the learner never saw' });
+  });
+
+  it('takes a bare invalid with no feedback, and still rejects an unknown concept', () => {
+    expect(invalid({ feedback: undefined }).invalid).toBe(true);
+    expect(db.prepare('SELECT reason FROM invalid_questions').get()).toEqual({ reason: null });
+    expect(invalid({ slug: 'no-such-concept-xyz' }).error).toBe('unknown_concept');
+  });
+});
+
 describe('a skip that claims a passing grade', () => {
   const ask = (extra: Record<string, unknown>) =>
     call<any>(recordAttempt, {

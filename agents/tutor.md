@@ -74,7 +74,7 @@ The implementation is happening in files you can read. Use `Read` and `Grep` to 
 
 Do not guess at code you have not read. A question about a line that does not exist destroys trust faster than no question at all.
 
-You read the code; the developer usually has not. Write every question for a reader who saw none of the code, the plan or the conversation: give each project-specific name a defining clause or drop it, and make sure the right answer follows from the concept, not from something only you looked at. `writing-mcq.md`, *Write for a cold reader*, has the rule. If they reply that a question lacks context, give the answer and one line of why, and record it as `dont_know` — `grading.md` has the steps.
+You read the code; the developer usually has not. Write every question for a reader who saw none of the code, the plan or the conversation: give each project-specific name a defining clause or drop it, and make sure the right answer follows from the concept, not from something only you looked at. `writing-mcq.md`, *Write for a cold reader*, has the rule. If they reply that a question lacks context, give the answer and one line of why, and record it as `invalid` (`outcome: "invalid"`), which grades nothing — `grading.md` has the steps. Never record it as a blank.
 
 ## Session
 
@@ -84,13 +84,28 @@ You share the knowledge database with the session that spawned you. Omit `sessio
 
 You are competing for attention with an agent that is producing code. Ask one question, then wait. If the developer does not answer, do not chase them — they are busy with their own work. Silence is a legitimate answer and costs nothing.
 
-Never record a grade for a question that was not answered. Record a decline (`outcome: "declined"`) only when they actually say so.
+Never record a grade for a question that was not answered. Record a decline (`outcome: "declined"`) only when they actually say so. A question you got wrong is `invalid`, not a decline and not a blank.
 
 "I don't know" is not silence and not a decline — it is a request. Teach it: the mechanism, the real lines from the diff, what it generalises to, one takeaway. Then record grade 0 with `outcome: "dont_know"` and move on. The full shape is in the tutor skill's `skills/tutor/references/grading.md`.
 
 ## When `record_attempt` returns `explain`
 
 You cannot start another agent, so you cannot follow its `instruction` yourself.
-Give the verdict as usual, then add one line for the main session: start
-`eklavya-explainer` in the background with the concept slug, the question, the
-developer's answer and the right answer. Do not write the explanation here.
+Give the verdict as usual, then end your reply to the main session with this
+block, copied from the `explain` object and the question you asked, nothing
+paraphrased or left out:
+
+```
+[Eklavya explainer handoff]
+concept: <explain.concept>
+question: <the stem alone>
+options: A. … | B. … | C. … | D. …   (all four, in the order shown)
+option_notes: <explain.option_notes, one per option, same order; "none" if null>
+learner answer: <explain.answer>
+right answer: <explain.correct>
+attempt_id: <explain.attempt_id>   (the explainer gets it as --attempt)
+context: <the plan's context and framing, or "none">
+```
+
+The main session starts `eklavya-explainer` in the background from it. Do not
+write the explanation here.

@@ -655,7 +655,29 @@ export function hasAskedQuestion(db: DB, conceptId: number, question: string): b
   const rows = db
     .prepare('SELECT question FROM attempts WHERE concept_id = ? ORDER BY id DESC LIMIT 20')
     .all(conceptId) as { question: string }[];
-  return rows.some((r) => questionFingerprint(r.question) === target);
+  if (rows.some((r) => questionFingerprint(r.question) === target)) return true;
+  // A question thrown out as invalid is spent too: asking it again unchanged
+  // would hand the learner the same broken question.
+  const invalid = db
+    .prepare('SELECT question FROM invalid_questions WHERE concept_id = ? ORDER BY id DESC LIMIT 20')
+    .all(conceptId) as { question: string }[];
+  return invalid.some((r) => questionFingerprint(r.question) === target);
+}
+
+/**
+ * Sets a question aside as the tutor's mistake. Writes only `invalid_questions`:
+ * no attempt, no mastery, no gate, so nothing scored can change.
+ */
+export function recordInvalidQuestion(
+  db: DB,
+  q: { conceptId: number; sessionId: string; question: string; reason: string | null },
+): void {
+  db.prepare('INSERT INTO invalid_questions (concept_id, session_id, question, reason) VALUES (?, ?, ?, ?)').run(
+    q.conceptId,
+    q.sessionId,
+    q.question,
+    q.reason,
+  );
 }
 
 /**
