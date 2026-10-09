@@ -1,3 +1,10 @@
+# [1.61.0](https://github.com/ProjectAJ14/eklavya/compare/v1.60.0...v1.61.0) (2026-10-09)
+
+
+### Features
+
+* redesign dashboard Settings as a tabbed switchboard ([#161](https://github.com/ProjectAJ14/eklavya/issues/161)) ([565d101](https://github.com/ProjectAJ14/eklavya/commit/565d10168bc27778b9bbe06c0d0a1be909b5088b))
+
 # [1.60.0](https://github.com/ProjectAJ14/eklavya/compare/v1.59.0...v1.60.0) (2026-10-09)
 
 
