@@ -47,6 +47,8 @@ Gate failures (counts of 40):
 
 ## Cost
 
+Tokens were not recorded for this pilot. A later measurement of one trial (3 calls) was about 132k input tokens, about 44k per call, so the ~560 calls were very roughly 25M input tokens; treat that as an estimate.
+
 Search: 331 model calls, about 85 minutes with 4 workers. Test evaluation: 112 calls for the baseline, 118 for the candidate. One failed attempt (before the score was shaped so failures rank by gates passed) and one run invalidated by a usage limit (63 generation and 44 reflection calls failed) are discarded; the second is why the runner now stops after 12 failed calls.
 
 ## What would change this conclusion

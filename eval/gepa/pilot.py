@@ -53,6 +53,8 @@ class Budget:
         self.calls: Counter[str] = Counter()
         self.seconds: Counter[str] = Counter()
         self.errors: Counter[str] = Counter()
+        self.tokens: Counter[str] = Counter()
+        self.cost_usd = 0.0
         self._lock = threading.Lock()
 
     def spend(self, kind: str) -> None:
@@ -67,8 +69,18 @@ class Budget:
                 raise BudgetExceeded(f"{self.max_errors} model calls failed; results would not be valid")
             self.calls[kind] += 1
 
+    def add_usage(self, kind: str, out: dict) -> None:
+        u = out.get("usage") or {}
+        with self._lock:
+            for key, name in (("input_tokens", "input"), ("cache_creation_input_tokens", "cache_write"), ("cache_read_input_tokens", "cache_read"), ("output_tokens", "output")):
+                self.tokens[name] += u.get(key, 0)
+                self.tokens[f"{kind}:{name}"] += u.get(key, 0)
+            self.cost_usd += out.get("total_cost_usd") or 0
+
     def summary(self) -> dict:
-        return {"calls": dict(self.calls), "total_calls": sum(self.calls.values()), "seconds_by_kind": {k: round(v, 1) for k, v in self.seconds.items()}, "errors": dict(self.errors), "cap": self.max_calls}
+        t = self.tokens
+        total_in = t["input"] + t["cache_write"] + t["cache_read"]
+        return {"tokens": {"input_total": total_in, "cache_read": t["cache_read"], "output": t["output"], "by_kind": {k: v for k, v in sorted(t.items()) if ":" in k}}, "cost_usd_list_price": round(self.cost_usd, 2), "calls": dict(self.calls), "total_calls": sum(self.calls.values()), "seconds_by_kind": {k: round(v, 1) for k, v in self.seconds.items()}, "errors": dict(self.errors), "cap": self.max_calls}
 
 
 BUDGET: Budget | None = None
@@ -77,7 +89,7 @@ BUDGET: Budget | None = None
 def claude(prompt: str, kind: str, model: str | None = None) -> str:
     assert BUDGET is not None
     BUDGET.spend(kind)
-    cmd = ["claude", "-p", prompt] + (["--model", model] if model else [])
+    cmd = ["claude", "-p", prompt, "--output-format", "json"] + (["--model", model] if model else [])
     t0 = time.time()
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
@@ -90,7 +102,13 @@ def claude(prompt: str, kind: str, model: str | None = None) -> str:
     if res.returncode != 0:
         BUDGET.errors[kind] += 1
         raise RuntimeError(f"claude exited {res.returncode}: {res.stderr[:200]}")
-    return res.stdout
+    try:
+        out = json.loads(res.stdout)
+    except json.JSONDecodeError as err:
+        BUDGET.errors[kind] += 1
+        raise RuntimeError(f"claude did not return JSON: {res.stdout[:200]}") from err
+    BUDGET.add_usage(kind, out)
+    return out.get("result", "")
 
 
 def bridge(cmd: str, payload: dict) -> dict:
@@ -346,6 +364,8 @@ def cmd_report(args) -> None:
         for k, v in s["longest"].items():
             print(f"  keyed option strictly longest by {k}: {v['keyed_strictly_longest']}/{v['of']}")
         print(f"  budget: {r['budget']['calls']}  stopped early: {r['stopped_early']}")
+        tk = r["budget"].get("tokens")
+        print(f"  tokens: {tk['input_total']:,} in ({tk['cache_read']:,} cached) + {tk['output']:,} out, ~${r['budget']['cost_usd_list_price']} at list price" if tk else "  tokens: not recorded (run predates token tracking)")
 
 
 def cmd_optimize(args) -> None:

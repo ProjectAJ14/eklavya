@@ -35,6 +35,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { auditPrompt, coldPrompt } from './judge-prompts.mjs';
+import * as usage from './usage.mjs';
 
 const evalDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.dirname(evalDir);
@@ -236,7 +237,7 @@ function pedagogy() {
 
 /** One model call. Returns the raw text, or throws with the stderr attached. */
 function ask(prompt, model) {
-  const args = ['-p', prompt];
+  const args = ['-p', prompt, '--output-format', 'json'];
   if (model) args.push('--model', model);
   const res = spawnSync('claude', args, {
     encoding: 'utf8',
@@ -248,7 +249,7 @@ function ask(prompt, model) {
   if (res.error) throw new Error(`claude not runnable: ${res.error.message}`);
   if (res.signal) throw new Error(`claude timed out (${res.signal})`);
   if (res.status !== 0) throw new Error(`claude exited ${res.status}: ${(res.stderr || '').slice(0, 400)}`);
-  return res.stdout ?? '';
+  return usage.unwrap(res.stdout ?? '');
 }
 
 async function generate(run, model) {
@@ -600,7 +601,7 @@ async function extract(model) {
   fs.writeFileSync(
     out,
     `${JSON.stringify(
-      { model: model ?? 'default', summary, semanticRecall, generousPrecision: generous, results, shapes, coverage, verdicts },
+      { model: model ?? 'default', usage: usage.summary(), summary, semanticRecall, generousPrecision: generous, results, shapes, coverage, verdicts },
       null,
       2,
     )}\n`,
@@ -747,12 +748,14 @@ switch (command) {
     break;
   case 'generate':
     await generate(maybeRun ?? fail('usage: harness.mjs generate <run-dir>'), model);
+    usage.save(maybeRun, 'generate');
     break;
   case 'score':
     await score(maybeRun ?? fail('usage: harness.mjs score <run-dir>'));
     break;
   case 'judge':
     await judge(maybeRun ?? fail('usage: harness.mjs judge <run-dir>'), model);
+    usage.save(maybeRun, 'judge');
     break;
   case 'history':
     await history(flag('db'));
@@ -765,6 +768,7 @@ switch (command) {
     await generate(run, model);
     await score(run);
     await judge(run, model);
+    usage.save(run, 'run');
     process.stdout.write(`\nrun written to ${path.relative(repoRoot, run)}\n`);
     break;
   }

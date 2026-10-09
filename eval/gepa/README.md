@@ -1,5 +1,9 @@
 # GEPA pilot: the tutor's question-writing instructions
 
+> **Manual only, and expensive.** Nothing runs this automatically. Each model call is a fresh
+> `claude -p` that sends about 44k input tokens (Claude Code's own context plus the prompt), so
+> the pilot's ~560 calls were roughly 25M input tokens. Start with `evaluate --limit 3 --repeats 1`.
+
 An offline experiment (issue #156), not part of the product or CI. It asks whether
 [GEPA](https://github.com/gepa-ai/gepa) can improve `skills/tutor/references/writing-mcq.md`
 against Eklavya's own question checks and judges, and says so honestly when it cannot.
@@ -40,6 +44,21 @@ Every model call (the generator, both judges and GEPA's reflection model) goes t
 `claude -p` on the machine's own login. `--max-model-calls` and `--max-minutes` are hard
 caps over all of them together, because GEPA's own `max_metric_calls` counts neither the
 judges nor the reflection model: one metric call here is three model calls.
+
+## What it costs
+
+Calls are not tokens. Every `claude -p` call is run with `--output-format json`, and the
+runner adds up the reported usage. Each run's output (`optimize`'s `summary.json`,
+`evaluate`'s result file) carries `budget.tokens`: input in total, how much of it was cache
+reads, output, a breakdown by call kind (`generate`, `judge-audit`, `judge-cold`,
+`reflect`) and `cost_usd_list_price`; `report` prints it. "Input" is fresh input plus cache
+writes plus cache reads. Calls run in parallel do not share a cache, so most of that input
+is billed as cache writes.
+
+Measured on 2026-10-09 with the shipped prompt: one trial (one generation, two judge calls)
+was 131,681 input tokens (38,922 cached) and 984 output, about $0.39 at list price.
+A subscription is not billed per token, but this is the number that drains its limit.
+Results written before token tracking (the 2026-10-09 pilot) have no token figures.
 
 ## The score
 
