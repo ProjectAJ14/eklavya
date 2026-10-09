@@ -40,6 +40,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import * as usage from './usage.mjs';
 
 const evalDir = path.dirname(fileURLToPath(import.meta.url));
 const fixtureDir = path.join(evalDir, 'fixtures', 'delegation');
@@ -186,6 +187,13 @@ function answered(tool, input) {
 }
 
 /** One session over stream-json. Resolves when the last result arrives with no background task left. */
+const sessions = [];
+function sessionUsage(trialDir) {
+  const u = usage.fromStream(path.join(trialDir, 'stream.jsonl'));
+  sessions.push(u);
+  return u;
+}
+
 function drive({ cwd, prompt, plugin, env, out, timeoutMs, model }) {
   return new Promise((resolve) => {
     const args = [
@@ -298,12 +306,13 @@ async function runCommand() {
       const meta = spawnSync('sqlite3', ['-json', db, "SELECT key, value FROM meta WHERE key LIKE 'delegate%'"], { encoding: 'utf8' }).stdout;
       fs.writeFileSync(
         path.join(trialDir, 'trial.json'),
-        JSON.stringify({ scenario: name, trial: t, main, wt, ...res, seconds: Math.round((Date.now() - started) / 1000), work, meta: meta.trim() ? JSON.parse(meta) : [] }, null, 2),
+        JSON.stringify({ scenario: name, trial: t, main, wt, ...res, usage: sessionUsage(trialDir), seconds: Math.round((Date.now() - started) / 1000), work, meta: meta.trim() ? JSON.parse(meta) : [] }, null, 2),
       );
       process.stderr.write(`done  ${name}-${t} in ${Math.round((Date.now() - started) / 1000)}s${res.timedOut ? ' (timed out)' : ''}\n`);
     }
   };
   await Promise.all(Array.from({ length: parallel }, worker));
+  process.stderr.write(`${usage.line(usage.sum(sessions))}\n`);
   process.stdout.write(`${outDir}\n`);
 }
 

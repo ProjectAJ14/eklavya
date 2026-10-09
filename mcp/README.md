@@ -61,7 +61,7 @@ page in the dashboard, where the server grades the new pick, and `option_notes`
 (the note under each option, in order), which that page shows under each option. A `correct` that is not one of
 the options, or notes of the wrong length, is stored as nothing and reported
 back (`correct_mismatch`, `option_notes_mismatch`); the answer is still kept.
-An `outcome` of `declined` or `dont_know` with a grade of 3 or more is
+An `outcome` of `invalid` means the question itself was at fault (it assumed context the learner never saw, or two options both answered it): it is stored in `invalid_questions`, grades nothing, returns no `attempt_id`, and changes no mastery, level, review date or gate; only the repeat check reads it. An `outcome` of `declined` or `dont_know` with a grade of 3 or more is
 contradictory: it returns `error: "outcome_grade_conflict"` and records
 nothing, so that call can never update mastery, clear a gate or count toward a
 level.
@@ -72,7 +72,7 @@ level.
 right one, 2 for a near miss, 1 for a misconception), the right one in the
 plan's `answer_position` slot, and an explanation. It stores the question and
 returns at once; it writes no attempt. The panel records the answer through
-`panel_answer` with the same code `record_attempt` uses, exactly once. On a miss with `explain_on_wrong` on, its reply carries the same `explain` block `record_attempt` returns, and the panel starts the explainer agent from it. `present_question` returns `panel_disabled` while `quiz.panel` is off, and
+`panel_answer` with the same code `record_attempt` uses, exactly once. On a miss with `explain_on_wrong` on, its reply carries the same `explain` block `record_attempt` returns, and the panel starts the explainer agent from it. `present_question` sends a question back once with `conspicuous_options` (nothing stored) when one option's label plus description outruns the next by a few words or a description explains itself, and presents the same stem as written on the second call. It returns `panel_disabled` while `quiz.panel` is off, and
 `panel_sync` returns `{disabled: true}` and expires the session's open question without recording an attempt, so turning the panel back on cannot revive it; `panel_answer` answers only a question
 that already exists. A round the learner asked for (a topic, `max`) is remembered per session: `present_question` takes each question off it and sets the last one's `more` false, and `get_session_quiz_plan` with `resume_round: true` plans what is left. This is
 a Claude Code mod feature: a standalone MCP client has the tools but not the

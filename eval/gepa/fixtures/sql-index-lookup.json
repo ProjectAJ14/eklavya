@@ -1,0 +1,24 @@
+{
+ "id": "sql-index-lookup",
+ "title": "Speeding up an orders query",
+ "source": "db/migrations/012_orders_index.sql",
+ "diff": "CREATE INDEX orders_customer_created\n  ON orders (customer_id, created_at DESC);\n\n-- SELECT * FROM orders\n--  WHERE customer_id = $1\n--  ORDER BY created_at DESC LIMIT 20;",
+ "concepts": [
+  {
+   "slug": "composite-index-order",
+   "domain": "databases",
+   "tier": 3,
+   "description": "In a composite index the column order decides which queries it can serve: equality columns first, then the sort column.",
+   "context": "puts customer_id before created_at in the index",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "index-write-cost",
+   "domain": "databases",
+   "tier": 3,
+   "description": "Every index must be updated on each insert and update, so extra indexes trade write speed for read speed.",
+   "context": "adds a second index on a table that is written on every order",
+   "prerequisite_of": []
+  }
+ ]
+}

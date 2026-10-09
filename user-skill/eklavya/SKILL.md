@@ -347,7 +347,7 @@ project; the ids are the ones `/api/projects` lists.
 | which explainers can I still correct | `/#/artifacts/dashboard/to-correct`; any page opens as a tab at `/#/artifacts/view/<id>` (the id from `eklavya artifacts list --json`, URL-encoded) |
 | which projects have pages | `/#/artifacts/projects` |
 | my prompt feedback, what is waiting, what I acknowledged | `/#/feedback/dashboard`, `/#/feedback/history`, `/#/feedback/item/<id>` |
-| change my settings in a page, see what a project overrides | `/#/settings/dashboard`, `/#/settings/user`, `/#/settings/project?project=<path>` |
+| change my settings in a page, see what a project overrides | `/#/settings/dashboard`, `/#/settings/dashboard/<tab>` (`pacing`, `levels`, `memory`, `feedback`, `privacy`, `this-machine`, `terminal`, `changed`), `/#/settings/project/<tab>?project=<path>` |
 
 The older single-workflow links (`/#/overview`, `/#/concepts`, `/#/memory`,
 `/#/entry/<id>` and the rest) still open the right page, but hand back the

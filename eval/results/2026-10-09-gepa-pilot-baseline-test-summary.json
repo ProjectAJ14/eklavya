@@ -1,0 +1,50 @@
+{
+ "prompt": "/Users/ajaykumar/Workspace/ProjectAj14/.eklavya-worktrees/156-tutor-fairness-4-4-gepa-pilot-for-question/skills/tutor/references/writing-mcq.md",
+ "split": "test",
+ "repeats": 2,
+ "examples": 20,
+ "stopped_early": null,
+ "budget": {
+  "calls": {
+   "generate": 40,
+   "judge-audit": 36,
+   "judge-cold": 36
+  },
+  "total_calls": 112,
+  "seconds_by_kind": {
+   "generate": 453.1,
+   "judge-audit": 355.9,
+   "judge-cold": 279.9
+  },
+  "errors": {},
+  "cap": 200
+ },
+ "summary": {
+  "trials": 40,
+  "all_gates_passed": 15,
+  "gate_failures": {
+   "cold_answerable": 8,
+   "tier_match": 17,
+   "single_answer": 15,
+   "structure": 4,
+   "key_correct": 6
+  },
+  "mean_score": 0.5449,
+  "mean_score_when_valid": 0.9111,
+  "longest": {
+   "label": {
+    "keyed_strictly_longest": 17,
+    "of": 40
+   },
+   "description": {
+    "keyed_strictly_longest": 12,
+    "of": 40
+   },
+   "combined": {
+    "keyed_strictly_longest": 17,
+    "of": 40
+   }
+  },
+  "generation_errors": 0
+ }
+}

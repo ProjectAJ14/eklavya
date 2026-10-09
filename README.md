@@ -51,7 +51,7 @@ Eklavya notices the ideas behind Claude's work, like "database index" or
 
 | What it does | How it works | Read more |
 |---|---|---|
-| Asks while you work | One question at a time, in the middle of the task, written so you can answer without having read the code, and so the right option is not the longest or most detailed. Answer or skip. | [First session](https://eklavya-run.web.app/docs/first-session/) |
+| Asks while you work | One question at a time, in the middle of the task, written so you can answer without having read the code, and so the right option is not the longest, the most detailed or explained in advance. Answer or skip; a question that was itself at fault never counts against you, and an automatic question is meant to stay one question. | [First session](https://eklavya-run.web.app/docs/first-session/) |
 | Asks while agents build | For a larger change, Eklavya asks Claude to hand the building to a background agent (in your task's worktree, one stage at a time for a staged plan) and ask you questions while it works. If Claude starts changing a second file itself, Eklavya reminds it once. | [The dials](https://eklavya-run.web.app/docs/dials/#cadence--when-it-asks) |
 | Grades your answer | Each answer gets a grade and a short explanation. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
 | Brings topics back | Spaced reviews bring an idea back before you forget it. | [Grading](https://eklavya-run.web.app/docs/grading-engine/) |
@@ -110,7 +110,7 @@ each page sits centred beside the sidebar. It has five parts:
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Feedback | Offered in the first-install walk while memory records, preselected on. Upgrades and non-interactive installs keep your stored value, which starts off (`feedback.enabled`; it needs memory and an observer model): one reviewed prompt of yours at a time, against the 4D framework, with a better version. The next waits until you acknowledge or delete the waiting one, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
-| Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
+| Settings | A switchboard: your settings first, each project's beside them, one tab per category, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.
 

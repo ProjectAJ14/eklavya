@@ -1,0 +1,24 @@
+{
+ "id": "retry-with-backoff",
+ "title": "Calling a flaky payment API",
+ "source": "server/payments.ts",
+ "diff": "async function charge(req: ChargeRequest) {\n  for (let attempt = 0; attempt < 5; attempt++) {\n    try {\n      return await api.post('/charge', req, { headers: { 'Idempotency-Key': req.id } });\n    } catch (err) {\n      if (!isTransient(err)) throw err;\n      await sleep(2 ** attempt * 100 + Math.random() * 100);\n    }\n  }\n  throw new Error('charge failed');\n}",
+ "concepts": [
+  {
+   "slug": "exponential-backoff-jitter",
+   "domain": "distributed-systems",
+   "tier": 3,
+   "description": "Doubling the wait between retries spreads load, and adding random jitter stops many clients retrying in lockstep.",
+   "context": "adds random jitter to the doubling delay in charge()",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "idempotency-keys",
+   "domain": "api-design",
+   "tier": 3,
+   "description": "A key sent with a request lets the server recognise a repeat and return the first result instead of acting twice.",
+   "context": "sends the request id as an Idempotency-Key header on every retry",
+   "prerequisite_of": []
+  }
+ ]
+}

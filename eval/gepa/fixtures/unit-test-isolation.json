@@ -1,0 +1,24 @@
+{
+ "id": "unit-test-isolation",
+ "title": "Making a test independent",
+ "source": "test/billing.test.ts",
+ "diff": "let clock: FakeClock;\nbeforeEach(() => {\n  clock = new FakeClock('2026-01-31T00:00:00Z');\n  billing = new Billing({ clock, store: new MemoryStore() });\n});\n\nit('prorates a mid-month upgrade', () => {\n  clock.advanceDays(10);\n  expect(billing.upgrade('pro').charge).toBe(2000);\n});",
+ "concepts": [
+  {
+   "slug": "injectable-clock",
+   "domain": "testing",
+   "tier": 3,
+   "description": "Passing time in as a dependency lets a test control it, which makes time-dependent logic deterministic.",
+   "context": "Billing receives a FakeClock so the test can advance ten days",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "test-isolation",
+   "domain": "testing",
+   "tier": 2,
+   "description": "Each test should start from a fresh state so the order tests run in cannot change their results.",
+   "context": "beforeEach builds a new Billing with an empty MemoryStore",
+   "prerequisite_of": []
+  }
+ ]
+}

@@ -204,7 +204,8 @@ into the batch it replaced.
   is the only route out of the gate, so do not skip past it, and do not treat it
   as the tool repeating itself.
 
-  A concept they explicitly **declined** is not offered again. That is
+  A concept they explicitly **declined** is not offered again by this session's
+  retry (a later session's review may bring it back once it is due). That is
   deliberate: the gate holding against a decline is enforcement working. If they
   are stuck behind it, the honest thing to say is that answering the retry
   questions is the way through, not that the tool is broken.

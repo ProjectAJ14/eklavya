@@ -6,6 +6,7 @@ import { answerPosition, MCQ_OPTION_COUNT } from './mcq.js';
 import { normalizeSlug } from './slug.js';
 import { resolveSessionId } from './session.js';
 import { stripAskHeader } from './ask.js';
+import { visibleOptionProblem } from './eval/question-checks.js';
 import { conceptBySlug, hasAskedQuestion, projectKey, recentQuestions, ASKED_HISTORY, PASSING_GRADE } from './store.js';
 import { recordAttemptCore } from './tools/record_attempt.js';
 import { OPEN_PHASES, PANEL_EXPIRY_HOURS, advanceRound, panelPresentation, recordHeartbeat, type HostReport } from './panel-state.js';
@@ -71,6 +72,14 @@ interface Key {
   correct_id: string;
   grades: Record<string, number>;
 }
+
+/**
+ * Questions already sent back once for conspicuous options, by session and stem.
+ * The retry is bounded at one: a question that comes back unchanged is
+ * presented, because a learner waiting on a perfect question is worse off than
+ * one shown a slightly lopsided one. Memory only; a restart forgives.
+ */
+const sentBack = new Set<string>();
 
 /** Open rows past their expiry become `expired`. Called first by every entry point. */
 function expireStale(db: DB): void {
@@ -156,6 +165,15 @@ export function presentQuestion(db: DB, args: PresentInput) {
   }
 
   const stem = stripAskHeader(args.question);
+  const problem = visibleOptionProblem(args.options);
+  const retryKey = `${sessionId}\n${slug}\n${stem}`;
+  if (problem && !sentBack.has(retryKey)) {
+    sentBack.add(retryKey);
+    return {
+      error: 'conspicuous_options',
+      detail: `Rewrite the options and call again with the same stem: ${problem}. Nothing was stored; a second call is presented as written.`,
+    };
+  }
   const repeat = hasAskedQuestion(db, concept.id, stem);
   const options: StoredOption[] = args.options.map((o, i) => ({ id: `o${i + 1}`, label: o.label, note: o.description }));
   const key: Key = {

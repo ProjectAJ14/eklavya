@@ -44,3 +44,8 @@ eval/results/*T*Z-extraction.json
 # Written by Claude Code when it loads this checkout as a plugin (--plugin-dir)
 /tsconfig.json
 /.claude-plugin/types/
+
+# GEPA pilot: local venv and run output
+eval/gepa/.venv/
+eval/gepa/runs/
+__pycache__/

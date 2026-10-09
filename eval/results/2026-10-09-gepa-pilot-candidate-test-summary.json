@@ -1,0 +1,50 @@
+{
+ "prompt": "/private/tmp/claude-501/-Users-ajaykumar-Workspace-ProjectAj14-eklavya/20e3c512-5b52-4a9e-a1c9-b6dccc9db0ea/scratchpad/gepa-run/best_candidate.md",
+ "split": "test",
+ "repeats": 2,
+ "examples": 20,
+ "stopped_early": null,
+ "budget": {
+  "calls": {
+   "generate": 40,
+   "judge-audit": 39,
+   "judge-cold": 39
+  },
+  "total_calls": 118,
+  "seconds_by_kind": {
+   "generate": 507.8,
+   "judge-audit": 383.1,
+   "judge-cold": 305.0
+  },
+  "errors": {},
+  "cap": 200
+ },
+ "summary": {
+  "trials": 40,
+  "all_gates_passed": 18,
+  "gate_failures": {
+   "cold_answerable": 3,
+   "tier_match": 11,
+   "single_answer": 15,
+   "structure": 1,
+   "key_correct": 1
+  },
+  "mean_score": 0.6365,
+  "mean_score_when_valid": 0.9583,
+  "longest": {
+   "label": {
+    "keyed_strictly_longest": 19,
+    "of": 40
+   },
+   "description": {
+    "keyed_strictly_longest": 14,
+    "of": 40
+   },
+   "combined": {
+    "keyed_strictly_longest": 22,
+    "of": 40
+   }
+  },
+  "generation_errors": 0
+ }
+}

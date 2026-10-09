@@ -1,3 +1,17 @@
+# [1.61.0](https://github.com/ProjectAJ14/eklavya/compare/v1.60.0...v1.61.0) (2026-10-09)
+
+
+### Features
+
+* redesign dashboard Settings as a tabbed switchboard ([#161](https://github.com/ProjectAJ14/eklavya/issues/161)) ([565d101](https://github.com/ProjectAJ14/eklavya/commit/565d10168bc27778b9bbe06c0d0a1be909b5088b))
+
+# [1.60.0](https://github.com/ProjectAJ14/eklavya/compare/v1.59.0...v1.60.0) (2026-10-09)
+
+
+### Features
+
+* **tutor:** stop visible options leaking the answer, check them live ([#157](https://github.com/ProjectAJ14/eklavya/issues/157)) ([ecbbdf3](https://github.com/ProjectAJ14/eklavya/commit/ecbbdf3736583b4abc91efb7ae8a23e0d5fab119)), closes [#153](https://github.com/ProjectAJ14/eklavya/issues/153) [#158](https://github.com/ProjectAJ14/eklavya/issues/158) [#154](https://github.com/ProjectAJ14/eklavya/issues/154) [#155](https://github.com/ProjectAJ14/eklavya/issues/155) [#159](https://github.com/ProjectAJ14/eklavya/issues/159)
+
 # [1.59.0](https://github.com/ProjectAJ14/eklavya/compare/v1.58.0...v1.59.0) (2026-10-09)
 
 
