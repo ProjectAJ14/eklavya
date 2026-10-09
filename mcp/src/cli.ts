@@ -317,10 +317,12 @@ function configCommand(args: string[]): void {
   const scopeRepo = args.includes('--project') || args.includes('--repo');
   const resolved = loadConfig();
 
-  if (action === 'get' && key) {
-    const v = valueAt(resolved.config, key);
-    if (v === undefined) fail(`Unknown setting "${key}". Known: ${knownKeys().join(', ')}`);
-    process.stdout.write(`${typeof v === 'string' ? v : JSON.stringify(v, null, 2)}\n`);
+  // A flag such as `--project` is not a key: `config get --project` still prints everything.
+  const getKey = action === 'get' ? args.slice(1).find((a) => !a.startsWith('--')) : undefined;
+  if (getKey) {
+    if (!isKnownKey(getKey)) fail(`Unknown setting "${getKey}". Known: ${knownKeys().join(', ')}`);
+    const v = valueAt(resolved.config, getKey);
+    process.stdout.write(`${typeof v === 'string' ? v : JSON.stringify(v ?? null, null, 2)}\n`);
     return;
   }
 
