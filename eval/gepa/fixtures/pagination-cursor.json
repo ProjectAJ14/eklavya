@@ -1,0 +1,24 @@
+{
+ "id": "pagination-cursor",
+ "title": "Paging a long feed",
+ "source": "server/feed.ts",
+ "diff": "export async function page(after?: string, limit = 20) {\n  const rows = await db.query(\n    'SELECT * FROM posts WHERE ($1::bigint IS NULL OR id < $1) ORDER BY id DESC LIMIT $2',\n    [after ?? null, limit + 1],\n  );\n  return { items: rows.slice(0, limit), next: rows.length > limit ? rows[limit - 1].id : null };\n}",
+ "concepts": [
+  {
+   "slug": "cursor-vs-offset",
+   "domain": "api-design",
+   "tier": 3,
+   "description": "A cursor pages from the last seen key, so rows added meanwhile do not shift pages the way a numeric offset does.",
+   "context": "pages by id < after instead of OFFSET",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "fetch-one-extra",
+   "domain": "api-design",
+   "tier": 3,
+   "description": "Requesting one more row than a page holds tells you whether another page exists without a second query.",
+   "context": "asks for limit + 1 rows to decide if there is a next page",
+   "prerequisite_of": []
+  }
+ ]
+}

@@ -1,0 +1,24 @@
+{
+ "id": "flutter-const-widgets",
+ "title": "Reducing rebuild work in a list",
+ "source": "lib/ui/item_tile.dart",
+ "diff": "class ItemTile extends StatelessWidget {\n  const ItemTile({super.key, required this.item});\n  final Item item;\n\n  @override\n  Widget build(BuildContext context) {\n    return ListTile(\n      leading: const Icon(Icons.inbox),\n      title: Text(item.name),\n    );\n  }\n}",
+ "concepts": [
+  {
+   "slug": "const-widget-rebuild",
+   "domain": "flutter",
+   "tier": 2,
+   "description": "A const widget is built once and reused, so when a parent rebuilds, the framework can skip rebuilding it.",
+   "context": "marks the leading Icon as const inside a list tile",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "stateless-vs-stateful",
+   "domain": "flutter",
+   "tier": 2,
+   "description": "A stateless widget holds no mutable state of its own and is rebuilt only when its inputs change.",
+   "context": "ItemTile is stateless because everything it shows comes from the item it is given",
+   "prerequisite_of": []
+  }
+ ]
+}

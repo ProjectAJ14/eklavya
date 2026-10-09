@@ -1,0 +1,24 @@
+{
+ "id": "structured-logging",
+ "title": "Making logs searchable",
+ "source": "server/log.ts",
+ "diff": "logger.info('order placed', {\n  orderId: order.id,\n  customerId: order.customerId,\n  totalCents: order.total,\n  requestId: ctx.requestId,\n});",
+ "concepts": [
+  {
+   "slug": "structured-logs",
+   "domain": "observability",
+   "tier": 2,
+   "description": "Logging named fields instead of a sentence lets tools filter and aggregate on them.",
+   "context": "logs orderId and totalCents as fields, not inside the message",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "correlation-id",
+   "domain": "observability",
+   "tier": 3,
+   "description": "A request id carried through every log line lets you gather everything one request did across services.",
+   "context": "includes ctx.requestId on the order log line",
+   "prerequisite_of": []
+  }
+ ]
+}

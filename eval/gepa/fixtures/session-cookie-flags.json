@@ -1,0 +1,24 @@
+{
+ "id": "session-cookie-flags",
+ "title": "Hardening a session cookie",
+ "source": "server/auth.ts",
+ "diff": "res.cookie('sid', token, {\n  httpOnly: true,\n  secure: true,\n  sameSite: 'lax',\n  maxAge: 30 * 60 * 1000,\n});",
+ "concepts": [
+  {
+   "slug": "httponly-cookie",
+   "domain": "web-security",
+   "tier": 2,
+   "description": "A cookie marked httpOnly cannot be read by page scripts, so an injected script cannot copy it.",
+   "context": "sets httpOnly on the session cookie in auth.ts",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "samesite-lax",
+   "domain": "web-security",
+   "tier": 3,
+   "description": "SameSite=Lax withholds the cookie from most cross-site subrequests, which blunts cross-site request forgery while keeping top-level links working.",
+   "context": "chooses sameSite lax rather than strict for the session cookie",
+   "prerequisite_of": []
+  }
+ ]
+}
