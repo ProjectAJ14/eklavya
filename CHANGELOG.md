@@ -1,3 +1,10 @@
+## [1.61.1](https://github.com/ProjectAJ14/eklavya/compare/v1.61.0...v1.61.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **cli:** make config get <key> print only that setting ([#152](https://github.com/ProjectAJ14/eklavya/issues/152)) ([be90838](https://github.com/ProjectAJ14/eklavya/commit/be908387813a09f3029552e6cf4637a55f813be4))
+
 # [1.61.0](https://github.com/ProjectAJ14/eklavya/compare/v1.60.0...v1.61.0) (2026-10-09)
 
 
