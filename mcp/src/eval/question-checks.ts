@@ -316,6 +316,46 @@ export function checkQuestion(q: GeneratedQuestion): Check[] {
   return checks;
 }
 
+/** An option as the learner sees it before answering: the label and any description under it. */
+export interface VisibleOption {
+  label: string;
+  description?: string;
+}
+
+/**
+ * Phrasing that explains an option before the learner has answered. A
+ * description that says why a distractor is "tempting" or names the
+ * misconception is feedback, and feedback belongs after the answer.
+ */
+const PRE_ANSWER_RATIONALE =
+  /\b(?:tempting|common (?:mistake|misconception)|misconception|is the (?:right|correct) answer|(?:is|are) (?:wrong|incorrect) because|looks (?:right|correct) but)\b/i;
+
+/**
+ * Why a question should not be shown as written, or null when it can be.
+ *
+ * Judged on what is on screen -- label plus description -- and on no knowledge
+ * of the key, so it works where the key is not known (the `AskUserQuestion`
+ * card) as well as where it is (the panel). An option that outruns the next by
+ * `LENGTH_MARGIN_WORDS` is conspicuous whichever one is correct: if it is the
+ * key it leaks, and if it is not, the learner is being steered off the key.
+ * Only the outlier is named, so the rewrite is aimed at one option.
+ */
+export function visibleOptionProblem(options: VisibleOption[]): string | null {
+  for (const [i, o] of options.entries()) {
+    const phrase = PRE_ANSWER_RATIONALE.exec(o.description ?? '');
+    if (phrase) {
+      return `option ${i + 1}'s description explains the option before the answer (${phrase[0]}). Keep descriptions neutral and put the reasoning in the explanation shown after the answer`;
+    }
+  }
+  const lengths = options.map((o) => words(`${o.label} ${o.description ?? ''}`).length);
+  const longest = Math.max(...lengths, 0);
+  const runnerUp = Math.max(...lengths.filter((_, i) => i !== lengths.indexOf(longest)), 0);
+  if (longest > PARITY_MIN_WORDS && longest - runnerUp >= LENGTH_MARGIN_WORDS) {
+    return `option ${lengths.indexOf(longest) + 1} is ${longest} visible words (label plus description) against ${runnerUp} for the next longest, so it stands out. Shorten it or give the others the same number of claims, without padding`;
+  }
+  return null;
+}
+
 export interface Scored {
   question: GeneratedQuestion;
   checks: Check[];

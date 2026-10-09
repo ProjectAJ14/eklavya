@@ -18,7 +18,7 @@ Make one call to `present_question` instead:
 - `options`: four, in display order, each `{label, description, grade}`. The
   `label` is the option itself, a complete claim (what `writing-mcq.md` calls the
   option), never `A` or `1`: the panel numbers them, and a bare marker is rejected.
-  The `description` is the one clause from part 4. Mark the right one
+  The `description` is the neutral clause from part 4: what the option claims, with no verdict and no "tempting because". Mark the right one
   `correct: true`, **in the `answer_position` slot** (the call is rejected with
   `wrong_answer_position` otherwise, and nothing is stored).
 - Each option's `grade` is what a learner who picks it has shown, on the scale in
@@ -32,7 +32,10 @@ Make one call to `present_question` instead:
   `` `shouldRepaint` ``) and nothing else: no headings, lists or emphasis. Option `label`s are drawn as
   plain text, so write them in words and leave the backticks out of them.
 - `explanation`: one line saying why the right option is right. The panel shows
-  it after the answer, so it is the whole of your feedback.
+  it after the answer, so it is the whole of your feedback. A call whose options
+  are lopsided in visible length, or whose descriptions explain themselves, is
+  rejected once with `conspicuous_options` and nothing stored: rewrite and call
+  again with the same stem.
 
 It returns at once. Do not wait for the answer, do not call `record_attempt`
 (the panel records it, once), do not give a verdict, and go straight back to
