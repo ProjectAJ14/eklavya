@@ -123,7 +123,7 @@ A change that would not take effect is refused too: `focus learn` when no `focus
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `feedback.enabled` | `false` | Reviews one of your own prompts from a finished session against the 4D framework, in the background, one item at a time. Needs `memory.enabled` and `providers.observer`; with either missing nothing is generated, and the [Feedback page](/docs/dashboard/#feedback) says which. Settable at user and project scope, and turning it on sends nothing by itself: what leaves your machine is governed by `providers.observer`. See [prompt feedback](/docs/how-it-works/#prompt-feedback). |
+| `feedback.enabled` | `false` | Reviews one of your own prompts from a finished session against the 4D framework, in the background, one item at a time. Needs `memory.enabled` and `providers.observer`; with either missing nothing is generated, and the [Feedback page](/docs/dashboard/#feedback) says which. Settable at user and project scope, and turning it on sends nothing by itself: what leaves your machine is governed by `providers.observer`. The first-install walk in a terminal, while memory records, preselects `on` and writes `feedback.enabled` true, plus `providers.observer` set to `claude-haiku-4-5` when the memory model was `local`. An upgrade or a non-interactive install keeps whatever is stored, which is `false` on an install that never chose it. See [prompt feedback](/docs/how-it-works/#prompt-feedback). |
 
 #### `privacy`
 
@@ -153,7 +153,7 @@ Provider settings are global because one worker processes all projects on the ma
 | `providers.observer` | `null` | Optional `{ "kind": "anthropic", "model": "…" }` for richer observation summaries. Runs through `claude -p` using your Claude Code login and sends captured work to that model. |
 | `providers.embeddings` | `null` | Accepted configuration field, but no external embedding provider is wired into current retrieval. Search still uses the local embedder; leave this unset. |
 
-The installer offers an observer choice when memory is enabled; upgrades do not enable one silently. With no observer, summaries are generated locally.
+The installer offers an observer choice when memory is enabled, and a first install that keeps prompt feedback on sets `claude-haiku-4-5` as the observer. Upgrades never set one. With no observer, summaries are generated locally.
 
 ```bash
 eklavya config set providers.observer claude-haiku-4-5

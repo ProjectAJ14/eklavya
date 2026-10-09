@@ -18,7 +18,7 @@ On a terminal, command output is coloured: results green, warnings amber, failur
 
 | Command | Purpose and options |
 | --- | --- |
-| `eklavya install` | Installs the runtime, Claude Code plugin, database and two chat skills. The first install walks through your settings; later runs preserve them. `--settings` opens the choices again. `--memory eklavya` or `--memory claude-mem` chooses the recorder when Claude Mem is present. See [Installing](/docs/installing/) and [Migration](/docs/migrating/). |
+| `eklavya install` | Installs the runtime, Claude Code plugin, database and two chat skills. The first install walks through your settings, ending, when Eklavya records memory, with the model and prompt feedback; later runs preserve them. `--settings` opens the choices again. `--memory eklavya` or `--memory claude-mem` chooses the recorder when Claude Mem is present. See [Installing](/docs/installing/) and [Migration](/docs/migrating/). |
 | `eklavya update` | Checks npm and installs a newer release, then refreshes the plugin registration. Runs the normal background update in the foreground so errors are visible. Never downgrades. |
 | `eklavya uninstall [--purge]` | Removes the installation and keeps your history unless `--purge` is passed. Reports any remaining project installation or git hook. See [Uninstalling](/docs/installing/#uninstalling). |
 | `eklavya doctor` | Checks installation and memory health, reports repairs and applies concept packs. See [diagnostics below](#what-doctor-looks-like). |

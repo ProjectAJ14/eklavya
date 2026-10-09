@@ -109,7 +109,7 @@ each page sits centred beside the sidebar. It has five parts:
 | Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, reviews due with a command per project to start them, the top three shown (each run asks the weakest first), weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
-| Feedback | Off until you turn on `feedback.enabled` (it also needs memory and an observer model): one reviewed prompt of yours at a time, against the 4D framework, with a better version. The next waits until you acknowledge or delete the waiting one, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
+| Feedback | Offered in the first-install walk while memory records, preselected on. Upgrades and non-interactive installs keep your stored value, which starts off (`feedback.enabled`; it needs memory and an observer model): one reviewed prompt of yours at a time, against the 4D framework, with a better version. The next waits until you acknowledge or delete the waiting one, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
 | Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.
@@ -125,7 +125,7 @@ questions off and keep memory on.
 | `quiz.enforced` | `false`: commit freely | `true`: pass a quiz before a commit |
 | `quiz.panel` | `false`: Claude's question card | `true`: experimental side panel on the Claude Code terminal CLI and Desktop Code tab, one bordered card per option (spaced apart and padded, with a bold question, on the desktop app); not in Cowork, which keeps the card |
 | `focus` | `concept`: the idea behind the code | `project`: this codebase · `learn`: a topic you pick |
-| `feedback.enabled` | `false`: no prompt review | `true`: review one of your earlier prompts against the 4D framework (needs memory and an observer model) |
+| `feedback.enabled` | `false`: no prompt review (the first-install walk preselects `true` while memory records) | `true`: review one of your earlier prompts against the 4D framework (needs memory and an observer model) |
 | `cadence` | `as-you-go`: during the task | `end`: after the task |
 | `difficulty` | `auto`: grows with you | `easy`, `medium` or `hard` |
 | `memory.enabled` | `true`: record and recall | `false`: learning only |

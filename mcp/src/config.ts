@@ -151,8 +151,8 @@ export interface MemoryConfig {
 }
 
 /**
- * Prompt feedback. Off by default: it spends the developer's subscription on a
- * model call over their own prompts, so it starts only when asked. It needs
+ * Prompt feedback. Off in the stored default, and the first-install walk offers it preselected on while memory records (an upgrade keeps what is stored): it spends the developer's subscription on a
+ * model call over their own prompts, so it starts only when chosen. It needs
  * `memory.enabled` (it reads the prompts memory kept) and `providers.observer`
  * (the one consent gate for sending evidence to a model). Turning this on sends
  * nothing by itself, which is why a project may set it.
