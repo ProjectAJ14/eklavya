@@ -820,14 +820,14 @@
   .set__btn { font-family:var(--font-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
               background:none; border:1px solid var(--line-2); color:var(--dim); padding:2px 8px; cursor:pointer; }
   .set__btn:hover { color:var(--ink); border-color:var(--spot); }
-  /* ---------- Settings switchboard: scopes on the left, one tab of settings at a time ---------- */
-  .sw { display:grid; grid-template-columns:192px minmax(0,1fr); gap:var(--space-5); align-items:start; }
-  .sw__scopes { position:sticky; top:var(--space-4); display:flex; flex-direction:column; gap:2px;
+  /* ---------- Settings switchboard: scopes on the right, one tab of settings at a time ---------- */
+  .sw { display:grid; grid-template-columns:minmax(0,1fr) 208px; gap:var(--space-5); align-items:stretch; min-height:calc(100vh - 168px); }
+  .sw__scopes { align-self:stretch; display:flex; flex-direction:column; gap:2px; align-content:flex-start;
                 background:var(--panel); border:1px solid var(--line-2); padding:var(--space-2); }
   .sw__cap { margin:var(--space-3) var(--space-2) var(--space-1); font-family:var(--font-mono); font-size:10.5px;
              letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--faint); }
   .sw__cap:first-child { margin-top:var(--space-1); }
-  .sw__projects { display:flex; flex-direction:column; gap:2px; max-height:min(52vh, 420px); overflow-y:auto; }
+  .sw__projects { display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
   .sw__scope { display:flex; align-items:center; gap:10px; padding:8px 10px; color:var(--dim); text-decoration:none;
                font-size:13.5px; min-width:0; transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
   .sw__scope svg { width:16px; height:16px; flex:none; }
@@ -860,8 +860,8 @@
   .set__ctl input[type="checkbox"]:checked { background:var(--spot); border-color:var(--spot); }
   .set__ctl input[type="checkbox"]:checked::after { transform:translateX(20px); background:var(--spot-ink); }
   @media (max-width:900px) {
-    .sw { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
-    .sw__scopes { position:static; flex-direction:row; align-items:center; overflow-x:auto; scrollbar-width:none; }
+    .sw { grid-template-columns:minmax(0,1fr); gap:var(--space-4); min-height:0; }
+    .sw__scopes { order:-1; align-self:auto; flex-direction:row; align-items:center; overflow-x:auto; scrollbar-width:none; }
     .sw__scopes::-webkit-scrollbar { display:none; }
     .sw__cap { display:none; }
     .sw__projects { flex-direction:row; max-height:none; overflow:visible; }
@@ -3169,7 +3169,7 @@ const TIPS = [
     when: () => (S.artifacts ?? []).some((a) => a.correction === 'open') },
   { id: 'artifact-tabs', where: ['artifacts/view'], el: '#view [role="tablist"]', title: 'Open pages',
     text: 'Pages you open stay here as tabs, up to eight. All artifacts takes you back.' },
-  { id: 'settings-scope', where: ['settings/dashboard'], el: '.sw__scopes', side: 'right', title: 'User or project',
+  { id: 'settings-scope', where: ['settings/dashboard'], el: '.sw__scopes', side: 'left', title: 'User or project',
     text: 'User settings apply everywhere. Pick a project to override them for that project only.' },
   { id: 'ground', where: ['settings/dashboard'], el: '.ground[aria-label="Colour ground"]', side: 'right', title: 'Ink or paper',
     text: 'Switch the dashboard between a dark and a light ground.' },
@@ -3596,12 +3596,12 @@ function drawSettings(d, scope) {
     <b>Inherit</b> / <b>Reset</b> is <code>eklavya config unset</code>. Nothing is written inside a repository.`;
 
   if (!file) {
-    return `<div class="sw">${rail}<div class="sw__pane">${[
+    return `<div class="sw"><div class="sw__pane">${[
       pageHead('Project settings', [], about),
       nextStep(PROJECT
-        ? `<strong>${esc(scopeName())}</strong> has no git checkout on this machine, so there is no project file to change. Pick another project on the left.`
-        : 'Pick a project on the left to change its settings.'),
-    ].join('')}</div></div>`;
+        ? `<strong>${esc(scopeName())}</strong> has no git checkout on this machine, so there is no project file to change. Pick another project on the right.`
+        : 'Pick a project on the right to change its settings.'),
+    ].join('')}</div>${rail}</div>`;
   }
 
   const tabBar = `<nav class="sw__tabs" aria-label="Setting categories">${tabs.map((t) =>
@@ -3624,13 +3624,13 @@ function drawSettings(d, scope) {
     body = `<section class="card sw__list" aria-label="${esc(here.label)} settings">${here.fields.map((f) => settingRow(f, d, scope)).join('')}</section>`;
   }
 
-  return `<div class="sw">${rail}<div class="sw__pane">${[
+  return `<div class="sw"><div class="sw__pane">${[
     pageHead(scope === 'project' ? `${esc(d.project.name)} settings` : 'User settings',
       [`<span class="mono">${esc(file.path)}</span>`, `${Object.keys(file.set).length} set here`], about),
     d.problem ? nextStep(`<strong>A config file is not being read.</strong> ${esc(d.problem)}`) : '',
     tabBar,
     body,
-  ].join('')}</div></div>`;
+  ].join('')}</div>${rail}</div>`;
 }
 
 /* ============================================================
