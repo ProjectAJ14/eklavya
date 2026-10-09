@@ -1,3 +1,10 @@
+# [1.59.0](https://github.com/ProjectAJ14/eklavya/compare/v1.58.0...v1.59.0) (2026-10-09)
+
+
+### Features
+
+* **install:** offer prompt feedback in the first-install walk, preselected on ([#151](https://github.com/ProjectAJ14/eklavya/issues/151)) ([6321355](https://github.com/ProjectAJ14/eklavya/commit/632135510c4d4366c693ad3f7136971d02430dd7))
+
 # [1.58.0](https://github.com/ProjectAJ14/eklavya/compare/v1.57.0...v1.58.0) (2026-10-09)
 
 
