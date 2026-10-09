@@ -188,6 +188,7 @@ npm run eval -- run --limit 8 --focus project --difficulty hard
 npm run eval -- score eval/results/<run>
 npm run eval -- extract
 npm run eval -- history
+node eval/conversation-harness.mjs run --root <checkout> --label <name>   # grading, pacing and handoff rules
 ```
 
 Replace `<run>` with an existing run directory. Generation, judging and extraction

@@ -12,6 +12,14 @@ next time.
 Everything you learn about them persists in the Eklavya MCP server: use it to
 never ask the same question twice.
 
+## The flow, and who wins
+
+Profile → plan → build the question → present → classify the reply → record →
+feedback → back to the task. Where rules collide, the order is: the learner's
+words (stop, skip, "teach me"); the plan (budget, `tier_to_ask`, `framing`, the
+answer's slot); the pedagogy in these files; the renderer's mechanics. An
+exception sits beside the rule it overrides.
+
 ## Red flags
 
 Every line on the left has already shipped a worse session. If you catch
@@ -19,17 +27,17 @@ yourself thinking one, the right-hand column is what is actually happening.
 
 | The thought | What it is |
 |---|---|
-| "I'll log the concepts once the task is done." | A checkpoint can only fire while the work is happening. End-of-task logging restores the pile it replaced. |
-| "One more question while they're engaged." | The plan said one. Two is the batch, arriving early. |
+| "I'll log the concepts once the task is done." | A checkpoint can only fire mid-work. End-of-task logging restores the pile it replaced. |
+| "One more question while they're engaged." | The plan said one. Two is the batch, early. |
 | "The plan returned one item but there's more worth asking." | Calling the plan again refills a budget the server deliberately spent. |
 | "They got it, near enough." | An inflated grade is a gate that passes without learning — the one failure that makes this tool pointless. |
 | "Two blanks in a row; I should offer to stop." | The planner already lowers the tier. Keep going at `tier_to_ask`; wait to be told to stop. |
 | "They said it lacks context; I'll record a blank." | That grades them 0 for your mistake. Record `invalid`. |
-| "I'll reword the question they got wrong." | A question in `asked_before` is spent, not recyclable. |
-| "A definition is the transferable version of this." | `concept` focus wants the general rule. "What is X" is tier-1 recall wearing a hat. |
-| "Too easy to be worth asking — I'll add a 'why'." | `easy` is tiers 1–2 and it was earned. A smuggled "why" is a question they cannot answer honestly. |
-| "They know what 'Task 6' means." | They saw none of it. Define the name or drop it. |
-| "I'll put the dials above the stem for context." | The dials are in the status bar. A line you assemble is one the server cannot keep consistent. |
+| "I'll reword the question they got wrong." | A question in `asked_before` is spent. |
+| "A definition is the transferable version of this." | `concept` focus wants the general rule; "What is X" is tier-1 recall. |
+| "Too easy to be worth asking — I'll add a 'why'." | `easy` is tiers 1–2 and was earned. A smuggled "why" cannot be answered honestly. |
+| "They know what 'Task 6' means." | They saw none of it. Define it or drop it. |
+| "I'll put the dials above the stem for context." | They are in the status bar; a line you assemble cannot stay consistent. |
 | "Grade 5 — they picked the right option." | Multiple choice caps at 4. One in four is a coin. |
 
 ## While you work
@@ -85,8 +93,8 @@ code changes go to background agents and the wait is when you teach. A hook
 repeats this once, when you edit a second file yourself. Start
 them, log the plan's concepts, then loop: `get_session_quiz_plan` with
 `while_waiting: true`, ask, grade, verdict. Stop when an agent reports or
-`questions_needed` is 0, then write the task answer last. Agents cannot ask,
-and hooks do not quiz inside them. Keep small fixes and lookups inline.
+`questions_needed` is 0, then write the task answer last. Agents cannot ask, and hooks
+do not quiz inside them. Keep small fixes and lookups inline.
 
 **How many questions is not your call — it is the plan's.** Under `as-you-go`
 the plan returns one item, the sweep included. Under `end`, and when enforced,
@@ -175,16 +183,12 @@ Whether who is asking belongs in the stem depends on the host: follow
 
 ## Grading, and blanks
 
-`record_attempt` for **every** answer you collect, blanks and declines included, with
-`question` verbatim and `outcome` as `answered`, `dont_know`, `declined` or
-`invalid` (the question was at fault; grades nothing).
-Grade honestly on 0–5; multiple choice caps at 4 and the server enforces it.
-
-"I don't know" is not a skip. It is the clearest request for teaching you will
-ever get, and answering it with a three-sentence correction is the failure this
-tool exists to prevent. **Read `references/grading.md` before you grade** — both
-scales, how long feedback may be, the sequence a blank earns, and what
-`already_taught` changes.
+`record_attempt` for **every** answer, with `question` verbatim and `outcome` as
+`answered`, `dont_know`, `declined` or `invalid` (the question was at fault;
+grades nothing). Multiple choice caps at 4. "I don't know" is not a skip: it is a
+request for teaching. **Read `references/grading.md` before you grade**: what
+each response earns by context, both scales, the teaching a blank earns, and
+`already_taught`.
 
 **A missed answer can come back with `explain`.** That is `explain_on_wrong` at
 work: follow its `instruction` exactly. Hand the explainer its `attempt_id` and
