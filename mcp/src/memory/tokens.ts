@@ -69,12 +69,13 @@ export function savingsLine(s: Savings): string {
 
 /**
  * The banner line for one session start's recall: what was delivered, which a
- * receipt proves, rather than a saving against a counterfactual it cannot.
+ * receipt proves, then the estimated saving against reading the evidence behind
+ * the full entries (`percent` from `savingsFrom`; 0 leaves it off).
  */
-export function recalledLine(entries: number, tokens: number, indexed = 0): string {
+export function recalledLine(entries: number, tokens: number, indexed = 0, percent = 0): string {
   const size = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}k` : String(tokens);
   const titles = indexed ? ` + ${indexed} ${indexed === 1 ? 'title' : 'titles'}` : '';
-  return `Memory · ${entries} past ${entries === 1 ? 'entry' : 'entries'}${titles} recalled (~${size} tokens)`;
+  return `Memory · ${entries} past ${entries === 1 ? 'entry' : 'entries'}${titles} recalled (~${size} tokens)${percent > 0 ? ` · ~${percent}% less context` : ''}`;
 }
 
 /**
