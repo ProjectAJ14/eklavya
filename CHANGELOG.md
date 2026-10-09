@@ -1,3 +1,10 @@
+# [1.55.0](https://github.com/ProjectAJ14/eklavya/compare/v1.54.3...v1.55.0) (2026-10-09)
+
+
+### Features
+
+* **dashboard:** fold review command blocks past the third project ([#144](https://github.com/ProjectAJ14/eklavya/issues/144)) ([7d1232c](https://github.com/ProjectAJ14/eklavya/commit/7d1232ca2696f4cba21484d5f18fc3908c654079)), closes [#123](https://github.com/ProjectAJ14/eklavya/issues/123)
+
 ## [1.54.3](https://github.com/ProjectAJ14/eklavya/compare/v1.54.2...v1.54.3) (2026-10-08)
 
 
