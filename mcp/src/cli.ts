@@ -21,7 +21,7 @@ import {
   mainRepoRoot,
   migrateLegacyRepoConfig,
 } from './config.js';
-import { applySetting, isKnownKey, knownKeys, parseValue } from './config-path.js';
+import { applySetting, isKnownKey, knownKeys, parseValue, valueAt } from './config-path.js';
 import { levelStanding } from './store.js';
 import { statusLine } from './statusline.js';
 import { isSessionOff } from './session.js';
@@ -53,7 +53,7 @@ Usage:
                                         session start (auto_update); this is the same run, in the open
   eklavya uninstall [--purge]           Remove it (--purge also deletes your learning history)
   eklavya export-rules [--out <file>]   Write the tutor pedagogy as a Cursor rules file
-  eklavya config get                    Show the effective configuration
+  eklavya config get [key]              Show the effective configuration, or just one setting
   eklavya config set <key> <value>      Change a setting (--project scopes it to this codebase,
                                         stored under ~/.eklavya/projects/, never in the repo)
                                         e.g. quiz.enabled true|false, quiz.enforced true|false,
@@ -294,7 +294,7 @@ function configCommand(args: string[]): void {
   // undid and `doctor` then reported as a contradiction. `set_config` always
   // wrote the pair; this is the CLI catching up.
   let modeQuiz: { enabled: boolean; enforced: boolean } | null = null;
-  if (rawKey === 'mode') {
+  if (rawKey === 'mode' && action !== 'get') {
     if (rawValue !== 'ambient' && rawValue !== 'enforced' && rawValue !== 'off') {
       fail('`mode` was replaced by `quiz.enabled` and `quiz.enforced`. Set those directly: eklavya config set quiz.enabled false');
     }
@@ -316,6 +316,13 @@ function configCommand(args: string[]): void {
   // config instead, which is a setting landing somewhere nobody asked for.
   const scopeRepo = args.includes('--project') || args.includes('--repo');
   const resolved = loadConfig();
+
+  if (action === 'get' && key) {
+    const v = valueAt(resolved.config, key);
+    if (v === undefined) fail(`Unknown setting "${key}". Known: ${knownKeys().join(', ')}`);
+    process.stdout.write(`${typeof v === 'string' ? v : JSON.stringify(v, null, 2)}\n`);
+    return;
+  }
 
   if (!action || action === 'get') {
     process.stdout.write(`${JSON.stringify(resolved.config, null, 2)}\n`);

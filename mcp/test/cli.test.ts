@@ -182,6 +182,15 @@ describe('eklavya config', () => {
     expect(res.stdout).toMatch(/project: .+projects./);
   });
 
+  it('config get <key> prints only that setting, and rejects an unknown key', () => {
+    expect(eklavya(['config', 'get', 'quiz.enabled']).stdout).toBe('true\n');
+    expect(eklavya(['config', 'get', 'focus']).stdout).toBe('concept\n');
+    expect(JSON.parse(eklavya(['config', 'get', 'quiz']).stdout)).toMatchObject({ enabled: true });
+    const bad = eklavya(['config', 'get', 'quiz.nope']);
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toMatch(/Unknown setting "quiz.nope"/);
+  });
+
   it('sets a global value and reads it back', () => {
     expect(eklavya(['config', 'set', 'quiz.enforced', 'true']).status).toBe(0);
     expect(eklavya(['config', 'get']).stdout).toMatch(/"enforced": true/);

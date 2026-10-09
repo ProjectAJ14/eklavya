@@ -102,7 +102,7 @@ index holds only entries that are not deleted.
 ```bash
 npx eklavya doctor
 npx eklavya memory status
-npx eklavya config get
+npx eklavya config get            # or: config get quiz.enabled
 npx eklavya dashboard
 npx eklavya feedback generate
 npx eklavya db-path

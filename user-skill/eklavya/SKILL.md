@@ -179,6 +179,7 @@ delegates but asks nothing until the task is done.
 ```bash
 eklavya doctor         # is it wired up: runtime, driver, plugin, skill, database, config, level
 eklavya config get     # the effective config, and which file each half came from
+eklavya config get quiz.enabled  # one setting's value
 eklavya db-path        # where the history lives
 eklavya memory status  # is capture healthy: entries, queue, pause reason, worker pid/job, provider, savings
 eklavya memory stop    # end the running worker and its claude call; the job goes back to the queue
