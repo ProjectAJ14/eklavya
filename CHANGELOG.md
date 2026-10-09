@@ -1,3 +1,10 @@
+# [1.57.0](https://github.com/ProjectAJ14/eklavya/compare/v1.56.0...v1.57.0) (2026-10-09)
+
+
+### Features
+
+* prompt feedback, and reporting problems with Eklavya from chat ([#145](https://github.com/ProjectAJ14/eklavya/issues/145)) ([5c462b0](https://github.com/ProjectAJ14/eklavya/commit/5c462b0681f46d5b4ce43b3a6bae649ea7185263))
+
 # [1.56.0](https://github.com/ProjectAJ14/eklavya/compare/v1.55.0...v1.56.0) (2026-10-09)
 
 
