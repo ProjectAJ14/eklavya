@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG } from '../src/config.js';
+import { DEFAULT_CONFIG, loadConfig } from '../src/config.js';
+import { feedbackEnabled } from '../src/feedback.js';
 import {
   applySetting,
   defaultAt,
@@ -154,6 +155,78 @@ describe('quiz.panel through the shared write path', () => {
     expect(JSON.parse(fs.readFileSync(projectFile, 'utf8')).quiz).toEqual({ panel: false });
     // Nothing lands inside the checkout.
     expect(fs.existsSync(path.join(checkout, '.eklavya.json'))).toBe(false);
+  });
+});
+
+describe('providers.observer from the command line', () => {
+  const home = { saved: process.env.EKLAVYA_HOME, dir: '' };
+  beforeEach(() => {
+    home.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-observer-'));
+    process.env.EKLAVYA_HOME = home.dir;
+  });
+  afterEach(() => {
+    if (home.saved === undefined) delete process.env.EKLAVYA_HOME;
+    else process.env.EKLAVYA_HOME = home.saved;
+    fs.rmSync(home.dir, { recursive: true, force: true });
+  });
+
+  it('takes a bare model name as shorthand for the anthropic provider', () => {
+    expect(parseValue('providers.observer', 'claude-haiku-4-5')).toEqual({ kind: 'anthropic', model: 'claude-haiku-4-5' });
+    expect(parseValue('providers.embeddings', 'claude-haiku-4-5')).toEqual({ kind: 'anthropic', model: 'claude-haiku-4-5' });
+    applySetting('providers.observer', parseValue('providers.observer', 'claude-haiku-4-5'), null);
+    expect(loadConfig(process.cwd()).config.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-haiku-4-5' });
+  });
+
+  it('still takes JSON and null, and refuses text that is not a model name', () => {
+    expect(parseValue('providers.observer', '{"kind":"anthropic","model":"m"}')).toEqual({ kind: 'anthropic', model: 'm' });
+    expect(parseValue('providers.observer', 'null')).toBeNull();
+    for (const bad of ['two words', '', '-x', 'a'.repeat(101), 'x;rm -rf', 'anthropic']) {
+      const v = parseValue('providers.observer', bad);
+      expect(typeof v, JSON.stringify(bad)).toBe('string');
+      expect(() => applySetting('providers.observer', v, null), JSON.stringify(bad)).toThrow(/not a valid value/);
+    }
+  });
+});
+
+describe('feedback.enabled', () => {
+  const home = { saved: process.env.EKLAVYA_HOME, dir: '', checkout: '' };
+  beforeEach(() => {
+    home.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-fb-'));
+    home.checkout = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-fb-repo-')));
+    fs.mkdirSync(path.join(home.checkout, '.git'));
+    process.env.EKLAVYA_HOME = home.dir;
+  });
+  afterEach(() => {
+    if (home.saved === undefined) delete process.env.EKLAVYA_HOME;
+    else process.env.EKLAVYA_HOME = home.saved;
+    fs.rmSync(home.dir, { recursive: true, force: true });
+    fs.rmSync(home.checkout, { recursive: true, force: true });
+  });
+
+  it('is a known boolean key, off by default, and set at user and project scope', () => {
+    expect(knownKeys()).toContain('feedback.enabled');
+    expect(valueAt(DEFAULT_CONFIG, 'feedback.enabled')).toBe(false);
+    expect(parseValue('feedback.enabled', 'true')).toBe(true);
+    expect(settingProblem('feedback.enabled', 'yes')).not.toBeNull();
+    applySetting('feedback.enabled', true, null);
+    expect(loadConfig(home.checkout).config.feedback.enabled).toBe(true);
+    applySetting('feedback.enabled', false, home.checkout);
+    expect(loadConfig(home.checkout).config.feedback.enabled).toBe(false);
+    expect(JSON.parse(fs.readFileSync(path.join(home.dir, 'config.json'), 'utf8'))).toEqual({ feedback: { enabled: true } });
+  });
+
+  it('is set through the set_config tool, not dropped', () => {
+    const res = setConfig.handler({ feedback: { enabled: true } }, { db: {} } as any) as any;
+    expect(res.error).toBeUndefined();
+    expect(loadConfig(home.checkout).config.feedback.enabled).toBe(true);
+  });
+
+  it('is a no-op while memory is off: the switch stays set but nothing is enabled', () => {
+    applySetting('feedback.enabled', true, null);
+    applySetting('memory.enabled', false, null);
+    const cfg = loadConfig(home.checkout).config;
+    expect(cfg.feedback.enabled).toBe(true);
+    expect(feedbackEnabled(cfg)).toBe(false);
   });
 });
 

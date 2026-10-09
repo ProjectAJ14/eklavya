@@ -76,6 +76,16 @@ The question and answer counts (`questions_new`, `questions_total`, `answered_ne
 
 `artifacts_total`, `artifacts_new`, `explainers_total` and `explainers_new`: pages under `~/.eklavya/artifacts/`, counted by kind. Titles and contents are not read.
 
+### `feedback`
+
+| Field | Meaning |
+|---|---|
+| `feedback_enabled` | whether `feedback.enabled` is on in your global settings |
+| `generated_new` | prompt reviews made since the last accepted ping that are still stored |
+| `acknowledged_new` | reviews you pressed **Acknowledge** on since then; deleting one does not count |
+
+Never the prompt, the better prompt, a tip, a note, a status, a project, a session or the model's name.
+
 ### `feature_use`
 
 One event per feature used on a finished day, with `kind`, `feature` and `count`. Features are Eklavya's own names only:
@@ -88,12 +98,13 @@ One event per feature used on a finished day, with `kind`, `feature` and `count`
 | `quiz` | `checkpoint` (a question during work) or `stop` (a question at the end of a turn) |
 | `gate` | `blocked`, a commit held by the gate |
 | `hook_error` | the hook that failed and let the session continue, such as `capture-tool` |
+| `feedback` | how you reached the Feedback page while an item was waiting: `opened_greeting` (the link in the session greeting), `opened_badge` (the unread badge) or `opened_direct` (a typed or bookmarked link, or the sidebar) |
 
 An `uninstall` event, with `version`, `os` and `purge`, is sent when you run `eklavya uninstall`.
 
 ## What is never sent
 
-Nothing Eklavya sends is text you wrote or a name you chose. A check in the code rejects any event whose values are not numbers, true/false or Eklavya's own short identifiers, so a mistake fails instead of sending. Specifically, never: code, file paths, project or repository names, concept names, questions, answers, memory entries, prompts, your focus topic, git details, hostname, username or email.
+Nothing Eklavya sends is text you wrote or a name you chose. A check in the code rejects any event whose values are not numbers, true/false or Eklavya's own short identifiers, so a mistake fails instead of sending. Specifically, never: code, file paths, project or repository names, concept names, questions, answers, memory entries, prompts, feedback on your prompts, your focus topic, git details, hostname, username or email.
 
 Google receives the request, so it sees your IP address. Google Analytics 4 does not log or store IP addresses, and these events carry no location.
 

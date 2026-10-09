@@ -1,6 +1,6 @@
 ---
 name: eklavya-dashboard
-description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the four workflows (Learning, Memory, Artifacts, Settings) and their registry, the one JSON payload plus the project inventory, the URL-driven hash router and its legacy redirects, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
+description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to change it — the five workflows (Learning, Memory, Artifacts, Feedback, Settings) and their registry, the one JSON payload plus the project inventory, the URL-driven hash router and its legacy redirects, the hand-rolled SVG charts, the table/pagination helpers, and the checks a change has to pass. Use whenever adding, editing or debugging anything in mcp/src/dashboard.ts or mcp/src/assets/dashboard.html, or when a request mentions the dashboard's sections, charts, filters, drill-downs or routes.
 ---
 
 # Working on the dashboard
@@ -8,7 +8,7 @@ description: How Eklavya's dashboard (`eklavya dashboard`) is built and how to c
 `eklavya dashboard` serves the learning and memory history as a local web page.
 It is the long view — `/eklavya:progress` gets twenty lines and answers *what
 now*, this answers *am I getting better* and *what did that session actually
-teach me*. It is four workflows in one shell, **Learning**, **Memory**, **Artifacts** and
+teach me*. It is five workflows in one shell, **Learning**, **Memory**, **Artifacts**, **Feedback** and
 **Settings**, each with its own Dashboard and sidebar.
 
 Two files, plus one vendored library and nothing else. The exception is the tips
@@ -19,7 +19,7 @@ second library needs the same case made, and never comes from a CDN.
 
 | File | What it is |
 |---|---|
-| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with eighteen read routes: `/api/health` (app, version, pid and database, read by `dashboard-daemon.ts`), `/api/state`, `/api/cursor` (`changeCursor`, what the open page polls), `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/api/attempts/correction`, `/tokens.css`, `/vendor/driver-hints.js` and `/vendor/driver-hints.css` (the tips library, `VENDOR`, cached an hour), `/manifest.webmanifest` and the three PNG icons it and the page name (`MANIFEST`, `APP_ICONS`: what makes the page installable as an app), `/artifacts/<folder>/<file>`, `/` — and the writes in `WRITES` (`POST /api/settings`, `POST /api/attempts/retry`), all through `acceptWrite`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`; an artifact overrides the framing pair to `'self'` / `SAMEORIGIN` for the viewer) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
+| `mcp/src/dashboard.ts` | `dashboardState(db)` — the whole payload — `projectInventory(db)`, the one list of projects both workflows use, `memoryPage`, `memoryEntry` and `memorySessionPage` for the paged memory resources, `localTokens` (the shared tokens minus their remote font import), `SETTINGS` / `CLI_ONLY` (the settings registry), `settingsState` and `updateSetting`, and `startDashboard`, a loopback `http.createServer` with twenty read routes: `/api/health` (app, version, pid and database, read by `dashboard-daemon.ts`), `/api/state`, `/api/cursor` (`changeCursor`, what the open page polls), `/api/projects`, `/api/memory`, `/api/memory/entry`, `/api/memory/sessions`, `/api/settings`, `/api/attempts/correction`, `/api/feedback` and `/api/feedback/list` (the Feedback workflow's item and its acknowledged list), `/tokens.css`, `/vendor/driver-hints.js` and `/vendor/driver-hints.css` (the tips library, `VENDOR`, cached an hour), `/manifest.webmanifest` and the three PNG icons it and the page name (`MANIFEST`, `APP_ICONS`: what makes the page installable as an app), `/artifacts/<folder>/<file>`, `/` — and the writes in `WRITES` (`POST /api/settings`, `POST /api/attempts/retry`, `POST /api/feedback/acknowledge`, `/api/feedback/delete` and `/api/feedback/opened`), all through `acceptWrite`. Any other method is a 405, and every response carries `SECURITY_HEADERS` (a same-origin CSP with `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`; an artifact overrides the framing pair to `'self'` / `SAMEORIGIN` for the viewer) — a new route goes through `send()` or it ships without them. Memory search escapes `%`, `_` and `\` and uses `LIKE … ESCAPE '\'`, so the box matches them literally. `DEFAULT_PORT` lives in `paths.ts` (re-exported here) so the SessionStart hook can probe the port without importing this module. |
 | `mcp/src/assets/dashboard.html` | The entire client: styles, markup shell, workflow registry, router, views, charts. One file, no framework, no build step. |
 | `mcp/test/dashboard.test.ts` | The payload's contract, the inventory's rules, and `/api/state`'s key set. |
 | `mcp/test/dashboard-browser.test.ts` | The page in a real Chromium: every legacy redirect, the workflow control, collapse persistence, the drawer, picker bounds, overflow, console errors and outbound requests. |
@@ -112,6 +112,7 @@ changes on every turn without changing the page needs a `WHEN` like `gates`'.
 | `reuse` | `receiptTotals` (confirmed rows only), the `savingsFrom` verdict and `savingsLine`, the estimator's name, counts by delivery, and the newest `RECEIPT_LIMIT` receipts with their index/detail split |
 | `health` | capture heartbeat and mode, `queueDepth`, stalled jobs grouped by `error_class`, the spool's drop count, and whether a provider is configured |
 | `memory_sessions` | one row per session that captured evidence: events, entries, candidates, first/last — what lets the Sessions view line the two halves up |
+| `feedback` | `{ enabled, memory, observer, pending: { id } \| null, notify, acknowledged, failed }` from `feedbackSummary`: switches, whether an item waits (its id, never its text), whether to show the badge (`notify`: waiting, feedback on and memory on), the acknowledged count and whether the last session looked at could not be reviewed. The prompt text is only ever served by `/api/feedback` to the page that shows it |
 | `artifacts` | `listArtifacts()` from `artifacts.ts`: every page under `~/.eklavya/artifacts/`, newest first — `id` (`<folder>/<file>`), title, description, project, kind (`explainer` or `artifact`), concept, `attempt` (the `eklavya:attempt` meta, or null), created, bytes, plus `correction` (`open`, `done` or null, one query for all rows). Read from the files' heads on each load; there is no table |
 
 Two things that have bitten this file already:
@@ -357,6 +358,36 @@ two interfaces, `eklavya config` and this page, and they change together.**
 - The page saves on `change` and redraws `#settings` in place (not via
   `render()`, which scrolls to the top), restoring focus to the control used.
   Errors come back as `{ error }` and show in that row's `data-msg`.
+
+## Feedback: one item, one rule
+
+The fifth workflow shows one reviewed prompt at a time, and everything about it
+serves one rule: **only a POST the server saw acknowledges.** A GET, a page view,
+a reload, an item opened by URL and Back never do, and a test per path says so.
+Do not add a route, a query string or a render path that writes `acknowledged_at`.
+
+- **The payload says that an item waits, never what it says.** `S.feedback` has
+  the id and counts; the prompt, better prompt, notes and tips come from
+  `/api/feedback` into `#fb-item` through `fill()`. A new field on the payload
+  must not be text the learner wrote.
+- **The badge is `S.feedback.notify`**, not `pending`: a stale item from before
+  feedback or memory was switched off waits quietly. `syncBadge()` runs from
+  `renderShell()`, sets the caret's label (`Switch workflow, 1 feedback unread`) and
+  the visible `1` on every workflow; the picker item says `Feedback, 1 unread`.
+  The badge is `--warning` with `--bg` text, `aria-hidden`, and never animates.
+- **`via` is how the page was reached**: the greeting link carries `?via=greeting`,
+  the picker `?via=badge`, anything else is `direct`. `fbOpened()` POSTs it once
+  per opening (`FB.counted`, reset when another page renders, so a resize does not
+  count twice) and then drops `via` from the URL with `replaceState`. It is declared
+  in the page's `query` list so the router keeps it.
+- **Acknowledge and Delete go through `postJson`**, disable while in flight, and
+  end in `fbDone()`: redraw from the response's `state`, focus the heading, and
+  announce through `#fb-live`, which is outside `#view` so it exists before its
+  text does. Delete confirms inline; there is no `confirm()` dialog.
+- **The "Found a problem with Eklavya?" card is not a tip.** Its words run past a
+  bubble's 140 characters, so it is not in `TIPS`. Dismissal is
+  `eklavya-dash-feedback-tip` in `localStorage`; storage that throws shows the
+  card, the opposite of the tips engine, because it is information and not a nudge.
 
 ## Loopback is not the boundary it looks like
 

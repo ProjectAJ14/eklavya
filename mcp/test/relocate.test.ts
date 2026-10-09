@@ -167,6 +167,25 @@ describe('moveProject', () => {
     );
   });
 
+  it('files prompt feedback under the new folder too, so History follows the checkout', () => {
+    const from = path.join(work, 'gone');
+    const to = repo('here');
+    const add = db.prepare(
+      "INSERT INTO feedback_items (session_id, project, prompt, review, better, tips, rubric, model, acknowledged_at) VALUES (?, ?, 'p', '{}', 'b', '[]', 1, 'm', ?)",
+    );
+    add.run('a', from, '2026-10-01 10:00:00');
+    add.run('b', from, null);
+    add.run('c', '/somewhere/else', '2026-10-02 10:00:00');
+
+    moveProject(db, from, to);
+
+    expect(db.prepare('SELECT session_id, project FROM feedback_items ORDER BY session_id').all()).toEqual([
+      { session_id: 'a', project: to },
+      { session_id: 'b', project: to },
+      { session_id: 'c', project: '/somewhere/else' },
+    ]);
+  });
+
   it('leaves a folder in place when the new project already has one', () => {
     const from = path.join(work, 'gone');
     const to = repo('here');

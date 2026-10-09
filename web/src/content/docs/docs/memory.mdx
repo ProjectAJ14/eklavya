@@ -237,9 +237,13 @@ With an observer model, observations are written in the background, so they can 
 
 Memory does not record quiz attempts, grant mastery, clear review debt, promote a level or open a gate. Remembered work is not assessed knowledge.
 
+### Prompt feedback reads memory
+
+Prompt feedback, when you turn it on with `feedback.enabled`, works from the prompts memory already recorded: it needs `memory.enabled`, and it sends nothing anywhere unless `providers.observer` is set. Each review is stored in its own table, with the text of one prompt, and deleting memory entries or pruning evidence does not remove it; delete an item from the dashboard's [Feedback page](/docs/dashboard/#feedback). Like memory, it never changes mastery. See [how it works](/docs/how-it-works/#prompt-feedback).
+
 ### When you move or rename a checkout
 
-History is filed under the checkout's folder path, so a moved folder would otherwise start empty. To prevent that, the first session start in a folder records the repository's root commits, which stay the same when the folder moves. If exactly one other project has the same root commits and its folder no longer exists, that project is the same repository before the move. Its memory, answers, level, project settings and pages are re-filed under the new folder, and the banner says so:
+History is filed under the checkout's folder path, so a moved folder would otherwise start empty. To prevent that, the first session start in a folder records the repository's root commits, which stay the same when the folder moves. If exactly one other project has the same root commits and its folder no longer exists, that project is the same repository before the move. Its memory, answers, level, prompt feedback, project settings and pages are re-filed under the new folder, and the banner says so:
 
 ```text
 Memory · moved from ~/Workspace/QF · 64 entries re-filed

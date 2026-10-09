@@ -9,6 +9,11 @@ const coverage = !!process.env.EKLAVYA_COVERAGE;
 export default defineConfig({
   resolve: coverage ? { alias: [{ find: /^(\.\.\/)+src\/(.*)$/, replacement: `${import.meta.dirname}/dist/$2` }] } : {},
   test: {
+    // Hooks, workers and `claude` stand-ins are real processes. Under the whole
+    // suite, and more under c8, the 5 second default failed three different
+    // tests that pass alone: a limit for a hung test, not a loaded machine.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     ...(coverage ? { server: { deps: { external: [/\/mcp\/dist\//] } }, setupFiles: ['test/coverage-setup.ts'] } : {}),
     env: {
       // Every `git commit` starts a detached `git maintenance run --auto` that

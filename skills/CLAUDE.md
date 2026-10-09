@@ -14,7 +14,7 @@ slash commands are `gate`, `learn`, `level`, `memory`, `mode`, `pack`, `progress
 | Location | Responsibility |
 |---|---|
 | `skills/tutor/` | Shared pedagogy; commands defer to it rather than duplicate it |
-| `user-skill/eklavya/` | Plain-chat configuration and CLI help, installed to `~/.claude/skills/`; does not teach |
+| `user-skill/eklavya/` | Plain-chat configuration and CLI help, and drafting a GitHub issue when someone reports a problem with Eklavya itself (shown in full, filed only after a clear yes), installed to `~/.claude/skills/`; does not teach |
 | `user-skill/eklavya-artifacts/` | Create pages through `eklavya artifacts new`, which owns paths, metadata and template |
 | `agents/tutor.md` | Read-only file access and selected learning/memory tools; teaches builder-logged concepts and uses lettered text without `AskUserQuestion` |
 | `agents/explainer.md` | Background artifact writer; no Eklavya MCP tools, grading or concept logging |

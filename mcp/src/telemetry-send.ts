@@ -16,11 +16,9 @@ import {
   type TelemetryState,
 } from './telemetry.js';
 import type { DB } from './db.js';
+import { HELPERS, NOT_HELPER } from './prompt-text.js';
 
 const ENDPOINT = 'https://www.google-analytics.com/mp/collect';
-/** The observer's own `claude -p` sessions, recognised as `HELPER_SESSION` does. Not the developer's work. */
-const HELPERS = `(SELECT session_id FROM evidence_events WHERE kind = 'prompt' AND body LIKE '<evidence project=%')`;
-const NOT_HELPER = `(session_id IS NULL OR session_id NOT IN ${HELPERS})`;
 /** Not a recall that was only prepared: one a hook never wrote out was not handed to Claude. */
 const HANDED_OVER = "delivery <> 'prepared'";
 const DAY_MS = 86_400_000;
@@ -213,6 +211,17 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
 
   const artifacts: TelemetryEvent = { name: 'artifacts', params: artifactCounts(since) };
 
+  // A switch and two counts. Never an item's text, notes, statuses, project,
+  // session or model: nothing a person wrote or a model said about it leaves.
+  const feedback: TelemetryEvent = {
+    name: 'feedback',
+    params: {
+      feedback_enabled: c.feedback.enabled,
+      generated_new: num(db, 'SELECT COUNT(*) FROM feedback_items WHERE datetime(created_at) >= ?', t),
+      acknowledged_new: num(db, 'SELECT COUNT(*) FROM feedback_items WHERE datetime(acknowledged_at) >= ?', t),
+    },
+  };
+
   // Finished days only: today's counts are still growing and go out tomorrow.
   const uses: TelemetryEvent[] = [];
   try {
@@ -227,7 +236,7 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
     /* an older schema */
   }
 
-  return [active, settings, learning, memory, artifacts, ...uses];
+  return [active, settings, learning, memory, artifacts, feedback, ...uses];
 }
 
 /**

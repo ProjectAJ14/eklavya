@@ -1,6 +1,6 @@
 ---
 name: eklavya
-description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, update Eklavya, allow its quiz panel tools after auto mode denied them, or find where their data lives. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
+description: "Operate Eklavya, the local memory and learning tool that records what this developer's agent did and quizzes them on it. Use when the user mentions Eklavya by name, asks what Eklavya remembers about a project or whether it is still capturing, or asks to change how often or how hard it quizzes them (its quiz, focus, cadence or difficulty dials), see their learning progress or mastery, open the dashboard, check the commit gate, update Eklavya, allow its quiz panel tools after auto mode denied them, find where their data lives, or reports a wrong or confusing question, a bad grade, or a bug in Eklavya. Do not use for ordinary coding help, for teaching a concept, or merely because a task is educational."
 ---
 
 # Eklavya
@@ -289,7 +289,11 @@ values, never paths, names or text) unless turned off. "Turn off Eklavya
 analytics / telemetry / tracking" means `eklavya telemetry off`, or `set_config`
 with `telemetry: false` at global scope. `eklavya telemetry show` prints
 exactly what is sent; `eklavya telemetry` says whether it is on and why. The
-full field list is https://eklavya-run.web.app/docs/usage-analytics/.
+full field list is https://eklavya-run.web.app/docs/usage-analytics/. Besides the
+learning, memory and settings counts it has a `feedback` event: whether
+`feedback.enabled` is on, how many prompt reviews were made and how many were
+acknowledged, and three `feature_use` counts of how the Feedback page was
+reached. Never the prompt or anything a review says.
 
 Restarting Claude Code is what picks up a repaired install — the plugin and MCP
 server are read at session start. The only background process is the dashboard,
@@ -304,8 +308,9 @@ eklavya dashboard status       # is it running, which version, which database
 eklavya dashboard stop         # stop the background copy
 ```
 
-It binds to loopback only and reads the local database; its two writes, a
-settings change and a correction of a missed answer, are guarded by a per-start
+It binds to loopback only and reads the local database; its five writes (a
+settings change, a correction of a missed answer, and acknowledging, deleting or
+counting the opening of a feedback item) are guarded by a per-start
 token in the page. Worth saying when
 someone asks where their data goes. It keeps running in the background: session
 start starts it when it is down and replaces an older version after an update, so
@@ -318,7 +323,7 @@ It opens the browser itself, so do not tell them to click the URL. Use
 `--no-open` when they only asked *where* the dashboard is, or when the session
 is on a machine with no desktop.
 
-Four workflows, Learning, Memory, Artifacts and Settings, each with its own
+Five workflows, Learning, Memory, Artifacts, Feedback and Settings, each with its own
 Dashboard and every page deep-linkable — hand back the one that answers what was actually asked rather
 than the bare root. Add `?project=<absolute repo path>` to open it scoped to one
 project; the ids are the ones `/api/projects` lists.
@@ -340,6 +345,7 @@ project; the ids are the ones `/api/projects` lists.
 | the pages Eklavya wrote me, search them | `/#/artifacts/dashboard` (or `/explainer` for explainers only) |
 | which explainers can I still correct | `/#/artifacts/dashboard/to-correct`; any page opens as a tab at `/#/artifacts/view/<id>` (the id from `eklavya artifacts list --json`, URL-encoded) |
 | which projects have pages | `/#/artifacts/projects` |
+| my prompt feedback, what is waiting, what I acknowledged | `/#/feedback/dashboard`, `/#/feedback/history`, `/#/feedback/item/<id>` |
 | change my settings in a page, see what a project overrides | `/#/settings/dashboard`, `/#/settings/user`, `/#/settings/project?project=<path>` |
 
 The older single-workflow links (`/#/overview`, `/#/concepts`, `/#/memory`,
@@ -367,6 +373,63 @@ let the user run it:
 If they are asking to *be taught*, that is `/eklavya:learn` or the `tutor`
 skill, not this one.
 
+## Feedback about Eklavya
+
+When someone tells you a question Eklavya asked was wrong, a grade was unfair, a
+hook message was confusing or the dashboard is broken, offer to turn it into a
+GitHub issue on `ProjectAJ14/eklavya`, and file it only after they have seen the
+exact text and said yes. Example: *"That question about retries was wrong. File
+feedback for Eklavya."*
+
+1. **Recognise it.** It is about Eklavya's own behaviour (a question it asked, a
+   grade, a hook message, the dashboard), not about the user's project. If you
+   cannot tell which, ask one question.
+2. **Gather without asking twice.** Take what the conversation already shows:
+   the category (Question quality, Grading, Tutor behaviour, Dashboard, Install
+   and updates or Other), what happened, what they expected, the question stem
+   and the concept slug if either is on screen, the Eklavya version, and the
+   host and OS. The version is the number after `runtime` on the `updates` row
+   of `eklavya doctor` (there is no `--version` flag); if it says `not installed`,
+   ask for the plugin version. Ask only for what is missing.
+3. **Strip.** Remove absolute paths and the home directory, repository and
+   project names, hostnames, anything that looks like a secret, and any code from
+   the user's project. Write `<path>`, `<project>` or `<redacted>` in its place.
+   Ask once about anything you cannot decide. Never attach database contents or
+   anything from `~/.eklavya/`.
+4. **Show exactly what will be posted**: the title and the whole body in one
+   fenced block. Before you ask, check whether you can file: run `gh auth
+   status`, or see whether a GitHub tool is available. If neither works, do not
+   ask: print the draft and the prefilled link (step 6) and say nothing was
+   posted. Otherwise ask *"Post this to ProjectAJ14/eklavya?"* Apply any edit
+   they ask for and show it again. **No issue is created without a clear yes to
+   the exact text on screen.** A "no" posts nothing.
+5. **File it.** The title is `[feedback] <one line>`. The body uses the issue
+   form's headings, in this order, with `_No response_` under an empty optional
+   one:
+
+   ```
+   ### Category
+   ### What happened
+   ### What you expected
+   ### Concept or question slug, if there is one
+   ### Eklavya version
+   ### Host and OS
+   ### A short example (no code from your project)
+   ```
+
+   When `gh auth status` succeeds, write the body to a temporary file in your
+   scratchpad, run `gh issue create --repo ProjectAJ14/eklavya --title "<title>"
+   --body-file <file>`, and delete the file afterwards. With no `gh`, a GitHub
+   MCP tool is the second choice.
+6. **Without access**, print the same draft and a prefilled link, and say that
+   nothing was posted:
+   `https://github.com/ProjectAJ14/eklavya/issues/new?template=eklavya-feedback.yml&title=<urlencoded>&category=<urlencoded>&what=<urlencoded>&expected=<urlencoded>&concept=<urlencoded>&version=<urlencoded>&environment=<urlencoded>&example=<urlencoded>`.
+   Cut it at 6,000 characters of URL and say it was cut.
+7. **Report** the issue URL, or that nothing was posted.
+
+This is separate from the dashboard's Feedback page, which coaches the user on
+their own prompts. It is not this, and it files nothing on GitHub.
+
 ## Rules
 
 - Never run `eklavya uninstall --purge` unless the user has said, in this
@@ -386,3 +449,6 @@ skill, not this one.
   setting that sends this machine's work off it — to a Claude model, on their
   subscription — and it needs their explicit yes. It goes in the global config
   only.
+- Never create a GitHub issue, or send anything to GitHub, without the user's clear
+  yes to the exact title and body you showed them. Silence, "sounds fine" about
+  the idea, and a yes to an earlier draft are not that yes.

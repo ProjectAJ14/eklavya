@@ -4,6 +4,7 @@
  * Hard rule: this must never break a session. Every failure path
  * exits 0 with no output — `run()` enforces it.
  */
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { findRepoConfig, loadGlobalConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
@@ -20,6 +21,7 @@ import { AMBER, dialParts, paint } from '../statusline.js';
 import { dashboardPort } from '../paths.js';
 import { followMove } from '../relocate.js';
 import { ensureDashboard, probeDashboard } from '../dashboard-daemon.js';
+import { feedbackEnabled, feedbackWaiting, startBackgroundFeedback } from '../feedback.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
 import { canSend, disabledReason, markTelemetryAnnounced, readState, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
 
@@ -116,6 +118,13 @@ await run(async (input) => {
   const resolved = config(cwd);
   const { quiz, difficulty, quiet } = resolved.config;
 
+  // Before the `quiz.enabled` return below, so someone with questions off who
+  // turned feedback on still gets it. A detached process the hook never waits
+  // for: a review is a model call, and a hook may not wait on inference.
+  startBackgroundFeedback(db, resolved.config, { cwd, spawn, now: Date.now() });
+  // Off with feedback or with memory, so a stale item left from before stays quiet.
+  const feedbackWaits = feedbackEnabled(resolved.config) && feedbackWaiting(db);
+
   // The memory half runs before every learning gate below, because it is not
   // governed by them (PRD CFG-01): `quiz.enabled: false` means no quizzes, not
   // no history. Three jobs, all silent on failure -- replay whatever the spool
@@ -194,6 +203,7 @@ await run(async (input) => {
         dials: ['memory on', 'questions off'],
         overrides: resolved.overrides,
         dashboard: dashboardState,
+        feedback: feedbackWaits,
         quiz: false,
       });
     } else if (!quiet) {
@@ -239,6 +249,7 @@ await run(async (input) => {
       dials: dialParts(resolved.config, levelLabel),
       overrides: resolved.overrides,
       dashboard: dashboardState,
+      feedback: feedbackWaits,
       quiz: true,
     });
   }
@@ -338,6 +349,8 @@ interface BannerParts {
   dials: string[];
   overrides: string[];
   dashboard: DashboardState;
+  /** An item is waiting: the greeting says so, in red, in place of the memory link. */
+  feedback: boolean;
   /** False with `quiz.enabled: false`: no learning counts to report. */
   quiz: boolean;
 }
@@ -387,15 +400,36 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   // in the greeting is a small lie. A start says how to turn it off, because a
   // background process nobody asked for should say so the first time it appears.
   const url = `http://127.0.0.1:${dashboardPort()}`;
-  out.push(
-    dim(
-      parts.dashboard === 'started'
-        ? `Dashboard ${url} started in the background · off: eklavya config set dashboard_autostart false`
-        : parts.dashboard === 'live'
-          ? `Dashboard ${url} · Observations ${url}/#/memory`
-          : 'Dashboard & observations: eklavya dashboard',
-    ),
-  );
+  // With feedback waiting the memory link steps aside for it (one click from the
+  // dashboard), and the red segment joins the dashboard link on one line. A
+  // dashboard that is down is not linked at all: the red line names the command.
+  // The state comes first in the segment, so it reads at a glance, and colour is
+  // not the only signal: without it the segment starts with "! ", which the dim
+  // text never does.
+  const flag = parts.feedback
+    ? paint(
+        `${color ? '' : '! '}${
+          parts.dashboard === 'down'
+            ? 'Feedback waiting · run: eklavya dashboard'
+            : `Feedback waiting ${url}/#/feedback/dashboard?via=greeting`
+        }`,
+        196,
+        color,
+      )
+    : '';
+  if (parts.feedback && parts.dashboard === 'down') {
+    out.push(flag);
+    return;
+  }
+  const dashboard =
+    parts.dashboard === 'started'
+      ? `Dashboard ${url} started in the background · off: eklavya config set dashboard_autostart false`
+      : parts.dashboard === 'live'
+        ? parts.feedback
+          ? `Dashboard ${url}`
+          : `Dashboard ${url} · Observations ${url}/#/memory`
+        : 'Dashboard & observations: eklavya dashboard';
+  out.push(parts.feedback ? `${dim(`${dashboard} · `)}${flag}` : dim(dashboard));
 }
 
 /** `~/Workspace/QF`, not the full home path: the banner line has to fit. */

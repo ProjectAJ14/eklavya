@@ -210,18 +210,29 @@ const KILL_GRACE_MS = 5_000;
 const MAX_STDOUT = 16 * 1024 * 1024;
 
 /**
+ * What one `claude -p` call is asked to do: the structured output it must
+ * return and the instructions it follows. The summariser's pair is the default;
+ * another caller passes its own and inherits every safety flag below, so the
+ * flags cannot drift between callers.
+ */
+export interface CallSpec {
+  schema: object;
+  system: string;
+}
+
+/**
  * The flags that make `claude -p` a summariser and nothing else: no tools, no
  * MCP servers, no hooks — this plugin's hooks included, or the summariser's own
  * session would be captured, batched and summarised in turn — and no transcript
  * left behind.
  */
-export function claudeArgs(model: string): string[] {
+export function claudeArgs(model: string, spec: CallSpec = { schema: OUTPUT_SCHEMA, system: SYSTEM }): string[] {
   return [
     '-p',
     '--model', model,
     '--output-format', 'json',
-    '--json-schema', JSON.stringify(OUTPUT_SCHEMA),
-    '--system-prompt', SYSTEM,
+    '--json-schema', JSON.stringify(spec.schema),
+    '--system-prompt', spec.system,
     '--tools', '',
     '--strict-mcp-config',
     '--no-session-persistence',
@@ -338,6 +349,7 @@ export function runClaude(
     graceMs?: number;
     maxOutput?: number;
     onSpawn?: (pid: number | null) => void;
+    spec?: CallSpec;
   } = {},
 ): Promise<string> {
   const env: NodeJS.ProcessEnv = { ...process.env, [OBSERVER_ENV]: '1' };
@@ -352,7 +364,7 @@ export function runClaude(
     // ponytail: no shell, so on Windows only a native `claude.exe` is found, not
     // npm's `claude.cmd` shim — cmd.exe would mangle the JSON arguments. Resolve
     // the shim's cli.js and run it with node if Windows npm installs need this.
-    const child = spawn('claude', claudeArgs(model), {
+    const child = spawn('claude', claudeArgs(model, opts.spec), {
       env,
       cwd: os.tmpdir(),
       stdio: ['pipe', 'pipe', 'pipe'],

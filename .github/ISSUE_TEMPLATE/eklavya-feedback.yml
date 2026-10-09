@@ -1,0 +1,59 @@
+name: Eklavya feedback
+description: A question, a grade, a hook message or a dashboard page that was wrong, confusing or broken
+title: "[feedback] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. Please leave out paths, project and repository names, secrets and any code from your own project. A short made-up example is enough.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Question quality
+        - Grading
+        - Tutor behaviour
+        - Dashboard
+        - Install and updates
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: concept
+    attributes:
+      label: Concept or question slug, if there is one
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Eklavya version
+      description: "`eklavya doctor` shows it on the updates row, after `runtime`."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Host and OS
+      description: "For example `Claude Code 2.x, macOS 15`."
+    validations:
+      required: false
+  - type: textarea
+    id: example
+    attributes:
+      label: A short example (no code from your project)
+    validations:
+      required: false

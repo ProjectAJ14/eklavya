@@ -100,7 +100,16 @@
   .wf__main svg, .picker svg { width:17px; height:17px; flex:none; color:var(--spot); }
   .wf__caret { flex:none; width:36px; background:none; border:0; border-left:1px solid var(--line-2);
                color:var(--dim); cursor:pointer; display:grid; place-items:center; }
+  .wf__caret { position:relative; }
   .wf__caret:hover, .wf__caret[aria-expanded="true"] { background:var(--mass); color:var(--ink); }
+  /* The unread count: the attention role (`--warning`) as a fill, `--bg` text on it. The number is
+     visible text, so forced-colours mode keeps it; the labels carry it for a screen reader. */
+  .wf__badge, .picker .badge { display:inline-grid; place-items:center; min-width:16px; height:16px; padding:0 4px;
+                               border-radius:50%; background:var(--warning); color:var(--bg); font-style:normal;
+                               font-family:var(--font-mono); font-size:10px; font-weight:var(--weight-semibold); line-height:1; }
+  .wf__badge { position:absolute; top:2px; right:2px; }
+  .wf__badge[hidden] { display:none; }
+  .picker .badge { flex:none; }
   .wf__caret svg { width:14px; height:14px; transition:transform var(--duration-fast) var(--ease); }
   .wf__caret[aria-expanded="true"] svg { transform:rotate(180deg); }
 
@@ -675,6 +684,40 @@
   .cmd__copy:focus-visible { outline:none; box-shadow:var(--ring); }
   .cmd__note { margin:var(--space-2) 0 0; color:var(--dim); font-size:13px; }
   .starts > .cmd__note { margin-top:var(--space-3); }
+  /* ---------- Feedback: one reviewed prompt at a time ---------- */
+  .fb__rule { border:1px solid var(--line-2); border-left:2px solid var(--spot); background:var(--panel);
+              padding:var(--space-4) var(--space-5); }
+  .fb__rule p { margin:0; color:var(--ink); font-size:14px; max-width:72ch; }
+  .fb__rule--near { margin:0 0 var(--space-4); }
+  .fb { display:grid; gap:var(--space-6); }
+  .fb__grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-5); }
+  .fb__h { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps); text-transform:uppercase;
+           color:var(--faint); font-weight:var(--weight-semibold); margin:0 0 var(--space-2); }
+  .fb__quote { margin:0; padding-left:var(--space-4); border-left:2px solid var(--spot); color:var(--ink);
+               white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; }
+  .cmd--block { margin-top:0; align-items:flex-start; }
+  .cmd--block code { white-space:pre-wrap; overflow-wrap:anywhere; overflow-x:visible; }
+  .fb__ds, .fb__tips { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-3); }
+  .fb__ds li { display:grid; grid-template-columns:120px max-content minmax(0, 1fr); gap:var(--space-3); align-items:baseline; }
+  .fb__dn { font-family:var(--font-mono); font-size:12px; color:var(--dim); }
+  .fb__note { color:var(--dim); font-size:13.5px; overflow-wrap:anywhere; }
+  .fb__ev { display:block; color:var(--faint); font-size:12.5px; }
+  .fb__tips li { color:var(--dim); font-size:13.5px; padding-left:var(--space-4); position:relative; }
+  .fb__tips li::before { content:'–'; position:absolute; left:0; color:var(--faint); }
+  .fb__actions { display:flex; gap:var(--space-3); flex-wrap:wrap; align-items:center; }
+  .fb__ask { display:inline-flex; gap:var(--space-3); flex-wrap:wrap; align-items:center; color:var(--dim); font-size:13.5px; }
+  .fb__msg { margin:0; color:var(--warning); font-size:13px; }
+  .fb__sts { display:flex; gap:var(--space-2); flex-wrap:wrap; }
+  .fb__tip h2 { font-family:var(--font-disp); font-size:var(--text-md); font-weight:var(--weight-semibold); margin:0 0 var(--space-2); }
+  .fb__tip p { margin:0 0 var(--space-4); color:var(--dim); max-width:70ch; }
+  .fb__tip .fb__quote { margin-bottom:var(--space-4); }
+  .fb__why p { margin:0 0 var(--space-3); color:var(--dim); max-width:70ch; }
+  @media (max-width:560px) {
+    .fb__grid { grid-template-columns:minmax(0, 1fr); }
+    .fb__ds li { grid-template-columns:minmax(0, 1fr); gap:var(--space-1); }
+    .fb__actions > button, .fb__actions a { flex:1 1 100%; min-height:44px; }
+    .fb__ask > button { flex:1 1 40%; min-height:44px; }
+  }
   .starts__more > summary { cursor:pointer; color:var(--dim); font-size:13px; padding:var(--space-2) 0; }
   .starts__more > summary:hover { color:var(--spot); }
   .starts__more > summary:focus-visible { outline:none; box-shadow:var(--ring); }
@@ -850,7 +893,7 @@
     <div class="wf" id="wf">
       <a class="wf__main" id="wf-main" href="#/learning/dashboard"></a>
       <button type="button" class="wf__caret" id="wf-caret" aria-label="Switch workflow"
-              aria-haspopup="menu" aria-expanded="false" aria-controls="wf-menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+              aria-haspopup="menu" aria-expanded="false" aria-controls="wf-menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span class="wf__badge" id="wf-badge" aria-hidden="true" hidden>1</span></button>
     </div>
 
     <nav class="side__nav" id="nav" aria-label="Sections"></nav>
@@ -890,6 +933,7 @@
       <!-- The same markup `loader()` writes; the script has not run yet. -->
       <div class="loader loader--page" role="status" aria-live="polite"><div class="mark" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg><svg class="loader__trace" viewBox="0 0 40 40" aria-hidden="true"><rect x="0.75" y="0.75" width="38.5" height="38.5" pathLength="160"/></svg></div><span>Loading your history…</span></div>
     </div>
+    <span class="sr" id="fb-live" role="status" aria-live="polite"></span>
     <footer class="foot inner">
       <span>Read from <code id="dbline">~/.eklavya/knowledge.db</code> — nothing on this page leaves your machine.<span id="foot-note"></span></span>
       <span id="dials"></span>
@@ -988,6 +1032,7 @@ const T = {
   memory:   { page:1, q:'', tag:'all', since:'', until:'' },
   reuse:    { page:1, only:'all' },
   artifacts:{ page:1, q:'' },
+  fbhistory:{ page:1 },
 };
 const PER = 20;
 
@@ -2762,7 +2807,7 @@ function viewHealth() {
 /* ============================================================
    Workflows and routes
 
-   Four workflows, one shell. The registry below is the only description of
+   Five workflows, one shell. The registry below is the only description of
    any of them: the sidebar, the picker, the route resolver and the page renderer all
    read it, so the selector, the highlighted item and the screen cannot disagree
    about where the reader is.
@@ -3057,7 +3102,7 @@ for (const ev of ['wheel', 'touchmove', 'keydown']) {
    registry guard checks every row against the fixture. */
 const TIPS = [
   { id: 'wf-switch', where: ['learning/dashboard'], el: '#wf-caret', side: 'right', title: 'Switch workflow',
-    text: 'Eklavya has four workflows: Learning, Memory, Artifacts and Settings. Switch between them here.' },
+    text: 'Eklavya has five workflows: Learning, Memory, Artifacts, Feedback and Settings. Switch between them here.' },
   { id: 'how-this-works', where: ['learning/dashboard', 'memory/dashboard'], el: '#view details.about > summary', title: 'How this works',
     text: 'Every page explains where its numbers come from. Open this to read it.' },
   { id: 'project-scope', where: ['learning/sessions', 'memory/timeline'], el: '#proj', side: 'right', title: 'Project scope',
@@ -3488,6 +3533,207 @@ function drawSettings(d, scope) {
   ].join('');
 }
 
+/* ============================================================
+   Feedback: one reviewed prompt at a time
+
+   The rule is the product: nothing new is made until the reader presses
+   Acknowledge, and only a press (a POST the server saw) acknowledges. Opening
+   the page, reloading it or following a link to an item never does. The state
+   payload says whether an item waits (never its text); the page that shows it
+   asks `/api/feedback`.
+   ============================================================ */
+const FB = {
+  ruleEmpty: 'Eklavya reviews one prompt at a time. When one is ready it appears here, and the next waits until you press Acknowledge.',
+  rulePending: 'Feedback pauses until you acknowledge this one. Read it, then press Acknowledge to get the next.',
+  announce: 'Acknowledged. Feedback resumes at your next session.',
+  dims: [['delegation', 'Delegation'], ['description', 'Description'], ['discernment', 'Discernment'], ['diligence', 'Diligence']],
+  status: { strong: 'Strong', mixed: 'Mixed', missing: 'Missing', not_visible: "Can't tell from this prompt" },
+  // `not_visible` is the muted role, never a weakness.
+  pill: { strong: 'pill ok', mixed: 'pill', missing: 'pill due', not_visible: 'pill gone' },
+  counted: false,
+  observerCmd: 'eklavya config set providers.observer <model>',
+  about: `Your prompts are already recorded by memory. After a session ends, in the background and never in the middle of your work,
+    Eklavya asks your observer model (the one in <code>providers.observer</code>, running through Claude Code on your own subscription)
+    to review one of that session's prompts against Anthropic's 4D framework: Delegation, Description, Discernment and Diligence.
+    Only the text of up to eight of your own prompts from that one session goes to that model, and nothing else leaves your machine.
+    Discernment and Diligence can only be seen in what you did after the prompt, so they say "Can't tell from this prompt" when nothing shows them.
+    There are no scores, and nothing here changes your mastery.`,
+};
+
+/** A command in a copyable block, as the start-review commands are. */
+const fbCmd = (text) => `<div class="cmd"><code>${esc(text)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div>`;
+
+/** Why there is no item: the one reason, in plain words. */
+function fbEmpty(F) {
+  let body;
+  if (!F.enabled) {
+    body = `<p>Prompt feedback is off. Turn on <code>feedback.enabled</code> in Settings to start.</p>
+      <a class="btn" data-go="${esc(href('settings', 'user'))}">Open Settings</a>`;
+  } else if (!F.memory) {
+    body = `<p>Prompt feedback needs memory. Turn on <code>memory.enabled</code>.</p>`;
+  } else if (!F.observer) {
+    body = `<p>Prompt feedback needs an observer model. Run <code>eklavya config set providers.observer &lt;model&gt;</code>.</p>${fbCmd(FB.observerCmd)}
+      <p class="cmd__note">Put the model's name in place of &lt;model&gt;, for example claude-haiku-4-5. Setting it lets Eklavya send your prompts to that model, through your Claude Code login.</p>`;
+  } else if (F.failed) {
+    body = `<p>Couldn't review the last session. It will try again at a later start.</p>`;
+  } else {
+    body = `<p>Nothing to review yet. When a session ends, the next one you start reviews one of its prompts.</p>`;
+  }
+  return `<div class="card fb__why" id="fb-empty">${body}</div>`;
+}
+
+function viewFeedbackDashboard() {
+  const F = S.feedback;
+  if (F.pending) fill('fb-item', '/api/feedback', (d) => d.item ? drawFbItem(d.item) : fbEmpty(S.feedback));
+  if (F.pending && !FB.counted) { FB.counted = true; AFTER.push(fbOpened); }
+  const counts = [F.pending ? '1 waiting' : 'nothing waiting', plural(F.acknowledged, 'acknowledged item')];
+  return [
+    pageHead('Feedback', counts, FB.about),
+    `<div class="fb__rule" id="fb-rule"><p>${esc(F.pending ? FB.rulePending : FB.ruleEmpty)}</p></div>`,
+    F.pending ? `<div id="fb-item">${loader('Loading your feedback…')}</div>` : fbEmpty(F),
+    fbTip(),
+    `<span class="sr" id="copy-live" aria-live="polite"></span>`,
+  ].join('');
+}
+
+/**
+ * The card that says feedback about Eklavya itself goes through Claude. It is a
+ * card and not a tip bubble: the example and the privacy line run past what a
+ * bubble holds, and it is information rather than a nudge, so storage that
+ * throws means it is shown (the tips engine hides in that case).
+ */
+const FB_TIP_KEY = 'eklavya-dash-feedback-tip';
+function fbTip() {
+  try { if (localStorage.getItem(FB_TIP_KEY) === '1') return ''; } catch (e) { /* shown */ }
+  return `<aside class="card fb__tip" id="fb-tip" aria-labelledby="fb-tip-h">
+    <h2 id="fb-tip-h">Found a problem with Eklavya?</h2>
+    <p>Tell Claude, in plain words. It drafts a GitHub issue, shows you exactly what it will post with paths, project names and code removed, and files it only after you say yes.</p>
+    <blockquote class="fb__quote">That question about retries was wrong. File feedback for Eklavya.</blockquote>
+    <button type="button" class="set__btn" data-fb-tip-dismiss>Dismiss</button>
+  </aside>`;
+}
+
+function fbTipDismiss() {
+  try { localStorage.setItem(FB_TIP_KEY, '1'); } catch (e) { /* hidden for now, shown again next time */ }
+  $('fb-tip')?.remove();
+  const h = document.querySelector('#view h1');
+  if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+}
+
+function viewFeedbackItem(id) {
+  fill('fb-item', '/api/feedback?id=' + encodeURIComponent(id), (d) => drawFbItem(d.item));
+  return [
+    pageHead('Feedback item', [], FB.about, `<a class="page__back" data-go="${esc(href('feedback', 'history'))}">← History</a>`),
+    `<div id="fb-item">${loader('Loading your feedback…')}</div>`,
+    `<span class="sr" id="copy-live" aria-live="polite"></span>`,
+  ].join('');
+}
+
+const fbActions = (id) => `<div class="fb__actions" id="fb-actions">
+    <button type="button" class="btn" data-fb-ack="${id}">Acknowledge</button>
+    <button type="button" class="set__btn" data-fb-del="${id}">Delete</button>
+    <p class="fb__msg" id="fb-msg" role="alert"></p></div>`;
+
+/** One item: your prompt, a better one, a note per D, tips. Actions only while it is pending. */
+function drawFbItem(it) {
+  const pending = !it.acknowledged_at;
+  const rows = FB.dims.map(([key, name]) => {
+    const d = it.review[key];
+    return `<li><span class="fb__dn">${esc(name)}</span> <span class="${FB.pill[d.status] ?? 'pill'}">${esc(FB.status[d.status] ?? d.status)}</span> `
+      + `<span class="fb__note">${d.status === 'not_visible' ? '' : esc(d.note)}`
+      + `${d.evidence ? `<span class="fb__ev">From your later prompt: “${esc(d.evidence)}”</span>` : ''}</span></li>`;
+  }).join('');
+  // Said again right above the button on the very first item a reader sees.
+  const first = pending && S.feedback.acknowledged === 0
+    ? `<div class="fb__rule fb__rule--near"><p>${esc(FB.rulePending)}</p></div>` : '';
+  return `<article class="card fb" aria-label="Feedback on one of your prompts">
+    <div class="fb__grid">
+      <section><h2 class="fb__h">Your prompt</h2><blockquote class="fb__quote">${esc(it.prompt)}</blockquote></section>
+      <section><h2 class="fb__h">A better prompt</h2>
+        <div class="cmd cmd--block"><code>${esc(it.better)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div></section>
+    </div>
+    <section><h2 class="fb__h">The four Ds</h2><ul class="fb__ds">${rows}</ul></section>
+    <section><h2 class="fb__h">Tips</h2><ul class="fb__tips">${it.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>
+    ${pending ? `<section>${first}${fbActions(it.id)}</section>` : ''}
+  </article>`;
+}
+
+function viewFeedbackHistory() {
+  const p = new URLSearchParams();
+  if (PROJECT !== null) p.set('project', PROJECT);
+  p.set('page', T.fbhistory.page);
+  fill('fb-rows', '/api/feedback/list?' + p, drawFbHistory);
+  return [
+    pageHead('History', [plural(S.feedback.acknowledged, 'acknowledged item')], FB.about),
+    `<div class="card card--flush" id="fb-rows">${loader('Loading history…')}</div>`,
+  ].join('');
+}
+
+function drawFbHistory(d) {
+  T.fbhistory.page = d.page;
+  const pills = (st) => `<span class="fb__sts">${FB.dims.map(([k, n]) =>
+    `<span class="${FB.pill[st[k]] ?? 'pill'}" title="${esc(n)}: ${esc(FB.status[st[k]] ?? st[k])}">${esc(n)} · ${st[k] === 'not_visible' ? '—' : esc(FB.status[st[k]] ?? st[k])}</span>`).join('')}</span>`;
+  const rows = d.items.map((i) => `<tr class="row" data-go="${esc(href('feedback', 'item', i.id))}">
+    <td>${esc(fmtDate(i.acknowledged_at))}</td><td>${esc(pname(i.project))}</td>
+    <td>${esc(i.prompt)}${i.prompt.length >= 80 ? '…' : ''}</td><td>${pills(i.statuses)}</td></tr>`);
+  return table([{ t: 'Acknowledged' }, { t: 'Project' }, { t: 'Your prompt' }, { t: 'The four Ds' }], rows)
+    + pager('fbhistory', d.total, d.page, d.per);
+}
+
+/**
+ * Counted once per opening with an item waiting: a re-render of the same page
+ * (a resize) is not another opening. `via` says how the reader got here
+ * (the greeting link, the badge) and is dropped from the URL once counted, so a
+ * link they share does not carry it. Anything else is a typed or bookmarked link.
+ */
+function fbOpened() {
+  const via = CUR.query.get('via');
+  postJson('/api/feedback/opened', { via: via === 'greeting' || via === 'badge' ? via : 'direct' }).catch(() => {});
+  if (via === null) return;
+  const q = new URLSearchParams(CUR.query);
+  q.delete('via');
+  const s = q.toString();
+  history.replaceState(history.state, '', location.pathname + location.search + location.hash.replace(/\?.*$/, '') + (s ? '?' + s : ''));
+}
+
+/** After a press: redraw from the new state, put focus on the heading and say so. */
+function fbDone(text) {
+  render();
+  const h = document.querySelector('#view h1');
+  if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+  // The region is outside the view, so it exists before the text does.
+  setTimeout(() => { $('fb-live').textContent = text; }, 50);
+}
+
+function fbFail(e) {
+  const m = $('fb-msg');
+  if (m) m.textContent = `Couldn't do that: ${e.message}`;
+}
+
+function fbAcknowledge(btn) {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  postJson('/api/feedback/acknowledge', { id: +btn.dataset.fbAck })
+    .then((d) => { S.feedback = d.state; fbDone(FB.announce); })
+    .catch((e) => { btn.disabled = false; fbFail(e); });
+}
+
+function fbAskDelete(btn) {
+  const id = +btn.dataset.fbDel;
+  $('fb-actions').innerHTML = `<span class="fb__ask" role="group" aria-label="Confirm delete"><span>Delete this feedback for good?</span>
+    <button type="button" class="btn" data-fb-yes="${id}">Delete</button>
+    <button type="button" class="set__btn" data-fb-no="${id}">Cancel</button></span><p class="fb__msg" id="fb-msg" role="alert"></p>`;
+  document.querySelector('[data-fb-no]').focus();
+}
+
+function fbDelete(btn) {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  postJson('/api/feedback/delete', { id: +btn.dataset.fbYes })
+    .then((d) => { S.feedback = d.state; fbDone('Deleted.'); })
+    .catch((e) => { btn.disabled = false; fbFail(e); });
+}
+
 function viewSettings(scope) {
   fill('settings', settingsUrl(), (d) => drawSettings(d, scope));
   return `<div class="stack" id="settings">${loader('Reading your settings…')}</div>`;
@@ -3595,6 +3841,8 @@ const ICONS = {
   reuse:     '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>',
   health:    '<path d="M3 12h4l2-6 3 12 2-6h7"/>',
   settings:  '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  feedback:  '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 7h10M7 11h6"/>',
+  history:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   user:      '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   project:   '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>',
 };
@@ -3653,6 +3901,15 @@ const WORKFLOWS = {
       dashboard: { label: 'Dashboard', view: (p) => viewArtifacts(p) },
       view:      { parent: 'dashboard', view: (p) => viewArtifact(p) },
       projects:  { label: 'Projects', view: () => viewArtifactProjects() },
+    },
+  },
+  feedback: {
+    name: 'Feedback',
+    groups: [{ id: 'feedback', label: 'Feedback', items: ['history'] }],
+    pages: {
+      dashboard: { label: 'Dashboard', view: () => viewFeedbackDashboard(), query: ['via'] },
+      history:   { label: 'History', view: () => viewFeedbackHistory() },
+      item:      { parent: 'history', view: (p) => viewFeedbackItem(p) },
     },
   },
   settings: {
@@ -3793,6 +4050,8 @@ function navCounts(wf) {
     };
   }
   if (wf === 'artifacts') return { projects: new Set(artifactsInScope().map((a) => pid(a.project))).size };
+  // A count of acknowledged items is a tally, not a to-do: the badge is what asks for attention.
+  if (wf === 'feedback') return {};
   // No honest count for a settings page: how many keys a file sets is not a to-do.
   if (wf === 'settings') return {};
   return {
@@ -3858,6 +4117,19 @@ function renderShell() {
   $('wf-main').innerHTML = `${svg(ICONS[CUR.wf])}<span>${esc(W.name)}</span>`;
   $('wf-main').setAttribute('aria-label', `${W.name} dashboard`);
   $('topbar-wf').textContent = W.name;
+  syncBadge();
+}
+
+/**
+ * The unread count on the workflow control, on every workflow and not only
+ * Feedback. The labels say it in words (`aria-hidden` badge), and the number is
+ * also visible text, so it survives forced-colours mode.
+ */
+const fbUnread = () => (S?.feedback?.notify ? 1 : 0);
+function syncBadge() {
+  const n = fbUnread();
+  $('wf-badge').hidden = !n;
+  $('wf-caret').setAttribute('aria-label', n ? `Switch workflow, ${n} feedback unread` : 'Switch workflow');
 }
 
 /* ---------- the workflow picker ---------- */
@@ -3884,8 +4156,8 @@ function placePicker(el = menu, at = $('wf')) {
 
 function openPicker() {
   menu.innerHTML = `<p class="picker__label" aria-hidden="true">Workflow</p>` + Object.entries(WORKFLOWS).map(([key, W]) =>
-    `<button type="button" role="menuitemradio" aria-checked="${key === CUR.wf}" data-wf="${key}" tabindex="-1">
-       ${svg(ICONS[key])}<span>${esc(W.name)}</span>
+    `<button type="button" role="menuitemradio" aria-checked="${key === CUR.wf}" data-wf="${key}" tabindex="-1"${key === 'feedback' && fbUnread() ? ` aria-label="${esc(W.name)}, ${fbUnread()} unread"` : ''}>
+       ${svg(ICONS[key])}<span>${esc(W.name)}</span>${key === 'feedback' && fbUnread() ? `<i class="badge" aria-hidden="true">${fbUnread()}</i>` : ''}
        <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
      </button>`).join('');
   menu.hidden = false;
@@ -4155,7 +4427,8 @@ addEventListener('resize', () => { if (sOpen) placePicker(smenu, sOpen); });
  */
 function switchWorkflow(wf) {
   closePicker(false);
-  const target = href(wf, 'dashboard');
+  // Reached from the unread badge: said so, so the count can tell the three ways in apart.
+  const target = wf === 'feedback' && fbUnread() ? href(wf, 'dashboard', null, { via: 'badge' }) : href(wf, 'dashboard');
   closeDrawer(false);
   if (location.hash === target) render(); else location.hash = target;
   (narrow.matches ? $('menu') : caret).focus();
@@ -4282,6 +4555,8 @@ function render(keepFocus) {
   AFTER.length = 0;
   LAZY.clear();
   HEAT_OFF = 0;
+  // Leaving the Feedback page ends the opening that fbOpened counted.
+  if (!(CUR.wf === 'feedback' && CUR.page === 'dashboard')) FB.counted = false;
   // A bubble never survives a navigation.
   TIP.hints?.close();
   // A screen that still has a correction open re-arms this when it draws its bar.
@@ -4327,6 +4602,19 @@ function setQuery(changes) {
 function onActivate(e) {
   const copy = e.target.closest('[data-copy]');
   if (copy) return copyCommand(copy);
+  if (e.target.closest('[data-fb-tip-dismiss]')) return fbTipDismiss();
+  const ack = e.target.closest('[data-fb-ack]');
+  if (ack) return fbAcknowledge(ack);
+  const ask = e.target.closest('[data-fb-del]');
+  if (ask) return fbAskDelete(ask);
+  const yes = e.target.closest('[data-fb-yes]');
+  if (yes) return fbDelete(yes);
+  const no = e.target.closest('[data-fb-no]');
+  if (no) {
+    const id = +no.dataset.fbNo;
+    $('fb-actions').outerHTML = fbActions(id);
+    return document.querySelector(`[data-fb-del="${id}"]`).focus();
+  }
   const arr = e.target.closest('.streak__arr');
   if (arr) {
     if (arr.disabled) return;

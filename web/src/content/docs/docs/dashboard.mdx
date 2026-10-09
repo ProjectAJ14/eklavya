@@ -1,11 +1,11 @@
 ---
 title: "The dashboard"
-description: "Explore the local Eklavya dashboard: learning progress, project memory, session history, saved artifacts and your settings, in four connected workflows."
+description: "Explore the local Eklavya dashboard: learning progress, project memory, sessions, saved artifacts, feedback on your prompts and your settings, in five workflows."
 sidebar:
   order: 11
 ---
 
-Open your learning history, project memory, saved pages and settings in a local browser:
+Open your learning history, project memory, saved pages, prompt feedback and settings in a local browser:
 
 ```bash
 eklavya dashboard
@@ -47,17 +47,17 @@ The app is the page at that exact address, so install it from `127.0.0.1:41729`,
 
 ## Switching workflow
 
-Use the caret beside the workflow name to choose **Learning**, **Memory**, **Artifacts** or **Settings**. Clicking the name or Eklavya wordmark returns to that workflow's Dashboard.
+Use the caret beside the workflow name to choose **Learning**, **Memory**, **Artifacts**, **Feedback** or **Settings**. While feedback and memory are on and an item is waiting, the caret carries a small `1` and a screen reader says "Switch workflow, 1 feedback unread"; see [Feedback](#feedback). Clicking the name or Eklavya wordmark returns to that workflow's Dashboard.
 
 Project and theme choices survive a workflow switch. Page-specific filters do not. The address records the workflow, page, filters and project, so bookmarks and Back/Forward return to the same view. A new-style link without `?project=` means all projects.
 
 ## The sidebars
 
-| Learning | Memory | Artifacts | Settings |
-| --- | --- | --- | --- |
-| Dashboard | Dashboard | Dashboard | Overview |
-| Concepts, Review | Timeline, Sessions, Projects | Projects | User, Project |
-| Sessions, Projects, Domains | Reuse, Health | | |
+| Learning | Memory | Artifacts | Feedback | Settings |
+| --- | --- | --- | --- | --- |
+| Dashboard | Dashboard | Dashboard | Dashboard | Overview |
+| Concepts, Review | Timeline, Sessions, Projects | Projects | History | User, Project |
+| Sessions, Projects, Domains | Reuse, Health | | | |
 
 Groups can be collapsed and are remembered per workflow. At 900 px or narrower, navigation moves into a menu drawer. Keyboard navigation supports Tab and Enter; the workflow picker also supports arrows and Escape. Escape or clicking outside closes the drawer.
 
@@ -149,6 +149,26 @@ Closing the browser tab while the visible page's correction is still open makes 
 
 In the viewer, the framed page loads no web fonts and uses system fonts, so the dashboard still makes no request to another host. The dashboard adds a small script to every page it frames, old or new: the page reports its height and stops scrolling on its own, so the window has the only scrollbar. A page taller than 20,000 pixels scrolls inside its frame past that point. If a page reports no height within 1.5 seconds, its frame is 80% of the window's height and the page scrolls inside it. So does a page whose content grows with its frame, such as a section set to the full window height (`min-height: 100vh`): inside the frame, the window is the frame, so that page could never stop growing. Pages made from the Eklavya template have no such section.
 
+## Feedback
+
+Feedback reviews one prompt you wrote, at a time, against Anthropic's 4D framework (Delegation, Description, Discernment and Diligence), and shows you a better version. It is off until you turn on `feedback.enabled` in [Settings](#settings) or with `eklavya config set feedback.enabled true`, and it needs memory on and an [observer model](/docs/configuration/#providers). It never changes your mastery. [How feedback is made](/docs/how-it-works/#prompt-feedback) says when it runs and what leaves your machine.
+
+The rule is written at the top of the page, in every state. While nothing is waiting: *Eklavya reviews one prompt at a time. When one is ready it appears here, and the next waits until you press Acknowledge.* While one is waiting: *Feedback pauses until you acknowledge this one. Read it, then press Acknowledge to get the next.* On the first item you ever see, the rule is repeated right above the button.
+
+| Page | What it shows |
+| --- | --- |
+| Dashboard (`#/feedback/dashboard`) | The waiting item, or why there is none: feedback is off (with a button to Settings), memory is off, no observer model is set (with the command to set one and a **Copy** button), the last session could not be reviewed (the page says it will try again at a later start; that session is not retried, and the next start reviews the next one), or nothing to review yet. |
+| History (`#/feedback/history`) | The items you acknowledged: date, project, the first 80 characters of your prompt and the four statuses. It follows the project selector. Open a row for the item without the buttons. |
+| Item (`#/feedback/item/<id>`) | One item. |
+
+An item has your prompt as you wrote it, **A better prompt** with a **Copy** button, a row for each D with a status (Strong, Mixed or Missing) and a short note, and one to three tips. The better prompt never invents facts: where it needs a detail you did not give, it shows a placeholder such as `[the failing test]`. Discernment and Diligence can only be seen in what you did after the prompt, so they say **Can't tell from this prompt** unless a later prompt in that session shows them, and then the note quotes it. That is not a weakness, and there are no scores anywhere.
+
+**Acknowledge** is a button you press on purpose, and nothing else acknowledges: opening the page, reloading it, opening it in another tab, going Back or following a link to an item never does. Pressing it clears the badge without a reload, says "Acknowledged. Feedback resumes at your next session." to a screen reader and moves focus to the page heading. **Delete** asks inline, then removes the item, whether waiting or acknowledged. Deleting a waiting item lets the next one be made, and it does not count as acknowledged.
+
+The badge is on the workflow control of every workflow, not only this one, and only while feedback and memory are both on. If `quiet` is set, the session greeting does not mention feedback, but the badge still shows. The greeting otherwise adds a red `Feedback waiting` segment with a link to the Feedback page to the Dashboard line, in place of the Observations link. If the dashboard is not running, the line is just `Feedback waiting · run: eklavya dashboard`. Without colour, the segment starts with `! `. It does not show while feedback or memory is off.
+
+The bottom of the Dashboard page has a card, **Found a problem with Eklavya?**: tell Claude in plain words, for example "That question about retries was wrong. File feedback for Eklavya.", and it drafts a GitHub issue, shows you exactly what it will post with paths, project names and code removed, and files it only after you say yes. **Dismiss** hides it in this browser (`eklavya-dash-feedback-tip`). If the browser blocks site storage the card stays, because it is information and not a nudge. It is a card rather than a tip, so the [Tips](#tips) switch does not touch it, and the Feedback pages have no tips of their own.
+
 ## Settings
 
 Settings changes the same two files as [`eklavya config set`](/docs/cli/#settings-and-browsing): your user settings in `~/.eklavya/config.json`, and one project's settings in `~/.eklavya/projects/<checkout>/config.json`. Both interfaces use one write path, so they accept and refuse the same values.
@@ -159,7 +179,7 @@ Settings changes the same two files as [`eklavya config set`](/docs/cli/#setting
 | User (`#/settings/user`) | Change a setting everywhere. **Reset to default** removes it from your file. |
 | Project (`#/settings/project?project=<checkout>`) | Change a setting for one project. Each row says whether its value is set for this project, inherited from your user settings, or the default. **Inherit** removes the project's value so your user setting applies again. Without a project selected, it lists the projects you can configure. |
 
-A control saves when you change it; a text or number box saves when you leave it or press Enter. The row reports **saved** or **inherited**. Each field states what it accepts, and a value outside that is refused under the field before anything is sent, keeping what you typed; the server checks again with the [same rules](/docs/configuration/#what-each-setting-accepts) and reports a refusal, such as `focus: learn` with no topic, in the same place. `auto_update`, `telemetry` and `dashboard_autostart` apply to the whole machine, so a project page shows them read-only with a link to User. Providers, notifications and sync send work off the machine or run a command, so the pages list them under **Changed from the terminal** with their current value instead of offering a control.
+A control saves when you change it; a text or number box saves when you leave it or press Enter. The row reports **saved** or **inherited**. Each field states what it accepts, and a value outside that is refused under the field before anything is sent, keeping what you typed; the server checks again with the [same rules](/docs/configuration/#what-each-setting-accepts) and reports a refusal, such as `focus: learn` with no topic, in the same place. `feedback.enabled` is in its own group, **Feedback**. `auto_update`, `telemetry` and `dashboard_autostart` apply to the whole machine, so a project page shows them read-only with a link to User. Providers, notifications and sync send work off the machine or run a command, so the pages list them under **Changed from the terminal** with their current value instead of offering a control.
 
 Only projects with a git checkout on this machine can be configured. The footer's dial line shows your user settings, not any one project's, and is read when the page loads, so it updates on the next refresh.
 
@@ -237,7 +257,7 @@ Most lists show 20 rows per page; the memory timeline shows 25, and a concept's 
 
 ## While you leave it open
 
-The dashboard is a snapshot. Once a minute, while the tab is visible, it checks for new activity and offers a **refresh** notice. New activity is any change the page would show: an answer, captured evidence, a memory entry added, rewritten or removed (including a session summary updated while that session runs), a memory read, a recall receipt, a change to your user settings, or an artifact page written or removed. It does not redraw automatically while you are reading, and an unchanged database never raises the notice. Refresh preserves your route and filters; stopping the server leaves the loaded view visible. The memory health panel's last-prune time and dropped-capture count do not raise the notice on their own.
+The dashboard is a snapshot. Once a minute, while the tab is visible, it checks for new activity and offers a **refresh** notice. New activity is any change the page would show: an answer, captured evidence, a memory entry added, rewritten or removed (including a session summary updated while that session runs), a memory read, a recall receipt, a feedback item arriving, acknowledged or deleted, a change to your user settings, or an artifact page written or removed. It does not redraw automatically while you are reading, and an unchanged database never raises the notice. Refresh preserves your route and filters; stopping the server leaves the loaded view visible. The memory health panel's last-prune time and dropped-capture count do not raise the notice on their own.
 
 ## Old links still work
 
@@ -263,13 +283,16 @@ An old link without a project can pick up the previous saved project once. New-s
 
 ## What it is, underneath
 
-The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except its two writes, validates loopback request addresses, escapes stored content and refuses framing by other pages. A request whose address is not a valid URL gets a `400` reply, and the server keeps running. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above. The tips library (Driver.js) ships inside the package, and the dashboard serves it itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`.
+The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except its five writes, validates loopback request addresses, escapes stored content and refuses framing by other pages. A request whose address is not a valid URL gets a `400` reply, and the server keeps running. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above. The tips library (Driver.js) ships inside the package, and the dashboard serves it itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`.
 
-Its read-only JSON endpoints serve summary state (`/api/state`), the change cursor an open page polls (`/api/cursor`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`), settings (`/api/settings`) and a missed question to correct (`/api/attempts/correction?id=`, without its answer). There are two writes:
+Its read-only JSON endpoints serve summary state (`/api/state`), the change cursor an open page polls (`/api/cursor`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`), settings (`/api/settings`), a missed question to correct (`/api/attempts/correction?id=`, without its answer), and feedback: one item (`/api/feedback`, the waiting one without `?id=`) and the acknowledged list (`/api/feedback/list`). The state payload carries only whether an item is waiting, its id and counts, never your prompt. There are five writes:
 
 | Write | What it does |
 | --- | --- |
 | `POST /api/settings` | Changes one setting. Body at most 256 KB. |
 | `POST /api/attempts/retry` | Records one pick on the correction dialog and checks it. Body at most 16 KB. |
+| `POST /api/feedback/acknowledge` | Acknowledges an item by id; a repeat answers `already` and changes nothing. Body at most 16 KB. |
+| `POST /api/feedback/delete` | Deletes an item by id. Body at most 16 KB. |
+| `POST /api/feedback/opened` | Counts one opening of the Feedback page with an item waiting, as `greeting`, `badge` or `direct`. Body at most 16 KB. |
 
-Each needs a loopback `Origin`, a JSON body and a random token the server puts in the page each time it starts, so another site open in your browser cannot write. Settings never edit learning or memory data; a correction adds rows, updates the concept's score and review date, and never changes the original answer.
+Each needs a loopback `Origin`, a JSON body and a random token the server puts in the page each time it starts, so another site open in your browser cannot write. Settings never edit learning or memory data, and feedback never touches your scores; a correction adds rows, updates the concept's score and review date, and never changes the original answer.

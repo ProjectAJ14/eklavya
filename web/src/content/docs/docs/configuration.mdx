@@ -119,6 +119,12 @@ A change that would not take effect is refused too: `focus learn` when no `focus
 | `memory.batch_max_events` | `40` | Maximum events per observation batch. A turn end also closes batches at eight events or 20 minutes old; a session start closes leftovers. |
 | `memory.retention_days` | `null` | Days to keep summarised raw evidence, finished jobs, reuse receipts and the memory read log. Observations survive. Applies per project, automatically at most every six hours or through `eklavya memory prune`. `null` keeps everything. |
 
+#### `feedback`
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `feedback.enabled` | `false` | Reviews one of your own prompts from a finished session against the 4D framework, in the background, one item at a time. Needs `memory.enabled` and `providers.observer`; with either missing nothing is generated, and the [Feedback page](/docs/dashboard/#feedback) says which. Settable at user and project scope, and turning it on sends nothing by itself: what leaves your machine is governed by `providers.observer`. See [prompt feedback](/docs/how-it-works/#prompt-feedback). |
+
 #### `privacy`
 
 These extend the [built-in privacy rules](/docs/memory/#what-is-never-captured).
@@ -150,8 +156,10 @@ Provider settings are global because one worker processes all projects on the ma
 The installer offers an observer choice when memory is enabled; upgrades do not enable one silently. With no observer, summaries are generated locally.
 
 ```bash
-eklavya config set providers.observer '{"kind":"anthropic","model":"claude-haiku-4-5"}'
+eklavya config set providers.observer claude-haiku-4-5
 ```
+
+A bare model name is shorthand for `{"kind":"anthropic","model":"<name>"}`, which still works, and `null` clears it. `anthropic` on its own is refused: it is the kind, not a model.
 
 #### `notifications` — what gets sent out
 
