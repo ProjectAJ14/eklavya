@@ -200,9 +200,10 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         ['#/artifacts/projects', '#/artifacts/projects', { wf: 'Artifacts', active: 'projects', h1: /^Projects$/ }],
         ['#/feedback', '#/feedback/dashboard', { wf: 'Feedback', active: 'dashboard', h1: /^Feedback$/ }],
         ['#/feedback/history', '#/feedback/history', { wf: 'Feedback', active: 'history', h1: /^History$/ }],
-        ['#/settings', '#/settings/dashboard', { wf: 'Settings', active: 'dashboard', h1: /^Settings$/ }],
-        ['#/settings/user', '#/settings/user', { wf: 'Settings', active: 'user', h1: /^User settings$/ }],
-        ['#/settings/project', '#/settings/project', { wf: 'Settings', active: 'project', h1: /^Project settings$/ }],
+        ['#/settings', '#/settings/dashboard', { wf: 'Settings', active: 'dashboard', h1: /^User settings$/ }],
+        ['#/settings/user', '#/settings/user', { wf: 'Settings', active: 'dashboard', h1: /^User settings$/ }],
+        ['#/settings/dashboard/memory', '#/settings/dashboard/memory', { wf: 'Settings', active: 'dashboard', h1: /^User settings$/ }],
+        ['#/settings/project', '#/settings/project', { wf: 'Settings', active: 'dashboard', h1: /^Project settings$/ }],
       ];
     };
 
@@ -1124,13 +1125,16 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await pickOption(w.page, '#set-cadence', 'as-you-go');
       await w.page.waitForSelector('[data-unset="cadence"]');
       // A global-only key is shown, not editable, on a project.
+      await w.page.goto(base + '/' + `#/settings/project/this-machine?project=${enc(fx.repo.mixed)}`); await ready(w.page);
       expect(await w.page.isDisabled('#set-telemetry')).toBe(true);
+      await w.page.goto(base + '/' + `#/settings/project?project=${enc(fx.repo.mixed)}`); await ready(w.page);
       await w.page.focus('[data-unset="cadence"]');
       await w.page.keyboard.press('Enter');
       await w.page.waitForSelector('[data-msg="cadence"]:text("inherited")');
       expect(await w.page.inputValue('#set-cadence')).toBe('end');
 
       // An out-of-range number is refused in the page, under the field, before any request.
+      await w.page.goto(base + '/' + `#/settings/project/pacing?project=${enc(fx.repo.mixed)}`); await ready(w.page);
       const posts: string[] = [];
       w.page.on('request', (r) => { if (r.method() === 'POST') posts.push(r.url()); });
       await w.page.fill('#set-max_questions_per_task', '99');
@@ -1142,6 +1146,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await w.page.inputValue('#set-max_questions_per_task')).toBe('99'); // the typed value stays
       expect(posts).toEqual([]);
       // Only the server knows the combination: its refusal lands in the same place.
+      await w.page.goto(base + '/' + `#/settings/project?project=${enc(fx.repo.mixed)}`); await ready(w.page);
       await w.page.uncheck('#set-quiz-enabled');
       await w.page.waitForSelector('[data-msg="quiz.enabled"]:text("saved")');
       await w.page.check('#set-quiz-enforced');

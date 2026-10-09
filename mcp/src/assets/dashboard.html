@@ -813,7 +813,6 @@
   .set__ctl input[type="number"], .set__ctl textarea { font:inherit; font-size:13.5px; background:var(--bg); color:var(--ink);
     border:1px solid var(--line-2); border-radius:0; padding:7px var(--space-3); width:100%; }
   .set__ctl textarea { font-family:var(--font-mono); font-size:12.5px; resize:vertical; min-height:64px; }
-  .set__ctl input[type="checkbox"] { width:18px; height:18px; accent-color:var(--spot); margin:4px 0; cursor:pointer; }
   .set__ctl :disabled { opacity:.55; cursor:not-allowed; }
   .set__rule { color:var(--faint); }
   .set__err { margin:var(--space-2) 0 0; color:var(--warning); font-size:12.5px; overflow-wrap:anywhere; }
@@ -821,6 +820,58 @@
   .set__btn { font-family:var(--font-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
               background:none; border:1px solid var(--line-2); color:var(--dim); padding:2px 8px; cursor:pointer; }
   .set__btn:hover { color:var(--ink); border-color:var(--spot); }
+  /* ---------- Settings switchboard: scopes on the right, one tab of settings at a time ---------- */
+  .sw { display:grid; grid-template-columns:minmax(0,1fr) 208px; gap:var(--space-5); align-items:stretch; min-height:calc(100vh - 168px); }
+  .sw__scopes { align-self:stretch; display:flex; flex-direction:column; gap:2px; align-content:flex-start;
+                background:var(--panel); border:1px solid var(--line-2); padding:var(--space-2); }
+  .sw__cap { margin:var(--space-3) var(--space-2) var(--space-1); font-family:var(--font-mono); font-size:10.5px;
+             letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--faint); }
+  .sw__cap:first-child { margin-top:var(--space-1); }
+  .sw__projects { display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
+  .sw__scope { display:flex; align-items:center; gap:10px; padding:8px 10px; color:var(--dim); text-decoration:none;
+               font-size:13.5px; min-width:0; transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
+  .sw__scope svg { width:16px; height:16px; flex:none; }
+  .sw__scope span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sw__scope:hover { background:var(--mass); color:var(--ink); }
+  .sw__scope[aria-current="page"] { background:var(--mass); color:var(--ink); box-shadow:inset 2px 0 0 var(--spot); }
+  .sw__scope[aria-current="page"] svg { color:var(--spot); }
+  .sw__none { margin:var(--space-1) var(--space-2) var(--space-2); color:var(--faint); font-size:12.5px; }
+  .sw__pane { min-width:0; display:flex; flex-direction:column; gap:var(--space-5); }
+  .sw__tabs { display:flex; gap:0; border-bottom:1px solid var(--line-2); overflow-x:auto; scrollbar-width:none; }
+  .sw__tabs::-webkit-scrollbar { display:none; }
+  .sw__tab { display:flex; align-items:center; gap:6px; padding:10px 9px; margin-bottom:-1px; white-space:nowrap;
+             font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+             color:var(--faint); text-decoration:none; border-bottom:2px solid transparent;
+             transition:color var(--duration-fast) var(--ease); }
+  .sw__tab:hover { color:var(--ink); }
+  .sw__tab[aria-current="page"] { color:var(--ink); border-bottom-color:var(--spot); }
+  .sw__tab i { font-style:normal; color:var(--spot); }
+  .card.sw__list { padding:0; }
+  .sw__list .set, .sw__list .set:first-child, .sw__list .set:last-child { padding:var(--space-4) var(--space-5); border-bottom:1px solid var(--line); }
+  .sw__list .set:last-child { border-bottom:none; }
+  .set--bool { align-items:center; flex-wrap:nowrap; }
+  .set--bool .set__ctl { flex:0 0 auto; }
+  /* A switch: a square track and thumb, the accent when on. It is still a checkbox underneath. */
+  .set__ctl input[type="checkbox"] { appearance:none; -webkit-appearance:none; width:44px; height:24px; margin:0; position:relative;
+    background:var(--mass); border:1px solid var(--line-2); border-radius:0; cursor:pointer;
+    transition:background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease); }
+  .set__ctl input[type="checkbox"]::after { content:""; position:absolute; top:2px; left:2px; width:18px; height:18px;
+    background:var(--dim); transition:transform var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease); }
+  .set__ctl input[type="checkbox"]:checked { background:var(--spot); border-color:var(--spot); }
+  .set__ctl input[type="checkbox"]:checked::after { transform:translateX(20px); background:var(--spot-ink); }
+  @media (max-width:900px) {
+    .sw { grid-template-columns:minmax(0,1fr); gap:var(--space-4); min-height:0; }
+    .sw__scopes { order:-1; align-self:auto; flex-direction:row; align-items:center; overflow-x:auto; scrollbar-width:none; }
+    .sw__scopes::-webkit-scrollbar { display:none; }
+    .sw__cap { display:none; }
+    .sw__projects { flex-direction:row; max-height:none; overflow:visible; }
+    .sw__scope { white-space:nowrap; }
+    .sw__none { margin:0; white-space:nowrap; }
+  }
+  @media (max-width:560px) {
+    .sw__list .set, .sw__list .set:first-child, .sw__list .set:last-child { padding:var(--space-4); }
+    .set--bool { flex-wrap:wrap; }
+  }
   /* A config path is one unbroken word; on a phone it has to break anywhere. */
   .counts .mono, .lines .mono { overflow-wrap:anywhere; }
   /* ---------- feature tips: Driver.js hints restyled, vendor CSS untouched ---------- */
@@ -3118,8 +3169,8 @@ const TIPS = [
     when: () => (S.artifacts ?? []).some((a) => a.correction === 'open') },
   { id: 'artifact-tabs', where: ['artifacts/view'], el: '#view [role="tablist"]', title: 'Open pages',
     text: 'Pages you open stay here as tabs, up to eight. All artifacts takes you back.' },
-  { id: 'settings-scope', where: ['settings/dashboard'], el: '#nav', side: 'right', title: 'User or project',
-    text: 'User settings apply everywhere. Project settings override them for one project.' },
+  { id: 'settings-scope', where: ['settings/dashboard'], el: '.sw__scopes', side: 'left', title: 'User or project',
+    text: 'User settings apply everywhere. Pick a project to override them for that project only.' },
   { id: 'ground', where: ['settings/dashboard'], el: '.ground[aria-label="Colour ground"]', side: 'right', title: 'Ink or paper',
     text: 'Switch the dashboard between a dark and a light ground.' },
 ];
@@ -3492,7 +3543,7 @@ function settingRow(f, d, scope) {
       ? (Object.hasOwn(d.user.set, f.key) ? 'inherited from user settings' : 'default')
       : 'default'}</span>`;
   }
-  return `<div class="set">
+  return `<div class="set${f.type === 'bool' ? ' set--bool' : ''}">
     <div class="set__main"><label for="${id}">${esc(f.label)}</label>
       <p id="${id}-h">${esc(f.help)}${ruleHint(f) ? ` <span class="set__rule">${esc(ruleHint(f))}</span>` : ''}</p>
       <p class="set__src"><code>${esc(f.key)}</code>${src}<span data-msg="${esc(f.key)}" role="status"></span></p></div>
@@ -3500,37 +3551,86 @@ function settingRow(f, d, scope) {
   </div>`;
 }
 
+/** A category's tab id: `This machine` is `this-machine`. */
+const swTab = (group) => group.toLowerCase().replace(/\W+/g, '-');
+const SW_ICON = {
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  project: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+};
+
+/**
+ * The switchboard. On the left, the scope: you (user settings, the default) or
+ * one project. On the right, that scope's settings one category at a time, each
+ * category a tab in the URL (`#/settings/dashboard/memory`). Picking another scope
+ * keeps the tab. `Terminal` lists what stays a typed command; `Changed` lists
+ * what this scope's file actually sets.
+ */
 function drawSettings(d, scope) {
   SETS = d;
-  const W = scope === 'project' ? 'Project settings' : 'User settings';
+  const tabParam = (id) => (id === swTab(d.fields[0].group) ? null : id);
+  const page = scope === 'project' ? 'project' : 'dashboard';
+  const file = scope === 'project' ? d.project : d.user;
+  const groups = [...new Set(d.fields.map((f) => f.group))];
+  const tabs = groups.map((g) => {
+    const fields = d.fields.filter((f) => f.group === g);
+    return { id: swTab(g), label: g, fields, n: file ? fields.filter((f) => Object.hasOwn(file.set, f.key)).length : 0 };
+  });
+  tabs.push({ id: 'terminal', label: 'Terminal', n: 0 }, { id: 'changed', label: 'Changed', n: file ? Object.keys(file.set).length : 0 });
+  const here = tabs.find((t) => t.id === CUR.param) ?? tabs[0];
+
+  const scopeLink = (label, icon, to, current) =>
+    `<a class="sw__scope" href="${esc(to)}"${current ? ' aria-current="page"' : ''}>${svg(icon)}<span>${esc(label)}</span></a>`;
+  const rail = `<nav class="sw__scopes" aria-label="Settings scope">
+    <p class="sw__cap">Everywhere</p>
+    ${scopeLink('User', SW_ICON.user, SH('dashboard', tabParam(here.id)), scope === 'user')}
+    <p class="sw__cap">Projects</p>
+    <div class="sw__projects">${d.projects.length
+      ? d.projects.map((p) => scopeLink(p.name, SW_ICON.project, SH('project', tabParam(here.id), { project: p.inventory }),
+          scope === 'project' && d.project?.inventory === p.inventory)).join('')
+      : '<p class="sw__none">No project with a checkout on this machine yet.</p>'}</div>
+  </nav>`;
+
   const about = `User settings apply everywhere; a project setting wins in that project only, and <b>Inherit</b>
     removes it so the user setting applies again. Every change here is the same write as
     <code>eklavya config set &lt;key&gt; &lt;value&gt;</code> (with <code>--project</code> for a project), and
     <b>Inherit</b> / <b>Reset</b> is <code>eklavya config unset</code>. Nothing is written inside a repository.`;
-  if (scope === 'project' && !d.project) {
-    const known = d.projects.filter((p) => projectById(p.inventory));
-    return [
-      pageHead(W, [plural(known.length, 'project')], about),
+
+  if (!file) {
+    return `<div class="sw"><div class="sw__pane">${[
+      pageHead('Project settings', [], about),
       nextStep(PROJECT
-        ? `<strong>${esc(scopeName())}</strong> has no git checkout on this machine, so there is no project file to change. Pick one below.`
-        : 'Pick a project to change its settings, or use the project selector.'),
-      card(null, null, lines(known.map((p) => ({ t: esc(p.name), s: `<span class="mono">${esc(p.id)}</span>`,
-        go: SH('project', null, { project: p.inventory }) })), 'No project with a checkout on this machine yet.')),
-    ].join('');
+        ? `<strong>${esc(scopeName())}</strong> has no git checkout on this machine, so there is no project file to change. Pick another project on the right.`
+        : 'Pick a project on the right to change its settings.'),
+    ].join('')}</div>${rail}</div>`;
   }
-  const file = scope === 'project' ? d.project : d.user;
-  const groups = [...new Set(d.fields.map((f) => f.group))];
-  const setHere = Object.keys(file.set).length;
-  return [
-    pageHead(scope === 'project' ? `${esc(d.project.name)} settings` : W,
-      [`<span class="mono">${esc(file.path)}</span>`, `${setHere} set here`], about),
-    d.problem ? nextStep(`<strong>A config file is not being read.</strong> ${esc(d.problem)}`) : '',
-    ...groups.map((g) => card(g, null, d.fields.filter((f) => f.group === g).map((f) => settingRow(f, d, scope)).join(''))),
-    fold(`settings:${scope}:cli`, 'Changed from the terminal', plural(d.cli_only.length, 'setting'),
+
+  const tabBar = `<nav class="sw__tabs" aria-label="Setting categories">${tabs.map((t) =>
+    `<a class="sw__tab" href="${esc(SH(page, tabParam(t.id)))}"${t.id === here.id ? ' aria-current="page"' : ''}>${esc(t.label)}${t.n ? `<i title="${t.n} set in this scope">${t.n}</i>` : ''}</a>`).join('')}</nav>`;
+
+  let body;
+  if (here.id === 'terminal') {
+    body = card('Changed from the terminal', 'These send work off this machine or run a command, so they stay a typed command: eklavya config set <key> <value>.',
       lines(d.cli_only.map((c) => ({ t: `<code>${esc(c.key)}</code>`, s: esc(c.why),
-        v: `<span class="mono">${esc(showValue(file.effective[c.key]))}</span>` }))),
-      { hint: 'These send work off this machine or run a command, so they stay a typed command: eklavya config set <key> <value>.' }),
-  ].join('');
+        v: `<span class="mono">${esc(showValue(file.effective[c.key]))}</span>` }))));
+  } else if (here.id === 'changed') {
+    const tabOf = (k) => { const f = d.fields.find((x) => x.key === k); return f ? swTab(f.group) : 'terminal'; };
+    body = card(`Set ${scope === 'project' ? 'for this project' : 'by you'}`,
+      scope === 'project' ? 'Everything else inherits from user settings.' : 'Everything else is the default.',
+      lines(Object.keys(file.set).map((k) => ({ t: `<code>${esc(k)}</code>`,
+        s: scope === 'project' ? esc(`user: ${showValue(d.user.effective[k])}`) : '',
+        v: `<span class="mono">${esc(showValue(file.set[k]))}</span>`, go: SH(page, tabParam(tabOf(k))) })),
+        scope === 'project' ? 'This project overrides nothing; user settings apply.' : 'Nothing set: every setting is at its default.'));
+  } else {
+    body = `<section class="card sw__list" aria-label="${esc(here.label)} settings">${here.fields.map((f) => settingRow(f, d, scope)).join('')}</section>`;
+  }
+
+  return `<div class="sw"><div class="sw__pane">${[
+    pageHead(scope === 'project' ? `${esc(d.project.name)} settings` : 'User settings',
+      [`<span class="mono">${esc(file.path)}</span>`, `${Object.keys(file.set).length} set here`], about),
+    d.problem ? nextStep(`<strong>A config file is not being read.</strong> ${esc(d.problem)}`) : '',
+    tabBar,
+    body,
+  ].join('')}</div>${rail}</div>`;
 }
 
 /* ============================================================
@@ -3736,30 +3836,7 @@ function fbDelete(btn) {
 
 function viewSettings(scope) {
   fill('settings', settingsUrl(), (d) => drawSettings(d, scope));
-  return `<div class="stack" id="settings">${loader('Reading your settings…')}</div>`;
-}
-
-function viewSettingsHome() {
-  fill('settings', settingsUrl(), (d) => {
-    SETS = d;
-    const proj = d.project;
-    const overrides = proj ? Object.keys(proj.set).filter((k) => !d.global_only.includes(k)) : [];
-    return [
-      pageHead('Settings', [plural(Object.keys(d.user.set).length, 'user setting'),
-        proj ? `${plural(overrides.length, 'project setting')} in ${esc(proj.name)}` : 'no project selected'],
-        `Two files, one precedence: the project's file wins over yours, key by key, and anything neither sets is the
-         default. The terminal writes the same files — <code>eklavya config get</code> shows what is in force.`),
-      card(null, null, lines([
-        { t: 'User settings', s: `<span class="mono">${esc(d.user.path)}</span>`, v: esc(`${Object.keys(d.user.set).length} set`), go: SH('user') },
-        { t: 'Project settings', s: proj ? `<span class="mono">${esc(proj.path)}</span>` : 'choose a project',
-          v: proj ? esc(`${overrides.length} set`) : '', go: SH('project') },
-      ])),
-      proj && overrides.length ? card(`What ${proj.name} changes`, null, lines(overrides.map((k) => ({
-        t: `<code>${esc(k)}</code>`, s: esc(`user: ${showValue(d.user.effective[k])}`),
-        v: `<span class="mono">${esc(showValue(proj.set[k]))}</span>`, go: SH('project') })))) : '',
-    ].join('');
-  });
-  return `<div class="stack" id="settings">${loader('Reading your settings…')}</div>`;
+  return `<div id="settings">${loader('Reading your settings…')}</div>`;
 }
 
 /** Reads a control back into the value its field stores. */
@@ -3914,13 +3991,11 @@ const WORKFLOWS = {
   },
   settings: {
     name: 'Settings',
-    groups: [
-      { id: 'scopes', label: 'Scopes', items: ['user', 'project'] },
-    ],
+    groups: [],
     pages: {
-      dashboard: { label: 'Overview', view: () => viewSettingsHome() },
-      user:      { label: 'User', view: () => viewSettings('user') },
-      project:   { label: 'Project', view: () => viewSettings('project') },
+      dashboard: { label: 'Preferences', view: () => viewSettings('user') },
+      user:      { parent: 'dashboard', view: () => viewSettings('user') },
+      project:   { parent: 'dashboard', view: () => viewSettings('project') },
     },
   },
 };

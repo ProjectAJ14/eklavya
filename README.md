@@ -110,7 +110,7 @@ each page sits centred beside the sidebar. It has five parts:
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Feedback | Offered in the first-install walk while memory records, preselected on. Upgrades and non-interactive installs keep your stored value, which starts off (`feedback.enabled`; it needs memory and an observer model): one reviewed prompt of yours at a time, against the 4D framework, with a better version. The next waits until you acknowledge or delete the waiting one, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
-| Settings | Your settings and each project's, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
+| Settings | A switchboard: your settings first, each project's beside them, one tab per category, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.
 
