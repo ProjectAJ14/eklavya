@@ -1,3 +1,10 @@
+# [1.58.0](https://github.com/ProjectAJ14/eklavya/compare/v1.57.0...v1.58.0) (2026-10-09)
+
+
+### Features
+
+* **cli:** add --version, show it in the session greeting, theme all CLI output ([#150](https://github.com/ProjectAJ14/eklavya/issues/150)) ([3d47791](https://github.com/ProjectAJ14/eklavya/commit/3d4779157697c9225751e9286c9af798e3b2bc6a))
+
 # [1.57.0](https://github.com/ProjectAJ14/eklavya/compare/v1.56.0...v1.57.0) (2026-10-09)
 
 
