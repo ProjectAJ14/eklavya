@@ -70,7 +70,7 @@ An **observation** summarises a batch of evidence into a title, narrative, facts
 
 The default `local-v1` summariser makes no network calls. It extracts and counts what evidence says rather than inferring why a change happened; its observations carry confidence 0.5. Types include `bugfix`, `refactor`, `decision`, `feature`, `discovery`, `change` and explicit `note`.
 
-An optional `providers.observer` uses a Claude model through `claude -p` and your Claude Code login. This sends captured work to the model. Hooks queue the work and return without waiting.
+An optional `providers.observer` uses a Claude model through `claude -p` and your Claude Code login. This sends captured work to the model. A first install that keeps prompt feedback on sets it to `claude-haiku-4-5`; choose `off` on that step to keep summaries local. Hooks queue the work and return without waiting.
 
 The model is told to record what was learned, built, fixed, decided or configured rather than what the agent was doing, and to skip routine operations such as status checks with nothing to report, clean installs and searches that found nothing. It writes one observation per distinct finding, decision or change, up to six per batch, each with at most 12 facts. When it goes past those limits, the extra is trimmed and the rest is kept; only output with the wrong shape fails the batch.
 

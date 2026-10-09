@@ -56,7 +56,7 @@ With [`delegate_work`](/docs/configuration/#every-key) on (the default), Claude 
 
 ### `feedback` — coaching on your own prompts
 
-Off in the config by default, because it spends your Claude subscription on a model call over your own prompts, and an upgrade never turns it on. The first-install walk in a terminal asks once, with `on` preselected, and sets `providers.observer` with it. Turned on, Eklavya reviews one prompt from a finished session in the background and shows it on the dashboard's [Feedback page](/docs/dashboard/#feedback), one item at a time: the next waits until you press **Acknowledge**. It needs `memory.enabled` and an observer model (`providers.observer`); with either off, nothing is generated. It is independent of `quiz.enabled`, and it never changes your mastery or your levels.
+Off in the config by default, because it spends your Claude subscription on a model call over your own prompts, and an upgrade never turns it on. The first-install walk in a terminal asks while memory records, with `on` preselected, and sets `providers.observer` to `claude-haiku-4-5` if it was `local`; an upgrade keeps what you chose. Turned on, Eklavya reviews one prompt from a finished session in the background and shows it on the dashboard's [Feedback page](/docs/dashboard/#feedback), one item at a time: the next waits until you press **Acknowledge**. It needs `memory.enabled` and an observer model (`providers.observer`); with either off, nothing is generated. It is independent of `quiz.enabled`, and it never changes your mastery or your levels.
 
 ### `difficulty` — how hard it may get
 

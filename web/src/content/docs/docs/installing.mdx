@@ -59,10 +59,7 @@ questions and memory do not.
 
 2. **Choose your settings.**
 
-   Use the arrow keys and Enter. Accepting each default gives you skippable
-   questions about concepts, spread through your work, local memory and prompt
-   feedback, which starts on `on` in this walk and sends one of your prompts per
-   session to a model. Choose `off` on its step to send nothing.
+   Use the arrow keys and Enter. The choices start on skippable questions about concepts, spread through your work, memory and prompt feedback. Prompt feedback starts on `on` in this walk and sends one of your prompts per session to a model. Choose `off` on its step to send nothing.
 
    | Setting | Default |
    |---|---|
@@ -71,12 +68,11 @@ questions and memory do not.
    | Cadence | One question at a time during work |
    | Difficulty | Adjusted from your answers |
    | Memory | On |
-   | Memory model | Local processing, no extra model calls |
+   | Memory model | Local processing at first. Keeping prompt feedback on switches it to `claude-haiku-4-5`, so choose `off` on the feedback step to keep memory local. |
    | Prompt feedback | On in the walk (asked once memory is on). It names the model, `claude-haiku-4-5` if you chose local, and sets it as the observer. |
 
    The walk asks the last two only while memory records. Without a terminal
-   (CI, a pipe, the auto-updater) nothing is asked and prompt feedback stays
-   off, as it does for every existing install until you turn it on.
+   (CI, a pipe, the auto-updater) nothing is asked and prompt feedback keeps its stored value, which is off on any install that never turned it on.
 
    You can change these later with [the dials](/docs/dials/), or repeat the walk
    with `eklavya install --settings`. Reinstalling normally keeps your settings.
