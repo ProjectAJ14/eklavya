@@ -18,6 +18,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Memory performance | `node eval/memory-perf.mjs` | None |
 | Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
 | Whether a saved fact changes what a session builds, against memory off and irrelevant memory | `node eval/memory-use-harness.mjs run --plugin <checkout> --label <name>` then `score <run-dir>` | Whole Claude Code sessions |
+| Whether the tutor follows its grading, pacing and handoff rules at one frozen moment of a session | `node eval/conversation-harness.mjs run --root <checkout> --label <name>` | One model call per scenario and trial |
 | Whether sessions delegate building and ask while it runs | `node eval/delegation-harness.mjs run --plugin <checkout> --label <name>` | Whole Claude Code sessions |
 
 Replace `<run>` with a saved run directory. Model-based stages use the configured
@@ -724,12 +725,47 @@ traded one failure for another. The fixture is small next to the live sessions
 that motivated it, so a session's judgement that it is small enough to do inline
 is not always wrong here.
 
+## The conversation eval
+
+`eval/conversation-harness.mjs` measures what `generate` cannot: the rules in
+`grading.md`, `focus-and-level.md` and `agents/tutor.md`, which the question
+eval never loads. Each scenario in `eval/fixtures/conversation/scenarios.json`
+freezes one moment: the plan item, the question already asked and what the
+learner said (a right pick, a miss, a blank, a skip, "this lacks context", a
+defensible alternative, silence) in one of four settings (checkpoint, asked-for
+quiz, panel, parallel tutor). The model gets the pedagogy files from `--root` and
+replies with the tool calls and message it would produce next, as JSON.
+`mcp/src/eval/conversation-score.ts` judges that against rules written as data in
+the scenario: which `record_attempt` outcome and grade, whether a second
+question or a re-plan appeared, whether a parallel tutor's handoff carries the
+`attempt_id`, every option and the notes.
+
+`--root` is a checkout, so a baseline and a candidate run on the same scenarios:
+
+```bash
+cd mcp && npm run build && cd ..
+git worktree add /tmp/tutor-base <base-ref>
+node eval/conversation-harness.mjs run --root /tmp/tutor-base --label baseline --trials 3 --out /tmp/conv-base
+node eval/conversation-harness.mjs run --root "$PWD" --label candidate --trials 3 --out /tmp/conv-cand
+node eval/conversation-harness.mjs score /tmp/conv-cand     # free; re-reads the saved replies
+```
+
+What it cannot show: it is one turn, the model is told which situation it is in
+(a real session has to work that out), tool results are scripted, and each rule
+is a proxy for a behaviour. It catches contract regressions and contradictions
+between files; it does not show that real sessions go well, and a scenario that
+passes says nothing about wording quality. When a scenario fails identically on
+baseline and candidate, suspect the scenario before the prompt: two of the first
+run's failures were fixture defects, not model errors. Unparsed replies and call
+errors are counted and reported, never dropped.
+
 ## Not built yet
 
 The board lists four harnesses. Three are built. The delegation eval above
 is a whole-session harness of the kind described below, scoped to delegation.
 
-- **Loop behaviour** — headless `claude -p` against a pinned public repo,
+- **Loop behaviour** — (the conversation eval above covers single frozen turns;
+  this is the whole loop) headless `claude -p` against a pinned public repo,
   asserting one checkpoint per task, exactly one question, and the work resuming
   with no summary. The S321 regression belongs here, and it is the one that
   matters most: the suite proves the *planner* returns one item under

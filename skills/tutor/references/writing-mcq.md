@@ -200,9 +200,10 @@ concept has unmet prerequisites:
 
 - Ask about the prerequisite instead, if it is in the plan — the plan already
   orders foundations first.
-- Otherwise drop the question a tier and make it mechanism-level. "Why this
-  rather than the alternative" is not answerable by someone who does not yet
-  have the alternative.
+- Otherwise ask at `tier_to_ask` (the planner owns the tier) and write the
+  question so it needs no alternative: about what this thing does, not why it
+  beats another. "Why this rather than the alternative" is not answerable by
+  someone who does not yet have the alternative.
 - Say the dependency out loud in your feedback. Knowing *what to learn next* is
   half of what the graph is for.
 

@@ -69,7 +69,7 @@ Read `countAnswered`, `syncGate` and `gateRetryConcepts` before modifying gates:
 - `required` never decreases. Logging caps its hint at
   `min(unmastered, max_questions_per_task)`; `needed` is
   `ceil(required * pass_threshold)`. Return `passed_count` separately.
-- A clean `declined` outcome is excluded from retries. `dont_know` is eligible.
+- A clean `declined` outcome is excluded from retries. `dont_know` is eligible. `invalid` is the tutor's own mistake and never reaches `attempts`: `recordAttemptCore` returns before any scoring, and `invalid_questions` (migration 027) is read only by `hasAskedQuestion`. Keep every scoring, level, gate and schedule query off that table.
   Decline plus feedback is contradictory: the tool returns `outcome_conflict`,
   and legacy contradictory rows remain retryable. Never guess an outcome.
 - A pass needs `outcome` answered (or NULL). `declined`/`dont_know` with grade

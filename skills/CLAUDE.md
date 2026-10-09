@@ -68,7 +68,7 @@ context-saving design.
   The panel instructions live in `tutor/references/panel.md`, not in
   `writing-mcq.md`, so a card question never reads them. The tutor subagent has no
   `present_question` and ignores `"panel"`.
-- Keep `declined` distinct from `dont_know`, MCQ grading capped as the runtime
+- Keep `declined`, `dont_know` and `invalid` (the question's fault, grades nothing) distinct, MCQ grading capped as the runtime
   requires, and one-question/resume behavior intact.
 
 The tutor entry point chooses whether to act and points to required references:

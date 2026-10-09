@@ -1,0 +1,880 @@
+{
+ "version": 1,
+ "question": {
+  "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+  "options": [
+   "A page the user visits cannot forge the Origin of a request it makes",
+   "The Origin header is encrypted so only the server can read it",
+   "The Origin header proves which user is logged in",
+   "Comparing it makes the session cookie expire sooner"
+  ],
+  "correct": 1,
+  "option_notes": [
+   "Names what the header is",
+   "Names how it is stored",
+   "Names what it identifies",
+   "Names an effect on the cookie"
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "correct-checkpoint",
+   "setting": "An [Eklavya checkpoint] hook fired: the plan allowed exactly ONE question (max 1). You already asked it.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner picked: A page the user visits cannot forge the Origin of a request it makes",
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "records_pass",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "answered",
+      "grade": {
+       "min": 3,
+       "max": 4
+      },
+      "format": "mcq"
+     }
+    },
+    {
+     "id": "keeps_key_and_notes",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "correct": "A page the user visits cannot forge the Origin of a request it makes",
+      "option_notes": {
+       "lengthMin": 4
+      }
+     }
+    },
+    {
+     "id": "one_question_only",
+     "kind": "questions",
+     "max": 0
+    },
+    {
+     "id": "no_replan",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "max": 0
+    },
+    {
+     "id": "short_verdict",
+     "kind": "message",
+     "maxSentences": 4,
+     "notEndsWithQuestion": true
+    }
+   ]
+  },
+  {
+   "id": "wrong-checkpoint",
+   "setting": "An [Eklavya checkpoint] hook fired: the plan allowed exactly ONE question (max 1). You already asked it.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner picked: The Origin header is encrypted so only the server can read it",
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "records_miss",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "answered",
+      "grade": {
+       "min": 1,
+       "max": 2
+      }
+     }
+    },
+    {
+     "id": "no_follow_up_question",
+     "kind": "questions",
+     "max": 0
+    },
+    {
+     "id": "no_replan",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "max": 0
+    },
+    {
+     "id": "says_right_answer",
+     "kind": "message",
+     "match": "origin",
+     "maxSentences": 5,
+     "notEndsWithQuestion": true
+    }
+   ]
+  },
+  {
+   "id": "wrong-requested-quiz",
+   "setting": "The developer typed /eklavya:quiz and asked to be quizzed. You asked this question from the plan.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner picked: The Origin header is encrypted so only the server can read it",
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "one_narrower_question",
+     "kind": "questions",
+     "max": 1
+    },
+    {
+     "id": "no_replan_for_follow_up",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "max": 0
+    }
+   ]
+  },
+  {
+   "id": "blank-requested-lesson",
+   "setting": "The developer typed /eklavya:quiz and asked to be quizzed. You asked this question from the plan.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner chose Other and typed: I don't know",
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "records_blank",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "dont_know",
+      "grade": 0,
+      "feedback": {
+       "lengthMin": 200
+      }
+     }
+    },
+    {
+     "id": "teaches_properly",
+     "kind": "message",
+     "minChars": 300
+    },
+    {
+     "id": "no_new_question",
+     "kind": "questions",
+     "max": 0
+    }
+   ]
+  },
+  {
+   "id": "blank-checkpoint",
+   "setting": "An [Eklavya checkpoint] hook fired: the plan allowed exactly ONE question (max 1). You already asked it.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner chose Other and typed: I don't know",
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "records_blank",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "dont_know",
+      "grade": 0
+     }
+    },
+    {
+     "id": "short_reply",
+     "kind": "message",
+     "maxSentences": 6,
+     "notEndsWithQuestion": true
+    },
+    {
+     "id": "no_new_question",
+     "kind": "questions",
+     "max": 0
+    }
+   ]
+  },
+  {
+   "id": "decline",
+   "setting": "An [Eklavya checkpoint] hook fired: the plan allowed exactly ONE question (max 1). You already asked it.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner chose Other and typed: skip, not now",
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "records_decline",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "declined",
+      "grade": 0,
+      "feedback": {
+       "absent": true
+      }
+     }
+    },
+    {
+     "id": "no_lecture",
+     "kind": "message",
+     "maxSentences": 2
+    },
+    {
+     "id": "no_new_question",
+     "kind": "questions",
+     "max": 0
+    }
+   ]
+  },
+  {
+   "id": "missing-context",
+   "setting": "An [Eklavya checkpoint] hook fired: the plan allowed exactly ONE question (max 1). You already asked it.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner chose Other and typed: This question does not have enough context, I never saw the Origin check.",
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "records_invalid",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "invalid"
+     }
+    },
+    {
+     "id": "not_a_blank",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "dont_know"
+     },
+     "max": 0
+    },
+    {
+     "id": "owns_it_and_answers",
+     "kind": "message",
+     "match": "origin",
+     "notEndsWithQuestion": true
+    },
+    {
+     "id": "no_second_question_this_turn",
+     "kind": "questions",
+     "max": 0
+    }
+   ]
+  },
+  {
+   "id": "two-defensible-no-pick",
+   "setting": "The developer typed /eklavya:quiz and asked to be quizzed. You asked this question from the plan.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner chose Other and typed: A and C both look right to me, I can't pick one.",
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "records_invalid",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "invalid"
+     }
+    },
+    {
+     "id": "not_graded_wrong",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "answered",
+      "grade": {
+       "max": 2
+      }
+     },
+     "max": 0
+    }
+   ]
+  },
+  {
+   "id": "defensible-pick",
+   "setting": "An [Eklavya checkpoint] hook fired: the plan allowed exactly ONE question (max 1). You already asked it.",
+   "plan": {
+    "slug": "password-hashing",
+    "name": "Password hashing",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A service stores user passwords. Why does it hash them before saving?",
+    "options": [
+     "So a leaked database does not reveal the passwords themselves",
+     "So a leaked database cannot be used to log in with the stored values directly",
+     "So the passwords take less space in the database",
+     "So the passwords can be decrypted later by an administrator"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what a leak exposes",
+     "Names what a leak allows",
+     "Names a storage effect",
+     "Names who can read them"
+    ]
+   },
+   "learner": "The learner picked: So a leaked database cannot be used to log in with the stored values directly (and wrote in Other: this is the same point as the first option seen from the attacker's side, both are why we hash)",
+   "tool_results": null,
+   "note": "Option 2 is defensible: it also answers the stem, so the question had two right answers.",
+   "rules": [
+    {
+     "id": "graded_as_correct",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "outcome": "answered",
+      "grade": 4
+     }
+    },
+    {
+     "id": "admits_two_answers",
+     "kind": "message",
+     "match": "two|both|also|either"
+    }
+   ]
+  },
+  {
+   "id": "silence-parallel",
+   "setting": "You are the parallel eklavya-tutor agent. You cannot use AskUserQuestion and cannot start other agents. You asked the question below as lettered text.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": null,
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "records_nothing",
+     "kind": "call",
+     "tool": "record_attempt",
+     "max": 0
+    },
+    {
+     "id": "does_not_chase",
+     "kind": "questions",
+     "max": 0
+    }
+   ]
+  },
+  {
+   "id": "parallel-miss-handoff",
+   "setting": "You are the parallel eklavya-tutor agent. You cannot use AskUserQuestion and cannot start other agents. You asked the question below as lettered text.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner replied: B",
+   "tool_results": {
+    "slug": "csrf-origin-check",
+    "recorded_grade": 1,
+    "attempt_id": 412,
+    "explain": {
+     "concept": "csrf-origin-check",
+     "name": "CSRF Origin check",
+     "question": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+     "options": [
+      "A page the user visits cannot forge the Origin of a request it makes",
+      "The Origin header is encrypted so only the server can read it",
+      "The Origin header proves which user is logged in",
+      "Comparing it makes the session cookie expire sooner"
+     ],
+     "option_notes": [
+      "Names what the header is",
+      "Names how it is stored",
+      "Names what it identifies",
+      "Names an effect on the cookie"
+     ],
+     "answer": "The Origin header is encrypted so only the server can read it",
+     "correct": "A page the user visits cannot forge the Origin of a request it makes",
+     "attempt_id": 412,
+     "instruction": "Do not wait for this. Start the eklavya-explainer agent in the background handing it the concept slug, the question, every option, the learner's answer and the right answer, and pass --attempt 412. Tell the learner in one line that they missed it, what the right answer is, and that a page is on its way, then carry on with the task."
+    }
+   },
+   "note": "",
+   "rules": [
+    {
+     "id": "handoff_attempt_id",
+     "kind": "message",
+     "match": "attempt_id[^\\n]*412"
+    },
+    {
+     "id": "handoff_has_every_option",
+     "kind": "message",
+     "match": "cannot forge the Origin.*encrypted so only.*proves which user.*expire sooner"
+    },
+    {
+     "id": "handoff_has_notes",
+     "kind": "message",
+     "match": "Names what the header is"
+    },
+    {
+     "id": "does_not_write_explanation",
+     "kind": "call",
+     "tool": "Agent",
+     "max": 0
+    }
+   ]
+  },
+  {
+   "id": "checkpoint-miss-explainer",
+   "setting": "An [Eklavya checkpoint] hook fired: the plan allowed exactly ONE question (max 1). You already asked it.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": {
+    "stem": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+    "options": [
+     "A page the user visits cannot forge the Origin of a request it makes",
+     "The Origin header is encrypted so only the server can read it",
+     "The Origin header proves which user is logged in",
+     "Comparing it makes the session cookie expire sooner"
+    ],
+    "correct": 1,
+    "option_notes": [
+     "Names what the header is",
+     "Names how it is stored",
+     "Names what it identifies",
+     "Names an effect on the cookie"
+    ]
+   },
+   "learner": "The learner picked: The Origin header is encrypted so only the server can read it",
+   "tool_results": {
+    "slug": "csrf-origin-check",
+    "recorded_grade": 1,
+    "attempt_id": 412,
+    "explain": {
+     "concept": "csrf-origin-check",
+     "name": "CSRF Origin check",
+     "question": "A site sets a session cookie. Why does the server also compare the Origin header on form posts?",
+     "options": [
+      "A page the user visits cannot forge the Origin of a request it makes",
+      "The Origin header is encrypted so only the server can read it",
+      "The Origin header proves which user is logged in",
+      "Comparing it makes the session cookie expire sooner"
+     ],
+     "option_notes": [
+      "Names what the header is",
+      "Names how it is stored",
+      "Names what it identifies",
+      "Names an effect on the cookie"
+     ],
+     "answer": "The Origin header is encrypted so only the server can read it",
+     "correct": "A page the user visits cannot forge the Origin of a request it makes",
+     "attempt_id": 412,
+     "instruction": "Do not wait for this. Start the eklavya-explainer agent in the background handing it the concept slug, the question, every option, the learner's answer and the right answer, and pass --attempt 412. Tell the learner in one line that they missed it, what the right answer is, and that a page is on its way, then carry on with the task."
+    }
+   },
+   "note": "",
+   "rules": [
+    {
+     "id": "starts_explainer",
+     "kind": "call",
+     "tool": "Agent",
+     "where": {
+      "subagent_type": {
+       "regex": "explainer"
+      },
+      "run_in_background": true
+     }
+    },
+    {
+     "id": "explainer_gets_attempt",
+     "kind": "call",
+     "tool": "Agent",
+     "where": {
+      "prompt": {
+       "regex": "412"
+      }
+     }
+    },
+    {
+     "id": "explainer_gets_notes",
+     "kind": "call",
+     "tool": "Agent",
+     "where": {
+      "prompt": {
+       "regex": "Names what the header is"
+      }
+     }
+    },
+    {
+     "id": "no_follow_up_question",
+     "kind": "questions",
+     "max": 0
+    },
+    {
+     "id": "short_and_back_to_work",
+     "kind": "message",
+     "maxSentences": 4,
+     "notEndsWithQuestion": true
+    }
+   ]
+  },
+  {
+   "id": "gate-work-known-concept",
+   "setting": "The session is ENFORCED and the commit gate is open. The learner profile lists this concept as known (mastered in another session). It is on this session's gate list.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "gate_work",
+    "framing": "concept",
+    "presentation": "tool",
+    "answer_position": 1,
+    "asked_before": [],
+    "known": true
+   },
+   "asked": null,
+   "learner": null,
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "asks_it_anyway",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  {
+   "id": "ask-on-panel",
+   "setting": "The plan says presentation: \"panel\". The panel is running. Ask the question now.",
+   "plan": {
+    "slug": "csrf-origin-check",
+    "name": "CSRF Origin check",
+    "tier_to_ask": 2,
+    "context": null,
+    "reason": "unmastered",
+    "framing": "concept",
+    "presentation": "panel",
+    "answer_position": 2,
+    "asked_before": [],
+    "known": false
+   },
+   "asked": null,
+   "learner": null,
+   "tool_results": null,
+   "note": "",
+   "rules": [
+    {
+     "id": "uses_present_question",
+     "kind": "call",
+     "tool": "present_question",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "no_card_too",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "max": 0
+    },
+    {
+     "id": "does_not_record",
+     "kind": "call",
+     "tool": "record_attempt",
+     "max": 0
+    },
+    {
+     "id": "answer_at_position",
+     "kind": "call",
+     "tool": "present_question",
+     "where": {
+      "options.1.correct": true
+     }
+    },
+    {
+     "id": "no_verdict_chatter",
+     "kind": "message",
+     "maxSentences": 2
+    }
+   ]
+  }
+ ]
+}
