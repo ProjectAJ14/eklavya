@@ -29,5 +29,6 @@ describe('token accounting', () => {
     expect(recalledLine(1, 500)).toBe('Memory · 1 past entry recalled (~500 tokens)');
     expect(recalledLine(3, 2500, 1)).toBe('Memory · 3 past entries + 1 title recalled (~2.5k tokens)');
     expect(recalledLine(2, 10, 4)).toBe('Memory · 2 past entries + 4 titles recalled (~10 tokens)');
+    expect(recalledLine(5, 2300, 35, 88)).toBe('Memory · 5 past entries + 35 titles recalled (~2.3k tokens) · ~88% less context');
   });
 });

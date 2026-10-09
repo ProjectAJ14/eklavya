@@ -718,6 +718,10 @@
     .fb__actions > button, .fb__actions a { flex:1 1 100%; min-height:44px; }
     .fb__ask > button { flex:1 1 40%; min-height:44px; }
   }
+  .starts__more > summary { cursor:pointer; color:var(--dim); font-size:13px; padding:var(--space-2) 0; }
+  .starts__more > summary:hover { color:var(--spot); }
+  .starts__more > summary:focus-visible { outline:none; box-shadow:var(--ring); }
+  .starts__more[open] > summary { margin-bottom:var(--space-2); }
   .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 
   /* One line per item: a name, a quiet second line, and one number on the right. */
@@ -1273,14 +1277,18 @@ function startCommand(concepts, into = null) {
   }).sort((a, b) => b.count - a.count);
 }
 
-/** The commands as copyable blocks under one heading, or nothing. */
+/** The commands as copyable blocks under one heading, or nothing. Past `START_SHOWN` the rest fold into a native <details>. */
+const START_SHOWN = 3;
 function startBlocks(title, cmds) {
   if (!cmds.length) return '';
-  return `<section class="starts"><div class="head"><h2>${esc(title)}</h2></div>`
-    + cmds.map((x) => `<div class="next start">
+  const block = (x) => `<div class="next start">
         <p><strong>${esc(x.name)}</strong> · ${x.count} due</p>
         <div class="cmd"><code>${esc(x.command)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div>
-        ${x.note ? `<p class="cmd__note">${esc(x.note)}</p>` : ''}</div>`).join('')
+        ${x.note ? `<p class="cmd__note">${esc(x.note)}</p>` : ''}</div>`;
+  const rest = cmds.slice(START_SHOWN);
+  return `<section class="starts"><div class="head"><h2>${esc(title)}</h2></div>`
+    + cmds.slice(0, START_SHOWN).map(block).join('')
+    + (rest.length ? `<details class="starts__more"><summary>Show ${rest.length} more · ${rest.reduce((n, x) => n + x.count, 0)} due</summary>${rest.map(block).join('')}</details>` : '')
     + `<p class="cmd__note">Each run asks up to your questions-per-task limit, weakest first. Run it again for the rest.</p>
       <span class="sr" id="copy-live" aria-live="polite"></span></section>`;
 }

@@ -92,7 +92,8 @@ async function whereAmI($: EngineInterface) {
     $.session.surfaces(),
     $.session.version(),
   ])
-  return { session_id: sessionId, cwd, host: { surface: surfaces[0] ?? 'terminal', version: version.version } }
+  // A session opened without a folder may report no directory; the server reads that as no project.
+  return { session_id: sessionId, cwd: cwd ?? '', host: { surface: surfaces[0] ?? 'terminal', version: version.version } }
 }
 
 /**

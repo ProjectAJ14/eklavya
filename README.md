@@ -71,7 +71,7 @@ notes to check against the code.
 | Captures your work | Saves prompts, file edits and tool calls as you work. | [What gets captured](https://eklavya-run.web.app/docs/memory/#what-gets-captured) |
 | Hides secrets | Skips files like `.env` and keys, even when a read or edit of one fails. Removes tokens and passwords before saving or trimming. | [What is never captured](https://eklavya-run.web.app/docs/memory/#what-is-never-captured) |
 | Writes summaries | Groups work into observations and session summaries, on your machine. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
-| Recalls history | Gives Claude past work and where the last session left off at session start, on related prompts, and before it reads a file with history. On prompts and on a resume it skips entries the current session wrote, which Claude already has. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |
+| Recalls history | Gives Claude past work and where the last session left off at session start, on related prompts, and before it reads a file with history. On prompts and on a resume it skips entries the current session wrote, which Claude already has. The session banner shows the estimated context saved. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |
 | Search and notes | Ask `/eklavya:memory` about a past change, save a note or fix a wrong entry. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyamemory) |
 | Shows the savings | Estimates how much smaller recall is than the raw history, counting recall a hook sent. Calls to the memory search and read tools are logged locally. | [Savings](https://eklavya-run.web.app/docs/memory/#what-the-savings-percentage-measures) |
 | Imports Claude Mem | Brings in your history from Claude Mem. | [Migrating](https://eklavya-run.web.app/docs/migrating/) |
@@ -106,7 +106,7 @@ each page sits centred beside the sidebar. It has five parts:
 
 | Part | What you can see | Read more |
 |---|---|---|
-| Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, reviews due with a command to start them (each run asks the weakest first), weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
+| Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, reviews due with a command per project to start them, the top three shown (each run asks the weakest first), weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Feedback | Off until you turn on `feedback.enabled` (it also needs memory and an observer model): one reviewed prompt of yours at a time, against the 4D framework, with a better version. The next waits until you press Acknowledge, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
@@ -123,7 +123,7 @@ questions off and keep memory on.
 |---|---|---|
 | `quiz.enabled` | `true`: ask questions | `false`: no questions |
 | `quiz.enforced` | `false`: commit freely | `true`: pass a quiz before a commit |
-| `quiz.panel` | `false`: Claude's question card | `true`: experimental side panel on the Claude Code terminal CLI and Desktop Code tab, one bordered card per option (spaced apart and padded, with a bold question, on the desktop app) |
+| `quiz.panel` | `false`: Claude's question card | `true`: experimental side panel on the Claude Code terminal CLI and Desktop Code tab, one bordered card per option (spaced apart and padded, with a bold question, on the desktop app); not in Cowork, which keeps the card |
 | `focus` | `concept`: the idea behind the code | `project`: this codebase · `learn`: a topic you pick |
 | `cadence` | `as-you-go`: during the task | `end`: after the task |
 | `difficulty` | `auto`: grows with you | `easy`, `medium` or `hard` |

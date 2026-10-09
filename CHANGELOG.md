@@ -1,3 +1,24 @@
+# [1.55.0](https://github.com/ProjectAJ14/eklavya/compare/v1.54.3...v1.55.0) (2026-10-09)
+
+
+### Features
+
+* **dashboard:** fold review command blocks past the third project ([#144](https://github.com/ProjectAJ14/eklavya/issues/144)) ([7d1232c](https://github.com/ProjectAJ14/eklavya/commit/7d1232ca2696f4cba21484d5f18fc3908c654079)), closes [#123](https://github.com/ProjectAJ14/eklavya/issues/123)
+
+## [1.54.3](https://github.com/ProjectAJ14/eklavya/compare/v1.54.2...v1.54.3) (2026-10-08)
+
+
+### Bug Fixes
+
+* **panel:** sign card questions with [Eklavya], and report in from a session with no folder ([#143](https://github.com/ProjectAJ14/eklavya/issues/143)) ([3022059](https://github.com/ProjectAJ14/eklavya/commit/30220590594ecc387e80b833520d69c7be91a8a6))
+
+## [1.54.2](https://github.com/ProjectAJ14/eklavya/compare/v1.54.1...v1.54.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* **panel:** pad the answer cards on the desktop app ([#142](https://github.com/ProjectAJ14/eklavya/issues/142)) ([2f4aef4](https://github.com/ProjectAJ14/eklavya/commit/2f4aef490b4b4681405c16b882554f4af7615fd2))
+
 ## [1.54.1](https://github.com/ProjectAJ14/eklavya/compare/v1.54.0...v1.54.1) (2026-10-08)
 
 

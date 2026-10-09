@@ -231,7 +231,7 @@ describe.skipIf(!posix)('inside the observer, Eklavya is inert', () => {
     hostileClaude();
     const inside = { [OBSERVER_ENV]: '1' };
     const input = { session_id: 'helper', cwd: repo, source: 'startup', prompt: 'p', tool_name: 'Bash', tool_input: { command: 'ls' } };
-    for (const name of ['session-start', 'prompt-submit-nudge', 'subagent-start', 'pre-tool-gate', 'capture-tool', 'checkpoint-quiz', 'stop-quiz-check']) {
+    for (const name of ['session-start', 'prompt-submit-nudge', 'subagent-start', 'pre-tool-gate', 'capture-tool', 'checkpoint-quiz', 'stop-quiz-check', 'ask-label']) {
       const direct = hook(name, input, inside);
       expect(direct.status).toBe(0);
       expect(direct.stdout).toBe('');
