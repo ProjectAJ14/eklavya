@@ -195,7 +195,7 @@ describe('an open question', () => {
   });
 });
 
-const LABELS = ['Tokens are checked by the server', 'Cookies are signed', 'The origin is compared', 'The body is hashed'];
+const LABELS = ['Tokens are checked server side', 'Cookies are signed by it', 'The origin is compared', 'The body is hashed'];
 function options(slug: string) {
   const at = answerPosition(slug, 0) - 1;
   let d = 0;

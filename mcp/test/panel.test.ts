@@ -51,7 +51,7 @@ afterEach(() => {
   process.env = { ...envBackup };
 });
 
-const LABELS = ['Tokens are checked by the server', 'Cookies are signed', 'The origin is compared', 'The body is hashed'];
+const LABELS = ['Tokens are checked server side', 'Cookies are signed by it', 'The origin is compared', 'The body is hashed'];
 
 /** Four options with the right one where the planner would put it. */
 function options(slug = SLUG, askedCount = 0, labels = LABELS) {
@@ -104,6 +104,23 @@ const wrongId = (n: number) => {
   const ids = ['o1', 'o2', 'o3', 'o4'].filter((i) => i !== correctId());
   return ids[n]!;
 };
+
+describe('present_question: conspicuous options', () => {
+  const lopsided = () =>
+    options().map((o, i) => ({
+      ...o,
+      description: i === 0 ? 'It checks a value the browser adds itself and a page cannot set, so a forged request fails' : 'Compares a value',
+    }));
+  it('sends a lopsided question back once, stores nothing, then presents it as written', () => {
+    const first = present({ options: lopsided() });
+    expect(first.error).toBe('conspicuous_options');
+    expect(db.prepare('SELECT COUNT(*) AS n FROM panel_questions').get()).toEqual({ n: 0 });
+    expect(present({ options: lopsided() }).status).toBe('presented');
+  });
+  it('presents a rewritten question straight away', () => {
+    expect(present().status).toBe('presented');
+  });
+});
 
 describe('present_question', () => {
   it('stores a pending row and returns at once without writing any learning', () => {

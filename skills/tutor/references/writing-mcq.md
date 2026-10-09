@@ -95,18 +95,25 @@ Before asking, read each distractor as if it were the key: if a senior reviewer
 could argue for it, narrow the stem ("why *here*", "what does *this line*
 prevent") until it cannot, or replace it with a different row.
 
-**4. One clause of `description` per option.** This is where a near-miss earns
-its place — the sentence that makes the wrong answer tempting.
+**4. One neutral clause of `description` per option.** The learner reads it
+before answering, so it says what the option *does or claims*, never whether it
+is right, why it is tempting or which misconception it is. "Tempting because…",
+"a common mistake" and "this is why it works" are feedback, and feedback comes
+after the answer.
 
-The parity rule from step 2 holds here too, and this is where it usually
-breaks: the correct option gets the careful sentence that explains the
-mechanism, and each distractor gets a few throwaway words. A learner reads that
-as the answer without reading the claim. Give every description the same
-weight — one clause of similar length, none standing out as the longest or the
-shortest — and spend the effort on the distractors: each one says why it is
-tempting, as specifically as the correct one says why it holds. Overcorrecting
-is a tell too: if the right answer's note is never the longest, a learner
-learns to rule the longest one out.
+Judge parity on what is on screen: the label and its description together. Give
+every option the same grammar, the same number of claims and the same kind of
+detail. Do not keep the mechanism, the example or the caveat for the correct
+one. Bring the short ones up with real content, never filler; if a distractor
+cannot reach the length honestly, the stem is too thin to have a near miss. The
+correct option should not be the longest, and it should not be systematically
+the shortest either: that is a tell in the other direction. The server and the
+`ask-label` hook send back an option that outruns the next by a few words, or
+whose description explains itself, once; rewrite it and ask again.
+
+The reasoning behind each option goes in `option_notes` when you record the
+attempt (the card path) and in the panel's `explanation` (the panel path), both
+shown only after the answer.
 
 **5. Placement.** The plan gives each question an `answer_position`, 1 to 4. Put
 the correct option in that slot. Left to your own judgement you will put the
@@ -157,9 +164,8 @@ telling you which part to rebuild.
 - All four options are within a few words of the same length and use the same
   grammar. A visibly longer or more careful option reads as the correct one, and
   gets picked without engaging — the same leak as always answering first.
-- The four descriptions are within a few words of each other too, and the
-  correct option's is no more careful than the rest. Each distractor's says why
-  it is tempting, not just that it is wrong.
+- Each option, label plus description, is within a few words of the others, and
+  no description says why an option is right, wrong or tempting.
 - Each of the three wrong options came from a different row of the table above.
 - Only the correct option answers the stem; no expert could argue for another.
 - The correct option sits at `answer_position`.
@@ -204,8 +210,9 @@ concept has unmet prerequisites:
 
 `record_attempt` with `format: "mcq"`, `options` as the labels you offered,
 `answer` as the one they picked, `correct` as the right option's label
-verbatim, `option_notes` as the `description` you wrote under each option (same
-order as `options`), and `question` as the **stem only**.
+verbatim, `option_notes` as what you want shown under each option after the answer (same
+order as `options`; the reasoning each option earns, which the neutral
+`description` left out), and `question` as the **stem only**.
 
 `correct` and `option_notes` are what let the learner correct a missed answer
 from its explainer page: the dashboard grades the new pick against `correct`

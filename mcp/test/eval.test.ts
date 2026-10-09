@@ -12,6 +12,7 @@ import {
   LENGTH_MARGIN_WORDS,
   type GeneratedQuestion,
 } from '../src/eval/question-checks.js';
+import { visibleOptionProblem } from '../src/eval/question-checks.js';
 import { extractJson } from '../src/eval/extract-json.js';
 
 /** A question that passes everything, to vary one property at a time. */
@@ -461,5 +462,43 @@ describe('extractJson: nested objects', () => {
   it('handles a nested wrapper inside narration', () => {
     const reply = 'Here you go:\n\n{"outer":{"inner":{"deep":1}}}\n\nHope that helps.';
     expect(extractJson(reply)).toEqual({ outer: { inner: { deep: 1 } } });
+  });
+});
+
+describe('visibleOptionProblem', () => {
+  const plain = (label: string, description: string) => ({ label, description });
+  // The shape from the issue: a detailed correct label against terse distractors.
+  it('flags an option whose label and description outrun the others', () => {
+    const msg = visibleOptionProblem([
+      plain('Keeps the cookie from other origins', 'Limits where it is sent'),
+      plain('The server stores the session and the browser keeps only an opaque identifier', 'The cookie holds a reference rather than the data, so nothing readable travels'),
+      plain('Encrypts the value', 'Hides it from scripts'),
+      plain('Expires it quickly', 'Shortens the window'),
+    ]);
+    expect(msg).toMatch(/option 2 is \d+ visible words/);
+  });
+  it('passes options of similar visible length whichever is longest', () => {
+    expect(
+      visibleOptionProblem([
+        plain('The server stores the session state', 'The browser holds only an identifier for it'),
+        plain('The browser stores the session state', 'The server trusts a signed copy it receives'),
+        plain('A shared cache stores the session state', 'Every server instance reads the same entry'),
+        plain('The session state travels in the URL', 'Each request carries the whole session along'),
+      ]),
+    ).toBeNull();
+  });
+  it('flags a description that explains itself before the answer', () => {
+    expect(
+      visibleOptionProblem([
+        plain('Sets a flag', 'Tempting because it sounds like encryption'),
+        plain('Signs it', 'Adds a signature to it'),
+        plain('Hides it', 'Keeps it from scripts'),
+        plain('Shortens it', 'Lowers its lifetime'),
+      ]),
+    ).toMatch(/option 1's description explains the option/);
+  });
+  it('says nothing about short tokens, a missing description or no options', () => {
+    expect(visibleOptionProblem([{ label: 'O(1)' }, { label: 'O(n log n)' }, { label: 'O(n)' }, { label: 'O(n^2)' }])).toBeNull();
+    expect(visibleOptionProblem([])).toBeNull();
   });
 });
