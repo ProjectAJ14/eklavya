@@ -13,6 +13,7 @@ import { projectKey } from '../src/store.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cliPath = path.join(mcpRoot, 'dist', 'cli.js');
+const ownVersion = JSON.parse(fs.readFileSync(path.join(mcpRoot, 'package.json'), 'utf8')).version as string;
 
 let dbFile = '';
 let home = '';
@@ -20,7 +21,7 @@ let repo = '';
 let claudeDir = '';
 let runtimeDir = '';
 
-function eklavya(args: string[], cwd = repo, input?: string) {
+function eklavya(args: string[], cwd = repo, input?: string, extraEnv: Record<string, string> = {}) {
   const res = spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
     input,
@@ -34,6 +35,7 @@ function eklavya(args: string[], cwd = repo, input?: string) {
       // and its exit code depends on whose machine the suite is running on.
       EKLAVYA_RUNTIME: runtimeDir,
       CLAUDE_CONFIG_DIR: claudeDir,
+      ...extraEnv,
     },
   });
   return { status: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
@@ -960,6 +962,22 @@ describe('eklavya misc', () => {
     const res = eklavya([]);
     expect(res.status).toBe(0);
     expect(res.stdout).toMatch(/Usage:/);
+  });
+
+  it('prints its version for --version and -v', () => {
+    for (const flag of ['--version', '-v']) {
+      const res = eklavya([flag]);
+      expect(res.status).toBe(0);
+      expect(res.stdout.trim()).toBe(ownVersion);
+    }
+  });
+
+  it('themes usage, the version and a failure when colour is on, and only then', () => {
+    const on = { FORCE_COLOR: '1', EKLAVYA_FORWARDED: '1' };
+    expect(eklavya(['--help'], repo, undefined, on).stdout).toContain('\x1b[1mUsage:\x1b[22m');
+    expect(eklavya(['-v'], repo, undefined, on).stdout).toMatch(/\x1b\[[^m]*m\d+\.\d+\.\d+\x1b\[39m/);
+    expect(eklavya(['telemetry', 'bogus'], repo, undefined, on).stderr).toContain('\x1b[');
+    expect(eklavya(['--help']).stdout).not.toContain('\x1b[');
   });
 
   it('exits non-zero on an unknown command', () => {

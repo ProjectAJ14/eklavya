@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { ownVersion } from '../src/dashboard-daemon.js';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -354,7 +355,7 @@ describe('SessionStart output', () => {
     expect(res.status).toBe(0);
     const lines = res.shown.split('\n');
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toBe('Eklavya active · concept · as-you-go · easy (0/100)');
+    expect(lines[0]).toBe(`Eklavya active · v${ownVersion()} · concept · as-you-go · easy (0/100)`);
     expect(lines[1]).toMatch(/^Learning \d+ · Mastered \d+ · Due \d+$/);
     expect(lines[2]).toMatch(
       /Dashboard (http:\/\/127\.0\.0\.1:\d+ · Observations \S+#\/memory|& observations: eklavya dashboard)/,
@@ -527,7 +528,7 @@ describe('SessionStart output', () => {
     const res = sessionStart();
     // On screen, not in context: the line exists so a quiet install does not
     // look broken, and plain SessionStart stdout is something only the model reads.
-    expect(res.shown).toMatch(/^Eklavya active · memory on · questions off$/m);
+    expect(res.shown).toMatch(/^Eklavya active · v\S+ · memory on · questions off$/m);
     expect(res.shown).not.toMatch(/^Learning \d/m);
     expect(res.context).not.toMatch(/questions off/);
   });

@@ -16,7 +16,7 @@ import { GLOBAL_PROJECT, projectKey } from './store.js';
 import { missingProjects, moveProject } from './relocate.js';
 import { claudeHome } from './install.js';
 import { guessProjectMap } from './claude-mem.js';
-import { spin } from './theme.js';
+import { bold, dim, failText, paint, spin, styleUsage } from './theme.js';
 import { importOffThread } from './memory/import-worker.js';
 import {
   isInternalObserver, releaseWorker, renewWorker, reserveWorker, stopWorker, workerStatus, type StopOutcome,
@@ -58,9 +58,12 @@ import {
   type FieldDisposition,
 } from './memory/import.js';
 
+/** A `label:   value` row with its label dim; a line without that shape is returned as it is. */
+const kv = (line: string) => line.replace(/^(\s*[a-z][a-z ]*:)(\s+)(?=\S)/, (_m, k: string, gap: string) => `${dim(k)}${gap}`);
+
 /** The same as `cli.ts`'s: importing that one would run its `main()`. */
 function fail(message: string): never {
-  process.stderr.write(`${message}\n`);
+  process.stderr.write(`${failText(message)}\n`);
   process.exit(1);
 }
 
@@ -196,7 +199,7 @@ function memoryStatus(): void {
         queue.quarantined ? ` · ${queue.quarantined} quarantined` : ''
       }`,
       `oldest job: ${queue.oldest ?? '—'}`,
-      ...(pauseLine(db) ? [`paused:     ${pauseLine(db)} — fix it, then: eklavya memory process`] : []),
+      ...(pauseLine(db) ? [`paused:     ${paint.warn(`${pauseLine(db)} — fix it, then: eklavya memory process`)}`] : []),
       `worker:     ${workerLine(db)}`,
       // Named separately from the summarizer because they answer different
       // questions: one is "will anything leave this machine", the other is
@@ -212,7 +215,7 @@ function memoryStatus(): void {
       `reads:      ${readLine(readTotals(db))}`,
       savingsLine(savings),
     ];
-    process.stdout.write(`${lines.join('\n')}\n`);
+    process.stdout.write(`${lines.map(kv).join('\n')}\n`);
   } finally {
     db.close();
   }
@@ -237,15 +240,16 @@ function memorySearch(argv: string[]): void {
       limit: numberFlag(argv, '--limit', 10),
     });
     if (!hits.length) {
-      process.stdout.write('No matches.\n');
+      process.stdout.write(`${dim('No matches.')}\n`);
       return;
     }
     for (const hit of hits) {
       process.stdout.write(
-        `#${hit.entry.id}  ${hit.entry.occurred_at.slice(0, 16).replace('T', ' ')}  ${hit.entry.title}\n` +
-          `     ${hit.entry.type ?? hit.entry.kind} · score ${hit.score.toFixed(3)} · ${hit.via}${
+        `${paint.aged(`#${hit.entry.id}`)}  ${hit.entry.occurred_at.slice(0, 16).replace('T', ' ')}  ${bold(hit.entry.title)}\n` +
+          dim(`     ${hit.entry.type ?? hit.entry.kind} · score ${hit.score.toFixed(3)} · ${hit.via}${
             hit.entry.import_source ? ` · imported from ${hit.entry.import_source}` : ''
-          }\n`,
+          }`) +
+          '\n',
       );
     }
   } finally {
@@ -262,12 +266,12 @@ function memoryTimeline(argv: string[]): void {
       since: flag(argv, '--since') ?? null,
     });
     if (!rows.length) {
-      process.stdout.write('Nothing recorded for this project yet.\n');
+      process.stdout.write(`${dim('Nothing recorded for this project yet.')}\n`);
       return;
     }
     for (const row of rows) {
       process.stdout.write(
-        `#${row.id}  ${row.occurred_at.slice(0, 16).replace('T', ' ')}  ${row.kind}  ${row.title}\n`,
+        `${paint.aged(`#${row.id}`)}  ${row.occurred_at.slice(0, 16).replace('T', ' ')}  ${dim(row.kind)}  ${row.title}\n`,
       );
     }
   } finally {
@@ -286,7 +290,8 @@ function memoryShow(argv: string[]): void {
 
     const tags = entryTags(db, id);
     const lines = [
-      `#${entry.id}  ${entry.title}`,
+      `${paint.aged(`#${entry.id}`)}  ${bold(entry.title)}`,
+      ...[
       `kind:      ${entry.kind}${entry.type ? ` / ${entry.type}` : ''}`,
       `project:   ${entry.project}`,
       `occurred:  ${entry.occurred_at}`,
@@ -295,15 +300,16 @@ function memoryShow(argv: string[]): void {
       ...(entry.superseded_by ? [`superseded by #${entry.superseded_by}`] : []),
       ...(tags.length ? [`tags:      ${tags.join(', ')}`] : []),
       ...(entry.files ? [`files:     ${(JSON.parse(entry.files) as string[]).join(', ')}`] : []),
+      ].map(kv),
       '',
       entry.narrative || '(no narrative)',
     ];
 
     const facts = entry.facts ? (JSON.parse(entry.facts) as string[]) : [];
-    if (facts.length) lines.push('', 'Facts:', ...facts.map((f) => `  - ${f}`));
+    if (facts.length) lines.push('', bold('Facts:'), ...facts.map((f) => `  - ${f}`));
 
     const events = entryEvents(db, id);
-    lines.push('', `Evidence (${events.length}):`);
+    lines.push('', bold(`Evidence (${events.length}):`));
     for (const event of events) {
       lines.push(
         `  ${event.occurred_at.slice(0, 16).replace('T', ' ')}  ${event.kind}${
@@ -311,7 +317,7 @@ function memoryShow(argv: string[]): void {
         }  ${event.body.slice(0, 120).replace(/\s+/g, ' ')}`,
       );
     }
-    if (!events.length) lines.push('  (none linked — imported or hand-written entries carry no local evidence)');
+    if (!events.length) lines.push(dim('  (none linked — imported or hand-written entries carry no local evidence)'));
 
     process.stdout.write(`${lines.join('\n')}\n`);
   } finally {
@@ -358,7 +364,7 @@ function memoryProcess(argv: string[]): void {
     const holder = workerStatus(db);
     if (!background) {
       process.stdout.write(
-        `another memory worker is running${holder?.pid ? ` (pid ${holder.pid})` : ''} — its queue is this queue, so nothing to do.\n`,
+        dim(`another memory worker is running${holder?.pid ? ` (pid ${holder.pid})` : ''} — its queue is this queue, so nothing to do.`) + '\n',
       );
     }
     db.close();
@@ -403,9 +409,9 @@ function runWorker(
     (result) => {
       if (!background) {
         process.stdout.write(
-          `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}${
-            result.handedOff ? ' · more queued, continuing in the background' : ''
-          }\n`,
+          paint.ok(
+            `${resumed ? `resumed ${resumed} paused · ` : ''}processed ${result.processed} · entries ${result.entries} · failed ${result.failed} · skipped ${result.skipped}`,
+          ) + `${result.handedOff ? dim(' · more queued, continuing in the background') : ''}\n`,
         );
       }
       db.close();
@@ -442,19 +448,23 @@ function memoryBacklog(argv: string[]): void {
     if (action === 'list') {
       const groups = backlogSummary(db, sel);
       if (!groups.length) {
-        process.stdout.write('No unfinished jobs or helper sessions.\n');
+        process.stdout.write(`${dim('No unfinished jobs or helper sessions.')}\n`);
         return;
       }
       for (const g of groups) {
         process.stdout.write(
-          `${String(g.batches).padStart(6)} ${g.status.padEnd(11)} ${g.project}${g.helper ? '  [observer helper sessions]' : ''}\n` +
-            `       ${g.events} events · ${g.oldest.slice(0, 16).replace('T', ' ')} → ${g.newest.slice(0, 16).replace('T', ' ')}\n`,
+          `${String(g.batches).padStart(6)} ${g.status.padEnd(11)} ${g.project}${g.helper ? paint.warn('  [observer helper sessions]') : ''}\n` +
+            dim(`       ${g.events} events · ${g.oldest.slice(0, 16).replace('T', ' ')} → ${g.newest.slice(0, 16).replace('T', ' ')}`) +
+            '\n',
         );
       }
       if (groups.some((g) => g.helper)) {
         process.stdout.write(
-          '\nHelper sessions are the observer summarising its own runs — noise. Delete them, and the memories\n' +
-            'they produced, or set the unfinished ones aside:\n' +
+          dim(
+            '\nHelper sessions are the observer summarising its own runs — noise. Delete them, and the memories\n' +
+              'they produced, or set the unfinished ones aside:',
+          ) +
+            '\n' +
             '  eklavya memory backlog discard --helpers\n  eklavya memory backlog quarantine --helpers\n',
         );
       }
@@ -462,13 +472,13 @@ function memoryBacklog(argv: string[]): void {
     }
     if (!selected) fail(`eklavya memory backlog ${action} needs --helpers, --project <key>, --session <id> or --batch <id>.`);
     if (action === 'quarantine') {
-      process.stdout.write(`quarantined ${quarantineBacklog(db, sel)} job(s) — kept, and never processed until restored.\n`);
+      process.stdout.write(`${paint.ok(`quarantined ${quarantineBacklog(db, sel)} job(s)`)} — kept, and never processed until restored.\n`);
     } else if (action === 'restore') {
-      process.stdout.write(`restored ${restoreBacklog(db, sel)} job(s) to the queue.\n`);
+      process.stdout.write(`${paint.ok(`restored ${restoreBacklog(db, sel)} job(s)`)} to the queue.\n`);
     } else if (action === 'discard') {
       const gone = discardBacklog(db, sel);
       process.stdout.write(
-        `discarded ${gone.batches} batch(es), ${gone.events} evidence event(s) and ${gone.entries} memory entr${gone.entries === 1 ? 'y' : 'ies'}.\n`,
+        `${paint.ok(`discarded ${gone.batches} batch(es), ${gone.events} evidence event(s) and ${gone.entries} memory entr${gone.entries === 1 ? 'y' : 'ies'}`)}.\n`,
       );
     } else {
       fail('Usage: eklavya memory backlog [list|quarantine|discard|restore] [--helpers] [--project <key>] [--session <id>] [--batch <id>]');
@@ -490,7 +500,7 @@ function memoryStop(): void {
     process.stdout.write(stopMessage(outcome));
     if (config.providers.observer) {
       process.stdout.write(
-        'the next session seam starts a new one. To keep it stopped: eklavya config set providers.observer null\n',
+        `${dim('the next session seam starts a new one. To keep it stopped: eklavya config set providers.observer null')}\n`,
       );
     }
     db.close();
@@ -499,12 +509,12 @@ function memoryStop(): void {
 
 /** What `memory stop` says it did. Exported for the outcomes a test cannot stage in time. */
 export function stopMessage(outcome: StopOutcome): string {
-  if (!outcome.stopped) return 'no memory worker is running.\n';
+  if (!outcome.stopped) return `${dim('no memory worker is running.')}\n`;
   return (
-    `stopped the memory worker${outcome.pid ? ` (pid ${outcome.pid})` : ''}${
+    `${paint.ok(`stopped the memory worker${outcome.pid ? ` (pid ${outcome.pid})` : ''}${
       outcome.child ? ` and its claude call (pid ${outcome.child})` : ''
-    }${outcome.forced ? ' — it had to be killed' : ''}. Unfinished jobs stay queued.\n` +
-    (outcome.released ? '' : 'something it started would not exit; the slot stays held until it does.\n')
+    }`)}${outcome.forced ? paint.warn(' — it had to be killed') : ''}. Unfinished jobs stay queued.\n` +
+    (outcome.released ? '' : `${paint.warn('something it started would not exit; the slot stays held until it does.')}\n`)
   );
 }
 
@@ -521,14 +531,14 @@ function memoryReplay(argv: string[]): void {
   try {
     const { config } = loadConfig();
     if (!config.memory.enabled) {
-      process.stdout.write('memory.enabled is false, so there is nowhere to replay into.\n');
+      process.stdout.write(`${paint.warn('memory.enabled is false, so there is nowhere to replay into.')}\n`);
       return;
     }
     const cwd = process.cwd();
     const files = transcriptsFor(cwd);
     if (!files.length) {
       process.stdout.write(
-        `No Claude Code transcripts found for this checkout.\nLooked in: ${transcriptDirFor(cwd)}\n`,
+        `${dim('No Claude Code transcripts found for this checkout.')}\n${dim('Looked in:')} ${paint.aged(transcriptDirFor(cwd))}\n`,
       );
       return;
     }
@@ -545,13 +555,15 @@ function memoryReplay(argv: string[]): void {
     );
     process.stdout.write(
       [
-        `transcripts: ${results.length} of ${files.length}`,
-        `lines read:  ${total.read}`,
-        `captured:    ${total.captured}`,
-        `already had: ${total.duplicates}`,
-        `excluded:    ${total.excluded}  (privacy filter, or capture set to minimal)`,
+        ...[
+          `transcripts: ${results.length} of ${files.length}`,
+          `lines read:  ${total.read}`,
+          `captured:    ${total.captured}`,
+          `already had: ${total.duplicates}`,
+          `excluded:    ${total.excluded}  (privacy filter, or capture set to minimal)`,
+        ].map(kv),
         '',
-        'Run `eklavya memory process` to summarise what was captured.',
+        dim('Run `eklavya memory process` to summarise what was captured.'),
         '',
       ].join('\n'),
     );
@@ -566,7 +578,7 @@ function memoryPrune(): void {
     const { config } = loadConfig();
     if (!config.memory.retention_days) {
       process.stdout.write(
-        'memory.retention_days is not set for this project, so its raw evidence is kept until deleted by hand.\n',
+        `${dim('memory.retention_days is not set for this project, so its raw evidence is kept until deleted by hand.')}\n`,
       );
       return;
     }
@@ -575,7 +587,7 @@ function memoryPrune(): void {
     const project = currentProject();
     const removed = pruneEvidence(db, config, { project });
     process.stdout.write(
-      `Deleted ${removed} raw evidence events older than ${config.memory.retention_days} days in ${project}.\n`,
+      `${paint.ok(`Deleted ${removed} raw evidence events`)} older than ${config.memory.retention_days} days in ${project}.\n`,
     );
   } finally {
     db.close();
@@ -596,10 +608,10 @@ function memoryMove(argv: string[]): void {
       const missing = missingProjects(db);
       process.stdout.write(
         missing.length
-          ? `History filed under folders that no longer exist:\n${missing
+          ? `${bold('History filed under folders that no longer exist:')}\n${missing
               .map((m) => `  ${m.project}  (${m.entries} entries)`)
               .join('\n')}\nRe-file one here: eklavya memory move <old>\n`
-          : 'No history is filed under a folder that no longer exists.\n',
+          : `${dim('No history is filed under a folder that no longer exists.')}\n`,
       );
       return;
     }
@@ -621,8 +633,8 @@ function memoryMove(argv: string[]): void {
     if (!held.n) fail(`No history is filed under ${from}. Run \`eklavya memory move\` to list the folders that have some.`);
     const report = moveProject(db, from, to);
     process.stdout.write(
-      `Moved ${from} → ${to}: ${report.rows} rows re-filed, ${report.entries} memory entries here now.\n` +
-        report.left.map((f) => `Left in place, because ${to} already has one: ${f}\n`).join(''),
+      `${paint.ok(`Moved ${from} → ${to}`)}: ${report.rows} rows re-filed, ${report.entries} memory entries here now.\n` +
+        report.left.map((f) => `${paint.warn(`Left in place, because ${to} already has one: ${f}`)}\n`).join(''),
     );
   } finally {
     db.close();
@@ -635,7 +647,7 @@ function dispositionReport(fields: FieldDisposition[]): string {
   for (const kind of ['mapped', 'dropped', 'unrecognised'] as const) {
     const group = fields.filter((f) => f.kind === kind);
     if (!group.length) continue;
-    lines.push('', `${kind} (${group.length}):`);
+    lines.push('', bold(`${kind} (${group.length}):`));
     for (const f of group) {
       lines.push(`  ${f.table}.${f.field}${f.to ? ` -> ${f.to}` : ''}${f.reason ? `  — ${f.reason}` : ''}`);
     }
@@ -681,7 +693,7 @@ function verifyLines(r: VerifyReport): string[] {
   const missing = r.tables.reduce((n, t) => n + t.missing.length, 0);
   const width = Math.max(0, ...r.projects.map((p) => p.project.length));
   return [
-    `verify:  ${r.sourcePath}`,
+    kv(`verify:  ${r.sourcePath}`),
     ...r.tables.map(
       (t) =>
         `  ${t.table.padEnd(18)} ${String(t.source).padStart(6)} in source · ${String(t.present).padStart(6)} in Eklavya · ${t.missing.length} missing${
@@ -689,7 +701,7 @@ function verifyLines(r: VerifyReport): string[] {
         }`,
     ),
     `  changed since import: ${r.changed} entr${r.changed === 1 ? 'y' : 'ies'}`,
-    'placement:',
+    bold('placement:'),
     ...r.projects.flatMap((p) =>
       Object.entries(p.filedUnder).map(([to, n]) => {
         const placed = path.isAbsolute(to);
@@ -697,8 +709,8 @@ function verifyLines(r: VerifyReport): string[] {
       }),
     ),
     missing
-      ? `INCOMPLETE: ${missing} source row(s) are not in Eklavya — re-run without --verify to import them.`
-      : 'complete: every source row is in Eklavya.',
+      ? paint.fail(`INCOMPLETE: ${missing} source row(s) are not in Eklavya — re-run without --verify to import them.`)
+      : paint.ok('complete: every source row is in Eklavya.'),
   ];
 }
 
@@ -731,15 +743,17 @@ async function memoryImport(argv: string[]): Promise<void> {
     const projectMap = { ...guessProjectMap(source, claudeHome(), unsure), ...explicit };
     for (const name of Object.keys(explicit)) delete unsure[name];
     const unsureLines = Object.entries(unsure).map(
-      ([name, paths]) => `  ${name}: ${paths.length} checkouts carry this name — pick one: --map ${name}=<path>  (${paths.join(', ')})`,
+      ([name, paths]) => paint.warn(`  ${name}: ${paths.length} checkouts carry this name — pick one: --map ${name}=<path>  (${paths.join(', ')})`),
     );
     const lines = [
-      `source:  ${found.sourcePath}`,
-      `schema:  ${found.schemaVersion ?? 'unversioned'} (this importer understands up to ${found.supportedMax})`,
-      `range:   ${found.dateRange.from?.slice(0, 10) ?? '—'} … ${found.dateRange.to?.slice(0, 10) ?? '—'}`,
-      'tables:',
+      ...[
+        `source:  ${found.sourcePath}`,
+        `schema:  ${found.schemaVersion ?? 'unversioned'} (this importer understands up to ${found.supportedMax})`,
+        `range:   ${found.dateRange.from?.slice(0, 10) ?? '—'} … ${found.dateRange.to?.slice(0, 10) ?? '—'}`,
+      ].map(kv),
+      bold('tables:'),
       ...found.tables.map((t) => `  ${t.rows.toString().padStart(7)}  ${t.name}${t.known ? '' : '   (unrecognised)'}`),
-      'projects:',
+      bold('projects:'),
       ...found.projects.map((p) => `  ${p.entries.toString().padStart(7)}  ${p.project}`),
       dispositionReport(found.fields),
     ];
@@ -756,7 +770,7 @@ async function memoryImport(argv: string[]): Promise<void> {
           ...planned.map(([from, to]) => `would map: ${from} -> ${to}`),
           ...(unmapped.length ? [`would keep as-is: ${unmapped.join(', ')}`] : []),
           ...unsureLines,
-          'Dry run: nothing was written, and the source was opened read-only.',
+          dim('Dry run: nothing was written, and the source was opened read-only.'),
           '',
         ].join('\n'),
       );
@@ -775,20 +789,20 @@ async function memoryImport(argv: string[]): Promise<void> {
       process.stdout.write(
         [
           '',
-          `snapshot: ${report.snapshot}`,
+          kv(`snapshot: ${report.snapshot}`),
           ...rows,
-          `  concept candidates: ${report.candidates} (all unassessed — no mastery, no attempts, no gate touched)`,
-          `  evidence links: ${report.links} (drill-down from an entry to the prompts and tool uses behind it)`,
+          `  concept candidates: ${report.candidates} ${dim('(all unassessed — no mastery, no attempts, no gate touched)')}`,
+          `  evidence links: ${report.links} ${dim('(drill-down from an entry to the prompts and tool uses behind it)')}`,
           `  re-indexed: ${report.reindexed} entries`,
           ...(report.rehomed ? [`  re-homed: ${report.rehomed} entries an earlier run left under a bare project name`] : []),
-          `  validation: ${report.validation.ok ? 'ok' : `FAILED — ${report.validation.notes.join('; ')}`}`,
+          `  validation: ${report.validation.ok ? paint.ok('ok') : paint.fail(`FAILED — ${report.validation.notes.join('; ')}`)}`,
           ...report.projectsMapped.map((p) => `  mapped: ${p.from} -> ${p.to}`),
           // The unmapped list is the useful half: those rows only ever surface
           // under --all-projects until somebody maps them.
           ...(report.projectsKept.length
             ? [
                 `  kept as-is: ${report.projectsKept.join(', ')}`,
-                '  (unmapped projects are searchable only with --all-projects; re-run with --map to file them under a checkout)',
+                dim('  (unmapped projects are searchable only with --all-projects; re-run with --map to file them under a checkout)'),
               ]
             : []),
           '',
@@ -829,7 +843,7 @@ function memoryExport(argv: string[]): void {
     fs.writeFileSync(out, `${JSON.stringify(payload, null, 2)}\n`, { encoding: 'utf8', mode: 0o600, flag: force ? 'w' : 'wx' });
     fs.chmodSync(out, 0o600);
     process.stdout.write(
-      `Wrote ${out} — ${(payload.entries as unknown[]).length} entries, schema version ${EXPORT_SCHEMA_VERSION}\n`,
+      `${paint.ok('Wrote')} ${paint.aged(out)} — ${(payload.entries as unknown[]).length} entries, schema version ${EXPORT_SCHEMA_VERSION}\n`,
     );
   } finally {
     db.close();
@@ -853,13 +867,15 @@ function memoryRestore(argv: string[]): void {
     const r = restoreExport(db, path.resolve(from));
     process.stdout.write(
       [
-        `Restored ${from} (export schema version ${r.schemaVersion}):`,
-        `  entries:   ${r.entries.restored} restored, ${r.entries.skipped} already here`,
-        `  evidence:  ${r.evidence.restored} restored, ${r.evidence.skipped} already here`,
-        `  links:     ${r.tags} tag(s), ${r.links} evidence link(s)`,
-        `  receipts:  ${r.receipts.restored} restored, ${r.receipts.skipped} already here (${r.receiptItems} item(s))`,
-        `  reindexed: ${r.reindexed} entries — search index and vectors rebuilt`,
-        'Learning history was not touched: no attempt, mastery or gate row is written by a restore.',
+        `${paint.ok(`Restored ${from}`)} (export schema version ${r.schemaVersion}):`,
+        ...[
+          `  entries:   ${r.entries.restored} restored, ${r.entries.skipped} already here`,
+          `  evidence:  ${r.evidence.restored} restored, ${r.evidence.skipped} already here`,
+          `  links:     ${r.tags} tag(s), ${r.links} evidence link(s)`,
+          `  receipts:  ${r.receipts.restored} restored, ${r.receipts.skipped} already here (${r.receiptItems} item(s))`,
+          `  reindexed: ${r.reindexed} entries — search index and vectors rebuilt`,
+        ].map(kv),
+        dim('Learning history was not touched: no attempt, mastery or gate row is written by a restore.'),
         '',
       ].join('\n'),
     );
@@ -908,7 +924,7 @@ function memorySync(argv: string[]): void {
             : 'none seen yet'
         }`,
       ];
-      process.stdout.write(`${lines.join('\n')}\n`);
+      process.stdout.write(`${lines.map(kv).join('\n')}\n`);
       return;
     }
 
@@ -924,7 +940,7 @@ function memorySync(argv: string[]): void {
     if (sub === 'push') {
       const r = result as ReturnType<typeof push>;
       process.stdout.write(
-        `Pushed to ${r.target} as ${r.device_id}: ${r.staged} new revision${
+        `${paint.ok('Pushed')} to ${r.target} as ${r.device_id}: ${r.staged} new revision${
           r.staged === 1 ? '' : 's'
         }, ${r.written} record${r.written === 1 ? '' : 's'} written, ${r.already} already there.\n`,
       );
@@ -933,7 +949,7 @@ function memorySync(argv: string[]): void {
 
     const r = result as ReturnType<typeof pull>;
     process.stdout.write(
-      `Pulled from ${r.target}: ${r.applied} applied (${r.tombstones} deletion${
+      `${paint.ok('Pulled')} from ${r.target}: ${r.applied} applied (${r.tombstones} deletion${
         r.tombstones === 1 ? '' : 's'
       }), ${r.skipped} already known, ${r.conflicts} quarantined.\n`,
     );
@@ -944,12 +960,12 @@ function memorySync(argv: string[]): void {
     }
     if (r.conflicts) {
       process.stdout.write(
-        'Quarantined versions are kept whole in sync_conflicts — nothing was overwritten.\n',
+        `${paint.warn('Quarantined versions are kept whole in sync_conflicts — nothing was overwritten.')}\n`,
       );
     }
     if (r.stalled.length) {
       process.stdout.write(
-        `Could not read a record from: ${r.stalled.join(', ')} — likely still being written. The next pull reads it.\n`,
+        `${paint.warn(`Could not read a record from: ${r.stalled.join(', ')} — likely still being written. The next pull reads it.`)}\n`,
       );
     }
     if (r.outstanding.length) {
@@ -957,7 +973,7 @@ function memorySync(argv: string[]): void {
         (o) => `${o.device_id} (${o.missing} revision${o.missing === 1 ? '' : 's'}, from ${o.first})`,
       );
       process.stdout.write(
-        `Still owed: ${owed.join(', ')}. Later records were applied; the next pull applies these once they arrive and can be read.\n`,
+        `${paint.warn(`Still owed: ${owed.join(', ')}. Later records were applied; the next pull applies these once they arrive and can be read.`)}\n`,
       );
     }
   } finally {
@@ -999,7 +1015,7 @@ export function memoryCommand(argv: string[]): void {
     case 'sync':
       return memorySync(rest);
     default:
-      process.stderr.write(MEMORY_USAGE);
+      process.stderr.write(styleUsage(MEMORY_USAGE));
       process.exit(1);
   }
 }
