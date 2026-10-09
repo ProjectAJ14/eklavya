@@ -1,0 +1,24 @@
+{
+ "id": "dart-async-await-errors",
+ "title": "Fetching with error handling",
+ "source": "lib/data/api_client.dart",
+ "diff": "Future<User> fetchUser(String id) async {\n  try {\n    final res = await http.get(Uri.parse('$base/users/$id'))\n        .timeout(const Duration(seconds: 5));\n    if (res.statusCode != 200) throw ApiException(res.statusCode);\n    return User.fromJson(jsonDecode(res.body));\n  } on TimeoutException {\n    throw ApiException(408);\n  }\n}",
+ "concepts": [
+  {
+   "slug": "future-timeout",
+   "domain": "dart",
+   "tier": 3,
+   "description": "A timeout on a future does not cancel the underlying work; it only stops waiting for the result and raises an error.",
+   "context": "adds a 5 second timeout to the HTTP call",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "exception-translation",
+   "domain": "api-design",
+   "tier": 3,
+   "description": "Catching a low-level error and rethrowing a domain error keeps callers independent of the transport library.",
+   "context": "turns TimeoutException into the app's own ApiException",
+   "prerequisite_of": []
+  }
+ ]
+}

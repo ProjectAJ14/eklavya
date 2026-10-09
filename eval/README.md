@@ -22,7 +22,17 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Whether sessions delegate building and ask while it runs | `node eval/delegation-harness.mjs run --plugin <checkout> --label <name>` | Whole Claude Code sessions |
 
 Replace `<run>` with a saved run directory. Model-based stages use the configured
-Claude command and can incur usage. These harnesses do not run in CI. Before
+Claude command and can incur usage.
+
+Every harness that calls `claude` records tokens, not just calls (`eval/usage.mjs`; the
+GEPA runner does the same). A call count hides the cost: each `claude -p` call sends
+roughly 34k tokens of Claude Code's own context before your prompt. The question,
+extraction and conversation harnesses run `claude -p --output-format json`, print a
+`tokens:` line when they finish, and save the totals (`usage.json` in a question run
+directory, `usage` in `meta.json`, `usage` in the extraction results file). The session
+harnesses (delegation, memory-use) read each trial's final `result` event into
+`trial.json`'s `usage` and print the run total. Quote these numbers in any published
+result. These harnesses do not run in CI. Before
 publishing a result, include the revision, settings, corpus, limitations and what
 would disprove the conclusion; report unfavorable results too.
 

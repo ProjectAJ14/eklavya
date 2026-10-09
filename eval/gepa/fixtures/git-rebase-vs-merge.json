@@ -1,0 +1,24 @@
+{
+ "id": "git-rebase-vs-merge",
+ "title": "Cleaning up a feature branch",
+ "source": "(workflow)",
+ "diff": "git fetch origin\ngit rebase origin/main\ngit push --force-with-lease origin feature/search",
+ "concepts": [
+  {
+   "slug": "rebase-rewrites-history",
+   "domain": "git",
+   "tier": 3,
+   "description": "Rebasing replays commits onto a new base, creating new commits with new hashes, so anyone who already pulled the old ones diverges.",
+   "context": "rebases a branch that has already been pushed",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "force-with-lease",
+   "domain": "git",
+   "tier": 3,
+   "description": "A lease refuses the push if the remote branch moved since you last fetched, unlike a plain force push that overwrites it.",
+   "context": "uses --force-with-lease instead of --force",
+   "prerequisite_of": []
+  }
+ ]
+}

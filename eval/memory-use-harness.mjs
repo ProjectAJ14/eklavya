@@ -42,6 +42,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import * as usage from './usage.mjs';
 
 const evalDir = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.join(evalDir, 'fixtures', 'memory-use', 'project');
@@ -160,6 +161,13 @@ function prepare(trialDir, plugin, arm) {
   return { repo, home, seeded };
 }
 
+const sessions = [];
+function sessionUsage(trialDir) {
+  const u = usage.fromStream(path.join(trialDir, 'stream.jsonl'));
+  sessions.push(u);
+  return u;
+}
+
 function drive({ cwd, prompt, plugin, env, out, timeoutMs, model }) {
   return new Promise((resolve) => {
     const args = [
@@ -244,12 +252,13 @@ async function runCommand() {
       const res = await drive({ cwd: repo, prompt: arm.prompt, plugin, env, out: path.join(trialDir, 'stream.jsonl'), timeoutMs, model: flag('model') });
       fs.writeFileSync(
         path.join(trialDir, 'trial.json'),
-        JSON.stringify({ arm: name, trial: t, ...res, seconds: Math.round((Date.now() - started) / 1000), seeded, code: name === 'discover' ? null : inspectCode(repo), db: dbFacts(home) }, null, 2),
+        JSON.stringify({ arm: name, trial: t, ...res, usage: sessionUsage(trialDir), seconds: Math.round((Date.now() - started) / 1000), seeded, code: name === 'discover' ? null : inspectCode(repo), db: dbFacts(home) }, null, 2),
       );
       process.stderr.write(`done  ${name}-${t} in ${Math.round((Date.now() - started) / 1000)}s${res.timedOut ? ' (timed out)' : ''}\n`);
     }
   };
   await Promise.all(Array.from({ length: parallel }, worker));
+  process.stderr.write(`${usage.line(usage.sum(sessions))}\n`);
   process.stdout.write(`${outDir}\n`);
 }
 

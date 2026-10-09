@@ -1,0 +1,24 @@
+{
+ "id": "rate-limit-token-bucket",
+ "title": "Limiting API calls",
+ "source": "server/limit.ts",
+ "diff": "export function allow(key: string, now = Date.now()) {\n  const b = buckets.get(key) ?? { tokens: CAP, at: now };\n  b.tokens = Math.min(CAP, b.tokens + ((now - b.at) / 1000) * REFILL_PER_SEC);\n  b.at = now;\n  if (b.tokens < 1) return false;\n  b.tokens -= 1;\n  buckets.set(key, b);\n  return true;\n}",
+ "concepts": [
+  {
+   "slug": "token-bucket",
+   "domain": "api-design",
+   "tier": 3,
+   "description": "A token bucket refills at a steady rate up to a cap, so it allows short bursts while enforcing an average rate.",
+   "context": "refills tokens by elapsed time up to CAP in allow()",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "in-memory-state-limits",
+   "domain": "distributed-systems",
+   "tier": 4,
+   "description": "State held in one process is not shared between instances, so a per-process limit multiplies by the number of instances.",
+   "context": "the buckets live in a Map inside one server process",
+   "prerequisite_of": []
+  }
+ ]
+}

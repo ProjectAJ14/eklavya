@@ -1,0 +1,24 @@
+{
+ "id": "cache-ttl-profile",
+ "title": "Caching user profiles",
+ "source": "server/profile.ts",
+ "diff": "const cache = new Map<string, { value: Profile; at: number }>();\nconst TTL_MS = 60_000;\n\nexport async function getProfile(id: string) {\n  const hit = cache.get(id);\n  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;\n  const value = await db.profiles.find(id);\n  cache.set(id, { value, at: Date.now() });\n  return value;\n}",
+ "concepts": [
+  {
+   "slug": "cache-ttl",
+   "domain": "caching",
+   "tier": 2,
+   "description": "A time-to-live bounds how stale a cached value can be by discarding it after a fixed age.",
+   "context": "gives the profile cache a 60 second TTL",
+   "prerequisite_of": []
+  },
+  {
+   "slug": "cache-stampede",
+   "domain": "caching",
+   "tier": 4,
+   "description": "When a popular entry expires, many concurrent requests can all miss and hit the database at once.",
+   "context": "the cache has no guard against many requests refilling an expired profile together",
+   "prerequisite_of": []
+  }
+ ]
+}

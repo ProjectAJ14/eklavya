@@ -28,6 +28,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import * as usage from './usage.mjs';
 
 const evalDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.dirname(evalDir);
@@ -97,7 +98,7 @@ export function buildPrompt(root, scenario, question) {
 
 function ask(prompt, model) {
   return new Promise((resolve, reject) => {
-    const args = ['-p', prompt];
+    const args = ['-p', prompt, '--output-format', 'json'];
     if (model) args.push('--model', model);
     const child = spawn('claude', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
@@ -110,7 +111,11 @@ function ask(prompt, model) {
       clearTimeout(timer);
       if (signal) return reject(new Error(`claude timed out (${signal})`));
       if (code !== 0) return reject(new Error(`claude exited ${code}: ${err.slice(0, 300)}`));
-      resolve(out);
+      try {
+        resolve(usage.unwrap(out));
+      } catch (e) {
+        reject(e);
+      }
     });
   });
 }
@@ -157,7 +162,8 @@ async function run() {
     fs.writeFileSync(file, JSON.stringify(record, null, 1));
     process.stdout.write(`  ${s.id} #${t} ${record.error ? 'ERROR' : 'ok'}\n`);
   });
-  fs.writeFileSync(path.join(out, 'meta.json'), JSON.stringify({ label, root, trials, model: model ?? 'default', at: new Date().toISOString() }, null, 1));
+  fs.writeFileSync(path.join(out, 'meta.json'), JSON.stringify({ label, root, trials, model: model ?? 'default', at: new Date().toISOString(), usage: usage.summary() }, null, 1));
+  process.stdout.write(`${usage.line()}\n`);
   await score(out);
 }
 
