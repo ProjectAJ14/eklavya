@@ -34,7 +34,7 @@ On a terminal, command output is coloured: results green, warnings amber, failur
 
 | Command | Purpose and options |
 | --- | --- |
-| `eklavya config get` | Prints effective settings and global/project file paths. Warns about malformed files or global-only settings ignored in a project file. |
+| `eklavya config get [key]` | Prints effective settings and global/project file paths. With a dotted key such as `quiz.enabled`, prints only that value; an unknown key is an error. Warns about malformed files or global-only settings ignored in a project file. |
 | `eklavya config set <key> <value>` | Sets one key globally. Add `--project` (legacy alias `--repo`) for this codebase; add `--topic <topic>` when setting `focus learn` with no topic already set. Refuses a value outside the key's [accepted range](/docs/configuration/#what-each-setting-accepts) and writes nothing. |
 | `eklavya config unset <key>` | Removes one key from your global file, so it falls back to the default. With `--project`, removes it from this codebase's file, so your global setting applies again. |
 | `eklavya dashboard [--port <n>] [--no-open]` | Opens the [local dashboard](/docs/dashboard/), starting it [in the background](/docs/dashboard/#keeping-it-running) if it is not running. `--no-open` prints the URL without opening a browser. `--port` serves in the foreground on that port. Its [Settings pages](/docs/dashboard/#settings) make the same changes as `config set` and `config unset`. |
