@@ -12,6 +12,8 @@ npm install -g eklavya
 eklavya doctor
 ```
 
+On a terminal, command output is coloured: results green, warnings amber, failures red, paths and notes dimmed. Piped output stays plain, `NO_COLOR` turns colour off and `FORCE_COLOR` keeps it on in a pager. Output meant for scripts, such as `--json`, `db-path` and the path `artifacts new` prints, is never coloured.
+
 ## Installation and maintenance
 
 | Command | Purpose and options |
@@ -22,6 +24,7 @@ eklavya doctor
 | `eklavya doctor` | Checks installation and memory health, reports repairs and applies concept packs. See [diagnostics below](#what-doctor-looks-like). |
 | `eklavya serve` | Runs the MCP server over standard input/output. Claude Code starts this automatically. |
 | `eklavya db-path` | Prints the active database path. |
+| `eklavya --version` | Prints the installed version and exits (`-v` is the same). |
 | `eklavya telemetry [status\|on\|off\|show]` | The anonymous daily usage counts. `status` (the default) says whether they are sent and why; `on` and `off` set `telemetry` in your global config; `show` prints the exact next ping. See [Usage analytics](/docs/usage-analytics/). |
 | `eklavya export-rules [--out <file>]` | Exports the complete tutor text as a Markdown rules file, or prints it without `--out`. This exports instructions only; it does not install another editor's hooks or the automatic learning loop. |
 

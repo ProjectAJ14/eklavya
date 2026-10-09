@@ -121,3 +121,24 @@ export function verdict(trouble: string | null, clear: string): void {
   if (trouble) out(`${paint.warn(glyph.fail)} ${bold(paint.warn(trouble))}`);
   else out(`${paint.ok(glyph.ok)} ${bold(paint.ok(clear))}`);
 }
+
+/**
+ * A usage screen for a terminal: the title and section headings bold, each
+ * command's description and the wrapped lines under it dim, so the commands
+ * are what the eye lands on. Plain text without colour, so a pipe is unchanged.
+ */
+export function styleUsage(text: string): string {
+  if (!useColor) return text;
+  return text
+    .split('\n')
+    .map((line, i) => {
+      if (i === 0 || /^[A-Z][\w ]*:$/.test(line)) return bold(line);
+      const row = /^(\s+eklavya \S.*?\S)(\s{2,})(\S.*)$/.exec(line);
+      if (row) return `${row[1]}${row[2]}${dim(row[3]!)}`;
+      return /^\s{10,}\S/.test(line) ? dim(line) : line;
+    })
+    .join('\n');
+}
+
+/** A failure line for stderr, red where colour is on. */
+export const failText = (message: string) => paint.fail(message);

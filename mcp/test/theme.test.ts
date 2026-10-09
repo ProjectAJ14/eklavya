@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { check, heading, padEndVisible, spin, verdict, visibleWidth } from '../src/theme.js';
+import { check, failText, heading, styleUsage, padEndVisible, spin, verdict, visibleWidth } from '../src/theme.js';
 
 const mcpRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const themeUrl = pathToFileURL(path.join(mcpRoot, 'dist', 'theme.js')).href;
@@ -101,5 +101,34 @@ describe('terminal rows', () => {
     const out = captured();
     expect(await spin('import', 'importing…', async () => 'done')).toBe('done');
     expect(out).toEqual(['  ·  import      importing…\n']);
+  });
+});
+
+describe('usage and failure styling', () => {
+  const usage = 'eklavya — title\n\nUsage:\n  eklavya serve       Run it\n                      wrapped line\n  eklavya x\nplain';
+
+  it('leaves text alone without colour', () => {
+    expect(styleUsage(usage)).toBe(usage);
+    expect(failText('boom')).toBe('boom');
+  });
+
+  it('bolds headings and dims descriptions with colour', () => {
+    const script = `const t = await import(${JSON.stringify(themeUrl)});
+      process.stdout.write(JSON.stringify([t.styleUsage(${JSON.stringify(usage)}), t.failText('boom')]));`;
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+      encoding: 'utf8',
+      env: childEnv({ FORCE_COLOR: '1' }),
+    });
+    const [styled, failed] = JSON.parse(res.stdout) as [string, string];
+    expect(styled.split('\n')).toEqual([
+      '\x1b[1meklavya — title\x1b[22m',
+      '',
+      '\x1b[1mUsage:\x1b[22m',
+      '  eklavya serve       \x1b[2mRun it\x1b[22m',
+      '\x1b[2m                      wrapped line\x1b[22m',
+      '  eklavya x',
+      'plain',
+    ]);
+    expect(failed).toBe('\x1b[31mboom\x1b[39m');
   });
 });

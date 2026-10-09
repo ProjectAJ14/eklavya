@@ -27,7 +27,7 @@ import { statusLine } from './statusline.js';
 import { isSessionOff } from './session.js';
 import { START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
-import { check, dim, heading, verdict, type Mark } from './theme.js';
+import { bold, check, dim, failText, heading, paint, styleUsage, verdict, type Mark } from './theme.js';
 
 // Everything heavier is imported inside the command that needs it: the
 // database opener (migrations, seed, packs), install, the dashboard and the
@@ -89,6 +89,7 @@ Usage:
   eklavya statusline                    Print the dials for a status bar (one line, or nothing)
   eklavya doctor                        Check the install, apply concept packs, and say what to fix
   eklavya db-path                       Print the database location
+  eklavya --version                     Print the installed version (also -v)
   eklavya telemetry [status|on|off|show]
                                         Anonymous daily usage counts: whether they are sent, turn them
                                         on or off, or print exactly what the next ping sends
@@ -161,7 +162,7 @@ Config namespaces (nested; edit ~/.eklavya/config.json or this project's file di
 `;
 
 function fail(message: string): never {
-  process.stderr.write(`${message}\n`);
+  process.stderr.write(`${failText(message)}\n`);
   process.exit(1);
 }
 
@@ -263,7 +264,7 @@ ${tutorSections().join('\n\n')}
     if (!out) fail('--out needs a file path.');
     fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
     fs.writeFileSync(out, rules, 'utf8');
-    process.stdout.write(`Wrote ${out}\n`);
+    process.stdout.write(`${paint.ok('Wrote')} ${paint.aged(out)}\n`);
     return;
   }
 
@@ -318,17 +319,17 @@ function configCommand(args: string[]): void {
 
   if (!action || action === 'get') {
     process.stdout.write(`${JSON.stringify(resolved.config, null, 2)}\n`);
-    process.stdout.write(`\nglobal: ${resolved.globalPath}\n`);
-    process.stdout.write(`project: ${resolved.projectPath ?? '(none — not in a git repository)'}\n`);
+    process.stdout.write(`\n${dim('global:')} ${resolved.globalPath}\n`);
+    process.stdout.write(`${dim('project:')} ${resolved.projectPath ?? dim('(none — not in a git repository)')}\n`);
     if (resolved.ignored.length) {
       process.stdout.write(
-        `ignored in the project file (global-only, set them without --project): ${resolved.ignored.join(', ')}\n`,
+        `${paint.warn(`ignored in the project file (global-only, set them without --project): ${resolved.ignored.join(', ')}`)}\n`,
       );
     }
     // Defaults are standing in for a file that would not parse; say so, or the
     // output above reads as the developer's settings when it is not.
     const problem = configFileProblem();
-    if (problem) process.stderr.write(`warning: ${problem}\n`);
+    if (problem) process.stderr.write(`${paint.warn(`warning: ${problem}`)}\n`);
     return;
   }
 
@@ -353,7 +354,7 @@ function configCommand(args: string[]): void {
   if (action === 'unset') {
     try {
       const { target } = applySetting(key, undefined, projectRoot);
-      process.stdout.write(`${key} unset  ->  ${target}\n`);
+      process.stdout.write(`${paint.ok(`${key} unset`)}  ->  ${paint.aged(target)}\n`);
     } catch (err) {
       fail(errorText(err));
     }
@@ -390,9 +391,9 @@ function configCommand(args: string[]): void {
     fail(errorText(err));
   }
   for (const [k, v] of Object.entries(patch!)) {
-    process.stdout.write(`${k} = ${JSON.stringify(v)}  ->  ${target!}\n`);
+    process.stdout.write(`${paint.ok(`${k} = ${JSON.stringify(v)}`)}  ->  ${paint.aged(target!)}\n`);
   }
-  if (modeNote) process.stdout.write(`${modeNote}\n`);
+  if (modeNote) process.stdout.write(`${dim(modeNote)}\n`);
 }
 
 /**
@@ -406,7 +407,7 @@ async function telemetryCommand(args: string[]): Promise<void> {
   if (sub === 'on' || sub === 'off') {
     const file = loadConfig().globalPath;
     writeConfigFile(file, { telemetry: sub === 'on' });
-    process.stdout.write(`telemetry = ${sub === 'on'}  ->  ${file}\n`);
+    process.stdout.write(`${paint.ok(`telemetry = ${sub === 'on'}`)}  ->  ${paint.aged(file)}\n`);
     const still = t.disabledReason();
     if (sub === 'on' && still) process.stdout.write(`${dim(`still off: ${still}`)}\n`);
     return;
@@ -422,20 +423,20 @@ async function telemetryCommand(args: string[]): Promise<void> {
         return;
       }
       const ok = await send.sendNow(db);
-      if (!flags.includes('--background')) process.stdout.write(ok ? 'sent\n' : `not sent${t.disabledReason() ? ` (${t.disabledReason()})` : ''}\n`);
+      if (!flags.includes('--background')) process.stdout.write(ok ? `${paint.ok('sent')}\n` : `${paint.warn(`not sent${t.disabledReason() ? ` (${t.disabledReason()})` : ''}`)}\n`);
     } finally {
       db.close();
     }
     return;
   }
   if (sub !== 'status') {
-    process.stderr.write('Usage: eklavya telemetry [status|on|off|show]\n');
+    process.stderr.write(`${failText('Usage: eklavya telemetry [status|on|off|show]')}\n`);
     process.exit(1);
   }
   const off = t.disabledReason();
   const st = t.readState();
   process.stdout.write(
-    `${off ? `off (${off})` : 'on'} · anonymous daily usage counts${st.sent_at ? ` · last sent ${st.sent_at}` : ''}\n` +
+    `${off ? paint.warn(`off (${off})`) : paint.ok('on')} · anonymous daily usage counts${st.sent_at ? ` · last sent ${st.sent_at}` : ''}\n` +
       `${dim('what is sent: eklavya telemetry show · https://eklavya-run.web.app/docs/usage-analytics/')}\n` +
       `${dim(off ? 'turn on: eklavya telemetry on' : 'turn off: eklavya telemetry off')}\n`,
   );
@@ -450,7 +451,7 @@ async function telemetryCommand(args: string[]): Promise<void> {
 async function feedbackCommand(args: string[]): Promise<void> {
   const [sub, ...flags] = args;
   if (sub !== 'generate') {
-    process.stderr.write('Usage: eklavya feedback generate [--background]\n');
+    process.stderr.write(`${failText('Usage: eklavya feedback generate [--background]')}\n`);
     process.exit(1);
   }
   const quiet = flags.includes('--background');
@@ -473,21 +474,21 @@ async function feedbackCommand(args: string[]): Promise<void> {
       });
       say(
         {
-          off: 'off',
-          needs_memory: 'needs memory',
-          needs_observer: 'needs providers.observer',
-          pending: 'a feedback item is waiting: acknowledge it first',
-          nothing: 'nothing to review',
-          later,
-          failed: "couldn't review that session",
-          reviewed: out.status === 'reviewed' ? `reviewed 1 prompt from ${out.date}` : '',
+          off: dim('off'),
+          needs_memory: dim('needs memory'),
+          needs_observer: dim('needs providers.observer'),
+          pending: dim('a feedback item is waiting: acknowledge it first'),
+          nothing: dim('nothing to review'),
+          later: paint.warn(later),
+          failed: paint.warn("couldn't review that session"),
+          reviewed: out.status === 'reviewed' ? paint.ok(`reviewed 1 prompt from ${out.date}`) : '',
         }[out.status],
       );
     } finally {
       db.close();
     }
   } catch {
-    say(later);
+    say(paint.warn(later));
   }
 }
 
@@ -979,11 +980,11 @@ async function dashboardCommand(argv: string[]): Promise<void> {
     const probe = await daemon.probeDashboard(dashboardPort(), 1000);
     if (probe.kind === 'eklavya') {
       const h = probe.health;
-      process.stdout.write(`Eklavya dashboard on ${url} · ${h.version} · pid ${h.pid}\nReading ${h.db}\n`);
+      process.stdout.write(`${paint.ok('Eklavya dashboard')} on ${paint.aged(url)} · ${h.version} · pid ${h.pid}\n${dim(`Reading ${h.db}`)}\n`);
     } else if (probe.kind === 'down') {
-      process.stdout.write(`No dashboard on ${url}. Start one: eklavya dashboard\n`);
+      process.stdout.write(`${paint.warn(`No dashboard on ${url}.`)} ${dim('Start one: eklavya dashboard')}\n`);
     } else {
-      process.stdout.write(`Port ${dashboardPort()} is taken by something that is not an Eklavya dashboard.\n`);
+      process.stdout.write(`${paint.warn(`Port ${dashboardPort()} is taken by something that is not an Eklavya dashboard.`)}\n`);
     }
     return;
   }
@@ -991,12 +992,12 @@ async function dashboardCommand(argv: string[]): Promise<void> {
     const stopped = await daemon.stopDashboard();
     process.stdout.write(
       stopped
-        ? `Stopped the dashboard on ${url}.${
+        ? `${paint.ok(`Stopped the dashboard on ${url}.`)}${
             loadGlobalConfig().dashboard_autostart
-              ? ' The next session starts it again; to keep it off: eklavya config set dashboard_autostart false'
+              ? dim(' The next session starts it again; to keep it off: eklavya config set dashboard_autostart false')
               : ''
           }\n`
-        : `No Eklavya dashboard was running on ${url}.\n`,
+        : `${dim(`No Eklavya dashboard was running on ${url}.`)}\n`,
     );
     return;
   }
@@ -1004,7 +1005,7 @@ async function dashboardCommand(argv: string[]): Promise<void> {
   const i = argv.indexOf('--port');
   const port = i === -1 ? undefined : Number(argv[i + 1]);
   if (port !== undefined && !Number.isInteger(port)) {
-    process.stderr.write('eklavya dashboard: --port needs a number\n');
+    process.stderr.write(`${failText('eklavya dashboard: --port needs a number')}\n`);
     process.exit(1);
   }
   // `--serve` is the background copy SessionStart starts: its own port only,
@@ -1023,11 +1024,11 @@ async function dashboardCommand(argv: string[]): Promise<void> {
     const state = await backgroundDashboard();
     if (state) {
       process.stdout.write(
-        `Eklavya dashboard on ${url} (${state === 'running' ? 'already running' : 'started'} in the background)\n` +
-          `Reading ${dbPath()} — stop it: eklavya dashboard stop\n`,
+        `${paint.ok('Eklavya dashboard')} on ${paint.aged(url)} (${state === 'running' ? 'already running' : 'started'} in the background)\n` +
+          `${dim(`Reading ${dbPath()} — stop it: eklavya dashboard stop`)}\n`,
       );
       if (open) {
-        process.stdout.write('Opening it in your browser…\n');
+        process.stdout.write(`${dim('Opening it in your browser…')}\n`);
         (await import('./dashboard.js')).openInBrowser(url);
       }
       return;
@@ -1041,17 +1042,17 @@ async function dashboardCommand(argv: string[]): Promise<void> {
   startDashboard(openDb(), { port: serve ? dashboardPort() : port }).then(
     ({ url }) => {
       process.stdout.write(
-        `Eklavya dashboard on ${url}\nReading ${dbPath()} — ${serve ? 'stop it: eklavya dashboard stop' : 'press Ctrl+C to stop'}.\n`,
+        `${paint.ok('Eklavya dashboard')} on ${paint.aged(url)}\n${dim(`Reading ${dbPath()} — ${serve ? 'stop it: eklavya dashboard stop' : 'press Ctrl+C to stop'}.`)}\n`,
       );
       if (open) {
-        process.stdout.write('Opening it in your browser…\n');
+        process.stdout.write(`${dim('Opening it in your browser…')}\n`);
         openInBrowser(url);
       }
     },
     (err: NodeJS.ErrnoException) => {
       // Another copy won the port first: that one is the dashboard.
       if (serve && err.code === 'EADDRINUSE') process.exit(0);
-      process.stderr.write(`eklavya dashboard: ${err.message}\n`);
+      process.stderr.write(`${failText(`eklavya dashboard: ${err.message}`)}\n`);
       process.exit(1);
     },
   );
@@ -1137,12 +1138,12 @@ async function artifactsCommand(argv: string[]): Promise<void> {
       return;
     }
     if (!rows.length) {
-      process.stdout.write('No artifacts yet.\n');
+      process.stdout.write(`${dim('No artifacts yet.')}\n`);
       return;
     }
     for (const r of rows) {
-      process.stdout.write(`${new Date(r.created).toLocaleDateString('en-CA')}  ${r.kind === 'explainer' ? 'explainer' : 'artifact '}  ${r.title}\n`);
-      process.stdout.write(`            ${path.join(eklavyaHome(), 'artifacts', r.id)}\n`);
+      process.stdout.write(`${dim(new Date(r.created).toLocaleDateString('en-CA'))}  ${r.kind === 'explainer' ? 'explainer' : 'artifact '}  ${bold(r.title)}\n`);
+      process.stdout.write(`            ${paint.aged(path.join(eklavyaHome(), 'artifacts', r.id))}\n`);
     }
     return;
   }
@@ -1257,7 +1258,7 @@ async function main(): Promise<void> {
       // nothing above may print. It never returns -- the process ends when the
       // stdio transport closes.
       void import('./server.js').catch((err: unknown) => {
-        process.stderr.write(`eklavya serve: ${errorText(err)}\n`);
+        process.stderr.write(`${failText(`eklavya serve: ${errorText(err)}`)}\n`);
         process.exit(1);
       });
       return;
@@ -1265,7 +1266,7 @@ async function main(): Promise<void> {
       const { install } = await import('./install.js');
       // Async only because the settings walk waits on a terminal.
       install(rest).catch((err: unknown) => {
-        process.stderr.write(`eklavya install: ${errorText(err)}\n`);
+        process.stderr.write(`${failText(`eklavya install: ${errorText(err)}`)}\n`);
         process.exit(1);
       });
       return;
@@ -1302,13 +1303,17 @@ async function main(): Promise<void> {
       return telemetryCommand(rest);
     case 'feedback':
       return feedbackCommand(rest);
+    case '--version':
+    case '-v':
+      process.stdout.write(`${paint.ok(JSON.parse(fs.readFileSync(path.join(moduleDir, '..', 'package.json'), 'utf8')).version)}\n`);
+      return;
     case undefined:
     case '-h':
     case '--help':
-      process.stdout.write(USAGE);
+      process.stdout.write(styleUsage(USAGE));
       return;
     default:
-      process.stderr.write(USAGE);
+      process.stderr.write(styleUsage(USAGE));
       process.exit(1);
   }
 }

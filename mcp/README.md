@@ -106,6 +106,7 @@ npx eklavya config get
 npx eklavya dashboard
 npx eklavya feedback generate
 npx eklavya db-path
+npx eklavya --version
 ```
 
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and

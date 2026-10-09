@@ -40,7 +40,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { dbPath, eklavyaHome, globalConfigPath } from './paths.js';
-import { check, dim, heading, paint, plain, spin, verdict } from './theme.js';
+import { check, dim, failText, heading, paint, plain, spin, verdict } from './theme.js';
 import { loadGlobalConfig, readConfigFile, writeConfigFile } from './config.js';
 import { ImportError, IMPORTED_TABLES } from './memory/import.js';
 import { importOffThread } from './memory/import-worker.js';
@@ -119,12 +119,12 @@ function checkNode(): void {
   /* c8 ignore next 10 -- the refusal only runs below Node 22, which cannot run this suite */
   if (major >= MIN_NODE_MAJOR) return;
 
-  process.stderr.write(
+  process.stderr.write(failText(
     `Eklavya needs Node ${MIN_NODE_MAJOR} or newer — this is Node ${process.versions.node}.\n\n` +
       'Below Node 22, the SQLite driver has no prebuilt binary for your platform and npm\n' +
       'tries to compile it, which needs a full C++ toolchain. Upgrading Node is the fix:\n\n' +
       `${nodeAdvice()}\n\nThen run \`npx eklavya install\` again.\n`,
-  );
+  ));
   process.exit(1);
 }
 
@@ -183,10 +183,10 @@ async function installRuntime(version: string): Promise<void> {
   const claim = claimInstall(home);
   if (!claim) {
     const pid = installHolder(home);
-    process.stderr.write(
+    process.stderr.write(failText(
       `\nanother Eklavya install is running${pid ? ` (pid ${pid})` : ''} — ` +
         'let it finish (usually under a minute), then run this again.\n',
-    );
+    ));
     process.exit(1);
   }
 
@@ -218,11 +218,11 @@ async function installRuntime(version: string): Promise<void> {
       // behind would hold the launcher's heal off for an hour.
       releaseInstall(claim);
       process.stderr.write(result.output);
-      process.stderr.write(
+      process.stderr.write(failText(
         '\nInstalling the Eklavya runtime failed. The output above says why — the usual\n' +
           'causes are no network, or a registry proxy that blocks the download.\n' +
           `You can retry with: npm install eklavya@${version} --prefix ${home}\n`,
-      );
+      ));
       process.exit(1);
     }
   } finally {
@@ -265,18 +265,18 @@ function driverError(): string | null {
 function verifyRuntime(): void {
   const entry = runtimeEntry();
   if (!fs.existsSync(entry)) {
-    process.stderr.write(`The runtime installed but ${entry} is missing.\n`);
+    process.stderr.write(failText(`The runtime installed but ${entry} is missing.\n`));
     process.exit(1);
   }
 
   const err = driverError();
   if (err) {
-    process.stderr.write(
+    process.stderr.write(failText(
       '\nThe SQLite driver installed but will not load:\n' +
         `${err}\n\n` +
         'This usually means the prebuilt binary does not match this Node version.\n' +
         `Try removing ${runtimeHome()} and running \`npx eklavya install\` again.\n`,
-    );
+    ));
     process.exit(1);
   }
 }
@@ -333,7 +333,7 @@ async function updateCheckout(dir: string): Promise<CheckoutResult> {
   if (pull.status !== 0) {
     // git's own reason, or "could not pull" is a support ticket with no clue in it.
     const why = pull.stderr.trim();
-    if (why) process.stderr.write(`${why}\n`);
+    if (why) process.stderr.write(failText(`${why}\n`));
     return 'failed';
   }
   return head() === before ? 'current' : 'updated';
@@ -345,10 +345,10 @@ async function copyPayload(): Promise<PayloadResult> {
   const from = payloadDir();
   /* c8 ignore next 7 -- a packaging bug: every build copies the payload into dist/ */
   if (!fs.existsSync(from)) {
-    process.stderr.write(
+    process.stderr.write(failText(
       `The plugin payload is missing from this package (expected ${from}).\n` +
         'This is a packaging bug — please report it.\n',
-    );
+    ));
     process.exit(1);
   }
 
@@ -466,7 +466,7 @@ function refuseUnreadable(files: string[]): void {
   for (const file of files) {
     const read = readJsonStrict(file);
     if (read.kind !== 'invalid') continue;
-    process.stderr.write(`${new UnreadableFileError(file, read.error).message}\nStopped before changing anything.\n`);
+    process.stderr.write(failText(`${new UnreadableFileError(file, read.error).message}\nStopped before changing anything.\n`));
     process.exit(1);
   }
 }
@@ -984,7 +984,7 @@ export async function install(args: string[]): Promise<void> {
     // line: one that broke mid-run (an editor saving over it) still ends in a
     // sentence naming the file, not a stack trace.
     if (!(err instanceof UnreadableFileError)) throw err;
-    process.stderr.write(`\n${err.message}\n`);
+    process.stderr.write(failText(`\n${err.message}\n`));
     process.exit(1);
   }
 }
@@ -993,7 +993,7 @@ async function installSteps(args: string[]): Promise<void> {
   const flagAt = args.indexOf('--memory');
   const memoryFlag = flagAt < 0 ? null : args[flagAt + 1];
   if (memoryFlag !== null && memoryFlag !== 'eklavya' && memoryFlag !== 'claude-mem') {
-    process.stderr.write('--memory takes eklavya or claude-mem\n');
+    process.stderr.write(failText('--memory takes eklavya or claude-mem\n'));
     process.exit(1);
   }
   // The auto-updater's run: it has just put this very package in the runtime,

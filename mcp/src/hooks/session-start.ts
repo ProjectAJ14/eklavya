@@ -20,7 +20,7 @@ import { recalledLine, savingsFrom } from '../memory/tokens.js';
 import { AMBER, dialParts, paint } from '../statusline.js';
 import { dashboardPort } from '../paths.js';
 import { followMove } from '../relocate.js';
-import { ensureDashboard, probeDashboard } from '../dashboard-daemon.js';
+import { ensureDashboard, ownVersion, probeDashboard } from '../dashboard-daemon.js';
 import { feedbackEnabled, feedbackWaiting, startBackgroundFeedback } from '../feedback.js';
 import { markAnnounced, startBackgroundUpdate, updateNotice } from '../update.js';
 import { canSend, disabledReason, markTelemetryAnnounced, readState, startBackgroundTelemetry, telemetryNotice } from '../telemetry.js';
@@ -373,7 +373,7 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   const color = !process.env.NO_COLOR;
   const dim = (text: string) => (color ? `\u001b[2m${text}\u001b[0m` : text);
   const { counts } = startupDisplay(db, parts.project);
-  out.push(`Eklavya active · ${parts.dials.join(' · ')}`);
+  out.push(`Eklavya active · v${ownVersion()} · ${parts.dials.join(' · ')}`);
   // What was delivered, then the estimated saving against the evidence behind
   // the full entries (titles add to delivered, not to the base, so it is
   // conservative). Left off when it is not a saving. Nothing recalled earns no line.
