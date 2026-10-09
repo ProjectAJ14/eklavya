@@ -95,17 +95,70 @@ describe('the settings walk', () => {
     expect(out).toContain('— changed');
     expect(out).toContain('gate commits made outside Claude Code too: /x/pre-commit');
     expect(out).toContain(`settings saved to ${configFile()}`);
-    // Memory is off, so the model step was never asked.
+    // Memory is off, so neither the model step nor the feedback step was asked.
     expect(out).not.toContain('which model writes the memories');
+    expect(out).not.toContain('coach one of your prompts');
   });
 
   it('writes the file after a first walk even when every answer kept the default', async () => {
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter);
+    // Six dials, then the prompt-feedback step answered off.
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '2');
     expect(await done).toBeNull();
     expect(saved()).toEqual({});
     expect(out).toContain('settings unchanged');
+  });
+
+  it('turns prompt feedback on for a first install that just presses Enter, and says what it sends', async () => {
+    terminal();
+    const done = onboard(opts);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter);
+    expect(await done).toBeNull();
+    // Feedback needs a model, so the provider is written with it, and the
+    // summary shows the model that now writes the memories too.
+    expect(saved()).toEqual({
+      feedback: { enabled: true },
+      providers: { observer: { kind: 'anthropic', model: 'claude-haiku-4-5' } },
+    });
+    expect(out).toContain('coach one of your prompts');
+    expect(out).toContain('leaves this machine');
+    expect(out).toContain('claude-haiku-4-5');
+  });
+
+  it('keeps the model a first install chose when feedback is turned on', async () => {
+    terminal();
+    const done = onboard(opts);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '3', KEY.enter);
+    await done;
+    expect(saved()).toEqual({
+      feedback: { enabled: true },
+      providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } },
+    });
+  });
+
+  it('starts the step on off for an existing install, and turns it on without touching the model', async () => {
+    fs.writeFileSync(
+      configFile(),
+      JSON.stringify({ providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } } }),
+    );
+    terminal();
+    const done = onboard(opts);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1');
+    await done;
+    expect(saved()).toEqual({
+      providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } },
+      feedback: { enabled: true },
+    });
+  });
+
+  it('turns prompt feedback off again from a re-walk', async () => {
+    fs.writeFileSync(configFile(), JSON.stringify({ feedback: { enabled: true } }));
+    terminal();
+    const done = onboard(opts);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '2');
+    await done;
+    expect(saved().feedback).toEqual({ enabled: false });
   });
 
   it('keeps the old focus when learn gets no topic, and keeps a topic left blank', async () => {
@@ -142,7 +195,7 @@ describe('the settings walk', () => {
     fs.writeFileSync(configFile(), JSON.stringify({ quiz: { enabled: false }, memory: { enabled: false, keep: 1 } }));
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', '2');
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', '2', '2');
     expect(await done).toBeNull();
     expect(saved()).toMatchObject({
       memory: { enabled: true, keep: 1 },
@@ -158,7 +211,7 @@ describe('the settings walk', () => {
     );
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1');
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', '2');
     await done;
     expect(saved().providers).toEqual({ observer: null });
   });
@@ -166,7 +219,7 @@ describe('the settings walk', () => {
   it('asks Claude Mem users who records, and returns their answer', async () => {
     terminal();
     const done = onboard({ ...opts, claudeMem: true });
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', KEY.enter);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', KEY.enter, '2');
     expect(await done).toBe('eklavya');
     expect(out).toContain('Claude Mem is installed too — only one should record');
   });
@@ -179,6 +232,7 @@ describe('the settings walk', () => {
     expect(await done).toBe('claude-mem');
     expect(out).not.toContain('only one should record');
     expect(out).not.toContain('which model writes the memories');
+    expect(out).not.toContain('coach one of your prompts');
   });
 
   it('keeps every unanswered dial on Ctrl-D', async () => {
@@ -215,6 +269,13 @@ describe('the settings walk', () => {
 });
 
 describe('without a terminal', () => {
+  it('leaves prompt feedback off on a first install nobody could be asked about', async () => {
+    terminal(false);
+    await onboard(opts);
+    expect(fs.existsSync(configFile())).toBe(false);
+    expect(out).not.toContain('coach one of your prompts');
+  });
+
   it('lets Claude Mem keep recording on a first install nobody could be asked about', async () => {
     terminal(false);
     expect(await onboard({ ...opts, claudeMem: true })).toBe('claude-mem');

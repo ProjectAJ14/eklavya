@@ -28,6 +28,8 @@ Concepts a session logged but never asked about are deleted at a later session s
 
 ### Prompt feedback
 
+Nothing is reviewed until you say so: the config default is off, an upgrade leaves it off, and only the first-install walk in a terminal offers it, preselected on, naming the model the prompt goes to.
+
 A review keeps the text of one of your own prompts, already redacted when memory captured it, so it stays after `memory.retention_days` prunes the evidence it came from. Delete an item from the dashboard's [Feedback page](/docs/dashboard/#feedback) (**Delete** works on waiting and acknowledged items alike), or remove everything with `eklavya uninstall --purge`. Feedback is read from memory, so with `memory.enabled` off nothing new is made, and the prompt text goes to your observer model and nowhere else; see [prompt feedback](/docs/how-it-works/#prompt-feedback). A moved checkout takes its items with it, as it does the rest of its history.
 
 ### Who can read it

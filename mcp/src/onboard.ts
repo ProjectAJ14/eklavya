@@ -9,7 +9,9 @@
  * what is set now and starts the cursor on it: ↑/↓ move, Enter (or Space, or
  * →) chooses, and a digit jumps straight to one. Once memory is on, one
  * follow-up asks which model writes the memories (`providers.observer`),
- * starting on `local`.
+ * starting on `local`. Then one more, prompt feedback, which starts on `on` for
+ * a first install and on what is set for a re-walk: it is the only place the
+ * feature is on by default, because it sends a prompt to that model.
  *
  * Without a terminal (CI, a pipe, the test suite) nothing is asked either.
  * With Claude Mem present and nobody asked, a first install picks the choice
@@ -52,7 +54,20 @@ export function modelStep(c: EklavyaConfig): Step {
   return { key: 'model', title: 'which model writes the memories', current, options };
 }
 
-function steps(c: EklavyaConfig, claudeMem: boolean): Step[] {
+/** Asked after the model: the one switch that sends a prompt there, so it names where it goes. */
+export function feedbackStep(c: EklavyaConfig, firstRun: boolean): Step {
+  return {
+    key: 'feedback',
+    title: 'coach one of your prompts a session, against the 4D framework',
+    current: firstRun || c.feedback.enabled ? 'on' : 'off',
+    options: [
+      { value: 'on', detail: `one prompt a session leaves this machine for your model (${RECOMMENDED_MODEL} if you chose local)` },
+      { value: 'off', detail: 'nothing sent; later: eklavya config set feedback.enabled true' },
+    ],
+  };
+}
+
+function steps(c: EklavyaConfig, claudeMem: boolean, firstRun: boolean): Step[] {
   return [
     {
       key: 'quiz',
@@ -114,6 +129,7 @@ function steps(c: EklavyaConfig, claudeMem: boolean): Step[] {
           ],
         },
     modelStep(c),
+    feedbackStep(c, firstRun),
   ];
 }
 
@@ -141,6 +157,9 @@ export function press(at: number, count: number, key: Key): { at: number; done: 
 }
 
 class Closed extends Error {}
+
+/** Steps that are questions about memory's model, asked only while memory records. */
+const FOLLOW_UPS = new Set(['model', 'feedback']);
 
 /** Both spellings of "Eklavya records": the plain step's `on`, the Claude Mem step's `eklavya`. */
 const recording = (memory: string | undefined) => memory === 'on' || memory === 'eklavya';
@@ -253,8 +272,10 @@ export async function onboard(opts: {
 }): Promise<MemoryOwner | null> {
   const firstRun = !fs.existsSync(globalConfigPath());
   const before = loadGlobalConfig();
-  const list = steps(before, opts.claudeMem);
+  const list = steps(before, opts.claudeMem, firstRun);
   const chosen: Record<string, string> = Object.fromEntries(list.map((s) => [s.key, s.current]));
+  // The step starts on `on` for a first install, but unasked is undecided: it keeps what is stored.
+  chosen.feedback = before.feedback.enabled ? 'on' : 'off';
   const memoryFixed = opts.claudeMem && opts.memoryFlag !== null;
   if (memoryFixed) chosen.memory = opts.memoryFlag!;
   let topic = before.focus_topic;
@@ -265,10 +286,10 @@ export async function onboard(opts: {
     try {
       for (const [i, step] of list.entries()) {
         if (step.key === 'memory' && memoryFixed) continue;
-        if (step.key === 'model' && !recording(chosen.memory)) continue;
+        if (FOLLOW_UPS.has(step.key) && !recording(chosen.memory)) continue;
         plain('');
-        // The model step follows memory rather than counting as a dial of its own.
-        const n = step.key === 'model' ? '  ↳' : `${i + 1}/${list.length - 1}`;
+        // The model and feedback steps follow memory rather than counting as dials of their own.
+        const n = FOLLOW_UPS.has(step.key) ? '  ↳' : `${i + 1}/${list.length - FOLLOW_UPS.size}`;
         plain(`${dim(n)}  ${bold(step.key)}  ${dim(step.title)}`);
         const value = await choose(step);
         chosen[step.key] = value;
@@ -306,6 +327,9 @@ export async function onboard(opts: {
     const memory = (readConfigFile(globalConfigPath()).memory ?? {}) as Record<string, unknown>;
     patch.memory = { ...memory, enabled: chosen.memory === 'on' };
   }
+  const feedbackOn = recording(chosen.memory) && chosen.feedback === 'on';
+  // Feedback has nothing to send to without a model, so `local` becomes the recommended one.
+  if (feedbackOn && chosen.model === 'local') chosen.model = RECOMMENDED_MODEL;
   if (recording(chosen.memory) && chosen.model !== list.find((s) => s.key === 'model')!.current) {
     const providers = (readConfigFile(globalConfigPath()).providers ?? {}) as Record<string, unknown>;
     patch.providers = {
@@ -313,14 +337,17 @@ export async function onboard(opts: {
       observer: chosen.model === 'local' ? null : { kind: 'anthropic', model: chosen.model },
     };
   }
+  if (recording(chosen.memory) && feedbackOn !== before.feedback.enabled) {
+    patch.feedback = { ...((readConfigFile(globalConfigPath()).feedback ?? {}) as Record<string, unknown>), enabled: feedbackOn };
+  }
   // After a walk the file is written even with nothing changed: its existence
   // is what tells the next install the settings were chosen, not defaulted.
   if (Object.keys(patch).length || (tty && firstRun)) writeConfigFile(globalConfigPath(), patch);
 
   plain('');
   for (const step of list) {
-    if (step.key === 'model' && !recording(chosen.memory)) continue;
-    const value = chosen[step.key]!;
+    if (FOLLOW_UPS.has(step.key) && !recording(chosen.memory)) continue;
+    const value = step.key === 'feedback' ? (feedbackOn ? 'on' : 'off') : chosen[step.key]!;
     const shown = step.key === 'focus' && value === 'learn' ? `learn ${dim(`· ${topic ?? 'no topic'}`)}` : value;
     check('ok', step.key, value === step.current ? shown : `${shown} ${dim('— changed')}`);
   }
