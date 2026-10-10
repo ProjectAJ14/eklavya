@@ -163,6 +163,14 @@
             animation:loader-in var(--duration-base) var(--ease) 150ms both; }
   .loader--page { justify-content:center; flex-direction:column; min-height:40vh; gap:var(--space-5); }
   @keyframes loader-in { from { opacity:0; } to { opacity:1; } }
+  /* A fetched region (`slot()`) is in one of three states and none of them moves the page.
+     Drawn: its content. Waiting with nothing to show: a box that holds the height the content
+     is expected to take, the loader at its top (its own 150ms delay applies). Waiting while it
+     still shows an earlier answer (a pager, a filter, a refetch): that content stays, dimmed and
+     out of reach of the pointer, and stays readable to assistive technology. No animation here,
+     so there is nothing for reduced motion to switch off. */
+  .slot__wait { display:block; }
+  [data-slot][aria-busy="true"][data-kept] { opacity:.55; pointer-events:none; }
 
   /* ---------- the sidebar navigation ---------- */
   nav.side__nav { display:flex; flex-direction:column; gap:var(--space-4); }
@@ -265,7 +273,9 @@
   .art__open { display:flex; flex-direction:column; gap:var(--space-3); color:var(--ink); text-decoration:none; }
   .art__open:focus-visible { outline:2px solid var(--spot); outline-offset:2px; }
   .art__open:hover .title { color:var(--spot); }
-  .art__thumb { display:block; aspect-ratio:16/10; background:var(--panel); border:1px solid var(--line-2); padding:var(--space-3); }
+  /* The box is the 16:10 the aspect ratio says, whether or not its image has arrived: without `min-height:0`
+     the picture's own height pushes the card taller when it lands (10px at 1280), and the page under it moves. */
+  .art__thumb { display:block; aspect-ratio:16/10; min-height:0; background:var(--panel); border:1px solid var(--line-2); padding:var(--space-3); }
   .art__open:hover .art__thumb { border-color:var(--spot); }
   .art__thumb img { display:block; width:100%; height:100%; object-fit:contain; }
   .tag { font-family:var(--font-mono); font-size:11px; letter-spacing:var(--tracking-caps); text-transform:uppercase; }
@@ -275,9 +285,14 @@
   /* The explainer viewer: the agent's page, framed sandboxed, then this page's
      own correction bar. The server adds a script to every framed page that
      reports its height; the frame takes it, so the window is the one scrollbar.
-     Until the first report the frame is 0 tall behind a loader; with none in
-     1.5s (script blocked) it falls back to 80vh and scrolls inside. */
-  .viewer { display:block; width:100%; height:0; border:0; background:var(--bg); }
+     Until the first report the frame holds the height this tab last reported (else
+     80vh) with the loader over its top, so opening a page reflows once, when the
+     real height arrives; with no report in 1.5s (script blocked) it falls back to
+     80vh and scrolls inside. `--wait-h` is that reserved height: the frame's own
+     `height` is set only by a report, which is how the page tells the two apart. */
+  .viewer { display:block; width:100%; height:var(--wait-h, 0); border:0; background:var(--bg); }
+  .viewer__box { position:relative; }
+  .viewer__box > #art-wait { position:absolute; top:0; left:0; right:0; z-index:1; pointer-events:none; }
   /* Artifact tabs: the gallery, then up to TAB_MAX open pages. Pinned to the
      top of the window (under the top bar on a phone) so switching never needs
      a scroll up. One row; it scrolls sideways rather than wrapping. */
@@ -1260,9 +1275,9 @@ function card(title, hint, body, opts = {}) {
  * changed. Name it for what it holds. Regions never nest. `html` is escaped by the
  * caller. See `drawAdjusted`.
  *
- * A list that is fetched (`fill`) is a region too, written as `data-region` on its
- * target: the view returns the same placeholder each time, so the region counts as
- * unchanged and the rows on screen stay (marked busy) until the new ones arrive.
+ * A list that is fetched is a region too: `slot()` writes `data-region` on its target (`region: true`).
+ * Its contents are the answer when the page holds it, and otherwise the box that reserves its room,
+ * which a redraw never puts over rows that are on screen: they stay, dimmed, until the new ones arrive.
  */
 const region = (id, html) => `<div data-region="${id}">${html}</div>`;
 
@@ -1700,7 +1715,8 @@ const chart = (id, fn) => {
    Everything above is derived from one payload. The corpus is the exception:
    an observation carries a narrative and the tool output behind it, so the
    timeline is paged over `/api/memory` instead of shipped whole on every load.
-   That makes exactly two views asynchronous, and both go through `fill()`.
+   Those views, and the other pages that read a resource of their own, are
+   asynchronous, and every one of them draws its target through `slot()`.
    ============================================================ */
 
 /**
@@ -1712,35 +1728,155 @@ const chart = (id, fn) => {
 let GEN = 0;
 
 /**
- * Renders a placeholder now and the real markup when the fetch lands. Queued
- * through `AFTER` like a chart, for the same reason — the target element does
- * not exist until `render()` has written the view's `innerHTML`.
- */
-/**
  * The one loading state: the companion drawing and releasing its arrow, and what is being waited
  * for. `page: true` is the full-height version the first paint uses. Every
- * placeholder a `fill()` target starts with is one of these, so a wait looks
+ * placeholder a `slot()` starts with is one of these, so a wait looks
  * the same wherever it happens. `label` is plain text; it is escaped here.
  */
 function loader(label, { page = false } = {}) {
   return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="${page ? 96 : 56}"></eklavya-mascot><span>${esc(label)}</span></div>`;
 }
 
+/* ---------- the response cache ----------
+   What a fetched region asked for, kept by URL, so a page the reader has seen is drawn again
+   with no request and no loader: a revisit, Back and Forward, a pager or a filter returned to.
+   It holds the parsed body, never markup, so a draw runs on it again as it would on a fresh
+   answer (today's "Yesterday" is not the day it was cached).
+
+   The key is the URL, and the URL carries everything the answer depends on: the project scope
+   (`memScope()`, `?project=`), the page, the filters, the id. A different project is a different
+   key, so a project switch leaves the cache alone and switching back is instant. An answer that
+   does not depend on the scope (an entry, a session's rows, a feedback item, a correction) is
+   keyed by the one thing it does depend on.
+
+   An entry is good while the page's `S.cursor` is the one it was read under, and it is dropped
+   by `invalidateData()` (a save, the poll finding that the server moved on; Phase 4 calls it
+   when the cursor changes) and, for the one route a write changes, by `respForget()`. A page
+   reload starts with nothing. A read already out when the cache is invalidated is not stored
+   when it lands (`respAt`): it may have been answered before whatever made the cache stale.
+   Bounded at `RESP_MAX`, least recently used out first. An answer that failed is never cached. */
+const RESP_MAX = 50;
+const RESP = new Map();       // url -> { cursor, body }, least recently used first
+
+function respGet(url) {
+  const e = RESP.get(url);
+  if (!e) return null;
+  RESP.delete(url);
+  if (e.cursor !== S.cursor) return null;
+  RESP.set(url, e);
+  return e;
+}
+/** What a read is taken under, noted when it is made, not when it lands. */
+const respAt = () => ({ cursor: S.cursor, gen: DATA_GEN });
+function respPut(url, body, at) {
+  if (at.cursor !== S.cursor || at.gen !== DATA_GEN) return;
+  RESP.delete(url);
+  RESP.set(url, { cursor: at.cursor, body });
+  if (RESP.size > RESP_MAX) RESP.delete(RESP.keys().next().value);
+}
+/** A write the page made changed what these answer: every cached URL that starts with `prefix` goes. */
+function respForget(prefix) {
+  for (const url of [...RESP.keys()]) if (url.startsWith(prefix)) RESP.delete(url);
+}
+
+/* ---------- slots: a fetched region that never moves the page ----------
+   A view that reads a resource returns `slot(id, url, draw, opts)` where the target element goes.
+   On a cache hit the element already holds `draw(body)`: nothing is inserted, nothing is
+   requested, and the screen is drawn in one go. On a miss it holds a box of the height that
+   region is expected to take, with the loader in it (the mascot still waits its 150ms before it
+   shows), and the fetch is queued. When the same region is already on screen with an earlier
+   answer in it (a pager, a filter, a refetch of the same page), the box is never drawn: the old
+   content stays, dimmed and out of reach (`aria-busy` + `data-kept`), until the answer draws. */
+
+/** Where the box is looked for in markup. */
+const WAIT_OPEN = '<div class="slot__wait"';
+const isWait = (html) => html.startsWith(WAIT_OPEN);
+
 /**
- * `record: true` says the markup this draws is also what the view returns on its
- * own the next time (Settings does, from `SETS`): the screen's record is brought up
- * to date with it, so a later adjustment can redraw its regions in place instead of
- * replacing it (`recordFill`). Leave it off when the view will return the
- * placeholder again, as every list that is fetched on each draw does.
+ * What a slot reserves the first time it is drawn, in px, before this page has seen what it holds: what
+ * it takes at a year of use (the issue's medium database, measured at 1280px), which is what a reader
+ * with that much history gets. A paged list reserves its full page (25 timeline rows, 20 session
+ * or history rows); the rest are as tall as they come (six and five rows for the Memory
+ * Dashboard's two lists, an observation, an item of feedback, both folds of a session's memory half,
+ * the settings page, whose fields are fixed). A reader with a shorter history sees the box shrink to
+ * its rows once, when they land. These are estimates for a first visit and nothing more: the footer
+ * moves by however far one misses, and twice if the page being left was taller than the estimate and
+ * shorter than the answer, or the other way round. The height a region had when it last drew
+ * (`SLOT_H`) replaces them, and a page seen again has no box at all.
  */
-function fill(id, url, draw, { record = false } = {}) {
+const SLOT_MIN = {
+  'mem-rows': 1350, 'msess-rows': 1450, 'mem-recent': 360, 'mem-sessions': 300,
+  'entry-body': 650, 'sess-lookup': 360, 'sess-mem': 160, 'fb-item': 520, 'fb-rows': 1030, settings: 1580,
+};
+const SLOT_FALLBACK = 160;
+const SLOT_H = new Map();     // id -> the height of its content the last time it was drawn
+
+/** The height of the content of `el`, without the padding it carries. */
+function contentHeight(el) {
+  const cs = getComputedStyle(el);
+  return Math.round(el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
+}
+/** Notes how tall `#id` is now that it holds real content, for the next time it waits. */
+function remember(id) {
+  const el = $(id);
+  const h = el ? contentHeight(el) : 0;
+  if (h > 0) SLOT_H.set(id, h);
+}
+
+const waitBox = (id, label) => `${WAIT_OPEN} style="min-height:${SLOT_H.get(id) ?? SLOT_MIN[id] ?? SLOT_FALLBACK}px">${loader(label)}</div>`;
+
+const failure = (e) => `<div class="ek-mascot-message"><eklavya-mascot state="error" size="56"></eklavya-mascot><p class="empty">Could not load: ${esc(e.message)}</p></div>`;
+
+/** The target element of a slot. Its attributes are the same whatever it holds, so a redraw can tell a change of content from a change of structure. */
+const slotHost = (id, inner, { cls = '', region = false } = {}) =>
+  `<div id="${id}" data-slot${cls ? ` class="${cls}"` : ''}${region ? ` data-region="${id}"` : ''}>${inner}</div>`;
+
+/** The state a fetch leaves on its target while it is out; gone once the answer, or the failure, is drawn. */
+const slotDone = (el) => { el.removeAttribute('aria-busy'); el.removeAttribute('data-kept'); el.removeAttribute('data-failed'); };
+/** Whether `el` shows something worth keeping under a new request: not the box, and not a failure. */
+const holdsContent = (el) => !el.hasAttribute('data-failed') && !el.querySelector(':scope > .slot__wait');
+
+/**
+ * `opts`: `label` (what the loader says), `cls` (a class for the target), `region` (the target is
+ * a `data-region`, so a redraw replaces its contents alone). `draw` is a pure function of the
+ * response, and must not change it: a cached body is drawn again. It may queue its own charts and slots.
+ */
+function slot(id, url, draw, { label, ...host } = {}) {
+  const hit = respGet(url);
+  if (!hit) {
+    fill(id, url, draw);
+    return slotHost(id, waitBox(id, label), host);
+  }
+  AFTER.push(() => remember(id));
+  let html;
+  try {
+    html = draw(hit.body);
+  } catch (e) {
+    html = failure(e);
+    AFTER.push(() => $(id)?.setAttribute('data-failed', ''));
+  }
+  return slotHost(id, html, host);
+}
+
+/**
+ * Fetches `url` for the slot `#id` and draws the answer in. Queued through `AFTER` like a chart,
+ * for the same reason: the target does not exist until `render()` has written the view. If the
+ * target already shows an earlier answer, that stays under `aria-busy` until this one draws.
+ */
+function fill(id, url, draw) {
   const gen = GEN;
+  const at = respAt();
   AFTER.push(() => {
-    $(id)?.setAttribute('aria-busy', 'true');
+    const was = $(id);
+    if (was) {
+      was.setAttribute('aria-busy', 'true');
+      if (holdsContent(was)) was.setAttribute('data-kept', '');
+    }
     fetch(url).then((r) => {
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
       return r.json();
     }).then((d) => {
+      respPut(url, d, at);
       const el = $(id);
       if (!el || gen !== GEN) return;
       // A draw can queue its own charts and fills (a session page drawn from a
@@ -1751,15 +1887,21 @@ function fill(id, url, draw, { record = false } = {}) {
       // button) is found again in the new ones.
       const ui = captureUi(el);
       el.innerHTML = html;
-      if (record) recordFill(id, html);
-      el.removeAttribute('aria-busy');
+      // The view returns this same markup on its own from now on (from the cache), so the record
+      // of the screen is brought up to date with it and a later redraw leaves it alone.
+      recordFill(id, html);
+      slotDone(el);
       focusable(el);
       restoreUi(el, ui);
+      remember(id);
       for (const fn of AFTER.splice(0)) fn();
       TIP.sync();
     }).catch((e) => {
       const el = $(id);
-      if (el && gen === GEN) { el.innerHTML = `<div class="ek-mascot-message"><eklavya-mascot state="error" size="56"></eklavya-mascot><p class="empty">Could not load: ${esc(e.message)}</p></div>`; el.removeAttribute('aria-busy'); }
+      if (!el || gen !== GEN) return;
+      el.innerHTML = failure(e);
+      slotDone(el);
+      el.setAttribute('data-failed', '');
     });
   });
 }
@@ -2180,12 +2322,11 @@ function viewSession(id) {
   if (s) return sessionBody(s);
   // Not in the payload: a memory-only session past `memory_sessions`' cap, or
   // one outside the current scope. The paged resource answers for it exactly.
-  fill('sess-lookup', '/api/memory/sessions?' + memScope(new URLSearchParams({ session: id })), (d) => {
+  return slot('sess-lookup', '/api/memory/sessions?' + memScope(new URLSearchParams({ session: id })), (d) => {
     const row = d.rows[0];
     if (!row) return noSession(id);
     return sessionBody({ id, repo: row.project, logged: [], asked: [], mem: row, first: row.first, last: row.last, passed: 0 });
-  });
-  return `<div class="stack" id="sess-lookup">${loader('Looking up this session…')}</div>`;
+  }, { label: 'Looking up this session…', cls: 'stack' });
 }
 
 function sessionBody(s) {
@@ -2206,28 +2347,26 @@ function sessionBody(s) {
 
   // The memory half of this session, folded: what it remembered and what it
   // proposed are the audit trail behind the learning, not the headline.
-  if (s.mem) {
-    fill('sess-mem', '/api/memory?per=100&session=' + encodeURIComponent(id), (d) => {
-      const entries = d.rows.map((e) => ({
-        t: `<span${e.deleted_at || e.superseded_by ? ' class="gone-title"' : ''}>${esc(e.title)}</span>`,
-        s: `${esc(stamp(e.occurred_at))} · ${esc(e.type ?? e.kind)} · ${plural(e.event_count, 'evidence event')}`,
-        v: entryMark(e),
-        go: MH('entry', e.id),
-      }));
-      const cands = (d.candidates ?? []).map((c) => ({
-        t: esc(c.name ?? c.slug),
-        s: `${esc(c.domain ?? '—')} · ${Math.round((c.confidence ?? 0) * 100)}% confidence`,
-        v: `<span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span>`,
-        go: c.concept_slug ? LH('concept', c.concept_slug) : null,
-      }));
-      return fold('sess:mem', 'What the session remembered', plural(entries.length, 'observation'), lines(entries),
-          { hint: 'Observations distilled from the evidence this session captured.' })
-        + (cands.length
-          ? fold('sess:cands', 'Concepts it proposed', plural(cands.length, 'candidate'), lines(cands),
-              { hint: 'Derived from evidence, and still only a proposal — nothing here moved mastery.' })
-          : '');
-    });
-  }
+  const memory = !s.mem ? '' : slot('sess-mem', '/api/memory?per=100&session=' + encodeURIComponent(id), (d) => {
+    const entries = d.rows.map((e) => ({
+      t: `<span${e.deleted_at || e.superseded_by ? ' class="gone-title"' : ''}>${esc(e.title)}</span>`,
+      s: `${esc(stamp(e.occurred_at))} · ${esc(e.type ?? e.kind)} · ${plural(e.event_count, 'evidence event')}`,
+      v: entryMark(e),
+      go: MH('entry', e.id),
+    }));
+    const cands = (d.candidates ?? []).map((c) => ({
+      t: esc(c.name ?? c.slug),
+      s: `${esc(c.domain ?? '—')} · ${Math.round((c.confidence ?? 0) * 100)}% confidence`,
+      v: `<span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span>`,
+      go: c.concept_slug ? LH('concept', c.concept_slug) : null,
+    }));
+    return fold('sess:mem', 'What the session remembered', plural(entries.length, 'observation'), lines(entries),
+        { hint: 'Observations distilled from the evidence this session captured.' })
+      + (cands.length
+        ? fold('sess:cands', 'Concepts it proposed', plural(cands.length, 'candidate'), lines(cands),
+            { hint: 'Derived from evidence, and still only a proposal — nothing here moved mastery.' })
+        : '');
+  }, { label: 'Loading what this session remembered…', cls: 'stack' });
 
   const back = `<a class="page__back" data-go="${esc(href(CUR.wf, 'sessions'))}">← Sessions</a>`;
   return [
@@ -2250,7 +2389,7 @@ function sessionBody(s) {
           { hint: 'Not from this diff — the tutor widened to prerequisites and neighbours.' })
       : '',
 
-    s.mem ? `<div class="stack" id="sess-mem">${loader('Loading what this session remembered…')}</div>` : '',
+    memory,
   ].join('');
 }
 
@@ -2541,7 +2680,7 @@ function viewMemory(param) {
   t.tag = CUR.query.get('tag') || 'all';
   t.since = CUR.query.get('from') || '';
   t.until = CUR.query.get('to') || '';
-  fill('mem-rows', '/api/memory?' + memoryQuery(type), drawMemory);
+  const rows = slot('mem-rows', '/api/memory?' + memoryQuery(type), drawMemory, { label: 'Loading the timeline…', region: true });
 
   // A preset is only a `from` date, so the URL stays the one date format and a
   // shared link reads the same; anything else is a custom range.
@@ -2576,7 +2715,7 @@ function viewMemory(param) {
          ${when === 'custom' ? `<input type="date" id="mfrom" value="${esc(t.since)}" aria-label="From date">
          <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">` : ''}
        </div>
-       <div id="mem-rows" data-region="mem-rows">${loader('Loading the timeline…')}</div>
+       ${rows}
      </div>`,
   ].join('');
 }
@@ -2585,19 +2724,19 @@ function viewMemoryDashboard() {
   const R = S.reuse, H = S.health, Q = H.queue, M = S.memory;
   const scope = () => memScope(new URLSearchParams());
   const q6 = scope(); q6.set('per', '6');
-  fill('mem-recent', '/api/memory?' + q6, (d) => lines(d.rows.map((e) => ({
+  const recent = slot('mem-recent', '/api/memory?' + q6, (d) => lines(d.rows.map((e) => ({
     t: `<span${e.deleted_at || e.superseded_by ? ' class="gone-title"' : ''}>${esc(e.title)}</span>`,
     s: `${esc(stamp(e.occurred_at))} · ${esc(e.type ?? e.kind)} · ${esc(pname(e.project))}`,
     v: entryMark(e),
     go: MH('entry', e.id),
-  })), 'Nothing remembered in this scope yet.'));
+  })), 'Nothing remembered in this scope yet.'), { label: 'Loading observations…' });
   const q5 = scope(); q5.set('per', '5');
-  fill('mem-sessions', '/api/memory/sessions?' + q5, (d) => lines(d.rows.map((m) => ({
+  const recentSessions = slot('mem-sessions', '/api/memory/sessions?' + q5, (d) => lines(d.rows.map((m) => ({
     t: esc(pname(m.project, m.session_id)),
     s: `${m.events} captured · ${m.entries} remembered`,
     v: esc(ago(m.last)),
     go: MH('session', m.session_id),
-  })), 'No session has captured anything in this scope.'));
+  })), 'No session has captured anything in this scope.'), { label: 'Loading sessions…' });
 
   // The pipeline in two lines: is reuse paying for itself, and is capture alive.
   // Each opens its page; the arithmetic lives there.
@@ -2620,9 +2759,9 @@ function viewMemoryDashboard() {
     memTiles(),
     card('Pipeline', null, pipeline),
     `<div class="g2">
-       ${card('Recent observations', null, `<div id="mem-recent">${loader('Loading observations…')}</div>`,
+       ${card('Recent observations', null, recent,
          { aside: `<a class="link" data-go="${esc(MH('timeline'))}">Timeline →</a>` })}
-       ${card('Recent sessions', null, `<div id="mem-sessions">${loader('Loading sessions…')}</div>`,
+       ${card('Recent sessions', null, recentSessions,
          { aside: `<a class="link" data-go="${esc(MH('sessions'))}">All sessions →</a>` })}
      </div>`,
   ].join('');
@@ -2634,7 +2773,7 @@ function viewMemorySessions() {
   q.set('page', t.page); q.set('per', PER);
   // The learning half of the same session, joined on its id, where there is one.
   const learned = new Map(sessions().map((x) => [x.id, x]));
-  fill('msess-rows', '/api/memory/sessions?' + q, (d) => {
+  const rows = slot('msess-rows', '/api/memory/sessions?' + q, (d) => {
     t.page = d.page;
     return `<p class="counts" style="margin:0 0 var(--space-4)">${plural(d.total, 'session')} in scope</p>`
       + table([{t:'Session'},{t:'Remembered',n:1},{t:'Asked',n:1},{t:'When',n:1}],
@@ -2649,13 +2788,13 @@ function viewMemorySessions() {
           <td class="num">${l && l.asked.length ? l.asked.length : '—'}</td>
           <td class="num slug">${esc(ago(m.last))}</td></tr>`;
       })) + pager('msessions', d.total, d.page, d.per);
-  });
+  }, { label: 'Loading sessions…', region: true });
   return [
     pageHead('Sessions', [],
       `One row per session that captured evidence or wrote an observation. Pending is evidence no observation
        job has processed yet. Asked is the same session's questions, joined on its session id — a session can
        be remembered without ever being assessed.`),
-    card(null, null, `<div id="msess-rows" data-region="msess-rows">${loader('Loading sessions…')}</div>`),
+    card(null, null, rows),
   ].join('');
 }
 
@@ -2756,10 +2895,10 @@ function drawEntry(d) {
 }
 
 function viewEntry(id) {
-  fill('entry-body', '/api/memory/entry?id=' + encodeURIComponent(id), (d) =>
-    d && d.entry ? drawEntry(d) : mascotMessage(`<p class="empty">No observation <code>${esc(id)}</code>.</p>`, 'notFound'));
-  return `<div><a class="page__back" data-go="${esc(MH('timeline'))}">← Timeline</a></div>
-    <div class="stack" id="entry-body">${loader('Loading the observation…')}</div>`;
+  const body = slot('entry-body', '/api/memory/entry?id=' + encodeURIComponent(id), (d) =>
+    d && d.entry ? drawEntry(d) : mascotMessage(`<p class="empty">No observation <code>${esc(id)}</code>.</p>`, 'notFound'),
+    { label: 'Loading the observation…', cls: 'stack' });
+  return `<div><a class="page__back" data-go="${esc(MH('timeline'))}">← Timeline</a></div>${body}`;
 }
 
 /* ---------- Reuse: the savings ledger, receipt by receipt ---------- */
@@ -3011,25 +3150,40 @@ function viewArtifact(id) {
   });
   TABS.open(id);
   TABS.reading = null;
+  // The frame is the box: it holds the height this tab last reported (else 80vh) from the first paint, so
+  // the page reflows once, when the real height arrives, and not once for a loader and again for the frame.
+  // A tab opened before has no loader: the frame fills the box as soon as its page paints, and the box is
+  // already the right size. The question behind the correction bar is the same when the cache has it.
+  const height = TABS.height.get(id);
+  const asked = a.correction && respGet(fixUrl(a));
   return `${drawTabs(id)}
     <div class="viewer__bar"><a href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">${ICON_OUT}Open in new browser tab</a></div>
-    <div id="art-wait">${loader('Opening the page…')}</div>
-    <iframe class="viewer" id="art-frame" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
-    ${a.correction ? `<div class="fixbar" id="fixbar" role="region" aria-label="Correction">${loader('Loading the question…')}</div>` : ''}`;
+    <div class="viewer__box">
+      ${height ? '' : `<div id="art-wait">${loader('Opening the page…')}</div>`}
+      <iframe class="viewer" id="art-frame" style="--wait-h:${esc(height ?? '80vh')}" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
+    </div>
+    ${a.correction ? `<div class="fixbar" id="fixbar" role="region" aria-label="Correction">${asked ? '' : loader('Loading the question…')}</div>` : ''}`;
 }
 
+const fixUrl = (a) => `/api/attempts/correction?id=${a.attempt}`;
+
 /**
- * Asks the server for the question behind the bar. Not `fill()`: a refusal
- * shows the server's own words and a Retry, in the bar's one row.
+ * Asks the server for the question behind the bar, or takes it from the cache. Not `slot()`: a refusal
+ * shows the server's own words and a Retry, in the bar's one row, and the bar's markup is the viewer's.
  */
 function loadFix(a) {
   const gen = GEN;
   const bar = () => (gen === GEN ? $('fixbar') : null);
+  const url = fixUrl(a);
+  const kept = respGet(url);
+  if (kept) return paintFix(bar(), a, kept.body);
+  const at = respAt();
   bar().className = 'fixbar';
   bar().innerHTML = loader('Loading the question…');
-  fetch(`/api/attempts/correction?id=${a.attempt}`)
+  fetch(url)
     .then((r) => r.json().catch(() => ({})).then((d) => {
       if (!r.ok) throw new Error(d.error || `${r.status} ${r.statusText}`);
+      respPut(url, d, at);
       const el = bar();
       if (el) paintFix(el, a, d);
     }))
@@ -3089,6 +3243,8 @@ function pickFix(btn) {
   all.forEach((b) => { b.disabled = true; });
   postJson('/api/attempts/retry', { attempt_id: FIX.attempt, picked: btn.dataset.pick })
     .then((r) => {
+      // Tries went up, and a right pick closed the question: what the bar was drawn from is out of date.
+      respForget('/api/attempts/correction');
       if (r.corrected) {
         btn.classList.add('is-right');
         btn.querySelector('.fix__tag').textContent = 'Right answer';
@@ -3158,6 +3314,7 @@ function armLeave(on) {
  */
 function sized(f, h) {
   f.style.height = h;
+  TABS.height.set(CUR.param, h);
   $('art-wait')?.remove();
   if (TABS.reading === CUR.param) return;
   const want = TABS.scroll.get(CUR.param) ?? 0;
@@ -3326,6 +3483,7 @@ const TABS = {
   ids: null,          // open pages, in strip order
   recent: [],         // the same ids, least recently viewed first
   scroll: new Map(),  // id → scrollY
+  height: new Map(),  // id → the height its page last reported, the box it is opened in next time
   reading: null,      // the tab whose scroll is being remembered
   focus: false,       // put focus back on the selected tab after the next draw
   active: null,       // the page the strip last showed as selected; new tabs open right of it
@@ -3360,6 +3518,7 @@ const TABS = {
     this.ids.splice(at, 1);
     this.recent = this.recent.filter((x) => x !== id);
     this.scroll.delete(id);
+    this.height.delete(id);
     this.save();
     const next = this.ids[at] ?? this.ids[at - 1];
     return next ? AH('view', next) : AH('dashboard');
@@ -3488,7 +3647,7 @@ function viewArtifactProjects() {
    ============================================================ */
 let SETS = null;              // the last /api/settings response
 let SETS_AT = null;           // what it was read under: `{ cursor, project, gen }`; null once something made it stale
-let DATA_GEN = 0;             // counts `invalidateData()` calls, so a read already out when one happens is not trusted
+let DATA_GEN = 0;             // counts the times what the page holds was dropped, so a read already out when that happens is not trusted
 const SH = (page, param, q) => href('settings', page, param, q);
 const settingsUrl = () => '/api/settings' + (PROJECT ? '?project=' + encodeURIComponent(PROJECT) : '');
 const settingsNow = () => ({ cursor: S.cursor, project: PROJECT, gen: DATA_GEN });
@@ -3507,16 +3666,29 @@ function keepSettings(d, at) {
 const settingsFresh = () => !!SETS && !!SETS_AT && SETS_AT.cursor === S.cursor && SETS_AT.project === PROJECT && SETS_AT.gen === DATA_GEN;
 
 /**
- * Drops what the page holds that was read under data it has since replaced, so the next draw reads
- * it again: on a project change, after a save, and when the poll finds that the server's cursor moved
- * on while the page's `S` has not (the page's own cursor only moves when it reloads, until Phase 4
- * brings the new data in). Phase 2 adds the fill cache here. `SETS` itself stays (its field list still
- * serves a control being changed); it is only no longer drawn from, and a read that was out when this
- * ran is not drawn from either: it may have been answered before whatever made this necessary.
+ * `SETS` is no longer drawn from: a project change (it holds one project's answer), and everything
+ * `invalidateData()` does. `SETS` itself stays (its field list still serves a control being changed).
+ * A read that was out when this ran is not trusted either: it may have been answered before whatever
+ * made this necessary.
  */
-function invalidateData() {
+function invalidateSettings() {
   DATA_GEN += 1;
   SETS_AT = null;
+}
+
+/**
+ * Drops what the page holds that was read under data it has since replaced, so the next draw reads
+ * it again: after a save, and when the poll finds that the server's cursor moved on while the page's
+ * `S` has not (the page's own cursor only moves when it reloads, until Phase 4 brings the new data
+ * in; it calls this too). That is the settings read and every answer in the response cache.
+ *
+ * A project change is not here. The cache's keys carry the project, so what was read for another
+ * project is simply not asked for, and kept for when the reader switches back; only the one settings
+ * read, which holds a single project's answer, is dropped (`invalidateSettings`).
+ */
+function invalidateData() {
+  invalidateSettings();
+  RESP.clear();
 }
 
 const showValue = (v) =>
@@ -3751,13 +3923,13 @@ function fbEmpty(F) {
 
 function viewFeedbackDashboard() {
   const F = S.feedback;
-  if (F.pending) fill('fb-item', '/api/feedback', (d) => d.item ? drawFbItem(d.item) : fbEmpty(S.feedback));
+  const item = F.pending ? slot('fb-item', '/api/feedback', (d) => d.item ? drawFbItem(d.item) : fbEmpty(S.feedback), { label: 'Loading your feedback…' }) : '';
   if (F.pending && !FB.counted) { FB.counted = true; AFTER.push(fbOpened); }
   const counts = [F.pending ? '1 waiting' : 'nothing waiting', plural(F.acknowledged, 'acknowledged item')];
   return [
     pageHead('Feedback', counts, FB.about),
     `<div class="fb__rule" id="fb-rule"><p>${esc(F.pending ? FB.rulePending : FB.ruleEmpty)}</p></div>`,
-    F.pending ? `<div id="fb-item">${loader('Loading your feedback…')}</div>` : fbEmpty(F),
+    F.pending ? item : fbEmpty(F),
     fbTip(),
     `<span class="sr" id="copy-live" aria-live="polite"></span>`,
   ].join('');
@@ -3788,10 +3960,10 @@ function fbTipDismiss() {
 }
 
 function viewFeedbackItem(id) {
-  fill('fb-item', '/api/feedback?id=' + encodeURIComponent(id), (d) => drawFbItem(d.item));
+  const item = slot('fb-item', '/api/feedback?id=' + encodeURIComponent(id), (d) => drawFbItem(d.item), { label: 'Loading your feedback…' });
   return [
     pageHead('Feedback item', [], FB.about, `<a class="page__back" data-go="${esc(href('feedback', 'history'))}">← History</a>`),
-    `<div id="fb-item">${loader('Loading your feedback…')}</div>`,
+    item,
     `<span class="sr" id="copy-live" aria-live="polite"></span>`,
   ].join('');
 }
@@ -3832,10 +4004,10 @@ function viewFeedbackHistory() {
   const p = new URLSearchParams();
   if (PROJECT !== null) p.set('project', PROJECT);
   p.set('page', T.fbhistory.page);
-  fill('fb-rows', '/api/feedback/list?' + p, drawFbHistory);
+  const rows = slot('fb-rows', '/api/feedback/list?' + p, drawFbHistory, { label: 'Loading history…', cls: 'card card--flush', region: true });
   return [
     pageHead('History', [plural(S.feedback.acknowledged, 'acknowledged item')], FB.about),
-    `<div class="card card--flush" id="fb-rows" data-region="fb-rows">${loader('Loading history…')}</div>`,
+    rows,
   ].join('');
 }
 
@@ -3885,7 +4057,8 @@ function fbAcknowledge(btn) {
   if (btn.disabled) return;
   btn.disabled = true;
   postJson('/api/feedback/acknowledge', { id: +btn.dataset.fbAck })
-    .then((d) => { S.feedback = d.state; fbDone(FB.announce); })
+    // The item, its history row and the next one waiting all changed: what was read of them is gone.
+    .then((d) => { S.feedback = d.state; respForget('/api/feedback'); fbDone(FB.announce); })
     .catch((e) => { btn.disabled = false; fbFail(e); });
 }
 
@@ -3901,7 +4074,7 @@ function fbDelete(btn) {
   if (btn.disabled) return;
   btn.disabled = true;
   postJson('/api/feedback/delete', { id: +btn.dataset.fbYes })
-    .then((d) => { S.feedback = d.state; fbDone('Deleted.'); })
+    .then((d) => { S.feedback = d.state; respForget('/api/feedback'); fbDone('Deleted.'); })
     .catch((e) => { btn.disabled = false; fbFail(e); });
 }
 
@@ -3910,10 +4083,13 @@ function fbDelete(btn) {
  * from the server only when it is missing or stale.
  */
 function viewSettings(scope) {
-  if (settingsFresh()) return `<div id="settings">${drawSettings(SETS, scope)}</div>`;
+  if (settingsFresh()) {
+    AFTER.push(() => remember('settings'));
+    return slotHost('settings', drawSettings(SETS, scope));
+  }
+  // Not what `SETS` holds, but possibly what the page read for this project earlier: the cache answers that.
   const at = settingsNow();
-  fill('settings', settingsUrl(), (d) => { keepSettings(d, at); return drawSettings(d, scope); }, { record: true });
-  return `<div id="settings">${loader('Reading your settings…')}</div>`;
+  return slot('settings', settingsUrl(), (d) => { keepSettings(d, at); return drawSettings(d, scope); }, { label: 'Reading your settings…' });
 }
 
 /** Reads a control back into the value its field stores. */
@@ -3955,11 +4131,13 @@ function saveSetting(key, change) {
     .then(() => {
       // The file has changed: what was read before is stale from here, and read again now.
       invalidateData();
-      const at = settingsNow();
-      return fetch(settingsUrl()).then((r) => r.json()).then((d) => [d, at]);
+      const at = settingsNow(), url = settingsUrl();
+      return fetch(url).then((r) => r.json()).then((d) => [d, at, url]);
     })
-    .then(([d, at]) => {
+    .then(([d, at, url]) => {
       keepSettings(d, at);
+      // What was just read is the page's answer for this URL too: the next visit to it is free.
+      respPut(url, d, at);
       const el = $('settings');
       if (!el) return;
       // The reader moved to another tab while this was saving, and was shown what was read before it:
@@ -4724,7 +4902,7 @@ function syncFromUrl() {
   const project = r.query.get('project');
   const known = project !== null && INV.projects.some((p) => p.id === project);
   const next = known ? project : null;
-  if (next !== PROJECT) { PROJECT = next; for (const k of Object.keys(T)) T[k].page = 1; recomputeScope(); invalidateData(); }
+  if (next !== PROJECT) { PROJECT = next; for (const k of Object.keys(T)) T[k].page = 1; recomputeScope(); invalidateSettings(); }
   CUR = { wf: r.wf, page: r.page, param: r.param, query: r.query, missing: r.missing, bad: r.bad };
   syncProjects();
   render();
@@ -4812,14 +4990,15 @@ function isAdjustment(pg) {
 
 /* ---------- redrawing a screen without moving the reader ----------
    A view marks the parts a tab, chip, select or pager changes with
-   `data-region="<id>"` (`region()`), and the part that holds a fetched list stays as the
-   placeholder it always is. The markup with every region emptied is its *skeleton*. If
+   `data-region="<id>"` (`region()`, or a fetched list's `slot()`). The markup with every region emptied is its *skeleton*. If
    the skeleton the view returns now equals the one the screen was drawn from, only the
    regions whose contents changed are replaced, each wholesale, in the element that is
    already on the page; nothing outside them is touched, so a head, a chart, a rail, a
    list being fetched or a text box in the skeleton keeps its identity. Anything else
    (no regions, a different set, a different skeleton) replaces the view's content, still
-   without moving the scroll. Phase 4 redraws for new data through the same path. */
+   without moving the scroll; a fetched list that is only the box this time (`slot()`) is then
+   carried over from the old view, node for node, and stays dimmed until its answer draws.
+   Phase 4 redraws for new data through the same path. */
 
 /**
  * The regions of a screen's markup and what is left once they are emptied; no skeleton when it has none, or two
@@ -4848,8 +5027,9 @@ function scanRegions(html) {
 const recordOf = (html) => ({ html, ...scanRegions(html) });
 
 /**
- * A fill drew `html` into `#id`, and the view returns that same markup itself from now on
- * (`fill`'s `record`): bring the record in line, so the regions inside it are known.
+ * A fill drew `html` into `#id`, and the view returns that same markup itself from now on (the
+ * answer is in the cache, and Settings draws from `SETS`): bring the record in line, so the regions
+ * inside it are known and a redraw that returns it again finds nothing to change.
  */
 function recordFill(id, html) {
   if (!DRAWN) return;
@@ -4891,6 +5071,9 @@ function drawAdjusted(html) {
       if (prev.settled.get(id) === next.settled.get(id)) continue;
       const host = view.querySelector(`[data-region="${id}"]`);
       if (!host) { inPlace = false; break; }
+      // A list whose answer is still to come is the box and the loader: never over what is on screen,
+      // which stays (the fetch dims it) until the answer draws. Over a failure it is: that is asking again.
+      if (isWait(inner) && !host.hasAttribute('data-failed')) continue;
       swaps.push([host, inner]);
     }
   }
@@ -4900,14 +5083,24 @@ function drawAdjusted(html) {
     for (const [host, inner] of swaps) {
       const ui = captureUi(host);
       host.innerHTML = inner;
+      // Whatever an earlier request left on it (busy, a failure) was about the content it replaced.
+      slotDone(host);
       focusable(host);
       restoreUi(host, ui);
     }
     DRAWN = { ...prev, ...at, html, skeleton: next.skeleton, regions: next.regions, settled: next.settled };
     return;
   }
+  // The view is replaced; a fetched region that is only the box this time still shows what it did, moved
+  // into the new element (the same nodes, so whatever the reader had open or focused in them is still there).
+  const held = new Map();
+  for (const el of view.querySelectorAll('[data-slot]')) if (holdsContent(el)) held.set(el.id, el);
   const ui = captureUi(view);
   view.innerHTML = html;
+  for (const el of view.querySelectorAll('[data-slot]')) {
+    const was = held.get(el.id);
+    if (was && el.querySelector(':scope > .slot__wait')) el.replaceChildren(...was.childNodes);
+  }
   focusable(view);
   restoreUi(view, ui);
   DRAWN = { ...prev, ...at, html, ...next };
@@ -4986,6 +5179,8 @@ function setQuery(changes) {
 }
 
 function onActivate(e) {
+  // A region waiting for its next answer is dimmed and out of the pointer's reach (CSS); the keyboard is held back the same way.
+  if (e.target.closest('[data-slot][aria-busy="true"][data-kept]')) return;
   const copy = e.target.closest('[data-copy]');
   if (copy) return copyCommand(copy);
   if (e.target.closest('[data-fb-tip-dismiss]')) return fbTipDismiss();

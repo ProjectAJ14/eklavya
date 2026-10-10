@@ -433,9 +433,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         if (n === 2) await held;
         await route.fulfill({ json: { total: 60, page: n, pages: 3, per: 20, rows: Array.from({ length: 20 }, (_, i) => entry((n - 1) * 20 + i + 1, (n - 1) * 20 + i)) } });
       });
-      await page.evaluate(() => { location.hash = '#/memory/timeline?tag=other'; });
-      await page.waitForSelector('#mem-rows .tl');
-      await page.evaluate(() => { location.hash = '#/memory/timeline'; });
+      // The page already holds the first page it read (the fixture's five entries, which a revisit draws
+      // with no request), so the sixty are asked for by a fresh load of it.
+      await page.reload();
       await page.waitForFunction(() => !!document.querySelector('#mem-rows [data-entry="1001"]') && !document.getElementById('mem-rows')!.hasAttribute('aria-busy'));
       await holdSidebar(page);
       await page.evaluate(() => { (window as any).__head = document.querySelector('#view > .page__head'); });

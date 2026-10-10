@@ -711,6 +711,21 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
             expect(await pageProblem(w.page, want), route).toBeNull();
             expect(r.finalHeight, route).toBeGreaterThan(0);
             expect(r.minHeight, route).toBeLessThanOrEqual(r.finalHeight);
+            if (pass === 1) {
+              // A first visit may fetch, and may show a loader, but it may not collapse. The page being left sets one
+              // end of the view's height (`beforeHeight`) and the page being drawn the other (`finalHeight`): either may
+              // be the taller, and a page that goes straight from one to the other is not a collapse. What is one is a
+              // view that goes below both while it waits, because the box it holds for what is coming is smaller than
+              // what comes: the footer jumps up, then down. That is what "never drops below the room the shell reserved"
+              // is, read off the probe. A few pixels are rounding (a scrollbar, a border).
+              expect(r.minHeight, `${route} collapsed while it loaded`).toBeGreaterThanOrEqual(Math.min(r.beforeHeight, r.finalHeight) - 4);
+              expect(r.footerBounced, `${route}: the footer moved up and back down`).toBe(false);
+            } else {
+              // A revisit is drawn from what the page already holds: nothing is asked for, and no loader is drawn, not
+              // even for a frame (the probe inspects every mutation batch, so a loader added and removed in one task counts).
+              expect(r.requests, `${route} asked the server for a page it had seen`).toEqual([]);
+              expect(r.sawLoader, `${route} drew a loader for a page it had seen`).toBe(false);
+            }
           }
         }
       } finally {
