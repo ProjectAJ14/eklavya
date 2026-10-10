@@ -77,6 +77,7 @@ describes visual checks.
 | Runtime behavior | Relevant automated tests and the live learning-loop check below |
 | Hooks or commit gate | Hook/gate tests plus the affected manual scenario below |
 | Tutor pedagogy | Before/after evaluation and live learning-loop transcript |
+| Dashboard queries, payload or caps, or the page's boot and render path | Dashboard tests, plus before and after output of the [dashboard perf script](#dashboard-performance) |
 | Documentation or website | Website build; source-checked examples; visual checks for changed layouts |
 | Plugin manifests or host integration | Plugin validation and re-verification of [host contracts](docs/verified-schemas.md) |
 
@@ -205,6 +206,61 @@ ask questions one at a time while it builds, and write the task answer as the
 last message once the agent reports. Ask for a one-line fix too: it should stay
 inline. In either case the turn must not end on a question or a verdict; if the
 Stop sweep fires, it ends with "Back to your task:" and a short restatement.
+
+## Dashboard performance
+
+`mcp/scripts/dashboard-perf.mjs` measures what opening the dashboard costs on the
+server. Run it before and after a change to the dashboard's builders
+(`dashboardState`, `projectInventory`, `settingsState`, the memory pages,
+`changeCursor`), its queries, the payload's shape or caps (`ATTEMPT_LIMIT`), or the
+page's boot and render path, and put both outputs in the PR. It is a contributor
+tool: CI does not run it and no test asserts a time.
+
+```bash
+cd mcp && npm run build && cd ..
+node mcp/scripts/dashboard-perf.mjs small
+node mcp/scripts/dashboard-perf.mjs                  # medium, roughly a year of daily use
+node mcp/scripts/dashboard-perf.mjs large
+node mcp/scripts/dashboard-perf.mjs /path/to/base/mcp/dist all --json > before.json
+node mcp/scripts/dashboard-perf.mjs all --json > after.json
+```
+
+The first argument is the `dist` to measure (default: the `mcp/dist` next to the
+script) and the second is `small`, `medium` (default), `large` or `all`, which runs
+the three in separate processes. Each scale seeds a synthetic learner through the
+migrated schema into a temporary `EKLAVYA_HOME` and `EKLAVYA_DB` and removes them
+afterwards; it never opens `~/.eklavya`. The data comes from a fixed PRNG, so two
+runs seed the same rows.
+
+| Scale | Attempts | Logged rows | Evidence events | Memory entries | Sessions |
+|---|---|---|---|---|---|
+| small | 200 | 400 | 1,000 | 200 | 40 |
+| medium | 2,000 | 5,000 | 20,000 | 3,000 | 400 |
+| large | 10,000 | 20,000 | 100,000 | 10,000 | 1,500 |
+
+Each scale spreads its rows over 6 projects. The logged-row count is what was
+inserted; a duplicate session and concept pair is dropped, and the output states
+the rows actually seeded.
+
+For each scale it prints:
+
+- The median of five runs, with the fastest and slowest, of `dashboardState`,
+  `JSON.stringify` of its result, `projectInventory`, `settingsState`,
+  `memorySessionPage` and `changeCursor`. A builder the dist does not export prints
+  `n/a`.
+- The `/api/state` payload in bytes, in total and for every top-level key, largest
+  first, with `attempts_shown` and `attempts_total` so a cap is visible.
+- HTTP round trips to a real dashboard server on a free loopback port: each of
+  `/api/state`, `/api/projects`, `/api/settings`, `/api/memory/sessions` and
+  `/api/cursor` twice in a row (first and second, so a cached second answer
+  shows), and the page's two boot requests, `/api/state` and `/api/projects`,
+  issued together.
+
+`--json` prints the same measurements as one object per scale (an array for
+`all`) so two runs can be diffed. Compare runs from the same machine, under similar
+load, with the same `TMPDIR`: timings vary by machine, and every row names its
+repository by path, so payload sizes shift with the length of the temporary
+directory.
 
 ## Evaluation
 
