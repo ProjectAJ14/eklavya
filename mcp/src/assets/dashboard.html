@@ -1144,14 +1144,30 @@ function adoptState(s, inv) {
   invalidateData();
 }
 
-/** Called wherever `S`, `INV` or `PROJECT` has just been assigned: `adoptState`, and a change of project. */
+/**
+ * Called wherever `S`, `INV` or `PROJECT` has just been assigned: `adoptState`, and a change of project.
+ *
+ * A project's concepts are the inventory's own list for it (`learning.concept_slugs`: every concept an
+ * answer or a logged line of any origin names for the project, read by the server from every row and
+ * attributed as `pid()` does). They are not read from `S.attempts` and `S.logged`, which hold only the
+ * newest rows (`attempts_shown`, `logged_shown`): a concept whose only rows are old would drop out of
+ * its project, and Concepts, Review, Domains and the sidebar's counts would all lose it.
+ */
 function recomputeScope() {
   dropDerived();
-  if (PROJECT === null) { SCOPE = null; return; }
-  SCOPE = new Set();
-  for (const a of S.attempts) if (inScope(a.repo, a.session_id)) SCOPE.add(a.slug);
-  for (const l of S.logged) if (inScope(l.repo, l.session_id)) SCOPE.add(l.slug);
+  SCOPE = PROJECT === null ? null : new Set(projectById(PROJECT)?.learning.concept_slugs ?? []);
 }
+
+/**
+ * Whether the payload holds fewer rows than there are. `attempts` and `logged` are cut at the newest
+ * `ATTEMPT_LIMIT` and `LOGGED_LIMIT` rows (the server says how many it sent and how many there are), and
+ * the footer says so (`paintChrome`). Everything the page derives from a *list* of rows is then a reading of
+ * the newest ones: the sessions, a concept's question history, the context lines, the skipped answers.
+ * Totals, the per-day rows, the catalogue and the inventory are aggregated over every row and are not.
+ */
+const cutAnswers = () => S.attempts_shown < S.attempts_total;
+const cutLines = () => S.logged_shown < S.logged_total;
+const rowsCut = () => cutAnswers() || cutLines();
 
 /* ---------- derived lists, kept ----------
    What the views read of the payload (the concepts in scope, the sessions, the daily buckets, the streak, the
@@ -1237,46 +1253,86 @@ function streaks(map) {
   return Object.freeze({ current: run.size, best, days: active.size, run, today });
 }
 
-/** Sessions in scope, from the two row sets that mention a session id, newest first. */
+/**
+ * Sessions in scope, from the two row sets that mention a session id, newest first. When the payload's lists
+ * are cut (`rowsCut`) these are the sessions of the newest rows: a session older than every row the payload holds
+ * is not here, and the oldest one that is may hold only part of its rows. `sessionTotal` is how many there are,
+ * and a session's own page reads it whole (`viewSession`).
+ */
 const sessions = () => derived('sessions', () => Object.freeze(buildSessions()));
 /** Learning's sessions: the ones that logged a concept or asked a question. A memory-only one belongs to the other workflow. */
 const learningSessions = () => derived('learning-sessions', () => Object.freeze(sessions().filter((x) => x.logged.length || x.asked.length)));
 
+/**
+ * How many learning sessions there are in scope. While the payload holds every row, it is the list's length. Once
+ * it is cut, the list is only the sessions of the newest rows, and the count is the project cards' (`learning.sessions`:
+ * the server counts every row, not the ones it sent), so the sidebar, the Sessions page, the dashboard's link and the
+ * Projects page say one number. Never fewer than the list: a session the rows name and the card attributes to another
+ * project (a repository-less answer is attributed by the page's `pid()`) is still a session in the list.
+ */
+const sessionTotal = () => derived('session-total', () => {
+  const listed = learningSessions().length;
+  return rowsCut() ? Math.max(listed, projectsInScope().reduce((n, p) => n + p.learning.sessions, 0)) : listed;
+});
+
+/* Two timestamp shapes meet in a session: SQLite's `2026-09-05 21:04:00` from
+   attempts, and the ISO string evidence carries. Compared as text, 'T' sorts
+   after ' ', so the same instant from the two halves would order wrongly —
+   flatten both to one shape before comparing. */
+const flatTs = (ts) => String(ts ?? '').replace('T', ' ').replace('Z', '');
+const newSession = (id) => ({ id, repo:null, logged:[], asked:[], mem:null, first:null, last:null });
+function touchSession(s, ts) {
+  const t = flatTs(ts);
+  if (!t) return;
+  if (!s.first || t < s.first) s.first = t;
+  if (!s.last || t > s.last) s.last = t;
+}
+const addLogged = (s, l) => { s.logged.push(l); s.repo = s.repo ?? l.repo; touchSession(s, l.ts); };
+const addAsked = (s, a) => { s.asked.push(a); s.repo = s.repo ?? a.repo; touchSession(s, a.ts); };
+const addMemory = (s, mem) => { s.mem = mem; s.repo = s.repo ?? mem.project; touchSession(s, mem.first); touchSession(s, mem.last); };
+/** A miss corrected from its explainer counts as right, as on the Accuracy tile. */
+const withPassed = (s) => ({ ...s, passed: s.asked.filter((a) => a.grade >= 3 || a.corrected_at).length });
+
 function buildSessions() {
   const m = new Map();
   const get = (id) => {
-    if (!m.has(id)) m.set(id, { id, repo:null, logged:[], asked:[], mem:null, first:null, last:null });
+    if (!m.has(id)) m.set(id, newSession(id));
     return m.get(id);
   };
-  /* Two timestamp shapes meet here: SQLite's `2026-09-05 21:04:00` from
-     attempts, and the ISO string evidence carries. Compared as text, 'T' sorts
-     after ' ', so the same instant from the two halves would order wrongly —
-     flatten both to one shape before comparing. */
-  const flat = (ts) => String(ts ?? '').replace('T', ' ').replace('Z', '');
-  const touch = (s, ts) => {
-    const t = flat(ts);
-    if (!t) return;
-    if (!s.first || t < s.first) s.first = t;
-    if (!s.last || t > s.last) s.last = t;
-  };
-  for (const l of loggedInScope()) { const s = get(l.session_id); s.logged.push(l); s.repo = s.repo ?? l.repo; touch(s, l.ts); }
+  for (const l of loggedInScope()) addLogged(get(l.session_id), l);
   for (const a of attemptsInScope()) {
     if (!a.session_id) continue;
-    const s = get(a.session_id); s.asked.push(a); s.repo = s.repo ?? a.repo; touch(s, a.ts);
+    addAsked(get(a.session_id), a);
   }
   // A session that captured evidence but logged no concept is still a session:
   // leaving it out would make the memory half invisible in the one place the
   // two halves are supposed to line up.
   for (const mem of S.memory_sessions ?? []) {
     if (!inScope(mem.project, mem.session_id)) continue;
-    const s = get(mem.session_id);
-    s.mem = mem; s.repo = s.repo ?? mem.project;
-    touch(s, mem.first); touch(s, mem.last);
+    addMemory(get(mem.session_id), mem);
   }
   return [...m.values()]
-    // A miss corrected from its explainer counts as right, as on the Accuracy tile.
-    .map((s) => ({ ...s, passed: s.asked.filter((a) => a.grade >= 3 || a.corrected_at).length }))
+    .map(withPassed)
     .sort((a, b) => String(b.last).localeCompare(String(a.last)));
+}
+
+/**
+ * One session from what `/api/memory/sessions?session=` answers (`d`): its logged lines and its answers
+ * whole, however old, in the payload's own row shapes, and its memory half. The same session `buildSessions`
+ * makes, from the same helpers, drawn from rows the payload's cut did not leave out. The lines and answers
+ * are not narrowed by the server to a project (which project a row is in is `pid()`'s to say), so they are narrowed
+ * here as the payload's rows are. `null`: nothing of it is in scope. `cutAsked` says when the session has more
+ * answers than the server sends for one session (`ATTEMPT_LIMIT`).
+ */
+function sessionFromLookup(id, d) {
+  const s = newSession(id);
+  const L = d.learning;
+  for (const l of L.logged) if (inScope(l.repo, l.session_id)) addLogged(s, l);
+  for (const a of L.attempts) if (inScope(a.repo, a.session_id)) addAsked(s, a);
+  const mem = d.rows[0] ?? null;
+  if (mem) addMemory(s, mem);
+  if (!s.logged.length && !s.asked.length && !mem) return null;
+  return { ...withPassed(s), cutAsked: L.attempts_total > L.attempts.length ? { shown: L.attempts.length, total: L.attempts_total } : null };
 }
 
 /**
@@ -2059,7 +2115,9 @@ function redrawKept(el, html, live) {
  */
 function focusable(root) {
   root.querySelectorAll('tr.row, [data-go]').forEach((el) => {
-    if (el.tabIndex < 0) el.tabIndex = 0;
+    // `tabIndex` is not the question for the `<a class="link" data-go>` shorthand: Chromium reports 0 for an anchor
+    // with no `href` although it cannot take focus, so it was never given the attribute that makes it Tab-reachable.
+    if (!el.hasAttribute('tabindex') || el.tabIndex < 0) el.tabIndex = 0;
     if (el.tagName === 'A' && !el.hasAttribute('href')) el.setAttribute('role', 'link');
   });
   // Runs after every render and every fill, so it is also where new markup's
@@ -2196,7 +2254,7 @@ function viewLearningDashboard() {
            v: `${s.asked.length ? `${s.passed}/${s.asked.length} right` : plural(s.logged.length, 'concept')}<div class="slug">${esc(ago(s.last))}</div>`,
            go: sessHref(s.id),
          })), 'No sessions in this scope yet.'),
-         { aside: `<a class="link" data-go="${esc(href(CUR.wf, 'sessions'))}">All ${sess.length} →</a>` })}
+         { aside: `<a class="link" data-go="${esc(href(CUR.wf, 'sessions'))}">All ${sessionTotal()} →</a>` })}
      </div>`,
 
     fold('learn:stand', 'Where you stand', `${mastered.length} mastered · ${seen.length - mastered.length} learning`,
@@ -2435,16 +2493,26 @@ function viewSessions() {
   });
 
   const withQuestions = all.filter((s) => s.asked.length).length;
+  const answers = all.reduce((a, s) => a + s.asked.length, 0);
+  // While the payload's lists are cut the list is the sessions of the newest rows. The count is every session (the
+  // project cards' number), the other two figures are about the listed ones, and the page says which it is saying.
+  const cut = rowsCut();
+  const counts = cut
+    ? [plural(sessionTotal(), 'session'), `newest ${all.length} listed`, `${withQuestions} of those with questions`, `${plural(answers, 'answer')} in them`]
+    : [plural(all.length, 'session'), `${withQuestions} with questions`, plural(answers, 'answer')];
+  const built = [
+    ...(cutAnswers() ? [`the most recent ${S.attempts_shown} of ${S.attempts_total} answers`] : []),
+    ...(cutLines() ? [`the most recent ${S.logged_shown} of ${S.logged_total} logged lines`] : []),
+  ].join(' and ');
   return [
-    pageHead('Sessions', [
-      plural(all.length, 'session'), `${withQuestions} with questions`,
-      plural(all.reduce((a, s) => a + s.asked.length, 0), 'answer'),
-    ], `One row per Claude Code session that logged a concept or asked a question. Open one for the whole
+    pageHead('Sessions', counts, `One row per Claude Code session that logged a concept or asked a question. Open one for the whole
        thread: the concepts the work touched, every question you were asked, and — joined on the same
        session id — what the session captured and remembered.`),
     card(null, null, region('sessions',
       table([{t:'Session'},{t:'Concepts',n:1},{t:'Answers'},{t:'When',n:1}], rows)
       + pager('sessions', all.length, p)
+      + (cut ? `<p class="slug" style="margin:var(--space-4) 0 0">This list is built from ${built}, so older sessions are counted above
+          but not listed, and the oldest one listed may show only part of its work. Open a session to read it whole.</p>` : '')
       + (memOnly ? `<p class="slug" style="margin:var(--space-4) 0 0">${plural(memOnly, 'session')} captured memory and logged no concept —
           <a class="link" data-go="${esc(MH('sessions'))}">see them in Memory → Sessions</a>.</p>` : ''))),
   ].join('');
@@ -2461,14 +2529,18 @@ const noSession = (id) => mascotMessage(`<p class="empty">No session <code>${esc
  * came from.
  */
 function viewSession(id) {
-  const s = sessions().find((x) => x.id === id);
+  // The payload's rows are every row there is only while its lists are not cut (`rowsCut`), and then a session in it is
+  // whole and is drawn with no request. Once they are cut, the rows of a session may be only the newest of its rows, and
+  // nothing in the payload says which ones: a session that began before the cut and ran past it looks like any other
+  // (its older rows are the ones left out). So every session is read from the server, whole.
+  const s = rowsCut() ? null : sessions().find((x) => x.id === id);
   if (s) return sessionBody(s);
-  // Not in the payload: a memory-only session past `memory_sessions`' cap, or
-  // one outside the current scope. The paged resource answers for it exactly.
+  // Not in the payload (a memory-only session past `memory_sessions`' cap, one outside the current scope, one whose
+  // rows are older than the payload's) or not known to be whole. The paged resource answers for it exactly: its memory
+  // half, and its lines and answers whatever their age (`learning`).
   return slot('sess-lookup', '/api/memory/sessions?' + memScope(new URLSearchParams({ session: id })), (d) => {
-    const row = d.rows[0];
-    if (!row) return noSession(id);
-    return sessionBody({ id, repo: row.project, logged: [], asked: [], mem: row, first: row.first, last: row.last, passed: 0 });
+    const found = sessionFromLookup(id, d);
+    return found ? sessionBody(found) : noSession(id);
   }, { label: 'Looking up this session…', cls: 'stack' });
 }
 
@@ -2517,6 +2589,7 @@ function sessionBody(s) {
       `${esc(stamp(s.first))} → ${esc(stamp(s.last))}`,
       `${plural(work.length, 'concept')} logged`,
       s.asked.length ? `${s.passed}/${s.asked.length} right (${pct(s.passed, s.asked.length)}%)` : 'no questions',
+      ...(s.cutAsked ? [`the newest ${s.cutAsked.shown} of ${s.cutAsked.total} answers`] : []),
       ...(s.mem ? [`${s.mem.events} captured${s.mem.redacted ? `, ${s.mem.redacted} redacted` : ''}`, `${s.mem.entries} remembered`] : []),
     ], `Session <code class="slug">${esc(s.id)}</code>. The learning half and the memory half are joined on the
        session id the host handed both — the one association between them that is recorded rather than inferred.`, back),
@@ -2525,7 +2598,11 @@ function sessionBody(s) {
       ? card('What the work taught', 'Each line is what the agent said the concept was for, in the code it wrote.', lines(work.map(conceptLine)))
       : '',
 
-    s.asked.length ? card('What you were asked', `${plural(s.asked.length, 'question')}, in order. Open one for the options and the feedback.`, qa) : '',
+    s.asked.length
+      ? card('What you were asked', s.cutAsked
+          ? `The newest ${s.cutAsked.shown} of this session's ${s.cutAsked.total} questions, in order. Open one for the options and the feedback.`
+          : `${plural(s.asked.length, 'question')}, in order. Open one for the options and the feedback.`, qa)
+      : '',
 
     review.length
       ? fold('sess:review', 'Pulled in for review', plural(review.length, 'concept'), lines(review.map(conceptLine)),
@@ -2929,7 +3006,10 @@ function viewMemorySessions() {
           <td class="num">${m.entries}</td>
           <td class="num">${l && l.asked.length ? l.asked.length : '—'}</td>
           <td class="num slug">${esc(ago(m.last))}</td></tr>`;
-      })) + pager('msessions', d.total, d.page, d.per);
+      })) + pager('msessions', d.total, d.page, d.per)
+      // Asked is read from the answers the payload holds, so once those are cut a session older than them shows no count.
+      + (cutAnswers() ? `<p class="slug" style="margin:var(--space-4) 0 0">Asked counts the most recent ${S.attempts_shown} of ${S.attempts_total} answers:
+          a session older than those shows —, and the oldest one that is counted may show only part of its answers.</p>` : '');
   }, { label: 'Loading sessions…', region: true });
   return [
     pageHead('Sessions', [],
@@ -4561,7 +4641,7 @@ const navCounts = (wf) => derived('nav:' + wf, () => {
     return {
       concepts: conceptsInScope().length,
       review: seenConcepts().filter((c) => c.due).length,
-      sessions: learningSessions().length,
+      sessions: sessionTotal(),
       projects: inv.filter((p) => p.learning.answers || p.learning.logged_concepts).length,
       domains: new Set(conceptsInScope().map((c) => c.domain)).size,
     };
@@ -5654,10 +5734,16 @@ const json = (url) => fetch(url).then((r) => {
  */
 function paintChrome(s, inv) {
   $('dbline').textContent = s.db_path;
-  // Totals are aggregated in SQL over the whole table, so a cap can only
-  // shorten a history list — but say so rather than let it look complete.
-  $('foot-note').textContent = s.attempts_shown < s.attempts_total
-    ? ` Question histories show the most recent ${s.attempts_shown} of ${s.attempts_total} answers.` : '';
+  // Totals, the per-day rows, the concept catalogue and the project inventory are aggregated in SQL over the whole
+  // tables, so a cap can only shorten a list of rows — but say which, rather than let it look complete.
+  $('foot-note').textContent = [
+    s.attempts_shown < s.attempts_total
+      ? `Question histories show the most recent ${s.attempts_shown} of ${s.attempts_total} answers.` : '',
+    s.logged_shown < s.logged_total
+      ? `Logged context lines show the most recent ${s.logged_shown} of ${s.logged_total}.` : '',
+    s.attempts_shown < s.attempts_total || s.logged_shown < s.logged_total
+      ? 'The Sessions list shows the most recent sessions; each session opens whole.' : '',
+  ].filter(Boolean).map((t) => ` ${t}`).join('');
   const c = s.config;
   // Same rule as the status bar in `statusline.ts`: `enforced` is a word worth
   // a slot, unenforced quizzing is not -- it was the default on three bars in

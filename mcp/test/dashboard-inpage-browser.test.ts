@@ -289,6 +289,46 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     }, 90000);
 
+    it('reaches every link written as <a class="link" data-go> with Tab, and Enter follows it', async () => {
+      // That shorthand has no href. Chromium reports a tabIndex of 0 for such an anchor though it cannot take focus,
+      // so a page that only raised a negative tabIndex left it out of the Tab order: Timeline's "Open entry",
+      // "Timeline →", "All sessions →" and every other link of its kind.
+      const w = await open('#/learning/dashboard');
+      const { page } = w;
+      const link = 'a.link[data-go]';
+      expect(await page.locator(`#view ${link}`).count(), 'the screen has one to reach').toBeGreaterThan(0);
+      await tabTo(page, `#view ${link}`);
+      const to = await page.evaluate(() => document.activeElement!.getAttribute('data-go'));
+      expect(await focused(page, 'a.link[data-go]')).toBe(true);
+      await page.keyboard.press('Enter');
+      expect(await page.evaluate(() => location.hash), 'Enter followed the link it was on').toBe(to);
+
+      // The same in a view that fills in after the page is drawn (the Memory dashboard's cards), and on a timeline entry.
+      for (const [hash, within] of [['#/memory/dashboard', '#view'], ['#/memory/timeline', '#view']] as const) {
+        await page.goto(base + '/' + hash); await ready(page);
+        const found = await page.locator(`${within} ${link}`).count();
+        expect(found, hash).toBeGreaterThan(0);
+        await tabTo(page, `${within} ${link}`);
+        const target = await page.evaluate(() => document.activeElement!.getAttribute('data-go'));
+        await page.keyboard.press('Enter');
+        expect(await page.evaluate(() => location.hash), hash).toBe(target);
+      }
+
+      // Every element the page makes a link of can take focus, whatever it is.
+      for (const hash of ['#/learning/dashboard', '#/learning/sessions', '#/memory/dashboard', '#/memory/timeline', '#/artifacts/dashboard', '#/feedback/history']) {
+        await page.goto(base + '/' + hash); await ready(page);
+        const stuck = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('#view [data-go]')].filter((el) => {
+          // Not one inside a closed fold, which is not drawn and so cannot be focused (a timeline entry's link, until it is opened).
+          if (!el.checkVisibility()) return false;
+          el.focus();
+          return document.activeElement !== el;
+        }).map((el) => `${el.tagName.toLowerCase()}[${el.getAttribute('data-go')}]`));
+        expect(stuck, hash).toEqual([]);
+      }
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 90000);
+
     it('returns to the earlier list on Back', async () => {
       const w = await open('#/learning/review', { height: HEIGHT });
       const { page } = w;
