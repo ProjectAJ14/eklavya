@@ -698,9 +698,9 @@
   .cmd--block { margin-top:0; align-items:flex-start; }
   .cmd--block code { white-space:pre-wrap; overflow-wrap:anywhere; overflow-x:visible; }
   .fb__ds, .fb__tips { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-3); }
-  .fb__ds li { display:grid; grid-template-columns:120px max-content minmax(0, 1fr); gap:var(--space-3); align-items:baseline; }
+  .fb__ds li { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:var(--space-3); align-items:baseline; }
   .fb__dn { font-family:var(--font-mono); font-size:12px; color:var(--dim); }
-  .fb__note { color:var(--dim); font-size:13.5px; overflow-wrap:anywhere; }
+  .fb__note { margin:0; color:var(--dim); font-size:13.5px; overflow-wrap:anywhere; }
   .fb__ev { display:block; color:var(--faint); font-size:12.5px; }
   .fb__tips li { color:var(--dim); font-size:13.5px; padding-left:var(--space-4); position:relative; }
   .fb__tips li::before { content:'–'; position:absolute; left:0; color:var(--faint); }
@@ -3646,17 +3646,14 @@ const FB = {
   ruleEmpty: 'Eklavya reviews one prompt at a time. When one is ready it appears here, and the next waits until you press Acknowledge.',
   rulePending: 'Feedback pauses until you acknowledge this one. Read it, then press Acknowledge to get the next.',
   announce: 'Acknowledged. Feedback resumes at your next session.',
-  dims: [['delegation', 'Delegation'], ['description', 'Description'], ['discernment', 'Discernment'], ['diligence', 'Diligence']],
-  status: { strong: 'Strong', mixed: 'Mixed', missing: 'Missing', not_visible: "Can't tell from this prompt" },
-  // `not_visible` is the muted role, never a weakness.
-  pill: { strong: 'pill ok', mixed: 'pill', missing: 'pill due', not_visible: 'pill gone' },
+  areas: { outcome: 'Outcome', context: 'Context', scope: 'Scope', check: 'Check' },
   counted: false,
   observerCmd: 'eklavya config set providers.observer <model>',
   about: `Your prompts are already recorded by memory. After a session ends, in the background and never in the middle of your work,
     Eklavya asks your observer model (the one in <code>providers.observer</code>, running through Claude Code on your own subscription)
-    to review one of that session's prompts against Anthropic's 4D framework: Delegation, Description, Discernment and Diligence.
-    Only the text of up to eight of your own prompts from that one session goes to that model, and nothing else leaves your machine.
-    Discernment and Diligence can only be seen in what you did after the prompt, so they say "Can't tell from this prompt" when nothing shows them.
+    to read up to eight of that session's prompts in order. What you had to add or correct later shows what an earlier prompt left out,
+    so it picks the prompt that cost the most rework, names what it left out (the outcome, context, scope or check) and rewrites it so those follow-ups would not have been needed.
+    Only the text of those prompts goes to that model, and nothing else leaves your machine.
     There are no scores, and nothing here changes your mastery.`,
 };
 
@@ -3734,15 +3731,18 @@ const fbActions = (id) => `<div class="fb__actions" id="fb-actions">
     <button type="button" class="set__btn" data-fb-del="${id}">Delete</button>
     <p class="fb__msg" id="fb-msg" role="alert"></p></div>`;
 
-/** One item: your prompt, a better one, a note per D, tips. Actions only while it is pending. */
+/** One item: your prompt, a better one, what worked, what it left out, tips. Actions only while it is pending. */
 function drawFbItem(it) {
   const pending = !it.acknowledged_at;
-  const rows = FB.dims.map(([key, name]) => {
-    const d = it.review[key];
-    return `<li><span class="fb__dn">${esc(name)}</span> <span class="${FB.pill[d.status] ?? 'pill'}">${esc(FB.status[d.status] ?? d.status)}</span> `
-      + `<span class="fb__note">${d.status === 'not_visible' ? '' : esc(d.note)}`
-      + `${d.evidence ? `<span class="fb__ev">From your later prompt: “${esc(d.evidence)}”</span>` : ''}</span></li>`;
-  }).join('');
+  const { worked, gaps } = it.review;
+  const rows = gaps.map((g) => `<li><span class="fb__dn">${esc(FB.areas[g.area] ?? g.area)}</span> `
+    + `<span class="fb__note">${esc(g.missing)}`
+    + `${g.evidence ? `<span class="fb__ev">You said later: “${esc(g.evidence)}”</span>` : ''}</span></li>`).join('');
+  // Only an item cleared by migration 028 has no `worked` (parseReview requires one); its prompt, rewrite and tips still show.
+  const review = worked
+    ? `<section><h2 class="fb__h">What worked</h2><p class="fb__note">${esc(worked)}</p></section>
+    <section><h2 class="fb__h">What it left out</h2>${rows ? `<ul class="fb__ds">${rows}</ul>` : '<p class="fb__note">Nothing the agent had to guess.</p>'}</section>`
+    : '';
   // Said again right above the button on the very first item a reader sees.
   const first = pending && S.feedback.acknowledged === 0
     ? `<div class="fb__rule fb__rule--near"><p>${esc(FB.rulePending)}</p></div>` : '';
@@ -3752,7 +3752,7 @@ function drawFbItem(it) {
       <section><h2 class="fb__h">A better prompt</h2>
         <div class="cmd cmd--block"><code>${esc(it.better)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div></section>
     </div>
-    <section><h2 class="fb__h">The four Ds</h2><ul class="fb__ds">${rows}</ul></section>
+    ${review}
     <section><h2 class="fb__h">Tips</h2><ul class="fb__tips">${it.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>
     ${pending ? `<section>${first}${fbActions(it.id)}</section>` : ''}
   </article>`;
@@ -3771,12 +3771,12 @@ function viewFeedbackHistory() {
 
 function drawFbHistory(d) {
   T.fbhistory.page = d.page;
-  const pills = (st) => `<span class="fb__sts">${FB.dims.map(([k, n]) =>
-    `<span class="${FB.pill[st[k]] ?? 'pill'}" title="${esc(n)}: ${esc(FB.status[st[k]] ?? st[k])}">${esc(n)} · ${st[k] === 'not_visible' ? '—' : esc(FB.status[st[k]] ?? st[k])}</span>`).join('')}</span>`;
+  const pills = (areas) => areas.length
+    ? `<span class="fb__sts">${areas.map((a) => `<span class="pill">${esc(FB.areas[a] ?? a)}</span>`).join('')}</span>` : '—';
   const rows = d.items.map((i) => `<tr class="row" data-go="${esc(href('feedback', 'item', i.id))}">
     <td>${esc(fmtDate(i.acknowledged_at))}</td><td>${esc(pname(i.project))}</td>
-    <td>${esc(i.prompt)}${i.prompt.length >= 80 ? '…' : ''}</td><td>${pills(i.statuses)}</td></tr>`);
-  return table([{ t: 'Acknowledged' }, { t: 'Project' }, { t: 'Your prompt' }, { t: 'The four Ds' }], rows)
+    <td>${esc(i.prompt)}${i.prompt.length >= 80 ? '…' : ''}</td><td>${pills(i.areas)}</td></tr>`);
+  return table([{ t: 'Acknowledged' }, { t: 'Project' }, { t: 'Your prompt' }, { t: 'Left out' }], rows)
     + pager('fbhistory', d.total, d.page, d.per);
 }
 

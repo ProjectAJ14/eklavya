@@ -399,7 +399,7 @@
         },
         {
           "path": "mcp/src/feedback-review.ts",
-          "label": "4D rubric \u00b7 validation"
+          "label": "gap review \u00b7 validation"
         },
         {
           "path": "mcp/src/migrations/026_feedback.sql",

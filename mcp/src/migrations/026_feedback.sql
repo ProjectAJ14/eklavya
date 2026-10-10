@@ -5,7 +5,7 @@
 -- `prompt` is the developer's own words as the capture path already redacted
 -- them; `event_id` is the evidence row it came from and is null once retention
 -- prunes that row. `review`, `tips` are JSON. `rubric` is the version of the
--- 4D wording the review was written against, so old items stay readable.
+-- review wording the item was written against (see `FEEDBACK_RUBRIC`).
 -- `model` is the observer model's name and nothing else.
 -- `acknowledged_at` is set only by the developer pressing Acknowledge; null
 -- means pending.

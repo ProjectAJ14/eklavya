@@ -76,8 +76,9 @@ Usage:
                                         change the same settings as config set/unset (--no-open just
                                         prints the URL; --port serves in the foreground on that port)
   eklavya dashboard status|stop         Show or stop the background dashboard
-  eklavya feedback generate             Review one of your prompts from an earlier session against the 4D
-                                        framework (needs feedback.enabled, memory and providers.observer);
+  eklavya feedback generate             Review one of your prompts from an earlier session: what your later
+                                        prompts show it left out, and a better version (needs
+                                        feedback.enabled, memory and providers.observer);
                                         one item at a time, shown on the dashboard's Feedback page
   eklavya artifacts new <title>         Start a page under ~/.eklavya/artifacts/<project>/ from the
                                         Eklavya template and print its path [--description <text>]

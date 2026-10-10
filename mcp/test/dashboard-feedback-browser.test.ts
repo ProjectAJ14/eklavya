@@ -79,19 +79,12 @@ afterEach(() => {
 const ON = { feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'm' } } };
 const configure = (c: Record<string, unknown>) => fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(c));
 const PROMPT = 'fix the login bug please, users cannot sign in <b>now</b>';
-const dim = (status: string, note: string, evidence?: string) => ({ status, note, ...(evidence ? { evidence } : {}) });
 const item = (over: Partial<NewFeedback> = {}): NewFeedback => ({
   session_id: 's1',
   project: '/work/app',
   event_id: null,
   prompt: PROMPT,
-  review: {
-    delegation: dim('mixed', 'You handed over the task.'),
-    description: dim('missing', 'No file or expected behaviour.'),
-    discernment: dim('strong', 'You re-ran it.', 'run the tests again'),
-    diligence: dim('not_visible', ''),
-    judged_from: 'prompt',
-  } as never,
+  review: { worked: 'You named the bug.', gaps: [{ area: 'context', missing: 'No file or expected behaviour.' }, { area: 'check', missing: 'No test named.', evidence: 'run the tests again' }] } as never,
   better: 'Fix the login bug in [the file]; it should [expected behaviour].',
   tips: ['Say what fixed looks like before asking.', 'Name the file.'],
   model: 'sonnet',
@@ -248,21 +241,32 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
   });
 
   describe('an item', () => {
-    it('shows the prompt, a better one, four Ds and the tips, escaped', async () => {
+    it('shows the prompt, a better one, what worked, what it left out and the tips, escaped', async () => {
       configure(ON);
       pending();
       const w = await open('#/feedback/dashboard');
       expect(await w.page.textContent('.fb__quote')).toBe(PROMPT);
       expect(await w.page.locator('.fb__quote b').count()).toBe(0);
       expect(await w.page.textContent('.cmd--block code')).toContain('[the file]');
+      expect(await w.page.textContent('.fb')).toContain('You named the bug.');
       const rows = await w.page.$$eval('.fb__ds li', (els) => els.map((e) => e.textContent!.replace(/\s+/g, ' ').trim()));
-      expect(rows).toHaveLength(4);
-      expect(rows[1]).toContain('Description');
-      expect(rows[1]).toContain('Missing');
-      expect(rows[2]).toContain('From your later prompt: “run the tests again”');
-      expect(rows[3]).toBe("Diligence Can't tell from this prompt");
+      expect(rows).toEqual([
+        'Context No file or expected behaviour.',
+        'Check No test named.You said later: “run the tests again”',
+      ]);
       expect(await w.page.locator('.fb__tips li').count()).toBe(2);
-      expect(await w.page.$eval('.fb__ds li:nth-child(4) .pill', (e) => e.className)).toContain('gone');
+      await w.ctx.close();
+    });
+
+    it('shows an item from before this review without its old notes', async () => {
+      configure(ON);
+      const id = pending();
+      db.prepare(`UPDATE feedback_items SET review = '{"worked":"","gaps":[]}' WHERE id = ?`).run(id);
+      const w = await open('#/feedback/dashboard');
+      expect(await w.page.textContent('.fb__quote')).toBe(PROMPT);
+      expect(await w.page.locator('.fb__ds').count()).toBe(0);
+      expect(await w.page.textContent('.fb')).not.toContain('What worked');
+      expect(await w.page.locator('.fb__tips li').count()).toBe(2);
       await w.ctx.close();
     });
 
