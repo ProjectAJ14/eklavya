@@ -43,18 +43,14 @@ function sight(sessionId: unknown, stem: string): { state: 'new' | 'open' | 'don
   return { state, set: (s) => fs.writeFileSync(marker, s) };
 }
 
-/** Counts one outcome of the check; never throws, never waits on anything but the open. */
+/** Counts one outcome of the check. `run` fails open on anything this throws. */
 function count(input: HookInput, outcome: OptionCheckOutcome): void {
+  const db = openExisting();
+  if (!db) return;
   try {
-    const db = openExisting();
-    if (!db) return;
-    try {
-      recordOptionCheck(db, { sessionId: sessionId(input, db) ?? 'unknown', surface: 'card', outcome });
-    } finally {
-      db.close();
-    }
-  } catch {
-    // fail open
+    recordOptionCheck(db, { sessionId: sessionId(input, db) ?? 'unknown', surface: 'card', outcome });
+  } finally {
+    db.close();
   }
 }
 
@@ -77,8 +73,8 @@ await run(async (input) => {
     const seen = sight(input.session_id, q.question);
     if (problem && seen.state === 'new') {
       seen.set('open');
-      count(input, 'sent_back');
       deny(`Rewrite the options and ask again with the same question: ${problem}.`);
+      count(input, 'sent_back');
       return 0;
     }
     if (seen.state === 'open') {

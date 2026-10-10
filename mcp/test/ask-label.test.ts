@@ -114,6 +114,10 @@ describe('ask-label: option check record', () => {
     ask('cli', [balanced(`Another ${Math.random()}`)], sid);
     expect(rows().map((r: any) => r.outcome)).toEqual(['sent_back', 'rewritten']);
   });
+  it('files a question from a host that sent no session under "unknown"', () => {
+    ask('cli', [lopsided(`No session ${Math.random()}`)]);
+    expect(rows()).toEqual([{ session_id: 'unknown', surface: 'card', outcome: 'sent_back' }]);
+  });
   it('still denies when there is no database to count in', () => {
     dbFile = path.join(path.dirname(dbFile), 'missing', 'x.db');
     const out = ask('cli', [lopsided(`Stem ${Math.random()}`)], { session_id: `s-${Math.random()}` });
