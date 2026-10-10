@@ -345,6 +345,17 @@ export const register: Register = on => {
     }
   })
 
+  // The mod's queued prompts are instructions for the model, not words for the
+  // learner: their transcript row shows one short line, as a tool call does.
+  // Only the drawing changes; the model still reads the whole message.
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    const from = e.props.origin
+    if (from.kind !== 'plugin' || from.name !== 'eklavya') return next(e)
+    const said = e.props.text
+    const text = said === NEXT_PROMPT ? STR.askedNext : said.includes('eklavya-explainer') ? STR.askedExplainer : STR.askedOther
+    return next({ ...e, props: { ...e.props, text } })
+  })
+
   on('ui.render', { component: 'Pane', requestId: 'eklavya-quiz' }, async ($, e, next) => {
     // Only our pane: every other pane, and everything else, is the host's.
     if (e.requestId !== PANE) return next(e)
