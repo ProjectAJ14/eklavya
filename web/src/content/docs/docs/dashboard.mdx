@@ -27,6 +27,8 @@ Each session start checks the dashboard and starts it if nothing is answering, s
 Dashboard http://127.0.0.1:41729 started in the background · off: eklavya config set dashboard_autostart false
 ```
 
+While it rebuilds its data for an open page, a dashboard with a long history can answer a few hundred milliseconds late. Session start waits 150 ms for the answer and then leaves it alone, and `eklavya dashboard` and `eklavya artifacts open` wait up to 1.5 seconds, so a busy dashboard is not taken for another program.
+
 After an update, the next session replaces a dashboard running an older version. A dashboard started from a newer version is left alone, and so is one serving a different database (`EKLAVYA_DB`) or another program on the port.
 
 ```bash
@@ -79,6 +81,10 @@ Every page is one column at most 1,080 pixels wide, centred in the space beside 
 
 The dashboard remembers which sections you opened or closed, in this browser only.
 
+Tabs, chips, selects, date ranges, pagers and the search boxes change the list in front of you and nothing else. The page does not scroll, the heading and the sidebar stay, and whatever you had open, focused or typed stays as it is. The address still changes, so a filtered list is still a link and Back returns to the earlier list. Opening another page, concept, entry or project, or switching workflow, opens at the top.
+
+A page you have already seen comes back at once. Going Back, going Forward or opening it again draws it from what the dashboard already read, with no request, until something the page shows changes. A page you have not seen holds the room its list will take, so the footer does not jump, and the archer companion shows there if the answer takes more than a moment. When a pager or filter fetches new rows, the old rows stay on screen and out of reach, and dim if the answer takes more than a moment, until the new ones arrive.
+
 ## Learning
 
 | Page | What you can inspect |
@@ -127,7 +133,7 @@ Artifacts are HTML pages saved under `~/.eklavya/artifacts/<project>/`: requeste
 | Viewer (`#/artifacts/view/<id>`) | One page, opened as a tab. An explainer for a missed question also has a **Correct your answer** bar. Reached from its card or from `eklavya artifacts open`; it has no sidebar entry. |
 | Projects (`#/artifacts/projects`) | Page and explainer counts and the latest page in each project. |
 
-An explainer's concept links to its Learning page. A card's thumbnail or title opens the page in the viewer, inside the dashboard. The thumbnail is the first inline SVG inside a `<figure>`, drawn in the ground you have chosen; a page with no diagram shows a plain sheet instead. Thumbnails are read from the file, not rendered from the page, so they fetch nothing and run no script. The file list is reread on refresh, so adding or deleting a file updates the library. A project with artifacts but no other recorded activity appears here but cannot be selected as a global project scope.
+An explainer's concept links to its Learning page. A card's thumbnail or title opens the page in the viewer, inside the dashboard. The thumbnail is the first inline SVG inside a `<figure>`, drawn in the ground you have chosen; a page with no diagram shows a plain sheet instead. Thumbnails are read from the file, not rendered from the page, so they fetch nothing and run no script. The file list is read again each time the dashboard updates, so a page added or deleted changes the library while you have it open. A project with artifacts but no other recorded activity appears here but cannot be selected as a global project scope.
 
 ### Tabs
 
@@ -147,13 +153,13 @@ An explainer written for a missed question (a wrong answer, or “I don't know�
 
 1. Read the page, then select **Correct your answer**. A dialog shows the question with each option and its one-line note, in a new order each time.
 2. Pick an option. A wrong pick says “Still incorrect. Please correct your answer.” and that option is disabled; pick again.
-3. The right pick says “Corrected. Your accuracy now counts this as right.” The bar then reads “Corrected on try 2 · ” and the date (or whichever try it was), the tab's dot turns verdigris and the card is tagged **Corrected**. The rest of the page offers its refresh notice, since its other counts were drawn before the correction.
+3. The right pick says “Corrected. Your accuracy now counts this as right.” The bar then reads “Corrected on try 2 · ” and the date (or whichever try it was), the tab's dot turns verdigris and the card is tagged **Corrected**. The tiles, the accuracy and the rest of the dashboard's counts follow within about a second, without reloading the page you are reading.
 
 Every pick is stored and checked on the server; the correction request never returns the right answer. A correction is a pass at grade 3 for the concept's score, and the corrected miss counts as right in the dashboard's accuracy (overall, per project and per session) and toward your [level](/docs/levels-and-tiers/). A concept's page still lists it apart, as corrected. It does not count toward a [commit gate](/docs/commit-gate/), and the concept still comes back for review. See [grading](/docs/grading-engine/#correcting-from-an-explainer).
 
 Closing the browser tab while the visible page's correction is still open makes the browser ask whether to leave. Browsers show their own wording for that prompt, so the bar says the rest: not now, and it stays under **To correct**. If the question cannot be loaded, the bar shows the reason and a **Retry** button. Explainers made before this feature, explainers for a question recorded without its right option, and pages not linked to a missed answer have no bar.
 
-In the viewer, the framed page loads no web fonts and uses system fonts, so the dashboard still makes no request to another host. The dashboard adds a small script to every page it frames, old or new: the page reports its height and stops scrolling on its own, so the window has the only scrollbar. A page taller than 20,000 pixels scrolls inside its frame past that point. If a page reports no height within 1.5 seconds, its frame is 80% of the window's height and the page scrolls inside it. So does a page whose content grows with its frame, such as a section set to the full window height (`min-height: 100vh`): inside the frame, the window is the frame, so that page could never stop growing. Pages made from the Eklavya template have no such section.
+In the viewer, the framed page loads no web fonts and uses system fonts, so the dashboard still makes no request to another host. The dashboard adds a small script to every page it frames, old or new: the page reports its height and stops scrolling on its own, so the window has the only scrollbar. Until it reports, the frame holds the height that tab last reported, or 80% of the window's height the first time, with the loader over it, so the content below it moves once when the real height arrives. A page taller than 20,000 pixels scrolls inside its frame past that point. If a page reports no height within 1.5 seconds, its frame is 80% of the window's height and the page scrolls inside it. So does a page whose content grows with its frame, such as a section set to the full window height (`min-height: 100vh`): inside the frame, the window is the frame, so that page could never stop growing. Pages made from the Eklavya template have no such section.
 
 ## Feedback
 
@@ -190,7 +196,9 @@ The **Changed** tab lists the keys the scope's own file sets and, for a project,
 
 A control saves when you change it; a text or number box saves when you leave it or press Enter. The row reports **saved** or **inherited**. Each field states what it accepts, and a value outside that is refused under the field before anything is sent, keeping what you typed; the server checks again with the [same rules](/docs/configuration/#what-each-setting-accepts) and reports a refusal, such as `focus: learn` with no topic, in the same place. `auto_update`, `telemetry` and `dashboard_autostart` apply to the whole machine, so a project shows them read-only with a link to User. Providers, notifications and sync send work off the machine or run a command, so they stay a typed command.
 
-Only projects with a git checkout on this machine can be configured. The footer's dial line shows your user settings, not any one project's, and is read when the page loads, so it updates on the next refresh.
+Choosing a tab is instant: the page draws it from the settings it already holds and makes no request. Choosing another project reads that project's settings.
+
+Only projects with a git checkout on this machine can be configured. The footer's dial line shows your user settings, not any one project's, and follows a change made with `eklavya config set` within about a second.
 
 ## Opening one thing
 
@@ -264,9 +272,23 @@ Selecting a project scopes lists and activity, but concept mastery and review da
 
 Most lists show 20 rows per page; the memory timeline shows 25, and a concept's question history shows ten, one line each.
 
+The dashboard loads your newest 800 answers and your newest 800 logged context lines. Totals, mastery, the per-day counts and each project's counts come from every row in the database, so a cap shortens a history list and changes no number. When a cap cuts a list, the footer says how many it shows out of how many. A session whose rows fall outside the caps still opens with what it logged and was asked.
+
 ## While you leave it open
 
-The dashboard is a snapshot. Once a minute, while the tab is visible, it checks for new activity and offers a **refresh** notice. New activity is any change the page would show: an answer, captured evidence, a memory entry added, rewritten or removed (including a session summary updated while that session runs), a memory read, a recall receipt, a feedback item arriving, acknowledged or deleted, a change to your user settings, or an artifact page written or removed. It does not redraw automatically while you are reading, and an unchanged database never raises the notice. Refresh preserves your route and filters; stopping the server leaves the loaded view visible. The memory health panel's last-prune time and dropped-capture count do not raise the notice on their own.
+An open dashboard is live. When something it shows changes, it reads the new numbers and redraws that part of the page in place, usually within about a second. Nothing asks you to refresh.
+
+A change is anything the page would show: an answer, captured evidence, a memory entry added, rewritten or removed (including a session summary updated while that session runs), a memory read, a recall receipt, a feedback item arriving, acknowledged or deleted, a change to your user settings or to the settings of a project you have answered questions in, or an artifact page written or removed. Numbers, rows, the sidebar's counts and the Feedback badge change in place. An unchanged database never starts an update. The memory health panel's last-prune time and dropped-capture count, and the Feedback page's note that the last session could not be reviewed, do not start one on their own.
+
+An update does not move what you are reading or using:
+
+- The page does not scroll, and the heatmap stays on the weeks you paged to.
+- Folds, timeline entries and questions you opened stay open.
+- The focus and the caret stay in the search box you are typing in.
+- A Settings field you are editing keeps its text, and a choice list you opened stays open. The rows wait to redraw until you leave the field, while the tab strip, its counts and the scope rail update.
+- An explainer you are reading is not reloaded, and its correction bar and dialog keep their state.
+
+Changes that arrive while the page is still reading the last one, such as a session logging several concepts, are read together. A tab you cannot see stops listening and makes no requests. When you return to it, the page catches up in one go, however long you were away. If the dashboard stops, the page keeps what it was showing, shows no banner and reconnects by itself when the dashboard is back. The write token belongs to the dashboard start that served the page, so after a restart a setting you save is refused with "Stale or missing dashboard token. Reload the page." until you reload.
 
 ## Old links still work
 
@@ -294,7 +316,7 @@ An old link without a project can pick up the previous saved project once. New-s
 
 The dashboard reads the local database and binds to `127.0.0.1`. It accepts only `GET` and `HEAD`, except its five writes, validates loopback request addresses, escapes stored content and refuses framing by other pages. A request whose address is not a valid URL gets a `400` reply, and the server keeps running. Only the dashboard itself may frame an artifact page, for the viewer. Dashboard views load no external fonts or other remote resources; an artifact opened in its own tab has the font exception described above. The tips library (Driver.js) ships inside the package, and the dashboard serves it itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`.
 
-Its read-only JSON endpoints serve summary state (`/api/state`), the change cursor an open page polls (`/api/cursor`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`), settings (`/api/settings`), a missed question to correct (`/api/attempts/correction?id=`, without its answer), and feedback: one item (`/api/feedback`, the waiting one without `?id=`) and the acknowledged list (`/api/feedback/list`). The state payload carries only whether an item is waiting, its id and counts, never your prompt. There are five writes:
+Its read-only JSON endpoints serve summary state (`/api/state`), the change cursor on its own (`/api/cursor`), project inventory (`/api/projects`), paged memory (`/api/memory`), entry detail (`/api/memory/entry`), memory sessions (`/api/memory/sessions`, which also returns what one session logged and was asked when you pass `?session=`), settings (`/api/settings`), a missed question to correct (`/api/attempts/correction?id=`, without its answer), and feedback: one item (`/api/feedback`, the waiting one without `?id=`) and the acknowledged list (`/api/feedback/list`). `/api/events` is a stream of the change cursor, described below. The state payload carries only whether an item is waiting, its id and counts, never your prompt. There are five writes:
 
 | Write | What it does |
 | --- | --- |
@@ -305,3 +327,7 @@ Its read-only JSON endpoints serve summary state (`/api/state`), the change curs
 | `POST /api/feedback/opened` | Counts one opening of the Feedback page with an item waiting, as `greeting`, `badge` or `direct`. Body at most 16 KB. |
 
 Each needs a loopback `Origin`, a JSON body and a random token the server puts in the page each time it starts, so another site open in your browser cannot write. Settings never edit learning or memory data, and feedback never touches your scores; a correction adds rows, updates the concept's score and review date, and never changes the original answer.
+
+`/api/events` takes a `GET` only and is held to the same loopback check as every other read. It is a `text/event-stream` that sends the current cursor when it connects, then one `cursor` event each time the cursor changes, and a comment line every 25 seconds so nothing closes a quiet stream. It carries nothing else: the page reads `/api/state` and `/api/projects` to learn what changed. While at least one stream is open, the server reads the cursor every second, and it also watches the database's `-wal` file, your user config file, each project's config file and the artifacts folder, waiting 150 ms after the last file event so a burst of writes is one check. A write made through the dashboard's own routes is checked at once. With no stream open, nothing watches and no timer runs. At most 32 streams are open at once; the 33rd gets a `503`, and the page tries again after a pause that starts at 5 seconds and doubles to a minute.
+
+The server keeps the build it made of the state, the project list, the settings pages and the paged memory and feedback lists, and rebuilds one when the cursor has moved. It builds the state and the project list once when it starts listening, so the first page does not wait for them. Scores decay with the clock and a project's checkout can disappear without a database write, so the state, the project list and the settings pages also expire after 60 seconds. A reload, a second tab or a Settings click is then answered from memory. The browser never keeps the JSON. It keeps the tokens, the mascot files, the tips library and the thumbnails for an hour, and it asks the server on every load whether the page is still the one it holds: the check is an `ETag` that changes at each start, because the write token is part of the page.

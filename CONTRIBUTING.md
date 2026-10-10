@@ -78,7 +78,7 @@ describes visual checks.
 | Hooks or commit gate | Hook/gate tests plus the affected manual scenario below |
 | Tutor pedagogy | Before/after evaluation and live learning-loop transcript |
 | Dashboard builders, queries, payload or caps, or the routes' caching | Dashboard tests, plus before and after output of the [dashboard perf script](#dashboard-performance) |
-| The dashboard page's boot, render or navigation (`dashboard.html`) | Dashboard browser tests, plus render and transition times taken in a browser: the perf script measures the server only (see [Dashboard performance](#dashboard-performance)) |
+| The dashboard page's boot, render, navigation or live redraw (`dashboard.html`), or the event stream (`/api/events`) | Dashboard browser tests, plus render and transition times taken in a browser. The perf script's `--live` option times a write reaching an open page; the rest of the script measures the server only (see [Dashboard performance](#dashboard-performance)) |
 | Documentation or website | Website build; source-checked examples; visual checks for changed layouts |
 | Plugin manifests or host integration | Plugin validation and re-verification of [host contracts](docs/verified-schemas.md) |
 
@@ -215,23 +215,25 @@ server: the builders (`dashboardState`, `projectInventory`, `settingsState`, the
 memory pages, `changeCursor`), the size of the `/api/state` payload, and the HTTP
 round trips to the routes that serve them. Run it before and after a change to
 those builders, their queries, the payload's shape or caps (`ATTEMPT_LIMIT`,
-`LOGGED_LIMIT`), or what the routes cache, and put both outputs in the PR. It is a
-contributor tool: CI does not run it and no test asserts a time.
+`LOGGED_LIMIT`), what the routes cache, or the event stream and its watcher, and
+put both outputs in the PR. It is a contributor tool: CI does not run it and no
+test asserts a time.
 
-It never loads `dashboard.html` and starts no browser, so a change that touches
-only the page leaves every number it prints the same. Page times come from a
-browser: the page-transition probe in the browser suite
-(`mcp/test/dashboard-browser.test.ts`) records, for every page, whether the view
-held a loader or shrank, how many requests the navigation made and whether the
-scroll moved, and wall-clock boot and render times are taken with a browser
-pointed at a dashboard serving a database of the same sizes, the way the
-reproduction section of issue #171 does.
+Without `--live` it never loads `dashboard.html` and starts no browser, so a
+change that touches only the page leaves every number it prints the same. Page
+times come from a browser: `probeTransition` in
+`mcp/test/dashboard-browser-helpers.ts`, which `dashboard-browser.test.ts` runs
+over every page, records whether the view held a loader or shrank, how many
+requests the navigation made and whether the scroll moved, and wall-clock boot
+and render times are taken with a browser pointed at a dashboard serving a
+database of the same sizes, the way the reproduction section of issue #171 does.
 
 ```bash
 cd mcp && npm run build && cd ..
 node mcp/scripts/dashboard-perf.mjs small
 node mcp/scripts/dashboard-perf.mjs                  # medium, roughly a year of daily use
 node mcp/scripts/dashboard-perf.mjs large
+node mcp/scripts/dashboard-perf.mjs medium --live    # also times a write reaching an open page
 node mcp/scripts/dashboard-perf.mjs /path/to/base/mcp/dist all --json > before.json
 node mcp/scripts/dashboard-perf.mjs all --json > after.json
 ```
@@ -271,6 +273,16 @@ For each scale it prints:
   `/api/cursor` twice in a row (first and second, so a cached second answer
   shows), and the page's two boot requests, `/api/state` and `/api/projects`,
   issued together.
+- With `--live` only, the time from a write to the new row being on screen. It
+  starts headless Chromium through `playwright-core` on the Review page, writes a
+  due concept through a second database connection the way a hook does, and
+  reports the median of five writes (`--writes=N` for another count) in two
+  variants: with the file watcher, and on the one-second check alone. Each is
+  split into the server noticing and rebuilding, the page's two reads, and its
+  redraw. The targets at the medium scale are under 500 ms with the watcher and
+  under 2 seconds on the check alone. The browser is `EKLAVYA_TEST_BROWSER`, else
+  Playwright's own install, else `/opt/pw-browsers/chromium`; with none of them
+  the script says why and skips this part.
 
 `--json` prints the same measurements as one object per scale (an array for
 `all`) so two runs can be diffed. Compare runs from the same machine, under similar
