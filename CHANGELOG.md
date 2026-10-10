@@ -1,3 +1,10 @@
+# [1.63.0](https://github.com/ProjectAJ14/eklavya/compare/v1.62.1...v1.63.0) (2026-10-10)
+
+
+### Features
+
+* add reusable archer mascot across website and dashboard ([#168](https://github.com/ProjectAJ14/eklavya/issues/168)) ([0b79dcd](https://github.com/ProjectAJ14/eklavya/commit/0b79dcd10b3685c30f2cb7b76d1f4eb2f56272a8))
+
 ## [1.62.1](https://github.com/ProjectAJ14/eklavya/compare/v1.62.0...v1.62.1) (2026-10-10)
 
 
