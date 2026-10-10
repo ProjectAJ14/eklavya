@@ -5,7 +5,9 @@
   "scripts": {
     "release": "semantic-release",
     "release:dry": "semantic-release --dry-run --no-ci",
-    "eval": "node eval/harness.mjs"
+    "eval": "node eval/harness.mjs",
+    "mascot:generate": "node scripts/generate-mascot.mjs",
+    "mascot:check": "node scripts/generate-mascot.mjs --check"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

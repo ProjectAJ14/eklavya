@@ -666,14 +666,15 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await w.page.evaluate(() => (document.activeElement as HTMLElement).dataset.pick)).not.toBe(first);
 
       await w.page.click('#fix-opts [data-pick="A queue"]');
-      await w.page.waitForSelector('#fix-msg:text("Still incorrect. Please correct your answer.")');
+      await w.page.waitForSelector('#fix-msg:has-text("Still incorrect. Please correct your answer.")');
+      expect(await w.page.getAttribute('#fix-msg eklavya-mascot', 'state')).toBe('tip');
       expect(await w.page.isDisabled('#fix-opts [data-pick="A queue"]')).toBe(true);
       expect(await w.page.textContent('#fix-opts [data-pick="A queue"]')).toContain('Not this one');
       expect(await w.page.isDisabled('#fix-opts [data-pick="A lock"]')).toBe(false);
 
       await w.page.focus('#fix-opts [data-pick="A lock"]');
       await w.page.keyboard.press('Enter');
-      await w.page.waitForSelector('#fix-msg:text("Corrected. Your accuracy now counts this as right.")');
+      await w.page.waitForSelector('#fix-msg:has-text("Corrected. Your accuracy now counts this as right.")');
       expect(await w.page.textContent('#fix-opts [data-pick="A lock"]')).toContain('Right answer');
       expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('fix-close');
       // The rest of the page was drawn from the old payload, and says so.
@@ -1115,7 +1116,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const userFile = path.join(home, 'home', 'config.json');
       const w = await open('#/settings/user');
       await pickOption(w.page, '#set-cadence', 'end');
-      await w.page.waitForSelector('[data-msg="cadence"].here:text("saved")');
+      await w.page.waitForSelector('[data-msg="cadence"].here:has-text("saved")');
+      expect(await w.page.getAttribute('[data-msg="cadence"] eklavya-mascot', 'state')).toBe('success');
       expect(JSON.parse(fs.readFileSync(userFile, 'utf8')).cadence).toBe('end');
       // Focus stays on the control that was just used, rather than jumping to the top.
       expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('set-cadence-combo');
@@ -1130,7 +1132,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.goto(base + '/' + `#/settings/project?project=${enc(fx.repo.mixed)}`); await ready(w.page);
       await w.page.focus('[data-unset="cadence"]');
       await w.page.keyboard.press('Enter');
-      await w.page.waitForSelector('[data-msg="cadence"]:text("inherited")');
+      await w.page.waitForSelector('[data-msg="cadence"]:has-text("inherited")');
       expect(await w.page.inputValue('#set-cadence')).toBe('end');
 
       // An out-of-range number is refused in the page, under the field, before any request.
@@ -1140,7 +1142,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.fill('#set-max_questions_per_task', '99');
       await w.page.press('#set-max_questions_per_task', 'Enter');
       await w.page.waitForSelector('#set-max_questions_per_task-e:visible');
-      expect(await w.page.textContent('#set-max_questions_per_task-e')).toBe('max_questions_per_task is a whole number from 1 to 10.');
+      expect(await w.page.getAttribute('#set-max_questions_per_task-e eklavya-mascot', 'state')).toBe('validation');
+      expect((await w.page.textContent('#set-max_questions_per_task-e'))?.trim()).toBe('max_questions_per_task is a whole number from 1 to 10.');
       expect(await w.page.getAttribute('#set-max_questions_per_task', 'aria-invalid')).toBe('true');
       expect(await w.page.getAttribute('#set-max_questions_per_task', 'aria-describedby')).toContain('set-max_questions_per_task-e');
       expect(await w.page.inputValue('#set-max_questions_per_task')).toBe('99'); // the typed value stays
@@ -1148,7 +1151,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       // Only the server knows the combination: its refusal lands in the same place.
       await w.page.goto(base + '/' + `#/settings/project?project=${enc(fx.repo.mixed)}`); await ready(w.page);
       await w.page.uncheck('#set-quiz-enabled');
-      await w.page.waitForSelector('[data-msg="quiz.enabled"]:text("saved")');
+      await w.page.waitForSelector('[data-msg="quiz.enabled"]:has-text("saved")');
       await w.page.check('#set-quiz-enforced');
       await w.page.waitForSelector('#set-quiz-enforced-e:visible');
       expect(await w.page.textContent('#set-quiz-enforced-e')).toMatch(/no effect while quiz.enabled is false/);
@@ -1157,7 +1160,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
       await w.page.goto(base + '/#/settings/user'); await ready(w.page);
       await w.page.click('[data-unset="cadence"]');
-      await w.page.waitForSelector('[data-msg="cadence"]:text("inherited")');
+      await w.page.waitForSelector('[data-msg="cadence"]:has-text("inherited")');
       expect(JSON.parse(fs.readFileSync(userFile, 'utf8')).cadence).toBeUndefined();
       // The one refusal above is a 400 the browser logs; nothing else may be.
       expect(w.errors.filter((e) => !/status of 400/.test(e))).toEqual([]);
@@ -1814,12 +1817,12 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.keyboard.press('Enter');
       await w.page.keyboard.press('End');
       await w.page.keyboard.press('Enter');
-      await w.page.waitForSelector('[data-msg="difficulty"].here:text("saved")');
+      await w.page.waitForSelector('[data-msg="difficulty"].here:has-text("saved")');
       expect(JSON.parse(fs.readFileSync(userFile, 'utf8')).difficulty).toBe('hard');
       expect(await w.page.textContent('#set-difficulty-combo')).toContain('hard');
       expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('set-difficulty-combo');
       await w.page.click('[data-unset="difficulty"]');
-      await w.page.waitForSelector('[data-msg="difficulty"]:text("inherited")');
+      await w.page.waitForSelector('[data-msg="difficulty"]:has-text("inherited")');
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     }, 30000);

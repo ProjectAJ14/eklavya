@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 200" width="200" height="200" class="ek-mascot ek-mascot--loading" data-expression="excited" data-variant="loading" role="img"><style>:root {/* ---------- MASCOT IDENTITY ----------
+     Archer Cloak artwork keeps its approved identity across both grounds.
+     UI chrome continues to use the surface, text and accent roles below. */
+  --mascot-coral: #ef9875;
+  --mascot-coral-dark: #c96d51;
+  --mascot-highlight: #ffc8a6;
+  --mascot-cloak: #0E6E66;
+  --mascot-cloak-dark: #07403C;
+  --mascot-thread: #C4EDE4;
+  --mascot-ink: #302c2a;
+  --mascot-metal: #5b7c73;
+  --mascot-wood: #bc9569;
+  --mascot-wood-dark: #74583f;
+  --mascot-string: #EAE7E1;
+  --mascot-shadow: #26262a;
+  /* ---------- END MASCOT IDENTITY ---------- */}/* Identity colours and UI surfaces use Eklavya's semantic tokens. */
+eklavya-mascot { display:inline-flex; flex-shrink:0; vertical-align:middle; line-height:0; }
+.ek-mascot { display:block; overflow:visible; flex-shrink:0; }
+.ek-mascot[data-variant="face"] { overflow:hidden; }
+.ek-mascot__face path:not([fill]) { fill:none; }
+.ek-mascot--loading .ek-mascot__character { animation:ek-breathe 2.8s ease-in-out infinite; transform-origin:95px 185px; }
+.ek-mascot--loading .ek-mascot__arrow { animation:ek-release 2.8s cubic-bezier(.3,0,.3,1) infinite; }
+.ek-mascot--loading .ek-mascot__string { animation:ek-draw 2.8s ease-in-out infinite; transform-origin:157px 125px; }
+.ek-mascot--loading .ek-mascot__ripple { animation:ek-hit 2.8s ease-out infinite; transform-origin:196px 128px; opacity:0; }
+@keyframes ek-breathe { 0%,100% {transform:translateY(0)} 35%,55% {transform:translateY(-3px) rotate(-1deg)} }
+@keyframes ek-release { 0%,12% {transform:translateX(0);opacity:1} 40%,52% {transform:translateX(-10px);opacity:1} 68% {transform:translateX(22px);opacity:0} 69%,85% {transform:translateX(0);opacity:0} 100% {transform:translateX(0);opacity:1} }
+@keyframes ek-draw { 0%,100% {transform:scaleX(1)} 40%,52% {transform:scaleX(1.11)} 60% {transform:scaleX(.08)} 68% {transform:scaleX(1)} }
+@keyframes ek-hit { 0%,60%,100% {opacity:0;transform:scale(.4)} 68% {opacity:.8;transform:scale(.7)} 88% {opacity:0;transform:scale(1.7)} }
+.ek-companion { display:flex;align-items:center;gap:12px;color:var(--dim);font:13px/1.5 var(--font-body); }
+.ek-companion--hero { margin-bottom:16px; }
+.ek-companion--hero b { display:block;color:var(--ink);font-weight:600; }
+.ek-mascot-message { display:flex;align-items:center;gap:16px;padding:16px 0; }
+.ek-mascot-message p {margin:0}
+@media (prefers-reduced-motion:reduce) { .ek-mascot * {animation:none !important;transition:none !important} }
+
+.ek-companion--rail { padding:12px 20px; text-decoration:none; }
+.ek-mascot-message > :last-child { min-width:0; overflow-wrap:break-word; }
+.ek-mascot-status { display:inline-flex; align-items:center; gap:6px; }
+</style><title>Eklavya drawing a bow</title><g class="ek-mascot__character">
+      <ellipse cx="94" cy="185" rx="49" ry="5" fill="var(--mascot-shadow)"/>
+      <path d="M51 124Q29 137 34 168l23-8 17-27m59-9q26 8 21 39l-24-7-17-22" fill="var(--mascot-cloak-dark)"/>
+      <path d="M65 157v23q0 8 16 6l4-28m21 0 1 23q2 8 17 4v-29" fill="var(--mascot-coral)"/>
+      <path d="M58 122q35-16 72 0l8 46q-19 9-42 1-23 7-43-1Z" fill="var(--mascot-cloak)"/>
+      <path d="M96 127v40m-31-22q29 9 64 0" fill="none" stroke="var(--mascot-cloak-dark)" stroke-width="3"/>
+      <path d="M52 109q42-22 86 0l-9 29-32-14-32 14Z" fill="var(--mascot-cloak)" stroke="var(--mascot-cloak-dark)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M57 114l37 10m42-10-39 10" fill="none" stroke="var(--mascot-thread)" stroke-width="2"/>
+      <path d="M54 148h80v11H54Z" fill="var(--mascot-ink)"/>
+      <rect x="87" y="146" width="17" height="15" rx="3" fill="var(--mascot-metal)"/><rect x="92" y="150" width="7" height="7" rx="1" fill="var(--mascot-ink)"/>
+      <g class="ek-mascot__head">
+        <path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/>
+        <g class="ek-mascot__face" fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="64" y="64" width="10" height="19" rx="5"/><rect x="110" y="64" width="10" height="19" rx="5"/><path d="M81 87q11 22 22 0Z" fill="var(--mascot-ink)"/><path d="M87 97q5-3 10 0" stroke="var(--mascot-coral)"/></g>
+      </g>
+      <circle cx="96" cy="125" r="7" fill="var(--mascot-metal)"/><circle cx="94" cy="123" r="2" fill="var(--mascot-thread)"/>
+      <g class="ek-mascot__bow" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M157 78q36 47 0 94" stroke="var(--mascot-wood-dark)" stroke-width="8"/>
+        <path d="M158 78q32 47 0 94" stroke="var(--mascot-wood)" stroke-width="4"/>
+        <path class="ek-mascot__string" d="M157 78l-88 50 88 44" stroke="var(--mascot-string)" stroke-width="1.8"/>
+      </g>
+      <path d="M130 127l16-8q10-1 13 5 2 8-6 11l-15 4" fill="var(--mascot-cloak)"/>
+      <rect x="147" y="117" width="15" height="18" rx="7" fill="var(--mascot-coral)"/>
+      <g class="ek-mascot__arrow" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M69 128h114" stroke="var(--mascot-wood-dark)" stroke-width="3"/>
+        <path d="M179 120l13 8-13 8Z" fill="var(--mascot-thread)" stroke="var(--mascot-wood)" stroke-width="1.5"/>
+        <path d="M71 128l-9-9 10 1 8 8-8 8-10 1Z" fill="var(--mascot-thread)"/>
+      </g>
+      <path d="M58 128q-11-6-14 5-2 9 8 13l17-8" fill="var(--mascot-cloak)"/>
+      <rect x="62" y="121" width="18" height="16" rx="7" fill="var(--mascot-coral)"/>
+    </g><circle class="ek-mascot__ripple" cx="196" cy="128" r="10" fill="none" stroke="var(--mascot-thread)" stroke-width="2"/></svg>

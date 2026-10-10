@@ -8,7 +8,7 @@
   "scripts": {
     "predev": "node scripts/embed-diagram.mjs",
     "dev": "astro dev",
-    "prebuild": "node scripts/embed-diagram.mjs",
+    "prebuild": "node ../scripts/generate-mascot.mjs --check && node scripts/embed-diagram.mjs",
     "build": "astro build",
     "preview": "astro preview",
     "icons": "node scripts/generate-icons.mjs",
