@@ -163,6 +163,14 @@
             animation:loader-in var(--duration-base) var(--ease) 150ms both; }
   .loader--page { justify-content:center; flex-direction:column; min-height:40vh; gap:var(--space-5); }
   @keyframes loader-in { from { opacity:0; } to { opacity:1; } }
+  /* A fetched region (`slot()`) is in one of three states and none of them moves the page.
+     Drawn: its content. Waiting with nothing to show: a box that holds the height the content
+     is expected to take, the loader at its top (its own 150ms delay applies). Waiting while it
+     still shows an earlier answer (a pager, a filter, a refetch): that content stays, dimmed and
+     out of reach of the pointer, and stays readable to assistive technology. No animation here,
+     so there is nothing for reduced motion to switch off. */
+  .slot__wait { display:block; }
+  [data-slot][aria-busy="true"][data-kept] { opacity:.55; pointer-events:none; }
 
   /* ---------- the sidebar navigation ---------- */
   nav.side__nav { display:flex; flex-direction:column; gap:var(--space-4); }
@@ -265,7 +273,9 @@
   .art__open { display:flex; flex-direction:column; gap:var(--space-3); color:var(--ink); text-decoration:none; }
   .art__open:focus-visible { outline:2px solid var(--spot); outline-offset:2px; }
   .art__open:hover .title { color:var(--spot); }
-  .art__thumb { display:block; aspect-ratio:16/10; background:var(--panel); border:1px solid var(--line-2); padding:var(--space-3); }
+  /* The box is the 16:10 the aspect ratio says, whether or not its image has arrived: without `min-height:0`
+     the picture's own height pushes the card taller when it lands (10px at 1280), and the page under it moves. */
+  .art__thumb { display:block; aspect-ratio:16/10; min-height:0; background:var(--panel); border:1px solid var(--line-2); padding:var(--space-3); }
   .art__open:hover .art__thumb { border-color:var(--spot); }
   .art__thumb img { display:block; width:100%; height:100%; object-fit:contain; }
   .tag { font-family:var(--font-mono); font-size:11px; letter-spacing:var(--tracking-caps); text-transform:uppercase; }
@@ -275,9 +285,14 @@
   /* The explainer viewer: the agent's page, framed sandboxed, then this page's
      own correction bar. The server adds a script to every framed page that
      reports its height; the frame takes it, so the window is the one scrollbar.
-     Until the first report the frame is 0 tall behind a loader; with none in
-     1.5s (script blocked) it falls back to 80vh and scrolls inside. */
-  .viewer { display:block; width:100%; height:0; border:0; background:var(--bg); }
+     Until the first report the frame holds the height this tab last reported (else
+     80vh) with the loader over its top, so opening a page reflows once, when the
+     real height arrives; with no report in 1.5s (script blocked) it falls back to
+     80vh and scrolls inside. `--wait-h` is that reserved height: the frame's own
+     `height` is set only by a report, which is how the page tells the two apart. */
+  .viewer { display:block; width:100%; height:var(--wait-h, 0); border:0; background:var(--bg); }
+  .viewer__box { position:relative; }
+  .viewer__box > #art-wait { position:absolute; top:0; left:0; right:0; z-index:1; pointer-events:none; }
   /* Artifact tabs: the gallery, then up to TAB_MAX open pages. Pinned to the
      top of the window (under the top bar on a phone) so switching never needs
      a scroll up. One row; it scrolls sideways rather than wrapping. */
@@ -419,6 +434,8 @@
              margin-bottom:var(--space-4); }
   .filters .grow { flex:1 1 220px; min-width:180px; }
   .filters select { width:auto; }
+  /* The controls beside a search box are a region of their own (a redraw replaces them, never the box the reader is typing in); it adds no box. */
+  .filters > [data-region] { display:contents; }
   .chips { display:flex; gap:var(--space-2); flex-wrap:wrap; }
   .chip { font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em; text-transform:uppercase;
           background:none; border:1px solid var(--line-2); color:var(--faint); padding:5px 10px;
@@ -1023,7 +1040,13 @@ const fromKey = (k) => new Date(k + 'T00:00:00Z');
 const localKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const todayKey = () => localKey(new Date());
 
-const fmtDay = (k) => fromKey(k).toLocaleDateString(undefined, { month:'short', day:'numeric', timeZone:'UTC' });
+/* One formatter per shape, made once. `toLocaleDateString(undefined, options)` builds a new Intl formatter on
+   every call, and the heatmap's 371 labels alone were about 20 ms of drawing the Learning dashboard; the same
+   options give the same text from `format()`. UTC, because a day key is a calendar date, not an instant. */
+const FMT_DAY = new Intl.DateTimeFormat(undefined, { month:'short', day:'numeric', timeZone:'UTC' });
+const FMT_DAY_YEAR = new Intl.DateTimeFormat(undefined, { month:'short', day:'numeric', year:'numeric', timeZone:'UTC' });
+const FMT_MONTH = new Intl.DateTimeFormat(undefined, { month:'short', timeZone:'UTC' });
+const fmtDay = (k) => FMT_DAY.format(fromKey(k));
 const fmtDate = (ts) => {
   const d = parse(ts); if (!d) return '—';
   const sameYear = d.getFullYear() === new Date().getFullYear();
@@ -1061,6 +1084,12 @@ let SCOPE = null;             // Set of slugs touched in scope, or null for all
 const AFTER = [];             // render hooks that need a laid-out DOM (charts)
 /** The screen being shown, as the URL says it: `{ wf, page, param, query }`. */
 let CUR = { wf:'learning', page:'dashboard', param:'', query:new URLSearchParams() };
+/**
+ * What the view was last drawn from, so the next draw can tell a navigation from
+ * an adjustment and, for an adjustment, redraw only what changed. `null` until the
+ * first draw. See `render()`.
+ */
+let DRAWN = null;
 
 /* ---------- per-view control state, kept across re-renders ---------- */
 const T = {
@@ -1098,31 +1127,72 @@ const inScope = (raw, sid) => PROJECT === null || pid(raw, sid) === PROJECT;
 const projectById = (id) => INV.projects.find((p) => p.id === id) ?? null;
 const pname = (raw, sid) => { const id = pid(raw, sid); return projectById(id)?.name ?? base(id); };
 
+/**
+ * The one place the page's data is swapped: boot, and the arrival of new data (Phase 4 calls it for a live
+ * update). It sets `S` and `INV`, recomputes the scope (which drops every derived list, below), and drops what was
+ * read under the old data (`invalidateData`: the settings read and the response cache). Nothing else assigns `S`
+ * or `INV` after boot, which is what lets the derived lists be kept. Redrawing the screen is the caller's.
+ */
+function adoptState(s, inv) {
+  S = s;
+  INV = inv;
+  recomputeScope();
+  invalidateData();
+}
+
+/** Called wherever `S`, `INV` or `PROJECT` has just been assigned: `adoptState`, and a change of project. */
 function recomputeScope() {
+  dropDerived();
   if (PROJECT === null) { SCOPE = null; return; }
   SCOPE = new Set();
   for (const a of S.attempts) if (inScope(a.repo, a.session_id)) SCOPE.add(a.slug);
   for (const l of S.logged) if (inScope(l.repo, l.session_id)) SCOPE.add(l.slug);
 }
-const conceptsInScope = () => (SCOPE ? S.concepts.filter((c) => SCOPE.has(c.slug)) : S.concepts);
-const seenConcepts = () => conceptsInScope().filter((c) => c.seen);
-const attemptsInScope = () => S.attempts.filter((a) => inScope(a.repo, a.session_id));
-const loggedInScope = () => S.logged.filter((l) => inScope(l.repo, l.session_id));
+
+/* ---------- derived lists, kept ----------
+   What the views read of the payload (the concepts in scope, the sessions, the daily buckets, the streak, the
+   heatmap's days, the sidebar's counts) is a function of `S`, `INV`, `PROJECT` and the local day, which the streak
+   and the heatmap are read against, and of nothing else. So each is built once and kept: a navigation, a pager, a
+   keystroke and a resize read it again instead of rebuilding it from every row.
+
+   They are dropped in one place, `dropDerived()`, from `recomputeScope()`, which runs whenever `S`/`INV` are swapped
+   (`adoptState`) and whenever the project changes: the only places any of the three is assigned. The day is
+   checked on every read, so a page left open past midnight reads the new day's streak, not yesterday's.
+
+   The lists are frozen. A caller that sorted or pushed onto one would change what every other view reads, so it
+   throws instead: copy first (`[...list].sort(...)`). The rows inside them are the payload's own and are never
+   written to. The one Map (`dailyInScope`) and the sets in a streak are read-only by the same rule. */
+let DERIVED = new Map();
+let DERIVED_DAY = '';
+function derived(name, build) {
+  const day = todayKey();
+  if (day !== DERIVED_DAY) { DERIVED = new Map(); DERIVED_DAY = day; }
+  if (!DERIVED.has(name)) DERIVED.set(name, build());
+  return DERIVED.get(name);
+}
+const dropDerived = () => { DERIVED = new Map(); };
+
+const conceptsInScope = () => derived('concepts', () => Object.freeze(SCOPE ? S.concepts.filter((c) => SCOPE.has(c.slug)) : [...S.concepts]));
+const seenConcepts = () => derived('seen', () => Object.freeze(conceptsInScope().filter((c) => c.seen)));
+const attemptsInScope = () => derived('attempts', () => Object.freeze(S.attempts.filter((a) => inScope(a.repo, a.session_id))));
+const loggedInScope = () => derived('logged', () => Object.freeze(S.logged.filter((l) => inScope(l.repo, l.session_id))));
 const scopeName = () => (PROJECT === null ? 'all projects' : projectById(PROJECT)?.name ?? PROJECT);
 /** Inventory rows in scope — one, or all of them. */
 const projectsInScope = () => INV.projects.filter((p) => PROJECT === null || p.id === PROJECT);
 
-/** One row per calendar day in scope: { day, passed, corrected, missed, skipped, total }. */
+/** One row per calendar day in scope: { day, passed, corrected, missed, skipped, total }. Read-only. */
 function dailyInScope() {
-  const m = new Map();
-  for (const d of S.daily) {
-    if (!inScope(d.repo)) continue;
-    const cur = m.get(d.day) ?? { day:d.day, passed:0, corrected:0, missed:0, skipped:0, total:0 };
-    cur.passed += d.passed; cur.corrected += d.corrected ?? 0; cur.missed += d.missed; cur.skipped += d.skipped;
-    cur.total = cur.passed + cur.corrected + cur.missed + cur.skipped;
-    m.set(d.day, cur);
-  }
-  return m;
+  return derived('daily', () => {
+    const m = new Map();
+    for (const d of S.daily) {
+      if (!inScope(d.repo)) continue;
+      const cur = m.get(d.day) ?? { day:d.day, passed:0, corrected:0, missed:0, skipped:0, total:0 };
+      cur.passed += d.passed; cur.corrected += d.corrected ?? 0; cur.missed += d.missed; cur.skipped += d.skipped;
+      cur.total = cur.passed + cur.corrected + cur.missed + cur.skipped;
+      m.set(d.day, cur);
+    }
+    return m;
+  });
 }
 
 /** Fills every day in a window, including the empty ones — the gaps are data. */
@@ -1138,8 +1208,15 @@ function fillDays(map, n, endKey) {
   return out;
 }
 
-/** Consecutive days with at least one answer, counting back from today. */
+/** The 30 days ending today, in scope, empty ones included: the activity chart's days. */
+const lastThirty = () => derived('last30', () => Object.freeze(fillDays(dailyInScope(), 30)));
+
+/**
+ * Consecutive days with at least one answer, counting back from today. With no argument it is the streak in scope
+ * (`dailyInScope`), which is kept; given a map of days it is a plain reading of that map.
+ */
 function streaks(map) {
+  if (!map) return derived('streaks', () => streaks(dailyInScope()));
   const active = new Set([...map.values()].filter((d) => d.total > 0).map((d) => d.day));
   const run = new Set();
   const cur = fromKey(todayKey());
@@ -1153,11 +1230,15 @@ function streaks(map) {
     best = Math.max(best, len);
     prev = k;
   }
-  return { current: run.size, best, days: active.size, run, today };
+  return Object.freeze({ current: run.size, best, days: active.size, run, today });
 }
 
-/** Sessions, rebuilt from the two row sets that mention a session id. */
-function sessions() {
+/** Sessions in scope, from the two row sets that mention a session id, newest first. */
+const sessions = () => derived('sessions', () => Object.freeze(buildSessions()));
+/** Learning's sessions: the ones that logged a concept or asked a question. A memory-only one belongs to the other workflow. */
+const learningSessions = () => derived('learning-sessions', () => Object.freeze(sessions().filter((x) => x.logged.length || x.asked.length)));
+
+function buildSessions() {
   const m = new Map();
   const get = (id) => {
     if (!m.has(id)) m.set(id, { id, repo:null, logged:[], asked:[], mem:null, first:null, last:null });
@@ -1247,6 +1328,19 @@ function card(title, hint, body, opts = {}) {
   return `<section class="card">${head}${body}</section>`;
 }
 
+/**
+ * A part of a screen that an adjustment (a tab, a chip, a select, a pager) redraws
+ * on its own. The element and everything around it keep their place in the page;
+ * only its contents are replaced, wholesale, when what the view returns for it
+ * changed. Name it for what it holds. Regions never nest. `html` is escaped by the
+ * caller. See `drawAdjusted`.
+ *
+ * A list that is fetched is a region too: `slot()` writes `data-region` on its target (`region: true`).
+ * Its contents are the answer when the page holds it, and otherwise the box that reserves its room,
+ * which a redraw never puts over rows that are on screen: they stay, dimmed, until the new ones arrive.
+ */
+const region = (id, html, attrs = '') => `<div data-region="${id}"${attrs ? ' ' + attrs : ''}>${html}</div>`;
+
 /* ---------- progressive disclosure ---------- */
 
 /**
@@ -1270,7 +1364,7 @@ const openAttr = (id, dflt) => (isOpen(id, dflt) ? ' open' : '');
  */
 function pageHead(title, counts = [], about = '', back = '') {
   const id = `about:${CUR.wf}:${CUR.page}`;
-  return `<div>${back}<h1 class="page__title">${title}</h1>
+  return `<div class="page__head">${back}<h1 class="page__title">${title}</h1>
     ${counts.length ? `<p class="counts">${counts.join(' · ')}</p>` : ''}
     ${about ? `<details class="about" data-fold="${esc(id)}"${openAttr(id, false)}><summary>How this works</summary><p>${about}</p></details>` : ''}</div>`;
 }
@@ -1331,7 +1425,7 @@ function startBlocks(title, cmds) {
   const rest = cmds.slice(START_SHOWN);
   return `<section class="starts"><div class="head"><h2>${esc(title)}</h2></div>`
     + cmds.slice(0, START_SHOWN).map(block).join('')
-    + (rest.length ? `<details class="starts__more"><summary>Show ${rest.length} more · ${rest.reduce((n, x) => n + x.count, 0)} due</summary>${rest.map(block).join('')}</details>` : '')
+    + (rest.length ? `<details class="starts__more" data-key="starts-more"><summary>Show ${rest.length} more · ${rest.reduce((n, x) => n + x.count, 0)} due</summary>${rest.map(block).join('')}</details>` : '')
     + `<p class="cmd__note">Each run asks up to your questions-per-task limit, weakest first. Run it again for the rest.</p>
       <span class="sr" id="copy-live" aria-live="polite"></span></section>`;
 }
@@ -1378,7 +1472,7 @@ function lines(items, empty = 'Nothing here yet.') {
 function qaLine(a, lead, linkConcept = false) {
   let opts = [];
   try { opts = a.options ? JSON.parse(a.options) : []; } catch { opts = []; }
-  return `<details class="qa">
+  return `<details class="qa"${a.id != null ? ` data-key="qa:${esc(a.id)}"` : ''}>
     <summary class="qa__meta">${lead}<span class="qa__line">${esc(a.question)}</span>${gradeBadge(a)}</summary>
     <div class="qa__meta" style="margin-top:var(--space-3)"><span>${esc(tierLabel(a.tier))}</span>
       ${a.format ? `<span>${esc(a.format)}</span>` : ''}${a.level ? `<span>${esc(a.level)}</span>` : ''}
@@ -1412,14 +1506,16 @@ function pager(key, total, page, per = PER) {
   push(1); for (let i = page - 2; i <= page + 2; i++) push(i); push(pages);
   win.sort((a, b) => a - b);
 
-  let btns = `<button data-pager="${key}" data-page="${page - 1}"${page === 1 ? ' disabled' : ''} aria-label="Previous page">‹</button>`;
+  // `data-focus` names a button by what it is, not by the page it goes to: after a press the Next
+  // button goes to another page, and focus has to find it again (see `captureUi`).
+  let btns = `<button data-pager="${key}" data-page="${page - 1}" data-focus="${key}:prev"${page === 1 ? ' disabled' : ''} aria-label="Previous page">‹</button>`;
   let last = 0;
   for (const n of win) {
     if (n - last > 1) btns += `<button disabled aria-hidden="true">…</button>`;
-    btns += `<button data-pager="${key}" data-page="${n}"${n === page ? ' aria-current="true"' : ''}>${n}</button>`;
+    btns += `<button data-pager="${key}" data-page="${n}" data-focus="${key}:${n}"${n === page ? ' aria-current="true"' : ''}>${n}</button>`;
     last = n;
   }
-  btns += `<button data-pager="${key}" data-page="${page + 1}"${page === pages ? ' disabled' : ''} aria-label="Next page">›</button>`;
+  btns += `<button data-pager="${key}" data-page="${page + 1}" data-focus="${key}:next"${page === pages ? ' disabled' : ''} aria-label="Next page">›</button>`;
   return `<div class="pager"><span class="pager__count">${from}–${to} of ${total}</span><div class="pager__btns">${btns}</div></div>`;
 }
 
@@ -1509,7 +1605,42 @@ const heatFill = (s) => `color-mix(in srgb, var(--spot) ${HEAT_STEP[s]}%, var(--
 let HEAT_OFF = 0;                                  // weeks paged back; a view position, reset by render()
 const HEAT_ARROWS = 64;                            // the two arrow buttons beside the grid
 
-function chartHeatmap(el, map, run = new Set()) {
+/**
+ * The heatmap's days, bucketed once per (S, PROJECT, day) and kept (`derived`): a day's count, its tooltip (said
+ * with the date, but not whether it is in the current streak, which the drawing adds) and, for a week's first
+ * day, its month, which is set when a column first needs it. A visit, a resize and a ‹ › page all draw some window
+ * of the same year, so each draws from these instead of bucketing and formatting the dates again; only the SVG for
+ * the visible window is built. Cells are made as days are asked for, so the 53 weeks the payload carries, and the
+ * weeks paged back past them, are each made once.
+ */
+function heatCell(grid, k) {
+  let c = grid.cells.get(k);
+  if (c) return c;
+  const d = grid.daily.get(k);
+  const total = d ? d.total : 0;
+  const date = fromKey(k);
+  const label = (date.getUTCFullYear() === grid.year ? FMT_DAY : FMT_DAY_YEAR).format(date);
+  const right = d ? d.passed + d.corrected : 0;
+  c = { day: k, total, future: k > grid.today, month: null,
+        tip: esc(`${label} — ${total ? `${plural(total, 'answer')} (${right} right)` : 'nothing'}`) };
+  grid.cells.set(k, c);
+  return c;
+}
+
+/** `n` days ending at `endKey`, as heat cells: `fillDays` for the heatmap. */
+function heatDays(n, endKey) {
+  const grid = derived('heat', () => ({ year: fromKey(todayKey()).getUTCFullYear(), today: todayKey(), daily: dailyInScope(), cells: new Map() }));
+  const out = [];
+  const cur = new Date(fromKey(endKey).getTime() - (n - 1) * DAY_MS);
+  for (let i = 0; i < n; i++) {
+    out.push(heatCell(grid, dayKey(cur)));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function chartHeatmap(el) {
+  const run = streaks().run;
   const CELL = 13, GAP = 3, PAD_T = 18, PAD_L = 26;
   // The window is chosen from the width rather than the width from the window:
   // a wide card shows a year, a phone shows a quarter, and the cell stays the
@@ -1524,18 +1655,15 @@ function chartHeatmap(el, map, run = new Set()) {
   const end = new Date(today);
   end.setUTCDate(end.getUTCDate() + (6 - end.getUTCDay()) - HEAT_OFF * 7);   // to the end of this week, paged back
   const total = weeks * 7;
-  const days = fillDays(map, total, dayKey(end));
+  const days = heatDays(total, dayKey(end));
   const max = Math.max(...days.map((d) => d.total), 1);
-  const year = today.getUTCFullYear();
-  const label = (k) => fromKey(k).toLocaleDateString(undefined,
-    { month:'short', day:'numeric', year: fromKey(k).getUTCFullYear() === year ? undefined : 'numeric', timeZone:'UTC' });
 
   let out = '', lastMonth = '', lastCol = -9;
   days.forEach((d, i) => {
     const col = Math.floor(i / 7), row = i % 7;
     const x = PAD_L + col * (CELL + GAP), y = PAD_T + row * (CELL + GAP);
     if (row === 0) {
-      const m = fromKey(d.day).toLocaleDateString(undefined, { month:'short', timeZone:'UTC' });
+      const m = d.month ??= FMT_MONTH.format(fromKey(d.day));
       // Not in the last two columns: a month label starting there runs off the
       // right edge of the card. Nor within three columns of the previous label, which it would overprint.
       if (m !== lastMonth) {
@@ -1544,12 +1672,11 @@ function chartHeatmap(el, map, run = new Set()) {
       }
     }
     const step = d.total ? Math.min(4, Math.ceil((4 * d.total) / max)) : 0;
-    const fill = step ? heatFill(step) : d.day > todayKey() ? 'transparent' : 'var(--mass)';
+    const fill = step ? heatFill(step) : d.future ? 'transparent' : 'var(--mass)';
     // The current run is outlined inside its own cell, so neighbours never touch.
     const on = run.has(d.day), inset = on ? 0.75 : 0;
-    const title = `${label(d.day)} — ${d.total ? `${plural(d.total, 'answer')} (${d.passed + d.corrected} right)` : 'nothing'}${on ? ' · current streak' : ''}`;
     out += `<rect class="cell${on ? ' is-run' : ''}" data-step="${step}" x="${x + inset}" y="${y + inset}" width="${CELL - 2 * inset}" height="${CELL - 2 * inset}" fill="${fill}">`
-         + `<title>${esc(title)}</title></rect>`;
+         + `<title>${d.tip}${on ? ' · current streak' : ''}</title></rect>`;
   });
   ['Mon', 'Wed', 'Fri'].forEach((label, n) => {
     const row = [1, 3, 5][n];
@@ -1572,8 +1699,8 @@ function chartHeatmap(el, map, run = new Set()) {
 }
 
 /** The streak, up front: the run, the longest, and the calendar it is counted from. */
-function streakCard(daily, st) {
-  chart('c-heat', (el) => chartHeatmap(el, daily, st.run));
+function streakCard(st) {
+  chart('c-heat', chartHeatmap);
   const sub = st.current && !st.today ? `Answer one today to make it ${st.current + 1}.`
     : !st.current && st.best ? `Your longest was ${plural(st.best, 'day')}.`
     : !st.best ? 'Answer one question to start one.' : '';
@@ -1679,7 +1806,8 @@ const chart = (id, fn) => {
    Everything above is derived from one payload. The corpus is the exception:
    an observation carries a narrative and the tool output behind it, so the
    timeline is paged over `/api/memory` instead of shipped whole on every load.
-   That makes exactly two views asynchronous, and both go through `fill()`.
+   Those views, and the other pages that read a resource of their own, are
+   asynchronous, and every one of them draws its target through `slot()`.
    ============================================================ */
 
 /**
@@ -1691,41 +1819,180 @@ const chart = (id, fn) => {
 let GEN = 0;
 
 /**
- * Renders a placeholder now and the real markup when the fetch lands. Queued
- * through `AFTER` like a chart, for the same reason — the target element does
- * not exist until `render()` has written the view's `innerHTML`.
- */
-/**
  * The one loading state: the companion drawing and releasing its arrow, and what is being waited
  * for. `page: true` is the full-height version the first paint uses. Every
- * placeholder a `fill()` target starts with is one of these, so a wait looks
+ * placeholder a `slot()` starts with is one of these, so a wait looks
  * the same wherever it happens. `label` is plain text; it is escaped here.
  */
 function loader(label, { page = false } = {}) {
   return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="${page ? 96 : 56}"></eklavya-mascot><span>${esc(label)}</span></div>`;
 }
 
+/* ---------- the response cache ----------
+   What a fetched region asked for, kept by URL, so a page the reader has seen is drawn again
+   with no request and no loader: a revisit, Back and Forward, a pager or a filter returned to.
+   It holds the parsed body, never markup, so a draw runs on it again as it would on a fresh
+   answer (today's "Yesterday" is not the day it was cached).
+
+   The key is the URL, and the URL carries everything the answer depends on: the project scope
+   (`memScope()`, `?project=`), the page, the filters, the id. A different project is a different
+   key, so a project switch leaves the cache alone and switching back is instant. An answer that
+   does not depend on the scope (an entry, a session's rows, a feedback item, a correction) is
+   keyed by the one thing it does depend on.
+
+   An entry is good while the page's `S.cursor` is the one it was read under, and it is dropped
+   by `invalidateData()` (a save, the poll finding that the server moved on; Phase 4 calls it
+   when the cursor changes) and, for the one route a write changes, by `respForget()`. A page
+   reload starts with nothing. A read already out when the cache is invalidated is not stored
+   when it lands (`respAt`): it may have been answered before whatever made the cache stale.
+   Bounded at `RESP_MAX`, least recently used out first. An answer that failed is never cached. */
+const RESP_MAX = 50;
+const RESP = new Map();       // url -> { cursor, body }, least recently used first
+
+function respGet(url) {
+  const e = RESP.get(url);
+  if (!e) return null;
+  RESP.delete(url);
+  if (e.cursor !== S.cursor) return null;
+  RESP.set(url, e);
+  return e;
+}
+/** What a read is taken under, noted when it is made, not when it lands. */
+const respAt = () => ({ cursor: S.cursor, gen: DATA_GEN });
+function respPut(url, body, at) {
+  if (at.cursor !== S.cursor || at.gen !== DATA_GEN) return;
+  RESP.delete(url);
+  RESP.set(url, { cursor: at.cursor, body });
+  if (RESP.size > RESP_MAX) RESP.delete(RESP.keys().next().value);
+}
+/** A write the page made changed what these answer: every cached URL that starts with `prefix` goes. */
+function respForget(prefix) {
+  for (const url of [...RESP.keys()]) if (url.startsWith(prefix)) RESP.delete(url);
+}
+
+/* ---------- slots: a fetched region that never moves the page ----------
+   A view that reads a resource returns `slot(id, url, draw, opts)` where the target element goes.
+   On a cache hit the element already holds `draw(body)`: nothing is inserted, nothing is
+   requested, and the screen is drawn in one go. On a miss it holds a box of the height that
+   region is expected to take, with the loader in it (the mascot still waits its 150ms before it
+   shows), and the fetch is queued. When the same region is already on screen with an earlier
+   answer in it (a pager, a filter, a refetch of the same page), the box is never drawn: the old
+   content stays, dimmed and out of reach (`aria-busy` + `data-kept`), until the answer draws. */
+
+/** Where the box is looked for in markup. */
+const WAIT_OPEN = '<div class="slot__wait"';
+const isWait = (html) => html.startsWith(WAIT_OPEN);
+
+/**
+ * What a slot reserves the first time it is drawn, in px, before this page has seen what it holds: what
+ * it takes at a year of use (the issue's medium database, measured at 1280px), which is what a reader
+ * with that much history gets. A paged list reserves its full page (25 timeline rows, 20 session
+ * or history rows); the rest are as tall as they come (six and five rows for the Memory
+ * Dashboard's two lists, an observation, an item of feedback, both folds of a session's memory half,
+ * the settings page, whose fields are fixed). A reader with a shorter history sees the box shrink to
+ * its rows once, when they land. These are estimates for a first visit and nothing more: the footer
+ * moves by however far one misses, and twice if the page being left was taller than the estimate and
+ * shorter than the answer, or the other way round. The height a region had when it last drew
+ * (`SLOT_H`) replaces them, and a page seen again has no box at all.
+ */
+const SLOT_MIN = {
+  'mem-rows': 1350, 'msess-rows': 1450, 'mem-recent': 360, 'mem-sessions': 300,
+  'entry-body': 650, 'sess-lookup': 360, 'sess-mem': 160, 'fb-item': 520, 'fb-rows': 1030, settings: 1580,
+};
+const SLOT_FALLBACK = 160;
+const SLOT_H = new Map();     // id -> the height of its content the last time it was drawn
+
+/** The height of the content of `el`, without the padding it carries. */
+function contentHeight(el) {
+  const cs = getComputedStyle(el);
+  return Math.round(el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
+}
+/** Notes how tall `#id` is now that it holds real content, for the next time it waits. */
+function remember(id) {
+  const el = $(id);
+  const h = el ? contentHeight(el) : 0;
+  if (h > 0) SLOT_H.set(id, h);
+}
+
+const waitBox = (id, label) => `${WAIT_OPEN} style="min-height:${SLOT_H.get(id) ?? SLOT_MIN[id] ?? SLOT_FALLBACK}px">${loader(label)}</div>`;
+
+const failure = (e) => `<div class="ek-mascot-message"><eklavya-mascot state="error" size="56"></eklavya-mascot><p class="empty">Could not load: ${esc(e.message)}</p></div>`;
+
+/** The target element of a slot. Its attributes are the same whatever it holds, so a redraw can tell a change of content from a change of structure. */
+const slotHost = (id, inner, { cls = '', region = false } = {}) =>
+  `<div id="${id}" data-slot${cls ? ` class="${cls}"` : ''}${region ? ` data-region="${id}"` : ''}>${inner}</div>`;
+
+/** The state a fetch leaves on its target while it is out; gone once the answer, or the failure, is drawn. */
+const slotDone = (el) => { el.removeAttribute('aria-busy'); el.removeAttribute('data-kept'); el.removeAttribute('data-failed'); };
+/** Whether `el` shows something worth keeping under a new request: not the box, and not a failure. */
+const holdsContent = (el) => !el.hasAttribute('data-failed') && !el.querySelector(':scope > .slot__wait');
+
+/**
+ * `opts`: `label` (what the loader says), `cls` (a class for the target), `region` (the target is
+ * a `data-region`, so a redraw replaces its contents alone). `draw` is a pure function of the
+ * response, and must not change it: a cached body is drawn again. It may queue its own charts and slots.
+ */
+function slot(id, url, draw, { label, ...host } = {}) {
+  const hit = respGet(url);
+  if (!hit) {
+    fill(id, url, draw);
+    return slotHost(id, waitBox(id, label), host);
+  }
+  AFTER.push(() => remember(id));
+  let html;
+  try {
+    html = draw(hit.body);
+  } catch (e) {
+    html = failure(e);
+    AFTER.push(() => $(id)?.setAttribute('data-failed', ''));
+  }
+  return slotHost(id, html, host);
+}
+
+/**
+ * Fetches `url` for the slot `#id` and draws the answer in. Queued through `AFTER` like a chart,
+ * for the same reason: the target does not exist until `render()` has written the view. If the
+ * target already shows an earlier answer, that stays under `aria-busy` until this one draws.
+ */
 function fill(id, url, draw) {
   const gen = GEN;
+  const at = respAt();
   AFTER.push(() => {
-    $(id)?.setAttribute('aria-busy', 'true');
+    const was = $(id);
+    if (was) {
+      was.setAttribute('aria-busy', 'true');
+      if (holdsContent(was)) was.setAttribute('data-kept', '');
+    }
     fetch(url).then((r) => {
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
       return r.json();
     }).then((d) => {
+      respPut(url, d, at);
       const el = $(id);
       if (!el || gen !== GEN) return;
       // A draw can queue its own charts and fills (a session page drawn from a
       // lookup does); the render that queued this one has already run its hooks.
       AFTER.length = 0;
-      el.innerHTML = draw(d);
-      el.removeAttribute('aria-busy');
+      const html = draw(d);
+      // What the reader had open or focused in the rows being replaced (a timeline entry, a pager
+      // button) is found again in the new ones.
+      const ui = captureUi(el);
+      el.innerHTML = html;
+      // The view returns this same markup on its own from now on (from the cache), so the record
+      // of the screen is brought up to date with it and a later redraw leaves it alone.
+      recordFill(id, html);
+      slotDone(el);
       focusable(el);
+      restoreUi(el, ui);
+      remember(id);
       for (const fn of AFTER.splice(0)) fn();
       TIP.sync();
     }).catch((e) => {
       const el = $(id);
-      if (el && gen === GEN) { el.innerHTML = `<div class="ek-mascot-message"><eklavya-mascot state="error" size="56"></eklavya-mascot><p class="empty">Could not load: ${esc(e.message)}</p></div>`; el.removeAttribute('aria-busy'); }
+      if (!el || gen !== GEN) return;
+      el.innerHTML = failure(e);
+      slotDone(el);
+      el.setAttribute('data-failed', '');
     });
   });
 }
@@ -1790,8 +2057,7 @@ function savingsText(s, receipts) {
    ============================================================ */
 
 function viewLearningDashboard() {
-  const daily = dailyInScope();
-  const st = streaks(daily);
+  const st = streaks();
   const seen = seenConcepts();
   const scoped = conceptsInScope();
   const atts = attemptsInScope();
@@ -1801,8 +2067,8 @@ function viewLearningDashboard() {
   const due = seen.filter((c) => c.due);
   const mastered = seen.filter((c) => c.mastered);
   // Learning's sessions; a memory-only one belongs to the other workflow.
-  const sess = sessions().filter((x) => x.logged.length || x.asked.length);
-  const last30 = fillDays(daily, 30);
+  const sess = learningSessions();
+  const last30 = lastThirty();
 
   const weakest = seen.filter((c) => !c.mastered).sort((a, b) => a.score - b.score || b.attempts - a.attempts).slice(0, 5);
 
@@ -1847,7 +2113,7 @@ function viewLearningDashboard() {
 
     next,
 
-    streakCard(daily, st),
+    streakCard(st),
 
     card('Answers, last 30 days', null,
       `<div class="legend">
@@ -1944,25 +2210,24 @@ function viewConcepts(param) {
     pageHead('Concepts', [plural(all.length, 'concept'), `${counts.all - counts.unseen} asked`, `${counts.mastered} mastered`],
       `Everything in your graph — what you have been asked, and what is still just catalogue. Open a concept
        for every question you were given on it and the code that logged it.`),
+    // The search box is outside every region, so a keystroke replaces the list and leaves the box, the selects and the chips alone.
     card(null, null,
       `<div class="filters">
          <div class="grow"><input type="search" id="q" value="${esc(t.q)}" placeholder="Search concepts" aria-label="Search concepts"></div>
-         <select id="dom" aria-label="Domain">
+         ${region('concepts-selects', `<select id="dom" aria-label="Domain">
            <option value="all">All domains</option>
            ${domains.map((d) => `<option value="${esc(d)}"${t.domain === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}
          </select>
          <select id="sort" aria-label="Sort">
            ${[['weakest','Weakest first'],['strongest','Strongest first'],['recent','Recently seen'],['asked','Most asked'],['tier','By tier'],['name','A–Z']]
              .map(([v, l]) => `<option value="${v}"${t.sort === v ? ' selected' : ''}>${l}</option>`).join('')}
-         </select>
+         </select>`)}
        </div>
-       <div class="chips" id="chips">
-         ${chip('all','All')}${chip('due','Due')}${chip('learning','Learning')}${chip('mastered','Mastered')}${chip('unseen','Not asked')}
-       </div>
-       <div style="margin-top:var(--space-4)">
-         ${table([{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'}], rows)}
-         ${pager('concepts', list.length, p)}
-       </div>`),
+       ${region('concepts-chips',
+         `${chip('all','All')}${chip('due','Due')}${chip('learning','Learning')}${chip('mastered','Mastered')}${chip('unseen','Not asked')}`,
+         'class="chips" id="chips"')}
+       ${region('concepts', `${table([{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'}], rows)}${pager('concepts', list.length, p)}`,
+         'style="margin-top:var(--space-4)"')}`),
   ].join('');
 }
 
@@ -2003,8 +2268,8 @@ function viewConcept(slug) {
     startBlocks('This one is due', startCommand([c])),
 
     card('Every question you were asked', atts.length ? `${plural(atts.length, 'attempt')}, newest first. Open one for the options and the feedback.` : '',
-      atts.length ? history + pager('concept', atts.length, p, PER_Q)
-        : mascotMessage('<p class="empty">Not asked yet. It will come up when your work touches it.</p>')),
+      region('history', atts.length ? history + pager('concept', atts.length, p, PER_Q)
+        : mascotMessage('<p class="empty">Not asked yet. It will come up when your work touches it.</p>'))),
 
     atts.length
       ? fold('concept:grades', 'How the grades went', plural(atts.length, 'grade'),
@@ -2089,10 +2354,10 @@ function viewReview(param) {
     card('The next fortnight', null,
       `<div class="chart"><svg id="c-forecast" role="img" aria-label="Scheduled reviews for the next fourteen days"></svg></div>`),
 
-    card(null, null,
+    card(null, null, region('review',
       `<div class="chips" id="tabs">` + tabs.map(([k, label]) =>
         `<button class="chip" data-tab="${k}" aria-pressed="${t.tab === k}">${esc(label)}</button>`).join('') + `</div>
-       <div style="margin-top:var(--space-4)">${table(cols, rows)}${pager('review', list.length, p)}</div>`),
+       <div style="margin-top:var(--space-4)">${table(cols, rows)}${pager('review', list.length, p)}</div>`)),
   ].join('');
 }
 
@@ -2100,9 +2365,8 @@ function viewSessions() {
   // Learning's sessions: the ones that logged a concept or asked a question.
   // A session that only captured memory is the Memory workflow's, and is
   // counted here so it is never silently missing.
-  const every = sessions();
-  const all = every.filter((s) => s.logged.length || s.asked.length);
-  const memOnly = every.length - all.length;
+  const all = learningSessions();
+  const memOnly = sessions().length - all.length;
   const p = page('sessions', all.length);
   const rows = slice(all, p).map((s) => {
     const acc = s.asked.length ? pct(s.passed, s.asked.length) : null;
@@ -2123,11 +2387,11 @@ function viewSessions() {
     ], `One row per Claude Code session that logged a concept or asked a question. Open one for the whole
        thread: the concepts the work touched, every question you were asked, and — joined on the same
        session id — what the session captured and remembered.`),
-    card(null, null,
+    card(null, null, region('sessions',
       table([{t:'Session'},{t:'Concepts',n:1},{t:'Answers'},{t:'When',n:1}], rows)
       + pager('sessions', all.length, p)
       + (memOnly ? `<p class="slug" style="margin:var(--space-4) 0 0">${plural(memOnly, 'session')} captured memory and logged no concept —
-          <a class="link" data-go="${esc(MH('sessions'))}">see them in Memory → Sessions</a>.</p>` : '')),
+          <a class="link" data-go="${esc(MH('sessions'))}">see them in Memory → Sessions</a>.</p>` : ''))),
   ].join('');
 }
 
@@ -2146,12 +2410,11 @@ function viewSession(id) {
   if (s) return sessionBody(s);
   // Not in the payload: a memory-only session past `memory_sessions`' cap, or
   // one outside the current scope. The paged resource answers for it exactly.
-  fill('sess-lookup', '/api/memory/sessions?' + memScope(new URLSearchParams({ session: id })), (d) => {
+  return slot('sess-lookup', '/api/memory/sessions?' + memScope(new URLSearchParams({ session: id })), (d) => {
     const row = d.rows[0];
     if (!row) return noSession(id);
     return sessionBody({ id, repo: row.project, logged: [], asked: [], mem: row, first: row.first, last: row.last, passed: 0 });
-  });
-  return `<div class="stack" id="sess-lookup">${loader('Looking up this session…')}</div>`;
+  }, { label: 'Looking up this session…', cls: 'stack' });
 }
 
 function sessionBody(s) {
@@ -2172,28 +2435,26 @@ function sessionBody(s) {
 
   // The memory half of this session, folded: what it remembered and what it
   // proposed are the audit trail behind the learning, not the headline.
-  if (s.mem) {
-    fill('sess-mem', '/api/memory?per=100&session=' + encodeURIComponent(id), (d) => {
-      const entries = d.rows.map((e) => ({
-        t: `<span${e.deleted_at || e.superseded_by ? ' class="gone-title"' : ''}>${esc(e.title)}</span>`,
-        s: `${esc(stamp(e.occurred_at))} · ${esc(e.type ?? e.kind)} · ${plural(e.event_count, 'evidence event')}`,
-        v: entryMark(e),
-        go: MH('entry', e.id),
-      }));
-      const cands = (d.candidates ?? []).map((c) => ({
-        t: esc(c.name ?? c.slug),
-        s: `${esc(c.domain ?? '—')} · ${Math.round((c.confidence ?? 0) * 100)}% confidence`,
-        v: `<span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span>`,
-        go: c.concept_slug ? LH('concept', c.concept_slug) : null,
-      }));
-      return fold('sess:mem', 'What the session remembered', plural(entries.length, 'observation'), lines(entries),
-          { hint: 'Observations distilled from the evidence this session captured.' })
-        + (cands.length
-          ? fold('sess:cands', 'Concepts it proposed', plural(cands.length, 'candidate'), lines(cands),
-              { hint: 'Derived from evidence, and still only a proposal — nothing here moved mastery.' })
-          : '');
-    });
-  }
+  const memory = !s.mem ? '' : slot('sess-mem', '/api/memory?per=100&session=' + encodeURIComponent(id), (d) => {
+    const entries = d.rows.map((e) => ({
+      t: `<span${e.deleted_at || e.superseded_by ? ' class="gone-title"' : ''}>${esc(e.title)}</span>`,
+      s: `${esc(stamp(e.occurred_at))} · ${esc(e.type ?? e.kind)} · ${plural(e.event_count, 'evidence event')}`,
+      v: entryMark(e),
+      go: MH('entry', e.id),
+    }));
+    const cands = (d.candidates ?? []).map((c) => ({
+      t: esc(c.name ?? c.slug),
+      s: `${esc(c.domain ?? '—')} · ${Math.round((c.confidence ?? 0) * 100)}% confidence`,
+      v: `<span class="pill${c.status === 'accepted' ? ' ok' : ''}">${esc(c.status)}</span>`,
+      go: c.concept_slug ? LH('concept', c.concept_slug) : null,
+    }));
+    return fold('sess:mem', 'What the session remembered', plural(entries.length, 'observation'), lines(entries),
+        { hint: 'Observations distilled from the evidence this session captured.' })
+      + (cands.length
+        ? fold('sess:cands', 'Concepts it proposed', plural(cands.length, 'candidate'), lines(cands),
+            { hint: 'Derived from evidence, and still only a proposal — nothing here moved mastery.' })
+        : '');
+  }, { label: 'Loading what this session remembered…', cls: 'stack' });
 
   const back = `<a class="page__back" data-go="${esc(href(CUR.wf, 'sessions'))}">← Sessions</a>`;
   return [
@@ -2216,7 +2477,7 @@ function sessionBody(s) {
           { hint: 'Not from this diff — the tutor widened to prerequisites and neighbours.' })
       : '',
 
-    s.mem ? `<div class="stack" id="sess-mem">${loader('Loading what this session remembered…')}</div>` : '',
+    memory,
   ].join('');
 }
 
@@ -2229,7 +2490,6 @@ function viewProjects() {
   const inv = projectsInScope();
   const list = inv.filter((p) => p.learning.answers || p.learning.logged_concepts);
   const other = inv.filter((p) => !p.learning.answers && !p.learning.logged_concepts);
-  const daily = dailyInScope();
 
   // One fold per project. Its summary line is the standing — level, accuracy,
   // answers, last active — and it opens to the runway and thirty days of work.
@@ -2293,7 +2553,7 @@ function viewProjects() {
   return [
     pageHead('Projects', [
       plural(list.length, 'project'), `${assessed.length} assessed`,
-      plural(list.reduce((a, p) => a + p.learning.answers, 0), 'answer'), plural(streaks(daily).days, 'active day'),
+      plural(list.reduce((a, p) => a + p.learning.answers, 0), 'answer'), plural(streaks().days, 'active day'),
     ], `Difficulty is earned per codebase, not per person: the same developer is a different learner on their
        fourth Node service and their first Rust one. Everyone starts at easy (tiers 1–2) and climbs on
        evidence — a promotion needs passing answers <em>and</em> accuracy <em>and</em> distinct concepts. A
@@ -2368,7 +2628,7 @@ function viewDomain(name) {
       { label:'Mastered', n:seen.filter((c) => c.mastered).length, color:'var(--spot)' },
       { label:'Learning', n:seen.filter((c) => !c.mastered).length, color:'color-mix(in srgb, var(--spot) 45%, var(--mass))' },
       { label:'Not asked', n:all.length - seen.length, color:'var(--mass)' },
-    ]) + `<div style="margin-top:var(--space-5)">${table([{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'}], rows)}${pager('domain', list.length, p)}</div>`),
+    ]) + `<div style="margin-top:var(--space-5)" data-region="domain">${table([{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'}], rows)}${pager('domain', list.length, p)}</div>`),
   ].join('');
 }
 
@@ -2447,7 +2707,7 @@ function drawMemory(d) {
     }
     const inner = kids.get(e.session_id);
     if (e.kind === 'session_summary' && inner) {
-      out.push(`<li><details class="tl-item tl-session">
+      out.push(`<li><details class="tl-item tl-session" data-key="session:${esc(e.session_id)}">
         <summary><span class="tl-time">${at ? esc(clock(at)) : '—'}</span>
           <span class="tl-title">${esc(e.title.replace(/^Session:\s*/, ''))}</span>
           <span class="tl-type">Session · ${plural(inner.length, 'observation')}</span></summary>
@@ -2507,7 +2767,7 @@ function viewMemory(param) {
   t.tag = CUR.query.get('tag') || 'all';
   t.since = CUR.query.get('from') || '';
   t.until = CUR.query.get('to') || '';
-  fill('mem-rows', '/api/memory?' + memoryQuery(type), drawMemory);
+  const rows = slot('mem-rows', '/api/memory?' + memoryQuery(type), drawMemory, { label: 'Loading the timeline…', region: true });
 
   // A preset is only a `from` date, so the URL stays the one date format and a
   // shared link reads the same; anything else is a custom range.
@@ -2529,7 +2789,7 @@ function viewMemory(param) {
     `<div>
        <div class="filters">
          <div class="grow"><input type="search" id="mq" value="${esc(t.q)}" placeholder="Search memory" aria-label="Search memory"></div>
-         <select id="mtype" aria-label="Type">${typeOpts}</select>
+         ${region('timeline-filters', `<select id="mtype" aria-label="Type">${typeOpts}</select>
          <select id="mtag" aria-label="Tag">
            <option value="all">All tags</option>
            ${(M.tags ?? []).map((x) => opt(x.tag, `${x.tag} (${x.n})`, t.tag === x.tag)).join('')}
@@ -2540,9 +2800,9 @@ function viewMemory(param) {
            ${opt('custom', 'Custom range', when === 'custom')}
          </select>
          ${when === 'custom' ? `<input type="date" id="mfrom" value="${esc(t.since)}" aria-label="From date">
-         <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">` : ''}
+         <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">` : ''}`)}
        </div>
-       <div id="mem-rows">${loader('Loading the timeline…')}</div>
+       ${rows}
      </div>`,
   ].join('');
 }
@@ -2551,19 +2811,19 @@ function viewMemoryDashboard() {
   const R = S.reuse, H = S.health, Q = H.queue, M = S.memory;
   const scope = () => memScope(new URLSearchParams());
   const q6 = scope(); q6.set('per', '6');
-  fill('mem-recent', '/api/memory?' + q6, (d) => lines(d.rows.map((e) => ({
+  const recent = slot('mem-recent', '/api/memory?' + q6, (d) => lines(d.rows.map((e) => ({
     t: `<span${e.deleted_at || e.superseded_by ? ' class="gone-title"' : ''}>${esc(e.title)}</span>`,
     s: `${esc(stamp(e.occurred_at))} · ${esc(e.type ?? e.kind)} · ${esc(pname(e.project))}`,
     v: entryMark(e),
     go: MH('entry', e.id),
-  })), 'Nothing remembered in this scope yet.'));
+  })), 'Nothing remembered in this scope yet.'), { label: 'Loading observations…' });
   const q5 = scope(); q5.set('per', '5');
-  fill('mem-sessions', '/api/memory/sessions?' + q5, (d) => lines(d.rows.map((m) => ({
+  const recentSessions = slot('mem-sessions', '/api/memory/sessions?' + q5, (d) => lines(d.rows.map((m) => ({
     t: esc(pname(m.project, m.session_id)),
     s: `${m.events} captured · ${m.entries} remembered`,
     v: esc(ago(m.last)),
     go: MH('session', m.session_id),
-  })), 'No session has captured anything in this scope.'));
+  })), 'No session has captured anything in this scope.'), { label: 'Loading sessions…' });
 
   // The pipeline in two lines: is reuse paying for itself, and is capture alive.
   // Each opens its page; the arithmetic lives there.
@@ -2586,9 +2846,9 @@ function viewMemoryDashboard() {
     memTiles(),
     card('Pipeline', null, pipeline),
     `<div class="g2">
-       ${card('Recent observations', null, `<div id="mem-recent">${loader('Loading observations…')}</div>`,
+       ${card('Recent observations', null, recent,
          { aside: `<a class="link" data-go="${esc(MH('timeline'))}">Timeline →</a>` })}
-       ${card('Recent sessions', null, `<div id="mem-sessions">${loader('Loading sessions…')}</div>`,
+       ${card('Recent sessions', null, recentSessions,
          { aside: `<a class="link" data-go="${esc(MH('sessions'))}">All sessions →</a>` })}
      </div>`,
   ].join('');
@@ -2600,7 +2860,7 @@ function viewMemorySessions() {
   q.set('page', t.page); q.set('per', PER);
   // The learning half of the same session, joined on its id, where there is one.
   const learned = new Map(sessions().map((x) => [x.id, x]));
-  fill('msess-rows', '/api/memory/sessions?' + q, (d) => {
+  const rows = slot('msess-rows', '/api/memory/sessions?' + q, (d) => {
     t.page = d.page;
     return `<p class="counts" style="margin:0 0 var(--space-4)">${plural(d.total, 'session')} in scope</p>`
       + table([{t:'Session'},{t:'Remembered',n:1},{t:'Asked',n:1},{t:'When',n:1}],
@@ -2615,13 +2875,13 @@ function viewMemorySessions() {
           <td class="num">${l && l.asked.length ? l.asked.length : '—'}</td>
           <td class="num slug">${esc(ago(m.last))}</td></tr>`;
       })) + pager('msessions', d.total, d.page, d.per);
-  });
+  }, { label: 'Loading sessions…', region: true });
   return [
     pageHead('Sessions', [],
       `One row per session that captured evidence or wrote an observation. Pending is evidence no observation
        job has processed yet. Asked is the same session's questions, joined on its session id — a session can
        be remembered without ever being assessed.`),
-    card(null, null, `<div id="msess-rows">${loader('Loading sessions…')}</div>`),
+    card(null, null, rows),
   ].join('');
 }
 
@@ -2722,10 +2982,10 @@ function drawEntry(d) {
 }
 
 function viewEntry(id) {
-  fill('entry-body', '/api/memory/entry?id=' + encodeURIComponent(id), (d) =>
-    d && d.entry ? drawEntry(d) : mascotMessage(`<p class="empty">No observation <code>${esc(id)}</code>.</p>`, 'notFound'));
-  return `<div><a class="page__back" data-go="${esc(MH('timeline'))}">← Timeline</a></div>
-    <div class="stack" id="entry-body">${loader('Loading the observation…')}</div>`;
+  const body = slot('entry-body', '/api/memory/entry?id=' + encodeURIComponent(id), (d) =>
+    d && d.entry ? drawEntry(d) : mascotMessage(`<p class="empty">No observation <code>${esc(id)}</code>.</p>`, 'notFound'),
+    { label: 'Loading the observation…', cls: 'stack' });
+  return `<div><a class="page__back" data-go="${esc(MH('timeline'))}">← Timeline</a></div>${body}`;
 }
 
 /* ---------- Reuse: the savings ledger, receipt by receipt ---------- */
@@ -2774,11 +3034,11 @@ function viewReuse() {
       ['D — delivered', R.delivered, 'estimated tokens actually injected'],
     ]),
     card('Every receipt', `${plural(rows.length, 'receipt')} in scope. One row per injection.`,
-      table([{t:'When'},{t:'Scope'},{t:'B',n:1},{t:'D',n:1},{t:'Saved',n:1},{t:'Delivery'}], body)
+      region('receipts', table([{t:'When'},{t:'Scope'},{t:'B',n:1},{t:'D',n:1},{t:'Saved',n:1},{t:'Delivery'}], body)
       + pager('reuse', rows.length, p)
       + (R.receipts > R.receipts_shown
         ? `<p class="slug" style="margin:var(--space-4) 0 0">Showing the most recent ${R.receipts_shown} of ${R.receipts} receipts. The totals above cover all of them.</p>`
-        : '')),
+        : ''))),
   ].join('');
 }
 
@@ -2874,7 +3134,7 @@ function viewHealth() {
    question carries the correction bar there.
    ============================================================ */
 const ARTIFACT_KINDS = ['all', 'explainer', 'artifact', 'to-correct'];
-const artifactsInScope = () => (S.artifacts ?? []).filter((a) => inScope(a.project));
+const artifactsInScope = () => derived('artifacts', () => Object.freeze((S.artifacts ?? []).filter((a) => inScope(a.project))));
 const artifactUrl = (a) => '/artifacts/' + a.id.split('/').map(encodeURIComponent).join('/');
 
 // The thumbnail's URL names the ground, and the size busts its cache when a page is rewritten.
@@ -2945,12 +3205,13 @@ function viewArtifacts(param) {
       ['Explainers', counts.explainer, 'one concept each', '', AH('dashboard', 'explainer')],
       toCorrectTile(),
     ]),
+    // The search box is outside every region: a keystroke replaces the gallery and leaves the box and the chips alone.
     card(null, null,
       `<div class="filters">
          <div class="grow"><input type="search" id="aq" value="${esc(t.q)}" placeholder="Search artifacts" aria-label="Search artifacts"></div>
        </div>
-       <div class="chips">${chip('all','All')}${chip('explainer','Explainers')}${chip('to-correct','To correct')}${chip('artifact','Other pages')}</div>
-       <div style="margin-top:var(--space-4)">${body}</div>`),
+       ${region('artifacts-chips', `${chip('all','All')}${chip('explainer','Explainers')}${chip('to-correct','To correct')}${chip('artifact','Other pages')}`, 'class="chips"')}
+       ${region('artifacts', body, 'style="margin-top:var(--space-4)"')}`),
   ].join('');
 }
 
@@ -2977,25 +3238,40 @@ function viewArtifact(id) {
   });
   TABS.open(id);
   TABS.reading = null;
+  // The frame is the box: it holds the height this tab last reported (else 80vh) from the first paint, so
+  // the page reflows once, when the real height arrives, and not once for a loader and again for the frame.
+  // A tab opened before has no loader: the frame fills the box as soon as its page paints, and the box is
+  // already the right size. The question behind the correction bar is the same when the cache has it.
+  const height = TABS.height.get(id);
+  const asked = a.correction && respGet(fixUrl(a));
   return `${drawTabs(id)}
     <div class="viewer__bar"><a href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">${ICON_OUT}Open in new browser tab</a></div>
-    <div id="art-wait">${loader('Opening the page…')}</div>
-    <iframe class="viewer" id="art-frame" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
-    ${a.correction ? `<div class="fixbar" id="fixbar" role="region" aria-label="Correction">${loader('Loading the question…')}</div>` : ''}`;
+    <div class="viewer__box">
+      ${height ? '' : `<div id="art-wait">${loader('Opening the page…')}</div>`}
+      <iframe class="viewer" id="art-frame" style="--wait-h:${esc(height ?? '80vh')}" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
+    </div>
+    ${a.correction ? `<div class="fixbar" id="fixbar" role="region" aria-label="Correction">${asked ? '' : loader('Loading the question…')}</div>` : ''}`;
 }
 
+const fixUrl = (a) => `/api/attempts/correction?id=${a.attempt}`;
+
 /**
- * Asks the server for the question behind the bar. Not `fill()`: a refusal
- * shows the server's own words and a Retry, in the bar's one row.
+ * Asks the server for the question behind the bar, or takes it from the cache. Not `slot()`: a refusal
+ * shows the server's own words and a Retry, in the bar's one row, and the bar's markup is the viewer's.
  */
 function loadFix(a) {
   const gen = GEN;
   const bar = () => (gen === GEN ? $('fixbar') : null);
+  const url = fixUrl(a);
+  const kept = respGet(url);
+  if (kept) return paintFix(bar(), a, kept.body);
+  const at = respAt();
   bar().className = 'fixbar';
   bar().innerHTML = loader('Loading the question…');
-  fetch(`/api/attempts/correction?id=${a.attempt}`)
+  fetch(url)
     .then((r) => r.json().catch(() => ({})).then((d) => {
       if (!r.ok) throw new Error(d.error || `${r.status} ${r.statusText}`);
+      respPut(url, d, at);
       const el = bar();
       if (el) paintFix(el, a, d);
     }))
@@ -3055,6 +3331,8 @@ function pickFix(btn) {
   all.forEach((b) => { b.disabled = true; });
   postJson('/api/attempts/retry', { attempt_id: FIX.attempt, picked: btn.dataset.pick })
     .then((r) => {
+      // Tries went up, and a right pick closed the question: what the bar was drawn from is out of date.
+      respForget('/api/attempts/correction');
       if (r.corrected) {
         btn.classList.add('is-right');
         btn.querySelector('.fix__tag').textContent = 'Right answer';
@@ -3124,6 +3402,7 @@ function armLeave(on) {
  */
 function sized(f, h) {
   f.style.height = h;
+  TABS.height.set(CUR.param, h);
   $('art-wait')?.remove();
   if (TABS.reading === CUR.param) return;
   const want = TABS.scroll.get(CUR.param) ?? 0;
@@ -3292,6 +3571,7 @@ const TABS = {
   ids: null,          // open pages, in strip order
   recent: [],         // the same ids, least recently viewed first
   scroll: new Map(),  // id → scrollY
+  height: new Map(),  // id → the height its page last reported, the box it is opened in next time
   reading: null,      // the tab whose scroll is being remembered
   focus: false,       // put focus back on the selected tab after the next draw
   active: null,       // the page the strip last showed as selected; new tabs open right of it
@@ -3326,6 +3606,7 @@ const TABS = {
     this.ids.splice(at, 1);
     this.recent = this.recent.filter((x) => x !== id);
     this.scroll.delete(id);
+    this.height.delete(id);
     this.save();
     const next = this.ids[at] ?? this.ids[at - 1];
     return next ? AH('view', next) : AH('dashboard');
@@ -3367,7 +3648,9 @@ function closeTab(id, fromKeys) {
   if (CUR.page === 'view' && CUR.param === id) { TABS.focus = fromKeys; location.replace(next); return; }
   const strip = document.querySelector('#view .tabs');
   const active = CUR.page === 'view' ? CUR.param : null;
-  strip.outerHTML = active || TABS.ids.length ? drawTabs(active) : '';
+  const html = active || TABS.ids.length ? drawTabs(active) : '';
+  strip.outerHTML = html;
+  recordStrip(html);
   if (fromKeys) document.querySelector('#view [role="tab"][aria-selected="true"]')?.focus();
 }
 
@@ -3451,8 +3734,50 @@ function viewArtifactProjects() {
    registry of fields lives on the server (`SETTINGS` in dashboard.ts).
    ============================================================ */
 let SETS = null;              // the last /api/settings response
+let SETS_AT = null;           // what it was read under: `{ cursor, project, gen }`; null once something made it stale
+let DATA_GEN = 0;             // counts the times what the page holds was dropped, so a read already out when that happens is not trusted
 const SH = (page, param, q) => href('settings', page, param, q);
 const settingsUrl = () => '/api/settings' + (PROJECT ? '?project=' + encodeURIComponent(PROJECT) : '');
+const settingsNow = () => ({ cursor: S.cursor, project: PROJECT, gen: DATA_GEN });
+
+/** Keeps a response, and what it was read under. `at` is taken when the request is made, not when it lands. */
+function keepSettings(d, at) {
+  SETS = d;
+  SETS_AT = at;
+}
+
+/**
+ * Whether `SETS` can be drawn from as it is. One response holds both scopes (the user file, and the
+ * project's when one was asked for), so it serves any tab of either, for as long as the project and
+ * the cursor it was read under are still the page's, and nothing has dropped it since it was asked for.
+ */
+const settingsFresh = () => !!SETS && !!SETS_AT && SETS_AT.cursor === S.cursor && SETS_AT.project === PROJECT && SETS_AT.gen === DATA_GEN;
+
+/**
+ * `SETS` is no longer drawn from: a project change (it holds one project's answer), and everything
+ * `invalidateData()` does. `SETS` itself stays (its field list still serves a control being changed).
+ * A read that was out when this ran is not trusted either: it may have been answered before whatever
+ * made this necessary.
+ */
+function invalidateSettings() {
+  DATA_GEN += 1;
+  SETS_AT = null;
+}
+
+/**
+ * Drops what the page holds that was read under data it has since replaced, so the next draw reads
+ * it again: after a save, and when the poll finds that the server's cursor moved on while the page's
+ * `S` has not (the page's own cursor only moves when it reloads, until Phase 4 brings the new data
+ * in; it calls this too). That is the settings read and every answer in the response cache.
+ *
+ * A project change is not here. The cache's keys carry the project, so what was read for another
+ * project is simply not asked for, and kept for when the reader switches back; only the one settings
+ * read, which holds a single project's answer, is dropped (`invalidateSettings`).
+ */
+function invalidateData() {
+  invalidateSettings();
+  RESP.clear();
+}
 
 const showValue = (v) =>
   v === true ? 'on' : v === false ? 'off' : v === null || v === undefined ? 'none'
@@ -3565,7 +3890,6 @@ const SW_ICON = {
  * what this scope's file actually sets.
  */
 function drawSettings(d, scope) {
-  SETS = d;
   const tabParam = (id) => (id === swTab(d.fields[0].group) ? null : id);
   const page = scope === 'project' ? 'project' : 'dashboard';
   const file = scope === 'project' ? d.project : d.user;
@@ -3579,7 +3903,9 @@ function drawSettings(d, scope) {
 
   const scopeLink = (label, icon, to, current) =>
     `<a class="sw__scope" href="${esc(to)}"${current ? ' aria-current="page"' : ''}>${svg(icon)}<span>${esc(label)}</span></a>`;
-  const rail = `<nav class="sw__scopes" aria-label="Settings scope">
+  // The rail is a region of its own: its links carry the tab (picking another scope keeps it), so
+  // they are redrawn when the tab changes, while the element and the pane's neighbours stay.
+  const rail = `<nav class="sw__scopes" aria-label="Settings scope" data-region="sw-rail">
     <p class="sw__cap">Everywhere</p>
     ${scopeLink('User', SW_ICON.user, SH('dashboard', tabParam(here.id)), scope === 'user')}
     <p class="sw__cap">Projects</p>
@@ -3595,7 +3921,7 @@ function drawSettings(d, scope) {
     <b>Inherit</b> / <b>Reset</b> is <code>eklavya config unset</code>. Nothing is written inside a repository.`;
 
   if (!file) {
-    return `<div class="sw"><div class="sw__pane">${[
+    return `<div class="sw"><div class="sw__pane" data-region="sw-pane">${[
       pageHead('Project settings', [], about),
       nextStep(PROJECT
         ? `<strong>${esc(scopeName())}</strong> has no git checkout on this machine, so there is no project file to change. Pick another project on the right.`
@@ -3603,8 +3929,8 @@ function drawSettings(d, scope) {
     ].join('')}</div>${rail}</div>`;
   }
 
-  const tabBar = `<nav class="sw__tabs" aria-label="Setting categories">${tabs.map((t) =>
-    `<a class="sw__tab" href="${esc(SH(page, tabParam(t.id)))}"${t.id === here.id ? ' aria-current="page"' : ''}>${esc(t.label)}${t.n ? `<i title="${t.n} set in this scope">${t.n}</i>` : ''}</a>`).join('')}</nav>`;
+  const tabBar = `<nav class="sw__tabs" aria-label="Setting categories" data-keep-scroll="sw-tabs">${tabs.map((t) =>
+    `<a class="sw__tab" href="${esc(SH(page, tabParam(t.id)))}" data-focus="tab:${esc(t.id)}"${t.id === here.id ? ' aria-current="page"' : ''}>${esc(t.label)}${t.n ? `<i title="${t.n} set in this scope">${t.n}</i>` : ''}</a>`).join('')}</nav>`;
 
   let body;
   if (here.id === 'terminal') {
@@ -3626,7 +3952,7 @@ function drawSettings(d, scope) {
     body = `<section class="card sw__list" aria-label="${esc(here.label)} settings">${here.fields.map((f) => settingRow(f, d, scope)).join('')}</section>`;
   }
 
-  return `<div class="sw"><div class="sw__pane">${[
+  return `<div class="sw"><div class="sw__pane" data-region="sw-pane">${[
     pageHead(scope === 'project' ? `${esc(d.project.name)} settings` : 'User settings',
       [`<span class="mono">${esc(file.path)}</span>`, `${Object.keys(file.set).length} set here`], about),
     d.problem ? nextStep(`<strong>A config file is not being read.</strong> ${esc(d.problem)}`) : '',
@@ -3685,13 +4011,13 @@ function fbEmpty(F) {
 
 function viewFeedbackDashboard() {
   const F = S.feedback;
-  if (F.pending) fill('fb-item', '/api/feedback', (d) => d.item ? drawFbItem(d.item) : fbEmpty(S.feedback));
+  const item = F.pending ? slot('fb-item', '/api/feedback', (d) => d.item ? drawFbItem(d.item) : fbEmpty(S.feedback), { label: 'Loading your feedback…' }) : '';
   if (F.pending && !FB.counted) { FB.counted = true; AFTER.push(fbOpened); }
   const counts = [F.pending ? '1 waiting' : 'nothing waiting', plural(F.acknowledged, 'acknowledged item')];
   return [
     pageHead('Feedback', counts, FB.about),
     `<div class="fb__rule" id="fb-rule"><p>${esc(F.pending ? FB.rulePending : FB.ruleEmpty)}</p></div>`,
-    F.pending ? `<div id="fb-item">${loader('Loading your feedback…')}</div>` : fbEmpty(F),
+    F.pending ? item : fbEmpty(F),
     fbTip(),
     `<span class="sr" id="copy-live" aria-live="polite"></span>`,
   ].join('');
@@ -3722,10 +4048,10 @@ function fbTipDismiss() {
 }
 
 function viewFeedbackItem(id) {
-  fill('fb-item', '/api/feedback?id=' + encodeURIComponent(id), (d) => drawFbItem(d.item));
+  const item = slot('fb-item', '/api/feedback?id=' + encodeURIComponent(id), (d) => drawFbItem(d.item), { label: 'Loading your feedback…' });
   return [
     pageHead('Feedback item', [], FB.about, `<a class="page__back" data-go="${esc(href('feedback', 'history'))}">← History</a>`),
-    `<div id="fb-item">${loader('Loading your feedback…')}</div>`,
+    item,
     `<span class="sr" id="copy-live" aria-live="polite"></span>`,
   ].join('');
 }
@@ -3766,10 +4092,10 @@ function viewFeedbackHistory() {
   const p = new URLSearchParams();
   if (PROJECT !== null) p.set('project', PROJECT);
   p.set('page', T.fbhistory.page);
-  fill('fb-rows', '/api/feedback/list?' + p, drawFbHistory);
+  const rows = slot('fb-rows', '/api/feedback/list?' + p, drawFbHistory, { label: 'Loading history…', cls: 'card card--flush', region: true });
   return [
     pageHead('History', [plural(S.feedback.acknowledged, 'acknowledged item')], FB.about),
-    `<div class="card card--flush" id="fb-rows">${loader('Loading history…')}</div>`,
+    rows,
   ].join('');
 }
 
@@ -3802,7 +4128,8 @@ function fbOpened() {
 
 /** After a press: redraw from the new state, put focus on the heading and say so. */
 function fbDone(text) {
-  render();
+  // What the screen is about has changed (the item is gone), so it is drawn afresh, from the top.
+  render({ nav: true });
   const h = document.querySelector('#view h1');
   if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
   // The region is outside the view, so it exists before the text does.
@@ -3818,7 +4145,8 @@ function fbAcknowledge(btn) {
   if (btn.disabled) return;
   btn.disabled = true;
   postJson('/api/feedback/acknowledge', { id: +btn.dataset.fbAck })
-    .then((d) => { S.feedback = d.state; fbDone(FB.announce); })
+    // The item, its history row and the next one waiting all changed: what was read of them is gone.
+    .then((d) => { S.feedback = d.state; respForget('/api/feedback'); fbDone(FB.announce); })
     .catch((e) => { btn.disabled = false; fbFail(e); });
 }
 
@@ -3834,13 +4162,22 @@ function fbDelete(btn) {
   if (btn.disabled) return;
   btn.disabled = true;
   postJson('/api/feedback/delete', { id: +btn.dataset.fbYes })
-    .then((d) => { S.feedback = d.state; fbDone('Deleted.'); })
+    .then((d) => { S.feedback = d.state; respForget('/api/feedback'); fbDone('Deleted.'); })
     .catch((e) => { btn.disabled = false; fbFail(e); });
 }
 
+/**
+ * Drawn from `SETS` when it holds what is asked for, so a tab is instant and makes no request; read
+ * from the server only when it is missing or stale.
+ */
 function viewSettings(scope) {
-  fill('settings', settingsUrl(), (d) => drawSettings(d, scope));
-  return `<div id="settings">${loader('Reading your settings…')}</div>`;
+  if (settingsFresh()) {
+    AFTER.push(() => remember('settings'));
+    return slotHost('settings', drawSettings(SETS, scope));
+  }
+  // Not what `SETS` holds, but possibly what the page read for this project earlier: the cache answers that.
+  const at = settingsNow();
+  return slot('settings', settingsUrl(), (d) => { keepSettings(d, at); return drawSettings(d, scope); }, { label: 'Reading your settings…' });
 }
 
 /** Reads a control back into the value its field stores. */
@@ -3867,8 +4204,9 @@ function postJson(path, body) {
 }
 
 /**
- * Saves one setting and redraws the settings in place — not through `render()`,
- * which would scroll to the top and lose the control the reader just used.
+ * Saves one setting and redraws the settings in place, from what the server reads back, and gives
+ * focus back to the control the reader used. It does not go through `render()`: a refused choice
+ * has to be put back to what is on disk, and `render()` leaves markup alone that did not change.
  */
 function saveSetting(key, change) {
   const scope = CUR.page === 'project' ? 'project' : 'user';
@@ -3878,12 +4216,25 @@ function saveSetting(key, change) {
   say('saving…');
   const gen = GEN;
   postJson('/api/settings', { scope, project: SETS?.project?.id, key, ...change })
-    .then(() => fetch(settingsUrl()).then((r) => r.json()))
-    .then((d) => {
+    .then(() => {
+      // The file has changed: what was read before is stale from here, and read again now.
+      invalidateData();
+      const at = settingsNow(), url = settingsUrl();
+      return fetch(url).then((r) => r.json()).then((d) => [d, at, url]);
+    })
+    .then(([d, at, url]) => {
+      keepSettings(d, at);
+      // What was just read is the page's answer for this URL too: the next visit to it is free.
+      respPut(url, d, at);
       const el = $('settings');
-      if (!el || gen !== GEN) return;
+      if (!el) return;
+      // The reader moved to another tab while this was saving, and was shown what was read before it:
+      // draw that tab again from what was just read.
+      if (gen !== GEN) { if (CUR.wf === 'settings' && settingsFresh()) render(); return; }
       const focusId = document.activeElement?.id;
-      el.innerHTML = drawSettings(d, scope);
+      const html = drawSettings(d, scope);
+      el.innerHTML = html;
+      recordFill('settings', html);
       focusable(el);
       const back = (focusId && $(focusId)) || document.querySelector(`[data-set="${CSS.escape(key)}"]`);
       back?.focus({ preventScroll: true });
@@ -3897,7 +4248,9 @@ function saveSetting(key, change) {
       const el = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
       const box = $('settings');
       if (SETS && box && gen === GEN && (el?.type === 'checkbox' || el?.tagName === 'SELECT')) {
-        box.innerHTML = drawSettings(SETS, scope);
+        const html = drawSettings(SETS, scope);
+        box.innerHTML = html;
+        recordFill('settings', html);
         focusable(box);
         const again = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
         (again && ($(again.id + '-combo') || again))?.focus({ preventScroll: true });
@@ -3936,6 +4289,12 @@ const svg = (paths, cls = '') =>
  * `{ parent, view }` for a detail page: a detail keeps its parent highlighted.
  * `query` lists the query keys that page reads, so a workflow switch or a link
  * to another page carries the project and drops filters that mean nothing there.
+ * `inPage` says the page's `param` and `query` are tabs and filters of the one screen
+ * (a Review tab, a concept state, a timeline type, a Settings category), so changing
+ * them adjusts it. On any other page a different `param` is a different subject (another
+ * concept, another entry), which is a navigation. `screen` names the page whose screen this
+ * one is, when two routes draw the same one (user settings are `#/settings/user` and
+ * `#/settings/dashboard`): going between them is no change of screen.
  */
 const WORKFLOWS = {
   learning: {
@@ -3946,9 +4305,9 @@ const WORKFLOWS = {
     ],
     pages: {
       dashboard: { label: 'Dashboard', view: () => viewLearningDashboard() },
-      concepts:  { label: 'Concepts', view: (p) => viewConcepts(p), query: ['domain'] },
+      concepts:  { label: 'Concepts', view: (p) => viewConcepts(p), query: ['domain'], inPage: true },
       concept:   { parent: 'concepts', view: (p) => viewConcept(p) },
-      review:    { label: 'Review', view: (p) => viewReview(p) },
+      review:    { label: 'Review', view: (p) => viewReview(p), inPage: true },
       sessions:  { label: 'Sessions', view: () => viewSessions() },
       session:   { parent: 'sessions', view: (p) => viewSession(p) },
       projects:  { label: 'Projects', view: () => viewProjects() },
@@ -3964,7 +4323,7 @@ const WORKFLOWS = {
     ],
     pages: {
       dashboard: { label: 'Dashboard', view: () => viewMemoryDashboard() },
-      timeline:  { label: 'Timeline', view: (p) => viewMemory(p), query: ['tag', 'from', 'to'] },
+      timeline:  { label: 'Timeline', view: (p) => viewMemory(p), query: ['tag', 'from', 'to'], inPage: true },
       entry:     { parent: 'timeline', view: (p) => viewEntry(p) },
       sessions:  { label: 'Sessions', view: () => viewMemorySessions() },
       session:   { parent: 'sessions', view: (p) => viewSession(p) },
@@ -3979,7 +4338,7 @@ const WORKFLOWS = {
       { id: 'library', label: 'Library', items: ['projects'] },
     ],
     pages: {
-      dashboard: { label: 'Dashboard', view: (p) => viewArtifacts(p) },
+      dashboard: { label: 'Dashboard', view: (p) => viewArtifacts(p), inPage: true },
       view:      { parent: 'dashboard', view: (p) => viewArtifact(p) },
       projects:  { label: 'Projects', view: () => viewArtifactProjects() },
     },
@@ -3997,9 +4356,9 @@ const WORKFLOWS = {
     name: 'Settings',
     groups: [],
     pages: {
-      dashboard: { label: 'Preferences', view: () => viewSettings('user') },
-      user:      { parent: 'dashboard', view: () => viewSettings('user') },
-      project:   { parent: 'dashboard', view: () => viewSettings('project') },
+      dashboard: { label: 'Preferences', view: () => viewSettings('user'), inPage: true },
+      user:      { parent: 'dashboard', view: () => viewSettings('user'), inPage: true, screen: 'dashboard' },
+      project:   { parent: 'dashboard', view: () => viewSettings('project'), inPage: true },
     },
   },
 };
@@ -4115,15 +4474,15 @@ function writeCollapsed(wf, set) {
   try { localStorage.setItem(collapseKey(wf), JSON.stringify([...set])); } catch (e) {}
 }
 
-function navCounts(wf) {
+/** The numbers in the sidebar's badges, per workflow: a few lengths of lists kept for the scope (`derived`). */
+const navCounts = (wf) => derived('nav:' + wf, () => {
   const inv = projectsInScope();
   const sum = (f) => inv.reduce((a, p) => a + f(p), 0);
   if (wf === 'learning') {
-    const seen = seenConcepts();
     return {
       concepts: conceptsInScope().length,
-      review: seen.filter((c) => c.due).length,
-      sessions: sessions().filter((s) => s.logged.length || s.asked.length).length,
+      review: seenConcepts().filter((c) => c.due).length,
+      sessions: learningSessions().length,
       projects: inv.filter((p) => p.learning.answers || p.learning.logged_concepts).length,
       domains: new Set(conceptsInScope().map((c) => c.domain)).size,
     };
@@ -4139,16 +4498,35 @@ function navCounts(wf) {
     projects: inv.filter((p) => p.memory.events || p.memory.entries).length,
     reuse: sum((p) => p.memory.receipts),
   };
+});
+
+/**
+ * The collapsed group ids for `wf` as a navigation to `active` finds them. A direct link into a collapsed
+ * group opens it: the reader has to be able to see where they are. A collapse they make afterwards still takes effect.
+ */
+function collapsedFor(wf, active) {
+  const collapsed = readCollapsed(wf);
+  const home = WORKFLOWS[wf].groups.find((g) => g.items.includes(active));
+  if (home && collapsed.has(home.id)) { collapsed.delete(home.id); writeCollapsed(wf, collapsed); }
+  return collapsed;
 }
 
+/**
+ * The sidebar for a navigation. It is built when the workflow changes (the first draw, and a switch to the
+ * other workflow: another set of groups, links and icons) and kept otherwise: another page of the same workflow, a
+ * project switch and a pager keep the elements, and `syncNav` brings the links, the current page, the counts and what
+ * is collapsed in line in place. So a focused link stays focused and nothing in the rail is torn down to change one number.
+ */
 function renderNav(wf, active) {
+  const nav = $('nav');
+  if (nav.dataset.workflow === wf) {
+    syncNav(wf, active);
+    syncCollapsed(collapsedFor(wf, active));
+    return;
+  }
   const W = WORKFLOWS[wf];
   const counts = navCounts(wf);
-  const collapsed = readCollapsed(wf);
-  // A direct link into a collapsed group opens it: the reader has to be able to
-  // see where they are. A collapse they make afterwards still takes effect.
-  const home = W.groups.find((g) => g.items.includes(active));
-  if (home && collapsed.has(home.id)) { collapsed.delete(home.id); writeCollapsed(wf, collapsed); }
+  const collapsed = collapsedFor(wf, active);
 
   const item = (key) => {
     const pg = W.pages[key];
@@ -4157,8 +4535,8 @@ function renderNav(wf, active) {
       ${svg(ICONS[key] ?? ICONS.dashboard)}${esc(pg.label)}${n !== undefined ? `<i class="${key === 'review' && n ? 'hot' : ''}">${n}</i>` : ''}
     </a>`;
   };
-  $('nav').setAttribute('aria-label', `${W.name} sections`);
-  $('nav').innerHTML = `<div>${item('dashboard')}</div>` + W.groups.map((g) => {
+  nav.setAttribute('aria-label', `${W.name} sections`);
+  nav.innerHTML = `<div>${item('dashboard')}</div>` + W.groups.map((g) => {
     const open = !collapsed.has(g.id);
     const id = `grp-${wf}-${g.id}`;
     return `<div class="nav__group">
@@ -4168,6 +4546,35 @@ function renderNav(wf, active) {
       <div class="nav__items" id="${id}" role="group" aria-label="${esc(g.label)}"${open ? '' : ' hidden'}>${g.items.map(item).join('')}</div>
     </div>`;
   }).join('');
+  nav.dataset.workflow = wf;
+}
+
+/**
+ * The sidebar's links, current page and counts, brought in line with the screen in place: the elements stay. The links
+ * are written too, because they carry the project scope (`href`), which a navigation may have changed. An adjustment
+ * (a tab, a chip, a keystroke) calls only this; a navigation also applies what is collapsed (`syncCollapsed`).
+ */
+function syncNav(wf, active) {
+  const counts = navCounts(wf);
+  for (const a of $('nav').querySelectorAll('a[data-nav]')) {
+    const key = a.dataset.nav;
+    const to = href(wf, key);
+    if (a.getAttribute('href') !== to) a.setAttribute('href', to);
+    if (key === active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    const n = counts[key];
+    const badge = a.querySelector('i');
+    if (badge && n !== undefined) { badge.textContent = n; badge.className = key === 'review' && n ? 'hot' : ''; }
+  }
+}
+
+/** Opens and closes the rail's groups to match `collapsed`: a group the link in front of the reader sits in opens, and a collapse made in another tab applies. */
+function syncCollapsed(collapsed) {
+  for (const tog of $('nav').querySelectorAll('[data-group]')) {
+    const open = !collapsed.has(tog.dataset.group);
+    if ((tog.getAttribute('aria-expanded') === 'true') === open) continue;
+    tog.setAttribute('aria-expanded', String(open));
+    $(tog.getAttribute('aria-controls')).hidden = !open;
+  }
 }
 
 $('nav').addEventListener('click', (e) => {
@@ -4193,7 +4600,11 @@ function renderShell() {
     $(id).setAttribute('aria-label', `Eklavya, ${W.name} dashboard`);
   }
   $('wf-main').setAttribute('href', home);
-  $('wf-main').innerHTML = `${svg(ICONS[CUR.wf])}<span>${esc(W.name)}</span>`;
+  // The workflow control's content is the workflow's alone: written when it changes, so its elements stay across pages.
+  if ($('wf-main').dataset.workflow !== CUR.wf) {
+    $('wf-main').innerHTML = `${svg(ICONS[CUR.wf])}<span>${esc(W.name)}</span>`;
+    $('wf-main').dataset.workflow = CUR.wf;
+  }
   $('wf-main').setAttribute('aria-label', `${W.name} dashboard`);
   $('topbar-wf').textContent = W.name;
   syncBadge();
@@ -4509,7 +4920,7 @@ function switchWorkflow(wf) {
   // Reached from the unread badge: said so, so the count can tell the three ways in apart.
   const target = wf === 'feedback' && fbUnread() ? href(wf, 'dashboard', null, { via: 'badge' }) : href(wf, 'dashboard');
   closeDrawer(false);
-  if (location.hash === target) render(); else location.hash = target;
+  if (location.hash === target) render({ nav: true }); else location.hash = target;
   (narrow.matches ? $('menu') : caret).focus();
 }
 
@@ -4615,49 +5026,268 @@ function syncFromUrl() {
   const project = r.query.get('project');
   const known = project !== null && INV.projects.some((p) => p.id === project);
   const next = known ? project : null;
-  if (next !== PROJECT) { PROJECT = next; for (const k of Object.keys(T)) T[k].page = 1; recomputeScope(); }
+  if (next !== PROJECT) { PROJECT = next; for (const k of Object.keys(T)) T[k].page = 1; recomputeScope(); invalidateSettings(); }
   CUR = { wf: r.wf, page: r.page, param: r.param, query: r.query, missing: r.missing, bad: r.bad };
   syncProjects();
   render();
 }
 
-function render(keepFocus) {
+/**
+ * Draws the screen the URL names. There are two kinds of draw, and the difference is what
+ * the reader is doing.
+ *
+ * A **navigation** is a different screen: another page, another workflow, another project,
+ * another concept or entry. It brings the shell and the sidebar in line (the sidebar is built only when the
+ * workflow changes, and updated in place otherwise: `renderNav`), replaces the view and scrolls to the top.
+ *
+ * An **adjustment** changes the screen the reader is on: a tab, a chip, a select, a date
+ * range, a pager, a search keystroke, a resize, the ground. The URL still changes where it
+ * says something, and Back still works, but nothing the reader was looking at moves. It keeps
+ * the scroll position, leaves the shell alone, updates the sidebar's current page and counts in
+ * place, and redraws only the regions of the view whose markup changed (`drawAdjusted`),
+ * keeping focus, the caret and open folds. The view's markup is still the one pure function of
+ * (payload, scope, controls) it always was.
+ *
+ * It is an adjustment when the screen on show is the same page (or another route to the same
+ * screen, `screenOf`), in the same project, and either nothing in the URL moved or the page says
+ * its `param` and `query` are filters of the one screen (`inPage`). A project switch is a
+ * navigation: it changes every count in the sidebar and the crumb. `{ nav: true }` forces the
+ * navigation for a caller that replaces what the screen is about (a feedback item that was just
+ * acknowledged).
+ */
+function render(opts) {
   const W = WORKFLOWS[CUR.wf];
   const pg = CUR.missing ? null : W.pages[CUR.page];
   const active = pg ? (pg.parent ?? CUR.page) : null;
+  const adjusting = !opts?.nav && isAdjustment(pg);
   GEN += 1;
-  renderShell();
-  renderNav(CUR.wf, active);
-  const label = pg ? (W.pages[pg.parent ?? CUR.page].label) : 'Not found';
-  $('crumb').innerHTML = `<span>${esc(W.name)}</span><span class="dim">${esc(label)}</span><span class="dim">${esc(scopeName())}</span>`;
-  document.title = `${label} · ${W.name} — Eklavya`;
+  if (adjusting) {
+    syncNav(CUR.wf, active);
+    syncBadge();
+  } else {
+    renderShell();
+    renderNav(CUR.wf, active);
+    const label = pg ? (W.pages[pg.parent ?? CUR.page].label) : 'Not found';
+    $('crumb').innerHTML = `<span>${esc(W.name)}</span><span class="dim">${esc(label)}</span><span class="dim">${esc(scopeName())}</span>`;
+    document.title = `${label} · ${W.name} — Eklavya`;
+    // A bubble never survives a navigation.
+    TIP.hints?.close();
+  }
 
   AFTER.length = 0;
   LAZY.clear();
   HEAT_OFF = 0;
   // Leaving the Feedback page ends the opening that fbOpened counted.
   if (!(CUR.wf === 'feedback' && CUR.page === 'dashboard')) FB.counted = false;
-  // A bubble never survives a navigation.
-  TIP.hints?.close();
   // A screen that still has a correction open re-arms this when it draws its bar.
   armLeave(false);
-  $('view').innerHTML = !pg ? viewNotFound('#/' + CUR.wf + '/' + CUR.page, false)
+  const html = !pg ? viewNotFound('#/' + CUR.wf + '/' + CUR.page, false)
     : CUR.bad ? viewNotFound(CUR.param, true)
     : pg.view(CUR.param);
-  // A clickable row has to be reachable by Tab as well as by mouse.
-  focusable($('view'));
+  if (adjusting) {
+    drawAdjusted(html);
+  } else {
+    $('view').innerHTML = html;
+    // A clickable row has to be reachable by Tab as well as by mouse.
+    focusable($('view'));
+    DRAWN = { wf: CUR.wf, page: CUR.page, param: CUR.param, query: CUR.query.toString(), project: PROJECT, fault: !pg || !!CUR.bad, ...recordOf(html) };
+  }
   for (const fn of AFTER) fn();
   TIP.sync();
 
-  if (keepFocus) {
-    const el = $(keepFocus.id);
-    if (el) { el.focus(); if (el.setSelectionRange && keepFocus.pos != null) el.setSelectionRange(keepFocus.pos, keepFocus.pos); }
-  } else {
-    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
-  }
+  // A new screen opens at its top, at once. `html` asks for smooth scrolling (for in-page jumps), and a scroll that
+  // does not name its behavior follows it, so a reader coming from the bottom of a long page would see the new
+  // one glide up for half a second, while its content is already being drawn.
+  if (!adjusting) window.scrollTo({ top: 0, behavior: 'instant' });
   // Which URL the screen was last drawn for. The tests wait on it rather than on
   // a timer, and it costs nothing to leave in.
   document.documentElement.dataset.rendered = location.hash;
+}
+
+/** The page a route's screen belongs to: itself, unless the registry says another route draws the same screen. */
+const screenOf = (wf, page) => WORKFLOWS[wf].pages[page]?.screen ?? page;
+
+/** Whether drawing now changes the screen on show (see `render`) rather than showing another one. */
+function isAdjustment(pg) {
+  const d = DRAWN;
+  if (!d || d.fault || !pg || CUR.bad) return false;
+  if (d.wf !== CUR.wf || screenOf(d.wf, d.page) !== screenOf(CUR.wf, CUR.page) || d.project !== PROJECT) return false;
+  return !!pg.inPage || (d.param === CUR.param && d.query === CUR.query.toString());
+}
+
+/* ---------- redrawing a screen without moving the reader ----------
+   A view marks the parts a tab, chip, select or pager changes with
+   `data-region="<id>"` (`region()`, or a fetched list's `slot()`). The markup with every region emptied is its *skeleton*. If
+   the skeleton the view returns now equals the one the screen was drawn from, only the
+   regions whose contents changed are replaced, each wholesale, in the element that is
+   already on the page; nothing outside them is touched, so a head, a chart, a rail, a
+   list being fetched or a text box in the skeleton keeps its identity. Anything else
+   (no regions, a different set, a different skeleton) replaces the view's content, still
+   without moving the scroll; a fetched list that is only the box this time (`slot()`) is then
+   carried over from the old view, node for node, and stays dimmed until its answer draws.
+   Phase 4 redraws for new data through the same path. */
+
+/**
+ * The regions of a screen's markup and what is left once they are emptied; no skeleton when it has none, or two
+ * could not be told apart. `regions` is each one's markup as the view drew it, and what a swap draws. `settled`
+ * is the same markup with every fold's open state and every search box's text taken out, and what is compared:
+ * whether a fold is open is the reader's (`FOLD` holds it, and the page already shows it), so opening or closing
+ * one is no change to the screen, and neither is typing in a search box (`T` holds the text, and so does the box).
+ * Without that, the first adjustment after a toggle, or every keystroke, would see a different skeleton, or a
+ * different region, and replace what the reader was looking at.
+ */
+function scanRegions(html) {
+  const none = { skeleton: null, regions: new Map(), settled: new Map() };
+  if (!html.includes('data-region="')) return none;
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  const found = [...t.content.querySelectorAll('[data-region]')];
+  const regions = new Map();
+  for (const el of found) {
+    if (regions.has(el.dataset.region) || el.parentElement?.closest('[data-region]')) return none;
+    regions.set(el.dataset.region, el.innerHTML);
+  }
+  for (const d of t.content.querySelectorAll('details[data-fold]')) d.removeAttribute('open');
+  // The text in a search box is the reader's too: it is what was typed, and the box on the page already holds it.
+  // Without this, every keystroke would make the screen look changed and the whole view would be replaced under the caret.
+  for (const i of t.content.querySelectorAll('input[type="search"]')) i.removeAttribute('value');
+  const settled = new Map(found.map((el) => [el.dataset.region, el.innerHTML]));
+  for (const el of found) el.replaceChildren();
+  return { skeleton: t.innerHTML, regions, settled };
+}
+const recordOf = (html) => ({ html, ...scanRegions(html) });
+
+/**
+ * A fill drew `html` into `#id`, and the view returns that same markup itself from now on (the
+ * answer is in the cache, and Settings draws from `SETS`): bring the record in line, so the regions
+ * inside it are known and a redraw that returns it again finds nothing to change.
+ */
+function recordFill(id, html) {
+  if (!DRAWN) return;
+  const t = document.createElement('template');
+  t.innerHTML = DRAWN.html;
+  const el = t.content.getElementById(id);
+  if (!el) return;
+  el.innerHTML = html;
+  DRAWN = { ...DRAWN, ...recordOf(t.innerHTML) };
+}
+
+/**
+ * The tab strip of the Artifacts pages was replaced on the page by `html` (a tab closed; empty when the
+ * last one went): the record is brought in line the same way, so the next adjustment finds the screen it
+ * is drawing from as it stands, instead of a skeleton that still has the tab.
+ */
+function recordStrip(html) {
+  if (!DRAWN) return;
+  const t = document.createElement('template');
+  t.innerHTML = DRAWN.html;
+  const strip = t.content.querySelector('.tabs');
+  if (!strip) return;
+  const now = document.createElement('template');
+  now.innerHTML = html;
+  strip.replaceWith(...now.content.childNodes);
+  DRAWN = { ...DRAWN, ...recordOf(t.innerHTML) };
+}
+
+/** Draws an adjustment's markup: its changed regions in place, else the view's content, never touching the scroll. */
+function drawAdjusted(html) {
+  const view = $('view');
+  const next = scanRegions(html);
+  const prev = DRAWN;
+  const swaps = [];
+  let inPlace = next.skeleton !== null && next.skeleton === prev.skeleton;
+  if (inPlace) {
+    for (const [id, inner] of next.regions) {
+      // Unchanged markup is left alone, whatever the reader has done to what is on screen since (a fold opened, say).
+      if (prev.settled.get(id) === next.settled.get(id)) continue;
+      const host = view.querySelector(`[data-region="${id}"]`);
+      if (!host) { inPlace = false; break; }
+      // A list whose answer is still to come is the box and the loader: never over what is on screen,
+      // which stays (the fetch dims it) until the answer draws. Over a failure it is: that is asking again.
+      if (isWait(inner) && !host.hasAttribute('data-failed')) continue;
+      swaps.push([host, inner]);
+    }
+  }
+  // The page is the same screen, though it may be reached by another route (`screen`): the record keeps the one on show.
+  const at = { page: CUR.page, param: CUR.param, query: CUR.query.toString() };
+  if (inPlace) {
+    for (const [host, inner] of swaps) {
+      const ui = captureUi(host);
+      host.innerHTML = inner;
+      // Whatever an earlier request left on it (busy, a failure) was about the content it replaced.
+      slotDone(host);
+      focusable(host);
+      restoreUi(host, ui);
+    }
+    DRAWN = { ...prev, ...at, html, skeleton: next.skeleton, regions: next.regions, settled: next.settled };
+    return;
+  }
+  // The view is replaced; a fetched region that is only the box this time still shows what it did, moved
+  // into the new element (the same nodes, so whatever the reader had open or focused in them is still there).
+  const held = new Map();
+  for (const el of view.querySelectorAll('[data-slot]')) if (holdsContent(el)) held.set(el.id, el);
+  const ui = captureUi(view);
+  view.innerHTML = html;
+  for (const el of view.querySelectorAll('[data-slot]')) {
+    const was = held.get(el.id);
+    if (was && el.querySelector(':scope > .slot__wait')) el.replaceChildren(...was.childNodes);
+  }
+  focusable(view);
+  restoreUi(view, ui);
+  DRAWN = { ...prev, ...at, html, ...next };
+}
+
+/** What a control is called when it is looked for again in redrawn markup: its id, else the first of these it has. */
+const FOCUS_KEYS = ['data-focus', 'data-tab', 'data-state', 'data-unset', 'data-go'];
+function focusKey(el) {
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  for (const a of FOCUS_KEYS) {
+    const v = el.getAttribute(a);
+    if (v !== null) return `[${a}="${CSS.escape(v)}"]`;
+  }
+  return null;
+}
+/** The stable key of a <details>: a fold's id, a timeline entry's id, or an explicit `data-key`. */
+const detailKey = (d) => (d.dataset.fold ? 'fold:' + d.dataset.fold : d.dataset.entry ? 'entry:' + d.dataset.entry : d.dataset.key ? 'key:' + d.dataset.key : null);
+
+/**
+ * What the reader is in the middle of inside `root`, taken before it is redrawn: the focused
+ * element with its caret or selection, every open <details> that has a stable key, and the
+ * offset of a strip marked `data-keep-scroll`. `restoreUi` puts them back on the new markup.
+ * The page's scroll is not here because a redraw never moves it, and the lazy charts are not
+ * because the draw's own hooks queue them again (`LAZY`). Phase 4 calls this pair around a
+ * redraw for new data.
+ */
+function captureUi(root) {
+  const ui = { focus: null, open: new Set(), scrolls: new Map() };
+  // A strip that scrolls sideways (the Settings tabs on a phone) keeps its offset, so the tab just
+  // pressed does not slide out of sight.
+  for (const el of root.querySelectorAll('[data-keep-scroll]')) ui.scrolls.set(el.dataset.keepScroll, el.scrollLeft);
+  const el = document.activeElement;
+  if (el && root.contains(el)) {
+    const key = focusKey(el);
+    if (key) {
+      let sel = null;
+      // Only a text control has a caret; reading it throws on some other inputs.
+      try { if (typeof el.selectionStart === 'number') sel = [el.selectionStart, el.selectionEnd, el.selectionDirection]; } catch (e) { /* none */ }
+      ui.focus = { key, sel };
+    }
+  }
+  for (const d of root.querySelectorAll('details[open]')) { const k = detailKey(d); if (k) ui.open.add(k); }
+  return ui;
+}
+
+function restoreUi(root, ui) {
+  for (const el of root.querySelectorAll('[data-keep-scroll]')) el.scrollLeft = ui.scrolls.get(el.dataset.keepScroll) ?? 0;
+  for (const d of root.querySelectorAll('details:not([open])')) { const k = detailKey(d); if (k && ui.open.has(k)) d.open = true; }
+  if (!ui.focus) return;
+  let el = null;
+  try { el = root.querySelector(ui.focus.key); } catch (e) { /* a key that is not a selector finds nothing */ }
+  // The Next button of the last page is disabled and cannot hold focus: land on the page you are on.
+  if (el?.disabled) el = el.closest('.pager')?.querySelector('[aria-current]') ?? null;
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  if (ui.focus.sel) { try { el.setSelectionRange(...ui.focus.sel); } catch (e) { /* not a text control any more */ } }
 }
 
 /* ---------- events, all delegated ---------- */
@@ -4680,6 +5310,8 @@ function setQuery(changes) {
 }
 
 function onActivate(e) {
+  // A region waiting for its next answer is dimmed and out of the pointer's reach (CSS); the keyboard is held back the same way.
+  if (e.target.closest('[data-slot][aria-busy="true"][data-kept]')) return;
   const copy = e.target.closest('[data-copy]');
   if (copy) return copyCommand(copy);
   if (e.target.closest('[data-fb-tip-dismiss]')) return fbTipDismiss();
@@ -4699,8 +5331,7 @@ function onActivate(e) {
   if (arr) {
     if (arr.disabled) return;
     HEAT_OFF = Math.max(0, HEAT_OFF + (arr.id === 'heat-prev' ? 1 : -1) * +arr.dataset.weeks);
-    const st = streaks(dailyInScope());
-    return chartHeatmap($('c-heat'), dailyInScope(), st.run);
+    return chartHeatmap($('c-heat'));
   }
   const pg = e.target.closest('[data-page]');
   if (pg && !pg.disabled) { T[pg.dataset.pager].page = +pg.dataset.page; render(); return; }
@@ -4748,17 +5379,17 @@ $('view').addEventListener('input', (e) => {
   if (e.target.id === 'q') {
     T.concepts.q = e.target.value;
     T.concepts.page = 1;
-    render({ id:'q', pos:e.target.selectionStart });
+    render();
   }
   if (e.target.id === 'aq') {
     T.artifacts.q = e.target.value;
     T.artifacts.page = 1;
-    render({ id:'aq', pos:e.target.selectionStart });
+    render();
   }
   if (e.target.id === 'mq') {
     T.memory.q = e.target.value;
     T.memory.page = 1;
-    render({ id:'mq', pos:e.target.selectionStart });
+    render();
   }
 });
 
@@ -4805,7 +5436,7 @@ let resizeTimer = 0;
 addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   // Not the viewer: a re-render would reload the framed page and lose its scroll.
-  resizeTimer = setTimeout(() => { if (S && CUR.page !== 'view') render({ id:'q', pos:null }); }, 120);
+  resizeTimer = setTimeout(() => { if (S && CUR.page !== 'view') render(); }, 120);
 });
 
 document.querySelectorAll('[data-ground]').forEach((b) => {
@@ -4837,7 +5468,14 @@ function poll() {
   polling = true;
   fetch('/api/cursor')
     .then((r) => r.json())
-    .then((s) => { if (s.cursor !== S.cursor) $('stale').hidden = false; })
+    .then((s) => {
+      if (s.cursor !== S.cursor) {
+        $('stale').hidden = false;
+        // The page now knows that what it holds is out of date. The one thing it reads for itself, the
+        // settings, must not be drawn again from a read made before the change: it reads once more.
+        invalidateData();
+      }
+    })
     // A failed poll changes nothing: the page keeps working on the data it has.
     // One unreachable server must not blank a dashboard that is merely stale.
     .catch(() => {})
@@ -4862,8 +5500,7 @@ const json = (url) => fetch(url).then((r) => {
 });
 
 Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
-  S = s;
-  INV = inv;
+  adoptState(s, inv);
   $('dbline').textContent = s.db_path;
   // Totals are aggregated in SQL over the whole table, so a cap can only
   // shorten a history list — but say so rather than let it look complete.
