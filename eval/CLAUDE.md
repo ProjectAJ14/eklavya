@@ -13,6 +13,8 @@ subscription. Read `README.md` before adding or running one.
 - **Publish the numbers.** A dated result file states input tokens (and how many
   were cached), output tokens and list-price cost, or says explicitly that they
   were not recorded.
+- **Make long runs watchable.** A run over ~20 calls writes a progress file that
+  `dashboard.mjs` reads (see `Budget.track` in `gepa/pilot.py`).
 - **Everything is manual.** Nothing here runs in CI or from a hook. Say how many
   calls and tokens a run costs near its command, and give it a hard cap
   (`--limit`, `--max-model-calls`) so a first run is small.

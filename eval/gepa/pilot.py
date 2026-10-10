@@ -56,6 +56,23 @@ class Budget:
         self.tokens: Counter[str] = Counter()
         self.cost_usd = 0.0
         self._lock = threading.Lock()
+        self.progress_path: Path | None = None
+        self.label, self.total, self.done, self.state = "", 0, 0, "running"
+        self.started, self._last_flush = time.time(), 0.0
+
+    def track(self, path: Path, label: str, total: int) -> None:
+        """Write a progress file that eval/dashboard.mjs reads while the run is going."""
+        self.progress_path, self.label, self.total = path, label, total
+        self.flush(force=True)
+
+    def flush(self, force: bool = False) -> None:
+        if self.progress_path is None or (not force and time.time() - self._last_flush < 1):
+            return
+        self._last_flush = time.time()
+        body = {"label": self.label, "state": self.state, "trials_done": self.done, "trials_total": self.total, "started": self.started, "updated": time.time(), "max_minutes": round((self.deadline - self.started) / 60, 1), **self.summary()}
+        tmp = self.progress_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(body))
+        tmp.replace(self.progress_path)
 
     def spend(self, kind: str) -> None:
         with self._lock:
@@ -68,6 +85,7 @@ class Budget:
             if sum(self.errors.values()) >= self.max_errors:
                 raise BudgetExceeded(f"{self.max_errors} model calls failed; results would not be valid")
             self.calls[kind] += 1
+        self.flush()
 
     def add_usage(self, kind: str, out: dict) -> None:
         u = out.get("usage") or {}
@@ -76,6 +94,7 @@ class Budget:
                 self.tokens[name] += u.get(key, 0)
                 self.tokens[f"{kind}:{name}"] += u.get(key, 0)
             self.cost_usd += out.get("total_cost_usd") or 0
+        self.flush()
 
     def summary(self) -> dict:
         t = self.tokens
@@ -302,10 +321,13 @@ def cmd_evaluate(args) -> None:
     rows = pick(load_dataset(), args.split, args.limit)
     jobs = [(ex, r) for ex in rows for r in range(args.repeats)]
     trials, stopped = [], None
+    BUDGET.track(Path(args.out).with_suffix(".progress.json"), f"evaluate {Path(args.prompt).name} ({args.split})", len(jobs))
 
     def one(job):
         ex, r = job
         total, info = run_example(guidance, ex)
+        with BUDGET._lock:
+            BUDGET.done += 1
         return {"id": ex["id"], "group": ex["group"], "repeat": r, "tier": ex["plan"]["tier_to_ask"], "focus": ex["focus"], **info}
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
@@ -317,6 +339,8 @@ def cmd_evaluate(args) -> None:
                 stopped = str(err)
     result = {"prompt": args.prompt, "split": args.split, "repeats": args.repeats, "examples": len(rows), "trials": trials, "stopped_early": stopped, "budget": BUDGET.summary(), "summary": summarise(trials)}
     Path(args.out).write_text(json.dumps(result, indent=1))
+    BUDGET.state = "stopped early" if stopped else "done"
+    BUDGET.flush(force=True)
     print(json.dumps({"summary": result["summary"], "budget": result["budget"], "stopped_early": stopped}, indent=1))
 
 
@@ -379,9 +403,12 @@ def cmd_optimize(args) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     seed = strip_frontmatter(SEED_FILE.read_text())
+    BUDGET.track(out / "progress.json", f"optimize ({args.metric_calls} metric calls)", args.metric_calls)
 
     def evaluator(candidate: str, example: dict):
         total, info = run_example(candidate, example)
+        with BUDGET._lock:
+            BUDGET.done += 1
         oa.log(json.dumps({k: v for k, v in info.items() if k in ("gates_failed", "failed_checks", "visible_words_per_option", "visible_problem", "judge", "error")}))
         return total, info
 
@@ -413,6 +440,8 @@ def cmd_optimize(args) -> None:
         )
     except BudgetExceeded as err:
         stopped = str(err)
+    BUDGET.state = "stopped early" if stopped else "done"
+    BUDGET.flush(force=True)
     best = result.best_candidate if result else seed
     best = best if isinstance(best, str) else next(iter(best.values()))
     (out / "best_candidate.md").write_text(best + "\n")
