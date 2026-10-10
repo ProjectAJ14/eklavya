@@ -39,6 +39,23 @@
   --vd-800: #07403C;
   --vd-900: #052E2B;
 
+  /* ---------- MASCOT IDENTITY ----------
+     Archer Cloak artwork keeps its approved identity across both grounds.
+     UI chrome continues to use the surface, text and accent roles below. */
+  --mascot-coral: #ef9875;
+  --mascot-coral-dark: #c96d51;
+  --mascot-highlight: #ffc8a6;
+  --mascot-cloak: #0E6E66;
+  --mascot-cloak-dark: #07403C;
+  --mascot-thread: #C4EDE4;
+  --mascot-ink: #302c2a;
+  --mascot-metal: #5b7c73;
+  --mascot-wood: #bc9569;
+  --mascot-wood-dark: #74583f;
+  --mascot-string: #EAE7E1;
+  --mascot-shadow: #26262a;
+  /* ---------- END MASCOT IDENTITY ---------- */
+
   /* ---------- SEMANTIC (real errors and warnings only) ----------
      Kept off the accent hue so state never reads as branding. --warning and
      --error are redefined per ground below: an orange that carries on ink is

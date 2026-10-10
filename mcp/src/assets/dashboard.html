@@ -44,6 +44,8 @@
      this page is fetched from anywhere but this loopback server. The font
      stacks fall through to the system faces they already name. -->
 <link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/brand/mascot/mascot.css">
+<script src="/brand/mascot/mascot.js" defer></script>
 <!-- Feature tips: Driver.js's hints module, pinned and served by this server (see TIP). -->
 <link rel="stylesheet" href="/vendor/driver-hints.css">
 <script src="/vendor/driver-hints.js" defer></script>
@@ -154,23 +156,13 @@
           animation:skel 1.4s var(--ease) infinite alternate; }
   @keyframes skel { from { opacity:.55; } to { opacity:1; } }
 
-  /* ---------- the loader: the mark, held still, with its tile traced ---------- */
-  /* One loader for every wait on the page: `loader(label)`. The mark is the
-     brand mark and never moves; a short --spot segment travels round a square
-     outline just outside its tile. It fades in after 150ms so a fast loopback
-     answer never flashes it; reduced motion stops the trace and keeps the label. */
+  /* One companion loader for every wait. A delayed reveal avoids flicker;
+     the shared mascot stylesheet respects reduced motion. */
   .loader { display:flex; align-items:center; gap:var(--space-4); padding:var(--space-6) 0; color:var(--dim);
             font-family:var(--font-mono); font-size:12px; letter-spacing:.04em;
             animation:loader-in var(--duration-base) var(--ease) 150ms both; }
   .loader--page { justify-content:center; flex-direction:column; min-height:40vh; gap:var(--space-5); }
-  .loader .mark { position:relative; overflow:visible; }
-  .loader__trace { position:absolute; inset:-5px; width:calc(100% + 10px); height:calc(100% + 10px); overflow:visible; }
-  .loader__trace rect { fill:none; stroke:var(--spot); stroke-width:1.5; stroke-dasharray:32 128;
-                        animation:trace 1.6s linear infinite; }
-  .loader--page .mark { width:40px; height:40px; }
-  .loader--page .mark svg:first-child { width:24px; height:24px; }
   @keyframes loader-in { from { opacity:0; } to { opacity:1; } }
-  @keyframes trace { to { stroke-dashoffset:-160; } }
 
   /* ---------- the sidebar navigation ---------- */
   nav.side__nav { display:flex; flex-direction:column; gap:var(--space-4); }
@@ -940,6 +932,7 @@
         <span>dashboard</span>
       </div>
     </a>
+    <a href="/mascot.html" class="ek-companion ek-companion--rail"><eklavya-mascot state="info" variant="face" size="40"></eklavya-mascot><span>Meet your companion ↗</span></a>
 
     <div class="wf" id="wf">
       <a class="wf__main" id="wf-main" href="#/learning/dashboard"></a>
@@ -982,7 +975,7 @@
     <p class="page__eyebrow crumb inner" id="crumb" aria-label="Workflow and scope"></p>
     <div class="inner stack" id="view" aria-busy="true">
       <!-- The same markup `loader()` writes; the script has not run yet. -->
-      <div class="loader loader--page" role="status" aria-live="polite"><div class="mark" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg><svg class="loader__trace" viewBox="0 0 40 40" aria-hidden="true"><rect x="0.75" y="0.75" width="38.5" height="38.5" pathLength="160"/></svg></div><span>Loading your history…</span></div>
+      <div class="loader loader--page" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="96"></eklavya-mascot><span>Loading your history…</span></div>
     </div>
     <span class="sr" id="fb-live" role="status" aria-live="polite"></span>
     <footer class="foot inner">
@@ -1362,8 +1355,16 @@ function copyCommand(btn) {
  * One line per item: `{ t, s, v, go, cls }` — a title, a quiet mono second
  * line, one value on the right, and where it opens. All HTML the caller escaped.
  */
+/** State art is decorative; the caller owns escaped content and visible copy. */
+function mascotMessage(content, state = 'empty') {
+  return `<div class="ek-mascot-message"><eklavya-mascot state="${state}" size="56"></eklavya-mascot><div>${content}</div></div>`;
+}
+function mascotStatus(text, state) {
+  return `<span class="ek-mascot-status"><eklavya-mascot state="${state}" variant="face" size="24"></eklavya-mascot>${esc(text)}</span>`;
+}
+
 function lines(items, empty = 'Nothing here yet.') {
-  if (!items.length) return `<p class="empty">${empty}</p>`;
+  if (!items.length) return mascotMessage(`<p class="empty">${empty}</p>`);
   return `<ul class="lines">` + items.map((x) =>
     `<li${x.go ? ` data-go="${esc(x.go)}" role="link"` : ''}${x.cls ? ` class="${x.cls}"` : ''}>`
     + `<div class="ln__main"><span class="ln__t">${x.t}</span>${x.s ? `<span class="ln__s">${x.s}</span>` : ''}</div>`
@@ -1392,7 +1393,7 @@ function qaLine(a, lead, linkConcept = false) {
 }
 
 function table(cols, rows) {
-  if (!rows.length) return '<p class="empty">Nothing here yet.</p>';
+  if (!rows.length) return mascotMessage('<p class="empty">Nothing here yet.</p>');
   return `<div class="scroll"><table><thead><tr>`
     + cols.map((c) => `<th${c.n ? ' class="num"' : ''}${c.w ? ` style="width:${c.w}"` : ''}>${esc(c.t)}</th>`).join('')
     + `</tr></thead><tbody>` + rows.join('') + `</tbody></table></div>`;
@@ -1696,13 +1697,13 @@ let GEN = 0;
  * not exist until `render()` has written the view's `innerHTML`.
  */
 /**
- * The one loading state: the mark loosing its arrow, and what is being waited
+ * The one loading state: the companion drawing and releasing its arrow, and what is being waited
  * for. `page: true` is the full-height version the first paint uses. Every
  * placeholder a `fill()` target starts with is one of these, so a wait looks
  * the same wherever it happens. `label` is plain text; it is escaped here.
  */
 function loader(label, { page = false } = {}) {
-  return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><div class="mark" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4c5 2.5 5 13.5 0 16"/><line x1="6" y1="4" x2="6" y2="20"/><line x1="4" y1="12" x2="18" y2="12"/><polyline points="14.5 8.5 18 12 14.5 15.5"/></svg><svg class="loader__trace" viewBox="0 0 40 40" aria-hidden="true"><rect x="0.75" y="0.75" width="38.5" height="38.5" pathLength="160"/></svg></div><span>${esc(label)}</span></div>`;
+  return `<div class="loader${page ? ' loader--page' : ''}" role="status" aria-live="polite"><eklavya-mascot state="loading" variant="loading" size="${page ? 96 : 56}"></eklavya-mascot><span>${esc(label)}</span></div>`;
 }
 
 function fill(id, url, draw) {
@@ -1725,7 +1726,7 @@ function fill(id, url, draw) {
       TIP.sync();
     }).catch((e) => {
       const el = $(id);
-      if (el && gen === GEN) { el.innerHTML = `<p class="empty">Could not load: ${esc(e.message)}</p>`; el.removeAttribute('aria-busy'); }
+      if (el && gen === GEN) { el.innerHTML = `<div class="ek-mascot-message"><eklavya-mascot state="error" size="56"></eklavya-mascot><p class="empty">Could not load: ${esc(e.message)}</p></div>`; el.removeAttribute('aria-busy'); }
     });
   });
 }
@@ -1968,7 +1969,7 @@ function viewConcepts(param) {
 
 function viewConcept(slug) {
   const c = S.concepts.find((x) => x.slug === slug);
-  if (!c) return `<p class="empty">No concept called <code>${esc(slug)}</code>. <a class="link" data-go="${esc(LH('concepts'))}">Back to concepts</a>.</p>`;
+  if (!c) return mascotMessage(`<p class="empty">No concept called <code>${esc(slug)}</code>. <a class="link" data-go="${esc(LH('concepts'))}">Back to concepts</a>.</p>`, 'notFound');
 
   const atts = S.attempts.filter((a) => a.slug === slug);
   // A logged row with no context line is a bookkeeping row, not a memory: it
@@ -2004,7 +2005,7 @@ function viewConcept(slug) {
 
     card('Every question you were asked', atts.length ? `${plural(atts.length, 'attempt')}, newest first. Open one for the options and the feedback.` : '',
       atts.length ? history + pager('concept', atts.length, p, PER_Q)
-        : '<p class="empty">Not asked yet. It will come up when your work touches it.</p>'),
+        : mascotMessage('<p class="empty">Not asked yet. It will come up when your work touches it.</p>')),
 
     atts.length
       ? fold('concept:grades', 'How the grades went', plural(atts.length, 'grade'),
@@ -2019,7 +2020,7 @@ function viewConcept(slug) {
             s: `${esc(ago(l.ts))} · ${esc(pname(l.repo, l.session_id))} · ${esc(l.origin ?? 'work')}`,
             go: sessHref(l.session_id),
           })))
-        : '<p class="empty">No context recorded — this one came from the seed graph.</p>',
+        : mascotMessage('<p class="empty">No context recorded — this one came from the seed graph.</p>'),
       { hint: 'What the agent said the concept was for, in the code it wrote. Open a line for that session.' }),
 
     fold('concept:graph', 'Connected concepts',
@@ -2131,8 +2132,8 @@ function viewSessions() {
   ].join('');
 }
 
-const noSession = (id) => `<p class="empty">No session <code>${esc(id)}</code> in this scope.
-    <a class="link" data-go="${esc(href(CUR.wf, 'sessions'))}">Back to sessions</a>.</p>`;
+const noSession = (id) => mascotMessage(`<p class="empty">No session <code>${esc(id)}</code> in this scope.
+    <a class="link" data-go="${esc(href(CUR.wf, 'sessions'))}">Back to sessions</a>.</p>`, 'notFound');
 
 /**
  * One session, from either workflow. Shared rendering: the learning half and
@@ -2298,7 +2299,7 @@ function viewProjects() {
        fourth Node service and their first Rust one. Everyone starts at easy (tiers 1–2) and climbs on
        evidence — a promotion needs passing answers <em>and</em> accuracy <em>and</em> distinct concepts. A
        project appears here as soon as its work logs a concept, before a single question is asked.`),
-    folds.join('') || '<p class="empty">No project has logged or answered anything yet.</p>',
+    folds.join('') || mascotMessage('<p class="empty">No project has logged or answered anything yet.</p>'),
     other.length
       ? fold('proj:memory-only', 'Memory only', plural(other.length, 'project'),
           lines(other.map((p) => ({
@@ -2348,8 +2349,8 @@ function viewDomains() {
 
 function viewDomain(name) {
   const all = conceptsInScope().filter((c) => c.domain === name);
-  if (!all.length) return `<p class="empty">No concepts in <code>${esc(name)}</code> for this scope.
-    <a class="link" data-go="${esc(LH('domains'))}">Back to domains</a>.</p>`;
+  if (!all.length) return mascotMessage(`<p class="empty">No concepts in <code>${esc(name)}</code> for this scope.
+    <a class="link" data-go="${esc(LH('domains'))}">Back to domains</a>.</p>`);
   const seen = all.filter((c) => c.seen);
   const list = [...all].sort((a, b) => (a.seen === b.seen ? a.score - b.score : a.seen ? -1 : 1));
   const p = page('domain', list.length);
@@ -2417,7 +2418,7 @@ function tlEntry(e) {
  */
 function drawMemory(d) {
   T.memory.page = d.page;   // the server clamps a page number a filter shrank
-  if (!d.rows.length) return '<p class="empty">Nothing in memory matches these filters.</p>';
+  if (!d.rows.length) return mascotMessage('<p class="empty">Nothing in memory matches these filters.</p>');
   const summaries = new Map(d.rows.filter((e) => e.kind === 'session_summary' && e.session_id).map((e) => [e.session_id, e]));
   const kids = new Map();
   for (const e of d.rows) {
@@ -2697,7 +2698,7 @@ function drawEntry(d) {
           `<div class="list">${d.replaces.map((x) => `<div>${link(x)}</div>`).join('')}</div>`)
       : '',
     fold('entry:evidence', 'The raw evidence', plural(d.events.length, 'event'),
-      evidence || '<p class="empty">No evidence is linked — this entry was written by hand or imported.</p>',
+      evidence || mascotMessage('<p class="empty">No evidence is linked — this entry was written by hand or imported.</p>'),
       { hint: 'Every event this was distilled from, exactly as captured. Open one to read it.' }),
     d.candidates.length
       ? fold('entry:cands', 'Concepts it proposed', plural(d.candidates.length, 'candidate'),
@@ -2723,7 +2724,7 @@ function drawEntry(d) {
 
 function viewEntry(id) {
   fill('entry-body', '/api/memory/entry?id=' + encodeURIComponent(id), (d) =>
-    d && d.entry ? drawEntry(d) : `<p class="empty">No observation <code>${esc(id)}</code>.</p>`);
+    d && d.entry ? drawEntry(d) : mascotMessage(`<p class="empty">No observation <code>${esc(id)}</code>.</p>`, 'notFound'));
   return `<div><a class="page__back" data-go="${esc(MH('timeline'))}">← Timeline</a></div>
     <div class="stack" id="entry-body">${loader('Loading the observation…')}</div>`;
 }
@@ -2926,7 +2927,7 @@ function viewArtifacts(param) {
   const projects = new Set(all.map((a) => pid(a.project))).size;
   const chip = (k, label) => `<button class="chip" data-go="${esc(AH('dashboard', k === 'all' ? null : k))}" aria-pressed="${kind === k}">${label} ${counts[k]}</button>`;
   const body = !list.length
-    ? `<p class="empty">${all.length ? 'Nothing matches that search.' : 'No artifacts yet. Ask for an Eklavya artifact, or miss a question with explain_on_wrong on, and they land here.'}</p>`
+    ? mascotMessage(`<p class="empty">${all.length ? 'Nothing matches that search.' : 'No artifacts yet. Ask for an Eklavya artifact, or miss a question with explain_on_wrong on, and they land here.'}</p>`)
     : [...groups].map(([id, rows]) =>
         `<h3 class="slug" style="margin:var(--space-5) 0 var(--space-2)">${esc(projectById(id)?.name ?? (id === '~' ? 'no project' : base(id)))}</h3>`
         + `<div class="gallery">${rows.map(artifactCard).join('')}</div>`).join('') + pager('artifacts', list.length, p);
@@ -3033,7 +3034,7 @@ function shuffled(n) {
 
 function fixSay(text, kind) {
   const m = $('fix-msg');
-  m.textContent = text;
+  m.innerHTML = text ? mascotStatus(text, kind === 'ok' ? 'success' : kind === 'wrong' ? 'tip' : 'error') : '';
   m.className = 'fix__msg' + (kind ? ' ' + kind : '');
 }
 
@@ -3520,7 +3521,7 @@ function fieldError(key, text) {
   const el = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
   const box = el && $(el.id + '-e');
   if (!box) return;
-  box.textContent = text || '';
+  box.innerHTML = text ? mascotStatus(text, 'validation') : '';
   box.hidden = !text;
   if (text) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
 }
@@ -3666,6 +3667,7 @@ const fbCmd = (text) => `<div class="cmd"><code>${esc(text)}</code><button type=
 /** Why there is no item: the one reason, in plain words. */
 function fbEmpty(F) {
   let body;
+  let state = 'empty';
   if (!F.enabled) {
     body = `<p>Prompt feedback is off. Turn on <code>feedback.enabled</code> in Settings to start.</p>
       <a class="btn" data-go="${esc(href('settings', 'user'))}">Open Settings</a>`;
@@ -3675,11 +3677,12 @@ function fbEmpty(F) {
     body = `<p>Prompt feedback needs an observer model. Run <code>eklavya config set providers.observer &lt;model&gt;</code>.</p>${fbCmd(FB.observerCmd)}
       <p class="cmd__note">Put the model's name in place of &lt;model&gt;, for example claude-haiku-4-5. Setting it lets Eklavya send your prompts to that model, through your Claude Code login.</p>`;
   } else if (F.failed) {
+    state = 'error';
     body = `<p>Couldn't review the last session. It will try again at a later start.</p>`;
   } else {
     body = `<p>Nothing to review yet. When a session ends, the next one you start reviews one of its prompts.</p>`;
   }
-  return `<div class="card fb__why" id="fb-empty">${body}</div>`;
+  return `<div class="card fb__why" id="fb-empty"><div class="ek-mascot-message"><eklavya-mascot state="${state}" size="72"></eklavya-mascot><div>${body}</div></div></div>`;
 }
 
 function viewFeedbackDashboard() {
@@ -3807,7 +3810,7 @@ function fbDone(text) {
 
 function fbFail(e) {
   const m = $('fb-msg');
-  if (m) m.textContent = `Couldn't do that: ${e.message}`;
+  if (m) m.innerHTML = mascotStatus(`Couldn't do that: ${e.message}`, 'error');
 }
 
 function fbAcknowledge(btn) {
@@ -3820,7 +3823,7 @@ function fbAcknowledge(btn) {
 
 function fbAskDelete(btn) {
   const id = +btn.dataset.fbDel;
-  $('fb-actions').innerHTML = `<span class="fb__ask" role="group" aria-label="Confirm delete"><span>Delete this feedback for good?</span>
+  $('fb-actions').innerHTML = `<span class="fb__ask" role="group" aria-label="Confirm delete"><span class="ek-mascot-status"><eklavya-mascot state="warning" variant="face" size="24"></eklavya-mascot>Delete this feedback for good?</span>
     <button type="button" class="btn" data-fb-yes="${id}">Delete</button>
     <button type="button" class="set__btn" data-fb-no="${id}">Cancel</button></span><p class="fb__msg" id="fb-msg" role="alert"></p>`;
   document.querySelector('[data-fb-no]').focus();
@@ -3869,7 +3872,7 @@ function postJson(path, body) {
 function saveSetting(key, change) {
   const scope = CUR.page === 'project' ? 'project' : 'user';
   const msg = document.querySelector(`[data-msg="${CSS.escape(key)}"]`);
-  const say = (text, warn) => { if (msg) { msg.textContent = text; msg.className = warn ? 'warn' : 'here'; } };
+  const say = (text, warn) => { if (msg) { msg.innerHTML = text ? mascotStatus(text, warn ? 'error' : 'loading') : ''; msg.className = warn ? 'warn' : 'here'; } };
   fieldError(key, null);
   say('saving…');
   const gen = GEN;
@@ -3884,7 +3887,7 @@ function saveSetting(key, change) {
       const back = (focusId && $(focusId)) || document.querySelector(`[data-set="${CSS.escape(key)}"]`);
       back?.focus({ preventScroll: true });
       const m = document.querySelector(`[data-msg="${CSS.escape(key)}"]`);
-      if (m) { m.textContent = change.unset ? 'inherited' : 'saved'; m.className = 'here'; }
+      if (m) { m.innerHTML = mascotStatus(change.unset ? 'inherited' : 'saved', 'success'); m.className = 'here'; }
     })
     .catch((e) => {
       // A refused choice or switch is put back to what is on disk, so the
@@ -4586,6 +4589,7 @@ syncDrawer();
 
 function viewNotFound(what, bad) {
   return `<div>
+      <eklavya-mascot state="${bad ? 'validation' : 'notFound'}" size="80"></eklavya-mascot>
       <h1 class="page__title">${bad ? 'This link is malformed' : 'No page here'}</h1>
       <p class="page__sub">${bad ? 'Part of' : 'Nothing answers to'} <code class="slug">${esc(what)}</code>${bad ? ' is not valid URL encoding, so it cannot be opened.' : '.'}
         Open the <a class="link" data-go="${esc(LH('dashboard'))}">Learning dashboard</a> or the
@@ -4892,7 +4896,7 @@ Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
 }).catch((e) => {
   $('app').classList.remove('booting');
   $('view').removeAttribute('aria-busy');
-  $('view').innerHTML = `<p class="empty">Could not read the database: ${esc(e.message)}</p>`;
+  $('view').innerHTML = `<div class="ek-mascot-message"><eklavya-mascot state="error" size="72"></eklavya-mascot><p class="empty">Could not read the database: ${esc(e.message)}</p></div>`;
 });
 </script>
 </body>

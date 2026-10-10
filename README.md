@@ -101,7 +101,7 @@ in place. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
 [tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
-dismiss them one by one or switch them off in the sidebar. On a wide window
+dismiss them one by one or switch them off in the sidebar. The archer companion smiles while loading and appears beside empty states and feedback. Open “Meet your companion” in the sidebar to preview its expressions and motion. On a wide window
 each page sits centred beside the sidebar. It has five parts:
 
 | Part | What you can see | Read more |
