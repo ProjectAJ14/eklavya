@@ -14,7 +14,9 @@ import { OPTS, PAGE_HEAD, base, enc, fix, fx, home, open, pickOption, pickProjec
 declare const S: { cursor: string; concepts: { due: boolean; seen: boolean }[]; attempts: { slug: string; feedback: string }[] };
 declare const LAZY: Map<string, unknown>;
 declare const SETS: { user: { set: Record<string, unknown> } } | null;
+declare const FOLD: Record<string, boolean>;
 declare function render(opts?: { nav?: boolean }): void;
+declare function poll(): void;
 
 /** Short enough that every page below scrolls, and that it still can after a list gets shorter. */
 const HEIGHT = 420;
@@ -67,6 +69,31 @@ const sidebarKept = (page: Page) => page.evaluate(() => {
     && same(h.links, [...document.querySelectorAll('#nav a[data-nav]')])
     && same(h.badges, [...document.querySelectorAll('#nav a[data-nav] i')]);
 });
+
+/** Takes the reader to `AT`, then only as far as it takes to have `selector` in the window, as a reader does before using a control; says how far down that is. */
+async function bringIntoView(page: Page, selector: string): Promise<number> {
+  await scrollDown(page);
+  await page.evaluate((s) => document.querySelector(s)!.scrollIntoView({ block: 'nearest', behavior: 'instant' }), selector);
+  return restingScroll(page);
+}
+
+/** Opens or closes a page's "How this works" the way a reader does, and waits until the page has taken note of it. */
+async function setAbout(page: Page, open: boolean): Promise<void> {
+  const about = '#view details.about';
+  if ((await page.$eval(about, (d) => (d as HTMLDetailsElement).open)) !== open) await page.click(`${about} > summary`);
+  const id = await page.$eval(about, (d) => (d as HTMLElement).dataset.fold!);
+  await page.waitForFunction(([i, v]) => FOLD[i as string] === v, [id, open] as const);
+}
+
+/** What `eklavya config set cadence <value>` does to the file, from outside the page. */
+function setCadenceOnDisk(value: string): void {
+  const file = path.join(home, 'home', 'config.json');
+  let cfg: Record<string, unknown> = {};
+  try { cfg = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* none written yet */ }
+  cfg.cadence = value;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(cfg));
+}
 
 /** A test that saves a setting puts the default back through the file, so the next test starts from it. */
 async function resetCadence(): Promise<void> {
@@ -523,6 +550,111 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     }, 30000);
 
+    describe('a fold the reader opened or closed first', () => {
+      /**
+       * "How this works" is open or closed because the reader chose it, and the page remembers the choice
+       * (`FOLD`). It is not part of what the screen is, so the adjustment that follows must change the list and
+       * nothing else: the same heading, the same chart, the same list host, no loader, no movement. Each case
+       * opens the fold and adjusts, then closes it and adjusts again.
+       */
+      const cases: {
+        name: string; from: string; target: string; keep?: string; requests?: RegExp[];
+        acts: [(p: Page) => Promise<unknown>, (p: Page) => Promise<unknown>];
+      }[] = [
+        {
+          name: 'a Review tab', from: '#/learning/review', target: '[data-tab="skipped"]', keep: '#c-forecast',
+          acts: [(p) => p.click('[data-tab="skipped"]'), (p) => p.click('[data-tab="upcoming"]')],
+        },
+        {
+          name: 'a concept chip', from: '#/learning/concepts', target: '[data-state="learning"]',
+          acts: [(p) => p.click('[data-state="learning"]'), (p) => p.click('[data-state="due"]')],
+        },
+        {
+          name: 'a Timeline tag', from: '#/memory/timeline', target: '#mtag-combo', keep: '#mem-rows', requests: [/^\/api\/memory\?.*tag=/],
+          acts: [(p) => pickOption(p, '#mtag', 'auth'), (p) => pickOption(p, '#mtag', 'docs')],
+        },
+        {
+          name: 'an Artifacts chip', from: '#/artifacts/dashboard', target: '.chips [data-go*="explainer"]',
+          acts: [(p) => p.click('.chips [data-go*="explainer"]'), (p) => p.locator('.chips .chip').first().click()],
+        },
+      ];
+
+      for (const c of cases) {
+        it(`${c.name} leaves the heading, the list's host and the reader's place alone`, async () => {
+          const w = await open(c.from, { height: HEIGHT });
+          const { page } = w;
+          for (const [i, opened] of [true, false].entries()) {
+            await setAbout(page, opened);
+            const at = await bringIntoView(page, c.target);
+            expect(at, 'the page is tall enough to have a place to lose').toBeGreaterThan(0);
+            const r = await probeTransition(page, () => c.acts[i]!(page), c.keep ? { keep: c.keep } : {});
+            const how = `after the fold was ${opened ? 'opened' : 'closed'}`;
+            expect(r.headKept, `the heading was removed ${how}`).toBe(true);
+            if (c.keep) expect(r.keptSelector, `${c.keep} was replaced ${how}`).toBe(true);
+            expect(r.sawLoader, `a loader replaced what the reader was reading ${how}`).toBe(false);
+            const room = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+            expect(r.scrollAfter, `the reader was moved ${how}`).toBe(Math.min(r.scrollBefore, room));
+            if (c.requests) expect(r.requests).toEqual(c.requests.map((re) => expect.stringMatching(re)));
+            else expect(r.requests).toEqual([]);
+          }
+          expect(w.errors).toEqual([]);
+          await w.ctx.close();
+        }, 60000);
+      }
+
+      it('a redraw of a concept page keeps its heading and chart after its grades fold was opened', async () => {
+        const w = await open('#/learning/concept/csrf', { height: HEIGHT });
+        const { page } = w;
+        await page.click('details[data-fold="concept:grades"] > summary');
+        await page.waitForFunction(() => FOLD['concept:grades'] === true && document.querySelectorAll('#c-grades *').length > 0);
+        const at = await bringIntoView(page, '#c-grades');
+        expect(at).toBeGreaterThan(0);
+        const r = await probeTransition(page, () => page.evaluate(() => render()), { keep: '#c-grades' });
+        expect(r).toMatchObject({ headKept: true, keptSelector: true, sawLoader: false, scrollBefore: at, scrollAfter: at, requests: [] });
+        await w.ctx.close();
+      }, 30000);
+
+      it('leaves a region alone when only a fold inside it was opened', async () => {
+        // Settings draws its heading, and the fold with it, inside the pane the tabs redraw. A region that
+        // is unchanged is not touched, whatever the reader did to it, and a fold is something the reader did.
+        const w = await open('#/settings/dashboard', { height: HEIGHT });
+        const { page } = w;
+        await page.click('#settings details.about > summary');
+        await page.waitForFunction(() => FOLD['about:settings:dashboard'] === true);
+        const r = await probeTransition(page, () => page.click('[data-ground="paper"]'), { keep: '#settings .sw__list' });
+        expect(await page.getAttribute('html', 'data-mode')).toBe('paper');
+        expect(r, 'the settings list was replaced for a change of ground').toMatchObject({ keptSelector: true, sawLoader: false, requests: [] });
+        expect(await page.$eval('#settings details.about', (d) => (d as HTMLDetailsElement).open), 'the fold the reader opened is still open').toBe(true);
+        await w.ctx.close();
+      }, 30000);
+
+      it('keeps the gallery in the page after a tab was closed, then the last one', async () => {
+        const seeded = JSON.stringify([fix.open, fix.other]);
+        const w = await open('#/artifacts/dashboard', { height: HEIGHT, init: `try { localStorage.setItem('eklavya-dash-tabs', ${JSON.stringify(seeded)}); } catch (e) {}` });
+        const { page } = w;
+        const tabCount = () => page.locator('#view .tabs [role="tab"]').count();
+        expect(await tabCount(), 'the gallery and its two open pages').toBe(3);
+        // Close one (the strip keeps All artifacts and the other), then the other (the strip goes), each time before an adjustment.
+        for (const { tabs: left, chip } of [{ tabs: 2, chip: '.chips [data-go*="explainer"]' }, { tabs: 0, chip: '.chips .chip' }]) {
+          // The close button shows when its tab is under the pointer.
+          const tab = page.locator('#view .tabw:has([data-close])').first();
+          await tab.hover();
+          await tab.locator('[data-close]').click();
+          await page.waitForFunction((n) => document.querySelectorAll('#view .tabs [role="tab"]').length === n, left);
+          const at = await bringIntoView(page, chip);
+          expect(at).toBeGreaterThan(0);
+          const r = await probeTransition(page, () => page.locator(chip).first().click(), { keep: '#view .tabs, #view .page__head' });
+          expect(r, `the page was replaced after a tab was closed (${left ? 'one' : 'no'} tab left)`)
+            .toMatchObject({ headKept: true, keptSelector: true, sawLoader: false, scrollBefore: at, requests: [] });
+          const room = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+          expect(r.scrollAfter, 'the reader was moved').toBe(Math.min(at, room));
+        }
+        expect(await page.locator('#view .tabs').count(), 'with no tab open there is no strip').toBe(0);
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }, 60000);
+    });
+
     describe('Settings', () => {
       it('keeps the tab strip where the reader scrolled it on a phone', async () => {
         const w = await open('#/settings/dashboard', { width: 560, height: 800 });
@@ -562,6 +694,96 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         expect(w.errors).toEqual([]);
         await w.ctx.close();
       }, 60000);
+
+      it('reads again after the poll has found that the server moved on, and holds that read', async () => {
+        const w = await open('#/settings/dashboard', { height: HEIGHT });
+        const { page } = w;
+        try {
+          const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
+          const click = (href: string) => probeTransition(page, () => page.click(`.sw__tab[href="${href}"]`));
+          expect(await page.inputValue('#set-cadence')).not.toBe('end');
+          // `eklavya config set cadence end`, from a terminal: the file changes under an open page.
+          setCadenceOnDisk('end');
+          // The page's own timer asks the server where it is, finds it elsewhere, and says so.
+          await page.evaluate(() => poll());
+          await page.waitForSelector('#stale:not([hidden])');
+          // The page knows what it holds is out of date, so the next Settings draw reads, once, and shows the file.
+          expect((await click(tabs[1]!)).requests).toEqual(['/api/settings']);
+          expect((await click(tabs[0]!)).requests, 'the read is held').toEqual([]);
+          expect(await page.inputValue('#set-cadence')).toBe('end');
+          // Leaving Settings and coming back draws from that read too.
+          await page.evaluate(() => { location.hash = '#/learning/concepts'; });
+          await ready(page);
+          const back = await probeTransition(page, () => page.evaluate(() => { location.hash = '#/settings/dashboard'; }));
+          expect(back.requests).toEqual([]);
+          expect(await page.inputValue('#set-cadence')).toBe('end');
+          expect(w.errors).toEqual([]);
+        } finally {
+          await resetCadence();
+          await w.ctx.close();
+        }
+      }, 60000);
+
+      it('does not draw from a read that was out when the poll found that the server moved on', async () => {
+        const w = await open('#/learning/concepts', { height: HEIGHT });
+        const { page } = w;
+        try {
+          // The server answers before the file changes; the answer reaches the page after the poll has seen the change.
+          let release = () => {};
+          const held = new Promise<void>((r) => { release = r; });
+          let answered = () => {};
+          const early = new Promise<void>((r) => { answered = r; });
+          await page.route('**/api/settings', async (route) => {
+            const reply = await route.fetch();
+            answered();
+            await held;
+            await route.fulfill({ response: reply });
+          });
+          await page.evaluate(() => { location.hash = '#/settings/dashboard'; });
+          await early;
+          setCadenceOnDisk('end');
+          await page.evaluate(() => poll());
+          await page.waitForSelector('#stale:not([hidden])');
+          release();
+          await ready(page);
+          // The reader is shown the answer that arrived (the old one), and the page does not hold it as current.
+          expect(await page.inputValue('#set-cadence')).not.toBe('end');
+          await page.unroute('**/api/settings');
+          const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
+          const r = await probeTransition(page, () => page.click(`.sw__tab[href="${tabs[1]}"]`));
+          expect(r.requests, 'the next draw reads again').toEqual(['/api/settings']);
+          await page.click(`.sw__tab[href="${tabs[0]}"]`);
+          expect(await page.inputValue('#set-cadence')).toBe('end');
+          expect(w.errors).toEqual([]);
+        } finally {
+          await resetCadence();
+          await w.ctx.close();
+        }
+      }, 60000);
+
+      it('is one screen whether it was reached as user settings or as preferences: the first tab pressed stays in the page', async () => {
+        const w = await open('#/settings/user', { height: HEIGHT });
+        const { page } = w;
+        const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
+        await holdSidebar(page);
+        const at = await scrollDown(page, 120);
+        expect(at, 'the page is tall enough to have a place to lose').toBeGreaterThan(0);
+        // The link the product itself makes (Feedback's "Open Settings", the project page's "user settings").
+        const first = await probeTransition(page, () => page.click(`.sw__tab[href="${tabs[1]}"]`), { keep: '#settings .sw' });
+        expect(first).toMatchObject({ hash: tabs[1], keptSelector: true, scrollBefore: at, scrollAfter: at, requests: [] });
+        expect(await sidebarKept(page), 'the sidebar was rebuilt').toBe(true);
+        expect(await sidebar(page)).toMatchObject({ current: ['dashboard'] });
+        expect(await page.getAttribute(`.sw__tab[href="${tabs[1]}"]`, 'aria-current')).toBe('page');
+        // Back goes to the route the reader arrived by, in place too.
+        const back = await probeTransition(page, () => page.goBack(), { keep: '#settings .sw' });
+        expect(back).toMatchObject({ hash: '#/settings/user', keptSelector: true, requests: [] });
+        expect(await page.getAttribute(`.sw__tab[href="${tabs[0]}"]`, 'aria-current')).toBe('page');
+        // And the tab after that is in place as well.
+        const next = await probeTransition(page, () => page.click(`.sw__tab[href="${tabs[2]}"]`), { keep: '#settings .sw' });
+        expect(next).toMatchObject({ hash: tabs[2], keptSelector: true, requests: [] });
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }, 30000);
 
       it('reads once for a load of the page, and a revisit of Settings costs nothing', async () => {
         const w = await open('#/learning/concepts', { height: HEIGHT });

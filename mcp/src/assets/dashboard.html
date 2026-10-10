@@ -3401,7 +3401,9 @@ function closeTab(id, fromKeys) {
   if (CUR.page === 'view' && CUR.param === id) { TABS.focus = fromKeys; location.replace(next); return; }
   const strip = document.querySelector('#view .tabs');
   const active = CUR.page === 'view' ? CUR.param : null;
-  strip.outerHTML = active || TABS.ids.length ? drawTabs(active) : '';
+  const html = active || TABS.ids.length ? drawTabs(active) : '';
+  strip.outerHTML = html;
+  recordStrip(html);
   if (fromKeys) document.querySelector('#view [role="tab"][aria-selected="true"]')?.focus();
 }
 
@@ -3485,10 +3487,11 @@ function viewArtifactProjects() {
    registry of fields lives on the server (`SETTINGS` in dashboard.ts).
    ============================================================ */
 let SETS = null;              // the last /api/settings response
-let SETS_AT = null;           // what it was read under: `{ cursor, project }`; null once something made it stale
+let SETS_AT = null;           // what it was read under: `{ cursor, project, gen }`; null once something made it stale
+let DATA_GEN = 0;             // counts `invalidateData()` calls, so a read already out when one happens is not trusted
 const SH = (page, param, q) => href('settings', page, param, q);
 const settingsUrl = () => '/api/settings' + (PROJECT ? '?project=' + encodeURIComponent(PROJECT) : '');
-const settingsNow = () => ({ cursor: S.cursor, project: PROJECT });
+const settingsNow = () => ({ cursor: S.cursor, project: PROJECT, gen: DATA_GEN });
 
 /** Keeps a response, and what it was read under. `at` is taken when the request is made, not when it lands. */
 function keepSettings(d, at) {
@@ -3499,17 +3502,20 @@ function keepSettings(d, at) {
 /**
  * Whether `SETS` can be drawn from as it is. One response holds both scopes (the user file, and the
  * project's when one was asked for), so it serves any tab of either, for as long as the project and
- * the cursor it was read under are still the page's.
+ * the cursor it was read under are still the page's, and nothing has dropped it since it was asked for.
  */
-const settingsFresh = () => !!SETS && !!SETS_AT && SETS_AT.cursor === S.cursor && SETS_AT.project === PROJECT;
+const settingsFresh = () => !!SETS && !!SETS_AT && SETS_AT.cursor === S.cursor && SETS_AT.project === PROJECT && SETS_AT.gen === DATA_GEN;
 
 /**
  * Drops what the page holds that was read under data it has since replaced, so the next draw reads
- * it again: on a project change and after a save. Phase 2 adds the fill cache here and Phase 4 calls
- * this when the cursor moves. `SETS` itself stays (its field list still serves a control being
- * changed); it is only no longer drawn from.
+ * it again: on a project change, after a save, and when the poll finds that the server's cursor moved
+ * on while the page's `S` has not (the page's own cursor only moves when it reloads, until Phase 4
+ * brings the new data in). Phase 2 adds the fill cache here. `SETS` itself stays (its field list still
+ * serves a control being changed); it is only no longer drawn from, and a read that was out when this
+ * ran is not drawn from either: it may have been answered before whatever made this necessary.
  */
 function invalidateData() {
+  DATA_GEN += 1;
   SETS_AT = null;
 }
 
@@ -4020,7 +4026,9 @@ const svg = (paths, cls = '') =>
  * `inPage` says the page's `param` and `query` are tabs and filters of the one screen
  * (a Review tab, a concept state, a timeline type, a Settings category), so changing
  * them adjusts it. On any other page a different `param` is a different subject (another
- * concept, another entry), which is a navigation.
+ * concept, another entry), which is a navigation. `screen` names the page whose screen this
+ * one is, when two routes draw the same one (user settings are `#/settings/user` and
+ * `#/settings/dashboard`): going between them is no change of screen.
  */
 const WORKFLOWS = {
   learning: {
@@ -4083,7 +4091,7 @@ const WORKFLOWS = {
     groups: [],
     pages: {
       dashboard: { label: 'Preferences', view: () => viewSettings('user'), inPage: true },
-      user:      { parent: 'dashboard', view: () => viewSettings('user'), inPage: true },
+      user:      { parent: 'dashboard', view: () => viewSettings('user'), inPage: true, screen: 'dashboard' },
       project:   { parent: 'dashboard', view: () => viewSettings('project'), inPage: true },
     },
   },
@@ -4738,11 +4746,12 @@ function syncFromUrl() {
  * keeping focus, the caret and open folds. The view's markup is still the one pure function of
  * (payload, scope, controls) it always was.
  *
- * It is an adjustment when the screen on show is the same page, in the same project, and
- * either nothing in the URL moved or the page says its `param` and `query` are filters of the
- * one screen (`inPage`). A project switch is a navigation: it changes every count in the
- * sidebar and the crumb. `{ nav: true }` forces the navigation for a caller that replaces what
- * the screen is about (a feedback item that was just acknowledged).
+ * It is an adjustment when the screen on show is the same page (or another route to the same
+ * screen, `screenOf`), in the same project, and either nothing in the URL moved or the page says
+ * its `param` and `query` are filters of the one screen (`inPage`). A project switch is a
+ * navigation: it changes every count in the sidebar and the crumb. `{ nav: true }` forces the
+ * navigation for a caller that replaces what the screen is about (a feedback item that was just
+ * acknowledged).
  */
 function render(opts) {
   const W = WORKFLOWS[CUR.wf];
@@ -4790,11 +4799,14 @@ function render(opts) {
   document.documentElement.dataset.rendered = location.hash;
 }
 
+/** The page a route's screen belongs to: itself, unless the registry says another route draws the same screen. */
+const screenOf = (wf, page) => WORKFLOWS[wf].pages[page]?.screen ?? page;
+
 /** Whether drawing now changes the screen on show (see `render`) rather than showing another one. */
 function isAdjustment(pg) {
   const d = DRAWN;
   if (!d || d.fault || !pg || CUR.bad) return false;
-  if (d.wf !== CUR.wf || d.page !== CUR.page || d.project !== PROJECT) return false;
+  if (d.wf !== CUR.wf || screenOf(d.wf, d.page) !== screenOf(CUR.wf, CUR.page) || d.project !== PROJECT) return false;
   return !!pg.inPage || (d.param === CUR.param && d.query === CUR.query.toString());
 }
 
@@ -4809,9 +4821,16 @@ function isAdjustment(pg) {
    (no regions, a different set, a different skeleton) replaces the view's content, still
    without moving the scroll. Phase 4 redraws for new data through the same path. */
 
-/** The regions of a screen's markup and what is left once they are emptied; no skeleton when it has none, or two could not be told apart. */
+/**
+ * The regions of a screen's markup and what is left once they are emptied; no skeleton when it has none, or two
+ * could not be told apart. `regions` is each one's markup as the view drew it, and what a swap draws. `settled`
+ * is the same markup with every fold's open state taken out, and what is compared: whether a fold is open is the
+ * reader's (`FOLD` holds it, and the page already shows it), so opening or closing one is no change to the
+ * screen. Without that, the first adjustment after a toggle would see a different skeleton, or a different
+ * region, and replace what the reader was looking at.
+ */
 function scanRegions(html) {
-  const none = { skeleton: null, regions: new Map() };
+  const none = { skeleton: null, regions: new Map(), settled: new Map() };
   if (!html.includes('data-region="')) return none;
   const t = document.createElement('template');
   t.innerHTML = html;
@@ -4821,8 +4840,10 @@ function scanRegions(html) {
     if (regions.has(el.dataset.region) || el.parentElement?.closest('[data-region]')) return none;
     regions.set(el.dataset.region, el.innerHTML);
   }
+  for (const d of t.content.querySelectorAll('details[data-fold]')) d.removeAttribute('open');
+  const settled = new Map(found.map((el) => [el.dataset.region, el.innerHTML]));
   for (const el of found) el.replaceChildren();
-  return { skeleton: t.innerHTML, regions };
+  return { skeleton: t.innerHTML, regions, settled };
 }
 const recordOf = (html) => ({ html, ...scanRegions(html) });
 
@@ -4840,6 +4861,23 @@ function recordFill(id, html) {
   DRAWN = { ...DRAWN, ...recordOf(t.innerHTML) };
 }
 
+/**
+ * The tab strip of the Artifacts pages was replaced on the page by `html` (a tab closed; empty when the
+ * last one went): the record is brought in line the same way, so the next adjustment finds the screen it
+ * is drawing from as it stands, instead of a skeleton that still has the tab.
+ */
+function recordStrip(html) {
+  if (!DRAWN) return;
+  const t = document.createElement('template');
+  t.innerHTML = DRAWN.html;
+  const strip = t.content.querySelector('.tabs');
+  if (!strip) return;
+  const now = document.createElement('template');
+  now.innerHTML = html;
+  strip.replaceWith(...now.content.childNodes);
+  DRAWN = { ...DRAWN, ...recordOf(t.innerHTML) };
+}
+
 /** Draws an adjustment's markup: its changed regions in place, else the view's content, never touching the scroll. */
 function drawAdjusted(html) {
   const view = $('view');
@@ -4849,14 +4887,15 @@ function drawAdjusted(html) {
   let inPlace = next.skeleton !== null && next.skeleton === prev.skeleton;
   if (inPlace) {
     for (const [id, inner] of next.regions) {
-      // Unchanged markup is left alone, whatever the reader has done to what is on screen since.
-      if (prev.regions.get(id) === inner) continue;
+      // Unchanged markup is left alone, whatever the reader has done to what is on screen since (a fold opened, say).
+      if (prev.settled.get(id) === next.settled.get(id)) continue;
       const host = view.querySelector(`[data-region="${id}"]`);
       if (!host) { inPlace = false; break; }
       swaps.push([host, inner]);
     }
   }
-  const at = { param: CUR.param, query: CUR.query.toString() };
+  // The page is the same screen, though it may be reached by another route (`screen`): the record keeps the one on show.
+  const at = { page: CUR.page, param: CUR.param, query: CUR.query.toString() };
   if (inPlace) {
     for (const [host, inner] of swaps) {
       const ui = captureUi(host);
@@ -4864,7 +4903,7 @@ function drawAdjusted(html) {
       focusable(host);
       restoreUi(host, ui);
     }
-    DRAWN = { ...prev, ...at, html, skeleton: next.skeleton, regions: next.regions };
+    DRAWN = { ...prev, ...at, html, skeleton: next.skeleton, regions: next.regions, settled: next.settled };
     return;
   }
   const ui = captureUi(view);
@@ -5104,7 +5143,14 @@ function poll() {
   polling = true;
   fetch('/api/cursor')
     .then((r) => r.json())
-    .then((s) => { if (s.cursor !== S.cursor) $('stale').hidden = false; })
+    .then((s) => {
+      if (s.cursor !== S.cursor) {
+        $('stale').hidden = false;
+        // The page now knows that what it holds is out of date. The one thing it reads for itself, the
+        // settings, must not be drawn again from a read made before the change: it reads once more.
+        invalidateData();
+      }
+    })
     // A failed poll changes nothing: the page keeps working on the data it has.
     // One unreachable server must not blank a dashboard that is merely stale.
     .catch(() => {})
