@@ -1,3 +1,10 @@
+# [1.65.0](https://github.com/ProjectAJ14/eklavya/compare/v1.64.0...v1.65.0) (2026-10-10)
+
+
+### Features
+
+* **feedback:** review prompts by what the session's follow-ups had to fix, with an eval and GEPA search ([#167](https://github.com/ProjectAJ14/eklavya/issues/167)) ([0f316ce](https://github.com/ProjectAJ14/eklavya/commit/0f316ce193421be0bdf031932bc66430ecd2dce5))
+
 # [1.64.0](https://github.com/ProjectAJ14/eklavya/compare/v1.63.0...v1.64.0) (2026-10-10)
 
 
