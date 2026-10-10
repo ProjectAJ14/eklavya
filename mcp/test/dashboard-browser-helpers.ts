@@ -170,12 +170,11 @@ async function pickOption(page: Page, sel: string, value: string) {
 /* ---------- the page-transition probe ---------- */
 
 /**
- * The heading block of a screen. The issue calls it `#view > .page__head`; the
- * page does not give it that class yet (`pageHead()` and the entry page emit an
- * unclassed `<div>` around their `h1.page__title`), so until it does the probe
- * holds that wrapper, and matches `.page__head` as well once it exists. One
- * constant, so the class arriving changes nothing else here. A screen whose
- * heading sits deeper (Settings draws inside `#settings`) has none to hold.
+ * The heading block of a screen: `#view > .page__head`, the class `pageHead()` gives it.
+ * The second shape stays in the selector for a screen whose heading block `pageHead()`
+ * does not make (the not-found page wraps its `h1.page__title` in an unclassed element).
+ * One constant for both. A screen whose heading sits deeper (Settings draws inside
+ * `#settings`) has none to hold.
  */
 export const PAGE_HEAD = '#view > .page__head, #view > :has(> h1.page__title)';
 
