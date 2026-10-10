@@ -133,6 +133,11 @@ function track(page: Page) {
   page.on('request', (r) => open.add(r));
   page.on('requestfinished', (r) => open.delete(r));
   page.on('requestfailed', (r) => open.delete(r));
+  // An error response is as finished as it will get. The page's `fill()` throws on a status that is
+  // not ok without reading the body, and Playwright never reports a request finished whose body
+  // nobody read: it would stay open for good, and a screen that failed to load would hang the wait
+  // for it (30 s, then "still loading") instead of being the failed screen the caller can look at.
+  page.on('response', (r) => { if (!r.ok()) open.delete(r.request()); });
   return open;
 }
 
@@ -243,7 +248,8 @@ export function footerBounces(tops: number[]): boolean {
  * URL (`data-rendered` equals the hash), nothing is booting or loading, the
  * scroll has stopped (the page scrolls smoothly), and no request is open, all
  * for `quiet` ms running. Every request counts, not only `/api/*`: a thumbnail
- * still arriving moves the layout. The live stream (`/api/events`, Phase 4) is
+ * still arriving moves the layout, though one answered with an error is done
+ * (see `track`). The live stream (`/api/events`, Phase 4) is
  * the one request that never ends and is not a wait. The open requests are the
  * page's own count, as in `ready()` and for the same reason: Playwright's
  * `networkidle` never fires again once the viewer's sandboxed frame has attached.
@@ -366,6 +372,54 @@ export async function probeTransition(page: Page, action: () => Promise<unknown>
     headKept: seen.headKept,
     keptSelector: seen.keptSelector,
   };
+}
+
+/**
+ * What the dashboard says in place of a page: a URL that names nothing, a
+ * parameter that matches no record, a fill that failed. Each is a screen that
+ * resolves, settles and has a height, so a walk over the pages that does not
+ * look for them records a wrong parameter as a page and goes on to pass every
+ * assertion about it. They are the page's own sentences, so a reworded one has
+ * to be reworded here: the test that visits a screen saying each of them (the
+ * control in the probe's describe) fails when one is not recognised.
+ */
+export const NOT_A_PAGE: RegExp[] = [
+  /No page here/, /This link is malformed/, /Could not load/,
+  /No concept called/, /No concepts in \S+ for this scope/, /No session \S+ in this scope/, /No observation \S+\./,
+];
+
+/** What a settled screen must be for the walk to count it as the page its route names. */
+export interface Want {
+  /** The heading it carries. Without this or `has`, it must carry some heading. */
+  h1?: RegExp;
+  /** For a screen with no heading of its own (the explainer's viewer), what its text says. */
+  has?: RegExp;
+}
+
+/**
+ * `null` when `seen` (a screen's heading and text) is the page `want` names;
+ * otherwise what is wrong, in a sentence a failed assertion can print. Not-found
+ * and failed-fill sentences come first because they are the cause: a screen with
+ * no heading is only what they leave behind.
+ */
+export function notAPage(seen: { h1: string | null; text: string }, want: Want = {}): string | null {
+  for (const re of NOT_A_PAGE) {
+    const said = re.exec(seen.text);
+    if (said) return `it says "${said[0]}"`;
+  }
+  const head = want.h1 ?? (want.has ? null : /./);
+  if (head && !head.test(seen.h1 ?? '')) return seen.h1 === null ? 'it has no heading' : `its heading is "${seen.h1}", not ${head}`;
+  if (want.has && !want.has.test(seen.text)) return `it never says ${want.has}`;
+  return null;
+}
+
+/** `notAPage` for the screen the page shows now. */
+export async function pageProblem(page: Page, want: Want = {}): Promise<string | null> {
+  const seen = await page.evaluate(() => ({
+    h1: document.querySelector('#view h1')?.textContent?.trim() ?? null,
+    text: (document.getElementById('view')!.textContent ?? '').replace(/\s+/g, ' '),
+  }));
+  return notAPage(seen, want);
 }
 
 /** `before>final`, with the lowest point between them when it was lower than both. */
