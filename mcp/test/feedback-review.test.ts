@@ -140,7 +140,9 @@ describe('parseReview', () => {
   });
 
   it('rejects a gap in an area the review does not name', () => {
-    expect(errorClass(() => parseReview(withGap({ area: 'delegation', missing: 'x' }), PROMPTS))).toBe('malformed');
+    expect(errorClass(() => parseReview(withGap({ area: 'tone', missing: 'x' }), PROMPTS))).toBe('malformed');
+    // A gap that is not an object passes the clip untouched and fails validation.
+    expect(errorClass(() => parseReview(raw({ review: { worked: 'ok', gaps: ['context'] } }), PROMPTS))).toBe('malformed');
   });
 
   it('rejects any number or score field, anywhere', () => {
