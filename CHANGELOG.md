@@ -1,3 +1,10 @@
+# [1.64.0](https://github.com/ProjectAJ14/eklavya/compare/v1.63.0...v1.64.0) (2026-10-10)
+
+
+### Features
+
+* **tutor:** count option-length send-backs and whether the rewrite helped ([#166](https://github.com/ProjectAJ14/eklavya/issues/166)) ([39eb60a](https://github.com/ProjectAJ14/eklavya/commit/39eb60acdbc47790ba3975ca5b1c4c1273a6160c)), closes [pre-#157](https://github.com/pre-/issues/157) [#164](https://github.com/ProjectAJ14/eklavya/issues/164)
+
 # [1.63.0](https://github.com/ProjectAJ14/eklavya/compare/v1.62.1...v1.63.0) (2026-10-10)
 
 
