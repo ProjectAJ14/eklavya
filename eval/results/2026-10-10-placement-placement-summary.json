@@ -1,0 +1,70 @@
+{
+ "prompt": "eval/gepa/runs/placement-prompt.md",
+ "split": "test",
+ "repeats": 2,
+ "examples": 60,
+ "stopped_early": "model-call cap 150 reached",
+ "budget": {
+  "tokens": {
+   "input_total": 6687146,
+   "cache_read": 2324284,
+   "output": 74490,
+   "by_kind": {
+    "generate:cache_read": 1042640,
+    "generate:cache_write": 1547166,
+    "generate:input": 104,
+    "generate:output": 41274,
+    "judge-audit:cache_read": 653900,
+    "judge-audit:cache_write": 1436424,
+    "judge-audit:input": 100,
+    "judge-audit:output": 24357,
+    "judge-cold:cache_read": 627744,
+    "judge-cold:cache_write": 1378972,
+    "judge-cold:input": 96,
+    "judge-cold:output": 8859
+   }
+  },
+  "cost_usd_list_price": 18.43,
+  "calls": {
+   "generate": 52,
+   "judge-audit": 50,
+   "judge-cold": 48
+  },
+  "total_calls": 150,
+  "seconds_by_kind": {
+   "generate": 614.2,
+   "judge-audit": 460.8,
+   "judge-cold": 334.7
+  },
+  "errors": {},
+  "cap": 150
+ },
+ "summary": {
+  "trials": 49,
+  "all_gates_passed": 28,
+  "gate_failures": {
+   "single_answer": 17,
+   "cold_answerable": 3,
+   "tier_match": 10,
+   "structure": 1,
+   "key_correct": 1
+  },
+  "mean_score": 0.6877,
+  "mean_score_when_valid": 0.9277,
+  "longest": {
+   "label": {
+    "keyed_strictly_longest": 15,
+    "of": 49
+   },
+   "description": {
+    "keyed_strictly_longest": 14,
+    "of": 49
+   },
+   "combined": {
+    "keyed_strictly_longest": 17,
+    "of": 49
+   }
+  },
+  "generation_errors": 0
+ }
+}
