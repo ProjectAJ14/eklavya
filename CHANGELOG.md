@@ -1,3 +1,10 @@
+# [1.66.0](https://github.com/ProjectAJ14/eklavya/compare/v1.65.0...v1.66.0) (2026-10-10)
+
+
+### Features
+
+* show the companion in dashboard tips and move its gallery to Settings ([#170](https://github.com/ProjectAJ14/eklavya/issues/170)) ([fb90638](https://github.com/ProjectAJ14/eklavya/commit/fb906389c6bb2ec11cd0f2eb46676a031bb21346))
+
 # [1.65.0](https://github.com/ProjectAJ14/eklavya/compare/v1.64.0...v1.65.0) (2026-10-10)
 
 
