@@ -93,6 +93,11 @@ appears under six focus and difficulty settings, and those near-duplicates share
 `gepa==0.1.4`, the `claude` CLI on `PATH`, Node for `bridge.mjs`. Record the Eklavya
 revision, the model the CLI resolves, `--seed` and the dataset `version` with any result.
 
+## Prompt feedback
+
+`feedback/` runs the same budget and GEPA search over prompt feedback's review instructions
+(`REVIEW_SYSTEM`); see [`feedback/README.md`](feedback/README.md).
+
 ## Follow-up (not built)
 
 Conversation-level optimisation would reuse `eval/conversation-harness.mjs` as the

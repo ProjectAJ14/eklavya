@@ -20,6 +20,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Whether a saved fact changes what a session builds, against memory off and irrelevant memory | `node eval/memory-use-harness.mjs run --plugin <checkout> --label <name>` then `score <run-dir>` | Whole Claude Code sessions |
 | Whether the tutor follows its grading, pacing and handoff rules at one frozen moment of a session | `node eval/conversation-harness.mjs run --root <checkout> --label <name>` | One model call per scenario and trial |
 | Whether sessions delegate building and ask while it runs | `node eval/delegation-harness.mjs run --plugin <checkout> --label <name>` | Whole Claude Code sessions |
+| Prompt feedback's review: does it find the prompt the follow-ups had to fix, and would its rewrite have prevented them | `python3 eval/gepa/feedback/run.py evaluate --out <file>` ([details](gepa/feedback/README.md)) | Two lean calls per session and repeat (review, judge) |
 
 To watch a long run, start `node eval/dashboard.mjs` (port 4747, local only, separate from
 the Eklavya dashboard) and keep the page open. For each run it shows trials, calls against the
