@@ -9,6 +9,7 @@ import {
   gapStats,
   outcomeStats,
   longestOptionStats,
+  optionCheckStats,
   REPEAT_WINDOW,
   PLANNER_HISTORY,
   type AttemptRow,
@@ -364,5 +365,13 @@ describe('longestOptionStats', () => {
       row({ option_notes: null }),
     ]);
     expect(s).toEqual({ questions: 2, labelLongest: 2, described: 0, descriptionLongest: 0 });
+  });
+});
+
+describe('optionCheckStats', () => {
+  it('counts each outcome; a rewrite that never came back shows as the difference', () => {
+    const rows = ['sent_back', 'sent_back', 'sent_back', 'rewritten', 'unchanged'].map((outcome) => ({ outcome }));
+    expect(optionCheckStats(rows)).toEqual({ sentBack: 3, rewritten: 1, unchanged: 1 });
+    expect(optionCheckStats([])).toEqual({ sentBack: 0, rewritten: 0, unchanged: 0 });
   });
 });

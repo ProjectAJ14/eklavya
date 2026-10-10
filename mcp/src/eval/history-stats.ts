@@ -396,3 +396,22 @@ export function longestOptionStats(rows: OptionRow[]): LongestStats {
   }
   return stats;
 }
+
+export interface OptionCheckStats {
+  /** Questions the live option-length check returned for a rewrite. */
+  sentBack: number;
+  /** Of the rewrites that came back, how many no longer tripped the check. */
+  rewritten: number;
+  /** Of the rewrites that came back, how many still did and were shown as written. */
+  unchanged: number;
+}
+
+/**
+ * How often the live option-length check fired and whether it helped. A sent-back
+ * question whose rewrite never arrived (the model gave up, the session ended) is
+ * in `sentBack` only, so `sentBack - rewritten - unchanged` is that loss.
+ */
+export function optionCheckStats(rows: { outcome: string }[]): OptionCheckStats {
+  const count = (o: string) => rows.filter((r) => r.outcome === o).length;
+  return { sentBack: count('sent_back'), rewritten: count('rewritten'), unchanged: count('unchanged') };
+}

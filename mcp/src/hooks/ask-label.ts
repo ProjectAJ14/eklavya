@@ -12,13 +12,14 @@
  *
  * Fails open like every hook, and stays on the lightest imports.
  */
-import { run } from './lib.js';
+import { run, openExisting, sessionId, type HookInput } from './lib.js';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { needsInlineAttribution } from '../surface.js';
 import { visibleOptionProblem } from '../eval/question-checks.js';
+import { recordOptionCheck, type OptionCheckOutcome } from '../option-checks.js';
 
 const PREFIX = /^\s*\[eklavya\]/i;
 
@@ -29,17 +30,32 @@ function deny(reason: string): void {
 }
 
 /**
- * True the first time a stem is seen, false after: the rewrite is asked for
- * once, and a question that comes back with the same stem is shown as written.
- * A marker file in the temp directory is the whole state; losing it only means
- * one more request for a rewrite.
+ * Where a stem stands: 'new' the first time it is seen, 'open' after it was sent
+ * back, 'done' once its rewrite has been counted. The rewrite is asked for once;
+ * a question that comes back with the same stem is shown as written. A marker
+ * file in the temp directory is the whole state; losing it only means one more
+ * request for a rewrite and one uncounted outcome.
  */
-function firstSight(sessionId: unknown, stem: string): boolean {
+function sight(sessionId: unknown, stem: string): { state: 'new' | 'open' | 'done'; set: (s: 'open' | 'done') => void } {
   const key = createHash('sha1').update(`${String(sessionId)}\n${stem}`).digest('hex').slice(0, 16);
   const marker = path.join(os.tmpdir(), `eklavya-ask-${key}`);
-  if (fs.existsSync(marker)) return false;
-  fs.writeFileSync(marker, '');
-  return true;
+  const state = fs.existsSync(marker) ? (fs.readFileSync(marker, 'utf8') === 'done' ? 'done' : 'open') : 'new';
+  return { state, set: (s) => fs.writeFileSync(marker, s) };
+}
+
+/** Counts one outcome of the check; never throws, never waits on anything but the open. */
+function count(input: HookInput, outcome: OptionCheckOutcome): void {
+  try {
+    const db = openExisting();
+    if (!db) return;
+    try {
+      recordOptionCheck(db, { sessionId: sessionId(input, db) ?? 'unknown', surface: 'card', outcome });
+    } finally {
+      db.close();
+    }
+  } catch {
+    // fail open
+  }
 }
 
 await run(async (input) => {
@@ -58,9 +74,16 @@ await run(async (input) => {
   for (const q of ours) {
     const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o?.label === 'string') : [];
     const problem = visibleOptionProblem(options);
-    if (problem && firstSight(input.session_id, q.question)) {
+    const seen = sight(input.session_id, q.question);
+    if (problem && seen.state === 'new') {
+      seen.set('open');
+      count(input, 'sent_back');
       deny(`Rewrite the options and ask again with the same question: ${problem}.`);
       return 0;
+    }
+    if (seen.state === 'open') {
+      seen.set('done');
+      count(input, problem ? 'unchanged' : 'rewritten');
     }
   }
   return 0;
