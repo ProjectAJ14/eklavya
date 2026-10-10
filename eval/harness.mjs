@@ -676,6 +676,13 @@ async function history(dbFile) {
   } catch {
     // pre-019 database
   }
+  // Migration 028; an older database has no such table.
+  let checkRows = [];
+  try {
+    checkRows = db.prepare('SELECT outcome FROM option_checks').all();
+  } catch {
+    // pre-028 database
+  }
   db.close();
 
   if (rows.length === 0) fail(`${file} has no attempts yet -- nothing to measure.`);
@@ -685,7 +692,8 @@ async function history(dbFile) {
   const gaps = stats.gapStats(rows, 1);
   const outcomes = stats.outcomeStats(rows);
   const longest = stats.longestOptionStats(optionRows);
-  const report = { source: path.basename(file), span, repeat, tiers, gaps, outcomes, longest };
+  const checks = stats.optionCheckStats(checkRows);
+  const report = { source: path.basename(file), span, repeat, tiers, gaps, outcomes, longest, checks };
 
   const pct = (n, d) => (d > 0 ? `${((100 * n) / d).toFixed(1)}%` : 'n/a');
   process.stdout.write(`\n${repeat.attempts} attempts on ${repeat.concepts} concepts, ${span.first} -> ${span.last}\n`);
@@ -722,6 +730,10 @@ async function history(dbFile) {
   process.stdout.write(
     `correct option was the longest: label ${longest.labelLongest}/${longest.questions} (${pct(longest.labelLongest, longest.questions)}), ` +
       `description ${longest.descriptionLongest}/${longest.described} (${pct(longest.descriptionLongest, longest.described)}); chance is 25%\n`,
+  );
+
+  process.stdout.write(
+    `option-length check: ${checks.sentBack} sent back, ${checks.rewritten} rewritten clean, ${checks.unchanged} unchanged and shown anyway\n`,
   );
 
   // Timestamped, not just dated. The dated file is a published record; a second
