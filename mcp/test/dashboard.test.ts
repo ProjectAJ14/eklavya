@@ -820,6 +820,13 @@ describe('embedHtml', () => {
     expect(EMBED_SCRIPT.split('\n').length).toBeLessThanOrEqual(25);
     expect(EMBED_SCRIPT).toContain('if (parent === window || window.__eklavyaEmbed) return;');
   });
+
+  it("leaves nothing in the document for the page's HTML button to save: no class, no <style> when a constructed sheet exists, and not itself", () => {
+    expect(EMBED_SCRIPT).toContain('document.currentScript');
+    expect(EMBED_SCRIPT).toContain('adoptedStyleSheets');
+    expect(EMBED_SCRIPT).not.toContain('classList.add');
+    expect(EMBED_SCRIPT).not.toContain('.framed');
+  });
 });
 
 describe('projectInventory', () => {

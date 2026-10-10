@@ -417,7 +417,12 @@ is not null, the pinned correction bar and a native `<dialog>` for the modal.
 renames a 1.46.0 page's own height message out of the race, and adds
 `EMBED_SCRIPT` before `</body>`, which hides the page's overflow and reports
 where an empty block appended after the content sits (it can shrink, and it
-ignores `html,body{height:100%}`; `scrollHeight` does neither). Content that
+ignores `html,body{height:100%}`; `scrollHeight` does neither). The page's
+HTML button serializes the live document, so the script leaves nothing in it:
+it removes its own element, keeps its rules in a constructed stylesheet
+(`adoptedStyleSheets`, which `outerHTML` never writes) and adds no class to
+the root; only the measuring block stays. A file saved from the viewer must
+scroll on its own, and the browser suite checks it. Content that
 grows with the frame (a `100vh` box) outruns three reports in a row; the page
 then sends `eklavya:scroll` and the viewer gives it the 80vh frame to scroll
 in. Nothing is reported while the frame has no width: one word per line

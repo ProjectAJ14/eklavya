@@ -48,6 +48,33 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(read).toBe('blocked');
       await w.ctx.close();
     });
+
+    it("saves the page itself from the viewer's HTML button: no frame code, and it scrolls on its own", async () => {
+      const w = await open('#/artifacts/dashboard');
+      await w.page.locator('#view .art:not(:has(.tag)) .art__open').click();
+      await ready(w.page);
+      const frame = w.page.frames().find((f) => f.url().includes('?embed'))!;
+      // The framed page hides its own overflow while the viewer sizes it...
+      expect(await frame.evaluate(() => getComputedStyle(document.documentElement).overflowY)).toBe('hidden');
+      const [download] = await Promise.all([
+        w.page.waitForEvent('download'),
+        frame.locator('.actions button', { hasText: 'HTML' }).click(),
+      ]);
+      expect(download.suggestedFilename()).toMatch(/\.html$/);
+      const html = fs.readFileSync((await download.path())!, 'utf8');
+      // ...but the file it hands over carries none of the viewer's additions.
+      expect(html).not.toMatch(/overflow-y:hidden|__eklavyaEmbed|eklavya:height|class="[^"]*framed/);
+      expect(html).toContain('function saveHtml()');
+      const saved = path.join(process.env.EKLAVYA_HOME!, 'saved.html');
+      fs.writeFileSync(saved, html.replace('<!-- CONTENT', '<p>line</p>'.repeat(200) + '<!-- CONTENT'));
+      const tab = await w.ctx.newPage();
+      await tab.goto('file://' + saved);
+      expect(await tab.evaluate(() => getComputedStyle(document.documentElement).overflowY)).not.toBe('hidden');
+      await tab.evaluate(() => scrollTo(0, 1000));
+      expect(await tab.evaluate(() => scrollY)).toBeGreaterThan(0);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
   });
 
   describe('correcting a missed answer', () => {
