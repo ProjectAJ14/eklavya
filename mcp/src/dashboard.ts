@@ -66,6 +66,19 @@ const TIMELINE_DAYS = 365;
  */
 const ATTEMPT_LIMIT = 2000;
 /**
+ * Cap on the logged context lines (`session_concepts` rows) shipped in the
+ * payload, newest first like `attempts` and the same size: one number for how
+ * much history each kind of row brings. Each line carries its context text, so
+ * the list grew without bound and was the largest key at scale; at this size it
+ * is about 0.6 MB whatever the database holds, and a learner with fewer lines
+ * sees no change. `logged_shown` and `logged_total` say when it is cut, as
+ * `attempts_shown` and `attempts_total` do, and every total stays right because
+ * it is aggregated in SQL: `totals.sessions`, the concept catalogue's last
+ * context, the project inventory. A session whose lines fall outside the cap is
+ * still opened through `/api/memory/sessions` (`sessionLearning`).
+ */
+export const LOGGED_LIMIT = 2000;
+/**
  * The memory corpus does not travel in `/api/state`.
  *
  * Attempts are short rows with a bounded question on them; an observation
@@ -207,7 +220,7 @@ const many = <T>(db: DB, sql: string, ...args: unknown[]): T[] => db.prepare(sql
  * is not assessment (PRD LRN-02) — `assessed` is the only one of these that
  * required the developer to answer something.
  */
-function memorySummary(db: DB): Record<string, unknown> {
+function memorySummary(db: DB, events: EvidenceTotals): Record<string, unknown> {
   const entries = one<{ total: number; live: number; superseded: number; deleted: number; notes: number }>(
     db,
     `SELECT count(*) AS total,
@@ -216,15 +229,6 @@ function memorySummary(db: DB): Record<string, unknown> {
             COALESCE(SUM(deleted_at IS NOT NULL), 0) AS deleted,
             COALESCE(SUM(kind = 'note'), 0) AS notes
      FROM memory_entries`,
-  );
-  const events = one<{ captured: number; processed: number; pending: number; redacted: number; newest: string | null }>(
-    db,
-    `SELECT count(*) AS captured,
-            COALESCE(SUM(status = 'summarized'), 0) AS processed,
-            COALESCE(SUM(status <> 'summarized'), 0) AS pending,
-            COALESCE(SUM(redacted), 0) AS redacted,
-            max(occurred_at) AS newest
-     FROM evidence_events`,
   );
   const candidates = many<{ status: string; n: number }>(
     db,
@@ -330,17 +334,13 @@ function reuseSummary(db: DB): Record<string, unknown> {
  * `last_error`, never a key, never a log dump (PRD DASH-03). A class is what
  * tells the reader whether to re-authenticate or wait.
  */
-function healthSummary(db: DB, config: EklavyaConfig): Record<string, unknown> {
-  const beat = one<{ newest: string | null; received: string | null }>(
-    db,
-    'SELECT max(occurred_at) AS newest, max(received_at) AS received FROM evidence_events',
-  );
+function healthSummary(db: DB, config: EklavyaConfig, events: EvidenceTotals): Record<string, unknown> {
   return {
     capture: {
       enabled: config.memory.enabled,
       mode: config.memory.capture,
-      newest_event: beat.newest,
-      newest_received: beat.received,
+      newest_event: events.newest,
+      newest_received: events.received,
       retention_days: config.memory.retention_days,
       // Each project stamps its own sweep; the page shows the latest of them
       // (the bare key is the stamp versions before per-project retention wrote).
@@ -374,21 +374,113 @@ function healthSummary(db: DB, config: EklavyaConfig): Record<string, unknown> {
   };
 }
 
-/** One row per session that captured evidence, so a session page can link the two halves. */
-function memorySessions(db: DB): Record<string, unknown>[] {
-  return many(
+/**
+ * One row of the single read of `evidence_events`: a session's events under one
+ * project and checkout. The overview's counts, the health panel's heartbeat, the
+ * session list and the project inventory all derive from these, so the table
+ * (the largest one, with a tool output on every row) is read once per build
+ * instead of five times. The checkout is in the key only so the inventory can
+ * see which checkouts were recorded under which project; every other reading
+ * merges the groups that differ by it.
+ */
+interface EvidenceGroup {
+  project: string;
+  session_id: string;
+  checkout: string | null;
+  events: number;
+  processed: number;
+  pending: number;
+  redacted: number;
+  first: string;
+  last: string;
+  received: string;
+}
+
+/**
+ * Every group, in `(project, session_id, checkout)` order: the order `GROUP BY`
+ * already yields, spelled out because the inventory's rows are created in it.
+ */
+function evidenceGroups(db: DB): EvidenceGroup[] {
+  return many<EvidenceGroup>(
     db,
-    `SELECT e.session_id, e.project, count(*) AS events,
-            COALESCE(SUM(e.redacted), 0) AS redacted,
-            min(e.occurred_at) AS first, max(e.occurred_at) AS last,
-            (SELECT count(*) FROM memory_entries m WHERE m.session_id = e.session_id) AS entries,
-            (SELECT count(*) FROM learning_sources ls JOIN memory_entries m ON m.id = ls.entry_id
-              WHERE m.session_id = e.session_id) AS candidates
-     FROM evidence_events e
-     GROUP BY e.session_id, e.project
-     ORDER BY last DESC LIMIT ?`,
-    MEMORY_SESSION_LIMIT,
+    `SELECT project, session_id, checkout, count(*) AS events,
+            COALESCE(SUM(status = 'summarized'), 0) AS processed,
+            COALESCE(SUM(status <> 'summarized'), 0) AS pending,
+            COALESCE(SUM(redacted), 0) AS redacted,
+            min(occurred_at) AS first, max(occurred_at) AS last, max(received_at) AS received
+     FROM evidence_events
+     GROUP BY project, session_id, checkout
+     ORDER BY project, session_id, checkout`,
   );
+}
+
+/** What the overview and the health panel say about the whole table. */
+interface EvidenceTotals {
+  captured: number;
+  processed: number;
+  pending: number;
+  redacted: number;
+  newest: string | null;
+  received: string | null;
+}
+
+/** The larger of two timestamps; `null` is no timestamp. They are ISO text, so text order is time order. */
+const laterOf = (a: string | null, b: string): string => (a === null || b > a ? b : a);
+
+function evidenceTotals(groups: EvidenceGroup[]): EvidenceTotals {
+  const t: EvidenceTotals = { captured: 0, processed: 0, pending: 0, redacted: 0, newest: null, received: null };
+  for (const g of groups) {
+    t.captured += g.events;
+    t.processed += g.processed;
+    t.pending += g.pending;
+    t.redacted += g.redacted;
+    t.newest = laterOf(t.newest, g.last);
+    t.received = laterOf(t.received, g.received);
+  }
+  return t;
+}
+
+/** Text in the order SQLite sorts it (bytes of the UTF-8 form), which is not JavaScript's (UTF-16 units) for every string. */
+const binaryOrder = (a: string, b: string): number => (a === b ? 0 : Buffer.compare(Buffer.from(a), Buffer.from(b)));
+
+/**
+ * One row per session that captured evidence, newest first, so a session page can
+ * link the two halves. A session that two projects both captured is two rows.
+ * Equal newest events keep the order `GROUP BY session_id, project` gave them.
+ */
+function memorySessions(db: DB, groups: EvidenceGroup[]): Record<string, unknown>[] {
+  const merged = new Map<string, { session_id: string; project: string; events: number; redacted: number; first: string; last: string }>();
+  for (const g of groups) {
+    const key = `${g.session_id}\u0000${g.project}`;
+    const row = merged.get(key);
+    if (!row) {
+      merged.set(key, { session_id: g.session_id, project: g.project, events: g.events, redacted: g.redacted, first: g.first, last: g.last });
+    } else {
+      row.events += g.events;
+      row.redacted += g.redacted;
+      if (g.first < row.first) row.first = g.first;
+      if (g.last > row.last) row.last = g.last;
+    }
+  }
+  const newest = [...merged.values()]
+    .sort((a, b) => binaryOrder(b.last, a.last) || binaryOrder(a.session_id, b.session_id) || binaryOrder(a.project, b.project))
+    .slice(0, MEMORY_SESSION_LIMIT);
+  // Counted by session alone, not by project, as this list always has. One pass
+  // over each table rather than a lookup per row (the candidates one scans).
+  const entries = new Map(
+    many<{ session_id: string; n: number }>(
+      db,
+      'SELECT session_id, count(*) AS n FROM memory_entries WHERE session_id IS NOT NULL GROUP BY session_id',
+    ).map((r) => [r.session_id, r.n]),
+  );
+  const candidates = new Map(
+    many<{ session_id: string; n: number }>(
+      db,
+      `SELECT m.session_id, count(*) AS n FROM learning_sources ls JOIN memory_entries m ON m.id = ls.entry_id
+       WHERE m.session_id IS NOT NULL GROUP BY m.session_id`,
+    ).map((r) => [r.session_id, r.n]),
+  );
+  return newest.map((r) => ({ ...r, entries: entries.get(r.session_id) ?? 0, candidates: candidates.get(r.session_id) ?? 0 }));
 }
 
 export interface MemoryQuery {
@@ -489,6 +581,15 @@ export function memoryPage(db: DB, q: MemoryQuery = {}): Record<string, unknown>
  * real total, so the Memory workflow's Sessions list never stops at the cap.
  * A session can exist in `memory_entries` alone — an import carries entries
  * and no evidence — so both tables contribute.
+ *
+ * Two steps, so the cost follows the page and not the database: the key set
+ * (which sessions there are, newest first, which is the total and the order),
+ * then the counts for the page's own rows. Equal newest times keep the order
+ * `GROUP BY session_id, project` gives them: session id, then project.
+ *
+ * Asking for one session (`session`) also answers for the learning half, which
+ * is in neither table above: see `sessionLearning`. That is how the page opens
+ * a session whose rows were cut from `logged` and `attempts`.
  */
 export function memorySessionPage(
   db: DB,
@@ -500,35 +601,71 @@ export function memorySessionPage(
   if (q.project) { where.push('project = ?'); args.push(q.project); }
   if (q.session) { where.push('session_id = ?'); args.push(q.session); }
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const union = `
-    SELECT session_id, project, count(*) AS events, COALESCE(SUM(redacted), 0) AS redacted,
-           COALESCE(SUM(status <> 'summarized'), 0) AS pending, min(occurred_at) AS first, max(occurred_at) AS last
-    FROM evidence_events GROUP BY session_id, project
-    UNION ALL
-    SELECT session_id, project, 0, 0, 0, min(occurred_at), max(occurred_at)
-    FROM memory_entries WHERE session_id IS NOT NULL GROUP BY session_id, project`;
-  const total = one<{ n: number }>(
+  // The entries half never names a session that is NULL; an import can leave one.
+  const entryClause = clause ? `${clause} AND session_id IS NOT NULL` : 'WHERE session_id IS NOT NULL';
+  const keys = many<{ session_id: string; project: string }>(
     db,
-    `SELECT count(*) AS n FROM (SELECT session_id, project FROM (${union}) ${clause} GROUP BY session_id, project)`,
+    `SELECT session_id, project FROM (
+       SELECT session_id, project, max(occurred_at) AS last FROM evidence_events ${clause} GROUP BY session_id, project
+       UNION ALL
+       SELECT session_id, project, max(occurred_at) FROM memory_entries ${entryClause} GROUP BY session_id, project)
+     GROUP BY session_id, project ORDER BY max(last) DESC, session_id, project`,
     ...args,
-  ).n;
+    ...args,
+  );
+  const total = keys.length;
   const pages = Math.max(1, Math.ceil(total / per));
   const p = Math.min(Math.max(1, Math.floor(q.page || 1)), pages);
-  const rows = many(
-    db,
-    `SELECT s.session_id, s.project, SUM(s.events) AS events, SUM(s.redacted) AS redacted, SUM(s.pending) AS pending,
-            min(s.first) AS first, max(s.last) AS last,
-            (SELECT count(*) FROM memory_entries m WHERE m.session_id = s.session_id AND m.project = s.project
-              AND m.deleted_at IS NULL AND m.superseded_by IS NULL) AS entries,
-            (SELECT count(*) FROM learning_sources ls JOIN memory_entries m ON m.id = ls.entry_id
-              WHERE m.session_id = s.session_id AND m.project = s.project) AS candidates
-     FROM (${union}) s ${clause}
-     GROUP BY s.session_id, s.project ORDER BY last DESC LIMIT ? OFFSET ?`,
-    ...args,
-    per,
-    (p - 1) * per,
+
+  const evidence = db.prepare(
+    `SELECT count(*) AS events, COALESCE(SUM(redacted), 0) AS redacted, COALESCE(SUM(status <> 'summarized'), 0) AS pending,
+            min(occurred_at) AS first, max(occurred_at) AS last
+     FROM evidence_events WHERE session_id = ? AND project = ?`,
   );
-  return { total, page: p, pages, per, rows };
+  const entries = db.prepare(
+    `SELECT COALESCE(SUM(deleted_at IS NULL AND superseded_by IS NULL), 0) AS live, min(occurred_at) AS first, max(occurred_at) AS last
+     FROM memory_entries WHERE session_id = ? AND project = ?`,
+  );
+  const candidates = db.prepare(
+    `SELECT count(*) AS n FROM learning_sources ls JOIN memory_entries m ON m.id = ls.entry_id
+     WHERE m.session_id = ? AND m.project = ?`,
+  );
+  const rows = keys.slice((p - 1) * per, p * per).map(({ session_id, project }) => {
+    const e = evidence.get(session_id, project) as { events: number; redacted: number; pending: number; first: string | null; last: string | null };
+    const m = entries.get(session_id, project) as { live: number; first: string | null; last: string | null };
+    const c = candidates.get(session_id, project) as { n: number };
+    // The key is in at least one table, so at least one side has times.
+    const first = [e.first, m.first].filter((t): t is string => t !== null).reduce((a, b) => (b < a ? b : a));
+    const last = [e.last, m.last].filter((t): t is string => t !== null).reduce((a, b) => (b > a ? b : a));
+    return { session_id, project, events: e.events, redacted: e.redacted, pending: e.pending, first, last, entries: m.live, candidates: c.n };
+  });
+  return { total, page: p, pages, per, rows, ...(q.session ? { learning: sessionLearning(db, q.session) } : {}) };
+}
+
+/**
+ * Everything one session logged and was asked, however old: the rows the state
+ * payload cut (`LOGGED_LIMIT`, `ATTEMPT_LIMIT`) and the ones it never had to cut
+ * because the session has no memory to list it under. Same row shapes as the
+ * payload's `logged` and `attempts` (one query each, shared), so the page draws
+ * a looked-up session exactly as one it already holds.
+ *
+ * Whole, and not narrowed by the page's project scope: which project a row
+ * belongs to is the page's `pid()`, which folds worktrees and recorded
+ * checkouts the way `projectInventory` does, and a second reading of that here
+ * would be a second opinion. The session's attempts are capped at
+ * `ATTEMPT_LIMIT` like every attempts list, with `attempts_total` to say so;
+ * its logged lines are at most one per concept.
+ */
+function sessionLearning(db: DB, session: string): { logged: Record<string, unknown>[]; attempts: Record<string, unknown>[]; attempts_total: number } {
+  return {
+    logged: loggedRows(db, projectFolder(), -1, session),
+    attempts: attemptRows(db, ATTEMPT_LIMIT, session),
+    attempts_total: one<{ n: number }>(
+      db,
+      `SELECT count(*) AS n FROM attempts a WHERE a.session_id = ? AND a.${NOT_CORRECTION}`,
+      session,
+    ).n,
+  };
 }
 
 /** The id of a project whose rows carry no repository at all: recorded before projects were tracked. */
@@ -584,12 +721,12 @@ export function projectInventory(db: DB): {
   aliases: Record<string, string>;
   sessions: Record<string, string>;
 } {
+  const evidence = evidenceGroups(db);
   const recorded = new Map<string, Set<string>>();
-  for (const r of many<{ checkout: string; project: string }>(
-    db,
-    `SELECT DISTINCT checkout, project FROM evidence_events WHERE checkout IS NOT NULL AND checkout <> project`,
-  )) {
-    recorded.set(r.checkout, (recorded.get(r.checkout) ?? new Set()).add(r.project));
+  for (const g of evidence) {
+    if (g.checkout !== null && g.checkout !== g.project) {
+      recorded.set(g.checkout, (recorded.get(g.checkout) ?? new Set()).add(g.project));
+    }
   }
   const folded = new Map<string, string>();
   const canonical = (raw: string | null): string => {
@@ -661,18 +798,14 @@ export function projectInventory(db: DB): {
     }
     span(p.learning, r.first, r.last);
   }
-  for (const r of many<{ project: string; session_id: string; n: number; pending: number; first: string; last: string }>(
-    db,
-    `SELECT project, session_id, count(*) AS n, COALESCE(SUM(status <> 'summarized'), 0) AS pending,
-            min(occurred_at) AS first, max(occurred_at) AS last
-     FROM evidence_events GROUP BY project, session_id`,
-  )) {
-    const p = at(r.project, 'evidence');
-    p.memory.events += r.n;
-    p.memory.pending += r.pending;
-    p._msess.add(r.session_id);
-    note(r.session_id, p.id);
-    span(p.memory, r.first, r.last);
+  // One row per project and session, whichever checkouts the events came from.
+  for (const g of evidence) {
+    const p = at(g.project, 'evidence');
+    p.memory.events += g.events;
+    p.memory.pending += g.pending;
+    p._msess.add(g.session_id);
+    note(g.session_id, p.id);
+    span(p.memory, g.first, g.last);
   }
   // A gate row with no repository names no project, but the same session's
   // own answers and evidence may. Where they agree on exactly one project, the
@@ -998,6 +1131,78 @@ export function memoryEntry(db: DB, id: number): Record<string, unknown> | null 
   };
 }
 
+/**
+ * `projectKey`, once per distinct path in one build. It looks at the checkout's
+ * `.git` on disk (a worktree folds into its main checkout), and a context line
+ * carries the path of every session's repository: a statement per row is
+ * thousands of statements for a few hundred distinct answers.
+ */
+function projectFolder(): (repo: string) => string {
+  const keys = new Map<string, string>();
+  return (repo) => {
+    let key = keys.get(repo);
+    if (key === undefined) {
+      key = projectKey(repo);
+      keys.set(repo, key);
+    }
+    return key;
+  };
+}
+
+/**
+ * Graded answers, newest first, as the page reads them: the payload's capped
+ * history (`attempts`) and one session's own rows (`sessionLearning`) come from
+ * this one statement, so they cannot drift apart. A correction row is a pick on
+ * the explainer, not a question asked (`NOT_CORRECTION`), and rides on the row
+ * it corrected.
+ */
+function attemptRows(db: DB, limit: number, session?: string): Record<string, unknown>[] {
+  return many<Record<string, unknown>>(
+    db,
+    `SELECT a.id, c.slug, c.name, c.domain, a.session_id, a.question, a.answer, a.feedback,
+            a.grade, a.difficulty AS tier, a.outcome, a.format, a.options, a.ts,
+            NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.level,
+            -- A miss corrected from its explainer: when, and on which try.
+            fix.ts AS corrected_at,
+            CASE WHEN fix.id IS NULL THEN NULL
+                 ELSE (SELECT count(*) FROM attempt_retries r WHERE r.attempt_id = a.id) END AS corrected_try
+     FROM attempts a JOIN concepts c ON c.id = a.concept_id
+     LEFT JOIN attempts fix ON fix.retry_of = a.id
+     WHERE a.${NOT_CORRECTION}${session === undefined ? '' : ' AND a.session_id = ?'}
+     ORDER BY a.id DESC
+     LIMIT ?`,
+    ...(session === undefined ? [] : [session]),
+    limit,
+  );
+}
+
+/**
+ * The context lines the agent logged, newest first, as the page reads them: the
+ * payload's capped list and one session's lines (`sessionLearning`, a `limit`
+ * of -1, which SQLite reads as none). Equal times keep the order the rows were
+ * written in, which is the order they have always had.
+ *
+ * `gates.repo` stays the worktree path -- the POSIX gate matches it against
+ * `git rev-parse --show-toplevel`. Every other repo on this page comes from
+ * `attempts`, already folded, so fold this one too or a project filter drops
+ * every context line a worktree session logged.
+ */
+function loggedRows(db: DB, fold: (repo: string) => string, limit: number, session?: string): Record<string, unknown>[] {
+  return many<Record<string, unknown>>(
+    db,
+    `SELECT sc.session_id, c.slug, c.name, c.domain, sc.context, sc.ts, sc.origin,
+            NULLIF(trim(COALESCE(g.repo, '')), '') AS repo
+     FROM session_concepts sc
+     JOIN concepts c ON c.id = sc.concept_id
+     LEFT JOIN gates g ON g.session_id = sc.session_id
+     ${session === undefined ? '' : 'WHERE sc.session_id = ?'}
+     ORDER BY sc.ts DESC, sc.rowid
+     LIMIT ?`,
+    ...(session === undefined ? [] : [session]),
+    limit,
+  ).map((row) => ({ ...row, repo: row.repo ? fold(row.repo as string) : null }));
+}
+
 export function dashboardState(db: DB): Record<string, unknown> {
   const now = new Date();
   const configs = readConfigs(db);
@@ -1043,27 +1248,50 @@ export function dashboardState(db: DB): Record<string, unknown> {
     )
     .all(PASSING_GRADE) as ProjectRow[];
 
+  // The catalogue with each concept's attempt counts and last context. The
+  // counts are one `GROUP BY concept_id` over `attempts`, and the last context
+  // is one ranking over `session_concepts`, each joined back by concept, where
+  // this used to be eight correlated subqueries per concept (the last context
+  // scanning the whole of `session_concepts` for every one of them).
   const conceptRows = db
     .prepare(
-      `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
+      `WITH asked AS (
+         SELECT concept_id,
+                count(CASE WHEN ${NOT_CORRECTION} THEN 1 END) AS attempts,
+                count(CASE WHEN ${NOT_CORRECTION} AND grade >= ${PASSING_GRADE} THEN 1 END) AS passed,
+                count(CASE WHEN ${NOT_CORRECTION} AND outcome IN ('declined','dont_know') THEN 1 END) AS skipped,
+                count(CASE WHEN retry_of IS NOT NULL THEN 1 END) AS corrected,
+                min(CASE WHEN ${NOT_CORRECTION} THEN ts END) AS first_asked,
+                -- The newest answer, and the newest with a repository: found by id, then read back.
+                max(CASE WHEN ${NOT_CORRECTION} THEN id END) AS last_id,
+                max(CASE WHEN repo IS NOT NULL AND trim(repo) <> '' THEN id END) AS last_repo_id
+         FROM attempts GROUP BY concept_id
+       ), newest AS (
+         -- The latest context a session logged for the concept; equal times go to the row written first.
+         SELECT concept_id, context FROM (
+           SELECT concept_id, context,
+                  row_number() OVER (PARTITION BY concept_id ORDER BY ts DESC, rowid) AS rank
+           FROM session_concepts WHERE context IS NOT NULL
+         ) WHERE rank = 1
+       )
+       SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
               m.score, m.ease, m.interval_d, m.reps, m.next_review, m.last_seen,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}) AS attempts,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION} AND a.grade >= ${PASSING_GRADE}) AS passed,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}
-                AND a.outcome IN ('declined','dont_know')) AS skipped,
-              (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NOT NULL) AS corrected,
-              (SELECT min(a.ts) FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION}) AS first_asked,
+              COALESCE(asked.attempts, 0) AS attempts,
+              COALESCE(asked.passed, 0) AS passed,
+              COALESCE(asked.skipped, 0) AS skipped,
+              COALESCE(asked.corrected, 0) AS corrected,
+              asked.first_asked AS first_asked,
               -- The backlog rule's grade (OWED_SQL in store.ts): a correction does not clear it.
-              (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id AND a.${NOT_CORRECTION} ORDER BY a.id DESC LIMIT 1) AS last_grade,
-              (SELECT sc.context FROM session_concepts sc
-                WHERE sc.concept_id = c.id AND sc.context IS NOT NULL
-                ORDER BY sc.ts DESC LIMIT 1) AS last_context,
-              (SELECT a.repo FROM attempts a
-                WHERE a.concept_id = c.id AND a.repo IS NOT NULL AND trim(a.repo) <> ''
-                ORDER BY a.id DESC LIMIT 1) AS last_repo
+              latest.grade AS last_grade,
+              newest.context AS last_context,
+              last_repo.repo AS last_repo
        FROM concepts c
        LEFT JOIN mastery m ON m.concept_id = c.id
-       ORDER BY c.domain, c.tier, c.name`,
+       LEFT JOIN asked ON asked.concept_id = c.id
+       LEFT JOIN attempts latest ON latest.id = asked.last_id
+       LEFT JOIN attempts last_repo ON last_repo.id = asked.last_repo_id
+       LEFT JOIN newest ON newest.concept_id = c.id
+       ORDER BY c.domain, c.tier, c.name, c.id`,
     )
     .all() as ConceptRow[];
 
@@ -1164,43 +1392,16 @@ export function dashboardState(db: DB): Record<string, unknown> {
   // Every graded response, newest first, with its question and the tutor's
   // explanation. This is what makes a concept page a record of what you were
   // actually asked rather than a score.
-  const attempts = db
-    .prepare(
-      `SELECT a.id, c.slug, c.name, c.domain, a.session_id, a.question, a.answer, a.feedback,
-              a.grade, a.difficulty AS tier, a.outcome, a.format, a.options, a.ts,
-              NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.level,
-              -- A miss corrected from its explainer: when, and on which try.
-              fix.ts AS corrected_at,
-              CASE WHEN fix.id IS NULL THEN NULL
-                   ELSE (SELECT count(*) FROM attempt_retries r WHERE r.attempt_id = a.id) END AS corrected_try
-       FROM attempts a JOIN concepts c ON c.id = a.concept_id
-       LEFT JOIN attempts fix ON fix.retry_of = a.id
-       WHERE a.${NOT_CORRECTION}
-       ORDER BY a.id DESC
-       LIMIT ?`,
-    )
-    .all(ATTEMPT_LIMIT) as Record<string, unknown>[];
+  const attempts = attemptRows(db, ATTEMPT_LIMIT);
 
   // The context lines, which are what a concept means to *this* learner: the
-  // code that taught it. Grouped by session on the page.
-  const logged = db
-    .prepare(
-      `SELECT sc.session_id, c.slug, c.name, c.domain, sc.context, sc.ts, sc.origin,
-              NULLIF(trim(COALESCE(g.repo, '')), '') AS repo
-       FROM session_concepts sc
-       JOIN concepts c ON c.id = sc.concept_id
-       LEFT JOIN gates g ON g.session_id = sc.session_id
-       ORDER BY sc.ts DESC`,
-    )
-    .all()
-    // `gates.repo` stays the worktree path -- the POSIX gate matches it against
-    // `git rev-parse --show-toplevel`. Every other repo on this page comes from
-    // `attempts`, already folded, so fold this one too or a project filter drops
-    // every context line a worktree session logged.
-    .map((r) => {
-      const row = r as Record<string, unknown>;
-      return { ...row, repo: row.repo ? projectKey(row.repo as string) : null };
-    }) as Record<string, unknown>[];
+  // code that taught it. Grouped by session on the page. Newest first and cut at
+  // `LOGGED_LIMIT`, with the total beside it.
+  const logged = loggedRows(db, projectFolder(), LOGGED_LIMIT);
+  const loggedTotal =
+    logged.length < LOGGED_LIMIT
+      ? logged.length
+      : one<{ n: number }>(db, 'SELECT count(*) AS n FROM session_concepts sc JOIN concepts c ON c.id = sc.concept_id').n;
 
   const allTime = db
     .prepare(
@@ -1228,7 +1429,10 @@ export function dashboardState(db: DB): Record<string, unknown> {
     db.prepare('SELECT count(DISTINCT session_id) AS n FROM session_concepts').get() as { n: number }
   ).n;
 
-  const memory = memorySummary(db);
+  // The one read of evidence_events: the counts, the heartbeat and the session list all come from it.
+  const evidence = evidenceGroups(db);
+  const evidenceSummary = evidenceTotals(evidence);
+  const memory = memorySummary(db, evidenceSummary);
   const reuse = reuseSummary(db);
 
   return {
@@ -1238,6 +1442,10 @@ export function dashboardState(db: DB): Record<string, unknown> {
     timeline_days: TIMELINE_DAYS,
     attempts_shown: attempts.length,
     attempts_total: allTime.answers,
+    // The same disclosure for the context lines: shown is what travelled, total
+    // is every row, so a cut list cannot pass for the whole one.
+    logged_shown: logged.length,
+    logged_total: loggedTotal,
     // The user file's dials, before any project's overrides. Each project row
     // below carries the level and runway its own settings resolve to.
     config_scope: 'user',
@@ -1294,8 +1502,8 @@ export function dashboardState(db: DB): Record<string, unknown> {
     // because `/api/state` is a contract an older page still reads.
     memory,
     reuse,
-    health: healthSummary(db, config),
-    memory_sessions: memorySessions(db),
+    health: healthSummary(db, config, evidenceSummary),
+    memory_sessions: memorySessions(db, evidence),
     // The third workflow. Read from the files themselves on every load
     // (`artifacts.ts`): there is no table to fall out of step with the disk.
     artifacts: artifactRows(db),

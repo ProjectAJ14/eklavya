@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
-  changeCursor, SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT,
+  changeCursor, SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT, LOGGED_LIMIT,
 } from '../src/dashboard.js';
 import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
@@ -965,7 +965,8 @@ describe('/api/state is unchanged for the page that still reads it', () => {
     const shape = Object.fromEntries(Object.entries(s).map(([k, v]) => [k, Array.isArray(v) ? 'array' : typeof v]));
     expect(shape).toEqual({
       generated_at: 'string', db_path: 'string', cursor: 'string', timeline_days: 'number',
-      attempts_shown: 'number', attempts_total: 'number', config: 'object', config_scope: 'string', totals: 'object',
+      attempts_shown: 'number', attempts_total: 'number', logged_shown: 'number', logged_total: 'number',
+      config: 'object', config_scope: 'string', totals: 'object',
       daily: 'array', projects: 'array', domains: 'array', concepts: 'array', attempts: 'array',
       logged: 'array', memory: 'object', reuse: 'object', health: 'object', memory_sessions: 'array',
       artifacts: 'array', feedback: 'object',
@@ -975,6 +976,64 @@ describe('/api/state is unchanged for the page that still reads it', () => {
       'level_needed', 'level_unmet', 'next_level', 'passed', 'pinned', 'promoted_at', 'repo', 'skipped',
     ]);
     expect(Object.keys(s.logged[0]).sort()).toEqual(['context', 'domain', 'name', 'origin', 'repo', 'session_id', 'slug', 'ts']);
+  });
+});
+
+describe('the logged context lines are capped, and the cap is disclosed', () => {
+  const saved = process.env.EKLAVYA_HOME;
+  let home = '';
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-logged-cap-'));
+    process.env.EKLAVYA_HOME = home;
+  });
+  afterEach(() => {
+    if (saved === undefined) delete process.env.EKLAVYA_HOME;
+    else process.env.EKLAVYA_HOME = saved;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  /** `n` lines, one per session, `step` seconds apart from the first of January 2030: later rows are newer. */
+  function lines(n: number, step = 1) {
+    const insert = db.prepare('INSERT INTO session_concepts (session_id, concept_id, context, ts, origin) VALUES (?, ?, ?, ?, ?)');
+    const csrf = (db.prepare("SELECT id FROM concepts WHERE slug = 'csrf'").get() as { id: number }).id;
+    db.transaction(() => {
+      for (let i = 0; i < n; i++) {
+        insert.run(`cap-${i}`, csrf, `line ${i}`, new Date(Date.UTC(2030, 0, 1) + i * step * 1000).toISOString().slice(0, 19).replace('T', ' '), 'work');
+      }
+    })();
+  }
+
+  it('says nothing is cut when every line is shipped', () => {
+    lines(3);
+    const s = dashboardState(db) as any;
+    expect(s.logged).toHaveLength(3);
+    expect(s).toMatchObject({ logged_shown: 3, logged_total: 3 });
+  });
+
+  it('says nothing is cut when the lines exactly fill the cap, which costs the page nothing it did not have', () => {
+    lines(LOGGED_LIMIT);
+    const s = dashboardState(db) as any;
+    expect(s).toMatchObject({ logged_shown: LOGGED_LIMIT, logged_total: LOGGED_LIMIT });
+  });
+
+  it('ships the newest LOGGED_LIMIT lines, newest first, and the total of every line there is', () => {
+    lines(LOGGED_LIMIT + 7);
+    const s = dashboardState(db) as any;
+    expect(s.logged).toHaveLength(LOGGED_LIMIT);
+    expect(s.logged_shown).toBe(LOGGED_LIMIT);
+    expect(s.logged_total).toBe(LOGGED_LIMIT + 7);
+    // The seven oldest are the ones left out.
+    expect(s.logged[0].context).toBe(`line ${LOGGED_LIMIT + 6}`);
+    expect(s.logged.at(-1).context).toBe('line 7');
+    expect(s.logged.some((l: any) => l.context === 'line 6')).toBe(false);
+    // What the cap cannot make wrong is aggregated in SQL over every row.
+    expect(s.totals.sessions).toBe(LOGGED_LIMIT + 7);
+  });
+
+  it('keeps equal times in the order the rows were written, so a cut is the same cut every time', () => {
+    lines(LOGGED_LIMIT + 3, 0);
+    const s = dashboardState(db) as any;
+    expect(s.logged.map((l: any) => l.context)).toEqual(Array.from({ length: LOGGED_LIMIT }, (_, i) => `line ${i}`));
   });
 });
 
