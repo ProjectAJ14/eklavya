@@ -32,7 +32,8 @@ async function resolveLocal(url) {
 }
 const indexed = new Set(), titles = new Set(), descriptions = new Set(), images = new Set();
 for (const [file, $] of pages) {
-  const utility = file === '404.html' || file === 'eklavya-runtime.html';
+  // The component studio is a utility gallery, not a search landing page.
+  const utility = ['404.html', 'eklavya-runtime.html', 'mascot.html'].includes(file);
   const pathname = file === 'index.html' ? '/' : `/${file.replace(/index\.html$/, '')}`;
   const base = absolute(pathname);
   check($('html').attr('lang') === 'en', `${file}: missing English language`);

@@ -46,6 +46,9 @@ for (const [from, to] of [['dist/hints.iife.js', 'driver-hints.js'], ['dist/hint
     process.exit(1);
   }
 }
+// One mascot source for the website and the offline npm-installed dashboard.
+await cp(path.join(path.dirname(root), 'web', 'public', 'brand', 'mascot'), path.join(assets, 'mascot'), { recursive: true });
+await cp(path.join(path.dirname(root), 'web', 'public', 'mascot.html'), path.join(assets, 'mascot.html'));
 const tokens = path.join(path.dirname(root), 'web', 'public', 'tokens.css');
 try {
   await cp(tokens, path.join(assets, 'tokens.css'));
