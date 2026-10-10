@@ -37,7 +37,9 @@ import {
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
-import { dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
+import {
+  artifactsDir, dashboardPort, dbPath, DEFAULT_PORT, eklavyaHome, globalConfigPath, projectConfigPath, projectsDir,
+} from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
 import { countUse } from './telemetry.js';
 import { acknowledgeFeedback, deleteFeedback, feedbackSummary, getFeedback, feedbackPending, listAcknowledged } from './feedback.js';
@@ -745,7 +747,9 @@ export function projectInventory(db: DB): {
 
 /**
  * What an open page polls to notice that work landed while it was reading it
- * (PRD DASH-01), served alone at `/api/cursor` so a poll builds no payload.
+ * (PRD DASH-01), served alone at `/api/cursor` so a poll builds no payload, and
+ * streamed by `/api/events` (`createLive`), which reads it for as long as a page
+ * is listening.
  *
  * Three parts, one per place the page's content comes from:
  * - `change_version` (migration 021), which triggers move on every write to a
@@ -1886,6 +1890,14 @@ export function etagMatches(header: string | undefined, etag: string): boolean {
   return (header.match(/(?:W\/)?"[^"]*"/g) ?? []).some((tag) => tag.replace(/^W\//, '') === etag);
 }
 
+/** What every response carries: its type, `no-store`, `SECURITY_HEADERS`, then whatever the route overrides. The event stream, which is not sent in one piece, shares it. */
+const headersFor = (type: string, extra: Record<string, string> = {}): Record<string, string> => ({
+  'content-type': type,
+  'cache-control': 'no-store',
+  ...SECURITY_HEADERS,
+  ...extra,
+});
+
 /**
  * Every response goes out here, so every one carries `SECURITY_HEADERS`.
  *
@@ -1905,12 +1917,7 @@ function send(
   body: string | Buffer,
   extra: Record<string, string> = {},
 ): void {
-  res.writeHead(status, {
-    'content-type': type,
-    'cache-control': 'no-store',
-    ...SECURITY_HEADERS,
-    ...extra,
-  });
+  res.writeHead(status, headersFor(type, extra));
   res.end(body);
 }
 
@@ -1940,13 +1947,238 @@ export function fromLoopback(hostHeader?: string, originHeader?: string): boolea
   return true;
 }
 
+/*
+ * Live updates: `GET /api/events`.
+ *
+ * What an open page needs is to be told that something changed, so it can fetch
+ * what. The stream carries one thing, the change cursor (`changeCursor`, the
+ * string `/api/state` carries in its `cursor`): `event: cursor` and `data:
+ * <cursor>` at once on connect, then one more each time it moves, and a
+ * `: keep-alive` comment every `keepAliveMs` so nothing between here and the
+ * browser closes a quiet stream. The payload stays one source of truth: the
+ * stream says *that*, `/api/state` says *what*. `/api/cursor` is unchanged, for
+ * older pages and for anything that polls.
+ *
+ * The writers are other processes (hooks, the MCP server, the CLI, the
+ * observer), so the server can only learn of a change by reading the database
+ * and the filesystem, which a watcher does for as long as a stream is open and
+ * not a moment longer:
+ *
+ * - The floor: `changeCursor` every `floorMs`. It is 0.5 to 3 ms, and it is
+ *   what keeps the stream correct on a filesystem where `fs.watch` is silent
+ *   (a network mount, an editor that replaces a file instead of writing it).
+ * - The early trigger: `fs.watch` on the database's `-wal` file, the user's
+ *   config file, the project config area and the artifacts folder, debounced by
+ *   `debounceMs` into one check. Every one of those is optional. A directory
+ *   that is not there yet, a platform with no `recursive`, an `error` event:
+ *   that watch is skipped or dropped and the floor carries on. The `-wal` is
+ *   watched through its directory, filtered by name, because the file may not
+ *   exist yet and is replaced when the database is checkpointed; `-shm` and
+ *   the database file are never watched, because a reader touches them and the
+ *   watcher's own reads must not retrigger it.
+ * - On a change the memo is refreshed first (the state and the inventory, so
+ *   the fetch the event provokes is a repeat), then every stream is written.
+ *   Between changes the watcher costs a cursor read a second and no read route
+ *   waits on it; on a change it pays, once, for the rebuild the next read would
+ *   have made anyway, and that rebuild is the single thread's for as long as it
+ *   takes (the builders' cost, unchanged).
+ * - A write the dashboard itself accepted checks at once (`bump`) instead of
+ *   waiting for the floor, and does nothing when no stream is open.
+ *
+ * A stream that will not take a write (its buffer is full: the reader has not
+ * read for a long time) is cut, not buffered for; the browser reconnects and
+ * the connect event is the current cursor, so it loses nothing.
+ */
+
+/** How often the watcher reads `changeCursor` while a stream is open. The floor: correct even where `fs.watch` is not. */
+export const EVENTS_FLOOR_MS = 1000;
+/** How long after the last filesystem event the early check waits, so a burst of writes (a hook logging eight concepts) is one check. */
+export const EVENTS_DEBOUNCE_MS = 150;
+/** An open stream is written to this often when nothing changed, so a proxy or a browser does not close it for silence. */
+export const EVENTS_KEEPALIVE_MS = 25_000;
+/**
+ * Open streams at once; the next gets a 503. A browser allows six HTTP/1.1
+ * connections to one origin and every stream holds one for as long as it is
+ * open, so one tab uses one of its six and leaves the page five for its own
+ * fetches; the page closes its stream while its tab is hidden, which keeps the
+ * count at the tabs being read. Thirty-two is several browsers with several
+ * tabs each plus the odd `curl`, with room to spare, and still bounds what a
+ * client that opens streams in a loop can cost: a socket and a few bytes of
+ * writes each per change.
+ */
+export const EVENTS_MAX_STREAMS = 32;
+
+/** The route's intervals and cap. `startDashboard` takes any of them in `opts.live`, so tests run in milliseconds. */
+export interface LiveOptions {
+  floorMs: number;
+  debounceMs: number;
+  keepAliveMs: number;
+  maxStreams: number;
+}
+
+export const LIVE_DEFAULTS: Readonly<LiveOptions> = {
+  floorMs: EVENTS_FLOOR_MS,
+  debounceMs: EVENTS_DEBOUNCE_MS,
+  keepAliveMs: EVENTS_KEEPALIVE_MS,
+  maxStreams: EVENTS_MAX_STREAMS,
+};
+
+const EVENTS_PATH = '/api/events';
+
+interface Live {
+  /** Opens a stream on a GET. Throws, before anything is written, if the cursor cannot be read. */
+  connect(res: http.ServerResponse): void;
+  /** Checks for a change now. A no-op with no stream open. */
+  bump(): void;
+  /** Ends every stream and stops the watcher and its timers. Harmless twice. */
+  shutdown(): void;
+}
+
+/** A directory to watch, and which names in it (relative to it, when recursive) are worth a check. */
+interface WatchTarget {
+  dir: string;
+  recursive: boolean;
+  match: (name: string) => boolean;
+}
+
+/** One watcher and its streams, for one server: nothing runs until the first stream opens and nothing outlives the last. */
+function createLive(db: DB, opts: Partial<LiveOptions>): Live {
+  const { floorMs, debounceMs, keepAliveMs, maxStreams } = { ...LIVE_DEFAULTS, ...opts };
+  const streams = new Set<http.ServerResponse>();
+  /** The cursor the open streams have been sent last. */
+  let last = '';
+  let floor: NodeJS.Timeout | undefined;
+  let keepAlive: NodeJS.Timeout | undefined;
+  let debounce: NodeJS.Timeout | undefined;
+  const watchers: fs.FSWatcher[] = [];
+
+  const push = (res: http.ServerResponse, chunk: string): void => {
+    if (!res.write(chunk)) res.destroy();
+  };
+  const emit = (cursor: string): void => {
+    for (const res of streams) push(res, `event: cursor\ndata: ${cursor}\n\n`);
+  };
+
+  /**
+   * Reads the cursor; when it moved and someone is listening, refreshes the memo
+   * and tells them. Returns the cursor as read. Throws as `changeCursor` does.
+   */
+  const check = (): string => {
+    const cursor = changeCursor(db);
+    if (cursor === last) return cursor;
+    last = cursor;
+    if (streams.size > 0) {
+      try {
+        warmMemo(db);
+      } catch {
+        /* the fetch the event provokes builds it instead, and reports the error if it still fails */
+      }
+      emit(cursor);
+    }
+    return cursor;
+  };
+  /** A check from a timer, a file event or a write: nothing waits on it, so a failure (a busy or closed database) is only the next check's to retry. */
+  const run = (): void => {
+    try {
+      check();
+    } catch {
+      /* the next check asks again */
+    }
+  };
+
+  /** A file event: check once `debounceMs` after the last of a burst. */
+  const early = (): void => {
+    clearTimeout(debounce);
+    debounce = setTimeout(run, debounceMs).unref();
+  };
+
+  const targets = (): WatchTarget[] => {
+    const out: WatchTarget[] = [];
+    if (!db.memory) {
+      const file = path.resolve(db.name);
+      out.push({ dir: path.dirname(file), recursive: false, match: (name) => name === `${path.basename(file)}-wal` });
+    }
+    const config = globalConfigPath();
+    out.push(
+      { dir: path.dirname(config), recursive: false, match: (name) => name === path.basename(config) },
+      { dir: projectsDir(), recursive: true, match: (name) => path.basename(name) === 'config.json' },
+      { dir: artifactsDir(), recursive: true, match: () => true },
+    );
+    return out;
+  };
+  const watchFiles = (): void => {
+    for (const { dir, recursive, match } of targets()) {
+      try {
+        const watcher = fs.watch(dir, { persistent: false, recursive }, (_event, name) => {
+          if (name !== null && match(name)) early();
+        });
+        watcher.on('error', () => watcher.close());
+        watchers.push(watcher);
+      } catch {
+        /* optional: no such directory yet, or no recursive watch here. The floor covers it. */
+      }
+    }
+  };
+
+  const start = (): void => {
+    floor = setInterval(run, floorMs).unref();
+    keepAlive = setInterval(() => {
+      for (const res of streams) push(res, ': keep-alive\n\n');
+    }, keepAliveMs).unref();
+    watchFiles();
+  };
+  const stop = (): void => {
+    clearInterval(floor);
+    clearInterval(keepAlive);
+    clearTimeout(debounce);
+    for (const watcher of watchers.splice(0)) watcher.close();
+  };
+
+  return {
+    connect(res) {
+      if (streams.size >= maxStreams) return send(res, 503, 'text/plain', 'Too many open event streams.\n');
+      // Before anything is written, so a database that cannot be read is the
+      // route's ordinary 500. With streams already open, a change since the last
+      // check is sent to them first, so no stream is ever sent the same cursor twice.
+      const cursor = check();
+      res.writeHead(200, headersFor('text/event-stream; charset=utf-8'));
+      push(res, `event: cursor\ndata: ${cursor}\n\n`);
+      streams.add(res);
+      // A write to a dead socket can surface as an 'error' on the response; a
+      // stream that errors is a stream that is gone.
+      res.on('error', () => res.destroy());
+      res.on('close', () => {
+        if (streams.delete(res) && streams.size === 0) stop();
+      });
+      if (streams.size === 1) start();
+    },
+    bump() {
+      if (streams.size > 0) run();
+    },
+    shutdown() {
+      const open = [...streams];
+      streams.clear();
+      stop();
+      // A finished response is what lets `server.close` take its connection, kept alive or not: an
+      // idle one is closed at once, and without this the stream would hold the close open for ever.
+      for (const res of open) res.end();
+    },
+  };
+}
+
+/**
+ * `opts.live` overrides the event stream's intervals and cap (`LIVE_DEFAULTS`);
+ * only tests have a reason to. `close()` ends the open streams and resolves
+ * once the server has closed.
+ */
 export function startDashboard(
   db: DB,
-  opts: { port?: number; host?: string } = {},
-): Promise<{ url: string; close: () => void }> {
+  opts: { port?: number; host?: string; live?: Partial<LiveOptions> } = {},
+): Promise<{ url: string; close: () => Promise<void> }> {
   const host = opts.host ?? '127.0.0.1';
   const wanted = opts.port ?? dashboardPort();
   const assets = path.join(moduleDir, 'assets');
+  const live = createLive(db, opts.live ?? {});
 
   // Per server start. Every write must carry it (see `acceptWrite`).
   const token = randomBytes(24).toString('hex');
@@ -2006,6 +2238,9 @@ export function startDashboard(
       }
       const out = route.handler(db, body);
       json(res, out.status, out.body);
+      // Whatever the handler changed is told to the open streams now, not at the
+      // next check; the answer above is already on its way, so the writer does not wait for it.
+      live.bump();
     });
   };
 
@@ -2037,7 +2272,8 @@ export function startDashboard(
     if (write && req.method === 'POST') return acceptWrite(req, res, write);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return send(res, 405, 'text/plain', `This route is read-only. Writes: ${Object.keys(WRITES).join(', ')}.\n`, {
-        allow: write ? 'GET, HEAD, POST' : 'GET, HEAD',
+        // A stream has no HEAD: there is nothing to answer without opening one.
+        allow: write ? 'GET, HEAD, POST' : url.pathname === EVENTS_PATH ? 'GET' : 'GET, HEAD',
       });
     }
     try {
@@ -2046,6 +2282,9 @@ export function startDashboard(
       if (url.pathname === '/api/health') {
         return send(res, 200, 'application/json', JSON.stringify({ app: 'eklavya', version: ownVersion(), pid: process.pid, db: dbPath() }));
       }
+      // The cursor as a stream (`createLive`). A GET only: a HEAD has no stream to
+      // open and falls through to the 404 it always had.
+      if (url.pathname === EVENTS_PATH && req.method === 'GET') return live.connect(res);
       // The reads below are served from the per-cursor memo (`memoFor`): the cursor
       // is asked for first, and a build runs only when it moved or a minute passed.
       // Not memoized, on purpose: `/api/cursor`, which must always say what the
@@ -2210,9 +2449,13 @@ export function startDashboard(
       warming.unref();
       resolve({
         url: `http://${host}:${port}`,
+        // Ends every open stream first: `server.close` waits for every connection,
+        // and an event stream never ends by itself. Resolves once the server has
+        // closed; calling it again is harmless and resolves too.
         close: () => {
           clearImmediate(warming);
-          server.close();
+          live.shutdown();
+          return new Promise<void>((done) => server.close(() => done()));
         },
       });
     });
