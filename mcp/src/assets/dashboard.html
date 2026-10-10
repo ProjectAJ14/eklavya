@@ -4971,7 +4971,10 @@ function render(opts) {
   for (const fn of AFTER) fn();
   TIP.sync();
 
-  if (!adjusting) window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  // A new screen opens at its top, at once. `html` asks for smooth scrolling (for in-page jumps), and a scroll that
+  // does not name its behavior follows it, so a reader coming from the bottom of a long page would see the new
+  // one glide up for half a second, while its content is already being drawn.
+  if (!adjusting) window.scrollTo({ top: 0, behavior: 'instant' });
   // Which URL the screen was last drawn for. The tests wait on it rather than on
   // a timer, and it costs nothing to leave in.
   document.documentElement.dataset.rendered = location.hash;

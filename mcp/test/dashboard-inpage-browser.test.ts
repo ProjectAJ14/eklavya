@@ -537,6 +537,44 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     }, 60000);
 
+    it('puts a new page at the top at once: it is never seen gliding up from where the reader was', async () => {
+      // The page asks for smooth scrolling (`html { scroll-behavior: smooth }`) for in-page jumps, so a scroll to the
+      // top that does not say "instant" glides for half a second. `probeTransition` waits for a scroll to stop
+      // and reports where it ended, so it cannot tell a jump from a glide; this samples every frame instead.
+      const w = await open('#/learning/concepts', { height: HEIGHT });
+      const { page } = w;
+      expect(await scrollDown(page, 1e6), 'the catalogue is long enough for a glide to be seen').toBeGreaterThan(1000);
+      // A first visit to the timeline holds the room its rows will take (the box), so the page stays tall for as
+      // long as the answer is out, which is what a glide needs. Holding the answer makes that last, not a race.
+      let release = () => {};
+      const held = new Promise<void>((r) => { release = r; });
+      await page.route('**/api/memory?*', async (route) => { await held; await route.continue(); });
+      const seen = await page.evaluate((to) => new Promise<{ room: number; samples: number[] }>((resolve) => {
+        const samples: number[] = [];
+        let first = 0;
+        let room = 0;
+        const tick = (now: number) => {
+          // Only once the screen is drawn for the URL: the scroll is the draw's.
+          if (document.documentElement.dataset.rendered === to) {
+            if (!first) { first = now; room = document.documentElement.scrollHeight - innerHeight; }
+            samples.push(window.scrollY);
+            if (now - first >= 300) return resolve({ room, samples });
+          }
+          requestAnimationFrame(tick);
+        };
+        location.hash = to;
+        requestAnimationFrame(tick);
+      }), '#/memory/timeline');
+      expect(seen.room, 'the page was still tall while the timeline was out').toBeGreaterThan(1000);
+      expect(seen.samples.length, 'frames were sampled').toBeGreaterThan(5);
+      expect(Math.max(...seen.samples), `scrollY, frame by frame, after the screen drew: ${seen.samples.join(' ')}`).toBe(0);
+      release();
+      await ready(page);
+      await page.unroute('**/api/memory?*');
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+      await w.ctx.close();
+    }, 30000);
+
     it('redraws a page with no regions in place, without scrolling, when the ground changes', async () => {
       const w = await open('#/learning/dashboard', { height: HEIGHT });
       const { page } = w;
