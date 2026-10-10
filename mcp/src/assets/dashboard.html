@@ -434,6 +434,8 @@
              margin-bottom:var(--space-4); }
   .filters .grow { flex:1 1 220px; min-width:180px; }
   .filters select { width:auto; }
+  /* The controls beside a search box are a region of their own (a redraw replaces them, never the box the reader is typing in); it adds no box. */
+  .filters > [data-region] { display:contents; }
   .chips { display:flex; gap:var(--space-2); flex-wrap:wrap; }
   .chip { font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em; text-transform:uppercase;
           background:none; border:1px solid var(--line-2); color:var(--faint); padding:5px 10px;
@@ -1038,7 +1040,13 @@ const fromKey = (k) => new Date(k + 'T00:00:00Z');
 const localKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const todayKey = () => localKey(new Date());
 
-const fmtDay = (k) => fromKey(k).toLocaleDateString(undefined, { month:'short', day:'numeric', timeZone:'UTC' });
+/* One formatter per shape, made once. `toLocaleDateString(undefined, options)` builds a new Intl formatter on
+   every call, and the heatmap's 371 labels alone were about 20 ms of drawing the Learning dashboard; the same
+   options give the same text from `format()`. UTC, because a day key is a calendar date, not an instant. */
+const FMT_DAY = new Intl.DateTimeFormat(undefined, { month:'short', day:'numeric', timeZone:'UTC' });
+const FMT_DAY_YEAR = new Intl.DateTimeFormat(undefined, { month:'short', day:'numeric', year:'numeric', timeZone:'UTC' });
+const FMT_MONTH = new Intl.DateTimeFormat(undefined, { month:'short', timeZone:'UTC' });
+const fmtDay = (k) => FMT_DAY.format(fromKey(k));
 const fmtDate = (ts) => {
   const d = parse(ts); if (!d) return '—';
   const sameYear = d.getFullYear() === new Date().getFullYear();
@@ -1119,31 +1127,72 @@ const inScope = (raw, sid) => PROJECT === null || pid(raw, sid) === PROJECT;
 const projectById = (id) => INV.projects.find((p) => p.id === id) ?? null;
 const pname = (raw, sid) => { const id = pid(raw, sid); return projectById(id)?.name ?? base(id); };
 
+/**
+ * The one place the page's data is swapped: boot, and the arrival of new data (Phase 4 calls it for a live
+ * update). It sets `S` and `INV`, recomputes the scope (which drops every derived list, below), and drops what was
+ * read under the old data (`invalidateData`: the settings read and the response cache). Nothing else assigns `S`
+ * or `INV` after boot, which is what lets the derived lists be kept. Redrawing the screen is the caller's.
+ */
+function adoptState(s, inv) {
+  S = s;
+  INV = inv;
+  recomputeScope();
+  invalidateData();
+}
+
+/** Called wherever `S`, `INV` or `PROJECT` has just been assigned: `adoptState`, and a change of project. */
 function recomputeScope() {
+  dropDerived();
   if (PROJECT === null) { SCOPE = null; return; }
   SCOPE = new Set();
   for (const a of S.attempts) if (inScope(a.repo, a.session_id)) SCOPE.add(a.slug);
   for (const l of S.logged) if (inScope(l.repo, l.session_id)) SCOPE.add(l.slug);
 }
-const conceptsInScope = () => (SCOPE ? S.concepts.filter((c) => SCOPE.has(c.slug)) : S.concepts);
-const seenConcepts = () => conceptsInScope().filter((c) => c.seen);
-const attemptsInScope = () => S.attempts.filter((a) => inScope(a.repo, a.session_id));
-const loggedInScope = () => S.logged.filter((l) => inScope(l.repo, l.session_id));
+
+/* ---------- derived lists, kept ----------
+   What the views read of the payload (the concepts in scope, the sessions, the daily buckets, the streak, the
+   heatmap's days, the sidebar's counts) is a function of `S`, `INV`, `PROJECT` and the local day, which the streak
+   and the heatmap are read against, and of nothing else. So each is built once and kept: a navigation, a pager, a
+   keystroke and a resize read it again instead of rebuilding it from every row.
+
+   They are dropped in one place, `dropDerived()`, from `recomputeScope()`, which runs whenever `S`/`INV` are swapped
+   (`adoptState`) and whenever the project changes: the only places any of the three is assigned. The day is
+   checked on every read, so a page left open past midnight reads the new day's streak, not yesterday's.
+
+   The lists are frozen. A caller that sorted or pushed onto one would change what every other view reads, so it
+   throws instead: copy first (`[...list].sort(...)`). The rows inside them are the payload's own and are never
+   written to. The one Map (`dailyInScope`) and the sets in a streak are read-only by the same rule. */
+let DERIVED = new Map();
+let DERIVED_DAY = '';
+function derived(name, build) {
+  const day = todayKey();
+  if (day !== DERIVED_DAY) { DERIVED = new Map(); DERIVED_DAY = day; }
+  if (!DERIVED.has(name)) DERIVED.set(name, build());
+  return DERIVED.get(name);
+}
+const dropDerived = () => { DERIVED = new Map(); };
+
+const conceptsInScope = () => derived('concepts', () => Object.freeze(SCOPE ? S.concepts.filter((c) => SCOPE.has(c.slug)) : [...S.concepts]));
+const seenConcepts = () => derived('seen', () => Object.freeze(conceptsInScope().filter((c) => c.seen)));
+const attemptsInScope = () => derived('attempts', () => Object.freeze(S.attempts.filter((a) => inScope(a.repo, a.session_id))));
+const loggedInScope = () => derived('logged', () => Object.freeze(S.logged.filter((l) => inScope(l.repo, l.session_id))));
 const scopeName = () => (PROJECT === null ? 'all projects' : projectById(PROJECT)?.name ?? PROJECT);
 /** Inventory rows in scope — one, or all of them. */
 const projectsInScope = () => INV.projects.filter((p) => PROJECT === null || p.id === PROJECT);
 
-/** One row per calendar day in scope: { day, passed, corrected, missed, skipped, total }. */
+/** One row per calendar day in scope: { day, passed, corrected, missed, skipped, total }. Read-only. */
 function dailyInScope() {
-  const m = new Map();
-  for (const d of S.daily) {
-    if (!inScope(d.repo)) continue;
-    const cur = m.get(d.day) ?? { day:d.day, passed:0, corrected:0, missed:0, skipped:0, total:0 };
-    cur.passed += d.passed; cur.corrected += d.corrected ?? 0; cur.missed += d.missed; cur.skipped += d.skipped;
-    cur.total = cur.passed + cur.corrected + cur.missed + cur.skipped;
-    m.set(d.day, cur);
-  }
-  return m;
+  return derived('daily', () => {
+    const m = new Map();
+    for (const d of S.daily) {
+      if (!inScope(d.repo)) continue;
+      const cur = m.get(d.day) ?? { day:d.day, passed:0, corrected:0, missed:0, skipped:0, total:0 };
+      cur.passed += d.passed; cur.corrected += d.corrected ?? 0; cur.missed += d.missed; cur.skipped += d.skipped;
+      cur.total = cur.passed + cur.corrected + cur.missed + cur.skipped;
+      m.set(d.day, cur);
+    }
+    return m;
+  });
 }
 
 /** Fills every day in a window, including the empty ones — the gaps are data. */
@@ -1159,8 +1208,15 @@ function fillDays(map, n, endKey) {
   return out;
 }
 
-/** Consecutive days with at least one answer, counting back from today. */
+/** The 30 days ending today, in scope, empty ones included: the activity chart's days. */
+const lastThirty = () => derived('last30', () => Object.freeze(fillDays(dailyInScope(), 30)));
+
+/**
+ * Consecutive days with at least one answer, counting back from today. With no argument it is the streak in scope
+ * (`dailyInScope`), which is kept; given a map of days it is a plain reading of that map.
+ */
 function streaks(map) {
+  if (!map) return derived('streaks', () => streaks(dailyInScope()));
   const active = new Set([...map.values()].filter((d) => d.total > 0).map((d) => d.day));
   const run = new Set();
   const cur = fromKey(todayKey());
@@ -1174,11 +1230,15 @@ function streaks(map) {
     best = Math.max(best, len);
     prev = k;
   }
-  return { current: run.size, best, days: active.size, run, today };
+  return Object.freeze({ current: run.size, best, days: active.size, run, today });
 }
 
-/** Sessions, rebuilt from the two row sets that mention a session id. */
-function sessions() {
+/** Sessions in scope, from the two row sets that mention a session id, newest first. */
+const sessions = () => derived('sessions', () => Object.freeze(buildSessions()));
+/** Learning's sessions: the ones that logged a concept or asked a question. A memory-only one belongs to the other workflow. */
+const learningSessions = () => derived('learning-sessions', () => Object.freeze(sessions().filter((x) => x.logged.length || x.asked.length)));
+
+function buildSessions() {
   const m = new Map();
   const get = (id) => {
     if (!m.has(id)) m.set(id, { id, repo:null, logged:[], asked:[], mem:null, first:null, last:null });
@@ -1279,7 +1339,7 @@ function card(title, hint, body, opts = {}) {
  * Its contents are the answer when the page holds it, and otherwise the box that reserves its room,
  * which a redraw never puts over rows that are on screen: they stay, dimmed, until the new ones arrive.
  */
-const region = (id, html) => `<div data-region="${id}">${html}</div>`;
+const region = (id, html, attrs = '') => `<div data-region="${id}"${attrs ? ' ' + attrs : ''}>${html}</div>`;
 
 /* ---------- progressive disclosure ---------- */
 
@@ -1545,7 +1605,42 @@ const heatFill = (s) => `color-mix(in srgb, var(--spot) ${HEAT_STEP[s]}%, var(--
 let HEAT_OFF = 0;                                  // weeks paged back; a view position, reset by render()
 const HEAT_ARROWS = 64;                            // the two arrow buttons beside the grid
 
-function chartHeatmap(el, map, run = new Set()) {
+/**
+ * The heatmap's days, bucketed once per (S, PROJECT, day) and kept (`derived`): a day's count, its tooltip (said
+ * with the date, but not whether it is in the current streak, which the drawing adds) and, for a week's first
+ * day, its month, which is set when a column first needs it. A visit, a resize and a ‹ › page all draw some window
+ * of the same year, so each draws from these instead of bucketing and formatting the dates again; only the SVG for
+ * the visible window is built. Cells are made as days are asked for, so the 53 weeks the payload carries, and the
+ * weeks paged back past them, are each made once.
+ */
+function heatCell(grid, k) {
+  let c = grid.cells.get(k);
+  if (c) return c;
+  const d = grid.daily.get(k);
+  const total = d ? d.total : 0;
+  const date = fromKey(k);
+  const label = (date.getUTCFullYear() === grid.year ? FMT_DAY : FMT_DAY_YEAR).format(date);
+  const right = d ? d.passed + d.corrected : 0;
+  c = { day: k, total, future: k > grid.today, month: null,
+        tip: esc(`${label} — ${total ? `${plural(total, 'answer')} (${right} right)` : 'nothing'}`) };
+  grid.cells.set(k, c);
+  return c;
+}
+
+/** `n` days ending at `endKey`, as heat cells: `fillDays` for the heatmap. */
+function heatDays(n, endKey) {
+  const grid = derived('heat', () => ({ year: fromKey(todayKey()).getUTCFullYear(), today: todayKey(), daily: dailyInScope(), cells: new Map() }));
+  const out = [];
+  const cur = new Date(fromKey(endKey).getTime() - (n - 1) * DAY_MS);
+  for (let i = 0; i < n; i++) {
+    out.push(heatCell(grid, dayKey(cur)));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function chartHeatmap(el) {
+  const run = streaks().run;
   const CELL = 13, GAP = 3, PAD_T = 18, PAD_L = 26;
   // The window is chosen from the width rather than the width from the window:
   // a wide card shows a year, a phone shows a quarter, and the cell stays the
@@ -1560,18 +1655,15 @@ function chartHeatmap(el, map, run = new Set()) {
   const end = new Date(today);
   end.setUTCDate(end.getUTCDate() + (6 - end.getUTCDay()) - HEAT_OFF * 7);   // to the end of this week, paged back
   const total = weeks * 7;
-  const days = fillDays(map, total, dayKey(end));
+  const days = heatDays(total, dayKey(end));
   const max = Math.max(...days.map((d) => d.total), 1);
-  const year = today.getUTCFullYear();
-  const label = (k) => fromKey(k).toLocaleDateString(undefined,
-    { month:'short', day:'numeric', year: fromKey(k).getUTCFullYear() === year ? undefined : 'numeric', timeZone:'UTC' });
 
   let out = '', lastMonth = '', lastCol = -9;
   days.forEach((d, i) => {
     const col = Math.floor(i / 7), row = i % 7;
     const x = PAD_L + col * (CELL + GAP), y = PAD_T + row * (CELL + GAP);
     if (row === 0) {
-      const m = fromKey(d.day).toLocaleDateString(undefined, { month:'short', timeZone:'UTC' });
+      const m = d.month ??= FMT_MONTH.format(fromKey(d.day));
       // Not in the last two columns: a month label starting there runs off the
       // right edge of the card. Nor within three columns of the previous label, which it would overprint.
       if (m !== lastMonth) {
@@ -1580,12 +1672,11 @@ function chartHeatmap(el, map, run = new Set()) {
       }
     }
     const step = d.total ? Math.min(4, Math.ceil((4 * d.total) / max)) : 0;
-    const fill = step ? heatFill(step) : d.day > todayKey() ? 'transparent' : 'var(--mass)';
+    const fill = step ? heatFill(step) : d.future ? 'transparent' : 'var(--mass)';
     // The current run is outlined inside its own cell, so neighbours never touch.
     const on = run.has(d.day), inset = on ? 0.75 : 0;
-    const title = `${label(d.day)} — ${d.total ? `${plural(d.total, 'answer')} (${d.passed + d.corrected} right)` : 'nothing'}${on ? ' · current streak' : ''}`;
     out += `<rect class="cell${on ? ' is-run' : ''}" data-step="${step}" x="${x + inset}" y="${y + inset}" width="${CELL - 2 * inset}" height="${CELL - 2 * inset}" fill="${fill}">`
-         + `<title>${esc(title)}</title></rect>`;
+         + `<title>${d.tip}${on ? ' · current streak' : ''}</title></rect>`;
   });
   ['Mon', 'Wed', 'Fri'].forEach((label, n) => {
     const row = [1, 3, 5][n];
@@ -1608,8 +1699,8 @@ function chartHeatmap(el, map, run = new Set()) {
 }
 
 /** The streak, up front: the run, the longest, and the calendar it is counted from. */
-function streakCard(daily, st) {
-  chart('c-heat', (el) => chartHeatmap(el, daily, st.run));
+function streakCard(st) {
+  chart('c-heat', chartHeatmap);
   const sub = st.current && !st.today ? `Answer one today to make it ${st.current + 1}.`
     : !st.current && st.best ? `Your longest was ${plural(st.best, 'day')}.`
     : !st.best ? 'Answer one question to start one.' : '';
@@ -1966,8 +2057,7 @@ function savingsText(s, receipts) {
    ============================================================ */
 
 function viewLearningDashboard() {
-  const daily = dailyInScope();
-  const st = streaks(daily);
+  const st = streaks();
   const seen = seenConcepts();
   const scoped = conceptsInScope();
   const atts = attemptsInScope();
@@ -1977,8 +2067,8 @@ function viewLearningDashboard() {
   const due = seen.filter((c) => c.due);
   const mastered = seen.filter((c) => c.mastered);
   // Learning's sessions; a memory-only one belongs to the other workflow.
-  const sess = sessions().filter((x) => x.logged.length || x.asked.length);
-  const last30 = fillDays(daily, 30);
+  const sess = learningSessions();
+  const last30 = lastThirty();
 
   const weakest = seen.filter((c) => !c.mastered).sort((a, b) => a.score - b.score || b.attempts - a.attempts).slice(0, 5);
 
@@ -2023,7 +2113,7 @@ function viewLearningDashboard() {
 
     next,
 
-    streakCard(daily, st),
+    streakCard(st),
 
     card('Answers, last 30 days', null,
       `<div class="legend">
@@ -2120,25 +2210,24 @@ function viewConcepts(param) {
     pageHead('Concepts', [plural(all.length, 'concept'), `${counts.all - counts.unseen} asked`, `${counts.mastered} mastered`],
       `Everything in your graph — what you have been asked, and what is still just catalogue. Open a concept
        for every question you were given on it and the code that logged it.`),
-    card(null, null, region('concepts',
+    // The search box is outside every region, so a keystroke replaces the list and leaves the box, the selects and the chips alone.
+    card(null, null,
       `<div class="filters">
          <div class="grow"><input type="search" id="q" value="${esc(t.q)}" placeholder="Search concepts" aria-label="Search concepts"></div>
-         <select id="dom" aria-label="Domain">
+         ${region('concepts-selects', `<select id="dom" aria-label="Domain">
            <option value="all">All domains</option>
            ${domains.map((d) => `<option value="${esc(d)}"${t.domain === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}
          </select>
          <select id="sort" aria-label="Sort">
            ${[['weakest','Weakest first'],['strongest','Strongest first'],['recent','Recently seen'],['asked','Most asked'],['tier','By tier'],['name','A–Z']]
              .map(([v, l]) => `<option value="${v}"${t.sort === v ? ' selected' : ''}>${l}</option>`).join('')}
-         </select>
+         </select>`)}
        </div>
-       <div class="chips" id="chips">
-         ${chip('all','All')}${chip('due','Due')}${chip('learning','Learning')}${chip('mastered','Mastered')}${chip('unseen','Not asked')}
-       </div>
-       <div style="margin-top:var(--space-4)">
-         ${table([{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'}], rows)}
-         ${pager('concepts', list.length, p)}
-       </div>`)),
+       ${region('concepts-chips',
+         `${chip('all','All')}${chip('due','Due')}${chip('learning','Learning')}${chip('mastered','Mastered')}${chip('unseen','Not asked')}`,
+         'class="chips" id="chips"')}
+       ${region('concepts', `${table([{t:'Concept'},{t:'Score'},{t:'Asked',n:1},{t:'State'}], rows)}${pager('concepts', list.length, p)}`,
+         'style="margin-top:var(--space-4)"')}`),
   ].join('');
 }
 
@@ -2276,9 +2365,8 @@ function viewSessions() {
   // Learning's sessions: the ones that logged a concept or asked a question.
   // A session that only captured memory is the Memory workflow's, and is
   // counted here so it is never silently missing.
-  const every = sessions();
-  const all = every.filter((s) => s.logged.length || s.asked.length);
-  const memOnly = every.length - all.length;
+  const all = learningSessions();
+  const memOnly = sessions().length - all.length;
   const p = page('sessions', all.length);
   const rows = slice(all, p).map((s) => {
     const acc = s.asked.length ? pct(s.passed, s.asked.length) : null;
@@ -2402,7 +2490,6 @@ function viewProjects() {
   const inv = projectsInScope();
   const list = inv.filter((p) => p.learning.answers || p.learning.logged_concepts);
   const other = inv.filter((p) => !p.learning.answers && !p.learning.logged_concepts);
-  const daily = dailyInScope();
 
   // One fold per project. Its summary line is the standing — level, accuracy,
   // answers, last active — and it opens to the runway and thirty days of work.
@@ -2466,7 +2553,7 @@ function viewProjects() {
   return [
     pageHead('Projects', [
       plural(list.length, 'project'), `${assessed.length} assessed`,
-      plural(list.reduce((a, p) => a + p.learning.answers, 0), 'answer'), plural(streaks(daily).days, 'active day'),
+      plural(list.reduce((a, p) => a + p.learning.answers, 0), 'answer'), plural(streaks().days, 'active day'),
     ], `Difficulty is earned per codebase, not per person: the same developer is a different learner on their
        fourth Node service and their first Rust one. Everyone starts at easy (tiers 1–2) and climbs on
        evidence — a promotion needs passing answers <em>and</em> accuracy <em>and</em> distinct concepts. A
@@ -2700,9 +2787,9 @@ function viewMemory(param) {
        you see is the audit trail and not a tidied version of it.`),
 
     `<div>
-       <div class="filters" data-region="timeline-filters">
+       <div class="filters">
          <div class="grow"><input type="search" id="mq" value="${esc(t.q)}" placeholder="Search memory" aria-label="Search memory"></div>
-         <select id="mtype" aria-label="Type">${typeOpts}</select>
+         ${region('timeline-filters', `<select id="mtype" aria-label="Type">${typeOpts}</select>
          <select id="mtag" aria-label="Tag">
            <option value="all">All tags</option>
            ${(M.tags ?? []).map((x) => opt(x.tag, `${x.tag} (${x.n})`, t.tag === x.tag)).join('')}
@@ -2713,7 +2800,7 @@ function viewMemory(param) {
            ${opt('custom', 'Custom range', when === 'custom')}
          </select>
          ${when === 'custom' ? `<input type="date" id="mfrom" value="${esc(t.since)}" aria-label="From date">
-         <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">` : ''}
+         <input type="date" id="mto" value="${esc(t.until)}" aria-label="To date">` : ''}`)}
        </div>
        ${rows}
      </div>`,
@@ -3047,7 +3134,7 @@ function viewHealth() {
    question carries the correction bar there.
    ============================================================ */
 const ARTIFACT_KINDS = ['all', 'explainer', 'artifact', 'to-correct'];
-const artifactsInScope = () => (S.artifacts ?? []).filter((a) => inScope(a.project));
+const artifactsInScope = () => derived('artifacts', () => Object.freeze((S.artifacts ?? []).filter((a) => inScope(a.project))));
 const artifactUrl = (a) => '/artifacts/' + a.id.split('/').map(encodeURIComponent).join('/');
 
 // The thumbnail's URL names the ground, and the size busts its cache when a page is rewritten.
@@ -3118,12 +3205,13 @@ function viewArtifacts(param) {
       ['Explainers', counts.explainer, 'one concept each', '', AH('dashboard', 'explainer')],
       toCorrectTile(),
     ]),
-    card(null, null, region('artifacts',
+    // The search box is outside every region: a keystroke replaces the gallery and leaves the box and the chips alone.
+    card(null, null,
       `<div class="filters">
          <div class="grow"><input type="search" id="aq" value="${esc(t.q)}" placeholder="Search artifacts" aria-label="Search artifacts"></div>
        </div>
-       <div class="chips">${chip('all','All')}${chip('explainer','Explainers')}${chip('to-correct','To correct')}${chip('artifact','Other pages')}</div>
-       <div style="margin-top:var(--space-4)">${body}</div>`)),
+       ${region('artifacts-chips', `${chip('all','All')}${chip('explainer','Explainers')}${chip('to-correct','To correct')}${chip('artifact','Other pages')}`, 'class="chips"')}
+       ${region('artifacts', body, 'style="margin-top:var(--space-4)"')}`),
   ].join('');
 }
 
@@ -4386,15 +4474,15 @@ function writeCollapsed(wf, set) {
   try { localStorage.setItem(collapseKey(wf), JSON.stringify([...set])); } catch (e) {}
 }
 
-function navCounts(wf) {
+/** The numbers in the sidebar's badges, per workflow: a few lengths of lists kept for the scope (`derived`). */
+const navCounts = (wf) => derived('nav:' + wf, () => {
   const inv = projectsInScope();
   const sum = (f) => inv.reduce((a, p) => a + f(p), 0);
   if (wf === 'learning') {
-    const seen = seenConcepts();
     return {
       concepts: conceptsInScope().length,
-      review: seen.filter((c) => c.due).length,
-      sessions: sessions().filter((s) => s.logged.length || s.asked.length).length,
+      review: seenConcepts().filter((c) => c.due).length,
+      sessions: learningSessions().length,
       projects: inv.filter((p) => p.learning.answers || p.learning.logged_concepts).length,
       domains: new Set(conceptsInScope().map((c) => c.domain)).size,
     };
@@ -4410,16 +4498,35 @@ function navCounts(wf) {
     projects: inv.filter((p) => p.memory.events || p.memory.entries).length,
     reuse: sum((p) => p.memory.receipts),
   };
+});
+
+/**
+ * The collapsed group ids for `wf` as a navigation to `active` finds them. A direct link into a collapsed
+ * group opens it: the reader has to be able to see where they are. A collapse they make afterwards still takes effect.
+ */
+function collapsedFor(wf, active) {
+  const collapsed = readCollapsed(wf);
+  const home = WORKFLOWS[wf].groups.find((g) => g.items.includes(active));
+  if (home && collapsed.has(home.id)) { collapsed.delete(home.id); writeCollapsed(wf, collapsed); }
+  return collapsed;
 }
 
+/**
+ * The sidebar for a navigation. It is built when the workflow changes (the first draw, and a switch to the
+ * other workflow: another set of groups, links and icons) and kept otherwise: another page of the same workflow, a
+ * project switch and a pager keep the elements, and `syncNav` brings the links, the current page, the counts and what
+ * is collapsed in line in place. So a focused link stays focused and nothing in the rail is torn down to change one number.
+ */
 function renderNav(wf, active) {
+  const nav = $('nav');
+  if (nav.dataset.workflow === wf) {
+    syncNav(wf, active);
+    syncCollapsed(collapsedFor(wf, active));
+    return;
+  }
   const W = WORKFLOWS[wf];
   const counts = navCounts(wf);
-  const collapsed = readCollapsed(wf);
-  // A direct link into a collapsed group opens it: the reader has to be able to
-  // see where they are. A collapse they make afterwards still takes effect.
-  const home = W.groups.find((g) => g.items.includes(active));
-  if (home && collapsed.has(home.id)) { collapsed.delete(home.id); writeCollapsed(wf, collapsed); }
+  const collapsed = collapsedFor(wf, active);
 
   const item = (key) => {
     const pg = W.pages[key];
@@ -4428,8 +4535,8 @@ function renderNav(wf, active) {
       ${svg(ICONS[key] ?? ICONS.dashboard)}${esc(pg.label)}${n !== undefined ? `<i class="${key === 'review' && n ? 'hot' : ''}">${n}</i>` : ''}
     </a>`;
   };
-  $('nav').setAttribute('aria-label', `${W.name} sections`);
-  $('nav').innerHTML = `<div>${item('dashboard')}</div>` + W.groups.map((g) => {
+  nav.setAttribute('aria-label', `${W.name} sections`);
+  nav.innerHTML = `<div>${item('dashboard')}</div>` + W.groups.map((g) => {
     const open = !collapsed.has(g.id);
     const id = `grp-${wf}-${g.id}`;
     return `<div class="nav__group">
@@ -4439,21 +4546,34 @@ function renderNav(wf, active) {
       <div class="nav__items" id="${id}" role="group" aria-label="${esc(g.label)}"${open ? '' : ' hidden'}>${g.items.map(item).join('')}</div>
     </div>`;
   }).join('');
+  nav.dataset.workflow = wf;
 }
 
 /**
- * An adjustment's share of `renderNav`: the workflow, its groups and what is collapsed have
- * not changed, so the sidebar keeps its elements and only the current page and the counts are
- * brought in line.
+ * The sidebar's links, current page and counts, brought in line with the screen in place: the elements stay. The links
+ * are written too, because they carry the project scope (`href`), which a navigation may have changed. An adjustment
+ * (a tab, a chip, a keystroke) calls only this; a navigation also applies what is collapsed (`syncCollapsed`).
  */
 function syncNav(wf, active) {
   const counts = navCounts(wf);
   for (const a of $('nav').querySelectorAll('a[data-nav]')) {
     const key = a.dataset.nav;
+    const to = href(wf, key);
+    if (a.getAttribute('href') !== to) a.setAttribute('href', to);
     if (key === active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     const n = counts[key];
     const badge = a.querySelector('i');
     if (badge && n !== undefined) { badge.textContent = n; badge.className = key === 'review' && n ? 'hot' : ''; }
+  }
+}
+
+/** Opens and closes the rail's groups to match `collapsed`: a group the link in front of the reader sits in opens, and a collapse made in another tab applies. */
+function syncCollapsed(collapsed) {
+  for (const tog of $('nav').querySelectorAll('[data-group]')) {
+    const open = !collapsed.has(tog.dataset.group);
+    if ((tog.getAttribute('aria-expanded') === 'true') === open) continue;
+    tog.setAttribute('aria-expanded', String(open));
+    $(tog.getAttribute('aria-controls')).hidden = !open;
   }
 }
 
@@ -4480,7 +4600,11 @@ function renderShell() {
     $(id).setAttribute('aria-label', `Eklavya, ${W.name} dashboard`);
   }
   $('wf-main').setAttribute('href', home);
-  $('wf-main').innerHTML = `${svg(ICONS[CUR.wf])}<span>${esc(W.name)}</span>`;
+  // The workflow control's content is the workflow's alone: written when it changes, so its elements stay across pages.
+  if ($('wf-main').dataset.workflow !== CUR.wf) {
+    $('wf-main').innerHTML = `${svg(ICONS[CUR.wf])}<span>${esc(W.name)}</span>`;
+    $('wf-main').dataset.workflow = CUR.wf;
+  }
   $('wf-main').setAttribute('aria-label', `${W.name} dashboard`);
   $('topbar-wf').textContent = W.name;
   syncBadge();
@@ -4913,8 +5037,8 @@ function syncFromUrl() {
  * the reader is doing.
  *
  * A **navigation** is a different screen: another page, another workflow, another project,
- * another concept or entry. It rebuilds the shell and the sidebar, replaces the view and
- * scrolls to the top.
+ * another concept or entry. It brings the shell and the sidebar in line (the sidebar is built only when the
+ * workflow changes, and updated in place otherwise: `renderNav`), replaces the view and scrolls to the top.
  *
  * An **adjustment** changes the screen the reader is on: a tab, a chip, a select, a date
  * range, a pager, a search keystroke, a resize, the ground. The URL still changes where it
@@ -5006,10 +5130,11 @@ function isAdjustment(pg) {
 /**
  * The regions of a screen's markup and what is left once they are emptied; no skeleton when it has none, or two
  * could not be told apart. `regions` is each one's markup as the view drew it, and what a swap draws. `settled`
- * is the same markup with every fold's open state taken out, and what is compared: whether a fold is open is the
- * reader's (`FOLD` holds it, and the page already shows it), so opening or closing one is no change to the
- * screen. Without that, the first adjustment after a toggle would see a different skeleton, or a different
- * region, and replace what the reader was looking at.
+ * is the same markup with every fold's open state and every search box's text taken out, and what is compared:
+ * whether a fold is open is the reader's (`FOLD` holds it, and the page already shows it), so opening or closing
+ * one is no change to the screen, and neither is typing in a search box (`T` holds the text, and so does the box).
+ * Without that, the first adjustment after a toggle, or every keystroke, would see a different skeleton, or a
+ * different region, and replace what the reader was looking at.
  */
 function scanRegions(html) {
   const none = { skeleton: null, regions: new Map(), settled: new Map() };
@@ -5023,6 +5148,9 @@ function scanRegions(html) {
     regions.set(el.dataset.region, el.innerHTML);
   }
   for (const d of t.content.querySelectorAll('details[data-fold]')) d.removeAttribute('open');
+  // The text in a search box is the reader's too: it is what was typed, and the box on the page already holds it.
+  // Without this, every keystroke would make the screen look changed and the whole view would be replaced under the caret.
+  for (const i of t.content.querySelectorAll('input[type="search"]')) i.removeAttribute('value');
   const settled = new Map(found.map((el) => [el.dataset.region, el.innerHTML]));
   for (const el of found) el.replaceChildren();
   return { skeleton: t.innerHTML, regions, settled };
@@ -5203,8 +5331,7 @@ function onActivate(e) {
   if (arr) {
     if (arr.disabled) return;
     HEAT_OFF = Math.max(0, HEAT_OFF + (arr.id === 'heat-prev' ? 1 : -1) * +arr.dataset.weeks);
-    const st = streaks(dailyInScope());
-    return chartHeatmap($('c-heat'), dailyInScope(), st.run);
+    return chartHeatmap($('c-heat'));
   }
   const pg = e.target.closest('[data-page]');
   if (pg && !pg.disabled) { T[pg.dataset.pager].page = +pg.dataset.page; render(); return; }
@@ -5373,8 +5500,7 @@ const json = (url) => fetch(url).then((r) => {
 });
 
 Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
-  S = s;
-  INV = inv;
+  adoptState(s, inv);
   $('dbline').textContent = s.db_path;
   // Totals are aggregated in SQL over the whole table, so a cap can only
   // shorten a history list — but say so rather than let it look complete.

@@ -8,6 +8,7 @@ import { OPTS, base, browser, enc, fx, home, open, projValue, ready } from './da
 declare function todayKey(): string;
 declare function fromKey(k: string): Date;
 declare function render(): void;
+declare function adoptState(s: unknown, inv: unknown): void;
 declare let S: { daily: unknown[]; concepts: unknown[]; logged: { slug: string }[] };
 declare function inScope(repo: unknown, sid: unknown): boolean;
 declare let INV: { projects: unknown[] };
@@ -26,10 +27,12 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
   });
 
   describe('the streak card', () => {
-    /** Replaces the payload's days with `[daysAgo, passed, corrected, missed]` rows and redraws. */
+    /** Replaces the payload's days with `[daysAgo, passed, corrected, missed]` rows and redraws. New data reaches the page through `adoptState`. */
     const days = (page: Page, rows: number[][]) => page.evaluate((rows) => {
       const key = (n: number) => { const d = fromKey(todayKey()); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
-      S.daily = rows.map(([n, passed, corrected, missed]) => ({ day: key(n!), repo: null, passed, corrected, missed, skipped: 0 }));
+      const s = structuredClone(S);
+      s.daily = rows.map(([n, passed, corrected, missed]) => ({ day: key(n!), repo: null, passed, corrected, missed, skipped: 0 }));
+      adoptState(s, INV);
       render();
     }, rows);
     const card = (page: Page) => page.evaluate(() => {
@@ -153,13 +156,15 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
   });
 
   describe('start-review commands', () => {
-    /** Marks `slugs` due (most overdue first) and every other concept not due, then redraws. */
+    /** Marks `slugs` due (most overdue first) and every other concept not due, then redraws. New data reaches the page through `adoptState`. */
     const due = (page: Page, rows: [string, string | null][]) => page.evaluate((rows) => {
       const want = new Map(rows);
-      S.concepts.forEach((c: any) => {
+      const next = structuredClone(S);
+      next.concepts.forEach((c: any) => {
         c.due = want.has(c.slug);
         if (c.due) { c.seen = 1; c.repo = want.get(c.slug); c.overdue_days = rows.length - rows.findIndex(([s]) => s === c.slug); }
       });
+      adoptState(next, INV);
       render();
     }, rows);
 

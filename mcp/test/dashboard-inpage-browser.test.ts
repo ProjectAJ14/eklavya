@@ -15,6 +15,8 @@ declare const S: { cursor: string; concepts: { due: boolean; seen: boolean }[]; 
 declare const LAZY: Map<string, unknown>;
 declare const SETS: { user: { set: Record<string, unknown> } } | null;
 declare const FOLD: Record<string, boolean>;
+declare const INV: unknown;
+declare function adoptState(s: unknown, inv: unknown): void;
 declare function render(opts?: { nav?: boolean }): void;
 declare function poll(): void;
 
@@ -199,8 +201,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const w = await open('#/learning/concepts', { height: HEIGHT });
       const { page } = w;
       const was = Number((await sidebar(page)).counts.review);
-      // A concept that has been asked and is not yet due becomes due: the count is the page's to recompute.
-      await page.evaluate(() => { const c = S.concepts.find((x) => x.seen && !x.due)!; c.due = true; });
+      // A concept that has been asked and is not yet due becomes due: the count is the page's to recompute. New data
+      // reaches the page through `adoptState`, the one place it is swapped, which is what drops the lists it keeps.
+      await page.evaluate(() => { const s = structuredClone(S); s.concepts.find((x) => x.seen && !x.due)!.due = true; adoptState(s, INV); });
       await holdSidebar(page);
       await page.click('[data-state="due"]');
       await ready(page);
@@ -518,14 +521,16 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(concept).toMatchObject({ scrollBefore: AT, scrollAfter: 0, headKept: false });
       expect(await page.textContent('#view h1')).not.toBe('CSRF');
 
-      // Another project: the sidebar's counts and the crumb say something else, so everything is rebuilt.
+      // Another project: the sidebar's counts, its links and the crumb say something else. The rail is brought in line
+      // in its own elements, as for any page of a workflow (Phase 5); the screen is still a new one.
       await page.goto(base + '/#/learning/review'); await ready(page);
       await holdSidebar(page);
       expect(await scrollDown(page)).toBe(AT);
       const project = await probeTransition(page, () => pickProject(page, fx.repo.mixed));
       expect(project.hash).toBe(`#/learning/review?project=${enc(fx.repo.mixed)}`);
       expect(project).toMatchObject({ scrollBefore: AT, scrollAfter: 0, headKept: false });
-      expect(await sidebarKept(page), 'the sidebar is rebuilt for a project').toBe(false);
+      expect(await sidebarKept(page), 'the sidebar keeps its elements for a project').toBe(true);
+      expect(await page.$$eval('#nav a[data-nav]', (as, p) => as.every((a) => a.getAttribute('href')!.includes(`project=${p}`)), enc(fx.repo.mixed)), 'every link in the rail carries the project').toBe(true);
       expect(await page.textContent('#crumb')).toContain('mixed');
 
       // The other workflow, and a page of the same workflow.
