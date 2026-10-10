@@ -14,10 +14,16 @@
 //
 // What it measures, and what it does not: the server's side of opening the
 // dashboard (the builders, their queries, the payload's size and caps, the
-// routes' caching). It never loads dashboard.html or starts a browser, so a
-// change that touches only the page leaves every number it prints unchanged;
-// the page's own render times come from the browser (the page-transition probe
-// in the browser suite, and the method in issue #171's reproduction section).
+// routes' caching). Without `--live` it never loads dashboard.html or starts a
+// browser, so a change that touches only the page leaves every number it prints
+// unchanged; the page's own render times come from the browser (the page-transition
+// probe in the browser suite, and the method in issue #171's reproduction section).
+//
+// With `--live` it does start one: headless Chromium (through playwright-core)
+// opens the dashboard on the Review page, a second database connection writes a row
+// the way a hook does, and the script times the gap from the write to the moment the
+// new row is on screen, split into the server noticing and rebuilding, the page's
+// two reads, and its redraw. Without a Chromium it says why and skips that part.
 //
 // Comparing commits: the data is seeded from a fixed PRNG and every timestamp is
 // counted back from midnight UTC at the start of the current day, not from the
@@ -65,18 +71,29 @@ const SCALES = {
 };
 const SCALE_NAMES = Object.keys(SCALES);
 
+/** How many writes `--live` times per variant, unless `--writes=N` says otherwise: the median of these is what it prints. */
+const LIVE_WRITES = 5;
+/** The issue's targets for a write to reach the screen at the medium scale, in ms. */
+const LIVE_TARGET = { 'fs.watch': 500, 'floor only': 2000 };
+
 /** What the page asks for, in the order the HTTP section times them. */
 const ROUTES = ['/api/state', '/api/projects', '/api/settings', '/api/memory/sessions', '/api/cursor'];
 /** The two requests the page issues together at boot. */
 const BOOT_ROUTES = ['/api/state', '/api/projects'];
 
-const USAGE = `Usage: node mcp/scripts/dashboard-perf.mjs [dist] [small|medium|large|all] [--json]
+const USAGE = `Usage: node mcp/scripts/dashboard-perf.mjs [dist] [small|medium|large|all] [--json] [--live [--writes=N]]
 
   dist     the built runtime to measure (default: the mcp/dist next to this script)
   scale    small, medium (default), large, or all three, each in its own
            temporary home and process
   --json   print machine-readable results instead of text: one object for a
            single scale, an array of three objects for "all"
+  --live   also time a live update in headless Chromium: the median of ${LIVE_WRITES} writes
+           (--writes=N for another count), from a write through a second database
+           connection to the new row on screen, with the early trigger (fs.watch) and
+           on the one-second floor alone. The browser is EKLAVYA_TEST_BROWSER, else
+           Playwright's own install, else /opt/pw-browsers/chromium; with none of them
+           it says so and skips
   --help   print this
 
 Seeds a temporary EKLAVYA_HOME (removed afterwards; ~/.eklavya is never read),
@@ -95,12 +112,16 @@ Build first: cd mcp && npm run build
 // ---------------------------------------------------------------- arguments
 
 function parseArgs(argv) {
-  const out = { dist: DEFAULT_DIST, scale: 'medium', json: false, help: false };
+  const out = { dist: DEFAULT_DIST, scale: 'medium', json: false, help: false, live: false, writes: LIVE_WRITES };
   const positional = [];
   for (const arg of argv) {
     if (arg === '--json') out.json = true;
     else if (arg === '--help' || arg === '-h') out.help = true;
-    else if (arg.startsWith('-')) throw new Error(`Unknown option ${arg}`);
+    else if (arg === '--live') out.live = true;
+    else if (arg.startsWith('--writes=')) {
+      out.writes = Number(arg.slice('--writes='.length));
+      if (!Number.isInteger(out.writes) || out.writes < 1) throw new Error(`--writes wants a whole number of at least 1, not "${arg.slice(9)}"`);
+    } else if (arg.startsWith('-')) throw new Error(`Unknown option ${arg}`);
     else positional.push(arg);
   }
   // Asking for the help is never an error about the rest of the line.
@@ -389,14 +410,167 @@ async function measureHttp(dash, db) {
   }
 }
 
-// Phase 4 adds the live-update measurement here: write a row from this process
-// (the way a hook would), open an EventSource on /api/events, and time the gap
-// from the write to the cursor event and to the page's redraw. Target: under
-// 2 s on the one-second floor, under 500 ms when fs.watch fires. Not built yet.
+// ------------------------------------------------------------ live measurement
+// `--live`: headless Chromium on the Review page, a second database connection writing a
+// row the way a hook does, and the gap from that write to the new row being on screen.
+// Two variants, each with its own server and page: the early trigger (fs.watch on the
+// database's -wal, debounced 150 ms) and the one-second floor alone (the early trigger
+// made to never fire), which is what a filesystem where fs.watch is silent gets.
+
+/** The two ways a write reaches an open page, as `startDashboard`'s `live` options. */
+const LIVE_VARIANTS = [
+  { name: 'fs.watch', live: {} },
+  // A debounce this long never ends: only the floor's check is left to notice a write.
+  { name: 'floor only', live: { debounceMs: 2_000_000_000 } },
+];
+
+/** Where a Chromium is, or why there is none: EKLAVYA_TEST_BROWSER, Playwright's own install, then the sandbox's. */
+function findBrowser(chromium) {
+  const explicit = process.env.EKLAVYA_TEST_BROWSER;
+  if (explicit) return fs.existsSync(explicit) ? { path: explicit } : { why: `EKLAVYA_TEST_BROWSER names ${explicit}, which is not there` };
+  try {
+    const own = chromium.executablePath();
+    if (own && fs.existsSync(own)) return { path: own };
+  } catch {
+    // Not installed: the next place.
+  }
+  if (fs.existsSync('/opt/pw-browsers/chromium')) return { path: '/opt/pw-browsers/chromium' };
+  return { why: 'no Chromium found (set EKLAVYA_TEST_BROWSER, or run: npx playwright-core install chromium)' };
+}
+
+/**
+ * One row that is new on the Review list: a concept of its own with an answer and a review date a year past, so
+ * it is due, is first in the list, and is a name no other row has. Written in one transaction, so one change.
+ */
+function writeDueConcept(db, n) {
+  const slug = `live-probe-${n}`;
+  const name = liveName(n);
+  db.transaction(() => {
+    const id = db.prepare(`INSERT INTO concepts (slug, name, domain, tier, source) VALUES (?, ?, 'perf', 1, 'llm')`).run(slug, name).lastInsertRowid;
+    db.prepare(
+      `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, feedback, repo, level, outcome, format)
+       VALUES (?, 'sess-0', 'Why does it matter?', 'not sure', 1, 2, 'a note', ?, 'medium', 'answered', 'mcq')`,
+    ).run(id, writeRepo);
+    // Each a day more overdue than the one before, so the newest is the first row and never falls to a second page.
+    db.prepare(
+      `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, next_review, last_seen) VALUES (?, 0.3, 2.5, 1, 1, ?, ?)`,
+    ).run(id, new Date(Date.now() - (400 + n) * DAY_MS).toISOString(), new Date(Date.now() - (401 + n) * DAY_MS).toISOString());
+  })();
+  return name;
+}
+
+/** The name a probe's concept has on the Review list: padded, so no name is the start of another. */
+const liveName = (n) => `Live probe ${String(n).padStart(4, '0')}`;
+/** The checkout the probes' answers are attributed to. */
+let writeRepo = null;
+
+/** Times `writes` writes against one server: how long each took to be on screen, and in which part. */
+async function timeLiveWrites(page, writer, writes, firstN) {
+  const out = [];
+  for (let i = 0; i < writes; i++) {
+    // A stream that has been idle, as one is between a person's writes: nothing from the last one is still in flight.
+    await page.waitForTimeout(1500);
+    const name = liveName(firstN + i);
+    // Watching for the row, and marking where the page was, before the write is made. The page's own clock is wall time
+    // on this machine too, so a time in it and one here are on one scale.
+    const watched = page.evaluate((label) => new Promise((resolve) => {
+      const clock = () => performance.timeOrigin + performance.now();
+      const t = { heard: 0, adopt: 0, drawn: 0 };
+      const { liveHeard, liveAdopt } = window;
+      window.liveHeard = (cursor) => { t.heard ||= clock(); return liveHeard(cursor); };
+      window.liveAdopt = (s, inv) => { t.adopt = clock(); const r = liveAdopt(s, inv); t.drawn = clock(); return r; };
+      const view = document.getElementById('view');
+      const there = () => view.textContent.includes(label);
+      const done = () => {
+        // On screen: the frame after the one the change was made in.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          Object.assign(window, { liveHeard, liveAdopt });
+          resolve({ ...t, painted: clock() });
+        }));
+      };
+      if (there()) return done();
+      const mo = new MutationObserver(() => { if (there()) { mo.disconnect(); done(); } });
+      mo.observe(view, { childList: true, subtree: true, characterData: true });
+    }), name);
+    const wrote = writeDueConcept(writer, firstN + i);
+    const at = Date.now();
+    if (wrote !== name) throw new Error('the row written is not the one watched for');
+    let giveUp;
+    const t = await Promise.race([
+      watched,
+      new Promise((_, reject) => { giveUp = setTimeout(() => reject(new Error(`the row "${name}" was not on screen 15 s after it was written`)), 15000); }),
+    ]).finally(() => clearTimeout(giveUp));
+    out.push({
+      total: round(t.painted - at),
+      // The server notices (the early trigger or the floor), rebuilds, and the page hears.
+      heard: round(t.heard - at),
+      // The page reads /api/state and /api/projects, and parses them.
+      read: round(t.adopt - t.heard),
+      // adoptState, the redraw and the frame it lands in.
+      paint: round(t.painted - t.adopt),
+      // Of that, the synchronous draw itself.
+      draw: round(t.drawn - t.adopt),
+    });
+  }
+  return out;
+}
+
+/**
+ * The live-update measurement, or why there is none: `{ skipped }`. Never throws for a missing browser; a browser
+ * that is there and fails is a failure.
+ */
+async function measureLive(dash, openDb, db, repo, writes) {
+  let playwright;
+  try {
+    playwright = await import('playwright-core');
+  } catch {
+    return { skipped: 'playwright-core is not installed (npm ci in mcp/ installs it)' };
+  }
+  const chromium = playwright.chromium ?? playwright.default?.chromium;
+  const found = findBrowser(chromium);
+  if (found.why) return { skipped: found.why };
+  if (typeof dash.startDashboard !== 'function') return { skipped: 'this dist cannot serve the dashboard' };
+
+  const browser = await chromium.launch({ headless: true, executablePath: found.path });
+  // The server reads through `db`; the writes come through this second connection, as they do from a hook.
+  const writer = openDb();
+  writeRepo = repo;
+  const variants = [];
+  let next = 1;
+  try {
+    for (const variant of LIVE_VARIANTS) {
+      const server = await dash.startDashboard(db, { port: 0, live: variant.live });
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      try {
+        const page = await context.newPage();
+        await page.goto(`${server.url}/#/learning/review`);
+        await page.waitForFunction(() => document.documentElement.dataset.rendered === location.hash
+          && !document.querySelector('.booting, #view .loader'), null, { timeout: 60000 });
+        // The stream is open once the page has booted: wait for it, so the first write is not the one that finds it closed.
+        await page.waitForFunction(() => LIVE.es?.readyState === 1, null, { timeout: 10000 });
+        const runs = await timeLiveWrites(page, writer, writes, next);
+        next += writes;
+        const stat = (key) => summarize(runs.map((r) => r[key]));
+        variants.push({
+          name: variant.name,
+          runs,
+          total: stat('total'), heard: stat('heard'), read: stat('read'), paint: stat('paint'), draw: stat('draw'),
+        });
+      } finally {
+        await context.close();
+        await server.close();
+      }
+    }
+  } finally {
+    await browser.close();
+    writer.close();
+  }
+  return { browser: found.path, writes, variants };
+}
 
 // -------------------------------------------------------------------- one scale
 
-async function runScale(dist, scale) {
+async function runScale(dist, scale, opts = {}) {
   const sizes = SCALES[scale];
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ek-perf-'));
   const onSignal = (signal) => () => {
@@ -453,6 +627,7 @@ async function runScale(dist, scale) {
       },
       payload: measurePayload(state.value),
       http: await measureHttp(dash, db),
+      ...(opts.live ? { live: await measureLive(dash, openDb, db, repos[0], opts.writes ?? LIVE_WRITES) } : {}),
     };
   } finally {
     for (const [signal, handler] of handlers) process.off(signal, handler);
@@ -466,8 +641,9 @@ async function runScale(dist, scale) {
 }
 
 /** Runs one scale in a fresh process: its own module state, its own home, no warm memo carried over. */
-function runScaleInChild(dist, scale) {
-  const run = spawnSync(process.execPath, [SCRIPT, dist, scale, '--json'], {
+function runScaleInChild(dist, scale, opts = {}) {
+  const flags = opts.live ? ['--live', `--writes=${opts.writes ?? LIVE_WRITES}`] : [];
+  const run = spawnSync(process.execPath, [SCRIPT, dist, scale, '--json', ...flags], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
     maxBuffer: 64 * 1024 * 1024,
@@ -550,7 +726,34 @@ function formatText(r) {
     out.push(`Page boot: ${BOOT_ROUTES.join(' + ')} together, median of ${RUNS} pairs`);
     out.push(`  both answered in  ${statsText(boot.wall)}`);
   }
+  if (r.live !== undefined) out.push('', ...formatLive(r));
   return out.join('\n');
+}
+
+/** The live-update section: a total per variant against the issue's target, and where the time went. */
+function formatLive(r) {
+  const live = r.live;
+  const out = [];
+  if (live.skipped !== undefined) {
+    out.push(`Live update: skipped, ${live.skipped}`);
+    return out;
+  }
+  out.push(
+    `Live update, median of ${live.writes} writes (min, max), in ms: a second database connection writes a due concept; the Review page is open in ` +
+      `headless Chromium (${live.browser}); timed from the write to the new row on screen`,
+  );
+  for (const v of live.variants) {
+    const target = LIVE_TARGET[v.name];
+    const verdict = r.scale === 'medium' && target !== undefined ? `  target ${target} ms: ${v.total.median < target ? 'met' : 'MISSED'}` : '';
+    out.push(`  ${v.name.padEnd(11)}total ${statsText(v.total)}${verdict}`);
+    out.push(
+      `  ${''.padEnd(11)}the server notices, rebuilds and says so ${ms(v.heard.median)}, the page reads both ${ms(v.read.median)}, ` +
+        `it redraws and paints ${ms(v.paint.median)} (the draw itself ${ms(v.draw.median)})`,
+    );
+  }
+  const rebuild = (r.in_process_ms.dashboardState?.median ?? 0) + (r.in_process_ms.projectInventory?.median ?? 0);
+  out.push(`  the server's rebuild at this scale, cold: dashboardState + projectInventory = ${ms(rebuild)} ms (in process, above)`);
+  return out;
 }
 
 /** Whether a builder threw or a route answered something other than 200: a number or n/a is not a failure. */
@@ -586,11 +789,11 @@ async function main() {
     for (const scale of scales) {
       let result;
       if (opts.scale === 'all') {
-        const child = runScaleInChild(opts.dist, scale);
+        const child = runScaleInChild(opts.dist, scale, opts);
         result = child.result;
         status = Math.max(status, child.status);
       } else {
-        result = await runScale(opts.dist, scale);
+        result = await runScale(opts.dist, scale, opts);
         if (hasError(result)) status = 1;
       }
       results.push(result);

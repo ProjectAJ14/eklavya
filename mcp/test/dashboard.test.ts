@@ -612,24 +612,39 @@ describe('the dashboard page', () => {
     expect(raw).toEqual([]);
   });
 
-  it('polls for work that landed while it was open, without stomping the reader', () => {
-    // The browser half is only checkable statically here: this suite has no DOM
-    // and a browser harness is not worth one poll. What still needs a human is
-    // that the notice appears and that nothing on the page moves when it does.
-    const poll = html.slice(html.indexOf('function poll()'), html.indexOf('/* ---------- boot'));
-    expect(poll).toContain('s.cursor !== S.cursor');
-    // The cursor alone, never the whole payload rebuilt to read one field.
-    expect(poll).toContain("fetch('/api/cursor')");
-    // Never while the tab is hidden, and never two requests at once.
-    expect(poll).toContain("document.visibilityState !== 'visible'");
-    expect(poll).toMatch(/if \(!S \|\| polling/);
-    // A failed poll leaves the page on the data it has rather than blanking it.
-    expect(poll).toContain('.catch(() => {})');
-    expect(html).toContain("addEventListener('visibilitychange', poll)");
-    // The notice is a real <button>, so Tab and Enter reach it with no wiring —
-    // and it sits outside #view, which render() replaces wholesale.
-    expect(html).toMatch(/<button[^>]*id="stale"/);
-    expect(html.indexOf('id="stale"')).toBeLessThan(html.indexOf('id="view"'));
+  it('is told about work that landed while it was open, and neither polls nor asks to be refreshed', () => {
+    // The behaviour is the browser suite's (dashboard-live-browser.test.ts); this pins the shape that
+    // behaviour hangs on, so a change that brings the old design back fails here at once.
+    const live = html.slice(html.indexOf('/* ---------- live: the open page is told, and never asks'), html.indexOf('/* ---------- boot'));
+    // One stream, opened on the server's route; the page keeps no timer of its own for it.
+    expect(html.match(/new EventSource\(/g)).toHaveLength(1);
+    expect(live).toContain("new EventSource('/api/events')");
+    expect(live).toContain("es.addEventListener('cursor', (e) => liveHeard(e.data))");
+    // It reads the payload only for a cursor that is not its own, and a read in flight absorbs what arrives meanwhile.
+    expect(live).toContain('cursor === S.cursor');
+    expect(live).toMatch(/if \(LIVE\.busy\) \{ LIVE\.more = true; return; \}/);
+    expect(live).toContain("Promise.all([json('/api/state'), json('/api/projects')])");
+    // Never while the tab is hidden: the stream is closed, and nothing reopens it until the tab is in view.
+    expect(live).toContain("document.addEventListener('visibilitychange'");
+    expect(live).toContain("if (LIVE.es || !S || !inView()) return;");
+    expect(live).toMatch(/if \(inView\(\)\) \{ LIVE\.delay = LIVE_RETRY_MIN; liveOpen\(\); \} else liveClose\(\);/);
+    // A stream the server refused is not retried by the browser, so the page reopens it, and backs off.
+    expect(live).toContain('es.readyState === EventSource.CLOSED');
+    expect(live).toContain('const LIVE_RETRY_MIN = 5000;');
+    expect(live).toContain('const LIVE_RETRY_MAX = 60000;');
+    expect(live).toContain('Math.min(LIVE.delay * 2, LIVE_RETRY_MAX)');
+    // A failed read changes nothing: the page keeps what it has.
+    expect(live).toMatch(/\}, \(\) => \{ LIVE\.busy = false; \}\);/);
+
+    // What it replaced: no poll, no interval, no notice and no reload path, in the markup, the styles or the script.
+    expect(html).not.toMatch(/\bfunction poll\b|POLL_MS|\bpolling\b|setInterval\(/);
+    expect(html).not.toContain('/api/cursor');
+    expect(html).not.toMatch(/id="stale"|\.stale\b|\$\('stale'\)|New activity since this page loaded/);
+    expect(html).not.toContain('location.reload');
+    expect(html).not.toMatch(/Announced, never silent/);
+    // The footer says nothing about the stream: no live or reconnecting word.
+    const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
+    expect(footer).not.toMatch(/live|reconnect|connect/i);
   });
 
   it('keeps an alias for every route the single-workflow page had', () => {

@@ -85,8 +85,10 @@ export type { Watched };
 
 async function open(
   hash: string,
-  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; tz?: string; locale?: string; now?: string } = {},
+  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; tz?: string; locale?: string; now?: string; base?: string } = {},
 ): Promise<Watched> {
+  // The server the page is loaded from: the suite's own, or one a test started (a cap to fill, a restart to survive).
+  const from = opts.base ?? base;
   const ctx = await browser.newContext({
     viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 },
     ...(opts.tz ? { timezoneId: opts.tz } : {}),
@@ -106,9 +108,9 @@ async function open(
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('request', (r) => {
     const u = new URL(r.url());
-    if (u.protocol.startsWith('http') && u.origin !== new URL(base).origin) outbound.push(r.url());
+    if (u.protocol.startsWith('http') && u.origin !== new URL(from).origin) outbound.push(r.url());
   });
-  await page.goto(base + '/' + hash);
+  await page.goto(from + '/' + hash);
   await ready(page);
   return { page, ctx, errors, outbound };
 }
@@ -129,12 +131,18 @@ async function ready(page: Page) {
   }
 }
 
+/**
+ * The live stream (`/api/events`): one request that is open for as long as the page is, and so is never a request
+ * the page is waiting for. It is left out of what is waited on and out of what a probe records.
+ */
+export const isStream = (url: string) => new URL(url).pathname === '/api/events';
+
 /** Requests each page has open, for `ready()`. */
 const inflight = new WeakMap<Page, Set<Request>>();
 function track(page: Page) {
   const open = new Set<Request>();
   inflight.set(page, open);
-  page.on('request', (r) => open.add(r));
+  page.on('request', (r) => { if (!isStream(r.url())) open.add(r); });
   page.on('requestfinished', (r) => open.delete(r));
   page.on('requestfailed', (r) => open.delete(r));
   // An error response is as finished as it will get. The page's `fill()` throws on a status that is
@@ -252,8 +260,8 @@ export function footerBounces(tops: number[]): boolean {
  * scroll has stopped (the page scrolls smoothly), and no request is open, all
  * for `quiet` ms running. Every request counts, not only `/api/*`: a thumbnail
  * still arriving moves the layout, though one answered with an error is done
- * (see `track`). The live stream (`/api/events`, Phase 4) is
- * the one request that never ends and is not a wait. The open requests are the
+ * (see `track`). The live stream (`/api/events`) is the one request that never
+ * ends and is not a wait (`isStream`). The open requests are the
  * page's own count, as in `ready()` and for the same reason: Playwright's
  * `networkidle` never fires again once the viewer's sandboxed frame has attached.
  *
@@ -265,7 +273,7 @@ export async function probeTransition(page: Page, action: () => Promise<unknown>
   const quiet = opts.quiet ?? 150;
   const timeout = opts.timeout ?? 30000;
   const openNow = inflight.get(page) ?? track(page);
-  const pending = () => [...openNow].filter((r) => new URL(r.url()).pathname !== '/api/events');
+  const pending = () => [...openNow].filter((r) => !isStream(r.url()));
   const busy = () => page.evaluate(() => ({
     drawing: document.documentElement.dataset.rendered !== location.hash || !!document.querySelector('.booting, #view .loader'),
     scroll: window.scrollY,
@@ -293,7 +301,7 @@ export async function probeTransition(page: Page, action: () => Promise<unknown>
   const requests: string[] = [];
   const onRequest = (r: Request) => {
     const u = new URL(r.url());
-    if (u.pathname.startsWith('/api/')) requests.push(u.pathname + u.search);
+    if (u.pathname.startsWith('/api/') && !isStream(r.url())) requests.push(u.pathname + u.search);
   };
 
   await settle();

@@ -30,9 +30,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const w = await open('#/learning/dashboard', { width: 2560 });
       for (const h of ['#/learning/dashboard', `#/artifacts/view/${enc(fix.other)}`, '#/settings/dashboard']) {
         await w.page.goto(base + '/' + h); await ready(w.page);
-        // Every band of the column: the refresh notice (shown for this), the crumb, the view and the footer.
+        // Every band of the column: the crumb, the view and the footer.
         const gaps = await w.page.evaluate(() => {
-          document.getElementById('stale')!.hidden = false;
           const main = document.getElementById('main')!;
           const m = main.getBoundingClientRect(), pad = parseFloat(getComputedStyle(main).paddingLeft);
           return [...main.querySelectorAll(':scope > .inner')].map((el) => {
@@ -40,7 +39,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
             return { id: el.id || el.tagName, offCentre: Math.round((r.left - m.left) - (m.right - r.right)), clear: r.left - m.left > pad };
           });
         });
-        expect(gaps.map((g) => g.id), h).toEqual(['stale', 'crumb', 'view', 'FOOTER']);
+        expect(gaps.map((g) => g.id), h).toEqual(['crumb', 'view', 'FOOTER']);
         for (const g of gaps) expect(g, h).toMatchObject({ offCentre: 0, clear: true });
       }
       await w.ctx.close();

@@ -166,11 +166,14 @@
   /* A fetched region (`slot()`) is in one of three states and none of them moves the page.
      Drawn: its content. Waiting with nothing to show: a box that holds the height the content
      is expected to take, the loader at its top (its own 150ms delay applies). Waiting while it
-     still shows an earlier answer (a pager, a filter, a refetch): that content stays, dimmed and
-     out of reach of the pointer, and stays readable to assistive technology. No animation here,
-     so there is nothing for reduced motion to switch off. */
+     still shows an earlier answer (a pager, a filter, a refetch, and every live update): that
+     content stays, out of reach of the pointer at once, and dims only if the answer has not come
+     within 150ms, the loader's own delay. The page is refreshed whenever something changes, and
+     an answer that comes from the server's memo in a few milliseconds would otherwise make every
+     refresh flash. Under reduced motion the dim is the same step, after the same delay, with no fade. */
   .slot__wait { display:block; }
-  [data-slot][aria-busy="true"][data-kept] { opacity:.55; pointer-events:none; }
+  [data-slot][aria-busy="true"][data-kept] { opacity:.55; pointer-events:none;
+    transition:opacity var(--duration-base) var(--ease) 150ms; }
 
   /* ---------- the sidebar navigation ---------- */
   nav.side__nav { display:flex; flex-direction:column; gap:var(--space-4); }
@@ -241,7 +244,7 @@
   /* ---------- the column ---------- */
   main { padding:var(--space-8) var(--space-10) var(--space-20); min-width:0; }
   .inner { max-width:1080px; }
-  /* Centred on a wide window; `main >` outranks the margins `.page__eyebrow` and `.stale` set. */
+  /* Centred on a wide window; `main >` outranks the margin `.page__eyebrow` sets. */
   main > .inner { margin-inline:auto; }
   .stack > * + * { margin-top:var(--space-6); }
 
@@ -418,16 +421,6 @@
   .slug { font-family:var(--font-mono); font-size:11.5px; color:var(--faint); word-break:break-word; }
   .ctx { color:var(--dim); }
   .empty { color:var(--faint); padding:var(--space-5) 0; font-size:13.5px; }
-
-  /* A bar above the view, not a banner over it: the reader is mid-page and the
-     notice must not move what they are reading. */
-  .stale { display:block; width:100%; text-align:left; margin-bottom:var(--space-6);
-           font-family:var(--font-mono); font-size:11.5px; letter-spacing:.04em;
-           text-transform:uppercase; background:none; border:1px solid var(--spot);
-           color:var(--spot); padding:7px 10px; cursor:pointer;
-           transition:background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease); }
-  .stale:hover { background:var(--spot); color:var(--spot-ink); }
-  .stale[hidden] { display:none; }
 
   /* ---------- controls ---------- */
   .filters { display:flex; gap:var(--space-3); flex-wrap:wrap; align-items:center;
@@ -846,6 +839,8 @@
   .sw__scope[aria-current="page"] svg { color:var(--spot); }
   .sw__none { margin:var(--space-1) var(--space-2) var(--space-2); color:var(--faint); font-size:12.5px; }
   .sw__pane { min-width:0; display:flex; flex-direction:column; gap:var(--space-5); }
+  /* The pane's three regions add no box: their contents are the pane's flex items, as they were before there were regions. */
+  .sw__pane > [data-region] { display:contents; }
   .sw__tabs { display:flex; gap:0; border-bottom:1px solid var(--line-2); overflow-x:auto; scrollbar-width:none; }
   .sw__tabs::-webkit-scrollbar { display:none; }
   .sw__tab { display:flex; align-items:center; gap:6px; padding:10px 9px; margin-bottom:-1px; white-space:nowrap;
@@ -911,6 +906,8 @@
   @media (prefers-reduced-motion:reduce) {
     html { scroll-behavior:auto; }
     * { transition:none !important; animation:none !important; }
+    /* Not a motion: the dim of a region waiting for its next answer is a step, and it still waits its 150ms. */
+    [data-slot][aria-busy="true"][data-kept] { transition:opacity 0s linear 150ms !important; }
   }
 </style>
 </head>
@@ -985,9 +982,6 @@
   </aside>
 
   <main id="main">
-    <button type="button" class="stale inner" id="stale" hidden aria-live="polite">
-      New activity since this page loaded — refresh
-    </button>
     <p class="page__eyebrow crumb inner" id="crumb" aria-label="Workflow and scope"></p>
     <div class="inner stack" id="view" aria-busy="true">
       <!-- The same markup `loader()` writes; the script has not run yet. -->
@@ -1090,6 +1084,15 @@ let CUR = { wf:'learning', page:'dashboard', param:'', query:new URLSearchParams
  * first draw. See `render()`.
  */
 let DRAWN = null;
+/**
+ * What the draw in progress is, for the few views and hooks whose work depends on it (both are set by `render()`
+ * and `liveAdopt()` and are only ever true for the length of one synchronous draw). `ADJUSTING`: the screen on show is
+ * the one being drawn again (see `render`), so what belongs to the screen (the viewer's frame, a remembered scroll) is
+ * still there and is left alone. `LIVE_PASS`: the draw is the page's redraw for new data (`liveAdopt`), so it also
+ * keeps what the reader is in the middle of (a control being edited, the heatmap's page) and not only what they had open.
+ */
+let ADJUSTING = false;
+let LIVE_PASS = false;
 
 /* ---------- per-view control state, kept across re-renders ---------- */
 const T = {
@@ -1128,10 +1131,11 @@ const projectById = (id) => INV.projects.find((p) => p.id === id) ?? null;
 const pname = (raw, sid) => { const id = pid(raw, sid); return projectById(id)?.name ?? base(id); };
 
 /**
- * The one place the page's data is swapped: boot, and the arrival of new data (Phase 4 calls it for a live
- * update). It sets `S` and `INV`, recomputes the scope (which drops every derived list, below), and drops what was
- * read under the old data (`invalidateData`: the settings read and the response cache). Nothing else assigns `S`
- * or `INV` after boot, which is what lets the derived lists be kept. Redrawing the screen is the caller's.
+ * The one place the page's data is swapped: boot, and the arrival of new data (`liveAdopt`, when the server's
+ * stream says the cursor moved). It sets `S` and `INV`, recomputes the scope (which drops every derived list, below),
+ * and drops what was read under the old data (`invalidateData`: the settings read and the response cache). Nothing
+ * else assigns `S` or `INV` after boot, which is what lets the derived lists be kept. What boot also writes from them
+ * outside the view (`paintChrome`) and redrawing the screen are the caller's.
  */
 function adoptState(s, inv) {
   S = s;
@@ -1602,7 +1606,7 @@ function chartActivity(el, days) {
  */
 const HEAT_STEP = [0, 30, 55, 80, 100];            // % of --spot over --mass for steps 1..4
 const heatFill = (s) => `color-mix(in srgb, var(--spot) ${HEAT_STEP[s]}%, var(--mass))`;
-let HEAT_OFF = 0;                                  // weeks paged back; a view position, reset by render()
+let HEAT_OFF = 0;                                  // weeks paged back; a view position, reset by render() (a redraw for new data keeps it)
 const HEAT_ARROWS = 64;                            // the two arrow buttons beside the grid
 
 /**
@@ -1841,9 +1845,8 @@ function loader(label, { page = false } = {}) {
    keyed by the one thing it does depend on.
 
    An entry is good while the page's `S.cursor` is the one it was read under, and it is dropped
-   by `invalidateData()` (a save, the poll finding that the server moved on; Phase 4 calls it
-   when the cursor changes) and, for the one route a write changes, by `respForget()`. A page
-   reload starts with nothing. A read already out when the cache is invalidated is not stored
+   by `invalidateData()` (a save, and the arrival of new data: `adoptState`) and, for the one
+   route a write changes, by `respForget()`. A page reload starts with nothing. A read already out when the cache is invalidated is not stored
    when it lands (`respAt`): it may have been answered before whatever made the cache stale.
    Bounded at `RESP_MAX`, least recently used out first. An answer that failed is never cached. */
 const RESP_MAX = 50;
@@ -1950,18 +1953,44 @@ function slot(id, url, draw, { label, ...host } = {}) {
 }
 
 /**
+ * What a fetched region was last drawn from: the markup the record of the screen (`DRAWN`) holds for `#id`, which
+ * every draw into it keeps (`recordFill`, `drawAdjusted`, `recordStrip`); null when there is none. A redraw for new
+ * data compares an answer with it: the same markup replaces nothing, and markup made of regions of its own (Settings)
+ * with the same skeleton around them replaces only the regions that changed, so what the new data did not change is
+ * not touched (the reader's text selection, an open row, a tip beacon, a field being edited).
+ */
+function drawnSlot(id) {
+  if (!DRAWN) return null;
+  const t = document.createElement('template');
+  t.innerHTML = DRAWN.html;
+  return t.content.getElementById(id)?.innerHTML ?? null;
+}
+/** `html` as the browser keeps it, which is the form `drawnSlot` and the record of the screen are in. */
+function normalized(html) {
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  return t.innerHTML;
+}
+
+/**
  * Fetches `url` for the slot `#id` and draws the answer in. Queued through `AFTER` like a chart,
  * for the same reason: the target does not exist until `render()` has written the view. If the
  * target already shows an earlier answer, that stays under `aria-busy` until this one draws.
+ *
+ * A fill made for new data (`LIVE_PASS`) is the reader's own screen being brought up to date, so it also leaves
+ * alone the regions that hold a control the reader is using (`swapRegions`), and when the server cannot be reached
+ * it leaves what is on screen rather than putting an error over it.
  */
 function fill(id, url, draw) {
   const gen = GEN;
   const at = respAt();
+  const live = LIVE_PASS;
   AFTER.push(() => {
     const was = $(id);
+    const kept = !!was && holdsContent(was);
     if (was) {
       was.setAttribute('aria-busy', 'true');
-      if (holdsContent(was)) was.setAttribute('data-kept', '');
+      if (kept) was.setAttribute('data-kept', '');
     }
     fetch(url).then((r) => {
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
@@ -1974,10 +2003,20 @@ function fill(id, url, draw) {
       // lookup does); the render that queued this one has already run its hooks.
       AFTER.length = 0;
       const html = draw(d);
+      if (live && kept && holdsContent(el) && redrawKept(el, html, live)) {
+        // What is on screen was brought up to date, or already was: the record of the screen follows.
+        recordFill(id, html);
+        slotDone(el);
+        remember(id);
+        for (const fn of AFTER.splice(0)) fn();
+        TIP.sync();
+        return;
+      }
       // What the reader had open or focused in the rows being replaced (a timeline entry, a pager
       // button) is found again in the new ones.
       const ui = captureUi(el);
       el.innerHTML = html;
+      HELD_BACK.clear();
       // The view returns this same markup on its own from now on (from the cache), so the record
       // of the screen is brought up to date with it and a later redraw leaves it alone.
       recordFill(id, html);
@@ -1990,11 +2029,27 @@ function fill(id, url, draw) {
     }).catch((e) => {
       const el = $(id);
       if (!el || gen !== GEN) return;
+      if (live && kept) { slotDone(el); return; }
       el.innerHTML = failure(e);
       slotDone(el);
       el.setAttribute('data-failed', '');
     });
   });
+}
+
+/**
+ * An answer for a region that shows an earlier one, for a redraw for new data: true when what is on screen is now in line
+ * with `html` without replacing the region. That is when it is the same markup, or it is made of regions of its own (the
+ * same skeleton around them, as Settings is) and only some of them changed, which are replaced and the others never
+ * touched. The reader's own change of a list (a pager, a filter) always draws the answer it asked for.
+ */
+function redrawKept(el, html, live) {
+  const was = drawnSlot(el.id);
+  if (was === null) return false;
+  if (normalized(html) === was && HELD_BACK.size === 0) return true;
+  const next = scanRegions(html);
+  const prev = scanRegions(was);
+  return next.skeleton !== null && next.skeleton === prev.skeleton && swapRegions(el, prev.settled, next, live);
 }
 
 /**
@@ -3227,47 +3282,64 @@ function viewArtifact(id) {
   const a = (S.artifacts ?? []).find((x) => x.id === id);
   if (!a) return viewNotFound(id, false);
   if (a.correction) AFTER.push(() => loadFix(a));
-  // The page's own ground follows this one; a page made before the viewer ignores it.
+  // The frame that follows the ground and the fallback for a page that never reports its height are made once, for
+  // the frame, not once per draw of the screen around it: the frame is not drawn again with every redraw (below).
   AFTER.push(() => {
     const f = $('art-frame');
-    f?.addEventListener('load', () => f.contentWindow?.postMessage({ type:'eklavya:mode', mode:window.eklavyaGround.read() }, '*'));
-  });
-  AFTER.push(() => {
-    const f = $('art-frame'), gen = GEN;
-    setTimeout(() => { if (gen === GEN && !f.style.height) sized(f, '80vh'); }, 1500);
+    if (!f || f.dataset.watched) return;
+    f.dataset.watched = '1';
+    setTimeout(() => { if (f.isConnected && !f.style.height) sized(f, '80vh'); }, 1500);
   });
   TABS.open(id);
-  TABS.reading = null;
+  // A screen that is drawn again keeps its frame, so it keeps where its scroll is being remembered as well.
+  if (!ADJUSTING) TABS.reading = null;
   // The frame is the box: it holds the height this tab last reported (else 80vh) from the first paint, so
   // the page reflows once, when the real height arrives, and not once for a loader and again for the frame.
   // A tab opened before has no loader: the frame fills the box as soon as its page paints, and the box is
   // already the right size. The question behind the correction bar is the same when the cache has it.
+  //
+  // The box and the bar are held (`data-hold`): once drawn, a redraw of this screen (new data, the ground) never
+  // replaces them, because a frame that leaves the document loads its page again. The tab strip is a region, and
+  // is the part of the screen that changes with the payload (a tab's title, its dot).
   const height = TABS.height.get(id);
   const asked = a.correction && respGet(fixUrl(a));
   return `${drawTabs(id)}
     <div class="viewer__bar"><a href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">${ICON_OUT}Open in new browser tab</a></div>
-    <div class="viewer__box">
+    <div class="viewer__box" data-hold>
       ${height ? '' : `<div id="art-wait">${loader('Opening the page…')}</div>`}
       <iframe class="viewer" id="art-frame" style="--wait-h:${esc(height ?? '80vh')}" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
     </div>
-    ${a.correction ? `<div class="fixbar" id="fixbar" role="region" aria-label="Correction">${asked ? '' : loader('Loading the question…')}</div>` : ''}`;
+    ${a.correction ? `<div class="fixbar" id="fixbar" role="region" aria-label="Correction" data-hold>${asked ? '' : loader('Loading the question…')}</div>` : ''}`;
 }
+
+/** The page's own ground follows this one; a page made before the viewer ignores it. Said when the frame loads and when the ground changes. */
+const frameMode = (f) => f?.contentWindow?.postMessage({ type:'eklavya:mode', mode:window.eklavyaGround.read() }, '*');
+// A `load` does not bubble, but a listener in the capture phase on an ancestor hears it, so one listener serves every frame there will be.
+$('view').addEventListener('load', (e) => { if (e.target.id === 'art-frame') frameMode(e.target); }, true);
 
 const fixUrl = (a) => `/api/attempts/correction?id=${a.attempt}`;
 
 /**
  * Asks the server for the question behind the bar, or takes it from the cache. Not `slot()`: a refusal
  * shows the server's own words and a Retry, in the bar's one row, and the bar's markup is the viewer's.
+ *
+ * A bar that is already drawn for this question and says what the payload says (open, or corrected) is left exactly
+ * as it is when the screen is drawn again for new data: it is the reader's, and may be open in front of the dialog.
+ * One that disagrees is read again with the bar still showing and drawn over once the answer is in, with no loader.
  */
 function loadFix(a) {
   const gen = GEN;
   const bar = () => (gen === GEN ? $('fixbar') : null);
   const url = fixUrl(a);
+  const drawn = bar().dataset.attempt === String(a.attempt);
+  if (drawn && (a.correction === 'done') === (FIX?.q.corrected_at != null)) return;
   const kept = respGet(url);
   if (kept) return paintFix(bar(), a, kept.body);
   const at = respAt();
-  bar().className = 'fixbar';
-  bar().innerHTML = loader('Loading the question…');
+  if (!drawn) {
+    bar().className = 'fixbar';
+    bar().innerHTML = loader('Loading the question…');
+  }
   fetch(url)
     .then((r) => r.json().catch(() => ({})).then((d) => {
       if (!r.ok) throw new Error(d.error || `${r.status} ${r.statusText}`);
@@ -3277,7 +3349,7 @@ function loadFix(a) {
     }))
     .catch((e) => {
       const el = bar();
-      if (!el) return;
+      if (!el || drawn) return;
       el.innerHTML = `<p class="fixbar__err">${esc(e.message)}</p><button type="button" class="set__btn" id="fix-retry">Retry</button>`;
     });
 }
@@ -3287,14 +3359,18 @@ function paintFix(el, a, d, fresh) {
   FIX = { attempt: a.attempt, artifact: a.id, q: d };
   const done = d.corrected_at !== null;
   armLeave(!done);
+  el.dataset.attempt = String(a.attempt);
   el.className = `fixbar ${done ? 'is-done' : 'is-open'}${fresh ? ' is-fresh' : ''}`;
   const dot = document.querySelector('#view [aria-selected="true"] .tab__dot');
   if (dot) dot.className = `tab__dot is-${done ? 'done' : 'open'}`;
+  // The button the reader is on (a bar drawn again over its own) is found again in the new one.
+  const ui = captureUi(el);
   el.innerHTML = done
     ? `<p class="fixbar__done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Corrected on try ${d.tries} <span>· ${esc(stamp(d.corrected_at))}</span></p>`
     : `<div class="fixbar__text"><p class="fixbar__lead">You missed this one.</p>
          <p class="fixbar__note">Read it, then correct your answer. Not now? It stays under To correct.</p></div>
        <button type="button" class="btn" id="fix-open">Correct your answer</button>`;
+  restoreUi(el, ui);
 }
 
 /** The options in a new order each time: the page above shows the right one at its letter. */
@@ -3340,9 +3416,8 @@ function pickFix(btn) {
         FIX.q = { ...FIX.q, tries: r.tries, corrected_at: new Date().toISOString() };
         const row = S.artifacts.find((x) => x.id === FIX.artifact);
         if (row) row.correction = 'done';
-        // Every other count on the page was drawn from the payload it booted with:
-        // say so now rather than waiting for the poll.
-        $('stale').hidden = false;
+        // Every other count on the page (the tiles, the gallery's tag, the accuracy) follows by itself: the server
+        // noticed this write and told the page, which reads the payload again and redraws in place.
         armLeave(false);
         $('fix-close').focus();
         return;
@@ -3639,7 +3714,9 @@ function drawTabs(active) {
     const dot = a?.correction ? `<i class="tab__dot is-${a.correction}" aria-hidden="true"></i>` : '';
     return tab(id, a?.title ?? id, dot, true);
   });
-  return `<div class="tabs" role="tablist" aria-label="Open artifacts">${tab(null, 'All artifacts', '', false)}${rows.join('')}</div>`;
+  // The strip is a region of its own: what the payload changes in it (a title, a dot) is redrawn here, and the
+  // frame under it is not touched.
+  return `<div class="tabs" role="tablist" aria-label="Open artifacts" data-region="art-tabs">${tab(null, 'All artifacts', '', false)}${rows.join('')}</div>`;
 }
 
 /** Closes a tab. The visible one hands over to its neighbour; any other just leaves the strip, and the page stays put. */
@@ -3766,9 +3843,9 @@ function invalidateSettings() {
 
 /**
  * Drops what the page holds that was read under data it has since replaced, so the next draw reads
- * it again: after a save, and when the poll finds that the server's cursor moved on while the page's
- * `S` has not (the page's own cursor only moves when it reloads, until Phase 4 brings the new data
- * in; it calls this too). That is the settings read and every answer in the response cache.
+ * it again: after a save, and when new data arrives (`adoptState`: the stream said the server's cursor
+ * moved on, and the page's `S` is now the payload that goes with it). That is the settings read and every
+ * answer in the response cache.
  *
  * A project change is not here. The cache's keys carry the project, so what was read for another
  * project is simply not asked for, and kept for when the reader switches back; only the one settings
@@ -3920,13 +3997,15 @@ function drawSettings(d, scope) {
     <code>eklavya config set &lt;key&gt; &lt;value&gt;</code> (with <code>--project</code> for a project), and
     <b>Inherit</b> / <b>Reset</b> is <code>eklavya config unset</code>. Nothing is written inside a repository.`;
 
+  // The pane is three regions and the rail a fourth, which never nest. A tab redraws the three it changes and keeps the
+  // frame around them; new data redraws what changed, and leaves the body alone while the reader is using a control in it
+  // (`swapRegions`), so the tab strip and the counts beside it are still brought up to date.
+  const pane = (head, tabs, body) => `<div class="sw"><div class="sw__pane">${region('sw-head', head)}${region('sw-tabs', tabs)}${region('sw-body', body)}</div>${rail}</div>`;
+
   if (!file) {
-    return `<div class="sw"><div class="sw__pane" data-region="sw-pane">${[
-      pageHead('Project settings', [], about),
-      nextStep(PROJECT
-        ? `<strong>${esc(scopeName())}</strong> has no git checkout on this machine, so there is no project file to change. Pick another project on the right.`
-        : 'Pick a project on the right to change its settings.'),
-    ].join('')}</div>${rail}</div>`;
+    return pane(pageHead('Project settings', [], about) + nextStep(PROJECT
+      ? `<strong>${esc(scopeName())}</strong> has no git checkout on this machine, so there is no project file to change. Pick another project on the right.`
+      : 'Pick a project on the right to change its settings.'), '', '');
   }
 
   const tabBar = `<nav class="sw__tabs" aria-label="Setting categories" data-keep-scroll="sw-tabs">${tabs.map((t) =>
@@ -3952,13 +4031,11 @@ function drawSettings(d, scope) {
     body = `<section class="card sw__list" aria-label="${esc(here.label)} settings">${here.fields.map((f) => settingRow(f, d, scope)).join('')}</section>`;
   }
 
-  return `<div class="sw"><div class="sw__pane" data-region="sw-pane">${[
+  return pane(
     pageHead(scope === 'project' ? `${esc(d.project.name)} settings` : 'User settings',
-      [`<span class="mono">${esc(file.path)}</span>`, `${Object.keys(file.set).length} set here`], about),
-    d.problem ? nextStep(`<strong>A config file is not being read.</strong> ${esc(d.problem)}`) : '',
-    tabBar,
-    body,
-  ].join('')}</div>${rail}</div>`;
+      [`<span class="mono">${esc(file.path)}</span>`, `${Object.keys(file.set).length} set here`], about)
+      + (d.problem ? nextStep(`<strong>A config file is not being read.</strong> ${esc(d.problem)}`) : ''),
+    tabBar, body);
 }
 
 /* ============================================================
@@ -4214,7 +4291,9 @@ function saveSetting(key, change) {
   const say = (text, warn) => { if (msg) { msg.innerHTML = text ? mascotStatus(text, warn ? 'error' : 'loading') : ''; msg.className = warn ? 'warn' : 'here'; } };
   fieldError(key, null);
   say('saving…');
-  const gen = GEN;
+  // The screen the reader is on: another tab or scope is another screen, but a redraw of this one (new data arrives
+  // while the save is out) is not, and must not stop the save from saying that it saved.
+  const here = location.hash;
   postJson('/api/settings', { scope, project: SETS?.project?.id, key, ...change })
     .then(() => {
       // The file has changed: what was read before is stale from here, and read again now.
@@ -4230,7 +4309,7 @@ function saveSetting(key, change) {
       if (!el) return;
       // The reader moved to another tab while this was saving, and was shown what was read before it:
       // draw that tab again from what was just read.
-      if (gen !== GEN) { if (CUR.wf === 'settings' && settingsFresh()) render(); return; }
+      if (location.hash !== here) { if (CUR.wf === 'settings' && settingsFresh()) render(); return; }
       const focusId = document.activeElement?.id;
       const html = drawSettings(d, scope);
       el.innerHTML = html;
@@ -4247,7 +4326,7 @@ function saveSetting(key, change) {
       // are kept, so the reader can fix them where they are.
       const el = document.querySelector(`[data-set="${CSS.escape(key)}"]`);
       const box = $('settings');
-      if (SETS && box && gen === GEN && (el?.type === 'checkbox' || el?.tagName === 'SELECT')) {
+      if (SETS && box && location.hash === here && (el?.type === 'checkbox' || el?.tagName === 'SELECT')) {
         const html = drawSettings(SETS, scope);
         box.innerHTML = html;
         recordFill('settings', html);
@@ -4702,16 +4781,25 @@ let typed = '', typedAt = 0;
 
 function projOptions() { return [...pmenu.querySelectorAll('[role="option"]')]; }
 
-/** Built once from the inventory; `syncProjects()` only moves the selection. */
+/**
+ * Built from the inventory, and again only when what it lists changed (a new project, a renamed one, a checkout
+ * that went): `syncProjects()` moves the selection. An open list keeps its focus on the same option.
+ */
+let PROJECTS_LISTED = '';
 function buildProjects(inv) {
+  const rows = inv.projects.map((p) => [p.id, p.name + (p.available === false ? ' (checkout gone)' : '')]);
+  const listed = JSON.stringify(rows);
+  if (listed === PROJECTS_LISTED) return;
+  PROJECTS_LISTED = listed;
   const row = (value, name) =>
     `<button type="button" role="option" aria-selected="false" data-value="${esc(value)}" tabindex="-1">
        <span>${esc(name)}</span>
        <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
      </button>`;
-  pmenu.innerHTML = row('', 'All projects') +
-    inv.projects.map((p) => row(p.id, p.name + (p.available === false ? ' (checkout gone)' : ''))).join('');
+  const on = pmenu.contains(document.activeElement) ? document.activeElement.dataset.value : null;
+  pmenu.innerHTML = row('', 'All projects') + rows.map(([id, name]) => row(id, name)).join('');
   pbtn.disabled = false;
+  if (on !== null) projOptions().find((o) => o.dataset.value === on)?.focus();
 }
 
 function syncProjects() {
@@ -5076,18 +5164,27 @@ function render(opts) {
 
   AFTER.length = 0;
   LAZY.clear();
-  HEAT_OFF = 0;
+  // The heatmap's page is where the reader paged it to, and new data does not turn it back.
+  if (!LIVE_PASS) HEAT_OFF = 0;
   // Leaving the Feedback page ends the opening that fbOpened counted.
   if (!(CUR.wf === 'feedback' && CUR.page === 'dashboard')) FB.counted = false;
-  // A screen that still has a correction open re-arms this when it draws its bar.
-  armLeave(false);
-  const html = !pg ? viewNotFound('#/' + CUR.wf + '/' + CUR.page, false)
-    : CUR.bad ? viewNotFound(CUR.param, true)
-    : pg.view(CUR.param);
+  // A screen that has a correction open re-arms this when it draws its bar. The bar of a screen that is
+  // only being drawn again stays as it is (`data-hold`), and so does the prompt that goes with it.
+  if (!adjusting) armLeave(false);
+  ADJUSTING = adjusting;
+  let html;
+  try {
+    html = !pg ? viewNotFound('#/' + CUR.wf + '/' + CUR.page, false)
+      : CUR.bad ? viewNotFound(CUR.param, true)
+      : pg.view(CUR.param);
+  } finally {
+    ADJUSTING = false;
+  }
   if (adjusting) {
     drawAdjusted(html);
   } else {
     $('view').innerHTML = html;
+    HELD_BACK.clear();
     // A clickable row has to be reachable by Tab as well as by mouse.
     focusable($('view'));
     DRAWN = { wf: CUR.wf, page: CUR.page, param: CUR.param, query: CUR.query.toString(), project: PROJECT, fault: !pg || !!CUR.bad, ...recordOf(html) };
@@ -5124,8 +5221,10 @@ function isAdjustment(pg) {
    list being fetched or a text box in the skeleton keeps its identity. Anything else
    (no regions, a different set, a different skeleton) replaces the view's content, still
    without moving the scroll; a fetched list that is only the box this time (`slot()`) is then
-   carried over from the old view, node for node, and stays dimmed until its answer draws.
-   Phase 4 redraws for new data through the same path. */
+   carried over from the old view, node for node, and stays dimmed until its answer draws. The markup the
+   screen was drawn from, drawn again, replaces nothing. A part that must never leave the document (the viewer's
+   frame, the bar of its correction) is marked `data-hold`: the skeleton leaves what it holds out, and a redraw
+   that keeps the skeleton keeps it. A redraw for new data (`liveAdopt`) goes through the same path. */
 
 /**
  * The regions of a screen's markup and what is left once they are emptied; no skeleton when it has none, or two
@@ -5153,6 +5252,9 @@ function scanRegions(html) {
   for (const i of t.content.querySelectorAll('input[type="search"]')) i.removeAttribute('value');
   const settled = new Map(found.map((el) => [el.dataset.region, el.innerHTML]));
   for (const el of found) el.replaceChildren();
+  // A held element (`data-hold`) is part of the screen that a redraw never touches (the viewer's frame, whose page
+  // would load again if it left the document): what it holds is whatever it came to hold, so it is not compared.
+  for (const el of t.content.querySelectorAll('[data-hold]')) el.replaceChildren();
   return { skeleton: t.innerHTML, regions, settled };
 }
 const recordOf = (html) => ({ html, ...scanRegions(html) });
@@ -5189,45 +5291,103 @@ function recordStrip(html) {
   DRAWN = { ...DRAWN, ...recordOf(t.innerHTML) };
 }
 
-/** Draws an adjustment's markup: its changed regions in place, else the view's content, never touching the scroll. */
+/**
+ * The regions whose redraw was put off because the reader was using a control in them (`swapRegions`): what is on screen
+ * for each is older than the record of the screen, so the next draw that can replaces it, whether or not its markup
+ * differs from the record's. A `focusout` asks for that draw at once (`catchUp`).
+ */
+const HELD_BACK = new Set();
+
+/**
+ * Replaces, in `root`, the regions of `next` whose markup differs from `prevSettled`'s, each wholesale in the element that
+ * is on the page, and nothing else. False, before anything is touched, when a region to replace is not there. A region
+ * that is only the box and the loader never goes over what it shows (the fetch dims it); over a failure it does (that is
+ * asking again). With `keep` (a redraw for new data), a region that holds a control the reader is using (the one with
+ * focus, or one holding a value that is typed and not saved) is left as it is: a control that leaves the document
+ * while it has focus is committed by the browser, and the reader has not said they are done. It is put off, not dropped.
+ */
+function swapRegions(root, prevSettled, next, keep) {
+  const swaps = [];
+  for (const [id, inner] of next.regions) {
+    const host = root.querySelector(`[data-region="${id}"]`);
+    // Unchanged markup is left alone, whatever the reader has done to what is on screen since (a fold opened, say).
+    if (!HELD_BACK.has(id) && prevSettled.get(id) === next.settled.get(id)) {
+      // Except that a request an earlier draw left out is over for it: its answer is in hand, and is what is on screen.
+      if (host?.hasAttribute('aria-busy') && !isWait(inner)) slotDone(host);
+      continue;
+    }
+    if (!host) return false;
+    if (isWait(inner) && !host.hasAttribute('data-failed')) continue;
+    swaps.push([id, host, inner]);
+  }
+  for (const [id, host, inner] of swaps) {
+    if (keep && unitsInUse(host).length) { HELD_BACK.add(id); continue; }
+    HELD_BACK.delete(id);
+    const ui = captureUi(host);
+    host.innerHTML = inner;
+    // Whatever an earlier request left on it (busy, a failure) was about the content it replaced.
+    slotDone(host);
+    focusable(host);
+    restoreUi(host, ui);
+  }
+  return true;
+}
+
+/**
+ * The markup with each fetched region that is only its box this time, over one that shows an answer on screen, drawn as
+ * what it shows: the answer stays, and the redraw finds nothing to change there. (`html` as it is when there is none.)
+ */
+function withKept(html) {
+  if (!html.includes(WAIT_OPEN)) return html;
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  let any = false;
+  for (const el of t.content.querySelectorAll('[data-slot]')) {
+    if (!el.querySelector(':scope > .slot__wait')) continue;
+    const on = $(el.id);
+    const was = on && holdsContent(on) ? drawnSlot(el.id) : null;
+    if (was === null) continue;
+    el.innerHTML = was;
+    any = true;
+  }
+  return any ? t.innerHTML : html;
+}
+
+/**
+ * Draws an adjustment's markup: its changed regions in place, else the view's content; never touching the scroll.
+ * A redraw for new data (`LIVE_PASS`) also draws nothing when the markup is what is on screen, and counts a fetched
+ * region that is only its box as what it shows, so what the new data did not change is not touched.
+ */
 function drawAdjusted(html) {
   const view = $('view');
-  const next = scanRegions(html);
   const prev = DRAWN;
-  const swaps = [];
-  let inPlace = next.skeleton !== null && next.skeleton === prev.skeleton;
-  if (inPlace) {
-    for (const [id, inner] of next.regions) {
-      // Unchanged markup is left alone, whatever the reader has done to what is on screen since (a fold opened, say).
-      if (prev.settled.get(id) === next.settled.get(id)) continue;
-      const host = view.querySelector(`[data-region="${id}"]`);
-      if (!host) { inPlace = false; break; }
-      // A list whose answer is still to come is the box and the loader: never over what is on screen,
-      // which stays (the fetch dims it) until the answer draws. Over a failure it is: that is asking again.
-      if (isWait(inner) && !host.hasAttribute('data-failed')) continue;
-      swaps.push([host, inner]);
-    }
-  }
   // The page is the same screen, though it may be reached by another route (`screen`): the record keeps the one on show.
   const at = { page: CUR.page, param: CUR.param, query: CUR.query.toString() };
-  if (inPlace) {
-    for (const [host, inner] of swaps) {
-      const ui = captureUi(host);
-      host.innerHTML = inner;
-      // Whatever an earlier request left on it (busy, a failure) was about the content it replaced.
-      slotDone(host);
-      focusable(host);
-      restoreUi(host, ui);
-    }
-    DRAWN = { ...prev, ...at, html, skeleton: next.skeleton, regions: next.regions, settled: next.settled };
+  // The markup the screen was drawn from, again: new data that changed nothing this screen shows replaces nothing in it
+  // (a region that failed is the exception: drawing again is asking again).
+  if (LIVE_PASS && html === prev.html && HELD_BACK.size === 0 && !view.querySelector('[data-failed]')) {
+    DRAWN = { ...prev, ...at };
     return;
   }
+  // Fetched regions that are only their box this time are what they show: the screen is the same where they are, and
+  // it is the regions around them that may have changed. Used when that makes it a screen of the same skeleton.
+  const shown = LIVE_PASS ? withKept(html) : html;
+  let next = scanRegions(shown);
+  if (next.skeleton !== null && next.skeleton === prev.skeleton && swapRegions(view, prev.settled, next, LIVE_PASS)) {
+    DRAWN = { ...prev, ...at, html: shown, skeleton: next.skeleton, regions: next.regions, settled: next.settled };
+    return;
+  }
+  if (shown !== html) next = scanRegions(html);
   // The view is replaced; a fetched region that is only the box this time still shows what it did, moved
   // into the new element (the same nodes, so whatever the reader had open or focused in them is still there).
   const held = new Map();
   for (const el of view.querySelectorAll('[data-slot]')) if (holdsContent(el)) held.set(el.id, el);
+  // What the old view held that never leaves the document (the viewer's frame, and the bar of its correction) goes
+  // with it: the prompt that guarded the open correction, and the scroll that was waiting for the frame, are over.
+  if (view.querySelector('[data-hold]')) { armLeave(false); TABS.reading = null; }
   const ui = captureUi(view);
   view.innerHTML = html;
+  HELD_BACK.clear();
   for (const el of view.querySelectorAll('[data-slot]')) {
     const was = held.get(el.id);
     if (was && el.querySelector(':scope > .slot__wait')) el.replaceChildren(...was.childNodes);
@@ -5235,6 +5395,17 @@ function drawAdjusted(html) {
   focusable(view);
   restoreUi(view, ui);
   DRAWN = { ...prev, ...at, html, ...next };
+}
+
+/** A control the reader was using has been let go of: what was put off for it is drawn now, unless they are on another one. */
+function catchUp() {
+  if (!HELD_BACK.size || !DRAWN) return;
+  LIVE_PASS = true;
+  try {
+    render();
+  } finally {
+    LIVE_PASS = false;
+  }
 }
 
 /** What a control is called when it is looked for again in redrawn markup: its id, else the first of these it has. */
@@ -5255,8 +5426,7 @@ const detailKey = (d) => (d.dataset.fold ? 'fold:' + d.dataset.fold : d.dataset.
  * element with its caret or selection, every open <details> that has a stable key, and the
  * offset of a strip marked `data-keep-scroll`. `restoreUi` puts them back on the new markup.
  * The page's scroll is not here because a redraw never moves it, and the lazy charts are not
- * because the draw's own hooks queue them again (`LAZY`). Phase 4 calls this pair around a
- * redraw for new data.
+ * because the draw's own hooks queue them again (`LAZY`). `liveAdopt` redraws through this pair too.
  */
 function captureUi(root) {
   const ui = { focus: null, open: new Set(), scrolls: new Map() };
@@ -5275,6 +5445,26 @@ function captureUi(root) {
   }
   for (const d of root.querySelectorAll('details[open]')) { const k = detailKey(d); if (k) ui.open.add(k); }
   return ui;
+}
+
+/**
+ * The Settings controls in `root` that the reader is using, for a redraw that is about new data and not about them: the
+ * one with focus (the box, or the button that stands in for a select), the one whose list is open, and any that holds
+ * what was typed and not saved (a number field, a text box, a list, or a choice a refusal put back). Each is a `.set__ctl`, the control with its own
+ * error line.
+ */
+function unitsInUse(root) {
+  const used = [];
+  for (const unit of root.querySelectorAll('.set__ctl')) {
+    const c = unit.querySelector('[data-set]');
+    if (!c) continue;
+    const edited = c.type === 'checkbox' ? c.checked !== c.defaultChecked
+      : c.tagName === 'SELECT' ? [...c.options].some((o) => o.selected !== o.defaultSelected)
+      : c.value !== c.defaultValue;
+    // The list of a select that is open has the focus, not the button it opened from.
+    if (edited || unit.contains(document.activeElement) || (sOpen && unit.contains(sOpen))) used.push(unit);
+  }
+  return used;
 }
 
 function restoreUi(root, ui) {
@@ -5393,6 +5583,10 @@ $('view').addEventListener('input', (e) => {
   }
 });
 
+// A control the reader was using has been let go of (a later focus is checked by `catchUp`): what a redraw for new data
+// put off for it is drawn now.
+$('view').addEventListener('focusout', () => setTimeout(catchUp, 0));
+
 // Settings: a control saves on change (a text box on blur or Enter), and the
 // Inherit / Reset button removes the key from that scope's file.
 $('view').addEventListener('click', (e) => {
@@ -5435,79 +5629,35 @@ addEventListener('hashchange', () => { if (INV) { closePicker(false); syncFromUr
 let resizeTimer = 0;
 addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  // Not the viewer: a re-render would reload the framed page and lose its scroll.
+  // Not the viewer: nothing on it depends on the width, and its frame reports its own height.
   resizeTimer = setTimeout(() => { if (S && CUR.page !== 'view') render(); }, 120);
 });
 
 document.querySelectorAll('[data-ground]').forEach((b) => {
-  b.addEventListener('click', () => { window.eklavyaGround.set(b.dataset.ground); if (S) render(); });
+  b.addEventListener('click', () => {
+    window.eklavyaGround.set(b.dataset.ground);
+    if (S) render();
+    // The frame is not drawn again with the screen, so its page is told the ground itself.
+    frameMode($('art-frame'));
+  });
 });
-
-/* ---------- staying honest about how old this page is ---------- */
-// ponytail: a poll, not SSE. Ceiling: a change shows up to POLL_MS late. Each
-// tick asks `/api/cursor` for the one string, which costs a single-row read and
-// a stat of the artifact files, never the payload. The upgrade is SSE over the
-// same cursor (PRD DASH-01), so that swap is this function, not the page.
-const POLL_MS = 60000;
-let polling = false;
-
-/**
- * Announced, never silent, and that is the whole design.
- *
- * A silent re-render moves the table the reader is halfway down, scrolls them
- * back to the top and drops the caret out of the search box — the page would
- * be fighting the person reading it. So the poll touches nothing but a button:
- * the view keeps rendering from the payload it booted with until the reader
- * asks for the new one. That also means there is no live state to reconcile
- * with a view derived from the old snapshot; the reload does that.
- */
-function poll() {
-  // Nothing to do if we never loaded, a request is already out, the notice is
-  // already up, or nobody is looking — a background tab must not poll at all.
-  if (!S || polling || !$('stale').hidden || document.visibilityState !== 'visible') return;
-  polling = true;
-  fetch('/api/cursor')
-    .then((r) => r.json())
-    .then((s) => {
-      if (s.cursor !== S.cursor) {
-        $('stale').hidden = false;
-        // The page now knows that what it holds is out of date. The one thing it reads for itself, the
-        // settings, must not be drawn again from a read made before the change: it reads once more.
-        invalidateData();
-      }
-    })
-    // A failed poll changes nothing: the page keeps working on the data it has.
-    // One unreachable server must not blank a dashboard that is merely stale.
-    .catch(() => {})
-    .then(() => { polling = false; });
-}
-
-setInterval(poll, POLL_MS);
-// Coming back to a tab left open all afternoon should not mean waiting out the
-// interval before the page admits it is stale.
-addEventListener('visibilitychange', poll);
-$('stale').addEventListener('click', () => location.reload());
-
-/* ---------- boot ---------- */
-// The head script runs before the toggle exists, so its aria-pressed state has
-// to be applied again once the markup is there — otherwise a reader on paper is
-// shown "ink" as the active ground.
-window.eklavyaGround.apply(window.eklavyaGround.read());
 
 const json = (url) => fetch(url).then((r) => {
   if (!r.ok) throw new Error(`${url} answered ${r.status}`);
   return r.json();
 });
 
-Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
-  adoptState(s, inv);
+/**
+ * What boot writes from `S` and `INV` outside the view, and a redraw for new data writes again: the footer's database
+ * path and the line that discloses a cap, the dial line, the project picker and the tips switch. `adoptState` does
+ * not: it swaps the data and leaves the screen to the caller.
+ */
+function paintChrome(s, inv) {
   $('dbline').textContent = s.db_path;
   // Totals are aggregated in SQL over the whole table, so a cap can only
   // shorten a history list — but say so rather than let it look complete.
-  if (s.attempts_shown < s.attempts_total) {
-    $('foot-note').textContent =
-      ` Question histories show the most recent ${s.attempts_shown} of ${s.attempts_total} answers.`;
-  }
+  $('foot-note').textContent = s.attempts_shown < s.attempts_total
+    ? ` Question histories show the most recent ${s.attempts_shown} of ${s.attempts_total} answers.` : '';
   const c = s.config;
   // Same rule as the status bar in `statusline.ts`: `enforced` is a word worth
   // a slot, unenforced quizzing is not -- it was the default on three bars in
@@ -5527,10 +5677,132 @@ Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
   // captured memory, is a project and is listed.
   buildProjects(inv);
   TIP.paint();
+}
 
+/* ---------- live: the open page is told, and never asks ----------
+   Live, and never moves the reader. While the page is open and its tab is in view it holds one
+   `EventSource` on `/api/events`, which says one thing: the change cursor, once on connect and
+   again whenever anything the page shows changed (a hook, the MCP server, the CLI or another tab
+   wrote). The stream says *that* something changed and the payload says *what*, so the page keeps
+   one source of truth: on a cursor that is not its own it reads `/api/state` and `/api/projects`
+   (the server has already built them, and answers from memory), swaps them in (`adoptState`),
+   writes what boot writes outside the view (`paintChrome`) and draws the screen it is on again as
+   an adjustment (`syncFromUrl` -> `render`): the same route, the scroll where it was, focus and the
+   caret, the folds that are open, a Settings control being edited, the viewer's frame as the same
+   element. Numbers, rows, badges and the sidebar's counts change in place; nothing moves.
+
+   A write the page made itself (a saved setting, a correction, an acknowledge) still redraws from
+   its own answer, and the event that follows draws what is already there, which replaces nothing.
+
+   - Events that arrive while a read or a redraw is out are one more read after it, not one each.
+   - A hidden tab closes the stream and makes no request at all. Coming back opens it again, and its
+     first event is the current cursor, so a tab left open all afternoon catches up in one read.
+   - A server that goes away is the browser's to retry (the stream stays `CONNECTING` and the page
+     keeps what it has, with no banner). A stream the server refuses (the 33rd, a 503) is not:
+     the browser gives up on it for good, so the page opens a new one after a pause that doubles from
+     five seconds to a minute and starts again from five once a stream opens. */
+const LIVE_RETRY_MIN = 5000;
+const LIVE_RETRY_MAX = 60000;
+const LIVE = {
+  es: null,                 // the open stream; null while the tab is hidden, or the last one was refused
+  timer: 0,                 // the pending reopen of a stream that was refused
+  delay: LIVE_RETRY_MIN,    // how long that reopen waits
+  heard: '',                // the newest cursor the stream has said
+  busy: false,              // a read of the new data is out
+  more: false,              // a cursor that is not the page's arrived while it was
+};
+const inView = () => document.visibilityState === 'visible';
+
+function liveOpen() {
+  clearTimeout(LIVE.timer);
+  if (LIVE.es || !S || !inView()) return;
+  let es;
+  try {
+    es = new EventSource('/api/events');
+  } catch (e) {
+    return liveReopen();
+  }
+  LIVE.es = es;
+  es.addEventListener('open', () => { LIVE.delay = LIVE_RETRY_MIN; });
+  es.addEventListener('cursor', (e) => liveHeard(e.data));
+  es.addEventListener('error', () => {
+    // While the server is away the stream is CONNECTING and the browser asks again by itself. Closed means it will not.
+    if (LIVE.es === es && es.readyState === EventSource.CLOSED) { LIVE.es = null; liveReopen(); }
+  });
+}
+
+function liveReopen() {
+  clearTimeout(LIVE.timer);
+  if (!inView()) return;
+  LIVE.timer = setTimeout(liveOpen, LIVE.delay);
+  LIVE.delay = Math.min(LIVE.delay * 2, LIVE_RETRY_MAX);
+}
+
+function liveClose() {
+  clearTimeout(LIVE.timer);
+  LIVE.es?.close();
+  LIVE.es = null;
+}
+
+/** The stream said `cursor`. */
+function liveHeard(cursor) {
+  LIVE.heard = cursor;
+  if (!S || cursor === S.cursor) return;
+  if (LIVE.busy) { LIVE.more = true; return; }
+  liveRefresh();
+}
+
+/**
+ * Reads the new payload and draws it. A failure changes nothing: the page keeps what it has, and the next cursor the
+ * stream says (or a reconnect, whose first event is the current one) asks again.
+ */
+function liveRefresh() {
+  LIVE.busy = true;
+  LIVE.more = false;
+  Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
+    try {
+      // The same cursor is the page's own write, or a read that raced the stream: there is nothing new to draw.
+      if (s.cursor !== S.cursor) liveAdopt(s, inv);
+    } finally {
+      LIVE.busy = false;
+    }
+    if (LIVE.more && LIVE.heard !== S.cursor && inView()) liveRefresh();
+  }, () => { LIVE.busy = false; });
+}
+
+/**
+ * Swaps the new payload in and draws the current screen again in place. Through `syncFromUrl`, not a bare
+ * `render()`: a project that is no longer in the inventory is dropped the way boot drops one. `LIVE_PASS` makes
+ * the redraw keep what the reader is in the middle of, besides what they had open (see `captureUi`).
+ */
+function liveAdopt(s, inv) {
+  LIVE_PASS = true;
+  try {
+    adoptState(s, inv);
+    paintChrome(s, inv);
+    syncFromUrl();
+  } finally {
+    LIVE_PASS = false;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (inView()) { LIVE.delay = LIVE_RETRY_MIN; liveOpen(); } else liveClose();
+});
+
+/* ---------- boot ---------- */
+// The head script runs before the toggle exists, so its aria-pressed state has
+// to be applied again once the markup is there — otherwise a reader on paper is
+// shown "ink" as the active ground.
+window.eklavyaGround.apply(window.eklavyaGround.read());
+
+Promise.all([json('/api/state'), json('/api/projects')]).then(([s, inv]) => {
+  adoptState(s, inv);
+  paintChrome(s, inv);
   syncFromUrl();
   $('app').classList.remove('booting');
   $('view').removeAttribute('aria-busy');
+  liveOpen();
 }).catch((e) => {
   $('app').classList.remove('booting');
   $('view').removeAttribute('aria-busy');

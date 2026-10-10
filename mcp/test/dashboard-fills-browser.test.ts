@@ -6,11 +6,12 @@
 // what it had, dimmed and out of reach, until the answer draws. Each test holds a response back
 // (or fails it) to look at the page while it waits, the way the reader would see it.
 import fs from 'node:fs';
+import path from 'node:path';
 import type { Page } from 'playwright-core';
 import { describe, expect, it } from 'vitest';
 import { acknowledgeFeedback, insertFeedback } from '../src/feedback.js';
 import { createArtifact } from '../dist/artifacts.js';
-import { KEY, OPTS, db, enc, fix, fx, open, pickOption, pickProject, probeTransition, ready } from './dashboard-browser-helpers.js';
+import { KEY, OPTS, db, enc, fix, fx, home, open, pickOption, pickProject, probeTransition, ready } from './dashboard-browser-helpers.js';
 
 // Globals of the page under test (a script's `let` and `const` are reachable by name from `evaluate`, not from `window`).
 declare const S: { cursor: string; artifacts: { id: string; title: string }[] };
@@ -21,7 +22,6 @@ declare function respGet(url: string): { body: unknown } | null;
 declare function respPut(url: string, body: unknown, at: { cursor: string; gen: number }): void;
 declare function respAt(): { cursor: string; gen: number };
 declare function invalidateData(): void;
-declare function poll(): void;
 
 const HEIGHT = 600;
 const go = (page: Page, hash: string) => () => page.evaluate((h) => { location.hash = h; }, hash);
@@ -196,6 +196,10 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const gate = await hold(page, '**/api/memory?*', (u) => u.includes('tag=auth'));
       await pickOption(page, '#mtag', 'auth');
       await page.waitForFunction(() => document.getElementById('mem-rows')!.getAttribute('aria-busy') === 'true');
+      // Out of the pointer's reach at once. The dim itself waits 150 ms (and then fades in), so an answer that is
+      // quick, which with the server's memo and a live page is the usual one, never flashes; this one is held back.
+      expect(await looks(page, '#mem-rows')).toMatchObject({ pointerEvents: 'none', busy: 'true', kept: true, failed: false });
+      await page.waitForFunction(() => getComputedStyle(document.getElementById('mem-rows')!).opacity === '0.55');
       expect(await looks(page, '#mem-rows')).toEqual({ opacity: '0.55', pointerEvents: 'none', busy: 'true', kept: true, failed: false });
       // What the reader was looking at is still there, still readable, and no loader has been drawn over it.
       expect(await page.$$eval('#mem-rows [data-entry]', (r) => r.length)).toBe(before);
@@ -218,6 +222,75 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     }, 30000);
+
+    /**
+     * Watches `#id` from the moment a request makes it busy until it is not: how it looked frame by frame, and how long
+     * after becoming busy it first looked different. Started before the action, read after the page settled.
+     */
+    const watchDim = (page: Page, id: string) => page.evaluate((i) => {
+      const w = window as any;
+      const el = document.getElementById(i)!;
+      const d = { busyAt: 0, dimAt: 0, seen: new Set<string>() };
+      w.__dim = d;
+      new MutationObserver(() => { if (el.getAttribute('aria-busy') === 'true' && !d.busyAt) d.busyAt = performance.now(); })
+        .observe(el, { attributes: true, attributeFilter: ['aria-busy'] });
+      const tick = () => {
+        const o = getComputedStyle(el).opacity;
+        if (d.busyAt) { d.seen.add(o); if (o !== '1' && !d.dimAt) d.dimAt = performance.now(); }
+        requestAnimationFrame(tick);
+      };
+      tick();
+    }, id);
+    const dimmed = (page: Page) => page.evaluate(() => { const d = (window as any).__dim; return { busy: d.busyAt > 0, after: d.dimAt ? Math.round(d.dimAt - d.busyAt) : null, seen: [...d.seen] as string[] }; });
+
+    it('does not dim a region for an answer that comes within 150 ms, and dims one that does not after that, with a fade', async () => {
+      const w = await open('#/memory/timeline', { height: HEIGHT });
+      const { page } = w;
+      await page.waitForSelector('#mem-rows [data-entry]');
+      // A quick answer: 60 ms. The region is busy and out of reach for that long, and never looks different.
+      await page.route('**/api/memory?*', async (route) => { await new Promise((r) => setTimeout(r, 60)); await route.continue(); });
+      await watchDim(page, 'mem-rows');
+      await pickOption(page, '#mtag', 'auth');
+      await page.waitForFunction(() => !document.getElementById('mem-rows')!.hasAttribute('aria-busy') && document.querySelectorAll('#mem-rows [data-entry]').length === 2);
+      await page.waitForTimeout(150);
+      expect(await dimmed(page)).toEqual({ busy: true, after: null, seen: ['1'] });
+      await page.unroute('**/api/memory?*');
+
+      // A slow answer: the dim starts 150 ms after the request, and is a fade (it passes through values between).
+      await page.route('**/api/memory?*', async (route) => { await new Promise((r) => setTimeout(r, 900)); await route.continue(); });
+      await watchDim(page, 'mem-rows');
+      await pickOption(page, '#mtag', 'docs');
+      await page.waitForFunction(() => getComputedStyle(document.getElementById('mem-rows')!).opacity === '0.55');
+      await page.waitForFunction(() => !document.getElementById('mem-rows')!.hasAttribute('aria-busy'));
+      const slow = await dimmed(page);
+      expect(slow.after, 'the dim waited for the answer to be late').toBeGreaterThanOrEqual(130);
+      expect(slow.after).toBeLessThan(500);
+      expect(slow.seen).toContain('0.55');
+      expect(slow.seen.length, 'a fade, not a step').toBeGreaterThan(2);
+      await page.unroute('**/api/memory?*');
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
+    it('is a step after the same delay, with no fade, when the reader asked for reduced motion', async () => {
+      const w = await open('#/memory/timeline', { height: HEIGHT });
+      const { page } = w;
+      await page.waitForSelector('#mem-rows [data-entry]');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.route('**/api/memory?*', async (route) => { await new Promise((r) => setTimeout(r, 900)); await route.continue(); });
+      await watchDim(page, 'mem-rows');
+      await pickOption(page, '#mtag', 'auth');
+      await page.waitForFunction(() => getComputedStyle(document.getElementById('mem-rows')!).opacity === '0.55');
+      expect(await page.$eval('#mem-rows', (el) => { const cs = getComputedStyle(el); return [cs.transitionDuration, cs.transitionDelay, cs.animationName]; }))
+        .toEqual(['0s', '0.15s', 'none']);
+      await page.waitForFunction(() => !document.getElementById('mem-rows')!.hasAttribute('aria-busy'));
+      const slow = await dimmed(page);
+      expect(slow.after).toBeGreaterThanOrEqual(130);
+      expect(slow.seen.sort(), 'a step: never between').toEqual(['0.55', '1']);
+      await page.unroute('**/api/memory?*');
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
 
     it('is cleared at once when the page returns to an answer it holds, and the late answer is kept, not drawn', async () => {
       const w = await open('#/memory/timeline', { height: HEIGHT });
@@ -269,7 +342,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       });
       await page.setViewportSize({ width: 1100, height: HEIGHT });
       await page.waitForFunction(() => document.getElementById('mem-recent')!.getAttribute('aria-busy') === 'true' && document.getElementById('mem-sessions')!.getAttribute('aria-busy') === 'true');
-      expect(await looks(page, '#mem-recent')).toMatchObject({ opacity: '0.55', pointerEvents: 'none', kept: true });
+      expect(await looks(page, '#mem-recent')).toMatchObject({ pointerEvents: 'none', kept: true });
+      await page.waitForFunction(() => getComputedStyle(document.getElementById('mem-recent')!).opacity === '0.55');
       expect(await page.evaluate(() => (window as any).__rows === document.querySelector('#mem-recent')!.firstElementChild), 'the same nodes').toBe(true);
       expect(await page.evaluate(() => (window as any).__loaders)).toBe(0);
       // The keyboard is held back as the pointer is: a row the reader can Tab to goes nowhere on Enter while it is dimmed.
@@ -347,14 +421,28 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await page.click('[data-unset="cadence"]');
       await page.waitForSelector('[data-msg="cadence"]:has-text("inherited")');
 
-      // The page's own timer finds the cursor elsewhere: what it holds is out of date.
+      // The server moves on (a change to the user's file, from a terminal): the stream tells the page, which drops what it
+      // read under the old cursor and reads the screen it is on again, so what the cache holds afterwards is only that.
       await page.evaluate(() => { location.hash = '#/memory/timeline'; });
       await ready(page);
-      expect((await keys()).length).toBeGreaterThan(1);
-      await page.evaluate(() => { S.cursor = 'an-older-page'; });
-      await page.evaluate(() => poll());
-      await page.waitForSelector('#stale:not([hidden])');
-      expect(await keys()).toEqual([]);
+      await pickProject(page, fx.repo.mixed);
+      await ready(page);
+      const old = await keys();
+      expect(old.length).toBeGreaterThan(1);
+      expect(old.some((k) => k.includes(`project=${enc(fx.repo.mixed)}`))).toBe(true);
+      const was = await page.evaluate(() => S.cursor);
+      fs.mkdirSync(path.join(home, 'home'), { recursive: true });
+      fs.writeFileSync(path.join(home, 'home', 'config.json'), JSON.stringify({ difficulty: 'hard' }));
+      try {
+        await page.waitForFunction((c) => S.cursor !== c, was, { timeout: 4000 });
+        await ready(page);
+        const now = await page.evaluate(() => ({ cursor: S.cursor, entries: [...RESP.entries()].map(([k, v]) => [k, v.cursor]) }));
+        expect(now.entries.length, 'the screen was read again').toBeGreaterThan(0);
+        for (const [k, c] of now.entries) expect(c, k).toBe(now.cursor);
+        expect(now.entries.map(([k]) => k), 'what was read for the old data is gone').not.toEqual(expect.arrayContaining(old));
+      } finally {
+        fs.rmSync(path.join(home, 'home', 'config.json'), { force: true });
+      }
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     }, 90000);

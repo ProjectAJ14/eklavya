@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { chromium } from 'playwright-core';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 const SCRIPT = path.resolve(import.meta.dirname, '..', 'scripts', 'dashboard-perf.mjs');
@@ -84,7 +85,59 @@ describe('its arguments', () => {
     const r = perf(['larg', '--help']);
     expect(r.status).toBe(0);
     expect(r.out).toContain('Usage: node mcp/scripts/dashboard-perf.mjs');
+    expect(r.out).toContain('--live');
   });
+
+  it('wants a whole number of writes, and says so before it seeds anything', () => {
+    for (const bad of ['0', 'two', '1.5', '']) {
+      const r = perf(['small', '--live', `--writes=${bad}`]);
+      expect(r.status, bad).toBe(2);
+      expect(r.err.split('\n')[0], bad).toBe(`--writes wants a whole number of at least 1, not "${bad}"`);
+      expect(r.out).toBe('');
+    }
+  });
+});
+
+describe('--live', () => {
+  it('says why and skips, with nothing wrong, when the browser it was told about is not there', () => {
+    const missing = path.join(tmp, 'no-chromium');
+    const r = perf(['small', '--live', '--writes=1'], { EKLAVYA_TEST_BROWSER: missing });
+    expect(r.status).toBe(0);
+    expect(r.out).toContain(`Live update: skipped, EKLAVYA_TEST_BROWSER names ${missing}, which is not there`);
+    // The rest of the report is as it is without the flag.
+    expect(r.out).toMatch(/\/api\/state payload: /);
+    const json = perf(['small', '--live', '--writes=1', '--json'], { EKLAVYA_TEST_BROWSER: missing });
+    expect(JSON.parse(json.out).live).toEqual({ skipped: `EKLAVYA_TEST_BROWSER names ${missing}, which is not there` });
+  });
+
+  it('prints no live section without the flag', () => {
+    const r = perf(['small', '--json']);
+    expect(JSON.parse(r.out)).not.toHaveProperty('live');
+  });
+
+  // A real Chromium, a real server and a real second connection: about ten seconds at the small scale.
+  const browser = process.env.EKLAVYA_TEST_BROWSER ?? (() => { try { return chromium.executablePath(); } catch { return ''; } })();
+  it.skipIf(!browser || !fs.existsSync(browser))('times a write from the database to the row on screen, with the early trigger and on the floor', () => {
+    const r = perf(['small', '--live', '--writes=2', '--json'], browser === process.env.EKLAVYA_TEST_BROWSER ? {} : { EKLAVYA_TEST_BROWSER: browser });
+    expect(r.status, r.err).toBe(0);
+    const live = JSON.parse(r.out).live;
+    expect(live.writes).toBe(2);
+    expect(live.variants.map((v: { name: string }) => v.name)).toEqual(['fs.watch', 'floor only']);
+    for (const v of live.variants) {
+      expect(v.runs).toHaveLength(2);
+      for (const run of v.runs) {
+        // The parts add up to the whole, within a rounding error, and each is a duration.
+        expect(run.heard).toBeGreaterThan(0);
+        expect(run.read).toBeGreaterThan(0);
+        expect(run.paint).toBeGreaterThan(0);
+        expect(run.heard + run.read + run.paint).toBeCloseTo(run.total, 0);
+        expect(run.draw).toBeLessThanOrEqual(run.paint);
+      }
+      expect(v.total.median).toBeGreaterThan(0);
+    }
+    // The row it watched for was on screen every time (a write that never showed is an error the script reports).
+    expect(r.err).not.toMatch(/not on screen/);
+  }, 120_000);
 });
 
 describe('what it prints', () => {

@@ -18,7 +18,6 @@ declare const FOLD: Record<string, boolean>;
 declare const INV: unknown;
 declare function adoptState(s: unknown, inv: unknown): void;
 declare function render(opts?: { nav?: boolean }): void;
-declare function poll(): void;
 
 /** Short enough that every page below scrolls, and that it still can after a list gets shorter. */
 const HEIGHT = 420;
@@ -105,6 +104,13 @@ async function resetCadence(): Promise<void> {
     delete cfg.cadence;
     fs.writeFileSync(file, JSON.stringify(cfg));
   } catch { /* never written */ }
+}
+
+/** Waits, in this process, until `ready` says so. */
+async function waitFor(ready: () => boolean, timeout = 5000): Promise<void> {
+  for (const start = Date.now(); !ready(); await new Promise((r) => setTimeout(r, 25))) {
+    if (Date.now() - start > timeout) throw new Error('waitFor: timed out');
+  }
 }
 
 /** Text of every row of the list on screen, for comparing "the list" rather than a pixel. */
@@ -738,20 +744,24 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         await w.ctx.close();
       }, 60000);
 
-      it('reads again after the poll has found that the server moved on, and holds that read', async () => {
+      it('draws what the file now says, in place, when the server moves on, and holds that read', async () => {
         const w = await open('#/settings/dashboard', { height: HEIGHT });
         const { page } = w;
         try {
           const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
           const click = (href: string) => probeTransition(page, () => page.click(`.sw__tab[href="${href}"]`));
           expect(await page.inputValue('#set-cadence')).not.toBe('end');
-          // `eklavya config set cadence end`, from a terminal: the file changes under an open page.
-          setCadenceOnDisk('end');
-          // The page's own timer asks the server where it is, finds it elsewhere, and says so.
-          await page.evaluate(() => poll());
-          await page.waitForSelector('#stale:not([hidden])');
-          // The page knows what it holds is out of date, so the next Settings draw reads, once, and shows the file.
-          expect((await click(tabs[1]!)).requests).toEqual(['/api/settings']);
+          // `eklavya config set cadence end`, from a terminal: the file changes under an open page. The server notices
+          // and tells the page, which reads what it holds again (the payload, and Settings, once) and draws it where
+          // it is: the reader is not asked to do anything, and does not need to press a tab to see it.
+          const moved = await probeTransition(page, async () => {
+            setCadenceOnDisk('end');
+            await page.waitForFunction(() => (document.getElementById('set-cadence') as HTMLSelectElement).value === 'end', null, { timeout: 4000 });
+          }, { keep: '#settings .sw' });
+          expect(moved.requests).toEqual(['/api/state', '/api/projects', '/api/settings']);
+          expect(moved).toMatchObject({ keptSelector: true, sawLoader: false });
+          // What it read is held: the tabs after it cost nothing.
+          expect((await click(tabs[1]!)).requests).toEqual([]);
           expect((await click(tabs[0]!)).requests, 'the read is held').toEqual([]);
           expect(await page.inputValue('#set-cadence')).toBe('end');
           // Leaving Settings and coming back draws from that read too.
@@ -767,34 +777,36 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         }
       }, 60000);
 
-      it('does not draw from a read that was out when the poll found that the server moved on', async () => {
+      it('does not draw from a read that was out when the server moved on: the page reads again and shows the file', async () => {
         const w = await open('#/learning/concepts', { height: HEIGHT });
         const { page } = w;
         try {
-          // The server answers before the file changes; the answer reaches the page after the poll has seen the change.
+          // The first read is answered before the file changes and reaches the page after the page has been told about
+          // the change; the read the page makes for the new data is answered with the new file.
           let release = () => {};
           const held = new Promise<void>((r) => { release = r; });
-          let answered = () => {};
-          const early = new Promise<void>((r) => { answered = r; });
+          let answers = 0;
+          let both = () => {};
+          const answered = new Promise<void>((r) => { both = r; });
           await page.route('**/api/settings', async (route) => {
             const reply = await route.fetch();
-            answered();
+            if (++answers === 2) both();
             await held;
             await route.fulfill({ response: reply });
           });
           await page.evaluate(() => { location.hash = '#/settings/dashboard'; });
-          await early;
+          await page.waitForFunction(() => document.querySelector('#settings') !== null);
+          await waitFor(() => answers === 1);
           setCadenceOnDisk('end');
-          await page.evaluate(() => poll());
-          await page.waitForSelector('#stale:not([hidden])');
+          await answered;
           release();
           await ready(page);
-          // The reader is shown the answer that arrived (the old one), and the page does not hold it as current.
-          expect(await page.inputValue('#set-cadence')).not.toBe('end');
+          // The late answer for the old data is dropped; the reader is shown the file as it is now, and the page holds it.
+          await page.waitForFunction(() => (document.getElementById('set-cadence') as HTMLSelectElement | null)?.value === 'end');
           await page.unroute('**/api/settings');
           const tabs = await page.$$eval('.sw__tab', (a) => a.map((x) => x.getAttribute('href')!));
           const r = await probeTransition(page, () => page.click(`.sw__tab[href="${tabs[1]}"]`));
-          expect(r.requests, 'the next draw reads again').toEqual(['/api/settings']);
+          expect(r.requests, 'the read for the new data is held').toEqual([]);
           await page.click(`.sw__tab[href="${tabs[0]}"]`);
           expect(await page.inputValue('#set-cadence')).toBe('end');
           expect(w.errors).toEqual([]);
