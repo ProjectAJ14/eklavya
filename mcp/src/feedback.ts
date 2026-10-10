@@ -3,7 +3,7 @@ import type { Database } from 'better-sqlite3';
 import type { EklavyaConfig } from './config.js';
 import { ProviderError } from './memory/provider.js';
 import { ownWords } from './memory/recall.js';
-import { reviewPrompts, REVIEW_LIMIT } from './feedback-review.js';
+import { reviewPrompts, REVIEW_LIMIT, type GapArea } from './feedback-review.js';
 import { runtimeCli } from './update.js';
 import { HELPERS, HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from './prompt-text.js';
 
@@ -14,24 +14,24 @@ import { HELPERS, HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from './prompt-text.js
  * gates or concepts; the table has no foreign key to them.
  */
 
-/** Which wording of the rubric an item was written against. */
-export const FEEDBACK_RUBRIC = 1;
+/**
+ * Which wording of the review an item was written against. Items from rubric 1
+ * had their notes cleared by migration 029; their prompt, rewrite and tips stay.
+ */
+export const FEEDBACK_RUBRIC = 2;
 
-export type DimensionStatus = 'strong' | 'mixed' | 'missing' | 'not_visible';
-
-export interface Dimension {
-  status: DimensionStatus;
-  note: string;
-  /** A quote from a later prompt; required for Discernment and Diligence unless `not_visible`. */
+export interface Gap {
+  area: GapArea;
+  /** What the prompt left out and what that cost. */
+  missing: string;
+  /** A short quote from a later prompt that supplied it, checked against what was sent. */
   evidence?: string;
 }
 
 export interface FeedbackReview {
-  delegation: Dimension;
-  description: Dimension;
-  discernment: Dimension;
-  diligence: Dimension;
-  judged_from: 'prompt';
+  /** One sentence on what the prompt did well; empty on an item from rubric 1. */
+  worked: string;
+  gaps: Gap[];
 }
 
 export interface NewFeedback {
@@ -291,7 +291,8 @@ export interface FeedbackListRow {
   acknowledged_at: string;
   /** The first 80 characters only: the list is a table, the item page has the rest. */
   prompt: string;
-  statuses: Record<'delegation' | 'description' | 'discernment' | 'diligence', DimensionStatus>;
+  /** The areas of its gaps, most costly first. */
+  areas: GapArea[];
 }
 
 /** Acknowledged items, newest first, one page. `project` narrows to one project's items. */
@@ -315,19 +316,13 @@ export function listAcknowledged(
     .all(...args, per, (page - 1) * per) as RawRow[];
   const items = rows.map((r) => {
     const row = parse(r);
-    const { delegation, description, discernment, diligence } = row.review;
     return {
       id: row.id,
       project: row.project,
       created_at: row.created_at,
       acknowledged_at: row.acknowledged_at!,
       prompt: row.prompt.slice(0, 80),
-      statuses: {
-        delegation: delegation.status,
-        description: description.status,
-        discernment: discernment.status,
-        diligence: diligence.status,
-      },
+      areas: row.review.gaps.map((g) => g.area),
     };
   });
   return { total, page, pages, per, items };

@@ -58,10 +58,10 @@ export function modelStep(c: EklavyaConfig): Step {
 export function feedbackStep(c: EklavyaConfig, firstRun: boolean): Step {
   return {
     key: 'feedback',
-    title: 'coach one of your prompts a session, against the 4D framework',
+    title: 'coach one of your prompts a session, from what you had to add later',
     current: firstRun || c.feedback.enabled ? 'on' : 'off',
     options: [
-      { value: 'on', detail: `one prompt a session leaves this machine for your model (${RECOMMENDED_MODEL} if you chose local)` },
+      { value: 'on', detail: `up to eight prompts a session leave this machine for your model (${RECOMMENDED_MODEL} if you chose local)` },
       { value: 'off', detail: 'nothing sent; later: eklavya config set feedback.enabled true' },
     ],
   };

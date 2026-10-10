@@ -178,7 +178,7 @@ export const setConfig: ToolDef = {
       .object({ enabled: z.boolean().optional() })
       .optional()
       .describe(
-        'Prompt feedback (default false): reviews one of the developer\'s own prompts from a finished session against the 4D framework, in the background, one item at a time. Needs memory.enabled and providers.observer; turning it on sends nothing by itself. It never changes mastery.',
+        'Prompt feedback (default false): reviews one of the developer\'s own prompts from a finished session, using the later prompts to show what it left out, in the background, one item at a time. Needs memory.enabled and providers.observer; turning it on sends nothing by itself. It never changes mastery.',
       ),
     retrieval: z
       .object({

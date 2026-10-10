@@ -1261,7 +1261,7 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
   { key: 'retrieval.cross_project', group: 'Memory', label: 'Recall across projects',
     help: 'Let another repository\'s memory be recalled here.' },
   { key: 'feedback.enabled', group: 'Feedback', label: 'Prompt feedback',
-    help: 'Review one prompt from a finished session against the 4D framework, in the background, using your observer model. Needs memory on and an observer model.' },
+    help: 'Review one prompt from a finished session, using your later prompts to show what it left out, in the background, using your observer model. Needs memory on and an observer model.' },
   { key: 'privacy.exclude_paths', group: 'Privacy', label: 'Never capture paths',
     help: 'Path patterns, one per line, on top of the built-in credential paths.' },
   { key: 'privacy.exclude_tools', group: 'Privacy', label: 'Never capture tools',

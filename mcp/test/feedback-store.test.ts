@@ -20,19 +20,12 @@ afterEach(() => {
   dbFile = '';
 });
 
-const dim = { status: 'mixed', note: 'n' };
 const item = (over: Partial<NewFeedback> = {}): NewFeedback => ({
   session_id: 's1',
   project: '/work/app',
   event_id: 7,
   prompt: 'fix the login bug',
-  review: {
-    delegation: dim,
-    description: dim,
-    discernment: { status: 'not_visible', note: '' },
-    diligence: { status: 'not_visible', note: '' },
-    judged_from: 'prompt',
-  },
+  review: { worked: 'ok', gaps: [{ area: 'outcome', missing: 'No goal.' }] },
   better: 'Fix the login bug in [the file].',
   tips: ['Say what fixed looks like'],
   model: 'sonnet',
@@ -71,7 +64,7 @@ describe('the one-pending gate', () => {
     expect(row.id).toBe(id);
     expect(row.rubric).toBe(FEEDBACK_RUBRIC);
     expect(row.tips).toEqual(['Say what fixed looks like']);
-    expect(row.review.description).toEqual(dim);
+    expect(row.review.gaps).toEqual([{ area: 'outcome', missing: 'No goal.' }]);
     expect(row.acknowledged_at).toBeNull();
   });
 

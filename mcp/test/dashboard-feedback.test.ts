@@ -34,13 +34,7 @@ const item = (over: Partial<NewFeedback> = {}): NewFeedback => ({
   project: '/work/app',
   event_id: null,
   prompt: SECRET,
-  review: {
-    delegation: { status: 'mixed', note: 'ok' },
-    description: { status: 'missing', note: 'No goal.' },
-    discernment: { status: 'not_visible', note: '' },
-    diligence: { status: 'not_visible', note: '' },
-    judged_from: 'prompt',
-  },
+  review: { worked: 'ok', gaps: [{ area: 'outcome', missing: 'No goal.' }, { area: 'check', missing: 'No test.' }] },
   better: 'Fix the login bug in [the file].',
   tips: ['Say what fixed looks like'],
   model: 'sonnet',
@@ -180,7 +174,7 @@ describe('the feedback routes', () => {
         const r = await get(url, '/api/feedback');
         expect(r.status).toBe(200);
         expect(r.body.item).toMatchObject({ id, prompt: SECRET, better: 'Fix the login bug in [the file].', tips: ['Say what fixed looks like'], acknowledged_at: null });
-        expect(r.body.item.review.description.status).toBe('missing');
+        expect(r.body.item.review.gaps[0].area).toBe('outcome');
         expect((await get(url, `/api/feedback?id=${id}`)).body.item.id).toBe(id);
       }
       expect(db.prepare('SELECT acknowledged_at FROM feedback_items').get()).toEqual({ acknowledged_at: null });
@@ -237,7 +231,7 @@ describe('the feedback routes', () => {
     expect(db.prepare('SELECT acknowledged_at FROM feedback_items').get()).toEqual({ acknowledged_at: null });
   });
 
-  it('lists acknowledged items only, newest first, paged, with the first 80 characters and the statuses', async () => {
+  it('lists acknowledged items only, newest first, paged, with the first 80 characters and the gap areas', async () => {
     const a = insertFeedback(db, item({ prompt: 'a'.repeat(200), session_id: 'a' }))!;
     acknowledgeFeedback(db, a);
     const b = insertFeedback(db, item({ project: '/work/other', session_id: 'b' }))!;
@@ -248,7 +242,7 @@ describe('the feedback routes', () => {
       expect(r.body.total).toBe(2);
       expect(r.body.items.map((i: any) => i.id)).toEqual([b, a]);
       expect(r.body.items[1].prompt.length).toBe(80);
-      expect(r.body.items[1].statuses).toEqual({ delegation: 'mixed', description: 'missing', discernment: 'not_visible', diligence: 'not_visible' });
+      expect(r.body.items[1].areas).toEqual(['outcome', 'check']);
       expect(JSON.stringify(r.body)).not.toContain('Fix the login');
       const scoped = await get(url, `/api/feedback/list?project=${encodeURIComponent('/work/other')}`);
       expect(scoped.body.items.map((i: any) => i.id)).toEqual([b]);

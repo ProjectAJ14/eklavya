@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "de9c1032db3945eaf42b5ae27a007fdf2f5649e0"
+      "revision": "274f1f63b48094987225fd5806498979ebe92a81"
     },
     "views": [
       {
@@ -399,7 +399,7 @@
         },
         {
           "path": "mcp/src/feedback-review.ts",
-          "label": "4D rubric \u00b7 validation"
+          "label": "gap review \u00b7 validation"
         },
         {
           "path": "mcp/src/migrations/026_feedback.sql",

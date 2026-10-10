@@ -39,16 +39,9 @@ function session(db: Database, id: string, startedMinutesAgo: number, prompts = 
   return ids;
 }
 
-const dim = (status: string, note = 'ok') => ({ status, note });
 const goodOutput = (over: Record<string, unknown> = {}) => ({
   chosen: 1,
-  review: {
-    delegation: dim('mixed'),
-    description: dim('missing', 'No goal or file.'),
-    discernment: { status: 'strong', note: 'Re-ran it.', evidence: 'run the tests again' },
-    diligence: dim('not_visible', ''),
-    judged_from: 'prompt',
-  },
+  review: { worked: 'Named the bug.', gaps: [{ area: 'context', missing: 'No goal or file.' }, { area: 'check', missing: 'No test named.', evidence: 'run the tests again' }] },
   better: 'Fix the login bug in [the file]; it should [expected behaviour].',
   tips: ['Say what fixed looks like'],
   ...over,
@@ -177,7 +170,7 @@ describe.skipIf(!posix)('generateFeedback: which session', () => {
   });
 
   it('sends at most eight prompts, each cut to 1,500 characters', async () => {
-    stand(success(goodOutput({ review: { ...goodOutput().review, discernment: dim('not_visible', '') } })));
+    stand(success(goodOutput()));
     const long = (i: number) => `prompt ${i} ` + 'w'.repeat(2500);
     const ids = session(db, 'many', 3 * DAY, Array.from({ length: 10 }, (_, i) => long(i)));
     await run();
@@ -191,7 +184,7 @@ describe.skipIf(!posix)('generateFeedback: which session', () => {
   });
 
   it('stores the prompt the model chose, with the evidence row it came from', async () => {
-    stand(success(goodOutput({ chosen: 2, review: { ...goodOutput().review, discernment: dim('not_visible', '') } })));
+    stand(success(goodOutput({ chosen: 2 })));
     const ids = session(db, 's', 3 * DAY);
     await run();
     const row = feedbackPending(db)!;
@@ -206,7 +199,7 @@ describe.skipIf(!posix)('generateFeedback: which session', () => {
     const args = fs.readFileSync(path.join(bin, 'args'), 'utf8');
     expect(args).toContain('--strict-mcp-config');
     expect(args).toContain('--no-session-persistence');
-    expect(args).toContain('Anthropic');
+    expect(args).toContain('what an earlier prompt left out');
     expect(args).toContain('"chosen"');
   });
 });
@@ -251,14 +244,13 @@ describe.skipIf(!posix)('generateFeedback: the model fails or misbehaves', () =>
     expect(row.detail.length).toBeLessThanOrEqual(300);
     // A session that was reviewed, or had nothing to review, has no reason to give.
     db.prepare('DELETE FROM feedback_reviewed').run();
-    stand(success(goodOutput({ review: { ...goodOutput().review, discernment: dim('not_visible', '') } })));
+    stand(success(goodOutput()));
     await run();
     expect(db.prepare('SELECT outcome, detail FROM feedback_reviewed').get()).toEqual({ outcome: 'item', detail: null });
   });
 
-  it('rejects a Discernment judgement that has no evidence, and marks the session failed', async () => {
-    const bad = goodOutput();
-    (bad.review as Record<string, unknown>).discernment = dim('strong', 'Looked fine.');
+  it('rejects a gap in an area the review does not name, and marks the session failed', async () => {
+    const bad = goodOutput({ review: { worked: 'ok', gaps: [{ area: 'tone', missing: 'x' }] } });
     const got = await outcomeFor(success(bad));
     expect(got.status).toBe('failed');
     expect(got.pending).toBeNull();
