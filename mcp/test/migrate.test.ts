@@ -9,7 +9,7 @@ import { migrationsDir } from '../src/paths.js';
 import { tempDbPath, cleanup } from './helpers.js';
 
 /** Bump alongside the newest migration file. */
-const LATEST_SCHEMA_VERSION = 29;
+const LATEST_SCHEMA_VERSION = 31;
 
 const LEARNING_TABLES = [
   'attempt_retries',
@@ -179,6 +179,8 @@ describe('migrations', () => {
         '027_invalid_questions.sql',
         '028_option_checks.sql',
         '029_feedback_rubric_2.sql',
+        '030_events_rollup_index.sql',
+        '031_session_concept_order.sql',
       ]);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(tableNames(db)).toEqual(EXPECTED_TABLES);
@@ -242,7 +244,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1)').run();
       db.prepare("INSERT INTO learning_sources (event_id, slug, project) VALUES (1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql']);
+      expect(runMigrations(db)).toEqual(['015_event_link_indexes.sql', '016_usage_counts.sql', '017_project_roots.sql', '018_memory_reads.sql', '019_attempt_corrections.sql', '020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect(db.prepare('SELECT COUNT(*) AS n FROM memory_entry_events').get()).toEqual({ n: 1 });
       expect(db.prepare('SELECT COUNT(*) AS n FROM learning_sources WHERE event_id = 1').get()).toEqual({ n: 1 });
@@ -273,6 +275,100 @@ describe('migrations', () => {
     }
   });
 
+  it('upgrades a populated v29 database with the index the dashboard summarises evidence through', () => {
+    // The dashboard groups every captured event by project, session and checkout
+    // to count them. Without 030 that is a pass over the whole table (every row
+    // carries a tool output); with it, a pass over one narrow index.
+    const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-mig-'));
+    try {
+      for (const f of fs.readdirSync(migrationsDir()).filter((f) => f < '030')) {
+        fs.copyFileSync(path.join(migrationsDir(), f), path.join(oldDir, f));
+      }
+      const db = new Database(':memory:');
+      runMigrations(db, oldDir);
+      expect(schemaVersion(db)).toBe(29);
+      const insert = db.prepare(
+        "INSERT INTO evidence_events (event_uid, project, checkout, session_id, kind, occurred_at, status, redacted) VALUES (?, 'p', ?, ?, 'note', ?, ?, ?)",
+      );
+      insert.run('a', 'p', 's1', '2026-01-01T00:00:00.000Z', 'summarized', 0);
+      insert.run('b', null, 's1', '2026-01-01T00:01:00.000Z', 'accepted', 1);
+      const grouping = `SELECT project, session_id, checkout, count(*), SUM(status = 'summarized'), SUM(redacted),
+                               min(occurred_at), max(occurred_at), max(received_at)
+                        FROM evidence_events GROUP BY project, session_id, checkout ORDER BY project, session_id, checkout`;
+      const planOf = (sql: string) => (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all() as { detail: string }[]).map((r) => r.detail).join(' ');
+      const before = db.prepare(grouping).all();
+      expect(planOf(grouping)).not.toContain('idx_events_rollup');
+
+      expect(runMigrations(db)).toEqual(['030_events_rollup_index.sql', '031_session_concept_order.sql']);
+      expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
+      // No row moved, and the answer is the one it was.
+      expect(db.prepare('SELECT COUNT(*) AS n FROM evidence_events').get()).toEqual({ n: 2 });
+      expect(db.prepare(grouping).all()).toEqual(before);
+      // The plan, not the name, is the thing that matters: the grouping reads the
+      // index alone, in the order it needs, with no table page and no sort.
+      expect(planOf(grouping)).toContain('COVERING INDEX idx_events_rollup');
+      expect(planOf(grouping)).not.toContain('TEMP B-TREE');
+      // And it is what the Sessions list searches for one session of a project.
+      expect(planOf("SELECT count(*) FROM evidence_events WHERE session_id = 's1' AND project = 'p'")).toContain('idx_events_rollup');
+      db.close();
+    } finally {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+    }
+  });
+
+  it('upgrades a populated v30 database with the indexes the dashboard reads the logged lines and the entry counts through', () => {
+    // The dashboard reads `session_concepts` newest first (the lines it ships) and, per
+    // concept, for the newest line that has a context. Without 031 each is a pass over the
+    // whole table and a sort; with it, each is an index walk that stops at the answer. It
+    // also counts `memory_entries` by type and state, which with 031 reads one narrow index
+    // and without it every row (each carries a narrative).
+    const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-mig-'));
+    try {
+      for (const f of fs.readdirSync(migrationsDir()).filter((f) => f < '031')) {
+        fs.copyFileSync(path.join(migrationsDir(), f), path.join(oldDir, f));
+      }
+      const db = new Database(':memory:');
+      runMigrations(db, oldDir);
+      expect(schemaVersion(db)).toBe(30);
+      db.prepare("INSERT INTO concepts (slug, name, domain, tier) VALUES ('c-a', 'A', 'd', 1), ('c-b', 'B', 'd', 1)").run();
+      const insert = db.prepare('INSERT INTO session_concepts (session_id, concept_id, context, ts) VALUES (?, ?, ?, ?)');
+      // Equal times, one of them with no context: the row written first wins, and a line with no context is no answer.
+      insert.run('s1', 1, 'first written', '2026-01-02 00:00:00');
+      insert.run('s2', 1, 'second written', '2026-01-02 00:00:00');
+      insert.run('s3', 1, null, '2026-01-03 00:00:00');
+      insert.run('s1', 2, 'only line', '2026-01-01 00:00:00');
+      const newest = 'SELECT session_id, concept_id, context FROM session_concepts ORDER BY ts DESC, rowid LIMIT 3';
+      const newestContext = 'SELECT context FROM session_concepts WHERE concept_id = ? AND context IS NOT NULL ORDER BY ts DESC, rowid LIMIT 1';
+      const planOf = (sql: string) => (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...(sql.includes('?') ? [1] : [])) as { detail: string }[]).map((r) => r.detail).join(' ');
+      db.prepare("INSERT INTO memory_entries (entry_uid, project, kind, type, title, occurred_at, deleted_at) VALUES ('e1', 'p', 'observation', 'bugfix', 't', '2026-01-01T00:00:00.000Z', NULL), ('e2', 'p', 'note', NULL, 't', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')").run();
+      const entryCounts = `SELECT type, count(*) AS n, SUM(deleted_at IS NULL AND superseded_by IS NULL) AS live,
+                                  SUM(superseded_by IS NOT NULL) AS superseded, SUM(deleted_at IS NOT NULL) AS deleted, SUM(kind = 'note') AS notes
+                           FROM memory_entries GROUP BY type ORDER BY type`;
+      const before = { lines: db.prepare(newest).all(), one: db.prepare(newestContext).all(1), two: db.prepare(newestContext).all(2), entries: db.prepare(entryCounts).all() };
+      expect(planOf(newest)).toContain('TEMP B-TREE');
+      expect(planOf(newestContext)).toContain('TEMP B-TREE');
+      expect(planOf(entryCounts)).not.toContain('idx_entries_summary');
+
+      expect(runMigrations(db)).toEqual(['031_session_concept_order.sql']);
+      expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
+      // No row moved, and every answer, ties included, is the one it was.
+      expect(db.prepare('SELECT COUNT(*) AS n FROM session_concepts').get()).toEqual({ n: 4 });
+      expect({ lines: db.prepare(newest).all(), one: db.prepare(newestContext).all(1), two: db.prepare(newestContext).all(2), entries: db.prepare(entryCounts).all() }).toEqual(before);
+      expect(before.one).toEqual([{ context: 'first written' }]);
+      // The plan is the point: both read an index in the order they ask for, with no sort.
+      expect(planOf(newest)).toContain('USING INDEX idx_session_concepts_ts');
+      expect(planOf(newest)).not.toContain('TEMP B-TREE');
+      expect(planOf(newestContext)).toContain('idx_session_concepts_concept_ts');
+      expect(planOf(newestContext)).not.toContain('TEMP B-TREE');
+      // The entry counts read the narrow index alone, already in type order.
+      expect(planOf(entryCounts)).toContain('COVERING INDEX idx_entries_summary');
+      expect(planOf(entryCounts)).not.toContain('TEMP B-TREE');
+      db.close();
+    } finally {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+    }
+  });
+
   it('repairs a v19 memory index that a repeated soft delete had corrupted', () => {
     // Before 020, a soft delete removed the row's terms twice: once through the
     // update trigger and once by hand. Reproduce that on a v19 database, then
@@ -297,7 +393,7 @@ describe('migrations', () => {
       ).run();
       expect(() => db.prepare("UPDATE memory_entries SET deleted_at = 'again' WHERE id = 1").run()).toThrow(/malformed/);
 
-      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql']);
+      expect(runMigrations(db)).toEqual(['020_memory_fts_live.sql', '021_change_version.sql', '022_sync_supersessions.sql', '023_sync_received.sql', '024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql']);
       db.exec("INSERT INTO memory_fts(memory_fts, rank) VALUES ('integrity-check', 1)");
       expect(db.prepare('SELECT id, deleted_at FROM memory_entries ORDER BY id').all()).toEqual([
         { id: 1, deleted_at: 'then' },
@@ -344,7 +440,7 @@ describe('migrations', () => {
       db.prepare('INSERT INTO memory_entry_events (entry_id, event_id) VALUES (1, 1), (1, 3)').run();
       db.prepare("INSERT INTO learning_sources (id, event_id, slug, project) VALUES (1, 1, 'x', 'p')").run();
 
-      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql']);
+      expect(runMigrations(db)).toEqual(['024_purge_excluded_file_failures.sql', '025_panel_questions.sql', '026_feedback.sql', '027_invalid_questions.sql', '028_option_checks.sql', '029_feedback_rubric_2.sql', '030_events_rollup_index.sql', '031_session_concept_order.sql']);
       expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
       expect((db.prepare('SELECT id FROM evidence_events ORDER BY id').all() as { id: number }[]).map((r) => r.id)).toEqual([3, 4, 5]);
       // The entry and the candidate stay; only the links to the purged event go.

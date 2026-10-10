@@ -1,0 +1,33 @@
+-- Indexes that let the dashboard read the logged lines by time and summarise the
+-- memory entries without reading them.
+--
+-- `session_concepts` has one row per concept a session logged, and the
+-- dashboard reads it two ways that no index served:
+--
+--   * the newest lines, whichever session wrote them: `ORDER BY ts DESC LIMIT n`.
+--     Every build sorted all of them (24 ms at 20,000 lines) to keep the newest
+--     few hundred;
+--   * the newest context line of each concept (the catalogue's "last context"):
+--     the newest row of `concept_id = ?` that has a context. With no index that
+--     was a ranking over every line (16 to 24 ms), and the per-concept form of it
+--     (which an index makes cheap) scanned the table once per concept (76 ms).
+--
+-- `(ts DESC)` serves the first and `(concept_id, ts DESC)` the second; both
+-- keep the row id as the last key, so equal times come out in the order the
+-- rows were written, which is the order both readings have always had. With
+-- them a build reads the newest lines from the index (5 ms) and the newest
+-- context of every concept by one lookup each (under 1 ms).
+--
+-- `memory_entries` carries a narrative on every row, so counting entries by
+-- type, live, superseded, deleted and note (the overview's totals and its type
+-- facet) read the largest pages of the table to use four small columns: 10 ms
+-- at 10,000 entries, on every build. `idx_entries_summary` holds exactly those
+-- columns, in the order the grouping needs, so the same statement reads one
+-- narrow index (1 to 2 ms).
+--
+-- All three tables are small or written rarely (a row per logged concept, a row
+-- per observation), so keeping three more indexes is not measurable.
+-- Nothing else changes: no row is touched, and a downgrade ignores the indexes.
+CREATE INDEX IF NOT EXISTS idx_session_concepts_ts ON session_concepts(ts DESC);
+CREATE INDEX IF NOT EXISTS idx_session_concepts_concept_ts ON session_concepts(concept_id, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_entries_summary ON memory_entries(type, deleted_at, superseded_by, kind);

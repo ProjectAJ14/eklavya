@@ -8,8 +8,9 @@ import { gradeConcept, recordRetry } from '../src/store.js';
 import type { Watched } from './dashboard-browser-helpers.js';
 import { KEY, OPTS, base, db, enc, fix, fx, open, ready } from './dashboard-browser-helpers.js';
 
-/** The page's artifact tabs, a top-level const of its script. */
+/** The page's artifact tabs and payload, top-level bindings of its script. */
 declare const TABS: { scroll: Map<string, number> };
+declare const S: { cursor: string };
 
 describe.skipIf(!OPTS)('dashboard in a browser', () => {
   describe('artifacts', () => {
@@ -121,6 +122,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
 
       const barHeight = () => w.page.evaluate(() => document.getElementById('fixbar')!.getBoundingClientRect().height);
       const openHeight = await barHeight();
+      const cursorBefore = await w.page.evaluate(() => S.cursor);
       await w.page.click('#fix-open');
       expect(await w.page.evaluate(() => (document.getElementById('fix') as HTMLDialogElement).open)).toBe(true);
       const labels = await w.page.$$eval('#fix-opts .fix__opt', (b) => b.map((x) => (x as HTMLElement).dataset.pick));
@@ -143,8 +145,13 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.waitForSelector('#fix-msg:has-text("Corrected. Your accuracy now counts this as right.")');
       expect(await w.page.textContent('#fix-opts [data-pick="A lock"]')).toContain('Right answer');
       expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('fix-close');
-      // The rest of the page was drawn from the old payload, and says so.
-      expect(await w.page.isHidden('#stale')).toBe(false);
+      // The rest of the page follows by itself: the server saw the write and told the page, which read the payload
+      // again and drew it in place. There is no notice to press and no reload, and what is open in front of the
+      // reader (this dialog, the bar behind it, the frame) is left as it is.
+      expect(await w.page.locator('#stale').count()).toBe(0);
+      await w.page.waitForFunction((c) => S.cursor !== c, cursorBefore, { timeout: 4000 });
+      expect(await w.page.evaluate(() => (document.getElementById('fix') as HTMLDialogElement).open)).toBe(true);
+      expect(await w.page.evaluate(() => performance.getEntriesByType('navigation').length)).toBe(1);
       expect(await armed(w.page)).toBe(false);
       await w.page.keyboard.press('Enter');
       await w.page.waitForFunction(() => /Corrected on try 2 · /.test(document.getElementById('fixbar')?.textContent ?? ''));

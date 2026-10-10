@@ -77,6 +77,8 @@ describes visual checks.
 | Runtime behavior | Relevant automated tests and the live learning-loop check below |
 | Hooks or commit gate | Hook/gate tests plus the affected manual scenario below |
 | Tutor pedagogy | Before/after evaluation and live learning-loop transcript |
+| Dashboard builders, queries, payload or caps, or the routes' caching | Dashboard tests, plus before and after output of the [dashboard perf script](#dashboard-performance) |
+| The dashboard page's boot, render or navigation (`dashboard.html`) | Dashboard browser tests, plus render and transition times taken in a browser: the perf script measures the server only (see [Dashboard performance](#dashboard-performance)) |
 | Documentation or website | Website build; source-checked examples; visual checks for changed layouts |
 | Plugin manifests or host integration | Plugin validation and re-verification of [host contracts](docs/verified-schemas.md) |
 
@@ -205,6 +207,79 @@ ask questions one at a time while it builds, and write the task answer as the
 last message once the agent reports. Ask for a one-line fix too: it should stay
 inline. In either case the turn must not end on a question or a verdict; if the
 Stop sweep fires, it ends with "Back to your task:" and a short restatement.
+
+## Dashboard performance
+
+`mcp/scripts/dashboard-perf.mjs` measures what opening the dashboard costs on the
+server: the builders (`dashboardState`, `projectInventory`, `settingsState`, the
+memory pages, `changeCursor`), the size of the `/api/state` payload, and the HTTP
+round trips to the routes that serve them. Run it before and after a change to
+those builders, their queries, the payload's shape or caps (`ATTEMPT_LIMIT`,
+`LOGGED_LIMIT`), or what the routes cache, and put both outputs in the PR. It is a
+contributor tool: CI does not run it and no test asserts a time.
+
+It never loads `dashboard.html` and starts no browser, so a change that touches
+only the page leaves every number it prints the same. Page times come from a
+browser: the page-transition probe in the browser suite
+(`mcp/test/dashboard-browser.test.ts`) records, for every page, whether the view
+held a loader or shrank, how many requests the navigation made and whether the
+scroll moved, and wall-clock boot and render times are taken with a browser
+pointed at a dashboard serving a database of the same sizes, the way the
+reproduction section of issue #171 does.
+
+```bash
+cd mcp && npm run build && cd ..
+node mcp/scripts/dashboard-perf.mjs small
+node mcp/scripts/dashboard-perf.mjs                  # medium, roughly a year of daily use
+node mcp/scripts/dashboard-perf.mjs large
+node mcp/scripts/dashboard-perf.mjs /path/to/base/mcp/dist all --json > before.json
+node mcp/scripts/dashboard-perf.mjs all --json > after.json
+```
+
+The first argument is the `dist` to measure (default: the `mcp/dist` next to the
+script) and the second is `small`, `medium` (default), `large` or `all`, which runs
+the three in separate processes. Each scale seeds a synthetic learner through the
+migrated schema into a temporary `EKLAVYA_HOME` and `EKLAVYA_DB` and removes them
+afterwards; it never opens `~/.eklavya`. The data comes from a fixed PRNG, and every
+timestamp is counted back from midnight UTC at the start of the current day, so two
+runs on one machine on the same UTC date seed the same rows and print the same
+payload bytes.
+
+| Scale | Attempts | Logged rows | Evidence events | Memory entries | Sessions |
+|---|---|---|---|---|---|
+| small | 200 | 400 | 1,000 | 200 | 40 |
+| medium | 2,000 | 5,000 | 20,000 | 3,000 | 400 |
+| large | 10,000 | 20,000 | 100,000 | 10,000 | 1,500 |
+
+Each scale spreads its rows over 6 projects. The logged-row count is what was
+inserted; a duplicate session and concept pair is dropped, and the output states
+the rows actually seeded.
+
+For each scale it prints:
+
+- The median of five runs, with the fastest and slowest, of `dashboardState`,
+  `JSON.stringify` of its result, `projectInventory`, `settingsState`,
+  `memorySessionPage` and `changeCursor`. A builder the dist does not export prints
+  `n/a`.
+- The `/api/state` payload in bytes, in total and for every top-level key, largest
+  first, with `attempts_shown` and `attempts_total` so a cap is visible (and
+  `logged_shown` and `logged_total`). KB and MB are decimal, 1,000 and 1,000,000
+  bytes, the unit the issue's budgets use; the exact byte count is printed beside
+  them.
+- HTTP round trips to a real dashboard server on a free loopback port: each of
+  `/api/state`, `/api/projects`, `/api/settings`, `/api/memory/sessions` and
+  `/api/cursor` twice in a row (first and second, so a cached second answer
+  shows), and the page's two boot requests, `/api/state` and `/api/projects`,
+  issued together.
+
+`--json` prints the same measurements as one object per scale (an array for
+`all`) so two runs can be diffed. Compare runs from the same machine, under similar
+load, on the same day, in the same time zone and with the same `TMPDIR`. Timings
+vary by machine. Payload sizes depend on the environment, never on the code under
+test, in two ways: every row names its repository by path, so they shift with the
+length of the temporary directory, and the per-day rows (`daily`, the one key that
+moves) are the learner's local days, so a different time zone changes how many
+there are. The rows themselves are the same on every run on one date.
 
 ## Evaluation
 

@@ -602,6 +602,17 @@ describe('dashboard', () => {
     expect(fs.readFileSync(opened, 'utf8').trim()).toBe(`http://127.0.0.1:${port}`);
   });
 
+  it('waits for a background dashboard that is busy rebuilding, instead of starting a second one beside it', async () => {
+    // Its one thread is rebuilding the state for an open page: it answers the health probe 600 ms late, past
+    // SessionStart's 150 ms, and a command someone is waiting on allows more.
+    const answer = health({});
+    await listen((req, res) => { setTimeout(() => answer(req, res), 600); });
+    const run = eklavyaAsync(['dashboard', '--no-open']);
+    // Not `done`: a second dashboard served in the foreground never exits, and this should fail fast, not at the timeout.
+    expect(await run.until(/\(already running in the background\)|press Ctrl\+C/)).toMatch(/\(already running in the background\)/);
+    expect((await run.done).stdout).toMatch(/\(already running in the background\)\nReading .* — stop it: eklavya dashboard stop\n$/);
+  });
+
   it('starts one in the background when nothing answers, and stops it again', async () => {
     const run = eklavyaAsync(['dashboard', '--no-open']);
     expect((await run.done).stdout).toMatch(/\(started in the background\)/);
