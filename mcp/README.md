@@ -122,7 +122,7 @@ Its Learning page shows your streak and its calendar under the summary tiles; a
 waiting for a correction. The
 review queue gives each project a command to copy that starts Claude Code on its due
 concepts, in the project's folder when that folder is available.
-Its feature tips use Driver.js, bundled in `dist/` at build and served by the
+Its feature tips show the archer companion and use Driver.js, bundled in `dist/` at build and served by the
 dashboard itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`, so
 the page still requests nothing from another host. [Configuration](https://eklavya-run.web.app/docs/configuration/) lists
 defaults and scopes. The [memory guide](https://eklavya-run.web.app/docs/memory/)

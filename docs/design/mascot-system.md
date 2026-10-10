@@ -47,5 +47,5 @@ The mascot is decorative by default (`aria-hidden` on its SVG). Add `label` for 
 ## Current placements
 
 - Website: companion above the interactive terminal, responding to its actual run/question/result states.
-- Dashboard: initial and inline loaders, empty lists, missing records, feedback empty/error states, request errors, settings save/validation feedback, retry results, delete confirmation, and a rail link to the studio.
+- Dashboard: initial and inline loaders, empty lists, missing records, feedback empty/error states, request errors, settings save/validation feedback, retry results, delete confirmation, tip bubbles (the `tip` face, with a fitting `state` on a few tips), and the Settings Companion tab, which links to the studio.
 - Studio: all 13 expressions, body/face variants, state selector, size scale, loading motion, ink/paper toggle, and copyable examples.

@@ -89,6 +89,27 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
+    it('shows the companion in the bubble: a wink by default, a tip\'s own state when it names one', async () => {
+      const w = await open('#/learning/dashboard', { tips: true, init: tips([{ ...ONE, state: 'new' }]) });
+      await w.page.waitForSelector(bubble, WAIT);
+      expect(await w.page.getAttribute(`${bubble} eklavya-mascot`, 'state')).toBe('new');
+      expect(await w.page.locator(`${bubble} svg[data-expression="surprised"]`).count()).toBe(1);
+      await w.ctx.close();
+      const d = await open('#/learning/dashboard', { tips: true, init: tips([ONE]) });
+      await d.page.waitForSelector(bubble, WAIT);
+      expect(await d.page.locator(`${bubble} svg[data-expression="wink"]`).count()).toBe(1);
+      await d.ctx.close();
+    });
+
+    it('keeps the companion gallery out of the sidebar and in Settings', async () => {
+      const w = await open('#/settings/dashboard/companion');
+      await w.page.waitForSelector('#settings .sw__tab[aria-current="page"]');
+      expect(await w.page.locator('a[href="/mascot.html"]').count()).toBe(1);
+      expect(await w.page.locator('#side a[href="/mascot.html"]').count()).toBe(0);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
     it('Got it dismisses for good', async () => {
       const w = await open('#/learning/dashboard', { tips: true, init: tips([ONE, TWO]) });
       await w.page.waitForSelector(bubble, WAIT);
