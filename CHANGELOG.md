@@ -1,3 +1,10 @@
+# [1.62.0](https://github.com/ProjectAJ14/eklavya/compare/v1.61.1...v1.62.0) (2026-10-10)
+
+
+### Features
+
+* **tutor:** place the key mechanically, then re-check it (plus an eval progress dashboard) ([#163](https://github.com/ProjectAJ14/eklavya/issues/163)) ([8b1b8e5](https://github.com/ProjectAJ14/eklavya/commit/8b1b8e5211f9354e59e5288b0037453eb6ed8b03)), closes [#162](https://github.com/ProjectAJ14/eklavya/issues/162)
+
 ## [1.61.1](https://github.com/ProjectAJ14/eklavya/compare/v1.61.0...v1.61.1) (2026-10-09)
 
 

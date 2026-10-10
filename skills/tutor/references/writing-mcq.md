@@ -115,11 +115,16 @@ The reasoning behind each option goes in `option_notes` when you record the
 attempt (the card path) and in the panel's `explanation` (the panel path), both
 shown only after the answer.
 
-**5. Placement.** The plan gives each question an `answer_position`, 1 to 4. Put
-the correct option in that slot. Left to your own judgement you will put the
-right answer first nearly every time, and a learner needs only a handful of
-questions to notice that and start picking A without reading; the quiz keeps
-looking fine and stops measuring anything.
+**5. Placement.** The plan gives each question an `answer_position`, 1 to 4.
+**Put the correct option in exactly that slot** — slot 4 means the fourth option
+in the list, not the first. Do this mechanically: write the three distractors,
+then insert the key at index `answer_position`. Before sending, re-read the list
+and check the key is in that slot and that `correct` matches it. Left to your
+own judgement you will put the right answer first nearly every time, and a
+learner needs only a handful of questions to notice that and start picking A
+without reading; the quiz keeps looking fine and stops measuring anything. A
+question whose key is in the wrong slot is a failed question however good the
+rest is.
 
 **6. `header`.** Set it to `Eklavya`, and then **do what the plan's
 `ask_attribution` says** — it is the rule for the host you are actually running
@@ -168,7 +173,7 @@ telling you which part to rebuild.
   no description says why an option is right, wrong or tempting.
 - Each of the three wrong options came from a different row of the table above.
 - Only the correct option answers the stem; no expert could argue for another.
-- The correct option sits at `answer_position`.
+- The correct option sits at `answer_position`, and `correct` names it.
 - The tool renders the labels, so the stem does not number them.
 - The stem is the question and nothing else — the dials are in the developer's
   status bar.

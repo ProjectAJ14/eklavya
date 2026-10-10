@@ -21,6 +21,15 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Whether the tutor follows its grading, pacing and handoff rules at one frozen moment of a session | `node eval/conversation-harness.mjs run --root <checkout> --label <name>` | One model call per scenario and trial |
 | Whether sessions delegate building and ask while it runs | `node eval/delegation-harness.mjs run --plugin <checkout> --label <name>` | Whole Claude Code sessions |
 
+To watch a long run, start `node eval/dashboard.mjs` (port 4747, local only, separate from
+the Eklavya dashboard) and keep the page open. For each run it shows trials, calls against the
+cap, tokens, cost and time, live results (gates passed, mean score, which gates fail, how
+often the keyed option is longest), the diff of the prompt under test against the shipped
+one, and every finished trial: click a row for what the model was given, the question it
+wrote and its grade. With two runs it adds a side-by-side comparison. It reads every run that writes a progress file (the GEPA runner does:
+`<out>.progress.json`, or `progress.json` in an optimize run's directory), plus how many
+`claude -p` processes are alive. The other harnesses do not write progress files yet.
+
 Replace `<run>` with a saved run directory. Model-based stages use the configured
 Claude command and can incur usage.
 
