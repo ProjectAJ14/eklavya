@@ -56,7 +56,10 @@ def bridge(cmd: str, payload: dict, kind: str | None = None) -> dict:
     out = json.loads(res.stdout)
     if kind:
         pilot.BUDGET.add_usage(kind, {"usage": out.get("usage"), "total_cost_usd": out.get("cost")})
-        if out.get("error"):
+        # A timeout is a result, not a broken run: the product hits the same
+        # 100 s limit and retries at a later start, so it is scored as a failed
+        # review. Anything else (a login, a quota) counts toward the error cap.
+        if out.get("error") and "did not finish" not in out["error"]:
             pilot.BUDGET.errors[kind] += 1
     return out
 
@@ -130,6 +133,7 @@ def summarise(trials: list[dict]) -> dict:
     return {
         "trials": len(trials),
         "all_gates_passed": len(ok),
+        "timeouts": sum(1 for t in trials if "did not finish" in (t.get("error") or "")),
         "gate_failures": dict(Counter(g for t in trials for g in t.get("gates_failed", []))),
         "mean_score": round(statistics.fmean(t["score"] for t in trials), 4) if trials else None,
         "quality_means": {k: q(k) for k in ("prevents", "facts", "chosen", "tips", "areas")},
@@ -186,7 +190,7 @@ def cmd_report(args) -> None:
     for name, r in (("baseline", base), ("candidate", cand)):
         s, tk = r["summary"], r["budget"]["tokens"]
         print(f"\n{name}: {r['prompt']}{' (legacy schema)' if r.get('legacy') else ''}")
-        print(f"  {s['all_gates_passed']}/{s['trials']} pass every gate, mean score {s['mean_score']}")
+        print(f"  {s['all_gates_passed']}/{s['trials']} pass every gate, mean score {s['mean_score']}, reviewer timeouts {s.get('timeouts', 'not recorded')}")
         print(f"  gate failures: {s['gate_failures']}")
         print(f"  quality means: {s['quality_means']}")
         print(f"  evidence quotes kept {s['quotes']['kept']}/{s['quotes']['raw']}; invented names: {s['invented_names'] or 'none'}")
