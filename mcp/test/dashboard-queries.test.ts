@@ -365,6 +365,84 @@ describe('a database with no evidence at all', () => {
   });
 });
 
+describe('a purge in another process while a page of sessions is read', () => {
+  let other: DB;
+  afterEach(() => {
+    vi.restoreAllMocks();
+    other?.close();
+  });
+
+  /**
+   * Runs `purge` on a second connection to the file (what a retention sweep in
+   * another process is) at the one moment that matters: after the key set has
+   * been read and before the first count under it is prepared. Returns whether
+   * that moment came, so a case cannot pass by never reaching it.
+   */
+  function purgeAfterKeys(purge: (db2: DB) => void): () => boolean {
+    other = openDb(dbFile);
+    const real = db.prepare.bind(db);
+    let fired = false;
+    vi.spyOn(db, 'prepare').mockImplementation(((sql: string) => {
+      if (!fired && /FROM evidence_events WHERE session_id = \? AND project = \?/.test(sql)) {
+        fired = true;
+        purge(other);
+      }
+      return real(sql);
+    }) as never);
+    return () => fired;
+  }
+
+  const ROWS = (page: any) => page.rows.map((r: any) => [r.session_id, r.events]);
+
+  it('does not throw for a session whose only event goes between the key set and its counts, and reads one snapshot', () => {
+    evidence('/p', '/p', 'gone-soon', at('09:00'));
+    evidence('/p', '/p', 'stays', at('10:00'));
+    const fired = purgeAfterKeys((db2) => db2.prepare("DELETE FROM evidence_events WHERE session_id = 'gone-soon'").run());
+
+    let page: any;
+    expect(() => { page = memorySessionPage(db); }).not.toThrow();
+    expect(fired()).toBe(true);
+    // The purge did land, on the other connection, while this one was reading ...
+    expect(all('SELECT 1 FROM evidence_events WHERE session_id = ?', 'gone-soon')).toEqual([]);
+    // ... and the page is the database as it was when the read began: both sessions, each with its event.
+    expect(page.total).toBe(2);
+    expect(ROWS(page)).toEqual([['stays', 1], ['gone-soon', 1]]);
+    expect(page.rows[1]).toMatchObject({ first: at('09:00'), last: at('09:00') });
+  });
+
+  it('does not throw when the session asked for goes, and still answers its learning half', () => {
+    evidence('/p', '/p', 'gone-soon', at('09:00'));
+    const fired = purgeAfterKeys((db2) => db2.prepare('DELETE FROM evidence_events').run());
+    let page: any;
+    expect(() => { page = memorySessionPage(db, { session: 'gone-soon' }); }).not.toThrow();
+    expect(fired()).toBe(true);
+    expect(ROWS(page)).toEqual([['gone-soon', 1]]);
+    expect(page.learning).toEqual({ logged: [], attempts: [], attempts_total: 0 });
+  });
+
+  it('is only a snapshot for the read: the next page sees the purge, and no transaction is left open', () => {
+    evidence('/p', '/p', 'gone-soon', at('09:00'));
+    evidence('/p', '/p', 'stays', at('10:00'));
+    purgeAfterKeys((db2) => db2.prepare("DELETE FROM evidence_events WHERE session_id = 'gone-soon'").run());
+    memorySessionPage(db);
+    vi.restoreAllMocks();
+    expect(db.inTransaction).toBe(false);
+    expect(ROWS(memorySessionPage(db))).toEqual([['stays', 1]]);
+  });
+
+  it('ends its transaction when a count throws, so the handle is not left holding a snapshot', () => {
+    evidence('/p', '/p', 's', at('09:00'));
+    const real = db.prepare.bind(db);
+    vi.spyOn(db, 'prepare').mockImplementation(((sql: string) => {
+      if (/FROM evidence_events WHERE session_id = \? AND project = \?/.test(sql)) throw new Error('the database is locked');
+      return real(sql);
+    }) as never);
+    expect(() => memorySessionPage(db)).toThrow('the database is locked');
+    vi.restoreAllMocks();
+    expect(db.inTransaction).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------
 
 describe('the session lookup answers for the learning half, however old the rows', () => {

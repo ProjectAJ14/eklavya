@@ -15,6 +15,7 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -362,6 +363,78 @@ describe('the early trigger, on the real filesystem', () => {
     await until(() => s.cursors().length === 2, 'the event for the project config', 3000);
     expect(s.cursors()[1]).toBe(changeCursor(db));
   });
+
+  describe('keeps firing after a file is replaced, which is how every config write and most editors save', () => {
+    // A temporary file renamed over the target. On Linux a recursive watch holds one watch per file
+    // inode and so saw the first of these and never another: the floor is a minute here, so only the
+    // early trigger can have told of the second and the third.
+    const replace = (file: string, text: string, i: number) => {
+      fs.writeFileSync(`${file}.tmp-${i}`, text);
+      fs.renameSync(`${file}.tmp-${i}`, file);
+    };
+
+    it('a project\'s config file, rewritten three times by the write the dashboard and the CLI make', async () => {
+      answer(db, 'q', repo);
+      fs.mkdirSync(path.dirname(projectConfigPath(repo)), { recursive: true });
+      const url = await serve(EARLY);
+      const s = await stream(url);
+      for (let i = 1; i <= 3; i++) {
+        // Alternating values, so the cursor (a hash of the effective config) moves every time.
+        expect(updateSetting(db, { scope: 'project', project: repo, key: 'cadence', value: i % 2 ? 'end' : 'as-you-go' }).status).toBe(200);
+        await until(() => s.cursors().length === i + 1, `the event for rewrite ${i} of the project config`, 3000);
+        expect(s.cursors()[i]).toBe(changeCursor(db));
+      }
+      // Four events in all, none the same as the one before it (the values alternate, so the cursor goes back and forth).
+      expect(s.cursors()).toHaveLength(4);
+      expect(s.cursors().every((cursor, i, all) => i === 0 || cursor !== all[i - 1])).toBe(true);
+    });
+
+    it('a project\'s config file that is plainly written over in place afterwards, too', async () => {
+      answer(db, 'q', repo);
+      const file = projectConfigPath(repo);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      const url = await serve(EARLY);
+      const s = await stream(url);
+      replace(file, JSON.stringify({ project: repo, cadence: 'end' }), 1);
+      await until(() => s.cursors().length === 2, 'the event for the replacement', 3000);
+      fs.writeFileSync(file, JSON.stringify({ project: repo, cadence: 'as-you-go' }));
+      await until(() => s.cursors().length === 3, 'the event for the write in place', 3000);
+      expect(s.cursors()[2]).toBe(changeCursor(db));
+    });
+
+    it('an artifact page, replaced three times and then written in place', async () => {
+      const page = path.join(home, 'artifacts', 'p', 'x.html');
+      fs.mkdirSync(path.dirname(page), { recursive: true });
+      fs.writeFileSync(page, '<title>first</title>');
+      const url = await serve(EARLY);
+      const s = await stream(url);
+      for (let i = 1; i <= 3; i++) {
+        // A different size each time: the cursor reads the folder's count, sizes and newest time.
+        replace(page, `<title>replacement ${'x'.repeat(i * 7)}</title>`, i);
+        await until(() => s.cursors().length === i + 1, `the event for replacement ${i} of the page`, 3000);
+      }
+      fs.writeFileSync(page, '<title>written in place, and longer than any before it</title>');
+      await until(() => s.cursors().length === 5, 'the event for the write in place', 3000);
+      expect(s.cursors()[4]).toBe(changeCursor(db));
+    });
+
+    it('a folder made after the stream opened, and the file written into it, and that file replaced again', async () => {
+      answer(db, 'q', repo);
+      fs.mkdirSync(path.join(home, 'projects'), { recursive: true });
+      const url = await serve(EARLY);
+      const s = await stream(url);
+      const folder = path.dirname(projectConfigPath(repo));
+      const watching = vi.spyOn(fs, 'watch');
+      fs.mkdirSync(folder);
+      await until(() => watching.mock.calls.some(([dir]) => String(dir) === folder), 'a watch on the new folder');
+
+      expect(updateSetting(db, { scope: 'project', project: repo, key: 'cadence', value: 'end' }).status).toBe(200);
+      await until(() => s.cursors().length === 2, 'the event for the first config written', 3000);
+      expect(updateSetting(db, { scope: 'project', project: repo, key: 'cadence', value: 'as-you-go' }).status).toBe(200);
+      await until(() => s.cursors().length === 3, 'the event for the config written over', 3000);
+      expect(s.cursors()[2]).toBe(changeCursor(db));
+    });
+  });
 });
 
 describe('what it watches, and what it ignores', () => {
@@ -380,12 +453,26 @@ describe('what it watches, and what it ignores', () => {
   it('watches the database directory, the config directory, the project config area and the artifacts folder, and keeps none of them the process alive', async () => {
     const made = fakeWatch();
     await stream(await serve(EARLY));
+    // None is recursive: a recursive watch on Linux stops seeing a file once it has been replaced.
     expect(made.map((w) => [w.dir, w.opts])).toEqual([
       [path.dirname(dbFile), { persistent: false, recursive: false }],
       [home, { persistent: false, recursive: false }],
-      [path.join(home, 'projects'), { persistent: false, recursive: true }],
-      [path.join(home, 'artifacts'), { persistent: false, recursive: true }],
+      [path.join(home, 'projects'), { persistent: false, recursive: false }],
+      [path.join(home, 'artifacts'), { persistent: false, recursive: false }],
     ]);
+  });
+
+  it('also watches each folder of the project config area and of the artifacts folder, on its own, and no other entry', async () => {
+    for (const dir of ['projects/-tmp-a', 'projects/-tmp-b', 'artifacts/p', 'artifacts/.hidden']) fs.mkdirSync(path.join(home, dir), { recursive: true });
+    fs.writeFileSync(path.join(home, 'artifacts', 'note.txt'), 'a file in the root is no folder');
+    const made = fakeWatch();
+    await stream(await serve(EARLY));
+    const dirs = made.map((w) => w.dir);
+    // A root, then its folders (in the order the directory lists them).
+    expect(dirs.slice(0, 3)).toEqual([path.dirname(dbFile), home, path.join(home, 'projects')]);
+    expect(dirs.slice(3, 5).sort()).toEqual([path.join(home, 'projects', '-tmp-a'), path.join(home, 'projects', '-tmp-b')]);
+    expect(dirs.slice(5)).toEqual([path.join(home, 'artifacts'), path.join(home, 'artifacts', 'p')]);
+    expect(made.every((w) => w.opts.recursive === false && w.opts.persistent === false)).toBe(true);
   });
 
   it('reacts to the -wal file by name and to nothing else in the database directory', async () => {
@@ -410,21 +497,107 @@ describe('what it watches, and what it ignores', () => {
     expect(await checks(() => dir.fire('config.json'))).toBe(1);
   });
 
-  it('reacts to a project\'s config file and to no other file in the project area', async () => {
+  it('reacts to a project\'s config file and to no other file in the project folder', async () => {
+    fs.mkdirSync(path.join(home, 'projects', '-tmp-repo'), { recursive: true });
     const made = fakeWatch();
     await stream(await serve(EARLY));
-    const dir = made[2];
+    const folder = made[3];
+    expect(folder.dir).toBe(path.join(home, 'projects', '-tmp-repo'));
     // A platform that cannot name the file: nothing to match, and nothing thrown out of the watch's callback.
-    expect(await checks(() => dir.fire(null))).toBe(0);
-    expect(await checks(() => dir.fire('-tmp-repo/packs/seed.yaml'))).toBe(0);
-    expect(await checks(() => dir.fire('-tmp-repo'))).toBe(0);
-    expect(await checks(() => dir.fire('-tmp-repo/config.json'))).toBe(1);
+    expect(await checks(() => folder.fire(null))).toBe(0);
+    expect(await checks(() => folder.fire('packs'))).toBe(0);
+    expect(await checks(() => folder.fire('config.json.tmp-1234'))).toBe(0);
+    expect(await checks(() => folder.fire('config.json'))).toBe(1);
   });
 
-  it('reacts to anything in the artifacts folder', async () => {
+  it('reacts to any change in the project area itself, which is a folder made, renamed or removed', async () => {
     const made = fakeWatch();
     await stream(await serve(EARLY));
-    expect(await checks(() => made[3].fire('p/x.html'))).toBe(1);
+    const area = made[2];
+    expect(area.dir).toBe(path.join(home, 'projects'));
+    // The area lists what is there now whoever it names, so a platform that cannot name the entry is no worse off.
+    expect(await checks(() => area.fire(null))).toBe(1);
+    expect(await checks(() => area.fire('-tmp-repo'))).toBe(1);
+  });
+
+  it('reacts to anything in an artifacts folder, and to any change in the artifacts folder itself', async () => {
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    const made = fakeWatch();
+    await stream(await serve(EARLY));
+    const [root, folder] = [made[3], made[4]];
+    expect([root.dir, folder.dir]).toEqual([path.join(home, 'artifacts'), path.join(home, 'artifacts', 'p')]);
+    expect(await checks(() => folder.fire('x.html'))).toBe(1);
+    expect(await checks(() => folder.fire('x.html.tmp-77'))).toBe(1);
+    expect(await checks(() => folder.fire(null))).toBe(0);
+    expect(await checks(() => root.fire('p'))).toBe(1);
+  });
+
+  it('watches a folder made after the stream opened, and drops the watch for one that went', async () => {
+    const made = fakeWatch();
+    await stream(await serve(EARLY));
+    expect(made.map((w) => w.dir)).toEqual([path.dirname(dbFile), home, path.join(home, 'projects'), path.join(home, 'artifacts')]);
+    const area = made[2];
+    const folder = path.join(home, 'projects', '-tmp-new');
+
+    // The folder appears, and the area says so: a watch is made for it, and the check also asked for
+    // is what sees a file already written into it by the time the watch was made.
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, 'config.json'), '{}');
+    expect(await checks(() => area.fire('-tmp-new'))).toBe(1);
+    expect(made).toHaveLength(5);
+    expect(made[4].dir).toBe(folder);
+    expect(await checks(() => made[4].fire('config.json'))).toBe(1);
+
+    // The same news again makes no second watch for it.
+    await checks(() => area.fire('-tmp-new'));
+    expect(made).toHaveLength(5);
+    expect(made[4].watcher.close).not.toHaveBeenCalled();
+
+    // The folder goes: its watch is closed, once, and nothing watches it any more.
+    fs.rmSync(folder, { recursive: true });
+    await checks(() => area.fire('-tmp-new'));
+    expect(made[4].watcher.close).toHaveBeenCalledTimes(1);
+    await checks(() => area.fire('-tmp-new'));
+    expect(made[4].watcher.close).toHaveBeenCalledTimes(1);
+    expect(made).toHaveLength(5);
+
+    // And if it comes back, it is watched again, by a new watch.
+    fs.mkdirSync(folder);
+    await checks(() => area.fire('-tmp-new'));
+    expect(made).toHaveLength(6);
+    expect(made[5].dir).toBe(folder);
+  });
+
+  it('makes a new watch for a folder whose watch failed, once the area next reports', async () => {
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    const made = fakeWatch();
+    await stream(await serve(EARLY));
+    const [root, folder] = [made[3], made[4]];
+    folder.watcher.emit('error', Object.assign(new Error('EPERM: watch lost'), { code: 'EPERM' }));
+    expect(folder.watcher.close).toHaveBeenCalledTimes(1);
+    expect(made).toHaveLength(5);
+
+    await checks(() => root.fire('p'));
+    // A new watch for the same folder, and the failed one is not closed a second time.
+    expect(made).toHaveLength(6);
+    expect(made[5].dir).toBe(folder.dir);
+    expect(folder.watcher.close).toHaveBeenCalledTimes(1);
+    expect(await checks(() => made[5].fire('x.html'))).toBe(1);
+  });
+
+  it('drops every folder watch of an area that has itself gone, and keeps the others', async () => {
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    fs.mkdirSync(path.join(home, 'artifacts', 'q'), { recursive: true });
+    fs.mkdirSync(path.join(home, 'projects', '-tmp-repo'), { recursive: true });
+    const made = fakeWatch();
+    await stream(await serve(EARLY));
+    expect(made.map((w) => w.dir)).toEqual(expect.arrayContaining([path.join(home, 'projects', '-tmp-repo')]));
+    expect(made).toHaveLength(7);
+    const closed = () => made.map((w) => w.watcher.close.mock.calls.length);
+    // The artifacts folder cannot be listed any more.
+    fs.rmSync(path.join(home, 'artifacts'), { recursive: true });
+    await checks(() => made[4].fire('p'));
+    expect(closed()).toEqual([0, 0, 0, 0, 0, 1, 1]);
   });
 
   it('turns a burst of file events into one check and one event', async () => {
@@ -463,21 +636,44 @@ describe('every way the watching can fail leaves the floor working', () => {
     expect(s.cursors()[1]).toBe(changeCursor(db));
   });
 
-  it('skips a recursive watch the platform cannot make and keeps the others', async () => {
+  /** `fs.watch` that refuses the directories `refuse` names (the platform's watch limit, a permission) and fakes the rest. */
+  function watchRefusing(refuse: Set<string>): Watch[] {
     const made: Watch[] = [];
     vi.spyOn(fs, 'watch').mockImplementation(((dir: string, opts: Watch['opts'], listener: (e: string, n: string | null) => void) => {
-      if (opts.recursive) throw Object.assign(new Error('recursive watch is not supported'), { code: 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM' });
+      if (refuse.has(String(dir))) throw Object.assign(new Error('ENOSPC: no watch can be made here'), { code: 'ENOSPC' });
       const watcher = new FakeWatcher();
       made.push({ dir: String(dir), opts, fire: (n) => listener('change', n), watcher });
       return watcher;
     }) as unknown as typeof fs.watch);
+    return made;
+  }
+
+  it('skips an area it cannot watch, folders and all, and keeps the others', async () => {
+    fs.mkdirSync(path.join(home, 'projects', '-tmp-repo'), { recursive: true });
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    const made = watchRefusing(new Set([path.join(home, 'projects')]));
     const url = await serve({ floorMs: MINUTE, debounceMs: 10 });
     const s = await stream(url);
-    expect(made.map((w) => w.dir)).toEqual([path.dirname(dbFile), home]);
+    // Not the project area, and none of its folders (without the area's own watch a new folder would go unseen).
+    expect(made.map((w) => w.dir)).toEqual([path.dirname(dbFile), home, path.join(home, 'artifacts'), path.join(home, 'artifacts', 'p')]);
     // What it could watch still works.
     answer(another());
     made[0].fire('knowledge.db-wal');
     await until(() => s.cursors().length === 2, 'the event from the -wal watch');
+  });
+
+  it('skips a folder it cannot watch, and tries it again when its area next reports', async () => {
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    fs.mkdirSync(path.join(home, 'artifacts', 'q'), { recursive: true });
+    const refuse = new Set([path.join(home, 'artifacts', 'p')]);
+    const made = watchRefusing(refuse);
+    await stream(await serve({ floorMs: MINUTE, debounceMs: 10 }));
+    expect(made.map((w) => w.dir)).toEqual([path.dirname(dbFile), home, path.join(home, 'projects'), path.join(home, 'artifacts'), path.join(home, 'artifacts', 'q')]);
+
+    // The limit is lifted: the area reports, and the folder that had none is watched, the one that had is not made twice.
+    refuse.clear();
+    made[3].fire('p');
+    expect(made.map((w) => w.dir).slice(5)).toEqual([path.join(home, 'artifacts', 'p')]);
   });
 
   it('drops a watch that reports an error and goes on', async () => {
@@ -776,6 +972,50 @@ describe('closing the server', () => {
   it('resolves with no stream ever opened, and with the warm build still pending', async () => {
     const { close } = await startDashboard(db, { port: 0, live: FAST });
     await expect(close()).resolves.toBeUndefined();
+  });
+
+  it('opens no stream for a request that was already on a connection when it closed, and does not hold the close open', async () => {
+    const made = fakeWatch();
+    const timers = vi.spyOn(globalThis, 'setInterval');
+    const { url, close } = await startDashboard(db, { port: 0, live: FAST });
+    const html = (await raw(url, '/')).body.toString('utf8');
+    const token = /name="eklavya-token" content="([0-9a-f]+)"/.exec(html)![1];
+    const port = Number(new URL(url).port);
+
+    // A write whose body has not all arrived: the connection is mid-request when close() runs.
+    const socket = net.connect(port, '127.0.0.1');
+    let received = '';
+    socket.on('data', (chunk) => (received += chunk));
+    socket.on('error', () => {});
+    const over = new Promise<void>((done) => socket.on('close', () => done()));
+    await new Promise<void>((resolve) => socket.once('connect', () => resolve()));
+    socket.write(
+      `POST /api/settings HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nOrigin: ${url}\r\nContent-Type: application/json\r\n` +
+        `X-Eklavya-Token: ${token}\r\nContent-Length: 2\r\n\r\n{`,
+    );
+    await sleep(50);
+
+    let closed = false;
+    const closing = close().then(() => { closed = true; });
+    await sleep(50);
+    expect(closed).toBe(false);
+
+    // The rest of the body, and the next request on the same connection, in one chunk.
+    const timersBefore = timers.mock.calls.length;
+    socket.write(`}GET /api/events HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n\r\n`);
+    await Promise.race([over, sleep(3000).then(() => { throw new Error('the connection was held open'); })]);
+    await Promise.race([closing, sleep(3000).then(() => { throw new Error('close() did not resolve'); })]);
+
+    // The write was answered in full, and the stream was refused: said so, and nothing was started for it.
+    expect(received).toMatch(/^HTTP\/1\.1 400 /);
+    const refusal = received.slice(received.indexOf('HTTP/1.1', 8));
+    expect(refusal).toMatch(/^HTTP\/1\.1 503 /);
+    expect(refusal).toMatch(/connection: close/i);
+    expect(refusal).toContain('The dashboard is shutting down.');
+    expect(received).not.toContain('text/event-stream');
+    expect(made).toHaveLength(0);
+    expect(timers.mock.calls.length).toBe(timersBefore);
+    expect(closed).toBe(true);
   });
 });
 

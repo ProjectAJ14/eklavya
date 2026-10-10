@@ -551,6 +551,70 @@ describe('/api/settings is memoized, and never past what its files say', () => {
     expect(reads.mock.calls.length).toBeGreaterThan(n);
   });
 
+  it('shows the legacy in-repo file that loadConfig still reads, and an edit to it, for a project with no file of its own', async () => {
+    // `<repo>/.eklavya.json` is read until a session moves it (SessionStart), and the page shows the
+    // resolved dial. A hand edit moves no row and no cursor, and the project has no file outside the checkout to stat.
+    const url = await serve();
+    const before = json(await settings(url)).project.effective;
+    expect(before.cadence).toBe('as-you-go');
+    expect(before.max_questions_per_task).not.toBe(2);
+    const legacy = path.join(repo, '.eklavya.json');
+
+    fs.writeFileSync(legacy, JSON.stringify({ cadence: 'end' }));
+    expect(json(await settings(url)).project.effective.cadence).toBe('end');
+    // An edit that changes the file, and one that removes it: both show.
+    fs.writeFileSync(legacy, JSON.stringify({ cadence: 'as-you-go', max_questions_per_task: 2 }));
+    expect(json(await settings(url)).project.effective).toMatchObject({ cadence: 'as-you-go', max_questions_per_task: 2 });
+    fs.rmSync(legacy);
+    expect(json(await settings(url)).project.effective).toEqual(before);
+  });
+
+  it('stats the legacy file and never reads it into the stamp: a repeat reads only what the cursor reads', async () => {
+    // A file a `git clone` brought, with a key it has no business setting: the page's own read filters it
+    // (loadConfig), and a stamp has no reason to look inside.
+    fs.writeFileSync(path.join(repo, '.eklavya.json'), JSON.stringify({ cadence: 'end', notifications: { sinks: [{ type: 'command', command: 'true' }] } }));
+    const url = await serve();
+    const first = await settings(url);
+    expect(json(first).project.effective.cadence).toBe('end');
+    const { reads, n } = cursorReads();
+    const second = await settings(url);
+    expect(second.body.equals(first.body)).toBe(true);
+    expect(reads).toHaveBeenCalledTimes(n);
+    expect(reads.mock.calls.map(([file]) => String(file))).not.toContain(path.join(repo, '.eklavya.json'));
+  });
+
+  it('copes with a checkout whose .git went away inside the minute: no legacy file to stat, no error', async () => {
+    const url = await serve();
+    await settings(url);
+    fs.rmSync(path.join(repo, '.git'), { recursive: true });
+    // The inventory still lists it (that is the minute's price), but `loadConfig` finds no repository above it.
+    const again = await settings(url);
+    expect(again.status).toBe(200);
+    expect(json(again).project.id).toBe(repo);
+  });
+
+  it('does not carry the project list past the inventory it was built from', async () => {
+    // The inventory is built at the start (t = 0) and lists the project. A page built at t = 50 s from it
+    // is only eleven seconds old at t = 61 s, but its project list is a minute and a second old.
+    const url = await serve();
+    await tick();
+    let later = 0;
+    skew(() => later);
+    later = 50_000;
+    expect(json(await settings(url, null)).projects.map((p: any) => p.id)).toEqual([repo]);
+
+    // The checkout goes. Inside the inventory's minute the list is the one it built, as it always was.
+    fs.rmSync(path.join(repo, '.git'), { recursive: true });
+    later = 59_000;
+    expect(json(await settings(url, null)).projects.map((p: any) => p.id)).toEqual([repo]);
+
+    // Past it, the page goes with the list it carried, though the page itself is young.
+    later = 61_000;
+    expect(json(await settings(url, null)).projects).toEqual([]);
+    // And a write is refused for the same reason the page stopped offering it, at the same moment.
+    expect(updateSetting(db, { scope: 'project', project: repo, key: 'cadence', value: 'end' }).status).toBe(400);
+  });
+
   it('keeps a page for each project it is asked about', async () => {
     const other = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-memo-repo2-')));
     try {
@@ -583,6 +647,55 @@ describe('/api/settings is memoized, and never past what its files say', () => {
 
   it('forgets nothing when there is nothing to forget', () => {
     expect(updateSetting(db, { scope: 'user', key: 'cadence', value: 'end' }).status).toBe(200);
+  });
+});
+
+describe('the memo lasts sixty seconds', () => {
+  // The number is the contract (issue #171: scores decay, a checkout may vanish, so a build is kept a
+  // minute and no longer), so it is spelled out here and not read from the constant under test.
+  it('serves the state, the inventory and a Settings page at 59 s and rebuilds each of them by 61 s', async () => {
+    fs.writeFileSync(path.join(home, 'config.json'), '{}');
+    memoryOnly();
+    const url = await serve();
+    await tick(); // the warm build: the state and the inventory, as of now
+    const page = '/api/settings';
+    await raw(url, page);
+
+    let later = 0;
+    skew(() => later);
+    const spy = watch();
+    // What the cursor reads on its own, so a page served from the memo is told from one that was built.
+    const fileReads = vi.spyOn(fs, 'readFileSync');
+    fileReads.mockClear();
+    changeCursor(db);
+    const cursorReads = fileReads.mock.calls.length;
+
+    // The real time the case itself takes rides on top of the skew, hence a second of margin.
+    later = 59_000;
+    await raw(url, '/api/state');
+    await raw(url, '/api/projects');
+    expect(ran(spy, STATE)).toBe(0);
+    expect(ran(spy, INVENTORY)).toBe(0);
+    fileReads.mockClear();
+    await raw(url, page);
+    expect(fileReads).toHaveBeenCalledTimes(cursorReads);
+    expect(ran(spy, INVENTORY)).toBe(0);
+
+    // The page first, so what rebuilds it is its own age and its inventory's, not a build another route just made.
+    later = 61_000;
+    fileReads.mockClear();
+    await raw(url, page);
+    expect(fileReads.mock.calls.length).toBeGreaterThan(cursorReads);
+    expect(ran(spy, INVENTORY)).toBe(1);
+    await raw(url, '/api/state');
+    expect(ran(spy, STATE)).toBe(1);
+    // One build of the inventory served the page and /api/projects both.
+    await raw(url, '/api/projects');
+    expect(ran(spy, INVENTORY)).toBe(1);
+  });
+
+  it('is sixty seconds in the constant too', () => {
+    expect(MEMO_TTL_MS).toBe(60_000);
   });
 });
 

@@ -33,7 +33,8 @@ import {
 } from './store.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
-  loadConfig, loadGlobalConfig, loadProjectConfig, configFileProblem, isGlobalOnlyKey, mainRepoRoot, readConfigFile, normalizeLegacyKeys,
+  findRepoConfig, LEGACY_REPO_CONFIG_FILE, loadConfig, loadGlobalConfig, loadProjectConfig, configFileProblem, isGlobalOnlyKey, mainRepoRoot,
+  readConfigFile, normalizeLegacyKeys,
   type EklavyaConfig,
 } from './config.js';
 import { applySetting, knownKeys, SETTING_RULES, valueAt, type SettingRule } from './config-path.js';
@@ -640,10 +641,25 @@ export function memoryPage(db: DB, q: MemoryQuery = {}): Record<string, unknown>
  * Asking for one session (`session`) also answers for the learning half, which
  * is in neither table above: see `sessionLearning`. That is how the page opens
  * a session whose rows were cut from `logged` and `attempts`.
+ *
+ * One read transaction, so the key set and the counts under it are one snapshot
+ * of the database. They were one statement before they were two, and another
+ * process (a retention sweep, a purge) may delete rows at any moment: without
+ * the snapshot a session's last row could go between the two reads, leaving a
+ * key with nothing to count, and the page's first and last time would have no
+ * time to take (an HTTP 500). A deferred transaction that only reads takes no
+ * write lock and, in WAL, never blocks the writer it is a snapshot against.
  */
 export function memorySessionPage(
   db: DB,
   q: { project?: string | null; session?: string | null; page?: number; per?: number } = {},
+): Record<string, unknown> {
+  return db.transaction(() => sessionPageRows(db, q))();
+}
+
+function sessionPageRows(
+  db: DB,
+  q: { project?: string | null; session?: string | null; page?: number; per?: number },
 ): Record<string, unknown> {
   const per = Math.min(MEMORY_PER_MAX, Math.max(1, Math.floor(q.per || MEMORY_PER)));
   const where: string[] = [];
@@ -1923,16 +1939,37 @@ const pickProject = (projects: Configurable, root: string | null) =>
   root ? projects.find((p) => p.id === root || p.inventory === root) ?? null : null;
 
 /**
- * What `/api/settings` reads that the cursor does not cover: the user file, and
- * the named project's. A project the inventory knows from memory alone has no
- * answers, so its settings file is in no cursor; a save from the terminal must
- * still show on the next read.
+ * What `/api/settings` reads that the cursor does not cover, as a string that
+ * changes when any of it does.
+ *
+ * Files, by their stat and never by their content: the user file, and the named
+ * project's. A project the inventory knows from memory alone has no answers, so
+ * its settings file is in no cursor; a save from the terminal must still show on
+ * the next read. Beside them, the legacy `<checkout>/.eklavya.json`, because
+ * `loadConfig` still falls back to it for a project that has no settings file
+ * outside the checkout (until a session moves it), and the page shows the
+ * resolved values. It is a file a `git clone` may have brought, so it is
+ * statted from the place `loadConfig` finds it and its bytes go nowhere near a
+ * stamp.
+ *
+ * And when the project list inside the page was built. The list is the
+ * inventory's, which expires on its own clock: a page built late in the
+ * inventory's minute would otherwise carry that list a minute past the
+ * inventory's expiry, and offer (and refuse a write to) a project the next
+ * build would drop. With the build time in the stamp the page lives exactly as
+ * long as the older of its two sources.
  */
 function settingsStamp(memo: Memo, db: DB, root: string | null): string {
-  const files = [globalConfigPath()];
-  const project = pickProject(configurableOf(memo, db), root);
-  if (project) files.push(projectConfigPath(project.id));
-  return files.map(fileStamp).join('|');
+  const projects = configurableOf(memo, db);
+  // Served or rebuilt by the line above, so the slot is there.
+  const stamps = [String(memo.inventory!.at), fileStamp(globalConfigPath())];
+  const project = pickProject(projects, root);
+  if (project) {
+    stamps.push(fileStamp(projectConfigPath(project.id)));
+    const checkout = findRepoConfig(project.id).repoRoot;
+    stamps.push(checkout ? fileStamp(path.join(checkout, LEGACY_REPO_CONFIG_FILE)) : '-');
+  }
+  return stamps.join('|');
 }
 
 const settingKeys = () => [...SETTINGS.map((f) => f.key), ...CLI_ONLY.map((c) => c.key)];
@@ -2373,12 +2410,21 @@ export function fromLoopback(hostHeader?: string, originHeader?: string): boolea
  * - The early trigger: `fs.watch` on the database's `-wal` file, the user's
  *   config file, the project config area and the artifacts folder, debounced by
  *   `debounceMs` into one check. Every one of those is optional. A directory
- *   that is not there yet, a platform with no `recursive`, an `error` event:
- *   that watch is skipped or dropped and the floor carries on. The `-wal` is
- *   watched through its directory, filtered by name, because the file may not
- *   exist yet and is replaced when the database is checkpointed; `-shm` and
- *   the database file are never watched, because a reader touches them and the
- *   watcher's own reads must not retrigger it.
+ *   that is not there yet, an `error` event: that watch is skipped or dropped
+ *   and the floor carries on. The `-wal` is watched through its directory,
+ *   filtered by name, because the file may not exist yet and is replaced when
+ *   the database is checkpointed; `-shm` and the database file are never
+ *   watched, because a reader touches them and the watcher's own reads must not
+ *   retrigger it.
+ *   The project config area and the artifacts folder hold their files one level
+ *   down (`<folder>/<file>`), and each folder is watched by itself, not through
+ *   one recursive watch: on Linux Node's recursive watch holds one watch per
+ *   file inode, so the first atomic rewrite of a file (a temporary file renamed
+ *   over it, which is how every config write is made, and how most editors save)
+ *   leaves the new file unwatched, and every later change to it went unseen. A
+ *   watch on the folder names each entry that is replaced in it, however often.
+ *   The area's own watch tells of a new or removed folder, and a watch is made
+ *   or dropped for it then.
  * - On a change the memo is refreshed first (the state and the inventory, so
  *   the fetch the event provokes is a repeat), then every stream is written.
  *   Between changes the watcher costs a cursor read a second and no read route
@@ -2433,15 +2479,23 @@ interface Live {
   connect(res: http.ServerResponse): void;
   /** Checks for a change now. A no-op with no stream open. */
   bump(): void;
-  /** Ends every stream and stops the watcher and its timers. Harmless twice. */
+  /**
+   * Ends every stream and stops the watcher and its timers, for good: a stream
+   * asked for afterwards is refused. Harmless twice.
+   */
   shutdown(): void;
 }
 
-/** A directory to watch, and which names in it (relative to it, when recursive) are worth a check. */
+/** A directory to watch, and which names in it are worth a check. */
 interface WatchTarget {
   dir: string;
-  recursive: boolean;
   match: (name: string) => boolean;
+}
+
+/** A directory of folders whose files the cursor reads (`<root>/<folder>/<file>`), and which file names are worth a check. */
+interface WatchTree {
+  root: string;
+  match: (file: string) => boolean;
 }
 
 /** One watcher and its streams, for one server: nothing runs until the first stream opens and nothing outlives the last. */
@@ -2453,7 +2507,10 @@ function createLive(db: DB, opts: Partial<LiveOptions>): Live {
   let floor: NodeJS.Timeout | undefined;
   let keepAlive: NodeJS.Timeout | undefined;
   let debounce: NodeJS.Timeout | undefined;
-  const watchers: fs.FSWatcher[] = [];
+  /** Set by `shutdown` and never cleared: the server it belongs to is closing and does not open again. */
+  let closed = false;
+  /** Every watch that is open, so `stop` can close each one and one that failed is not closed twice. */
+  const watchers = new Set<fs.FSWatcher>();
 
   const push = (res: http.ServerResponse, chunk: string): void => {
     if (!res.write(chunk)) res.destroy();
@@ -2499,28 +2556,82 @@ function createLive(db: DB, opts: Partial<LiveOptions>): Live {
     const out: WatchTarget[] = [];
     if (!db.memory) {
       const file = path.resolve(db.name);
-      out.push({ dir: path.dirname(file), recursive: false, match: (name) => name === `${path.basename(file)}-wal` });
+      out.push({ dir: path.dirname(file), match: (name) => name === `${path.basename(file)}-wal` });
     }
     const config = globalConfigPath();
-    out.push(
-      { dir: path.dirname(config), recursive: false, match: (name) => name === path.basename(config) },
-      { dir: projectsDir(), recursive: true, match: (name) => path.basename(name) === 'config.json' },
-      { dir: artifactsDir(), recursive: true, match: () => true },
-    );
+    out.push({ dir: path.dirname(config), match: (name) => name === path.basename(config) });
     return out;
   };
-  const watchFiles = (): void => {
-    for (const { dir, recursive, match } of targets()) {
-      try {
-        const watcher = fs.watch(dir, { persistent: false, recursive }, (_event, name) => {
-          if (name !== null && match(name)) early();
-        });
-        watcher.on('error', () => watcher.close());
-        watchers.push(watcher);
-      } catch {
-        /* optional: no such directory yet, or no recursive watch here. The floor covers it. */
-      }
+  const trees = (): WatchTree[] => [
+    { root: projectsDir(), match: (file) => file === 'config.json' },
+    { root: artifactsDir(), match: () => true },
+  ];
+
+  /** One watch on one directory, not its subdirectories, or null when it cannot be made: optional, and the floor covers it. */
+  const watchDir = (dir: string, onName: (name: string | null) => void): fs.FSWatcher | null => {
+    try {
+      const watcher = fs.watch(dir, { persistent: false, recursive: false }, (_event, name) => onName(name));
+      // A watch that fails is closed and forgotten, once; the floor carries on.
+      watcher.on('error', () => release(watcher));
+      watchers.add(watcher);
+      return watcher;
+    } catch {
+      return null;
     }
+  };
+  const release = (watcher: fs.FSWatcher): void => {
+    watchers.delete(watcher);
+    watcher.close();
+  };
+
+  /**
+   * A watch on `root` for its folders, and one on each folder for its files. The
+   * root's own events (a folder made, renamed or removed) adopt what is there
+   * now: a watch for each new folder, none for one that has gone. The check they
+   * also ask for is what sees a file already written into a folder by the time
+   * its watch was made.
+   */
+  const watchTree = ({ root, match }: WatchTree): void => {
+    const folders = new Map<string, fs.FSWatcher>();
+    const adopt = (): void => {
+      let present: string[];
+      try {
+        // The folders the cursor lists: no dot-names, no links (`artifactFiles`).
+        present = fs.readdirSync(root, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+          .map((entry) => entry.name);
+      } catch {
+        present = [];
+      }
+      for (const [name, watcher] of folders) {
+        // Gone, or its watch failed (and was closed): forget it, and the loop below makes a new one if the folder is there.
+        const open = watchers.has(watcher);
+        if (open && present.includes(name)) continue;
+        folders.delete(name);
+        if (open) release(watcher);
+      }
+      for (const name of present) {
+        if (folders.has(name)) continue;
+        const watcher = watchDir(path.join(root, name), (file) => {
+          if (file !== null && match(file)) early();
+        });
+        if (watcher) folders.set(name, watcher);
+      }
+    };
+    const rootWatch = watchDir(root, () => {
+      adopt();
+      early();
+    });
+    if (rootWatch) adopt();
+  };
+
+  const watchFiles = (): void => {
+    for (const { dir, match } of targets()) {
+      watchDir(dir, (name) => {
+        if (name !== null && match(name)) early();
+      });
+    }
+    for (const tree of trees()) watchTree(tree);
   };
 
   const start = (): void => {
@@ -2534,11 +2645,17 @@ function createLive(db: DB, opts: Partial<LiveOptions>): Live {
     clearInterval(floor);
     clearInterval(keepAlive);
     clearTimeout(debounce);
-    for (const watcher of watchers.splice(0)) watcher.close();
+    for (const watcher of watchers) watcher.close();
+    watchers.clear();
   };
 
   return {
     connect(res) {
+      // A request already on a connection when `close()` ran (the next one of a
+      // pipelined pair, or a keep-alive request that was mid-flight) still reaches
+      // the handler: it must not open what `shutdown` just ended. The connection is
+      // told to close too, so this refusal is not what `server.close()` waits on.
+      if (closed) return send(res, 503, 'text/plain', 'The dashboard is shutting down.\n', { connection: 'close' });
       if (streams.size >= maxStreams) return send(res, 503, 'text/plain', 'Too many open event streams.\n');
       // Before anything is written, so a database that cannot be read is the
       // route's ordinary 500. With streams already open, a change since the last
@@ -2559,6 +2676,7 @@ function createLive(db: DB, opts: Partial<LiveOptions>): Live {
       if (streams.size > 0) run();
     },
     shutdown() {
+      closed = true;
       const open = [...streams];
       streams.clear();
       stop();

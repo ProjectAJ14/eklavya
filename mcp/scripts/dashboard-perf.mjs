@@ -12,12 +12,27 @@
 // removed afterwards, also on failure; the real ~/.eklavya is never opened.
 // Plain Node ESM with no dependencies beyond the built mcp/dist.
 //
-// Comparing commits: the data is seeded from a fixed PRNG, so two runs produce
-// the same rows, payload sizes within a fraction of a percent (decayed scores
-// read the clock) and, on a quiet machine, timings within noise. Every row names its
-// repository by path, so payload sizes also move with the length of the
-// temporary directory (TMPDIR): compare runs that share it. Build each commit
-// into its own dist directory and diff the --json output:
+// What it measures, and what it does not: the server's side of opening the
+// dashboard (the builders, their queries, the payload's size and caps, the
+// routes' caching). It never loads dashboard.html or starts a browser, so a
+// change that touches only the page leaves every number it prints unchanged;
+// the page's own render times come from the browser (the page-transition probe
+// in the browser suite, and the method in issue #171's reproduction section).
+//
+// Comparing commits: the data is seeded from a fixed PRNG and every timestamp is
+// counted back from midnight UTC at the start of the current day, not from the
+// moment the script runs, so two runs on one machine on the same UTC date seed
+// byte-identical rows and print the same payload bytes (and, on a quiet machine,
+// timings within noise). What still moves the bytes is the environment, never
+// the code under test, and only one key moves: `daily`, one row per local day
+// and project, so a different time zone (days are the learner's local days)
+// changes how many rows there are, and a run on another date is not promised the
+// same count. Decayed scores do not move anything: they decay in whole weeks and
+// the seeded review dates are never that overdue. Every row also names its
+// repository by path, so payload sizes move with the length of the temporary
+// directory (TMPDIR). Compare runs from the same day, time zone and TMPDIR
+// length. Build each commit into its own dist directory and diff the --json
+// output:
 //
 //   node mcp/scripts/dashboard-perf.mjs /path/to/dist-before all --json > before.json
 //   node mcp/scripts/dashboard-perf.mjs /path/to/dist-after  all --json > after.json
@@ -40,6 +55,7 @@ const RUNS = 5;
 /** Fixed so two runs seed the same rows. */
 const SEED = 171;
 const PROJECTS = 6;
+const DAY_MS = 864e5;
 
 /** The sizes in issue #171's table: attempts, logged rows, evidence events, memory entries, sessions. */
 const SCALES = {
@@ -70,7 +86,7 @@ then prints, for the scale:
     and changeCursor (n/a for an export the dist does not have yet)
   - the /api/state payload in bytes, total and per top-level key, largest first,
     with attempts_shown / attempts_total (and logged_shown / logged_total when
-    the state carries them)
+    the state carries them); KB and MB are decimal (1,000 and 1,000,000 bytes)
   - HTTP round trips to a server started on a free port, each route requested
     twice in a row (first, second), and the page's two boot requests together
 Build first: cd mcp && npm run build
@@ -87,9 +103,19 @@ function parseArgs(argv) {
     else if (arg.startsWith('-')) throw new Error(`Unknown option ${arg}`);
     else positional.push(arg);
   }
+  // Asking for the help is never an error about the rest of the line.
+  if (out.help) return out;
   const isScale = (s) => s === 'all' || SCALE_NAMES.includes(s);
-  // `dashboard-perf.mjs large` is read as a scale, not as a directory named large.
-  if (positional.length === 1 && isScale(positional[0])) positional.unshift(DEFAULT_DIST);
+  // A lone argument is a scale or a dist directory. `large` is read as the scale, not as a directory
+  // named large; a word that is neither a scale nor a place on disk ("larg", "Medium") is a mistyped
+  // scale, and saying the build is missing would send the contributor to the wrong fix.
+  if (positional.length === 1) {
+    const [only] = positional;
+    if (isScale(only)) positional.unshift(DEFAULT_DIST);
+    else if (!/[\\/]/.test(only) && !isDirectory(only)) {
+      throw new Error(`Unknown scale "${only}" (small, medium, large or all), and no directory of that name`);
+    }
+  }
   if (positional.length > 2) throw new Error('Too many arguments');
   if (positional[0]) out.dist = path.resolve(positional[0]);
   if (positional[1]) {
@@ -100,6 +126,14 @@ function parseArgs(argv) {
 }
 
 // ------------------------------------------------------------------- helpers
+
+function isDirectory(dir) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 /** A small seeded PRNG (mulberry32): the same seed always gives the same sequence. */
 function mulberry32(seed) {
@@ -147,19 +181,31 @@ function removeHome(home) {
 // -------------------------------------------------------------------- seeding
 
 /**
+ * The instant every seeded timestamp is counted back from: midnight UTC at the
+ * start of the current day. Counting back from the moment the script runs put
+ * each row on a different UTC calendar day (and either side of the daily
+ * query's `date('now', ...)` cutoff) depending on the hour, so two runs an hour
+ * apart gave different `daily` rows and different bytes. From midnight, any two
+ * runs on the same UTC date seed the same timestamps. It is never in the future,
+ * so nothing is seeded as having happened later than it was run.
+ */
+function seedAnchor() {
+  return Math.floor(Date.now() / DAY_MS) * DAY_MS;
+}
+
+/**
  * Fills the migrated schema with one synthetic learner, the way the issue's
  * reproduction does: attempts, mastery, logged concepts, evidence, memory
  * entries with a tag, and one gate per session. Dates run back 365 days from
- * `now`, so the heatmap, the daily rows and the decayed scores have a year in them.
+ * `now` (the anchor above), so the heatmap and the daily rows have a year in them.
  */
-function seed(db, repos, n, rand) {
-  const now = Date.now();
+function seed(db, repos, n, rand, now) {
   const ids = db.prepare('SELECT id FROM concepts').all().map((r) => r.id);
   const rnd = (k) => Math.floor(rand() * k);
   const sess = (i) => 'sess-' + (i % n.sessions);
   const repo = (i) => repos[i % PROJECTS];
-  const sql = (d, h = 0) => new Date(now - d * 864e5 - h * 36e5).toISOString().slice(0, 19).replace('T', ' ');
-  const iso = (d, h = 0) => new Date(now - d * 864e5 - h * 36e5).toISOString();
+  const sql = (d, h = 0) => new Date(now - d * DAY_MS - h * 36e5).toISOString().slice(0, 19).replace('T', ' ');
+  const iso = (d, h = 0) => new Date(now - d * DAY_MS - h * 36e5).toISOString();
   db.transaction(() => {
     const g = db.prepare(
       `INSERT OR IGNORE INTO gates (session_id, mode, required, answered, passed, repo) VALUES (?, 'ambient', 1, 1, 1, ?)`,
@@ -375,8 +421,9 @@ async function runScale(dist, scale) {
 
     log(`seeding ${scale} into ${home}`);
     db = openDb();
+    const anchor = seedAnchor();
     const t0 = performance.now();
-    seed(db, repos, sizes, mulberry32(SEED));
+    seed(db, repos, sizes, mulberry32(SEED), anchor);
     const seedMs = round(performance.now() - t0);
     const rows = countRows(db);
 
@@ -392,7 +439,10 @@ async function runScale(dist, scale) {
       node: process.version,
       // The repo path rides in every attempt, logged, daily and session row, so
       // payload sizes move with the length of the temporary directory.
-      seed: { prng: 'mulberry32', value: SEED, ms: seedMs, requested: sizes, rows, repo_path_chars: repos[0].length },
+      seed: {
+        prng: 'mulberry32', value: SEED, anchor: new Date(anchor).toISOString(), ms: seedMs, requested: sizes, rows,
+        repo_path_chars: repos[0].length,
+      },
       in_process_ms: {
         dashboardState: state.stats,
         stateStringify: timeStateStringify(state.value),
@@ -436,7 +486,8 @@ function runScaleInChild(dist, scale) {
 const pad = (value, width) => String(value).padStart(width);
 const ms = (n) => (n === undefined || n === null ? 'n/a' : n.toFixed(1));
 const num = (n) => (n === undefined || n === null ? 'n/a' : n.toLocaleString('en-US'));
-const human = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(2)} MB` : `${(n / 1024).toFixed(1)} KB`);
+// Decimal, the unit the issue's budgets are written in ("under 1.5 MB" is 1,500,000 bytes), with the exact count beside it.
+const human = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)} MB` : `${(n / 1e3).toFixed(1)} KB`);
 
 /** "124.0 ms  (min 118.2, max 131.0)", n/a, or the error the call threw. */
 function statsText(stats) {
@@ -450,7 +501,7 @@ function formatText(r) {
   const { rows, requested } = r.seed;
   out.push(`dashboard-perf  ${r.scale}  (node ${r.node}, ${r.dist})`);
   out.push(
-    `seeded in ${ms(r.seed.ms)} ms, prng ${r.seed.prng}(${r.seed.value}): ` +
+    `seeded in ${ms(r.seed.ms)} ms, prng ${r.seed.prng}(${r.seed.value}), dates counted back from ${r.seed.anchor}: ` +
       `attempts ${num(rows.attempts)}, logged ${num(rows.logged)} (of ${num(requested.logged)} inserted), ` +
       `evidence ${num(rows.evidence)}, memory entries ${num(rows.entries)}, ` +
       `sessions ${num(rows.sessions)}, projects ${rows.projects}, concepts ${num(rows.concepts)}; ` +

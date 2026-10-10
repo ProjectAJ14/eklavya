@@ -22,9 +22,12 @@ function freePort(): Promise<number> {
   });
 }
 
-/** A process that answers `/api/health` as an Eklavya dashboard of `version` serving `db`. */
-function fakeDashboard(port: number, version: string, db: string): Promise<ChildProcess> {
-  const src = `require('http').createServer((q, r) => r.end(JSON.stringify({ app: 'eklavya', version: ${JSON.stringify(version)}, pid: process.pid, db: ${JSON.stringify(db)} })))
+/**
+ * A process that answers `/api/health` as an Eklavya dashboard of `version` serving `db`,
+ * `delayMs` after it is asked: a dashboard whose one thread is busy rebuilding its state.
+ */
+function fakeDashboard(port: number, version: string, db: string, delayMs = 0): Promise<ChildProcess> {
+  const src = `require('http').createServer((q, r) => setTimeout(() => r.end(JSON.stringify({ app: 'eklavya', version: ${JSON.stringify(version)}, pid: process.pid, db: ${JSON.stringify(db)} })), ${delayMs}))
     .listen(${port}, '127.0.0.1', () => console.log('up'));`;
   const child = spawn(process.execPath, ['-e', src], { stdio: ['ignore', 'pipe', 'ignore'] });
   return new Promise((resolve) => child.stdout!.once('data', () => resolve(child)));
@@ -79,6 +82,43 @@ describe('the always-on dashboard', () => {
     children.push(await fakeDashboard(port, '999.0.0', process.env.EKLAVYA_DB!));
     expect(await daemon.ensureDashboard()).toBe('running');
   }, 15_000);
+
+  describe('a dashboard that is busy and answers late', () => {
+    it('is left alone by a probe that gave up on it: not killed, not replaced, not started twice, however old', async () => {
+      // An OLDER one, which is the case that would be replaced if the probe had read it: it answers after 600 ms, the probe waits 150.
+      const slow = await fakeDashboard(port, '0.0.1', process.env.EKLAVYA_DB!, 600);
+      children.push(slow);
+      expect((await daemon.probeDashboard(port)).kind).toBe('foreign');
+      expect(await daemon.ensureDashboard()).toBe('other');
+      expect(slow.exitCode).toBeNull();
+      expect(slow.signalCode).toBeNull();
+
+      // Still the same process on the port, and nothing else was started beside it.
+      const after = await daemon.probeDashboard(port, 3000);
+      expect(after).toMatchObject({ kind: 'eklavya', health: { pid: slow.pid, version: '0.0.1' } });
+      expect(daemon.PATIENT_PROBE_MS).toBe(1500);
+    });
+
+    it('is waited for by a caller that says it can wait, and then judged as any other', async () => {
+      children.push(await fakeDashboard(port, '999.0.0', process.env.EKLAVYA_DB!, 600));
+      expect(await daemon.ensureDashboard()).toBe('other');
+      expect(await daemon.ensureDashboard(daemon.PATIENT_PROBE_MS)).toBe('running');
+    });
+
+    it('is not waited for longer than asked: a port that never answers is other, after the wait', async () => {
+      const silent = http.createServer(() => {});
+      await new Promise<void>((r) => silent.listen(port, '127.0.0.1', () => r()));
+      try {
+        const t0 = Date.now();
+        expect(await daemon.ensureDashboard(300)).toBe('other');
+        expect(Date.now() - t0).toBeGreaterThanOrEqual(250);
+        expect(Date.now() - t0).toBeLessThan(1400);
+      } finally {
+        silent.closeAllConnections();
+        silent.close();
+      }
+    });
+  });
 
   it('calls an oversized health answer foreign instead of waiting on it forever', async () => {
     const big = await freePort();
