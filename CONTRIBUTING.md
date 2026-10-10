@@ -19,12 +19,40 @@ claude plugin validate ..
 hooks or the CLI execute `mcp/dist/`, so rebuild before using watch mode after
 source changes.
 
-CI runs `npm run coverage` instead: the same suite under c8, which also counts
-the hooks and CLI the tests spawn, and fails below 100% lines, statements,
-functions or branches. The HTML report lands in `mcp/coverage/index.html`, and
-the run page lists every file under 100%. New code needs tests that reach it; a
-`/* c8 ignore next -- reason */` is only for code a test cannot reach
-deterministically, such as a branch for another operating system.
+CI runs the suite in two Vitest shards with whole-process V8 coverage, including
+spawned hooks and CLI processes. The final `Test / test` check requires both
+shards to pass, verifies that every test file ran exactly once, and merges their
+coverage before enforcing 100% lines, statements, functions and branches.
+Dependency installation, Chromium installation, compilation and tests have
+separate timing steps; the run summary lists the ten slowest test files.
+Each shard uses two Vitest workers to leave CPU capacity for browser and CLI
+subprocesses. The dashboard browser checks are split by feature into separate
+files, each with its own fixture, so file sharding can divide the slowest suite.
+CI starts browser suites first, with the expensive screen checks first, rather
+than leaving a small but slow file at the end of the queue. Vitest's native
+shard assignment remains unchanged.
+
+To reproduce the CI test and merge scripts locally, from the repository root:
+
+```bash
+cd mcp
+npm ci
+npx playwright-core install --with-deps chromium
+npm run build
+node ../.github/scripts/test-shard.mjs 1/2
+node ../.github/scripts/test-shard.mjs 2/2
+mkdir -p coverage/shards
+cp coverage/shard-*.tgz coverage/shards/
+node ../.github/scripts/merge-coverage.mjs 2
+```
+
+Run the shards sequentially locally: they use real processes and shared test
+ports, while CI gives each shard a separate runner. The scripts archive raw
+coverage and test results; merging rejects missing, failed or duplicate shards.
+`npm run coverage` remains available for an unsharded run. The HTML report lands
+in `mcp/coverage/index.html`; CI uploads the merged report and test timing JSON.
+New code needs tests that reach it; a `/* c8 ignore next -- reason */` is only for
+code a test cannot reach deterministically, such as another operating system.
 
 For interactive development, run `claude --plugin-dir
 /path/to/eklavya` from a scratch project; replace that path with your checkout.
@@ -57,7 +85,7 @@ tests need the same isolation as subprocesses: otherwise local settings can hide
 a failure or tests can write real learner data. Do not commit databases,
 transcripts containing private work, or files from `~/.eklavya/`.
 
-The test workflow runs on PRs and non-main pushes. The release workflow tests
+The test workflow runs on PRs and pushes to main. The release workflow tests
 main before publication. Model-based evaluations run separately because they
 cost model calls and are not deterministic.
 

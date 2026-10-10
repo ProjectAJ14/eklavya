@@ -24,58 +24,94 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  test-shard:
     runs-on: ubuntu-latest
-    # The suite takes about a minute. A synchronous hang is invisible to
-    # vitest's per-test timeout, and without this it runs to GitHub's 6h cap.
     timeout-minutes: 10
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-
-      # Must satisfy the package's own `engines` (>=22). Below that,
-      # better-sqlite3 has no prebuilt binary and the suite fails on node-gyp
-      # rather than on anything it meant to test.
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: mcp/package-lock.json
-
-      # `npm run coverage` builds, then runs vitest over mcp/test/ under c8,
-      # which also counts the hooks and CLI the suites spawn from dist/. It
-      # fails below the thresholds in mcp/.c8rc.json (100% on every metric).
-      - name: Install and test the server
+      - name: Install dependencies
+        run: npm ci
         working-directory: mcp
-        run: |
-          npm ci
-          # The dashboard's browser suite drives a real Chromium, and fails rather
-          # than skips on CI when there is none -- a skipped suite is a green one.
-          npx playwright-core install --with-deps chromium
-          npm run coverage
-
-      # The per-file table on the run page, and the HTML report to download
-      # when a line is uncovered.
-      - name: Coverage summary
+      - name: Install Chromium
+        run: npx playwright-core install --with-deps chromium
+        working-directory: mcp
+      - name: Build server
+        run: npm run build
+        working-directory: mcp
+      - name: Run test shard
+        run: node ../.github/scripts/test-shard.mjs ${{ matrix.shard }}/2
+        working-directory: mcp
+      - name: Upload shard results
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-shard-${{ matrix.shard }}
+          path: mcp/coverage/shard-${{ matrix.shard }}.tgz
+          if-no-files-found: error
+          compression-level: 0 # The tarball is already compressed.
+          retention-days: 1
+
+  # Preserve the required Test / test check. Never accept partial coverage or
+  # a failed/missing shard, even when its artifact was uploaded successfully.
+  test:
+    needs: test-shard
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Require successful shards
+        env:
+          SHARD_RESULT: ${{ needs.test-shard.result }}
+        run: test "$SHARD_RESULT" = success
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - name: Install dependencies
+        run: npm ci
         working-directory: mcp
-        run: |
-          {
-            echo '```'
-            npx c8 report --reporter=text | grep -v '|     100 |      100 |     100 |     100 |'
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Build server for source maps
+        run: npm run build
+        working-directory: mcp
+      - name: Verify shard failure handling
+        run: node .github/scripts/test-ci.test.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-shard-*
+          path: mcp/coverage/shards
+          merge-multiple: true
+      - name: Merge results and enforce coverage
+        run: node ../.github/scripts/merge-coverage.mjs 2
+        working-directory: mcp
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage
-          # Not tmp/: the raw per-process V8 dumps run to hundreds of MB.
           path: |
             mcp/coverage/
             !mcp/coverage/tmp/
+            !mcp/coverage/shard-*/
+            !mcp/coverage/shards/
+            !mcp/coverage/*.tgz
           retention-days: 7
 
   # A PR that changes product code must also change the manual, the landing
