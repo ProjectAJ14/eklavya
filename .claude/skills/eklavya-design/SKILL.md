@@ -8,7 +8,7 @@ description: Visual design system for Eklavya (the "learn while your agent works
 Eklavya looks calm, dark and engineering-grade: a warm ink ground, one verdigris
 accent, square hairline chrome, and enormous tight display type set against tiny
 wide-tracked mono. The Ekalavya legend (the self-taught archer) appears only as
-bow, arrow and target line art — never storybook, never ornamental.
+bow, arrow and target line art, with the Archer Cloak mascot as a learning companion.
 
 **Values live in `web/public/tokens.css`.** This file states the rules; the CSS
 states the numbers. When they disagree the CSS is right and this file is stale —
@@ -68,6 +68,10 @@ same role tokens. Custom properties inherit, so one attribute re-resolves the tr
   outside the terminal may use either set.
 - **Exception — the mark.** `web/public/brand/mark.svg` is a white bow and arrow on a
   `#0E6E66` (`--vd-600`) square, fixed. Never recolour, round or frame it.
+
+## Mascot
+
+The approved Archer Cloak character has a coral face and verdigris clothes. Its identity colors are semantic `--mascot-*` roles in `tokens.css`, fixed across both grounds. This artwork exception does not change the bow mark or surrounding square chrome. Use the shared `<eklavya-mascot>` component and state mapping from `web/public/brand/mascot/mascot.js`; keep status text visible and artwork decorative unless it needs its own label. Use excited loading, encouraging tips after learner misses, and sad faces for system errors. The 2.8-second loading loop respects reduced motion; the studio also offers a pause control. See `docs/design/mascot-system.md` for reuse.
 
 ## Type
 

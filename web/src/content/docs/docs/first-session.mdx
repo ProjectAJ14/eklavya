@@ -110,7 +110,9 @@ a miss with `explain_on_wrong` on, the panel starts the explainer page in the
 background itself, without a prompt in your transcript. The page marks the
 option you picked, or lists the words you typed under Other after the options.
 If Claude Code refuses or fails to start that agent, the panel asks once more,
-then falls back to a prompt asking Claude to start it, and that prompt shows in your transcript. Closing the panel with Esc hides the question without grading or
+then falls back to a prompt asking Claude to start it. That prompt, and the one
+**Next question** sends, show in your transcript as one short Eklavya line;
+Claude still reads the full instruction. Closing the panel with Esc hides the question without grading or
 skipping it; `/eklavya-panel` opens it again. `/eklavya:quiz` uses the same panel:
 for a round, **Next question** asks Claude for the next one of that same round, on the same topic and up to the number you asked for.
 

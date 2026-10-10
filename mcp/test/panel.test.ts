@@ -119,6 +119,24 @@ describe('present_question: conspicuous options', () => {
   });
   it('presents a rewritten question straight away', () => {
     expect(present().status).toBe('presented');
+    expect(checks()).toEqual([]);
+  });
+  const checks = () => db.prepare('SELECT session_id, slug, surface, outcome FROM option_checks ORDER BY id').all();
+  it('records the send-back and an unchanged second version, once each', () => {
+    const question = 'Why compare Origin, case unchanged?';
+    present({ question, options: lopsided() });
+    present({ question, options: lopsided() });
+    expect(checks()).toEqual([
+      { session_id: SESSION, slug: SLUG, surface: 'panel', outcome: 'sent_back' },
+      { session_id: SESSION, slug: SLUG, surface: 'panel', outcome: 'unchanged' },
+    ]);
+  });
+  it('records a rewrite that fixed it, and stores no option text', () => {
+    const question = 'Why compare Origin, case rewritten?';
+    present({ question, options: lopsided() });
+    expect(present({ question }).status).toBe('presented');
+    expect(checks().map((r: any) => r.outcome)).toEqual(['sent_back', 'rewritten']);
+    expect(JSON.stringify(db.prepare('SELECT * FROM option_checks').all())).not.toMatch(/forged request/);
   });
 });
 

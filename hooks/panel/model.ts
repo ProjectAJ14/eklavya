@@ -148,6 +148,10 @@ export const STR = {
   nothingTyped: 'Write your answer first, or pick one of the options.',
   graderFailed: "We couldn't check that answer. Your text is saved here — Retry.",
   explainer: 'A page explaining this is being written.',
+  /** What the transcript draws for the mod's own queued prompts; the model still reads the full text. */
+  askedNext: 'Eklavya: next quiz question',
+  askedExplainer: 'Eklavya: write an explainer page for the missed question',
+  askedOther: 'Eklavya: a note for Claude',
   focus: 'Ctrl+X then Tab moves the keys here.',
   keys: '1–4 pick · o other · s submit · k skip · Esc back to prompt',
   keysApp: '1–4 pick · o other · s submit · k skip',

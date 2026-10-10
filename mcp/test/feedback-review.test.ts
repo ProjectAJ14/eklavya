@@ -158,7 +158,7 @@ describe('parseReview', () => {
     expect(errorClass(() => parseReview(raw({ chosen: 3 }), PROMPTS))).toBe('malformed');
     expect(errorClass(() => parseReview(raw({ tips: [] }), PROMPTS))).toBe('malformed');
     expect(errorClass(() => parseReview(raw({ better: '' }), PROMPTS))).toBe('malformed');
-    // An empty `worked` is how the dashboard tells an item cleared by migration 028.
+    // An empty `worked` is how the dashboard tells an item cleared by migration 029.
     expect(errorClass(() => parseReview(raw({ review: { worked: '', gaps: [] } }), PROMPTS))).toBe('malformed');
   });
 });

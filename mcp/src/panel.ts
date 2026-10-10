@@ -8,6 +8,7 @@ import { resolveSessionId } from './session.js';
 import { stripAskHeader } from './ask.js';
 import { visibleOptionProblem } from './eval/question-checks.js';
 import { conceptBySlug, hasAskedQuestion, projectKey, recentQuestions, ASKED_HISTORY, PASSING_GRADE } from './store.js';
+import { recordOptionCheck } from './option-checks.js';
 import { recordAttemptCore } from './tools/record_attempt.js';
 import { OPEN_PHASES, PANEL_EXPIRY_HOURS, advanceRound, panelPresentation, recordHeartbeat, type HostReport } from './panel-state.js';
 
@@ -79,7 +80,7 @@ interface Key {
  * presented, because a learner waiting on a perfect question is worse off than
  * one shown a slightly lopsided one. Memory only; a restart forgives.
  */
-const sentBack = new Set<string>();
+const sentBack = new Map<string, 'open' | 'done'>();
 
 /** Open rows past their expiry become `expired`. Called first by every entry point. */
 function expireStale(db: DB): void {
@@ -167,12 +168,18 @@ export function presentQuestion(db: DB, args: PresentInput) {
   const stem = stripAskHeader(args.question);
   const problem = visibleOptionProblem(args.options);
   const retryKey = `${sessionId}\n${slug}\n${stem}`;
-  if (problem && !sentBack.has(retryKey)) {
-    sentBack.add(retryKey);
+  const sent = sentBack.get(retryKey);
+  if (problem && !sent) {
+    sentBack.set(retryKey, 'open');
+    recordOptionCheck(db, { sessionId, slug, surface: 'panel', outcome: 'sent_back' });
     return {
       error: 'conspicuous_options',
       detail: `Rewrite the options and call again with the same stem: ${problem}. Nothing was stored; a second call is presented as written.`,
     };
+  }
+  if (sent === 'open') {
+    sentBack.set(retryKey, 'done');
+    recordOptionCheck(db, { sessionId, slug, surface: 'panel', outcome: problem ? 'unchanged' : 'rewritten' });
   }
   const repeat = hasAskedQuestion(db, concept.id, stem);
   const options: StoredOption[] = args.options.map((o, i) => ({ id: `o${i + 1}`, label: o.label, note: o.description }));

@@ -101,7 +101,7 @@ in place. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
 [tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
-dismiss them one by one or switch them off in the sidebar. On a wide window
+dismiss them one by one or switch them off in the sidebar. The archer companion smiles while loading and appears beside empty states and feedback. Open “Meet your companion” in the sidebar to preview its expressions and motion. On a wide window
 each page sits centred beside the sidebar. It has five parts:
 
 | Part | What you can see | Read more |
@@ -133,7 +133,7 @@ questions off and keep memory on.
 By default Eklavya asks only in sessions that change code (edit tools or
 shell commands, in this checkout or a sibling worktree), up to four
 questions per session on its own, at least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
-`eklavya config set` in a terminal (`eklavya config get quiz.enabled` reads one back), or the dashboard's Settings pages. `quiz.panel` is set with `eklavya config set quiz.panel true` or in Settings; a round you ask for with `/eklavya:quiz` keeps its topic and length across the panel's Next button, and a miss in the panel starts its explainer page in the background, asking once more and queuing a prompt for Claude only if Claude Code refuses or fails that start twice. If Claude Code's auto mode denies the panel's tools, allow them as [the manual shows](https://eklavya-run.web.app/docs/first-session/#if-auto-mode-blocks-the-panel), or ask Claude to. See [the dials](https://eklavya-run.web.app/docs/dials/)
+`eklavya config set` in a terminal (`eklavya config get quiz.enabled` reads one back), or the dashboard's Settings pages. `quiz.panel` is set with `eklavya config set quiz.panel true` or in Settings; a round you ask for with `/eklavya:quiz` keeps its topic and length across the panel's Next button, and a miss in the panel starts its explainer page in the background, asking once more and queuing a prompt for Claude only if Claude Code refuses or fails that start twice. A prompt the panel sends Claude shows in your transcript as one short line. If Claude Code's auto mode denies the panel's tools, allow them as [the manual shows](https://eklavya-run.web.app/docs/first-session/#if-auto-mode-blocks-the-panel), or ask Claude to. See [the dials](https://eklavya-run.web.app/docs/dials/)
 and [every setting](https://eklavya-run.web.app/docs/configuration/).
 
 ## Commands

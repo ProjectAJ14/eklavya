@@ -1646,6 +1646,12 @@ const MANIFEST = JSON.stringify({
 /** Served from the bundled assets as-is; copied in from `web/public` at build. */
 const APP_ICONS = new Set(['/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']);
 
+/** Explicit mascot allowlist: no user-controlled filesystem paths. */
+const MASCOT_ASSETS = new Map<string, [string, string]>([
+  ['/brand/mascot/mascot.js', ['mascot/mascot.js', 'text/javascript; charset=utf-8']],
+  ['/brand/mascot/mascot.css', ['mascot/mascot.css', 'text/css; charset=utf-8']],
+  ['/mascot.html', ['mascot.html', 'text/html; charset=utf-8']],
+]);
 /** The tips library, copied from node_modules at build by `copy-assets.mjs`. */
 const VENDOR: Record<string, string> = { '/vendor/driver-hints.js': 'text/javascript', '/vendor/driver-hints.css': 'text/css' };
 
@@ -1908,6 +1914,10 @@ export function startDashboard(
         return send(res, 200, vendor, fs.readFileSync(path.join(assets, url.pathname.slice(1))), {
           'cache-control': 'max-age=3600',
         });
+      }
+      const mascotAsset = MASCOT_ASSETS.get(url.pathname);
+      if (mascotAsset) {
+        return send(res, 200, mascotAsset[1], fs.readFileSync(path.join(assets, mascotAsset[0])));
       }
       if (url.pathname === '/tokens.css') {
         return send(res, 200, 'text/css', localTokens(fs.readFileSync(path.join(assets, 'tokens.css'), 'utf8')));

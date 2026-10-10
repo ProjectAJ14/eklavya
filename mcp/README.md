@@ -61,7 +61,7 @@ page in the dashboard, where the server grades the new pick, and `option_notes`
 (the note under each option, in order), which that page shows under each option. A `correct` that is not one of
 the options, or notes of the wrong length, is stored as nothing and reported
 back (`correct_mismatch`, `option_notes_mismatch`); the answer is still kept.
-An `outcome` of `invalid` means the question itself was at fault (it assumed context the learner never saw, or two options both answered it): it is stored in `invalid_questions`, grades nothing, returns no `attempt_id`, and changes no mastery, level, review date or gate; only the repeat check reads it. An `outcome` of `declined` or `dont_know` with a grade of 3 or more is
+An `outcome` of `invalid` means the question itself was at fault (it assumed context the learner never saw, or two options both answered it): it is stored in `invalid_questions`, grades nothing, returns no `attempt_id`, and changes no mastery, level, review date or gate; only the repeat check reads it. Each time the option-length check returns a question for a rewrite, `option_checks` (migration 028) keeps the session, concept, surface (`panel` or `card`) and outcome (`sent_back`, then `rewritten` or `unchanged`), never the options; no score, level or gate reads it, and `npm run eval -- history` reports it. An `outcome` of `declined` or `dont_know` with a grade of 3 or more is
 contradictory: it returns `error: "outcome_grade_conflict"` and records
 nothing, so that call can never update mastery, clear a gate or count toward a
 level.

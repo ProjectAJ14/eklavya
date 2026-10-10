@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS feedback_reviewed (
 
 Update the schema expectations in `mcp/test/migrate.test.ts`. No foreign key to `attempts`, `mastery` or `concepts`: feedback cannot join the grading tables, so it cannot change them.
 
-`review` JSON (rubric 2; migration 028 cleared rubric 1's notes to this shape):
+`review` JSON (rubric 2; migration 029 cleared rubric 1's notes to this shape):
 
 ```json
 { "worked": "≤ 240 chars",

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, boldParagraphs, logoRows, boxRows, plainLabel } from './model'
+import { EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, boldParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -70,15 +70,15 @@ function world(on: any, script: Record<string, any> = {}) {
     log.toasts.push(e.text)
     return { value: undefined }
   })
-  host(on, log, s.surfaces)
+  host(on, log, s.surfaces, 'cwd' in s ? s.cwd : '/work/proj')
   return { log, s }
 }
 
 /** The rest of what the host answers beneath the mod. */
-function host(on: any, log?: { closes: any[] }, surfaces: string[] = ['terminal']) {
+function host(on: any, log?: { closes: any[] }, surfaces: string[] = ['terminal'], cwd = '/work/proj') {
   on('session.start', async (_$: any, e: any) => ({ cwd: e.cwd }))
   on('session.end', async (_$: any, e: any) => ({ sessionId: e.sessionId }))
-  on('session.cwd', async () => ({ value: '/work/proj' }))
+  on('session.cwd', async () => ({ value: cwd }))
   on('session.id', async () => ({ value: 'test-session' }))
   on('session.surfaces', async () => ({ value: surfaces }))
   on('session.version', async () => ({ value: { version: '2.1.292', base: '2.1.292', builtAt: '2026-10-01T00:00:00Z' } }))
@@ -503,6 +503,30 @@ describe('the pane, state by state', () => {
     expect(w.log.prompts).toEqual(['Start the eklavya-explainer agent.'])
   })
 
+  test("the mod's own prompts show one short line; other rows are left alone", async ($, on) => {
+    world(on)
+    // The engine's own drawing of the row: record the text it is handed.
+    const shown: string[] = []
+    on('ui.render', async (_$: any, e: any) => {
+      shown.push(e.props.text)
+      const { Text } = _$.ui.resolve(e)
+      return (globalThis as any).h(Text, null, e.props.text)
+    })
+    await boot($)
+    let n = 0
+    const row = (text: string, origin: any, isExpanded = false) =>
+      $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'UserMessage', requestId: `m${n++}`, props: { text, origin, isExpanded } as any })
+    const ours = { kind: 'plugin', name: PLUGIN }
+    await row(MISS.explain.instruction, ours)
+    // A body short enough to sit under the speaker label is drawn expanded: still one line.
+    await row(MISS.explain.instruction, ours, true)
+    await row(NEXT_PROMPT, ours)
+    await row('Something new the mod may say one day.', ours)
+    await row('my own prompt', { kind: 'user' })
+    await row('hello', { kind: 'plugin', name: 'other' })
+    expect(shown).toEqual([STR.askedExplainer, STR.askedExplainer, STR.askedNext, STR.askedOther, 'my own prompt', 'hello'])
+  })
+
   test('the brief says when the learner typed instead of picking', () => {
     const brief = explainerBrief({ ...MISS.explain, answer: 'my own words' })
     expect(brief).toContain('The learner typed their own answer instead of picking: my own words')
@@ -539,8 +563,7 @@ describe('placement and lifecycle', () => {
   })
 
   test('a session opened without a folder still reports in, with an empty directory', async ($, on) => {
-    const w = world(on)
-    on('session.cwd', async () => ({ value: undefined }))
+    const w = world(on, { cwd: '' })
     await boot($)
     expect(w.log.calls.find(c => c.tool === 'panel_sync')?.args.cwd).toBe('')
   })

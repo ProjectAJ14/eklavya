@@ -16,7 +16,7 @@ import { HELPERS, HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from './prompt-text.js
 
 /**
  * Which wording of the review an item was written against. Items from rubric 1
- * had their notes cleared by migration 028; their prompt, rewrite and tips stay.
+ * had their notes cleared by migration 029; their prompt, rewrite and tips stay.
  */
 export const FEEDBACK_RUBRIC = 2;
 

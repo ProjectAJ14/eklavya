@@ -1,3 +1,17 @@
+# [1.63.0](https://github.com/ProjectAJ14/eklavya/compare/v1.62.1...v1.63.0) (2026-10-10)
+
+
+### Features
+
+* add reusable archer mascot across website and dashboard ([#168](https://github.com/ProjectAJ14/eklavya/issues/168)) ([0b79dcd](https://github.com/ProjectAJ14/eklavya/commit/0b79dcd10b3685c30f2cb7b76d1f4eb2f56272a8))
+
+## [1.62.1](https://github.com/ProjectAJ14/eklavya/compare/v1.62.0...v1.62.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **panel:** show the panel's prompts to Claude as one short line ([#165](https://github.com/ProjectAJ14/eklavya/issues/165)) ([cae9359](https://github.com/ProjectAJ14/eklavya/commit/cae9359ee6eb754f3f042bb34c7d008074d8ad56))
+
 # [1.62.0](https://github.com/ProjectAJ14/eklavya/compare/v1.61.1...v1.62.0) (2026-10-10)
 
 

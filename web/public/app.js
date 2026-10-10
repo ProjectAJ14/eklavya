@@ -16,6 +16,12 @@
      States: boot · armed · running · asking · answered. */
   (function () {
     var term = document.querySelector('[data-term]');
+    var companion = document.querySelector('[data-demo-mascot]');
+    function mascotState(value) {
+      if (!companion) return;
+      companion.setAttribute('state', value);
+      companion.setAttribute('variant', value === 'loading' ? 'loading' : 'body');
+    }
     if (!term) return;
 
     var screen = term.querySelector('[data-screen]');
@@ -161,6 +167,7 @@
 
     function arm(again) {
       state = 'armed';
+      mascotState('info');
       dock.classList.remove('is-busy');
       input.disabled = false;
       composer.classList.add('is-armed');
@@ -194,6 +201,7 @@
       reset();
       var task = (input.value || '').trim() || TASK;
       state = 'running';
+      mascotState('loading');
       /* Claude Code does not take its prompt away while it works — it greys
          out and waits, so that is what this does. */
       dock.classList.add('is-busy');
@@ -214,6 +222,7 @@
       at(4300, function () {
         think(false);
         show(lines.ask);
+        mascotState('review');
         openPicker();
       });
     }
@@ -253,6 +262,7 @@
 
       at(420, function () {
         gradeEl.textContent = v.grade;
+        mascotState(v.right ? 'success' : 'tip');
         if (!v.right) gradeEl.classList.add(v.blank ? 'is-blank' : 'is-miss');
         show(lines.grade);
       });
@@ -262,6 +272,7 @@
       at(2900, function () {
         think(false);
         doneEl.textContent = v.done;
+        mascotState('complete');
         show(lines.done);
       });
       at(3500, function () {
