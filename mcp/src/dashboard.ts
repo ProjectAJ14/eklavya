@@ -769,6 +769,187 @@ export function changeCursor(db: DB, configs = readConfigs(db)): string {
   return `${version}:${dials}:${artifactsStamp()}`;
 }
 
+/*
+ * Serving a build once per cursor.
+ *
+ * A build is the expensive part of opening the page (the state alone is 20 ms
+ * to a second, by the size of the database) and almost always rebuilds what the
+ * last one said: the page reads the whole payload on every load and the server
+ * is one thread. `changeCursor` is the version of everything the page shows and
+ * costs a few milliseconds, so every read asks it first and rebuilds only when
+ * it moved.
+ *
+ * One memo per database handle, in a WeakMap, never a global: tests and the
+ * daemon hold several databases in one process, and each answers for its own.
+ * The exported `settingsState` and `configurableProjects` read the same memo
+ * as the server does, so a build is paid for once whoever asks first.
+ *
+ * Two inputs are not in the cursor, and both expire the build by time instead:
+ * the clock (scores decay at read time, so `due` and `overdue_days` move
+ * without a write) and the filesystem (a project's `available` flag, whether a
+ * checkout still has its `.git`, what `listArtifacts` reads from the files).
+ * The health panel's prune stamp and the spool's drop count are not in the
+ * cursor either (see its comment) and ride the same minute: they show on the
+ * next build, not the next request. One more input is left out of the cursor on
+ * purpose and is too visible to wait a minute: `reviewFailed`.
+ */
+
+/** How long a build that reads the clock or the filesystem is served without being rebuilt. */
+export const MEMO_TTL_MS = 60_000;
+/** Serialised responses kept per database; the least recently used goes first. */
+export const PAGE_CACHE_ENTRIES = 64;
+/** A response larger than this many bytes is served but not kept, so one huge entry cannot pin megabytes. */
+const PAGE_MAX_BYTES = 1024 * 1024;
+
+type Inventory = ReturnType<typeof projectInventory>;
+type Configurable = { id: string; name: string; inventory: string }[];
+
+interface Memo {
+  /** What the memo is valid for: `changeCursor` and `reviewFailed`, as they were when it took over, read before any build stored here. */
+  cursor: string;
+  /** The database's own part of that cursor: all the project inventory depends on besides the filesystem. */
+  version: string;
+  /**
+   * `/api/state`, serialised once and kept as the bytes it is sent as: handing
+   * `res.end` the 3.7 MB string re-encodes it on every request, 25 ms against
+   * 5 for the same bytes, which is most of what a repeat would cost.
+   */
+  state: { at: number; body: Buffer } | null;
+  /** The inventory, and the part of it Settings may write for, derived on first use. Read-only to callers. */
+  inventory: { at: number; value: Inventory; configurable: Configurable | null } | null;
+  /** Serialised responses by the full request URL, in least-recently-used order. */
+  pages: Map<string, { at: number; stamp: string; body: Buffer }>;
+}
+
+const memos = new WeakMap<DB, Memo>();
+
+/** The one route whose response a settings write changes. */
+const SETTINGS_PATH = '/api/settings';
+
+/**
+ * Whether the last session Eklavya looked at for feedback could not be reviewed.
+ *
+ * `feedback_reviewed` has no change triggers, deliberately (migration 026, and
+ * `migrate.test.ts` pins it): a session looked at and found quiet is not news
+ * for an open page. But the state says "couldn't review the last session" from
+ * it, and a page loaded a moment after that row landed has to say so, as it
+ * did when every load was a build. So the memo asks, alongside the cursor.
+ * An older schema without the table reads as not failed, as `feedbackSummary` does.
+ */
+function reviewFailed(db: DB): boolean {
+  try {
+    const last = one<{ outcome: string } | undefined>(
+      db,
+      'SELECT outcome FROM feedback_reviewed ORDER BY reviewed_at DESC, rowid DESC LIMIT 1',
+    );
+    return last?.outcome === 'failed';
+  } catch {
+    return false;
+  }
+}
+
+/** Whether a build made at `at` may still be served at `now`. A clock that stepped back expires it too. */
+const served = (at: number, now: number): boolean => now >= at && now - at < MEMO_TTL_MS;
+
+/**
+ * The memo for this database, valid for the cursor as it is right now (and for
+ * `reviewFailed`, the one thing beside it that the state reads and the cursor does not).
+ *
+ * The cursor is read here, before any build that is stored in the memo, and
+ * stays with it: a write that lands during a build makes the next read see a
+ * newer cursor and rebuild, where reading it after would label a build with a
+ * cursor newer than the rows it read. A change to the config or to an artifact
+ * keeps the inventory, which reads neither: only the database's counter, the
+ * first part of the cursor, drops it.
+ */
+function memoFor(db: DB): Memo {
+  const cursor = changeCursor(db);
+  const version = cursor.slice(0, cursor.indexOf(':'));
+  const valid = `${cursor}|${reviewFailed(db)}`;
+  let memo = memos.get(db);
+  if (memo?.cursor !== valid) {
+    memo = { cursor: valid, version, state: null, inventory: memo?.version === version ? memo.inventory : null, pages: new Map() };
+    memos.set(db, memo);
+  }
+  return memo;
+}
+
+/** `/api/state` as the bytes it is sent as. Built at most once per cursor and minute. */
+function stateBody(memo: Memo, db: DB): Buffer {
+  const now = Date.now();
+  if (memo.state && served(memo.state.at, now)) return memo.state.body;
+  const body = Buffer.from(JSON.stringify(dashboardState(db)));
+  memo.state = { at: now, body };
+  return body;
+}
+
+/** The project inventory, rebuilt when the database moved, a minute passed, or the caller must not trust a memo. */
+function inventoryOf(memo: Memo, db: DB, rebuild = false): NonNullable<Memo['inventory']> {
+  const now = Date.now();
+  if (rebuild || !memo.inventory || !served(memo.inventory.at, now)) {
+    memo.inventory = { at: now, value: projectInventory(db), configurable: null };
+  }
+  return memo.inventory;
+}
+
+/**
+ * One response by its full URL (path and query), most recently used last.
+ *
+ * `build` returns null for a response that is not a page worth keeping (an
+ * entry that does not exist); it is not stored. `expires` is for a response
+ * that reads the filesystem, and `stamp` for one whose inputs are files the
+ * cursor does not cover: an entry made under another stamp is not served.
+ */
+function pageBody(
+  memo: Memo,
+  key: string,
+  build: () => string | null,
+  opts: { expires?: boolean; stamp?: () => string } = {},
+): Buffer | null {
+  const now = Date.now();
+  const stamp = opts.stamp ? opts.stamp() : '';
+  const hit = memo.pages.get(key);
+  if (hit && hit.stamp === stamp && (!opts.expires || served(hit.at, now))) {
+    memo.pages.delete(key);
+    memo.pages.set(key, hit);
+    return hit.body;
+  }
+  const json = build();
+  // Replacing an entry must also move it: `Map.set` on a present key keeps its place.
+  memo.pages.delete(key);
+  if (json === null) return null;
+  const body = Buffer.from(json);
+  if (body.length <= PAGE_MAX_BYTES) {
+    memo.pages.set(key, { at: now, stamp, body });
+    while (memo.pages.size > PAGE_CACHE_ENTRIES) memo.pages.delete(memo.pages.keys().next().value!);
+  }
+  return body;
+}
+
+/** The state and the inventory, built now so the first request finds them. Throws as the builders do. */
+function warmMemo(db: DB): void {
+  const memo = memoFor(db);
+  stateBody(memo, db);
+  inventoryOf(memo, db);
+}
+
+/** What a settings write changed is on disk before any cursor or clock can say so: drop the pages that show it. */
+function forgetSettings(db: DB): void {
+  const pages = memos.get(db)?.pages;
+  if (!pages) return;
+  for (const key of pages.keys()) if (key.startsWith(SETTINGS_PATH)) pages.delete(key);
+}
+
+/** One file's identity and version, or `-` when there is none. Inode, size and nanosecond mtime: an atomic rewrite changes at least one. */
+function fileStamp(file: string): string {
+  try {
+    const s = fs.statSync(file, { bigint: true });
+    return `${s.ino}.${s.size}.${s.mtimeNs}`;
+  } catch {
+    return '-';
+  }
+}
+
 /** One entry with its tags, its raw evidence and the candidates it proposed. */
 export function memoryEntry(db: DB, id: number): Record<string, unknown> | null {
   const entry = one<Record<string, unknown> | undefined>(db, 'SELECT * FROM memory_entries WHERE id = ?', id);
@@ -1296,14 +1477,10 @@ export const CLI_ONLY: { key: string; why: string }[] = [
   { key: 'sync.device_id', why: 'pins this device\'s sync identity' },
 ];
 
-/**
- * Projects the Settings pages may write for: an inventory project whose
- * checkout still exists. The POST checks against this list, so the page can
- * never name an arbitrary path to write settings for.
- */
-export function configurableProjects(db: DB): { id: string; name: string; inventory: string }[] {
-  const out = new Map<string, { id: string; name: string; inventory: string }>();
-  for (const p of projectInventory(db).projects) {
+/** The Settings pages' projects, from an inventory: a checkout that still has its `.git`. */
+function configurableFrom(inventory: Inventory): Configurable {
+  const out = new Map<string, Configurable[number]>();
+  for (const p of inventory.projects) {
     // A checkout, not just a directory: `loadConfig` finds the project file
     // through the repository, so a folder without `.git` would show the user
     // settings as if they were this project's.
@@ -1312,6 +1489,43 @@ export function configurableProjects(db: DB): { id: string; name: string; invent
     if (!out.has(root)) out.set(root, { id: root, name: p.name, inventory: p.id });
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** The memoized list for a memo already in hand; derived with the inventory, so it expires with it. */
+const configurableOf = (memo: Memo, db: DB, rebuild = false): Configurable => {
+  const slot = inventoryOf(memo, db, rebuild);
+  return (slot.configurable ??= configurableFrom(slot.value));
+};
+
+/**
+ * Projects the Settings pages may write for: an inventory project whose
+ * checkout still exists. The POST checks against this list, so the page can
+ * never name an arbitrary path to write settings for.
+ *
+ * Read from the per-cursor memo: the inventory behind it is six full-table
+ * scans. A caller that is about to write passes `fresh` and gets a rebuild, so
+ * a write is never validated against a minute-old picture of the filesystem;
+ * that rebuild becomes the memo's.
+ */
+export function configurableProjects(db: DB, opts: { fresh?: boolean } = {}): Configurable {
+  return configurableOf(memoFor(db), db, opts.fresh);
+}
+
+/** The project a `?project=` names, by its checkout or its inventory id. */
+const pickProject = (projects: Configurable, root: string | null) =>
+  root ? projects.find((p) => p.id === root || p.inventory === root) ?? null : null;
+
+/**
+ * What `/api/settings` reads that the cursor does not cover: the user file, and
+ * the named project's. A project the inventory knows from memory alone has no
+ * answers, so its settings file is in no cursor; a save from the terminal must
+ * still show on the next read.
+ */
+function settingsStamp(memo: Memo, db: DB, root: string | null): string {
+  const files = [globalConfigPath()];
+  const project = pickProject(configurableOf(memo, db), root);
+  if (project) files.push(projectConfigPath(project.id));
+  return files.map(fileStamp).join('|');
 }
 
 const settingKeys = () => [...SETTINGS.map((f) => f.key), ...CLI_ONLY.map((c) => c.key)];
@@ -1328,7 +1542,7 @@ const effectiveOf = (c: EklavyaConfig) => Object.fromEntries(settingKeys().map((
 /** `GET /api/settings?project=<checkout>`: both files and what they resolve to. */
 export function settingsState(db: DB, root: string | null): Record<string, unknown> {
   const projects = configurableProjects(db);
-  const project = root ? projects.find((p) => p.id === root || p.inventory === root) ?? null : null;
+  const project = pickProject(projects, root);
   return {
     fields: SETTINGS,
     cli_only: CLI_ONLY,
@@ -1364,7 +1578,8 @@ export function updateSetting(db: DB, body: unknown): { status: number; body: Re
   }
   let root: string | null = null;
   if (b.scope === 'project') {
-    const p = configurableProjects(db).find((x) => x.id === b.project);
+    // A write is checked against the filesystem as it is, not as a minute ago.
+    const p = configurableProjects(db, { fresh: true }).find((x) => x.id === b.project);
     if (!p) return bad('That project is not one this dashboard can configure.');
     if (isGlobalOnlyKey(f.key)) return bad(`${f.key} is set once for the whole machine, in your user settings.`);
     root = p.id;
@@ -1375,6 +1590,7 @@ export function updateSetting(db: DB, body: unknown): { status: number; body: Re
   // so this refuses exactly what `eklavya config set` refuses, in its words.
   try {
     const { target } = applySetting(f.key, unset ? undefined : b.value, root);
+    forgetSettings(db);
     return { status: 200, body: { ok: true, key: f.key, target, unset } };
   } catch (err) {
     return bad(err instanceof Error ? err.message : String(err));
@@ -1655,6 +1871,33 @@ const MASCOT_ASSETS = new Map<string, [string, string]>([
 /** The tips library, copied from node_modules at build by `copy-assets.mjs`. */
 const VENDOR: Record<string, string> = { '/vendor/driver-hints.js': 'text/javascript', '/vendor/driver-hints.css': 'text/css' };
 
+/** What a file that only changes with a release may be kept for: this browser, an hour. */
+const CACHE_HOUR = 'private, max-age=3600';
+
+/**
+ * Whether an `If-None-Match` header names `etag`. A comparison for a GET is
+ * weak (RFC 9110 §13.1.2), so `W/"x"` names `"x"`; the header may be a list,
+ * with any spacing, or `*` for any version at all. Anything that is not a
+ * quoted tag is ignored, never matched.
+ */
+export function etagMatches(header: string | undefined, etag: string): boolean {
+  if (header === undefined) return false;
+  if (header.trim() === '*') return true;
+  return (header.match(/(?:W\/)?"[^"]*"/g) ?? []).some((tag) => tag.replace(/^W\//, '') === etag);
+}
+
+/**
+ * Every response goes out here, so every one carries `SECURITY_HEADERS`.
+ *
+ * JSON is never cached (`no-store`, the default): a dashboard read from a stale
+ * cache is one that lies about progress made ten seconds ago, which is the one
+ * thing it is for, and the server's own memo is what makes a repeat cheap, not
+ * the browser's. A file may be, because nothing about it moves with the
+ * learner: the tokens, the mascot and the tips library stay an hour
+ * (`CACHE_HOUR`); the page itself is `no-cache` with an `ETag`, so the browser
+ * keeps it but asks, in one round trip, whether it is still the one this
+ * server start wrote (the write token is in it). A caller passes `extra` to say so.
+ */
 function send(
   res: http.ServerResponse,
   status: number,
@@ -1664,8 +1907,6 @@ function send(
 ): void {
   res.writeHead(status, {
     'content-type': type,
-    // A dashboard read from a stale cache is a dashboard that lies about
-    // progress made ten seconds ago, which is the one thing it is for.
     'cache-control': 'no-store',
     ...SECURITY_HEADERS,
     ...extra,
@@ -1805,56 +2046,59 @@ export function startDashboard(
       if (url.pathname === '/api/health') {
         return send(res, 200, 'application/json', JSON.stringify({ app: 'eklavya', version: ownVersion(), pid: process.pid, db: dbPath() }));
       }
-      if (url.pathname === '/api/settings') {
-        return send(res, 200, 'application/json', JSON.stringify(settingsState(db, url.searchParams.get('project'))));
+      // The reads below are served from the per-cursor memo (`memoFor`): the cursor
+      // is asked for first, and a build runs only when it moved or a minute passed.
+      // Not memoized, on purpose: `/api/cursor`, which must always say what the
+      // database says now; `/api/health`, which names the process; one feedback
+      // item, which a POST acknowledges; and a correction, which is graded live.
+      const pageKey = url.pathname + url.search;
+      const reply = (body: Buffer | null) =>
+        body === null ? send(res, 404, 'application/json', '{"error":"no such entry"}') : send(res, 200, 'application/json', body);
+      if (url.pathname === SETTINGS_PATH) {
+        const memo = memoFor(db);
+        const project = url.searchParams.get('project');
+        return reply(pageBody(memo, pageKey, () => JSON.stringify(settingsState(db, project)), {
+          expires: true,
+          stamp: () => settingsStamp(memo, db, project),
+        }));
       }
       if (url.pathname === '/api/cursor') {
         return send(res, 200, 'application/json', JSON.stringify({ cursor: changeCursor(db) }));
       }
       if (url.pathname === '/api/state') {
-        return send(res, 200, 'application/json', JSON.stringify(dashboardState(db)));
+        return reply(stateBody(memoFor(db), db));
       }
       // The memory timeline is a paged resource rather than part of the state
       // payload: the corpus is the one thing here that grows without bound.
       if (url.pathname === '/api/memory') {
         const g = (k: string) => url.searchParams.get(k);
-        return send(
-          res,
-          200,
-          'application/json',
-          JSON.stringify(
-            memoryPage(db, {
-              project: g('project'),
-              session: g('session'),
-              type: g('type'),
-              tag: g('tag'),
-              q: g('q'),
-              since: g('since'),
-              until: g('until'),
-              page: Number(g('page')) || 1,
-              per: Number(g('per')) || MEMORY_PER,
-            }),
-          ),
-        );
+        return reply(pageBody(memoFor(db), pageKey, () => JSON.stringify(
+          memoryPage(db, {
+            project: g('project'),
+            session: g('session'),
+            type: g('type'),
+            tag: g('tag'),
+            q: g('q'),
+            since: g('since'),
+            until: g('until'),
+            page: Number(g('page')) || 1,
+            per: Number(g('per')) || MEMORY_PER,
+          }),
+        )));
       }
       if (url.pathname === '/api/projects') {
-        return send(res, 200, 'application/json', JSON.stringify(projectInventory(db)));
+        return reply(Buffer.from(JSON.stringify(inventoryOf(memoFor(db), db).value)));
       }
       if (url.pathname === '/api/memory/sessions') {
         const g = (k: string) => url.searchParams.get(k);
-        return send(
-          res,
-          200,
-          'application/json',
-          JSON.stringify(
-            memorySessionPage(db, {
-              project: g('project'),
-              session: g('session'),
-              page: Number(g('page')) || 1,
-              per: Number(g('per')) || MEMORY_PER,
-            }),
-          ),
-        );
+        return reply(pageBody(memoFor(db), pageKey, () => JSON.stringify(
+          memorySessionPage(db, {
+            project: g('project'),
+            session: g('session'),
+            page: Number(g('page')) || 1,
+            per: Number(g('per')) || MEMORY_PER,
+          }),
+        )));
       }
       if (url.pathname === '/api/feedback') {
         const out = feedbackItem(db, url.searchParams.get('id'));
@@ -1862,21 +2106,19 @@ export function startDashboard(
       }
       if (url.pathname === '/api/feedback/list') {
         const g = (k: string) => url.searchParams.get(k);
-        return send(
-          res,
-          200,
-          'application/json',
-          JSON.stringify(listAcknowledged(db, { project: g('project'), page: Number(g('page')) || 1, per: Number(g('per')) || 20 })),
-        );
+        return reply(pageBody(memoFor(db), pageKey, () => JSON.stringify(
+          listAcknowledged(db, { project: g('project'), page: Number(g('page')) || 1, per: Number(g('per')) || 20 }),
+        )));
       }
       if (url.pathname === '/api/attempts/correction') {
         const out = correctionState(db, Number(url.searchParams.get('id')));
         return send(res, out.status, 'application/json', JSON.stringify(out.body));
       }
       if (url.pathname === '/api/memory/entry') {
-        const entry = memoryEntry(db, Number(url.searchParams.get('id')));
-        if (!entry) return send(res, 404, 'application/json', '{"error":"no such entry"}');
-        return send(res, 200, 'application/json', JSON.stringify(entry));
+        return reply(pageBody(memoFor(db), pageKey, () => {
+          const entry = memoryEntry(db, Number(url.searchParams.get('id')));
+          return entry ? JSON.stringify(entry) : null;
+        }));
       }
       if (url.pathname.startsWith('/artifacts/')) {
         let id: string;
@@ -1894,7 +2136,7 @@ export function startDashboard(
           if (thumb !== 'ink' && thumb !== 'paper') return send(res, 400, 'text/plain', 'thumb is ink or paper');
           return send(res, 200, 'image/svg+xml; charset=utf-8', artifactThumb(file, thumb), {
             'content-security-policy': ARTIFACT_CSP,
-            'cache-control': 'private, max-age=3600',
+            'cache-control': CACHE_HOUR,
           });
         }
         const embed = url.searchParams.has('embed');
@@ -1917,17 +2159,25 @@ export function startDashboard(
       }
       const mascotAsset = MASCOT_ASSETS.get(url.pathname);
       if (mascotAsset) {
-        return send(res, 200, mascotAsset[1], fs.readFileSync(path.join(assets, mascotAsset[0])));
+        return send(res, 200, mascotAsset[1], fs.readFileSync(path.join(assets, mascotAsset[0])), { 'cache-control': CACHE_HOUR });
       }
       if (url.pathname === '/tokens.css') {
-        return send(res, 200, 'text/css', localTokens(fs.readFileSync(path.join(assets, 'tokens.css'), 'utf8')));
+        return send(res, 200, 'text/css', localTokens(fs.readFileSync(path.join(assets, 'tokens.css'), 'utf8')), {
+          'cache-control': CACHE_HOUR,
+        });
       }
       if (url.pathname === '/' || url.pathname === '/index.html') {
         // The write token rides in the page itself: a hostile origin cannot read
         // this response, so it cannot learn the token to send back.
         const html = fs.readFileSync(path.join(assets, 'dashboard.html'), 'utf8')
           .replace('<meta name="eklavya-token" content="">', `<meta name="eklavya-token" content="${token}">`);
-        return send(res, 200, 'text/html; charset=utf-8', html);
+        // The tag is a hash of what is sent, so a new server start (a new token)
+        // changes it, and so does an edit to the file on disk, which the page's
+        // own development loop relies on a reload to pick up.
+        const etag = `"${createHash('sha256').update(html).digest('hex').slice(0, 32)}"`;
+        const headers = { etag, 'cache-control': 'no-cache' };
+        if (etagMatches(req.headers['if-none-match'], etag)) return send(res, 304, 'text/html; charset=utf-8', '', headers);
+        return send(res, 200, 'text/html; charset=utf-8', html, headers);
       }
       return send(res, 404, 'text/plain', 'not found');
     } catch (err) {
@@ -1944,7 +2194,27 @@ export function startDashboard(
       const addr = server.address();
       /* c8 ignore next -- a TCP listener's address() is always an object; a string is a pipe */
       const port = typeof addr === 'object' && addr ? addr.port : wanted;
-      resolve({ url: `http://${host}:${port}`, close: () => server.close() });
+      // The daemon starts at SessionStart, long before anyone opens the page, so
+      // the first build is made now rather than by the first request. After
+      // 'listening' and off the current turn, so neither the bind nor a probe of
+      // `/api/health` waits on it; unref'd, so it never holds a process or a test
+      // open; cancelled by `close()`; and a failure of any kind (a database that
+      // is closed, busy or locked) only means the first request builds it instead.
+      const warming = setImmediate(() => {
+        try {
+          warmMemo(db);
+        } catch {
+          /* the first request builds it, and reports the error if it still fails */
+        }
+      });
+      warming.unref();
+      resolve({
+        url: `http://${host}:${port}`,
+        close: () => {
+          clearImmediate(warming);
+          server.close();
+        },
+      });
     });
     server.listen(wanted, host);
   });
