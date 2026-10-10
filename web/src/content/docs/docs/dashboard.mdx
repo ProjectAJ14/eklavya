@@ -17,7 +17,7 @@ The dashboard lives at `http://127.0.0.1:41729` and keeps running in the backgro
 
 The mascot smiles while pages load and appears beside empty lists, missing records, errors and settings feedback. Text still explains each state. Motion stops when your system requests reduced motion.
 
-Choose **Meet your companion** in the sidebar to open the local mascot studio. Preview its 13 expressions, switch between face and full-body views, and pause the loading animation. The studio and mascot assets load from the dashboard itself.
+Open **Settings**, then the **Companion** tab, and choose **Open the companion gallery** to open the local mascot studio. Preview its 13 expressions, switch between face and full-body views, and pause the loading animation. The studio and mascot assets load from the dashboard itself.
 
 ## Keeping it running
 
@@ -179,7 +179,7 @@ The bottom of the Dashboard page has a card, **Found a problem with Eklavya?**: 
 
 Settings changes the same two files as [`eklavya config set`](/docs/cli/#settings-and-browsing): your user settings in `~/.eklavya/config.json`, and one project's settings in `~/.eklavya/projects/<checkout>/config.json`. Both interfaces use one write path, so they accept and refuse the same values.
 
-Settings is a switchboard of two panes. On the right, a full-height panel lists the scopes. Choose **User** (the default, what opens first) or one of your projects. On the left, that scope's settings are split into tabs, one category at a time: **Questions**, **Pacing**, **Levels**, **Memory**, **Feedback**, **Privacy**, **This machine**, **Terminal** and **Changed**. A small number on a tab counts the settings that scope's file sets in it. Choosing another scope keeps the tab you are on. On a narrow window the scopes become a row above the tabs.
+Settings is a switchboard of two panes. On the right, a full-height panel lists the scopes. Choose **User** (the default, what opens first) or one of your projects. On the left, that scope's settings are split into tabs, one category at a time: **Questions**, **Pacing**, **Levels**, **Memory**, **Feedback**, **Privacy**, **This machine**, **Terminal**, **Companion** and **Changed**. A small number on a tab counts the settings that scope's file sets in it. Choosing another scope keeps the tab you are on. On a narrow window the scopes become a row above the tabs.
 
 | Page | What you can do |
 | --- | --- |
@@ -244,7 +244,7 @@ Provider error classes are shown without raw messages, which can quote captured 
 
 ## Tips
 
-On your first visits, a dot marks each feature the current page has a tip for (it pulses unless your system asks for reduced motion). The page's first tip opens by itself, once, about half a second after the page draws: a bubble pointing at the feature that says what it does. The others stay dots. For example, the Learning Dashboard points at the caret beside the workflow name and marks **How this works** with a dot. Once you dismiss a page's first tip, the next one opens by itself on a later visit.
+On your first visits, a dot marks each feature the current page has a tip for (it pulses unless your system asks for reduced motion). The page's first tip opens by itself, once, about half a second after the page draws: a bubble pointing at the feature that says what it does, with the companion's face beside the words (a wink for most tips, and a matching expression for a few). The others stay dots. For example, the Learning Dashboard points at the caret beside the workflow name and marks **How this works** with a dot. Once you dismiss a page's first tip, the next one opens by itself on a later visit.
 
 | You do | What happens |
 | --- | --- |

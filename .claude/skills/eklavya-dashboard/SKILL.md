@@ -189,6 +189,7 @@ reader saw under `eklavya-dash-tips`).
 { id: 'concept-filters', where: ['learning/concepts'], el: '#chips', title: 'Concept filters',
   text: 'Filter concepts by state. The filter is part of the link, so you can bookmark it.',
   side: 'bottom',                 // optional: top | right | bottom | left
+  state: 'tip',                   // optional: the companion's mascot state, default tip (wink)
   when: () => S.concepts.length } // optional: only when the data makes it true
 ```
 
