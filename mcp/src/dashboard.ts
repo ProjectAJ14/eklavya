@@ -1580,16 +1580,23 @@ export function withoutWebFonts(html: string): string {
  * Nothing is reported before the frame has a width: one word per line measures
  * tens of thousands of pixels, and if that report lands last the frame sits at
  * the cap, never resizes, and the outrun count never reaches three.
+ *
+ * The page's HTML button serializes the live document, so nothing here may be
+ * serialized with it: the script takes its own element out of the document,
+ * its rules live in a constructed stylesheet (`adoptedStyleSheets`, which
+ * `outerHTML` never writes; a browser without one gets a `<style>` element),
+ * and the root gets no class. A file saved from the viewer then scrolls on
+ * its own and carries no frame code. Only the empty measuring block remains.
  */
 // ponytail: in-flow content only, watched as it was when the script ran: an absolutely
 // positioned box below the end, or a block a page script appends to <body> later, is not counted.
 export const EMBED_SCRIPT = `<script>
 (function () {
-  if (parent === window || window.__eklavyaEmbed) return; window.__eklavyaEmbed = 1;
+  if (parent === window || window.__eklavyaEmbed) return; window.__eklavyaEmbed = 1; var me = document.currentScript; if (me && me.parentNode) me.parentNode.removeChild(me);
   var root = document.documentElement, body = document.body, kids = [].slice.call(body.children), last = 0, strikes = 0, width = innerWidth;
-  var css = document.createElement('style'), end = body.appendChild(document.createElement('div')), seen = window.ResizeObserver && new ResizeObserver(post);
-  css.textContent = 'html,body{overflow-y:hidden !important}.framed main{min-height:0 !important}'; end.style.clear = 'both';
-  root.classList.add('framed'); (document.head || root).appendChild(css);
+  var rules = 'html,body{overflow-y:hidden !important}main{min-height:0 !important}', own = window.CSSStyleSheet && CSSStyleSheet.prototype.replaceSync;
+  var css = own ? new CSSStyleSheet() : document.createElement('style'), end = body.appendChild(document.createElement('div')), seen = window.ResizeObserver && new ResizeObserver(post);
+  if (own) { css.replaceSync(rules); document.adoptedStyleSheets = [].slice.call(document.adoptedStyleSheets).concat(css); } else { css.textContent = rules; (document.head || root).appendChild(css); } end.style.clear = 'both';
   function measure() {
     var s = getComputedStyle(body);
     return Math.ceil(end.getBoundingClientRect().top + scrollY + parseFloat(s.paddingBottom) + parseFloat(s.marginBottom));
