@@ -23,6 +23,8 @@ metric-call limit counts neither the judges nor the reflection model.
 from __future__ import annotations
 
 import argparse
+import difflib
+import hashlib
 import json
 import statistics
 import subprocess
@@ -56,8 +58,11 @@ class Budget:
         self.tokens: Counter[str] = Counter()
         self.cost_usd = 0.0
         self._lock = threading.Lock()
+        self._flush_lock = threading.Lock()
         self.progress_path: Path | None = None
         self.label, self.total, self.done, self.state = "", 0, 0, "running"
+        self.trials: list[dict] = []
+        self.prompt_info: dict | None = None
         self.started, self._last_flush = time.time(), 0.0
 
     def track(self, path: Path, label: str, total: int) -> None:
@@ -66,13 +71,18 @@ class Budget:
         self.flush(force=True)
 
     def flush(self, force: bool = False) -> None:
+        """Best effort: a dashboard that cannot be written must never stop an eval."""
         if self.progress_path is None or (not force and time.time() - self._last_flush < 1):
             return
-        self._last_flush = time.time()
-        body = {"label": self.label, "state": self.state, "trials_done": self.done, "trials_total": self.total, "started": self.started, "updated": time.time(), "max_minutes": round((self.deadline - self.started) / 60, 1), **self.summary()}
-        tmp = self.progress_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(body))
-        tmp.replace(self.progress_path)
+        with self._flush_lock:  # one writer at a time, or two threads race on the temp file
+            try:
+                self._last_flush = time.time()
+                body = {"label": self.label, "state": self.state, "trials_done": self.done, "trials_total": self.total, "started": self.started, "updated": time.time(), "max_minutes": round((self.deadline - self.started) / 60, 1), "prompt": self.prompt_info, "summary": summarise(list(self.trials)), "trials": list(self.trials), **self.summary()}
+                tmp = self.progress_path.with_suffix(".tmp")
+                tmp.write_text(json.dumps(body))
+                tmp.replace(self.progress_path)
+            except Exception as err:
+                print(f"progress file not written: {err}", file=sys.stderr)
 
     def spend(self, kind: str) -> None:
         with self._lock:
@@ -294,6 +304,30 @@ def run_example(guidance: str, ex: dict) -> tuple[float, dict]:
     return total, info
 
 
+def prompt_info(path: str) -> dict:
+    """What is being tested: the prompt's size and its diff against the shipped version on origin/main."""
+    text = Path(path).read_text()
+    rel = str(SEED_FILE.relative_to(REPO))
+    shipped = ""
+    for ref in ("origin/main", "HEAD"):
+        got = subprocess.run(["git", "show", f"{ref}:{rel}"], cwd=REPO, capture_output=True, text=True)
+        if got.returncode == 0:
+            shipped = got.stdout
+            break
+    diff = "".join(difflib.unified_diff(shipped.splitlines(True), text.splitlines(True), "shipped", Path(path).name, n=2))
+    return {"file": path, "words": len(text.split()), "shipped_words": len(shipped.split()), "diff": diff}
+
+
+def trial_record(ex: dict, info: dict, **extra) -> dict:
+    """One finished trial, trimmed for the dashboard: what the model was given, what it wrote, how it was graded."""
+    plan = ex["plan"]
+    return {
+        "id": ex["id"], "group": ex["group"], "focus": ex["focus"], "tier": plan["tier_to_ask"], "answer_position": plan["answer_position"],
+        "input": {"concept": plan["slug"], "description": plan.get("description"), "code": (ex.get("code") or "")[:700], "source": ex.get("source")},
+        **extra, **info,
+    }
+
+
 # ------------------------------------------------------------------ commands --
 
 
@@ -321,14 +355,18 @@ def cmd_evaluate(args) -> None:
     rows = pick(load_dataset(), args.split, args.limit)
     jobs = [(ex, r) for ex in rows for r in range(args.repeats)]
     trials, stopped = [], None
+    BUDGET.prompt_info = prompt_info(args.prompt)
     BUDGET.track(Path(args.out).with_suffix(".progress.json"), f"evaluate {Path(args.prompt).name} ({args.split})", len(jobs))
 
     def one(job):
         ex, r = job
         total, info = run_example(guidance, ex)
+        row = {"id": ex["id"], "group": ex["group"], "repeat": r, "tier": ex["plan"]["tier_to_ask"], "focus": ex["focus"], **info}
         with BUDGET._lock:
             BUDGET.done += 1
-        return {"id": ex["id"], "group": ex["group"], "repeat": r, "tier": ex["plan"]["tier_to_ask"], "focus": ex["focus"], **info}
+            BUDGET.trials.append(trial_record(ex, info, repeat=r))
+        BUDGET.flush(force=True)
+        return row
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = [pool.submit(one, j) for j in jobs]
@@ -403,12 +441,16 @@ def cmd_optimize(args) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     seed = strip_frontmatter(SEED_FILE.read_text())
+    (out / "seed.md").write_text(seed + "\n")
+    BUDGET.prompt_info = prompt_info(str(out / "seed.md"))
     BUDGET.track(out / "progress.json", f"optimize ({args.metric_calls} metric calls)", args.metric_calls)
 
     def evaluator(candidate: str, example: dict):
         total, info = run_example(candidate, example)
         with BUDGET._lock:
             BUDGET.done += 1
+            BUDGET.trials.append(trial_record(example, info, candidate=hashlib.sha1(candidate.encode()).hexdigest()[:8]))
+        BUDGET.flush(force=True)
         oa.log(json.dumps({k: v for k, v in info.items() if k in ("gates_failed", "failed_checks", "visible_words_per_option", "visible_problem", "judge", "error")}))
         return total, info
 
