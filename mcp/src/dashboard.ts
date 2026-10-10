@@ -60,24 +60,38 @@ export { DEFAULT_PORT };
  */
 const TIMELINE_DAYS = 365;
 /**
- * Cap on the attempt rows shipped for drill-down. Counts and per-day totals are
- * aggregated in SQL over the whole table, so the cap can only ever shorten a
- * history list, never make a number wrong.
+ * Cap on the attempt rows shipped for drill-down, newest first. Counts and
+ * per-day totals are aggregated in SQL over the whole table, so the cap can only
+ * ever shorten a history list, never make a number wrong: anything the page
+ * counts, or narrows a project to, it takes from those aggregates and not from
+ * these rows (`totals`, `concepts`, `daily`, and `projectInventory`'s per-project
+ * counts and `concept_slugs`).
+ *
+ * One number with `LOGGED_LIMIT`, and the one that sets the size of `/api/state`:
+ * a row is about 0.85 KB (a question, its options, the answer and the tutor's
+ * feedback), so these rows are over half of the payload. The budget for the
+ * payload at a year of daily use is 1.5 MB (issue #171), and at 2,000 rows of
+ * each kind it was 2.5 MB however the rest was trimmed: the two lists alone
+ * were more than that. At this size it is 1.15 MB with a 25-character
+ * repository path and 1.44 MB with a 105-character one (every row names its
+ * repository, so the path's length is in the size), which is why the number is
+ * not larger. `scripts/dashboard-perf.mjs medium` prints it.
  */
-const ATTEMPT_LIMIT = 2000;
+export const ATTEMPT_LIMIT = 800;
 /**
  * Cap on the logged context lines (`session_concepts` rows) shipped in the
  * payload, newest first like `attempts` and the same size: one number for how
  * much history each kind of row brings. Each line carries its context text, so
- * the list grew without bound and was the largest key at scale; at this size it
- * is about 0.6 MB whatever the database holds, and a learner with fewer lines
- * sees no change. `logged_shown` and `logged_total` say when it is cut, as
- * `attempts_shown` and `attempts_total` do, and every total stays right because
- * it is aggregated in SQL: `totals.sessions`, the concept catalogue's last
- * context, the project inventory. A session whose lines fall outside the cap is
- * still opened through `/api/memory/sessions` (`sessionLearning`).
+ * the list grew without bound and was the largest key at scale; a learner with
+ * fewer lines sees no change. `logged_shown` and `logged_total` say when it is
+ * cut, as `attempts_shown` and `attempts_total` do, and every total stays right
+ * because it is aggregated in SQL: `totals.sessions`, the concept catalogue's
+ * last context, the project inventory (its counts, its `sessions` and the
+ * `concept_slugs` the page narrows a project to). A session whose lines fall
+ * outside the cap is still opened through `/api/memory/sessions`
+ * (`sessionLearning`).
  */
-export const LOGGED_LIMIT = 2000;
+export const LOGGED_LIMIT = 800;
 /**
  * The memory corpus does not travel in `/api/state`.
  *
@@ -221,15 +235,31 @@ const many = <T>(db: DB, sql: string, ...args: unknown[]): T[] => db.prepare(sql
  * required the developer to answer something.
  */
 function memorySummary(db: DB, events: EvidenceTotals): Record<string, unknown> {
-  const entries = one<{ total: number; live: number; superseded: number; deleted: number; notes: number }>(
+  // One pass over the entries (each carries its narrative, so a pass reads the most bytes of any
+  // table here) gives the totals and the types: a group per type, summed for the totals.
+  const entries = { total: 0, live: 0, superseded: 0, deleted: 0, notes: 0 };
+  const types: { type: string; n: number }[] = [];
+  for (const g of many<{ type: string | null; n: number; live: number; superseded: number; deleted: number; notes: number }>(
     db,
-    `SELECT count(*) AS total,
-            COALESCE(SUM(deleted_at IS NULL AND superseded_by IS NULL), 0) AS live,
-            COALESCE(SUM(superseded_by IS NOT NULL), 0) AS superseded,
-            COALESCE(SUM(deleted_at IS NOT NULL), 0) AS deleted,
-            COALESCE(SUM(kind = 'note'), 0) AS notes
-     FROM memory_entries`,
-  );
+    `SELECT type, count(*) AS n,
+            SUM(deleted_at IS NULL AND superseded_by IS NULL) AS live,
+            SUM(superseded_by IS NOT NULL) AS superseded,
+            SUM(deleted_at IS NOT NULL) AS deleted,
+            SUM(kind = 'note') AS notes
+     FROM memory_entries GROUP BY type ORDER BY type`,
+  )) {
+    entries.total += g.n;
+    entries.live += g.live;
+    entries.superseded += g.superseded;
+    entries.deleted += g.deleted;
+    entries.notes += g.notes;
+    // A type counts what is not deleted (superseded entries stay on the timeline, marked), so a type
+    // with nothing left is not listed, and an entry with no type is `untyped`.
+    if (g.n > g.deleted) types.push({ type: g.type ?? 'untyped', n: g.n - g.deleted });
+  }
+  // Largest first; equal counts keep the types' order. (The statement this replaced left equal counts
+  // in whatever order its plan gave them, which was the opposite one until an index served it.)
+  types.sort((a, b) => b.n - a.n);
   const candidates = many<{ status: string; n: number }>(
     db,
     'SELECT status, count(*) AS n FROM learning_sources GROUP BY status',
@@ -270,11 +300,14 @@ function memorySummary(db: DB, events: EvidenceTotals): Record<string, unknown> 
        WHERE ls.concept_id IS NOT NULL`,
     ).n,
     candidates: Object.fromEntries(candidates.map((c) => [c.status, c.n])),
-    types: many(db, `SELECT COALESCE(type, 'untyped') AS type, count(*) AS n FROM memory_entries
-                     WHERE deleted_at IS NULL GROUP BY type ORDER BY n DESC`),
-    tags: many(db, `SELECT t.tag, count(*) AS n FROM memory_entry_tags t
-                    JOIN memory_entries e ON e.id = t.entry_id AND e.deleted_at IS NULL
-                    GROUP BY t.tag ORDER BY n DESC, t.tag LIMIT 60`),
+    types,
+    // A tag row always names an entry (a foreign key), so while none is deleted every tag counts and
+    // the entries need not be read again; once one is, only the live entries' tags do.
+    tags: entries.deleted === 0
+      ? many(db, `SELECT tag, count(*) AS n FROM memory_entry_tags GROUP BY tag ORDER BY n DESC, tag LIMIT 60`)
+      : many(db, `SELECT t.tag, count(*) AS n FROM memory_entry_tags t
+                  JOIN memory_entries e ON e.id = t.entry_id AND e.deleted_at IS NULL
+                  GROUP BY t.tag ORDER BY n DESC, t.tag LIMIT 60`),
     projects: many(db, `SELECT project, count(*) AS n FROM memory_entries GROUP BY project ORDER BY n DESC`),
     per_page: MEMORY_PER,
   };
@@ -401,12 +434,16 @@ interface EvidenceGroup {
  * already yields, spelled out because the inventory's rows are created in it.
  */
 function evidenceGroups(db: DB): EvidenceGroup[] {
+  // Every aggregate here is paid once per event (about 0.1 ms per thousand events
+  // each), so a sum that follows from the others is taken from them once per
+  // group: `status` is never null, so what is not processed is pending. A group
+  // has rows, so its sums are numbers and need no default.
   return many<EvidenceGroup>(
     db,
     `SELECT project, session_id, checkout, count(*) AS events,
-            COALESCE(SUM(status = 'summarized'), 0) AS processed,
-            COALESCE(SUM(status <> 'summarized'), 0) AS pending,
-            COALESCE(SUM(redacted), 0) AS redacted,
+            SUM(status = 'summarized') AS processed,
+            count(*) - SUM(status = 'summarized') AS pending,
+            SUM(redacted) AS redacted,
             min(occurred_at) AS first, max(occurred_at) AS last, max(received_at) AS received
      FROM evidence_events
      GROUP BY project, session_id, checkout
@@ -440,8 +477,21 @@ function evidenceTotals(groups: EvidenceGroup[]): EvidenceTotals {
   return t;
 }
 
-/** Text in the order SQLite sorts it (bytes of the UTF-8 form), which is not JavaScript's (UTF-16 units) for every string. */
-const binaryOrder = (a: string, b: string): number => (a === b ? 0 : Buffer.compare(Buffer.from(a), Buffer.from(b)));
+/**
+ * Text in the order SQLite sorts it (bytes of the UTF-8 form), which is not JavaScript's (UTF-16 units) for every string.
+ * The two agree wherever the first difference is between characters below the surrogates (which is
+ * every id and path people use), and the bytes are compared only where it is not.
+ */
+const binaryOrder = (a: string, b: string): number => {
+  if (a === b) return 0;
+  const shared = Math.min(a.length, b.length);
+  for (let i = 0; i < shared; i++) {
+    const x = a.charCodeAt(i);
+    const y = b.charCodeAt(i);
+    if (x !== y) return x < 0xd800 && y < 0xd800 ? x - y : Buffer.compare(Buffer.from(a), Buffer.from(b));
+  }
+  return a.length - b.length;
+};
 
 /**
  * One row per session that captured evidence, newest first, so a session page can
@@ -671,6 +721,12 @@ function sessionLearning(db: DB, session: string): { logged: Record<string, unkn
 /** The id of a project whose rows carry no repository at all: recorded before projects were tracked. */
 export const UNATTRIBUTED = '~';
 
+/** The earliest and latest instant seen, in epoch milliseconds. */
+interface Span {
+  min: number | null;
+  max: number | null;
+}
+
 interface InventoryProject {
   id: string;
   path: string | null;
@@ -682,6 +738,12 @@ interface InventoryProject {
   learning: {
     answers: number; passed: number; skipped: number; assessed_concepts: number;
     logged_concepts: number; sessions: number; first: string | null; last: string | null;
+    /**
+     * Every concept an answer or a logged line (any origin) in this project names,
+     * by slug, sorted: what the page narrows the concept list to. Exact however
+     * many rows the payload's capped lists hold.
+     */
+    concept_slugs: string[];
   };
   memory: {
     events: number; pending: number; entries: number; sessions: number; receipts: number;
@@ -743,7 +805,13 @@ export function projectInventory(db: DB): {
     return id;
   };
 
-  const byId = new Map<string, InventoryProject & { _assessed: Set<number>; _logged: Set<number>; _lsess: Set<string>; _msess: Set<string> }>();
+  const byId = new Map<
+    string,
+    InventoryProject & {
+      _assessed: Set<number>; _logged: Set<number>; _touched: Set<number>; _lsess: Set<string>; _msess: Set<string>;
+      _lspan: Span; _mspan: Span;
+    }
+  >();
   const at = (raw: string | null, source: string) => {
     const id = canonical(raw);
     let p = byId.get(id);
@@ -752,10 +820,11 @@ export function projectInventory(db: DB): {
       p = {
         id, kind, path: kind === 'repo' ? id : null, name: '', available: kind === 'repo' ? fs.existsSync(id) : null,
         sources: [], aliases: [],
-        learning: { answers: 0, passed: 0, skipped: 0, assessed_concepts: 0, logged_concepts: 0, sessions: 0, first: null, last: null },
+        learning: { answers: 0, passed: 0, skipped: 0, assessed_concepts: 0, logged_concepts: 0, sessions: 0, first: null, last: null, concept_slugs: [] },
         memory: { events: 0, pending: 0, entries: 0, sessions: 0, receipts: 0, first: null, last: null },
         first_active: null, last_active: null,
-        _assessed: new Set(), _logged: new Set(), _lsess: new Set(), _msess: new Set(),
+        _assessed: new Set(), _logged: new Set(), _touched: new Set(), _lsess: new Set(), _msess: new Set(),
+        _lspan: { min: null, max: null }, _mspan: { min: null, max: null },
       };
       byId.set(id, p);
     }
@@ -766,24 +835,30 @@ export function projectInventory(db: DB): {
   };
   const sessionIds = new Map<string, Set<string>>();
   const note = (sid: string, id: string) => sessionIds.set(sid, (sessionIds.get(sid) ?? new Set()).add(id));
-  // Both timestamp shapes, flattened to ISO so min/max compare as instants.
-  const iso = (ts: string | null) => {
+  // Both timestamp shapes, read as instants (epoch milliseconds) so min/max compare as instants. A
+  // group of one row has the same time at both ends and is read once; the instant becomes ISO
+  // text once per project at the end, not once per row (it was most of this function's time).
+  const epoch = (ts: string | null): number | null => {
     if (!ts) return null;
     const t = parseTs(ts);
-    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+    return Number.isFinite(t) ? t : null;
   };
-  const span = (o: { first: string | null; last: string | null }, first: string | null, last: string | null) => {
-    const f = iso(first), l = iso(last);
-    if (f && (!o.first || f < o.first)) o.first = f;
-    if (l && (!o.last || l > o.last)) o.last = l;
+  const span = (o: Span, first: string | null, last: string | null) => {
+    const f = epoch(first);
+    const l = last === first ? f : epoch(last);
+    if (f !== null && (o.min === null || f < o.min)) o.min = f;
+    if (l !== null && (o.max === null || l > o.max)) o.max = l;
   };
+  const isoOf = (t: number | null) => (t === null ? null : new Date(t).toISOString());
 
+  // Answers that name no repository: the project they count toward for the concept list is
+  // settled below, once the sessions that prove one are known (as the page's `pid()` does).
+  const blankAsked: [string | null, number][] = [];
   for (const r of many<{ repo: string | null; session_id: string | null; concept_id: number; n: number; passed: number; skipped: number; first: string; last: string }>(
     db,
     `SELECT repo, session_id, concept_id, count(*) AS n,
-            -- A miss corrected from its explainer counts as right, as on the Accuracy tile.
-            COALESCE(SUM(grade >= ${PASSING_GRADE} OR EXISTS (SELECT 1 FROM attempts fix WHERE fix.retry_of = attempts.id)), 0) AS passed,
-            COALESCE(SUM(outcome IN ('declined','dont_know')), 0) AS skipped,
+            SUM(grade >= ${PASSING_GRADE}) AS passed,
+            SUM(outcome IN ('declined','dont_know')) AS skipped,
             min(ts) AS first, max(ts) AS last
      FROM attempts WHERE ${NOT_CORRECTION} GROUP BY repo, session_id, concept_id`,
   )) {
@@ -792,11 +867,23 @@ export function projectInventory(db: DB): {
     p.learning.passed += r.passed;
     p.learning.skipped += r.skipped;
     p._assessed.add(r.concept_id);
+    if (r.repo?.trim()) p._touched.add(r.concept_id);
+    else blankAsked.push([r.session_id, r.concept_id]);
     if (r.session_id) {
       p._lsess.add(r.session_id);
       if (r.repo?.trim()) note(r.session_id, p.id);
     }
-    span(p.learning, r.first, r.last);
+    span(p._lspan, r.first, r.last);
+  }
+  // A miss corrected from its explainer counts as right, as on the Accuracy tile. They are the answers
+  // that have a correction and did not pass (a handful), counted here by repository rather than by
+  // a lookup made for every answer above; each one's project is already there.
+  for (const r of many<{ repo: string | null; n: number }>(
+    db,
+    `SELECT a.repo, count(*) AS n FROM attempts a JOIN attempts fix ON fix.retry_of = a.id
+     WHERE a.${NOT_CORRECTION} AND a.grade < ${PASSING_GRADE} GROUP BY a.repo`,
+  )) {
+    byId.get(canonical(r.repo))!.learning.passed += r.n;
   }
   // One row per project and session, whichever checkouts the events came from.
   for (const g of evidence) {
@@ -805,7 +892,7 @@ export function projectInventory(db: DB): {
     p.memory.pending += g.pending;
     p._msess.add(g.session_id);
     note(g.session_id, p.id);
-    span(p.memory, g.first, g.last);
+    span(p._mspan, g.first, g.last);
   }
   // A gate row with no repository names no project, but the same session's
   // own answers and evidence may. Where they agree on exactly one project, the
@@ -827,9 +914,13 @@ export function projectInventory(db: DB): {
     // every concept it grades, and counting those would call every answered
     // concept "recorded from your work".
     if ((r.origin ?? 'work') === 'work') p._logged.add(r.concept_id);
+    // Any origin: a concept a question was asked about is as much in the project as one its work touched.
+    p._touched.add(r.concept_id);
     p._lsess.add(r.session_id);
-    span(p.learning, r.first, r.last);
+    span(p._lspan, r.first, r.last);
   }
+  // An answer with no repository belongs where its session was proven to belong, else nowhere.
+  for (const [sid, concept] of blankAsked) byId.get((sid && sessionProjects[sid]) || UNATTRIBUTED)!._touched.add(concept);
   for (const r of many<{ project: string; session_id: string | null; live: number; first: string; last: string }>(
     db,
     `SELECT project, session_id, COALESCE(SUM(deleted_at IS NULL AND superseded_by IS NULL), 0) AS live,
@@ -839,18 +930,25 @@ export function projectInventory(db: DB): {
     const p = at(r.project, 'entries');
     p.memory.entries += r.live;
     if (r.session_id) p._msess.add(r.session_id);
-    span(p.memory, r.first, r.last);
+    span(p._mspan, r.first, r.last);
   }
   for (const r of many<{ project: string; n: number }>(db, 'SELECT project, count(*) AS n FROM context_receipts GROUP BY project')) {
     at(r.project, 'receipts').memory.receipts += r.n;
   }
   for (const r of many<{ repo: string }>(db, 'SELECT repo FROM project_levels')) at(r.repo, 'levels');
 
-  const projects = [...byId.values()].map(({ _assessed, _logged, _lsess, _msess, ...p }) => {
+  const slugs = new Map(many<{ id: number; slug: string }>(db, 'SELECT id, slug FROM concepts').map((c) => [c.id, c.slug]));
+  const projects = [...byId.values()].map(({ _assessed, _logged, _touched, _lsess, _msess, _lspan, _mspan, ...p }) => {
     p.learning.assessed_concepts = _assessed.size;
     p.learning.logged_concepts = _logged.size;
+    // Concepts exist for every row that names one (a foreign key), so every id has its slug.
+    p.learning.concept_slugs = [..._touched].map((id) => slugs.get(id)!).sort();
     p.learning.sessions = _lsess.size;
     p.memory.sessions = _msess.size;
+    p.learning.first = isoOf(_lspan.min);
+    p.learning.last = isoOf(_lspan.max);
+    p.memory.first = isoOf(_mspan.min);
+    p.memory.last = isoOf(_mspan.max);
     const firsts = [p.learning.first, p.memory.first].filter(Boolean) as string[];
     const lasts = [p.learning.last, p.memory.last].filter(Boolean) as string[];
     p.first_active = firsts.sort()[0] ?? null;
@@ -1188,7 +1286,7 @@ function attemptRows(db: DB, limit: number, session?: string): Record<string, un
  * every context line a worktree session logged.
  */
 function loggedRows(db: DB, fold: (repo: string) => string, limit: number, session?: string): Record<string, unknown>[] {
-  return many<Record<string, unknown>>(
+  const rows = many<Record<string, unknown>>(
     db,
     `SELECT sc.session_id, c.slug, c.name, c.domain, sc.context, sc.ts, sc.origin,
             NULLIF(trim(COALESCE(g.repo, '')), '') AS repo
@@ -1200,7 +1298,166 @@ function loggedRows(db: DB, fold: (repo: string) => string, limit: number, sessi
      LIMIT ?`,
     ...(session === undefined ? [] : [session]),
     limit,
-  ).map((row) => ({ ...row, repo: row.repo ? fold(row.repo as string) : null }));
+  );
+  for (const row of rows) row.repo = row.repo ? fold(row.repo as string) : null;
+  return rows;
+}
+
+/** What the answers table says, for the day rows, the project rows, the totals and the catalogue. */
+interface AnswerRollups {
+  daily: DayRow[];
+  projects: ProjectRow[];
+  allTime: {
+    answers: number; passed: number; missed: number; skipped: number; corrected: number;
+    active_days: number; first_answer: string | null;
+  };
+  /** Per concept: the counts and the ids of its newest answer and its newest answer with a repository. */
+  asked: Map<number, AskedRow>;
+}
+
+interface AskedRow {
+  attempts: number;
+  passed: number;
+  skipped: number;
+  corrected: number;
+  first_asked: string | null;
+  last_id: number | null;
+  last_repo_id: number | null;
+}
+
+/**
+ * Every number the page takes from `attempts` that is not a list of rows: the
+ * per-day split, the per-project totals, the all-time totals and each concept's
+ * counts. They were five statements, each reading the whole table and the
+ * first two converting every timestamp to the learner's day (2 microseconds a
+ * row, 19 ms at 10,000 answers); they are two statements now, one grouped by
+ * day and repository and one by repository and concept, and a few sums in JS.
+ *
+ * Each figure is the one the statement it replaced gave, value for value: a
+ * correction row is no answer (`NOT_CORRECTION`) but is counted as one
+ * `corrected` against the miss it fixes, and an answer that was corrected is
+ * neither missed nor skipped. That last exclusion is taken from the answers
+ * that were corrected (a handful) instead of a join over every answer.
+ */
+function answerRollups(db: DB): AnswerRollups {
+  // One group per local day, repository and side of the year's window: `recent` is the daily rows'
+  // filter, the whole is the all-time total.
+  // A time that is no time (an imported row) has no day: its group's day is null, as the day rows
+  // have always had it, and it is no active day.
+  interface DayGroup {
+    day: string | null; repo: string | null; recent: number; answers: number; passed: number; missed: number; skipped: number; first: string;
+  }
+  const dayGroups = many<DayGroup>(
+    db,
+    `SELECT date(a.ts, 'localtime') AS day, NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.ts >= date('now', ?) AS recent,
+            count(*) AS answers,
+            sum(CASE WHEN a.grade >= ${PASSING_GRADE} THEN 1 ELSE 0 END) AS passed,
+            sum(CASE WHEN a.grade < ${PASSING_GRADE} AND (a.outcome IS NULL OR a.outcome = 'answered') THEN 1 ELSE 0 END) AS missed,
+            sum(CASE WHEN a.outcome IN ('declined','dont_know') THEN 1 ELSE 0 END) AS skipped,
+            min(a.ts) AS first
+     FROM attempts a
+     WHERE a.${NOT_CORRECTION}
+     GROUP BY 1, 2, 3
+     ORDER BY 1, 2, 3`,
+    `-${TIMELINE_DAYS} days`,
+  );
+  // The same groups, over the answers that were corrected (a handful): what to take back out of
+  // missed and skipped.
+  const groupKey = (g: { day: string | null; repo: string | null; recent: number }) => `${g.day ?? ''}\u0000${g.repo ?? ''}\u0000${g.recent}`;
+  const fixed = new Map<string, { fixed: number; missed: number; skipped: number }>();
+  for (const f of many<{ day: string | null; repo: string | null; recent: number; fixed: number; missed: number; skipped: number }>(
+    db,
+    `SELECT date(a.ts, 'localtime') AS day, NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.ts >= date('now', ?) AS recent,
+            count(*) AS fixed,
+            sum(CASE WHEN a.grade < ${PASSING_GRADE} AND (a.outcome IS NULL OR a.outcome = 'answered') THEN 1 ELSE 0 END) AS missed,
+            sum(CASE WHEN a.outcome IN ('declined','dont_know') THEN 1 ELSE 0 END) AS skipped
+     FROM attempts a JOIN attempts fix ON fix.retry_of = a.id
+     WHERE a.${NOT_CORRECTION}
+     GROUP BY 1, 2, 3`,
+    `-${TIMELINE_DAYS} days`,
+  )) {
+    fixed.set(groupKey(f), f);
+  }
+  const none = { fixed: 0, missed: 0, skipped: 0 };
+  const daily: DayRow[] = [];
+  const allTime: AnswerRollups['allTime'] = { answers: 0, passed: 0, missed: 0, skipped: 0, corrected: 0, active_days: 0, first_answer: null };
+  const activeDays = new Set<string>();
+  for (const g of dayGroups) {
+    // Every corrected answer is an answer, so its group is among these.
+    const f = fixed.size === 0 ? none : fixed.get(groupKey(g)) ?? none;
+    const missed = g.missed - f.missed;
+    const skipped = g.skipped - f.skipped;
+    allTime.answers += g.answers;
+    allTime.passed += g.passed;
+    allTime.missed += missed;
+    allTime.skipped += skipped;
+    allTime.corrected += f.fixed;
+    if (g.day !== null) activeDays.add(g.day);
+    if (allTime.first_answer === null || g.first < allTime.first_answer) allTime.first_answer = g.first;
+    // The groups come in the order `GROUP BY day, repo` gave the rows they replace.
+    if (g.recent) daily.push({ day: g.day as string, repo: g.repo, passed: g.passed, missed, skipped, corrected: f.fixed });
+  }
+  allTime.active_days = activeDays.size;
+
+  // One group per repository and concept over the answers, which give the project rows and the
+  // catalogue's counts, and the same over the corrections (an index finds them), which the
+  // catalogue counts as `corrected` and which may be the newest row naming a repository.
+  const asked = new Map<number, AskedRow>();
+  const byRepo = new Map<string | null, ProjectRow>();
+  const concept = (id: number): AskedRow => {
+    let c = asked.get(id);
+    if (c === undefined) {
+      c = { attempts: 0, passed: 0, skipped: 0, corrected: 0, first_asked: null, last_id: null, last_repo_id: null };
+      asked.set(id, c);
+    }
+    return c;
+  };
+  // Grouped by the repo column as written, which is how the project rows have always been grouped:
+  // a project row is one per spelling (an empty repo, a blank one and an unset one are three rows,
+  // each reading as no repository), and a catalogue row cannot tell them apart.
+  for (const g of many<{
+    raw: string | null; repo: string | null; concept_id: number; attempts: number; passed: number; skipped: number; first: string; last: string; last_id: number;
+  }>(
+    db,
+    `SELECT a.repo AS raw, NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.concept_id,
+            count(*) AS attempts,
+            sum(a.grade >= ${PASSING_GRADE}) AS passed,
+            sum(a.outcome IN ('declined','dont_know')) AS skipped,
+            min(a.ts) AS first, max(a.ts) AS last, max(a.id) AS last_id
+     FROM attempts a
+     WHERE a.${NOT_CORRECTION}
+     GROUP BY a.repo, a.concept_id`,
+  )) {
+    const c = concept(g.concept_id);
+    c.attempts += g.attempts;
+    c.passed += g.passed;
+    c.skipped += g.skipped;
+    if (c.first_asked === null || g.first < c.first_asked) c.first_asked = g.first;
+    if (c.last_id === null || g.last_id > c.last_id) c.last_id = g.last_id;
+    if (g.repo !== null && (c.last_repo_id === null || g.last_id > c.last_repo_id)) c.last_repo_id = g.last_id;
+    const p = byRepo.get(g.raw) ?? { repo: g.repo, answers: 0, passed: 0, skipped: 0, concepts: 0, first_active: g.first, last_active: g.last };
+    byRepo.set(g.raw, p);
+    p.answers += g.attempts;
+    p.passed += g.passed;
+    p.skipped += g.skipped;
+    p.concepts += 1;
+    if (g.first < p.first_active) p.first_active = g.first;
+    if (g.last > p.last_active) p.last_active = g.last;
+  }
+  for (const g of many<{ repo: string | null; concept_id: number; corrections: number; last_id: number }>(
+    db,
+    `SELECT NULLIF(trim(COALESCE(a.repo, '')), '') AS repo, a.concept_id, count(*) AS corrections, max(a.id) AS last_id
+     FROM attempts a
+     WHERE a.retry_of IS NOT NULL
+     GROUP BY 1, 2`,
+  )) {
+    const c = concept(g.concept_id);
+    c.corrected += g.corrections;
+    if (g.repo !== null && (c.last_repo_id === null || g.last_id > c.last_repo_id)) c.last_repo_id = g.last_id;
+  }
+  // Repositories came out in order, so equal last-active times keep it.
+  const projects = [...byRepo.values()].sort((a, b) => (a.last_active === b.last_active ? 0 : a.last_active < b.last_active ? 1 : -1));
+  return { daily, projects, allTime, asked };
 }
 
 export function dashboardState(db: DB): Record<string, unknown> {
@@ -1213,87 +1470,47 @@ export function dashboardState(db: DB): Record<string, unknown> {
   // being built then shows as a notice on the next poll, never as a miss.
   const cursor = changeCursor(db, configs);
 
-  // One row per calendar day per project, split three ways. `grade >= 3` is the
-  // same pass line the level ladder uses, so the chart and the promotion agree.
-  const daily = db
-    .prepare(
-      `SELECT date(a.ts, 'localtime') AS day,
-              NULLIF(trim(COALESCE(a.repo, '')), '') AS repo,
-              sum(CASE WHEN a.grade >= ? THEN 1 ELSE 0 END) AS passed,
-              sum(CASE WHEN a.grade < ? AND (a.outcome IS NULL OR a.outcome = 'answered') AND fix.id IS NULL THEN 1 ELSE 0 END) AS missed,
-              sum(CASE WHEN a.outcome IN ('declined','dont_know') AND fix.id IS NULL THEN 1 ELSE 0 END) AS skipped,
-              count(fix.id) AS corrected
-       FROM attempts a LEFT JOIN attempts fix ON fix.retry_of = a.id
-       WHERE a.${NOT_CORRECTION} AND a.ts >= date('now', ?)
-       GROUP BY 1, 2
-       ORDER BY day`,
-    )
-    .all(PASSING_GRADE, PASSING_GRADE, `-${TIMELINE_DAYS} days`) as DayRow[];
-
-  // A null repo is the pre-migration-003 bucket. It is kept, not dropped:
+  // The numbers taken from `attempts` that are not lists of rows: one row per calendar day per
+  // project (split three ways: `grade >= PASSING_GRADE` is the pass line the level ladder uses, so
+  // the chart and the promotion agree), the per-project totals, the all-time totals and each
+  // concept's counts. A null repo is the pre-migration-003 bucket. It is kept, not dropped:
   // hiding those rows would silently shrink every total on the page.
-  const projects = db
-    .prepare(
-      `SELECT NULLIF(trim(COALESCE(a.repo, '')), '') AS repo,
-              count(*) AS answers,
-              sum(CASE WHEN a.grade >= ? THEN 1 ELSE 0 END) AS passed,
-              sum(CASE WHEN a.outcome IN ('declined','dont_know') THEN 1 ELSE 0 END) AS skipped,
-              count(DISTINCT a.concept_id) AS concepts,
-              min(a.ts) AS first_active,
-              max(a.ts) AS last_active
-       FROM attempts a
-       WHERE a.${NOT_CORRECTION}
-       GROUP BY repo
-       ORDER BY last_active DESC`,
-    )
-    .all(PASSING_GRADE) as ProjectRow[];
+  const { daily, projects, allTime, asked } = answerRollups(db);
 
-  // The catalogue with each concept's attempt counts and last context. The
-  // counts are one `GROUP BY concept_id` over `attempts`, and the last context
-  // is one ranking over `session_concepts`, each joined back by concept, where
-  // this used to be eight correlated subqueries per concept (the last context
-  // scanning the whole of `session_concepts` for every one of them).
-  const conceptRows = db
-    .prepare(
-      `WITH asked AS (
-         SELECT concept_id,
-                count(CASE WHEN ${NOT_CORRECTION} THEN 1 END) AS attempts,
-                count(CASE WHEN ${NOT_CORRECTION} AND grade >= ${PASSING_GRADE} THEN 1 END) AS passed,
-                count(CASE WHEN ${NOT_CORRECTION} AND outcome IN ('declined','dont_know') THEN 1 END) AS skipped,
-                count(CASE WHEN retry_of IS NOT NULL THEN 1 END) AS corrected,
-                min(CASE WHEN ${NOT_CORRECTION} THEN ts END) AS first_asked,
-                -- The newest answer, and the newest with a repository: found by id, then read back.
-                max(CASE WHEN ${NOT_CORRECTION} THEN id END) AS last_id,
-                max(CASE WHEN repo IS NOT NULL AND trim(repo) <> '' THEN id END) AS last_repo_id
-         FROM attempts GROUP BY concept_id
-       ), newest AS (
-         -- The latest context a session logged for the concept; equal times go to the row written first.
-         SELECT concept_id, context FROM (
-           SELECT concept_id, context,
-                  row_number() OVER (PARTITION BY concept_id ORDER BY ts DESC, rowid) AS rank
-           FROM session_concepts WHERE context IS NOT NULL
-         ) WHERE rank = 1
-       )
-       SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
-              m.score, m.ease, m.interval_d, m.reps, m.next_review, m.last_seen,
-              COALESCE(asked.attempts, 0) AS attempts,
-              COALESCE(asked.passed, 0) AS passed,
-              COALESCE(asked.skipped, 0) AS skipped,
-              COALESCE(asked.corrected, 0) AS corrected,
-              asked.first_asked AS first_asked,
-              -- The backlog rule's grade (OWED_SQL in store.ts): a correction does not clear it.
-              latest.grade AS last_grade,
-              newest.context AS last_context,
-              last_repo.repo AS last_repo
-       FROM concepts c
-       LEFT JOIN mastery m ON m.concept_id = c.id
-       LEFT JOIN asked ON asked.concept_id = c.id
-       LEFT JOIN attempts latest ON latest.id = asked.last_id
-       LEFT JOIN attempts last_repo ON last_repo.id = asked.last_repo_id
-       LEFT JOIN newest ON newest.concept_id = c.id
-       ORDER BY c.domain, c.tier, c.name, c.id`,
-    )
-    .all() as ConceptRow[];
+  // The catalogue with each concept's last context. The newest answer of a concept and its counts
+  // come from the rollup above; the last context is one index lookup per concept
+  // (migration 031), where this used to be eight correlated subqueries per concept over
+  // `attempts` and `session_concepts`, the last of them reading every logged line.
+  const lastGrade = db.prepare('SELECT grade FROM attempts WHERE id = ?').pluck();
+  const lastRepo = db.prepare('SELECT repo FROM attempts WHERE id = ?').pluck();
+  const conceptRows = (
+    db
+      .prepare(
+        `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
+                m.score, m.ease, m.interval_d, m.reps, m.next_review, m.last_seen,
+                -- The latest context a session logged for the concept; equal times go to the row written first.
+                (SELECT sc.context FROM session_concepts sc
+                  WHERE sc.concept_id = c.id AND sc.context IS NOT NULL
+                  ORDER BY sc.ts DESC, sc.rowid LIMIT 1) AS last_context
+         FROM concepts c
+         LEFT JOIN mastery m ON m.concept_id = c.id
+         ORDER BY c.domain, c.tier, c.name, c.id`,
+      )
+      .all() as Omit<ConceptRow, 'attempts' | 'passed' | 'skipped' | 'corrected' | 'first_asked' | 'last_grade' | 'last_repo'>[]
+  ).map((c): ConceptRow => {
+    const a = asked.get(c.id);
+    return {
+      ...c,
+      attempts: a?.attempts ?? 0,
+      passed: a?.passed ?? 0,
+      skipped: a?.skipped ?? 0,
+      corrected: a?.corrected ?? 0,
+      first_asked: a?.first_asked ?? null,
+      // The backlog rule's grade (OWED_SQL in store.ts): a correction does not clear it.
+      last_grade: a?.last_id != null ? (lastGrade.get(a.last_id) as number) : null,
+      last_repo: a?.last_repo_id != null ? (lastRepo.get(a.last_repo_id) as string) : null,
+    };
+  });
 
   const byId = new Map(conceptRows.map((r) => [r.id, r.slug]));
 
@@ -1403,28 +1620,6 @@ export function dashboardState(db: DB): Record<string, unknown> {
       ? logged.length
       : one<{ n: number }>(db, 'SELECT count(*) AS n FROM session_concepts sc JOIN concepts c ON c.id = sc.concept_id').n;
 
-  const allTime = db
-    .prepare(
-      `SELECT count(*) AS answers,
-              sum(CASE WHEN a.grade >= ? THEN 1 ELSE 0 END) AS passed,
-              sum(CASE WHEN a.grade < ? AND (a.outcome IS NULL OR a.outcome = 'answered') AND fix.id IS NULL THEN 1 ELSE 0 END) AS missed,
-              sum(CASE WHEN a.outcome IN ('declined','dont_know') AND fix.id IS NULL THEN 1 ELSE 0 END) AS skipped,
-              count(fix.id) AS corrected,
-              count(DISTINCT date(a.ts, 'localtime')) AS active_days,
-              min(a.ts) AS first_answer
-       FROM attempts a LEFT JOIN attempts fix ON fix.retry_of = a.id
-       WHERE a.${NOT_CORRECTION}`,
-    )
-    .get(PASSING_GRADE, PASSING_GRADE) as {
-    answers: number;
-    passed: number | null;
-    missed: number | null;
-    skipped: number | null;
-    corrected: number;
-    active_days: number;
-    first_answer: string | null;
-  };
-
   const sessionCount = (
     db.prepare('SELECT count(DISTINCT session_id) AS n FROM session_concepts').get() as { n: number }
   ).n;
@@ -1463,9 +1658,9 @@ export function dashboardState(db: DB): Record<string, unknown> {
     },
     totals: {
       answers: allTime.answers,
-      passed: allTime.passed ?? 0,
-      missed: allTime.missed ?? 0,
-      skipped: allTime.skipped ?? 0,
+      passed: allTime.passed,
+      missed: allTime.missed,
+      skipped: allTime.skipped,
       corrected: allTime.corrected,
       mastered: concepts.filter((c) => c.mastered).length,
       due: concepts.filter((c) => c.due).length,

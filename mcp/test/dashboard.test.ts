@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import {
   dashboardState, memoryPage, memoryEntry, startDashboard, browserCommand, fromLoopback, projectInventory, localTokens,
-  changeCursor, SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT, LOGGED_LIMIT,
+  changeCursor, SETTINGS, CLI_ONLY, WRITES, embedHtml, EMBED_SCRIPT, LOGGED_LIMIT, ATTEMPT_LIMIT,
 } from '../src/dashboard.js';
 import { knownKeys, defaultAt, SETTING_RULES, settingProblem } from '../src/config-path.js';
 import { logSessionConcepts } from '../src/tools/log_session_concepts.js';
@@ -1037,6 +1037,69 @@ describe('the logged context lines are capped, and the cap is disclosed', () => 
   });
 });
 
+describe('the answers are capped, the cap is disclosed, and no number is taken from the cut list', () => {
+  const saved = process.env.EKLAVYA_HOME;
+  let home = '';
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-answers-cap-'));
+    process.env.EKLAVYA_HOME = home;
+  });
+  afterEach(() => {
+    if (saved === undefined) delete process.env.EKLAVYA_HOME;
+    else process.env.EKLAVYA_HOME = saved;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  /** `n` answers, one a second from the first of January 2030, passing on every other one. */
+  function answers(n: number) {
+    const insert = db.prepare('INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, ts) VALUES (?, ?, ?, ?, ?, 2, ?)');
+    const csrf = (db.prepare("SELECT id FROM concepts WHERE slug = 'csrf'").get() as { id: number }).id;
+    db.transaction(() => {
+      for (let i = 0; i < n; i++) {
+        insert.run(csrf, `cap-${i}`, `question ${i}`, 'a', i % 2 ? 5 : 1, new Date(Date.UTC(2030, 0, 1) + i * 1000).toISOString().slice(0, 19).replace('T', ' '));
+      }
+    })();
+  }
+
+  it('says nothing is cut when every answer is shipped', () => {
+    answers(3);
+    expect(dashboardState(db)).toMatchObject({ attempts_shown: 3, attempts_total: 3 });
+  });
+
+  it('ships the newest ATTEMPT_LIMIT answers and the total of every answer there is', () => {
+    answers(ATTEMPT_LIMIT + 7);
+    const s = dashboardState(db) as any;
+    expect(s.attempts).toHaveLength(ATTEMPT_LIMIT);
+    expect(s).toMatchObject({ attempts_shown: ATTEMPT_LIMIT, attempts_total: ATTEMPT_LIMIT + 7 });
+    expect(s.attempts[0].question).toBe(`question ${ATTEMPT_LIMIT + 6}`);
+    expect(s.attempts.at(-1).question).toBe('question 7');
+    // What the cut cannot make wrong is counted over every answer: the totals, the concept's own count, the days.
+    expect(s.totals).toMatchObject({ answers: ATTEMPT_LIMIT + 7, passed: Math.floor((ATTEMPT_LIMIT + 7) / 2), active_days: 1 });
+    expect(bySlug(s, 'csrf')).toMatchObject({ attempts: ATTEMPT_LIMIT + 7, passed: Math.floor((ATTEMPT_LIMIT + 7) / 2) });
+    expect(s.daily.reduce((n: number, d: any) => n + d.passed + d.missed + d.skipped, 0)).toBe(ATTEMPT_LIMIT + 7);
+    expect(s.projects[0]).toMatchObject({ answers: ATTEMPT_LIMIT + 7 });
+  });
+
+  it('is sized so that a year of daily use stays inside the budget of the issue that set it', () => {
+    // 1.5 MB for the whole payload (#171). Every answer carries its question, options, answer and
+    // feedback, and every logged line its context, so the two lists decide it: a full payload of
+    // the caps, with the texts a tutor writes, has to be well inside it. The rest of a year's
+    // payload (days, sessions, concepts) was measured at 0.3 to 0.5 MB.
+    const text = (n: number) => 'x'.repeat(n);
+    const insertAnswer = db.prepare('INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, feedback, options, ts, repo) VALUES (?, ?, ?, ?, 4, 2, ?, ?, ?, ?)');
+    const insertLine = db.prepare('INSERT INTO session_concepts (session_id, concept_id, context, ts, origin) VALUES (?, ?, ?, ?, ?)');
+    const csrf = (db.prepare("SELECT id FROM concepts WHERE slug = 'csrf'").get() as { id: number }).id;
+    const repo = '/home/someone/work/an-organisation/a-repository-with-a-long-name';
+    db.transaction(() => {
+      for (let i = 0; i < ATTEMPT_LIMIT + 50; i++) insertAnswer.run(csrf, `s-${i}`, text(190), text(45), text(250), JSON.stringify([text(18), text(18), text(18), text(18)]), '2030-01-01 00:00:00', repo);
+      for (let i = 0; i < LOGGED_LIMIT + 50; i++) insertLine.run(`l-${i}`, csrf, text(60), '2030-01-01 00:00:00', 'work');
+    })();
+    const s = dashboardState(db) as any;
+    const lists = JSON.stringify(s.attempts).length + JSON.stringify(s.logged).length;
+    expect(lists).toBeLessThan(1_000_000);
+  });
+});
+
 describe('the new endpoints', () => {
   it('serve the project inventory and a paged session list over loopback, and refuse a rebound host', async () => {
     remember({ title: 'one', session: 'm-1' });
@@ -1050,6 +1113,12 @@ describe('the new endpoints', () => {
       expect(Object.keys(p).sort()).toEqual(['aliases', 'available', 'first_active', 'id', 'kind', 'last_active',
         'learning', 'memory', 'name', 'path', 'sources']);
       expect(p.memory).toMatchObject({ events: 3, entries: 3, sessions: 3 });
+      // What the page narrows a project's concept list to travels with the project, from every row
+      // there is, not from the capped lists of `/api/state`.
+      expect(Object.keys(p.learning).sort()).toEqual([
+        'answers', 'assessed_concepts', 'concept_slugs', 'first', 'last', 'logged_concepts', 'passed', 'sessions', 'skipped',
+      ]);
+      expect(p.learning.concept_slugs).toEqual([]);
 
       const page = (await (await fetch(`${url}/api/memory/sessions?per=2&page=2`)).json()) as any;
       expect(page).toMatchObject({ total: 3, page: 2, pages: 2, per: 2 });
