@@ -1,0 +1,1078 @@
+{
+ "meta": {
+  "label": "candidate-skill",
+  "root": "feat/explainer-eval-clarity (agents/explainer.md as in this PR)",
+  "trials": 1,
+  "skill": "on",
+  "model": "default",
+  "at": "2026-10-11T08:35:18.590Z",
+  "usage": {
+   "calls": 10,
+   "input": 114,
+   "cache_write": 135768,
+   "cache_read": 575097,
+   "output": 56400,
+   "cost_usd": 2.3296,
+   "input_total": 710979
+  }
+ },
+ "results": [
+  {
+   "case": "asked-page-etag",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept http-etag-revalidation"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"\", want \"\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "4 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\"], want ts|typescript|http"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the ETag / 304 explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 680,
+    "figures": 1,
+    "sections": [
+     "The short answer",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 4,
+    "identifiers_offered": 4
+   },
+   "duration_ms": 65117,
+   "judge": {
+    "misconception_named": null,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "There is no 'went wrong' section and the developer asked an open question rather than giving a wrong answer, so there is no misconception to name. The short answer runs exactly three sentences, describes the fingerprint-and-ask mechanism in plain words before naming 'ETag' and 'revalidation', and explains 304 by what it does (empty body, browser reuses its copy), so a newcomer could repeat it. The page walks the handler line by line, explains that no-cache means 'revalidate' rather than 'don't store', and lists what is and is not saved; it also flags the real edge cases (304 headers, list and weak tags, hashing the wrong bytes) and gives a rule for when to use this versus immutable hashed URLs, so a reader could predict and explain the behaviour in their own code; the only wobble is that the 'A concrete example' heading introduces a critique of the code rather than an example."
+   }
+  },
+  {
+   "case": "dont-know-effect-cleanup",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept effect-cleanup"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"416\", want \"416\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"tsx\",\"tsx\",\"tsx\"], want ts|typescript|tsx|jsx"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 658,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 46933,
+   "judge": {
+    "misconception_named": null,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The developer answered 'I don't know' and the 'went wrong' section is absent, so there is no misconception to name. The short answer is three sentences, describes the returned function as an 'undo' step, and states exactly when React calls it (before re-running on a symbol change and once at removal), using only names from the code shown, so a newcomer could restate it. The page walks through the hold-then-call cycle, how dependencies decide when cleanup runs, captured values, StrictMode's extra cycle, a broken-vs-fixed example and transferable pairs, so a reader could predict cleanup timing in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "typed-open-go-loopvar",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept goroutine-closure-capture"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"418\", want \"418\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": "2 items"
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "2/2 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"go\",\"go\",\"go\"], want go|golang"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 797,
+    "figures": 2,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 57370,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The section names the exact belief behind '0 1 2 in some random order' (each goroutine snapshots i when the go statement runs), explains why it is tempting (the line looks like it hands over the current number), and credits the part the developer got right (no fixed order). The short answer is three sentences, defines closure in plain terms, and says what happens: one shared i, goroutines read it late, so the output is usually 3 3 3. The page explains the mechanism accurately with the right hedges (usually, data race, the go.mod version rule), gives a fix that works on any version, and ends with a rule that carries over to callbacks, defers and JavaScript, so a reader could predict this in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "typed-with-options-promise-all",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept promise-all-fail-fast"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"417\", want \"417\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\"], want ts|typescript|js|javascript"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 713,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 55385,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The 'went wrong' section matches the developer's answer to option C (right error, wrong moment), names the belief that Promise.all collects every outcome before reporting, and explains why it is tempting: the other loads really do keep running, and 'all' sounds like 'wait for all'. The short answer is three plain sentences that say what happens and when, and it explains 'failing fast' rather than just naming it; the only small snag is that it mentions loadProfile before the reader has seen that function. The page explains the mechanism (one new promise, two ways to settle, nothing cancelled, later errors dropped), contrasts it with a concrete allSettled rewrite and timeline, and ends with a rule and a gotcha, so a newcomer could predict the behaviour in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-bash-pipefail",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept bash-pipefail"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"419\", want \"419\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"bash\",\"bash\",\"bash\"], want bash|sh|shell"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page on `set -o pipefail` is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 678,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 49884,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The section names the exact belief behind A, that set -e stops on any failing command, says it is tempting because that is how set -e is usually described, and explains that set -e only sees the pipeline's single status, so curl's 22 is lost. The short answer fits in three sentences without undefined jargon: a pipeline is judged by its last command, so curl's failure is hidden, and pipefail makes any failing command fail the line; the only snag is that ./install.sh appears there without being introduced. The page explains the mechanism step by step, shows one-line proofs with and without pipefail, introduces PIPESTATUS, gives a rule to carry over with the head and grep gotchas, and openly notes that the result depends on how tar handles empty input, so a reader could explain and predict the behaviour."
+   }
+  },
+  {
+   "case": "wrong-pick-debounce",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept debounce"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"413\", want \"413\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\"], want ts|typescript|tsx"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the debounce explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 629,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 49918,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 4,
+    "why": "The section names the exact belief behind A, that debounce just delays every call by 300ms instead of cancelling earlier ones, and explains why it is tempting: the call looks late and 300 sounds like a delay. The short answer is three plain sentences that say what debounce does (wait for calls to stop, then run once with the last value) and apply it to the 100ms vs 300ms timing without undefined jargon. The single-timer explanation, the clearTimeout one-line contrast, and the re-creation gotcha would let a newcomer predict behaviour in their own code, but 'Your component gets it right' refers to a component the reader was never shown, which is a jarring moment on first read."
+   }
+  },
+  {
+   "case": "wrong-pick-idempotency",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept idempotency-key"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"412\", want \"412\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "2/2 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"text\",\"ts\"], want ts|typescript"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 734,
+    "figures": 2,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 67511,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The 'went wrong' section names the developer's actual belief (a timeout means the first request failed and nothing happened) and says why it is tempting: from the client's side, a timeout looks just like a failure. The short answer says in three plain sentences what the key does (it lets the server recognise a repeat and replay the saved response without charging again) and defines idempotency, though it names charge.ts before the page shows it. The page follows one request through the code, gives a timeline of the save-after-charge race, and shows a fix with claim-first, a unique constraint and a key passed to Stripe, so a newcomer could explain the mechanism and its gotcha; the only slips are 'the other two options' when three are wrong and the unexplained early mention of charge.ts."
+   }
+  },
+  {
+   "case": "wrong-pick-python-default",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept mutable-default-argument"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"415\", want \"415\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"python\",\"python\",\"python\"], want py|python"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 674,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 38499,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 4,
+    "why": "The section names the exact belief behind option A, that tags=[] builds a fresh list on each call, and explains why it is tempting: it looks like an assignment, and function bodies do run fresh on every call. The short answer is three plain sentences that say what happens (one list made when def runs, shared by every call that omits tags, so the second call returns [\"a\", \"a\"]) and only names the trap after explaining it. The mechanism, the step-by-step walkthrough, the `is` demo, the None fix and the datetime.now() example would let a newcomer predict this in their own code, but the closing gotcha sentence about `tags or []` is garbled ('If a caller passes their own empty list, or treats it as false and swaps in a new one, so...'), which muddles the one subtle point it is meant to teach."
+   }
+  },
+  {
+   "case": "wrong-pick-rust-borrow",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept rust-shared-vs-mutable-borrow"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"420\", want \"420\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "2/2 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"rust\",\"rust\",\"rust\"], want rs|rust"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote and opened the explainer page; it's linked to the missed answer: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 704,
+    "figures": 2,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 56745,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The went-wrong section addresses answer C directly, naming the belief that push moves items and explaining that it is tempting because a growing vector's contents really do physically move in memory, which is distinct from a Rust move. The short answer is three sentences, explains in plain words that a value cannot be changed while a read-only reference into it is still going to be used, and defines & and &mut after describing what they do. The page explains the many-readers-or-one-writer rule, shows that a borrow lasts until its last use, gives the reallocation reason behind the rule, provides two concrete fixes, and states a rule that carries over to other collections, so a newcomer could predict this error in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-sql-index",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept composite-index-leftmost-prefix"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"414\", want \"414\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"sql\",\"sql\"], want sql"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page on composite index column order is written and opened, linked to attempt 414: /private/tmp/claude-501"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 707,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 57511,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The went-wrong section addresses option D and names the specific belief that ORDER BY is a separate sorting step the index cannot help with; it explains why that is tempting (indexes feel like they are for filtering) before showing that the index already returns customer 7's rows in date order. The short answer is three sentences and explains the mechanism with a phone-book analogy (sorted by the first column, then the second within it), so a newcomer can restate it without needing the term 'leftmost-prefix rule'. The page walks each option against the sorted layout, gives a realistic report query with the fix and its trade-off, states a rule that carries over to other indexes, and correctly notes skip scan in MySQL 8.0.13+ and PostgreSQL 18, so a reader could predict index use in their own queries and explain it to a colleague."
+   }
+  }
+ ]
+}

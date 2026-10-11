@@ -1,0 +1,3192 @@
+{
+ "meta": {
+  "label": "baseline",
+  "root": "main @ 5e7f638",
+  "trials": 3,
+  "skill": "off",
+  "model": "default",
+  "at": "2026-10-11T08:15:07.341Z",
+  "usage": {
+   "calls": 30,
+   "input": 316,
+   "cache_write": 508774,
+   "cache_read": 1444210,
+   "output": 149363,
+   "cost_usd": 7.3476,
+   "input_total": 1953300
+  }
+ },
+ "results": [
+  {
+   "case": "asked-page-etag",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept http-etag-revalidation"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"\", want \"\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "6 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\",\"text\"], want ts|typescript|http"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/asked-page-etag.0/home/artifacts/<scratch>-baseline-asked-page-etag.0-project/2026-10-11-etag-revalidation-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the ETag explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 682,
+    "figures": 1,
+    "sections": [
+     "The short answer",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 4,
+    "identifiers_offered": 4
+   },
+   "duration_ms": 46383,
+   "judge": {
+    "misconception_named": null,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The developer asked an open question and gave no wrong answer, so the absent 'went wrong' section is correct and there is no misconception to name. The short answer defines every term (fingerprint, ETag, 304, revalidation), but it runs to five sentences, past the three-sentence limit. The page walks the handler line by line, explains the counter-intuitive meaning of no-cache, shows a deploy timeline that makes the behaviour predictable, and covers the real failure modes (list or weak tags, ETags that differ between servers), so a newcomer could explain it to a colleague and apply it to their own code."
+   }
+  },
+  {
+   "case": "asked-page-etag",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept http-etag-revalidation"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"\", want \"\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "5 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\"], want ts|typescript|http"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/asked-page-etag.1/home/artifacts/<scratch>-baseline-asked-page-etag.1-project/2026-10-11-etag-revalidation-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The ETag explainer page is open at <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 510,
+    "figures": 1,
+    "sections": [
+     "The short answer",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 4,
+    "identifiers_offered": 4
+   },
+   "duration_ms": 58891,
+   "judge": {
+    "misconception_named": null,
+    "newcomer_can_repeat": false,
+    "clarity": 4,
+    "why": "There is no 'went wrong' section and the developer gave no wrong answer, so there is no misconception to name. The short answer explains ETag and 304 in plain terms, but it runs to five sentences, which is past the three-sentence limit; it also says 'the request still happens every time' without saying this comes from Cache-Control: no-cache. The page body explains the mechanism accurately (what no-cache means, weak comparison, 304 headers, load-balancer and stale-tag pitfalls) and the before/after code makes it actionable, but the example section goes straight to edge cases without first walking through a plain request/response exchange, so a newcomer may follow it without being able to explain it to a colleague."
+   }
+  },
+  {
+   "case": "asked-page-etag",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept http-etag-revalidation"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"\", want \"\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "7 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"text\",\"ts\"], want ts|typescript|http"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/asked-page-etag.2/home/artifacts/<scratch>-baseline-asked-page-etag.2-project/2026-10-11-etag-revalidation-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The ETag explainer page is written and opened: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 733,
+    "figures": 1,
+    "sections": [
+     "The short answer",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 4,
+    "identifiers_offered": 4
+   },
+   "duration_ms": 50657,
+   "judge": {
+    "misconception_named": null,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "There is no 'went wrong' section and the developer gave no wrong answer, so there is no misconception to name. The short answer defines its terms well (fingerprint/ETag, If-None-Match, 304, revalidation), but it runs to seven sentences, well past the three-sentence limit. The page is accurate and explains the mechanism line by line; the timeline example, the no-cache vs no-store distinction and the bandwidth-not-work gotcha would let a newcomer predict and explain the behaviour in their own handler."
+   }
+  },
+  {
+   "case": "dont-know-effect-cleanup",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept effect-cleanup"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"416\", want \"416\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"tsx\",\"tsx\"], want ts|typescript|tsx|jsx"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/dont-know-effect-cleanup.0/home/artifacts/<scratch>-baseline-dont-know-effect-cleanup.0-project/2026-10-11-effect-cleanup-functions-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 537,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 36711,
+   "judge": {
+    "misconception_named": null,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The developer answered 'I don't know', so no wrong option was chosen and the absent 'went wrong' section is appropriate. The short answer uses three plain sentences: the returned function undoes the effect and runs before each re-run and on unmount, with only 'dependency' as light assumed vocabulary. The page explains the setup/teardown pairing, closure capture, the no-change re-render case, and Strict Mode, then backs it with a broken-vs-fixed socket example, a timeline, and a transferable rule and gotcha; the only blemish is that 'symbol' appears in 'How it works' before the example introduces it."
+   }
+  },
+  {
+   "case": "dont-know-effect-cleanup",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept effect-cleanup"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"416\", want \"416\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "4 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"tsx\",\"tsx\"], want ts|typescript|tsx|jsx"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/dont-know-effect-cleanup.1/home/artifacts/<scratch>-baseline-dont-know-effect-cleanup.1-project/2026-10-11-effect-cleanup-functions-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The effect-cleanup explainer is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 570,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 38909,
+   "judge": {
+    "misconception_named": null,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The developer answered 'I don't know', so there was no wrong belief to name and the 'went wrong' section is rightly absent. The short answer explains the idea clearly, but it runs to four sentences, which breaks the three-sentence limit, and it uses 'dependency' and 'unmounts' without defining them. The full page shows the open/close pairing, how the dependency array decides when the effect runs again, the Strict Mode double cycle, and a broken-vs-fixed socket example, so a newcomer could predict cleanup timing in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "dont-know-effect-cleanup",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept effect-cleanup"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"416\", want \"416\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "4 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"tsx\",\"tsx\"], want ts|typescript|tsx|jsx"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/dont-know-effect-cleanup.2/home/artifacts/<scratch>-baseline-dont-know-effect-cleanup.2-project/2026-10-11-effect-cleanup-functions-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote and opened the explainer page: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 581,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 39781,
+   "judge": {
+    "misconception_named": null,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The developer answered 'I don't know', so there was no wrong answer to diagnose and the 'went wrong' section is correctly absent. The short answer explains clearly what the function does, but it runs to four sentences, which breaks the three-sentence limit. The page gives a concrete open/close mental model, an AAPL→TSLA→unmount walkthrough, a broken-vs-fixed example, and the no-run-on-ordinary-rerender and Strict Mode details, so a newcomer could predict cleanup timing in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "typed-open-go-loopvar",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept goroutine-closure-capture"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"418\", want \"418\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": "2 items"
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "4 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"go\",\"go\",\"go\",\"go\"], want go|golang"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/typed-open-go-loopvar.0/home/artifacts/<scratch>-baseline-typed-open-go-loopvar.0-project/2026-10-11-goroutines-capturing-a-loop-variable-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 699,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 39456,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The section names the exact belief that each goroutine took its own snapshot of i when go ran, and explains why it is tempting: the code reads as one goroutine per value, and that is how it behaves since Go 1.22. The short answer is four sentences, one over the limit, but the last is only the output; the first three explain the shared variable, the reference capture and the late execution in plain words. The page connects reference capture to the fact that go does not wait, shows two fixes, adds the race detector, the go.mod gotcha and a rule that carries over to other closures, so a newcomer could predict this in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "typed-open-go-loopvar",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept goroutine-closure-capture"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"418\", want \"418\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": "2 items"
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "4 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"go\",\"go\",\"go\"], want go|golang"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/typed-open-go-loopvar.1/home/artifacts/<scratch>-baseline-typed-open-go-loopvar.1-project/2026-10-11-goroutines-capturing-a-loop-variable-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 637,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 38165,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The section names the exact belief behind '0 1 2 in some random order' (each goroutine gets its own i frozen at 0, 1 and 2), credits the correct part about ordering, and explains why it is tempting: the code reads that way and Go 1.22+ really does behave that way. The short answer uses plain language and explains 'reference' through contrast with 'a copy of its value', but it runs to four sentences, past the three-sentence limit. The page explains the mechanism (closures read a shared variable when they run), defines closure and data race, shows three fixes, and gives a rule that carries over to callbacks, defer and other languages, so a reader could explain it to a colleague; one small slip is that a goroutine running early could also print 0, not only 1 or 2."
+   }
+  },
+  {
+   "case": "typed-open-go-loopvar",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept goroutine-closure-capture"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"418\", want \"418\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": "2 items"
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"go\",\"go\"], want go|golang"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/typed-open-go-loopvar.2/home/artifacts/<scratch>-baseline-typed-open-go-loopvar.2-project/2026-10-11-goroutines-capturing-a-loop-variable-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 646,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 42755,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 4,
+    "why": "The section names the developer's specific belief, that each goroutine snapshotted i when `go` ran, and explains why it is tempting: the code reads as if each pass has its own i, which became true in Go 1.22. The short answer is three plain sentences (one variable, the closure holds a reference rather than a copy, the loop reaches 3 before the goroutines run), so a newcomer could restate it. The mechanism, timeline, fixes, go.mod gotcha and transferable value-vs-variable rule are strong, but there are two small flaws: 'it may print 1 or 2' omits that an early goroutine could also print 0, and 'running it is not [fast]' misdescribes scheduling delay as slowness."
+   }
+  },
+  {
+   "case": "typed-with-options-promise-all",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept promise-all-fail-fast"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"417\", want \"417\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\"], want ts|typescript|js|javascript"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/typed-with-options-promise-all.0/home/artifacts/<scratch>-baseline-typed-with-options-promise-all.0-project/2026-10-11-promise-all-failing-fast-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote and opened the explainer page: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 572,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 40932,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 4,
+    "why": "The 'went wrong' section names the developer's specific belief (Promise.all waits for every input to finish, then reports the error), matching option C, and explains why it is tempting: the name sounds like 'wait for all', and the other loads really do keep running. The short answer takes three plain sentences to say that Promise.all returns all results only if every input succeeds and otherwise throws the first error as soon as it happens, and it defines 'fail fast' instead of leaning on it. The mechanism, timeline, allSettled contrast and AbortSignal gotcha would let a newcomer predict the behaviour in their own code, but two flaws cost a point: the step list mentions loadProfile before the code introduces it, and the Go errgroup comparison is misleading, since errgroup.Wait blocks until every goroutine returns and so does not fail fast in timing, which is the exact misconception the page is correcting."
+   }
+  },
+  {
+   "case": "typed-with-options-promise-all",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept promise-all-fail-fast"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"417\", want \"417\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\"], want ts|typescript|js|javascript"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/typed-with-options-promise-all.1/home/artifacts/<scratch>-baseline-typed-with-options-promise-all.1-project/2026-10-11-promise-all-failing-fast-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 598,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 41452,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 4,
+    "why": "The section targets the developer's actual belief: that Promise.all waits for every input like a meeting where everyone must arrive, then reports the error. It gives two real reasons that belief is tempting: the happy path does wait for all values, and the other requests keep running. The short answer is three plain sentences that say what happens and when (it rejects at 50ms on the first failure and does not wait for the others), with no undefined jargon. The mechanism, the timed example, the allSettled contrast and the no-cancellation gotcha would let a newcomer predict behaviour in their own code. It loses a point because the cross-language claim is misleading: C#'s Task.WhenAll and Go's errgroup.Wait both wait for every task to finish before surfacing the error, so they are not fail-fast in the same way."
+   }
+  },
+  {
+   "case": "typed-with-options-promise-all",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept promise-all-fail-fast"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"417\", want \"417\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "5 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\"], want ts|typescript|js|javascript"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/typed-with-options-promise-all.2/home/artifacts/<scratch>-baseline-typed-with-options-promise-all.2-project/2026-10-11-promise-all-failing-fast-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is open at <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 650,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 40856,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 4,
+    "why": "The section names the developer's actual belief, that Promise.all waits for every input and only then reports the orders error, and explains why it is tempting: the name says 'all' and the success path really does wait. The short answer is plain and jargon-free, but it runs to five sentences, past the three-sentence limit. The mechanism, the 'settles once' point, the no-cancellation gotcha and the allSettled contrast would let a newcomer predict behaviour in their own code, but one point is lost because the transfer section wrongly says Go's errgroup behaves this way, when errgroup.Wait actually waits for every goroutine before returning the first error."
+   }
+  },
+  {
+   "case": "wrong-pick-bash-pipefail",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept bash-pipefail"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"419\", want \"419\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"bash\",\"bash\"], want bash|sh|shell"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-bash-pipefail.0/home/artifacts/<scratch>-baseline-wrong-pick-bash-pipefail.0-project/2026-10-11-set-o-pipefail-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote and opened the explainer page: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 560,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 40262,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The section names the belief behind option A, that set -e watches every command that runs, and explains why it is tempting (it is the natural reading of 'exit on error'); it then gives the corrective distinction between statuses and processes. The short answer is three plain sentences that explain a pipeline returns one status (the last command's), that set -e only sees that number, and that pipefail makes any failure count, with no undefined jargon. The mechanism, the PIPESTATUS demonstration, the before/after script and the SIGPIPE gotcha would let a newcomer predict behaviour in their own scripts and explain it to a colleague, and the page honestly flags that in this exact case tar (via gzip) will likely fail on empty input and stop the script anyway, which slightly undercuts the quiz's 'right answer' but is handled transparently."
+   }
+  },
+  {
+   "case": "wrong-pick-bash-pipefail",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept bash-pipefail"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"419\", want \"419\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"bash\",\"bash\",\"bash\"], want bash|sh|shell"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-bash-pipefail.1/home/artifacts/<scratch>-baseline-wrong-pick-bash-pipefail.1-project/2026-10-11-set-o-pipefail-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 726,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 51767,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 4,
+    "why": "The 'went wrong' section names the exact belief behind A (that set -e watches every process, including those inside a pipe) and explains why it is tempting: the name sounds like 'exit on any error' and most guides describe it that way. The short answer is three plain sentences saying what a pipeline's status is, why set -e misses curl's failure, and what pipefail changes, though it mentions ./install.sh before the reader has seen the script. The mechanism, PIPESTATUS detail and two-line demo would let a reader predict the behaviour, but the dangling ./install.sh reference and the admission that GNU tar would actually stop the script (so 'carries on' depends on the machine) add some friction on a first read."
+   }
+  },
+  {
+   "case": "wrong-pick-bash-pipefail",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept bash-pipefail"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"419\", want \"419\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"bash\",\"bash\",\"bash\"], want bash|sh|shell"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-bash-pipefail.2/home/artifacts/<scratch>-baseline-wrong-pick-bash-pipefail.2-project/2026-10-11-set-o-pipefail-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 633,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 52186,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 4,
+    "why": "The section names the belief behind answer A, that set -e watches every command including those inside a pipe, and explains why it is tempting: the 'exit on error' summary and the fact that it holds in pipe-free scripts. The short answer is three plain sentences explaining that a pipeline reports only its last command's status and that pipefail makes any failing stage fail it, though it mentions ./install.sh, which the question never introduced. The mechanism, the PIPESTATUS detail and the false|true demo would let a newcomer predict behaviour, but the scenario rests on tar exiting 0 on empty input, which real GNU tar usually does not (gzip reports unexpected EOF and tar exits non-zero); the page only half-acknowledges this, which could confuse anyone who tries it."
+   }
+  },
+  {
+   "case": "wrong-pick-debounce",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept debounce"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"413\", want \"413\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"text\",\"tsx\"], want ts|typescript|tsx"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-debounce.0/home/artifacts/<scratch>-baseline-wrong-pick-debounce.0-project/2026-10-11-debouncing-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The debounce explainer is open (I didn't render it to check how it looks): <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 573,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 54483,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The went-wrong section names option A's belief that debounce simply delays every call, explains why it is tempting (the visible setTimeout(fn, 300) reads like 'wait then run'), and points to the missing clearTimeout. The short answer uses three plain sentences, with no undefined jargon, to say that each new call cancels the pending one and restarts the wait, so a burst produces one call after the last event. The page explains the mechanism through the clearTimeout line, gives a correct timeline (the last key at 400ms fires at 700ms), shows the counterfactual that produces option A, and covers the same-instance gotcha, so a newcomer could predict the behaviour and explain it to a colleague; the only small flaw is that useMemo is mentioned before its code appears."
+   }
+  },
+  {
+   "case": "wrong-pick-debounce",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept debounce"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"413\", want \"413\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "5 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"timeline\",\"tsx\"], want ts|typescript|tsx"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-debounce.1/home/artifacts/<scratch>-baseline-wrong-pick-debounce.1-project/2026-10-11-debouncing-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The debouncing explainer page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 578,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 45548,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The 'went wrong' section names the exact belief behind answer A (debounce as a per-call delay where every call still fires), explains why it is tempting (the name sounds like 'slow down', and a bare setTimeout per keystroke really behaves that way), and pinpoints the missing cancel step. The short answer explains the mechanism in plain words with no undefined jargon, but it runs to five sentences, past the three-sentence limit. The cancel-and-restart mechanism, the five-line implementation, the 0-700ms timeline and the useMemo gotcha together would let a newcomer predict the behaviour in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-debounce",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept debounce"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"413\", want \"413\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "5 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"tsx\"], want ts|typescript|tsx"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-debounce.2/home/artifacts/<scratch>-baseline-wrong-pick-debounce.2-project/2026-10-11-debouncing-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the debounce explainer and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 683,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 48783,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The 'went wrong' section names the developer's exact belief, that debounce just delays every call by 300ms like a setTimeout per keystroke, and explains why it is tempting: the 300 in debounce(fn, 300) reads like 'wait 300ms first'. The short answer explains the mechanism in plain words with no undefined jargon, but it runs to five sentences, past the three-sentence limit. The cancel-and-restart explanation, the timeline table, the one-line clearTimeout contrast with a plain delay, and the React re-render gotcha would let a newcomer explain debounce to a colleague and predict it in their own code."
+   }
+  },
+  {
+   "case": "wrong-pick-idempotency",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept idempotency-key"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"412\", want \"412\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "5 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\"], want ts|typescript"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-idempotency.0/home/artifacts/<scratch>-baseline-wrong-pick-idempotency.0-project/2026-10-11-idempotency-keys-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the explainer page for the missed idempotency-key question and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 735,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 60110,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 4,
+    "why": "The 'went wrong' section names the developer's belief behind A, that a timeout means the first request failed, and explains why it is tempting: from the client's side a timeout looks the same as a failure because nothing came back. The short answer is clear and avoids jargon, but it runs to five sentences, which breaks the three-sentence limit. A newcomer would understand the lookup-then-replay mechanism and could predict it from the broken/fixed code and timeline, but the 'went wrong' section says 'a second charge cannot happen' in charge.ts while the gotcha later shows that concurrent requests or a crash can still double-charge, and that contradiction could mislead someone applying it in their own code."
+   }
+  },
+  {
+   "case": "wrong-pick-idempotency",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept idempotency-key"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"412\", want \"412\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "4 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"ts\",\"ts\",\"ts\"], want ts|typescript"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-idempotency.1/home/artifacts/<scratch>-baseline-wrong-pick-idempotency.1-project/2026-10-11-idempotency-keys-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the explainer page on idempotency keys and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 719,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 50190,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The section names the exact belief behind A (that a timeout proves nothing happened) and explains why it is tempting: from the client's side a timeout looks the same as a failure. The short answer is plain and jargon-free, but it runs to four sentences, past the three-sentence limit. The page walks through the mechanism step by step, contrasts broken and fixed code, gives the client-side rule, and covers the concurrency gotcha, so a newcomer could explain it and predict behaviour in their own code; the only small snag is that charge.ts is cited before it is shown."
+   }
+  },
+  {
+   "case": "wrong-pick-idempotency",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept idempotency-key"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"412\", want \"412\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"typescript\",\"typescript\"], want ts|typescript"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-idempotency.2/home/artifacts/<scratch>-baseline-wrong-pick-idempotency.2-project/2026-10-11-idempotency-keys-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page for the idempotency-key question (attempt 412) is open at `<scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 664,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 52224,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 4,
+    "why": "The section names the exact belief behind answer A (a timeout means the first request failed) and explains why it is tempting (no reply feels like nothing happened), then corrects it (a timeout only means the client stopped waiting). The short answer is three plain sentences saying what the server does on first sight of a key and on a repeat, with no undefined jargon. The mechanism and the atomicity gotcha are clear enough to predict behaviour, but the page points to a charge.ts, db.idempotency and ch_1 the reader never sees, and the 409-for-pending case sits awkwardly next to option C, so it falls just short of 5."
+   }
+  },
+  {
+   "case": "wrong-pick-python-default",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept mutable-default-argument"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"415\", want \"415\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"python\",\"python\",\"python\"], want py|python"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-python-default.0/home/artifacts/<scratch>-baseline-wrong-pick-python-default.0-project/2026-10-11-mutable-default-arguments-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote and opened the mutable default arguments explainer, linked to attempt 415: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 622,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 43098,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The section names the exact belief behind answer A, that the [] in the signature is rebuilt on every call like code in the body, and explains why it is tempting: it looks like code, and JavaScript, Kotlin and Ruby really do re-evaluate defaults on each call. The short answer is three plain sentences with no undefined jargon, and says what happens (one list made when def runs, reused by every call that omits tags), so a newcomer could repeat it. The step-by-step trace, the `first is second` demonstration, the None-sentinel fix and the transferable rule (definition-time evaluation, including datetime.now() and default_factory) are accurate and concrete, so a reader could predict the behaviour in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-python-default",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept mutable-default-argument"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"415\", want \"415\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"python\",\"python\",\"python\"], want py|python"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-python-default.1/home/artifacts/<scratch>-baseline-wrong-pick-python-default.1-project/2026-10-11-mutable-default-arguments-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote and opened the explainer page on mutable default arguments, linked to attempt 415: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 639,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 40532,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The went-wrong section names the exact belief behind option A, that tags=[] builds a fresh list on each call, and explains why it is tempting: other languages evaluate defaults per call, and it looks like a local assignment. The short answer is three plain sentences that say what happens (the default is built once when def runs, stored on the function, and shared and mutated across calls) without undefined jargon. The page walks through the mechanism step by step, shows the object identity and __defaults__, gives the None-sentinel fix with the reason it works, and states a transferable rule with extra cases (dicts, sets, datetime.now()) and the `or []` gotcha, so a newcomer could predict the behaviour and explain it."
+   }
+  },
+  {
+   "case": "wrong-pick-python-default",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept mutable-default-argument"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"415\", want \"415\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "5 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"python\",\"python\",\"python\"], want py|python"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-python-default.2/home/artifacts/<scratch>-baseline-wrong-pick-python-default.2-project/2026-10-11-mutable-default-arguments-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I've written the explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 701,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 49775,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The 'went wrong' section names the belief behind answer A, that tags=[] is rebuilt on every call, and explains why it is tempting: JavaScript, Ruby, C++ and Kotlin work that way, and the [] sits visibly in the signature. The short answer uses plain language and no undefined jargon, but it runs to five sentences, which breaks the three-sentence limit. The mechanism is explained accurately and concretely (one list stored in __defaults__, a step-by-step trace, `first is second`, the None-sentinel fix, and other cases like dict, set and datetime.now()), so a newcomer could predict the behaviour in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-rust-borrow",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept rust-shared-vs-mutable-borrow"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"420\", want \"420\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "4 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"rust\",\"rust\",\"rust\"], want rs|rust"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-rust-borrow.0/home/artifacts/<scratch>-baseline-wrong-pick-rust-borrow.0-project/2026-10-11-shared-and-mutable-borrows-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 605,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 38921,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The section directly addresses the belief behind answer C, that push moves items, by correcting it with push's &mut self signature, and it explains why the mix-up is tempting: the heap buffer really does move on reallocation, which would leave first dangling. The short answer explains the mechanism plainly, but it runs to four sentences, which breaks the three-sentence limit even though the content is newcomer-friendly. After the walkthrough of the borrow lasting until its last use, the broken and fixed examples, and the transferable rule with the gotcha about where the error points, a newcomer could predict this error in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-rust-borrow",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept rust-shared-vs-mutable-borrow"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"420\", want \"420\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "8 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"rust\",\"rust\",\"rust\",\"rust\"], want rs|rust"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-rust-borrow.1/home/artifacts/<scratch>-baseline-wrong-pick-rust-borrow.1-project/2026-10-11-shared-and-mutable-borrows-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote and opened the explainer page: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 736,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 48211,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The section targets the developer's actual belief that push moves items, explains that push takes &mut self and hands the vector back, says the answer is tempting because both stories end with an invalid reference, and points to the different error codes (E0502 vs E0382). The short answer is clear and defines its terms, but it runs to about seven sentences, well past the three-sentence limit, and 'both claims' is vague before the borrow names are introduced. The page explains the mechanism (borrows last until their last use, push can reallocate the buffer), gives a broken example and two fixes, and shows the same error in HashMap and loop code, so a newcomer could predict and fix it in their own code."
+   }
+  },
+  {
+   "case": "wrong-pick-rust-borrow",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept rust-shared-vs-mutable-borrow"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"420\", want \"420\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "2/2 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"rust\",\"rust\",\"rust\"], want rs|rust"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-rust-borrow.2/home/artifacts/<scratch>-baseline-wrong-pick-rust-borrow.2-project/2026-10-11-shared-and-mutable-borrows-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "I wrote the explainer page and opened it: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 687,
+    "figures": 2,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 2,
+    "identifiers_offered": 2
+   },
+   "duration_ms": 49318,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The section names the exact belief behind C (that push moves items), corrects it with push's &mut self signature, and explains the appeal: moves and borrows both concern ownership and both block compilation. The short answer uses three plain sentences that say what a shared borrow is, how long it lives and why push is refused, so a newcomer could restate it without knowing the term first. The page explains the mechanism (borrows last until their last use, reallocation would leave first dangling), shows three fixes, and gives a way to predict the error in new code (check whether the method takes &self, &mut self or self, then find the reference's last use), so a reader could explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-sql-index",
+   "trial": 0,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept composite-index-leftmost-prefix"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"414\", want \"414\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "5 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"sql\",\"sql\"], want sql"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-sql-index.0/home/artifacts/<scratch>-baseline-wrong-pick-sql-index.0-project/2026-10-11-composite-index-column-order-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 761,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 62823,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The 'went wrong' section names the developer's actual belief about option D, that an index only finds rows and sorting is always a separate later step, and explains why it is tempting: many queries do sort after fetching. The short answer is clear and avoids undefined jargon apart from 'seek', but it runs to five sentences, past the three-sentence limit. The phone-book analogy, the four-query table, the real migration-and-fix example with EXPLAIN, the general (a, b, c) rule and the skip-scan gotcha together would let a newcomer predict index use in their own code and explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-sql-index",
+   "trial": 1,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept composite-index-leftmost-prefix"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"414\", want \"414\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": false,
+     "detail": "4 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"sql\",\"sql\"], want sql"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-sql-index.1/home/artifacts/<scratch>-baseline-wrong-pick-sql-index.1-project/2026-10-11-composite-index-column-order-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 675,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 54668,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": false,
+    "clarity": 5,
+    "why": "The 'went wrong' section names the developer's actual belief about D: that ORDER BY is something an index cannot help with, or a second job that spoils the filter. It explains why that is tempting: sorting is usually a separate, expensive step, and D is the only option with two clauses. The short answer explains the mechanism in plain terms, but it runs to four sentences, so it fails the three-sentence limit. The sorted-list mechanism, phone-book analogy, concrete migration with EXPLAIN check, general (a, b, c) rule and skip-scan caveat would let a newcomer predict index use in their own queries and explain it to a colleague."
+   }
+  },
+  {
+   "case": "wrong-pick-sql-index",
+   "trial": 2,
+   "gates": [
+    {
+     "id": "one_file",
+     "ok": true,
+     "detail": "1 pages"
+    },
+    {
+     "id": "template_intact",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_script_added",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "metadata",
+     "ok": true,
+     "detail": "kind explainer, concept composite-index-leftmost-prefix"
+    },
+    {
+     "id": "attempt_linked",
+     "ok": true,
+     "detail": "attempt \"414\", want \"414\""
+    },
+    {
+     "id": "sections_in_order",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "options_verbatim",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "option_classes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "short_answer_brief",
+     "ok": true,
+     "detail": "3 sentences"
+    },
+    {
+     "id": "figure_svg",
+     "ok": true,
+     "detail": "1/1 figures with svg, caption and .svg-* classes"
+    },
+    {
+     "id": "example_labelled",
+     "ok": true,
+     "detail": "data-lang [\"sql\",\"sql\"], want sql"
+    },
+    {
+     "id": "tokens_only",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "no_emoji",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "id": "opened",
+     "ok": true,
+     "detail": "opened [\"<scratch>/baseline/wrong-pick-sql-index.2/home/artifacts/<scratch>-baseline-wrong-pick-sql-index.2-project/2026-10-11-composite-index-column-order-explained.html\"]"
+    },
+    {
+     "id": "path_reply",
+     "ok": true,
+     "detail": "The explainer page is written and open: <scratch>"
+    },
+    {
+     "id": "isolated",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "metrics": {
+    "words": 733,
+    "figures": 1,
+    "sections": [
+     "The question",
+     "The short answer",
+     "Where the answer went wrong",
+     "How it works",
+     "A concrete example",
+     "The rule that transfers"
+    ],
+    "identifiers_used": 3,
+    "identifiers_offered": 3
+   },
+   "duration_ms": 53680,
+   "judge": {
+    "misconception_named": true,
+    "newcomer_can_repeat": true,
+    "clarity": 5,
+    "why": "The went-wrong section speaks to answer D directly: it names the belief that ORDER BY created_at is a separate sort step the index can't help with, and explains why that instinct is tempting (sorts often are costly separate steps). The short answer is three plain sentences that describe the index as one list sorted by customer first and then by date, and say why filtering on date alone can't jump into it, so a newcomer could restate it without needing jargon. The phone-book analogy, the four-option table, the leftmost-prefix rule, the concrete migration fix with EXPLAIN checks, and the skip-scan gotcha together let a reader explain the mechanism and predict how indexes behave in their own queries."
+   }
+  }
+ ]
+}

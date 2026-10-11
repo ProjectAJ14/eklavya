@@ -1,0 +1,209 @@
+{
+  "_comment": "Briefs in the shape the tutor hands the explainer (agents/tutor.md, the handoff block; skills/tutor/SKILL.md, 'A missed answer can come back with explain'). pick and right are 0-based option indexes; right is the text itself when no options were offered. identifiers are names from code that a page grounded in the developer's work would use. 'binary': 'runtime' hides eklavya from PATH so only the runtime copy resolves.",
+  "cases": [
+    {
+      "id": "wrong-pick-idempotency",
+      "concept": { "slug": "idempotency-key", "name": "Idempotency keys" },
+      "stem": "A client retries POST /payments after a timeout, sending the same Idempotency-Key. What does the server return the second time?",
+      "options": [
+        "A second charge, because the first request timed out",
+        "The stored response from the first request, without charging again",
+        "A 409 Conflict, because the key was already used",
+        "A 400 Bad Request, because retries must use a fresh key"
+      ],
+      "notes": [
+        "Treats a timeout as proof nothing happened",
+        "Looks the key up and replays what it saved",
+        "Rejects any reuse of a key",
+        "Puts the burden on the client"
+      ],
+      "pick": 0,
+      "right": 1,
+      "attempt_id": 412,
+      "lang": "ts|typescript",
+      "code": "// src/payments/charge.ts\nexport async function charge(req: Request, db: Db) {\n  const key = req.headers.get('Idempotency-Key');\n  const saved = key ? await db.idempotency.find(key) : null;\n  if (saved) return saved.response;\n  const response = await stripe.charges.create(await req.json());\n  if (key) await db.idempotency.insert({ key, response });\n  return response;\n}",
+      "identifiers": ["Idempotency-Key", "db.idempotency", "charge"]
+    },
+    {
+      "id": "wrong-pick-debounce",
+      "concept": { "slug": "debounce", "name": "Debouncing" },
+      "stem": "The search box calls fetchResults through debounce(fn, 300). The user types five letters 100ms apart. How many requests go out?",
+      "options": [
+        "Five, one per keystroke, each delayed by 300ms",
+        "One, 300ms after the last keystroke",
+        "Two, one at the first keystroke and one at the last",
+        "None, because the user never paused for 300ms"
+      ],
+      "notes": [
+        "Delays every call instead of collapsing them",
+        "Each keystroke restarts the timer",
+        "Mixes in leading-edge behaviour",
+        "Forgets the timer still fires once typing stops"
+      ],
+      "pick": 0,
+      "right": 1,
+      "attempt_id": 413,
+      "lang": "ts|typescript|tsx",
+      "code": "// src/search/SearchBox.tsx\nconst search = useMemo(() => debounce((q: string) => fetchResults(q), 300), []);\nreturn <input onChange={(e) => search(e.target.value)} />;",
+      "identifiers": ["fetchResults", "debounce", "SearchBox"]
+    },
+    {
+      "id": "wrong-pick-sql-index",
+      "concept": { "slug": "composite-index-leftmost-prefix", "name": "Composite index column order" },
+      "stem": "The orders table has an index on (customer_id, created_at). Which query cannot use that index to find its rows?",
+      "options": [
+        "WHERE customer_id = 7",
+        "WHERE customer_id = 7 AND created_at > '2026-01-01'",
+        "WHERE created_at > '2026-01-01'",
+        "WHERE customer_id = 7 ORDER BY created_at"
+      ],
+      "notes": [
+        "Uses the first column alone",
+        "Uses both columns, left to right",
+        "Skips the first column",
+        "Filters on the first, sorts on the second"
+      ],
+      "pick": 3,
+      "right": 2,
+      "attempt_id": 414,
+      "lang": "sql",
+      "code": "-- migrations/021_orders_index.sql\nCREATE INDEX orders_customer_created ON orders (customer_id, created_at);\n\n-- src/reports/daily.sql\nSELECT count(*) FROM orders WHERE created_at > :since;",
+      "identifiers": ["orders_customer_created", "customer_id", "created_at"]
+    },
+    {
+      "id": "wrong-pick-python-default",
+      "concept": { "slug": "mutable-default-argument", "name": "Mutable default arguments" },
+      "stem": "add_tag(\"a\") is called twice on a fresh process, with no tags argument. What does the second call return?",
+      "options": [
+        "[\"a\"], because each call gets a new empty list",
+        "[\"a\", \"a\"], because the default list is shared between calls",
+        "An error, because tags is None the second time",
+        "[], because append returns None"
+      ],
+      "notes": [
+        "Assumes the default is rebuilt per call",
+        "The default is built once, when def runs",
+        "Confuses this with the None-sentinel fix",
+        "Mixes up the return value and the list"
+      ],
+      "pick": 0,
+      "right": 1,
+      "attempt_id": 415,
+      "lang": "py|python",
+      "code": "# app/tags.py\ndef add_tag(tag, tags=[]):\n    tags.append(tag)\n    return tags",
+      "identifiers": ["add_tag", "tags.append"]
+    },
+    {
+      "id": "dont-know-effect-cleanup",
+      "concept": { "slug": "effect-cleanup", "name": "Effect cleanup functions" },
+      "stem": "useEffect subscribes to a websocket and returns () => socket.close(). When does React call that returned function?",
+      "options": [
+        "Only when the component is removed from the page",
+        "Before the effect runs again, and when the component is removed",
+        "Right after the effect runs, every render",
+        "Never, unless the component calls it"
+      ],
+      "notes": [
+        "Misses the re-run case",
+        "Cleans up the old subscription before each new one",
+        "Confuses cleanup with the effect body",
+        "Treats it as an ordinary callback"
+      ],
+      "dont_know": true,
+      "right": 1,
+      "attempt_id": 416,
+      "lang": "ts|typescript|tsx|jsx",
+      "code": "// src/live/Ticker.tsx\nuseEffect(() => {\n  const socket = new WebSocket(`wss://feed/${symbol}`);\n  socket.onmessage = (m) => setPrice(JSON.parse(m.data).price);\n  return () => socket.close();\n}, [symbol]);",
+      "identifiers": ["socket.close", "symbol", "setPrice"]
+    },
+    {
+      "id": "typed-with-options-promise-all",
+      "concept": { "slug": "promise-all-fail-fast", "name": "Promise.all failing fast" },
+      "stem": "Promise.all([loadUser(), loadOrders(), loadPrefs()]) — loadOrders rejects after 50ms, the others take 200ms. What does the await see, and when?",
+      "options": [
+        "All three results after 200ms, with orders as undefined",
+        "The loadOrders rejection after 50ms",
+        "The loadOrders rejection after 200ms, once the others finish",
+        "An array of three settled results after 200ms"
+      ],
+      "notes": [
+        "Expects partial results",
+        "Rejects as soon as any input rejects",
+        "Waits for every input first",
+        "Describes Promise.allSettled"
+      ],
+      "typed": "it waits for all of them and then throws the orders error",
+      "right": 1,
+      "attempt_id": 417,
+      "lang": "ts|typescript|js|javascript",
+      "code": "// src/profile/load.ts\nexport async function loadProfile(id: string) {\n  const [user, orders, prefs] = await Promise.all([loadUser(id), loadOrders(id), loadPrefs(id)]);\n  return { user, orders, prefs };\n}",
+      "identifiers": ["loadProfile", "loadOrders", "Promise.all"]
+    },
+    {
+      "id": "typed-open-go-loopvar",
+      "concept": { "slug": "goroutine-closure-capture", "name": "Goroutines capturing a loop variable" },
+      "stem": "Before Go 1.22, what did this loop print, and why?",
+      "typed": "0 1 2 in some random order",
+      "right": "Usually 3 3 3: every goroutine closes over the same i, and the loop has finished by the time they run",
+      "attempt_id": 418,
+      "lang": "go|golang",
+      "code": "// cmd/worker/main.go\nfor i := 0; i < 3; i++ {\n    go func() { fmt.Println(i) }()\n}\ntime.Sleep(time.Second)",
+      "identifiers": ["fmt.Println", "go func"]
+    },
+    {
+      "id": "asked-page-etag",
+      "concept": { "slug": "http-etag-revalidation", "name": "ETag revalidation" },
+      "request": "Explain how the If-None-Match / 304 thing in our assets handler works. Make me a page on it.",
+      "lang": "ts|typescript|http",
+      "code": "// src/server/assets.ts\nconst etag = `\"${hash(body)}\"`;\nif (req.headers['if-none-match'] === etag) return res.status(304).end();\nres.setHeader('ETag', etag);\nres.setHeader('Cache-Control', 'no-cache');\nres.send(body);",
+      "identifiers": ["if-none-match", "ETag", "Cache-Control", "304"]
+    },
+    {
+      "id": "wrong-pick-bash-pipefail",
+      "concept": { "slug": "bash-pipefail", "name": "set -o pipefail" },
+      "stem": "deploy.sh starts with set -e. The line curl -f $URL | tar xz fails because curl gets a 404. What happens next?",
+      "options": [
+        "The script stops, because set -e catches any failing command",
+        "The script carries on, because the pipeline's status is tar's",
+        "The script stops only if tar also fails, then prints curl's error",
+        "Bash retries curl once before giving up"
+      ],
+      "notes": [
+        "Expects set -e to see inside pipelines",
+        "Without pipefail a pipeline reports its last command",
+        "Half-right about tar, wrong about the message",
+        "Bash has no retry behaviour"
+      ],
+      "pick": 0,
+      "right": 1,
+      "attempt_id": 419,
+      "lang": "bash|sh|shell",
+      "binary": "runtime",
+      "code": "#!/usr/bin/env bash\n# scripts/deploy.sh\nset -e\ncurl -f \"$URL\" | tar xz\n./install.sh",
+      "identifiers": ["set -e", "tar xz", "install.sh"]
+    },
+    {
+      "id": "wrong-pick-rust-borrow",
+      "concept": { "slug": "rust-shared-vs-mutable-borrow", "name": "Shared and mutable borrows" },
+      "stem": "Why does the compiler reject items.push(4) while first is still in use?",
+      "options": [
+        "Because items is not declared mut",
+        "Because first borrows items, and push needs an exclusive borrow while that one is alive",
+        "Because push moves items, so first would dangle",
+        "Because integers cannot be borrowed"
+      ],
+      "notes": [
+        "It is declared mut",
+        "A shared borrow blocks a mutable one until it ends",
+        "push borrows, it does not move",
+        "Anything can be borrowed"
+      ],
+      "pick": 2,
+      "right": 1,
+      "attempt_id": 420,
+      "lang": "rs|rust",
+      "code": "// src/main.rs\nlet mut items = vec![1, 2, 3];\nlet first = &items[0];\nitems.push(4);\nprintln!(\"{first}\");",
+      "identifiers": ["items.push", "first"]
+    }
+  ]
+}
