@@ -40,7 +40,7 @@ export function checkpointText(o: CheckpointText): string {
   const tail = o.panel
     ? ''
     : `
-If they pick Other or say skip, record it as grade 0, teach the answer in two lines, and carry on. Do not ask again.`;
+If they say skip, record grade 0 with outcome declined and carry on without teaching it. If they pick Other and say they do not know, record grade 0 with outcome dont_know and teach the answer in two lines. Either way, do not ask again.`;
 
   return `[Eklavya checkpoint] ${lead} the developer ONE question about it -- this is the whole point of the tool: they learn while you work, not in a pile at the end.
 

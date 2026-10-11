@@ -15,10 +15,11 @@ describe('checkpointText', () => {
   it('does not claim a log on a work-tool seam', () => {
     expect(checkpointText({ ...base, justLogged: false })).not.toMatch(/just logged/);
   });
-  it('asks with AskUserQuestion, grades and teaches a skip on the card', () => {
+  it('asks with AskUserQuestion, grades, and parts a skip from a blank on the card', () => {
     const text = checkpointText(base);
     expect(text).toMatch(/AskUserQuestion[\s\S]*record_attempt[\s\S]*verdict[\s\S]*Resume the task/);
-    expect(text).toMatch(/say skip, record it as grade 0/);
+    expect(text).toMatch(/say skip, record grade 0 with outcome declined and carry on without teaching it/);
+    expect(text).toMatch(/do not know, record grade 0 with outcome dont_know and teach the answer/);
   });
   it('presents in the panel and neither records nor waits', () => {
     const text = checkpointText({ ...base, panel: true });
