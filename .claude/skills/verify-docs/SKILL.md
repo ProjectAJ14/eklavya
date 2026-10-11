@@ -146,7 +146,14 @@ Shared brief:
 ## Current site and install checks
 
 - **The home includes the automatic demo.** Keep the mascot on a dark hero,
-  including in paper mode, and the terminal replay embedded at `/#demo`.
+  including in paper mode, with its faint bow-to-target background animation.
+  Check that this hero artwork pauses offscreen and in an inactive browser,
+  stays static with reduced motion, and does not obscure text or controls.
+  Only the hero mascot has green eyes matching its brand accent. Check bounded
+  mouse-following pupils, centered eyes on touch screens and with reduced
+  motion, and unchanged mascot instances elsewhere. The shared artwork is
+  not the source of this landing-page decoration.
+  Keep the terminal replay embedded at `/#demo`.
   `/demo/` redirects there. Do not move the replay to a separate page or require
   visitors to follow a link to see it. Detailed feature explanations stay in
   docs. Preserve useful old section links and keep the GitHub star box visible,
@@ -162,6 +169,9 @@ Shared brief:
   banner covers any part of the box. Check the sequence: typed prompt, Enter,
   work, question,
   automatic answer selection and submission, result, Done and task completion.
+  The finished control becomes "Replay demo" and resets the entire example
+  without moving page scroll or keyboard focus. Verify a second complete run;
+  under reduced motion, replay returns to the start of the still transcript.
   The panel stays hidden until the question arrives. Visitors do not type or
   answer, and the pictured controls must not take focus or enter keyboard
   navigation. Pause when the box leaves view, the tab is hidden or the window

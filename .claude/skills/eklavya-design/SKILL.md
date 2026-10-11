@@ -132,7 +132,13 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
   replay of Claude Code's transcript and Eklavya panel. Product strings come
   from the shipped code; example task output must be clearly an example.
 - **Home hero and embedded demo:** keep the Archer Cloak mascot on a dark ground
-  with a short introduction. The automatic replay belongs on the home page at
+  with a short introduction and a faint bow-to-target animation in its
+  background. Repeat the hero animation only while visible and the browser is
+  active; reduced motion shows still artwork. Keep it clear of copy and controls.
+  Only this mascot has green eyes using the hero's `--spot` role. Pupils follow
+  the mouse within the eye shapes; touch and reduced motion keep them centered.
+  Apply this decoration locally, without changing shared mascot artwork.
+  The automatic replay belongs on the home page at
   `/#demo`. `/demo/` redirects there. Detailed feature explanations stay in docs.
   Keep the GitHub star box visible and use a real count from GitHub.
 - **The name:** preserve the compact `#legend` section, its "The name" eyebrow,

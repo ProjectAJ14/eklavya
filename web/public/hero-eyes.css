@@ -1,0 +1,3 @@
+/* The landing mascot uses the same green as the hero's buttons and headline. */
+.hero [data-hero-mascot] .hero-eye { fill: var(--spot); }
+.hero [data-hero-mascot] .hero-eye__pupil { fill: var(--mascot-ink); stroke: none; }
