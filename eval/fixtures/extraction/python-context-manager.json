@@ -1,0 +1,33 @@
+{
+  "id": "python-context-manager",
+  "title": "A context manager that always releases the lock",
+  "source": "tools/migrate.py",
+  "kind": "python",
+  "diff": "from contextlib import contextmanager\nimport fcntl\n\n@contextmanager\ndef exclusive_lock(path):\n    with open(path, \"w\") as handle:\n        fcntl.flock(handle, fcntl.LOCK_EX)\n        try:\n            yield handle\n        finally:\n            fcntl.flock(handle, fcntl.LOCK_UN)\n\ndef run(path):\n    with exclusive_lock(\"/tmp/migrate.lock\"):\n        apply_pending(path)",
+  "concepts": [
+    {
+      "slug": "contextmanager-generator",
+      "domain": "python",
+      "tier": 3,
+      "description": "@contextmanager turns a generator with a single yield into a context manager: code before the yield is setup, code after is teardown.",
+      "context": "exclusive_lock in migrate.py takes the lock before the yield and releases it after",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "try-finally-release",
+      "domain": "python",
+      "tier": 2,
+      "description": "A finally block runs whether the body returns, raises or is interrupted, so a resource is released on every path.",
+      "context": "the finally in exclusive_lock unlocks even if apply_pending raises",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "advisory-file-lock",
+      "domain": "operating-systems",
+      "tier": 4,
+      "description": "flock takes an advisory lock on a file descriptor that cooperating processes respect; it does nothing to a process that never asks.",
+      "context": "fcntl.flock(handle, LOCK_EX) in migrate.py serialises concurrent migration runs on /tmp/migrate.lock",
+      "prerequisite_of": []
+    }
+  ]
+}

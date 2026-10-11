@@ -1,0 +1,41 @@
+{
+  "id": "go-errgroup-context",
+  "title": "Fetching in parallel and stopping on the first failure",
+  "source": "internal/sync/fetch.go",
+  "kind": "go",
+  "diff": "func FetchAll(ctx context.Context, urls []string) ([][]byte, error) {\n\tg, ctx := errgroup.WithContext(ctx)\n\tg.SetLimit(4)\n\tbodies := make([][]byte, len(urls))\n\tfor i, url := range urls {\n\t\ti, url := i, url\n\t\tg.Go(func() error {\n\t\t\treq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)\n\t\t\tif err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t\tresp, err := http.DefaultClient.Do(req)\n\t\t\tif err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t\tdefer resp.Body.Close()\n\t\t\tbodies[i], err = io.ReadAll(resp.Body)\n\t\t\treturn err\n\t\t})\n\t}\n\tif err := g.Wait(); err != nil {\n\t\treturn nil, err\n\t}\n\treturn bodies, nil\n}",
+  "concepts": [
+    {
+      "slug": "errgroup-first-error-cancels",
+      "domain": "go",
+      "tier": 3,
+      "description": "errgroup.WithContext cancels the shared context when any goroutine returns an error, and Wait returns that first error.",
+      "context": "FetchAll in fetch.go uses errgroup.WithContext so one failed fetch cancels the other requests",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "bounded-concurrency",
+      "domain": "go",
+      "tier": 3,
+      "description": "SetLimit caps how many goroutines run at once, so a long list does not open an unbounded number of connections.",
+      "context": "g.SetLimit(4) in FetchAll limits the fetch to four requests in flight",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "loop-variable-capture",
+      "domain": "go",
+      "tier": 3,
+      "description": "A closure captures the loop variable itself, not its value, so goroutines started in a loop need their own copy (before Go 1.22).",
+      "context": "FetchAll shadows i and url inside the loop before the g.Go closure uses them",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "context-propagation",
+      "domain": "go",
+      "tier": 3,
+      "description": "Passing the context into the request lets cancellation stop an in-flight HTTP call rather than only the code around it.",
+      "context": "http.NewRequestWithContext(ctx, ...) ties each request in fetch.go to the errgroup's context",
+      "prerequisite_of": []
+    }
+  ]
+}

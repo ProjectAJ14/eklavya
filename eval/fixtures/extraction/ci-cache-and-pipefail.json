@@ -1,0 +1,41 @@
+{
+  "id": "ci-cache-and-pipefail",
+  "title": "A faster CI job that cannot hide a failing step",
+  "source": ".github/workflows/test.yml",
+  "kind": "ci-shell",
+  "diff": "concurrency:\n  group: test-${{ github.ref }}\n  cancel-in-progress: true\n\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ~/.npm\n          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}\n          restore-keys: |\n            npm-${{ runner.os }}-\n      - name: Install and test\n        shell: bash\n        run: |\n          set -euo pipefail\n          npm ci\n          npm test 2>&1 | tee test.log",
+  "concepts": [
+    {
+      "slug": "ci-cache-key",
+      "domain": "ci",
+      "tier": 3,
+      "description": "A cache key built from a hash of the lockfile changes exactly when the dependencies change, so the cache is reused until it would be wrong.",
+      "context": "the actions/cache key in test.yml hashes package-lock.json so a dependency change gets a fresh cache",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "restore-keys-fallback",
+      "domain": "ci",
+      "tier": 3,
+      "description": "A restore key matches by prefix, so a near-miss cache still seeds the install when the exact key is absent.",
+      "context": "restore-keys in test.yml falls back to the newest npm cache for the same OS",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "concurrency-cancel-in-progress",
+      "domain": "ci",
+      "tier": 2,
+      "description": "A concurrency group with cancel-in-progress stops superseded runs of the same branch, so only the latest push is tested.",
+      "context": "the concurrency block in test.yml cancels an older run when the same ref is pushed again",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "bash-pipefail",
+      "domain": "shell",
+      "tier": 3,
+      "description": "Without pipefail a pipeline's status is its last command's, so a failing test run piped into tee would be reported as success.",
+      "context": "set -euo pipefail in test.yml keeps `npm test | tee test.log` from masking a failing npm test",
+      "prerequisite_of": []
+    }
+  ]
+}

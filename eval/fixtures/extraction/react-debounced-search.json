@@ -1,0 +1,41 @@
+{
+  "id": "react-debounced-search",
+  "title": "A search box that stops firing a request per keystroke",
+  "source": "web/src/SearchBox.tsx",
+  "kind": "front-end",
+  "diff": "export function SearchBox({ onResults }: { onResults: (r: Result[]) => void }) {\n  const [query, setQuery] = useState('');\n\n  useEffect(() => {\n    if (query.length < 2) return;\n    const controller = new AbortController();\n    const timer = setTimeout(async () => {\n      try {\n        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });\n        onResults(await res.json());\n      } catch (err) {\n        if ((err as Error).name !== 'AbortError') throw err;\n      }\n    }, 250);\n    return () => {\n      clearTimeout(timer);\n      controller.abort();\n    };\n  }, [query, onResults]);\n\n  return <input value={query} onChange={(e) => setQuery(e.target.value)} />;\n}",
+  "concepts": [
+    {
+      "slug": "debounce",
+      "domain": "react",
+      "tier": 2,
+      "description": "Waiting until input has been quiet for a short interval before acting, so a burst of events causes one call instead of many.",
+      "context": "the 250 ms setTimeout in SearchBox.tsx delays the fetch until typing pauses",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "useeffect-cleanup",
+      "domain": "react",
+      "tier": 3,
+      "description": "The function an effect returns runs before the next run and on unmount, which is where timers and requests from the previous run must be cancelled.",
+      "context": "the effect in SearchBox.tsx returns a cleanup that clears the timer, so a newer keystroke cancels the pending one",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "stale-response-race",
+      "domain": "react",
+      "tier": 4,
+      "description": "Two requests in flight can finish out of order, so an older response can overwrite a newer one unless the older is cancelled or ignored.",
+      "context": "controller.abort() in the cleanup stops an earlier search from landing after a later one",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "abortcontroller",
+      "domain": "web-platform",
+      "tier": 3,
+      "description": "An AbortController hands a signal to fetch; aborting rejects the fetch with an AbortError that the caller must tell apart from a real failure.",
+      "context": "the catch in SearchBox.tsx swallows AbortError but rethrows every other error",
+      "prerequisite_of": []
+    }
+  ]
+}

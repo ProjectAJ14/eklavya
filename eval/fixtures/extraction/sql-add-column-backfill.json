@@ -1,0 +1,41 @@
+{
+  "id": "sql-add-column-backfill",
+  "title": "Adding a required column to a live table",
+  "source": "migrations/0042_users_region.sql",
+  "kind": "migration",
+  "diff": "BEGIN;\nALTER TABLE users ADD COLUMN region text;\nCOMMIT;\n\n-- backfill in batches so no single statement holds locks on the whole table\nUPDATE users SET region = 'unknown'\nWHERE id IN (SELECT id FROM users WHERE region IS NULL ORDER BY id LIMIT 5000);\n-- (the deploy repeats the statement above until it updates 0 rows)\n\nALTER TABLE users ALTER COLUMN region SET DEFAULT 'unknown';\n\nCREATE INDEX CONCURRENTLY users_region_idx ON users (region);\n\nALTER TABLE users ADD CONSTRAINT users_region_set CHECK (region IS NOT NULL) NOT VALID;\nALTER TABLE users VALIDATE CONSTRAINT users_region_set;",
+  "concepts": [
+    {
+      "slug": "expand-contract-migration",
+      "domain": "databases",
+      "tier": 4,
+      "description": "A schema change is split into steps that each work with the code both before and after it: add nullable, backfill, then tighten.",
+      "context": "0042_users_region.sql adds region as nullable first and only enforces it after the backfill",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "batched-backfill",
+      "domain": "databases",
+      "tier": 3,
+      "description": "Updating a large table in bounded batches keeps each transaction short, so locks and replication lag stay small.",
+      "context": "the UPDATE in 0042_users_region.sql touches 5000 ids per statement and is repeated",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "create-index-concurrently",
+      "domain": "databases",
+      "tier": 4,
+      "description": "CONCURRENTLY builds an index without blocking writes, at the cost of a slower build and not being allowed inside a transaction.",
+      "context": "users_region_idx is created CONCURRENTLY, outside the BEGIN/COMMIT block, so inserts to users keep flowing",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "not-valid-constraint",
+      "domain": "databases",
+      "tier": 5,
+      "description": "Adding a constraint NOT VALID enforces it for new rows without scanning the table, and VALIDATE then checks old rows under a weaker lock.",
+      "context": "users_region_set is added NOT VALID and validated separately instead of using SET NOT NULL",
+      "prerequisite_of": []
+    }
+  ]
+}
