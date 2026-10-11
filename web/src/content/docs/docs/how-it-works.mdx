@@ -26,7 +26,7 @@ Claude calls the server through the Model Context Protocol (MCP). Hooks open the
   title="The learning flow"
   caption="Claude supplies the teaching; the server tracks what is due and what you have demonstrated."
   steps={[
-    { label: 'Log the work', detail: 'Claude names the concepts used and links them to the code being changed.' },
+    { label: 'Log the work', detail: 'Claude names the concepts used and links them to the code being changed. A concept Eklavya has not seen is created bare, and Claude then fills in its domain, tier and prerequisite links.' },
     { label: 'Choose a question', detail: 'A hook prompts a checkpoint. The planner selects a concept and difficulty tier.' },
     { label: 'Answer and explain', detail: 'Claude asks, assesses your answer, and explains any gap.' },
     { label: 'Record progress', detail: 'The server validates the attempt, updates mastery and review dates, and refreshes the gate.' },

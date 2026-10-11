@@ -102,9 +102,8 @@ manual's `how-it-works` page.
 
 ## Findings so far
 
-`upsert_concepts` does not apply a domain or tier to a concept that already exists, and every `created`
-concept already exists by the time the skill tells the model to follow up. In the first trial all 7
-follow-ups asked for a real domain and the database kept `general` and tier 2 for all 7; only the edges
-landed. The score therefore grades the call, as the issue specifies, and the report prints how many
-asked-for domains were stored as `general`. That is a product question, not a prompt one, and the eval
-cannot fix it.
+Until this PR, `upsert_concepts` did not apply a domain or tier to a concept that already existed, and every
+`created` concept already exists when the skill says to follow up. In the baseline all 104 follow-ups that
+asked for a real domain left `general` and tier 2 in the database (`eval/results/2026-10-11-extraction.md`).
+The handler now fills in a bare `llm` concept, so a re-run reports `stored_as_general` near 0. The score still
+grades the call, as the issue specifies.
