@@ -112,3 +112,53 @@ describe('the scenario fixtures', () => {
     }
   });
 });
+
+describe('order rules', () => {
+  const calls = (...tools: string[]): TutorTurn => turn({ tool_calls: tools.map((tool) => ({ tool })) });
+  const rule: Rule = { id: 'o', kind: 'order', tools: ['get_session_quiz_plan', 'AskUserQuestion', 'record_attempt', '@work'] };
+  it('passes a subsequence in order, with other calls between', () => {
+    expect(ids(calls('Skill', 'mcp__a__get_session_quiz_plan', 'AskUserQuestion', 'mcp__a__record_attempt', 'Write'), [rule])).toEqual(['o:true']);
+  });
+  it('fails a missing step, a wrong order, or a quiz that never resumes', () => {
+    expect(ids(calls('AskUserQuestion', 'record_attempt', 'Write'), [rule])).toEqual(['o:false']);
+    expect(ids(calls('get_session_quiz_plan', 'record_attempt', 'AskUserQuestion', 'Write'), [rule])).toEqual(['o:false']);
+    const stalled = checkTurn(calls('Edit', 'get_session_quiz_plan', 'AskUserQuestion', 'record_attempt'), [rule])[0]!;
+    expect(stalled).toMatchObject({ ok: false });
+    expect(stalled.detail).toMatch(/no @work/);
+  });
+});
+
+describe('the hook-text fixtures', () => {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'eval', 'fixtures', 'hook-text', 'scenarios.json');
+  const { scenarios } = JSON.parse(fs.readFileSync(file, 'utf8')) as { scenarios: { id: string; hook: string; rules: Rule[] }[] };
+  it('have unique ids, a known hook and well-formed rules', () => {
+    expect(new Set(scenarios.map((s) => s.id)).size).toBe(scenarios.length);
+    for (const s of scenarios) {
+      expect(['checkpoint', 'stop']).toContain(s.hook);
+      expect(new Set(s.rules.map((r) => r.id)).size).toBe(s.rules.length);
+      for (const r of s.rules) expect(['call', 'questions', 'message', 'order']).toContain(r.kind);
+      for (const r of s.rules) if (r.kind === 'message') for (const p of [r.match, r.notMatch]) if (p) expect(() => new RegExp(p)).not.toThrow();
+    }
+  });
+  it('pass a clean checkpoint turn, so the rules are satisfiable', () => {
+    const s = scenarios.find((x) => x.id === 'checkpoint-tool-correct')!;
+    const clean: TutorTurn = {
+      tool_calls: [
+        { tool: 'mcp__plugin_eklavya_eklavya__get_session_quiz_plan', args: { max: 1, ignore_cooldown: true } },
+        { tool: 'AskUserQuestion', args: { questions: [{ question: 'Why pin algorithms?', header: 'Eklavya' }] } },
+        { tool: 'mcp__plugin_eklavya_eklavya__record_attempt', args: { format: 'mcq', grade: 4, options: ['a', 'b', 'c', 'd'] } },
+        { tool: 'Write', args: { file_path: 'test/orders.auth.test.ts' } },
+      ],
+      message: 'Correct: pinning HS256 stops a token from choosing its own algorithm.',
+    };
+    expect(checkTurn(clean, s.rules).filter((v) => !v.ok)).toEqual([]);
+  });
+});
+
+describe('firstParagraph', () => {
+  it('judges the verdict, not the resume line after it', () => {
+    const t = turn({ message: 'Right. One line of why.\n\nNow writing the test. It covers four cases. Then I run it.' });
+    expect(ids(t, [{ id: 'p', kind: 'message', maxSentences: 2, firstParagraph: true }])).toEqual(['p:true']);
+    expect(ids(t, [{ id: 'w', kind: 'message', maxSentences: 2 }])).toEqual(['w:false']);
+  });
+});

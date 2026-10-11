@@ -1,0 +1,1022 @@
+{
+ "version": 1,
+ "task": {
+  "request": "Add JWT verification to the Express API: protect /api/orders, reject expired or tampered tokens with 401, and add a test for it.",
+  "so_far": [
+   "Read src/app.ts and src/routes/orders.ts.",
+   "Wrote src/middleware/verify-jwt.ts: reads the Bearer token, calls jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }), puts the payload on req.user, answers 401 on any error.",
+   "Edited src/routes/orders.ts to mount verifyJwt before the handlers.",
+   "Called log_session_concepts with jwt-verification (context: src/middleware/verify-jwt.ts:12, pins algorithms to HS256) and express-middleware-order (context: src/routes/orders.ts:5)."
+  ],
+  "next_step": "Write test/orders.auth.test.ts: one request with no token, one with an expired token, one with a valid token."
+ },
+ "concept": {
+  "slug": "jwt-verification",
+  "name": "JWT verification",
+  "domain": "security",
+  "description": "Checking a JSON Web Token's signature, algorithm and expiry before trusting its claims.",
+  "tier_to_ask": 2,
+  "context": "src/middleware/verify-jwt.ts:12, pins algorithms to HS256",
+  "last_grade": null,
+  "asked_before": [],
+  "already_taught": false,
+  "prereqs_unmet": [],
+  "answer_position": 3,
+  "reason": "unmastered"
+ },
+ "scenarios": [
+  {
+   "id": "checkpoint-tool-correct",
+   "hook": "checkpoint",
+   "text": {
+    "concept": "jwt-verification (src/middleware/verify-jwt.ts:12, pins algorithms to HS256)",
+    "remaining": 3,
+    "justLogged": true,
+    "panel": false,
+    "focus": "project"
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project"
+   },
+   "results": {
+    "AskUserQuestion": "The developer picked the option you put in the correct slot.",
+    "record_attempt": {
+     "slug": "jwt-verification",
+     "attempt_id": 41,
+     "recorded_grade": 4,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "answered": 1,
+      "passed_count": 1,
+      "needed": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "plans_one",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "where": {
+      "max": 1,
+      "ignore_cooldown": true
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "asks_once",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "one_question_in_card",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "where": {
+      "questions": {
+       "lengthMin": 2
+      }
+     },
+     "max": 0
+    },
+    {
+     "id": "records_mcq",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "format": "mcq",
+      "options": {
+       "lengthMin": 4,
+       "lengthMax": 4
+      }
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "order",
+     "kind": "order",
+     "tools": [
+      "get_session_quiz_plan",
+      "AskUserQuestion",
+      "record_attempt",
+      "@work"
+     ]
+    },
+    {
+     "id": "verdict",
+     "kind": "message",
+     "match": "\\b(correct|right|exactly|yes|spot on|nailed)\\b"
+    },
+    {
+     "id": "no_recap",
+     "kind": "message",
+     "notMatch": "\\b(to recap|recap:|in summary|summary of|so far (we|I)|here'?s where we|let me re-?plan|updated plan|plan:)"
+    },
+    {
+     "id": "short",
+     "kind": "message",
+     "maxSentences": 3,
+     "notEndsWithQuestion": true,
+     "firstParagraph": true
+    }
+   ]
+  },
+  {
+   "id": "checkpoint-tool-wrong",
+   "hook": "checkpoint",
+   "text": {
+    "concept": "jwt-verification (src/middleware/verify-jwt.ts:12, pins algorithms to HS256)",
+    "remaining": 3,
+    "justLogged": true,
+    "panel": false,
+    "focus": "project"
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project"
+   },
+   "results": {
+    "AskUserQuestion": "The developer picked a wrong option: the one in slot 1.",
+    "record_attempt": {
+     "slug": "jwt-verification",
+     "attempt_id": 42,
+     "recorded_grade": 1,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "answered": 1,
+      "passed_count": 0,
+      "needed": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "plans_one",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "where": {
+      "max": 1,
+      "ignore_cooldown": true
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "asks_once",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "records_miss",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "format": "mcq",
+      "grade": {
+       "min": 0,
+       "max": 2
+      }
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "order",
+     "kind": "order",
+     "tools": [
+      "get_session_quiz_plan",
+      "AskUserQuestion",
+      "record_attempt",
+      "@work"
+     ]
+    },
+    {
+     "id": "verdict",
+     "kind": "message",
+     "match": "\\b(wrong|incorrect|not quite|not right|isn'?t (it|right)|the (right|correct) answer)\\b"
+    },
+    {
+     "id": "no_recap",
+     "kind": "message",
+     "notMatch": "\\b(to recap|recap:|in summary|summary of|so far (we|I)|here'?s where we|let me re-?plan|updated plan|plan:)"
+    },
+    {
+     "id": "short",
+     "kind": "message",
+     "maxSentences": 4,
+     "notEndsWithQuestion": true,
+     "firstParagraph": true
+    }
+   ]
+  },
+  {
+   "id": "checkpoint-panel",
+   "hook": "checkpoint",
+   "text": {
+    "concept": "jwt-verification (src/middleware/verify-jwt.ts:12, pins algorithms to HS256)",
+    "remaining": 3,
+    "justLogged": true,
+    "panel": true,
+    "focus": "project"
+   },
+   "plan": {
+    "presentation": "panel",
+    "focus": "project"
+   },
+   "results": {
+    "present_question": {
+     "shown": true,
+     "detail": "The question is in the side panel. The panel records the answer."
+    }
+   },
+   "rules": [
+    {
+     "id": "plans_one",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "where": {
+      "max": 1,
+      "ignore_cooldown": true
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "presents_once",
+     "kind": "call",
+     "tool": "present_question",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "no_card",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "max": 0
+    },
+    {
+     "id": "no_record",
+     "kind": "call",
+     "tool": "record_attempt",
+     "max": 0
+    },
+    {
+     "id": "resumes",
+     "kind": "order",
+     "tools": [
+      "get_session_quiz_plan",
+      "present_question",
+      "@work"
+     ]
+    },
+    {
+     "id": "no_verdict_no_wait",
+     "kind": "message",
+     "notMatch": "\\b(correct|incorrect|wrong|let me know|once you('ve)? answer|waiting for)\\b"
+    },
+    {
+     "id": "short",
+     "kind": "message",
+     "maxSentences": 3
+    }
+   ]
+  },
+  {
+   "id": "checkpoint-skip",
+   "hook": "checkpoint",
+   "text": {
+    "concept": "jwt-verification (src/middleware/verify-jwt.ts:12, pins algorithms to HS256)",
+    "remaining": 3,
+    "justLogged": true,
+    "panel": false,
+    "focus": "project"
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project"
+   },
+   "results": {
+    "AskUserQuestion": "The developer chose Other and typed: skip",
+    "record_attempt": {
+     "slug": "jwt-verification",
+     "attempt_id": 43,
+     "recorded_grade": 0,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "answered": 1,
+      "passed_count": 0,
+      "needed": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "asks_once",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "records_decline",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "grade": 0,
+      "outcome": "declined"
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "order",
+     "kind": "order",
+     "tools": [
+      "AskUserQuestion",
+      "record_attempt",
+      "@work"
+     ]
+    },
+    {
+     "id": "no_lecture",
+     "kind": "message",
+     "maxSentences": 2,
+     "notEndsWithQuestion": true,
+     "firstParagraph": true
+    }
+   ],
+   "note": "A skip is outcome declined with nothing taught (skills/tutor/references/grading.md, the plan's on_skip, record_attempt's outcome field)."
+  },
+  {
+   "id": "checkpoint-dont-know",
+   "hook": "checkpoint",
+   "text": {
+    "concept": "jwt-verification (src/middleware/verify-jwt.ts:12, pins algorithms to HS256)",
+    "remaining": 3,
+    "justLogged": true,
+    "panel": false,
+    "focus": "project"
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project"
+   },
+   "results": {
+    "AskUserQuestion": "The developer chose Other and typed: no idea, I don't know",
+    "record_attempt": {
+     "slug": "jwt-verification",
+     "attempt_id": 43,
+     "recorded_grade": 0,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "answered": 1,
+      "passed_count": 0,
+      "needed": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "asks_once",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "records_blank",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "grade": 0,
+      "outcome": "dont_know"
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "order",
+     "kind": "order",
+     "tools": [
+      "AskUserQuestion",
+      "record_attempt",
+      "@work"
+     ]
+    },
+    {
+     "id": "teaches_briefly",
+     "kind": "message",
+     "minChars": 60,
+     "maxSentences": 4,
+     "notEndsWithQuestion": true,
+     "firstParagraph": true
+    }
+   ],
+   "note": "Other with 'I don't know' is a blank: outcome dont_know, and the answer is taught (grading.md)."
+  },
+  {
+   "id": "checkpoint-budget-one",
+   "hook": "checkpoint",
+   "text": {
+    "concept": "jwt-verification (src/middleware/verify-jwt.ts:12, pins algorithms to HS256)",
+    "remaining": 1,
+    "justLogged": true,
+    "panel": false,
+    "focus": "project"
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project"
+   },
+   "results": {
+    "AskUserQuestion": "The developer picked the option you put in the correct slot.",
+    "record_attempt": {
+     "slug": "jwt-verification",
+     "attempt_id": 44,
+     "recorded_grade": 4,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "answered": 4,
+      "passed_count": 3,
+      "needed": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "asks_once",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "order",
+     "kind": "order",
+     "tools": [
+      "get_session_quiz_plan",
+      "AskUserQuestion",
+      "record_attempt",
+      "@work"
+     ]
+    },
+    {
+     "id": "no_more_promised",
+     "kind": "message",
+     "notMatch": "\\b(another|next|more|second|one more|follow-?up) (question|quiz)|\\bquestions? (left|remaining)\\b|\\bbudget\\b"
+    },
+    {
+     "id": "short",
+     "kind": "message",
+     "maxSentences": 3,
+     "notEndsWithQuestion": true,
+     "firstParagraph": true
+    }
+   ]
+  },
+  {
+   "id": "checkpoint-work-seam",
+   "hook": "checkpoint",
+   "note": "Fired on an Edit, not on the logging call: the concept was logged earlier in the task.",
+   "trigger": "Edit",
+   "extra_steps": [
+    "Edited test/orders.auth.test.ts: added the no-token case."
+   ],
+   "next_step": "Add the expired-token and valid-token cases to test/orders.auth.test.ts.",
+   "text": {
+    "concept": "express-middleware-order (src/routes/orders.ts:5)",
+    "remaining": 3,
+    "justLogged": false,
+    "panel": false,
+    "focus": "project"
+   },
+   "concept": {
+    "slug": "express-middleware-order",
+    "name": "Express middleware order",
+    "domain": "web",
+    "description": "Express runs middleware in the order it is mounted.",
+    "context": "src/routes/orders.ts:5"
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project"
+   },
+   "results": {
+    "AskUserQuestion": "The developer picked the option you put in the correct slot.",
+    "record_attempt": {
+     "slug": "express-middleware-order",
+     "attempt_id": 45,
+     "recorded_grade": 4,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "answered": 1,
+      "passed_count": 1,
+      "needed": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "asks_once",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "no_false_lead",
+     "kind": "message",
+     "notMatch": "just (logged|noted|recorded)"
+    },
+    {
+     "id": "stem_no_false_lead",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "where": {
+      "questions.0.question": {
+       "regex": "just (logged|noted|recorded)"
+      }
+     },
+     "max": 0
+    },
+    {
+     "id": "order",
+     "kind": "order",
+     "tools": [
+      "get_session_quiz_plan",
+      "AskUserQuestion",
+      "record_attempt",
+      "@work"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "checkpoint-learn-no-topic",
+   "hook": "checkpoint",
+   "note": "Focus 'learn' with no focus_topic: the framing line says to skip the question and say so.",
+   "text": {
+    "concept": "jwt-verification (src/middleware/verify-jwt.ts:12, pins algorithms to HS256)",
+    "remaining": 3,
+    "justLogged": true,
+    "panel": false,
+    "focus": "learn",
+    "focusTopic": null
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "learn"
+   },
+   "results": {},
+   "rules": [
+    {
+     "id": "no_question",
+     "kind": "questions",
+     "max": 0
+    },
+    {
+     "id": "no_record",
+     "kind": "call",
+     "tool": "record_attempt",
+     "max": 0
+    },
+    {
+     "id": "says_why",
+     "kind": "message",
+     "match": "topic"
+    },
+    {
+     "id": "resumes",
+     "kind": "order",
+     "tools": [
+      "@work"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "stop-log-first",
+   "hook": "stop",
+   "note": "The session changed code and logged nothing.",
+   "skipLog": true,
+   "text": {
+    "asked": 1,
+    "names": [],
+    "due": false,
+    "logFirst": true,
+    "gate": false
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project"
+   },
+   "results": {
+    "log_session_concepts": {
+     "logged": 2,
+     "session_id": "s-1"
+    },
+    "AskUserQuestion": "The developer picked the option you put in the correct slot.",
+    "record_attempt": {
+     "slug": "jwt-verification",
+     "attempt_id": 46,
+     "recorded_grade": 4,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "answered": 1,
+      "passed_count": 1,
+      "needed": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "logs_then_plans",
+     "kind": "order",
+     "tools": [
+      "log_session_concepts",
+      "get_session_quiz_plan",
+      "AskUserQuestion",
+      "record_attempt"
+     ]
+    },
+    {
+     "id": "records_mcq",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "format": "mcq"
+     },
+     "min": 1
+    },
+    {
+     "id": "logs_concepts",
+     "kind": "call",
+     "tool": "log_session_concepts",
+     "where": {
+      "concepts": {
+       "lengthMin": 1
+      }
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "asks_once",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "back_to_task",
+     "kind": "message",
+     "match": "Back to your task:"
+    }
+   ]
+  },
+  {
+   "id": "stop-due-review",
+   "hook": "stop",
+   "note": "As-you-go sweep over earlier work due again: one question.",
+   "text": {
+    "asked": 1,
+    "names": [
+     "sql-parameterized-queries"
+    ],
+    "due": true,
+    "logFirst": false,
+    "gate": false
+   },
+   "concept": {
+    "slug": "sql-parameterized-queries",
+    "name": "Parameterized SQL queries",
+    "domain": "security",
+    "description": "Passing values separately from the SQL text so they are never parsed as SQL.",
+    "context": null,
+    "reason": "project_review",
+    "last_grade": 1,
+    "asked_before": [
+     {
+      "question": "Why does db.query('SELECT * FROM users WHERE id = $1', [id]) resist injection?",
+      "grade": 1
+     }
+    ]
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project"
+   },
+   "results": {
+    "AskUserQuestion": "The developer picked the option you put in the correct slot.",
+    "record_attempt": {
+     "slug": "sql-parameterized-queries",
+     "attempt_id": 47,
+     "recorded_grade": 4,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "answered": 2,
+      "passed_count": 2,
+      "needed": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "plans",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "asks_once",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "not_repeated",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "where": {
+      "questions.0.question": {
+       "regex": "SELECT \\* FROM users WHERE id = \\$1"
+      }
+     },
+     "max": 0
+    },
+    {
+     "id": "order",
+     "kind": "order",
+     "tools": [
+      "get_session_quiz_plan",
+      "AskUserQuestion",
+      "record_attempt"
+     ]
+    },
+    {
+     "id": "records_mcq",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "format": "mcq"
+     },
+     "min": 1
+    },
+    {
+     "id": "verdict",
+     "kind": "message",
+     "match": "\\b(correct|right|exactly|yes|spot on|nailed)\\b"
+    },
+    {
+     "id": "back_to_task",
+     "kind": "message",
+     "match": "Back to your task:"
+    }
+   ]
+  },
+  {
+   "id": "stop-end-batch",
+   "hook": "stop",
+   "note": "End cadence: up to three questions, one at a time.",
+   "text": {
+    "asked": 3,
+    "names": [
+     "jwt-verification",
+     "express-middleware-order",
+     "http-401-vs-403"
+    ],
+    "due": false,
+    "logFirst": false,
+    "gate": false
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project",
+    "extra": [
+     {
+      "slug": "express-middleware-order",
+      "name": "Express middleware order",
+      "domain": "web",
+      "description": "Express runs middleware in the order it is mounted.",
+      "context": "src/routes/orders.ts:5",
+      "answer_position": 1
+     },
+     {
+      "slug": "http-401-vs-403",
+      "name": "401 versus 403",
+      "domain": "web",
+      "description": "401 means not authenticated; 403 means authenticated but not allowed.",
+      "context": "src/middleware/verify-jwt.ts:20",
+      "answer_position": 4
+     }
+    ]
+   },
+   "results": {
+    "AskUserQuestion": "Every time, the developer picks the option you put in the correct slot.",
+    "record_attempt": {
+     "recorded_grade": 4,
+     "known": false,
+     "repeat_question": false,
+     "gate": {
+      "enforced": false,
+      "required": 0,
+      "passed": true
+     },
+     "level": "medium"
+    }
+   },
+   "rules": [
+    {
+     "id": "plans_once",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "at_most_three",
+     "kind": "questions",
+     "max": 3
+    },
+    {
+     "id": "one_at_a_time",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "where": {
+      "questions": {
+       "lengthMin": 2
+      }
+     },
+     "max": 0
+    },
+    {
+     "id": "records_mcq",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "format": "mcq"
+     },
+     "min": 3
+    },
+    {
+     "id": "records_each",
+     "kind": "call",
+     "tool": "record_attempt",
+     "min": 3,
+     "max": 3
+    },
+    {
+     "id": "order",
+     "kind": "order",
+     "tools": [
+      "get_session_quiz_plan",
+      "AskUserQuestion",
+      "record_attempt",
+      "AskUserQuestion",
+      "record_attempt",
+      "AskUserQuestion",
+      "record_attempt"
+     ]
+    },
+    {
+     "id": "back_to_task",
+     "kind": "message",
+     "match": "Back to your task:"
+    }
+   ]
+  },
+  {
+   "id": "stop-gate",
+   "hook": "stop",
+   "note": "Enforced: the gate needs two passing answers; this one is the first.",
+   "text": {
+    "asked": 2,
+    "names": [
+     "jwt-verification",
+     "express-middleware-order"
+    ],
+    "due": false,
+    "logFirst": false,
+    "gate": true
+   },
+   "plan": {
+    "presentation": "tool",
+    "focus": "project",
+    "enforced": true,
+    "extra": [
+     {
+      "slug": "express-middleware-order",
+      "name": "Express middleware order",
+      "domain": "web",
+      "description": "Express runs middleware in the order it is mounted.",
+      "context": "src/routes/orders.ts:5",
+      "answer_position": 2,
+      "reason": "gate_work"
+     }
+    ]
+   },
+   "results": {
+    "AskUserQuestion": "First question: the developer picks the option you put in the correct slot. Second question: the developer chooses Other and types: skip",
+    "record_attempt": "First call returns { recorded_grade: 4, gate: { enforced: true, required: 2, answered: 1, passed_count: 1, needed: 2, passed: false } }. Second call returns { recorded_grade: 0, gate: { enforced: true, required: 2, answered: 2, passed_count: 1, needed: 2, passed: false } }."
+   },
+   "rules": [
+    {
+     "id": "plans_once",
+     "kind": "call",
+     "tool": "get_session_quiz_plan",
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "one_at_a_time",
+     "kind": "call",
+     "tool": "AskUserQuestion",
+     "where": {
+      "questions": {
+       "lengthMin": 2
+      }
+     },
+     "max": 0
+    },
+    {
+     "id": "records_mcq",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "format": "mcq"
+     },
+     "min": 2
+    },
+    {
+     "id": "records_skip_zero",
+     "kind": "call",
+     "tool": "record_attempt",
+     "where": {
+      "grade": 0
+     },
+     "min": 1,
+     "max": 1
+    },
+    {
+     "id": "no_false_clear",
+     "kind": "message",
+     "notMatch": "gate (is |has been )?(now )?(clear|open|passed|unlocked)\\b|(?<!before )(?<!until )you can (now )?commit|free to commit"
+    },
+    {
+     "id": "back_to_task",
+     "kind": "message",
+     "match": "Back to your task:"
+    }
+   ]
+  }
+ ]
+}

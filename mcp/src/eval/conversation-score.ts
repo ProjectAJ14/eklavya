@@ -23,6 +23,8 @@ export interface TutorTurn {
 export type Rule =
   | { id: string; kind: 'call'; tool: string; where?: Record<string, Match>; min?: number; max?: number }
   | { id: string; kind: 'questions'; max: number }
+  /** `tools` appear in this order (others may come between); `@work` is any task tool, such as Edit or Bash. */
+  | { id: string; kind: 'order'; tools: string[] }
   | {
       id: string;
       kind: 'message';
@@ -31,6 +33,8 @@ export type Rule =
       match?: string;
       notMatch?: string;
       notEndsWithQuestion?: boolean;
+      /** Judge only the text before the first blank line: the verdict, not the resume line after it. */
+      firstParagraph?: boolean;
     };
 
 /** A literal, or `{regex}`, or `{min, max}` for numbers and string lengths, or `{absent: true}`. */
@@ -48,6 +52,8 @@ export function toolName(raw: string): string {
 }
 
 const ASKING = new Set(['AskUserQuestion', 'present_question']);
+/** The task itself, as opposed to the quiz: what resuming looks like. */
+const WORK = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'Read', 'Grep', 'Glob']);
 
 /** Four lettered lines is a question in a renderer that has no tool for it. */
 function lettered(message: string): boolean {
@@ -89,12 +95,22 @@ export function checkTurn(turn: TutorTurn, rules: Rule[]): Verdict[] {
       const ok = hits >= min && hits <= (rule.max ?? Infinity);
       return { id: rule.id, ok, detail: `${hits} matching ${rule.tool} call(s), wanted ${min}-${rule.max ?? '∞'}` };
     }
+    if (rule.kind === 'order') {
+      const names = turn.tool_calls.map((c) => toolName(c.tool));
+      let at = 0;
+      for (const want of rule.tools) {
+        while (at < names.length && !(want === '@work' ? WORK.has(names[at]!) : names[at] === want)) at++;
+        if (at === names.length) return { id: rule.id, ok: false, detail: `no ${want} after the earlier steps in [${names.join(', ')}]` };
+        at++;
+      }
+      return { id: rule.id, ok: true, detail: `in order: ${rule.tools.join(' -> ')}` };
+    }
     if (rule.kind === 'questions') {
       const n = questionCount(turn);
       return { id: rule.id, ok: n <= rule.max, detail: `${n} question(s) asked, limit ${rule.max}` };
     }
     const problems: string[] = [];
-    const text = turn.message.trim();
+    const text = rule.firstParagraph ? turn.message.trim().split(/\n\s*\n/)[0]! : turn.message.trim();
     if (rule.maxSentences !== undefined && sentences(text) > rule.maxSentences) problems.push(`${sentences(text)} sentences, limit ${rule.maxSentences}`);
     if (rule.minChars !== undefined && text.length < rule.minChars) problems.push(`${text.length} characters, wanted ${rule.minChars}+`);
     if (rule.match !== undefined && !new RegExp(rule.match, 'is').test(text)) problems.push(`does not match /${rule.match}/`);
