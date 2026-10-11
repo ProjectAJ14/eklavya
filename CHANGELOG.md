@@ -1,3 +1,10 @@
+## [1.68.1](https://github.com/ProjectAJ14/eklavya/compare/v1.68.0...v1.68.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **memory:** record only tool and file activity in unattended sessions ([#182](https://github.com/ProjectAJ14/eklavya/issues/182)) ([8e99918](https://github.com/ProjectAJ14/eklavya/commit/8e99918ae32f8597039cf3bb1f30eba69a55d848))
+
 # [1.68.0](https://github.com/ProjectAJ14/eklavya/compare/v1.67.1...v1.68.0) (2026-10-11)
 
 
