@@ -2,18 +2,20 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_CONFIG, loadConfig, writeConfigFile, findRepoConfig, isDomainEnabled, isGlobalOnlyKey } from '../src/config.js';
+import { DEFAULT_CONFIG, loadConfig, loadGlobalConfig, writeConfigFile, findRepoConfig, isDomainEnabled, isGlobalOnlyKey } from '../src/config.js';
 import { projectConfigPath } from '../src/paths.js';
 
 let home = '';
 let repo = '';
 const originalHome = process.env.EKLAVYA_HOME;
+const originalDb = process.env.EKLAVYA_DB;
 
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-home-'));
   repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-repo-')));
   fs.mkdirSync(path.join(repo, '.git'));
   process.env.EKLAVYA_HOME = home;
+  delete process.env.EKLAVYA_DB;
 });
 
 afterEach(() => {
@@ -21,9 +23,16 @@ afterEach(() => {
   fs.rmSync(repo, { recursive: true, force: true });
   if (originalHome === undefined) delete process.env.EKLAVYA_HOME;
   else process.env.EKLAVYA_HOME = originalHome;
+  if (originalDb === undefined) delete process.env.EKLAVYA_DB;
+  else process.env.EKLAVYA_DB = originalDb;
 });
 
 const writeGlobal = (o: unknown) => fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(o));
+const legacyDefaults = {
+  ...DEFAULT_CONFIG,
+  feedback: { enabled: false },
+  providers: { ...DEFAULT_CONFIG.providers, observer: null },
+};
 /**
  * Settings for a checkout, written where they actually live: outside it, under
  * `<home>/projects/<slug>/`. Nothing this suite does puts a file in a repo.
@@ -75,6 +84,72 @@ describe('config precedence', () => {
     } finally {
       fs.rmSync(outer, { recursive: true, force: true });
     }
+  });
+});
+
+describe('fresh defaults and existing users', () => {
+  it('starts a new user with memory, feedback and the Sonnet observer ready', () => {
+    const config = loadGlobalConfig();
+    expect(config.memory.enabled).toBe(true);
+    expect(config.feedback.enabled).toBe(true);
+    expect(config.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-sonnet-5' });
+    expect(fs.existsSync(path.join(home, 'config.json'))).toBe(false);
+  });
+
+  it('keeps a legacy partial config local with feedback off and never rewrites it on read', () => {
+    writeGlobal({ focus: 'project' });
+    const file = path.join(home, 'config.json');
+    const bytes = fs.readFileSync(file, 'utf8');
+    expect(loadGlobalConfig()).toMatchObject({
+      focus: 'project', feedback: { enabled: false }, providers: { observer: null },
+    });
+    expect(loadConfig(repo).config.providers.observer).toBeNull();
+    writeConfigFile(file, { cadence: 'end' });
+    expect(loadGlobalConfig().providers.observer).toBeNull();
+    expect(fs.readFileSync(`${file}.eklavya-bak`, 'utf8')).toBe(bytes);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).not.toHaveProperty('defaults_version');
+  });
+
+  it('recognises an older non-interactive install whose learner database exists but config does not', () => {
+    fs.writeFileSync(path.join(home, 'knowledge.db'), 'existing learner state');
+    expect(loadGlobalConfig()).toMatchObject({
+      feedback: { enabled: false }, providers: { observer: null },
+    });
+    const file = path.join(home, 'config.json');
+    const overlay = { file, patch: { cadence: 'end' } };
+    expect(loadConfig(repo, overlay).config.providers.observer).toBeNull();
+    expect(fs.existsSync(file)).toBe(false);
+    writeConfigFile(file, overlay.patch);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ defaults_version: 0, cadence: 'end' });
+    expect(loadGlobalConfig().feedback.enabled).toBe(false);
+  });
+
+  it('retains fresh defaults after the first write and when model or feedback overrides are removed', () => {
+    const file = path.join(home, 'config.json');
+    const overlay = { file, patch: { focus: 'project' } };
+    expect(loadGlobalConfig(overlay).providers.observer).toEqual(DEFAULT_CONFIG.providers.observer);
+    expect(loadConfig(repo, overlay).config.feedback.enabled).toBe(true);
+    writeConfigFile(file, overlay.patch);
+    writeConfigFile(file, { providers: { observer: null }, feedback: { enabled: false } });
+    expect(loadGlobalConfig()).toMatchObject({ feedback: { enabled: false }, providers: { observer: null } });
+    writeConfigFile(file, { providers: undefined, feedback: undefined });
+    expect(loadConfig(repo).config).toMatchObject({
+      feedback: { enabled: true }, providers: { observer: DEFAULT_CONFIG.providers.observer },
+    });
+  });
+
+  it('keeps the observer when a fresh user sets only embeddings, and keeps legacy provider omissions local', () => {
+    const file = path.join(home, 'config.json');
+    writeConfigFile(file, { providers: { embeddings: { kind: 'anthropic', model: 'embed' } } });
+    expect(loadGlobalConfig().providers).toEqual({
+      observer: DEFAULT_CONFIG.providers.observer, embeddings: { kind: 'anthropic', model: 'embed' },
+    });
+    writeGlobal({ providers: { embeddings: { kind: 'anthropic', model: 'embed' } } });
+    expect(loadGlobalConfig().providers.observer).toBeNull();
+    writeGlobal({ defaults_version: 1, providers: { observer: null }, feedback: { enabled: false }, quiz: { panel: false } });
+    expect(loadGlobalConfig()).toMatchObject({
+      feedback: { enabled: false }, providers: { observer: null, embeddings: null }, quiz: { panel: false },
+    });
   });
 });
 
@@ -188,9 +263,9 @@ describe('quiz.panel — the experimental side panel switch', () => {
     fs.writeFileSync(file, JSON.stringify(o));
   };
 
-  it('is off unless somebody turns it on', () => {
-    expect(DEFAULT_CONFIG.quiz.panel).toBe(false);
-    expect(loadConfig(repo).config.quiz.panel).toBe(false);
+  it('is on unless somebody turns it off', () => {
+    expect(DEFAULT_CONFIG.quiz.panel).toBe(true);
+    expect(loadConfig(repo).config.quiz.panel).toBe(true);
   });
 
   it('reads the user setting, and a project setting overrides it either way', () => {
@@ -203,9 +278,9 @@ describe('quiz.panel — the experimental side panel switch', () => {
     expect(loadConfig(repo).config.quiz.panel).toBe(true);
   });
 
-  it('ignores a value that is not a boolean rather than treating it as on', () => {
+  it('ignores a value that is not a boolean and keeps the default', () => {
     writeGlobal({ quiz: { panel: 'yes' } });
-    expect(loadConfig(repo).config.quiz.panel).toBe(false);
+    expect(loadConfig(repo).config.quiz.panel).toBe(true);
   });
 
   it('leaves the other quiz flags alone', () => {
@@ -216,16 +291,16 @@ describe('quiz.panel — the experimental side panel switch', () => {
 
 describe('quiz — the dial that replaced `mode`', () => {
   it('defaults to questions on and nothing gated', () => {
-    expect(DEFAULT_CONFIG.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: true, panel: false });
+    expect(DEFAULT_CONFIG.quiz).toEqual({ enabled: true, enforced: false, only_on_changes: true, panel: true });
   });
 
   // The compatibility promise. `.eklavya.json` is committed, so a repo written
   // against the old dial outlives the rename by years; dropping the alias would
   // not error, it would silently revert a lead's pinned gate to the default.
   it.each([
-    ['ambient', { enabled: true, enforced: false, only_on_changes: true, panel: false }],
-    ['enforced', { enabled: true, enforced: true, only_on_changes: true, panel: false }],
-    ['off', { enabled: false, enforced: false, only_on_changes: true, panel: false }],
+    ['ambient', { enabled: true, enforced: false, only_on_changes: true, panel: true }],
+    ['enforced', { enabled: true, enforced: true, only_on_changes: true, panel: true }],
+    ['off', { enabled: false, enforced: false, only_on_changes: true, panel: true }],
   ])('reads the retired `mode: %s` as its quiz equivalent', (mode, expected) => {
     writeGlobal({ mode });
     expect(loadConfig(repo).config.quiz).toEqual(expected);
@@ -233,7 +308,7 @@ describe('quiz — the dial that replaced `mode`', () => {
 
   it('lets an explicit quiz win over a mode left behind in the same file', () => {
     writeGlobal({ mode: 'off', quiz: { enabled: true, enforced: true } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true, panel: false });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true, panel: true });
   });
 
   it('reads a repo `mode` over a global `quiz`, like any other repo override', () => {
@@ -245,7 +320,7 @@ describe('quiz — the dial that replaced `mode`', () => {
   it('takes one flag without resetting the other', () => {
     writeGlobal({ quiz: { enforced: true } });
     const { quiz } = loadConfig(repo).config;
-    expect(quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true, panel: false });
+    expect(quiz).toEqual({ enabled: true, enforced: true, only_on_changes: true, panel: true });
   });
 
   // The one combination the flags can express and the enum could not. A gate
@@ -253,25 +328,25 @@ describe('quiz — the dial that replaced `mode`', () => {
   // enforcement here is a commit hook nobody can ever get past.
   it('refuses to enforce a gate that has no questions behind it', () => {
     writeGlobal({ quiz: { enabled: false, enforced: true } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true, panel: false });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true, panel: true });
   });
 
   it('applies that rule across the file boundary too', () => {
     writeGlobal({ quiz: { enforced: true } });
     writeRepo({ quiz: { enabled: false } });
-    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true, panel: false });
+    expect(loadConfig(repo).config.quiz).toEqual({ enabled: false, enforced: false, only_on_changes: true, panel: true });
   });
 });
 
 describe('config validation', () => {
   it('ignores malformed values rather than adopting them', () => {
     writeGlobal({ mode: 'chaos', quiz: { enabled: 'yes' }, pass_threshold: 7, max_questions_per_task: -3 });
-    expect(loadConfig(repo).config).toEqual(DEFAULT_CONFIG);
+    expect(loadConfig(repo).config).toEqual(legacyDefaults);
   });
 
   it('survives a corrupt config file', () => {
     fs.writeFileSync(path.join(home, 'config.json'), '{ not json');
-    expect(loadConfig(repo).config).toEqual(DEFAULT_CONFIG);
+    expect(loadConfig(repo).config).toEqual(legacyDefaults);
   });
 });
 
@@ -280,7 +355,7 @@ describe('writeConfigFile', () => {
     const file = path.join(home, 'config.json');
     writeConfigFile(file, { quiz: { enforced: true } });
     writeConfigFile(file, { quiet: true });
-    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ quiz: { enforced: true }, quiet: true });
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ defaults_version: 1, quiz: { enforced: true }, quiet: true });
   });
 
   it('preserves keys Eklavya does not know about', () => {
@@ -386,9 +461,9 @@ describe('the difficulty dial', () => {
 });
 
 describe('feedback.enabled', () => {
-  it('is off by default', () => {
-    expect(DEFAULT_CONFIG.feedback).toEqual({ enabled: false });
-    expect(loadConfig(repo).config.feedback.enabled).toBe(false);
+  it('is on by default for a new user', () => {
+    expect(DEFAULT_CONFIG.feedback).toEqual({ enabled: true });
+    expect(loadConfig(repo).config.feedback.enabled).toBe(true);
   });
 
   it('is read from the user file and overridden by the project file', () => {

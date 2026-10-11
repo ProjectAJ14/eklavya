@@ -177,7 +177,7 @@ describe('eklavya config', () => {
       enabled: true,
       enforced: false,
       only_on_changes: true,
-      panel: false,
+      panel: true,
     });
     expect(res.stdout).toMatch(/project: .+projects./);
   });
@@ -206,15 +206,15 @@ describe('eklavya config', () => {
   });
 
   it('sets quiz.panel at user and project scope and refuses a non-boolean', () => {
-    expect(eklavya(['config', 'get']).stdout).toMatch(/"panel": false/);
-    expect(eklavya(['config', 'set', 'quiz.panel', 'true']).status).toBe(0);
-    expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz.panel).toBe(true);
     expect(eklavya(['config', 'get']).stdout).toMatch(/"panel": true/);
-    expect(eklavya(['config', 'set', 'quiz.panel', 'false', '--repo']).status).toBe(0);
+    expect(eklavya(['config', 'set', 'quiz.panel', 'false']).status).toBe(0);
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz.panel).toBe(false);
     expect(eklavya(['config', 'get']).stdout).toMatch(/"panel": false/);
+    expect(eklavya(['config', 'set', 'quiz.panel', 'true', '--repo']).status).toBe(0);
+    expect(eklavya(['config', 'get']).stdout).toMatch(/"panel": true/);
     const bad = eklavya(['config', 'set', 'quiz.panel', 'maybe']);
     expect(bad.status).toBe(1);
-    expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz.panel).toBe(true);
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).quiz.panel).toBe(false);
   });
 
   // `mode` is not a settable key any more, but people have it in their fingers
@@ -317,7 +317,7 @@ describe('eklavya doctor reports the memory half', () => {
     expect(res.stdout).toMatch(/queue 0 pending · 0 paused · 0 failed/);
     expect(res.stdout).toMatch(/last evidence — none captured yet/);
     expect(res.stdout).toMatch(/sync off/);
-    expect(res.stdout).toMatch(/provider none — nothing leaves this machine/);
+    expect(res.stdout).toMatch(/provider configured — batches leave this machine/);
   });
 
   it('fails on a paused queue and names the fix, with the class and never the message', () => {
@@ -455,10 +455,8 @@ describe('eklavya memory', () => {
     expect(res.stdout).toMatch(/entries:\s+0 here, 0 in total/);
     expect(res.stdout).toMatch(/queue:\s+0 pending · 0 paused · 0 failed/);
     expect(res.stdout).toMatch(/oldest job:\s+—/);
-    // No provider configured is the default, and the line has to say what that
-    // means rather than just printing "null".
-    expect(res.stdout).toMatch(/provider:\s+none — nothing leaves this machine/);
-    expect(res.stdout).toMatch(/summarizer:\s+local-v1/);
+    expect(res.stdout).toMatch(/provider:\s+anthropic:claude-sonnet-5 \(via claude -p, on your subscription\)/);
+    expect(res.stdout).toMatch(/summarizer:\s+anthropic:claude-sonnet-5/);
     expect(res.stdout).toMatch(/Your savings: — no context reused yet/);
   });
 
@@ -991,7 +989,7 @@ describe('eklavya misc', () => {
   });
 
   it('themes usage, the version and a failure when colour is on, and only then', () => {
-    const on = { FORCE_COLOR: '1', EKLAVYA_FORWARDED: '1' };
+    const on = { FORCE_COLOR: '1', NO_COLOR: '', TERM: 'xterm-256color', EKLAVYA_FORWARDED: '1' };
     expect(eklavya(['--help'], repo, undefined, on).stdout).toContain('\x1b[1mUsage:\x1b[22m');
     expect(eklavya(['-v'], repo, undefined, on).stdout).toMatch(/\x1b\[[^m]*m\d+\.\d+\.\d+\x1b\[39m/);
     expect(eklavya(['telemetry', 'bogus'], repo, undefined, on).stderr).toContain('\x1b[');
@@ -1217,7 +1215,9 @@ describe('providers are global-only', () => {
     fs.writeFileSync(target, JSON.stringify({ project: repo, providers: { observer: { kind: 'anthropic', model: 'm' } } }));
     const res = eklavya(['config', 'get']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toMatch(/"observer": null/);
+    expect(JSON.parse(res.stdout.split('\n\n')[0]!).providers.observer).toEqual({
+      kind: 'anthropic', model: 'claude-sonnet-5',
+    });
     expect(res.stdout).toMatch(/ignored in the project file.*providers/);
   });
 });

@@ -18,7 +18,7 @@ Ten skill commands are available inside Claude Code when the plugin is loaded, a
 | [`/eklavya:progress`](#eklavyaprogress) | Review mastery, skipped questions and due reviews. |
 | [`/eklavya:memory`](#eklavyamemory) | Search past work, save notes or correct a memory. |
 | [`/eklavya:gate`](#eklavyagate) | Check why a commit is blocked. |
-| [`/eklavya:setup`](#eklavyasetup) | Check your installation and choose settings. |
+| [`/eklavya:setup`](#eklavyasetup) | Check your installation without changing settings. |
 
 ### `/eklavya:quiz [topic]`
 
@@ -140,7 +140,7 @@ The required passes are `ceil(required concepts × pass_threshold)`. Only answer
 
 ### `/eklavya:setup`
 
-Checks prerequisites and the database, asks how you want to learn, and offers the git hook if you choose enforcement. Safe to repeat. See [First run](/docs/first-run/).
+Checks Node, the running server and the database. It keeps your saved settings and asks no setup questions. Safe to repeat. See [Check your setup](/docs/first-run/).
 
 ### `/eklavya-panel`
 

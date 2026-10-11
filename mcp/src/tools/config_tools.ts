@@ -96,7 +96,7 @@ export const setConfig: ToolDef = {
       })
       .optional()
       .describe(
-        'Whether questions happen (`enabled`, default true) and whether they gate commits (`enforced`, default false). These are the quiz half only — memory keeps recording either way, under `memory.enabled`. Setting enabled:false forces enforced:false, since a gate with no questions can never be passed. `only_on_changes` (default true) asks only once this session has changed code in a git repository (an edit-tool write into any repository, or a change to the working tree it started in), so research, read-only and question-only sessions are not quizzed, including outside any repository; false asks on any logged work. Enforced quizzing ignores it. `panel` (default false, experimental) shows questions in the Claude Code side panel instead of Claude\'s question card, on hosts that can seat it; off changes nothing.',
+        'Whether questions happen (`enabled`, default true) and whether they gate commits (`enforced`, default false). These are the quiz half only — memory keeps recording either way, under `memory.enabled`. Setting enabled:false forces enforced:false, since a gate with no questions can never be passed. `only_on_changes` (default true) asks only once this session has changed code in a git repository (an edit-tool write into any repository, or a change to the working tree it started in), so research, read-only and question-only sessions are not quizzed, including outside any repository; false asks on any logged work. Enforced quizzing ignores it. `panel` (default true, experimental) shows questions in the Claude Code side panel instead of Claude\'s question card, on hosts that can seat it; off changes nothing.',
       ),
     mode: z
       .enum(['ambient', 'enforced', 'off'])
@@ -178,7 +178,7 @@ export const setConfig: ToolDef = {
       .object({ enabled: z.boolean().optional() })
       .optional()
       .describe(
-        'Prompt feedback (default false): reviews one of the developer\'s own prompts from a finished session, using the later prompts to show what it left out, in the background, one item at a time. Needs memory.enabled and providers.observer; turning it on sends nothing by itself. It never changes mastery.',
+        'Prompt feedback (default true for new installs): reviews one of the developer\'s own prompts from a finished session, using the later prompts to show what it left out, in the background, one item at a time. Needs memory.enabled and providers.observer. Existing installs keep their saved choice or their previous off default. It never changes mastery.',
       ),
     retrieval: z
       .object({

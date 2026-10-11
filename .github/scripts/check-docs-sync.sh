@@ -29,7 +29,7 @@ has() { printf '%s\n' "$changed" | grep -qE "$1"; }
 has '^web/src/content/docs/'                    || missing="$missing
   manual         web/src/content/docs/docs/*.mdx"
 has '^web/public/(index\.html|app\.js)$'        || missing="$missing
-  landing page   web/public/index.html (or app.js for the hero terminal)"
+  landing page   web/public/index.html (or app.js for shared navigation)"
 has '^(README\.md|mcp/README\.md)$'             || missing="$missing
   README         README.md or mcp/README.md"
 

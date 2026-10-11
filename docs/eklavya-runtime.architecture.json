@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "274f1f63b48094987225fd5806498979ebe92a81"
+      "revision": "4e9cc3cffcd27c3e5e89cec2590ddea4ead07a24"
     },
     "views": [
       {
@@ -47,7 +47,7 @@
           "db",
           "dashboard"
         ],
-        "note": "Everything that opens knowledge.db from outside a Claude Code session. An open dashboard page listens to a stream of the change cursor and redraws in place."
+        "note": "Other readers of knowledge.db: the commit gate and local dashboard. An open dashboard streams the change cursor and redraws in place."
       },
       {
         "id": "memory-path",
@@ -81,8 +81,8 @@
       "id": "panel",
       "type": "frontend",
       "label": "Quiz Side Panel",
-      "sublabel": "Claude Code mod \u00b7 opt-in",
-      "tag": "quiz.panel \u00b7 experimental",
+      "sublabel": "Claude Code mod",
+      "tag": "on \u00b7 supported hosts",
       "pos": [
         30,
         40
@@ -101,8 +101,8 @@
           "label": "present \u00b7 sync \u00b7 answer"
         },
         {
-          "path": "mcp/src/panel-state.ts",
-          "label": "heartbeat \u00b7 presentation"
+          "path": "mcp/src/config.ts",
+          "label": "panel default"
         }
       ]
     },
@@ -354,7 +354,7 @@
       "type": "backend",
       "label": "Memory Pipeline",
       "sublabel": "capture \u00b7 summarise \u00b7 recall",
-      "tag": "local by default",
+      "tag": "local storage \u00b7 Claude summaries",
       "pos": [
         1126,
         240
@@ -365,16 +365,16 @@
       ],
       "sources": [
         {
-          "path": "mcp/src/memory/capture.ts",
-          "label": "one capture path"
-        },
-        {
           "path": "mcp/src/memory/recall.ts",
           "label": "recall + receipts"
         },
         {
           "path": "mcp/src/memory/worker.ts",
           "label": "queue \u00b7 session summary"
+        },
+        {
+          "path": "mcp/src/config.ts",
+          "label": "new-install observer"
         }
       ]
     },
@@ -383,7 +383,7 @@
       "type": "backend",
       "label": "Prompt Feedback",
       "sublabel": "background review \u00b7 one item",
-      "tag": "off by default",
+      "tag": "on for new installs",
       "pos": [
         1126,
         40
@@ -402,8 +402,8 @@
           "label": "gap review \u00b7 validation"
         },
         {
-          "path": "mcp/src/migrations/026_feedback.sql",
-          "label": "one pending row"
+          "path": "mcp/src/config.ts",
+          "label": "new-install feedback default"
         }
       ]
     }

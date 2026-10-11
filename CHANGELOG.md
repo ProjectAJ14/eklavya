@@ -1,3 +1,24 @@
+# [1.69.0](https://github.com/ProjectAJ14/eklavya/compare/v1.68.1...v1.69.0) (2026-10-11)
+
+
+### Features
+
+* simplify the landing page, demo, and installation ([#183](https://github.com/ProjectAJ14/eklavya/issues/183)) ([7fdd7c0](https://github.com/ProjectAJ14/eklavya/commit/7fdd7c071ca8447d539d34eb008d2896b59727a4))
+
+## [1.68.1](https://github.com/ProjectAJ14/eklavya/compare/v1.68.0...v1.68.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **memory:** record only tool and file activity in unattended sessions ([#182](https://github.com/ProjectAJ14/eklavya/issues/182)) ([8e99918](https://github.com/ProjectAJ14/eklavya/commit/8e99918ae32f8597039cf3bb1f30eba69a55d848))
+
+# [1.68.0](https://github.com/ProjectAJ14/eklavya/compare/v1.67.1...v1.68.0) (2026-10-11)
+
+
+### Features
+
+* **explainer:** keep the short answer to three sentences, scored by a new page eval ([#180](https://github.com/ProjectAJ14/eklavya/issues/180)) ([40483f0](https://github.com/ProjectAJ14/eklavya/commit/40483f00d5c4f752de7006ea490379208dbefb04)), closes [#174](https://github.com/ProjectAJ14/eklavya/issues/174)
+
 ## [1.67.1](https://github.com/ProjectAJ14/eklavya/compare/v1.67.0...v1.67.1) (2026-10-11)
 
 

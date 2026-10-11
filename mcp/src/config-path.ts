@@ -87,7 +87,7 @@ const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
 export function parseValue(key: string, raw: string): unknown {
   const target = defaultAt(key);
 
-  if (target === null) {
+  if (target === null || PROVIDER_KEYS.has(key)) {
     if (raw === 'null') return null;
     const kind = NULLABLE[key];
     if (kind === 'string') return raw;
@@ -338,7 +338,7 @@ export function applySetting(
   if (value !== undefined) {
     const problem = settingProblem(key, value);
     if (problem) throw new Error(problem);
-    if (!isPlainObject(defaultAt(key))) {
+    if (!isPlainObject(defaultAt(key)) || PROVIDER_KEYS.has(key)) {
       const got = valueAt(coerce(patchFor({}, key, value), DEFAULT_CONFIG), key);
       if (canonical(got) !== canonical(value)) {
         throw new Error(`${JSON.stringify(value)} is not a valid value for ${key}.`);

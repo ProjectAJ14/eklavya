@@ -406,6 +406,17 @@ describe('install with Claude Mem present', () => {
     expect(res.stdout).toContain('eklavya install --settings');
   });
 
+  it('keeps memory on when an older non-interactive install has no settings file', () => {
+    const db = new Database(path.join(eklavyaHome, 'knowledge.db'));
+    db.close();
+    const res = install();
+    expect(res.status, res.stderr).toBe(0);
+    expect(fs.existsSync(path.join(memDir, 'claude-mem.db'))).toBe(true);
+    expect(res.stdout).toMatch(/memory\s+eklavya/);
+    expect(run(['config', 'get', 'memory.enabled']).stdout.trim()).toBe('true');
+    expect(readJson(path.join(eklavyaHome, 'config.json'))).toEqual({ defaults_version: 0 });
+  });
+
   it('with no terminal to ask, takes the choice that touches nothing of theirs', () => {
     expect(install().status).toBe(0);
     expect(memoryEnabled()).toBe(false);
@@ -414,10 +425,20 @@ describe('install with Claude Mem present', () => {
 });
 
 describe('install with no Claude Mem', () => {
-  it('asks nothing and leaves memory on', () => {
+  it('asks nothing and saves the fresh defaults', () => {
     const res = install();
     expect(res.stdout).not.toContain('Claude Mem');
-    expect(fs.existsSync(path.join(eklavyaHome, 'config.json'))).toBe(false);
+    expect(readJson(path.join(eklavyaHome, 'config.json'))).toEqual({ defaults_version: 1 });
+  });
+
+  it('keeps older installs local when they have a learner database but no settings file', () => {
+    const db = new Database(path.join(eklavyaHome, 'knowledge.db'));
+    db.close();
+    const res = install();
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/model\s+local/);
+    expect(res.stdout).toMatch(/feedback\s+off/);
+    expect(readJson(path.join(eklavyaHome, 'config.json'))).toEqual({ defaults_version: 0 });
   });
 });
 
@@ -431,16 +452,24 @@ describe('install --auto, the updater\'s run', () => {
     expect(res.stdout).toContain('settings unchanged');
     expect(readJson(path.join(eklavyaHome, 'config.json'))).toEqual(config);
   });
+
+  it('keeps an explicit local observer even when feedback inherits the fresh on default', () => {
+    const config = { defaults_version: 1, providers: { observer: null } };
+    fs.writeFileSync(path.join(eklavyaHome, 'config.json'), JSON.stringify(config));
+    expect(install().status).toBe(0);
+    expect(run(['install', '--auto']).status).toBe(0);
+    expect(readJson(path.join(eklavyaHome, 'config.json'))).toEqual(config);
+  });
 });
 
-describe('install walks the dials', () => {
-  it('without a terminal, shows every setting and writes nothing', () => {
+describe('install keeps the dials ready', () => {
+  it('without a terminal, applies the defaults and shows every setting', () => {
     const res = install();
     for (const row of [/quiz\s+on/, /focus\s+concept/, /cadence\s+as-you-go/, /difficulty\s+auto/, /memory\s+on/]) {
       expect(res.stdout).toMatch(row);
     }
     expect(res.stdout).toContain('unchanged');
-    expect(fs.existsSync(path.join(eklavyaHome, 'config.json'))).toBe(false);
+    expect(readJson(path.join(eklavyaHome, 'config.json'))).toEqual({ defaults_version: 1 });
   });
 
   it('shows what was chosen before, not the defaults', () => {
@@ -482,9 +511,9 @@ describe('install walks the dials', () => {
     expect(press(0, 3, { name: 'x', sequence: 'x' })).toBeNull();
   });
 
-  it('starts the model step on local, recommends one model, and keeps a hand-set one choosable', () => {
+  it('starts the model step on Sonnet, offers a cheaper model, and keeps a hand-set one choosable', () => {
     const fresh = modelStep(DEFAULT_CONFIG);
-    expect(fresh.current).toBe('local');
+    expect(fresh.current).toBe('claude-sonnet-5');
     expect(fresh.options.find((o) => o.value === RECOMMENDED_MODEL)?.detail).toMatch(/^recommended/);
     const custom = modelStep({
       ...DEFAULT_CONFIG,

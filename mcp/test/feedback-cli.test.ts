@@ -67,6 +67,7 @@ function feedback(args: string[], env: Record<string, string> = {}) {
 
 describe('eklavya feedback generate', () => {
   it('says off when the switch is off', () => {
+    writeConfig({ feedback: { enabled: false } });
     expect(feedback(['generate'])).toMatchObject({ status: 0, out: 'off\n' });
   });
 

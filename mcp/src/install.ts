@@ -24,10 +24,9 @@
  *   4. Claude Code's three registry files, written directly. There is no public
  *      API for "install this plugin" from outside a session, so this reproduces
  *      what `/plugin install` does. See the comment on `register()`.
- *   5. The database, created and seeded.
- *   6. The dials, walked one at a time on a first run or with `--settings`
- *      (`onboard.ts`) — and, if Claude Mem is here, which of the two records
- *      memory. See `claude-mem.ts`.
+ *   5. Apply the defaults, or walk the dials with `--settings` (`onboard.ts`).
+ *   6. The database, created and seeded.
+ *   7. Resolve any explicit Claude Mem ownership choice (`claude-mem.ts`).
  *
  * Every step is idempotent: running it twice is how you upgrade, and it is
  * what the auto-updater runs (`--auto`: no runtime step, since the updater
@@ -1048,19 +1047,19 @@ async function installSteps(args: string[]): Promise<void> {
   check('ok', 'registered', `eklavya@eklavya ${dim('— Claude Code CLI and the Code tab in Claude Desktop')}`);
   reportBackups(backups);
 
-  // Creating the DB here rather than on first server start means `eklavya
-  // doctor` and the dashboard work before Claude Code has ever been opened.
-  const db = openDb();
-  db.close();
-  check('ok', 'database', dbPath());
-
   const claudeMem = activeClaudeMemPluginIds(claudeHome()).length > 0 || fs.existsSync(claudeMemDb());
   const owner = await onboard({
     claudeMem,
     memoryFlag,
     hookScript: path.join(marketplaceDir(), 'scripts', 'install-git-hook.sh'),
-    ask: !auto && (args.includes('--settings') || !fs.existsSync(globalConfigPath())),
+    ask: !auto && args.includes('--settings'),
   });
+  // Save fresh defaults before creating the first database. An older install
+  // with a database and no config must keep its local-only memory defaults.
+  const db = openDb();
+  db.close();
+  check('ok', 'database', dbPath());
+
   if (owner) await resolveClaudeMem(owner);
   else if (loadGlobalConfig().memory.enabled) {
     // Claude Mem already retired -- by an earlier install, or on another

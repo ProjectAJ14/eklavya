@@ -140,6 +140,13 @@
 :root,
 :root[data-mode="ink"] {
   --bg:       #17171a; /* page */
+  /* The mascot hero deliberately keeps its ink ground in either theme. */
+  --hero-bg: #17171a;
+  --hero-panel: #1e1e22;
+  --hero-ink: #EAE7E1;
+  --hero-dim: #A29C93;
+  --hero-spot: #79D5C4;
+  --hero-line: #33333a;
   --panel:    #1e1e22; /* raised band, sidebar */
   --mass:     #26262a; /* wells, inline code */
 
@@ -170,6 +177,12 @@
 
 :root[data-mode="paper"] {
   --bg:       #f0ede6;
+  --hero-bg: #17171a;
+  --hero-panel: #1e1e22;
+  --hero-ink: #EAE7E1;
+  --hero-dim: #A29C93;
+  --hero-spot: #79D5C4;
+  --hero-line: #33333a;
   --panel:    #e7e3da;
   --mass:     #ddd8cc;
 
@@ -215,9 +228,11 @@
   --term-chrome: #1c1c20;
   --term-line:   #2b2b31;
   --term-text:   #C8CDD4;
-  --term-dim:    #6A7078;
+  --term-dim:    #96939B;
+  --term-bright: #FFFFFF;
+  --term-claude: #D97757;
   --term-spot:   var(--vd-300);
   --term-cmd:    #8ECF7A;
   --term-str:    #E6C060;
-  --term-err:    #E5484D;
+  --term-err:    #FF6166;
 }

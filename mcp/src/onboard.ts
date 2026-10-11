@@ -1,32 +1,19 @@
 /**
- * The dials, one at a time — on a first install, or with `--settings`.
+ * Optional settings walk for `eklavya install --settings`.
  *
- * A first run (no `~/.eklavya/config.json` yet) walks every step; after that
- * `eklavya install` keeps the settings and only prints them, because it is
- * also how Eklavya upgrades — by hand, or by the auto-updater running
- * `install --auto` — and an upgrade that stops for six Enters is one nobody
- * finishes. `eklavya install --settings` walks them again. Each step marks
- * what is set now and starts the cursor on it: ↑/↓ move, Enter (or Space, or
- * →) chooses, and a digit jumps straight to one. Once memory is on, one
- * follow-up asks which model writes the memories (`providers.observer`),
- * starting on `local`. Then one more, prompt feedback, which starts on `on` for
- * a first install and on what is set for a re-walk: it is the only place the
- * feature is on by default, because it sends a prompt to that model.
- *
- * Without a terminal (CI, a pipe, the test suite) nothing is asked either.
- * With Claude Mem present and nobody asked, a first install picks the choice
- * that touches nothing of theirs (Claude Mem keeps recording); a re-install
- * decides nothing, and leaves which of the two records exactly as it is.
+ * Ordinary installs apply the defaults without waiting for input. A repeat
+ * install keeps the user's choices. Claude Mem ownership remains separate:
+ * without an explicit choice, a fresh install leaves Claude Mem recording,
+ * and a repeat install leaves both recorders as they were.
  *
  * Keys arrive as readline keypress events in raw mode, never `fs.readSync(0)`.
- * After `npm install -g` the inherited stdin is often non-blocking, a sync read
- * throws EAGAIN, and the old installer took that as "no terminal" — printing a
- * question and answering it itself.
+ * After `npm install -g` the inherited stdin is often non-blocking, so a sync
+ * read can throw EAGAIN even when the user has a terminal.
  */
 import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { emitKeypressEvents, type Key } from 'node:readline';
-import { globalConfigPath } from './paths.js';
+import { dbPath, globalConfigPath } from './paths.js';
 import { loadConfig, loadGlobalConfig, readConfigFile, writeConfigFile, type EklavyaConfig } from './config.js';
 import { bold, check, dim, glyph, paint, plain } from './theme.js';
 
@@ -36,11 +23,12 @@ type Option = { value: string; detail: string };
 type Step = { key: string; title: string; current: string; options: Option[] };
 
 /** What writes the memories. `local` is `providers.observer: null`. */
+export const DEFAULT_MODEL = 'claude-sonnet-5';
 export const RECOMMENDED_MODEL = 'claude-haiku-4-5';
 const MODELS: Option[] = [
   { value: 'local', detail: 'extractive, no model — nothing leaves this machine' },
   { value: RECOMMENDED_MODEL, detail: 'recommended — fast; runs on your Claude subscription' },
-  { value: 'claude-sonnet-5', detail: 'richer summaries, uses more of your plan' },
+  { value: DEFAULT_MODEL, detail: 'richer summaries, uses more of your plan' },
   { value: 'claude-opus-5-5', detail: 'the most capable, uses the most' },
 ];
 
@@ -267,18 +255,20 @@ export async function onboard(opts: {
   claudeMem: boolean;
   memoryFlag: MemoryOwner | null;
   hookScript: string;
-  /** False on a re-install without `--settings`, and always under `--auto`. */
+  /** True only when `--settings` was requested; always false under `--auto`. */
   ask: boolean;
 }): Promise<MemoryOwner | null> {
-  const firstRun = !fs.existsSync(globalConfigPath());
+  const needsConfig = !fs.existsSync(globalConfigPath());
+  const firstRun = needsConfig && !fs.existsSync(dbPath());
   const before = loadGlobalConfig();
   const list = steps(before, opts.claudeMem, firstRun);
   const chosen: Record<string, string> = Object.fromEntries(list.map((s) => [s.key, s.current]));
-  // The step starts on `on` for a first install, but unasked is undecided: it keeps what is stored.
+  // Without a settings walk, keep the effective default or saved choice.
   chosen.feedback = before.feedback.enabled ? 'on' : 'off';
   const memoryFixed = opts.claudeMem && opts.memoryFlag !== null;
   if (memoryFixed) chosen.memory = opts.memoryFlag!;
   let topic = before.focus_topic;
+  const answered = new Set<string>();
 
   const tty = opts.ask && Boolean(process.stdin.isTTY && process.stdout.isTTY);
   if (tty) {
@@ -293,6 +283,7 @@ export async function onboard(opts: {
         plain(`${dim(n)}  ${bold(step.key)}  ${dim(step.title)}`);
         const value = await choose(step);
         chosen[step.key] = value;
+        answered.add(step.key);
         if (step.key === 'focus' && value === 'learn') {
           const t = (await ask(`  topic${topic ? dim(` [${topic}]`) : ''} ${glyph.arrow} `)).trim();
           topic = t || topic;
@@ -329,7 +320,7 @@ export async function onboard(opts: {
   }
   const feedbackOn = recording(chosen.memory) && chosen.feedback === 'on';
   // Feedback has nothing to send to without a model, so `local` becomes the recommended one.
-  if (feedbackOn && chosen.model === 'local') chosen.model = RECOMMENDED_MODEL;
+  if (answered.has('feedback') && feedbackOn && chosen.model === 'local') chosen.model = RECOMMENDED_MODEL;
   if (recording(chosen.memory) && chosen.model !== list.find((s) => s.key === 'model')!.current) {
     const providers = (readConfigFile(globalConfigPath()).providers ?? {}) as Record<string, unknown>;
     patch.providers = {
@@ -340,9 +331,9 @@ export async function onboard(opts: {
   if (recording(chosen.memory) && feedbackOn !== before.feedback.enabled) {
     patch.feedback = { ...((readConfigFile(globalConfigPath()).feedback ?? {}) as Record<string, unknown>), enabled: feedbackOn };
   }
-  // After a walk the file is written even with nothing changed: its existence
-  // is what tells the next install the settings were chosen, not defaulted.
-  if (Object.keys(patch).length || (tty && firstRun)) writeConfigFile(globalConfigPath(), patch);
+  // Save the defaults version on a fresh install, even without a terminal.
+  // Later writes and removed overrides keep inheriting the same defaults.
+  if (Object.keys(patch).length || needsConfig) writeConfigFile(globalConfigPath(), patch);
 
   plain('');
   for (const step of list) {

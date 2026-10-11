@@ -37,9 +37,18 @@ Questions wait until the session changes code: Claude edits a tracked or new, no
 
 Delegated agents can log concepts, but questions return to the main conversation. This keeps a quiz out of a background transcript you cannot answer. With [`delegate_work`](/docs/configuration/#every-key) on (the default), Claude is asked to use that split on purpose: a background agent builds a multi-file change in the task's directory (your worktree, if there is one), and Claude asks you questions while it builds, then reviews, checks and commits. Eklavya says this next to each task-sized prompt, and reminds Claude once if it changes a second file in the main conversation itself, with an edit tool or a shell command. Once Claude has started a building agent, the reminder stays quiet. Whichever way the work runs, any end-of-task questions (one under `as-you-go`, the remaining budget under `end`) come after Claude's answer, and Claude then restates the answer in a few lines under “Back to your task:”, so the answer about your task is the last thing on screen. The [first-session walkthrough](/docs/first-session/) shows what you see as a developer.
 
+Questions explain the names they use so you can answer without reading the
+code first. Each question has four options and an **Other** answer for your own
+words. Options and their notes should have similar lengths and give no hints.
+A lopsided question is sent back once for a rewrite before you see it. A
+question that lacks needed context is set aside without grading you.
+[Grading](/docs/grading-engine/) covers the 0–5 scale and the multiple-choice cap
+of 4. [Levels and tiers](/docs/levels-and-tiers/) explains how questions progress
+from recall to design decisions, and how a project earns a harder level.
+
 ### Where the question appears
 
-The planner chooses how a question is shown: Claude's question card (`presentation: "tool"`, always the default) or, with the experimental `quiz.panel` setting on and a Claude Code panel showing, the side panel (`"panel"`). In the card flow Claude asks, waits, records your answer and gives the verdict. In the panel flow Claude writes the question and four graded options, stores it with `present_question` and goes back to work; the panel shows it, sends your answer to the server and records it once. Hooks, the planner and the skills all read the same `presentation` field. See [Your first session](/docs/first-session/#the-quiz-side-panel-experimental).
+The planner chooses how a question is shown. The experimental side panel (`presentation: "panel"`) is on by default when a supported Claude Code panel is showing. If it is off or unavailable, the planner uses Claude's question card (`"tool"`). In the card flow Claude asks, waits, records your answer and gives the verdict. In the panel flow Claude writes the question and four graded options, stores it with `present_question` and goes back to work; the panel shows it, sends your answer to the server and records it once. Hooks, the planner and the skills all read the same `presentation` field. See [Your first session](/docs/first-session/#the-quiz-side-panel-experimental).
 
 ### After a missed question
 
@@ -63,7 +72,7 @@ This needs [`explain_on_wrong`](/docs/configuration/#every-key) on (the default)
   caption="Recording work is evidence of what happened. Only an answered question is evidence of understanding."
   steps={[
     { label: 'Capture', detail: 'Hooks collect prompts and tool activity, subject to your capture settings and privacy filters.' },
-    { label: 'Summarize', detail: 'Events are grouped into observations locally, or by an optional configured observer.' },
+    { label: 'Summarize', detail: 'The observer model turns events into observations. A local summariser runs if no observer is set.' },
     { label: 'Index', detail: 'Observations and summaries enter the local keyword and vector search indexes.' },
     { label: 'Recall', detail: 'Relevant history becomes context for Claude at the next session or prompt.' },
   ]}
@@ -71,7 +80,7 @@ This needs [`explain_on_wrong`](/docs/configuration/#every-key) on (the default)
 
 Raw events, observations, and answers live in `~/.eklavya/knowledge.db` by default. Recall is limited to the current project unless you enable cross-project retrieval. See [memory](/docs/memory/) for capture controls, search, collections, code indexing, and optional integrations, or [your data](/docs/your-data/) for storage and backup.
 
-Local storage does not mean recalled text stays outside Claude: it becomes part of the conversation. Optional observers, notifications, and sync may also move data through services you configure. Installation and update checks contact the package registry. The daily [usage ping](/docs/usage-analytics/) sends anonymous counts to Google Analytics unless you turn it off.
+Recalled text becomes part of the Claude conversation. New installs also send captured evidence to `claude-sonnet-5` for memory summaries and prompt feedback, through your Claude Code login. Notifications and sync are optional and use the services or folders you configure. Installation and update checks contact the package registry. The daily [usage ping](/docs/usage-analytics/) sends anonymous counts to Google Analytics unless you turn it off.
 
 ## Prompt feedback
 
@@ -88,7 +97,7 @@ Local storage does not mean recalled text stays outside Claude: it becomes part 
 
 With `feedback.enabled` on, the next session start launches `eklavya feedback generate --background` as a detached process, at most every 30 minutes, when memory is on, an observer model is set and no item is waiting. A hook never waits for it, and never runs it inline, because a hook may not wait on a model. It picks the oldest session of the current project that nothing has reviewed, skips prompts under 25 characters and Eklavya's own slash commands, looks at up to five sessions in one run, and sends the model up to eight of that session's prompts, each cut to 1,500 characters. Your later prompts are the evidence: a follow-up that corrects or adds something ("no, it's in auth.ts", "don't touch the schema") shows what an earlier prompt left out and cost you a turn. The model chooses the prompt whose follow-ups show the most rework, or, when nothing was corrected, the one that left the agent the most to guess. It names up to three gaps (outcome, context, scope or check) and rewrites the prompt so the follow-ups would not have been needed, using details you gave later. A gap may quote the later prompt that supplied it; a quote that does not appear in a later prompt, or runs to 15 words or more, is dropped before you see it.
 
-What leaves your machine is the text of those prompts, already redacted when memory captured them, sent to the model named in `providers.observer` through `claude -p` on your own Claude subscription, as session evidence is for memory. With no observer set, no prompt text leaves for this feature and nothing is generated. A first install in a terminal asks about feedback after the memory model, with `on` preselected; choosing it while the model is `local` sets `claude-haiku-4-5`, which then also writes the memories. A login, quota, busy-service or missing-`claude` problem leaves the session unreviewed to try again later; a malformed answer marks the session as failed once. There are no scores, no MCP tool a coding session could call to write feedback, and no path from feedback to mastery.
+What leaves your machine is the text of those prompts, already redacted when memory captured them, sent to the model named in `providers.observer` through `claude -p` on your own Claude subscription, as session evidence is for memory. With no observer set, no prompt text leaves for this feature and nothing is generated. New installs use `claude-sonnet-5` for both memory summaries and prompt feedback without a settings walkthrough. Existing installs keep their choices. Older configs keep the previous defaults for these settings: no observer model and feedback off, unless explicitly set. A login, quota, busy-service or missing-`claude` problem leaves the session unreviewed to try again later; a malformed answer marks the session as failed once. There are no scores, no MCP tool a coding session could call to write feedback, and no path from feedback to mastery.
 
 The result waits on the dashboard's [Feedback page](/docs/dashboard/#feedback), in the greeting as `Feedback waiting` and on a badge. Setting `quiet` hides only the greeting line.
 

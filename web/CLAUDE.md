@@ -8,7 +8,8 @@ and `.claude/skills/eklavya-design/SKILL.md` before changing them.
 
 | Path | Owns |
 |---|---|
-| `public/index.html`, `styles.css`, `app.js` | Landing copy, components and interactive terminal |
+| `public/index.html`, `styles.css`, `app.js` | Landing copy, mascot hero, shared navigation and theme controls |
+| `public/demo/` | Interactive Claude Code terminal demo and quiz side panel |
 | `public/tokens.css` | Shared scale and semantic roles for ink/paper themes |
 | `src/content/docs/docs/*.mdx` | Manual pages at `/docs/…` |
 | `src/styles/docs.css` | Starlight theme integration |
@@ -38,7 +39,7 @@ links and preserving useful anchors or adding a redirect.
 | Page | Source of truth |
 |---|---|
 | `index.mdx` | the loop as it actually runs: the seven hooks in `mcp/src/hooks/` and `max_questions_per_task` in `mcp/src/config.ts`. It also carries the one prerequisite — `mcp/package.json` `engines` — read directly from `mcp/package.json`. Keep it short: it introduces the product and directs the reader to the next guide |
-| `installing.mdx` | `mcp/src/install.ts` (recommended install and verification path), `mcp/src/onboard.ts` (settings walkthrough), `mcp/src/safe-write.ts` (the `.eklavya-bak` backups and the refusal to touch an unparseable file), `.mcp.json`, `hooks/run.mjs` (the background runtime heal). `README.md` points here rather than repeating it — keep it that way |
+| `installing.mdx` | `mcp/src/install.ts` (recommended install and verification path), `mcp/src/config.ts` (automatic defaults), `mcp/src/safe-write.ts` (the `.eklavya-bak` backups and the refusal to touch an unparseable file), `.mcp.json`, `hooks/run.mjs` (the background runtime heal). `README.md` points here rather than repeating it — keep it that way |
 | `installation-options.mdx` | `mcp/src/install.ts`, plugin manifests, `.mcp.json`, `hooks/run.mjs`, `mcp/src/surface.ts`; verify marketplace, Cowork and contributor paths and their limitations |
 | `updates.mdx` | `mcp/src/update.ts`, `install.ts`, `safe-write.ts`, `hooks/run.mjs`; update timing, repair, uninstall and retained data |
 | `first-run.mdx` | `skills/setup/SKILL.md` |
@@ -105,16 +106,16 @@ information in text.
 
 ## Landing output and design invariants
 
-The hero quotes real output: SessionStart banner from `session-start.ts`, dials
-from `statusLine` in `statusline.ts`, checkpoint from `checkpoint-quiz.ts`.
-Re-quote affected examples when those outputs change. Keep `app.js` `VERDICTS`
-aligned with the no-JS fallback in `.term__screen:not([data-ready])` CSS.
+The landing hero introduces Eklavya with its mascot on a dark ground. The
+fixed session replay lives at `/demo/`. Keep its examples consistent with
+`session-start.ts`, `statusline.ts` and `checkpoint-quiz.ts`. The panel's labels
+and logo come from `hooks/panel/model.ts` through `scripts/demo-panel.mjs`.
 Terminal commit gating requires the separate git-hook installer and project
 enforcement; never promise it from the default install alone.
 
 - Use role tokens (`--ink`, `--dim`, `--line`, `--spot`, etc.), not raw colors or
-  palette scale steps. The hero terminal deliberately keeps its fixed palette.
-- Preserve terminal/arrow geometry, timing and behavior. Honor reduced motion.
+  palette scale steps. The demo terminal and mascot hero keep fixed dark roles.
+- Match the demo's panel controls to the shipped mod. Honor reduced motion.
 - Override Starlight colors in both theme blocks. Check text against its own
   fill so token mistakes do not create invisible labels.
 - Keep table cells at `overflow-wrap: break-word`, not `anywhere`; retain the
@@ -130,8 +131,8 @@ enforcement; never promise it from the default install alone.
 Build and require the SEO audit to pass. It checks internal pages, fragments,
 resources, metadata and README website links. Preview changed pages at 1280,
 900 and 560px in both themes, with no horizontal page scroll, console errors,
-broken sidebar state or inaccessible controls. Test terminal interaction when
-landing behavior changes. Report the actual checks, including any not run.
+broken sidebar state or inaccessible controls. Test replay and panel interaction
+when the demo changes. Report the actual checks, including any not run.
 
 After changing shared identity, run `npm run seo:refresh` and commit the
 homepage update. The root README reuses `public/brand/mark.svg` directly; do not introduce another logo.

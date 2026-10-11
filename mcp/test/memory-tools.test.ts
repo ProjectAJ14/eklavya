@@ -362,6 +362,7 @@ describe('memory_delete', () => {
 
 describe('memory_status', () => {
   it('answers on an empty database without throwing', () => {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ providers: { observer: null } }));
     const result = call<any>(memoryStatus);
     expect(result.project).toBe(project);
     expect(result.entries).toBe(0);
