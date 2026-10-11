@@ -8,8 +8,8 @@ and `.claude/skills/eklavya-design/SKILL.md` before changing them.
 
 | Path | Owns |
 |---|---|
-| `public/index.html`, `styles.css`, `app.js` | Landing copy, mascot hero, shared navigation and theme controls |
-| `public/demo/` | Interactive Claude Code terminal demo and quiz side panel |
+| `public/index.html`, `styles.css`, `app.js` | Landing copy, mascot hero, compact `#legend`, embedded `#demo`, GitHub stars, navigation and theme controls |
+| `public/demo/` | Automatic replay assets and the legacy `/demo/` redirect |
 | `public/tokens.css` | Shared scale and semantic roles for ink/paper themes |
 | `src/content/docs/docs/*.mdx` | Manual pages at `/docs/…` |
 | `src/styles/docs.css` | Starlight theme integration |
@@ -106,16 +106,41 @@ information in text.
 
 ## Landing output and design invariants
 
-The landing hero introduces Eklavya with its mascot on a dark ground. The
-fixed session replay lives at `/demo/`. Keep its examples consistent with
-`session-start.ts`, `statusline.ts` and `checkpoint-quiz.ts`. The panel's labels
-and logo come from `hooks/panel/model.ts` through `scripts/demo-panel.mjs`.
-Terminal commit gating requires the separate git-hook installer and project
-enforcement; never promise it from the default install alone.
+The landing hero introduces Eklavya with its mascot on a dark ground. Keep the
+home page lean, with the automatic terminal replay embedded at `/#demo`.
+`/demo/` redirects there for old links. How it works, dials, commands, dashboard
+and memory details stay in the manual.
+
+Keep the compact name story at `#legend`, with the eyebrow "The name", the
+heading "The archer who taught himself", three short story columns and the
+bow, arrow and target artwork. The SVG is decorative. Its animation runs once
+when the scene enters view; reduced motion shows a static scene. Preserve
+`#legend` and `#legend-title` on the home page instead of redirecting them to docs.
+
+Start the replay when the whole terminal box is visible. Wait or pause if the
+analytics banner covers any part of it. The example types a
+prompt, sends it with Enter, shows Claude working, then opens the quiz panel.
+The example selects and submits an answer, shows the result, closes it with
+Done and completes the task. The panel is hidden before the question arrives.
+Visitors do not type or answer. Keep the prompt and quiz controls out of
+keyboard navigation, and never move focus during the replay.
+
+Pause the replay when the box leaves view, the tab is hidden or the window is
+inactive. Honor reduced motion without animated typing, a blinking cursor or
+panel transitions. Show that this is a browser replay and does not run Claude.
+Do not invent live test results or GitHub star counts. Keep the star box and
+its GitHub link visible while its count loads or if that request fails.
+
+Keep quoted output consistent with `session-start.ts`, `statusline.ts` and
+`checkpoint-quiz.ts`. Panel labels and logo come from `hooks/panel/model.ts`
+through `scripts/demo-panel.mjs`. Terminal commit gating requires the separate
+git-hook installer and project enforcement; never promise it from the default
+install alone.
 
 - Use role tokens (`--ink`, `--dim`, `--line`, `--spot`, etc.), not raw colors or
   palette scale steps. The demo terminal and mascot hero keep fixed dark roles.
-- Match the demo's panel controls to the shipped mod. Honor reduced motion.
+- Match the demo's panel labels and states to the shipped mod, with the example
+  selections and submission shown automatically. Honor reduced motion.
 - Override Starlight colors in both theme blocks. Check text against its own
   fill so token mistakes do not create invisible labels.
 - Keep table cells at `overflow-wrap: break-word`, not `anywhere`; retain the
@@ -131,8 +156,14 @@ enforcement; never promise it from the default install alone.
 Build and require the SEO audit to pass. It checks internal pages, fragments,
 resources, metadata and README website links. Preview changed pages at 1280,
 900 and 560px in both themes, with no horizontal page scroll, console errors,
-broken sidebar state or inaccessible controls. Test replay and panel interaction
-when the demo changes. Report the actual checks, including any not run.
+broken sidebar state or inaccessible controls. Check the demo's whole-box
+visibility trigger and that the box fits each test viewport. Verify its initial
+hidden panel, typing, work, question, automatic answer, result, Done and task
+completion. Check pauses on scroll, tab visibility and window focus, stable
+keyboard focus, and reduced motion. Check `/#demo` and the `/demo/` redirect.
+Check the legend's heading, columns, in-page anchors, one-shot arrow animation
+and static reduced-motion view in both themes.
+Report the actual checks, including any not run.
 
 After changing shared identity, run `npm run seo:refresh` and commit the
 homepage update. The root README reuses `public/brand/mark.svg` directly; do not introduce another logo.

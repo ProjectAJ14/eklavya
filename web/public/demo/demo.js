@@ -4,27 +4,41 @@
   var terminal = document.querySelector('[data-terminal]');
   var model = window.EklavyaPanelDemo;
   if (!terminal || !model) return;
+
+  var find = function (selector) { return terminal.querySelector(selector); };
   var strings = model.strings;
-  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var find = function (selector) { return document.querySelector(selector); };
   var panel = find('[data-panel]');
-  var options = Array.from(document.querySelectorAll('[data-option]'));
+  var panelContent = find('.quiz-panel__content');
+  var actions = find('.quiz-actions');
+  var body = find('[data-terminal-body]');
   var transcript = find('[data-transcript]');
   var prompt = find('[data-prompt]');
-  var status = find('[data-demo-status]');
-  var state = 'idle';
-  var selected = null;
-  var timers = [];
-  var closer = null;
-  var paneTab = false;
+  var options = Array.from(terminal.querySelectorAll('[data-option]'));
+  var steps = Array.from(terminal.querySelectorAll('[data-step]'));
+  var status = document.querySelector('[data-demo-status]');
+  var pauseButton = document.querySelector('[data-demo-pause]');
+  var motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var examplePrompt = 'Add JWT auth to the Express API';
+  var explanation = 'httpOnly hides the refresh cookie from document.cookie. Injected scripts can still make authenticated requests, so it limits token theft without preventing every XSS attack.';
+  var events = [];
+  var nextEvent = 0;
+  var elapsed = 0;
+  var runningSince = null;
+  var timer = null;
+  var finished = false;
+  var userPaused = false;
+  var windowActive = document.hasFocus();
+  var observedFull = !('IntersectionObserver' in window);
 
-  document.querySelectorAll('[data-panel-label]').forEach(function (element) {
+  terminal.querySelectorAll('[data-panel-label]').forEach(function (element) {
     element.textContent = strings[element.dataset.panelLabel];
   });
   find('[data-panel-wordmark]').textContent = model.wordmark;
-  find('[data-other-answer]').placeholder = strings.otherPlaceholder;
   find('[data-empty]').textContent = strings.empty;
-  find('[data-result]').prepend(find('.quiz-stem').cloneNode(true));
+  find('[data-grading]').textContent = strings.grading;
+  find('[data-auto-close]').textContent = strings.autoClose;
+  var result = find('[data-result]');
+  if (!result.querySelector('.quiz-stem')) result.prepend(find('.quiz-stem').cloneNode(true));
   var logo = find('[data-panel-logo]');
   model.logoRows.forEach(function (row) {
     var line = document.createElement('div');
@@ -38,155 +52,230 @@
     });
     logo.appendChild(line);
   });
-  function later(ms, fn) { timers.push(setTimeout(fn, reduced ? 0 : ms)); }
-  function stop() { timers.forEach(clearTimeout); timers = []; clearTimeout(closer); closer = null; }
-  function showPanel() {
-    panel.hidden = false;
-    find('[data-terminal-body]').classList.remove('is-panel-closed');
-    find('[data-reopen]').hidden = true;
+
+  function phase(name, message) {
+    terminal.dataset.demoState = name;
+    if (status && message) status.textContent = message;
   }
-  function hidePanel() {
-    var restoreFocus = panel.contains(document.activeElement);
-    panel.hidden = true;
-    find('[data-terminal-body]').classList.add('is-panel-closed');
-    find('[data-reopen]').hidden = false;
-    if (restoreFocus) prompt.focus({ preventScroll: true });
+  function panelOpen(open) {
+    panel.hidden = !open;
+    body.classList.toggle('is-panel-closed', !open);
   }
-  function syncSubmit() {
-    find('[data-submit]').disabled = !selected || (selected === 'other' && !find('[data-other-answer]').value.trim());
+  function showStep(number) {
+    var step = steps.find(function (element) { return element.dataset.step === String(number); });
+    if (step) step.hidden = false;
+    // Only the transcript moves; the page and keyboard focus stay where they are.
+    transcript.scrollTop = transcript.scrollHeight;
   }
-  function choose(value, focus) {
-    if (state !== 'awaiting') return;
-    selected = value;
-    options.forEach(function (option) {
-      var picked = option.dataset.option === value;
-      option.setAttribute('aria-pressed', String(picked));
-      option.querySelector('.quiz-option__tick').textContent = picked ? '✓' : '';
-    });
-    find('[data-other]').hidden = value !== 'other';
-    find('[data-notice]').hidden = true;
-    syncSubmit();
-    if (focus && value === 'other') find('[data-other-answer]').focus();
-    else if (focus) options.find(function (option) { return option.dataset.option === value; }).focus({ preventScroll: true });
+  function showInPanel(element) {
+    var box = panelContent.getBoundingClientRect();
+    var top = box.top + panelContent.clientTop;
+    var bottom = top + panelContent.clientHeight;
+    var target = element.getBoundingClientRect();
+    if (target.bottom > bottom) panelContent.scrollTop += target.bottom - bottom;
+    else if (target.top < top) panelContent.scrollTop -= top - target.top;
   }
-  function openQuestion() {
-    state = 'awaiting';
-    find('[data-question]').hidden = false;
-    find('[data-empty]').hidden = true;
-    find('[data-topic]').hidden = false;
-    showPanel();
-    status.textContent = 'Claude keeps working. Pick an answer, then press Submit answer.';
+  function pauseLabel() {
+    if (!pauseButton) return;
+    pauseButton.hidden = false;
+    pauseButton.textContent = finished ? 'Demo finished' : userPaused ? 'Resume animation' : 'Pause animation';
+    pauseButton.setAttribute('aria-disabled', String(finished));
+    if (finished) pauseButton.removeAttribute('aria-pressed');
+    else pauseButton.setAttribute('aria-pressed', String(userPaused));
   }
-  function finishResult() {
-    clearTimeout(closer);
-    hidePanel();
-    state = 'none';
-    find('[data-question]').hidden = true;
-    find('[data-result]').hidden = true;
-    find('[data-topic]').hidden = true;
-    find('[data-empty]').hidden = false;
-    find('[data-empty]').textContent = strings.empty;
-    status.textContent = 'Question finished. Replay the demo to try another answer.';
+  function clockTime() {
+    return elapsed + (runningSince === null ? 0 : Date.now() - runningSince);
   }
-  function result(skipped) {
-    if (state !== 'awaiting') return;
-    if (!skipped && !selected) return;
-    if (!skipped && selected === 'other') {
-      if (!find('[data-other-answer]').value.trim()) return;
-      find('[data-notice]').textContent = 'Your words stay in this browser. The live panel uses Claude to check them; for this replay, pick one of the four example answers.';
-      find('[data-notice]').hidden = false;
+  function pauseClock() {
+    if (runningSince !== null) elapsed = clockTime();
+    runningSince = null;
+    clearTimeout(timer);
+    timer = null;
+    terminal.dataset.demoPaused = 'true';
+  }
+  function complete() {
+    finished = true;
+    pauseClock();
+    find('[data-running]').hidden = true;
+    find('[data-task-done]').hidden = false;
+    prompt.textContent = '';
+    phase('complete', 'Auth is in place. The example question was answered correctly while Claude kept working.');
+    pauseLabel();
+    transcript.scrollTop = transcript.scrollHeight;
+  }
+  function advance() {
+    timer = null;
+    if (userPaused || document.hidden || !windowActive || !fullyVisible()) {
+      pauseClock();
       return;
     }
-    state = skipped ? 'skipped' : 'feedback';
-    var right = selected === '1';
-    var verdict = find('[data-verdict]');
-    verdict.textContent = skipped ? strings.skipped : right ? strings.correct : strings.wrong;
-    verdict.classList.toggle('is-miss', !skipped && !right);
-    verdict.classList.toggle('is-skipped', skipped);
-    find('[data-correct-answer]').hidden = skipped || right;
-    find('[data-correct-answer]').textContent = "The answer was: So injected scripts can't read the refresh token";
-    var explanations = {
-      '1': 'httpOnly hides the refresh cookie from document.cookie. Injected scripts can still make authenticated requests, so it limits token theft without preventing every XSS attack.',
-      '2': 'httpOnly hides a cookie from scripts. SameSite and CSRF protections control when cookies can accompany cross-site requests.',
-      '3': 'httpOnly restricts browser scripts. It does not control what your server logs when the browser sends the cookie.',
-      '4': 'Revocation depends on server-side validation. Keeping a token in memory or setting a cookie flag does not make it instantly revocable.'
-    };
-    find('[data-explanation]').textContent = skipped ? '' : explanations[selected];
-    find('[data-result] .quiz-stem').hidden = skipped;
-    find('[data-auto-close]').textContent = strings.autoClose;
-    find('[data-question]').hidden = true;
-    find('[data-result]').hidden = false;
-    status.textContent = skipped ? 'Question skipped. Claude can keep working.' : right ? 'Correct. Read the explanation, then press Done or replay the demo.' : 'Needs another look. Read the explanation, then try again with Replay demo.';
-    find('[data-done]').focus({ preventScroll: true });
-    closer = setTimeout(finishResult, 15000);
+    var now = clockTime();
+    while (nextEvent < events.length && events[nextEvent].at <= now) {
+      events[nextEvent].run();
+      nextEvent += 1;
+    }
+    if (!finished && nextEvent < events.length) {
+      timer = setTimeout(advance, Math.max(0, events[nextEvent].at - clockTime()));
+    }
   }
-  function run() {
-    stop();
-    state = 'running';
-    selected = null;
-    find('[data-replay]').textContent = 'Replay demo ↻';
+  function fullyVisible() {
+    var box = terminal.getBoundingClientRect();
+    var consent = document.getElementById('ek-consent');
+    if (consent) {
+      var consentBox = consent.getBoundingClientRect();
+      var consentStyle = window.getComputedStyle(consent);
+      if (consentStyle.visibility === 'visible' && Number(consentStyle.opacity) > 0 &&
+          Math.min(box.right, consentBox.right) > Math.max(box.left, consentBox.left) &&
+          Math.min(box.bottom, consentBox.bottom) > Math.max(box.top, consentBox.top)) return false;
+    }
+    return observedFull && box.width > 0 && box.height > 0 && box.top >= 0 && box.left >= 0 &&
+      box.bottom <= window.innerHeight && box.right <= window.innerWidth;
+  }
+  function syncPlayback() {
+    if (finished || motion.matches) return;
+    if (userPaused || document.hidden || !windowActive || !fullyVisible()) {
+      pauseClock();
+      return;
+    }
+    if (runningSince !== null) return;
+    runningSince = Date.now();
+    terminal.dataset.demoPaused = 'false';
+    advance();
+  }
+  function at(time, run) { events.push({ at: time, run: run }); }
+
+  at(0, function () {
     find('[data-ready]').hidden = true;
+    phase('typing', 'The example starts with a request to add auth.');
+  });
+  Array.from(examplePrompt).forEach(function (_, index) {
+    at((index + 1) * 55, function () { prompt.textContent = examplePrompt.slice(0, index + 1); });
+  });
+  at(2200, function () {
+    find('[data-enter]').classList.add('is-pressed');
+    phase('submitted', 'The prompt is sent to Claude.');
+  });
+  at(2600, function () {
+    find('[data-enter]').classList.remove('is-pressed');
+    prompt.textContent = '';
     find('[data-task-log]').hidden = false;
     find('[data-running]').hidden = false;
+    phase('working', 'Claude reads the app and adds the token handlers.');
+  });
+  at(3400, function () { showStep(0); });
+  at(5000, function () { showStep(1); });
+  at(6400, function () { showStep(2); });
+  at(7200, function () {
+    showStep(3);
+    find('[data-empty]').hidden = true;
+    find('[data-topic]').hidden = false;
+    find('[data-question]').hidden = false;
+    panelOpen(true);
+    panelContent.scrollTop = 0;
+    phase('awaiting', 'A question opens in the side panel. Claude keeps working.');
+  });
+  at(8500, function () { showStep(4); });
+  at(9800, function () {
+    options.forEach(function (option) {
+      var picked = option.dataset.option === '1';
+      option.dataset.selected = String(picked);
+      option.querySelector('.quiz-option__tick').textContent = picked ? '✓' : '';
+    });
+    find('[data-submit]').dataset.ready = 'true';
+    showInPanel(find('[data-option="1"]'));
+    phase('selected', 'The example selects an answer before submitting it.');
+  });
+  at(11000, function () {
+    find('[data-submit]').dataset.ready = 'false';
+    find('[data-submit]').classList.add('is-pressed');
+    showInPanel(find('[data-submit]'));
+    phase('submitting', 'The example submits the selected answer.');
+  });
+  at(11350, function () {
+    find('[data-submit]').classList.remove('is-pressed');
+    actions.hidden = true;
+    find('[data-grading]').hidden = false;
+    showInPanel(find('[data-grading]'));
+    phase('grading', 'The answer is submitted. Eklavya checks it.');
+  });
+  at(11800, function () {
+    find('[data-submit]').classList.remove('is-pressed');
+    find('[data-grading]').hidden = true;
     find('[data-question]').hidden = true;
-    find('[data-result]').hidden = true;
+    find('[data-verdict]').textContent = strings.correct;
+    find('[data-explanation]').textContent = explanation;
+    result.hidden = false;
+    panelContent.scrollTop = 0;
+    phase('feedback', 'Correct. The panel explains why the cookie uses httpOnly.');
+  });
+  at(12500, function () { showInPanel(find('[data-explanation]')); });
+  at(15000, function () {
+    showInPanel(find('[data-done]'));
+    find('[data-done]').classList.add('is-pressed');
+    phase('acknowledging', 'The example closes the answer with Done.');
+  });
+  at(15400, function () {
+    find('[data-done]').classList.remove('is-pressed');
+    result.hidden = true;
     find('[data-topic]').hidden = true;
     find('[data-empty]').hidden = false;
-    find('[data-empty]').textContent = strings.loading;
-    find('[data-other]').hidden = true;
-    find('[data-other-answer]').value = '';
-    find('[data-notice]').hidden = true;
-    find('[data-submit]').disabled = true;
-    options.forEach(function (option) {
-      option.setAttribute('aria-pressed', 'false');
-      option.querySelector('.quiz-option__tick').textContent = '';
-    });
-    find('[data-send]').disabled = true;
-    showPanel();
-    status.textContent = 'Claude is adding auth to the example API.';
-    var steps = Array.from(document.querySelectorAll('[data-step]'));
-    steps.forEach(function (step, i) {
-      step.hidden = true;
-      later(350 + i * 550, function () {
-        step.hidden = false;
-        transcript.scrollTop = transcript.scrollHeight;
-        if (i === 3) openQuestion();
-        if (i === 5) {
-          find('[data-running]').hidden = true;
-          find('[data-send]').disabled = false;
-          if (state === 'awaiting') status.textContent = 'Auth is in place. Pick an answer, then press Submit answer.';
-        }
-      });
-    });
-  }
-  find('[data-replay]').addEventListener('click', run);
-  find('[data-prompt-form]').addEventListener('submit', function (event) { event.preventDefault(); if (!find('[data-send]').disabled) run(); });
-  options.forEach(function (option) { option.addEventListener('click', function () { choose(option.dataset.option, option.dataset.option === 'other'); }); });
-  find('[data-other-answer]').addEventListener('input', syncSubmit);
-  find('[data-submit]').addEventListener('click', function () { result(false); });
-  find('[data-skip]').addEventListener('click', function () { result(true); });
-  find('[data-done]').addEventListener('click', finishResult);
-  find('[data-close]').addEventListener('click', hidePanel);
-  find('[data-reopen]').addEventListener('click', function () { showPanel(); panel.focus({ preventScroll: true }); });
-  terminal.addEventListener('keydown', function (event) {
-    if (event.ctrlKey && event.key.toLowerCase() === 'x') { paneTab = true; event.preventDefault(); return; }
-    if (paneTab && event.key === 'Tab') { paneTab = false; event.preventDefault(); showPanel(); panel.focus({ preventScroll: true }); return; }
-    paneTab = false;
-    if (!panel.contains(event.target)) return;
-    if (event.key === 'Escape') { event.preventDefault(); hidePanel(); return; }
-    // Typing an answer must never trigger the panel's single-letter hotkeys.
-    if (event.target.matches('textarea, input') || event.ctrlKey || event.metaKey || event.altKey) return;
-    if ((state === 'feedback' || state === 'skipped') && event.key.toLowerCase() === 'd') { event.preventDefault(); finishResult(); return; }
-    if (state !== 'awaiting') return;
-    if (/^[1-4]$/.test(event.key)) { event.preventDefault(); choose(event.key, true); }
-    else if (event.key.toLowerCase() === 'o') { event.preventDefault(); choose('other', true); }
-    else if (event.key.toLowerCase() === 's') { event.preventDefault(); result(false); }
-    else if (event.key.toLowerCase() === 'k') { event.preventDefault(); result(true); }
-    else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      var index = options.findIndex(function (option) { return option.dataset.option === selected; });
-      var next = index < 0 ? 0 : (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
-      choose(options[next].dataset.option, true);
-    }
+    panelOpen(false);
+    phase('continuing', 'Question finished. Claude runs the tests.');
   });
+  at(16000, function () { showStep(5); });
+  at(18000, complete);
+
+  function staticSummary() {
+    nextEvent = events.length;
+    pauseClock();
+    find('[data-ready]').hidden = true;
+    find('[data-task-log]').hidden = false;
+    steps.forEach(function (step) { step.hidden = false; });
+    find('[data-question]').hidden = true;
+    find('[data-grading]').hidden = true;
+    result.hidden = true;
+    find('[data-topic]').hidden = true;
+    find('[data-empty]').hidden = false;
+    ['[data-enter]', '[data-submit]', '[data-done]'].forEach(function (selector) {
+      find(selector).classList.remove('is-pressed');
+    });
+    panelOpen(false);
+    complete();
+    transcript.scrollTop = transcript.scrollHeight;
+  }
+
+  prompt.textContent = '';
+  panelOpen(false);
+  terminal.dataset.demoPaused = 'true';
+  phase('idle', 'The example starts when the whole terminal is in view.');
+  pauseLabel();
+  if (pauseButton) pauseButton.addEventListener('click', function () {
+    if (finished) return;
+    userPaused = !userPaused;
+    pauseLabel();
+    syncPlayback();
+  });
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      observedFull = entries[0].isIntersecting && entries[0].intersectionRatio === 1;
+      syncPlayback();
+    }, { threshold: [0, 1] });
+    observer.observe(terminal);
+  }
+  if ('MutationObserver' in window) {
+    // The existing analytics banner is appended to, and removed from, the body.
+    new MutationObserver(syncPlayback).observe(document.body, { childList: true });
+  }
+  window.addEventListener('scroll', syncPlayback, { passive: true });
+  window.addEventListener('resize', syncPlayback);
+  window.addEventListener('blur', function () { windowActive = false; syncPlayback(); });
+  window.addEventListener('focus', function () { windowActive = true; syncPlayback(); });
+  document.addEventListener('visibilitychange', syncPlayback);
+  window.addEventListener('pagehide', pauseClock);
+  window.addEventListener('pageshow', function () { windowActive = document.hasFocus(); syncPlayback(); });
+  motion.addEventListener('change', function () {
+    if (motion.matches) staticSummary();
+  });
+  if (motion.matches) staticSummary();
+  else syncPlayback();
 })();

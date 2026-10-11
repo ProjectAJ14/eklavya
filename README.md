@@ -8,6 +8,8 @@
 
 **[Visit the website →](https://eklavya-run.web.app/)**
 
+[Watch a short example session](https://eklavya-run.web.app/#demo).
+
 *Named for Ekalavya, who mastered archery practicing before a silent statue of his guru. Here, the statue talks back.*
 
 <img src="assets/eklavya-readme-banner.png" alt="Watercolor illustration of Eklavya: a developer and Claude Code mascot Clawd build code, learn through short questions, and carry project context into the next session" width="960">

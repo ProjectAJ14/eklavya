@@ -81,7 +81,17 @@
       },
       {
         "source": "/demo/index.html",
-        "destination": "/demo/",
+        "destination": "/#demo",
+        "type": 301
+      },
+      {
+        "source": "/demo",
+        "destination": "/#demo",
+        "type": 301
+      },
+      {
+        "source": "/demo/",
+        "destination": "/#demo",
         "type": 301
       },
       {
