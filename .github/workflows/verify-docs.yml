@@ -56,6 +56,16 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             Use the verify-docs skill with --since "${{ inputs.since || '7 days ago' }}" --fix --pr --issue.
+            Follow the skill's full review and plain-English rules. Keep the home
+            page lean, with the mascot on a dark hero. The terminal demo belongs
+            at /demo/ and should match the shipped Claude Code side panel; feature
+            details belong in the manual.
+            Keep Installing to the required steps, the important auto-mode panel
+            permissions, restart, and an optional doctor check last. Do not add
+            an automatic settings walkthrough.
+            Check fresh-install defaults separately from preserved legacy choices,
+            including installs with a database but no config. Describe what the
+            default memory model and prompt feedback actually send to Claude.
             Edit documentation only; never change product code. If the window has
             no product code changes and no findings, open no PR and say so.
             Findings in product code and unverified claims go in the issue.

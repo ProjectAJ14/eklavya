@@ -29,9 +29,9 @@ Read the nearest nested `CLAUDE.md` before editing `mcp/`, `hooks/`, `cli/`,
 A code change is complete only when the manual, the landing page and a README
 change in the same PR. There is no exemption. `.github/scripts/check-docs-sync.sh`
 fails the PR otherwise, and its header lists what counts as product code. When
-the change alters no existing claim on a surface, add one source-backed sentence
-where that surface's reader looks for the feature rather than duplicating
-reference material. Run `/verify-docs` (`.claude/skills/verify-docs/`) before
+the change alters no existing claim on a surface, make a small source-backed
+copy or link update where its reader looks for the feature. Keep the home page
+lean and put reference material in the manual. Run `/verify-docs` (`.claude/skills/verify-docs/`) before
 opening the PR; it runs weekly on `main` as well.
 
 Read the source before documenting names, defaults, limits, paths or output.
@@ -41,7 +41,7 @@ that implements it. Existing prose and recalled memory are not evidence.
 | Change | Documentation to review |
 |---|---|
 | Install, repair, updates, removal or host support | Manual `installing`, `installation-options`, `updates`, `troubleshooting`; root and package README |
-| Dials, defaults, scopes or config keys | Manual `dials`, `configuration`; affected command skills; landing `#dials`; the dashboard Settings registry in `mcp/src/dashboard.ts` |
+| Dials, defaults, scopes or config keys | Manual `dials`, `configuration`, `installing`, `faq`, `memory`, `migrating`; affected command skills; landing introduction and docs links; demo status; the dashboard Settings registry in `mcp/src/dashboard.ts` |
 | Slash commands, CLI or MCP tools | Manual `commands`, `cli`, `memory`; `mcp/README.md`; relevant skills |
 | Hook timing, question planning or grading | Manual `first-session`, `how-it-works`, `grading-engine`, `levels-and-tiers`; hook and tutor guidance |
 | Commit gating | Manual `commit-gate`; `cli/CLAUDE.md`; setup skill and contributor acceptance checks |
