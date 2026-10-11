@@ -1,3 +1,10 @@
+# [1.67.0](https://github.com/ProjectAJ14/eklavya/compare/v1.66.1...v1.67.0) (2026-10-11)
+
+
+### Features
+
+* **dashboard:** open fast, keep your place and update live ([#171](https://github.com/ProjectAJ14/eklavya/issues/171)) ([#177](https://github.com/ProjectAJ14/eklavya/issues/177)) ([2b6f2a2](https://github.com/ProjectAJ14/eklavya/commit/2b6f2a23ee602dc9ed95066b19b5d8f660ffd0c3))
+
 ## [1.66.1](https://github.com/ProjectAJ14/eklavya/compare/v1.66.0...v1.66.1) (2026-10-10)
 
 
