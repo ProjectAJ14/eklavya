@@ -1,3 +1,10 @@
+## [1.67.1](https://github.com/ProjectAJ14/eklavya/compare/v1.67.0...v1.67.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **memory:** import Claude Mem schema 64 and keep memory on when import fails ([#178](https://github.com/ProjectAJ14/eklavya/issues/178)) ([5e7f638](https://github.com/ProjectAJ14/eklavya/commit/5e7f6380821443bd1bbe83b2b10c1983ff158ae0))
+
 # [1.67.0](https://github.com/ProjectAJ14/eklavya/compare/v1.66.1...v1.67.0) (2026-10-11)
 
 
