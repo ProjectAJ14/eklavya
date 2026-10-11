@@ -19,6 +19,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
 | Whether a saved fact changes what a session builds, against memory off and irrelevant memory | `node eval/memory-use-harness.mjs run --plugin <checkout> --label <name>` then `score <run-dir>` | Whole Claude Code sessions |
 | Whether the tutor follows its grading, pacing and handoff rules at one frozen moment of a session | `node eval/conversation-harness.mjs run --root <checkout> --label <name>` | One model call per scenario and trial |
+| Whether the model obeys the checkpoint and Stop hook text the moment it arrives mid-task (plan with `max: 1`, one question, verdict, resume; log first, then plan) | `node eval/hook-text-harness.mjs run --root <checkout> --label <name>` | One model call per scenario and trial (~44k input tokens) |
 | Whether the explainer's page keeps `agents/explainer.md`'s contract (sections, options verbatim, a captioned SVG, template untouched, attempt linked, role tokens) and explains clearly | `node eval/explainer-harness.mjs run --root <checkout> --label <name>`, then `compare <run-a> <run-b>` | One agent run per case and trial (~90k input tokens), one judge call per passing page or pair |
 | Whether sessions delegate building and ask while it runs | `node eval/delegation-harness.mjs run --plugin <checkout> --label <name>` | Whole Claude Code sessions |
 | Prompt feedback's review: does it find the prompt the follow-ups had to fix, and would its rewrite have prevented them | `python3 eval/gepa/feedback/run.py evaluate --out <file>` ([details](gepa/feedback/README.md)) | Two lean calls per session and repeat (review, judge) |
@@ -780,6 +781,33 @@ passes says nothing about wording quality. When a scenario fails identically on
 baseline and candidate, suspect the scenario before the prompt: two of the first
 run's failures were fixture defects, not model errors. Unparsed replies and call
 errors are counted and reported, never dropped.
+
+## The hook-text eval
+
+`eval/hook-text-harness.mjs` starts one step before the conversation eval: at
+the moment `checkpoint-quiz.ts` or `stop-quiz-check.ts` hands the model its
+instruction mid-task. Each scenario in `eval/fixtures/hook-text/scenarios.json`
+freezes a build part-way through, the hook's arguments and what each tool call
+will return. The hook text comes from `--root`'s `mcp/dist/hooks/quiz-text-lib.js`
+and the plan's `framing`, `on_skip` and `on_finish` from its `planGuidance`, so
+a candidate wording is one edit to `mcp/src/hooks/quiz-text-lib.ts` in another
+checkout. The model lists every call it makes until it resumes the task (a
+checkpoint) or ends the turn (Stop), and the text shown;
+`conversation-score.ts` checks call order and arguments (`order` rules, where
+`@work` is any task tool), one question, the verdict, length and no recap.
+
+```bash
+node eval/hook-text-harness.mjs show checkpoint-panel                 # free; prints the prompt
+node eval/hook-text-harness.mjs run --scenarios checkpoint-tool-correct,stop-log-first --trials 1   # 2 calls, ~90k tokens
+node eval/hook-text-harness.mjs run --root /tmp/hook-base --label baseline --trials 5 --out /tmp/hook-base-run
+node eval/hook-text-harness.mjs score /tmp/hook-base-run              # free
+```
+
+12 scenarios x 5 trials is 60 calls, about 3M input tokens; `--limit` caps
+it. The tutor skill is not loaded, so this measures the hook text on its own,
+which is the case when the skill never triggers. The Stop hook text is printed
+to the developer verbatim, so a candidate that adds instructions there must say
+why they do not belong in the plan's fields instead.
 
 ## Explainer pages
 

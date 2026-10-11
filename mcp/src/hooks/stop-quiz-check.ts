@@ -47,6 +47,7 @@ import { dueInProject, sessionConcepts } from '../store.js';
 import { countUse } from '../telemetry.js';
 import { sessionChangedCode } from './changes-lib.js';
 import { hasOpenPanelQuestion } from '../panel-state.js';
+import { stopText } from './quiz-text-lib.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -308,7 +309,6 @@ await run(async (input) => {
   const names = due.length ? due.slice(0, take) : rows.map((r) => r.line);
   /* c8 ignore next -- a concurrent answer between the two reads; the count above found one */
   if (names.length === 0 && !logFirst) return 0;
-  const concepts = names.join(', ');
 
   // Stamp the guard BEFORE blocking. If anything below fails, the worst case is a
   // missed quiz — never a loop.
@@ -336,21 +336,16 @@ await run(async (input) => {
   // each item's `context`). It is the next call the model makes, and only the
   // model reads its result. This hook has been re-grown into a page of
   // instructions before; do not put them back here.
-  const asked = logFirst ? take : names.length;
-  const count = asked === 1 ? 'one question' : `up to ${asked} questions, one at a time,`;
-  const what = logFirst
-    ? `${count} on this work`
-    : due.length
-      ? `${count} on earlier work in this project that is due again (${concepts})`
-      : `${count} on ${concepts}`;
-  const call = logFirst
-    ? 'call log_session_concepts with the concepts it used, then get_session_quiz_plan, and follow it.'
-    : 'call get_session_quiz_plan and follow it.';
   // The gate clause is true everywhere the gate can fire. On Cowork it cannot
   // -- it matches `git commit`, and Cowork does not commit -- and session-start
   // has already told this session that nothing is blocked.
-  const gate = quiz.enforced && !isCowork() ? ' The commit gate needs it.' : '';
-  const context = `Eklavya: ${what} before this turn ends -- ${call}${gate}`;
+  const context = stopText({
+    asked: logFirst ? take : names.length,
+    names,
+    due: due.length > 0,
+    logFirst,
+    gate: quiz.enforced && !isCowork(),
+  });
 
   // exit 0 + JSON, not exit 2 + stderr. Both continue the turn and both pass
   // through the same loop protections; only one of them tells the developer

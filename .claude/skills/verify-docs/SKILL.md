@@ -33,9 +33,9 @@ There is no exemption label and no "no docs needed" path.
 
 When a change alters no existing claim on a surface, make a small, source-backed
 copy or link update where its reader would look: the manual page that owns the
-module (see `web/CLAUDE.md`), the landing introduction or docs links, and the
-README introduction. The sync check still requires a change to `index.html`
-or `app.js`; a demo-only edit does not satisfy the landing check.
+module (see `web/CLAUDE.md`) and the README introduction. The sync check does
+not require the landing page. Change `index.html` or `app.js` only when asked
+to, or when the change makes a claim already on it false.
 
 Keep the home page lean. How it works, dials, commands, dashboard and memory
 details belong in the manual. Keep the README short and link to the details.

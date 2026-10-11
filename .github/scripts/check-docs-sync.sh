@@ -1,6 +1,6 @@
 #!/bin/sh
-# Fail when a change touches product code without also touching the manual,
-# the landing page and a README. Run from the repository root:
+# Fail when a change touches product code without also touching the manual
+# and a README. Run from the repository root:
 #
 #   .github/scripts/check-docs-sync.sh [base-ref [head-ref]]   # default: origin/main HEAD
 #
@@ -8,6 +8,9 @@
 # tooling (.github/, eval/, docs/), the runtime's tests (mcp/test/) and the
 # documentation surfaces themselves are not product code, so a docs-only or
 # test-only change never trips this check.
+#
+# The landing page (web/public/) is not required: it is kept lean and changes
+# only when a PR is explicitly asked to change it.
 set -eu
 
 base=${1:-origin/main}
@@ -28,13 +31,11 @@ missing=
 has() { printf '%s\n' "$changed" | grep -qE "$1"; }
 has '^web/src/content/docs/'                    || missing="$missing
   manual         web/src/content/docs/docs/*.mdx"
-has '^web/public/(index\.html|app\.js)$'        || missing="$missing
-  landing page   web/public/index.html (or app.js for shared navigation)"
 has '^(README\.md|mcp/README\.md)$'             || missing="$missing
   README         README.md or mcp/README.md"
 
 if [ -z "$missing" ]; then
-  echo "docs-sync: code, manual, landing page and README all changed."
+  echo "docs-sync: code, manual and README all changed."
   exit 0
 fi
 
@@ -45,7 +46,7 @@ printf '%s\n' "$code" | sed 's/^/  /'
 echo
 echo "Not changed:$missing"
 echo
-echo "Every code change updates the manual, the landing page and a README in"
-echo "the same PR (CLAUDE.md, 'Documentation is part of every feature')."
+echo "Every code change updates the manual and a README in the same PR"
+echo "(CLAUDE.md, 'Documentation is part of every feature')."
 echo "Run /verify-docs --since $base --fix to find what each surface must say."
 exit 1

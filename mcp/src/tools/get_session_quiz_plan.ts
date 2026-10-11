@@ -98,7 +98,7 @@ const FRAMING: Record<Focus, string> = {
  * `FRAMING` is stated per focus: the tier number alone does not stop a tutor
  * writing a judgement question and labelling it tier 2.
  */
-const LEVEL_FRAMING: Record<Level, string> = {
+export const LEVEL_FRAMING: Record<Level, string> = {
   easy:
     'Level easy (tiers 1-2). Ask what a thing is and what the machine does with it. No judgement questions, no failure modes, no design. They have been watching the agent work, and every question must be answerable from that -- this is the runway that makes the habit stick, not a warm-up to hurry through.',
   medium:
@@ -106,6 +106,49 @@ const LEVEL_FRAMING: Record<Level, string> = {
   hard:
     'Level hard (tiers 3-5). Judgement, failure modes and design: when is this the wrong approach entirely, and how would they notice in production. A definition question is a wasted question here.',
 };
+
+/**
+ * Every line of a plan addressed to the model: `framing`, `ask_attribution`,
+ * `on_skip` and `on_finish`. Exported so the hook-text eval hands the model the
+ * shipped wording rather than a copy of it.
+ */
+export function planGuidance(focus: Focus, enforced: boolean, presentation: 'tool' | 'panel', count: number) {
+  return {
+    // Stated with every plan so the pedagogy cannot drift from the setting:
+    // the tutor should not have to remember what `concept` implies. On Cowork
+    // it also carries the surface note, because every string in `FRAMING`
+    // names a diff and a Cowork session has none.
+    framing: withSurfaceNote(FRAMING[focus], ' '),
+    // Returned with every plan for the same reason `framing` is: this is the
+    // one place every ask path passes through -- both hooks, the quiz
+    // command and the tutor subagent -- and the rule depends on a host only
+    // this process can see. A skill file cannot branch on the entrypoint, so
+    // a static instruction to set `header` and stop there is right in a
+    // terminal and drops the attribution on the floor in Claude Desktop.
+    // Where the question goes. `tool` is today's AskUserQuestion card; `panel`
+    // is the side panel, chosen only with the setting on and a fresh heartbeat
+    // from a host known to take answers (`panelPresentation`). The hooks and
+    // skills read this one field, so they cannot disagree about the tool.
+    presentation,
+    // The card's attribution rule means nothing for the panel, which is its own
+    // attribution.
+    ...(presentation === 'tool' ? { ask_attribution: attributionRule() } : {}),
+    // The Stop sweep used to say these, but a Stop hook's text is printed to
+    // the developer verbatim: "if they say skip, let them go" is an
+    // instruction about them, not to them. Here only the model reads it.
+    on_skip: enforced
+      ? isCowork()
+        ? 'Quizzing is enforced here. Nothing is blocked -- Cowork does not commit -- but the gate still records what was answered.'
+        : 'Quizzing is enforced in this session: the commit gate needs this quiz. A skip is recorded as grade 0 and does not pass it.'
+      : presentation === 'panel'
+        ? 'A skip is the panel\'s Skip button, which records a decline for you. Record nothing yourself and do not ask twice.'
+        : 'If they say skip, record grade 0 (outcome declined) and let them go -- do not ask twice.',
+    on_finish:
+      presentation === 'panel'
+        ? `The panel records each answer and shows the verdict itself: do not call record_attempt, do not announce a result and do not wait. Once present_question returns, go back to the task.${count > 1 ? ' Present only the first question now, with more: true; the panel offers Next and the plan is remembered, so when the learner presses it you call get_session_quiz_plan with resume_round: true and present the next item; present_question tracks the round and says when it is the last.' : ''}`
+        : 'After each answer, record_attempt, then tell them whether they were right (and the right answer if not) before anything else. If the end-of-turn sweep asked for this quiz, end with "Back to your task:" and your task answer again in 2-4 lines, so it is the last thing on screen.',
+  };
+}
 
 export const getSessionQuizPlan: ToolDef = {
   name: 'get_session_quiz_plan',
@@ -678,39 +721,7 @@ export const getSessionQuizPlan: ToolDef = {
       session_id: sessionId,
       questions_needed: picked.length,
       focus,
-      // Stated with every plan so the pedagogy cannot drift from the setting:
-      // the tutor should not have to remember what `concept` implies. On Cowork
-      // it also carries the surface note, because every string in `FRAMING`
-      // names a diff and a Cowork session has none.
-      framing: withSurfaceNote(FRAMING[focus], ' '),
-      // Returned with every plan for the same reason `framing` is: this is the
-      // one place every ask path passes through -- both hooks, the quiz
-      // command and the tutor subagent -- and the rule depends on a host only
-      // this process can see. A skill file cannot branch on the entrypoint, so
-      // a static instruction to set `header` and stop there is right in a
-      // terminal and drops the attribution on the floor in Claude Desktop.
-      // Where the question goes. `tool` is today's AskUserQuestion card; `panel`
-      // is the side panel, chosen only with the setting on and a fresh heartbeat
-      // from a host known to take answers (`panelPresentation`). The hooks and
-      // skills read this one field, so they cannot disagree about the tool.
-      presentation,
-      // The card's attribution rule means nothing for the panel, which is its own
-      // attribution.
-      ...(presentation === 'tool' ? { ask_attribution: attributionRule() } : {}),
-      // The Stop sweep used to say these, but a Stop hook's text is printed to
-      // the developer verbatim: "if they say skip, let them go" is an
-      // instruction about them, not to them. Here only the model reads it.
-      on_skip: config.quiz.enforced
-        ? isCowork()
-          ? 'Quizzing is enforced here. Nothing is blocked -- Cowork does not commit -- but the gate still records what was answered.'
-          : 'Quizzing is enforced in this session: the commit gate needs this quiz. A skip is recorded as grade 0 and does not pass it.'
-        : presentation === 'panel'
-          ? 'A skip is the panel\'s Skip button, which records a decline for you. Record nothing yourself and do not ask twice.'
-          : 'If they say skip, record grade 0 (outcome declined) and let them go -- do not ask twice.',
-      on_finish:
-        presentation === 'panel'
-          ? `The panel records each answer and shows the verdict itself: do not call record_attempt, do not announce a result and do not wait. Once present_question returns, go back to the task.${picked.length > 1 ? ' Present only the first question now, with more: true; the panel offers Next and the plan is remembered, so when the learner presses it you call get_session_quiz_plan with resume_round: true and present the next item; present_question tracks the round and says when it is the last.' : ''}`
-          : 'After each answer, record_attempt, then tell them whether they were right (and the right answer if not) before anything else. If the end-of-turn sweep asked for this quiz, end with "Back to your task:" and your task answer again in 2-4 lines, so it is the last thing on screen.',
+      ...planGuidance(focus, config.quiz.enforced, presentation, picked.length),
       ...(focus === 'learn' && config.focus_topic ? { topic: config.focus_topic } : {}),
       level: standing.level,
       level_framing: LEVEL_FRAMING[standing.level],

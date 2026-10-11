@@ -44,7 +44,7 @@ the rest carry your home directory.
 
 - [ ] `cd mcp && npm test` passes
 - [ ] The acceptance test in `CONTRIBUTING.md` still passes, and its transcript is above
-- [ ] Product code changed → the manual, the landing page and a README all changed and say the same thing (`CLAUDE.md`, *Documentation is part of every feature*; enforced by `docs-sync`, checked with `/verify-docs`)
+- [ ] Product code changed → the manual and a README both changed and say the same thing (the landing page only when asked) (`CLAUDE.md`, *Documentation is part of every feature*; enforced by `docs-sync`, checked with `/verify-docs`)
 - [ ] Changed `skills/tutor/` → eval evidence before and after (`CONTRIBUTING.md`, *The eval*)
 - [ ] Added a migration → `LATEST_SCHEMA_VERSION`, `EXPECTED_TABLES` and the migration file list bumped in `mcp/test/migrate.test.ts`
 - [ ] Changed a file `docs/eklavya-runtime.architecture.json` permalinks → diagram regenerated, `meta.repository.revision` bumped

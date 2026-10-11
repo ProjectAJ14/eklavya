@@ -238,7 +238,7 @@ Do exactly this, then get straight back to the task:
 
 ONE question. Not two, not the whole plan. 4 left in this session's budget, and the Stop hook spends whatever you do not.
 ${framingFor('project', null, 'checkpoint')}
-If they pick Other or say skip, record it as grade 0, teach the answer in two lines, and carry on. Do not ask again.`;
+If they say skip, record grade 0 with outcome declined and carry on without teaching it. If they pick Other and say they do not know, record grade 0 with outcome dont_know and teach the answer in two lines. Either way, do not ask again.`;
     expect(checkpoint().context).toBe(expected);
   });
 
