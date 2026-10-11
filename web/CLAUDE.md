@@ -121,8 +121,8 @@ and memory details stay in the manual.
 
 Keep the compact name story at `#legend`, with the eyebrow "The name", the
 heading "The archer who taught himself", three short story columns and the
-bow, arrow and target artwork. The SVG is decorative. Its animation runs once
-when the scene enters view; reduced motion shows a static scene. Preserve
+bow, arrow and target artwork. The SVG is decorative. Its animation runs once each time
+the scene enters view, including after returning with Back; reduced motion shows a static scene. Preserve
 `#legend` and `#legend-title` on the home page instead of redirecting them to docs.
 
 Start the replay when the whole terminal box is visible. Wait or pause if the

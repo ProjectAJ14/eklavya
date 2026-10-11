@@ -51,15 +51,29 @@
     motion.addEventListener('change', syncHeroScene);
     syncHeroScene();
   }
-  if (shot && !motion.matches && 'IntersectionObserver' in window) {
+  if (shot && 'IntersectionObserver' in window) {
+    var scene = shot.querySelector('.shot');
+    var shotInView = false;
+    function syncShot() {
+      shot.classList.toggle('is-firing', shotInView && !motion.matches);
+    }
     var shotObserver = new IntersectionObserver(function (entries) {
-      if (!entries[0].isIntersecting) return;
-      shot.classList.add('is-firing');
-      shotObserver.disconnect();
+      // Keep observing: leaving view resets the CSS animation for the next visit.
+      shotInView = entries[0].isIntersecting && entries[0].intersectionRatio >= .2;
+      syncShot();
     }, { threshold: .2 });
-    shotObserver.observe(shot.querySelector('.shot'));
-    motion.addEventListener('change', function () {
-      if (motion.matches) shotObserver.disconnect();
+    shotObserver.observe(scene);
+    motion.addEventListener('change', syncShot);
+    window.addEventListener('pagehide', function () {
+      shotInView = false;
+      syncShot();
+    });
+    window.addEventListener('pageshow', function (event) {
+      // A Back/Forward cache restore does not rerun this script or necessarily
+      // deliver a new intersection entry. Reobserve the restored scene.
+      if (!event.persisted) return;
+      shotObserver.unobserve(scene);
+      shotObserver.observe(scene);
     });
   }
   var stars = document.querySelector('[data-stars]');

@@ -116,8 +116,8 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
   box is visible; pause offscreen, in a hidden tab and when the window is
   inactive. The replay must not steal focus. Under reduced motion, remove
   animated typing, cursor blinking and panel transitions.
-- The home legend's decorative bow, arrow and target scene animates once when
-  it enters view. The arrow launches quickly and slows near its target; the bow
+- The home legend's decorative bow, arrow and target scene animates once each time
+  it enters view, including after returning with Back. The arrow launches quickly and slows near its target; the bow
   recoils and the target responds. Under reduced motion, show the static art.
 - `prefers-reduced-motion: reduce` collapses every animation and transition so
   content lands in its final state.
