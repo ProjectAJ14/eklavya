@@ -1,3 +1,10 @@
+## [1.66.1](https://github.com/ProjectAJ14/eklavya/compare/v1.66.0...v1.66.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* keep the viewer's frame script out of an artifact's HTML download ([#176](https://github.com/ProjectAJ14/eklavya/issues/176)) ([f7c5008](https://github.com/ProjectAJ14/eklavya/commit/f7c5008878f9ff92c8b182a58ee38d276d963137))
+
 # [1.66.0](https://github.com/ProjectAJ14/eklavya/compare/v1.65.0...v1.66.0) (2026-10-10)
 
 
