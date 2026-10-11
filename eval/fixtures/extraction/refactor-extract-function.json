@@ -1,0 +1,33 @@
+{
+  "id": "refactor-extract-function",
+  "title": "Splitting a long function without changing behaviour",
+  "source": "mcp/src/cadence.ts",
+  "kind": "refactor",
+  "diff": "-export function nextAction(state: Session, config: Config): Action {\n-  const idle = Date.now() - state.lastPromptAt;\n-  if (config.cadence === 'off') return 'none';\n-  if (idle > config.idleMs && state.pending > 0) return 'nudge';\n-  if (state.pending >= config.batchSize) return 'checkpoint';\n-  return 'none';\n-}\n+export function nextAction(state: Session, config: Config): Action {\n+  if (config.cadence === 'off') return 'none';\n+  if (isIdleWithWork(state, config)) return 'nudge';\n+  if (state.pending >= config.batchSize) return 'checkpoint';\n+  return 'none';\n+}\n+\n+function isIdleWithWork(state: Session, config: Config): boolean {\n+  return Date.now() - state.lastPromptAt > config.idleMs && state.pending > 0;\n+}",
+  "concepts": [
+    {
+      "slug": "extract-function-refactor",
+      "domain": "refactoring",
+      "tier": 2,
+      "description": "Moving a cohesive block into a named function shortens the caller and gives the condition a name without changing what the program does.",
+      "context": "the idle-and-pending condition in cadence.ts moves into isIdleWithWork, leaving nextAction a flat list of cases",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "behaviour-preserving-change",
+      "domain": "refactoring",
+      "tier": 3,
+      "description": "A refactor changes structure and not observable behaviour, which is what lets existing tests prove it safe.",
+      "context": "nextAction in cadence.ts returns the same Action for every state and config as before the split",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "guard-clause-ordering",
+      "domain": "refactoring",
+      "tier": 2,
+      "description": "Handling the exit cases first, in a flat sequence of returns, keeps the main path readable.",
+      "context": "the config.cadence === 'off' early return stays first in nextAction in cadence.ts",
+      "prerequisite_of": []
+    }
+  ]
+}

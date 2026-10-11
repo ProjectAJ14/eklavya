@@ -1,0 +1,41 @@
+{
+  "id": "sqlite-table-rebuild",
+  "title": "Changing a SQLite column constraint",
+  "source": "mcp/src/migrations/014_unique_slug.ts",
+  "kind": "migration",
+  "diff": "export const up = (db: Database) => {\n  db.pragma('foreign_keys = OFF');\n  db.transaction(() => {\n    db.exec(`\n      CREATE TABLE concepts_new (\n        id INTEGER PRIMARY KEY,\n        slug TEXT NOT NULL UNIQUE,\n        name TEXT NOT NULL,\n        tier INTEGER NOT NULL DEFAULT 2\n      );\n      INSERT INTO concepts_new (id, slug, name, tier)\n        SELECT id, slug, name, tier FROM concepts GROUP BY slug;\n      DROP TABLE concepts;\n      ALTER TABLE concepts_new RENAME TO concepts;\n    `);\n    const broken = db.pragma('foreign_key_check') as unknown[];\n    if (broken.length > 0) throw new Error('foreign key violations after rebuild');\n  })();\n  db.pragma('foreign_keys = ON');\n};",
+  "concepts": [
+    {
+      "slug": "sqlite-table-rebuild",
+      "domain": "databases",
+      "tier": 4,
+      "description": "SQLite cannot alter most constraints in place, so the table is recreated, copied into and renamed.",
+      "context": "014_unique_slug.ts creates concepts_new, copies rows, drops concepts and renames the new table into place",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "foreign-keys-pragma-outside-transaction",
+      "domain": "databases",
+      "tier": 4,
+      "description": "PRAGMA foreign_keys is a no-op inside a transaction, so it has to be switched off before BEGIN or the DROP cascades.",
+      "context": "db.pragma('foreign_keys = OFF') runs before db.transaction in 014_unique_slug.ts",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "foreign-key-check",
+      "domain": "databases",
+      "tier": 3,
+      "description": "foreign_key_check reports rows that violate declared references, which is how a rebuild proves it kept the graph intact.",
+      "context": "the migration throws if db.pragma('foreign_key_check') returns rows, rolling the rebuild back",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "transactional-ddl",
+      "domain": "databases",
+      "tier": 3,
+      "description": "SQLite DDL is transactional, so a failure partway through a rebuild rolls every step back.",
+      "context": "the CREATE, INSERT, DROP and RENAME in 014_unique_slug.ts share one db.transaction",
+      "prerequisite_of": []
+    }
+  ]
+}

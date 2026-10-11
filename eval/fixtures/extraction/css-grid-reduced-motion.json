@@ -1,0 +1,33 @@
+{
+  "id": "css-grid-reduced-motion",
+  "title": "A responsive card grid that respects reduced motion",
+  "source": "web/src/cards.css",
+  "kind": "front-end",
+  "diff": ".cards {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));\n  gap: 1rem;\n}\n\n.card {\n  transition: transform 160ms ease-out;\n}\n\n.card:hover {\n  transform: translateY(-2px);\n}\n\n@media (prefers-reduced-motion: reduce) {\n  .card {\n    transition: none;\n  }\n  .card:hover {\n    transform: none;\n  }\n}",
+  "concepts": [
+    {
+      "slug": "css-grid-auto-fill",
+      "domain": "css",
+      "tier": 3,
+      "description": "repeat(auto-fill, minmax(...)) lets a grid choose its own column count from the space available, with no media query per breakpoint.",
+      "context": "the .cards rule in cards.css uses auto-fill with minmax so columns appear as the width allows",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "min-in-minmax",
+      "domain": "css",
+      "tier": 4,
+      "description": "Wrapping the track minimum in min(100%, size) stops a fixed minimum from overflowing a container narrower than that size.",
+      "context": "min(100%, 16rem) keeps one card from overflowing on a phone narrower than 16rem",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "prefers-reduced-motion",
+      "domain": "accessibility",
+      "tier": 2,
+      "description": "A media query exposing the user's operating-system setting to reduce motion, which animation should honour.",
+      "context": "the @media (prefers-reduced-motion: reduce) block in cards.css removes the hover transform and transition",
+      "prerequisite_of": []
+    }
+  ]
+}

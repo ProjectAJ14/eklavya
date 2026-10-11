@@ -1,0 +1,33 @@
+{
+  "id": "rust-borrowing-slices",
+  "title": "Returning part of a string without copying it",
+  "source": "src/lines.rs",
+  "kind": "rust",
+  "diff": "pub fn longest_line<'a>(text: &'a str) -> Option<&'a str> {\n    text.lines().max_by_key(|line| line.len())\n}\n\npub fn summarise(text: &str) -> String {\n    match longest_line(text) {\n        Some(line) => format!(\"longest: {} chars\", line.len()),\n        None => String::from(\"empty\"),\n    }\n}",
+  "concepts": [
+    {
+      "slug": "lifetime-of-returned-borrow",
+      "domain": "rust",
+      "tier": 4,
+      "description": "A returned reference must be tied to an input's lifetime, because it cannot outlive the data it points into.",
+      "context": "the 'a on longest_line in lines.rs says the returned &str borrows from text",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "borrowing-over-cloning",
+      "domain": "rust",
+      "tier": 3,
+      "description": "Returning a slice of the input avoids allocating a new String, at the price of the caller keeping the input alive.",
+      "context": "longest_line returns Option<&str> rather than Option<String>, so nothing is copied",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "option-for-absence",
+      "domain": "rust",
+      "tier": 2,
+      "description": "Option makes the empty case part of the type, so the caller has to handle it before using the value.",
+      "context": "summarise in lines.rs matches on Some and None for an input with no lines",
+      "prerequisite_of": []
+    }
+  ]
+}

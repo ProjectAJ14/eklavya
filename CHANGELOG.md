@@ -1,3 +1,10 @@
+## [1.69.1](https://github.com/ProjectAJ14/eklavya/compare/v1.69.0...v1.69.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* upsert_concepts fills in bare concepts; chore(eval): grow the extraction eval ([#175](https://github.com/ProjectAJ14/eklavya/issues/175)) ([#188](https://github.com/ProjectAJ14/eklavya/issues/188)) ([9e1490a](https://github.com/ProjectAJ14/eklavya/commit/9e1490a854ce943d57a0a21809225694bc366171))
+
 # [1.69.0](https://github.com/ProjectAJ14/eklavya/compare/v1.68.1...v1.69.0) (2026-10-11)
 
 
