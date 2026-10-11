@@ -773,8 +773,10 @@ async function crossReference(source: string, quiet = false): Promise<void> {
 
 /**
  * Two recorders is the one outcome this must never leave behind, so every path
- * out of here ends with exactly one: a failed import keeps Claude Mem and
- * switches Eklavya's recording off, rather than leaving both half-on.
+ * out of here ends with exactly one: the one the developer chose. A failed
+ * import does not overrule that choice -- Eklavya still records and the plugin
+ * still goes -- but the Claude Mem data stays where it is, unretired, so
+ * `eklavya memory import` can bring it in later.
  */
 async function resolveClaudeMem(owner: MemoryOwner): Promise<void> {
   const ids = activeClaudeMemPluginIds(claudeHome());
@@ -787,16 +789,16 @@ async function resolveClaudeMem(owner: MemoryOwner): Promise<void> {
     return;
   }
 
+  let imported = haveDb;
   if (haveDb) {
     try {
       // Inside the try: a corrupt source fails here, and must take the same
-      // one-recorder exit as a failed import.
+      // exit as a failed import.
       await crossReference(claudeMemDb());
     } catch (err) {
-      setEklavyaMemory(false);
+      imported = false;
       check('fail', 'claude-mem', `import failed ${dim(`— ${(err as Error).message}`)}`);
-      check(null, '', dim('kept Claude Mem, turned Eklavya memory off. Retry: eklavya memory import'));
-      return;
+      check(null, '', dim(`Eklavya memory is on; your history stays at ${claudeMemDir()}. Retry: eklavya memory import`));
     }
   }
 
@@ -808,7 +810,8 @@ async function resolveClaudeMem(owner: MemoryOwner): Promise<void> {
   }
   // ponytail: Claude Mem's background worker, if one is up, lives until its
   // next restart; with no plugin left, nothing restarts it.
-  if (!fs.existsSync(claudeMemDir())) return;
+  // Not imported means not retired: the data is the retry's source.
+  if (!fs.existsSync(claudeMemDir()) || (haveDb && !imported)) return;
   try {
     // Windows refuses to rename a directory with a file held open -- Claude
     // Mem's worker, typically. The import already happened; the move is tidying.
