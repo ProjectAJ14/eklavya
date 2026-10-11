@@ -1,3 +1,10 @@
+# [1.69.0](https://github.com/ProjectAJ14/eklavya/compare/v1.68.1...v1.69.0) (2026-10-11)
+
+
+### Features
+
+* simplify the landing page, demo, and installation ([#183](https://github.com/ProjectAJ14/eklavya/issues/183)) ([7fdd7c0](https://github.com/ProjectAJ14/eklavya/commit/7fdd7c071ca8447d539d34eb008d2896b59727a4))
+
 ## [1.68.1](https://github.com/ProjectAJ14/eklavya/compare/v1.68.0...v1.68.1) (2026-10-11)
 
 
