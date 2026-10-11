@@ -36,7 +36,7 @@ export const IMPORT_SOURCE = 'claude-mem';
  * anything lower is imported with whatever columns it has, since the layout has
  * only ever gained columns.
  */
-export const SUPPORTED_SCHEMA_VERSION = 52;
+export const SUPPORTED_SCHEMA_VERSION = 64;
 
 /** Tables the importer knows about. Anything else in the source is reported. */
 const KNOWN_TABLES = [
@@ -54,6 +54,13 @@ const KNOWN_TABLES = [
   'sync_content_outbox',
   'sync_dead_letter',
   'sync_launch_exclusions',
+  'sync_pull_quarantine',
+  'token_df',
+  'dedup_meta',
+  'observation_dedup_candidates',
+  'advisor_calls',
+  'work_state_entries',
+  'hook_spool_consumed',
 ];
 
 export type DispositionKind = 'mapped' | 'dropped' | 'unrecognised';
@@ -101,6 +108,10 @@ const DISPOSITIONS: FieldDisposition[] = [
   d('observations', 'origin_device_id', 'foreign device identity — deliberately never copied into active state'),
   d('observations', 'origin_local_id', 'foreign device identity — deliberately never copied into active state'),
   d('observations', 'sync_rev', 'sync bookkeeping for a service Eklavya does not talk to'),
+  d('observations', 'occurrence_count', "the source's near-duplicate merge counter, meaningless to a different deduper"),
+  d('observations', 'title_norm_key', "the source's dedupe key; Eklavya keys on its own deterministic entry_uid"),
+  d('observations', 'reinforcement_dates', 'ranking history for the source ranker, meaningless to a different ranker'),
+  d('observations', 'last_reinforced', 'ranking history for the source ranker, meaningless to a different ranker'),
 
   // session_summaries -> memory_entries (kind = session_summary)
   m('session_summaries', 'id', 'import_id_map.source_id', 'the resume key'),
@@ -136,6 +147,8 @@ const DISPOSITIONS: FieldDisposition[] = [
   d('user_prompts', 'origin_device_id', 'foreign device identity'),
   d('user_prompts', 'origin_local_id', 'foreign device identity'),
   d('user_prompts', 'sync_rev', 'sync bookkeeping'),
+  d('user_prompts', 'native_prompt_id', "the host's retry identity, used by the source to dedupe a resent prompt"),
+  d('user_prompts', 'native_prompt_hash', "the source's retry dedupe hash"),
 
   // tool_uses -> evidence_events (kind = tool_use)
   m('tool_uses', 'id', 'import_id_map.source_id', 'the resume key'),
@@ -169,8 +182,16 @@ const DISPOSITIONS: FieldDisposition[] = [
   d('sync_entity_heads', '*', 'foreign device revision heads'),
   d('sync_dead_letter', '*', 'failed sync operations belonging to the source install'),
   d('sync_launch_exclusions', '*', 'sync suppression list belonging to the source install'),
+  d('sync_pull_quarantine', '*', 'rejected sync pulls belonging to the source install'),
+  d('token_df', '*', "the source deduper's token statistics; derived, and Eklavya keeps its own index"),
+  d('dedup_meta', '*', "the source deduper's bookkeeping"),
+  d('observation_dedup_candidates', '*', "the source deduper's review queue; Eklavya dedupes on entry_uid"),
+  d('advisor_calls', '*', 'advisor tool transcripts, opt-in in the source and not memory entries'),
+  d('work_state_entries', '*', "the source agent's live to-do lists — active working state, not history"),
+  d('hook_spool_consumed', '*', "delivery markers for the source's own hook spool"),
   d('schema_versions', '*', 'read to decide whether this importer understands the source'),
   d('observations_fts', '*', 'a derived index; Eklavya rebuilds its own FTS and vectors on insert'),
+  d('session_summaries_fts', '*', 'a derived index; Eklavya rebuilds its own FTS and vectors on insert'),
 ];
 
 function m(table: string, field: string, to: string, reason: string): FieldDisposition {
@@ -383,7 +404,7 @@ export function inventory(sourceDb: string): Inventory {
     const counts: TableCount[] = names.map((name) => ({
       name,
       rows: count(src, name),
-      known: KNOWN_TABLES.includes(name) || name.startsWith('observations_fts'),
+      known: KNOWN_TABLES.includes(name) || name.startsWith('observations_fts') || name.startsWith('session_summaries_fts'),
     }));
 
     const projects = tables.has('observations')

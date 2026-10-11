@@ -27,7 +27,7 @@ The installer performs these steps in order:
 3. **Verify and uninstall.** Check every source row by ID. Only after a complete import, uninstall Claude Mem through `claude plugin uninstall`, or disable it in Claude Code settings if `claude` is unavailable.
 4. **Retain a rollback copy.** Move `~/.claude-mem` to `~/.claude-mem.retired` rather than deleting it.
 
-If import or verification fails, Claude Mem stays installed and Eklavya memory is disabled. The error names what needs attention.
+If import or verification fails, your choice still stands: Eklavya memory stays on and the Claude Mem plugin is removed, but its data stays in `~/.claude-mem` so `eklavya memory import` can retry. The error names what needs attention.
 
 Observations and summaries become memory entries. Prompts and tool uses become linked evidence. Imported concepts become candidates, **not assessed knowledge**: import does not grant mastery, record answers or open gates. Device identities, sync state, live worker queues, sent notifications and opaque runtime metadata are not imported.
 
@@ -89,6 +89,6 @@ The standalone importer does not uninstall Claude Mem. Preview its field mapping
 eklavya memory import ~/.claude-mem/claude-mem.db --dry-run
 ```
 
-The report includes schema version, row counts, project names, mapped fields, deliberately dropped fields and unknown columns. `--resume` continues using an interrupted run's snapshot. A newer unsupported source schema is rejected with both version numbers.
+The report includes schema version, row counts, project names, mapped fields, deliberately dropped fields and unknown columns. `--resume` continues using an interrupted run's snapshot. The importer reads Claude Mem schema versions up to 64, the schema of Claude Mem 13.35.0; a newer source schema is rejected with both version numbers.
 
 See the [CLI import options](/docs/cli/#importing-claude-mem-history) for every flag.

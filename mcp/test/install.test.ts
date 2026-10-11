@@ -386,14 +386,14 @@ describe('install with Claude Mem present', () => {
     expect(install().stdout).not.toContain('Claude Mem is installed');
   });
 
-  it('a source it cannot read keeps Claude Mem and leaves exactly one recorder', () => {
+  it('a source it cannot read still honours the choice: Eklavya records, the data stays for a retry', () => {
     fs.writeFileSync(path.join(memDir, 'claude-mem.db'), 'not a database');
     const res = run(['install', '--skip-runtime', '--memory', 'eklavya']);
     expect(res.status).toBe(0);
     expect(res.stdout).toContain('import failed');
-    expect(memoryEnabled()).toBe(false);
+    expect(memoryEnabled()).not.toBe(false); // unset means on
     expect(fs.existsSync(path.join(memDir, 'claude-mem.db'))).toBe(true);
-    expect(readJson(path.join(claudeHome, 'settings.json')).enabledPlugins['claude-mem@thedotmack']).toBe(true);
+    expect(readJson(path.join(claudeHome, 'settings.json')).enabledPlugins['claude-mem@thedotmack']).toBe(false);
   });
 
   it('decides nothing on a re-install: an upgrade never switches Eklavya memory off', () => {
