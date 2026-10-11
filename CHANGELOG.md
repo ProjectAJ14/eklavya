@@ -1,3 +1,10 @@
+# [1.68.0](https://github.com/ProjectAJ14/eklavya/compare/v1.67.1...v1.68.0) (2026-10-11)
+
+
+### Features
+
+* **explainer:** keep the short answer to three sentences, scored by a new page eval ([#180](https://github.com/ProjectAJ14/eklavya/issues/180)) ([40483f0](https://github.com/ProjectAJ14/eklavya/commit/40483f00d5c4f752de7006ea490379208dbefb04)), closes [#174](https://github.com/ProjectAJ14/eklavya/issues/174)
+
 ## [1.67.1](https://github.com/ProjectAJ14/eklavya/compare/v1.67.0...v1.67.1) (2026-10-11)
 
 
