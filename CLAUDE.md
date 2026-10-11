@@ -13,7 +13,7 @@ Read the nearest nested `CLAUDE.md` before editing `mcp/`, `hooks/`, `cli/`,
 | `mcp/src/hooks/` | Hook implementations and shared helpers; registration lives in `hooks/hooks.json` |
 | `mcp/src/migrations/`, `mcp/test/` | Forward-only migrations and runtime tests |
 | `hooks/run.mjs` | Cross-platform launcher and background repair of an older runtime |
-| `hooks/panel/` | The quiz side panel: a Claude Code mod (not a command hook), its state contract and its tests; opt-in through `quiz.panel` |
+| `hooks/panel/` | The quiz side panel: a Claude Code mod (not a command hook), its state contract and its tests; enabled by default, controlled through `quiz.panel` |
 | `skills/` | Slash commands and the tutor entry point with on-demand references |
 | `user-skill/` | Chat and artifact skills installed to `~/.claude/skills/`; never move them into `skills/` or they register twice |
 | `agents/` | Tutor and background explainer |
@@ -29,9 +29,9 @@ Read the nearest nested `CLAUDE.md` before editing `mcp/`, `hooks/`, `cli/`,
 A code change is complete only when the manual, the landing page and a README
 change in the same PR. There is no exemption. `.github/scripts/check-docs-sync.sh`
 fails the PR otherwise, and its header lists what counts as product code. When
-the change alters no existing claim on a surface, add one source-backed sentence
-where that surface's reader looks for the feature rather than duplicating
-reference material. Run `/verify-docs` (`.claude/skills/verify-docs/`) before
+the change alters no existing claim on a surface, make a small source-backed
+copy or link update where its reader looks for the feature. Keep the home page
+lean and put reference material in the manual. Run `/verify-docs` (`.claude/skills/verify-docs/`) before
 opening the PR; it runs weekly on `main` as well.
 
 Read the source before documenting names, defaults, limits, paths or output.
@@ -41,7 +41,7 @@ that implements it. Existing prose and recalled memory are not evidence.
 | Change | Documentation to review |
 |---|---|
 | Install, repair, updates, removal or host support | Manual `installing`, `installation-options`, `updates`, `troubleshooting`; root and package README |
-| Dials, defaults, scopes or config keys | Manual `dials`, `configuration`; affected command skills; landing `#dials`; the dashboard Settings registry in `mcp/src/dashboard.ts` |
+| Dials, defaults, scopes or config keys | Manual `dials`, `configuration`, `installing`, `faq`, `memory`, `migrating`; affected command skills; landing introduction and docs links; demo status; the dashboard Settings registry in `mcp/src/dashboard.ts` |
 | Slash commands, CLI or MCP tools | Manual `commands`, `cli`, `memory`; `mcp/README.md`; relevant skills |
 | Hook timing, question planning or grading | Manual `first-session`, `how-it-works`, `grading-engine`, `levels-and-tiers`; hook and tutor guidance |
 | Commit gating | Manual `commit-gate`; `cli/CLAUDE.md`; setup skill and contributor acceptance checks |
@@ -100,8 +100,9 @@ Code's hook-driven learning loop.
 - Before editing the site, read `.claude/skills/eklavya-design/SKILL.md`; before
   editing the dashboard, also read `.claude/skills/eklavya-dashboard/SKILL.md`.
   Use semantic color roles from `web/public/tokens.css`, keyboard-operable
-  controls and shareable dashboard filters. Preserve the hero terminal and arrow
-  animation's geometry, timing and behavior.
+  controls and shareable dashboard filters. Keep the home page lean, with the
+  Archer Cloak mascot on a dark hero. The terminal demo belongs at `/demo/`;
+  match its panel labels and interactions to the shipped mod.
 
 ## Generated runtime diagram
 

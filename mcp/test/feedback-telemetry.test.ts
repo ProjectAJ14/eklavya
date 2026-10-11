@@ -57,6 +57,7 @@ const setTimes = (id: number, created: string, ack: string | null) =>
 
 describe('the feedback event', () => {
   it('carries the switch and two counts, and nothing else', () => {
+    writeConfig({ feedback: { enabled: false } });
     const [e] = named(events(), 'feedback');
     expect(e).toEqual({ name: 'feedback', params: { feedback_enabled: false, generated_new: 0, acknowledged_new: 0 } });
     writeConfig({ feedback: { enabled: true } });

@@ -1,69 +1,33 @@
 ---
-title: "Guided setup"
-description: "Use /eklavya:setup to verify your installation, choose a learning focus and optionally enable the commit gate."
+title: "Check your setup"
+description: "Use /eklavya:setup for an optional installation check without changing your settings."
 sidebar:
   order: 3
 ---
 
-import { Steps } from '@astrojs/starlight/components';
-
-Run this in Claude Code after [installing](/docs/installing/):
+Run this in Claude Code if you want to check your [installation](/docs/installing/):
 
 ```text
 /eklavya:setup
 ```
 
-The terminal installer already configures Eklavya. This guided check is useful
-if you installed through the marketplace or want help choosing your settings.
+Setup checks Node.js 22+, the running server and the database. It leaves your
+settings alone and does not ask you to choose them. You can start working as
+soon as you restart Claude Code after installation.
 
-<span id="the-five-things-it-does"></span>
-
-## What setup does
-
-<Steps>
-
-1. **Checks the installation.** Confirms Node.js 22+, a running server and your
-   database. The starter concept domains are `web-auth`, `react`, `node-backend`
-   and `git`. Optional `sqlite3` and `jq` checks support diagnostics and the
-   terminal commit gate; missing them does not prevent ordinary use.
-
-2. **Asks how questions should work.** Choose skippable questions (default),
-   enforced questions before commits, or no questions. Turning questions off
-   leaves memory recording; `memory.enabled` controls that separately.
-
-3. **Asks what to teach.** Choose **concept** for transferable ideas,
-   **project** for this codebase, or **learn** for a topic you name. Concept is
-   the default. [The dials](/docs/dials/) explains all three.
-
-4. **Adds the git hook if you choose enforcement.** For commits outside Claude
-   Code, this hook also needs project-level enforcement and the `jq` and
-   `sqlite3` tools. Missing dependencies allow commits through. With a hook
-   manager such as husky, setup prints the line to add to that manager. Follow
-   [The commit gate](/docs/commit-gate/) to enable and verify it for your project.
-
-</Steps>
-
-Setup writes global settings to `~/.eklavya/config.json`. To make one checkout
-different, use `eklavya config set` with `--project` or ask for that explicitly;
-settings stay in your home directory. You can change the learning choices
-later with [`/eklavya:mode`](/docs/commands/#eklavyamode-value).
-
-:::note[Analytics]
-Eklavya sends anonymous daily usage counts, never code, paths, names or text.
-Ask Claude to turn off Eklavya analytics, or run `eklavya telemetry off`.
-[Usage analytics](/docs/usage-analytics/) lists every field.
-:::
+The database includes starter concepts for `web-auth`, `react`, `node-backend`
+and `git`. If something is missing, setup points you to `/plugin` or the terminal
+installer so you can fix it.
 
 :::note[In Cowork]
-Setup verifies the database through the running server, because Cowork's shell
-has a different filesystem. It skips git-hook installation: Cowork does not
-commit, so enforcement can ask questions but cannot hold a commit.
+Setup checks the database through the running server. Cowork's shell has a
+separate filesystem and cannot check your local database directly.
 :::
 
-## Start working
+## Change things later
 
-Ask Claude to build something. Use `/eklavya:progress` to see your learning
-history, `/eklavya:quiz` to request a question, or `/eklavya:memory` to inspect
-memory. With enforcement on, `/eklavya:gate` shows outstanding concepts.
+Use [the dials](/docs/dials/) or the dashboard's [Settings](/docs/dashboard/#settings)
+when you want different questions or memory behavior. The
+[commit gate](/docs/commit-gate/) is optional and has its own setup.
 
 Next: [Your first session](/docs/first-session/).

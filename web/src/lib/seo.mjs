@@ -9,13 +9,20 @@ export const site = {
   imageHeight: 630,
 };
 
+export const demoPage = {
+  title: 'Try the Claude Code side panel | Eklavya',
+  description: 'Try an Eklavya question beside a Claude Code transcript. Run the browser replay, pick an answer and see how the quiz side panel works.',
+  path: '/demo/',
+  id: 'demo',
+};
+
 export const absolute = (path) => new URL(path, site.url).href;
 export const docPath = (id) => `/${id.replace(/\/+$/, '')}/`;
 export const socialPath = (id = 'home') => `/social/${id}.png`;
 export const imageAlt = (title) => `Eklavya bow-and-arrow mark. ${title}. Learning and memory for Claude Code.`;
 export const jsonLd = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 
-export function structuredData({ title, description, path, docs = false }) {
+export function structuredData({ title, description, path, docs = false, id = docs ? path.replace(/^\/|\/$/g, '') : 'home' }) {
   const url = absolute(path);
   const website = { '@type': 'WebSite', '@id': absolute('/#website'), name: site.name, url: absolute('/'), inLanguage: 'en' };
   const software = {
@@ -33,7 +40,7 @@ export function structuredData({ title, description, path, docs = false }) {
       '@type': 'WebPage', '@id': `${url}#page`,
       url, name: title, description, inLanguage: 'en',
       isPartOf: { '@id': website['@id'] }, about: { '@id': software['@id'] },
-      image: absolute(socialPath(docs ? path.replace(/^\/|\/$/g, '') : 'home')),
+      image: absolute(socialPath(id)),
       ...(docs ? { breadcrumb: { '@id': `${url}#breadcrumb` }, mainEntity: { '@id': `${url}#article` } } : {}),
     }, ...(docs ? [{
       '@type': 'TechArticle', '@id': `${url}#article`, headline: title, description,

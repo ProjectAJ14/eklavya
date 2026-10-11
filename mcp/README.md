@@ -6,15 +6,24 @@ Claude Code plugin, installer, CLI and MCP server.
 
 ## Install in Claude Code
 
-With Node 22 or newer:
+With Claude Code and Node.js 22+ with npm:
 
 ```bash
-npx eklavya install
+npm install -g eklavya && eklavya install
 ```
 
-Follow the settings prompts, then restart Claude Code. The installer registers
-the plugin, installs the managed runtime and chat/artifact skills, and prepares
-local storage. `/eklavya:setup` lets you revisit settings.
+The installer uses the defaults without settings questions and keeps saved
+choices. It registers the plugin, installs the managed runtime and chat/artifact
+skills, and prepares local storage. New installs have the quiz side panel,
+memory and prompt feedback on. Memory summaries and prompt feedback use
+`claude-sonnet-5` through your Claude Code login, so captured session evidence
+goes to that model. [Memory](https://eklavya-run.web.app/docs/memory/) explains
+what is captured and how to use local summaries instead.
+If Claude Mem is installed, it keeps recording and Eklavya memory stays off
+until you [switch recorders](https://eklavya-run.web.app/docs/migrating/).
+
+[Allow the three side-panel tools in auto mode](https://eklavya-run.web.app/docs/installing/),
+then restart Claude Code. `/eklavya:setup` is an optional installation check.
 
 Read the [installation guide](https://eklavya-run.web.app/docs/installing/) for
 verification and [updates and removal](https://eklavya-run.web.app/docs/updates/)
@@ -135,7 +144,8 @@ covers retrieval, processing, providers, privacy and sync.
 
 State is local under `~/.eklavya/`, including `knowledge.db` (SQLite, WAL).
 `EKLAVYA_HOME` and `EKLAVYA_DB` override those paths. Questions and memory have
-independent switches. External processing is optional and explicitly configured;
+independent switches. Set `providers.observer` to `null` for local memory
+summaries and no prompt feedback;
 see [your data](https://eklavya-run.web.app/docs/your-data/). Anonymous daily
 usage counts are on by default and never include paths, names or text;
 [usage analytics](https://eklavya-run.web.app/docs/usage-analytics/) lists every

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { eklavyaHome, ensureEklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
+import { dbPath, eklavyaHome, ensureEklavyaHome, globalConfigPath, projectConfigPath } from './paths.js';
 import { readJsonForUpdate, readJsonStrict, writeJsonWithBackup } from './safe-write.js';
 import type { Level } from './srs.js';
 
@@ -56,10 +56,9 @@ export interface QuizConfig {
   only_on_changes: boolean;
   /**
    * Show questions in the Claude Code side panel instead of Claude's own
-   * question card. Experimental, and off until the developer turns it on:
-   * off means no behaviour changes anywhere -- the panel's tools refuse, the
-   * planner says to use the card, and no hook mentions it. On is still only a
-   * request: a host that cannot seat the pane keeps the card (see
+   * question card. On by default; turning it off makes the panel's tools
+   * refuse and the planner use the card. On is still only a request:
+   * a host that cannot seat the pane keeps the card (see
    * `presentation` in `get_session_quiz_plan`).
    */
   panel: boolean;
@@ -151,10 +150,11 @@ export interface MemoryConfig {
 }
 
 /**
- * Prompt feedback. Off in the stored default, and the first-install walk offers it preselected on while memory records (an upgrade keeps what is stored): it spends the developer's subscription on a
- * model call over their own prompts, so it starts only when chosen. It needs
+ * Prompt feedback. On for new installs; older global files keep their previous
+ * off default unless enabled explicitly. It uses the developer's subscription
+ * for a model call over their prompts. It needs
  * `memory.enabled` (it reads the prompts memory kept) and `providers.observer`
- * (the one consent gate for sending evidence to a model). Turning this on sends
+ * (the machine-wide provider used for sending evidence to a model). Turning this on sends
  * nothing by itself, which is why a project may set it.
  */
 export interface FeedbackConfig {
@@ -362,7 +362,7 @@ export interface EklavyaConfig {
 }
 
 export const DEFAULT_CONFIG: EklavyaConfig = {
-  quiz: { enabled: true, enforced: false, only_on_changes: true, panel: false },
+  quiz: { enabled: true, enforced: false, only_on_changes: true, panel: true },
   focus: 'concept',
   focus_topic: null,
   cadence: 'as-you-go',
@@ -388,7 +388,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     batch_max_events: 40,
     retention_days: null,
   },
-  feedback: { enabled: false },
+  feedback: { enabled: true },
   privacy: {
     exclude_paths: [],
     exclude_tools: [],
@@ -401,7 +401,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     cross_project: false,
   },
   providers: {
-    observer: null,
+    observer: { kind: 'anthropic', model: 'claude-sonnet-5' },
     embeddings: null,
   },
   notifications: {
@@ -414,6 +414,35 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     device_id: null,
   },
 };
+
+// Global files created with these defaults keep inheriting them after an
+// override is removed. Older files retain their local observer and feedback
+// defaults: an upgrade must not start sending their captured work to a model.
+const DEFAULTS_VERSION = 1;
+const LEGACY_DEFAULT_CONFIG: EklavyaConfig = {
+  ...DEFAULT_CONFIG,
+  feedback: { enabled: false },
+  providers: { ...DEFAULT_CONFIG.providers, observer: null },
+};
+
+function globalDefaults(raw: Record<string, unknown> | null): EklavyaConfig {
+  if (raw?.defaults_version === DEFAULTS_VERSION || (!raw && !fs.existsSync(globalConfigPath()) && !fs.existsSync(dbPath()))) {
+    return DEFAULT_CONFIG;
+  }
+  return LEGACY_DEFAULT_CONFIG;
+}
+
+function freshGlobalDefaults(file: string): Record<string, unknown> {
+  if (path.resolve(file) !== path.resolve(globalConfigPath()) || fs.existsSync(file)) return {};
+  // Older non-interactive installs did not write config.json at all. Their
+  // learner database still identifies an existing install before any writes.
+  return { defaults_version: fs.existsSync(dbPath()) ? 0 : DEFAULTS_VERSION };
+}
+
+/** Establish defaults once, before a first runtime start creates its database. */
+export function initializeGlobalConfig(): void {
+  if (!fs.existsSync(globalConfigPath())) writeConfigFile(globalConfigPath(), {});
+}
 
 /**
  * The file Eklavya used to keep inside the checkout, and no longer does.
@@ -718,8 +747,8 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
   const providers = raw.providers as Record<string, unknown> | undefined;
   if (providers && typeof providers === 'object') {
     out.providers = {
-      observer: provider(providers.observer),
-      embeddings: provider(providers.embeddings),
+      observer: 'observer' in providers ? provider(providers.observer) : out.providers.observer,
+      embeddings: 'embeddings' in providers ? provider(providers.embeddings) : out.providers.embeddings,
     };
   }
 
@@ -959,7 +988,8 @@ function readWith(file: string, overlay?: ConfigOverlay): Record<string, unknown
   const onDisk = readJson(file);
   if (!overlay || path.resolve(overlay.file) !== path.resolve(file)) return onDisk;
   // The round trip drops `undefined`, exactly as the write will.
-  return JSON.parse(JSON.stringify({ ...(onDisk ?? {}), ...overlay.patch })) as Record<string, unknown>;
+  const fresh = freshGlobalDefaults(file);
+  return JSON.parse(JSON.stringify({ ...fresh, ...(onDisk ?? {}), ...overlay.patch })) as Record<string, unknown>;
 }
 
 export function loadConfig(cwd: string = process.cwd(), overlay?: ConfigOverlay): ResolvedConfig {
@@ -1012,7 +1042,8 @@ function resolveConfig(repoRoot: string | null, overlay?: ConfigOverlay): Resolv
     }
   }
 
-  const globalRaw = normalizeLegacyKeys(readWith(globalPath, overlay) ?? {});
+  const globalFile = readWith(globalPath, overlay);
+  const globalRaw = normalizeLegacyKeys(globalFile ?? {});
   const ignored = GLOBAL_ONLY_KEYS.filter((key) => key in projectRaw);
   const projectNormalized = normalizeLegacyKeys(withoutBookkeeping(withoutGlobalOnly(projectRaw)));
   const raw = mergeConfigs(globalRaw, projectNormalized);
@@ -1024,7 +1055,7 @@ function resolveConfig(repoRoot: string | null, overlay?: ConfigOverlay): Resolv
   );
 
   return {
-    config: coerce(raw, DEFAULT_CONFIG),
+    config: coerce(raw, globalDefaults(globalFile)),
     raw,
     globalPath,
     projectPath,
@@ -1088,7 +1119,8 @@ function withoutBookkeeping(raw: Record<string, unknown>): Record<string, unknow
 
 /** The global file alone, coerced: what `eklavya install` shows and writes. */
 export function loadGlobalConfig(overlay?: ConfigOverlay): EklavyaConfig {
-  return coerce(normalizeLegacyKeys(readWith(globalConfigPath(), overlay) ?? {}), DEFAULT_CONFIG);
+  const raw = readWith(globalConfigPath(), overlay);
+  return coerce(normalizeLegacyKeys(raw ?? {}), globalDefaults(raw));
 }
 
 /** One config file's raw contents, or `{}`. Exported so a caller building a
@@ -1128,7 +1160,8 @@ export function writeConfigFile(file: string, patch: Record<string, unknown>): R
         `path folds to the same directory name. Not overwriting it.`,
     );
   }
-  let merged: Record<string, unknown> = { ...existing, ...patch };
+  const fresh = freshGlobalDefaults(file);
+  let merged: Record<string, unknown> = { ...fresh, ...existing, ...patch };
   // Any write retires the pre-rename spelling rather than carrying it forward.
   if (merged.cadence === 'interleaved') merged.cadence = 'as-you-go';
 

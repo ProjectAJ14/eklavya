@@ -38,7 +38,7 @@ Run `npm run mascot:generate` after artwork changes to refresh the standalone bo
 | error | sad |
 | idle | sleepy |
 
-Use state for product UI and expression for editorial art. Unsupported values fall back to neutral. Faces are explicit variants: use them at 24–40 px, full body at 56 px inline or 64 px and larger in open space, and loaders at 56 px inline / 96 px on a page. Do not use a sad or frustrated face to judge a learner's incorrect answer; the demo uses the encouraging tip state instead.
+Use state for product UI and expression for editorial art. Unsupported values fall back to neutral. Faces are explicit variants: use them at 24–40 px, full body at 56 px inline or 64 px and larger in open space, and loaders at 56 px inline / 96 px on a page. Do not use a sad or frustrated face to judge a learner's incorrect answer; use the encouraging tip state instead.
 
 ## Accessibility and motion
 
@@ -46,6 +46,8 @@ The mascot is decorative by default (`aria-hidden` on its SVG). Add `label` for 
 
 ## Current placements
 
-- Website: companion above the interactive terminal, responding to its actual run/question/result states.
+- Website: the full Archer Cloak mascot leads the landing page on a dark hero.
+  The separate terminal replay at `/demo/` uses the quiz mod's text logo and
+  controls, generated from `hooks/panel/model.ts`.
 - Dashboard: initial and inline loaders, empty lists, missing records, feedback empty/error states, request errors, settings save/validation feedback, retry results, delete confirmation, tip bubbles (the `tip` face, with a fitting `state` on a few tips), and the Settings Companion tab, which links to the studio.
 - Studio: all 13 expressions, body/face variants, state selector, size scale, loading motion, ink/paper toggle, and copyable examples.

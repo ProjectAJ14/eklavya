@@ -5,9 +5,9 @@ sidebar:
   order: 14
 ---
 
-Eklavya stores personal state under `~/.eklavya/`. It has no account. It sends anonymous daily usage counts, which you can turn off; [Usage analytics](/docs/usage-analytics/) lists every field. Default memory capture, summarisation and retrieval run locally.
+Eklavya stores personal state under `~/.eklavya/`. It has no account. It sends anonymous daily usage counts, which you can turn off; [Usage analytics](/docs/usage-analytics/) lists every field. Memory capture, storage and search run locally. New installs use `claude-sonnet-5` through your Claude Code login to write summaries and review prompts, sending captured session evidence to that model.
 
-Choosing an observer sends captured work through Claude Code to a model. Enabling notifications or shared-folder sync can send selected data elsewhere. [Configuration](/docs/configuration/) describes each opt-in. The normal update check contacts npm; the usage ping contacts Google Analytics; artifact templates can load Google Fonts. Local data storage does not mean every feature makes zero network requests.
+Set `providers.observer` to `null` for local summaries and no prompt review. Notifications and shared-folder sync are off by default and can send selected data elsewhere when enabled. [Configuration](/docs/configuration/) describes the controls. The normal update check contacts npm; the usage ping contacts Google Analytics; artifact templates can load Google Fonts. Local data storage does not mean every feature makes zero network requests.
 
 | Path | Contents |
 | --- | --- |
@@ -28,7 +28,7 @@ Concepts a session logged but never asked about are deleted at a later session s
 
 ### Prompt feedback
 
-The config default is off, and an upgrade keeps whatever you chose. Only the first-install walk in a terminal offers it, preselected on, and it names the model that receives the prompt. Pressing Enter there turns it on, so choose `off` to send nothing.
+Prompt feedback is on for new installs and uses the observer model, `claude-sonnet-5` by default. Existing installs keep saved settings. Older configs keep the previous defaults for these settings: no observer model and feedback off, unless explicitly set. Set `feedback.enabled` to `false` to stop prompt reviews.
 
 A review keeps the text of one of your own prompts, already redacted when memory captured it, so it stays after `memory.retention_days` prunes the evidence it came from. Delete an item from the dashboard's [Feedback page](/docs/dashboard/#feedback) (**Delete** works on waiting and acknowledged items alike), or remove everything with `eklavya uninstall --purge`. Feedback is read from memory, so with `memory.enabled` off nothing new is made, and the prompt text goes to your observer model and nowhere else; see [prompt feedback](/docs/how-it-works/#prompt-feedback). A moved checkout takes its items with it, as it does the rest of its history.
 
@@ -104,4 +104,4 @@ eklavya uninstall --purge
 
 Back up anything you want to keep first. A separately configured `EKLAVYA_DB` outside that directory requires separate deletion.
 
-Never commit a learner database or personal Eklavya state. New settings and packs stay under your home directory. Legacy checkout settings are migrated there; legacy pack files are still read. The opt-in git gate is installed separately under `.git/hooks/`. See [Installing](/docs/installing/#uninstalling) for removal details.
+Never commit a learner database or personal Eklavya state. New settings and packs stay under your home directory. Legacy checkout settings are migrated there; legacy pack files are still read. The opt-in git gate is installed separately under `.git/hooks/`. See [Uninstalling](/docs/updates/#uninstalling) for removal details.

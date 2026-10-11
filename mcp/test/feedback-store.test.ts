@@ -43,7 +43,7 @@ describe('feedbackEnabled', () => {
     feedback: { enabled: feedback },
     memory: { ...DEFAULT_CONFIG.memory, enabled: memory },
   });
-  it('is off by default', () => expect(feedbackEnabled(DEFAULT_CONFIG)).toBe(false));
+  it('is on by default for new installs', () => expect(feedbackEnabled(DEFAULT_CONFIG)).toBe(true));
   it('needs both switches', () => {
     expect(feedbackEnabled(cfg(true, true))).toBe(true);
     expect(feedbackEnabled(cfg(true, false))).toBe(false);

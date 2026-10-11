@@ -1,6 +1,6 @@
 ---
 title: "Memory"
-description: "Explore Eklavya local project memory: capture, secret redaction, summaries, search, and session recall, with an optional model-based observer."
+description: "Understand Eklavya project memory: capture, secret redaction, model-written observations, local search and session recall."
 sidebar:
   order: 7
 ---
@@ -68,9 +68,16 @@ An **observation** summarises a batch of evidence into a title, narrative, facts
 - At a turn end when they contain at least eight events or are 20 minutes old.
 - At the next session start, even if a smaller batch remains. Compaction is the same session, not a new start.
 
-The default `local-v1` summariser makes no network calls. It extracts and counts what evidence says rather than inferring why a change happened; its observations carry confidence 0.5. Types include `bugfix`, `refactor`, `decision`, `feature`, `discovery`, `change` and explicit `note`.
+New installs use `claude-sonnet-5` to write observations through `claude -p` and
+your Claude Code login. The captured evidence described above goes to that
+model. Hooks queue the work and return without waiting. Types include `bugfix`,
+`refactor`, `decision`, `feature`, `discovery`, `change` and explicit `note`.
 
-An optional `providers.observer` uses a Claude model through `claude -p` and your Claude Code login. This sends captured work to the model. A first install that keeps prompt feedback on sets it to `claude-haiku-4-5`; choose `off` on that step to keep summaries local. Hooks queue the work and return without waiting.
+Set `providers.observer` to `null` to use the local `local-v1` summariser. It
+makes no model calls and extracts what the evidence says without inferring why
+a change happened; its observations carry confidence 0.5. Search and storage
+are local with either summariser. Existing installs keep their saved model;
+older configs with no observer setting keep local summaries.
 
 The model is told to record what was learned, built, fixed, decided or configured rather than what the agent was doing, and to skip routine operations such as status checks with nothing to report, clean installs and searches that found nothing. It writes one observation per distinct finding, decision or change, up to six per batch, each with at most 12 facts. When it goes past those limits, the extra is trimmed and the rest is kept; only output with the wrong shape fails the batch.
 

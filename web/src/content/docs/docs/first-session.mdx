@@ -21,7 +21,7 @@ command for each question.
     { label: 'Open', detail: 'Your settings and relevant project memories load.' },
     { label: 'Build', detail: 'Claude, or background agents it starts, implements your request; the concepts used are logged.' },
     { label: 'Answer', detail: 'One question connects a concept to the work on screen.' },
-    { label: 'Continue', detail: 'Claude grades the answer, schedules a review and resumes work.' },
+    { label: 'Continue', detail: 'Your answer is recorded and schedules a review while work continues.' },
     { label: 'Return', detail: 'A later session recalls project history and revisits due concepts.' },
   ]}
 />
@@ -68,9 +68,10 @@ next quiz in that project asks it again after that session's own work.
 Why is httpOnly set on the refresh cookie here?
 ```
 
-The question arrives with four choices in Claude's question UI. In a terminal,
-it has an **Eklavya** header. In Claude Desktop's Code tab and Cowork, the card
-instead begins with `[Eklavya]`.
+On supported Claude Code builds, the question appears in the side panel. If
+the panel is unavailable, Claude shows four choices in its question card. The
+terminal card has an **Eklavya** header; in Claude Desktop's Code tab and Cowork,
+it begins with `[Eklavya]`.
 
 The terminal status bar shows the current focus, cadence and difficulty:
 
@@ -84,13 +85,15 @@ Desktop has no equivalent status bar; use the [dashboard](/docs/dashboard/).
 
 ## The quiz side panel (experimental)
 
-By default a question arrives in Claude's own question card and Claude waits for
-your answer. With `quiz.panel` on, a question can instead appear in an Eklavya
-panel beside the transcript. Claude hands the question to the panel and carries
-on with the task, so you can read it and answer while it keeps working.
+The side panel is on by default. On a supported Claude Code build, a question
+appears beside the transcript while Claude keeps working. You can read and
+answer it at your own pace. If the panel is unavailable, the question uses
+Claude's question card and Claude waits for your answer.
 
-```text
-eklavya config set quiz.panel true
+To use the question card everywhere:
+
+```bash
+eklavya config set quiz.panel false
 ```
 
 The panel shows one question at a time under the Eklavya mark: the concept and

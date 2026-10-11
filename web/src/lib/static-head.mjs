@@ -15,6 +15,6 @@ export function staticHead({ title, description, path, id = 'home', index = true
     '<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">',
     '<link rel="manifest" href="/site.webmanifest">',
     '<link rel="sitemap" href="/sitemap-index.xml">',
-    ...(index ? [`<script type="application/ld+json">${jsonLd(structuredData({ title, description, path }))}</script>`] : []),
+    ...(index ? [`<script type="application/ld+json">${jsonLd(structuredData({ title, description, path, id }))}</script>`] : []),
   ].join('\n');
 }

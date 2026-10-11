@@ -346,7 +346,7 @@ describe('telemetry', () => {
     expect(ping.events.map((e: { name: string }) => e.name)).toContain('daily_active');
     // The feedback event shows up with no CLI change: `show` prints buildEvents.
     expect(ping.events.find((e: { name: string }) => e.name === 'feedback').params).toEqual({
-      feedback_enabled: false, generated_new: 0, acknowledged_new: 0,
+      feedback_enabled: true, generated_new: 0, acknowledged_new: 0,
     });
   });
 

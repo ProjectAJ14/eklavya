@@ -97,7 +97,7 @@ describe('writeConfigFile backs up before it changes anything', () => {
 
     writeConfigFile(globalFile(), { cadence: 'end' });
     expect(fs.readFileSync(`${globalFile()}.eklavya-bak`, 'utf8')).toBe(first);
-    expect(JSON.parse(fs.readFileSync(globalFile(), 'utf8'))).toEqual({ focus: 'project', cadence: 'end' });
+    expect(JSON.parse(fs.readFileSync(globalFile(), 'utf8'))).toEqual({ defaults_version: 1, focus: 'project', cadence: 'end' });
   });
 
   it('writes a project file the same way', () => {
@@ -165,7 +165,7 @@ describe('providers are global-only', () => {
   it('ignores providers.observer set in a project file, and says so', () => {
     writeProject({ focus: 'project', providers: { observer: { kind: 'anthropic', model: 'theirs' } } });
     const resolved = loadConfig(repo);
-    expect(resolved.config.providers.observer).toBeNull();
+    expect(resolved.config.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-sonnet-5' });
     expect(resolved.ignored).toEqual(['providers']);
     // The rest of the project file still applies.
     expect(resolved.config.focus).toBe('project');

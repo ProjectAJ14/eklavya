@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { load } from 'cheerio';
 import sharp from 'sharp';
-import { site, absolute } from '../src/lib/seo.mjs';
+import { demoPage, site, absolute } from '../src/lib/seo.mjs';
 import { staticHead } from '../src/lib/static-head.mjs';
 
 const dist = path.resolve(fileURLToPath(new URL('../dist/', import.meta.url)));
@@ -118,6 +118,8 @@ const robots = await readFile(path.join(dist, 'robots.txt'), 'utf8');
 check(robots.includes(`Sitemap: ${absolute('/sitemap-index.xml')}`) && !/Disallow:\s*\//.test(robots), 'robots.txt blocks pages or lacks sitemap');
 const home = await readFile(path.join(dist, 'index.html'), 'utf8');
 check(home.includes(staticHead({ ...site, path: '/' })), 'Homepage SEO is stale: run npm run seo:refresh');
+const demo = await readFile(path.join(dist, 'demo/index.html'), 'utf8');
+check(demo.includes(staticHead(demoPage)), 'Demo SEO is stale: run npm run seo:refresh');
 const manifest = JSON.parse(await readFile(path.join(dist, 'site.webmanifest'), 'utf8'));
 for (const icon of [...manifest.icons, { src: '/apple-touch-icon.png', sizes: '180x180' }, { src: '/brand/icon-96.png', sizes: '96x96' }]) {
   const info = await sharp(path.join(dist, icon.src)).metadata();

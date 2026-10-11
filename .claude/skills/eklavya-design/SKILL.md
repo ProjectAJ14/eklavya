@@ -68,6 +68,9 @@ same role tokens. Custom properties inherit, so one attribute re-resolves the tr
   outside the terminal may use either set.
 - **Exception — the mark.** `web/public/brand/mark.svg` is a white bow and arrow on a
   `#0E6E66` (`--vd-600`) square, fixed. Never recolour, round or frame it.
+- **Exception — the home hero.** Its mascot and introduction keep a dark
+  ground in both themes, using fixed `--hero-*` roles. The rest of the page
+  follows the reader's selected ground.
 
 ## Mascot
 
@@ -125,9 +128,10 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
 - **Terminal window:** `--radius-term`, three muted dots, mono 13px/1.75, showing the
   real loop (prompt → work → concept log → quiz → grade) line by line with a
   blinking verdigris block cursor. Its quoted output is real product output.
-- **The terminal and the arrow flight are the two showpieces and are not to be
-  redesigned.** They may be recoloured onto tokens; their geometry, timing and
-  behaviour stay.
+- **Home and demo have separate jobs.** The home hero uses the Archer Cloak
+  mascot on a dark ground with a short introduction. The terminal lives on
+  `/demo/` and follows Claude Code's transcript and the shipped quiz mod's
+  panel, including its selection, submit and result states.
 
 ## States, focus and icons
 

@@ -11,12 +11,12 @@ Choose what Eklavya teaches and how often it asks. These settings are independen
 | --- | --- | --- |
 | `quiz.enabled` | `true`: offer questions | `false`: no questions or gate; memory can continue. |
 | `quiz.enforced` | `false`: commits are unrestricted | `true`: require passing answers before committing. |
-| `quiz.panel` | `false`: questions use Claude's own question card | `true` (experimental): show them in a side panel on a supported Claude Code build. |
+| `quiz.panel` | `true`: use the experimental side panel on supported Claude Code builds | `false`: use Claude's question card. |
 | `focus` | `concept`: the idea behind the code | `project`: this codebase; `learn`: a chosen topic. |
 | `cadence` | `as-you-go`: one question during work | `end`: questions when the task finishes. |
 | `difficulty` | `auto`: earn a level per project | Pin `easy`, `medium` or `hard`. |
 | `memory.enabled` | `true`: record and recall work | `false`: learning continues without memory capture or recall. |
-| `feedback.enabled` | `false`: no prompt feedback | `true`: review one prompt from an earlier session at a time, and wait for you to acknowledge it before the next. Needs memory and an observer model. |
+| `feedback.enabled` | `true`: review one of your prompts at a time, with memory and an observer model | `false`: no prompt feedback. |
 
 ### `quiz` — whether it asks, and whether it insists
 
@@ -24,7 +24,7 @@ Questions are optional by default. With `quiz.enforced: true`, enough answers mu
 
 Automatic questions only come in sessions that change code. With the default `quiz.only_on_changes: true`, Eklavya asks nothing until the session edits a file inside a git repository through Claude's edit tools (a sibling worktree counts; notes, plans and ignored files do not), changes one through a shell command that starts with `cd` into it, or the git working tree the session started in differs from how it looked at the start. With `delegate_work` on, Claude starting a building agent counts too, so questions can come while it builds. A session started outside any git repository, such as a folder that holds several, waits for such an edit. Questions cover the work logged since you last came back after more than an hour away, newest first, so a session left open overnight is not asked about yesterday, and a long task stays covered while you keep working. Research and read-only sessions stay quiet, and `/eklavya:quiz` still works in them. Set it to `false` to be asked about any logged work.
 
-`quiz.panel` is experimental and off. Turned on, a question appears in a side panel beside the transcript instead of in Claude's question card, and Claude keeps working while you answer. It changes where a question appears, not which questions are asked, how often, or how they are graded. It needs the Claude Code terminal CLI or the Desktop Code tab with the plugin installed; anywhere else, and whenever no panel is showing, you get the card as before. Turned off, the panel shows nothing and every question uses the card; a question still waiting in the panel is closed without being graded, and turning the panel back on does not bring it back. See [the quiz side panel](/docs/first-session/#the-quiz-side-panel-experimental).
+`quiz.panel` is experimental and on by default. With it on, a question appears in a side panel beside the transcript instead of in Claude's question card, and Claude keeps working while you answer. It changes where a question appears, not which questions are asked, how often, or how they are graded. It needs the Claude Code terminal CLI or the Desktop Code tab with the plugin installed; anywhere else, and whenever no panel is showing, you get the card as before. Turned off, the panel shows nothing and every question uses the card; a question still waiting in the panel is closed without being graded, and turning the panel back on does not bring it back. See [the quiz side panel](/docs/first-session/#the-quiz-side-panel-experimental).
 
 Setting `quiz.enabled: false` disables questions and enforcement. It does not stop memory; when memory is on, the session banner reports “memory on · questions off”. To stop both halves, also set `memory.enabled: false`.
 
@@ -56,7 +56,29 @@ With [`delegate_work`](/docs/configuration/#every-key) on (the default), Claude 
 
 ### `feedback` — coaching on your own prompts
 
-Off in the config by default, because it spends your Claude subscription on a model call over your own prompts, and an upgrade never turns it on. The first-install walk in a terminal asks while memory records, with `on` preselected, and sets `providers.observer` to `claude-haiku-4-5` if it was `local`; an upgrade keeps what you chose. Turned on, Eklavya reviews one prompt from a finished session in the background and shows it on the dashboard's [Feedback page](/docs/dashboard/#feedback), one item at a time: the next waits until you press **Acknowledge**. It needs `memory.enabled` and an observer model (`providers.observer`); with either off, nothing is generated. It is independent of `quiz.enabled`, and it never changes your mastery or your levels.
+New installs have prompt feedback on and use `claude-sonnet-5` through your
+Claude Code login. Existing installs keep their choices. Older configs keep the
+previous defaults for these settings: feedback off and no observer model,
+unless explicitly set.
+
+Eklavya reviews one prompt from a finished session in the background and shows
+it on the dashboard's [Feedback page](/docs/dashboard/#feedback). The next
+review waits until you acknowledge or delete the waiting item. Feedback needs
+`memory.enabled` and an observer model (`providers.observer`); with either off,
+nothing is generated. It is independent of `quiz.enabled` and never changes
+your mastery or levels.
+
+### `memory`: keep project history
+
+Memory is on by default. It records eligible prompts and tool activity, saves
+observations and recalls relevant history in later sessions. New installs use
+`claude-sonnet-5` to write observations; search and storage run locally.
+Turn memory off independently of questions with `memory.enabled`.
+
+You can [search and edit notes](/docs/commands/#eklavyamemory),
+[import Claude Mem history](/docs/migrating/) or
+[sync memories through a folder](/docs/configuration/#sync--memory-across-your-machines).
+[Memory](/docs/memory/) covers capture, exclusions, redaction and deletion.
 
 ### `difficulty` — how hard it may get
 

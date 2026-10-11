@@ -2179,7 +2179,9 @@ describe('the delegation nudge on a second edited file', () => {
     // A staged plan stays staged, and the parent keeps review, checks and commits.
     expect(res.context).toMatch(/one stage per agent, in order/);
     expect(res.context).toMatch(/commit before starting the next/);
-    expect(res.context).toMatch(/while_waiting: true, then AskUserQuestion, record_attempt and the verdict/);
+    expect(res.context).toMatch(/while_waiting: true, then ask one question at a time as its presentation says/);
+    expect(res.context).toMatch(/present_question for "panel"/);
+    expect(res.context).toMatch(/else AskUserQuestion, record_attempt and the verdict/);
     // Staying inline is allowed, but said out loud.
     expect(res.context).toMatch(/Say why in one line/);
     expect(state()).toMatchObject({ done: true });

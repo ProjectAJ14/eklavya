@@ -109,11 +109,12 @@ describe('a Stop seam closes a batch only once it is worth a summary', () => {
   });
 
   it('the local summariser follows the same rule: no observation for a two-event turn', async () => {
+    const local = resolved((config) => { config.providers.observer = null; });
     events(2);
-    await flushAtSeam(db, resolved(), identity());
+    await flushAtSeam(db, local, identity());
     expect((db.prepare('SELECT COUNT(*) AS n FROM memory_entries').get() as { n: number }).n).toBe(0);
     events(SEAM_MIN_EVENTS);
-    await flushAtSeam(db, resolved(), identity());
+    await flushAtSeam(db, local, identity());
     expect((db.prepare('SELECT COUNT(*) AS n FROM memory_entries').get() as { n: number }).n).toBe(1);
   });
 });

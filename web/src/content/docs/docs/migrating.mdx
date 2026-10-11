@@ -5,18 +5,21 @@ sidebar:
   order: 12
 ---
 
-Choose one memory recorder to avoid capturing and recalling the same sessions twice. When Eklavya detects the Claude Mem plugin or database, installation offers the choice:
+Use one memory recorder to avoid capturing and recalling the same sessions twice.
+On a first install, Eklavya keeps Claude Mem if it detects its plugin or database.
+It disables its own memory and leaves quizzes on. No question is asked.
+Later installs keep the recorder you already chose.
+
+To switch to Eklavya explicitly:
 
 ```bash
-eklavya install
+eklavya install --memory eklavya
 ```
 
-| Choice | Result |
-| --- | --- |
-| Eklavya | Import Claude Mem history, verify it, then retire Claude Mem. |
-| Claude Mem | Keep it unchanged and disable Eklavya memory; quizzes remain available. |
-
-Pass `--memory eklavya` or `--memory claude-mem` to select without the prompt. Without an interactive terminal or explicit choice, the installer keeps Claude Mem.
+This imports Claude Mem history, verifies it and retires Claude Mem.
+`eklavya install --memory claude-mem` keeps Claude Mem and disables Eklavya memory.
+The optional `eklavya install --settings` walkthrough also lets you choose a
+recorder.
 
 ## Choosing Eklavya
 

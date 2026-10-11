@@ -5,6 +5,54 @@ sidebar:
   order: 16
 ---
 
+## How do I install Node.js?
+
+The recommended Eklavya install requires **Node.js 22 or newer and npm**.
+The [Node.js installer](https://nodejs.org/en/download) includes npm.
+If Node is already installed, check it with `node --version` and npm with
+`npm --version`.
+
+You can also use your package manager:
+
+```bash title="macOS with Homebrew"
+brew install node
+```
+
+```powershell title="Windows"
+winget install OpenJS.NodeJS.LTS
+```
+
+```bash title="Linux with nvm already installed"
+nvm install 22 && nvm use 22
+```
+
+## What does the installer set up?
+
+`npm install -g eklavya && eklavya install` installs the terminal command,
+Claude Code plugin, managed runtime, local database and two chat skills for
+plain-English controls and saved explanations. It also adds Eklavya's status
+line when you do not already have one.
+
+No settings questions appear. A fresh install has skippable questions on,
+concept focus, as-you-go cadence, automatic difficulty, the side panel, memory
+and prompt feedback. `claude-sonnet-5` writes memory summaries and reviews
+prompts through your Claude Code login. [The dials](/docs/dials/) and
+[Configuration](/docs/configuration/) explain how to change these later.
+You can open the optional walkthrough with `eklavya install --settings`.
+
+Reinstalling keeps saved choices. Older configs keep the previous defaults for
+these settings: no observer model and feedback off, unless explicitly set.
+If a first install finds Claude Mem, it keeps Claude Mem recording and disables Eklavya
+memory. To switch, follow [Moving from Claude Mem](/docs/migrating/).
+
+Git lets Eklavya identify projects. Ordinary questions and memory need no
+`jq` or `sqlite3` command. The optional terminal [commit gate](/docs/commit-gate/)
+needs both, a POSIX shell and a separate Git hook.
+
+For another host or a source checkout, use
+[Installation options](/docs/installation-options/). For automatic updates,
+backups and removal, use [Updates and removal](/docs/updates/).
+
 ## Does it work in Claude Desktop?
 
 The **Code** tab uses your Claude Code installation. **Cowork** needs a separate
@@ -24,8 +72,10 @@ status bar. A hook refuses a card question headed "Eklavya" that omits the line,
 
 ## Does anything leave my machine?
 
-Eklavya stores data locally, and its default memory summarizer and search index
-run locally. It has no separate account. It does send anonymous daily usage
+Eklavya stores data and runs its search index locally. New installs use
+`claude-sonnet-5` through your Claude Code login to write memory summaries and
+review prompts, so captured session evidence goes to that model. It has no
+separate account. It does send anonymous daily usage
 counts, never paths, names or text; `eklavya telemetry off` stops them, and
 [Usage analytics](/docs/usage-analytics/) lists every field. **Recalled memories are
 provided to Claude as session context**, alongside the work you already do
@@ -37,15 +87,19 @@ the background on `127.0.0.1` only and makes no outbound requests;
 `dashboard_autostart: false` stops it being started. Saved explainer pages opened in their own tab can request
 Google Fonts, with system font fallbacks when offline; in the dashboard's viewer they use system fonts.
 
-Optional providers send captured work through Claude Code to a configured
-model. With `feedback.enabled` and `memory.enabled` on and `providers.observer` set, the text of up to eight of your own prompts from one finished session goes to that observer model, and nowhere else. Notifications can send wrap-ups to a destination you choose, and sync
-writes memory to a directory you choose. None is on in the config by default. The first-install walk offers prompt feedback preselected on, names the model that gets the prompt, and sets that model as the observer. See
-[Memory](/docs/memory/) and [Configuration](/docs/configuration/) before enabling
-them.
+Prompt feedback sends up to eight of your prompts from one finished session
+to the observer model. Set `providers.observer` to `null` for local summaries
+and no prompt review. Existing installs keep their settings; older configs
+keep the previous defaults for these settings: no observer model and feedback
+off, unless explicitly set.
+
+Notifications can send wrap-ups to a destination you choose, and sync writes
+memory to a directory you choose. Both are off by default. See
+[Memory](/docs/memory/) and [Configuration](/docs/configuration/) for the controls.
 
 ## Does feedback on my prompts change my score?
 
-No. Feedback is stored in its own tables, which refer to no answer, score or level, and nothing in a coding session can write to them. Only an answered question changes mastery. Turn it on with `feedback.enabled`; see [the Feedback page](/docs/dashboard/#feedback) and [how it is made](/docs/how-it-works/#prompt-feedback).
+No. Feedback is stored in its own tables, which refer to no answer, score or level, and nothing in a coding session can write to them. Only an answered question changes mastery. New installs have feedback on; `feedback.enabled` controls it. See [the Feedback page](/docs/dashboard/#feedback) and [how it is made](/docs/how-it-works/#prompt-feedback).
 
 ## How do I report a problem with Eklavya?
 

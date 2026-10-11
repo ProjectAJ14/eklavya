@@ -30,7 +30,10 @@ Eklavya is a plugin for Claude Code. It does two jobs:
 Your learning history and memory are stored on your computer. There is no
 Eklavya account. Eklavya sends anonymous daily usage counts, never code, paths,
 names or text. [Every field is listed](https://eklavya-run.web.app/docs/usage-analytics/),
-and `eklavya telemetry off` stops them.
+and `eklavya telemetry off` stops them. New installs use `claude-sonnet-5`
+through your Claude Code login for memory summaries and prompt feedback, so
+captured session evidence goes to that model. [Memory and data](https://eklavya-run.web.app/docs/memory/)
+explains the controls.
 
 ## What you get
 
@@ -70,7 +73,7 @@ notes to check against the code.
 |---|---|---|
 | Captures your work | Saves prompts, file edits and tool calls as you work; unattended `claude -p` runs keep only tool and file activity. | [What gets captured](https://eklavya-run.web.app/docs/memory/#what-gets-captured) |
 | Hides secrets | Skips files like `.env` and keys, even when a read or edit of one fails. Removes tokens and passwords before saving or trimming. | [What is never captured](https://eklavya-run.web.app/docs/memory/#what-is-never-captured) |
-| Writes summaries | Groups work into observations and session summaries, on your machine. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
+| Writes summaries | Groups work into observations and session summaries, using `claude-sonnet-5` on a new install or your saved observer choice. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
 | Recalls history | Gives Claude past work and where the last session left off at session start, on related prompts, and before it reads a file with history. On prompts and on a resume it skips entries the current session wrote, which Claude already has. The session banner shows the estimated context saved. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |
 | Search and notes | Ask `/eklavya:memory` about a past change, save a note or fix a wrong entry. | [Commands](https://eklavya-run.web.app/docs/commands/#eklavyamemory) |
 | Shows the savings | Estimates how much smaller recall is than the raw history, counting recall a hook sent. Calls to the memory search and read tools are logged locally. | [Savings](https://eklavya-run.web.app/docs/memory/#what-the-savings-percentage-measures) |
@@ -109,7 +112,7 @@ each page sits centred beside the sidebar. It has five parts:
 | Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, reviews due with a command per project to start them, the top three shown (each run asks the weakest first), weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
-| Feedback | Offered in the first-install walk while memory records, preselected on. Upgrades and non-interactive installs keep your stored value, which starts off (`feedback.enabled`; it needs memory and an observer model): one reviewed prompt of yours at a time: what your later prompts had to add shows what it left out, with a better version. The next waits until you acknowledge or delete the waiting one, and it never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
+| Feedback | Reviews one of your prompts using what later prompts had to add, and offers a better version. On for new installs; existing installs keep their choices. Needs memory and an observer model. The next review waits until you acknowledge or delete the waiting one. It never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |
 | Settings | A switchboard: your settings first, each project's beside them, one tab per category, changed the same way as `eklavya config`. | [Settings pages](https://eklavya-run.web.app/docs/dashboard/#settings) |
 
 For a short summary in chat, use `/eklavya:progress`.
@@ -123,17 +126,19 @@ questions off and keep memory on.
 |---|---|---|
 | `quiz.enabled` | `true`: ask questions | `false`: no questions |
 | `quiz.enforced` | `false`: commit freely | `true`: pass a quiz before a commit |
-| `quiz.panel` | `false`: Claude's question card | `true`: experimental side panel on the Claude Code terminal CLI and Desktop Code tab, one bordered card per option (spaced apart and padded, with a bold question, on the desktop app); not in Cowork, which keeps the card |
+| `quiz.panel` | `true`: experimental side panel on supported Claude Code builds | `false`: Claude's question card. Cowork and unsupported hosts use the card. |
 | `focus` | `concept`: the idea behind the code | `project`: this codebase · `learn`: a topic you pick |
-| `feedback.enabled` | `false`: no prompt review (the first-install walk preselects `true` while memory records) | `true`: review one of your earlier prompts, using what you had to add later (needs memory and an observer model) |
+| `feedback.enabled` | `true`: review one of your prompts using what you had to add later | `false`: no prompt review. Needs memory and an observer model. |
 | `cadence` | `as-you-go`: during the task | `end`: after the task |
 | `difficulty` | `auto`: grows with you | `easy`, `medium` or `hard` |
 | `memory.enabled` | `true`: record and recall | `false`: learning only |
 
 By default Eklavya asks only in sessions that change code (edit tools or
 shell commands, in this checkout or a sibling worktree), up to four
-questions per session on its own, at least four minutes apart. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
-`eklavya config set` in a terminal (`eklavya config get quiz.enabled` reads one back), or the dashboard's Settings pages. `quiz.panel` is set with `eklavya config set quiz.panel true` or in Settings; a round you ask for with `/eklavya:quiz` keeps its topic and length across the panel's Next button, and a miss in the panel starts its explainer page in the background, asking once more and queuing a prompt for Claude only if Claude Code refuses or fails that start twice. A prompt the panel sends Claude shows in your transcript as one short line. If Claude Code's auto mode denies the panel's tools, allow them as [the manual shows](https://eklavya-run.web.app/docs/first-session/#if-auto-mode-blocks-the-panel), or ask Claude to. See [the dials](https://eklavya-run.web.app/docs/dials/)
+questions per session on its own. Checkpoint questions are at least four minutes
+apart; questions while background agents build share the budget but skip that
+gap. `/eklavya:quiz` can always ask more. Change a dial with `/eklavya:mode` in Claude Code,
+`eklavya config set` in a terminal (`eklavya config get quiz.enabled` reads one back), or the dashboard's Settings pages. `quiz.panel` can be changed with `eklavya config set quiz.panel false` or in Settings; a round you ask for with `/eklavya:quiz` keeps its topic and length across the panel's Next button, and a miss in the panel starts its explainer page in the background, asking once more and queuing a prompt for Claude only if Claude Code refuses or fails that start twice. A prompt the panel sends Claude shows in your transcript as one short line. If Claude Code's auto mode denies the panel's tools, allow them as [the manual shows](https://eklavya-run.web.app/docs/first-session/#if-auto-mode-blocks-the-panel), or ask Claude to. See [the dials](https://eklavya-run.web.app/docs/dials/)
 and [every setting](https://eklavya-run.web.app/docs/configuration/).
 
 ## Commands
@@ -149,7 +154,7 @@ and [every setting](https://eklavya-run.web.app/docs/configuration/).
 | `/eklavya:progress` | See what you know and what is due. |
 | `/eklavya:memory` | Search past work or save a note. |
 | `/eklavya:gate` | See why a commit is blocked. |
-| `/eklavya:setup` | Check the install and pick settings. |
+| `/eklavya:setup` | Check the installation without changing settings. |
 
 You can also just ask, like "Space out Eklavya's questions". See
 [all commands](https://eklavya-run.web.app/docs/commands/) and
@@ -157,14 +162,16 @@ You can also just ask, like "Space out Eklavya's questions". See
 
 ## Install
 
-With **Claude Code and Node.js 22+** on macOS, Linux or Windows:
+With **Claude Code and Node.js 22+ with npm** on macOS, Linux or Windows:
 
 ```bash
 npm install -g eklavya && eklavya install
 ```
 
-Accept the defaults, restart Claude Code, and start a task. Eklavya updates
-itself in the background. See [Installing](https://eklavya-run.web.app/docs/installing/)
+The installer uses the defaults without asking settings questions and keeps
+any choices you already saved. [Allow the side-panel tools in auto mode](https://eklavya-run.web.app/docs/installing/),
+then restart Claude Code and start a task. Eklavya updates itself in the
+background. See [Installation options](https://eklavya-run.web.app/docs/installation-options/)
 for other setups.
 
 ## Documentation

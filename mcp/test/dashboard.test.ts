@@ -1436,7 +1436,7 @@ describe('every config key has a home in the dashboard or the terminal', () => {
     // that is what keeps the CLI and the dashboard describing one config.
     const leaves = knownKeys().filter((k) => {
       const d = defaultAt(k);
-      return !(d && typeof d === 'object' && !Array.isArray(d));
+      return k.includes('.') || !(d && typeof d === 'object' && !Array.isArray(d));
     });
     const placed = [...SETTINGS.map((f) => f.key), ...CLI_ONLY.map((c) => c.key)];
     expect([...placed].sort()).toEqual([...leaves].sort());
@@ -1654,7 +1654,7 @@ describe('/api/settings', () => {
       await post(port, { scope: 'user', key: 'quiz.enabled', value: false }, h);
       const gate = await post(port, { scope: 'user', key: 'quiz.enforced', value: true }, h);
       expect(gate.body.error).toMatch(/no effect while quiz.enabled is false/);
-      expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8'))).toEqual({ quiz: { enabled: false } });
+      expect(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8'))).toEqual({ defaults_version: 1, quiz: { enabled: false } });
     });
   });
 
