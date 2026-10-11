@@ -17,6 +17,13 @@ import {
 } from '../src/config-path.js';
 import { setConfig } from '../src/tools/config_tools.js';
 
+let inheritedDb: string | undefined;
+beforeEach(() => { inheritedDb = process.env.EKLAVYA_DB; delete process.env.EKLAVYA_DB; });
+afterEach(() => {
+  if (inheritedDb === undefined) delete process.env.EKLAVYA_DB;
+  else process.env.EKLAVYA_DB = inheritedDb;
+});
+
 describe('dotted configuration keys', () => {
   it('knows every flat dial and every namespaced key, from the defaults rather than a list', () => {
     // A hand-written list is a place a new key gets accepted and then silently
@@ -137,9 +144,9 @@ describe('quiz.panel through the shared write path', () => {
     else process.env.EKLAVYA_HOME = saved;
   });
 
-  it('is a known boolean key that defaults to off', () => {
+  it('is a known boolean key that defaults to on', () => {
     expect(knownKeys()).toContain('quiz.panel');
-    expect(valueAt(DEFAULT_CONFIG, 'quiz.panel')).toBe(false);
+    expect(valueAt(DEFAULT_CONFIG, 'quiz.panel')).toBe(true);
     expect(parseValue('quiz.panel', 'true')).toBe(true);
     expect(settingProblem('quiz.panel', true)).toBeNull();
     expect(settingProblem('quiz.panel', 'yes')).not.toBeNull();
@@ -149,7 +156,7 @@ describe('quiz.panel through the shared write path', () => {
   it('is written at user scope and at project scope without touching the other flags', () => {
     applySetting('quiz.enforced', true, null);
     applySetting('quiz.panel', true, null);
-    expect(JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'))).toEqual({ quiz: { enforced: true, panel: true } });
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'))).toEqual({ defaults_version: 1, quiz: { enforced: true, panel: true } });
     applySetting('quiz.panel', false, checkout);
     const projectFile = path.join(dir, 'projects', checkout.replace(/[/\\:]/g, '-'), 'config.json');
     expect(JSON.parse(fs.readFileSync(projectFile, 'utf8')).quiz).toEqual({ panel: false });
@@ -203,16 +210,16 @@ describe('feedback.enabled', () => {
     fs.rmSync(home.checkout, { recursive: true, force: true });
   });
 
-  it('is a known boolean key, off by default, and set at user and project scope', () => {
+  it('is a known boolean key, on by default, and set at user and project scope', () => {
     expect(knownKeys()).toContain('feedback.enabled');
-    expect(valueAt(DEFAULT_CONFIG, 'feedback.enabled')).toBe(false);
+    expect(valueAt(DEFAULT_CONFIG, 'feedback.enabled')).toBe(true);
     expect(parseValue('feedback.enabled', 'true')).toBe(true);
     expect(settingProblem('feedback.enabled', 'yes')).not.toBeNull();
     applySetting('feedback.enabled', true, null);
     expect(loadConfig(home.checkout).config.feedback.enabled).toBe(true);
     applySetting('feedback.enabled', false, home.checkout);
     expect(loadConfig(home.checkout).config.feedback.enabled).toBe(false);
-    expect(JSON.parse(fs.readFileSync(path.join(home.dir, 'config.json'), 'utf8'))).toEqual({ feedback: { enabled: true } });
+    expect(JSON.parse(fs.readFileSync(path.join(home.dir, 'config.json'), 'utf8'))).toEqual({ defaults_version: 1, feedback: { enabled: true } });
   });
 
   it('is set through the set_config tool, not dropped', () => {
@@ -246,7 +253,7 @@ describe('SETTING_RULES: what every interface accepts', () => {
   it('covers every leaf key except the objects coerce checks itself', () => {
     const leaves = knownKeys().filter((k) => {
       const d = defaultAt(k);
-      return !(d !== null && typeof d === 'object' && !Array.isArray(d));
+      return k.startsWith('providers.') || !(d !== null && typeof d === 'object' && !Array.isArray(d));
     });
     const unruled = leaves.filter((k) => !SETTING_RULES[k]);
     expect(unruled.sort()).toEqual(['notifications.sinks', 'providers.embeddings', 'providers.observer']);
@@ -283,7 +290,7 @@ describe('SETTING_RULES: what every interface accepts', () => {
     expect(() => applySetting('focus', 'learn', null)).toThrow(/needs a topic/);
     applySetting('quiz.enabled', false, null);
     expect(() => applySetting('quiz.enforced', true, null)).toThrow(/no effect while quiz.enabled is false/);
-    expect(JSON.parse(fs.readFileSync(userFile(), 'utf8'))).toEqual({ quiz: { enabled: false } });
+    expect(JSON.parse(fs.readFileSync(userFile(), 'utf8'))).toEqual({ defaults_version: 1, quiz: { enabled: false } });
     // A topic already in force is enough; clearing it under learn is refused.
     applySetting('focus_topic', 'caching', null);
     applySetting('focus', 'learn', null);

@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { openDb } from './db.js';
 import { dbPath } from './paths.js';
+import { initializeGlobalConfig } from './config.js';
 import { registerTools } from './tools/index.js';
 
 // Read the version rather than hardcoding it: a literal here silently reports a
@@ -26,6 +27,9 @@ function log(message: string): void {
 }
 
 async function main(): Promise<void> {
+  // Establish new defaults before creating the first learner database. An
+  // existing database without config keeps the earlier local-only defaults.
+  initializeGlobalConfig();
   const db = openDb();
   log(`db ready at ${dbPath()}`);
 

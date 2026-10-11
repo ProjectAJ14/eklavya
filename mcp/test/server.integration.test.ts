@@ -75,7 +75,7 @@ describe('eklavya-mcp over stdio', () => {
   it('completes the handshake and lists every declared tool', async () => {
     dbFile = tempDbPath('server');
     proc = spawn(process.execPath, [serverEntry], {
-      env: { ...process.env, EKLAVYA_DB: dbFile },
+      env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: path.join(path.dirname(dbFile), 'home') },
       cwd: os.tmpdir(),
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
@@ -145,7 +145,7 @@ describe('eklavya-mcp over stdio', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-server-bad-'));
     try {
       const child = spawn(process.execPath, [serverEntry], {
-        env: { ...process.env, EKLAVYA_DB: dir },
+        env: { ...process.env, EKLAVYA_DB: dir, EKLAVYA_HOME: path.join(dir, 'home') },
         cwd: os.tmpdir(),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -162,7 +162,7 @@ describe('eklavya-mcp over stdio', () => {
   it('creates and migrates the database it was pointed at', async () => {
     dbFile = tempDbPath('server-db');
     proc = spawn(process.execPath, [serverEntry], {
-      env: { ...process.env, EKLAVYA_DB: dbFile },
+      env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: path.join(path.dirname(dbFile), 'home') },
       cwd: os.tmpdir(),
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;

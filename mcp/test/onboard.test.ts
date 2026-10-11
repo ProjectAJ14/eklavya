@@ -11,11 +11,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { askOne, onboard } from '../src/onboard.js';
+import { loadGlobalConfig } from '../src/config.js';
 
 const KEY = { up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', enter: '\r', space: ' ', ctrlC: '\x03', ctrlD: '\x04' };
 
 let home = '';
 let savedHome: string | undefined;
+let savedDb: string | undefined;
 let out = '';
 let input: PassThrough & { isTTY: boolean; setRawMode: (on: boolean) => unknown };
 const real = {
@@ -56,6 +58,8 @@ const opts = { claudeMem: false, memoryFlag: null, hookScript: '/x/pre-commit', 
 beforeEach(() => {
   home = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-onboard-'));
   savedHome = process.env.EKLAVYA_HOME;
+  savedDb = process.env.EKLAVYA_DB;
+  delete process.env.EKLAVYA_DB;
   process.env.EKLAVYA_HOME = home;
   out = '';
 });
@@ -66,6 +70,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   if (savedHome === undefined) delete process.env.EKLAVYA_HOME;
   else process.env.EKLAVYA_HOME = savedHome;
+  if (savedDb === undefined) delete process.env.EKLAVYA_DB;
+  else process.env.EKLAVYA_DB = savedDb;
   fs.rmSync(home, { recursive: true, force: true });
 });
 
@@ -85,6 +91,7 @@ describe('the settings walk', () => {
     );
     expect(await done).toBeNull();
     expect(saved()).toEqual({
+      defaults_version: 1,
       quiz: { enabled: true, enforced: true },
       focus: 'learn',
       focus_topic: 'rust',
@@ -103,37 +110,45 @@ describe('the settings walk', () => {
   it('writes the file after a first walk even when every answer kept the default', async () => {
     terminal();
     const done = onboard(opts);
-    // Six dials, then the prompt-feedback step answered off.
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '2');
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter);
     expect(await done).toBeNull();
-    expect(saved()).toEqual({});
+    expect(saved()).toEqual({ defaults_version: 1 });
     expect(out).toContain('settings unchanged');
   });
 
-  it('turns prompt feedback on for a first install that just presses Enter, and says what it sends', async () => {
+  it('keeps prompt feedback on when the optional walk just presses Enter, and says what it sends', async () => {
     terminal();
     const done = onboard(opts);
     await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter);
     expect(await done).toBeNull();
-    // Feedback needs a model, so the provider is written with it, and the
-    // summary shows the model that now writes the memories too.
-    expect(saved()).toEqual({
-      feedback: { enabled: true },
-      providers: { observer: { kind: 'anthropic', model: 'claude-haiku-4-5' } },
+    expect(saved()).toEqual({ defaults_version: 1 });
+    expect(loadGlobalConfig()).toMatchObject({
+      feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } },
     });
     expect(out).toContain('coach one of your prompts');
     expect(out).toContain('leaves this machine');
-    expect(out).toContain('claude-haiku-4-5');
+    expect(out).toContain('claude-sonnet-5');
   });
 
   it('keeps the model a first install chose when feedback is turned on', async () => {
     terminal();
     const done = onboard(opts);
-    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '3', KEY.enter);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '4', KEY.enter);
     await done;
     expect(saved()).toEqual({
-      feedback: { enabled: true },
-      providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } },
+      defaults_version: 1,
+      providers: { observer: { kind: 'anthropic', model: 'claude-opus-5-5' } },
+    });
+  });
+
+  it('uses the cheaper model when a user explicitly chooses local summaries with feedback on', async () => {
+    terminal();
+    const done = onboard(opts);
+    await type(KEY.enter, KEY.enter, KEY.enter, KEY.enter, KEY.enter, '1', KEY.enter);
+    await done;
+    expect(saved()).toEqual({
+      defaults_version: 1,
+      providers: { observer: { kind: 'anthropic', model: 'claude-haiku-4-5' } },
     });
   });
 
@@ -240,7 +255,7 @@ describe('the settings walk', () => {
     const done = onboard(opts);
     await type(KEY.down, KEY.enter, KEY.ctrlD);
     await done;
-    expect(saved()).toEqual({ quiz: { enabled: true, enforced: true } });
+    expect(saved()).toEqual({ defaults_version: 1, quiz: { enabled: true, enforced: true } });
   });
 
   it('exits 130 on Ctrl-C, in a list or at the topic prompt', async () => {
@@ -269,17 +284,20 @@ describe('the settings walk', () => {
 });
 
 describe('without a terminal', () => {
-  it('leaves prompt feedback off on a first install nobody could be asked about', async () => {
+  it('applies the fresh defaults without asking for input', async () => {
     terminal(false);
     await onboard(opts);
-    expect(fs.existsSync(configFile())).toBe(false);
+    expect(saved()).toEqual({ defaults_version: 1 });
+    expect(loadGlobalConfig()).toMatchObject({
+      feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'claude-sonnet-5' } },
+    });
     expect(out).not.toContain('coach one of your prompts');
   });
 
   it('lets Claude Mem keep recording on a first install nobody could be asked about', async () => {
     terminal(false);
     expect(await onboard({ ...opts, claudeMem: true })).toBe('claude-mem');
-    expect(fs.existsSync(configFile())).toBe(false);
+    expect(saved()).toEqual({ defaults_version: 1 });
     expect(out).toContain('change them: eklavya install --settings');
   });
 
@@ -289,6 +307,69 @@ describe('without a terminal', () => {
     expect(await onboard({ ...opts, claudeMem: true, ask: false })).toBeNull();
     expect(out).toContain('pick who records: eklavya install --settings');
     expect(out).toContain('no topic');
+  });
+});
+
+describe('ordinary installs', () => {
+  it('never reads keys on a fresh install, even with a terminal', async () => {
+    terminal();
+    const raw = vi.fn(() => input);
+    input.setRawMode = raw;
+    await onboard({ ...opts, ask: false });
+    expect(raw).not.toHaveBeenCalled();
+    expect(out).not.toContain('Your settings');
+    expect(out).not.toContain('Enter chooses');
+    expect(saved()).toEqual({ defaults_version: 1 });
+    expect(loadGlobalConfig()).toMatchObject({
+      quiz: { enabled: true, enforced: false, panel: true },
+      memory: { enabled: true }, feedback: { enabled: true },
+    });
+  });
+
+  it('keeps explicit settings and the old implicit local provider during a repeat install', async () => {
+    const existing = { quiz: { enabled: false, panel: false }, memory: { enabled: false }, cadence: 'end' };
+    fs.writeFileSync(configFile(), JSON.stringify(existing));
+    terminal();
+    await onboard({ ...opts, ask: false });
+    expect(saved()).toEqual(existing);
+    expect(loadGlobalConfig()).toMatchObject({
+      quiz: { enabled: false, panel: false }, memory: { enabled: false },
+      feedback: { enabled: false }, providers: { observer: null }, cadence: 'end',
+    });
+    expect(out).not.toContain('Your settings');
+  });
+
+  it.each([undefined, true])('preserves an explicit local observer when feedback is %s', async (feedback) => {
+    const existing = {
+      defaults_version: 1, providers: { observer: null },
+      ...(feedback === undefined ? {} : { feedback: { enabled: feedback } }),
+    };
+    fs.writeFileSync(configFile(), JSON.stringify(existing));
+    terminal();
+    await onboard({ ...opts, ask: false });
+    expect(saved()).toEqual(existing);
+    expect(loadGlobalConfig().providers.observer).toBeNull();
+  });
+
+  it('keeps an explicit local observer when the settings walk stops before feedback is answered', async () => {
+    const existing = { defaults_version: 1, providers: { observer: null } };
+    fs.writeFileSync(configFile(), JSON.stringify(existing));
+    terminal();
+    const done = onboard(opts);
+    await type(KEY.ctrlD);
+    await done;
+    expect(saved()).toEqual(existing);
+  });
+
+  it('leaves recorder ownership alone when an older install has a database and no config', async () => {
+    fs.writeFileSync(path.join(home, 'knowledge.db'), 'existing learner state');
+    terminal();
+    const owner = await onboard({ ...opts, ask: false, claudeMem: true });
+    expect(owner).toBeNull();
+    expect(saved()).toEqual({ defaults_version: 0 });
+    expect(loadGlobalConfig()).toMatchObject({
+      memory: { enabled: true }, feedback: { enabled: false }, providers: { observer: null },
+    });
   });
 });
 

@@ -288,7 +288,7 @@ describe('a legacy file is still a file from a stranger', () => {
     expect(c.notifications.enabled).toBe(false);
     expect(c.notifications.sinks).toEqual([]);
     expect(c.sync.enabled).toBe(false);
-    expect(c.providers.observer).toBeNull();
+    expect(c.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-sonnet-5' });
     expect(c.retrieval.cross_project).toBe(false);
     // The ordinary dials it set still apply, and the rest of a trimmed
     // namespace survives: the refusal is narrow, not a blanket reject.
@@ -311,7 +311,7 @@ describe('a legacy file is still a file from a stranger', () => {
     const c = loadConfig(repo).config;
     expect(c.notifications.enabled).toBe(false);
     expect(c.sync.enabled).toBe(false);
-    expect(c.providers.observer).toBeNull();
+    expect(c.providers.observer).toEqual({ kind: 'anthropic', model: 'claude-sonnet-5' });
     expect(c.retrieval.cross_project).toBe(false);
   });
 });

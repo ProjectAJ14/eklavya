@@ -12,6 +12,7 @@ import type { DB } from './db.js';
 import { dashboardPort, dbPath, eklavyaHome } from './paths.js';
 import { readStdinBounded, stripBom, STATUSLINE_STDIN } from './stdin.js';
 import {
+  initializeGlobalConfig,
   loadConfig,
   loadGlobalConfig,
   writeConfigFile,
@@ -47,8 +48,8 @@ Usage:
                                         which one records without being asked: eklavya imports its
                                         history and retires it; claude-mem keeps it and turns Eklavya
                                         memory off
-                                        --settings  walk the settings again (a first install always does;
-                                        after that they are kept and only printed)
+                                        --settings  choose different settings; ordinary installs use the
+                                        defaults and keep any settings you already saved
   eklavya update                        Update now. Eklavya already updates itself in the background at
                                         session start (auto_update); this is the same run, in the open
   eklavya uninstall [--purge]           Remove it (--purge also deletes your learning history)
@@ -146,7 +147,7 @@ Config namespaces (nested; edit ~/.eklavya/config.json or this project's file di
              git repository (default true: sessions that only read, research
              or answer questions are not quizzed, even outside a repository),
              and whether they show in the Claude Code side panel instead of
-             the question card (experimental, default false).
+             the question card (experimental, default true).
              Separate from memory: silencing questions never stops
              recording. (mode: ambient|enforced|off is the retired spelling,
              still read so older configs keep working)
@@ -424,6 +425,7 @@ async function telemetryCommand(args: string[]): Promise<void> {
   }
   if (sub === 'show' || sub === 'send') {
     const [{ openDb }, send] = await Promise.all([import('./db.js'), import('./telemetry-send.js')]);
+    initializeGlobalConfig();
     const db = openDb();
     try {
       if (sub === 'show') {
@@ -476,6 +478,7 @@ async function feedbackCommand(args: string[]): Promise<void> {
       import('./memory/identity.js'),
       import('./session.js'),
     ]);
+    initializeGlobalConfig();
     const db = openDb();
     try {
       const out = await generateFeedback(db, loadConfig().config, {
@@ -621,6 +624,7 @@ async function doctor(): Promise<void> {
   // that matters when the database is the thing that is broken.
   let db: DB | null = null;
   try {
+    initializeGlobalConfig();
     db = openDb(file);
     // Applied here, on the connection `doctor` already has, and unconditionally
     // -- every other path skips when the fingerprint matches, which leaves no
@@ -1049,6 +1053,7 @@ async function dashboardCommand(argv: string[]): Promise<void> {
     import('./db.js'),
     import('./dashboard.js'),
   ]);
+  initializeGlobalConfig();
   startDashboard(openDb(), { port: serve ? dashboardPort() : port }).then(
     ({ url }) => {
       process.stdout.write(

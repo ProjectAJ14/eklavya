@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { openDb, type DB } from './db.js';
 import { dbPath } from './paths.js';
-import { loadConfig, findRepoConfig } from './config.js';
+import { initializeGlobalConfig, loadConfig, findRepoConfig } from './config.js';
 import { GLOBAL_PROJECT, projectKey } from './store.js';
 import { missingProjects, moveProject } from './relocate.js';
 import { claudeHome } from './install.js';
@@ -177,6 +177,7 @@ function pauseLine(db: DB): string | null {
 }
 
 function memoryStatus(): void {
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const { config } = loadConfig();
@@ -232,6 +233,7 @@ function memorySearch(argv: string[]): void {
     fail('--mode must be keyword, semantic or hybrid.');
   }
 
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const hits = search(db, query, mode, {
@@ -258,6 +260,7 @@ function memorySearch(argv: string[]): void {
 }
 
 function memoryTimeline(argv: string[]): void {
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const rows = timeline(db, {
@@ -283,6 +286,7 @@ function memoryShow(argv: string[]): void {
   const id = Number(argv[0]);
   if (!Number.isInteger(id)) fail('Usage: eklavya memory show <id>');
 
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const entry = entryById(db, id);
@@ -329,6 +333,7 @@ function memoryProcess(argv: string[]): void {
   // A summariser's own session must never start a worker: that is the loop
   // that took 165 of them to stop (`reservation.ts`).
   if (isInternalObserver()) return;
+  initializeGlobalConfig();
   const db = openDb();
   const { config } = loadConfig();
   // Running this command *is* the "I have fixed the credential" signal: it is
@@ -443,6 +448,7 @@ function memoryBacklog(argv: string[]): void {
   if (sel.batch !== undefined && !Number.isInteger(sel.batch)) fail('--batch needs a batch id.');
   const selected = sel.helpers || sel.project !== undefined || sel.session !== undefined || sel.batch !== undefined;
 
+  initializeGlobalConfig();
   const db = openDb();
   try {
     if (action === 'list') {
@@ -494,6 +500,7 @@ function memoryBacklog(argv: string[]): void {
  */
 function memoryStop(): void {
   if (isInternalObserver()) return;
+  initializeGlobalConfig();
   const db = openDb();
   void stopWorker(db).then((outcome) => {
     const { config } = loadConfig();
@@ -527,6 +534,7 @@ export function stopMessage(outcome: StopOutcome): string {
  * filter and converges with whatever the hooks already captured.
  */
 function memoryReplay(argv: string[]): void {
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const { config } = loadConfig();
@@ -573,6 +581,7 @@ function memoryReplay(argv: string[]): void {
 }
 
 function memoryPrune(): void {
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const { config } = loadConfig();
@@ -602,6 +611,7 @@ function memoryPrune(): void {
 function memoryMove(argv: string[]): void {
   const force = argv.includes('--force');
   const [oldArg, newArg] = argv.filter((a) => !a.startsWith('--'));
+  initializeGlobalConfig();
   const db = openDb();
   try {
     if (!oldArg) {
@@ -725,6 +735,7 @@ async function memoryImport(argv: string[]): Promise<void> {
 
   try {
     if (argv.includes('--verify')) {
+      initializeGlobalConfig();
       const db = openDb();
       try {
         const report = verifyImport(db, source);
@@ -833,6 +844,7 @@ function memoryExport(argv: string[]): void {
   // copy of an earlier export, and a typo in a path should not cost it.
   if (!force && fs.existsSync(out)) fail(`eklavya memory export: ${out} already exists. Pass --force to replace it.`);
 
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const payload = exportPayload(db);
@@ -862,6 +874,7 @@ function memoryRestore(argv: string[]): void {
   const from = argv.find((a) => !a.startsWith('--'));
   if (!from) fail('Usage: eklavya memory restore <file>');
 
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const r = restoreExport(db, path.resolve(from));
@@ -903,6 +916,7 @@ function memorySync(argv: string[]): void {
   }
   const target = flag(argv, '--target') ?? null;
 
+  initializeGlobalConfig();
   const db = openDb();
   try {
     const { config } = loadConfig();

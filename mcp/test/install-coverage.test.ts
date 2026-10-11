@@ -464,4 +464,14 @@ describe.skipIf(!posix)('install in a terminal', () => {
     };
     await expect(install(['--skip-runtime', '--settings'])).rejects.toThrow('no raw mode');
   });
+
+  it('does not open the settings walk on a fresh install with a terminal', async () => {
+    input.setRawMode = () => {
+      throw new Error('ordinary installs must not read terminal keys');
+    };
+    await install(['--skip-runtime']);
+    expect(out).not.toContain('Your settings');
+    expect(out).toMatch(/model\s+claude-sonnet-5/);
+    expect(out).toMatch(/feedback\s+on/);
+  });
 });
