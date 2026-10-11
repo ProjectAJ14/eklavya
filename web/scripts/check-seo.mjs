@@ -32,8 +32,8 @@ async function resolveLocal(url) {
 }
 const indexed = new Set(), titles = new Set(), descriptions = new Set(), images = new Set();
 for (const [file, $] of pages) {
-  // The component studio is a utility gallery, not a search landing page.
-  const utility = ['404.html', 'eklavya-runtime.html', 'mascot.html'].includes(file);
+  // Utility pages and the old demo redirect stay out of search results.
+  const utility = ['404.html', 'eklavya-runtime.html', 'mascot.html', 'demo/index.html'].includes(file);
   const pathname = file === 'index.html' ? '/' : `/${file.replace(/index\.html$/, '')}`;
   const base = absolute(pathname);
   check($('html').attr('lang') === 'en', `${file}: missing English language`);
@@ -119,7 +119,9 @@ check(robots.includes(`Sitemap: ${absolute('/sitemap-index.xml')}`) && !/Disallo
 const home = await readFile(path.join(dist, 'index.html'), 'utf8');
 check(home.includes(staticHead({ ...site, path: '/' })), 'Homepage SEO is stale: run npm run seo:refresh');
 const demo = await readFile(path.join(dist, 'demo/index.html'), 'utf8');
-check(demo.includes(staticHead(demoPage)), 'Demo SEO is stale: run npm run seo:refresh');
+check(demo.includes(staticHead(demoPage)), 'Demo redirect SEO is stale: run npm run seo:refresh');
+check(pages.get('demo/index.html')('meta[http-equiv="refresh"]').attr('content') === '0; url=/#demo', 'Old demo page must redirect to the landing demo');
+check(pages.get('index.html')('[id="demo"][data-terminal]').length === 1, 'Landing demo anchor must point to the terminal box');
 const manifest = JSON.parse(await readFile(path.join(dist, 'site.webmanifest'), 'utf8'));
 for (const icon of [...manifest.icons, { src: '/apple-touch-icon.png', sizes: '180x180' }, { src: '/brand/icon-96.png', sizes: '96x96' }]) {
   const info = await sharp(path.join(dist, icon.src)).metadata();

@@ -47,7 +47,15 @@ The mascot is decorative by default (`aria-hidden` on its SVG). Add `label` for 
 ## Current placements
 
 - Website: the full Archer Cloak mascot leads the landing page on a dark hero.
-  The separate terminal replay at `/demo/` uses the quiz mod's text logo and
-  controls, generated from `hooks/panel/model.ts`.
+  The automatic terminal replay is embedded below it at `/#demo`; `/demo/`
+  redirects there. Its text logo and panel labels come from `hooks/panel/model.ts`
+  through `web/scripts/demo-panel.mjs`. The panel appears only when the example
+  question arrives. The replay answers it and finishes the task automatically,
+  without asking visitors to type or answer. It starts when the whole terminal
+  is visible, pauses offscreen or in an inactive tab or window, and honors
+  reduced motion. Keep the GitHub star box visible with a real count. The home
+  also keeps the compact `#legend` name story, its "The name" eyebrow and
+  "The archer who taught himself" heading. Its decorative bow, arrow and target
+  scene animates once when it enters view and stays static under reduced motion.
 - Dashboard: initial and inline loaders, empty lists, missing records, feedback empty/error states, request errors, settings save/validation feedback, retry results, delete confirmation, tip bubbles (the `tip` face, with a fitting `state` on a few tips), and the Settings Companion tab, which links to the studio.
 - Studio: all 13 expressions, body/face variants, state selector, size scale, loading motion, ink/paper toggle, and copyable examples.

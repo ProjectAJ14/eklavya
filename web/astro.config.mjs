@@ -8,8 +8,8 @@ import rehypeBrand from './src/plugins/rehype-brand.mjs';
 /**
  * The site shares tokens across the landing page, browser demo and manual.
  *
- *   /       the landing page — hand-written HTML in public/, copied verbatim.
- *   /demo/  an interactive Claude Code replay with the current quiz panel.
+ *   /       the landing page and automatic terminal demo, copied from public/.
+ *   /demo/  a redirect to the landing page's demo for older links.
  *   /docs/  the manual — Starlight, for search, per-topic URLs, a right-hand
  *           contents list and prev/next. One file per topic under
  *           src/content/docs/docs/, which is what puts them at /docs/*.
@@ -27,7 +27,7 @@ export default defineConfig({
   markdown: { rehypePlugins: [rehypeBrand] },
   integrations: [
     // public/index.html is copied verbatim, so Astro cannot discover it as a route.
-    sitemap({ customPages: [`${site.url}/`, `${site.url}/demo/`], filter: (page) => !new URL(page).pathname.startsWith('/social/') }),
+    sitemap({ customPages: [`${site.url}/`], filter: (page) => !new URL(page).pathname.startsWith('/social/') }),
     starlight({
       title: 'Eklavya',
       description:

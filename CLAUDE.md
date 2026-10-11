@@ -101,8 +101,16 @@ Code's hook-driven learning loop.
   editing the dashboard, also read `.claude/skills/eklavya-dashboard/SKILL.md`.
   Use semantic color roles from `web/public/tokens.css`, keyboard-operable
   controls and shareable dashboard filters. Keep the home page lean, with the
-  Archer Cloak mascot on a dark hero. The terminal demo belongs at `/demo/`;
-  match its panel labels and interactions to the shipped mod.
+  Archer Cloak mascot on a dark hero and an automatic terminal demo at `/#demo`.
+  Keep the compact `#legend` section with "The name", "The archer who taught
+  himself" and the bow, arrow and target artwork. Its decorative animation runs
+  once when the scene enters view and stays static under reduced motion.
+  Start the replay only when the whole terminal box is visible. Keep its panel
+  hidden until the question arrives, then show the example answer and result
+  automatically. The replay must not ask the visitor to type or answer, or take
+  keyboard focus. Pause it offscreen and while the browser tab or window is
+  inactive, and honor reduced motion. Keep the GitHub star box visible and its
+  count accurate. `/demo/` is a legacy redirect to the home demo.
 
 ## Generated runtime diagram
 

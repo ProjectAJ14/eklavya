@@ -10,10 +10,11 @@ export const site = {
 };
 
 export const demoPage = {
-  title: 'Try the Claude Code side panel | Eklavya',
-  description: 'Try an Eklavya question beside a Claude Code transcript. Run the browser replay, pick an answer and see how the quiz side panel works.',
-  path: '/demo/',
-  id: 'demo',
+  title: 'Watch the Claude Code demo | Eklavya',
+  description: 'Watch an example Claude Code session on the Eklavya landing page, with a question arriving in the side panel while work continues.',
+  path: '/',
+  id: 'home',
+  index: false,
 };
 
 export const absolute = (path) => new URL(path, site.url).href;
