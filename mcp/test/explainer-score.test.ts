@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { brief, contentOf, pointHome, RUNTIME_BIN, scorePage, sectionOf, sentenceCount, SKILL_PATH, summarise, type ExplainerCase } from '../src/eval/explainer-score.js';
+import { brief, contentOf, pointHome, RUNTIME_BIN, scorePage, sectionOf, sectionText, sentenceCount, SKILL_PATH, summarise, text, type ExplainerCase } from '../src/eval/explainer-score.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const raw = fs.readFileSync(path.join(here, '..', 'src', 'assets', 'artifact-template.html'), 'utf8');
@@ -189,6 +189,44 @@ describe('pointHome', () => {
   it('still finds both paths in the shipped agent file', () => {
     const agent = fs.readFileSync(path.join(here, '..', '..', 'agents', 'explainer.md'), 'utf8');
     expect(() => pointHome(agent, { skill: '/t/SKILL.md', runtimeBin: '/t/eklavya' }, true)).not.toThrow();
+  });
+});
+
+describe('edges', () => {
+  it('decodes numeric and named entities and leaves unknown ones', () => {
+    expect(text('&#65;&#x42;&#X43; &amp; &bogus; \u2019x\u201d')).toBe('ABC & &bogus; \'x"');
+  });
+  it('briefs a case with no attempt, no right answer and no code', () => {
+    const b = brief({ id: 'x', concept: c.concept, stem: 'Why?', typed: 'no idea' });
+    expect(b).toContain('attempt_id: none');
+    expect(b).toMatch(/right answer: \n/);
+    expect(brief({ id: 'x', concept: c.concept, request: 'explain it' })).toMatch(/The code it is about:\n$/);
+  });
+  it('reads no section from an unrelated heading, and no content from a template without the comment', () => {
+    expect(sectionOf('Background')).toBeNull();
+    expect(contentOf(page(body()), '<html></html>')).toBeNull();
+    expect(sectionText(template.replace(/<!--\s*CONTENT[\s\S]*?-->/, '<p>no headings</p>'), template)).toEqual({});
+  });
+  it('fails the metadata gate when the template carries no metadata', () => {
+    const bare = template.replace(/<meta name="eklavya:[a-z]+" content="[^"]*">\n/g, '');
+    expect(failed(scorePage({ page: page(body(), bare), template: bare, case: c, files: 1, opened: [PATH], reply: PATH, path: PATH }))).toEqual(expect.arrayContaining(['metadata', 'attempt_linked']));
+  });
+  it('scores a case with no notes, language or identifiers, and a page with no figure', () => {
+    const plain = { ...c, notes: undefined, lang: undefined, identifiers: undefined };
+    const noNotes = options().replace(/<span class="note">[^<]*<\/span>/g, '');
+    const s = score(page(body({ q: `<h2>The question</h2>${noNotes}`, how: '<h2>How it works</h2><p>words</p>' })), plain);
+    expect(failed(s)).toEqual(['figure_svg']);
+    expect(s.metrics).toMatchObject({ figures: 0, identifiers_offered: 0, identifiers_used: 0 });
+  });
+  it('accepts "I don\'t know" as one more picked item, and fails a typed open answer marked wrongly', () => {
+    const idk = options(['', 'right', '', '']).replace('</ol>', '<li class="picked">I don\'t know</li></ol>');
+    expect(failed(score(page(body({ q: `<h2>The question</h2>${idk}`, wrong: '' })), { pick: undefined, dont_know: true }))).toEqual([]);
+    const open = { options: undefined, notes: undefined, pick: undefined, typed: '0 1 2', right: 'Usually 3 3 3' };
+    const swapped = '<ol class="options"><li class="right">0 1 2</li></ol>';
+    expect(failed(score(page(body({ q: `<h2>The question</h2>${swapped}` })), open))).toEqual(expect.arrayContaining(['options_verbatim', 'option_classes']));
+    // "I don't know" to an open question: no typed words, so any picked item matches.
+    const blank = '<ol class="options"><li class="picked">I don\'t know</li><li class="right">Usually 3 3 3</li></ol>';
+    expect(failed(score(page(body({ q: `<h2>The question</h2>${blank}`, wrong: '' })), { ...open, typed: undefined, dont_know: true }))).toEqual([]);
   });
 });
 

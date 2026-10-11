@@ -226,7 +226,7 @@ function checkOptions(content: string, c: ExplainerCase): Verdict[] {
   if (!opts.length) {
     // A typed answer to an open question: their words and the right answer, in one list.
     const typed = text(c.typed ?? '');
-    const r = text(String(c.right ?? ''));
+    const r = text(String(c.right));
     const p = list[picked[0] ?? -1];
     const ok = picked.length === 1 && right.length === 1 && !!p && p.body.includes(typed) && list[right[0]!]!.body.includes(r);
     return [v('options_verbatim', list.length >= 2, `${list.length} items`), v('option_classes', ok, ok ? '' : `picked ${picked}, right ${right}`)];
@@ -297,7 +297,7 @@ export function scorePage(input: PageInput): PageScore {
 
   const figures = [...body.matchAll(/<figure[^>]*>([\s\S]*?)<\/figure>/g)].map((m) => m[1]!);
   const good = figures.filter((f) => /<svg\b/.test(f) && /<figcaption[^>]*>[\s\S]*?\S[\s\S]*?<\/figcaption>/.test(f) && /class="[^"]*\bsvg-/.test(f));
-  gates.push(v('figure_svg', good.length > 0 && /<svg\b/.test(figures[0] ?? ''), `${good.length}/${figures.length} figures with svg, caption and .svg-* classes`));
+  gates.push(v('figure_svg', good.length > 0 && /<svg\b/.test(figures[0]!), `${good.length}/${figures.length} figures with svg, caption and .svg-* classes`));
 
   const langs = [...body.matchAll(/<pre\s[^>]*data-lang="([^"]*)"/g)].map((m) => m[1]!);
   const langOk = langs.length > 0 && (!c.lang || langs.some((l) => new RegExp(`^(?:${c.lang})$`, 'i').test(l)));
