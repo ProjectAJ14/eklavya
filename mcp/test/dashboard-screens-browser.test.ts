@@ -26,6 +26,24 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       }
     }, 120000);
 
+    it('shows every scope on the Settings rail by name when the rail scrolls sideways', async () => {
+      // A shrinking link in a row that scrolls clipped its label to nothing (the first one, "User", was an icon alone).
+      for (const width of [560, 390]) {
+        const w = await open('#/settings/dashboard', { width, height: 800 });
+        const scopes = await w.page.$$eval('.sw__scope', (links) => links.map((a) => {
+          const label = a.querySelector('span')!.getBoundingClientRect().width;
+          return { text: (a.textContent ?? '').trim(), label: Math.round(label), link: Math.round(a.getBoundingClientRect().width) };
+        }));
+        expect(scopes.length).toBeGreaterThan(2);
+        expect(scopes[0]!.text).toBe('User');
+        for (const sc of scopes) {
+          expect(sc.label, `${sc.text} at ${width}px has room for its name`).toBeGreaterThan(20);
+          expect(sc.link, `${sc.text} at ${width}px`).toBeGreaterThan(sc.label);
+        }
+        await w.ctx.close();
+      }
+    });
+
     it('centres the content column in a window wider than it', async () => {
       const w = await open('#/learning/dashboard', { width: 2560 });
       for (const h of ['#/learning/dashboard', `#/artifacts/view/${enc(fix.other)}`, '#/settings/dashboard']) {

@@ -105,6 +105,16 @@ describe('the always-on dashboard', () => {
       expect(await daemon.ensureDashboard(daemon.PATIENT_PROBE_MS)).toBe('running');
     });
 
+    it('is stopped by a command that waits for its answer, as one that answers late is still a dashboard', async () => {
+      // 700 ms is past the half second the stop used to give a probe, and inside the patient one.
+      const slow = await fakeDashboard(port, '0.0.1', process.env.EKLAVYA_DB!, 700);
+      children.push(slow);
+      const exited = new Promise((r) => slow.once('exit', r));
+      expect(await daemon.stopDashboard(port)).toBe(true);
+      await exited;
+      expect((await daemon.probeDashboard(port)).kind).toBe('down');
+    }, 10_000);
+
     it('is not waited for longer than asked: a port that never answers is other, after the wait', async () => {
       const silent = http.createServer(() => {});
       await new Promise<void>((r) => silent.listen(port, '127.0.0.1', () => r()));

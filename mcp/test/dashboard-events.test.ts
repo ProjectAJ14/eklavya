@@ -585,6 +585,50 @@ describe('what it watches, and what it ignores', () => {
     expect(await checks(() => made[5].fire('x.html'))).toBe(1);
   });
 
+  it('makes a new watch for a folder removed and made again before the area was read, though it is the same name and may be the same inode', async () => {
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    const made = fakeWatch();
+    await stream(await serve(EARLY));
+    const [root, folder] = [made[3], made[4]];
+    expect(folder.dir).toBe(path.join(home, 'artifacts', 'p'));
+    const was = fs.statSync(folder.dir, { bigint: true });
+
+    // One tick: removed, made again, a page written into it. The area reports the name once, and the folder
+    // there now is not the one the old watch is on, which will never hear of a replacement of that page.
+    fs.rmSync(folder.dir, { recursive: true });
+    fs.mkdirSync(folder.dir);
+    fs.writeFileSync(path.join(folder.dir, 'a.html'), '<title>again</title>');
+    expect(fs.statSync(folder.dir, { bigint: true }).birthtimeNs, 'a folder made again is born again').not.toBe(was.birthtimeNs);
+    // (The page written into it is a change the check finds, so it reads the cursor and rebuilds: at least one read.)
+    expect(await checks(() => root.fire('p'))).toBeGreaterThanOrEqual(1);
+    expect(folder.watcher.close).toHaveBeenCalledTimes(1);
+    expect(made).toHaveLength(6);
+    expect(made[5].dir).toBe(folder.dir);
+    expect(await checks(() => made[5].fire('a.html'))).toBe(1);
+
+    // The same news again is no new folder: the watch that was made is kept.
+    await checks(() => root.fire('p'));
+    expect(made).toHaveLength(6);
+    expect(made[5].watcher.close).not.toHaveBeenCalled();
+  });
+
+  it('takes a folder it can no longer stat for a folder that changed', async () => {
+    fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
+    const made = fakeWatch();
+    await stream(await serve(EARLY));
+    const [root, folder] = [made[3], made[4]];
+    const real = fs.statSync;
+    vi.spyOn(fs, 'statSync').mockImplementation(((file: fs.PathLike, opts?: { bigint?: boolean }) => {
+      if (String(file) === folder.dir) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      return real(file, opts as never);
+    }) as never);
+    await checks(() => root.fire('p'));
+    // Its identity is `-` now, which is not what the watch was made for: the old one goes and one is made again.
+    expect(folder.watcher.close).toHaveBeenCalledTimes(1);
+    expect(made).toHaveLength(6);
+    expect(made[5].dir).toBe(folder.dir);
+  });
+
   it('drops every folder watch of an area that has itself gone, and keeps the others', async () => {
     fs.mkdirSync(path.join(home, 'artifacts', 'p'), { recursive: true });
     fs.mkdirSync(path.join(home, 'artifacts', 'q'), { recursive: true });

@@ -92,8 +92,7 @@ const USAGE = `Usage: node mcp/scripts/dashboard-perf.mjs [dist] [small|medium|l
            (--writes=N for another count), from a write through a second database
            connection to the new row on screen, with the early trigger (fs.watch) and
            on the one-second floor alone. The browser is EKLAVYA_TEST_BROWSER, else
-           Playwright's own install, else /opt/pw-browsers/chromium; with none of them
-           it says so and skips
+           Playwright's own install; with neither it says so and skips
   --help   print this
 
 Seeds a temporary EKLAVYA_HOME (removed afterwards; ~/.eklavya is never read),
@@ -114,18 +113,20 @@ Build first: cd mcp && npm run build
 function parseArgs(argv) {
   const out = { dist: DEFAULT_DIST, scale: 'medium', json: false, help: false, live: false, writes: LIVE_WRITES };
   const positional = [];
+  // What is wrong with the line is said only when the help was not asked for: it is never an error about the rest of the line.
+  const problems = [];
   for (const arg of argv) {
     if (arg === '--json') out.json = true;
     else if (arg === '--help' || arg === '-h') out.help = true;
     else if (arg === '--live') out.live = true;
     else if (arg.startsWith('--writes=')) {
       out.writes = Number(arg.slice('--writes='.length));
-      if (!Number.isInteger(out.writes) || out.writes < 1) throw new Error(`--writes wants a whole number of at least 1, not "${arg.slice(9)}"`);
-    } else if (arg.startsWith('-')) throw new Error(`Unknown option ${arg}`);
+      if (!Number.isInteger(out.writes) || out.writes < 1) problems.push(`--writes wants a whole number of at least 1, not "${arg.slice(9)}"`);
+    } else if (arg.startsWith('-')) problems.push(`Unknown option ${arg}`);
     else positional.push(arg);
   }
-  // Asking for the help is never an error about the rest of the line.
   if (out.help) return out;
+  if (problems.length) throw new Error(problems[0]);
   const isScale = (s) => s === 'all' || SCALE_NAMES.includes(s);
   // A lone argument is a scale or a dist directory. `large` is read as the scale, not as a directory
   // named large; a word that is neither a scale nor a place on disk ("larg", "Medium") is a mistyped
@@ -424,7 +425,7 @@ const LIVE_VARIANTS = [
   { name: 'floor only', live: { debounceMs: 2_000_000_000 } },
 ];
 
-/** Where a Chromium is, or why there is none: EKLAVYA_TEST_BROWSER, Playwright's own install, then the sandbox's. */
+/** Where a Chromium is, or why there is none: EKLAVYA_TEST_BROWSER, then Playwright's own install. */
 function findBrowser(chromium) {
   const explicit = process.env.EKLAVYA_TEST_BROWSER;
   if (explicit) return fs.existsSync(explicit) ? { path: explicit } : { why: `EKLAVYA_TEST_BROWSER names ${explicit}, which is not there` };
@@ -434,7 +435,6 @@ function findBrowser(chromium) {
   } catch {
     // Not installed: the next place.
   }
-  if (fs.existsSync('/opt/pw-browsers/chromium')) return { path: '/opt/pw-browsers/chromium' };
   return { why: 'no Chromium found (set EKLAVYA_TEST_BROWSER, or run: npx playwright-core install chromium)' };
 }
 

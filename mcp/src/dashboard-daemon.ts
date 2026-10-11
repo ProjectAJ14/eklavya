@@ -108,9 +108,13 @@ export function spawnDashboard(cli = path.join(moduleDir, 'cli.js')): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Stops the Eklavya dashboard on the port, if one answers, and waits up to 2s for the port to free. */
+/**
+ * Stops the Eklavya dashboard on the port, if one answers, and waits up to 2s for the port to free. Someone is waiting
+ * on it, so the first probe is as patient as a command's (`PATIENT_PROBE_MS`): a dashboard rebuilding its state for an
+ * open page, which on a long history can take a second or more, is not a port nothing answers on.
+ */
 export async function stopDashboard(port = dashboardPort()): Promise<boolean> {
-  const probe = await probeDashboard(port, 500);
+  const probe = await probeDashboard(port, PATIENT_PROBE_MS);
   if (probe.kind !== 'eklavya') return false;
   try {
     process.kill(probe.health.pid, 'SIGTERM');

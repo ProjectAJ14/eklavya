@@ -888,6 +888,46 @@ describe('projectInventory', () => {
     expect(mixed.sources).toEqual(expect.arrayContaining(['attempts', 'logged', 'evidence', 'entries', 'receipts']));
   });
 
+  it('counts, for all projects, what the cards cannot be added up to: a session and a concept that two projects share are one', () => {
+    const cards = (inv: ReturnType<typeof projectInventory>, k: 'sessions' | 'logged_concepts' | 'logged_assessed_concepts') =>
+      inv.projects.reduce((n, p) => n + p.learning[k], 0);
+    const before = projectInventory(fdb);
+    // What the fixture says, from its rows: distinct sessions that logged or were asked, concepts the work logged, and those also asked.
+    const n = (sql: string) => (fdb.prepare(sql).get() as { n: number }).n;
+    expect(before.totals.sessions).toBe(n(`SELECT count(*) AS n FROM (SELECT session_id FROM session_concepts UNION
+      SELECT session_id FROM attempts WHERE retry_of IS NULL AND session_id IS NOT NULL AND session_id <> '')`));
+    expect(before.totals.logged_concepts).toBe(n("SELECT count(DISTINCT concept_id) AS n FROM session_concepts WHERE origin = 'work' OR origin IS NULL"));
+    expect(before.totals.logged_assessed_concepts).toBe(n(`SELECT count(DISTINCT concept_id) AS n FROM session_concepts
+      WHERE (origin = 'work' OR origin IS NULL) AND concept_id IN (SELECT concept_id FROM attempts WHERE retry_of IS NULL)`));
+    expect(before.totals.logged_assessed_concepts).toBeLessThanOrEqual(before.totals.logged_concepts);
+    for (const p of before.projects) {
+      expect(p.learning.logged_assessed_concepts, p.id).toBeLessThanOrEqual(Math.min(p.learning.logged_concepts, p.learning.assessed_concepts));
+    }
+
+    // One session asked a question in two projects, and one concept logged by two projects' work and asked in one of them.
+    const [shared, solo] = (fdb.prepare('SELECT id FROM concepts ORDER BY id DESC LIMIT 2').all() as { id: number }[]).map((r) => r.id) as [number, number];
+    const gate = fdb.prepare("INSERT INTO gates (session_id, mode, repo) VALUES (?, 'ambient', ?)");
+    const line = fdb.prepare("INSERT INTO session_concepts (session_id, concept_id, context, ts, origin) VALUES (?, ?, 'c', '2026-03-01 10:00:00', 'work')");
+    const ask = fdb.prepare("INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, ts, repo) VALUES (?, ?, 'q', 'a', 4, 2, '2026-03-01 10:00:00', ?)");
+    const [one, two] = [fx.repo.logged, fx.repo.memoryOnly];
+    gate.run('both-1', one); gate.run('both-2', two);
+    line.run('both-1', shared); line.run('both-2', shared);
+    line.run('both-1', solo);
+    ask.run(shared, 'both-1', one);
+    ask.run(solo, 'span-s', one); ask.run(solo, 'span-s', two);
+    const after = projectInventory(fdb);
+    // Sessions: both-1 and both-2 are new, span-s is on two cards and is one session.
+    expect(after.totals.sessions - before.totals.sessions).toBe(3);
+    expect(cards(after, 'sessions') - cards(before, 'sessions')).toBe(4);
+    // Concepts the work logged: the two are new to both projects' work, and `shared` is in two cards and is one concept.
+    expect(after.totals.logged_concepts - before.totals.logged_concepts).toBe(2);
+    expect(cards(after, 'logged_concepts') - cards(before, 'logged_concepts')).toBe(3);
+    // Of them, the ones also asked: `shared` (in the first project) and `solo` (asked in both, logged in the first).
+    expect(after.totals.logged_assessed_concepts - before.totals.logged_assessed_concepts).toBe(2);
+    expect(byId(after, one)!.learning.logged_assessed_concepts - byId(before, one)!.learning.logged_assessed_concepts).toBe(2);
+    expect(byId(after, two)!.learning.logged_assessed_concepts - byId(before, two)!.learning.logged_assessed_concepts).toBe(0);
+  });
+
   it('counts captured evidence that no observation job has processed yet', () => {
     const pending = byId(projectInventory(fdb), fx.repo.pending)!;
     expect(pending.memory).toMatchObject({ events: 2, pending: 2, entries: 0 });
@@ -1123,7 +1163,8 @@ describe('the new endpoints', () => {
     const { url, close } = await startDashboard(db, { port: 0 });
     try {
       const inv = (await (await fetch(`${url}/api/projects`)).json()) as any;
-      expect(Object.keys(inv).sort()).toEqual(['aliases', 'projects', 'sessions']);
+      expect(Object.keys(inv).sort()).toEqual(['aliases', 'projects', 'sessions', 'totals']);
+      expect(Object.keys(inv.totals).sort()).toEqual(['logged_assessed_concepts', 'logged_concepts', 'sessions']);
       const p = inv.projects.find((x: any) => x.id === PROJECT);
       expect(Object.keys(p).sort()).toEqual(['aliases', 'available', 'first_active', 'id', 'kind', 'last_active',
         'learning', 'memory', 'name', 'path', 'sources']);
@@ -1131,7 +1172,7 @@ describe('the new endpoints', () => {
       // What the page narrows a project's concept list to travels with the project, from every row
       // there is, not from the capped lists of `/api/state`.
       expect(Object.keys(p.learning).sort()).toEqual([
-        'answers', 'assessed_concepts', 'concept_slugs', 'first', 'last', 'logged_concepts', 'passed', 'sessions', 'skipped',
+        'answers', 'assessed_concepts', 'concept_slugs', 'first', 'last', 'logged_assessed_concepts', 'logged_concepts', 'passed', 'sessions', 'skipped',
       ]);
       expect(p.learning.concept_slugs).toEqual([]);
 

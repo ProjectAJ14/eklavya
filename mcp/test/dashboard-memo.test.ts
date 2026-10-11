@@ -536,6 +536,21 @@ describe('/api/settings is memoized, and never past what its files say', () => {
     expect(json(await settings(url)).project.set.cadence).toBe('end');
   });
 
+  it('is dropped by a save of the user file even when no file looks different and no dial moved', async () => {
+    // The one case the save alone decides: the file is not told apart by any stat (all the same, as above), and
+    // the value written is the one already in force, so the effective dials, and with them the cursor, do not move.
+    // The page still shows it as set by the reader, which is what the page read says.
+    const real = fs.statSync;
+    vi.spyOn(fs, 'statSync').mockImplementation(((file: fs.PathLike, opts?: { bigint?: boolean }) =>
+      opts?.bigint ? { ino: 1n, size: 1n, mtimeNs: 1n } : real(file, opts as never)) as never);
+    const url = await serve();
+    expect(json(await settings(url)).user.set.cadence).toBeUndefined();
+    const cursorBefore = changeCursor(db);
+    expect(updateSetting(db, { scope: 'user', key: 'cadence', value: 'as-you-go' }).status).toBe(200);
+    expect(changeCursor(db), 'the dials are what they were').toBe(cursorBefore);
+    expect(json(await settings(url)).user.set.cadence).toBe('as-you-go');
+  });
+
   it('is rebuilt after a minute, for what it reads from the disk and the clock', async () => {
     const url = await serve();
     await settings(url);

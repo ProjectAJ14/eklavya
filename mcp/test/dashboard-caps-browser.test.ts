@@ -27,7 +27,10 @@ declare function learningSessions(): unknown[];
 /** SQLite's own timestamp shape, as `attempts.ts` and `session_concepts.ts` hold it. */
 const stamp = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 
-interface Inventory { projects: { id: string; learning: { sessions: number; concept_slugs: string[] } }[] }
+interface Inventory {
+  projects: { id: string; learning: { answers: number; passed: number; skipped: number; sessions: number; logged_concepts: number; logged_assessed_concepts: number; concept_slugs: string[] } }[];
+  totals: { sessions: number; logged_concepts: number; logged_assessed_concepts: number };
+}
 const getJson = async (p: string) => (await fetch(base + p)).json() as Promise<any>;
 const inventory = () => getJson('/api/projects') as Promise<Inventory>;
 
@@ -54,9 +57,12 @@ const sessionPage = (page: Page) => page.evaluate(() => ({
   text: (document.getElementById('view')!.textContent ?? '').replace(/\s+/g, ' '),
 }));
 
-// One project holds the three sessions the cut treats differently, another the crowd that does the cutting.
+// One project holds the three sessions the cut treats differently, another the crowd that does the cutting, and two more
+// one session that touched both.
 let repoOld = '';
 let repoCrowd = '';
+let repoSpanA = '';
+let repoSpanB = '';
 let concepts: { id: number; slug: string }[] = [];
 const LINES_PER_SESSION = 23;
 
@@ -75,7 +81,6 @@ const LINES_PER_SESSION = 23;
  * other project and none of the crowd names.
  */
 function seedPastBothCaps(): void {
-  concepts = db.prepare('SELECT id, slug FROM concepts ORDER BY id').all() as { id: number; slug: string }[];
   const crowdConcepts = concepts.slice(0, LINES_PER_SESSION);
   const o = concepts.slice(-12);
   const newest = concepts[LINES_PER_SESSION]!;
@@ -120,11 +125,38 @@ function seedPastBothCaps(): void {
   })();
 }
 
+/**
+ * One session that worked in two checkouts, years old (so it is outside both lists): a right answer and a logged line in
+ * the first, a skipped answer in the second. Two project cards count it, once each; it is one session. The skipped answer
+ * is a number no list the page holds can say.
+ */
+function seedSpanningSession(): void {
+  concepts = db.prepare('SELECT id, slug FROM concepts ORDER BY id').all() as { id: number; slug: string }[];
+  const repo = (name: string) => {
+    const dir = path.join(home, 'root', name);
+    fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
+    return fs.realpathSync(dir);
+  };
+  repoSpanA = repo('caps-span-a');
+  repoSpanB = repo('caps-span-b');
+  const [x, y] = concepts.slice(-14, -12) as [{ id: number; slug: string }, { id: number; slug: string }];
+  const OLD = '2020-03-03 10:00:00';
+  db.transaction(() => {
+    db.prepare("INSERT INTO gates (session_id, mode, repo) VALUES ('cap-two', 'ambient', ?)").run(repoSpanA);
+    db.prepare('INSERT INTO session_concepts (session_id, concept_id, context, ts, origin) VALUES (?, ?, ?, ?, ?)').run('cap-two', x.id, 'span line', OLD, 'work');
+    const ask = db.prepare('INSERT INTO attempts (concept_id, session_id, question, answer, feedback, grade, difficulty, ts, repo, outcome) VALUES (?, ?, ?, ?, ?, ?, 2, ?, ?, ?)');
+    ask.run(x.id, 'cap-two', `What did ${x.slug} do in the first checkout?`, 'an answer', 'feedback', 4, OLD, repoSpanA, 'answered');
+    ask.run(y.id, 'cap-two', `What did ${y.slug} do in the second checkout?`, '', 'feedback', 0, OLD, repoSpanB, 'dont_know');
+  })();
+}
+
 /** The crowd goes in once, whichever test needs it first (the one that watches an open page cross the caps does). */
 let seeded = false;
 function ensureSeeded(): void {
   if (seeded) return;
   seeded = true;
+  // The answers are cut by id, newest first, so what is to be outside the payload goes in before the crowd.
+  seedSpanningSession();
   seedPastBothCaps();
 }
 
@@ -228,17 +260,105 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
-    it('counts every project\'s sessions for all projects, though the list is only the newest rows\' sessions', async () => {
+    it('counts every session once for all projects, though the list is only the newest rows\' sessions and one session is on two project cards', async () => {
       const inv = await inventory();
       const cards = inv.projects.reduce((n, p) => n + p.learning.sessions, 0);
+      // `cap-two` worked in two checkouts: both cards count it, and it is one session.
+      expect(inv.projects.filter((p) => p.id === repoSpanA || p.id === repoSpanB).map((p) => p.learning.sessions)).toEqual([1, 1]);
+      const distinct = inv.totals.sessions;
+      expect(distinct).toBe(
+        (db.prepare('SELECT count(*) AS n FROM (SELECT session_id FROM session_concepts UNION SELECT session_id FROM attempts WHERE session_id IS NOT NULL)').get() as { n: number }).n,
+      );
+      expect(cards).toBeGreaterThan(distinct);
       const w = await open('#/learning/sessions');
       const { page } = w;
       const listed = await page.evaluate(() => learningSessions().length);
-      expect(cards).toBeGreaterThan(listed);
-      expect(await badge(page, 'sessions')).toBe(String(cards));
-      expect(await counts(page)).toMatch(new RegExp(`^${cards} sessions · newest ${listed} listed · `));
+      expect(distinct).toBeGreaterThan(listed);
+      expect(await badge(page, 'sessions')).toBe(String(distinct));
+      expect(await counts(page)).toMatch(new RegExp(`^${distinct} sessions · newest ${listed} listed · `));
       // The pager pages the list that exists.
       expect(await count(page, '#view tbody tr.row')).toBe(Math.min(20, listed));
+      await page.evaluate((h) => { location.hash = h; }, '#/learning/dashboard');
+      await ready(page);
+      expect(await page.textContent('#view a.link[data-go*="/sessions"]')).toBe(`All ${distinct} →`);
+      // One project at a time it is that project's card, and the two checkouts each say one.
+      await page.evaluate((h) => { location.hash = h; }, `#/learning/sessions?project=${enc(repoSpanB)}`);
+      await ready(page);
+      expect(await badge(page, 'sessions')).toBe('1');
+      await w.ctx.close();
+    });
+
+    /** What the Accuracy tile and the head say, as a reader reads them. */
+    const dashboard = (page: Page) => page.evaluate(() => {
+      const tile = [...document.querySelectorAll('#view .tile')].find((t) => t.querySelector('b')?.textContent === 'Accuracy');
+      return {
+        counts: (document.querySelector('#view .page__head .counts')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        accuracy: [tile?.querySelector('strong')?.textContent, tile?.querySelector('span')?.textContent],
+      };
+    });
+
+    it('says the database\'s own answers, accuracy and recorded concepts on the Learning dashboard, not what its newest rows say', async () => {
+      const state = await getJson('/api/state');
+      const inv = await inventory();
+      // The rows the page holds are fewer than the answers there are: the numbers cannot be read from them.
+      expect(state.attempts_shown).toBe(ATTEMPT_LIMIT);
+      const sql = (q: string) => (db.prepare(q).get() as { n: number }).n;
+      const answers = sql('SELECT count(*) AS n FROM attempts WHERE retry_of IS NULL');
+      const right = sql('SELECT count(*) AS n FROM attempts a WHERE a.retry_of IS NULL AND (a.grade >= 3 OR EXISTS (SELECT 1 FROM attempts f WHERE f.retry_of = a.id))');
+      const work = "(origin = 'work' OR origin IS NULL)";
+      const logged = sql(`SELECT count(DISTINCT concept_id) AS n FROM session_concepts WHERE ${work}`);
+      const assessed = sql(`SELECT count(DISTINCT concept_id) AS n FROM session_concepts WHERE ${work} AND concept_id IN (SELECT concept_id FROM attempts WHERE retry_of IS NULL)`);
+      expect(answers).toBeGreaterThan(ATTEMPT_LIMIT);
+      expect(state.attempts_total).toBe(answers);
+      expect(inv.totals).toMatchObject({ logged_concepts: logged, logged_assessed_concepts: assessed });
+      // What the newest rows alone would say is not it.
+      const w = await open('#/learning/dashboard');
+      const { page } = w;
+      expect(await page.evaluate(() => S.attempts.length)).toBe(ATTEMPT_LIMIT);
+      const head = await dashboard(page);
+      expect(head.counts).toContain(` · ${answers} answers · ${logged} recorded from your work, ${assessed} assessed · `);
+      expect(head.accuracy).toEqual([`${Math.round((right / answers) * 100)}%`, `${right} right of ${answers}`]);
+      // The Projects page of the same load says the same, summed.
+      expect(inv.projects.reduce((n, p) => n + p.learning.answers, 0)).toBe(answers);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('says a project\'s own numbers on its dashboard, as its card does, when every row of it is older than the payload\'s newest', async () => {
+      const inv = await inventory();
+      const old = inv.projects.find((p) => p.id === repoOld)!;
+      // Seven answers, five of them right, and eight concepts its work recorded, none of them among the newest rows.
+      expect(old.learning).toMatchObject({ answers: 7, passed: 5, skipped: 0, logged_concepts: 8 });
+      const w = await open(`#/learning/dashboard?project=${enc(repoOld)}`);
+      const { page } = w;
+      const head = await dashboard(page);
+      expect(head.counts).toContain(` · 7 answers · 8 recorded from your work, ${old.learning.logged_assessed_concepts} assessed · `);
+      expect(head.accuracy).toEqual(['71%', '5 right of 7']);
+      // A project with a skipped answer outside the rows: the second checkout of the session that worked in two.
+      await page.evaluate((h) => { location.hash = h; }, `#/learning/dashboard?project=${enc(repoSpanB)}`);
+      await ready(page);
+      const two = await dashboard(page);
+      expect(two.counts).toContain(' · 1 answer · 0 recorded from your work, 0 assessed · ');
+      expect(two.accuracy).toEqual(['0%', '0 right of 1']);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('counts the skipped answers the rows do not hold, and says that the list holds fewer', async () => {
+      const inv = await inventory();
+      const two = inv.projects.find((p) => p.id === repoSpanB)!;
+      expect(two.learning.skipped).toBe(1);
+      const w = await open(`#/learning/review/skipped?project=${enc(repoSpanB)}`);
+      const { page } = w;
+      expect(await page.evaluate(() => S.attempts.filter((a) => (a as any).outcome === 'dont_know' && inScope(a.repo, a.session_id)).length)).toBe(0);
+      expect(await counts(page)).toContain('1 skipped');
+      expect(await page.textContent('#tabs [data-tab="skipped"]')).toBe('Skipped 1');
+      expect(await said(page, '#view [data-region="review"] p.slug')).toBe(`1 answer was skipped; the list holds the 0 among the newest ${ATTEMPT_LIMIT} answers.`);
+      // The database's total, for all projects, is what the heading says.
+      await page.evaluate((h) => { location.hash = h; }, '#/learning/review');
+      await ready(page);
+      expect(await counts(page)).toContain(`${(await inventory()).projects.reduce((n, p) => n + p.learning.skipped, 0)} skipped`);
+      expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
 

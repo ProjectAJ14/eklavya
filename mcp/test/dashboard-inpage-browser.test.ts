@@ -203,6 +203,34 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       }, 60000);
     }
 
+    it('takes a date typed into the custom range whole, in the box the reader is typing in, and lists what it asks for', async () => {
+      // A date box says it changed each time what is typed is a whole date, which is after the first digit of the year
+      // (and with the month alone). The box that says so is the one the rest is typed into, so it is never replaced.
+      const w = await open('#/memory/timeline', { height: HEIGHT });
+      const { page } = w;
+      await pickOption(page, '#mwhen', 'custom');
+      await page.waitForSelector('#mfrom');
+      await page.evaluate(() => { (window as any).__from = document.getElementById('mfrom'); });
+      await page.click('#mfrom', { position: { x: 8, y: 10 } });
+      await page.keyboard.type('03052026');
+      await page.waitForFunction(() => (document.getElementById('mfrom') as HTMLInputElement).value === '2026-03-05');
+      await ready(page);
+      expect(await page.evaluate(() => ({ same: (window as any).__from === document.getElementById('mfrom'), focus: document.activeElement?.id }))).toEqual({ same: true, focus: 'mfrom' });
+      expect(await page.evaluate(() => location.hash)).toMatch(/from=2026-03-05/);
+      // The same for the other end of the range.
+      await page.click('#mto', { position: { x: 8, y: 10 } });
+      await page.keyboard.type('03202026');
+      await page.waitForFunction(() => (document.getElementById('mto') as HTMLInputElement).value === '2026-03-20');
+      await ready(page);
+      expect(await page.evaluate(() => location.hash)).toMatch(/from=2026-03-05/);
+      expect(await page.evaluate(() => location.hash)).toMatch(/to=2026-03-20/);
+      expect(await page.inputValue('#mfrom')).toBe('2026-03-05');
+      // What the range asks for is what is listed (nothing in the fixture is from March of 2026).
+      expect(await page.$$eval('#mem-rows [data-entry]', (r) => r.length)).toBe(0);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 60000);
+
     it('keeps the sidebar right when an adjustment changes what it counts', async () => {
       const w = await open('#/learning/concepts', { height: HEIGHT });
       const { page } = w;
@@ -595,11 +623,12 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const w = await open('#/learning/concepts', { height: HEIGHT });
       const { page } = w;
       expect(await scrollDown(page, 1e6), 'the catalogue is long enough for a glide to be seen').toBeGreaterThan(1000);
-      // A first visit to the timeline holds the room its rows will take (the box), so the page stays tall for as
-      // long as the answer is out, which is what a glide needs. Holding the answer makes that last, not a race.
+      // A first visit to Settings holds the room its fields will take (the box, which is the same on every machine: the
+      // timeline's is sized from the rows it knows of, and the fixture's few would not make a page worth gliding over), so the
+      // page stays tall for as long as the answer is out, which is what a glide needs. Holding the answer makes that last, not a race.
       let release = () => {};
       const held = new Promise<void>((r) => { release = r; });
-      await page.route('**/api/memory?*', async (route) => { await held; await route.continue(); });
+      await page.route('**/api/settings*', async (route) => { await held; await route.continue(); });
       const seen = await page.evaluate((to) => new Promise<{ room: number; samples: number[] }>((resolve) => {
         const samples: number[] = [];
         let first = 0;
@@ -615,13 +644,13 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         };
         location.hash = to;
         requestAnimationFrame(tick);
-      }), '#/memory/timeline');
-      expect(seen.room, 'the page was still tall while the timeline was out').toBeGreaterThan(1000);
+      }), '#/settings/dashboard');
+      expect(seen.room, 'the page was still tall while the settings were out').toBeGreaterThan(1000);
       expect(seen.samples.length, 'frames were sampled').toBeGreaterThan(5);
       expect(Math.max(...seen.samples), `scrollY, frame by frame, after the screen drew: ${seen.samples.join(' ')}`).toBe(0);
       release();
       await ready(page);
-      await page.unroute('**/api/memory?*');
+      await page.unroute('**/api/settings*');
       expect(await page.evaluate(() => window.scrollY)).toBe(0);
       await w.ctx.close();
     }, 30000);

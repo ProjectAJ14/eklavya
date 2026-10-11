@@ -88,6 +88,17 @@ describe('its arguments', () => {
     expect(r.out).toContain('--live');
   });
 
+  it('prints its usage for --help even when another option on the line is unknown or wrong', () => {
+    for (const line of [['--bogus', '--help'], ['--help', '--bogus'], ['--writes=0', '--help'], ['small', '-x', '-h']]) {
+      const r = perf(line);
+      expect(r.status, line.join(' ')).toBe(0);
+      expect(r.out, line.join(' ')).toContain('Usage: node mcp/scripts/dashboard-perf.mjs');
+      expect(r.err, line.join(' ')).toBe('');
+    }
+    // Without the help, the first thing wrong is still what it says.
+    expect(perf(['--bogus']).err.split('\n')[0]).toBe('Unknown option --bogus');
+  });
+
   it('wants a whole number of writes, and says so before it seeds anything', () => {
     for (const bad of ['0', 'two', '1.5', '']) {
       const r = perf(['small', '--live', `--writes=${bad}`]);

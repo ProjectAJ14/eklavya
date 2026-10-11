@@ -170,10 +170,11 @@
      content stays, out of reach of the pointer at once, and dims only if the answer has not come
      within 150ms, the loader's own delay. The page is refreshed whenever something changes, and
      an answer that comes from the server's memo in a few milliseconds would otherwise make every
-     refresh flash. Under reduced motion the dim is the same step, after the same delay, with no fade. */
+     refresh flash. The dim is a step, not a fade (this work adds no animation): a transition of no duration that
+     starts after the same delay, so an answer that lands first cancels it before anything shows. */
   .slot__wait { display:block; }
   [data-slot][aria-busy="true"][data-kept] { opacity:.55; pointer-events:none;
-    transition:opacity var(--duration-base) var(--ease) 150ms; }
+    transition:opacity 0s linear 150ms; }
 
   /* ---------- the sidebar navigation ---------- */
   nav.side__nav { display:flex; flex-direction:column; gap:var(--space-4); }
@@ -869,7 +870,8 @@
     .sw__scopes::-webkit-scrollbar { display:none; }
     .sw__cap { display:none; }
     .sw__projects { flex-direction:row; max-height:none; overflow:visible; }
-    .sw__scope { white-space:nowrap; }
+    /* A row that scrolls sideways lets each link keep its width: a shrinking one clipped its label to nothing. */
+    .sw__scope { white-space:nowrap; flex:none; }
     .sw__none { margin:0; white-space:nowrap; }
   }
   @media (max-width:560px) {
@@ -906,7 +908,7 @@
   @media (prefers-reduced-motion:reduce) {
     html { scroll-behavior:auto; }
     * { transition:none !important; animation:none !important; }
-    /* Not a motion: the dim of a region waiting for its next answer is a step, and it still waits its 150ms. */
+    /* The dim of a region waiting for its next answer is a step already; the rule above would take its delay too. */
     [data-slot][aria-busy="true"][data-kept] { transition:opacity 0s linear 150ms !important; }
   }
 </style>
@@ -1265,14 +1267,34 @@ const learningSessions = () => derived('learning-sessions', () => Object.freeze(
 
 /**
  * How many learning sessions there are in scope. While the payload holds every row, it is the list's length. Once
- * it is cut, the list is only the sessions of the newest rows, and the count is the project cards' (`learning.sessions`:
- * the server counts every row, not the ones it sent), so the sidebar, the Sessions page, the dashboard's link and the
- * Projects page say one number. Never fewer than the list: a session the rows name and the card attributes to another
+ * it is cut, the list is only the sessions of the newest rows, and the count is the server's, read from every row: the
+ * inventory's distinct sessions with no project selected (a session that touched two checkouts is one session, so the
+ * cards cannot be added up), the project's own card with one. The sidebar, the Sessions page, the dashboard's link and the
+ * Projects page then say one number. Never fewer than the list: a session the rows name and the card attributes to another
  * project (a repository-less answer is attributed by the page's `pid()`) is still a session in the list.
  */
 const sessionTotal = () => derived('session-total', () => {
   const listed = learningSessions().length;
-  return rowsCut() ? Math.max(listed, projectsInScope().reduce((n, p) => n + p.learning.sessions, 0)) : listed;
+  if (!rowsCut()) return listed;
+  return Math.max(listed, PROJECT === null ? INV.totals.sessions : projectsInScope().reduce((n, p) => n + p.learning.sessions, 0));
+});
+
+/**
+ * The counts the Learning pages state about the answers and the concepts in scope, read from the server's aggregates
+ * over every row, never from `attemptsInScope()` and `loggedInScope()`, which are only the newest rows once a list is
+ * cut: the project cards' sums (every answer is in exactly one card, so with no project selected they are the
+ * database's totals, and a corrected miss counts as right as it does on the Accuracy tile), and for the concepts the
+ * work recorded, the inventory's distinct counts, which two projects' cards could not be added up to.
+ */
+const scopeTotals = () => derived('scope-totals', () => {
+  const ps = projectsInScope();
+  const sum = (k) => ps.reduce((n, p) => n + p.learning[k], 0);
+  const all = PROJECT === null;
+  return Object.freeze({
+    answers: sum('answers'), passed: sum('passed'), skipped: sum('skipped'),
+    logged: all ? INV.totals.logged_concepts : sum('logged_concepts'),
+    loggedAssessed: all ? INV.totals.logged_assessed_concepts : sum('logged_assessed_concepts'),
+  });
 });
 
 /* Two timestamp shapes meet in a session: SQLite's `2026-09-05 21:04:00` from
@@ -1422,10 +1444,13 @@ const openAttr = (id, dflt) => (isOpen(id, dflt) ? ' open' : '');
  * the numbers are counted folded under a "How this works" line. `title` and
  * every count are HTML the caller escaped.
  */
-function pageHead(title, counts = [], about = '', back = '') {
+function pageHead(title, counts = [], about = '', back = '', inRegion = false) {
   const id = `about:${CUR.wf}:${CUR.page}`;
+  // The counts are the part of a head that new data changes, so they are a region of their own: a count that moves
+  // replaces the line, and not the screen around it (an open list, a typed date, a selection). Regions never nest,
+  // so a head that is itself in one (`inRegion`: Settings') is drawn with the rest.
   return `<div class="page__head">${back}<h1 class="page__title">${title}</h1>
-    ${counts.length ? `<p class="counts">${counts.join(' · ')}</p>` : ''}
+    ${counts.length ? `<p class="counts"${inRegion ? '' : ' data-region="head-counts"'}>${counts.join(' · ')}</p>` : ''}
     ${about ? `<details class="about" data-fold="${esc(id)}"${openAttr(id, false)}><summary>How this works</summary><p>${about}</p></details>` : ''}</div>`;
 }
 
@@ -1480,7 +1505,7 @@ function startBlocks(title, cmds) {
   if (!cmds.length) return '';
   const block = (x) => `<div class="next start">
         <p><strong>${esc(x.name)}</strong> · ${x.count} due</p>
-        <div class="cmd"><code>${esc(x.command)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div>
+        <div class="cmd"><code>${esc(x.command)}</code><button type="button" class="cmd__copy" data-copy data-focus="copy:${esc(x.name)}">Copy</button></div>
         ${x.note ? `<p class="cmd__note">${esc(x.note)}</p>` : ''}</div>`;
   const rest = cmds.slice(START_SHOWN);
   return `<section class="starts"><div class="head"><h2>${esc(title)}</h2></div>`
@@ -1943,22 +1968,38 @@ const WAIT_OPEN = '<div class="slot__wait"';
 const isWait = (html) => html.startsWith(WAIT_OPEN);
 
 /**
- * What a slot reserves the first time it is drawn, in px, before this page has seen what it holds: what
- * it takes at a year of use (the issue's medium database, measured at 1280px), which is what a reader
- * with that much history gets. A paged list reserves its full page (25 timeline rows, 20 session
- * or history rows); the rest are as tall as they come (six and five rows for the Memory
- * Dashboard's two lists, an observation, an item of feedback, both folds of a session's memory half,
- * the settings page, whose fields are fixed). A reader with a shorter history sees the box shrink to
- * its rows once, when they land. These are estimates for a first visit and nothing more: the footer
- * moves by however far one misses, and twice if the page being left was taller than the estimate and
- * shorter than the answer, or the other way round. The height a region had when it last drew
- * (`SLOT_H`) replaces them, and a page seen again has no box at all.
+ * What a slot reserves the first time it is drawn, in px, before this page has seen what it holds. A list is
+ * sized from how many rows the page already knows it has (`SLOT_ROWS`: the counts the payload and the inventory carry),
+ * at most the rows one page holds, so a reader with three sessions is not given room for twenty and the footer
+ * does not drop a thousand pixels and come back. The rest are what they take at a year of use (the issue's medium
+ * database, measured at 1280px): an observation, an item of feedback, both folds of a session's memory half, the
+ * settings page, whose fields are fixed. These are estimates for a first visit and nothing more: the footer moves
+ * by however far one misses, and twice if the page being left was taller than the estimate and shorter than the
+ * answer, or the other way round. The height a region had when it last drew (`SLOT_H`) replaces them, and a page
+ * seen again has no box at all.
  */
 const SLOT_MIN = {
-  'mem-rows': 1350, 'msess-rows': 1450, 'mem-recent': 360, 'mem-sessions': 300,
-  'entry-body': 650, 'sess-lookup': 360, 'sess-mem': 160, 'fb-item': 520, 'fb-rows': 1030, settings: 1580,
+  'entry-body': 650, 'sess-lookup': 360, 'sess-mem': 160, 'fb-item': 520, settings: 1580,
 };
+/** A list's room: [how many rows the page knows of, the most one page holds, px a row takes, px around the rows (pager, rule)]. Measured at 1280px. */
+const SLOT_ROWS = {
+  'mem-rows': [() => memCounts().entries, 25, 48, 143],
+  'msess-rows': [() => memCounts().sessions, PER, 70, 51],
+  'mem-recent': [() => memCounts().entries, 6, 60, 0],
+  'mem-sessions': [() => memCounts().sessions, 5, 60, 0],
+  'fb-rows': [() => S.feedback.acknowledged, PER, 46, 110],
+};
+/** What a list with no rows takes: its one line of explanation. */
+const SLOT_EMPTY = 94;
 const SLOT_FALLBACK = 160;
+/** What `#id` reserves while it waits and the page has not drawn it before. */
+function slotMin(id) {
+  const rows = SLOT_ROWS[id];
+  const n = rows ? rows[0]() : NaN;
+  if (n === 0) return SLOT_EMPTY;
+  if (n > 0) return Math.round(rows[3] + rows[2] * Math.min(n, rows[1]));
+  return SLOT_MIN[id] ?? SLOT_FALLBACK;
+}
 const SLOT_H = new Map();     // id -> the height of its content the last time it was drawn
 
 /** The height of the content of `el`, without the padding it carries. */
@@ -1973,7 +2014,7 @@ function remember(id) {
   if (h > 0) SLOT_H.set(id, h);
 }
 
-const waitBox = (id, label) => `${WAIT_OPEN} style="min-height:${SLOT_H.get(id) ?? SLOT_MIN[id] ?? SLOT_FALLBACK}px">${loader(label)}</div>`;
+const waitBox = (id, label) => `${WAIT_OPEN} style="min-height:${SLOT_H.get(id) ?? slotMin(id)}px">${loader(label)}</div>`;
 
 const failure = (e) => `<div class="ek-mascot-message"><eklavya-mascot state="error" size="56"></eklavya-mascot><p class="empty">Could not load: ${esc(e.message)}</p></div>`;
 
@@ -2045,6 +2086,9 @@ function fill(id, url, draw) {
     const was = $(id);
     const kept = !!was && holdsContent(was);
     if (was) {
+      // The dim waits its 150ms (CSS) only on an element whose style has been computed before it is set: one the same task just put in
+      // the document would start dimmed.
+      void getComputedStyle(was).opacity;
       was.setAttribute('aria-busy', 'true');
       if (kept) was.setAttribute('data-kept', '');
     }
@@ -2072,7 +2116,8 @@ function fill(id, url, draw) {
       // button) is found again in the new ones.
       const ui = captureUi(el);
       el.innerHTML = html;
-      HELD_BACK.clear();
+      // This region is as the answer says. Another that was put off for the reader's control is still put off.
+      HELD_BACK.delete(id);
       // The view returns this same markup on its own from now on (from the cache), so the record
       // of the screen is brought up to date with it and a later redraw leaves it alone.
       recordFill(id, html);
@@ -2102,10 +2147,10 @@ function fill(id, url, draw) {
 function redrawKept(el, html, live) {
   const was = drawnSlot(el.id);
   if (was === null) return false;
-  if (normalized(html) === was && HELD_BACK.size === 0) return true;
+  if (normalized(html) === was && !HELD_BACK.has(el.id)) return true;
   const next = scanRegions(html);
   const prev = scanRegions(was);
-  return next.skeleton !== null && next.skeleton === prev.skeleton && swapRegions(el, prev.settled, next, live);
+  return next.skeleton !== null && next.skeleton === prev.skeleton && swapRegions(el, prev, next, live);
 }
 
 /**
@@ -2173,10 +2218,9 @@ function viewLearningDashboard() {
   const st = streaks();
   const seen = seenConcepts();
   const scoped = conceptsInScope();
-  const atts = attemptsInScope();
-  const answered = atts.length;
-  // A miss corrected from its explainer counts as right: fixing it is learning.
-  const passed = atts.filter((a) => a.grade >= 3 || a.corrected_at).length;
+  // The server counted these over every answer, so a cap on the rows the page holds changes none of them. A miss
+  // corrected from its explainer counts as right: fixing it is learning.
+  const { answers: answered, passed, logged: loggedCount, loggedAssessed } = scopeTotals();
   const due = seen.filter((c) => c.due);
   const mastered = seen.filter((c) => c.mastered);
   // Learning's sessions; a memory-only one belongs to the other workflow.
@@ -2187,9 +2231,6 @@ function viewLearningDashboard() {
 
   // Logged is what the work touched; assessed is what a question was actually
   // asked about. They are different claims and the page keeps them apart.
-  const logged = new Set(loggedInScope().filter((l) => (l.origin ?? 'work') === 'work').map((l) => l.slug));
-  const asked = new Set(atts.map((a) => a.slug));
-  const loggedAsked = [...logged].filter((x) => asked.has(x)).length;
   const inv = projectsInScope();
   const unassessed = inv.filter((p) => !p.learning.answers && p.learning.logged_concepts);
 
@@ -2201,14 +2242,14 @@ function viewLearningDashboard() {
         Open the <a class="link" data-go="${esc(LH('review'))}">review queue</a> for the command to run.`)
     : PROJECT !== null && !answered
       ? nextStep(`<strong>No assessments yet in ${esc(scopeName())}.</strong>
-          ${logged.size ? `${plural(logged.size, 'concept')} recorded from its work will come up in a quiz.` : 'Nothing has been logged here either.'}`, true)
+          ${loggedCount ? `${plural(loggedCount, 'concept')} recorded from its work will come up in a quiz.` : 'Nothing has been logged here either.'}`, true)
       : '';
 
   return [
     pageHead('Am I actually getting better?', [
       `${plural(seen.length, 'concept')} asked of ${S.totals.catalogue}`,
       plural(answered, 'answer'),
-      `${logged.size} recorded from your work, ${loggedAsked} assessed`,
+      `${loggedCount} recorded from your work, ${loggedAssessed} assessed`,
       `since ${esc(fmtDate(S.totals.first_answer))}`,
       ...(PROJECT === null && unassessed.length
         ? [`<a class="link" data-go="${esc(LH('projects'))}">${plural(unassessed.length, 'project')} not assessed yet</a>`] : []),
@@ -2416,6 +2457,8 @@ function viewReview(param) {
   const upcoming = seen.filter((c) => c.owed && !c.due && c.next_review)
     .sort((a, b) => String(a.next_review).localeCompare(String(b.next_review)));
   const skipped = attemptsInScope().filter((a) => a.outcome === 'declined' || a.outcome === 'dont_know');
+  // How many there are is the server's count over every answer; the list is only the skipped ones among the rows the page holds.
+  const skippedTotal = Math.max(skipped.length, scopeTotals().skipped);
 
   // Fourteen days of scheduled reviews, with everything already overdue in one
   // column — a backlog that grows off the left of the chart is a backlog nobody
@@ -2435,7 +2478,7 @@ function viewReview(param) {
   const week = buckets.slice(1, 8).reduce((a, b) => a + b.n, 0);
   const longest = due.length ? Math.max(...due.map((c) => c.overdue_days ?? 0)) : 0;
 
-  const tabs = [['due', `Due now ${due.length}`], ['upcoming', `Upcoming ${upcoming.length}`], ['skipped', `Skipped ${skipped.length}`]];
+  const tabs = [['due', `Due now ${due.length}`], ['upcoming', `Upcoming ${upcoming.length}`], ['skipped', `Skipped ${skippedTotal}`]];
   const list = t.tab === 'due' ? due : t.tab === 'upcoming' ? upcoming : skipped;
   const p = page('review', list.length);
   const rows = slice(list, p).map((x) => t.tab === 'skipped'
@@ -2456,7 +2499,7 @@ function viewReview(param) {
   return [
     pageHead('Review queue', [
       due.length ? `<span class="warn">${due.length} due now</span>` : 'nothing due',
-      `${week} in the next 7 days`, `${skipped.length} skipped`,
+      `${week} in the next 7 days`, `${skippedTotal} skipped`,
       ...(due.length ? [`longest overdue ${plural(longest, 'day')}`] : []),
     ], `SM-2 decides when a concept comes back: one day after a miss, then 6, then the interval times its
        ease. A score decays about 5% a week while a review is overdue, so this list is also the list of
@@ -2470,7 +2513,8 @@ function viewReview(param) {
     card(null, null, region('review',
       `<div class="chips" id="tabs">` + tabs.map(([k, label]) =>
         `<button class="chip" data-tab="${k}" aria-pressed="${t.tab === k}">${esc(label)}</button>`).join('') + `</div>
-       <div style="margin-top:var(--space-4)">${table(cols, rows)}${pager('review', list.length, p)}</div>`)),
+       <div style="margin-top:var(--space-4)">${table(cols, rows)}${pager('review', list.length, p)}
+         ${t.tab === 'skipped' && skipped.length < skippedTotal ? `<p class="slug" style="margin:var(--space-4) 0 0">${plural(skippedTotal, 'answer')} ${skippedTotal === 1 ? 'was' : 'were'} skipped; the list holds the ${skipped.length} among the newest ${S.attempts_shown} answers.</p>` : ''}</div>`)),
   ].join('');
 }
 
@@ -3055,7 +3099,7 @@ function drawEntry(d) {
   const files = jsonList(e.files);
   const link = (x) => `<a class="link" data-go="${esc(MH('entry', x.id))}">${esc(x.title)}</a> <span class="slug">${esc(fmtDate(x.occurred_at))}</span>`;
   const evidence = d.events.map((ev) => `
-    <details class="qa">
+    <details class="qa" data-key="ev:${esc(ev.event_uid)}">
       <summary class="qa__meta">
         <span>${esc(ev.kind)}</span>${ev.tool ? `<span>${esc(ev.tool)}</span>` : ''}
         <span>${esc(stamp(ev.occurred_at))}</span><span>${esc(ev.source)}</span>
@@ -3289,7 +3333,7 @@ function artifactCard(a) {
   const tag = a.correction === 'open' ? ' · <span class="tag warn">To correct</span>'
     : a.correction === 'done' ? ' · <span class="tag ok">Corrected</span>' : '';
   return `<article class="art">
-    <a class="art__open" href="${esc(AH('view', a.id))}">
+    <a class="art__open" href="${esc(AH('view', a.id))}" data-focus="art:${esc(a.id)}">
       <span class="art__thumb"><img src="${esc(thumbUrl(a, window.eklavyaGround.read()))}" data-thumb="${esc(thumbUrl(a, '@'))}" alt="" loading="lazy" decoding="async"></span>
       <span class="title">${esc(a.title)}</span></a>
     ${a.description ? `<p class="ctx">${esc(a.description)}</p>` : ''}
@@ -3384,7 +3428,7 @@ function viewArtifact(id) {
   const height = TABS.height.get(id);
   const asked = a.correction && respGet(fixUrl(a));
   return `${drawTabs(id)}
-    <div class="viewer__bar"><a href="${esc(artifactUrl(a))}" target="_blank" rel="noopener">${ICON_OUT}Open in new browser tab</a></div>
+    <div class="viewer__bar"><a href="${esc(artifactUrl(a))}" target="_blank" rel="noopener" data-focus="art-open">${ICON_OUT}Open in new browser tab</a></div>
     <div class="viewer__box" data-hold>
       ${height ? '' : `<div id="art-wait">${loader('Opening the page…')}</div>`}
       <iframe class="viewer" id="art-frame" style="--wait-h:${esc(height ?? '80vh')}" src="${esc(artifactUrl(a))}?embed" title="${esc(a.title)}" sandbox="${FRAME_SANDBOX}"></iframe>
@@ -3652,7 +3696,11 @@ const TIP = {
       return node?.getClientRects().length && !(narrow.matches && side.contains(node)) ? [[t, node]] : [];
     });
     // Same features, same nodes: leave a bubble the reader opened alone.
+    // Setting the hints closes the bubble that is open. A redraw that replaced some other feature's element is no reason to
+    // close the one the reader is reading, so it is opened again when its tip still applies (`reopen`, below).
+    let reopen = null;
     if (eligible.length !== this.shown.length || eligible.some(([t, n], i) => this.shown[i][0] !== t.id || this.shown[i][1] !== n)) {
+      reopen = h.getActive()?.id ?? null;
       this.shown = eligible.map(([t, n]) => [t.id, n]);
       h.setHints(eligible.map(([t, n]) => ({
         id: t.id,
@@ -3679,6 +3727,11 @@ const TIP = {
       })));
     }
     h.show();
+    if (reopen && eligible.some(([t]) => t.id === reopen)) {
+      const was = document.activeElement;
+      h.open(reopen);
+      if (was?.isConnected && was !== document.body) was.focus({ preventScroll: true });
+    }
     // Only the screen's first tip opens by itself, and only once; the rest stay beacons.
     const first = eligible[0];
     if (!first || st.opened.includes(first[0].id)) return;
@@ -4059,7 +4112,7 @@ function drawSettings(d, scope) {
   const here = tabs.find((t) => t.id === CUR.param) ?? tabs[0];
 
   const scopeLink = (label, icon, to, current) =>
-    `<a class="sw__scope" href="${esc(to)}"${current ? ' aria-current="page"' : ''}>${svg(icon)}<span>${esc(label)}</span></a>`;
+    `<a class="sw__scope" href="${esc(to)}" data-focus="scope:${esc(label)}"${current ? ' aria-current="page"' : ''}>${svg(icon)}<span>${esc(label)}</span></a>`;
   // The rail is a region of its own: its links carry the tab (picking another scope keeps it), so
   // they are redrawn when the tab changes, while the element and the pane's neighbours stay.
   const rail = `<nav class="sw__scopes" aria-label="Settings scope" data-region="sw-rail">
@@ -4113,7 +4166,7 @@ function drawSettings(d, scope) {
 
   return pane(
     pageHead(scope === 'project' ? `${esc(d.project.name)} settings` : 'User settings',
-      [`<span class="mono">${esc(file.path)}</span>`, `${Object.keys(file.set).length} set here`], about)
+      [`<span class="mono">${esc(file.path)}</span>`, `${Object.keys(file.set).length} set here`], about, '', true)
       + (d.problem ? nextStep(`<strong>A config file is not being read.</strong> ${esc(d.problem)}`) : ''),
     tabBar, body);
 }
@@ -4143,7 +4196,7 @@ const FB = {
 };
 
 /** A command in a copyable block, as the start-review commands are. */
-const fbCmd = (text) => `<div class="cmd"><code>${esc(text)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div>`;
+const fbCmd = (text) => `<div class="cmd"><code>${esc(text)}</code><button type="button" class="cmd__copy" data-copy data-focus="copy:${esc(text)}">Copy</button></div>`;
 
 /** Why there is no item: the one reason, in plain words. */
 function fbEmpty(F) {
@@ -4237,7 +4290,7 @@ function drawFbItem(it) {
     <div class="fb__grid">
       <section><h2 class="fb__h">Your prompt</h2><blockquote class="fb__quote">${esc(it.prompt)}</blockquote></section>
       <section><h2 class="fb__h">A better prompt</h2>
-        <div class="cmd cmd--block"><code>${esc(it.better)}</code><button type="button" class="cmd__copy" data-copy>Copy</button></div></section>
+        <div class="cmd cmd--block"><code>${esc(it.better)}</code><button type="button" class="cmd__copy" data-copy data-focus="copy:better">Copy</button></div></section>
     </div>
     ${review}
     <section><h2 class="fb__h">Tips</h2><ul class="fb__tips">${it.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>
@@ -5028,6 +5081,9 @@ function closeSelect(restore = true) {
   b.setAttribute('aria-expanded', 'false');
   TIP.sync();
   if ((restore || hadFocus) && b.isConnected) b.focus();
+  // A redraw for new data that waited for this list to close (`unitsInUse`) is drawn now; focus coming back to the button
+  // is no `focusout` of the view's, which is what asks otherwise.
+  setTimeout(catchUp, 0);
 }
 
 function chooseOption(i) {
@@ -5316,7 +5372,7 @@ function isAdjustment(pg) {
  * different region, and replace what the reader was looking at.
  */
 function scanRegions(html) {
-  const none = { skeleton: null, regions: new Map(), settled: new Map() };
+  const none = { skeleton: null, regions: new Map(), settled: new Map(), calm: new Map() };
   if (!html.includes('data-region="')) return none;
   const t = document.createElement('template');
   t.innerHTML = html;
@@ -5331,11 +5387,15 @@ function scanRegions(html) {
   // Without this, every keystroke would make the screen look changed and the whole view would be replaced under the caret.
   for (const i of t.content.querySelectorAll('input[type="search"]')) i.removeAttribute('value');
   const settled = new Map(found.map((el) => [el.dataset.region, el.innerHTML]));
+  // `calm` is `settled` without the value of a date box: what a swap checks to tell a region whose box the reader is
+  // typing a date into (`typingDate`) from one that changed.
+  for (const i of t.content.querySelectorAll('input[type="date"]')) i.removeAttribute('value');
+  const calm = new Map(found.map((el) => [el.dataset.region, el.innerHTML]));
   for (const el of found) el.replaceChildren();
   // A held element (`data-hold`) is part of the screen that a redraw never touches (the viewer's frame, whose page
   // would load again if it left the document): what it holds is whatever it came to hold, so it is not compared.
   for (const el of t.content.querySelectorAll('[data-hold]')) el.replaceChildren();
-  return { skeleton: t.innerHTML, regions, settled };
+  return { skeleton: t.innerHTML, regions, settled, calm };
 }
 const recordOf = (html) => ({ html, ...scanRegions(html) });
 
@@ -5378,26 +5438,50 @@ function recordStrip(html) {
  */
 const HELD_BACK = new Set();
 
+/** The date box whose `change` the page is acting on, for as long as it does: the reader is in it, whatever `document.activeElement` says. */
+let DATE_BOX = null;
+
 /**
- * Replaces, in `root`, the regions of `next` whose markup differs from `prevSettled`'s, each wholesale in the element that
- * is on the page, and nothing else. False, before anything is touched, when a region to replace is not there. A region
- * that is only the box and the loader never goes over what it shows (the fetch dims it); over a failure it does (that is
- * asking again). With `keep` (a redraw for new data), a region that holds a control the reader is using (the one with
- * focus, or one holding a value that is typed and not saved) is left as it is: a control that leaves the document
- * while it has focus is committed by the browser, and the reader has not said they are done. It is put off, not dropped.
+ * Whether `host`, a region, holds a date box the reader is typing in, and the markup that would replace it differs from
+ * the one on screen in nothing but that box's value, which is what the box already says. A date box changes (and the page
+ * writes the range into the URL) each time what is typed is a whole date, which is after the first digit of the year, so
+ * the box that says so is the box the rest of the year is still going into: replacing it with a new one would put the
+ * remaining digits in the first segment of an empty box.
  */
-function swapRegions(root, prevSettled, next, keep) {
+function typingDate(host, id, prev, next) {
+  // The box that just said it changed, else the one with focus: while a box moves from one part of the date to the next
+  // (the month is complete) the document has no focused element for a moment, and that is when it says so.
+  const box = DATE_BOX ?? document.activeElement;
+  if (!(box instanceof HTMLInputElement) || box.type !== 'date' || !box.id || !host.contains(box)) return false;
+  if (prev.calm.get(id) !== next.calm.get(id)) return false;
+  const t = document.createElement('template');
+  t.innerHTML = next.regions.get(id);
+  return (t.content.getElementById(box.id)?.getAttribute('value') ?? null) === box.value;
+}
+
+/**
+ * Replaces, in `root`, the regions of `next` whose markup differs from `prev`'s (the record of the screen), each wholesale in
+ * the element that is on the page, and nothing else. False, before anything is touched, when a region to replace is not
+ * there. A region that is only the box and the loader never goes over what it shows (the fetch dims it); over a failure it
+ * does (that is asking again). With `keep` (a redraw for new data), a region that holds a control the reader is using (the one with
+ * focus, an open list, or one holding a value that is typed and not saved) is left as it is: a control that leaves the
+ * document while it has focus is committed by the browser, and the reader has not said they are done. It is put off, not dropped.
+ */
+function swapRegions(root, prev, next, keep) {
   const swaps = [];
   for (const [id, inner] of next.regions) {
     const host = root.querySelector(`[data-region="${id}"]`);
     // Unchanged markup is left alone, whatever the reader has done to what is on screen since (a fold opened, say).
-    if (!HELD_BACK.has(id) && prevSettled.get(id) === next.settled.get(id)) {
+    if (!HELD_BACK.has(id) && prev.settled.get(id) === next.settled.get(id)) {
       // Except that a request an earlier draw left out is over for it: its answer is in hand, and is what is on screen.
       if (host?.hasAttribute('aria-busy') && !isWait(inner)) slotDone(host);
       continue;
     }
     if (!host) return false;
     if (isWait(inner) && !host.hasAttribute('data-failed')) continue;
+    // The reader's own typing is theirs, in any draw: the range they typed is what the box already says. (A region put off
+    // for new data stays put off, to be drawn when focus leaves.)
+    if (typingDate(host, id, prev, next)) continue;
     swaps.push([id, host, inner]);
   }
   for (const [id, host, inner] of swaps) {
@@ -5412,6 +5496,9 @@ function swapRegions(root, prevSettled, next, keep) {
   }
   return true;
 }
+
+/** Whether two views' markup is the same once the browser has read both (a record that was filled in is in that form, a fresh one is not). */
+const sameMarkup = (a, b) => a === b || normalized(a) === normalized(b);
 
 /**
  * The markup with each fetched region that is only its box this time, over one that shows an answer on screen, drawn as
@@ -5443,21 +5530,22 @@ function drawAdjusted(html) {
   const prev = DRAWN;
   // The page is the same screen, though it may be reached by another route (`screen`): the record keeps the one on show.
   const at = { page: CUR.page, param: CUR.param, query: CUR.query.toString() };
-  // The markup the screen was drawn from, again: new data that changed nothing this screen shows replaces nothing in it
-  // (a region that failed is the exception: drawing again is asking again).
-  if (LIVE_PASS && html === prev.html && HELD_BACK.size === 0 && !view.querySelector('[data-failed]')) {
+  // Fetched regions that are only their box this time are what they show: the screen is the same where they are, and
+  // it is the regions around them that may have changed. (A view's markup holds the box for every fetched region of
+  // a screen whose answers were dropped with the old data, which is every screen on new data.)
+  const shown = LIVE_PASS ? withKept(html) : html;
+  // The markup the screen was drawn from, again: new data that changed nothing this screen shows replaces nothing in it,
+  // not even where the view has no regions, and so the text the reader selected, the row they opened and the control
+  // they are on stay (a region that failed is the exception: drawing again is asking again).
+  if (LIVE_PASS && HELD_BACK.size === 0 && !view.querySelector('[data-failed]') && sameMarkup(shown, prev.html)) {
     DRAWN = { ...prev, ...at };
     return;
   }
-  // Fetched regions that are only their box this time are what they show: the screen is the same where they are, and
-  // it is the regions around them that may have changed. Used when that makes it a screen of the same skeleton.
-  const shown = LIVE_PASS ? withKept(html) : html;
-  let next = scanRegions(shown);
-  if (next.skeleton !== null && next.skeleton === prev.skeleton && swapRegions(view, prev.settled, next, LIVE_PASS)) {
-    DRAWN = { ...prev, ...at, html: shown, skeleton: next.skeleton, regions: next.regions, settled: next.settled };
+  const next = scanRegions(shown);
+  if (next.skeleton !== null && next.skeleton === prev.skeleton && swapRegions(view, prev, next, LIVE_PASS)) {
+    DRAWN = { ...prev, ...at, html: shown, ...next };
     return;
   }
-  if (shown !== html) next = scanRegions(html);
   // The view is replaced; a fetched region that is only the box this time still shows what it did, moved
   // into the new element (the same nodes, so whatever the reader had open or focused in them is still there).
   const held = new Map();
@@ -5474,7 +5562,9 @@ function drawAdjusted(html) {
   }
   focusable(view);
   restoreUi(view, ui);
-  DRAWN = { ...prev, ...at, html, ...next };
+  // What is on screen is `shown`: the regions that kept their answer carry it in the record too, so the answer that
+  // arrives for them is compared with what they show, and the same one replaces nothing.
+  DRAWN = { ...prev, ...at, html: shown, ...next };
 }
 
 /** A control the reader was using has been let go of: what was put off for it is drawn now, unless they are on another one. */
@@ -5488,18 +5578,32 @@ function catchUp() {
   }
 }
 
-/** What a control is called when it is looked for again in redrawn markup: its id, else the first of these it has. */
-const FOCUS_KEYS = ['data-focus', 'data-tab', 'data-state', 'data-unset', 'data-go'];
+/**
+ * What a control is called when it is looked for again in redrawn markup: its id, else the first of these it has (Copy
+ * names the command it copies, and the Feedback buttons the item they act on), else, for a <summary>, the <details> it
+ * opens (`detailSelector`). A control with none is not carried over a redraw, so every control the reader can Tab to has one.
+ */
+const FOCUS_KEYS = ['data-focus', 'data-tab', 'data-tab-id', 'data-state', 'data-unset', 'data-go',
+  'data-fb-ack', 'data-fb-del', 'data-fb-yes', 'data-fb-no', 'data-fb-tip-dismiss'];
 function focusKey(el) {
   if (el.id) return `#${CSS.escape(el.id)}`;
   for (const a of FOCUS_KEYS) {
     const v = el.getAttribute(a);
     if (v !== null) return `[${a}="${CSS.escape(v)}"]`;
   }
-  return null;
+  const sel = el.tagName === 'SUMMARY' && el.parentElement?.tagName === 'DETAILS' ? detailSelector(el.parentElement) : null;
+  return sel ? `${sel} > summary` : null;
 }
 /** The stable key of a <details>: a fold's id, a timeline entry's id, or an explicit `data-key`. */
 const detailKey = (d) => (d.dataset.fold ? 'fold:' + d.dataset.fold : d.dataset.entry ? 'entry:' + d.dataset.entry : d.dataset.key ? 'key:' + d.dataset.key : null);
+/** A selector for the <details> that `detailKey` names, to look it (or its summary) up again; null when it has no key. */
+function detailSelector(d) {
+  for (const a of ['data-fold', 'data-entry', 'data-key']) {
+    const v = d.getAttribute(a);
+    if (v !== null) return `details[${a}="${CSS.escape(v)}"]`;
+  }
+  return null;
+}
 
 /**
  * What the reader is in the middle of inside `root`, taken before it is redrawn: the focused
@@ -5528,10 +5632,11 @@ function captureUi(root) {
 }
 
 /**
- * The Settings controls in `root` that the reader is using, for a redraw that is about new data and not about them: the
+ * What in `root` the reader is using, for a redraw that is about new data and not about them. The Settings controls: the
  * one with focus (the box, or the button that stands in for a select), the one whose list is open, and any that holds
- * what was typed and not saved (a number field, a text box, a list, or a choice a refusal put back). Each is a `.set__ctl`, the control with its own
- * error line.
+ * what was typed and not saved (a number field, a text box, a list, or a choice a refusal put back); each is a `.set__ctl`, the control with its own
+ * error line. And, anywhere, the list of a select that is open (its button, which the list would be left without) and a date box with focus
+ * (a date typed into it is not a value yet): a redraw that replaced either would close the list, or start the date again.
  */
 function unitsInUse(root) {
   const used = [];
@@ -5544,6 +5649,9 @@ function unitsInUse(root) {
     // The list of a select that is open has the focus, not the button it opened from.
     if (edited || unit.contains(document.activeElement) || (sOpen && unit.contains(sOpen))) used.push(unit);
   }
+  if (sOpen && root.contains(sOpen) && !used.some((u) => u.contains(sOpen))) used.push(sOpen);
+  const box = document.activeElement;
+  if (box instanceof HTMLInputElement && box.type === 'date' && root.contains(box)) used.push(box);
   return used;
 }
 
@@ -5700,8 +5808,11 @@ $('view').addEventListener('change', (e) => {
     if (v === 'custom') setQuery({ from: CUR.query.get('from') || daysAgo(6), to: daysAgo(0) });
     else setQuery({ from: v === 'any' ? null : daysAgo(WHEN[v]), to: null });
   }
-  if (e.target.id === 'mfrom') { T.memory.page = 1; setQuery({ from: e.target.value }); }
-  if (e.target.id === 'mto') { T.memory.page = 1; setQuery({ to: e.target.value }); }
+  if (e.target.id === 'mfrom' || e.target.id === 'mto') {
+    T.memory.page = 1;
+    DATE_BOX = e.target;
+    try { setQuery({ [e.target.id === 'mfrom' ? 'from' : 'to']: e.target.value }); } finally { DATE_BOX = null; }
+  }
 });
 
 addEventListener('hashchange', () => { if (INV) { closePicker(false); syncFromUrl(); } });

@@ -899,6 +899,30 @@ describe('the sessions of a build with the same newest event keep SQLite\'s orde
   });
 });
 
+describe('two sessions of different projects that stopped at the same instant keep the order SQLite gives them: session, then project', () => {
+  // `(project, session)` order is what the groups arrive in, and what the list would have without its tie-break: the
+  // session that sorts first is in the project that sorts last.
+  const seed = () => {
+    evidence('/p/aaa', '/p/aaa', 'tie-z', at('09:30'));
+    evidence('/p/zzz', '/p/zzz', 'tie-a', at('09:30'));
+    evidence('/p/mmm', '/p/mmm', 'tie-m', at('09:30'));
+  };
+  const ties = (rows: { session_id: string; project: string }[]) => rows.filter((r) => r.session_id.startsWith('tie-')).map((r) => `${r.session_id}|${r.project}`);
+  const ORDER = ['tie-a|/p/zzz', 'tie-m|/p/mmm', 'tie-z|/p/aaa'];
+
+  it('in the payload list', () => {
+    seed();
+    expect(ties((dashboardState(db) as any).memory_sessions)).toEqual(ORDER);
+    // And it is what the statement it replaced gave: a tie on time, then session, then project.
+    expect(ties(all('SELECT session_id, project FROM evidence_events GROUP BY session_id, project ORDER BY max(occurred_at) DESC, session_id, project'))).toEqual(ORDER);
+  });
+
+  it('in the paged list, where the keys are ordered by the statement itself', () => {
+    seed();
+    expect(ties((memorySessionPage(db, { per: 200 }) as any).rows)).toEqual(ORDER);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // What the page narrows a project to must not depend on how many rows the payload
 // carries. The page builds its concept list for a project from the rows it holds

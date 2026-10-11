@@ -66,7 +66,7 @@ const TIMELINE_DAYS = 365;
  * ever shorten a history list, never make a number wrong: anything the page
  * counts, or narrows a project to, it takes from those aggregates and not from
  * these rows (`totals`, `concepts`, `daily`, and `projectInventory`'s per-project
- * counts and `concept_slugs`).
+ * counts, `totals` and `concept_slugs`).
  *
  * One number with `LOGGED_LIMIT`, and the one that sets the size of `/api/state`:
  * a row is about 0.85 KB (a question, its options, the answer and the tutor's
@@ -87,8 +87,8 @@ export const ATTEMPT_LIMIT = 800;
  * fewer lines sees no change. `logged_shown` and `logged_total` say when it is
  * cut, as `attempts_shown` and `attempts_total` do, and every total stays right
  * because it is aggregated in SQL: `totals.sessions`, the concept catalogue's
- * last context, the project inventory (its counts, its `sessions` and the
- * `concept_slugs` the page narrows a project to). A session whose lines fall
+ * last context, the project inventory (its counts, its `sessions`, its `totals`
+ * across projects and the `concept_slugs` the page narrows a project to). A session whose lines fall
  * outside the cap is still opened through `/api/memory/sessions`
  * (`sessionLearning`).
  */
@@ -743,6 +743,20 @@ interface Span {
   max: number | null;
 }
 
+/**
+ * What the cards cannot be added up to: a concept or a session that two projects both have is one, not two. The
+ * page reads these for the all-projects scope (`sessionTotal`, the Learning Dashboard's head), where the capped
+ * lists of rows can say neither, and a project's own card for a single one.
+ */
+export interface InventoryTotals {
+  /** Distinct sessions that logged a concept or were asked a question, in any project. */
+  sessions: number;
+  /** Distinct concepts the agent logged from its work (not a review), in any project. */
+  logged_concepts: number;
+  /** Of those, the ones any answer was recorded for. */
+  logged_assessed_concepts: number;
+}
+
 interface InventoryProject {
   id: string;
   path: string | null;
@@ -753,7 +767,10 @@ interface InventoryProject {
   aliases: string[];
   learning: {
     answers: number; passed: number; skipped: number; assessed_concepts: number;
-    logged_concepts: number; sessions: number; first: string | null; last: string | null;
+    logged_concepts: number;
+    /** Of `logged_concepts`, the ones a question was also asked about: the page's "recorded from your work, assessed". */
+    logged_assessed_concepts: number;
+    sessions: number; first: string | null; last: string | null;
     /**
      * Every concept an answer or a logged line (any origin) in this project names,
      * by slug, sorted: what the page narrows the concept list to. Exact however
@@ -798,6 +815,7 @@ export function projectInventory(db: DB): {
   projects: InventoryProject[];
   aliases: Record<string, string>;
   sessions: Record<string, string>;
+  totals: InventoryTotals;
 } {
   const evidence = evidenceGroups(db);
   const recorded = new Map<string, Set<string>>();
@@ -836,7 +854,10 @@ export function projectInventory(db: DB): {
       p = {
         id, kind, path: kind === 'repo' ? id : null, name: '', available: kind === 'repo' ? fs.existsSync(id) : null,
         sources: [], aliases: [],
-        learning: { answers: 0, passed: 0, skipped: 0, assessed_concepts: 0, logged_concepts: 0, sessions: 0, first: null, last: null, concept_slugs: [] },
+        learning: {
+          answers: 0, passed: 0, skipped: 0, assessed_concepts: 0, logged_concepts: 0, logged_assessed_concepts: 0,
+          sessions: 0, first: null, last: null, concept_slugs: [],
+        },
         memory: { events: 0, pending: 0, entries: 0, sessions: 0, receipts: 0, first: null, last: null },
         first_active: null, last_active: null,
         _assessed: new Set(), _logged: new Set(), _touched: new Set(), _lsess: new Set(), _msess: new Set(),
@@ -849,6 +870,8 @@ export function projectInventory(db: DB): {
     if (v && v !== id && !p.aliases.includes(v)) p.aliases.push(v);
     return p;
   };
+  // Across every project: the sets whose union is not the sum of the cards.
+  const every = { sessions: new Set<string>(), logged: new Set<number>(), assessed: new Set<number>() };
   const sessionIds = new Map<string, Set<string>>();
   const note = (sid: string, id: string) => sessionIds.set(sid, (sessionIds.get(sid) ?? new Set()).add(id));
   // Both timestamp shapes, read as instants (epoch milliseconds) so min/max compare as instants. A
@@ -883,10 +906,12 @@ export function projectInventory(db: DB): {
     p.learning.passed += r.passed;
     p.learning.skipped += r.skipped;
     p._assessed.add(r.concept_id);
+    every.assessed.add(r.concept_id);
     if (r.repo?.trim()) p._touched.add(r.concept_id);
     else blankAsked.push([r.session_id, r.concept_id]);
     if (r.session_id) {
       p._lsess.add(r.session_id);
+      every.sessions.add(r.session_id);
       if (r.repo?.trim()) note(r.session_id, p.id);
     }
     span(p._lspan, r.first, r.last);
@@ -929,10 +954,14 @@ export function projectInventory(db: DB): {
     // Only work the agent logged. `record_attempt` writes a `review` row for
     // every concept it grades, and counting those would call every answered
     // concept "recorded from your work".
-    if ((r.origin ?? 'work') === 'work') p._logged.add(r.concept_id);
+    if ((r.origin ?? 'work') === 'work') {
+      p._logged.add(r.concept_id);
+      every.logged.add(r.concept_id);
+    }
     // Any origin: a concept a question was asked about is as much in the project as one its work touched.
     p._touched.add(r.concept_id);
     p._lsess.add(r.session_id);
+    every.sessions.add(r.session_id);
     span(p._lspan, r.first, r.last);
   }
   // An answer with no repository belongs where its session was proven to belong, else nowhere.
@@ -957,6 +986,7 @@ export function projectInventory(db: DB): {
   const projects = [...byId.values()].map(({ _assessed, _logged, _touched, _lsess, _msess, _lspan, _mspan, ...p }) => {
     p.learning.assessed_concepts = _assessed.size;
     p.learning.logged_concepts = _logged.size;
+    p.learning.logged_assessed_concepts = [..._logged].filter((id) => _assessed.has(id)).length;
     // Concepts exist for every row that names one (a foreign key), so every id has its slug.
     p.learning.concept_slugs = [..._touched].map((id) => slugs.get(id)!).sort();
     p.learning.sessions = _lsess.size;
@@ -989,14 +1019,19 @@ export function projectInventory(db: DB): {
 
   const aliases: Record<string, string> = {};
   for (const [raw, id] of folded) aliases[raw] = id;
-  return { projects, aliases, sessions: sessionProjects };
+  const totals: InventoryTotals = {
+    sessions: every.sessions.size,
+    logged_concepts: every.logged.size,
+    logged_assessed_concepts: [...every.logged].filter((id) => every.assessed.has(id)).length,
+  };
+  return { projects, aliases, sessions: sessionProjects, totals };
 }
 
 /**
- * What an open page polls to notice that work landed while it was reading it
- * (PRD DASH-01), served alone at `/api/cursor` so a poll builds no payload, and
- * streamed by `/api/events` (`createLive`), which reads it for as long as a page
- * is listening.
+ * What an open page is told about, to notice that work landed while it was
+ * reading it (PRD DASH-01): `/api/events` streams it (`createLive`, which reads
+ * it for as long as a page is listening) and `/api/cursor` returns it alone,
+ * building no payload.
  *
  * Three parts, one per place the page's content comes from:
  * - `change_version` (migration 021), which triggers move on every write to a
@@ -1007,9 +1042,9 @@ export function projectInventory(db: DB): {
  * - The artifact files' count, total size and newest mtime (`artifactsStamp`).
  *
  * Deliberately not `generated_at`, and not a hash of the payload: both change
- * on every call -- scores are decayed against the clock -- and a page that
- * announces new activity every minute is a page whose banner is ignored inside
- * a day. Not watched: the prune stamp and spool drop count in the health panel.
+ * on every call -- scores are decayed against the clock -- and a cursor that
+ * moves on every call would redraw the page every second. Not watched: the
+ * prune stamp and spool drop count in the health panel.
  */
 export function changeCursor(db: DB, configs = readConfigs(db)): string {
   const version = one<{ n: number }>(db, 'SELECT n FROM change_version WHERE id = 1').n;
@@ -1483,7 +1518,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
   // speak for every project, and the server's cwd is not any project's choice.
   const config = configs.user;
   // First, before any of the payload is read: a write that lands while it is
-  // being built then shows as a notice on the next poll, never as a miss.
+  // being built moves the next cursor, so the page reads again and never misses it.
   const cursor = changeCursor(db, configs);
 
   // The numbers taken from `attempts` that are not lists of rows: one row per calendar day per
@@ -2585,14 +2620,29 @@ function createLive(db: DB, opts: Partial<LiveOptions>): Live {
   };
 
   /**
+   * Which folder this is, not only what it is called: the inode and the time it was made. A watch is on a
+   * folder, so one removed and made again under the same name (before the area's event is read) is a
+   * folder the old watch will never hear from, and the filesystem may hand the new one the old inode: the
+   * time it was made is what tells them apart. `-` when it cannot be read.
+   */
+  const identity = (dir: string): string => {
+    try {
+      const s = fs.statSync(dir, { bigint: true });
+      return `${s.ino}.${s.birthtimeNs}`;
+    } catch {
+      return '-';
+    }
+  };
+
+  /**
    * A watch on `root` for its folders, and one on each folder for its files. The
    * root's own events (a folder made, renamed or removed) adopt what is there
-   * now: a watch for each new folder, none for one that has gone. The check they
-   * also ask for is what sees a file already written into a folder by the time
-   * its watch was made.
+   * now: a watch for each new folder, none for one that has gone, a new one for
+   * one that was made again. The check they also ask for is what sees a file
+   * already written into a folder by the time its watch was made.
    */
   const watchTree = ({ root, match }: WatchTree): void => {
-    const folders = new Map<string, fs.FSWatcher>();
+    const folders = new Map<string, { watcher: fs.FSWatcher; id: string }>();
     const adopt = (): void => {
       let present: string[];
       try {
@@ -2603,19 +2653,23 @@ function createLive(db: DB, opts: Partial<LiveOptions>): Live {
       } catch {
         present = [];
       }
-      for (const [name, watcher] of folders) {
-        // Gone, or its watch failed (and was closed): forget it, and the loop below makes a new one if the folder is there.
+      for (const [name, { watcher, id }] of folders) {
+        // Gone, replaced by another folder of the name, or its watch failed (and was closed): forget it, and the
+        // loop below makes a new one if the folder is there.
         const open = watchers.has(watcher);
-        if (open && present.includes(name)) continue;
+        if (open && present.includes(name) && identity(path.join(root, name)) === id) continue;
         folders.delete(name);
         if (open) release(watcher);
       }
       for (const name of present) {
         if (folders.has(name)) continue;
-        const watcher = watchDir(path.join(root, name), (file) => {
+        const dir = path.join(root, name);
+        // Read before the watch is made: a folder replaced in between is seen as changed by the next event.
+        const id = identity(dir);
+        const watcher = watchDir(dir, (file) => {
           if (file !== null && match(file)) early();
         });
-        if (watcher) folders.set(name, watcher);
+        if (watcher) folders.set(name, { watcher, id });
       }
     };
     const rootWatch = watchDir(root, () => {

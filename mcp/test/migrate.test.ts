@@ -80,7 +80,7 @@ const IDENTITY_TABLES = ['project_roots'];
 /** Migration 018: every memory read tool call, linked to a receipt or not. */
 const READ_TABLES = ['memory_reads'];
 
-/** Migration 021: the counter the dashboard's stale-data notice polls. */
+/** Migration 021: the counter the dashboard's change cursor reads. */
 const CHANGE_TABLES = ['change_version'];
 
 /**

@@ -13,13 +13,14 @@ import type { Page } from 'playwright-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startDashboard } from '../dist/dashboard.js';
 import { insertFeedback } from '../src/feedback.js';
-import { insertEntry } from '../src/memory/store.js';
+import { insertEntry, recordReceipt } from '../src/memory/store.js';
 import { gradeConcept, recordRetry } from '../src/store.js';
 import { OPTS, db, enc, fix, fx, home, isStream, open, probeTransition, ready } from './dashboard-browser-helpers.js';
 
 // Globals of the page under test (a script's `let` and `const` are reachable by name from `evaluate`, not from `window`).
 declare const S: { cursor: string; feedback: { notify: boolean } };
 declare const LIVE: { es: EventSource | null; delay: number; heard: string; busy: boolean; more: boolean };
+declare function focusKey(el: Element): string | null;
 declare function liveReopen(): void;
 declare function liveClose(): void;
 declare function adoptState(s: unknown, inv: unknown): void;
@@ -213,8 +214,10 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         const w = await open('#/settings/dashboard/pacing', { height: HEIGHT });
         const { page } = w;
         const field = '#set-max_questions_per_task';
-        const source = () => page.textContent(`.set:has(${field}) .set__src`);
-        expect(await source()).toContain('default');
+        // What the row says about where its value comes from: that one word or phrase, not the button that may follow it
+        // ("Reset to default" is on a row that is set, and contains the word).
+        const source = () => page.locator(`.set:has(${field}) .set__src > span:not([data-msg])`).first().textContent();
+        expect(await source()).toBe('default');
         await page.focus(field);
         await page.fill(field, '7');
         // Held to see that it is the very element afterwards: the value, the focus and the node.
@@ -229,7 +232,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         await page.waitForTimeout(400);
         expect(await page.evaluate((f) => ({ value: (document.querySelector(f) as HTMLInputElement).value, focus: document.activeElement === document.querySelector(f), same: (window as any).__field === document.querySelector(f) }), field))
           .toEqual({ value: '7', focus: true, same: true });
-        expect(await source(), 'the row says what it said until the save').toContain('default');
+        expect(await source(), 'the row says what it said until the save').toBe('default');
 
         // A change from the terminal to another setting lands around the field: that tab's count moves, this row does not.
         const tab = page.locator('.sw__tab', { hasText: 'Questions' });
@@ -240,11 +243,22 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         await page.waitForFunction(() => /1/.test(document.querySelector('.sw__tab[data-focus="tab:questions"] i')?.textContent ?? ''), null, { timeout: 3000 });
         expect(await page.evaluate((f) => ({ value: (document.querySelector(f) as HTMLInputElement).value, focus: document.activeElement === document.querySelector(f), same: (window as any).__field === document.querySelector(f) }), field))
           .toEqual({ value: '7', focus: true, same: true });
-        expect(await source(), 'still unsaved').toContain('default');
+        expect(await source(), 'still unsaved').toBe('default');
+
+        // The same setting changed from the terminal while the reader is typing in it: their value is the one in the field
+        // and the row is not drawn from the file until they let go (what the file says is not what they are saying).
+        const again = await cursor(page);
+        configure({ cadence: 'end', max_questions_per_task: 9 });
+        await adopted(page, again);
+        await page.waitForTimeout(400);
+        expect(await page.evaluate((f) => ({ value: (document.querySelector(f) as HTMLInputElement).value, focus: document.activeElement === document.querySelector(f), same: (window as any).__field === document.querySelector(f) }), field))
+          .toEqual({ value: '7', focus: true, same: true });
+        expect(await source(), 'the row of the field being edited waits').toBe('default');
 
         // The save is the reader's: Enter, and the row says so.
         await page.keyboard.press('Enter');
         await page.waitForFunction((f) => /set by you/.test(document.querySelector(`.set:has(${f}) .set__src`)?.textContent ?? ''), field, { timeout: 5000 });
+        expect(await source()).toBe('set by you');
         expect(await page.inputValue(field)).toBe('7');
         expect(w.errors).toEqual([]);
         await w.ctx.close();
@@ -328,7 +342,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         const { page } = w;
         const field = '#set-max_questions_per_task';
         const other = '#set-min_minutes_between_quizzes';
-        const source = (f: string) => page.textContent(`.set:has(${f}) .set__src`);
+        const source = (f: string) => page.locator(`.set:has(${f}) .set__src > span:not([data-msg])`).first().textContent();
         await page.focus(field);
         const was = await cursor(page);
         // `eklavya config set min_minutes_between_quizzes 45`, from a terminal, while the reader has a field.
@@ -337,13 +351,14 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         // The tab's count and the heading's count are brought up around the field; the rows wait.
         await page.waitForFunction(() => /1 set here/.test(document.querySelector('.sw__pane .counts')?.textContent ?? ''), null, { timeout: 3000 });
         expect(await page.locator('.sw__tab[data-focus="tab:pacing"] i').textContent()).toBe('1');
-        expect(await source(other), 'the row is drawn when the reader lets go of the field').toContain('default');
+        expect(await source(other), 'the row is drawn when the reader lets go of the field').toBe('default');
         expect(await page.evaluate((f) => document.activeElement === document.querySelector(f), field)).toBe(true);
         // They let go (a click on the heading, say; a Tab would land on the next field, and that is in use too): what
         // was put off is drawn, with nothing else asked of the page.
         await page.click('.sw__pane h1');
         await page.waitForFunction((f) => /set by you/.test(document.querySelector(`.set:has(${f}) .set__src`)?.textContent ?? ''), other, { timeout: 3000 });
         expect(await page.inputValue(other)).toBe('45');
+        expect(await source(other)).toBe('set by you');
         expect(w.errors).toEqual([]);
         await w.ctx.close();
       }, 60000);
@@ -441,7 +456,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           writeDue();
           await adopted(page, was);
         });
-        expect(r).toMatchObject({ scrollBefore: 300, scrollAfter: 300, headKept: false });
+        // The heading's counts are a region of their own, so a new row moves its count and not the heading around it.
+        expect(r).toMatchObject({ scrollBefore: 300, scrollAfter: 300, headKept: true });
         expect(await page.evaluate(() => window.scrollY)).toBe(300);
         await w.ctx.close();
       }, 30000);
@@ -504,6 +520,281 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         expect(await page.getAttribute('#wf-caret', 'aria-label')).toBe('Switch workflow, 1 feedback unread');
         await w.ctx.close();
       }, 30000);
+    });
+
+
+    describe('a screen whose regions did not change is not touched, and what it cannot keep it carries', () => {
+      /** Presses Tab until `pred` (a page expression) holds of the element with focus, as a reader would to reach it. */
+      async function tabTo(page: Page, pred: string): Promise<void> {
+        for (let i = 0; i < 120; i++) {
+          await page.keyboard.press('Tab');
+          if (await page.evaluate(pred)) return;
+        }
+        throw new Error(`never reached ${pred}`);
+      }
+      /** What has focus, said by what it is rather than by the node, which a redraw may have replaced. */
+      const focused = (page: Page) => page.evaluate(() => {
+        const a = document.activeElement as HTMLElement | null;
+        if (!a || a === document.body) return null;
+        return `${a.tagName}${a.id ? `#${a.id}` : ''} ${(a.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 36)}`;
+      });
+
+      it('keeps the text selected in the prompt, the delete confirmation that is open and the focus on it, on Feedback', async () => {
+        insertFeedback(db, {
+          session_id: 's-live-fb-keep', project: fx.repo.mixed, event_id: null, prompt: 'Please make the refresh token rotate on every use and explain why', model: 'sonnet',
+          review: { worked: 'A goal.', gaps: [{ area: 'scope', missing: 'which endpoint', evidence: 'later' }] } as never,
+          better: 'Rotate the refresh token on every use in src/auth/refresh.ts; add a test.', tips: ['Name the file.'],
+        });
+        const w = await open('#/feedback/dashboard', { height: 700 });
+        const { page } = w;
+        await page.waitForSelector('.fb__quote');
+        await page.evaluate(() => {
+          const q = document.querySelector('.fb__quote')!;
+          const r = document.createRange();
+          r.setStart(q.firstChild!, 7);
+          r.setEnd(q.firstChild!, 24);
+          const sel = getSelection()!;
+          sel.removeAllRanges();
+          sel.addRange(r);
+          (window as any).__quote = q;
+        });
+        await page.click('[data-fb-del]');
+        await page.waitForSelector('[data-fb-yes]');
+        const state = () => page.evaluate(() => ({
+          selected: getSelection()!.toString(),
+          sameQuote: (window as any).__quote === document.querySelector('.fb__quote'),
+          confirming: !!document.querySelector('[data-fb-yes]') && !document.querySelector('[data-fb-ack]'),
+          onCancel: (document.activeElement as HTMLElement).hasAttribute('data-fb-no'),
+        }));
+        const kept = { selected: 'make the refresh ', sameQuote: true, confirming: true, onCancel: true };
+        expect(await state()).toEqual(kept);
+        const was = await cursor(page);
+        writeDue();
+        await adopted(page, was);
+        await page.waitForTimeout(700);
+        expect(await state(), 'the item is the very element, as it was').toEqual(kept);
+        // Cancelling still works, and puts the buttons back where they were.
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('[data-fb-ack]');
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }, 60000);
+
+      it('leaves every list of the Memory dashboard, an entry, and the memory half of a session as they were when something unrelated is written', async () => {
+        for (const [hash, ids] of [
+          ['#/memory/dashboard', ['mem-recent', 'mem-sessions']],
+          [`#/memory/entry/${fx.entries.mixed}`, ['entry-body']],
+          ['#/memory/session/s-mixed', ['sess-mem']],
+          ['#/learning/session/s-mixed', ['sess-mem']],
+        ] as const) {
+          const w = await open(hash, { height: HEIGHT });
+          const { page } = w;
+          await page.evaluate((list) => {
+            for (const id of list) (document.getElementById(id)!.firstElementChild as any).__mine = id;
+          }, ids as readonly string[]);
+          const was = await cursor(page);
+          writeDue();
+          await adopted(page, was);
+          await page.waitForTimeout(600);
+          for (const id of ids) {
+            expect(await page.evaluate((i) => (document.getElementById(i)!.firstElementChild as any).__mine, id), `${hash}: ${id} is the same markup`).toBe(id);
+            expect(await page.evaluate((i) => document.getElementById(i)!.hasAttribute('aria-busy'), id), `${hash}: ${id} is not left waiting`).toBe(false);
+          }
+          expect(w.errors).toEqual([]);
+          await w.ctx.close();
+        }
+      }, 120000);
+
+      it('does not dim a list for a moment when the screen around it is drawn again', async () => {
+        // A new observation changes the tile above the two lists, so the screen is drawn again around them; they are asked for
+        // again as well, and that answer is slow here. A list that is asked again dims after 150 ms, never at the start of the wait.
+        const w = await open('#/memory/dashboard', { height: HEIGHT });
+        const { page } = w;
+        await page.route('**/api/memory?*', async (route) => { await new Promise((r) => setTimeout(r, 800)); await route.continue(); });
+        await page.evaluate(() => {
+          const w = window as any;
+          const d = { busyAt: 0, dimAt: 0 };
+          w.__dim = d;
+          const tick = () => {
+            const el = document.getElementById('mem-recent');
+            if (el?.getAttribute('aria-busy') === 'true') {
+              if (!d.busyAt) d.busyAt = performance.now();
+              if (!d.dimAt && getComputedStyle(el).opacity !== '1') d.dimAt = performance.now();
+            }
+            requestAnimationFrame(tick);
+          };
+          tick();
+        });
+        const was = await cursor(page);
+        insertEntry(db, {
+          project: fx.repo.mixed, sessionId: 's-live-dim', type: 'discovery', title: 'A slow answer, dimmed late', tags: [],
+          eventIds: [], occurredAt: new Date().toISOString(), narrative: 'x', facts: [], files: [], generator: 'local-extract-v1', confidence: 0.7,
+        });
+        await adopted(page, was);
+        await page.waitForFunction(() => (window as any).__dim.dimAt > 0, null, { timeout: 5000 });
+        const { busyAt, dimAt } = await page.evaluate(() => (window as any).__dim as { busyAt: number; dimAt: number });
+        expect(busyAt).toBeGreaterThan(0);
+        expect(dimAt - busyAt, 'the dim waited out its delay').toBeGreaterThanOrEqual(120);
+        await page.unroute('**/api/memory?*');
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }, 60000);
+
+      it('keeps an open event of the raw evidence, its fold and the focus on it, when something unrelated is written and when the entry itself is reused', async () => {
+        const w = await open(`#/memory/entry/${fx.entries.mixed}`, { height: 500 });
+        const { page } = w;
+        await page.click('details[data-fold="entry:evidence"] > summary');
+        await page.click('details[data-fold="entry:evidence"] details.qa > summary');
+        await page.focus('details[data-fold="entry:evidence"] details.qa > summary');
+        const state = () => page.evaluate(() => ({
+          eventsOpen: document.querySelectorAll('details.qa[open]').length,
+          fold: !!document.querySelector('details[data-fold="entry:evidence"][open]'),
+          focusIsAnEventSummary: document.activeElement?.tagName === 'SUMMARY' && !!document.activeElement.closest('details.qa'),
+          keyed: /^ev:/.test(document.querySelector('details.qa[open]')?.getAttribute('data-key') ?? ''),
+        }));
+        const kept = { eventsOpen: 1, fold: true, focusIsAnEventSummary: true, keyed: true };
+        expect(await state()).toEqual(kept);
+        for (const write of [
+          () => writeDue(),
+          // The entry's own answer changes (it was reused once more): what is drawn for it is new, and the open event is still open.
+          () => recordReceipt(db, { project: fx.repo.mixed, sessionId: 's-mixed', scope: 'prompt', method: 'chars4-v1', delivery: 'confirmed', items: [{ entryId: fx.entries.mixed, sourceTokens: 500, sentTokens: 90 }] }),
+        ]) {
+          const was = await cursor(page);
+          write();
+          await adopted(page, was);
+          await page.waitForTimeout(700);
+          expect(await state()).toEqual(kept);
+        }
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }, 60000);
+
+      it('keeps the focus on a control with no id: a summary, a Copy button, a timeline entry, when the heading\'s counts move', async () => {
+        const cases: [string, string, () => unknown][] = [
+          ['#/learning/review', `document.activeElement?.tagName==='SUMMARY' && document.activeElement.parentElement.classList.contains('about')`, () => writeDue()],
+          ['#/learning/review', `document.activeElement?.hasAttribute('data-copy')`, () => writeDue()],
+          ['#/learning/dashboard', `document.activeElement?.tagName==='SUMMARY' && document.activeElement.parentElement.classList.contains('fold')`, () => writeDue()],
+          ['#/memory/timeline', `document.activeElement?.tagName==='SUMMARY' && !!document.activeElement.closest('.tl-item')`, () => insertEntry(db, {
+            project: fx.repo.mixed, sessionId: 's-live-focus', type: 'bugfix', title: `A live entry ${Math.random()}`, tags: ['auth'],
+            eventIds: [], occurredAt: new Date().toISOString(), narrative: 'x', facts: [], files: [], generator: 'local-extract-v1', confidence: 0.7,
+          })],
+          ['#/memory/timeline', `document.activeElement?.tagName==='SUMMARY' && document.activeElement.parentElement.classList.contains('about')`, () => insertEntry(db, {
+            project: fx.repo.mixed, sessionId: 's-live-focus', type: 'bugfix', title: `Another live entry ${Math.random()}`, tags: ['auth'],
+            eventIds: [], occurredAt: new Date().toISOString(), narrative: 'x', facts: [], files: [], generator: 'local-extract-v1', confidence: 0.7,
+          })],
+        ];
+        for (const [hash, pred, write] of cases) {
+          const w = await open(hash, { height: 500 });
+          const { page } = w;
+          await tabTo(page, pred);
+          const before = await focused(page);
+          const was = await cursor(page);
+          write();
+          await adopted(page, was);
+          await page.waitForTimeout(700);
+          // The same control by what it is (a fold's peek may say a different count: compare where focus is, not its words).
+          const after = await focused(page);
+          expect(after, `${hash}: focus after`).not.toBeNull();
+          expect(after!.split(' ')[0], `${hash}: ${before} -> ${after}`).toBe(before!.split(' ')[0]);
+          expect(await page.evaluate(pred), `${hash}: still on the control it was on`).toBe(true);
+          expect(w.errors).toEqual([]);
+          await w.ctx.close();
+        }
+      }, 180000);
+
+      it('gives every control the reader can reach a name a redraw finds it by, on every page', async () => {
+        const routes = [
+          '#/learning/dashboard', '#/learning/concepts', '#/learning/concept/csrf', '#/learning/review', '#/learning/review/skipped', '#/learning/sessions',
+          '#/learning/session/s-mixed', '#/learning/projects', '#/learning/domains', '#/memory/dashboard', '#/memory/timeline',
+          `#/memory/entry/${fx.entries.mixed}`, '#/memory/sessions', '#/memory/session/s-mixed', '#/memory/projects', '#/memory/reuse',
+          '#/memory/health', '#/artifacts/dashboard', `#/artifacts/view/${enc(fix.other)}`, '#/feedback/history', '#/settings/dashboard', '#/settings/dashboard/memory',
+        ];
+        const w = await open('#/learning/dashboard', { height: 900 });
+        const { page } = w;
+        for (const route of routes) {
+          await page.evaluate((h) => { location.hash = h; }, route);
+          await page.waitForFunction((h) => document.documentElement.dataset.rendered === h && !document.querySelector('#view .loader, #view .slot__wait'), route, { timeout: 8000 });
+          const nameless = await page.evaluate(() => [...document.querySelectorAll('#view a[href], #view button, #view input, #view select, #view summary, #view [tabindex], #view [data-go]')]
+            // A chart's cells are drawn again with the chart, and no control a reader works with.
+            .filter((el) => !(el as HTMLButtonElement).disabled && !el.closest('[hidden], svg') && (el as HTMLElement).tabIndex >= 0 && focusKey(el) === null)
+            .map((el) => `${el.tagName}.${el.className} ${(el.textContent ?? '').trim().slice(0, 30)}`));
+          expect(nameless, route).toEqual([]);
+        }
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }, 120000);
+
+      it('leaves a choice list open on the timeline when an observation lands, and draws the new counts when it closes', async () => {
+        const w = await open('#/memory/timeline', { height: 700 });
+        const { page } = w;
+        await page.click('#mtype-combo');
+        await page.evaluate(() => { (window as any).__combo = document.getElementById('mtype-combo'); });
+        const open_ = () => page.evaluate(() => ({ open: !document.getElementById('sel-menu')!.hidden, same: (window as any).__combo === document.getElementById('mtype-combo'), onOption: document.activeElement?.getAttribute('role') === 'option' }));
+        expect(await open_()).toEqual({ open: true, same: true, onOption: true });
+        const was = await cursor(page);
+        insertEntry(db, {
+          project: fx.repo.mixed, sessionId: 's-live-type', type: 'refactor', title: 'An entry of a type the list has not got', tags: ['auth'],
+          eventIds: [], occurredAt: new Date().toISOString(), narrative: 'x', facts: [], files: [], generator: 'local-extract-v1', confidence: 0.7,
+        });
+        await adopted(page, was);
+        await page.waitForTimeout(600);
+        // The counts above the list moved; the list the reader is choosing from did not move under them.
+        expect(await open_()).toEqual({ open: true, same: true, onOption: true });
+        expect(await page.$$eval('#mtype option', (o) => o.map((x) => x.textContent!.trim()).filter((t) => t.startsWith('refactor')))).toEqual([]);
+        // They let it go: what was put off is drawn, and the new type is among the choices.
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => [...document.querySelectorAll('#mtype option')].some((o) => o.textContent!.trim().startsWith('refactor')), null, { timeout: 3000 });
+        expect(await page.evaluate(() => document.activeElement?.id)).toBe('mtype-combo');
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }, 60000);
+
+      it('keeps the date the reader is typing in the timeline\'s range, where it was, when an observation lands', async () => {
+        const w = await open('#/memory/timeline', { height: 700 });
+        const { page } = w;
+        await page.click('#mwhen-combo');
+        await page.keyboard.press('End');
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('#mfrom');
+        await page.click('#mfrom', { position: { x: 8, y: 10 } });
+        await page.keyboard.type('03');
+        await page.evaluate(() => { (window as any).__from = document.getElementById('mfrom'); });
+        const state = () => page.evaluate(() => ({ same: (window as any).__from === document.getElementById('mfrom'), focus: document.activeElement?.id, value: (document.getElementById('mfrom') as HTMLInputElement).value }));
+        const before = await state();
+        expect(before).toMatchObject({ same: true, focus: 'mfrom' });
+        const was = await cursor(page);
+        insertEntry(db, {
+          project: fx.repo.mixed, sessionId: 's-live-date', type: 'bugfix', title: 'A live entry while a date is typed', tags: ['auth'],
+          eventIds: [], occurredAt: new Date().toISOString(), narrative: 'x', facts: [], files: [], generator: 'local-extract-v1', confidence: 0.7,
+        });
+        await adopted(page, was);
+        await page.waitForTimeout(600);
+        expect(await state(), 'the box is the one the reader is typing in').toEqual(before);
+        // And the digits that follow go where they were going.
+        await page.keyboard.type('052026');
+        expect(await page.inputValue('#mfrom')).toBe('2026-03-05');
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }, 60000);
+
+      it('keeps a tip bubble open when something elsewhere on the screen is redrawn', async () => {
+        // A bubble opens by itself only on a feature that is on screen, so each page is as tall as it needs to be to show its first tip.
+        for (const [hash, height] of [['#/learning/dashboard', 900], ['#/learning/concepts', 900], ['#/learning/review', 3000], ['#/memory/timeline', 900]] as const) {
+          const w = await open(hash, { height, tips: true });
+          const { page } = w;
+          const bubble = () => page.evaluate(() => { const p = document.querySelector('.driver-popover') as HTMLElement | null; return !!p && getComputedStyle(p).display !== 'none'; });
+          await page.waitForFunction(() => { const p = document.querySelector('.driver-popover') as HTMLElement | null; return !!p && getComputedStyle(p).display !== 'none'; }, null, { timeout: 5000 });
+          const title = await page.textContent('.driver-popover-title');
+          const was = await cursor(page);
+          writeDue();
+          await adopted(page, was);
+          await page.waitForTimeout(800);
+          expect(await bubble(), `${hash}: the bubble the reader is reading`).toBe(true);
+          expect(await page.textContent('.driver-popover-title'), `${hash}: the same one`).toBe(title);
+          expect(w.errors).toEqual([]);
+          await w.ctx.close();
+        }
+      }, 120000);
     });
 
     describe('a burst', () => {

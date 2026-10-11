@@ -66,8 +66,12 @@ describe('the page source', () => {
   it('documents the room every region that is fetched reserves on a first visit', () => {
     // A region that waits with no height to hold moves the footer when it draws: a new `slot()` gets an estimate.
     const used = new Set([...html.matchAll(/\bslot\('([\w-]+)'/g)].map((m) => m[1]));
+    // A fixed number (`SLOT_MIN`), or a list's room worked out from the rows the page knows of (`SLOT_ROWS`).
     const table = /const SLOT_MIN = \{([^}]*)\}/.exec(html)![1]!;
-    const documented = new Set([...table.matchAll(/'?([\w-]+)'?\s*:\s*\d+/g)].map((m) => m[1]));
+    const rows = /const SLOT_ROWS = \{([^;]*)\};/.exec(html)![1]!;
+    const documented = new Set([
+      ...table.matchAll(/'?([\w-]+)'?\s*:\s*\d+/g), ...rows.matchAll(/'([\w-]+)':\s*\[/g),
+    ].map((m) => m[1]));
     expect(used.size).toBeGreaterThanOrEqual(10);
     expect([...used].filter((id) => !documented.has(id!)), 'slots with no default').toEqual([]);
     expect([...documented].filter((id) => !used.has(id!)), 'defaults for no slot').toEqual([]);
@@ -146,6 +150,37 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     }, 60000);
 
+    it('sizes a list from the rows the page already knows of, so a short history does not send the footer down and back', async () => {
+      // The fixture is a short history: five observations, four sessions, no feedback. A box sized for a year of use
+      // (a thousand pixels and more) is the miss this holds against; the estimate is what the rows then take, within a row or two.
+      const w = await open('#/learning/domains', { height: 900 });
+      const { page } = w;
+      for (const [hash, id, glob] of [
+        ['#/memory/timeline', 'mem-rows', '**/api/memory?*'],
+        ['#/memory/sessions', 'msess-rows', '**/api/memory/sessions?*'],
+        ['#/feedback/history', 'fb-rows', '**/api/feedback/list?*'],
+        ['#/memory/dashboard', 'mem-recent', '**/api/memory?*'],
+        ['#/memory/dashboard', 'mem-sessions', '**/api/memory/sessions?*'],
+      ] as const) {
+        // A page not seen before waits for its answer in the box it reserved.
+        await page.evaluate(() => { location.hash = '#/learning/domains'; });
+        await ready(page);
+        await page.evaluate(() => { SLOT_H.clear(); RESP.clear(); });
+        const gate = await hold(page, glob);
+        await page.evaluate((h) => { location.hash = h; }, hash);
+        await page.waitForSelector(`#${id} > .slot__wait`);
+        const reserved = Number.parseInt(await page.$eval(`#${id} > .slot__wait`, (b) => getComputedStyle(b).minHeight), 10);
+        gate.release();
+        await ready(page);
+        const drawn = await page.evaluate((i) => SLOT_H.get(i)!, id);
+        expect(drawn, `${id} drew`).toBeGreaterThan(0);
+        expect(Math.abs(reserved - drawn), `${id}: reserved ${reserved}px for ${drawn}px of rows`).toBeLessThanOrEqual(Math.max(60, drawn * 0.2));
+        await page.unroute(glob);
+      }
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }, 90000);
+
     it('adds no animation and nothing for reduced motion to switch off', async () => {
       const w = await open('#/learning/domains', { height: HEIGHT });
       const { page } = w;
@@ -196,7 +231,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       const gate = await hold(page, '**/api/memory?*', (u) => u.includes('tag=auth'));
       await pickOption(page, '#mtag', 'auth');
       await page.waitForFunction(() => document.getElementById('mem-rows')!.getAttribute('aria-busy') === 'true');
-      // Out of the pointer's reach at once. The dim itself waits 150 ms (and then fades in), so an answer that is
+      // Out of the pointer's reach at once. The dim itself waits 150 ms (and then steps in), so an answer that is
       // quick, which with the server's memo and a live page is the usual one, never flashes; this one is held back.
       expect(await looks(page, '#mem-rows')).toMatchObject({ pointerEvents: 'none', busy: 'true', kept: true, failed: false });
       await page.waitForFunction(() => getComputedStyle(document.getElementById('mem-rows')!).opacity === '0.55');
@@ -243,7 +278,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     }, id);
     const dimmed = (page: Page) => page.evaluate(() => { const d = (window as any).__dim; return { busy: d.busyAt > 0, after: d.dimAt ? Math.round(d.dimAt - d.busyAt) : null, seen: [...d.seen] as string[] }; });
 
-    it('does not dim a region for an answer that comes within 150 ms, and dims one that does not after that, with a fade', async () => {
+    it('does not dim a region for an answer that comes within 150 ms, and dims one that does not after that, in one step', async () => {
       const w = await open('#/memory/timeline', { height: HEIGHT });
       const { page } = w;
       await page.waitForSelector('#mem-rows [data-entry]');
@@ -256,17 +291,19 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       expect(await dimmed(page)).toEqual({ busy: true, after: null, seen: ['1'] });
       await page.unroute('**/api/memory?*');
 
-      // A slow answer: the dim starts 150 ms after the request, and is a fade (it passes through values between).
+      // A slow answer: the dim starts 150 ms after the request, and is a step (it is never at a value between).
       await page.route('**/api/memory?*', async (route) => { await new Promise((r) => setTimeout(r, 900)); await route.continue(); });
       await watchDim(page, 'mem-rows');
       await pickOption(page, '#mtag', 'docs');
       await page.waitForFunction(() => getComputedStyle(document.getElementById('mem-rows')!).opacity === '0.55');
+      // No duration, and the same 150 ms before it happens.
+      expect(await page.$eval('#mem-rows', (el) => { const cs = getComputedStyle(el); return [cs.transitionDuration, cs.transitionDelay]; })).toEqual(['0s', '0.15s']);
       await page.waitForFunction(() => !document.getElementById('mem-rows')!.hasAttribute('aria-busy'));
       const slow = await dimmed(page);
       expect(slow.after, 'the dim waited for the answer to be late').toBeGreaterThanOrEqual(130);
       expect(slow.after).toBeLessThan(500);
       expect(slow.seen).toContain('0.55');
-      expect(slow.seen.length, 'a fade, not a step').toBeGreaterThan(2);
+      expect(slow.seen.sort(), 'a step, not a fade: this work adds no animation').toEqual(['0.55', '1']);
       await page.unroute('**/api/memory?*');
       expect(w.errors).toEqual([]);
       await w.ctx.close();
