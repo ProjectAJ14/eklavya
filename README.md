@@ -68,7 +68,7 @@ notes to check against the code.
 
 | What it does | How it works | Read more |
 |---|---|---|
-| Captures your work | Saves prompts, file edits and tool calls as you work. | [What gets captured](https://eklavya-run.web.app/docs/memory/#what-gets-captured) |
+| Captures your work | Saves prompts, file edits and tool calls as you work; unattended `claude -p` runs keep only tool and file activity. | [What gets captured](https://eklavya-run.web.app/docs/memory/#what-gets-captured) |
 | Hides secrets | Skips files like `.env` and keys, even when a read or edit of one fails. Removes tokens and passwords before saving or trimming. | [What is never captured](https://eklavya-run.web.app/docs/memory/#what-is-never-captured) |
 | Writes summaries | Groups work into observations and session summaries, on your machine. | [How observations are made](https://eklavya-run.web.app/docs/memory/#how-observations-are-made) |
 | Recalls history | Gives Claude past work and where the last session left off at session start, on related prompts, and before it reads a file with history. On prompts and on a resume it skips entries the current session wrote, which Claude already has. The session banner shows the estimated context saved. | [How recall works](https://eklavya-run.web.app/docs/memory/#how-recall-works) |

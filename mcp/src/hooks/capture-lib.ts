@@ -32,6 +32,9 @@ export function identityOf(input: HookInput, cwd: string, sid: string | null): E
   return { ...identity, project: projectKey(identity.checkout) };
 }
 
+/** What an unattended session leaves out of its record. */
+const CHAT_KINDS: readonly string[] = ['prompt', 'assistant', 'lifecycle'];
+
 /**
  * Records one event. True once it is stored or safely spooled; false on any
  * other outcome, and never throws.
@@ -47,6 +50,13 @@ export function identityOf(input: HookInput, cwd: string, sid: string | null): E
  * for memory no session is ever handed — and unsummarised evidence is never
  * pruned. It is also the shared home folder, where a session is least likely to
  * be the developer's project work.
+ *
+ * An unattended session (`claude -p`, an eval, a script: the host sets
+ * `CLAUDE_CODE_SESSION_ATTENDED=0`) records only what it did to the project.
+ * Its prompt, reply and start are nobody's decisions, yet each such call
+ * opened a session whose one-event batch cost a provider call, and a burst of
+ * them left the real queue hours behind. The tool and file events of an
+ * unattended run that edits code are still kept.
  */
 export function record(
   db: DB,
@@ -55,6 +65,7 @@ export function record(
   event: HostEvent,
 ): boolean {
   if (identity.project === GLOBAL_PROJECT && !resolved.config.retrieval.cross_project) return false;
+  if (process.env.CLAUDE_CODE_SESSION_ATTENDED === '0' && CHAT_KINDS.includes(event.kind)) return false;
   try {
     const outcome = captureOrSpool(db, resolved.config, identity, event);
     return outcome === 'stored' || outcome === 'spooled';
