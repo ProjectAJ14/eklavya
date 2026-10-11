@@ -85,9 +85,15 @@ export type { Watched };
 
 async function open(
   hash: string,
-  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; tz?: string; now?: string } = {},
+  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; tz?: string; locale?: string; now?: string; base?: string } = {},
 ): Promise<Watched> {
-  const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 }, ...(opts.tz ? { timezoneId: opts.tz } : {}) });
+  // The server the page is loaded from: the suite's own, or one a test started (a cap to fill, a restart to survive).
+  const from = opts.base ?? base;
+  const ctx = await browser.newContext({
+    viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 },
+    ...(opts.tz ? { timezoneId: opts.tz } : {}),
+    ...(opts.locale ? { locale: opts.locale } : {}),
+  });
   // Tips are switched off unless a test is about them, so a bubble never sits on what a test clicks.
   if (!opts.tips) await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-tips') ?? localStorage.setItem('eklavya-dash-tips', '{"off":true}'); } catch { /* the framed page */ } });
   // Init scripts run in every frame, and the viewer's sandboxed frame has no storage.
@@ -102,9 +108,9 @@ async function open(
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('request', (r) => {
     const u = new URL(r.url());
-    if (u.protocol.startsWith('http') && u.origin !== new URL(base).origin) outbound.push(r.url());
+    if (u.protocol.startsWith('http') && u.origin !== new URL(from).origin) outbound.push(r.url());
   });
-  await page.goto(base + '/' + hash);
+  await page.goto(from + '/' + hash);
   await ready(page);
   return { page, ctx, errors, outbound };
 }
@@ -125,14 +131,26 @@ async function ready(page: Page) {
   }
 }
 
+/**
+ * The live stream (`/api/events`): one request that is open for as long as the page is, and so is never a request
+ * the page is waiting for. It is left out of what is waited on and out of what a probe records.
+ */
+export const isStream = (url: string) => new URL(url).pathname === '/api/events';
+
 /** Requests each page has open, for `ready()`. */
 const inflight = new WeakMap<Page, Set<Request>>();
 function track(page: Page) {
   const open = new Set<Request>();
   inflight.set(page, open);
-  page.on('request', (r) => open.add(r));
+  page.on('request', (r) => { if (!isStream(r.url())) open.add(r); });
   page.on('requestfinished', (r) => open.delete(r));
   page.on('requestfailed', (r) => open.delete(r));
+  // An error response is as finished as it will get. The page's `fill()` throws on a status that is
+  // not ok without reading the body, and Playwright never reports a request finished whose body
+  // nobody read: it would stay open for good, and a screen that failed to load would hang the wait
+  // for it (30 s, then "still loading") instead of being the failed screen the caller can look at.
+  page.on('response', (r) => { if (!r.ok()) open.delete(r.request()); });
+  return open;
 }
 
 const screen = (page: Page) => page.evaluate(() => ({
@@ -160,6 +178,295 @@ async function pickOption(page: Page, sel: string, value: string) {
   await page.click(`${sel}-combo`);
   await page.click(`#sel-menu [role="option"][data-i="${i}"]`);
 }
+
+/* ---------- the page-transition probe ---------- */
+
+/**
+ * The heading block of a screen: `#view > .page__head`, the class `pageHead()` gives it.
+ * The second shape stays in the selector for a screen whose heading block `pageHead()`
+ * does not make (the not-found page wraps its `h1.page__title` in an unclassed element).
+ * One constant for both. A screen whose heading sits deeper (Settings draws inside
+ * `#settings`) has none to hold.
+ */
+export const PAGE_HEAD = '#view > .page__head, #view > :has(> h1.page__title)';
+
+export interface ProbeOptions {
+  /** Another element to hold across the action, by selector: it is looked up before and tested with `isConnected` after. */
+  keep?: string;
+  /** How long nothing may be pending before the page counts as settled. Default 150 ms. */
+  quiet?: number;
+  /** Give up, naming what was still pending, after this long. Default 30 s. */
+  timeout?: number;
+}
+
+/** What one action did to the page, from just before it until the page settled. */
+export interface ProbeReport {
+  /** The URL the page settled on. */
+  hash: string;
+  /**
+   * `#view` held a `.loader` at any point. Every mutation batch is inspected, so
+   * a loader inserted and removed inside one task still counts, though no frame
+   * ever showed it.
+   */
+  sawLoader: boolean;
+  /** `#view`'s height before the action. */
+  beforeHeight: number;
+  /**
+   * The lowest height `#view` took once it started changing (the first mutation
+   * in it), against `finalHeight`, the height once settled. The old screen's
+   * height is not part of it, so `minHeight < finalHeight` is a collapse.
+   */
+  minHeight: number;
+  finalHeight: number;
+  /** The distinct heights `#view` took after it started changing, in order. */
+  heights: number[];
+  /** The footer's top in document coordinates before the action, at its highest point (smallest top), and once settled. */
+  footerBefore: number;
+  footerMin: number;
+  footerFinal: number;
+  /** The footer moved up and then back down, each by more than a rounding error. */
+  footerBounced: boolean;
+  /** The `/api/*` requests the action made, path and query, in order. */
+  requests: string[];
+  scrollBefore: number;
+  scrollAfter: number;
+  /** The `PAGE_HEAD` element from before the action is still in the document. `null`: there was none to hold. */
+  headKept: boolean | null;
+  /** The same for `opts.keep`. `null`: no selector given, or nothing matched before the action. */
+  keptSelector: boolean | null;
+}
+
+/** A footer that moves by this much or less between samples has not moved: it is rounding. */
+const FOOT_NOISE = 2;
+const STEP = 25;
+
+/** Up by more than the noise, and then back down by more than it. */
+export function footerBounces(tops: number[]): boolean {
+  let up = false;
+  for (let i = 1; i < tops.length; i++) {
+    const d = tops[i]! - tops[i - 1]!;
+    if (d < -FOOT_NOISE) up = true;
+    else if (d > FOOT_NOISE && up) return true;
+  }
+  return false;
+}
+
+/**
+ * Takes `action` (set `location.hash`, click a control) and reports what the
+ * page did until it settled. See `ProbeReport` for each field.
+ *
+ * Settled is what a reader would call finished: the screen is drawn for the
+ * URL (`data-rendered` equals the hash), nothing is booting or loading, the
+ * scroll has stopped (the page scrolls smoothly), and no request is open, all
+ * for `quiet` ms running. Every request counts, not only `/api/*`: a thumbnail
+ * still arriving moves the layout, though one answered with an error is done
+ * (see `track`). The live stream (`/api/events`) is the one request that never
+ * ends and is not a wait (`isStream`). The open requests are the
+ * page's own count, as in `ready()` and for the same reason: Playwright's
+ * `networkidle` never fires again once the viewer's sandboxed frame has attached.
+ *
+ * The page must be settled before the action, and is waited for. The probe
+ * reads and observes; it changes nothing in the page, and the same page can be
+ * probed again. It is not a wall-clock measurement: nothing here is timed.
+ */
+export async function probeTransition(page: Page, action: () => Promise<unknown>, opts: ProbeOptions = {}): Promise<ProbeReport> {
+  const quiet = opts.quiet ?? 150;
+  const timeout = opts.timeout ?? 30000;
+  const openNow = inflight.get(page) ?? track(page);
+  const pending = () => [...openNow].filter((r) => !isStream(r.url()));
+  const busy = () => page.evaluate(() => ({
+    drawing: document.documentElement.dataset.rendered !== location.hash || !!document.querySelector('.booting, #view .loader'),
+    scroll: window.scrollY,
+  }));
+  const settle = async () => {
+    const start = Date.now();
+    let since = 0;
+    let scroll = NaN;
+    for (;;) {
+      const waiting = pending();
+      const now = await busy();
+      // A smooth scroll still on its way (the page sets `scroll-behavior: smooth`) is not settled either.
+      const loading = now.drawing || now.scroll !== scroll;
+      scroll = now.scroll;
+      if (loading || waiting.length) since = 0;
+      else if (!since) since = Date.now();
+      else if (Date.now() - since >= quiet) return;
+      if (Date.now() - start > timeout) {
+        throw new Error(`probe: still not settled after ${timeout} ms: ${loading ? 'the page is drawing or scrolling; ' : ''}${waiting.map((r) => r.url()).join(', ')}`);
+      }
+      await new Promise((r) => setTimeout(r, STEP));
+    }
+  };
+
+  const requests: string[] = [];
+  const onRequest = (r: Request) => {
+    const u = new URL(r.url());
+    if (u.pathname.startsWith('/api/') && !isStream(r.url())) requests.push(u.pathname + u.search);
+  };
+
+  await settle();
+  await page.evaluate(([headSel, keepSel]) => {
+    const w = window as any;
+    w.__probe?.stop?.();
+    const view = document.getElementById('view')!;
+    const foot = document.querySelector('.foot')!;
+    const footTop = () => Math.round(foot.getBoundingClientRect().top + window.scrollY);
+    const st: any = {
+      sawLoader: false, moving: false, done: false, raf: 0,
+      before: view.offsetHeight, heights: [] as number[], foot: [footTop()], scrollBefore: window.scrollY,
+      head: document.querySelector(headSel), keep: keepSel ? document.querySelector(keepSel) : null,
+    };
+    st.sample = () => {
+      const t = footTop();
+      if (t !== st.foot[st.foot.length - 1]) st.foot.push(t);
+      if (!st.moving) return;
+      const h = view.offsetHeight;
+      if (h !== st.heights[st.heights.length - 1]) st.heights.push(h);
+    };
+    st.seen = (records: MutationRecord[]) => {
+      st.moving = true;
+      for (const r of records) {
+        for (const n of r.addedNodes) {
+          if (n instanceof Element && (n.matches('.loader') || n.querySelector('.loader'))) st.sawLoader = true;
+        }
+      }
+      if (view.querySelector('.loader')) st.sawLoader = true;
+      st.sample();
+    };
+    st.mo = new MutationObserver(st.seen);
+    st.mo.observe(view, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'open', 'aria-busy'] });
+    st.stop = () => { st.done = true; cancelAnimationFrame(st.raf); st.mo.disconnect(); };
+    const tick = () => { st.sample(); if (!st.done) st.raf = requestAnimationFrame(tick); };
+    tick();
+    w.__probe = st;
+  }, [PAGE_HEAD, opts.keep ?? null]);
+
+  page.on('request', onRequest);
+  try {
+    await action();
+    await settle();
+  } finally {
+    page.off('request', onRequest);
+  }
+  const seen = await page.evaluate(() => {
+    const w = window as any;
+    const st = w.__probe;
+    const view = document.getElementById('view')!;
+    // Whatever the observer has not delivered yet is still a batch to inspect.
+    const rest = st.mo.takeRecords();
+    if (rest.length) st.seen(rest);
+    st.stop();
+    st.moving = true;
+    st.sample();
+    delete w.__probe;
+    return {
+      hash: location.hash, sawLoader: st.sawLoader as boolean, before: st.before as number, final: view.offsetHeight,
+      heights: st.heights as number[], foot: st.foot as number[], scrollBefore: st.scrollBefore as number, scrollAfter: window.scrollY,
+      headKept: st.head ? (st.head.isConnected as boolean) : null,
+      keptSelector: st.keep ? (st.keep.isConnected as boolean) : null,
+    };
+  });
+  return {
+    hash: seen.hash,
+    sawLoader: seen.sawLoader,
+    beforeHeight: seen.before,
+    minHeight: Math.min(...seen.heights, seen.final),
+    finalHeight: seen.final,
+    heights: seen.heights,
+    footerBefore: seen.foot[0]!,
+    footerMin: Math.min(...seen.foot),
+    footerFinal: seen.foot[seen.foot.length - 1]!,
+    footerBounced: footerBounces(seen.foot),
+    requests,
+    scrollBefore: seen.scrollBefore,
+    scrollAfter: seen.scrollAfter,
+    headKept: seen.headKept,
+    keptSelector: seen.keptSelector,
+  };
+}
+
+/**
+ * What the dashboard says in place of a page: a URL that names nothing, a
+ * parameter that matches no record, a fill that failed. Each is a screen that
+ * resolves, settles and has a height, so a walk over the pages that does not
+ * look for them records a wrong parameter as a page and goes on to pass every
+ * assertion about it. They are the page's own sentences, so a reworded one has
+ * to be reworded here: the test that visits a screen saying each of them (the
+ * control in the probe's describe) fails when one is not recognised.
+ */
+export const NOT_A_PAGE: RegExp[] = [
+  /No page here/, /This link is malformed/, /Could not load/,
+  /No concept called/, /No concepts in \S+ for this scope/, /No session \S+ in this scope/, /No observation \S+\./,
+];
+
+/** What a settled screen must be for the walk to count it as the page its route names. */
+export interface Want {
+  /** The heading it carries. Without this or `has`, it must carry some heading. */
+  h1?: RegExp;
+  /** For a screen with no heading of its own (the explainer's viewer), what its text says. */
+  has?: RegExp;
+}
+
+/**
+ * `null` when `seen` (a screen's heading and text) is the page `want` names;
+ * otherwise what is wrong, in a sentence a failed assertion can print. Not-found
+ * and failed-fill sentences come first because they are the cause: a screen with
+ * no heading is only what they leave behind.
+ */
+export function notAPage(seen: { h1: string | null; text: string }, want: Want = {}): string | null {
+  for (const re of NOT_A_PAGE) {
+    const said = re.exec(seen.text);
+    if (said) return `it says "${said[0]}"`;
+  }
+  const head = want.h1 ?? (want.has ? null : /./);
+  if (head && !head.test(seen.h1 ?? '')) return seen.h1 === null ? 'it has no heading' : `its heading is "${seen.h1}", not ${head}`;
+  if (want.has && !want.has.test(seen.text)) return `it never says ${want.has}`;
+  return null;
+}
+
+/** `notAPage` for the screen the page shows now. */
+export async function pageProblem(page: Page, want: Want = {}): Promise<string | null> {
+  const seen = await page.evaluate(() => ({
+    h1: document.querySelector('#view h1')?.textContent?.trim() ?? null,
+    text: (document.getElementById('view')!.textContent ?? '').replace(/\s+/g, ' '),
+  }));
+  return notAPage(seen, want);
+}
+
+/** `before>final`, with the lowest point between them when it was lower than both. */
+function footerCell(r: ProbeReport): string {
+  if (r.footerBefore === r.footerFinal && r.footerMin === r.footerFinal) return `${r.footerFinal}`;
+  const dipped = r.footerMin < Math.min(r.footerBefore, r.footerFinal) - FOOT_NOISE;
+  return dipped ? `${r.footerBefore}>${r.footerMin}>${r.footerFinal}` : `${r.footerBefore}>${r.footerFinal}`;
+}
+
+/**
+ * The report as a table, one row per probe, for a person to read. `label` is
+ * whatever names the row; `scrub` rewrites what varies between runs (the
+ * fixture's temporary folder) so two tables can be compared line by line.
+ */
+export function probeTable(rows: [label: string, r: ProbeReport][], scrub: (s: string) => string = (s) => s): string {
+  const head = ['probe', 'loader', 'view min>final', 'footer', 'bounce', 'req', 'scroll', 'head kept', 'sel kept', 'requests'];
+  const yn = (v: boolean | null) => (v === null ? '-' : v ? 'yes' : 'NO');
+  const cells = rows.map(([label, r]) => [
+    scrub(label),
+    r.sawLoader ? 'LOADER' : '-',
+    r.minHeight === r.finalHeight ? `${r.finalHeight}` : `${r.minHeight}>${r.finalHeight}`,
+    footerCell(r),
+    r.footerBounced ? 'BOUNCE' : '-',
+    String(r.requests.length),
+    r.scrollBefore === r.scrollAfter ? `${r.scrollAfter}` : `${r.scrollBefore}>${r.scrollAfter}`,
+    yn(r.headKept),
+    yn(r.keptSelector),
+    scrub(r.requests.join(' ')),
+  ]);
+  const widths = head.map((h, i) => Math.max(h.length, ...cells.map((c) => c[i]!.length)));
+  const line = (c: string[]) => c.map((v, i) => (i === c.length - 1 ? v : v.padEnd(widths[i]!))).join('  ').trimEnd();
+  const legend = 'loader: #view held a .loader. view: its lowest and its settled height in px (one number: no collapse). footer: top before>lowest>settled, '
+    + 'the lowest only when it dipped below both. head kept / sel kept: NO = the element held before the action is gone, - = none to hold. scroll: before>after.';
+  return [line(head), line(widths.map((w) => '-'.repeat(w))), ...cells.map(line), '', legend].join('\n');
+}
+
 // Vitest isolates modules per file, so each browser suite gets its own DB,
 // browser and ephemeral server port while sharing the fixture implementation.
 export { OPTS, home, db, fx, base, fix, KEY, browser, open, ready, screen, enc, projValue, pickProject, pickOption };

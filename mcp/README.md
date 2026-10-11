@@ -113,8 +113,13 @@ The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands an
 flags. `feedback generate` reviews one of your earlier prompts, using what your later prompts in that session had to add, when `feedback.enabled`,
 memory and `providers.observer` are set. The dashboard reads the database and has five guarded writes: a setting
 change, a correction of a missed answer (which can also complete a level), and acknowledging, deleting or counting the opening of a
-feedback item (`POST /api/feedback/acknowledge`, `/delete`, `/opened`; the reads are `GET /api/feedback` and `/api/feedback/list`). An open page polls `/api/cursor`, a
-counter that moves on every write it would show, and offers a refresh. A request
+feedback item (`POST /api/feedback/acknowledge`, `/delete`, `/opened`; the reads are `GET /api/feedback` and `/api/feedback/list`). An open page listens to
+`GET /api/events`, a stream of the change cursor (a counter that moves on every
+write it would show; `/api/cursor` returns the same value on its own), and redraws in place
+when it moves. In a repository checkout, `node mcp/scripts/dashboard-perf.mjs`
+times the dashboard's builders, payload and routes on a seeded database, and
+`--live` times a write reaching an open page in headless Chromium
+([how to run it](https://github.com/ProjectAJ14/eklavya/blob/main/CONTRIBUTING.md#dashboard-performance)). A request
 it cannot parse gets a 400 without stopping the server
 ([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)).
 Its Learning page shows your streak and its calendar under the summary tiles; a

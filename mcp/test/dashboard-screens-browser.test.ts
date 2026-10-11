@@ -26,13 +26,30 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       }
     }, 120000);
 
+    it('shows every scope on the Settings rail by name when the rail scrolls sideways', async () => {
+      // A shrinking link in a row that scrolls clipped its label to nothing (the first one, "User", was an icon alone).
+      for (const width of [560, 390]) {
+        const w = await open('#/settings/dashboard', { width, height: 800 });
+        const scopes = await w.page.$$eval('.sw__scope', (links) => links.map((a) => {
+          const label = a.querySelector('span')!.getBoundingClientRect().width;
+          return { text: (a.textContent ?? '').trim(), label: Math.round(label), link: Math.round(a.getBoundingClientRect().width) };
+        }));
+        expect(scopes.length).toBeGreaterThan(2);
+        expect(scopes[0]!.text).toBe('User');
+        for (const sc of scopes) {
+          expect(sc.label, `${sc.text} at ${width}px has room for its name`).toBeGreaterThan(20);
+          expect(sc.link, `${sc.text} at ${width}px`).toBeGreaterThan(sc.label);
+        }
+        await w.ctx.close();
+      }
+    });
+
     it('centres the content column in a window wider than it', async () => {
       const w = await open('#/learning/dashboard', { width: 2560 });
       for (const h of ['#/learning/dashboard', `#/artifacts/view/${enc(fix.other)}`, '#/settings/dashboard']) {
         await w.page.goto(base + '/' + h); await ready(w.page);
-        // Every band of the column: the refresh notice (shown for this), the crumb, the view and the footer.
+        // Every band of the column: the crumb, the view and the footer.
         const gaps = await w.page.evaluate(() => {
-          document.getElementById('stale')!.hidden = false;
           const main = document.getElementById('main')!;
           const m = main.getBoundingClientRect(), pad = parseFloat(getComputedStyle(main).paddingLeft);
           return [...main.querySelectorAll(':scope > .inner')].map((el) => {
@@ -40,7 +57,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
             return { id: el.id || el.tagName, offCentre: Math.round((r.left - m.left) - (m.right - r.right)), clear: r.left - m.left > pad };
           });
         });
-        expect(gaps.map((g) => g.id), h).toEqual(['stale', 'crumb', 'view', 'FOOTER']);
+        expect(gaps.map((g) => g.id), h).toEqual(['crumb', 'view', 'FOOTER']);
         for (const g of gaps) expect(g, h).toMatchObject({ offCentre: 0, clear: true });
       }
       await w.ctx.close();

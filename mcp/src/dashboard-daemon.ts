@@ -44,7 +44,12 @@ export type DashboardProbe =
   | { kind: 'eklavya'; health: DashboardHealth }
   /** Nothing listening: the connection was refused. */
   | { kind: 'down' }
-  /** Something answered, or hung, that is not an Eklavya dashboard this build can read. */
+  /**
+   * Something answered, or hung, that is not an Eklavya dashboard this build can
+   * read. A dashboard that is busy (its one thread is rebuilding the state for
+   * an open page) is the same to a probe that gives up first: it is not `down`,
+   * so a timeout never starts, stops or replaces anything.
+   */
   | { kind: 'foreign' };
 
 export function probeDashboard(port = dashboardPort(), timeoutMs = 150): Promise<DashboardProbe> {
@@ -103,9 +108,13 @@ export function spawnDashboard(cli = path.join(moduleDir, 'cli.js')): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Stops the Eklavya dashboard on the port, if one answers, and waits up to 2s for the port to free. */
+/**
+ * Stops the Eklavya dashboard on the port, if one answers, and waits up to 2s for the port to free. Someone is waiting
+ * on it, so the first probe is as patient as a command's (`PATIENT_PROBE_MS`): a dashboard rebuilding its state for an
+ * open page, which on a long history can take a second or more, is not a port nothing answers on.
+ */
 export async function stopDashboard(port = dashboardPort()): Promise<boolean> {
-  const probe = await probeDashboard(port, 500);
+  const probe = await probeDashboard(port, PATIENT_PROBE_MS);
   if (probe.kind !== 'eklavya') return false;
   try {
     process.kill(probe.health.pid, 'SIGTERM');
@@ -149,13 +158,31 @@ function samePath(a: string, b: string): boolean {
 export type EnsureResult = 'running' | 'started' | 'replaced' | 'other' | 'failed';
 
 /**
+ * How long a command someone is waiting on lets a dashboard take to answer its
+ * health probe (`ensureDashboard`). The dashboard is one thread, and while it
+ * rebuilds its state for an open page, 0.1 to 0.5 seconds on a year or more of
+ * history, it answers nothing. SessionStart keeps the short default: it runs on
+ * every session and must not wait on a silent port. A command would rather
+ * wait: a probe that gave up reads a busy dashboard as another program, and
+ * `eklavya dashboard` would start a second one on another port, or an artifact
+ * would open as a bare file instead of in the viewer.
+ */
+export const PATIENT_PROBE_MS = 1500;
+
+/**
  * Never downgrades: a checkout and the runtime can be different versions, and
  * replacing only an older one is what keeps the two from replacing each other
  * every session.
+ *
+ * `probeMs` is how long to wait for the health answer: SessionStart's 150, or
+ * `PATIENT_PROBE_MS` for a command someone is waiting on. Only a refused
+ * connection is a dead dashboard; one that does not answer in time is `other`
+ * (left alone), however old it is, so waiting too briefly can cost a missed
+ * replacement until the next session, and never a kill or a second start.
  */
-export async function ensureDashboard(): Promise<EnsureResult> {
+export async function ensureDashboard(probeMs = 150): Promise<EnsureResult> {
   try {
-    const probe = await probeDashboard();
+    const probe = await probeDashboard(dashboardPort(), probeMs);
     if (probe.kind === 'down') return spawnDashboard() ? 'started' : 'failed';
     if (probe.kind === 'foreign' || !samePath(probe.health.db, dbPath())) return 'other';
     if (compareVersions(probe.health.version, ownVersion()) >= 0) return 'running';

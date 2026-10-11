@@ -47,7 +47,7 @@
           "db",
           "dashboard"
         ],
-        "note": "Everything that opens knowledge.db from outside a Claude Code session. The page polls a change cursor and admits when it is stale."
+        "note": "Everything that opens knowledge.db from outside a Claude Code session. An open dashboard page listens to a stream of the change cursor and redraws in place."
       },
       {
         "id": "memory-path",

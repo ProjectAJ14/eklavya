@@ -1079,7 +1079,8 @@ async function dashboardCommand(argv: string[]): Promise<void> {
  */
 async function backgroundDashboard(): Promise<'running' | 'started' | 'replaced' | null> {
   const daemon = await import('./dashboard-daemon.js');
-  const state = await daemon.ensureDashboard();
+  // Someone is waiting on this: a dashboard that is busy answers late, not never.
+  const state = await daemon.ensureDashboard(daemon.PATIENT_PROBE_MS);
   if (state === 'running') return state;
   return (state === 'started' || state === 'replaced') && (await daemon.waitForDashboard()) ? state : null;
 }

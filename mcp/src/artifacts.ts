@@ -217,8 +217,8 @@ export function listArtifacts(root: string = artifactsDir()): ArtifactRow[] {
 
 /**
  * What changes when the artifact list would: how many pages, their total size
- * and the newest modification time. `lstat` only, never a read, so the
- * dashboard's poll can afford it once a minute. Same folder and file rules as
+ * and the newest modification time. `lstat` only, never a read: `changeCursor`
+ * calls it on every read and once a second for each open stream. Same folder and file rules as
  * `listArtifacts`; the stamp is only for comparing with an earlier one.
  */
 export function artifactsStamp(root: string = artifactsDir()): string {

@@ -1,0 +1,26 @@
+-- One index that answers the dashboard's read of `evidence_events` without
+-- touching the table.
+--
+-- The dashboard summarises captured evidence per project and session: the
+-- overview's counts, the health panel's heartbeat, the Sessions list and the
+-- project inventory all derive from one `GROUP BY project, session_id,
+-- checkout` over the whole table. Every row of that table carries the tool
+-- output it was captured from, so the scan reads the largest pages in the
+-- database to use a handful of small columns, and sorts the result. It was the
+-- top statement of `/api/state` and `/api/projects`, and every live update of
+-- an open dashboard pays it again.
+--
+-- The key is the grouping; the rest are the columns the summary reads
+-- (`status`, `redacted`, `occurred_at`, `received_at`), so the plan becomes a
+-- scan of this index alone, already in group order: no table pages and no
+-- sort. The same prefix serves the per-session lookups of `memorySessionPage`.
+--
+-- Measured on seeded databases, the statement went from 69 ms to 17 ms at
+-- 20,000 events and from 527 ms to 52 ms at 100,000. The index adds about 15%
+-- to the file, building it is one pass over the table (about 0.5 s at 100,000
+-- events, which `MIGRATION_BUSY_TIMEOUT_MS` already allows for), and every
+-- captured event pays about 50 microseconds more to be written.
+--
+-- Nothing else changes: no row is touched, and a downgrade ignores the index.
+CREATE INDEX IF NOT EXISTS idx_events_rollup
+  ON evidence_events(project, session_id, checkout, status, redacted, occurred_at, received_at);
