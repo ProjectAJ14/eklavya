@@ -1805,6 +1805,13 @@ describe('upsert_concepts', () => {
     expect(db.prepare('SELECT domain, tier, description FROM concepts WHERE slug = ?').get('raft-leader-election')).toEqual({ domain: 'general', tier: 5, description: 'first' });
   });
 
+  it('places a bare concept from its domain alone, leaving the tier and an absent description', () => {
+    call<any>(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election' }] });
+    const res = call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', domain: 'distributed-systems' }] });
+    expect(res.updated).toEqual(['raft-leader-election']);
+    expect(db.prepare('SELECT domain, tier, description FROM concepts WHERE slug = ?').get('raft-leader-election')).toEqual({ domain: 'distributed-systems', tier: 2, description: null });
+  });
+
   it('does nothing to a bare concept when the call adds nothing', () => {
     call<any>(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election' }] });
     const res = call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', domain: 'general' }] });
