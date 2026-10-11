@@ -1,0 +1,40 @@
+{
+  "id": "mastered-http-caching",
+  "title": "Caching a rarely changing API response",
+  "source": "server/routes/catalog.ts",
+  "kind": "mastered",
+  "diff": "router.get('/catalog', async (req, res) => {\n  const catalog = await loadCatalog();\n  const etag = `\"${hash(JSON.stringify(catalog))}\"`;\n  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');\n  res.set('Vary', 'Accept-Language');\n  res.set('ETag', etag);\n  if (req.get('If-None-Match') === etag) {\n    res.status(304).end();\n    return;\n  }\n  res.json(catalog);\n});",
+  "concepts": [
+    {
+      "slug": "etag-conditional-request",
+      "domain": "http",
+      "tier": 3,
+      "description": "An ETag lets the client send If-None-Match and receive a 304 with no body when nothing changed.",
+      "context": "catalog.ts compares If-None-Match with the hash-based ETag and answers 304 without the body",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "stale-while-revalidate",
+      "domain": "http",
+      "tier": 4,
+      "description": "stale-while-revalidate lets a cache serve an expired response immediately while it refetches in the background.",
+      "context": "the Cache-Control header in catalog.ts adds stale-while-revalidate=300 after max-age=60",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "vary-header",
+      "domain": "http",
+      "tier": 3,
+      "description": "Vary names the request headers a cache must key on, so a response for one language is not served to another.",
+      "context": "catalog.ts sets Vary: Accept-Language so cached catalogs do not leak across languages",
+      "prerequisite_of": []
+    }
+  ],
+  "mastered": [
+    {
+      "slug": "cache-control-headers",
+      "domain": "http",
+      "tier": 2
+    }
+  ]
+}

@@ -5,11 +5,13 @@ import { resolveSessionId } from '../session.js';
 import { allConceptSlugs, conceptBySlug, insertConcept, newConceptsThisSession } from '../store.js';
 import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
+const DEFAULT_DOMAIN = 'general';
+
 export const upsertConcepts: ToolDef = {
   name: 'upsert_concepts',
   title: 'Upsert concepts',
   description:
-    'Grow the knowledge graph when work touches a concept that has no slug yet. Slugs are normalized and near-duplicates are folded into the existing concept, so check the returned canonical slug before using it.',
+    'Grow the knowledge graph when work touches a concept that has no slug yet, or give a concept log_session_concepts just created bare its real domain, tier and description. Slugs are normalized and near-duplicates are folded into the existing concept, so check the returned canonical slug before using it. A concept that is already curated (from the seed or a pack, or given a domain) is never rewritten; `updated` lists the bare ones that were filled in.',
   inputSchema: {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
@@ -51,6 +53,7 @@ export const upsertConcepts: ToolDef = {
 
     const created: string[] = [];
     const matched: { requested: string; resolved: string }[] = [];
+    const updated: string[] = [];
     const rejected: { slug: string; reason: string }[] = [];
     const resolvedSlug = new Map<string, string>();
     let edgesAdded = 0;
@@ -67,6 +70,23 @@ export const upsertConcepts: ToolDef = {
 
         const existing = conceptBySlug(db, slug);
         if (existing) {
+          // `log_session_concepts` mints concepts bare and tells the tutor to come
+          // back here for their real domain and tier. Until this filled them in,
+          // the follow-up added edges and nothing else, and the concept stayed
+          // `general`, tier 2. Only a bare concept qualifies: a seeded, pack or
+          // already-placed concept is the catalogue's, and one model call must
+          // not rewrite it for every learner.
+          const bare = existing.source === 'llm' && existing.domain === DEFAULT_DOMAIN;
+          const domain = input.domain && input.domain !== DEFAULT_DOMAIN ? input.domain : null;
+          if (bare && (domain || input.tier !== undefined || (input.description && !existing.description))) {
+            db.prepare('UPDATE concepts SET domain = ?, tier = ?, description = ? WHERE id = ?').run(
+              domain ?? existing.domain,
+              input.tier ?? existing.tier,
+              existing.description ?? input.description ?? null,
+              existing.id,
+            );
+            updated.push(existing.slug);
+          }
           resolvedSlug.set(input.slug, existing.slug);
           matched.push({ requested: slug, resolved: existing.slug });
           continue;
@@ -87,7 +107,7 @@ export const upsertConcepts: ToolDef = {
         const concept = insertConcept(db, {
           slug,
           name: input.name ?? slug.replace(/-/g, ' '),
-          domain: input.domain ?? 'general',
+          domain: input.domain ?? DEFAULT_DOMAIN,
           description: input.description ?? null,
           tier: input.tier ?? 2,
           source: 'llm',
@@ -109,6 +129,6 @@ export const upsertConcepts: ToolDef = {
       }
     })();
 
-    return { created, matched, rejected, edges_added: edgesAdded };
+    return { created, updated, matched, rejected, edges_added: edgesAdded };
   },
 };

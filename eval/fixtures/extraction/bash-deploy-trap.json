@@ -1,0 +1,41 @@
+{
+  "id": "bash-deploy-trap",
+  "title": "A deploy script that cleans up and never half-publishes",
+  "source": "scripts/deploy.sh",
+  "kind": "ci-shell",
+  "diff": "#!/usr/bin/env bash\nset -euo pipefail\n\nrelease_dir=\"/srv/app/releases/$(date +%Y%m%d%H%M%S)\"\nstaging=\"$(mktemp -d)\"\ncleanup() { rm -rf \"$staging\"; }\ntrap cleanup EXIT\n\ntar -xzf \"$1\" -C \"$staging\"\nmkdir -p \"$release_dir\"\ncp -a \"$staging/.\" \"$release_dir/\"\n\nln -sfn \"$release_dir\" /srv/app/current.tmp\nmv -T /srv/app/current.tmp /srv/app/current",
+  "concepts": [
+    {
+      "slug": "trap-exit-cleanup",
+      "domain": "shell",
+      "tier": 3,
+      "description": "A trap on EXIT runs the handler however the script ends, including after a failed command under set -e, so temporary files do not leak.",
+      "context": "trap cleanup EXIT in deploy.sh removes the mktemp directory even when tar fails",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "atomic-symlink-swap",
+      "domain": "shell",
+      "tier": 4,
+      "description": "Creating a symlink under a temporary name and renaming it over the live one is a single atomic step, so readers see the old release or the new one, never neither.",
+      "context": "deploy.sh builds current.tmp and mv -T it over /srv/app/current instead of removing and recreating the link",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "shell-quoting",
+      "domain": "shell",
+      "tier": 2,
+      "description": "An unquoted variable is split on whitespace and globbed, so a path with a space becomes several arguments.",
+      "context": "\"$staging\" and \"$release_dir\" are quoted in every command of deploy.sh",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "mktemp-staging-directory",
+      "domain": "shell",
+      "tier": 2,
+      "description": "Unpacking into a fresh private directory first means a failed extraction never touches the live release tree.",
+      "context": "deploy.sh extracts the archive into mktemp -d before copying into the release directory",
+      "prerequisite_of": []
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "_note": "Hand-assigned. Test is untouched by the search; train and val are what GEPA sees. Ids without a file here live in eval/fixtures/.",
+  "train": [
+    "deterministic-answer-slot",
+    "nudge-rate-limit",
+    "plan-jargon-in-context",
+    "css-grid-reduced-motion",
+    "sqlite-table-rebuild",
+    "python-context-manager",
+    "go-errgroup-context",
+    "rust-borrowing-slices"
+  ],
+  "val": [
+    "refactor-extract-function",
+    "mastered-jwt-verify",
+    "bash-deploy-trap"
+  ],
+  "test": [
+    "wal-and-busy-retry",
+    "ci-cache-and-pipefail",
+    "sql-add-column-backfill",
+    "react-debounced-search",
+    "mastered-http-caching"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "mastered-jwt-verify",
+  "title": "Verifying a signed token",
+  "source": "server/auth/verify.ts",
+  "kind": "mastered",
+  "diff": "export function verifyToken(token: string, secret: Buffer): Claims {\n  const [header, payload, signature] = token.split('.');\n  const expected = createHmac('sha256', secret).update(`${header}.${payload}`).digest();\n  const given = Buffer.from(signature, 'base64url');\n  if (given.length !== expected.length || !timingSafeEqual(given, expected)) {\n    throw new AuthError('bad signature');\n  }\n  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as Claims;\n  const now = Math.floor(Date.now() / 1000);\n  if (claims.exp + CLOCK_SKEW_SECONDS < now) throw new AuthError('expired');\n  return claims;\n}",
+  "concepts": [
+    {
+      "slug": "timing-safe-comparison",
+      "domain": "web-security",
+      "tier": 4,
+      "description": "Comparing secrets with a constant-time function stops an attacker learning how many leading bytes were right from response time.",
+      "context": "verifyToken in verify.ts uses timingSafeEqual on the HMAC bytes instead of ===",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "clock-skew-tolerance",
+      "domain": "web-security",
+      "tier": 3,
+      "description": "Servers' clocks differ slightly, so expiry checks allow a small grace window rather than failing valid tokens at the edge.",
+      "context": "verify.ts adds CLOCK_SKEW_SECONDS to claims.exp before comparing with now",
+      "prerequisite_of": []
+    },
+    {
+      "slug": "length-check-before-compare",
+      "domain": "web-security",
+      "tier": 3,
+      "description": "timingSafeEqual throws on buffers of different lengths, so the lengths are compared first, which leaks only the length.",
+      "context": "verify.ts rejects a signature of the wrong length before calling timingSafeEqual",
+      "prerequisite_of": []
+    }
+  ],
+  "mastered": [
+    {
+      "slug": "hmac-signatures",
+      "domain": "web-security",
+      "tier": 3
+    }
+  ]
+}

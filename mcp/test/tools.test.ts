@@ -1783,6 +1783,53 @@ describe('upsert_concepts', () => {
     expect(res.matched[0].resolved).toBe('refresh-token-rotation');
   });
 
+  it('fills in a concept log_session_concepts created bare', () => {
+    call<any>(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', context: 'election timeout in raft.ts' }] });
+    const res = call<any>(upsertConcepts, {
+      session_id: SESSION,
+      concepts: [{ slug: 'raft-leader-election', domain: 'distributed-systems', tier: 4, description: 'Nodes elect one leader by timeout and vote.' }],
+    });
+    expect(res.updated).toEqual(['raft-leader-election']);
+    expect(db.prepare('SELECT domain, tier, description FROM concepts WHERE slug = ?').get('raft-leader-election')).toEqual({
+      domain: 'distributed-systems',
+      tier: 4,
+      description: 'Nodes elect one leader by timeout and vote.',
+    });
+  });
+
+  it('keeps what a bare concept was not given, and a description it already has', () => {
+    call<any>(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election' }] });
+    call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', description: 'first' }] });
+    const res = call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', tier: 5, description: 'second' }] });
+    expect(res.updated).toEqual(['raft-leader-election']);
+    expect(db.prepare('SELECT domain, tier, description FROM concepts WHERE slug = ?').get('raft-leader-election')).toEqual({ domain: 'general', tier: 5, description: 'first' });
+  });
+
+  it('places a bare concept from its domain alone, leaving the tier and an absent description', () => {
+    call<any>(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election' }] });
+    const res = call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', domain: 'distributed-systems' }] });
+    expect(res.updated).toEqual(['raft-leader-election']);
+    expect(db.prepare('SELECT domain, tier, description FROM concepts WHERE slug = ?').get('raft-leader-election')).toEqual({ domain: 'distributed-systems', tier: 2, description: null });
+  });
+
+  it('does nothing to a bare concept when the call adds nothing', () => {
+    call<any>(logSessionConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election' }] });
+    const res = call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', domain: 'general' }] });
+    expect(res.updated).toEqual([]);
+  });
+
+  it('never rewrites a seeded or an already-placed concept', () => {
+    const before = db.prepare("SELECT domain, tier FROM concepts WHERE slug = 'csrf'").get();
+    const res = call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'csrf', domain: 'other', tier: 5, description: 'x' }] });
+    expect(res.updated).toEqual([]);
+    expect(db.prepare("SELECT domain, tier FROM concepts WHERE slug = 'csrf'").get()).toEqual(before);
+
+    call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', domain: 'distributed-systems', tier: 4 }] });
+    const again = call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: 'raft-leader-election', domain: 'networking', tier: 2 }] });
+    expect(again.updated).toEqual([]);
+    expect(db.prepare("SELECT domain, tier FROM concepts WHERE slug = 'raft-leader-election'").get()).toEqual({ domain: 'distributed-systems', tier: 4 });
+  });
+
   it('rejects a slug that cannot be normalized', () => {
     const res = call<any>(upsertConcepts, { session_id: SESSION, concepts: [{ slug: '!!!' }] });
     expect(res.rejected[0].reason).toBe('invalid_slug');
