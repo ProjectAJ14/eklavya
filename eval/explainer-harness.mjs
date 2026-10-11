@@ -181,6 +181,7 @@ async function run() {
   const label = flag('label', 'run');
   const trials = Number(flag('trials', 1));
   const skillMode = flag('skill', 'off');
+  if (skillMode !== 'on' && skillMode !== 'off') fail('--skill is on or off');
   const only = flag('cases') ? new Set(String(flag('cases')).split(',')) : null;
   const model = flag('model');
   if (!fs.existsSync(path.join(repoRoot, 'mcp', 'dist', 'cli.js'))) fail('mcp/dist is missing. Run `npm run build` in mcp/ first.');
