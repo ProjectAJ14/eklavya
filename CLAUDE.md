@@ -26,8 +26,9 @@ Read the nearest nested `CLAUDE.md` before editing `mcp/`, `hooks/`, `cli/`,
 
 ## Documentation is part of every feature
 
-A code change is complete only when the manual, the landing page and a README
-change in the same PR. There is no exemption. `.github/scripts/check-docs-sync.sh`
+A code change is complete only when the manual and a README change in the
+same PR. There is no exemption. Change the landing page (`web/public/`) only
+when explicitly asked to. `.github/scripts/check-docs-sync.sh`
 fails the PR otherwise, and its header lists what counts as product code. When
 the change alters no existing claim on a surface, make a small source-backed
 copy or link update where its reader looks for the feature. Keep the home page
