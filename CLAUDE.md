@@ -13,7 +13,7 @@ Read the nearest nested `CLAUDE.md` before editing `mcp/`, `hooks/`, `cli/`,
 | `mcp/src/hooks/` | Hook implementations and shared helpers; registration lives in `hooks/hooks.json` |
 | `mcp/src/migrations/`, `mcp/test/` | Forward-only migrations and runtime tests |
 | `hooks/run.mjs` | Cross-platform launcher and background repair of an older runtime |
-| `hooks/panel/` | The quiz side panel: a Claude Code mod (not a command hook), its state contract and its tests; opt-in through `quiz.panel` |
+| `hooks/panel/` | The quiz side panel: a Claude Code mod (not a command hook), its state contract and its tests; enabled by default, controlled through `quiz.panel` |
 | `skills/` | Slash commands and the tutor entry point with on-demand references |
 | `user-skill/` | Chat and artifact skills installed to `~/.claude/skills/`; never move them into `skills/` or they register twice |
 | `agents/` | Tutor and background explainer |
@@ -100,8 +100,9 @@ Code's hook-driven learning loop.
 - Before editing the site, read `.claude/skills/eklavya-design/SKILL.md`; before
   editing the dashboard, also read `.claude/skills/eklavya-dashboard/SKILL.md`.
   Use semantic color roles from `web/public/tokens.css`, keyboard-operable
-  controls and shareable dashboard filters. Preserve the hero terminal and arrow
-  animation's geometry, timing and behavior.
+  controls and shareable dashboard filters. Keep the home page lean, with the
+  Archer Cloak mascot on a dark hero. The terminal demo belongs at `/demo/`;
+  match its panel labels and interactions to the shipped mod.
 
 ## Generated runtime diagram
 

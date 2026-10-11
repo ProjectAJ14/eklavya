@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -607,6 +607,9 @@ describe('isolation', () => {
 
   it('works outside any git project, scoped to the global project', () => {
     const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-plain-'));
+    // Stop at this isolated home even if the machine's temp directory is
+    // inside a git checkout. The fixture is deliberately outside a project.
+    const homedir = vi.spyOn(os, 'homedir').mockReturnValue(plain);
     try {
       const q = present({ cwd: plain });
       const sent = panelSync(db, { session_id: SESSION, cwd: plain, host: HOST }) as any;
@@ -615,6 +618,7 @@ describe('isolation', () => {
       expect(out.phase).toBe('answered');
       expect(attempts().at(-1)!.repo).toBe('*');
     } finally {
+      homedir.mockRestore();
       fs.rmSync(plain, { recursive: true, force: true });
     }
   });

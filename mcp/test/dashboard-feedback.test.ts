@@ -46,7 +46,7 @@ describe('the state payload', () => {
   const fb = () => (dashboardState(db) as any).feedback;
 
   it('says what is configured, what is pending and how many were acknowledged, never the prompt', () => {
-    expect(fb()).toEqual({ enabled: false, memory: true, observer: false, pending: null, notify: false, acknowledged: 0, failed: false });
+    expect(fb()).toEqual({ enabled: true, memory: true, observer: true, pending: null, notify: false, acknowledged: 0, failed: false });
     writeConfig({ feedback: { enabled: true }, providers: { observer: { kind: 'anthropic', model: 'm' } } });
     const id = insertFeedback(db, item())!;
     expect(fb()).toEqual({ enabled: true, memory: true, observer: true, pending: { id }, notify: true, acknowledged: 0, failed: false });
@@ -56,6 +56,7 @@ describe('the state payload', () => {
   });
 
   it('asks for attention only while feedback and memory are both on: a stale item stays quiet', () => {
+    writeConfig({ feedback: { enabled: false }, providers: { observer: null } });
     const id = insertFeedback(db, item())!;
     expect(fb()).toMatchObject({ pending: { id }, notify: false });
     writeConfig({ feedback: { enabled: true } });

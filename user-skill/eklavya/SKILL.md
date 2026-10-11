@@ -11,10 +11,12 @@ searchable observations it can hand back to the agent weeks later.
 **Learning** logs the concepts each task touches, quizzes the developer on them,
 and tracks mastery with spaced repetition.
 
-Both halves are local by default: the summariser and the search index run on
-this machine and no work leaves it unless `providers.observer` has been
-configured — an explicit choice that sends session batches to a Claude model
-through `claude -p`, on the developer's own Claude subscription.
+Stored history and search stay local. New installs use `claude-sonnet-5` for
+memory summaries and prompt feedback through `claude -p`, using the developer's
+Claude Code login. Captured session evidence goes to that model. Existing
+installs keep their choices. Older configs keep the previous defaults for these
+settings: no observer model and feedback off, unless explicitly set. Read
+`get_config` before reporting what this installation does.
 
 The two halves are switched separately, and their names now say so.
 `quiz.enabled: false` stops the questions and leaves memory recording;
@@ -28,9 +30,9 @@ settings on request. Teaching is a different job, and the `tutor` skill has it.
 
 ## Find the binary first
 
-`eklavya` is usually **not on `PATH`**. `npx eklavya install` puts the runtime
-under `~/.eklavya/runtime`, and npm does not link a `--prefix` install globally.
-Resolve it once:
+The recommended `npm install -g eklavya && eklavya install` puts `eklavya` on
+`PATH`. An `npx eklavya install` keeps its runtime under `~/.eklavya/runtime`
+without adding a global command. Resolve the binary once:
 
 ```bash
 command -v eklavya || command -v "$HOME/.eklavya/runtime/node_modules/.bin/eklavya"
@@ -71,11 +73,12 @@ changing.
 | `quiz.enabled` | Does it ask at all? | `true`, `false` | `true` |
 | `quiz.enforced` | Do questions hold commits? | `true`, `false` | `false` |
 | `quiz.only_on_changes` | Only ask once the session has changed code in a git repository? | `true`, `false` | `true` |
-| `quiz.panel` | Show questions in the experimental side panel instead of Claude's question card? | `true`, `false` | `false` |
+| `quiz.panel` | Show questions in the experimental side panel instead of Claude's question card? | `true`, `false` | `true` |
 | `focus` | What does it teach? | `project`, `concept`, `learn` | `concept` |
 | `cadence` | When do the questions land? | `as-you-go`, `end` | `as-you-go` |
 | `difficulty` | How hard may they get? | `auto`, `easy`, `medium`, `hard` | `auto` |
 | `memory.enabled` | Is the work recorded? | `true`, `false` | `true` |
+| `feedback.enabled` | Review one of the developer's prompts? | `true`, `false` | `true` on new installs; older configs without it keep `false` |
 
 These replaced a single `mode` dial (`ambient`, `enforced`, `off`). Config files
 still using it keep working everywhere — `off` reads as `quiz.enabled: false`,
@@ -369,7 +372,7 @@ let the user run it:
 | `/eklavya:level` | the per-project difficulty band and progress through it |
 | `/eklavya:gate` | commit-gate status for this session |
 | `/eklavya:pack [domain]` | write a concept pack, so Eklavya can quiz on a domain or a codebase it does not know |
-| `/eklavya:setup` | first-run setup |
+| `/eklavya:setup` | check the installation without choosing settings |
 
 If they are asking to *be taught*, that is `/eklavya:learn` or the `tutor`
 skill, not this one.
@@ -446,10 +449,11 @@ their own prompts. It is not this, and it files nothing on GitHub.
 - `memory_delete` without `hard` is reversible in the audit trail; with it, the
   entry and its vectors are gone. Confirm before the hard one, and never offer
   it as a tidying-up suggestion.
-- Do not configure `providers.observer` on the user's behalf. It is the one
-  setting that sends this machine's work off it — to a Claude model, on their
-  subscription — and it needs their explicit yes. It goes in the global config
-  only.
+- Change `providers.observer` only when the developer asks for that change.
+  New installs already use `claude-sonnet-5`; do not add or reset it during a
+  setup check. This model receives captured evidence through their Claude Code
+  login. The setting is global only. `null` uses local summaries and stops
+  prompt feedback.
 - Never create a GitHub issue, or send anything to GitHub, without the user's clear
   yes to the exact title and body you showed them. Silence, "sounds fine" about
   the idea, and a yes to an earlier draft are not that yes.

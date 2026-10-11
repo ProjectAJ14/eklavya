@@ -6,9 +6,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "predev": "node scripts/embed-diagram.mjs",
+    "predev": "node scripts/embed-diagram.mjs && node scripts/demo-panel.mjs",
     "dev": "astro dev",
-    "prebuild": "node ../scripts/generate-mascot.mjs --check && node scripts/embed-diagram.mjs",
+    "prebuild": "node ../scripts/generate-mascot.mjs --check && node scripts/embed-diagram.mjs && node scripts/demo-panel.mjs",
     "build": "astro build",
     "preview": "astro preview",
     "icons": "node scripts/generate-icons.mjs",

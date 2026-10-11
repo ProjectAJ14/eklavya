@@ -3,7 +3,8 @@
 Eklavya's public identity is **learning and memory for Claude Code**. The site
 must describe the shipped product: adaptive questions, spaced repetition,
 local project memory, the dashboard, and the optional commit gate. Claims about
-privacy retain the local-default / optional-provider distinction. The feature
+privacy distinguish fresh installs with Claude-powered memory from existing
+installs that kept local processing. The feature
 sources are mapped in `CLAUDE.md`; new metadata follows the same contract.
 
 ## Implementation

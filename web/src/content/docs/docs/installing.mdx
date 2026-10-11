@@ -1,142 +1,70 @@
 ---
 title: "Installing"
-description: "Install Eklavya for Claude Code in three steps, choose the default settings, and check that it is ready."
+description: "Install Eklavya for Claude Code, allow its quiz panel in auto mode, and start your first task."
 sidebar:
   order: 2
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-The recommended install sets up the Claude Code plugin, its local runtime, and
-the `eklavya` terminal command together.
-
-## Before you start
-
-Use **Claude Code and Node.js 22+** on macOS, Linux or Windows. Check Node with:
-
-```bash
-node --version
-```
-
-<details>
-<summary>Install or upgrade Node.js</summary>
-
-Use the [Node.js installer](https://nodejs.org/en/download), or your existing
-package manager:
-
-```bash title="macOS with Homebrew"
-brew install node
-```
-
-```powershell title="Windows"
-winget install OpenJS.NodeJS.LTS
-```
-
-```bash title="Linux with nvm already installed"
-nvm install 22 && nvm use 22
-```
-
-</details>
-
-Git lets Eklavya identify checkouts for project settings and learning progress. The optional terminal
-[commit gate](/docs/commit-gate/) also needs a POSIX shell, `jq` and `sqlite3`; ordinary
-questions and memory do not.
-
-<span id="a-one-command-from-a-terminal"></span>
-
-## Install in three steps
+All users need **Claude Code and Node.js 22+ with npm** for this install.
+It works on macOS, Linux and Windows. [Install Node](/docs/faq/#how-do-i-install-nodejs)
+if you need it.
 
 <Steps>
 
-1. **Run the installer in a terminal.**
+1. **Install Eklavya in a terminal.**
+
+   <span id="a-one-command-from-a-terminal"></span>
 
    ```bash
    npm install -g eklavya && eklavya install
    ```
 
-   It installs the plugin and runtime, creates the database, and adds two chat
-   skills for plain-English controls and saved explanations.
+   This installs the plugin, local runtime and terminal command. Eklavya starts
+   with its defaults and keeps any settings you already saved.
+   New installs use `claude-sonnet-5` for memory summaries and prompt feedback
+   through your Claude Code login. [What gets sent to Claude](/docs/memory/#how-observations-are-made).
 
-2. **Choose your settings.**
+2. **Allow the side panel if you use auto mode.**
 
-   Use the arrow keys and Enter. The choices start on skippable questions about concepts, spread through your work, memory and prompt feedback. Prompt feedback starts on `on` in this walk and sends up to eight of your prompts from one finished session to a model. Choose `off` on its step to send nothing.
+   :::caution[Important: side-panel permissions]
+   Auto mode can block the quiz panel. Add these three entries to
+   `permissions.allow` in `~/.claude/settings.json`. **Keep all existing entries.**
 
-   | Setting | Default |
-   |---|---|
-   | Quiz | On, without commit enforcement |
-   | Focus | General concepts behind your code |
-   | Cadence | One question at a time during work |
-   | Difficulty | Adjusted from your answers |
-   | Memory | On |
-   | Memory model | Local processing at first. Keeping prompt feedback on switches it to `claude-haiku-4-5`, so choose `off` on the feedback step to keep memory local. |
-   | Prompt feedback | On in the walk (asked once memory is on). It names the model, `claude-haiku-4-5` if you chose local, and sets it as the observer. |
+   ```json title="~/.claude/settings.json"
+   {
+     "permissions": {
+       "allow": [
+         "mcp__plugin_eklavya_eklavya__panel_sync",
+         "mcp__plugin_eklavya_eklavya__panel_answer",
+         "mcp__plugin_eklavya_eklavya__present_question"
+       ]
+     }
+   }
+   ```
 
-   The walk asks the last two only while memory records. Without a terminal
-   (CI, a pipe, the auto-updater) nothing is asked and prompt feedback keeps its stored value, which is off on any install that never turned it on.
-
-   You can change these later with [the dials](/docs/dials/), or repeat the walk
-   with `eklavya install --settings`. Reinstalling normally keeps your settings.
-
-   If Claude Mem is detected, the installer asks which tool should record:
-   keep Claude Mem, or import its history and switch to Eklavya. Read
-   [Moving from Claude Mem](/docs/migrating/) before choosing if you need the
-   migration details.
+   You can also [ask Claude to add them](/docs/first-session/#if-auto-mode-blocks-the-panel).
+   :::
 
 3. **Restart Claude Code and start a task.**
 
-   A new session loads the plugin. Ask Claude to build or change something;
-   questions follow as it logs the concepts involved.
+   Ask Claude to build or change something. Eklavya asks short questions about
+   the work and remembers it for your next session.
 
 </Steps>
 
+Read [Your first session](/docs/first-session/) for what happens next.
+For other hosts, use [Installation options](/docs/installation-options/).
+For more install details, see the [FAQ](/docs/faq/#what-does-the-installer-set-up).
+
 <span id="check-that-it-worked"></span>
 
-## Check the installation
+## Optional: check the installation
 
 ```bash
 eklavya doctor
 ```
 
-This checks the runtime, database driver, plugin registration, settings and
-other dependencies. In Claude Code, `/plugin` should also list Eklavya without
-errors. A new session shows a short Eklavya banner unless `quiet` is enabled.
-
-:::note[Analytics]
-Eklavya sends anonymous daily usage counts, such as how many questions were
-asked and which settings are on. They are linked to a random install ID, not to
-you, and never include code, paths, names, questions, answers or memory.
-[Usage analytics](/docs/usage-analytics/) lists every field. Turn it off with
-`eklavya telemetry off`.
-:::
-
-If something is missing, see [Troubleshooting](/docs/troubleshooting/).
-Otherwise, continue to [Your first session](/docs/first-session/).
-[`/eklavya:setup`](/docs/first-run/) is an optional guided check inside Claude.
-
-<span id="where-eklavya-runs"></span>
-
-## Other installation options
-
-- <span id="b-in-claude-code-through-the-plugin-marketplace"></span>
-  [Claude Code marketplace](/docs/installation-options/#claude-code-marketplace)
-  — install from inside Claude Code.
-- <span id="d-in-cowork"></span>
-  [Claude Desktop and Cowork](/docs/installation-options/#claude-desktop-and-cowork)
-  — the Code tab uses this install; Cowork needs its own plugin entry.
-- <span id="c-from-a-checkout-contributors"></span>
-  [Source checkout](/docs/installation-options/#from-a-source-checkout)
-  — load a local build while developing Eklavya.
-- <span id="the-eklavya-command"></span>
-  [Without a global command](/docs/installation-options/#without-a-global-command)
-  — use `npx` instead.
-
-<span id="updates"></span>
-
-## Updates and removal
-
-Automatic updates are on by default. See [Updates and removal](/docs/updates/)
-for manual updates, disabling updates, and installer backups.
-
-<span id="uninstalling"></span>
-[Uninstalling](/docs/updates/#uninstalling) keeps your learning history unless
-you explicitly request its deletion.
+This checks the runtime, database and plugin. If it reports a problem, follow
+[Troubleshooting](/docs/troubleshooting/).

@@ -1,74 +1,68 @@
 ---
 name: setup
-description: First-run Eklavya setup — check prerequisites, create the database, choose how hard it pushes, and say what memory does.
+description: Check the Eklavya installation and database without changing your settings.
 disable-model-invocation: true
 ---
 
 # /eklavya:setup
 
-Get Eklavya working on this machine. Be brief; this should take one exchange.
+Check that Eklavya works on this machine. Keep this to one short exchange.
+Do not ask the developer to choose settings or reset their saved choices.
+The installer supplies defaults. Change a setting only when the developer
+explicitly asks for that change.
 
-**1. Check prerequisites.** Run `node --version`. Node is the only hard requirement — the server, the CLI and all seven hooks are Node. It must be 22+; below that the SQLite driver has no prebuilt binary and would need a C++ toolchain to install. If it is older, say so and how to upgrade on this platform, and stop: the rest of setup will not work.
+## Check Node and the server
 
-Two command-line tools matter for less: `sqlite3`, which step 2 uses to look at the database, and `jq`, which together with `sqlite3` the terminal commit gate in step 4 needs. Check with `command -v sqlite3 jq`. Missing ones do not stop setup — say which is missing and how to install it on this platform, skip the shell check in step 2 if it is `sqlite3`, and if they choose enforced, say plainly that commits made outside Claude Code will not be gated until both are installed. The gate lets commits through without them rather than blocking.
+Run `node --version`. Node.js must be 22 or newer. If it is missing or older,
+say how to install it on this platform and stop. The recommended npm install
+also needs npm, which the Node.js installer includes.
 
-Optionally run `eklavya doctor`, which reports the same thing plus the runtime, the SQLite driver, the plugin's registration, the chat skill, the database and the effective config. It exits non-zero and names the repair — `eklavya install` — if any of those has broken. That is also the command to reach for later, whenever Eklavya has gone quiet: the hooks never fail loudly, so a broken install looks exactly like a quiet one.
+Call `get_config` and report whether the server replied. This call returns
+`global_path` and the effective configuration. Read that configuration before
+saying whether questions or memory are on; do not assume defaults describe an
+existing installation.
 
-**2. Confirm the database.** Call `get_config` and report `global_path`. If that same call reports `surface: "cowork"`, stop there — `global_path` came back, so the server is running and the database is behind it; that is the confirmation. **Do not run the shell check below in Cowork.** It runs in a sandbox VM with its own filesystem, finds no `~/.eklavya/knowledge.db`, and would have you report a broken install on a healthy one.
+If the call fails, check `/plugin` for errors. From a terminal, the command
+`npm install -g eklavya && eklavya install` repairs or finishes the install.
+Then restart Claude Code. `eklavya doctor` can identify a broken runtime,
+database driver or plugin registration.
 
-Everywhere else, check the DB:
+## Check the database
+
+If `get_config` reports `surface: "cowork"`, its successful reply confirms the
+server and database. Do not check `~/.eklavya/knowledge.db` from Cowork's shell:
+that shell runs in a separate VM and cannot see the user's local database.
+
+Elsewhere, if `sqlite3` is available, run:
 
 ```bash
 sqlite3 ~/.eklavya/knowledge.db 'select domain, count(*) from concepts group by domain'
 ```
 
-The server creates and seeds it on first start, and `npx eklavya install` creates it up front, so this should already show `web-auth`, `react`, `node-backend` and `git`. If the file is missing, the MCP server is not running — check `/plugin` for errors, and check that the runtime is installed (`npx eklavya install` finishes it in one step).
+The starter domains are `web-auth`, `react`, `node-backend` and `git`. The
+installer creates and seeds this database. If `sqlite3` is missing, use
+`eklavya doctor` instead; it is optional for ordinary questions and memory.
+Do not tell the developer to install extra tools for this check.
 
-**3. Decide how hard it pushes.** Ask which fits, and explain in one line each:
+## Say what happens next
 
-- **questions, unenforced** (default) — asked after tasks, always skippable
-- **enforced** — the session quiz must pass before a commit goes through; for interns and onboarding
-- **no questions** — `quiz.enabled: false`. Say in the same breath that this stops the questions only: memory keeps recording, and `memory.enabled` is the separate switch for that. People choose this one meaning "off" and are surprised either way if nobody tells them which half stopped.
+With questions on, ask the developer to start a task. Point to
+`/eklavya:progress` for learning history and `/eklavya:quiz` for a question now.
+If questions are off, keep them off. When memory is on, mention
+`/eklavya:memory` for past work.
 
-Then `set_config` with their choice — `quiz: { enforced: true }` for the gate, `quiz: { enabled: false }` for silence. Always global: **do not ask whether it should apply to this project only.** Setup configures the learner, not a codebase. If they say unprompted that they want a per-project setting, use `scope: "project"` for that key; it writes `~/.eklavya/projects/<checkout>/config.json`, in their home directory, never the repository.
+For a new install, memory summaries and prompt feedback use `claude-sonnet-5`
+through the developer's Claude Code login. Captured session evidence goes to
+that model; search and stored history stay local. Existing settings may use a
+different model or local summaries. If they ask about capture or privacy, link
+[Memory](https://eklavya-run.web.app/docs/memory/).
 
-**3b. Choose a focus.** One more question, because it changes every quiz. The setting above is how hard Eklavya pushes; focus is what it teaches.
+The quiz side panel is on by default on supported Claude Code builds. If auto
+mode blocks it, link
+[the three panel permissions](https://eklavya-run.web.app/docs/installing/).
+Do not grant permissions or change settings as part of this check.
 
-- **concept** (default) — asks the transferable version of the same ideas. Best when learning a stack.
-- **project** — asks about the code just written. Best when learning a codebase.
-- **learn** — you name a topic and it teaches that, using your real code as the example where the work touches it.
-
-`set_config` with `focus`, plus `focus_topic` if they chose `learn` — that combination is useless without one. If they have no preference, say concept is the default and move on; this should not become an interview. `/eklavya:mode` changes it later.
-
-**4. If they chose enforced, install the git hook.** Skip this entire step when `get_config` reports `surface: "cowork"` — Cowork does not commit, so there is nothing to gate and no repo to install into. Say once that enforcement will ask its questions but block nothing here, and move on; everything else in this setup applies unchanged. Trust that field rather than checking the environment yourself: a shell command in Cowork runs inside a sandbox VM and cannot see the variable this is read from.
-
-The `PreToolUse` hook only covers commits made inside Claude Code — which includes the Code tab in Claude Desktop, the same engine on the same config. The git `pre-commit` hook covers every other path — a bare terminal, VS Code, Cursor:
-
-```bash
-"${CLAUDE_PLUGIN_ROOT}"/scripts/install-git-hook.sh
-```
-
-It works from a linked worktree too (all worktrees of a repository share one hook), chains to any existing `pre-commit` hook rather than replacing it, and only acts on projects whose config sets `quiz.enforced` (or the retired `"mode": "enforced"`) — so installing it is safe even if they turn enforcement off later. If the plugin moves or updates, the hook finds the gate in `~/.eklavya/runtime`, and if it finds none it lets the commit through with a one-line warning; it never blocks a commit because a file is missing. Mention `--uninstall` restores the previous hook.
-
-Read its exit status rather than assuming it worked:
-
-- **2** — the repository sets `core.hooksPath` (husky, lefthook and similar), so git would never run the hook and nothing was installed. Relay the line it printed: they add it to the `pre-commit` hook their manager runs. Do not edit their hook manager's files yourself — those are usually committed.
-- **1** — not a git repository, or a `pre-commit` and a `pre-commit.local` both already exist and it will not choose between them. Relay the message; nothing was changed.
-
-Skip this step unless they chose enforced.
-
-**4b. Say what memory does, in two sentences, and do not ask a question about it.**
-
-Eklavya also records what each session did — the prompts, the edits, the tool
-failures — and hands the relevant part back at the start of the next one, so
-next week's session starts knowing what last week's did. It is on by default,
-it is local (the summariser and the search index both run on this machine, no
-key and no account), and it is a separate switch from the one they just
-chose: `quiz.enabled: false` stops the questions and keeps the history.
-
-Say that and move on. It needs no decision now, and turning it into a fifth
-question makes setup an interview. If they ask where it goes or what is
-excluded, point at `/eklavya:memory` and the [memory page](https://eklavya.dev/docs/memory/)
-rather than reciting the exclusion list.
-
-**5. Say what happens next.** With questions on: build something, and they will follow. Point at `/eklavya:progress` and `/eklavya:quiz`. With the gate on, add that commits are held until the session quiz passes, and `/eklavya:gate` shows what is outstanding. With questions off, say that memory is still recording and `/eklavya:memory` is where to look at it.
+If the developer asks to enable commit enforcement, follow
+[the commit gate guide](https://eklavya-run.web.app/docs/commit-gate/).
+The terminal Git hook also needs `jq`, `sqlite3` and project-level enforcement.
+Do not offer or install it during an ordinary setup check.

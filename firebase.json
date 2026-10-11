@@ -80,6 +80,11 @@
         "type": 301
       },
       {
+        "source": "/demo/index.html",
+        "destination": "/demo/",
+        "type": 301
+      },
+      {
         "source": "/docs/index.html",
         "destination": "/docs/",
         "type": 301

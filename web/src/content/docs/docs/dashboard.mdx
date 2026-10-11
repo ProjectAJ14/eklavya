@@ -163,7 +163,7 @@ In the viewer, the framed page loads no web fonts and uses system fonts, so the 
 
 ## Feedback
 
-Feedback reviews one prompt you wrote, at a time: what your later prompts in that session had to add or correct shows what it left out, and you get a version that would have made those follow-ups unnecessary. It is off until you turn on `feedback.enabled` in [Settings](#settings) or with `eklavya config set feedback.enabled true`, and it needs memory on and an [observer model](/docs/configuration/#providers). It never changes your mastery. [How feedback is made](/docs/how-it-works/#prompt-feedback) says when it runs and what leaves your machine.
+Feedback reviews one prompt you wrote, at a time: what your later prompts in that session had to add or correct shows what it left out, and you get a version that would have made those follow-ups unnecessary. New installs have it on, with memory and `claude-sonnet-5` as the [observer model](/docs/configuration/#providers). Existing installs keep their choices. If it is off, use [Settings](#settings) or `eklavya config set feedback.enabled true`; it needs memory and an observer model. It never changes your mastery. [How feedback is made](/docs/how-it-works/#prompt-feedback) says when it runs and what leaves your machine.
 
 The rule is written at the top of the page, in every state. While nothing is waiting: *Eklavya reviews one prompt at a time. When one is ready it appears here, and the next waits until you press Acknowledge.* While one is waiting: *Feedback pauses until you acknowledge this one. Read it, then press Acknowledge to get the next.* On the first item you ever see, the rule is repeated right above the button.
 
