@@ -49,8 +49,11 @@ In this order, each under its own `<h2>`:
   the same list. When they typed their own answer although options were
   offered, list every option, then their words as one more item with
   `class="picked"`. Skip this section for a page someone asked for.
-- **The short answer.** Two or three sentences a newcomer could repeat: what the
-  thing *does*, before what it is called.
+- **The short answer.** At most three sentences a newcomer could repeat. The
+  first says what the thing *does*, in plain words; the second says what that
+  means for the code in the question (the right answer, and why); a third, if
+  needed, gives its name. Use no term the reader would have to look up. Every
+  further detail, caveat and name belongs under "How it works".
 - **Where the answer went wrong.** Name the misconception in the answer given
   — kindly, specifically — and why it is tempting. If there was no answer
   ("I don't know"), skip this and start from the mechanism.
@@ -63,9 +66,13 @@ In this order, each under its own `<h2>`:
   ideally in the language the developer was working in, as
   `<pre data-lang="…"><code>` so the template labels and colours it.
 - **The rule that transfers.** When this applies in a different codebase, and
-  the one gotcha to watch for.
+  the one gotcha to watch for. Compare with another language or library only
+  when you are sure it behaves that way: a wrong comparison teaches the wrong
+  thing.
 
-Plain English, short sentences, no jargon without a gloss. Any CSS you add
+Plain English, short sentences, no jargon without a gloss. State a claim no
+more strongly than the page later supports: a guarantee the gotcha qualifies
+is stated as qualified the first time. Any CSS you add
 follows the design rules in the `eklavya-artifacts` skill: role tokens only
 (`--ink --dim --faint --line --spot …`, never a raw hex or `--vd-*` step), one
 verdigris accent, square corners, hairlines instead of shadows, the three font

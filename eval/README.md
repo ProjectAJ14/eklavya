@@ -19,6 +19,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
 | Whether a saved fact changes what a session builds, against memory off and irrelevant memory | `node eval/memory-use-harness.mjs run --plugin <checkout> --label <name>` then `score <run-dir>` | Whole Claude Code sessions |
 | Whether the tutor follows its grading, pacing and handoff rules at one frozen moment of a session | `node eval/conversation-harness.mjs run --root <checkout> --label <name>` | One model call per scenario and trial |
+| Whether the explainer's page keeps `agents/explainer.md`'s contract (sections, options verbatim, a captioned SVG, template untouched, attempt linked, role tokens) and explains clearly | `node eval/explainer-harness.mjs run --root <checkout> --label <name>`, then `compare <run-a> <run-b>` | One agent run per case and trial (~90k input tokens), one judge call per passing page or pair |
 | Whether sessions delegate building and ask while it runs | `node eval/delegation-harness.mjs run --plugin <checkout> --label <name>` | Whole Claude Code sessions |
 | Prompt feedback's review: does it find the prompt the follow-ups had to fix, and would its rewrite have prevented them | `python3 eval/gepa/feedback/run.py evaluate --out <file>` ([details](gepa/feedback/README.md)) | Two lean calls per session and repeat (review, judge) |
 
@@ -28,8 +29,9 @@ cap, tokens, cost and time, live results (gates passed, mean score, which gates 
 often the keyed option is longest), the diff of the prompt under test against the shipped
 one, and every finished trial: click a row for what the model was given, the question it
 wrote and its grade. With two runs it adds a side-by-side comparison. It reads every run that writes a progress file (the GEPA runner does:
-`<out>.progress.json`, or `progress.json` in an optimize run's directory), plus how many
-`claude -p` processes are alive. The other harnesses do not write progress files yet.
+`<out>.progress.json`, or `progress.json` in an optimize run's directory; the explainer harness
+writes `progress.json` in its run directory), plus how many `claude -p` processes are alive.
+The other harnesses do not write progress files yet.
 
 Replace `<run>` with a saved run directory. Model-based stages use the configured
 Claude command and can incur usage.
@@ -778,6 +780,32 @@ passes says nothing about wording quality. When a scenario fails identically on
 baseline and candidate, suspect the scenario before the prompt: two of the first
 run's failures were fixture defects, not model errors. Unparsed replies and call
 errors are counted and reported, never dropped.
+
+## Explainer pages
+
+`node eval/explainer-harness.mjs` scores the page `agents/explainer.md` writes after a missed
+question. Each case in `fixtures/explainer/cases.json` is a brief in the tutor's handoff shape.
+Each trial runs the agent for real with `claude -p`, the agent file as its system prompt and its
+tool set. It gets a fresh `EKLAVYA_HOME`, a throwaway project holding the case's code, and an
+`eklavya` stub on PATH. The stub runs this checkout's CLI, records its arguments, keeps the page
+`new` wrote, and makes `open` print instead of launching a browser.
+
+- **Gates** (`mcp/src/eval/explainer-score.ts`, no model): one file; the template intact around
+  `<!-- CONTENT -->`; no added script; kind, concept and attempt in the metadata; sections in
+  order; options verbatim with `picked`, `right` and each note; a captioned SVG figure using the
+  `.svg-*` classes; a `data-lang` example in the case's language; role tokens only; no emoji;
+  opened; a reply of at most two lines naming the path; a short answer of at most three sentences; and
+  `isolated`, which fails when the session mentions the real `~/.eklavya` or the installed skill.
+- **Judge**, on pages that pass every gate except the sentence count: is the misconception in the
+  actual answer named, could a newcomer repeat the short answer, and clarity 1–5. `compare`
+  judges two runs blind, trial against trial, because the clarity score sits near its ceiling.
+- **Gotcha.** Claude Code cannot run under a throwaway `HOME` (it loses its login), so
+  `pointHome` rewrites the two home paths the agent file names to per-trial copies. A test fails
+  if the agent file stops naming them. `--skill off` (the default) leaves the artifact skill out,
+  so the run measures the agent file. `--skill on` copies `user-skill/eklavya-artifacts`, which
+  is what an installed user has. Run both before and after an agent change.
+
+First result: `results/2026-10-11-explainer.md`.
 
 ## Not built yet
 

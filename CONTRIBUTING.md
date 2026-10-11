@@ -77,6 +77,7 @@ describes visual checks.
 | Runtime behavior | Relevant automated tests and the live learning-loop check below |
 | Hooks or commit gate | Hook/gate tests plus the affected manual scenario below |
 | Tutor pedagogy | Before/after evaluation and live learning-loop transcript |
+| The explainer agent (`agents/explainer.md`) | Before/after [explainer eval](eval/README.md#explainer-pages) runs, with the artifact skill off and on |
 | Dashboard builders, queries, payload or caps, or the routes' caching | Dashboard tests, plus before and after output of the [dashboard perf script](#dashboard-performance) |
 | The dashboard page's boot, render, navigation or live redraw (`dashboard.html`), or the event stream (`/api/events`) | Dashboard browser tests, plus render and transition times taken in a browser. The perf script's `--live` option times a write reaching an open page; the rest of the script measures the server only (see [Dashboard performance](#dashboard-performance)) |
 | Documentation or website | Website build; source-checked examples; visual checks for changed layouts |
@@ -306,6 +307,7 @@ npm run eval -- score eval/results/<run>
 npm run eval -- extract
 npm run eval -- history
 node eval/conversation-harness.mjs run --root <checkout> --label <name>   # grading, pacing and handoff rules
+node eval/explainer-harness.mjs run --root <checkout> --label <name>      # the explainer's page contract
 ```
 
 Replace `<run>` with an existing run directory. Generation, judging and extraction
