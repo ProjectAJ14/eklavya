@@ -27,7 +27,7 @@ Each session start checks the dashboard and starts it if nothing is answering, s
 Dashboard http://127.0.0.1:41729 started in the background · off: eklavya config set dashboard_autostart false
 ```
 
-While it rebuilds its data for an open page, a dashboard with a long history can answer a few hundred milliseconds late. Session start waits 150 ms for the answer and then leaves it alone, and `eklavya dashboard` and `eklavya artifacts open` wait up to 1.5 seconds, so a busy dashboard is not taken for another program.
+While it rebuilds its data for an open page, a dashboard with a long history can answer a few hundred milliseconds late. Session start waits 150 ms for the answer and then leaves it alone. `eklavya dashboard`, `eklavya dashboard stop` and `eklavya artifacts open` wait up to 1.5 seconds, and `eklavya dashboard status` waits one second, so a busy dashboard is not taken for another program.
 
 After an update, the next session replaces a dashboard running an older version. A dashboard started from a newer version is left alone, and so is one serving a different database (`EKLAVYA_DB`) or another program on the port.
 
@@ -81,9 +81,9 @@ Every page is one column at most 1,080 pixels wide, centred in the space beside 
 
 The dashboard remembers which sections you opened or closed, in this browser only.
 
-Tabs, chips, selects, date ranges, pagers and the search boxes change the list in front of you and nothing else. The page does not scroll, the heading and the sidebar stay, and whatever you had open, focused or typed stays as it is. The address still changes, so a filtered list is still a link and Back returns to the earlier list. Opening another page, concept, entry or project, or switching workflow, opens at the top.
+Tabs, chips, selects, date ranges, pagers and the search boxes change the list in front of you and nothing else. The page does not scroll, the heading and the sidebar stay, and whatever you had open, focused or typed stays as it is, including a date you are still typing into a custom range. Tabs, chips, the Domain, Type, Tag and When selects and date ranges also change the address, so a filtered list is still a link and Back returns to the earlier list. A pager, the Sort select and a search box change the list only. Opening another page, concept, entry or project, or switching workflow, opens at the top.
 
-A page you have already seen comes back at once. Going Back, going Forward or opening it again draws it from what the dashboard already read, with no request, until something the page shows changes. A page you have not seen holds the room its list will take, so the footer does not jump, and the archer companion shows there if the answer takes more than a moment. When a pager or filter fetches new rows, the old rows stay on screen and out of reach, and dim if the answer takes more than a moment, until the new ones arrive.
+A page you have already seen comes back at once. Going Back, going Forward or opening it again draws it from what the dashboard already read, with no request, until something the page shows changes. A page you have not seen holds a box for its list while the answer comes, sized from how many rows the dashboard already knows it has, at most one page of them, so with a short history the footer barely moves. The box is an estimate: when the rows take more or less room, the footer moves by the difference, once. The archer companion shows in the box if the answer takes more than a moment. When a pager or filter fetches new rows, the old rows stay on screen and out of reach, and dim if the answer takes more than a moment, until the new ones arrive.
 
 ## Learning
 
@@ -272,7 +272,7 @@ Selecting a project scopes lists and activity, but concept mastery and review da
 
 Most lists show 20 rows per page; the memory timeline shows 25, and a concept's question history shows ten, one line each.
 
-The dashboard loads your newest 800 answers and your newest 800 logged context lines. Totals, mastery, the per-day counts and each project's counts come from every row in the database, so a cap shortens a history list and changes no number. When a cap cuts a list, the footer says how many it shows out of how many. A session whose rows fall outside the caps still opens with what it logged and was asked.
+The dashboard loads your newest 800 answers and your newest 800 logged context lines. Totals, mastery, the per-day counts, each project's counts and the Learning Dashboard's answer count, accuracy and recorded-concept counts, and the number of skipped answers on the Review page, come from every row in the database, so a cap shortens a history list and changes no number. When a cap cuts a list, the footer says how many it shows out of how many. A session whose rows fall outside the caps still opens with what it logged and was asked.
 
 ## While you leave it open
 
@@ -284,8 +284,11 @@ An update does not move what you are reading or using:
 
 - The page does not scroll, and the heatmap stays on the weeks you paged to.
 - Folds, timeline entries and questions you opened stay open.
-- The focus and the caret stay in the search box you are typing in.
-- A Settings field you are editing keeps its text, and a choice list you opened stays open. The rows wait to redraw until you leave the field, while the tab strip, its counts and the scope rail update.
+- The focus stays on the control you are on, whichever it is (a section's summary, a Copy button, a row, a pager button), and the caret stays in the search box you are typing in.
+- Text you selected, a delete confirmation you opened on Feedback and an evidence event you opened on an observation stay as they are while the page around them changes: what the new data did not change is not touched.
+- A tip you are reading stays open.
+- A choice list you opened stays open on any page, and a date you are typing into the Timeline's custom range stays where you are typing. What waited for them, such as the counts in the list's choices, is drawn when you close the list or leave the box.
+- A Settings field you are editing keeps its text. The rows wait to redraw until you leave the field, while the tab strip, its counts and the scope rail update.
 - An explainer you are reading is not reloaded, and its correction bar and dialog keep their state.
 
 Changes that arrive while the page is still reading the last one, such as a session logging several concepts, are read together. A tab you cannot see stops listening and makes no requests. When you return to it, the page catches up in one go, however long you were away. If the dashboard stops, the page keeps what it was showing, shows no banner and reconnects by itself when the dashboard is back. The write token belongs to the dashboard start that served the page, so after a restart a setting you save is refused with "Stale or missing dashboard token. Reload the page." until you reload.
@@ -330,4 +333,4 @@ Each needs a loopback `Origin`, a JSON body and a random token the server puts i
 
 `/api/events` takes a `GET` only and is held to the same loopback check as every other read. It is a `text/event-stream` that sends the current cursor when it connects, then one `cursor` event each time the cursor changes, and a comment line every 25 seconds so nothing closes a quiet stream. It carries nothing else: the page reads `/api/state` and `/api/projects` to learn what changed. While at least one stream is open, the server reads the cursor every second, and it also watches the database's `-wal` file, your user config file, each project's config file and the artifacts folder, waiting 150 ms after the last file event so a burst of writes is one check. A write made through the dashboard's own routes is checked at once. With no stream open, nothing watches and no timer runs. At most 32 streams are open at once; the 33rd gets a `503`, and the page tries again after a pause that starts at 5 seconds and doubles to a minute.
 
-The server keeps the build it made of the state, the project list, the settings pages and the paged memory and feedback lists, and rebuilds one when the cursor has moved. It builds the state and the project list once when it starts listening, so the first page does not wait for them. Scores decay with the clock and a project's checkout can disappear without a database write, so the state, the project list and the settings pages also expire after 60 seconds. A reload, a second tab or a Settings click is then answered from memory. The browser never keeps the JSON. It keeps the tokens, the mascot files, the tips library and the thumbnails for an hour, and it asks the server on every load whether the page is still the one it holds: the check is an `ETag` that changes at each start, because the write token is part of the page.
+The server keeps the build it made of the state, the project list, the settings pages and the paged memory and feedback lists, and rebuilds one when the cursor has moved. It builds the state and the project list once when it starts listening, so a page opened within a minute of the start does not wait for them. Scores decay with the clock and a project's checkout can disappear without a database write, so the state, the project list and the settings pages also expire after 60 seconds, and a page opened after that waits for one rebuild. Until the next change or expiry, a reload, a second tab or a Settings click is answered from memory. The browser never keeps the JSON. It keeps the tokens, the mascot files, the tips library and the thumbnails for an hour, and it asks the server on every load whether the page is still the one it holds: the check is an `ETag` that changes at each start, because the write token is part of the page.

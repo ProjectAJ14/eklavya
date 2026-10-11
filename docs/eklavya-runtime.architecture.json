@@ -11,7 +11,7 @@
     ],
     "repository": {
       "url": "https://github.com/ProjectAJ14/eklavya",
-      "revision": "274f1f63b48094987225fd5806498979ebe92a81"
+      "revision": "90af31863a216820c7c92f5cd10315b78e3e47b7"
     },
     "views": [
       {
@@ -47,7 +47,7 @@
           "db",
           "dashboard"
         ],
-        "note": "Everything that opens knowledge.db from outside a Claude Code session. The page polls a change cursor and admits when it is stale."
+        "note": "Everything that opens knowledge.db from outside a Claude Code session. An open dashboard page listens to a stream of the change cursor and redraws in place."
       },
       {
         "id": "memory-path",

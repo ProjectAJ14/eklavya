@@ -216,8 +216,11 @@ memory pages, `changeCursor`), the size of the `/api/state` payload, and the HTT
 round trips to the routes that serve them. Run it before and after a change to
 those builders, their queries, the payload's shape or caps (`ATTEMPT_LIMIT`,
 `LOGGED_LIMIT`), what the routes cache, or the event stream and its watcher, and
-put both outputs in the PR. It is a contributor tool: CI does not run it and no
-test asserts a time.
+put both outputs in the PR. It is a contributor tool: no CI step uses its
+timings. The test suite runs it only at the small scale, from
+`mcp/test/dashboard-perf.test.ts`, to hold its arguments, units and seeding, and
+the live browser suite asserts that a write reaches an open page within two
+seconds.
 
 Without `--live` it never loads `dashboard.html` and starts no browser, so a
 change that touches only the page leaves every number it prints the same. Page
@@ -281,8 +284,7 @@ For each scale it prints:
   split into the server noticing and rebuilding, the page's two reads, and its
   redraw. The targets at the medium scale are under 500 ms with the watcher and
   under 2 seconds on the check alone. The browser is `EKLAVYA_TEST_BROWSER`, else
-  Playwright's own install, else `/opt/pw-browsers/chromium`; with none of them
-  the script says why and skips this part.
+  Playwright's own install; with neither the script says why and skips this part.
 
 `--json` prints the same measurements as one object per scale (an array for
 `all`) so two runs can be diffed. Compare runs from the same machine, under similar

@@ -60,7 +60,10 @@ what the page cannot honestly derive — all-time totals, which must stay right
 even though `attempts` and `logged` are capped at `ATTEMPT_LIMIT` and
 `LOGGED_LIMIT` rows. A cap shortens a list and never a number: the totals, `daily`,
 the catalogue (its counts and last context) and the inventory's per-project counts
-are aggregated over every row. The two caps are the payload's size budget, 1.5 MB at
+and `totals` are aggregated over every row, and a page states its numbers from them
+(`scopeTotals`: the Learning Dashboard's answers, accuracy and "recorded from your work,
+assessed" line, the Review page's skipped count), never from `attemptsInScope()` or
+`loggedInScope()`, which are only the newest rows once a list is cut. The two caps are the payload's size budget, 1.5 MB at
 a year of daily use (800 rows of each kind is 1.15 to 1.44 MB, by the length of the
 repository path every row carries; `scripts/dashboard-perf.mjs medium` prints it), so
 raising either needs that budget measured again.
@@ -76,9 +79,13 @@ processed or not — entries, receipts, `project_levels`), folds identities with
 `projectKey`, and ships `aliases` (every raw spelling → one id) and `sessions`
 (no-repository sessions proven by their own rows). Each project's `learning` also
 carries `concept_slugs` (every concept any answer or logged line of any origin names
-for it, from every row, sorted, attributed as `pid()` does) and `sessions`, so a
-project's scope and its session count never depend on how many rows the payload
-holds. The page's `pid(raw, sid)` is
+for it, from every row, sorted, attributed as `pid()` does), `sessions` and
+`logged_assessed_concepts` (of its `logged_concepts`, the ones also asked), so a
+project's scope and its counts never depend on how many rows the payload holds. The
+inventory's `totals` (`sessions`, `logged_concepts`, `logged_assessed_concepts`) are
+what no sum of the cards gives: a session that worked in two checkouts, or a concept
+two projects logged, is one. The page reads them for the all-projects scope
+(`sessionTotal`, `scopeTotals`) and a project's own card for one project. The page's `pid(raw, sid)` is
 the only place a row is given a project — call it, never compare `repo` strings.
 Never discover projects from a capped array or a page of the timeline.
 
@@ -117,12 +124,17 @@ what a fetched region shows:
   write that changed one answer forgets just that prefix (`respForget`), and a read
   that was out when the cache was dropped is not stored when it lands (`respAt`).
 - **A miss reserves its room.** The target holds a box as tall as that region last
-  drew (`SLOT_H`), else an estimate measured at a year of use (`SLOT_MIN`), with the
-  mascot loader in it after its own 150ms delay, so the footer does not move.
+  drew (`SLOT_H`), else an estimate (`slotMin`: a list's rows the page already knows of,
+  at most one page of them, times what a row takes, from `SLOT_ROWS`; the rest are
+  `SLOT_MIN`, measured at a year of use), with the mascot loader in it after its own
+  150ms delay. The footer moves by however far the estimate misses, once, and a short
+  history is no longer given room for a year of it.
 - **A region that already shows an answer keeps it.** A pager, a filter or a refetch
   of the same region leaves the old content under `aria-busy` and `data-kept`: out
   of the pointer's reach at once (and the keyboard's, in `onActivate`), dimmed only
-  if the answer takes longer than 150ms, so one that comes from the server's memo in
+  if the answer takes longer than 150ms (a step: `transition: opacity 0s linear 150ms`,
+  and `fill` computes the target's style before it sets `aria-busy`, so an element the
+  same task inserted waits its 150ms too), so one that comes from the server's memo in
   a few milliseconds never flashes. A failed read shows its error and leaves nothing
   dimmed.
 
@@ -140,8 +152,11 @@ attempts and logged rows in scope, `dailyInScope()`, `streaks()`, the sidebar's
 counts, the heatmap's bucketed days) are built once per `S`, `INV`, `PROJECT` and
 local day (`derived()`), then frozen, so a caller that sorts or pushes onto one
 throws: copy first, and never write to a row. The Learning Dashboard draws in about
-20 ms at a year of use and about 24 ms at a large history, from about 55 and 70 to 85
-(headless Chromium on the development machine; reported, not asserted in CI).
+15 ms on a visit after the first at a year of use and at a large history, and in about
+39 ms the first time a page draws it (the first layout and the first run of its code are
+in that), from about 60 and 90 before this work (headless Chromium in the sandbox the
+numbers were taken in; reported, not asserted in CI). The first draw at a year of use is over the
+issue's 30 ms target.
 
 **`/api/state` is append-only.** Add keys; never rename or remove one.
 
@@ -149,7 +164,9 @@ throws: copy first, and never write to a row. The Learning Dashboard draws in ab
 silent* (a button offered a reload because a redraw would have moved the table the
 reader was halfway down). The open dashboard shows new activity by itself. A redraw
 on new data may change numbers, rows and badges in place. It may not change the
-scroll, the focus, the caret, an open fold, a typed value or a framed page. A banner,
+scroll, the focus, the caret, an open fold, an open choice list, a date being typed,
+a typed value, a text selection, an open tip bubble or a framed page. Markup the new
+data did not change replaces nothing, wherever the view has no regions. A banner,
 a button or a toast that asks for a refresh is a defect, and so is a poll:
 `dashboard-live-browser.test.ts` holds the page to this with real writes.
 
@@ -211,7 +228,9 @@ page compares each event with.
   that goes away is the browser's to retry, and the page keeps what it has with no
   banner; a stream the server refuses (a 503) is not retried by the browser, so the
   page opens it again after 5 s, doubling to 60 s. A write the page made itself
-  redraws from its own answer, and the event that follows replaces nothing.
+  redraws from its own answer, and the event that follows replaces nothing on screen (it
+  is one more read of `/api/state`, `/api/projects` and, on Settings, `/api/settings`,
+  which finds the markup unchanged).
 
 | Key | Shape |
 |---|---|
@@ -453,15 +472,30 @@ two regions of one id or nested regions gets. The comparison leaves out what the
 reader owns: whether a fold is open (`FOLD` holds it), the text in a search box (`T`
 holds it) and anything marked `data-hold`. A view stays a pure function of the
 payload, the scope and its controls, and a region is replaced, never patched by hand.
+`pageHead` makes its counts line a region of its own (`head-counts`, so a count that
+moves replaces the line and not the screen: a head that is itself in a region, as
+Settings' is, passes `inRegion`). A redraw for new data first counts a fetched region
+that is only its box as what it shows (`withKept`) and replaces nothing when the screen
+is then the markup it was drawn from, which also holds for a view with no regions
+(`sameMarkup`); the record of the screen is what is on screen, so the answer that
+arrives for such a region is compared with what it shows.
 
 What a redraw may change: numbers, rows, badges, the sidebar's counts, the charts.
 What it may not change: the scroll, the focus and the caret (`captureUi` and
 `restoreUi` carry them, with every open `<details>` that has a stable key: a fold id,
 an entry id or a `data-key`), a Settings value that is typed and not saved, a choice
-list that is open, or a framed page. A redraw for new data (`LIVE_PASS`) leaves alone
-a region that holds a control the reader is using (`unitsInUse`: the focused one, an
-open list, an edited value), puts it on `HELD_BACK`, and draws it when focus leaves
-(`catchUp`). The heatmap's page (`HEAT_OFF`) survives it too. A view with no regions
+list that is open, a date being typed, or a framed page. Focus is carried by `focusKey`:
+an id, a `data-focus` (or another of `FOCUS_KEYS`), or for a `<summary>` its
+`<details>`' key. **A control the reader can Tab to has one**; a new one without it
+loses focus whenever its page is redrawn, and `dashboard-live-browser.test.ts` fails
+a page that has such a control. A redraw for new data (`LIVE_PASS`) leaves alone a region
+that holds a control the reader is using (`unitsInUse`: the focused one, an open
+list wherever it is, a date box with focus, an edited Settings value), puts it on
+`HELD_BACK`, and draws it when focus leaves or the list closes (`catchUp`). A date box
+says it changed at each whole date, after the first digit of the year, and is the box
+the rest is typed into: `typingDate` leaves it in place when that is all the region's
+markup changes. The heatmap's page (`HEAT_OFF`) survives it too. `TIP.sync` opens the
+bubble that was open again when a redraw replaced another feature's element. A view with no regions
 still works: its content is replaced without scrolling, and only what `captureUi`
 carries (focus, the caret, open folds) survives.
 
