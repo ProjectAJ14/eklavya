@@ -972,7 +972,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           const before = await shown();
           await first.close();
           // The server is gone: the browser keeps asking by itself, and the page says nothing and changes nothing.
-          await page.waitForFunction(() => LIVE.es?.readyState === 0, null, { timeout: 5000 });
+          // Not open: CONNECTING while the browser retries, or null when a reconnect raced the shutdown and was
+          // refused with a 503, which closes it for good and leaves the retry to the page.
+          await page.waitForFunction(() => LIVE.es?.readyState !== 1, null, { timeout: 5000 });
           await page.waitForTimeout(1500);
           const gone = await shown();
           expect(gone.view).toBe(before.view);
@@ -1003,7 +1005,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
           await page.waitForFunction(() => LIVE.es?.readyState === 1);
           const count = await reviewCount(page);
           await first.close();
-          await page.waitForFunction(() => LIVE.es?.readyState === 0, null, { timeout: 5000 });
+          // Not open: CONNECTING while the browser retries, or null when a reconnect raced the shutdown and was
+          // refused with a 503, which closes it for good and leaves the retry to the page.
+          await page.waitForFunction(() => LIVE.es?.readyState !== 1, null, { timeout: 5000 });
           writeDue();
           writeDue();
           const reads = watch(page);
