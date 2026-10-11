@@ -40,10 +40,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/tokens.css?v=4">
-<link rel="stylesheet" href="/styles.css?v=11">
-<link rel="stylesheet" href="/demo/demo.css?v=2">
+<link rel="stylesheet" href="/styles.css?v=12">
+<link rel="stylesheet" href="/demo/demo.css?v=3">
 <link rel="stylesheet" href="/brand/mascot/mascot.css?v=1">
+<link rel="stylesheet" href="/hero-eyes.css?v=1">
 <script src="/brand/mascot/mascot.js?v=1" defer></script>
+<script src="/hero-eyes.js?v=1" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -65,6 +67,30 @@
 </nav>
 <main id="main">
   <header class="hero" id="top">
+    <!-- The original bow-to-target scene stays in the space above the hero content. -->
+    <svg class="hero__arrows" data-hero-shot data-hero-playing="false" viewBox="0 0 1000 60" fill="none" aria-hidden="true">
+      <line x1="104" y1="30" x2="900" y2="30" stroke="color-mix(in srgb, var(--spot) 35%, transparent)" stroke-width="1.5" stroke-dasharray="2 9" stroke-linecap="round"/>
+      <g class="hero__shot-bow">
+        <path d="M 26 8 Q 50 30 26 52" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+        <line x1="26" y1="8" x2="26" y2="52" stroke="color-mix(in srgb, var(--spot) 60%, transparent)" stroke-width="1.2"/>
+      </g>
+      <g class="hero__shot-arrow">
+        <line x1="32" y1="30" x2="88" y2="30" stroke="var(--spot)" stroke-width="2.4" stroke-linecap="round"/>
+        <polyline points="82 24 92 30 82 36" stroke="var(--spot)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="38" y1="30" x2="31" y2="24" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+        <line x1="38" y1="30" x2="31" y2="36" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+        <line x1="46" y1="30" x2="39" y2="24" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+        <line x1="46" y1="30" x2="39" y2="36" stroke="var(--spot)" stroke-width="2" stroke-linecap="round"/>
+      </g>
+      <g class="hero__shot-target">
+        <circle cx="946" cy="30" r="24" stroke="var(--spot)" stroke-width="2"/>
+        <circle cx="946" cy="30" r="15" stroke="color-mix(in srgb, var(--spot) 55%, transparent)" stroke-width="1.6"/>
+        <circle cx="946" cy="30" r="6.5" stroke="color-mix(in srgb, var(--spot) 40%, transparent)" stroke-width="1.6"/>
+        <circle cx="946" cy="30" r="2.5" fill="var(--spot)"/>
+      </g>
+      <circle class="hero__shot-ripple" cx="946" cy="30" r="25" stroke="var(--spot)" stroke-width="1.6"/>
+      <circle class="hero__shot-ripple hero__shot-ripple--late" cx="946" cy="30" r="25" stroke="color-mix(in srgb, var(--spot) 50%, transparent)" stroke-width="1.2"/>
+    </svg>
     <div class="wrap hero__inner">
       <div class="hero__copy">
         <p class="eyebrow">Learning and memory for Claude Code</p>
@@ -78,7 +104,7 @@
       </div>
       <div class="hero__art" aria-hidden="true">
         <svg class="hero__target" viewBox="0 0 400 400" fill="none"><circle cx="200" cy="200" r="184"/><circle cx="200" cy="200" r="144"/><circle cx="200" cy="200" r="104"/><path d="M200 0v36m0 328v36M0 200h36m328 0h36"/></svg>
-        <eklavya-mascot state="info" size="340"></eklavya-mascot>
+        <eklavya-mascot data-hero-mascot state="info" size="340"></eklavya-mascot>
         <span class="hero__art-label">A little practice, every day.</span>
       </div>
     </div>
@@ -199,9 +225,9 @@
   </div>
 </footer>
 </div>
-<script src="/app.js?v=11" defer></script>
+<script src="/app.js?v=12" defer></script>
 <script src="/demo/panel-model.js?v=1" defer></script>
-<script src="/demo/demo.js?v=2" defer></script>
+<script src="/demo/demo.js?v=3" defer></script>
 <script src="/analytics.js?v=2" defer></script>
 </body>
 </html>

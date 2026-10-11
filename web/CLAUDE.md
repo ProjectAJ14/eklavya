@@ -10,6 +10,7 @@ and `.claude/skills/eklavya-design/SKILL.md` before changing them.
 |---|---|
 | `public/index.html`, `styles.css`, `app.js` | Landing copy, mascot hero, compact `#legend`, embedded `#demo`, GitHub stars, navigation and theme controls |
 | `public/demo/` | Automatic replay assets and the legacy `/demo/` redirect |
+| `public/hero-eyes.js`, `hero-eyes.css` | Green eyes and mouse tracking for the landing-page hero mascot only |
 | `public/tokens.css` | Shared scale and semantic roles for ink/paper themes |
 | `src/content/docs/docs/*.mdx` | Manual pages at `/docs/…` |
 | `src/styles/docs.css` | Starlight theme integration |
@@ -108,6 +109,13 @@ information in text.
 
 The landing hero introduces Eklavya with its mascot on a dark ground. Keep the
 home page lean, with the automatic terminal replay embedded at `/#demo`.
+Keep the faint bow-to-target animation in the first section's background. It
+repeats while the hero is visible and the browser is active; reduced motion
+shows still artwork. It must not obscure the copy, mascot or controls.
+Only the hero mascot has green eyes, using the hero's `--spot` role. Its pupils
+follow the mouse within the eye shapes and return to center when inactive.
+Keep them centered on touch screens and with reduced motion. Leave the shared
+mascot artwork and other instances unchanged.
 `/demo/` redirects there for old links. How it works, dials, commands, dashboard
 and memory details stay in the manual.
 
@@ -124,6 +132,9 @@ The example selects and submits an answer, shows the result, closes it with
 Done and completes the task. The panel is hidden before the question arrives.
 Visitors do not type or answer. Keep the prompt and quiz controls out of
 keyboard navigation, and never move focus during the replay.
+After completion, keep the same control enabled as "Replay demo". It resets the
+whole example and follows the same visibility and pause rules. With reduced
+motion, it returns to the beginning of the still transcript.
 
 Pause the replay when the box leaves view, the tab is hidden or the window is
 inactive. Honor reduced motion without animated typing, a blinking cursor or
@@ -163,6 +174,8 @@ completion. Check pauses on scroll, tab visibility and window focus, stable
 keyboard focus, and reduced motion. Check `/#demo` and the `/demo/` redirect.
 Check the legend's heading, columns, in-page anchors, one-shot arrow animation
 and static reduced-motion view in both themes.
+Check the hero eyes against the brand accent, bounded mouse tracking, centered
+touch/reduced-motion eyes and unchanged mascots elsewhere.
 Report the actual checks, including any not run.
 
 After changing shared identity, run `npm run seo:refresh` and commit the

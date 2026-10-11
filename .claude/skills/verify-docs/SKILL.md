@@ -140,13 +140,20 @@ Shared brief:
 | Reviewer | Surface and extra instructions |
 |---|---|
 | Manual | Every `.mdx` page `web/CLAUDE.md` maps to a changed source file. Install or default changes also require `installing.mdx`, `faq.mdx`, `first-run.mdx`, `first-session.mdx`, `installation-options.mdx`, `dials.mdx`, `configuration.mdx`, `memory.mdx`, `migrating.mdx` and `your-data.mdx`. Check `commands.mdx` and `cli.mdx` when skills or CLI handlers change. Check `DocFlow` stages and runtime diagram claims in `how-it-works.mdx` |
-| Website | `web/public/index.html`, `app.js`, `ground.js` and `public/demo/`, with `web/scripts/demo-panel.mjs` as evidence for generated labels and logo. Check the embedded `#demo`, its visibility trigger and automatic sequence, the compact `#legend` and its one-shot arrow scene, panel states against `hooks/panel/model.ts`, `mcp/src/panel.ts` and `panel-state.ts`, the `/demo/` redirect, GitHub stars and old docs links. Report behavior or layout bugs without editing them |
+| Website | `web/public/index.html`, `app.js`, `ground.js`, `hero-eyes.js`, `hero-eyes.css` and `public/demo/`, with `web/scripts/demo-panel.mjs` as evidence for generated labels and logo. Check the embedded `#demo`, its visibility trigger and automatic sequence, the compact `#legend` and its one-shot arrow scene, hero eye tracking, panel states against `hooks/panel/model.ts`, `mcp/src/panel.ts` and `panel-state.ts`, the `/demo/` redirect, GitHub stars and old docs links. Report behavior or layout bugs without editing them |
 | README | `README.md` and `mcp/README.md`. Check install commands, the tool list against `mcp/src/tools/index.ts`, counts, and links. Keep the README short: fixes replace text; new detail goes to the manual with a link |
 
 ## Current site and install checks
 
 - **The home includes the automatic demo.** Keep the mascot on a dark hero,
-  including in paper mode, and the terminal replay embedded at `/#demo`.
+  including in paper mode, with its faint bow-to-target background animation.
+  Check that this hero artwork pauses offscreen and in an inactive browser,
+  stays static with reduced motion, and does not obscure text or controls.
+  Only the hero mascot has green eyes matching its brand accent. Check bounded
+  mouse-following pupils, centered eyes on touch screens and with reduced
+  motion, and unchanged mascot instances elsewhere. The shared artwork is
+  not the source of this landing-page decoration.
+  Keep the terminal replay embedded at `/#demo`.
   `/demo/` redirects there. Do not move the replay to a separate page or require
   visitors to follow a link to see it. Detailed feature explanations stay in
   docs. Preserve useful old section links and keep the GitHub star box visible,
@@ -162,12 +169,16 @@ Shared brief:
   banner covers any part of the box. Check the sequence: typed prompt, Enter,
   work, question,
   automatic answer selection and submission, result, Done and task completion.
+  The finished control becomes "Replay demo" and resets the entire example
+  without moving page scroll or keyboard focus. Verify a second complete run;
+  under reduced motion, replay returns to the start of the still transcript.
   The panel stays hidden until the question arrives. Visitors do not type or
   answer, and the pictured controls must not take focus or enter keyboard
   navigation. Pause when the box leaves view, the tab is hidden or the window
   is inactive. Check reduced motion without animated typing, cursor blinking
-  or panel transitions. Read `web/public/app.js`, `ground.js` and the demo files
-  as evidence; report behavior bugs instead of fixing them in a docs run.
+  or panel transitions. Read `web/public/app.js`, `ground.js`, the hero-eye
+  assets and the demo files as evidence; report behavior bugs instead of
+  fixing them in a docs run.
 - **The demo is an example.** It must say that it does not run Claude. Check
   quoted product strings against their source. Task output and test counts
   describe the example, not a live session. The predetermined answer must not

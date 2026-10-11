@@ -317,12 +317,13 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
       await showWholeTerminal(page);
       await advanceToState(page, 'complete');
       expect(await page.locator('[data-panel]').isVisible()).toBe(false);
-      expect(await pause.textContent()).toBe('Demo finished');
-      expect(await pause.getAttribute('aria-disabled')).toBe('true');
+      expect(await pause.textContent()).toBe('Replay demo');
+      expect(await pause.getAttribute('aria-disabled')).toBeNull();
       expect(await pause.getAttribute('aria-pressed')).toBeNull();
       expect(await pause.evaluate(element => element === document.activeElement)).toBe(true);
       await page.keyboard.press('Enter');
-      expect(await terminal.getAttribute('data-demo-state')).toBe('complete');
+      await advanceToState(page, 'typing');
+      expect(await pause.evaluate(element => element === document.activeElement)).toBe(true);
     } finally { await page.close(); }
   });
 
@@ -338,13 +339,110 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
       expect(await page.locator('[data-step]:not([hidden])').count()).toBe(6);
       expect(await page.locator('[data-task-done]').isVisible()).toBe(true);
       expect(await page.locator('[data-demo-pause]').isVisible()).toBe(true);
-      expect(await page.locator('[data-demo-pause]').getAttribute('aria-disabled')).toBe('true');
-      expect(await page.locator('[data-demo-pause]').textContent()).toBe('Demo finished');
+      const replay = page.locator('[data-demo-pause]');
+      expect(await replay.getAttribute('aria-disabled')).toBeNull();
+      expect(await replay.textContent()).toBe('Replay demo');
       await showWholeTerminal(page);
+      await page.locator('[data-transcript]').evaluate(element => { element.scrollTop = element.scrollHeight; });
+      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+      await replay.evaluate(element => (element as HTMLElement).focus({preventScroll:true}));
+      const position = await page.evaluate(() => scrollY);
+      await page.keyboard.press('Enter');
+      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBe(0);
+      expect(await page.evaluate(() => scrollY)).toBe(position);
+      expect(await replay.evaluate(element => element === document.activeElement)).toBe(true);
+      expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
       await page.clock.runFor(60000);
       expect(await terminal.getAttribute('data-demo-state')).toBe('complete');
       expect(await page.locator('[data-panel]').isVisible()).toBe(false);
+      expect(await page.locator('[data-prompt]').textContent()).toBe('');
+      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBe(0);
+      expect(await page.locator('[data-step]:not([hidden])').count()).toBe(6);
+      expect(await replay.textContent()).toBe('Replay demo');
+      expect(await replay.evaluate(element => element === document.activeElement)).toBe(true);
       expect(await terminal.locator('input, textarea').count()).toBe(0);
+    } finally { await page.close(); }
+  });
+
+  it('clears a completed replay and runs one fresh session when the terminal is visible again', async () => {
+    const page = await browser.newPage({viewport:{width:390,height:640}});
+    try {
+      await serveWebsite(page);
+      await installPausedClock(page);
+      await page.goto(server.url);
+      await showWholeTerminal(page);
+      await advanceToState(page, 'complete');
+      const terminal = page.locator('[data-terminal]');
+      const replay = page.locator('[data-demo-pause]');
+      expect(await replay.textContent()).toBe('Replay demo');
+      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+      await replay.evaluate(element => (element as HTMLElement).focus({preventScroll:true}));
+      await terminal.evaluate(element => {
+        const phases: string[] = [];
+        (window as unknown as {replayPhases:string[]}).replayPhases = phases;
+        new MutationObserver(records => {
+          for (let index = 0; index < records.length; index++) {
+            phases.push(records[index + 1]?.oldValue ?? element.getAttribute('data-demo-state')!);
+          }
+        }).observe(element, {attributes:true,attributeFilter:['data-demo-state'],attributeOldValue:true});
+      });
+
+      await page.evaluate(() => {
+        window.scrollTo({top:0,behavior:'instant'});
+        window.dispatchEvent(new Event('blur'));
+      });
+      expect(await terminal.evaluate(element => element.getBoundingClientRect().top >= innerHeight)).toBe(true);
+      await page.keyboard.press('Enter');
+      expect(await replay.evaluate(element => element === document.activeElement)).toBe(true);
+      expect(await page.evaluate(() => scrollY)).toBe(0);
+      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
+      expect(await terminal.getAttribute('data-demo-paused')).toBe('true');
+      expect(await page.locator('[data-prompt]').textContent()).toBe('');
+      expect(await page.locator('.transcript__ready[data-ready]').isVisible()).toBe(true);
+      expect(await page.locator('[data-task-log]').isVisible()).toBe(false);
+      expect(await page.locator('[data-task-done]').isVisible()).toBe(false);
+      expect(await page.locator('[data-panel]').isVisible()).toBe(false);
+      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBe(0);
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await page.clock.runFor(60000);
+      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      await showWholeTerminal(page);
+      await page.clock.runFor(30000);
+      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await advanceToState(page, 'typing');
+      await page.clock.runFor(700);
+      expect((await page.locator('[data-prompt]').textContent())!.length).toBeGreaterThan(0);
+      expect(await page.locator('[data-step]:not([hidden])').count()).toBe(0);
+      const position = await page.evaluate(() => scrollY);
+
+      for (const phase of ['awaiting','selected','submitting','grading','feedback','acknowledging','continuing','complete']) {
+        await advanceToState(page, phase);
+        expect(await replay.evaluate(element => element === document.activeElement)).toBe(true);
+        expect(await page.evaluate(() => scrollY)).toBe(position);
+        if (phase === 'awaiting') {
+          expect(await page.locator('[data-question]').isVisible()).toBe(true);
+          expect(await page.locator('[data-option][data-selected="true"]').count()).toBe(0);
+          expect(await page.locator('.quiz-option__tick').allTextContents()).toEqual(['','','','','']);
+          expect(await page.locator('[data-submit]').isVisible()).toBe(true);
+          expect(await page.locator('[data-grading]').isVisible()).toBe(false);
+          expect(await page.locator('[data-result]').isVisible()).toBe(false);
+          expect(await page.locator('[data-step="5"]').isVisible()).toBe(false);
+        }
+        if (phase === 'selected') expect(await page.locator('[data-option][data-selected="true"]').count()).toBe(1);
+        if (phase === 'feedback') expect(await page.locator('[data-verdict]').textContent()).toBe('Correct');
+      }
+      expect(await page.locator('[data-panel]').isVisible()).toBe(false);
+      expect(await page.locator('[data-step]:not([hidden])').count()).toBe(6);
+      expect(await page.locator('[data-result] .quiz-stem').count()).toBe(1);
+      expect(await replay.textContent()).toBe('Replay demo');
+      await page.clock.runFor(60000);
+      expect(await terminal.getAttribute('data-demo-state')).toBe('complete');
+      const phases = await page.evaluate(() => (window as unknown as {replayPhases:string[]}).replayPhases);
+      for (const phase of ['awaiting','selected','feedback','complete']) {
+        expect(phases.filter(value => value === phase), `${phase} should happen once in the second replay`).toHaveLength(1);
+      }
     } finally { await page.close(); }
   });
 
@@ -505,11 +603,42 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
     } finally { await page.close(); }
   });
 
-  it('keeps the name and arrow scene on the homepage, with a still reduced-motion version', async () => {
+  it('keeps both arrow scenes decorative, pauses the hero loop, and honors reduced motion', async () => {
     const page = await browser.newPage();
     try {
+      await page.addInitScript(() => Object.defineProperty(document, 'hasFocus', {value:() => false}));
       await serveWebsite(page);
+      await page.goto(server.url);
+      const hero = page.locator('[data-hero-shot]');
+      const arrow = hero.locator('.hero__shot-arrow');
+      expect(await hero.getAttribute('aria-hidden')).toBe('true');
+      expect(await hero.locator('.hero__shot-bow, .hero__shot-arrow, .hero__shot-target').count()).toBe(3);
+      expect(await page.evaluate(() => document.hidden)).toBe(false);
+      await expect.poll(() => hero.getAttribute('data-hero-playing')).toBe('false');
+      expect(await arrow.evaluate(element => getComputedStyle(element).animationPlayState)).toBe('paused');
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await expect.poll(() => hero.getAttribute('data-hero-playing')).toBe('true');
+      expect(await arrow.evaluate(element => getComputedStyle(element).animationIterationCount)).toBe('infinite');
+      expect(await arrow.evaluate(element => getComputedStyle(element).animationPlayState)).toBe('running');
+      const opacity = await hero.evaluate(element => Number(getComputedStyle(element).opacity));
+      expect(opacity).toBeGreaterThan(0);
+      expect(opacity).toBeLessThan(.5);
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', {configurable:true,get:() => true});
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(await hero.getAttribute('data-hero-playing')).toBe('false');
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', {configurable:true,get:() => false});
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(await hero.getAttribute('data-hero-playing')).toBe('true');
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      expect(await hero.getAttribute('data-hero-playing')).toBe('false');
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      expect(await hero.getAttribute('data-hero-playing')).toBe('true');
       await page.goto(new URL('/#legend',server.url).href);
+      await expect.poll(() => hero.getAttribute('data-hero-playing')).toBe('false');
       expect(page.url()).toBe(new URL('/#legend',server.url).href);
       expect(await page.getByRole('heading', {name:'The archer who taught himself',exact:true}).isVisible()).toBe(true);
       expect(await page.locator('#legend .eyebrow').textContent()).toBe('The name');
@@ -524,9 +653,82 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
       for (const part of ['.shot__arrow','.shot__bow','.shot__target','.shot__ripple']) {
         expect(await page.locator(part).first().evaluate(element => getComputedStyle(element).animationName)).toBe('none');
       }
+      expect(await arrow.evaluate(element => getComputedStyle(element).animationName)).toBe('none');
+      expect(await hero.getAttribute('data-hero-playing')).toBe('false');
       expect(await page.locator('.shot__arrow').evaluate(element => getComputedStyle(element).opacity)).toBe('1');
       expect(await page.locator('#legend-title').isVisible()).toBe(true);
     } finally { await page.close(); }
+  });
+
+  it('gives only the hero mascot green eyes that follow a mouse and stay centered for touch or reduced motion', async () => {
+    const page = await browser.newPage({viewport:{width:1280,height:900}});
+    let touch: Page | undefined;
+    try {
+      await serveWebsite(page);
+      await page.goto(server.url);
+      const pupils = page.locator('[data-hero-mascot] .hero-eye__pupil');
+      const centered = ['translate(0 0)','translate(0 0)'];
+      const positions = () => pupils.evaluateAll(elements => elements.map(element => element.getAttribute('transform')));
+      await expect.poll(() => pupils.count()).toBe(2);
+      await expect.poll(positions).toEqual(centered);
+      // An ordinary instance shares the page's styles but has no hero opt-in.
+      await page.locator('footer').evaluate(element => {
+        const mascot = document.createElement('eklavya-mascot');
+        mascot.setAttribute('state', 'info');
+        mascot.setAttribute('data-test-footer-mascot', '');
+        element.appendChild(mascot);
+      });
+      const ordinary = page.locator('[data-test-footer-mascot]');
+      const ordinaryMarkup = await ordinary.innerHTML();
+      const ordinaryFill = await ordinary.locator('.ek-mascot__face > rect').first().evaluate(element => getComputedStyle(element).fill);
+      for (const ground of ['ink','paper']) {
+        await page.locator(`[data-ground="${ground}"]`).click();
+        const brand = await page.locator('.hero h1 em').evaluate(element => getComputedStyle(element).color);
+        expect(await page.locator('[data-hero-mascot] .hero-eye').evaluateAll(elements => elements.map(element => getComputedStyle(element).fill))).toEqual([brand,brand]);
+        expect(ordinaryFill).not.toBe(brand);
+        await page.mouse.move(2,2);
+        await expect.poll(positions).not.toEqual(centered);
+        const first = await positions();
+        await page.mouse.move(1278,898);
+        await expect.poll(positions).not.toEqual(first);
+        expect(await pupils.evaluateAll(elements => {
+          const eyes = document.querySelectorAll('[data-hero-mascot] .hero-eye');
+          return elements.every((element, index) => {
+            const pupil = element.getBoundingClientRect(), eye = eyes[index].getBoundingClientRect();
+            return pupil.left >= eye.left && pupil.right <= eye.right && pupil.top >= eye.top && pupil.bottom <= eye.bottom;
+          });
+        })).toBe(true);
+      }
+      await page.evaluate(() => document.dispatchEvent(new PointerEvent('pointerout', {pointerType:'mouse',relatedTarget:null})));
+      expect(await positions()).toEqual(centered);
+      await page.mouse.move(2,2);
+      await expect.poll(positions).not.toEqual(centered);
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      expect(await positions()).toEqual(centered);
+      await page.mouse.move(1278,898);
+      expect(await positions()).toEqual(centered);
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await page.mouse.move(2,2);
+      await expect.poll(positions).not.toEqual(centered);
+      await page.evaluate(() => document.dispatchEvent(new PointerEvent('pointermove', {pointerType:'touch',clientX:1278,clientY:898,bubbles:true})));
+      expect(await positions()).toEqual(centered);
+      await page.emulateMedia({reducedMotion:'reduce'});
+      await page.mouse.move(1278,898);
+      expect(await positions()).toEqual(centered);
+      expect(await ordinary.innerHTML()).toBe(ordinaryMarkup);
+      expect(await ordinary.locator('.ek-mascot__face > rect').first().evaluate(element => getComputedStyle(element).fill)).toBe(ordinaryFill);
+      expect(await ordinary.locator('.hero-eye, .hero-eye__pupil').count()).toBe(0);
+
+      touch = await browser.newPage({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+      await serveWebsite(touch);
+      await touch.goto(server.url);
+      const touchPupils = touch.locator('[data-hero-mascot] .hero-eye__pupil');
+      await expect.poll(() => touchPupils.count()).toBe(2);
+      expect(await touch.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)).toBe(false);
+      await touch.touchscreen.tap(10,10);
+      await touch.mouse.move(388,842);
+      expect(await touchPupils.evaluateAll(elements => elements.map(element => element.getAttribute('transform')))).toEqual(centered);
+    } finally { await page.close(); await touch?.close(); }
   });
 
   it('fits both grounds on mobile and loads everything from loopback', async () => {

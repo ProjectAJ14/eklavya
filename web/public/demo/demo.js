@@ -78,8 +78,8 @@
   function pauseLabel() {
     if (!pauseButton) return;
     pauseButton.hidden = false;
-    pauseButton.textContent = finished ? 'Demo finished' : userPaused ? 'Resume animation' : 'Pause animation';
-    pauseButton.setAttribute('aria-disabled', String(finished));
+    pauseButton.textContent = finished ? 'Replay demo' : userPaused ? 'Resume animation' : 'Pause animation';
+    pauseButton.removeAttribute('aria-disabled');
     if (finished) pauseButton.removeAttribute('aria-pressed');
     else pauseButton.setAttribute('aria-pressed', String(userPaused));
   }
@@ -244,13 +244,49 @@
     transcript.scrollTop = transcript.scrollHeight;
   }
 
-  prompt.textContent = '';
-  panelOpen(false);
-  terminal.dataset.demoPaused = 'true';
-  phase('idle', 'The example starts when the whole terminal is in view.');
-  pauseLabel();
+  function reset() {
+    pauseClock();
+    finished = false;
+    userPaused = false;
+    nextEvent = 0;
+    elapsed = 0;
+    prompt.textContent = '';
+    find('[data-ready]').hidden = false;
+    ['[data-task-log]', '[data-running]', '[data-task-done]', '[data-question]',
+      '[data-grading]', '[data-topic]', '[data-result]'].forEach(function (selector) {
+      find(selector).hidden = true;
+    });
+    find('[data-empty]').hidden = false;
+    steps.forEach(function (step) { step.hidden = true; });
+    options.forEach(function (option) {
+      delete option.dataset.selected;
+      option.querySelector('.quiz-option__tick').textContent = '';
+    });
+    actions.hidden = false;
+    find('[data-submit]').dataset.ready = 'false';
+    find('[data-verdict]').textContent = '';
+    find('[data-explanation]').textContent = '';
+    ['[data-enter]', '[data-submit]', '[data-done]'].forEach(function (selector) {
+      find(selector).classList.remove('is-pressed');
+    });
+    panelOpen(false);
+    panelContent.scrollTop = 0;
+    transcript.scrollTop = 0;
+    phase('idle', 'The example starts when the whole terminal is in view.');
+    pauseLabel();
+  }
+
+  reset();
   if (pauseButton) pauseButton.addEventListener('click', function () {
-    if (finished) return;
+    if (finished) {
+      reset();
+      if (motion.matches) {
+        staticSummary();
+        // Let reduced-motion readers revisit the still transcript from the start.
+        transcript.scrollTop = 0;
+      } else syncPlayback();
+      return;
+    }
     userPaused = !userPaused;
     pauseLabel();
     syncPlayback();
