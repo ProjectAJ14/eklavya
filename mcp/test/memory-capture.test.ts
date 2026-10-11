@@ -24,9 +24,11 @@ const IDENTITY: EvidenceIdentity = {
   host: 'claude-code',
 };
 
-/** A fresh deep copy: a test that mutates the shared default poisons the rest. */
+/** Local summaries, with a fresh deep copy so mutations cannot leak between tests. */
 function config(over: Partial<EklavyaConfig> = {}): EklavyaConfig {
-  return { ...structuredClone(DEFAULT_CONFIG), ...over };
+  const local = structuredClone(DEFAULT_CONFIG);
+  local.providers.observer = null;
+  return { ...local, ...over };
 }
 
 function event(over: Partial<HostEvent> = {}): HostEvent {
@@ -239,7 +241,7 @@ describe('the job worker', () => {
     expect(result.processed).toBe(1);
     expect(result.entries).toBeGreaterThanOrEqual(1);
     expect((db.prepare('SELECT COUNT(*) AS n FROM memory_entries').get() as { n: number }).n).toBeGreaterThanOrEqual(1);
-    // Never the provider: the default config has no observer configured.
+    // This fixture selects the local summarizer rather than a model provider.
     expect((db.prepare('SELECT DISTINCT generator FROM memory_entries').all() as { generator: string }[])).toEqual([
       { generator: 'local-v1' },
     ]);
