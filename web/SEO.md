@@ -20,7 +20,7 @@ sources are mapped in `CLAUDE.md`; new metadata follows the same contract.
 | Utility pages | 404 and standalone architecture viewer are noindex; viewer retains share metadata | Neither appears in the sitemap; missing URLs keep a real 404 response |
 | Link quality | Check built HTML links, fragments and local resources, plus README website URLs | No missing local targets or anchors |
 | Regression prevention | SEO checks run after every build and in the website CI job | Broken metadata, images, sitemap or links fail the build before deployment |
-| Presentation | Review homepage and docs at 1280, 900 and 560px, in ink and paper | No horizontal page overflow, browser errors or broken terminal interaction |
+| Presentation | Review homepage and docs at 1280, 900 and 560px, in ink and paper | No horizontal page overflow, browser errors or broken automatic demo |
 
 ## Sources of truth and maintenance
 
@@ -34,6 +34,12 @@ The homepage remains handwritten HTML. After changing the shared identity, run
 `npm run seo:refresh` and commit the updated HTML. Normal builds check it for
 drift instead of silently modifying tracked source files. The architecture
 viewer remains generated upstream: only its copied version gains site metadata.
+
+The automatic terminal replay belongs to the homepage at `/#demo`. Keep `/demo/`
+as a redirect to that anchor, rather than a separate indexed demo page. Preserve
+the home canonical URL and verify the anchor and redirect in the built site.
+The compact name story remains on the home page at `/#legend`; preserve its
+heading and `#legend-title` anchor instead of redirecting them to docs.
 
 `public/brand/mark.svg` is the editable icon master. After editing it, run
 `npm run icons` and commit the SVG/PNG/ICO exports. Do not replace the mark with
@@ -55,7 +61,13 @@ through `postbuild`. No runtime application or learner data is involved.
 ## Record validation per change
 
 Include the build result, inspected pages, viewport/theme coverage and any
-emulator checks in the PR. Page counts and card sizes belong in that dated
+emulator checks in the PR. For the home demo, check that the whole box fits the
+viewport and starts only when fully visible, that the panel stays hidden until
+the question, and that the example finishes without visitor input. Check
+reduced motion, offscreen and background pauses, and that focus stays put.
+Verify the GitHub star link remains visible if the count cannot load. Check
+the name story's anchors, readable heading and columns, one-shot arrow scene
+and static reduced-motion view. Page counts and card sizes belong in that dated
 record, not in the ongoing maintenance contract. A local pass does not establish
 a production deployment, search indexing or field performance.
 

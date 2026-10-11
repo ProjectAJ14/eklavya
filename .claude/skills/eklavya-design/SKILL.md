@@ -99,7 +99,7 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
 - **Square chrome.** Buttons, cards, chips, dials, tables, tiles, badges, inputs and
   code blocks are `border-radius: 0`. Circles (`50%`) only for dots, step numbers and
   ripples; `--radius-pill` only for scrollbar thumbs. `--radius-term` (16px) belongs
-  to the hero terminal and the arrow scene alone. `--radius-sm/md/lg` are for small
+  to the demo terminal and the arrow scene alone. `--radius-sm/md/lg` are for small
   data marks (legend swatches, chart bars), never chrome.
 - **Hairlines, not shadows.** Separation is 1px `--line` or `--line-2`. `--shadow-lg`
   is for things that float (menus, popovers, dialogs).
@@ -112,10 +112,13 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
   `-base`, `-slow`); micro-interactions 140–200ms. No bounce, no spring.
 - Scroll reveals: opacity 0 + translateY(18px) → visible over 0.7s, staggered
   100–400ms, fired once by an IntersectionObserver at threshold 0.15.
-- Loops are keyframe-driven with percentage windows: terminal 16s, arrow flight 9s.
-  The arrow launches fast and decelerates (`cubic-bezier(.3,0,.4,1)`), the bow
-  recoils ~5px, the target pops 1 → 1.06 → 1, two ripple rings fade. Head forward,
-  fletching back.
+- The terminal replay uses the timing in its script. Start only when its whole
+  box is visible; pause offscreen, in a hidden tab and when the window is
+  inactive. The replay must not steal focus. Under reduced motion, remove
+  animated typing, cursor blinking and panel transitions.
+- The home legend's decorative bow, arrow and target scene animates once when
+  it enters view. The arrow launches quickly and slows near its target; the bow
+  recoils and the target responds. Under reduced motion, show the static art.
 - `prefers-reduced-motion: reduce` collapses every animation and transition so
   content lands in its final state.
 
@@ -125,13 +128,21 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
   `--spot-ink` on a 30px square `--spot` tile, then "Eklavya" in Archivo 900 19px.
 - **Arrow flight:** line bow → dashed trajectory → concentric target. Full strength
   in story sections; as ambient art at `--shot-op` with a slight blur.
-- **Terminal window:** `--radius-term`, three muted dots, mono 13px/1.75, showing the
-  real loop (prompt → work → concept log → quiz → grade) line by line with a
-  blinking verdigris block cursor. Its quoted output is real product output.
-- **Home and demo have separate jobs.** The home hero uses the Archer Cloak
-  mascot on a dark ground with a short introduction. The terminal lives on
-  `/demo/` and follows Claude Code's transcript and the shipped quiz mod's
-  panel, including its selection, submit and result states.
+- **Terminal window:** use the terminal palette and mono type for a browser
+  replay of Claude Code's transcript and Eklavya panel. Product strings come
+  from the shipped code; example task output must be clearly an example.
+- **Home hero and embedded demo:** keep the Archer Cloak mascot on a dark ground
+  with a short introduction. The automatic replay belongs on the home page at
+  `/#demo`. `/demo/` redirects there. Detailed feature explanations stay in docs.
+  Keep the GitHub star box visible and use a real count from GitHub.
+- **The name:** preserve the compact `#legend` section, its "The name" eyebrow,
+  "The archer who taught himself" heading, three short story columns and the
+  bow, arrow and target art. The SVG is decorative and stays on the home page.
+- **Replay sequence:** type the prompt, show Enter and the work, open the panel
+  only when the question arrives, then select and submit the example answer,
+  show its result, show Done and finish the task. Match the panel's labels and
+  states to the shipped mod. Visitors do not type, choose or submit anything;
+  the pictured controls must not take keyboard focus.
 
 ## States, focus and icons
 

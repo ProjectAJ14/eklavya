@@ -57,9 +57,15 @@ jobs:
           prompt: |
             Use the verify-docs skill with --since "${{ inputs.since || '7 days ago' }}" --fix --pr --issue.
             Follow the skill's full review and plain-English rules. Keep the home
-            page lean, with the mascot on a dark hero. The terminal demo belongs
-            at /demo/ and should match the shipped Claude Code side panel; feature
-            details belong in the manual.
+            page lean, with the mascot on a dark hero and the automatic replay
+            embedded at /#demo. Check its whole-box visibility trigger, initially
+            hidden panel, complete sequence without visitor input, stable focus,
+            background pauses and reduced motion. Match panel labels to the
+            shipped mod. /demo/ redirects to the home demo. Keep the GitHub star
+            box visible with a real count; feature details belong in the manual.
+            Preserve the compact #legend name story, its heading and decorative
+            bow, arrow and target scene. Check its one-shot visibility trigger
+            and static reduced-motion view; keep its anchors on the home page.
             Keep Installing to the required steps, the important auto-mode panel
             permissions, restart, and an optional doctor check last. Do not add
             an automatic settings walkthrough.
