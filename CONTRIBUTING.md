@@ -319,8 +319,9 @@ conclusion. Dated results are historical records, not current product guarantees
 ## Documentation review
 
 Every PR that changes product code must also change the manual
-(`web/src/content/docs/docs/`), the landing page (`web/public/index.html` or
-`app.js`) and a README (`README.md` or `mcp/README.md`). The `docs-sync` job in
+(`web/src/content/docs/docs/`) and a README (`README.md` or `mcp/README.md`).
+The landing page (`web/public/index.html` or `app.js`) changes only when a PR
+is explicitly asked to change it. The `docs-sync` job in
 the test workflow enforces this; run it locally with
 `.github/scripts/check-docs-sync.sh`. The `/verify-docs` skill finds the claims
 each surface must change and can write them (`/verify-docs --fix`). The
