@@ -563,10 +563,14 @@ async function typeOther($: EngineInterface, value: string): Promise<void> {
 
 /** Enter in the Other box keeps what is typed (onInput already stored it, so the host's cleared value never overwrites it) and moves focus to Submit. */
 async function keepOther($: EngineInterface): Promise<void> {
-  try {
-    await $.ui.focus({ requestId: PANE, key: 'submit' })
-  } catch {
-    /* Fail open: the text stays in the draft without the focus move. */
+  // The primary button is keyed `retry` after a failed grade and `submit` otherwise; only the drawn one accepts focus.
+  for (const key of ['submit', 'retry']) {
+    try {
+      await $.ui.focus({ requestId: PANE, key })
+      return
+    } catch {
+      /* Fail open: the text stays in the draft without the focus move. */
+    }
   }
 }
 
