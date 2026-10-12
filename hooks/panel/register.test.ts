@@ -259,6 +259,18 @@ describe('the pane, state by state', () => {
     expect(await pane.find({ key: 'other-text' })).toBeDefined()
   })
 
+  test('Enter in Other keeps the typed text even when the host sends an empty submit', async ($, on) => {
+    const w = world(on)
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'opt-other')
+    await $.ui.input({ plugin: PLUGIN, key: 'other-text', text: "Don't know", kind: 'change' })
+    await $.ui.input({ plugin: PLUGIN, key: 'other-text', text: '', kind: 'submit' })
+    expect(answers(w.log)).toHaveLength(0)
+    expect(await pane.find({ key: 'other-text' })).toBeDefined()
+    expect(JSON.stringify(await pane.find({ key: 'other-text' }))).toContain("Don't know")
+  })
+
   test('a typed answer is graded once by the mod and recorded with the grader\'s verdict', async ($, on) => {
     const w = world(on)
     await boot($)

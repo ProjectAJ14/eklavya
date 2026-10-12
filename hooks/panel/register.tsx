@@ -518,7 +518,7 @@ export const register: Register = on => {
                   value={s.draft.text}
                   submitLabel="keep"
                   onInput={(value: string) => (locked ? undefined : typeOther($, value))}
-                  onSubmit={(value: string) => (locked ? undefined : typeOther($, value))}
+                  onSubmit={() => (locked ? undefined : keepOther($))}
                 />
               </Box>
             ) : null,
@@ -559,6 +559,15 @@ async function chooseOther($: EngineInterface): Promise<void> {
 
 async function typeOther($: EngineInterface, value: string): Promise<void> {
   await update($, quiz, (s: PanelState) => (s.step === 'awaiting' || s.step === 'error' ? { ...s, draft: { ...s.draft, text: value } } : s))
+}
+
+/** Enter in the Other box keeps what is typed (onInput already stored it, so the host's cleared value never overwrites it) and moves focus to Submit. */
+async function keepOther($: EngineInterface): Promise<void> {
+  try {
+    await $.ui.focus({ requestId: PANE, key: 'submit' })
+  } catch {
+    /* Fail open: the text stays in the draft without the focus move. */
+  }
 }
 
 async function skip($: EngineInterface): Promise<void> {
