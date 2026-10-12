@@ -10,7 +10,7 @@ import { openDb, type DB } from '../src/db.js';
 import { insertFeedback } from '../src/feedback.js';
 
 const SESSION_START = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'dist', 'hooks', 'session-start.js');
-const RED = (t: string) => `\u001b[38;5;196m${t}\u001b[0m`;
+const AMBER = (t: string) => `\u001b[38;5;172m${t}\u001b[0m`;
 
 let home = '';
 let cwd = '';
@@ -81,7 +81,7 @@ describe('the greeting when feedback is waiting', () => {
       const res = await greet(srv.port, coloured);
       const url = `http://127.0.0.1:${srv.port}`;
       expect(res.status).toBe(0);
-      expect(res.lines).toContain(`\u001b[2mDashboard ${url} · \u001b[0m${RED(`Feedback waiting ${url}/#/feedback/dashboard?via=greeting`)}`);
+      expect(res.lines).toContain(`\u001b[2mDashboard ${url} · \u001b[0m${AMBER(`Feedback waiting ${url}/#/feedback/dashboard?via=greeting`)}`);
       expect(res.shown).not.toContain('Observations');
     } finally {
       await srv.close();
@@ -106,7 +106,7 @@ describe('the greeting when feedback is waiting', () => {
     config();
     pend();
     const res = await greet(await freePort(), coloured);
-    expect(res.lines).toContain(RED('Feedback waiting · run: eklavya dashboard'));
+    expect(res.lines).toContain(AMBER('Feedback waiting · run: eklavya dashboard'));
     expect(res.shown).not.toContain('Dashboard & observations');
     expect(res.shown).not.toContain('http://');
     const plain = await greet(await freePort(), { NO_COLOR: '1' });
@@ -117,7 +117,7 @@ describe('the greeting when feedback is waiting', () => {
     config({ quiz: { enabled: false } });
     pend();
     const res = await greet(await freePort(), coloured);
-    expect(res.lines).toContain(RED('Feedback waiting · run: eklavya dashboard'));
+    expect(res.lines).toContain(AMBER('Feedback waiting · run: eklavya dashboard'));
   });
 
   it('says nothing about it when quiet is set: the greeting is suppressed by design', async () => {
