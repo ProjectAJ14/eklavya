@@ -453,7 +453,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await ready(page);
       await pickOption(page, '#set-cadence', 'end');
       await page.waitForSelector('[data-msg="cadence"].here:has-text("saved")');
-      expect(await keys()).toEqual([expect.stringContaining('/api/settings')]);
+      // "saved" shows before the read-back lands in the cache, so wait for it rather than sample once.
+      await expect.poll(keys, { timeout: 5000 }).toEqual([expect.stringContaining('/api/settings')]);
       // Put the default back, which is a save too.
       await page.click('[data-unset="cadence"]');
       await page.waitForSelector('[data-msg="cadence"]:has-text("inherited")');
