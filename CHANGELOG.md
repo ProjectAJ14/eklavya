@@ -1,3 +1,10 @@
+## [1.69.2](https://github.com/ProjectAJ14/eklavya/compare/v1.69.1...v1.69.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* Enter in the quiz panel's Other box keeps the text and focuses Submit ([#190](https://github.com/ProjectAJ14/eklavya/issues/190)) ([#192](https://github.com/ProjectAJ14/eklavya/issues/192)) ([8f53d43](https://github.com/ProjectAJ14/eklavya/commit/8f53d43f88c1ff3953d9acc85baaea459ea7dd4d))
+
 ## [1.69.1](https://github.com/ProjectAJ14/eklavya/compare/v1.69.0...v1.69.1) (2026-10-11)
 
 
