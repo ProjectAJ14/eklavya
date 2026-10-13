@@ -1,3 +1,10 @@
+## [1.69.3](https://github.com/ProjectAJ14/eklavya/compare/v1.69.2...v1.69.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* show Feedback waiting in the greeting in amber, not red ([#191](https://github.com/ProjectAJ14/eklavya/issues/191)) ([#194](https://github.com/ProjectAJ14/eklavya/issues/194)) ([ad80527](https://github.com/ProjectAJ14/eklavya/commit/ad805278aaff405cf1106542f1ee0ac603529df1))
+
 ## [1.69.2](https://github.com/ProjectAJ14/eklavya/compare/v1.69.1...v1.69.2) (2026-10-12)
 
 
