@@ -401,8 +401,8 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
   // background process nobody asked for should say so the first time it appears.
   const url = `http://127.0.0.1:${dashboardPort()}`;
   // With feedback waiting the memory link steps aside for it (one click from the
-  // dashboard), and the red segment joins the dashboard link on one line. A
-  // dashboard that is down is not linked at all: the red line names the command.
+  // dashboard), and the amber segment joins the dashboard link on one line. A
+  // dashboard that is down is not linked at all: the amber line names the command.
   // The state comes first in the segment, so it reads at a glance, and colour is
   // not the only signal: without it the segment starts with "! ", which the dim
   // text never does.
@@ -413,7 +413,7 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
             ? 'Feedback waiting · run: eklavya dashboard'
             : `Feedback waiting ${url}/#/feedback/dashboard?via=greeting`
         }`,
-        196,
+        AMBER,
         color,
       )
     : '';

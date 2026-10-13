@@ -17,7 +17,7 @@ Follow the root `CLAUDE.md`, `mcp/CLAUDE.md`, `skills/CLAUDE.md` (Part B touches
 1. Eklavya reviews a real prompt the user wrote, using what the user's later prompts in that session had to add or correct, and shows *your prompt / better prompt / what worked / what it left out / tips*. (The first version reviewed against a four-dimension rubric; it was replaced because the follow-ups are the only evidence of what a prompt cost. See *What the review may claim*.)
 2. Feedback is gated: one item at a time, and no new item until the user clicks **Acknowledge**. The UI says so in plain words.
 3. A new **Feedback** workflow in the dashboard, with a notification badge on its icon.
-4. The session greeting shows the feedback link in red when feedback is waiting, instead of the memory link.
+4. The session greeting shows the feedback link in amber when feedback is waiting, instead of the memory link.
 5. Feedback has its own on/off switch, works with memory only, and never touches mastery.
 6. The usage ping carries counts, booleans and enums only.
 
@@ -76,7 +76,7 @@ npm run coverage
 
 - You work as usual. Eklavya records your prompts in memory, as it already does.
 - At the next session start, if feedback is on, nothing is waiting, and an earlier session has a prompt worth reviewing, a background process asks your observer model to review **one** prompt from that earlier session. Nothing waits on it.
-- When it lands, the greeting says so in red, and the Feedback icon in the dashboard has a badge reading `1`.
+- When it lands, the greeting says so in amber, and the Feedback icon in the dashboard has a badge reading `1`.
 - On the Feedback page you see your prompt, a better version, a short note per D and one to three tips. **Acknowledge** is a button you press on purpose. Until you press it, no further feedback is made.
 - The **History** page lists acknowledged items. You can delete any item, pending or not.
 
@@ -287,11 +287,11 @@ In `banner()` (`session-start.ts`) the last line becomes:
 
 | State | Line |
 |---|---|
-| Feedback pending, dashboard `live` or `started` | `Dashboard <url>` dim, then ` · ` dim, then **`Feedback waiting <url>/#/feedback/dashboard?via=greeting`** in red |
-| Feedback pending, dashboard `down` | **`Feedback waiting · run: eklavya dashboard`** in red (a dead link would be a small lie) |
+| Feedback pending, dashboard `live` or `started` | `Dashboard <url>` dim, then ` · ` dim, then **`Feedback waiting <url>/#/feedback/dashboard?via=greeting`** in amber |
+| Feedback pending, dashboard `down` | **`Feedback waiting · run: eklavya dashboard`** in amber (a dead link would be a small lie) |
 | No pending feedback | unchanged |
 
-"Red" is `paint(text, 196, color)` with `color = !process.env.NO_COLOR`, the same switch the other lines use. **Non-colour fallback:** the line always starts with the words `Feedback waiting`, and when colour is off it is prefixed `! ` so it differs from the dim lines by shape. Both are tested.
+"Amber" (256-colour 172, the greeting's other warnings) is `paint(text, AMBER, color)` with `color = !process.env.NO_COLOR`, the same switch the other lines use. **Non-colour fallback:** the line always starts with the words `Feedback waiting`, and when colour is off it is prefixed `! ` so it differs from the dim lines by shape. Both are tested.
 
 Where it applies, because not every path prints `banner()`:
 
@@ -422,7 +422,7 @@ cd mcp && npm run build && node dist/cli.js dashboard --port 41799 --no-open
 2. Turn it on in **Settings** (dashboard), then check `eklavya config get feedback.enabled` agrees. Turn it off with the CLI and see the dashboard agree. Repeat at project scope.
 3. Turn memory off: the page says feedback needs memory, nothing is generated.
 4. With memory and an observer on, run a short session of three real prompts, then start a new session. Within a minute `eklavya feedback generate` (or the background run) leaves exactly one item.
-5. The new session's greeting shows `Feedback waiting <url>/#/feedback/dashboard?via=greeting` in red. With `NO_COLOR=1` it starts with `! `. With `quiet: true` it is absent.
+5. The new session's greeting shows `Feedback waiting <url>/#/feedback/dashboard?via=greeting` in amber. With `NO_COLOR=1` it starts with `! `. With `quiet: true` it is absent.
 6. The Feedback icon in the sidebar shows `1` on Learning, Memory, Artifacts and Settings; a screen reader says "Switch workflow, 1 feedback unread".
 7. Open the page: the rule is visible, the item shows the prompt, a better prompt, what worked, up to three gaps (quoting a later prompt where one supplied the detail) and 1 to 3 tips.
 8. Reload, open it from another tab, press Back: still pending. Nothing was acknowledged by looking.
