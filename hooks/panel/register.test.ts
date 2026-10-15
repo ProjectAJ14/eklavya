@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, LOGO_GRID, codify, boldParagraphs, logoRows, boxRows, plainLabel } from './model'
+import { EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, LOGO_GRID, codify, boldParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -170,7 +170,7 @@ describe('the pane, state by state', () => {
   })
 
   for (const surface of SURFACES) {
-    test(`the picked answer, and only it, gets a thick brand border and bold text on ${surface}`, async ($, on) => {
+    test(`the picked answer, and only it, gets a thick brand border, a filled background and bold text on ${surface}`, async ($, on) => {
       world(on)
       await boot($)
       const pane = await mount($, surface)
@@ -178,15 +178,19 @@ describe('the pane, state by state', () => {
       for (const id of ['o1', 'o2', 'o3', 'o4', 'other']) {
         expect(await card(id)).toContain('"borderStyle":"single"')
         expect(await card(id)).not.toContain('"bold":true')
+        expect(await card(id)).not.toContain('backgroundColor')
       }
       await press($, 'opt-o3', surface)
       expect(await card('o3')).toContain('"borderStyle":"bold"')
       expect(await card('o3')).toContain('"borderColor":"#79D5C4"')
+      // The whole card, border to border, is filled: the highlight is on the Box, not on the text.
+      expect(await card('o3')).toContain(`"backgroundColor":"${PICKED.bg}"`)
       expect(await card('o3')).toContain('"bold":true')
       for (const id of ['o1', 'o2', 'o4', 'other']) expect(await card(id)).toContain('"borderStyle":"single"')
       // Other takes the pick over, with the same marks.
       await press($, 'opt-other', surface)
       expect(await card('o3')).toContain('"borderStyle":"single"')
+      expect(await card('o3')).not.toContain('backgroundColor')
       expect(await card('other')).toContain('"borderStyle":"bold"')
     })
 

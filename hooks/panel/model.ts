@@ -20,6 +20,8 @@ export const TIER: Record<number, string> = { 1: 'recall', 2: 'mechanism', 3: 'j
 
 /** Brand verdigris (`--vd-300`): the selected card's border and the name. */
 export const BRAND = '#79D5C4'
+/** The fill and text of the picked answer: set together so the contrast holds in a light or a dark theme. */
+export const PICKED = { bg: '#1E5A52', text: '#FFFFFF', note: '#C9E8E3' }
 
 /**
  * The logo: the Claude mascot (orange) holding an Eklavya bow and arrow (white), drawn on a

@@ -3,6 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   BRAND,
+  PICKED,
   EMPTY,
   EXPLAINER,
   NEXT_PROMPT,
@@ -428,6 +429,7 @@ export const register: Register = on => {
         gap={roomy ? 1 : 0}
         borderStyle={selected ? 'bold' : 'single'}
         borderColor={selected ? BRAND : 'inactive'}
+        backgroundColor={selected ? PICKED.bg : undefined}
       >
         {button}
         {body}
@@ -490,8 +492,8 @@ export const register: Register = on => {
         label={label}
         onPress={() => (locked ? undefined : id === 'other' ? chooseOther($) : pick($, id))}
       >
-        <Text bold={chosen} color={chosen ? BRAND : undefined}>{`${chosen ? '✓ ' : ''}${label}`}</Text>
-        {note ? <Text dimColor>{`\n   ${note}`}</Text> : null}
+        <Text bold={chosen} color={chosen ? PICKED.text : undefined}>{`${chosen ? '✓ ' : ''}${label}`}</Text>
+        {note ? <Text dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n   ${note}`}</Text> : null}
       </Button>
     )
     const options = q.options.map((o, i) => {
