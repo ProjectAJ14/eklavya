@@ -192,6 +192,8 @@ describe('the pane, state by state', () => {
       expect(await card('o3')).toContain('"borderStyle":"single"')
       expect(await card('o3')).not.toContain('backgroundColor')
       expect(await card('other')).toContain('"borderStyle":"bold"')
+      // ...but not the fill: the typed answer sits inside it, in the host's text colour.
+      expect(await card('other')).not.toContain('backgroundColor')
     })
 
     test(`an answer and its note are one button, so a press on the note picks it, on ${surface}`, async ($, on) => {

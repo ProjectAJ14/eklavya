@@ -420,6 +420,7 @@ export const register: Register = on => {
     // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it
     // selects; the border and a tick show the pick, and nothing implies it is right. The desktop app gives
     // the text more room inside the border; the terminal keeps its tight cards.
+    // Other is never filled: the learner types inside it, in the host's own text colour, which a fixed fill could hide.
     const card = (id: string, selected: boolean, button: unknown, body: unknown[], roomy = false) => (
       <Box
         key={`card-${id}`}
@@ -429,7 +430,7 @@ export const register: Register = on => {
         gap={roomy ? 1 : 0}
         borderStyle={selected ? 'bold' : 'single'}
         borderColor={selected ? BRAND : 'inactive'}
-        backgroundColor={selected ? PICKED.bg : undefined}
+        backgroundColor={selected && id !== 'other' ? PICKED.bg : undefined}
       >
         {button}
         {body}
@@ -492,7 +493,7 @@ export const register: Register = on => {
         label={label}
         onPress={() => (locked ? undefined : id === 'other' ? chooseOther($) : pick($, id))}
       >
-        <Text bold={chosen} color={chosen ? PICKED.text : undefined}>{`${chosen ? '✓ ' : ''}${label}`}</Text>
+        <Text bold={chosen} color={chosen && id !== 'other' ? PICKED.text : undefined}>{`${chosen ? '✓ ' : ''}${label}`}</Text>
         {note ? <Text dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n   ${note}`}</Text> : null}
       </Button>
     )
