@@ -169,6 +169,41 @@ describe('the pane, state by state', () => {
     expect(answers(w.log)).toHaveLength(0)
   })
 
+  for (const surface of SURFACES) {
+    test(`the picked answer, and only it, gets a thick brand border and bold text on ${surface}`, async ($, on) => {
+      world(on)
+      await boot($)
+      const pane = await mount($, surface)
+      const card = async (id: string) => JSON.stringify(await pane.find({ key: `card-${id}` }))
+      for (const id of ['o1', 'o2', 'o3', 'o4', 'other']) {
+        expect(await card(id)).toContain('"borderStyle":"single"')
+        expect(await card(id)).not.toContain('"bold":true')
+      }
+      await press($, 'opt-o3', surface)
+      expect(await card('o3')).toContain('"borderStyle":"bold"')
+      expect(await card('o3')).toContain('"borderColor":"#79D5C4"')
+      expect(await card('o3')).toContain('"bold":true')
+      for (const id of ['o1', 'o2', 'o4', 'other']) expect(await card(id)).toContain('"borderStyle":"single"')
+      // Other takes the pick over, with the same marks.
+      await press($, 'opt-other', surface)
+      expect(await card('o3')).toContain('"borderStyle":"single"')
+      expect(await card('other')).toContain('"borderStyle":"bold"')
+    })
+
+    test(`an answer and its note are one button, so a press on the note picks it, on ${surface}`, async ($, on) => {
+      world(on)
+      await boot($)
+      const pane = await mount($, surface)
+      const button = JSON.stringify(await pane.find({ key: 'opt-o2' }))
+      expect(button).toContain(QUESTION.options[1].label)
+      expect(button).toContain(QUESTION.options[1].note)
+      // The note is no longer a Markdown block beside the button: only the question is Markdown.
+      const drawn = JSON.stringify(await pane.drawn())
+      expect((drawn.match(/"type":"Markdown"/g) ?? []).length).toBe(1)
+      expect(await ticks(pane)).toBe(0)
+    })
+  }
+
   test('a refused move of the focus mark leaves the pick standing', async ($, on) => {
     // The test host holds no keyboard, so $.ui.focus is refused here, as it is in a real pane the learner has not focused.
     world(on)
@@ -762,7 +797,7 @@ describe('code in the text', () => {
     expect(plainLabel('Calls `pump()` **now** my_var')).toBe('Calls pump() now my_var')
   })
 
-  test('the stem, a note and the explanation are drawn marked as code', async ($, on) => {
+  test('the stem and the explanation are drawn marked as code; a note, inside its Button, is plain', async ($, on) => {
     world(on, {
       waiting: { ...QUESTION, stem: 'It begins with tester.pumpWidget(widget). What does it do?', options: [{ id: 'o1', label: 'Mounts it', note: 'true of pumpAndSettle' }, { id: 'o2', label: 'Other', note: 'n' }] },
       answer: () => ({ phase: 'answered', attempt_id: 7, correct: false, correct_label: 'Mounts it', explanation: 'See setState(fn) for why.' }),
@@ -771,7 +806,7 @@ describe('code in the text', () => {
     const pane = await mount($, 'terminal')
     const drawn = JSON.stringify(await pane.drawn())
     expect(drawn).toContain('`tester.pumpWidget(widget)`')
-    expect(drawn).toContain('`pumpAndSettle`')
+    expect(drawn).toContain('true of pumpAndSettle')
     await press($, 'opt-o2')
     await press($, 'submit')
     expect(JSON.stringify(await pane.drawn())).toContain('`setState(fn)`')
@@ -883,7 +918,7 @@ describe('the desktop layout', () => {
   test('only the desktop app bolds the question and spaces the answers', async ($, on) => {
     world(on)
     await boot($)
-    const gaps = (d: string) => (d.match(/"gap":1/g) ?? []).length
+    const gaps = (d: string) => (d.match(/"gap":2/g) ?? []).length
     const desktop = JSON.stringify(await (await mount($, 'desktop')).drawn())
     const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
     expect(desktop).toContain('**' + QUESTION.stem.slice(0, 10))
