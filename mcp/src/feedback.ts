@@ -278,6 +278,59 @@ export function startBackgroundFeedback(
   }
 }
 
+/** Where and when a prompt was written, read from the session's stored events at view time. */
+export interface FeedbackContext {
+  session_id: string;
+  /** When the prompt was sent; null once its event is gone. */
+  prompted_at: string | null;
+  /** The checkout the session ran in (a worktree stays distinguishable from its project). */
+  checkout: string | null;
+  host: string | null;
+  /** The session's first and last stored event, and how many prompts it held. */
+  began: string | null;
+  ended: string | null;
+  prompts: number;
+  /** The session's first real prompt, cut short: what the session was about. Null when it has none. */
+  topic: string | null;
+}
+
+/** Longest topic shown; enough to recognise a session, not to reread it. */
+export const TOPIC_CHARS = 160;
+
+/**
+ * The context of an item: which session, in which checkout and host, and when.
+ * Nothing is stored for it, so items made before this existed get it too; an
+ * item whose events were deleted reads as nulls and the page shows what is left.
+ */
+export function feedbackContext(db: Database, row: Pick<FeedbackRow, 'session_id' | 'project' | 'event_id'>): FeedbackContext {
+  const ctx: FeedbackContext = { session_id: row.session_id, prompted_at: null, checkout: null, host: null, began: null, ended: null, prompts: 0, topic: null };
+  try {
+    const ev = (row.event_id === null
+      ? undefined
+      : db.prepare('SELECT occurred_at, checkout, host FROM evidence_events WHERE id = ?').get(row.event_id)) as
+      | { occurred_at: string; checkout: string | null; host: string }
+      | undefined;
+    const span = db
+      .prepare(
+        `SELECT MIN(occurred_at) AS began, MAX(occurred_at) AS ended, COALESCE(SUM(kind = 'prompt'), 0) AS prompts,
+                MIN(checkout) AS checkout, MIN(host) AS host
+         FROM evidence_events WHERE project = ? AND session_id = ?`,
+      )
+      .get(row.project, row.session_id) as { began: string | null; ended: string | null; prompts: number; checkout: string | null; host: string | null };
+    ctx.prompted_at = ev?.occurred_at ?? null;
+    ctx.checkout = ev?.checkout ?? span.checkout;
+    ctx.host = ev?.host ?? span.host;
+    ctx.began = span.began;
+    ctx.ended = span.ended;
+    ctx.prompts = span.prompts;
+    const first = qualifyingPrompts(db, row.project, row.session_id)[0];
+    if (first) ctx.topic = first.text.length > TOPIC_CHARS ? `${first.text.slice(0, TOPIC_CHARS)}…` : first.text;
+  } catch {
+    /* an older schema: no context */
+  }
+  return ctx;
+}
+
 /** The item, whatever its state, or null. Reading never acknowledges. */
 export function getFeedback(db: Database, id: number): FeedbackRow | null {
   const row = db.prepare('SELECT * FROM feedback_items WHERE id = ?').get(id) as RawRow | undefined;

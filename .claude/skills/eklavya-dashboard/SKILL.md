@@ -576,6 +576,7 @@ Do not add a route, a query string or a render path that writes `acknowledged_at
   the id and counts; the prompt, better prompt, notes and tips come from
   `/api/feedback` into `#fb-item` through `fill()`. A new field on the payload
   must not be text the learner wrote.
+  The item's `context` (`feedbackContext`: session, checkout, host, times, and the session's first prompt as `topic`) is built from `evidence_events` at read time, stores nothing, and is served only by `/api/feedback`.
 - **The badge is `S.feedback.notify`**, not `pending`: a stale item from before
   feedback or memory was switched off waits quietly. `syncBadge()` runs from
   `renderShell()`, sets the caret's label (`Switch workflow, 1 feedback unread`) and

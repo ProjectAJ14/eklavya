@@ -124,6 +124,42 @@ async function ready(page: Page) {
 const rule = (page: Page) => page.textContent('#fb-rule');
 
 describe.skipIf(!OPTS)('the Feedback workflow', () => {
+  describe('where you said it', () => {
+    it('shows project, host, topic, time and a session link, escapes the topic, and fits a narrow screen', async () => {
+      configure(ON);
+      const ev = db.prepare(
+        "INSERT INTO evidence_events (event_uid, project, checkout, session_id, host, kind, body, occurred_at) VALUES (?, '/work/app', '/work/app-wt/x', 's1', 'claude-code', 'prompt', ?, ?)",
+      );
+      const first = Number(ev.run('ctx1', 'refactor the <i>payment</i> client so it retries on timeout', '2026-10-01T10:00:00Z').lastInsertRowid);
+      pending();
+      db.prepare('UPDATE feedback_items SET event_id = ?').run(first);
+      for (const width of [1280, 560]) {
+        const w = await open('#/feedback/dashboard', { width });
+        const text = (await w.page.textContent('.fb__ctx'))!;
+        expect(text).toContain('/work/app');
+        expect(text).toContain('/work/app-wt/x');
+        expect(text).toContain('claude-code');
+        expect(text).toContain('refactor the <i>payment</i> client');
+        expect(await w.page.locator('.fb__ctx i').count()).toBe(0);
+        expect(await w.page.getAttribute('.fb__ctx a', 'data-go')).toBe('#/memory/session/s1');
+        expect(await w.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${width}px`).toBe(true);
+        expect(w.errors).toEqual([]);
+        await w.ctx.close();
+      }
+      db.exec('DELETE FROM evidence_events');
+    });
+
+    it('still opens an item whose events are gone, with only the rows it can fill', async () => {
+      configure(ON);
+      const id = acknowledged();
+      const w = await open(`#/feedback/item/${id}`);
+      expect(await w.page.textContent('.fb__ctx')).toContain('/work/app');
+      expect(await w.page.locator('.fb__ctx dt', { hasText: 'About' }).count()).toBe(0);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+  });
+
   describe('the badge', () => {
     it('shows a count and a name on every workflow while an item is pending, and nothing when none is', async () => {
       configure(ON);
