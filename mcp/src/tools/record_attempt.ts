@@ -116,6 +116,8 @@ export const recordAttempt: ToolDef = {
 };
 
 export interface RecordAttemptArgs {
+  /** The learner asked to be taught (the panel's Teach me): an explainer is written even with explain_on_wrong off. */
+  force_explain?: boolean;
   session_id?: string;
   cwd?: string;
   slug: string;
@@ -276,7 +278,7 @@ export function recordAttemptCore(db: DB, args: RecordAttemptArgs) {
   // the instruction is composed once, where the config is visible. A decline
   // and a bare skip get nothing -- they asked to move on.
   const missed = isMissed(grade, outcome ?? null);
-  const explain = config.explain_on_wrong && missed
+  const explain = (config.explain_on_wrong || args.force_explain) && missed
     ? {
         concept: concept.slug,
         name: concept.name,

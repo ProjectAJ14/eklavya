@@ -295,7 +295,7 @@ that hold regardless:
 |---|---|---|---|
 | none | pane closed (or one muted line "No question right now" if the learner opened it) | — | sync finds a row → loading |
 | loading | "Loading your question…" | — | row → awaiting; error → error |
-| awaiting | topic label, stem, up to 4 options each with its note, "Other — explain in your own words" | Select option (draft only), **Submit answer** (disabled until a draft), **Skip question** | Submit → grading; Skip → skipped |
+| awaiting | topic label, stem, up to 4 options each with its note, "Other — explain in your own words" | Select option (draft only), **Submit answer** (disabled until a draft), **Skip question**, **Teach me** (always enabled) | Submit → grading; Skip → skipped; Teach me → feedback (recorded `dont_know`, grade 0) |
 | grading | "Checking your answer…" | all disabled | result → feedback; failure → error |
 | feedback | "Correct" or "Needs another look", the right option when missed, the explanation, `level_up` line if any | **Done**; **Next** only for an explicitly requested round with another question | Done → none |
 | skipped | "Skipped. We won't ask this one again." | Done | none |
@@ -303,7 +303,7 @@ that hold regardless:
 | hidden | nothing | reopen command | restores awaiting or feedback from `panel_sync` |
 | unplaced | notification once: "A question is waiting. `<reopen command>` to open it." | — | opening retries `ui.open` |
 
-Rules: feedback uses the words *Correct* / *Needs another look* plus colour; Submit
+Rules: feedback uses the words *Correct* / *Needs another look* plus colour, except after **Teach me**, which says "New to you, and that's fine. Here's the answer." in the default colour; Submit
 is single-flight (disabled and guarded by a local `grading` flag before the call
 returns); selection never submits, including Enter on an option; typing in the prompt
 or the Other input can never activate Skip; keyboard hints show only controls the host
@@ -354,7 +354,7 @@ events explicitly and stub every API so a skipped handler cannot pass.
 |---|---|
 | Header | `Eklavya` · `Powered by Claude` · Close |
 | Topic label | `<concept name> · <tier label>` (tier labels from `TIER` in `dashboard.html`, not re-typed) |
-| Buttons | `Submit answer` · `Skip question` · `Next question` · `Done` · `Retry` |
+| Buttons | `Submit answer` · `Teach me` · `Skip question` · `Next question` · `Done` · `Retry` |
 | Other | `Other — explain in your own words` |
 | Grading | `Checking your answer…` |
 | Result | `Correct` · `Needs another look` · `The answer was: <label>` |

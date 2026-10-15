@@ -15,7 +15,7 @@ to do each cell.
 |---|---|---|---|---|
 | Right | record; verdict | the panel records and judges; do nothing | record; verdict | record; verdict |
 | Wrong | record; verdict, right answer, one line of why; no follow-up | as left | as left, then the handoff block | do not give the answer yet: one narrower question, then teach |
-| Blank ("I don't know") | `dont_know`; answer and one line of why | as left | as left | `dont_know`; the full four-step teaching |
+| Blank ("I don't know") | `dont_know`; answer and one line of why | the Teach me button records it and starts the explainer | as left | `dont_know`; the full four-step teaching |
 | Skip | `declined`, nothing said | the Skip button records it | `declined` | `declined` |
 | Question at fault | `invalid`; own it, give the answer, no replacement this turn | n/a: nothing to press | `invalid` | `invalid`; own it, then ask a fixed question now |
 | Silence | nothing | nothing | nothing, do not chase | wait |

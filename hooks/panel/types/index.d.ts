@@ -29,12 +29,15 @@ export type PanelDraft = {
 export type PanelPending =
   | { kind: 'choice'; option_id: string }
   | { kind: 'skip' }
+  | { kind: 'dont_know' }
   | { kind: 'text'; text: string; grade: number; outcome: 'answered' | 'dont_know'; feedback: string }
 
 /** The reply to an answer, as `panel_answer` stored it. */
 export type PanelResult = {
   phase: 'answered' | 'skipped'
   attempt_id: number
+  /** Teach me was pressed: show the answer without the miss styling. */
+  taught?: boolean
   correct?: boolean
   correct_label?: string
   explanation?: string
