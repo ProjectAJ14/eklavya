@@ -1,3 +1,10 @@
+# [1.70.0](https://github.com/ProjectAJ14/eklavya/compare/v1.69.5...v1.70.0) (2026-10-15)
+
+
+### Features
+
+* **panel:** add Teach me button that records I don't know and starts the explainer ([#197](https://github.com/ProjectAJ14/eklavya/issues/197)) ([70ff372](https://github.com/ProjectAJ14/eklavya/commit/70ff3729c3ceb2d58f196091db186e72fdbe303b))
+
 ## [1.69.5](https://github.com/ProjectAJ14/eklavya/compare/v1.69.4...v1.69.5) (2026-10-15)
 
 
