@@ -712,6 +712,9 @@
   .fb__ds, .fb__tips { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-3); }
   .fb__ds li { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:var(--space-3); align-items:baseline; }
   .fb__dn { font-family:var(--font-mono); font-size:12px; color:var(--dim); }
+  .fb__ctx { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:var(--space-1) var(--space-4); margin:0; font-size:13px; }
+  .fb__ctx dt { font-family:var(--font-mono); font-size:12px; color:var(--dim); }
+  .fb__ctx dd { margin:0; color:var(--ink); overflow-wrap:anywhere; }
   .fb__note { margin:0; color:var(--dim); font-size:13.5px; overflow-wrap:anywhere; }
   .fb__ev { display:block; color:var(--faint); font-size:12.5px; }
   .fb__tips li { color:var(--dim); font-size:13.5px; padding-left:var(--space-4); position:relative; }
@@ -4289,6 +4292,24 @@ const fbActions = (id) => `<div class="fb__actions" id="fb-actions">
     <button type="button" class="set__btn" data-fb-del="${id}">Delete</button>
     <p class="fb__msg" id="fb-msg" role="alert"></p></div>`;
 
+const fmtWhen = (ts) => { const d = parse(ts); return d ? d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : null; };
+
+/** Where the prompt was written: project, checkout, host, session and when, so the note is not blind. */
+function fbContext(it) {
+  const c = it.context ?? {};
+  const sessionTail = [c.began && c.ended ? `${fmtWhen(c.began)} to ${fmtWhen(c.ended)}` : '', c.prompts ? plural(c.prompts, 'prompt') : '']
+    .filter(Boolean).map((x) => ' · ' + x).join('');
+  const rows = [
+    ['Project', `${esc(pname(it.project))} <span class="slug">${esc(it.project)}</span>`],
+    c.checkout && c.checkout !== it.project ? ['Checkout', esc(c.checkout)] : null,
+    c.topic ? ['About', esc(c.topic)] : null,
+    c.host ? ['Host', esc(c.host)] : null,
+    fmtWhen(c.prompted_at) ? ['Sent', esc(fmtWhen(c.prompted_at))] : null,
+    c.session_id ? ['Session', `<a data-go="${esc(MH('session', c.session_id))}">${esc(c.session_id.slice(0, 8))}</a>${esc(sessionTail)}`] : null,
+  ].filter(Boolean);
+  return `<section><h2 class="fb__h">Where you said it</h2><dl class="fb__ctx">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></section>`;
+}
+
 /** One item: your prompt, a better one, what worked, what it left out, tips. Actions only while it is pending. */
 function drawFbItem(it) {
   const pending = !it.acknowledged_at;
@@ -4305,6 +4326,7 @@ function drawFbItem(it) {
   const first = pending && S.feedback.acknowledged === 0
     ? `<div class="fb__rule fb__rule--near"><p>${esc(FB.rulePending)}</p></div>` : '';
   return `<article class="card fb" aria-label="Feedback on one of your prompts">
+    ${fbContext(it)}
     <div class="fb__grid">
       <section><h2 class="fb__h">Your prompt</h2><blockquote class="fb__quote">${esc(it.prompt)}</blockquote></section>
       <section><h2 class="fb__h">A better prompt</h2>
