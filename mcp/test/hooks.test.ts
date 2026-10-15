@@ -1080,6 +1080,44 @@ describe('Signing the question for the host it is running on', () => {
 
 // ---------------------------------------------------------------------------
 
+describe('the mastery rule in the hooks', () => {
+  // A concept answered twice in an earlier sitting used to be "mastered" and the
+  // hooks never asked about it again. It is not any more, and a hook that kept the
+  // old rule would stay silent while the gate still wanted questions.
+  const twiceBefore = () => {
+    logConcepts(['csrf'], 'sess-earlier');
+    answer('csrf', 5, 'sess-earlier');
+    answer('csrf', 5, 'sess-earlier');
+    logConcepts(['csrf']);
+  };
+  const giveStreak = () =>
+    db.prepare("UPDATE mastery SET reps = 4, passed_days = 2, top_passed_tier = 3 WHERE concept_id = (SELECT id FROM concepts WHERE slug = 'csrf')").run();
+
+  it('the Stop hook still asks about a concept answered twice in one earlier sitting', () => {
+    twiceBefore();
+    expect(stop().spoke).toBe(true);
+  });
+
+  it('the Stop hook stays quiet once the concept has its streak across days', () => {
+    twiceBefore();
+    giveStreak();
+    expect(stop().spoke).toBe(false);
+  });
+
+  it('the checkpoint still asks about a concept answered twice in one earlier sitting', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    twiceBefore();
+    expect(checkpointContext(checkpoint())).toMatch(/csrf/);
+  });
+
+  it('the checkpoint stays quiet once the concept has its streak across days', () => {
+    configure({ min_minutes_between_checkpoints: 0 });
+    twiceBefore();
+    giveStreak();
+    expect(checkpointContext(checkpoint())).toBeNull();
+  });
+});
+
 describe('PostToolUse checkpoint — asking while the agent still works', () => {
   it('asks about the concept that was just logged, not the oldest one', () => {
     configure({ min_minutes_between_checkpoints: 0 });

@@ -84,6 +84,7 @@ export const logSessionConcepts: ToolDef = {
     const logged: string[] = [];
     let capped = 0;
     let edgesAdded = 0;
+    const prerequisitesNotFound: { concept: string; requested: string }[] = [];
     const resolved = new Map<string, ConceptRow>();
 
     const apply = db.transaction(() => {
@@ -148,8 +149,10 @@ export const logSessionConcepts: ToolDef = {
         if (!concept) continue;
         for (const raw of input.prerequisites ?? []) {
           const key = normalizeSlug(raw);
-          const pre = resolved.get(key) ?? conceptBySlug(db, key);
-          if (pre && pre.id !== concept.id) edgesAdded += insertEdge.run(pre.id, concept.id, 'prerequisite_of').changes;
+          const near = resolved.has(key) || conceptBySlug(db, key) ? undefined : findFuzzyMatch(key, allConceptSlugs(db));
+          const pre = resolved.get(key) ?? conceptBySlug(db, key) ?? (near ? conceptBySlug(db, near.slug) : undefined);
+          if (!pre) prerequisitesNotFound.push({ concept: concept.slug, requested: key });
+          else if (pre.id !== concept.id) edgesAdded += insertEdge.run(pre.id, concept.id, 'prerequisite_of').changes;
         }
       }
 
@@ -202,6 +205,7 @@ export const logSessionConcepts: ToolDef = {
       matched,
       needs_decision: needsDecision,
       edges_added: edgesAdded,
+      ...(prerequisitesNotFound.length ? { prerequisites_not_found: prerequisitesNotFound } : {}),
       capped,
       gate,
       ...(nextAction ? { next_action: nextAction } : {}),

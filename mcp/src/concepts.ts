@@ -17,8 +17,6 @@ import { QUALIFIER_TOKENS, singular } from './slug.js';
 export const MAX_NAME_WORDS = 3;
 export const CANDIDATE_MIN_SCORE = 0.5;
 export const CANDIDATE_LIMIT = 3;
-/** With no model to ask (the observer's fallback), only a candidate this close is reused unasked. */
-export const AUTO_REUSE_SCORE = 0.75;
 
 const STOP = new Set(['a', 'an', 'the', 'of', 'in', 'on', 'to', 'for', 'and', 'or', 'with', 'by', 'is', 'are', 'vs', 'only', 'how', 'why', 'what', 'when', 'it', 'its', 'as', 'at', 'from', 'that', 'this', 'be', 'can', 'so']);
 
@@ -78,6 +76,14 @@ interface Doc {
  * the extra word, and the rarer it is, the harder.
  */
 const CONTAINED_IDENTITY_SCORE = 0.75;
+
+/**
+ * With no model to ask (the observer's fallback), only a candidate this close is
+ * reused unasked. Above `CONTAINED_IDENTITY_SCORE` on purpose: a one-word concept
+ * (`cache`) whose name merely sits inside a longer proposal (`redis-cache-eviction`)
+ * is a candidate worth asking about, not one to attach the work to unseen.
+ */
+export const AUTO_REUSE_SCORE = 0.8;
 
 /**
  * The existing concepts closest to a described one, best first, none under

@@ -48,6 +48,7 @@ import { countUse } from '../telemetry.js';
 import { sessionChangedCode } from './changes-lib.js';
 import { hasOpenPanelQuestion } from '../panel-state.js';
 import { stopText } from './quiz-text-lib.js';
+import { knownSql } from '../srs.js';
 
 await run(async (input) => {
   // Same fast path as checkpoint-quiz.ts, and for a stronger reason: this hook
@@ -141,7 +142,7 @@ await run(async (input) => {
            WHERE sc.session_id = @sid
              AND COALESCE(sc.origin,'work') = 'work'
              ${recent}
-             AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
+             AND NOT (${knownSql('m')})
              AND sc.concept_id NOT IN
                  (SELECT concept_id FROM attempts WHERE session_id = @sid)) AS unmastered,
          -- 'work' only, and the loop guard depends on it: record_attempt inserts a
@@ -298,7 +299,7 @@ await run(async (input) => {
             WHERE sc.session_id = @sid
               AND COALESCE(sc.origin,'work') = 'work'
               ${recent}
-              AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
+              AND NOT (${knownSql('m')})
               AND sc.concept_id NOT IN
                   (SELECT concept_id FROM attempts WHERE session_id = @sid)
             ORDER BY sc.ts DESC, sc.rowid DESC

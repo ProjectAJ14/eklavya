@@ -12,7 +12,7 @@ export const upsertConcepts: ToolDef = {
   name: 'upsert_concepts',
   title: 'Upsert concepts',
   description:
-    'Grow the knowledge graph when work touches a concept that has no slug yet, or give a concept log_session_concepts just created its real domain, tier, description and tags. A concept is a short name (1-3 words), a description and tags. Slugs are normalized and near-duplicates are folded into the existing concept, so check the returned canonical slug before using it; a new concept that resembles existing ones is listed in needs_decision instead of created, so reuse a candidate or repeat it with new: true. A curated concept (from the seed or a pack, or given a domain) keeps its description and domain; its tags can still grow. `updated` lists what changed.',
+    'Grow the knowledge graph when work touches a concept that has no slug yet, or give a concept log_session_concepts just created its real domain, tier, description and tags. A concept is a short name (1-3 words), a description and tags. Slugs are normalized and near-duplicates are folded into the existing concept, so check the returned canonical slug before using it; a new concept that resembles existing ones is listed in needs_decision instead of created, so reuse a candidate or repeat it with new: true. A concept from the seed or a pack, or one a question has already been asked about, keeps its domain, tier and description; its tags can still grow. `updated` lists what changed.',
   inputSchema: {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
@@ -78,13 +78,14 @@ export const upsertConcepts: ToolDef = {
 
         const existing = conceptBySlug(db, slug);
         if (existing) {
-          // `log_session_concepts` mints concepts bare and tells the tutor to come
-          // back here for their real domain and tier. Until this filled them in,
-          // the follow-up added edges and nothing else, and the concept stayed
-          // `general`, tier 2. Only a bare concept qualifies: a seeded, pack or
-          // already-placed concept is the catalogue's, and one model call must
-          // not rewrite it for every learner.
-          const bare = existing.source === 'llm' && existing.domain === DEFAULT_DOMAIN;
+          // `log_session_concepts` mints concepts with a guessed domain (the first
+          // tag, else `general`) and tier 2, and the follow-up is where the model
+          // places them for real. A model-made concept the learner has not been
+          // asked about yet may be placed again; a seeded or pack concept, or one
+          // a question has been built on, is the catalogue's or the learner's,
+          // and one model call must not rewrite it.
+          const asked = db.prepare('SELECT 1 FROM attempts WHERE concept_id = ? LIMIT 1').get(existing.id) !== undefined;
+          const bare = existing.source === 'llm' && (existing.domain === DEFAULT_DOMAIN || !asked);
           const domain = input.domain && input.domain !== DEFAULT_DOMAIN ? input.domain : null;
           let changed = false;
           if (bare && (domain || input.tier !== undefined)) {

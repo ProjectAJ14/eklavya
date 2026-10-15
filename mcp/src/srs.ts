@@ -18,8 +18,22 @@ export const MIN_REPS_FOR_KNOWN = 4;
 export const MIN_PASSED_DAYS = 2;
 export const MIN_TOP_TIER_FOR_KNOWN = 2;
 
-/** `isKnown` as a SQL condition on a `mastery` row, for the queries that count rather than load. */
-export const KNOWN_SQL = `score >= ${MASTERY_THRESHOLD} AND reps >= ${MIN_REPS_FOR_KNOWN} AND passed_days >= ${MIN_PASSED_DAYS} AND top_passed_tier >= ${MIN_TOP_TIER_FOR_KNOWN}`;
+/**
+ * `isKnown` as a SQL condition on a `mastery` row, for the queries that count or
+ * filter rather than load. `alias` names the table when it is joined; a LEFT JOIN
+ * that finds no row reads as zeroes, which is never known.
+ */
+export function knownSql(alias = ''): string {
+  const col = (name: string) => `COALESCE(${alias ? `${alias}.` : ''}${name}, 0)`;
+  return [
+    `${col('score')} >= ${MASTERY_THRESHOLD}`,
+    `${col('reps')} >= ${MIN_REPS_FOR_KNOWN}`,
+    `${col('passed_days')} >= ${MIN_PASSED_DAYS}`,
+    `${col('top_passed_tier')} >= ${MIN_TOP_TIER_FOR_KNOWN}`,
+  ].join(' AND ');
+}
+
+export const KNOWN_SQL = knownSql();
 
 /** Read-time decay: how fast an ignored concept loses credibility, and its floor. */
 export const DECAY_PER_WEEK = 0.05;

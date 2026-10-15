@@ -72,11 +72,21 @@ describe('fillOmissions and lookalike concepts', () => {
   it('reuses a concept the graph all but has, instead of minting one beside it', () => {
     seedIdempotency();
     const e = entry('Made payments safe to retry');
-    propose(e.id, 'idempotency-key', 'Idempotency key', 'api');
+    propose(e.id, 'api-idempotency', 'Idempotency', 'api');
 
     expect(fillOmissions(db, config, SESSION, PROJECT)).toEqual({ accepted: 1, skipped: 0 });
-    expect(conceptBySlug(db, 'idempotency-key')).toBeUndefined();
+    expect(conceptBySlug(db, 'api-idempotency')).toBeUndefined();
     expect(logged().map((c) => c.slug)).toEqual(['idempotency']);
+  });
+
+  it('does not attach specific work to a generic concept whose name merely sits inside the proposal', () => {
+    insertConcept(db, { slug: 'cache', name: 'Cache', domain: 'performance', tier: 1, description: 'Keeping a copy to avoid recomputing.', source: 'llm' });
+    const e = entry('Added eviction to the redis layer');
+    propose(e.id, 'redis-cache-eviction', 'Redis cache eviction', 'redis');
+
+    fillOmissions(db, config, SESSION, PROJECT);
+    expect(conceptBySlug(db, 'redis-cache-eviction')).toBeDefined();
+    expect(logged().map((c) => c.slug)).toEqual(['redis-cache-eviction']);
   });
 
   it('still creates a concept nothing resembles', () => {

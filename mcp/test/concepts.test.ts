@@ -197,6 +197,15 @@ describe('log_session_concepts prerequisites', () => {
     expect(r.next_action).toBeUndefined();
   });
 
+  it('finds a prerequisite the way the slug matcher does, and reports one it cannot find', () => {
+    const r = call<any>(logSessionConcepts, {
+      concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', prerequisites: ['flutter-animations', 'no-such-thing'], context: 'a.dart' }],
+    });
+    expect(edge('flutter-animation', 'bloom-filter')).toBeTruthy();
+    expect(r.edges_added).toBe(1);
+    expect(r.prerequisites_not_found).toEqual([{ concept: 'bloom-filter', requested: 'no-such-thing' }]);
+  });
+
   it('ignores a prerequisite that does not exist and a concept naming itself', () => {
     const r = call<any>(logSessionConcepts, {
       concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', prerequisites: ['nonexistent-thing', 'bloom-filter'], context: 'a.dart' }],
@@ -214,6 +223,25 @@ describe('upsert_concepts', () => {
 
     const made = call<any>(upsertConcepts, { concepts: [{ slug: 'animation-controller-dispose', name: 'Dispose controller', new: true, tags: ['flutter'] }] });
     expect(made.created).toEqual(['animation-controller-dispose']);
+  });
+
+  it('places a model-made concept again, even when its tag gave it a domain, until it is asked about', () => {
+    call<any>(logSessionConcepts, { concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', tags: ['flutter'], context: 'a.dart' }] });
+    expect(conceptBySlug(db, 'bloom-filter')!.domain).toBe('flutter');
+
+    const r = call<any>(upsertConcepts, { concepts: [{ slug: 'bloom-filter', domain: 'data-structures', tier: 4 }] });
+    expect(r.updated).toEqual(['bloom-filter']);
+    expect(conceptBySlug(db, 'bloom-filter')).toMatchObject({ domain: 'data-structures', tier: 4 });
+  });
+
+  it('leaves a concept alone once a question has been asked about it', () => {
+    call<any>(logSessionConcepts, { concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', tags: ['flutter'], context: 'a.dart' }] });
+    const c = conceptBySlug(db, 'bloom-filter')!;
+    db.prepare("INSERT INTO attempts (concept_id, question, grade, difficulty) VALUES (?, 'q', 4, 2)").run(c.id);
+
+    const r = call<any>(upsertConcepts, { concepts: [{ slug: 'bloom-filter', domain: 'data-structures', tier: 4 }] });
+    expect(r.updated).toEqual([]);
+    expect(conceptBySlug(db, 'bloom-filter')).toMatchObject({ domain: 'flutter', tier: 2 });
   });
 
   it('adds tags to a concept it met again', () => {
