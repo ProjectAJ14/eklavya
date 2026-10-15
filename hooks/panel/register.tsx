@@ -3,6 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import {
   BRAND,
+  PICKED,
   EMPTY,
   EXPLAINER,
   NEXT_PROMPT,
@@ -419,6 +420,7 @@ export const register: Register = on => {
     // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it
     // selects; the border and a tick show the pick, and nothing implies it is right. The desktop app gives
     // the text more room inside the border; the terminal keeps its tight cards.
+    // Other is never filled: the learner types inside it, in the host's own text colour, which a fixed fill could hide.
     const card = (id: string, selected: boolean, button: unknown, body: unknown[], roomy = false) => (
       <Box
         key={`card-${id}`}
@@ -426,8 +428,9 @@ export const register: Register = on => {
         paddingX={app ? 2 : 1}
         paddingY={app || roomy ? 1 : 0}
         gap={roomy ? 1 : 0}
-        borderStyle="single"
+        borderStyle={selected ? 'bold' : 'single'}
         borderColor={selected ? BRAND : 'inactive'}
+        backgroundColor={selected && id !== 'other' ? PICKED.bg : undefined}
       >
         {button}
         {body}
@@ -480,29 +483,33 @@ export const register: Register = on => {
     const locked = s.step === 'grading'
     // Submit looks disabled until there is something to send; pressing it then does nothing.
     const hasDraft = s.draft.other ? s.draft.text.trim().length > 0 : s.draft.picked !== null
-    // Markdown marks cannot show inside a Button's label, so the code and bold marks are dropped there; the note keeps them.
-    const answer = (id: string, key: string, hotkey: string, label: string, chosen: boolean) => (
+    // The answer and its note are the Button's own inline Text, so a press anywhere on them selects.
+    // Markdown marks cannot show inside a Button, so the code and bold marks are dropped from both.
+    const answer = (id: string, key: string, hotkey: string, label: string, chosen: boolean, note?: string) => (
       <Button
         key={key}
         plain
         hotkey={hotkey}
-        label={`${chosen ? '✓ ' : ''}${label}`}
+        label={label}
         onPress={() => (locked ? undefined : id === 'other' ? chooseOther($) : pick($, id))}
-      />
+      >
+        <Text bold={chosen} color={chosen && id !== 'other' ? PICKED.text : undefined}>{`${chosen ? '✓ ' : ''}${label}`}</Text>
+        {note ? <Text dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n   ${note}`}</Text> : null}
+      </Button>
     )
     const options = q.options.map((o, i) => {
       const chosen = !s.draft.other && s.draft.picked === o.id
       return card(
         o.id,
         chosen,
-        answer(o.id, `opt-${o.id}`, String(i + 1), plainLabel(o.label), chosen),
-        [o.note ? <Box key={`note-${o.id}`} paddingLeft={3}><Markdown text={codify(o.note)} dimColor /></Box> : null],
+        answer(o.id, `opt-${o.id}`, String(i + 1), plainLabel(o.label), chosen, o.note ? plainLabel(o.note) : undefined),
+        [],
       )
     })
 
     return frame(
       stem,
-      <Box flexDirection="column" gap={app ? 1 : 0}>
+      <Box flexDirection="column" gap={app ? 2 : 0}>
         {options}
         {card(
           'other',
