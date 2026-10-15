@@ -66,7 +66,16 @@ export interface Candidate {
 interface Doc {
   row: ConceptRow;
   tokens: Set<string>;
+  /** What the concept is called: its slug and name, not its description. */
+  identity: string[];
 }
+
+/**
+ * The score a concept earns when everything it is called appears in the query:
+ * `idempotency-key` is `idempotency` plus a word. Word overlap alone punishes
+ * the extra word, and the rarer it is, the harder.
+ */
+const CONTAINED_IDENTITY_SCORE = 0.75;
 
 /**
  * The existing concepts closest to a described one, best first, none under
@@ -82,6 +91,7 @@ export function findCandidates(
   const docs: Doc[] = rows.map((row) => ({
     row,
     tokens: new Set(tokens([row.slug, row.name, row.domain, ...parseTags(row.tags), row.description ?? ''].join(' '))),
+    identity: tokens(`${row.slug} ${row.name}`),
   }));
   const df = new Map<string, number>();
   for (const d of docs) for (const t of d.tokens) df.set(t, (df.get(t) ?? 0) + 1);
@@ -91,8 +101,13 @@ export function findCandidates(
   const total = query.reduce((n, t) => n + idf(t), 0);
   if (total === 0) return [];
 
+  const queryHas = new Set(query);
   return docs
-    .map((d) => ({ d, score: query.reduce((n, t) => n + (d.tokens.has(t) ? idf(t) : 0), 0) / total }))
+    .map((d) => {
+      const overlap = query.reduce((n, t) => n + (d.tokens.has(t) ? idf(t) : 0), 0) / total;
+      const contained = d.identity.length > 0 && d.identity.every((t) => queryHas.has(t));
+      return { d, score: contained ? Math.max(overlap, CONTAINED_IDENTITY_SCORE) : overlap };
+    })
     .filter((r) => r.score >= CANDIDATE_MIN_SCORE && r.d.row.slug !== q.slug)
     .sort((a, b) => b.score - a.score || a.d.row.slug.localeCompare(b.d.row.slug))
     .slice(0, limit)

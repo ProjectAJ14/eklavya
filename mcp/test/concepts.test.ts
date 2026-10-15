@@ -69,6 +69,11 @@ describe('findCandidates', () => {
     expect(got[0]?.description).toContain('AnimationController');
   });
 
+  it('finds a concept whose whole name sits inside a longer one', () => {
+    insertConcept(db, { slug: 'idempotency', name: 'Idempotency', domain: 'api', tier: 2, description: 'Repeating an operation without changing the result.', tags: ['api'], source: 'llm' });
+    expect(findCandidates(db, { slug: 'idempotency-keys', name: 'Idempotency key' })[0]?.slug).toBe('idempotency');
+  });
+
   it('finds nothing for an unrelated concept', () => {
     expect(findCandidates(db, { slug: 'bloom-filter', name: 'Bloom filter' })).toEqual([]);
   });
