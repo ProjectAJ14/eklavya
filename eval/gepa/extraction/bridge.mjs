@@ -11,7 +11,7 @@
  * context). One JSON object on stdin, one on stdout:
  *
  *   tools                                        -> the two tool descriptions the tutor sees
- *   log      {home, fixture, concepts}           -> {call, result | error, mastered_hit}
+ *   log      {home, fixture, concepts | rounds}  -> {call, result | error, mastered_hit}   (rounds: one call per round, replayed in order)
  *   followup {home, fixture, created, args}      -> {call, result | error, owed: [...]}
  *   score    {fixture, concepts, log, followup}  -> deterministic checks
  *   dedup-log {home, existing, concepts}         -> {call, result | error, stored: [created rows]}
@@ -60,6 +60,31 @@ async function runTool(def, args, db) {
   }
 }
 
+/**
+ * A session can log in more than one round: `needs_decision` holds a lookalike
+ * until the model picks a candidate or says `new: true`. Each round runs on the
+ * same database, and the result is the whole session's: every slug logged or
+ * created, with the last round's `needs_decision` (what is still undecided).
+ */
+async function playRounds(def, rounds, db) {
+  const agg = { session_id: SESSION, logged: [], created: [], matched: [], needs_decision: [], capped: 0 };
+  let last;
+  for (const concepts of rounds) {
+    const out = await runTool(def, { concepts }, db);
+    if (out.error) return { call: { concepts }, error: out.error };
+    last = out.result;
+    for (const k of ['logged', 'created']) agg[k] = [...new Set([...agg[k], ...last[k]])];
+    agg.matched.push(...last.matched);
+    agg.needs_decision = last.needs_decision ?? [];
+    agg.capped += last.capped;
+    agg.next_action = last.next_action;
+    agg.gate = last.gate;
+  }
+  return { call: { concepts: rounds[rounds.length - 1] }, result: agg };
+}
+
+const roundsOf = () => input.rounds ?? [input.concepts];
+
 async function openSeeded(mastered) {
   const { openDb } = await dist('db.js');
   const store = await dist('store.js');
@@ -83,11 +108,10 @@ async function log() {
   const { logSessionConcepts } = await toolDefs();
   const { db, store } = await openSeeded(input.fixture.mastered);
   try {
-    const call = { concepts: input.concepts };
-    const out = await runTool(logSessionConcepts, call, db);
+    const out = await playRounds(logSessionConcepts, roundsOf(), db);
     const mastered = new Set((input.fixture.mastered ?? []).map((m) => m.slug));
     const hit = out.result ? out.result.logged.filter((s) => mastered.has(s)) : [];
-    return { call, ...out, mastered_hit: hit };
+    return { ...out, mastered_hit: hit };
   } finally {
     db.close();
   }
@@ -100,7 +124,7 @@ async function followup() {
   try {
     // `log` ran in an earlier process: replay it, so the created slugs exist as bare concepts again.
     const { logSessionConcepts } = await toolDefs();
-    await runTool(logSessionConcepts, { concepts: input.concepts }, db);
+    await playRounds(logSessionConcepts, roundsOf(), db);
     const out = await runTool(upsertConcepts, input.args, db);
     const args = input.args ?? {};
     const owed = (input.created ?? []).map((slug) => {
@@ -146,10 +170,9 @@ async function dedupLog() {
       else store.insertConcept(db, { slug: c.slug, name: c.name, domain: c.domain, tier: c.tier, description: c.description, source: 'seed' });
       if (hasTags && c.tags) db.prepare('UPDATE concepts SET tags = ? WHERE slug = ?').run(JSON.stringify(c.tags), c.slug);
     }
-    const call = { concepts: input.concepts };
-    const out = await runTool(logSessionConcepts, call, db);
+    const out = await playRounds(logSessionConcepts, roundsOf(), db);
     const stored = (out.result?.created ?? []).map((slug) => store.conceptBySlug(db, slug)).filter(Boolean);
-    return { call, ...out, stored };
+    return { ...out, stored };
   } finally {
     db.close();
   }

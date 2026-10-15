@@ -34,16 +34,16 @@ ex = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ex)
 
 SCENARIOS = ex.REPO / "eval" / "fixtures" / "dedup" / "scenarios.json"
-OLD_REPLY = 'Reply with a single JSON object and nothing else: {"concepts": [{"slug": "kebab-case", "context": "..."}]}'
-NEW_REPLY = 'Reply with a single JSON object and nothing else: {"concepts": [{"slug": "kebab-case", "name": "Short Name", "context": "..."}]}'
 MAX_NAME_WORDS = 3
 WEIGHTS = {"resolved": 0.5, "no_duplicate": 0.3, "short_name": 0.2}
 
 
 def prompt(guidance: str, sc: dict) -> str:
-    text = ex.log_prompt(guidance, {"source": sc["source"], "diff": sc["diff"], "mastered": []})
-    assert OLD_REPLY in text, "extraction prompt changed; update OLD_REPLY"
-    return text.replace(OLD_REPLY, NEW_REPLY)
+    return ex.log_prompt(guidance, scenario_ex(sc))
+
+
+def scenario_ex(sc: dict) -> dict:
+    return {"source": sc["source"], "diff": sc["diff"], "mastered": []}
 
 
 def words(s: str) -> int:
@@ -76,11 +76,12 @@ def run_one(guidance: str, sc: dict, model: str | None) -> tuple[float, dict]:
         first = ex.last_json(raw, "concepts")
         if not first or not isinstance(first.get("concepts"), list) or not first["concepts"]:
             return 0.0, {"score": 0.0, "gates_failed": ["generation"], "error": "no parsable concepts", "reply": raw[:300]}
-        out = ex.bridge("dedup-log", {"home": home, "existing": sc["existing"], "concepts": first["concepts"]})
+        out, final, _ = ex.play(guidance, scenario_ex(sc), model, home, "dedup-log", {"existing": sc["existing"]}, first)
         if out.get("error"):
             return 0.0, {"score": 0.0, "gates_failed": ["valid_call"], "error": out["error"], "concepts": first["concepts"]}
         total, info = score(sc, out["result"], out["stored"])
-        info["concepts"] = first["concepts"]
+        info["concepts"] = final
+        info["undecided"] = [h["requested"] for h in out["result"].get("needs_decision") or []]
         return total, info
     finally:
         shutil.rmtree(home, ignore_errors=True)
