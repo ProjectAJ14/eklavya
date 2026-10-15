@@ -52,7 +52,6 @@
 .quiz-option { display: flex; gap: 8px; align-items: flex-start; width: 100%; padding: 7px 9px; background: transparent; color: var(--term-text); border: 1px solid var(--term-line); line-height: 1.45; }
 .quiz-option + .quiz-option { margin-top: -1px; }
 .quiz-option__key { flex: none; color: var(--term-dim); }
-.quiz-option__tick { flex: none; width: 10px; color: var(--term-spot); margin-left: auto; }
 .quiz-option__note { display: block; margin-top: 3px; color: var(--term-dim); font-size: 10px; line-height: 1.5; }
 .quiz-option[data-selected="true"] { position: relative; border-color: var(--term-spot); z-index: 1; }
 .quiz-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
