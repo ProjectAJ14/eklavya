@@ -7,6 +7,7 @@ import {
   FEEDBACK_RUBRIC,
   acknowledgeFeedback,
   deleteFeedback,
+  TOPIC_CHARS,
   feedbackContext,
   feedbackEnabled,
   feedbackPending,
@@ -168,5 +169,22 @@ describe('feedbackContext', () => {
       prompted_at: null, checkout: null, began: null, prompts: 0,
     });
     db.close();
+  });
+
+  it('cuts a long topic to TOPIC_CHARS with an ellipsis', () => {
+    dbFile = tempDbPath('fbtopic');
+    const db = openDb(dbFile);
+    const long = 'refactor the payment client '.repeat(20);
+    db.prepare("INSERT INTO evidence_events (event_uid, project, session_id, kind, body, occurred_at) VALUES ('l', '/work/app', 's1', 'prompt', ?, '2026-10-01T10:00:00Z')").run(long);
+    const { topic } = feedbackContext(db, { session_id: 's1', project: '/work/app', event_id: null });
+    expect(topic).toBe(`${long.trim().slice(0, TOPIC_CHARS)}…`);
+    db.close();
+  });
+
+  it('returns the empty context instead of throwing when the events cannot be read', () => {
+    const broken = { prepare: () => { throw new Error('no such table: evidence_events'); } } as unknown as Database.Database;
+    expect(feedbackContext(broken, { session_id: 's9', project: '/work/app', event_id: 3 })).toEqual({
+      session_id: 's9', prompted_at: null, checkout: null, host: null, began: null, ended: null, prompts: 0, topic: null,
+    });
   });
 });
