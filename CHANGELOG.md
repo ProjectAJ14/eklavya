@@ -1,3 +1,10 @@
+## [1.69.4](https://github.com/ProjectAJ14/eklavya/compare/v1.69.3...v1.69.4) (2026-10-15)
+
+
+### Bug Fixes
+
+* replace a stale dashboard after an update and show its version in the sidebar ([#195](https://github.com/ProjectAJ14/eklavya/issues/195)) ([d17761e](https://github.com/ProjectAJ14/eklavya/commit/d17761ef85f1bf81fe9c4d93d9bcb74d98e4d16d))
+
 ## [1.69.3](https://github.com/ProjectAJ14/eklavya/compare/v1.69.2...v1.69.3) (2026-10-13)
 
 
