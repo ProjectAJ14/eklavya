@@ -225,23 +225,18 @@ describe('upsert_concepts', () => {
     expect(made.created).toEqual(['animation-controller-dispose']);
   });
 
-  it('places a model-made concept again, even when its tag gave it a domain, until it is asked about', () => {
+  it('keeps the domain a concept was created with, even one taken from its first tag', () => {
     call<any>(logSessionConcepts, { concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', tags: ['flutter'], context: 'a.dart' }] });
-    expect(conceptBySlug(db, 'bloom-filter')!.domain).toBe('flutter');
-
-    const r = call<any>(upsertConcepts, { concepts: [{ slug: 'bloom-filter', domain: 'data-structures', tier: 4 }] });
-    expect(r.updated).toEqual(['bloom-filter']);
-    expect(conceptBySlug(db, 'bloom-filter')).toMatchObject({ domain: 'data-structures', tier: 4 });
-  });
-
-  it('leaves a concept alone once a question has been asked about it', () => {
-    call<any>(logSessionConcepts, { concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', tags: ['flutter'], context: 'a.dart' }] });
-    const c = conceptBySlug(db, 'bloom-filter')!;
-    db.prepare("INSERT INTO attempts (concept_id, question, grade, difficulty) VALUES (?, 'q', 4, 2)").run(c.id);
-
     const r = call<any>(upsertConcepts, { concepts: [{ slug: 'bloom-filter', domain: 'data-structures', tier: 4 }] });
     expect(r.updated).toEqual([]);
     expect(conceptBySlug(db, 'bloom-filter')).toMatchObject({ domain: 'flutter', tier: 2 });
+  });
+
+  it('places a concept created without a domain or tags', () => {
+    call<any>(logSessionConcepts, { concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', context: 'a.dart' }] });
+    const r = call<any>(upsertConcepts, { concepts: [{ slug: 'bloom-filter', domain: 'data-structures', tier: 4 }] });
+    expect(r.updated).toEqual(['bloom-filter']);
+    expect(conceptBySlug(db, 'bloom-filter')).toMatchObject({ domain: 'data-structures', tier: 4 });
   });
 
   it('adds tags to a concept it met again', () => {
