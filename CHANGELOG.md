@@ -1,3 +1,10 @@
+## [1.69.5](https://github.com/ProjectAJ14/eklavya/compare/v1.69.4...v1.69.5) (2026-10-15)
+
+
+### Bug Fixes
+
+* **panel:** make the whole answer text clickable and the picked answer unmistakable ([#196](https://github.com/ProjectAJ14/eklavya/issues/196)) ([65f3a3a](https://github.com/ProjectAJ14/eklavya/commit/65f3a3add8f43548000a67ca562f33aa986cd52c))
+
 ## [1.69.4](https://github.com/ProjectAJ14/eklavya/compare/v1.69.3...v1.69.4) (2026-10-15)
 
 
