@@ -14,6 +14,7 @@
  *   log      {home, fixture, concepts}           -> {call, result | error, mastered_hit}
  *   followup {home, fixture, created, args}      -> {call, result | error, owed: [...]}
  *   score    {fixture, concepts, log, followup}  -> deterministic checks
+ *   dedup-log {home, existing, concepts}         -> {call, result | error, stored: [created rows]}
  *   judge-exercised {model, fixture, concepts}   -> per concept: touched, exercised, context_level
  *   judge-coverage  {model, fixture, concepts}   -> labelled concepts a logged one covers
  *   reflect  {model, prompt}                     -> {text | error}
@@ -122,6 +123,33 @@ async function followup() {
       };
     });
     return { call: args, ...out, owed };
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * The dedup eval's seam: seed the learner's graph with `existing` (name, description and
+ * tags where the schema has a tags column), run the real `log_session_concepts`, and read
+ * back what the database holds for each concept the call minted.
+ */
+async function dedupLog() {
+  const { logSessionConcepts } = await toolDefs();
+  const { openDb } = await dist('db.js');
+  const store = await dist('store.js');
+  const db = openDb(path.join(input.home, 'knowledge.db'));
+  try {
+    const hasTags = db.prepare('PRAGMA table_info(concepts)').all().some((c) => c.name === 'tags');
+    for (const c of input.existing ?? []) {
+      // The shipped catalogue is already loaded, so a scenario may name a slug the seed has: the scenario's row wins.
+      if (store.conceptBySlug(db, c.slug)) db.prepare('UPDATE concepts SET name = ?, domain = ?, tier = ?, description = ? WHERE slug = ?').run(c.name, c.domain, c.tier, c.description, c.slug);
+      else store.insertConcept(db, { slug: c.slug, name: c.name, domain: c.domain, tier: c.tier, description: c.description, source: 'seed' });
+      if (hasTags && c.tags) db.prepare('UPDATE concepts SET tags = ? WHERE slug = ?').run(JSON.stringify(c.tags), c.slug);
+    }
+    const call = { concepts: input.concepts };
+    const out = await runTool(logSessionConcepts, call, db);
+    const stored = (out.result?.created ?? []).map((slug) => store.conceptBySlug(db, slug)).filter(Boolean);
+    return { call, ...out, stored };
   } finally {
     db.close();
   }
@@ -242,6 +270,7 @@ if (cmd === 'tools') {
 } else if (cmd === 'log') result = await log();
 else if (cmd === 'followup') result = await followup();
 else if (cmd === 'score') result = await score();
+else if (cmd === 'dedup-log') result = await dedupLog();
 else if (cmd === 'judge-exercised') {
   const got = await call(input.model, `${diffBlock(input.fixture)}\n\n<logged>\n${list(input.concepts)}\n</logged>`, EXERCISED);
   result = got.error ? got : { verdicts: got.structured.verdicts, usage: got.usage, cost: got.cost };

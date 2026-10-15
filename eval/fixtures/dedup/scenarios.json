@@ -1,0 +1,492 @@
+{
+ "_note": "Dedup eval scenarios. `existing` is seeded into the learner's graph; `expect.reuse` are slugs a sensible log call must resolve to instead of minting; `dup_tokens` flag a created slug as a duplicate; `new` means a new concept is the right answer. Split by hand.",
+ "scenarios": [
+  {
+   "id": "worktree-bootstrap",
+   "title": "Bootstrapping a git worktree",
+   "source": "scripts/new-task.sh",
+   "diff": "git fetch origin main\ngit worktree add -b \"$BRANCH\" \"../$REPO-worktrees/$SLUG\" origin/main\ncd \"../$REPO-worktrees/$SLUG\"\nnpm install\ngit config core.hooksPath .githooks",
+   "existing": [
+    {
+     "slug": "git-worktrees",
+     "name": "Git worktrees",
+     "domain": "git",
+     "tier": 2,
+     "description": "A worktree is a second working directory attached to the same repository, so two branches can be checked out at once.",
+     "tags": [
+      "git",
+      "branches"
+     ]
+    },
+    {
+     "slug": "git-hooks",
+     "name": "Git hooks",
+     "domain": "git",
+     "tier": 2,
+     "description": "Scripts git runs at points such as pre-commit; core.hooksPath chooses where they live.",
+     "tags": [
+      "git",
+      "automation"
+     ]
+    },
+    {
+     "slug": "npm-install",
+     "name": "npm install",
+     "domain": "node",
+     "tier": 2,
+     "description": "Installs dependencies from package.json and the lockfile.",
+     "tags": [
+      "node",
+      "packages"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "git-worktrees"
+    ],
+    "dup_tokens": [
+     "worktree"
+    ],
+    "new": false
+   },
+   "split": "train"
+  },
+  {
+   "id": "mutation-config",
+   "title": "Adding a mutation testing run",
+   "source": "stryker.conf.json",
+   "diff": "{\n  \"mutate\": [\"src/**/*.ts\", \"!src/**/*.test.ts\"],\n  \"testRunner\": \"vitest\",\n  \"thresholds\": { \"high\": 90, \"low\": 70, \"break\": 60 },\n  \"reporters\": [\"clear-text\", \"html\"]\n}",
+   "existing": [
+    {
+     "slug": "mutation-testing",
+     "name": "Mutation testing",
+     "domain": "testing",
+     "tier": 2,
+     "description": "Deliberately changing code to check that the tests fail; surviving mutants show weak tests.",
+     "tags": [
+      "testing",
+      "quality"
+     ]
+    },
+    {
+     "slug": "code-coverage",
+     "name": "Code coverage",
+     "domain": "testing",
+     "tier": 2,
+     "description": "The share of lines or branches the tests execute.",
+     "tags": [
+      "testing",
+      "metrics"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "mutation-testing"
+    ],
+    "dup_tokens": [
+     "mutation",
+     "mutant",
+     "stryker"
+    ],
+    "new": false
+   },
+   "split": "train"
+  },
+  {
+   "id": "flutter-controller",
+   "title": "Disposing an animation controller",
+   "source": "lib/widgets/pulse.dart",
+   "diff": "class _PulseState extends State<Pulse> with SingleTickerProviderStateMixin {\n  late final AnimationController _c =\n      AnimationController(vsync: this, duration: const Duration(milliseconds: 600))..repeat(reverse: true);\n\n  @override\n  void dispose() {\n    _c.dispose();\n    super.dispose();\n  }\n}",
+   "existing": [
+    {
+     "slug": "flutter-animation",
+     "name": "Flutter animation",
+     "domain": "flutter",
+     "tier": 2,
+     "description": "Driving widget changes over time with AnimationController, Tween and implicit animations, including the ticker lifecycle.",
+     "tags": [
+      "flutter",
+      "animation",
+      "ui"
+     ]
+    },
+    {
+     "slug": "flutter-state",
+     "name": "Flutter state",
+     "domain": "flutter",
+     "tier": 2,
+     "description": "How StatefulWidget and State hold changing data and when build reruns.",
+     "tags": [
+      "flutter",
+      "state"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "flutter-animation"
+    ],
+    "dup_tokens": [
+     "animation",
+     "controller",
+     "ticker"
+    ],
+    "new": false
+   },
+   "split": "test"
+  },
+  {
+   "id": "react-effect-cleanup",
+   "title": "Cleaning up a subscription",
+   "source": "src/useOnline.ts",
+   "diff": "export function useOnline() {\n  const [online, setOnline] = useState(navigator.onLine);\n  useEffect(() => {\n    const on = () => setOnline(true);\n    const off = () => setOnline(false);\n    window.addEventListener('online', on);\n    window.addEventListener('offline', off);\n    return () => {\n      window.removeEventListener('online', on);\n      window.removeEventListener('offline', off);\n    };\n  }, []);\n  return online;\n}",
+   "existing": [
+    {
+     "slug": "react-effects",
+     "name": "React effects",
+     "domain": "react",
+     "tier": 2,
+     "description": "useEffect runs side effects after render; the returned function cleans up before the next run or unmount.",
+     "tags": [
+      "react",
+      "hooks"
+     ]
+    },
+    {
+     "slug": "react-state",
+     "name": "React state",
+     "domain": "react",
+     "tier": 2,
+     "description": "useState keeps a value between renders.",
+     "tags": [
+      "react",
+      "hooks"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "react-effects"
+    ],
+    "dup_tokens": [
+     "effect",
+     "cleanup"
+    ],
+    "new": false
+   },
+   "split": "train"
+  },
+  {
+   "id": "optimistic-lock",
+   "title": "Version column on update",
+   "source": "src/orders/repo.ts",
+   "diff": "const res = await db.run(\n  'UPDATE orders SET status = ?, version = version + 1 WHERE id = ? AND version = ?',\n  [status, id, expectedVersion],\n);\nif (res.changes === 0) throw new ConflictError('order changed since it was read');",
+   "existing": [
+    {
+     "slug": "optimistic-locking",
+     "name": "Optimistic locking",
+     "domain": "database",
+     "tier": 2,
+     "description": "Detecting concurrent edits with a version check at write time instead of holding a lock.",
+     "tags": [
+      "database",
+      "concurrency"
+     ]
+    },
+    {
+     "slug": "db-transactions",
+     "name": "Database transactions",
+     "domain": "database",
+     "tier": 2,
+     "description": "Grouping statements so they commit or roll back together.",
+     "tags": [
+      "database"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "optimistic-locking"
+    ],
+    "dup_tokens": [
+     "lock",
+     "version"
+    ],
+    "new": false
+   },
+   "split": "test"
+  },
+  {
+   "id": "sqlite-wal-pragma",
+   "title": "Turning on WAL",
+   "source": "src/db.ts",
+   "diff": "db.pragma('journal_mode = WAL');\ndb.pragma('busy_timeout = 5000');\ndb.pragma('synchronous = NORMAL');",
+   "existing": [
+    {
+     "slug": "sqlite-wal",
+     "name": "SQLite WAL",
+     "domain": "sqlite",
+     "tier": 2,
+     "description": "Write-ahead logging lets readers and one writer work at the same time by appending changes to a separate log.",
+     "tags": [
+      "sqlite",
+      "database",
+      "concurrency"
+     ]
+    },
+    {
+     "slug": "db-transactions",
+     "name": "Database transactions",
+     "domain": "database",
+     "tier": 2,
+     "description": "Grouping statements so they commit or roll back together.",
+     "tags": [
+      "database"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "sqlite-wal"
+    ],
+    "dup_tokens": [
+     "wal",
+     "journal"
+    ],
+    "new": false
+   },
+   "split": "val"
+  },
+  {
+   "id": "cors-options",
+   "title": "Answering a preflight",
+   "source": "server/cors.ts",
+   "diff": "app.use((req, res, next) => {\n  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);\n  res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');\n  if (req.method === 'OPTIONS') return res.sendStatus(204);\n  next();\n});",
+   "existing": [
+    {
+     "slug": "cors",
+     "name": "CORS",
+     "domain": "web",
+     "tier": 2,
+     "description": "Browsers block cross-origin reads unless the server opts in with Access-Control headers; non-simple requests are preceded by an OPTIONS preflight.",
+     "tags": [
+      "web",
+      "http",
+      "security"
+     ]
+    },
+    {
+     "slug": "http-methods",
+     "name": "HTTP methods",
+     "domain": "http",
+     "tier": 2,
+     "description": "GET, POST, PUT, DELETE and what each promises about safety and idempotency.",
+     "tags": [
+      "http"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "cors"
+    ],
+    "dup_tokens": [
+     "cors",
+     "preflight"
+    ],
+    "new": false
+   },
+   "split": "train"
+  },
+  {
+   "id": "idempotency-key",
+   "title": "Deduplicating retried payments",
+   "source": "src/pay.ts",
+   "diff": "const key = req.header('Idempotency-Key');\nif (!key) return res.status(400).end();\nconst seen = await store.get(key);\nif (seen) return res.status(seen.status).json(seen.body);\nconst out = await charge(req.body);\nawait store.set(key, { status: 200, body: out }, TTL);",
+   "existing": [
+    {
+     "slug": "idempotency",
+     "name": "Idempotency",
+     "domain": "api",
+     "tier": 2,
+     "description": "An operation that can be repeated without changing the result after the first time, so retries are safe.",
+     "tags": [
+      "api",
+      "reliability"
+     ]
+    },
+    {
+     "slug": "http-methods",
+     "name": "HTTP methods",
+     "domain": "http",
+     "tier": 2,
+     "description": "GET, POST, PUT, DELETE and what each promises about safety and idempotency.",
+     "tags": [
+      "http"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "idempotency"
+    ],
+    "dup_tokens": [
+     "idempoten"
+    ],
+    "new": false
+   },
+   "split": "test"
+  },
+  {
+   "id": "conventional-commitlint",
+   "title": "Enforcing commit messages",
+   "source": "commitlint.config.js",
+   "diff": "module.exports = {\n  extends: ['@commitlint/config-conventional'],\n  rules: { 'subject-case': [2, 'never', ['upper-case']], 'header-max-length': [2, 'always', 72] },\n};",
+   "existing": [
+    {
+     "slug": "conventional-commits",
+     "name": "Conventional commits",
+     "domain": "git",
+     "tier": 2,
+     "description": "A commit message format (type, scope, subject) that tools read to choose the next version and write a changelog.",
+     "tags": [
+      "git",
+      "release"
+     ]
+    },
+    {
+     "slug": "semantic-versioning",
+     "name": "Semantic versioning",
+     "domain": "release",
+     "tier": 2,
+     "description": "MAJOR.MINOR.PATCH: breaking, feature, fix.",
+     "tags": [
+      "release"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "conventional-commits"
+    ],
+    "dup_tokens": [
+     "commit"
+    ],
+    "new": false
+   },
+   "split": "val"
+  },
+  {
+   "id": "rmdir-empty",
+   "title": "Deleting a directory",
+   "source": "scripts/clean.sh",
+   "diff": "for d in build/*/; do\n  rmdir \"$d\" 2>/dev/null || echo \"kept $d (not empty)\"\ndone",
+   "existing": [
+    {
+     "slug": "empty-directory-removal",
+     "name": "Removing empty directories",
+     "domain": "shell",
+     "tier": 2,
+     "description": "rmdir only deletes empty directories; rm -r is needed for a directory with contents.",
+     "tags": [
+      "shell",
+      "filesystem"
+     ]
+    },
+    {
+     "slug": "shell-globbing",
+     "name": "Shell globbing",
+     "domain": "shell",
+     "tier": 2,
+     "description": "How the shell expands patterns such as build/*/ before running a command.",
+     "tags": [
+      "shell"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [
+     "empty-directory-removal"
+    ],
+    "dup_tokens": [
+     "rmdir",
+     "empty"
+    ],
+    "new": false
+   },
+   "split": "test"
+  },
+  {
+   "id": "flutter-new-bloom",
+   "title": "A brand new topic",
+   "source": "lib/search/bloom.dart",
+   "diff": "class Bloom {\n  final List<bool> _bits;\n  final int _k;\n  Bloom(int size, this._k) : _bits = List.filled(size, false);\n  void add(String s) { for (var i = 0; i < _k; i++) { _bits[_hash(s, i) % _bits.length] = true; } }\n  bool mightContain(String s) => List.generate(_k, (i) => _bits[_hash(s, i) % _bits.length]).every((b) => b);\n}",
+   "existing": [
+    {
+     "slug": "flutter-animation",
+     "name": "Flutter animation",
+     "domain": "flutter",
+     "tier": 2,
+     "description": "Driving widget changes over time with AnimationController and Tween.",
+     "tags": [
+      "flutter",
+      "animation"
+     ]
+    },
+    {
+     "slug": "hash-maps",
+     "name": "Hash maps",
+     "domain": "data-structures",
+     "tier": 2,
+     "description": "Key to value lookup through a hash function.",
+     "tags": [
+      "data-structures"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [],
+    "dup_tokens": [],
+    "new": true
+   },
+   "split": "val"
+  },
+  {
+   "id": "new-with-near-miss",
+   "title": "New concept beside a similar one",
+   "source": "src/limit.ts",
+   "diff": "export function allow(key: string, now = Date.now()): boolean {\n  const w = windows.get(key) ?? [];\n  const fresh = w.filter((t) => now - t < WINDOW_MS);\n  if (fresh.length >= LIMIT) return false;\n  fresh.push(now);\n  windows.set(key, fresh);\n  return true;\n}",
+   "existing": [
+    {
+     "slug": "token-bucket",
+     "name": "Token bucket",
+     "domain": "api",
+     "tier": 2,
+     "description": "A rate limiter that refills tokens at a steady rate and spends one per request, allowing short bursts.",
+     "tags": [
+      "api",
+      "rate-limiting"
+     ]
+    },
+    {
+     "slug": "http-methods",
+     "name": "HTTP methods",
+     "domain": "http",
+     "tier": 2,
+     "description": "GET, POST, PUT, DELETE.",
+     "tags": [
+      "http"
+     ]
+    }
+   ],
+   "expect": {
+    "reuse": [],
+    "dup_tokens": [],
+    "new": true
+   },
+   "split": "test"
+  }
+ ]
+}
