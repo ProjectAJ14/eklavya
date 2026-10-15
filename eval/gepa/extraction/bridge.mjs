@@ -97,6 +97,8 @@ async function openSeeded(mastered) {
       ease: 2.5,
       interval_d: 30,
       reps: 6,
+      passed_days: 3,
+      top_passed_tier: 3,
       last_seen: now.toISOString(),
       next_review: new Date(now.getTime() + 30 * 864e5).toISOString(),
     });

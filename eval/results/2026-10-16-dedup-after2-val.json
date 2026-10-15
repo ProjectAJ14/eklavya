@@ -1,0 +1,530 @@
+{
+ "prompt": "shipped guidance",
+ "model": "default",
+ "split": "val",
+ "repeats": 2,
+ "trials": [
+  {
+   "id": "sqlite-wal-pragma",
+   "repeat": 0,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "sqlite-wal"
+   ],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [],
+   "matched": [],
+   "logged": [
+    "sqlite-busy-timeout",
+    "sqlite-synchronous-pragma",
+    "sqlite-wal"
+   ],
+   "concepts": [
+    {
+     "slug": "sqlite-busy-timeout",
+     "name": "Busy Timeout",
+     "description": "Makes a connection retry for a set time when the database is locked by another writer, instead of failing at once with SQLITE_BUSY.",
+     "tags": [
+      "sqlite",
+      "concurrency",
+      "locking"
+     ],
+     "context": "busy_timeout = 5000 in src/db.ts makes a locked write wait up to 5s before erroring"
+    },
+    {
+     "slug": "sqlite-synchronous-pragma",
+     "name": "Synchronous Pragma",
+     "description": "Controls how often SQLite fsyncs to disk. NORMAL under WAL syncs only at checkpoints, trading a little durability on power loss for faster commits.",
+     "tags": [
+      "sqlite",
+      "durability",
+      "performance"
+     ],
+     "context": "synchronous = NORMAL in src/db.ts pairs with WAL: faster commits, and a power loss may drop the latest transactions but won't corrupt the file"
+    },
+    {
+     "slug": "sqlite-wal",
+     "description": "Write-ahead logging journal mode: writes append to a separate log so readers don't block the writer and the writer doesn't block readers.",
+     "tags": [
+      "sqlite",
+      "concurrency",
+      "durability"
+     ],
+     "context": "set journal_mode = WAL in src/db.ts so concurrent readers and one writer can share the database"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "sqlite-wal-pragma",
+   "repeat": 1,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "sqlite-wal"
+   ],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [],
+   "matched": [],
+   "logged": [
+    "sqlite-busy-timeout",
+    "sqlite-synchronous-mode",
+    "sqlite-wal"
+   ],
+   "concepts": [
+    {
+     "slug": "sqlite-busy-timeout",
+     "name": "Busy Timeout",
+     "description": "How long a connection waits for a lock to clear before failing with SQLITE_BUSY, turning transient write contention into a short wait instead of an immediate error.",
+     "tags": [
+      "sqlite",
+      "concurrency",
+      "error-handling",
+      "locking"
+     ],
+     "context": "busy_timeout = 5000 in src/db.ts makes a contended connection retry for up to 5s rather than throw SQLITE_BUSY"
+    },
+    {
+     "slug": "sqlite-synchronous-mode",
+     "name": "Synchronous Pragma",
+     "description": "Controls how often SQLite fsyncs to disk. NORMAL under WAL skips the fsync on each commit and syncs at checkpoints, trading a small durability window on power loss for faster writes.",
+     "tags": [
+      "sqlite",
+      "durability",
+      "performance",
+      "fsync"
+     ],
+     "context": "synchronous = NORMAL in src/db.ts paired with WAL: faster commits, safe against app crashes, small risk only on OS crash or power loss"
+    },
+    {
+     "slug": "sqlite-wal",
+     "name": "SQLite WAL",
+     "description": "Write-ahead logging lets readers and one writer work at the same time by appending changes to a separate log, so journal_mode = WAL in src/db.ts avoids reader/writer blocking.",
+     "tags": [
+      "sqlite",
+      "database",
+      "concurrency",
+      "journal-mode"
+     ],
+     "context": "set journal_mode = WAL on the connection in src/db.ts so readers and a writer can run concurrently"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "conventional-commitlint",
+   "repeat": 0,
+   "score": 0.7,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 0.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "conventional-commits"
+   ],
+   "duplicates_created": [
+    "commitlint"
+   ],
+   "long_names": [],
+   "created_with_description": 2,
+   "created_with_tags": 2,
+   "created": [
+    "commitlint",
+    "lint-rule-severity"
+   ],
+   "matched": [],
+   "logged": [
+    "conventional-commits",
+    "shareable-config-extends",
+    "commitlint",
+    "lint-rule-severity",
+    "node-modules"
+   ],
+   "concepts": [
+    {
+     "slug": "conventional-commits",
+     "name": "Conventional Commits",
+     "description": "Commit message convention of type(scope): subject, where the type (feat, fix, docs, chore) drives changelog and release automation.",
+     "tags": [
+      "git",
+      "commits",
+      "semver",
+      "releases"
+     ],
+     "context": "extends '@commitlint/config-conventional' in commitlint.config.js so feat:/fix: headers are enforced"
+    },
+    {
+     "slug": "shareable-config-extends",
+     "name": "Shareable Config Extends",
+     "description": "Reusing a published config package via 'extends' and overriding individual rules locally, so a team inherits a baseline and only states its differences.",
+     "tags": [
+      "configuration",
+      "linting",
+      "inheritance"
+     ],
+     "context": "extends config-conventional, then overrides subject-case and header-max-length in the rules object of commitlint.config.js"
+    },
+    {
+     "slug": "commitlint",
+     "new": true,
+     "name": "Commitlint",
+     "description": "Tool that lints commit messages against a ruleset so history stays consistent and tooling (changelogs, releases) can parse it.",
+     "tags": [
+      "git",
+      "commits",
+      "linting",
+      "tooling"
+     ],
+     "context": "commitlint.config.js configures commitlint to validate commit headers in the repo"
+    },
+    {
+     "slug": "lint-rule-severity",
+     "new": true,
+     "name": "Lint Rule Severity",
+     "description": "Lint rules are [level, applicability, value] tuples: level 0 off, 1 warn, 2 error; applicability is 'always' or 'never'.",
+     "tags": [
+      "linting",
+      "configuration",
+      "rules"
+     ],
+     "context": "[2, 'never', ['upper-case']] makes an all-caps subject an error in commitlint.config.js; [2, 'always', 72] errors on headers over 72 characters"
+    },
+    {
+     "slug": "node-modules",
+     "description": "require versus import, and the resolution and interop rules that differ between them; commitlint.config.js uses module.exports, the CommonJS side.",
+     "tags": [
+      "javascript",
+      "node",
+      "modules"
+     ],
+     "context": "commitlint.config.js uses module.exports = {...} rather than ES export default"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "conventional-commitlint",
+   "repeat": 1,
+   "score": 0.7,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 0.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "conventional-commits"
+   ],
+   "duplicates_created": [
+    "commitlint",
+    "commit-subject-case-rule",
+    "commit-header-length"
+   ],
+   "long_names": [],
+   "created_with_description": 3,
+   "created_with_tags": 3,
+   "created": [
+    "commitlint",
+    "commit-subject-case-rule",
+    "commit-header-length"
+   ],
+   "matched": [],
+   "logged": [
+    "conventional-commits",
+    "shareable-lint-config",
+    "commitlint",
+    "commit-subject-case-rule",
+    "commit-header-length"
+   ],
+   "concepts": [
+    {
+     "slug": "conventional-commits",
+     "name": "Conventional Commits",
+     "description": "Commit message convention of type(scope): subject, such as feat: or fix:. Tooling can read the type to drive changelogs and version bumps.",
+     "tags": [
+      "git",
+      "commits",
+      "semver",
+      "release"
+     ],
+     "context": "extends @commitlint/config-conventional in commitlint.config.js so only conventional types pass; this repo's releases depend on feat:/fix: prefixes"
+    },
+    {
+     "slug": "shareable-lint-config",
+     "name": "Shareable Config",
+     "description": "Extending a published base config and overriding only selected rules, so a project inherits shared conventions with a small local diff.",
+     "tags": [
+      "config",
+      "linting",
+      "extends",
+      "commonjs"
+     ],
+     "context": "module.exports with extends: ['@commitlint/config-conventional'] and a local rules object that overrides or adds to the base"
+    },
+    {
+     "slug": "commitlint",
+     "name": "Commitlint",
+     "new": true,
+     "description": "Linter that checks commit messages against a rule set, so malformed messages are rejected at commit time or in CI.",
+     "tags": [
+      "git",
+      "linting",
+      "commits",
+      "tooling",
+      "ci"
+     ],
+     "context": "commitlint.config.js configures commitlint to validate commit messages in the repo"
+    },
+    {
+     "slug": "commit-subject-case-rule",
+     "name": "Subject Case Rule",
+     "new": true,
+     "description": "Commitlint rule restricting the letter case of the commit subject. Its config is a [level, applicability, value] tuple, where level 2 is an error and 'never' bans the listed cases.",
+     "tags": [
+      "commitlint",
+      "linting",
+      "rule-config",
+      "git"
+     ],
+     "context": "'subject-case': [2, 'never', ['upper-case']] in commitlint.config.js rejects ALL-CAPS subjects but still allows sentence-case and lower-case"
+    },
+    {
+     "slug": "commit-header-length",
+     "name": "Header Length Limit",
+     "new": true,
+     "description": "Commitlint rule capping the commit header (first line) at a set number of characters, to keep git log and tool output readable.",
+     "tags": [
+      "commitlint",
+      "git",
+      "readability",
+      "rule-config"
+     ],
+     "context": "'header-max-length': [2, 'always', 72] in commitlint.config.js fails any commit whose first line is over 72 characters"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "flutter-new-bloom",
+   "repeat": 0,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 1,
+   "created_with_tags": 1,
+   "created": [
+    "multiple-hash-functions"
+   ],
+   "matched": [],
+   "logged": [
+    "bloom-filter",
+    "false-positive-rate",
+    "modulo-hash-indexing",
+    "short-circuit-evaluation",
+    "multiple-hash-functions"
+   ],
+   "concepts": [
+    {
+     "slug": "bloom-filter",
+     "name": "Bloom Filter",
+     "description": "A probabilistic set-membership structure: a bit array plus k hash functions. Lookups can give false positives but never false negatives, and it uses far less memory than storing the items.",
+     "tags": [
+      "data-structures",
+      "probabilistic",
+      "search"
+     ],
+     "context": "Bloom class in lib/search/bloom.dart: add() sets k bits and mightContain() requires all k bits set, so it can say 'maybe' but never a false 'no'"
+    },
+    {
+     "slug": "false-positive-rate",
+     "name": "False Positive Rate",
+     "description": "The chance a probabilistic structure reports 'present' for an item never added. It depends on bit-array size, hash count k and the number of inserted items.",
+     "tags": [
+      "probabilistic",
+      "tradeoffs",
+      "sizing"
+     ],
+     "context": "Bloom(int size, this._k) in bloom.dart fixes size and k at construction, so the false-positive rate rises as more strings are added"
+    },
+    {
+     "slug": "modulo-hash-indexing",
+     "name": "Modulo Indexing",
+     "description": "Mapping an arbitrary hash value into a fixed-size array by taking it modulo the array length. The hash must be non-negative or the index can be out of range.",
+     "tags": [
+      "hashing",
+      "arrays",
+      "edge-cases"
+     ],
+     "context": "_bits[_hash(s, i) % _bits.length] in add() and mightContain(); Dart's % returns a non-negative result for a positive divisor, so negative hash values still index safely"
+    },
+    {
+     "slug": "short-circuit-evaluation",
+     "name": "Short-Circuit Evaluation",
+     "description": "Stopping evaluation as soon as the result is known, such as an AND returning false at the first false operand. Eager code that builds every value first gives up this saving.",
+     "tags": [
+      "performance",
+      "control-flow",
+      "dart"
+     ],
+     "context": "mightContain builds the whole list with List.generate and then calls .every, so it computes all k hashes even when the first bit is unset"
+    },
+    {
+     "slug": "multiple-hash-functions",
+     "new": true,
+     "name": "Hash Functions",
+     "description": "Deriving k independent bit positions for one key by hashing it with k different seeds or indices, so one item sets several bits and collisions are less likely to match by chance.",
+     "tags": [
+      "hashing",
+      "probabilistic"
+     ],
+     "context": "_hash(s, i) in Bloom.add and mightContain uses the loop index i as the seed to get k bit positions per string"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "flutter-new-bloom",
+   "repeat": 1,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 1,
+   "created_with_tags": 1,
+   "created": [
+    "hash-functions"
+   ],
+   "matched": [],
+   "logged": [
+    "bloom-filter",
+    "hash-functions",
+    "false-positive-rate",
+    "space-time-tradeoff",
+    "dart-list-generate"
+   ],
+   "concepts": [
+    {
+     "slug": "bloom-filter",
+     "name": "Bloom Filter",
+     "description": "A probabilistic set structure that answers 'definitely not present' or 'possibly present' using a bit array and several hash functions. It never gives false negatives but can give false positives.",
+     "tags": [
+      "data-structures",
+      "probabilistic",
+      "hashing",
+      "search"
+     ],
+     "context": "Bloom class in lib/search/bloom.dart: add() sets k bits, mightContain() returns true only if all k bits are set"
+    },
+    {
+     "slug": "false-positive-rate",
+     "name": "False Positive Rate",
+     "description": "The chance a membership test says 'maybe present' for an item never added. It rises as the bit array fills and is tuned by array size and hash count k.",
+     "tags": [
+      "probabilistic",
+      "tradeoffs",
+      "tuning"
+     ],
+     "context": "Bloom(size, _k) constructor in lib/search/bloom.dart: size and k are the only knobs, and mightContain() can return true for strings never added"
+    },
+    {
+     "slug": "space-time-tradeoff",
+     "name": "Space Time Tradeoff",
+     "description": "Trading exactness for memory: a small bit array answers membership cheaply but only approximately. Choosing it means accepting a bounded error instead of storing every key.",
+     "tags": [
+      "tradeoffs",
+      "memory",
+      "performance"
+     ],
+     "context": "_bits is a List<bool> of fixed size in lib/search/bloom.dart, replacing a full Set<String> of indexed terms with approximate membership"
+    },
+    {
+     "slug": "dart-list-generate",
+     "name": "Dart List Generate",
+     "description": "List.filled creates a fixed-length list with one value, and List.generate builds a list by calling a function per index. Both allocate eagerly, unlike lazy iterables.",
+     "tags": [
+      "dart",
+      "collections",
+      "allocation"
+     ],
+     "context": "List.filled(size, false) initialises _bits, and List.generate(_k, ...) in mightContain() builds a full list before .every() runs, so it cannot short-circuit"
+    },
+    {
+     "slug": "hash-functions",
+     "new": true,
+     "name": "Hash Functions",
+     "description": "Functions that map a key to a fixed-range integer, here seeded by index to simulate k independent hashes. Distribution and independence decide how often unrelated keys collide.",
+     "tags": [
+      "hashing",
+      "algorithms",
+      "collisions"
+     ],
+     "context": "_hash(s, i) % _bits.length in lib/search/bloom.dart picks the bit position for each of the k hash rounds"
+    }
+   ],
+   "undecided": []
+  }
+ ],
+ "stopped_early": null,
+ "budget": {
+  "tokens": {
+   "input_total": 622720,
+   "cache_read": 177959,
+   "output": 5732,
+   "by_kind": {
+    "generate:cache_read": 177959,
+    "generate:cache_write": 444737,
+    "generate:input": 24,
+    "generate:output": 5732
+   }
+  },
+  "cost_usd_list_price": 1.85,
+  "calls": {
+   "generate": 12
+  },
+  "total_calls": 12,
+  "seconds_by_kind": {
+   "generate": 167.7
+  },
+  "errors": {},
+  "cap": 24
+ },
+ "summary": {
+  "trials": 6,
+  "scored": 6,
+  "mean_score": 0.9,
+  "resolved_to_existing_or_new": 1.0,
+  "no_duplicate_minted": 0.667,
+  "short_names": 1.0,
+  "duplicates_created": 4,
+  "concepts_created": 7,
+  "created_with_description": 7,
+  "created_with_tags": 7,
+  "failed": []
+ }
+}
