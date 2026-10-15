@@ -7,6 +7,8 @@ import {
   FEEDBACK_RUBRIC,
   acknowledgeFeedback,
   deleteFeedback,
+  TOPIC_CHARS,
+  feedbackContext,
   feedbackEnabled,
   feedbackPending,
   insertFeedback,
@@ -144,5 +146,45 @@ describe('mastery guard', () => {
     const second = insertFeedback(db, item({ session_id: 's2' }))!;
     deleteFeedback(db, second);
     expect(snapshot(db)).toEqual(before);
+  });
+});
+
+describe('feedbackContext', () => {
+  it('reads where and when the prompt was written from the session events, and degrades to nulls', () => {
+    dbFile = tempDbPath('fbctx');
+    const db = openDb(dbFile);
+    const ins = db.prepare(
+      "INSERT INTO evidence_events (event_uid, project, checkout, session_id, host, kind, body, occurred_at) VALUES (?, '/work/app', '/work/app-wt/x', 's1', 'claude-code', ?, 'b', ?)",
+    );
+    db.prepare("INSERT INTO evidence_events (event_uid, project, session_id, kind, body, occurred_at) VALUES ('t', '/work/app', 's1', 'prompt', 'fix the login bug, users cannot sign in', '2026-10-01T09:59:00Z')").run();
+    ins.run('a', 'prompt', '2026-10-01T10:00:00Z');
+    const id = Number(ins.run('b', 'prompt', '2026-10-01T10:05:00Z').lastInsertRowid);
+    ins.run('c', 'tool_use', '2026-10-01T10:20:00Z');
+    expect(feedbackContext(db, { session_id: 's1', project: '/work/app', event_id: id })).toEqual({
+      session_id: 's1', prompted_at: '2026-10-01T10:05:00Z', checkout: '/work/app-wt/x', host: 'claude-code',
+      began: '2026-10-01T09:59:00Z', ended: '2026-10-01T10:20:00Z', prompts: 3,
+      topic: 'fix the login bug, users cannot sign in',
+    });
+    expect(feedbackContext(db, { session_id: 'gone', project: '/work/app', event_id: null })).toMatchObject({
+      prompted_at: null, checkout: null, began: null, prompts: 0,
+    });
+    db.close();
+  });
+
+  it('cuts a long topic to TOPIC_CHARS with an ellipsis', () => {
+    dbFile = tempDbPath('fbtopic');
+    const db = openDb(dbFile);
+    const long = 'refactor the payment client '.repeat(20);
+    db.prepare("INSERT INTO evidence_events (event_uid, project, session_id, kind, body, occurred_at) VALUES ('l', '/work/app', 's1', 'prompt', ?, '2026-10-01T10:00:00Z')").run(long);
+    const { topic } = feedbackContext(db, { session_id: 's1', project: '/work/app', event_id: null });
+    expect(topic).toBe(`${long.trim().slice(0, TOPIC_CHARS)}…`);
+    db.close();
+  });
+
+  it('returns the empty context instead of throwing when the events cannot be read', () => {
+    const broken = { prepare: () => { throw new Error('no such table: evidence_events'); } } as unknown as Database.Database;
+    expect(feedbackContext(broken, { session_id: 's9', project: '/work/app', event_id: 3 })).toEqual({
+      session_id: 's9', prompted_at: null, checkout: null, host: null, began: null, ended: null, prompts: 0, topic: null,
+    });
   });
 });

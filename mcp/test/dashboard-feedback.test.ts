@@ -182,6 +182,25 @@ describe('the feedback routes', () => {
     });
   });
 
+  it('GET /api/feedback carries where the prompt was written, and degrades when its events are gone', async () => {
+    const ev = db.prepare(
+      "INSERT INTO evidence_events (event_uid, project, checkout, session_id, host, kind, body, occurred_at) VALUES (?, '/work/app', '/work/app-wt/x', 's1', 'claude-code', 'prompt', ?, ?)",
+    );
+    ev.run('e1', 'add a retry to the payment client, it times out', '2026-10-01T10:00:00Z');
+    const eid = Number(ev.run('e2', 'fix the login bug, users cannot sign in', '2026-10-01T10:05:00Z').lastInsertRowid);
+    const id = insertFeedback(db, item({ event_id: eid }))!;
+    await withServer(async (_port, _t, url) => {
+      const { context } = (await get(url, `/api/feedback?id=${id}`)).body.item;
+      expect(context).toEqual({
+        session_id: 's1', prompted_at: '2026-10-01T10:05:00Z', checkout: '/work/app-wt/x', host: 'claude-code',
+        began: '2026-10-01T10:00:00Z', ended: '2026-10-01T10:05:00Z', prompts: 2,
+        topic: 'add a retry to the payment client, it times out',
+      });
+      db.exec('DELETE FROM evidence_events');
+      expect((await get(url, `/api/feedback?id=${id}`)).body.item.context).toMatchObject({ session_id: 's1', prompted_at: null, topic: null, prompts: 0 });
+    });
+  });
+
   it('GET /api/feedback is null with nothing pending, and 404 for an unknown id', async () => {
     await withServer(async (_port, _t, url) => {
       expect(await get(url, '/api/feedback')).toEqual({ status: 200, body: { item: null } });
