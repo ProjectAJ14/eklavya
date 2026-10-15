@@ -43,7 +43,7 @@ import {
 } from './paths.js';
 import { ownVersion } from './dashboard-daemon.js';
 import { countUse } from './telemetry.js';
-import { acknowledgeFeedback, deleteFeedback, feedbackSummary, getFeedback, feedbackPending, listAcknowledged } from './feedback.js';
+import { acknowledgeFeedback, deleteFeedback, feedbackSummary, getFeedback, feedbackContext, feedbackPending, listAcknowledged } from './feedback.js';
 import { artifactsStamp, artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
 import { LIMITS } from './tools/types.js';
 import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDelivery } from './memory/store.js';
@@ -2139,7 +2139,7 @@ export function feedbackItem(db: DB, id: string | null): { status: number; body:
   const row = id === null ? feedbackPending(db) : getFeedback(db, Number(id));
   if (!row) return id === null ? { status: 200, body: { item: null } } : { status: 404, body: { error: 'not_found' } };
   const { session_id: _s, event_id: _e, model: _m, ...item } = row;
-  return { status: 200, body: { item } };
+  return { status: 200, body: { item: { ...item, context: feedbackContext(db, row) } } };
 }
 
 const feedbackId = (body: unknown): number | null => {

@@ -22,6 +22,8 @@ export const TIER: Record<number, string> = { 1: 'recall', 2: 'mechanism', 3: 'j
 export const BRAND = '#79D5C4'
 /** The fill and text of the picked answer: set together so the contrast holds in a light or a dark theme. */
 export const PICKED = { bg: '#1E5A52', text: '#FFFFFF', note: '#C9E8E3' }
+/** Teach me is Claude's orange (the logo's mascot), fill and border. The text is dark, as white on that orange is too faint at body size. */
+export const TEACH = { bg: '#D97757', text: '#1F1E1D' }
 
 /**
  * The logo: the Claude mascot (orange) holding an Eklavya bow and arrow (white), drawn on a
@@ -106,14 +108,14 @@ export function codify(text: string): string {
     .join('')
 }
 
-/** Block Markdown that bold marks around it would break: a fence, heading, list, quote, or bold already in it. */
-const NOT_BOLDABLE = /```|\*\*|^\s*(?:#|[-*+>]|\d+[.)])\s/m
+/** Block Markdown a heading mark would break: a fence, heading, list, quote, or bold already in it. */
+const NOT_HEADING = /```|\*\*|^\s*(?:#|[-*+>]|\d+[.)])\s/m
 
-/** Bolds each plain paragraph of a question, so a blank line never sits inside a bold span. */
-export function boldParagraphs(text: string): string {
+/** Makes each plain paragraph of a question a heading, so the app draws it larger and bold; a heading is one line, so its line breaks become spaces. */
+export function headingParagraphs(text: string): string {
   return text
     .split(/\n{2,}/)
-    .map(p => (p.trim() && !NOT_BOLDABLE.test(p) ? `**${p.trim()}**` : p))
+    .map(p => (p.trim() && !NOT_HEADING.test(p) ? `### ${p.trim().replace(/\s*\n\s*/g, ' ')}` : p))
     .join('\n\n')
 }
 
@@ -132,7 +134,7 @@ export const STR = {
   brand: 'Eklavya',
   submit: 'Submit answer',
   skip: 'Skip question',
-  teach: 'Teach me',
+  teach: 'New to me — Teach me',
   next: 'Next question',
   done: 'Done',
   autoClose: 'Closes by itself in 15 seconds.',
@@ -159,7 +161,6 @@ export const STR = {
   askedOther: 'Eklavya: a note for Claude',
   focus: 'Ctrl+X then Tab moves the keys here.',
   keys: '1–4 pick · o other · s submit · k skip · t teach me · Esc back to prompt',
-  keysApp: '1–4 pick · o other · s submit · k skip · t teach me',
   off: 'The quiz panel is off. Turn it on with: eklavya config set quiz.panel true',
 } as const
 
@@ -202,11 +203,11 @@ export function explainerBrief(x: ExplainBlock): string {
 export const answerWas = (label: string): string => `The answer was: ${label}`
 
 /**
- * The hint lines under the pane. Moving the keys with Ctrl+X then Tab and
- * leaving with Esc are the terminal's; an app draws native buttons, so it gets
- * the answer keys only.
+ * The key hints. Only the terminal gets them: there Ctrl+X then Tab moves the keys into the pane. The
+ * desktop app keeps typing in its prompt even after a click on the pane (seen 2026-10-16), so a mod's
+ * hotkeys never reach it there, and it shows no keys at all.
  */
-export const hintLines = (surface: string): string[] => (surface === 'terminal' ? [STR.focus, STR.keys] : [STR.keysApp])
+export const hintLines = (surface: string): string[] => (surface === 'terminal' ? [STR.focus, STR.keys] : [])
 
 export const unplacedNotice = (): string => `A question is waiting. ${REOPEN} to open it.`
 export const levelLine = (level: string, project: string): string => `You've cleared ${level} on ${project}.`

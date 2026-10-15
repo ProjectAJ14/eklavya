@@ -83,7 +83,7 @@ level.
 right one, 2 for a near miss, 1 for a misconception), the right one in the
 plan's `answer_position` slot, and an explanation. It stores the question and
 returns at once; it writes no attempt. The panel records the answer through
-`panel_answer` with the same code `record_attempt` uses, exactly once. `kind: "dont_know"` (the panel's **Teach me** button) records `dont_know` with grade 0, replies with the right answer and `taught: true`, and always carries `explain`. On a miss with `explain_on_wrong` on, its reply carries the same `explain` block `record_attempt` returns, and the panel starts the explainer agent from it. `present_question` sends a question back once with `conspicuous_options` (nothing stored) when one option's label plus description outruns the next by a few words or a description explains itself, and presents the same stem as written on the second call. It returns `panel_disabled` while `quiz.panel` is off, and
+`panel_answer` with the same code `record_attempt` uses, exactly once. `kind: "dont_know"` (the panel's **New to me — Teach me** button) records `dont_know` with grade 0, replies with the right answer and `taught: true`, and always carries `explain`. On a miss with `explain_on_wrong` on, its reply carries the same `explain` block `record_attempt` returns, and the panel starts the explainer agent from it. `present_question` sends a question back once with `conspicuous_options` (nothing stored) when one option's label plus description outruns the next by a few words or a description explains itself, and presents the same stem as written on the second call. It returns `panel_disabled` while `quiz.panel` is off, and
 `panel_sync` returns `{disabled: true}` and expires the session's open question without recording an attempt, so turning the panel back on cannot revive it; `panel_answer` answers only a question
 that already exists. A round the learner asked for (a topic, `max`) is remembered per session: `present_question` takes each question off it and sets the last one's `more` false, and `get_session_quiz_plan` with `resume_round: true` plans what is left. This is
 a Claude Code mod feature: a standalone MCP client has the tools but not the
@@ -147,7 +147,8 @@ covers retrieval, processing, providers, privacy and sync.
 State is local under `~/.eklavya/`, including `knowledge.db` (SQLite, WAL).
 `EKLAVYA_HOME` and `EKLAVYA_DB` override those paths. Questions and memory have
 independent switches. Set `providers.observer` to `null` for local memory
-summaries and no prompt feedback;
+summaries and no prompt feedback. Each feedback item shows the project, host,
+session and time it came from, read from memory when you open it;
 see [your data](https://eklavya-run.web.app/docs/your-data/). Anonymous daily
 usage counts are on by default and never include paths, names or text;
 [usage analytics](https://eklavya-run.web.app/docs/usage-analytics/) lists every

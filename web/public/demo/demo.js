@@ -179,7 +179,6 @@
     options.forEach(function (option) {
       var picked = option.dataset.option === '1';
       option.dataset.selected = String(picked);
-      option.querySelector('.quiz-option__tick').textContent = picked ? '✓' : '';
     });
     find('[data-submit]').dataset.ready = 'true';
     showInPanel(find('[data-option="1"]'));
@@ -260,7 +259,6 @@
     steps.forEach(function (step) { step.hidden = true; });
     options.forEach(function (option) {
       delete option.dataset.selected;
-      option.querySelector('.quiz-option__tick').textContent = '';
     });
     actions.hidden = false;
     find('[data-submit]').dataset.ready = 'false';

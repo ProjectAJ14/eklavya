@@ -4,6 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import {
   BRAND,
   PICKED,
+  TEACH,
   EMPTY,
   EXPLAINER,
   NEXT_PROMPT,
@@ -18,7 +19,7 @@ import {
   gradingRequest,
   logoRows,
   boxRows,
-  boldParagraphs,
+  headingParagraphs,
   plainLabel,
   levelLine,
   parseVerdict,
@@ -364,8 +365,8 @@ export const register: Register = on => {
     const s: PanelState = await read($, quiz)
     const q = s.question
 
-    // Any surface but the terminal is the desktop app's: it sets the question bold, spaces the answers
-    // apart and draws the mark in boxes. The terminal keeps its text layout.
+    // Any surface but the terminal is the desktop app's: it sets the question as a heading, spaces the
+    // answers apart and draws the mark in boxes. The terminal keeps its text layout.
     const app = e.surface !== 'terminal'
     // The mark is drawn in text, as Claude Code draws its own, so it shows in every terminal. The
     // desktop app sets text in a proportional font with its own line height, so glyph cells do not
@@ -408,7 +409,9 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
-    const hint = (
+    // The desktop app never sends the pane its keys (see hintLines), so it gets no hotkeys and no hints.
+    const hk = (k: string) => (app ? undefined : k)
+    const hint = app ? null : (
       <Box flexDirection="column">
         {hintLines(e.surface).map(line => (
           <Text key={line} dimColor>
@@ -418,8 +421,9 @@ export const register: Register = on => {
       </Box>
     )
     // One answer: a bordered block. The Button holds the whole answer text, so a press anywhere on it
-    // selects; the border and a tick show the pick, and nothing implies it is right. The desktop app gives
-    // the text more room inside the border; the terminal keeps its tight cards.
+    // selects; the border and fill show the pick, and nothing implies it is
+    // right. The desktop app gives the text more room inside the border; the padding itself is not
+    // pressable, since a Button takes none. The terminal keeps its tight cards.
     // Other is never filled: the learner types inside it, in the host's own text colour, which a fixed fill could hide.
     const card = (id: string, selected: boolean, button: unknown, body: unknown[], roomy = false) => (
       <Box
@@ -455,17 +459,17 @@ export const register: Register = on => {
       )
     }
 
-    const stem = <Markdown text={app ? boldParagraphs(codify(q.stem)) : codify(q.stem)} />
+    const stem = <Markdown text={app ? headingParagraphs(codify(q.stem)) : codify(q.stem)} />
 
     if (s.step === 'feedback' || s.step === 'skipped') {
       const r = s.result
       if (s.step === 'skipped' || !r) {
-        return frame(<Text>{STR.skipped}</Text>, q.more ? null : <Text dimColor>{STR.autoClose}</Text>, <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />)
+        return frame(<Text>{STR.skipped}</Text>, q.more ? null : <Text dimColor>{STR.autoClose}</Text>, <Button key="done" label={STR.done} variant="primary" hotkey={hk('d')} onPress={() => done($)} />)
       }
       const right = r.correct === true
       return frame(
         stem,
-        <Text bold color={right ? 'suggestion' : r.taught ? undefined : 'error'}>
+        <Text bold color={right ? 'suggestion' : r.taught ? BRAND : 'error'}>
           {right ? STR.correct : r.taught ? STR.taught : STR.wrong}
         </Text>,
         right || !r.correct_label ? null : <Text>{answerWas(r.correct_label)}</Text>,
@@ -474,8 +478,8 @@ export const register: Register = on => {
         r.explain ? <Text dimColor>{r.taught ? STR.taughtExplainer : STR.explainer}</Text> : null,
         q.more ? null : <Text dimColor>{STR.autoClose}</Text>,
         <Box flexDirection="row" gap={2}>
-          {q.more ? <Button key="next" label={STR.next} hotkey="n" onPress={() => askNext($)} /> : null}
-          <Button key="done" label={STR.done} variant="primary" hotkey="d" onPress={() => done($)} />
+          {q.more ? <Button key="next" label={STR.next} hotkey={hk('n')} onPress={() => askNext($)} /> : null}
+          <Button key="done" label={STR.done} variant="primary" hotkey={hk('d')} onPress={() => done($)} />
         </Box>,
       )
     }
@@ -485,16 +489,20 @@ export const register: Register = on => {
     const hasDraft = s.draft.other ? s.draft.text.trim().length > 0 : s.draft.picked !== null
     // The answer and its note are the Button's own inline Text, so a press anywhere on them selects.
     // Markdown marks cannot show inside a Button, so the code and bold marks are dropped from both.
+    // The pick shows by the card's border and fill, never a mark in the text, so picking moves nothing.
+    // On the desktop app the note starts where the answer does; the terminal indents it under the `1: `
+    // its plain Button draws.
+    // `wrap` asks the app to wrap a long answer rather than cut it off.
     const answer = (id: string, key: string, hotkey: string, label: string, chosen: boolean, note?: string) => (
       <Button
         key={key}
         plain
-        hotkey={hotkey}
+        hotkey={hk(hotkey)}
         label={label}
         onPress={() => (locked ? undefined : id === 'other' ? chooseOther($) : pick($, id))}
       >
-        <Text bold={chosen} color={chosen && id !== 'other' ? PICKED.text : undefined}>{`${chosen ? '✓ ' : ''}${label}`}</Text>
-        {note ? <Text dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n   ${note}`}</Text> : null}
+        <Text wrap="wrap" bold={chosen} color={chosen && id !== 'other' ? PICKED.text : undefined}>{label}</Text>
+        {note ? <Text wrap="wrap" dimColor={!chosen} color={chosen ? PICKED.note : undefined}>{`\n${app ? '' : '   '}${note}`}</Text> : null}
       </Button>
     )
     const options = q.options.map((o, i) => {
@@ -509,7 +517,7 @@ export const register: Register = on => {
 
     return frame(
       stem,
-      <Box flexDirection="column" gap={app ? 2 : 0}>
+      <Box flexDirection="column" gap={app ? 2 : 0} marginTop={app ? 1 : 0}>
         {options}
         {card(
           'other',
@@ -538,14 +546,29 @@ export const register: Register = on => {
       s.step === 'awaiting' && s.message ? <Text color="warning">{s.message}</Text> : null,
       <Box flexDirection="row" gap={2}>
         {locked ? null : s.step === 'error' ? (
-          <Button key="retry" label={STR.retry} variant="primary" hotkey="r" onPress={() => submit($, null)} />
+          <Button key="retry" label={STR.retry} variant="primary" hotkey={hk('r')} onPress={() => submit($, null)} />
         ) : (
-          <Button key="submit" label={STR.submit} variant="primary" dimColor={!hasDraft} hotkey="s" onPress={() => submit($, null)} />
+          <Button key="submit" label={STR.submit} variant="primary" dimColor={!hasDraft} hotkey={hk('s')} onPress={() => submit($, null)} />
         )}
-        {locked ? null : <Button key="teach" label={STR.teach} hotkey="t" onPress={() => teach($)} />}
-        {locked ? null : <Button key="skip" label={STR.skip} dimColor hotkey="k" onPress={() => skip($)} />}
+        {locked ? null : <Button key="skip" label={STR.skip} dimColor hotkey={hk('k')} onPress={() => skip($)} />}
         {s.step === 'error' ? <Button key="close" label={STR.close} onPress={() => $.ui.close({ id: PANE })} /> : null}
       </Box>,
+      // Teach me has a row of its own, under Submit. A Button takes no fill, and a desktop draws a plain
+      // one without its grey chrome: the orange box is the button's body, and as a column it
+      // stretches the Button across its width, so all but the thin padding is pressable.
+      locked ? null : app ? (
+        <Box key="teach-box" flexDirection="column" backgroundColor={TEACH.bg} borderStyle="round" borderColor={TEACH.bg} paddingX={1} paddingY={0.5}>
+          <Button key="teach" plain label={STR.teach} onPress={() => teach($)}>
+            <Text color={TEACH.text}>{STR.teach}</Text>
+          </Button>
+        </Box>
+      ) : (
+        <Box key="teach-row" flexDirection="row">
+          <Button key="teach" label={STR.teach} hotkey={hk('t')} onPress={() => teach($)}>
+            <Text color={TEACH.text} backgroundColor={TEACH.bg}>{STR.teach}</Text>
+          </Button>
+        </Box>
+      ),
     )
   })
 }
