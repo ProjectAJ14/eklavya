@@ -1,3 +1,10 @@
+## [1.71.1](https://github.com/ProjectAJ14/eklavya/compare/v1.71.0...v1.71.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **panel:** readable desktop panel with no dead keys, a clear pick and a Teach me row ([#199](https://github.com/ProjectAJ14/eklavya/issues/199)) ([31843a1](https://github.com/ProjectAJ14/eklavya/commit/31843a12e7393d86c7af2b84dbd33fd6d87295e7))
+
 # [1.71.0](https://github.com/ProjectAJ14/eklavya/compare/v1.70.0...v1.71.0) (2026-10-15)
 
 
