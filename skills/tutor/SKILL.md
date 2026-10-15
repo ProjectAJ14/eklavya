@@ -52,11 +52,10 @@ actual decision in the actual file.
 A concept is a topic, not a fact: `name` it in 1–3 words ("Flutter animation",
 not "dispose the controller in pulse.dart"), say what it is in `description`,
 add `tags`. Reuse what exists. If the response has `needs_decision`, nothing was
-logged for those: call again with a candidate's `slug` when it is the same idea
-(a fuller `description` deepens it), or the same slug with `new: true` when none
-is. `created` is a debt: follow up with `upsert_concepts` giving each an honest
-`tier` and a `prerequisite_of` edge, or `prereqs_unmet` stays empty and the
-fairness check silently passes.
+logged for those: call again with a candidate's `slug` when it is the same idea,
+or the same slug with `new: true` when none is. Give each concept an honest `tier` and `prerequisites` (slugs to know first),
+or `prereqs_unmet` stays empty and the fairness check silently passes. Any
+`unlinked` slug in the response still owes an edge: `upsert_concepts`.
 
 Logging is silent — never narrate it or pause the work to announce it. On
 `as-you-go` cadence, the default, the log call may come straight back with a

@@ -67,7 +67,7 @@ async function runTool(def, args, db) {
  * created, with the last round's `needs_decision` (what is still undecided).
  */
 async function playRounds(def, rounds, db) {
-  const agg = { session_id: SESSION, logged: [], created: [], matched: [], needs_decision: [], capped: 0 };
+  const agg = { session_id: SESSION, logged: [], created: [], unlinked: [], matched: [], needs_decision: [], capped: 0 };
   let last;
   for (const concepts of rounds) {
     const out = await runTool(def, { concepts }, db);
@@ -76,6 +76,8 @@ async function playRounds(def, rounds, db) {
     for (const k of ['logged', 'created']) agg[k] = [...new Set([...agg[k], ...last[k]])];
     agg.matched.push(...last.matched);
     agg.needs_decision = last.needs_decision ?? [];
+    // Created, and still without an edge once every round has run: the only slugs that owe the upsert_concepts follow-up.
+    agg.unlinked = last.unlinked ?? [];
     agg.capped += last.capped;
     agg.next_action = last.next_action;
     agg.gate = last.gate;

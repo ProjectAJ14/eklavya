@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { loadConfig } from '../config.js';
 import { normalizeSlug, isValidSlug, findFuzzyMatch } from '../slug.js';
 import { cleanTags, findCandidates, growConcept, MAX_NAME_WORDS, wordCount, type Candidate } from '../concepts.js';
+import type { ConceptRow } from '../store.js';
 import { decayedScore, isKnown, streakOf } from '../srs.js';
 import { resolveSessionId } from '../session.js';
 import {
@@ -28,7 +29,7 @@ export const logSessionConcepts: ToolDef = {
   // host sets `CLAUDE_CODE_ENTRYPOINT` before spawning us and a session cannot
   // change surface halfway through.
   description: withSurfaceNote(
-    `Record the concepts the current task genuinely exercises, each with a one-line context pointing at the real code you wrote. Call this while implementing, batched, 3-8 concepts per task. A concept is a short name (1-${MAX_NAME_WORDS} words), a description and tags: reuse one the learner already has before minting. An unknown slug that resembles existing concepts is not created: the response lists them in needs_decision, so call again with a candidate's slug, or the same slug with new: true when none is the same idea. Pass a description or tags for a concept you met again and it deepens. When the response carries next_action, do what it says before quizzing.`,
+    `Record the concepts the current task genuinely exercises, each with a one-line context pointing at the real code you wrote. Call this while implementing, batched, 3-8 concepts per task. A concept is a short name (1-${MAX_NAME_WORDS} words), a description and tags: reuse one the learner already has before minting. An unknown slug that resembles existing concepts is not created: the response lists them in needs_decision, so call again with a candidate's slug, or the same slug with new: true when none is the same idea. Pass a description or tags for a concept you met again and it deepens. Pass prerequisites (slugs to know first) so the concept needs no follow-up call. When the response carries next_action, do what it says before quizzing.`,
     ' ',
   ),
   inputSchema: {
@@ -48,6 +49,7 @@ export const logSessionConcepts: ToolDef = {
           description: z.string().max(LIMITS.conceptDescription).optional().describe('What the concept is, in a sentence or two. On an existing concept it deepens the description.'),
           tags: z.array(z.string().max(LIMITS.tag)).max(LIMITS.tags).optional().describe('1-3 word labels, e.g. ["flutter", "animation"]. Reuse tags you have seen.'),
           new: z.boolean().optional().describe('Set when needs_decision listed candidates and none is the same idea.'),
+          prerequisites: z.array(z.string().max(LIMITS.slug)).max(5).optional().describe('Slugs of concepts to know first: existing ones, or others in this call. Each becomes a prerequisite_of edge, which is what makes the fairness check work.'),
           context: z.string().max(LIMITS.context).optional().describe('One line naming the actual code, e.g. "set httpOnly on the refresh cookie in auth.ts".'),
         }),
       )
@@ -66,6 +68,7 @@ export const logSessionConcepts: ToolDef = {
         description?: string;
         tags?: string[];
         new?: boolean;
+        prerequisites?: string[];
         context?: string;
       }[];
     },
@@ -80,6 +83,8 @@ export const logSessionConcepts: ToolDef = {
     const needsDecision: { requested: string; candidates: Candidate[] }[] = [];
     const logged: string[] = [];
     let capped = 0;
+    let edgesAdded = 0;
+    const resolved = new Map<string, ConceptRow>();
 
     const apply = db.transaction(() => {
       let budget = Math.max(0, config.max_new_concepts_per_session - newConceptsThisSession(db, sessionId));
@@ -133,6 +138,19 @@ export const logSessionConcepts: ToolDef = {
 
         logSessionConcept(db, sessionId, concept.id, input.context ?? null, 'work');
         logged.push(concept.slug);
+        resolved.set(slug, concept);
+      }
+
+      // After the loop, so a prerequisite listed later in the same call exists.
+      const insertEdge = db.prepare('INSERT OR IGNORE INTO edges (from_concept, to_concept, relation) VALUES (?, ?, ?)');
+      for (const input of args.concepts) {
+        const concept = resolved.get(normalizeSlug(input.slug));
+        if (!concept) continue;
+        for (const raw of input.prerequisites ?? []) {
+          const key = normalizeSlug(raw);
+          const pre = resolved.get(key) ?? conceptBySlug(db, key);
+          if (pre && pre.id !== concept.id) edgesAdded += insertEdge.run(pre.id, concept.id, 'prerequisite_of').changes;
+        }
       }
 
       // The gate's bar rises with the work: how many touched concepts are still
@@ -166,9 +184,14 @@ export const logSessionConcepts: ToolDef = {
       needsDecision.length > 0
         ? `Call log_session_concepts again for ${needsDecision.map((n) => n.requested).join(', ')}: use a candidate's slug when it is the same idea, or repeat the slug with new: true when none is. Nothing was logged for them yet.`
         : undefined;
+    // Created concepts that still have no edge: the ones whose `prerequisites`
+    // the model left out. Those are the only debt now; a concept logged with
+    // its prerequisites needs no second call.
+    const hasEdge = db.prepare('SELECT 1 FROM edges e JOIN concepts c ON c.id IN (e.from_concept, e.to_concept) WHERE c.slug = ? LIMIT 1');
+    const unlinked = created.filter((slug) => !hasEdge.get(slug));
     const followUp =
-      created.length > 0
-        ? `Call upsert_concepts for ${created.join(', ')} — each was created at tier 2 with no edges. Give each an honest tier and at least one prerequisite_of edge, or prereqs_unmet stays empty and the fairness check silently passes.`
+      unlinked.length > 0
+        ? `Call upsert_concepts for ${unlinked.join(', ')} — each was created with no prerequisite edge. Give each at least one prerequisite_of edge (or pass prerequisites when you log), or prereqs_unmet stays empty and the fairness check silently passes.`
         : undefined;
     const nextAction = [decide, followUp].filter(Boolean).join(' ') || undefined;
 
@@ -176,8 +199,10 @@ export const logSessionConcepts: ToolDef = {
       session_id: sessionId,
       logged,
       created,
+      unlinked,
       matched,
       needs_decision: needsDecision,
+      edges_added: edgesAdded,
       capped,
       gate,
       ...(nextAction ? { next_action: nextAction } : {}),

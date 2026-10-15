@@ -155,6 +155,57 @@ describe('log_session_concepts', () => {
   });
 });
 
+describe('log_session_concepts prerequisites', () => {
+  const edge = (from: string, to: string) =>
+    db
+      .prepare(
+        `SELECT 1 FROM edges e JOIN concepts f ON f.id = e.from_concept JOIN concepts t ON t.id = e.to_concept
+          WHERE f.slug = ? AND t.slug = ? AND e.relation = 'prerequisite_of'`,
+      )
+      .get(from, to);
+
+  it('links a new concept to an existing one and to another in the same call', () => {
+    const r = call<any>(logSessionConcepts, {
+      concepts: [
+        { slug: 'bloom-filter', name: 'Bloom filter', prerequisites: ['hash-maps', 'flutter-animation'], context: 'bloom.dart' },
+        { slug: 'hash-maps', name: 'Hash maps', new: true, context: 'bloom.dart' },
+      ],
+    });
+    expect(r.created.sort()).toEqual(['bloom-filter', 'hash-maps']);
+    expect(edge('flutter-animation', 'bloom-filter')).toBeTruthy();
+    expect(edge('hash-maps', 'bloom-filter')).toBeTruthy();
+    expect(r.edges_added).toBe(2);
+  });
+
+  it('asks for a follow-up only for created concepts that still have no edge', () => {
+    const r = call<any>(logSessionConcepts, {
+      concepts: [
+        { slug: 'bloom-filter', name: 'Bloom filter', prerequisites: ['flutter-animation'], context: 'a.dart' },
+        { slug: 'quadtree', name: 'Quadtree', context: 'b.dart' },
+      ],
+    });
+    expect(r.unlinked).toEqual(['quadtree']);
+    expect(r.next_action).toContain('quadtree');
+    expect(r.next_action).not.toContain('bloom-filter');
+  });
+
+  it('says nothing when every created concept has its prerequisites', () => {
+    const r = call<any>(logSessionConcepts, {
+      concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', prerequisites: ['flutter-animation'], context: 'a.dart' }],
+    });
+    expect(r.unlinked).toEqual([]);
+    expect(r.next_action).toBeUndefined();
+  });
+
+  it('ignores a prerequisite that does not exist and a concept naming itself', () => {
+    const r = call<any>(logSessionConcepts, {
+      concepts: [{ slug: 'bloom-filter', name: 'Bloom filter', prerequisites: ['nonexistent-thing', 'bloom-filter'], context: 'a.dart' }],
+    });
+    expect(r.edges_added).toBe(0);
+    expect(r.unlinked).toEqual(['bloom-filter']);
+  });
+});
+
 describe('upsert_concepts', () => {
   it('holds a lookalike and lets new: true through', () => {
     const held = call<any>(upsertConcepts, { concepts: [{ slug: 'animation-controller-dispose', name: 'Dispose controller' }] });

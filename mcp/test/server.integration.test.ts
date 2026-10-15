@@ -203,7 +203,8 @@ describe('the full teaching loop over the real transport', () => {
       JSON.stringify({
         min_minutes_between_quizzes: 0,
         min_minutes_between_checkpoints: 0,
-        max_questions_per_task: 4,
+        // Eight, not four: step 3 answers four times in one sitting, which spends the budget.
+        max_questions_per_task: 8,
         focus: 'project',
         // `home` is a plain folder, where the rule would hold every automatic
         // plan back until an edit lands in a repository.
@@ -257,8 +258,9 @@ describe('the full teaching loop over the real transport', () => {
       expect(full.questions_needed).toBe(2);
       expect(full.concepts.find((c: any) => c.slug === 'httponly-cookies').context).toMatch(/auth\.ts/);
 
-      // 3. Answering well twice moves the concept to known.
-      for (const round of [1, 2]) {
+      // 3. Four good answers in one sitting do not make it known: that takes
+      //    passes on two different days, which a test cannot wait for.
+      for (const round of [1, 2, 3, 4]) {
         const res = await callTool('record_attempt', {
           slug: 'jwt-structure',
           question: `round ${round}: what are the three segments and which are readable?`,
@@ -271,7 +273,12 @@ describe('the full teaching loop over the real transport', () => {
         expect(Date.parse(res.next_review)).toBeGreaterThan(Date.now());
       }
 
-      // 4. The profile reflects it.
+      expect((await callTool('get_learner_profile', { domain: 'web-auth' })).domains[0].known).toBe(0);
+
+      // 4. A second day of passes, written to the same database the server reads.
+      const side = new Database(dbFile);
+      side.prepare("UPDATE mastery SET passed_days = 2 WHERE concept_id = (SELECT id FROM concepts WHERE slug = 'jwt-structure')").run();
+      side.close();
       const profile = await callTool('get_learner_profile', { domain: 'web-auth' });
       expect(profile.domains[0].known).toBe(1);
 

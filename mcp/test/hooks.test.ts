@@ -486,8 +486,9 @@ describe('SessionStart output', () => {
       `INSERT INTO attempts (concept_id, session_id, question, answer, grade, difficulty, repo, level)
        VALUES (?, ?, 'q', 'a', 5, 2, '*', 'easy')`,
     ).run(csrf.id, SESSION);
-    answer('csrf', 5);
-    answer('csrf', 5);
+    for (let i = 0; i < 4; i += 1) answer('csrf', 5);
+    // Mastery also needs a second day of passes, which one test run cannot take.
+    db.prepare('UPDATE mastery SET passed_days = 2 WHERE concept_id = ?').run(csrf.id);
 
     const res = sessionStart();
     // One concept touched here; the seed's other 86 are not this project's.

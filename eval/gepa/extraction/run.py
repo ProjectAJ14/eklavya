@@ -144,7 +144,7 @@ def log_prompt(guidance: str, ex: dict) -> str:
         "",
         "=== TOOLS ===",
         f"log_session_concepts: {tool_text()['log']}",
-        "  concepts: [{slug, name? (1-3 words), domain?, tier? (1-5), description? (400 chars), tags? (5), new? (boolean), context?}], 1 to 50 entries",
+        "  concepts: [{slug, name? (1-3 words), domain?, tier? (1-5), description? (400 chars), tags? (5), new? (boolean), prerequisites? (slugs, 5), context?}], 1 to 50 entries",
         "",
         "=== THE LEARNER ===",
         profile_text(ex),
@@ -156,7 +156,7 @@ def log_prompt(guidance: str, ex: dict) -> str:
         "```",
         "",
         "Produce the log_session_concepts call you would make for this work.",
-        'Reply with a single JSON object and nothing else: {"concepts": [{"slug": "kebab-case", "name": "Short Name", "description": "...", "tags": ["..."], "context": "..."}]}',
+        'Reply with a single JSON object and nothing else: {"concepts": [{"slug": "kebab-case", "name": "Short Name", "description": "...", "tags": ["..."], "prerequisites": ["..."], "context": "..."}]}',
     ])
 
 
@@ -279,13 +279,14 @@ def run_example(guidance: str, ex: dict, model: str, judges: list[str]) -> tuple
         result = logged["result"]
 
         followup: dict = {"owed": []}
-        if result["created"]:
+        # Only the created concepts the log call left without an edge owe a follow-up.
+        if result.get("unlinked"):
             raw2 = pilot.claude(followup_prompt(guidance, ex, first, result), "generate", model)
             second = last_json(raw2, "concepts") or {"skip": True}
             if second.get("skip"):
                 second = {}
             args = {k: second[k] for k in ("concepts", "edges") if k in second}
-            followup = bridge("followup", {"home": home, "fixture": fx, "rounds": rounds, "created": result["created"], "args": args})
+            followup = bridge("followup", {"home": home, "fixture": fx, "rounds": rounds, "created": result["unlinked"], "args": args})
             followup["skipped"] = not args.get("concepts")
 
         det = bridge("score", {"fixture": fx, "concepts": concepts})
