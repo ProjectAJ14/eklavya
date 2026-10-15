@@ -5,7 +5,7 @@ import path from 'node:path';
 import { openDb, type DB } from '../src/db.js';
 import { answerPosition } from '../src/mcq.js';
 import { retryOnBusy } from '../src/concurrency.js';
-import { hasAskedQuestion, masteryFor, conceptBySlug } from '../src/store.js';
+import { hasAskedQuestion, masteryFor, conceptBySlug, wasEverTaught } from '../src/store.js';
 import { panelAnswer, panelSync, presentQuestion, type AnswerInput, type PresentInput } from '../src/panel.js';
 import { loadRound, panelPresentation, recordHeartbeat, saveRound } from '../src/panel-state.js';
 import { TOOLS } from '../src/tools/index.js';
@@ -417,6 +417,21 @@ describe('panel_answer: the grade table', () => {
     expect(out.explanation).toBeUndefined();
     expect(attempts().at(-1)).toMatchObject({ grade: 0, outcome: 'declined', answer: null, feedback: null, format: 'mcq' });
     expect(rowOf(q.question_id).phase).toBe('skipped');
+  });
+
+  it('records Teach me as dont_know with grade 0, the right answer and an explainer even with explain_on_wrong off', () => {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ focus: 'project', cadence: 'end', explain_on_wrong: false, quiz: { panel: true } }));
+    const q = present();
+    const out = answer({ question_id: q.question_id, kind: 'dont_know' });
+    expect(out).toMatchObject({ phase: 'answered', taught: true, correct: false, correct_label: LABELS[answerPosition(SLUG, 0) - 1] });
+    expect(out.explain?.instruction).toBeTruthy();
+    expect(attempts().at(-1)).toMatchObject({ grade: 0, outcome: 'dont_know', answer: null, format: 'mcq' });
+    // Mastery drops like a miss and the concept is marked taught, so the next question is a follow-up.
+    expect(wasEverTaught(db, conceptBySlug(db, SLUG)!.id)).toBe(true);
+    expect(rowOf(q.question_id).phase).toBe('answered');
+    // A second press returns the first reply and writes nothing.
+    expect(answer({ question_id: q.question_id, kind: 'dont_know' })).toEqual(out);
+    expect(attempts()).toHaveLength(1);
   });
 
   it('rejects answers that cannot be graded and writes nothing', () => {

@@ -276,7 +276,7 @@ export interface AnswerInput {
   repo: string;
   /** The session's working directory: where this project's settings are read from. */
   cwd: string;
-  kind: 'choice' | 'text' | 'skip';
+  kind: 'choice' | 'text' | 'skip' | 'dont_know';
   option_id?: string;
   text?: string;
   /** For `text`: the grader's verdict, validated here. Omit all three to ask for the right option first (the question becomes `grading`). */
@@ -335,7 +335,8 @@ export function panelAnswer(db: DB, args: AnswerInput) {
     }
 
     // The table the handoff fixes: a pick takes the grade the model wrote beside
-    // it, typed words take the grader's, a skip is a decline.
+    // it, typed words take the grader's, a skip is a decline, and Teach me
+    // (dont_know) is a blank the learner asked to have taught: grade 0.
     const grade = args.kind === 'choice' ? key.grades[picked!.id]! : args.kind === 'text' ? args.grade! : 0;
     const concept = db.prepare('SELECT slug FROM concepts WHERE id = ?').get(row.concept_id) as { slug: string };
     const recorded = recordAttemptCore(db, {
@@ -346,8 +347,9 @@ export function panelAnswer(db: DB, args: AnswerInput) {
       answer: args.kind === 'choice' ? picked!.label : args.kind === 'text' ? typed : undefined,
       grade,
       difficulty: row.tier,
-      feedback: args.kind === 'choice' ? row.explanation : args.kind === 'text' ? args.feedback : undefined,
-      outcome: args.kind === 'skip' ? 'declined' : args.kind === 'text' ? args.outcome : 'answered',
+      feedback: args.kind === 'choice' || args.kind === 'dont_know' ? row.explanation : args.kind === 'text' ? args.feedback : undefined,
+      outcome: args.kind === 'skip' ? 'declined' : args.kind === 'dont_know' ? 'dont_know' : args.kind === 'text' ? args.outcome : 'answered',
+      force_explain: args.kind === 'dont_know',
       // Free recall carries no format, so it is not capped at 4.
       format: args.kind === 'text' ? undefined : 'mcq',
       options: options.map((o) => o.label),
@@ -357,10 +359,11 @@ export function panelAnswer(db: DB, args: AnswerInput) {
     if ('error' in recorded) return recorded;
 
     const phase = args.kind === 'skip' ? 'skipped' : 'answered';
-    const isRight = args.kind === 'choice' ? picked!.id === key.correct_id : args.outcome === 'answered' && grade >= PASSING_GRADE;
+    const isRight = args.kind === 'choice' ? picked!.id === key.correct_id : args.kind === 'text' && args.outcome === 'answered' && grade >= PASSING_GRADE;
     const result = {
       phase,
       attempt_id: recorded.attempt_id as number,
+      ...(args.kind === 'dont_know' ? { taught: true } : {}),
       ...(args.kind === 'skip'
         ? {}
         : {

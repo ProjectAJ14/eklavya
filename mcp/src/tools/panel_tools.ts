@@ -63,13 +63,13 @@ export const panelAnswerTool: ToolDef = {
   name: 'panel_answer',
   title: 'Panel: record the answer',
   description:
-    'Called only by the Eklavya panel, never by the model. Grades and records one answer exactly once: kind "choice" with option_id, kind "text" with the typed text, first alone (it replies {phase: "grading", correct_label} so the panel\'s grader can judge), then with the grade (0-5), outcome (answered or dont_know, which needs grade 0) and feedback the grader produced, or kind "skip" (a decline). A second call for the same question returns the first reply and writes nothing. A mismatched session or project returns stale_question.',
+    'Called only by the Eklavya panel, never by the model. Grades and records one answer exactly once: kind "choice" with option_id, kind "text" with the typed text, first alone (it replies {phase: "grading", correct_label} so the panel\'s grader can judge), then with the grade (0-5), outcome (answered or dont_know, which needs grade 0) and feedback the grader produced, kind "skip" (a decline), or kind "dont_know" (the Teach me button: recorded as dont_know with grade 0, the right answer is returned and an explainer is requested even with explain_on_wrong off). A second call for the same question returns the first reply and writes nothing. A mismatched session or project returns stale_question.',
   inputSchema: {
     question_id: z.string().max(LIMITS.sessionId),
     session_id: z.string().min(1).max(LIMITS.sessionId),
     repo: z.string().max(LIMITS.cwd).describe('The repo panel_sync returned with the question.'),
     cwd: z.string().max(LIMITS.cwd).describe('The session working directory, where this project\'s settings are read.'),
-    kind: z.enum(['choice', 'text', 'skip']),
+    kind: z.enum(['choice', 'text', 'skip', 'dont_know']),
     option_id: z.string().max(16).optional(),
     text: z.string().max(LIMITS.answer).optional(),
     grade: z.number().int().min(0).max(5).optional(),

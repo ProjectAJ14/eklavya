@@ -289,6 +289,66 @@ describe('the pane, state by state', () => {
     expect(await pane.find({ key: 'done' })).toBeDefined()
   })
 
+  test('Teach me records dont_know, drops the miss styling and says an explainer is coming', async ($, on) => {
+    const w = world(on, {
+      answer: () => ({
+        phase: 'answered', attempt_id: 9, taught: true, correct: false, correct_label: 'The origin is compared',
+        explanation: 'Because.', explain: { instruction: 'go', attempt_id: 9 },
+      }),
+    })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'teach')
+    expect(answers(w.log)[0].args).toMatchObject({ kind: 'dont_know' })
+    expect(await pane.find({ text: STR.taught })).toBeDefined()
+    expect(await pane.find({ text: STR.wrong })).toBeUndefined()
+    expect(await pane.find({ text: STR.taughtExplainer })).toBeDefined()
+  })
+
+  test('Teach me starts the explainer once, telling it the learner gave no answer, even with a draft picked', async ($, on) => {
+    const taught = {
+      phase: 'answered', attempt_id: 9, taught: true, correct: false, correct_label: 'The origin is compared',
+      explain: {
+        instruction: 'Start the eklavya-explainer agent.', attempt_id: 9, concept: 'cors', name: 'CORS',
+        question: 'Why?', options: ['A one', 'The origin is compared'], option_notes: ['n1', 'n2'],
+        answer: null, correct: 'The origin is compared',
+      },
+    }
+    const w = world(on, { answer: () => taught })
+    await boot($)
+    await mount($, 'terminal')
+    await press($, 'opt-o1')
+    await press($, 'teach')
+    expect(answers(w.log)).toHaveLength(1)
+    expect(answers(w.log)[0].args).toMatchObject({ kind: 'dont_know' })
+    expect(answers(w.log)[0].args.option_id).toBeUndefined()
+    expect(w.log.prompts).toEqual([])
+    expect(w.log.spawns).toHaveLength(1)
+    expect(w.log.spawns[0].prompt).toContain('pressed Teach me')
+    expect(w.log.spawns[0].prompt).not.toContain('The learner answered')
+    expect(w.log.spawns[0].prompt).toContain('The right answer: The origin is compared')
+  })
+
+  test('Teach me that cannot reach the server keeps its kind and Retry resends it', async ($, on) => {
+    let first = true
+    const w = world(on, {
+      answer: () => {
+        if (first) {
+          first = false
+          throw new Error('connection reset')
+        }
+        return { phase: 'answered', attempt_id: 9, taught: true, correct: false, correct_label: 'The origin is compared' }
+      },
+    })
+    await boot($)
+    const pane = await mount($, 'terminal')
+    await press($, 'teach')
+    expect(await pane.find({ text: STR.unreachable })).toBeDefined()
+    await press($, 'retry')
+    expect(answers(w.log).map((a: any) => a.args.kind)).toEqual(['dont_know', 'dont_know'])
+    expect(await pane.find({ text: STR.taught })).toBeDefined()
+  })
+
   test('typing in Other never skips and never submits', async ($, on) => {
     const w = world(on)
     await boot($)

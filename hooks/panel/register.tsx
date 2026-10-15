@@ -465,13 +465,13 @@ export const register: Register = on => {
       const right = r.correct === true
       return frame(
         stem,
-        <Text bold color={right ? 'suggestion' : 'error'}>
-          {right ? STR.correct : STR.wrong}
+        <Text bold color={right ? 'suggestion' : r.taught ? undefined : 'error'}>
+          {right ? STR.correct : r.taught ? STR.taught : STR.wrong}
         </Text>,
         right || !r.correct_label ? null : <Text>{answerWas(r.correct_label)}</Text>,
         r.explanation ? <Markdown text={codify(r.explanation)} /> : null,
         r.level_up ? <Text color="suggestion">{levelLine(r.level_up.from, projectName(q.repo))}</Text> : null,
-        r.explain ? <Text dimColor>{STR.explainer}</Text> : null,
+        r.explain ? <Text dimColor>{r.taught ? STR.taughtExplainer : STR.explainer}</Text> : null,
         q.more ? null : <Text dimColor>{STR.autoClose}</Text>,
         <Box flexDirection="row" gap={2}>
           {q.more ? <Button key="next" label={STR.next} hotkey="n" onPress={() => askNext($)} /> : null}
@@ -542,6 +542,7 @@ export const register: Register = on => {
         ) : (
           <Button key="submit" label={STR.submit} variant="primary" dimColor={!hasDraft} hotkey="s" onPress={() => submit($, null)} />
         )}
+        {locked ? null : <Button key="teach" label={STR.teach} hotkey="t" onPress={() => teach($)} />}
         {locked ? null : <Button key="skip" label={STR.skip} dimColor hotkey="k" onPress={() => skip($)} />}
         {s.step === 'error' ? <Button key="close" label={STR.close} onPress={() => $.ui.close({ id: PANE })} /> : null}
       </Box>,
@@ -579,6 +580,11 @@ async function keepOther($: EngineInterface): Promise<void> {
       /* Fail open: the text stays in the draft without the focus move. */
     }
   }
+}
+
+/** "Teach me": a blank the learner asks to have taught. Recorded as dont_know; the explainer starts like it does for a miss. */
+async function teach($: EngineInterface): Promise<void> {
+  await submit($, { kind: 'dont_know' })
 }
 
 async function skip($: EngineInterface): Promise<void> {

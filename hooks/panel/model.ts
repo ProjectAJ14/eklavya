@@ -132,6 +132,7 @@ export const STR = {
   brand: 'Eklavya',
   submit: 'Submit answer',
   skip: 'Skip question',
+  teach: 'Teach me',
   next: 'Next question',
   done: 'Done',
   autoClose: 'Closes by itself in 15 seconds.',
@@ -143,6 +144,7 @@ export const STR = {
   grading: 'Checking your answer…',
   correct: 'Correct',
   wrong: 'Needs another look',
+  taught: "New to you, and that's fine. Here's the answer.",
   skipped: "Skipped. We won't ask this one again.",
   empty: 'No question right now',
   unreachable: "We couldn't reach Eklavya. Your answer is saved here — Retry.",
@@ -150,13 +152,14 @@ export const STR = {
   nothingTyped: 'Write your answer first, or pick one of the options.',
   graderFailed: "We couldn't check that answer. Your text is saved here — Retry.",
   explainer: 'A page explaining this is being written.',
+  taughtExplainer: "An explainer is on its way. We'll ask this again later.",
   /** What the transcript draws for the mod's own queued prompts; the model still reads the full text. */
   askedNext: 'Eklavya: next quiz question',
   askedExplainer: 'Eklavya: write an explainer page for the missed question',
   askedOther: 'Eklavya: a note for Claude',
   focus: 'Ctrl+X then Tab moves the keys here.',
-  keys: '1–4 pick · o other · s submit · k skip · Esc back to prompt',
-  keysApp: '1–4 pick · o other · s submit · k skip',
+  keys: '1–4 pick · o other · s submit · k skip · t teach me · Esc back to prompt',
+  keysApp: '1–4 pick · o other · s submit · k skip · t teach me',
   off: 'The quiz panel is off. Turn it on with: eklavya config set quiz.panel true',
 } as const
 
@@ -188,7 +191,9 @@ export function explainerBrief(x: ExplainBlock): string {
     // Words typed under Other match no option, so say so; the page lists them as their own item.
     x.answer && options.length && !x.options!.includes(x.answer)
       ? `The learner typed their own answer instead of picking: ${x.answer}`
-      : `The learner answered: ${x.answer ?? '(no answer)'}`,
+      : x.answer
+        ? `The learner answered: ${x.answer}`
+        : `The learner pressed Teach me: they did not know this and asked to be taught from the mechanism up. They gave no answer.`,
     ...(x.correct ? [`The right answer: ${x.correct}`] : []),
     `Pass --attempt ${x.attempt_id} to eklavya artifacts new.`,
   ].join('\n')

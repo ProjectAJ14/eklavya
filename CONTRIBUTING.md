@@ -129,7 +129,7 @@ loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
 2. While a long Bash command or a background agent runs, answer in the pane.
    Neither pauses. Selecting does not record anything; **Submit answer** records
    exactly one attempt, also on a double click.
-3. Try Other with typed words, Skip, Esc then `/eklavya-panel`, a `/clear` with a
+3. Try Other with typed words, Skip, **Teach me** (the right answer shows without red, an explainer opens even with `explain_on_wrong` off, and the same concept is asked again later), Esc then `/eklavya-panel`, a `/clear` with a
    leftover pane, and killing the Eklavya server mid-answer then Retry.
 4. Turn `quiz.panel` off and confirm the next question is the card and nothing
    mentions the panel.
