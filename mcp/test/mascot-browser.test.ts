@@ -424,13 +424,17 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
         if (phase === 'awaiting') {
           expect(await page.locator('[data-question]').isVisible()).toBe(true);
           expect(await page.locator('[data-option][data-selected="true"]').count()).toBe(0);
-          expect(await page.locator('.quiz-option__tick').allTextContents()).toEqual(['','','','','']);
+          // The panel shows the pick by fill and border, never a tick; the replay matches it.
+          expect(await page.locator('.quiz-option__tick').count()).toBe(0);
           expect(await page.locator('[data-submit]').isVisible()).toBe(true);
           expect(await page.locator('[data-grading]').isVisible()).toBe(false);
           expect(await page.locator('[data-result]').isVisible()).toBe(false);
           expect(await page.locator('[data-step="5"]').isVisible()).toBe(false);
         }
-        if (phase === 'selected') expect(await page.locator('[data-option][data-selected="true"]').count()).toBe(1);
+        if (phase === 'selected') {
+          expect(await page.locator('[data-option][data-selected="true"]').count()).toBe(1);
+          expect((await page.locator('[data-option]').allTextContents()).join('')).not.toContain('✓');
+        }
         if (phase === 'feedback') expect(await page.locator('[data-verdict]').textContent()).toBe('Correct');
       }
       expect(await page.locator('[data-panel]').isVisible()).toBe(false);
