@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, LOGO_GRID, codify, boldParagraphs, logoRows, boxRows, plainLabel } from './model'
+import { BRAND, EMPTY, EXPLAINER, NEXT_PROMPT, STR, hintLines, explainerBrief, gradingRequest, parseVerdict, payloadOf, projectName, topicLabel, unplacedNotice, WORDMARK, PICKED, TEACH, LOGO_GRID, codify, headingParagraphs, logoRows, boxRows, plainLabel } from './model'
 
 const PLUGIN = 'eklavya'
 const PANE = 'eklavya-quiz'
@@ -105,8 +105,8 @@ async function mount($: any, surface: (typeof SURFACES)[number], over: Record<st
 }
 
 const press = ($: any, key: string, surface = 'terminal') => $.ui.press({ plugin: PLUGIN, key, surface })
-/** How many answer cards are ticked: the picked one's label starts with ✓. */
-const ticks = async (pane: any) => (JSON.stringify(await pane.drawn()).match(/✓/g) ?? []).length
+/** How many answer cards are picked: the picked one has the bold border. */
+const ticks = async (pane: any) => (JSON.stringify(await pane.drawn()).match(/"borderStyle":"bold"/g) ?? []).length
 const answers = (log: any) => log.calls.filter((c: any) => c.tool === 'panel_answer')
 
 describe('the pane, state by state', () => {
@@ -229,19 +229,20 @@ describe('the pane, state by state', () => {
     expect(drawn).toContain(STR.focus)
   })
 
-  test('the desktop draws the answer keys without the terminal-only focus and Esc hints', async ($, on) => {
+  test('the desktop draws no keys: no hint lines and no hotkeys, since its keys never reach the pane', async ($, on) => {
     world(on)
     await boot($)
     const drawn = JSON.stringify(await (await mount($, 'desktop')).drawn())
-    expect(drawn).toContain(STR.keysApp)
+    expect(drawn).not.toContain('"hotkey"')
+    expect(drawn).not.toContain(STR.keys)
     expect(drawn).not.toContain(STR.focus)
     expect(drawn).not.toContain('Ctrl+X')
     expect(drawn).not.toContain('Esc back')
   })
 
-  test('hintLines gives the terminal both lines and every other surface the keys alone', () => {
+  test('hintLines gives the terminal both lines and every other surface none', () => {
     expect(hintLines('terminal')).toEqual([STR.focus, STR.keys])
-    for (const surface of ['desktop', 'vscode', 'mobile']) expect(hintLines(surface)).toEqual([STR.keysApp])
+    for (const surface of ['desktop', 'vscode', 'mobile']) expect(hintLines(surface)).toEqual([])
   })
 
   for (const [attached, reported] of [[['desktop'], 'desktop'], [['terminal', 'desktop'], 'terminal'], [[], 'terminal']] as const) {
@@ -301,6 +302,7 @@ describe('the pane, state by state', () => {
     await press($, 'teach')
     expect(answers(w.log)[0].args).toMatchObject({ kind: 'dont_know' })
     expect(await pane.find({ text: STR.taught })).toBeDefined()
+    expect(JSON.stringify(await pane.drawn())).toMatch(new RegExp(`"color":"${BRAND}"[^}]*\\},"children":\\["New to you`))
     expect(await pane.find({ text: STR.wrong })).toBeUndefined()
     expect(await pane.find({ text: STR.taughtExplainer })).toBeDefined()
   })
@@ -956,6 +958,38 @@ describe('the logo as boxes', () => {
 })
 
 describe('the desktop layout', () => {
+  test('Teach me has its own row under Submit; on the desktop app a column box stretches the Button', async ($, on) => {
+    world(on)
+    await boot($)
+    for (const surface of SURFACES) {
+      const tree = await (await mount($, surface)).drawn()
+      const rows = tree.children.filter((c: any) => c && c.type === 'Box' && JSON.stringify(c).includes('"key":"teach"'))
+      expect(rows).toHaveLength(1)
+      expect(JSON.stringify(rows[0])).not.toContain('"key":"submit"')
+      const all = tree.children.map((c: any) => JSON.stringify(c ?? null))
+      expect(all.findIndex((c: string) => c.includes('"key":"submit"'))).toBeLessThan(all.findIndex((c: string) => c.includes('"key":"teach"')))
+      if (surface === 'desktop') expect(rows[0].props).toMatchObject({ key: 'teach-box', flexDirection: 'column' })
+    }
+  })
+
+  test('the terminal keeps every hotkey and its hints', async ($, on) => {
+    world(on)
+    await boot($)
+    const d = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    for (const k of ['1', '2', '3', '4', 'o', 's', 'k', 't']) expect(d).toContain(`"hotkey":"${k}"`)
+    expect(d).toContain(STR.keys)
+  })
+
+  test('Teach me is drawn in Claude orange on both surfaces', async ($, on) => {
+    world(on)
+    await boot($)
+    // The logo uses the same orange, so each check names the Teach me element itself.
+    const desktop = JSON.stringify(await (await mount($, 'desktop')).drawn())
+    expect(desktop).toMatch(new RegExp(`"key":"teach-box"[^}]*"backgroundColor":"${TEACH.bg}"[^}]*"borderColor":"${TEACH.bg}"`))
+    const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
+    expect(terminal).toContain(`"color":"${TEACH.text}","backgroundColor":"${TEACH.bg}"`)
+  })
+
   test('only the desktop app pads the inside of an answer card', async ($, on) => {
     world(on)
     await boot($)
@@ -970,25 +1004,43 @@ describe('the desktop layout', () => {
     expect(terminal.y).toBe(0)
   })
 
-  test('boldParagraphs leaves block Markdown and existing bold alone', () => {
+  test('a pick never moves the text: no tick on either surface, and the desktop note starts where the answer does', async ($, on) => {
+    world(on)
+    await boot($)
+    const pane = await mount($, 'desktop')
+    await press($, 'opt-o1', 'desktop')
+    const d = JSON.stringify(await pane.drawn())
+    expect(d).not.toContain('✓')
+    const term = await mount($, 'terminal')
+    await press($, 'opt-o2')
+    expect(await ticks(term)).toBe(1)
+    expect(JSON.stringify(await term.drawn())).not.toContain('✓')
+    expect(d).toContain(JSON.stringify(QUESTION.options[0].label))
+    expect(d).toContain(JSON.stringify('\n' + QUESTION.options[0].note))
+    expect(d).toContain('"wrap":"wrap"')
+  })
+
+  test('headingParagraphs leaves block Markdown and existing bold alone', () => {
     for (const t of ['```\ncode\n```', '- a\n- b', '# Title', '> quote', '1. step', 'already **bold** here'])
-      expect(boldParagraphs(t)).toBe(t)
-    expect(boldParagraphs('plain\n\n- list')).toBe('**plain**\n\n- list')
-    expect(boldParagraphs('')).toBe('')
+      expect(headingParagraphs(t)).toBe(t)
+    expect(headingParagraphs('plain\n\n- list')).toBe('### plain\n\n- list')
+    expect(headingParagraphs('')).toBe('')
   })
 
-  test('boldParagraphs wraps each paragraph, never a blank line', () => {
-    expect(boldParagraphs('one\ntwo\n\nthree')).toBe('**one\ntwo**\n\n**three**')
+  test('headingParagraphs makes each paragraph one heading line', () => {
+    expect(headingParagraphs('one\ntwo\n\nthree')).toBe('### one two\n\n### three')
   })
 
-  test('only the desktop app bolds the question and spaces the answers', async ($, on) => {
+  test('only the desktop app sets the question as a heading and spaces the answers', async ($, on) => {
     world(on)
     await boot($)
     const gaps = (d: string) => (d.match(/"gap":2/g) ?? []).length
     const desktop = JSON.stringify(await (await mount($, 'desktop')).drawn())
     const terminal = JSON.stringify(await (await mount($, 'terminal')).drawn())
-    expect(desktop).toContain('**' + QUESTION.stem.slice(0, 10))
-    expect(terminal).not.toContain('**' + QUESTION.stem.slice(0, 10))
+    expect(desktop).toContain('### ' + QUESTION.stem.slice(0, 10))
+    expect(terminal).not.toContain('### ' + QUESTION.stem.slice(0, 10))
     expect(gaps(desktop)).toBe(gaps(terminal) + 1)
+    expect(desktop).toContain('"marginTop":1')
+    expect(terminal).not.toContain('"marginTop":1')
   })
 })

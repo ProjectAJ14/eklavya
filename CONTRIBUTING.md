@@ -129,19 +129,22 @@ loaded from your checkout (`claude --plugin-dir /path/to/eklavya`), and
 2. While a long Bash command or a background agent runs, answer in the pane.
    Neither pauses. Selecting does not record anything; **Submit answer** records
    exactly one attempt, also on a double click.
-3. Try Other with typed words, Skip, **Teach me** (the right answer shows without red, an explainer opens even with `explain_on_wrong` off, and the same concept is asked again later), Esc then `/eklavya-panel`, a `/clear` with a
+3. Try Other with typed words, Skip, **New to me — Teach me** (the right answer shows without red, under a line in Eklavya teal, an explainer opens even with `explain_on_wrong` off, and the same concept is asked again later), Esc then `/eklavya-panel`, a `/clear` with a
    leftover pane, and killing the Eklavya server mid-answer then Retry.
 4. Turn `quiz.panel` off and confirm the next question is the card and nothing
    mentions the panel.
-5. Pick one answer with its number key and another with a click on its text. Each
-   card shows its border and ✓ only for the pick, with no fill, and the host's
+5. Pick one answer with its number key (terminal) and another with a click on its text. Each
+   card shows the bold border and teal fill only for the pick (Other: the border
+   only), with no tick and no text moving, and the host's
    focus mark lands on the same card. Names such as `tester.pumpWidget(widget)`
    in the question appear as code. Answer the last question of a round and
    confirm the result closes itself after 15 seconds, and that a round with
    **Next question** waiting never does.
 
 Run `scripts/test-panel-mod.sh` for the mod's validation and tests. Say which of
-terminal and Desktop you ran; only the terminal CLI has been verified. On Desktop, also check that the pane draws without the terminal's `Ctrl+X then Tab` and `Esc` hints, that a click and the number keys pick an answer, and that a host that cannot seat the pane leaves the question on the card.
+terminal and Desktop you ran; only the terminal CLI has been verified. On Desktop, also check that the pane draws no key hints and no key badges, that a click picks an answer and presses each button, and that a host that cannot seat the pane leaves the question on the card.
+
+To see a layout change before trying it on Desktop, run `scripts/panel-preview.sh`: it runs the real mod in Claude Code's test host and draws seven panel states into one HTML page, with the panel width, light theme, click targets and Desktop's one-line cut-off Button text as toggles. `PANEL_REF=main scripts/panel-preview.sh` draws `main` for comparison. The page is an approximation calibrated from Desktop screenshots, not Desktop's renderer, so it does not replace the Desktop check.
 
 ## Manual scenarios
 
