@@ -99,7 +99,8 @@ with diagrams that you can print or save as PDF.
 ## Dashboard
 
 Run `eklavya dashboard` to open a local page in your browser. It keeps running
-in the background, and each session start restarts it if needed. A malformed
+in the background, and each session start restarts it if needed. The sidebar's
+foot shows the version it is running, with links to the docs. A malformed
 request gets an error reply instead of stopping it. A page left open shows
 new activity as it happens, including a session summary rewritten in place,
 and never moves what you are reading. You can also

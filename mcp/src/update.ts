@@ -28,7 +28,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
-import { spawnDashboard, stopDashboard } from './dashboard-daemon.js';
+import { refreshDashboard, spawnDashboard, stopDashboard } from './dashboard-daemon.js';
 import { eklavyaHome } from './paths.js';
 import { loadGlobalConfig } from './config.js';
 import { claimInstall, releaseInstall } from './install-lock.js';
@@ -320,7 +320,12 @@ export async function runUpdate(opts: { background: boolean; say?: (line: string
       }
     }
 
+    // Whatever else happened, a dashboard older than the runtime is replaced, as
+    // `eklavya install` leaves none behind. It was not stopped above when the
+    // runtime was already current (the launcher's heal installed it, or an earlier
+    // run did) or when the stop timed out on a busy one.
     if (restart) spawnDashboard(runtimeCli());
+    else await refreshDashboard(version, runtimeCli());
     writeState({ checked_at: now, ok_at: now, latest, applied: version, error: null, error_class: null });
     return from === version ? { status: 'current', version } : { status: 'updated', from, to: version };
   } catch (err) {

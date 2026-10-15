@@ -1684,6 +1684,8 @@ export function dashboardState(db: DB): Record<string, unknown> {
   return {
     generated_at: now.toISOString(),
     db_path: dbPath(),
+    // The code this dashboard process loaded: what the page's sidebar says it is running.
+    version: ownVersion(),
     cursor,
     timeline_days: TIMELINE_DAYS,
     attempts_shown: attempts.length,

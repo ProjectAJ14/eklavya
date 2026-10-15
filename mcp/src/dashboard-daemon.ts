@@ -22,14 +22,27 @@ import { compareVersions } from './update.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
-/** This build's version: the package this module shipped in. */
-export function ownVersion(): string {
+function readOwnVersion(): string {
   try {
     return JSON.parse(fs.readFileSync(path.join(moduleDir, '..', 'package.json'), 'utf8')).version as string;
     /* c8 ignore next 3 -- a build always ships beside its package.json */
   } catch {
     return '0.0.0';
   }
+}
+
+/**
+ * Read once, when this module loads, and never again. A long-running dashboard
+ * answers `/api/health` with this, and `npm install` replaces `package.json`
+ * under it: read per call, an old process that was not stopped first reports the
+ * NEW version while still running the old code, `ensureDashboard` sees "current"
+ * and the stale dashboard is never replaced.
+ */
+const LOADED_VERSION = readOwnVersion();
+
+/** The version of the code this process loaded, which is not necessarily what is on disk now. */
+export function ownVersion(): string {
+  return LOADED_VERSION;
 }
 
 /** What `/api/health` answers. `db` is the database that process is serving. */
@@ -187,6 +200,24 @@ export async function ensureDashboard(probeMs = 150): Promise<EnsureResult> {
     if (probe.kind === 'foreign' || !samePath(probe.health.db, dbPath())) return 'other';
     if (compareVersions(probe.health.version, ownVersion()) >= 0) return 'running';
     return (await stopDashboard()) && spawnDashboard() ? 'replaced' : 'failed';
+    /* c8 ignore next 3 -- defensive: every call above already catches its own failures */
+  } catch {
+    return 'failed';
+  }
+}
+
+/**
+ * After an update: replaces a running Eklavya dashboard that is older than `version` with one started from `cli`.
+ * Unlike `ensureDashboard` it never starts one that is not running (`dashboard_autostart` is the session's business),
+ * and it judges against the runtime just installed, not against the process asking, which may itself be the old build.
+ * Waits as long as a command does. Never throws.
+ */
+export async function refreshDashboard(version: string, cli: string): Promise<EnsureResult> {
+  try {
+    const probe = await probeDashboard(dashboardPort(), PATIENT_PROBE_MS);
+    if (probe.kind !== 'eklavya' || !samePath(probe.health.db, dbPath())) return 'other';
+    if (compareVersions(probe.health.version, version) >= 0) return 'running';
+    return (await stopDashboard()) && spawnDashboard(cli) ? 'replaced' : 'failed';
     /* c8 ignore next 3 -- defensive: every call above already catches its own failures */
   } catch {
     return 'failed';

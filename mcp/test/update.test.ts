@@ -380,6 +380,54 @@ describe('runUpdate, the paths that fail', () => {
   });
 });
 
+describe('a dashboard the update did not stop', () => {
+  /** A dashboard that is already older than whatever the runtime holds, on the test's database. */
+  async function olderDashboard() {
+    const { spawn } = await import('node:child_process');
+    const net = await import('node:net');
+    const port = await new Promise<number>((resolve) => {
+      const s = net.createServer().listen(0, '127.0.0.1', () => {
+        const p = (s.address() as { port: number }).port;
+        s.close(() => resolve(p));
+      });
+    });
+    const savedPort = process.env.EKLAVYA_DASHBOARD_PORT;
+    const savedDb = process.env.EKLAVYA_DB;
+    process.env.EKLAVYA_DASHBOARD_PORT = String(port);
+    process.env.EKLAVYA_DB = path.join(home, 'knowledge.db');
+    const src = `require('http').createServer((q, r) => r.end(JSON.stringify({ app: 'eklavya', version: '0.0.1', pid: process.pid, db: ${JSON.stringify(path.join(home, 'knowledge.db'))} })))
+      .listen(${port}, '127.0.0.1', () => console.log('up'));`;
+    const dash = spawn(process.execPath, ['-e', src], { stdio: ['ignore', 'pipe', 'ignore'] });
+    await new Promise((r) => dash.stdout!.once('data', r));
+    return {
+      dash,
+      restore: () => {
+        dash.kill('SIGKILL');
+        if (savedPort === undefined) delete process.env.EKLAVYA_DASHBOARD_PORT;
+        else process.env.EKLAVYA_DASHBOARD_PORT = savedPort;
+        if (savedDb === undefined) delete process.env.EKLAVYA_DB;
+        else process.env.EKLAVYA_DB = savedDb;
+      },
+    };
+  }
+
+  it('is replaced when the runtime was already current, as when the launcher installed it', async () => {
+    const { dash, restore } = await olderDashboard();
+    try {
+      // The launcher's heal put 1.2.0 in the runtime and never stopped the dashboard; `applied` still names 1.0.0.
+      fakeRuntime('1.2.0');
+      fakeNpm('1.2.0');
+      writeState({ applied: '1.0.0' });
+      const exited = new Promise((r) => dash.once('exit', r));
+      expect(await runUpdate({ background: false })).toMatchObject({ status: 'current', version: '1.2.0' });
+      await exited;
+      expect(await eventually(() => ran().includes('dashboard --serve'))).toBe(true);
+    } finally {
+      restore();
+    }
+  });
+});
+
 describe('the small state helpers', () => {
   it('reads a runtime without a version, and a state file that is not an object, as nothing', () => {
     const pkg = path.join(home, 'runtime', 'node_modules', 'eklavya');
