@@ -7,7 +7,7 @@ or mint a near-duplicate, and are the concepts it mints short, described and tag
     python3 eval/gepa/dedup/run.py report before.json after.json
 
 Manual only. A trial is one `claude -p` call (~44k input tokens) with the shipped tutor skill in
-context. No judges: the checks are deterministic, against `eval/fixtures/dedup/scenarios.json`.
+context, and a second when the tool holds a lookalike in `needs_decision`. No judges: the checks are deterministic, against `eval/fixtures/dedup/scenarios.json`.
 Same seam as the extraction eval: the product's own `log_session_concepts` handler answers
 against a real database in a temp EKLAVYA_HOME seeded with the scenario's existing concepts.
 """

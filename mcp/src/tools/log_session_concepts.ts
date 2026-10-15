@@ -173,10 +173,9 @@ export const logSessionConcepts: ToolDef = {
     });
     const gate = apply();
 
-    // Said in the response, not only in the tutor skill. A bare concept is
-    // tier 2, domain "general", no edges -- and `prereqs_unmet` is computed from
-    // edges, so a concept with none can never be reported as unfair to ask
-    // about, however far out of its depth the learner is. The skill says to fix
+    // Said in the response, not only in the tutor skill. `prereqs_unmet` is
+    // computed from edges, so a concept with none can never be reported as
+    // unfair to ask about, however far out of its depth the learner is. The skill says to fix
     // that, but it is model-invoked and may never load; the same gap is why the
     // concept-logging directive had to move into the SessionStart banner. This
     // lands in context whatever loaded.

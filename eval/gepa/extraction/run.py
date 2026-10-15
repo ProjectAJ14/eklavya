@@ -471,7 +471,7 @@ def cmd_optimize(args) -> None:
             background=(
                 "Hard rules a rewrite must keep: it replaces one block of a skill file that must stay under a fixed word ceiling, so it may not be longer than the shipped block by more than a few words "
                 "(a candidate over the ceiling scores 0); 3-8 concepts per batch; `context` names the actual decision in the actual file (good: \"set httpOnly on the refresh cookie in auth.ts:42\", useless: \"used cookies\"); "
-                "unknown slugs are fuzzy-matched or created; `matched` gives the canonical slug to use from then on; `created` slugs arrive bare and are a debt: follow up with `upsert_concepts` giving each a real domain, an honest tier and at least one prerequisite_of edge; "
+                "a concept is a topic named in 1-3 words with a `description` and `tags`; an unknown slug that resembles existing concepts comes back in `needs_decision` and is answered with a candidate's slug or `new: true`; give each concept an honest `tier` and `prerequisites`, and a `created` slug still `unlinked` owes an `upsert_concepts` edge; "
                 "never log a concept the learner's profile says is mastered; logging is silent: never narrate it or pause the work. "
                 "Do not add per-example special cases or concept lists."
             ),

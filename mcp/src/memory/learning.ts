@@ -1,7 +1,8 @@
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { isDomainEnabled } from '../config.js';
-import { allConceptSlugs, insertConcept, logSessionConcept, newConceptsThisSession } from '../store.js';
+import { allConceptSlugs, conceptBySlug, insertConcept, logSessionConcept, newConceptsThisSession } from '../store.js';
+import { AUTO_REUSE_SCORE, findCandidates } from '../concepts.js';
 import { findFuzzyMatch, isValidSlug, normalizeSlug } from '../slug.js';
 import {
   addCandidate,
@@ -228,8 +229,9 @@ function sessionCandidates(db: DB, project: string, sessionId: string, limit: nu
  * Creating is safe here because of who can reach it. Extractive candidates
  * (`proposeFor`) always carry an existing slug, so they match; only the
  * observer's own proposals are ever new, and `sessionCandidates` has already
- * dropped anything under 0.7 confidence. A new concept is bare, as one from
- * `log_session_concepts` is, and spends the same per-session budget.
+ * dropped anything under 0.7 confidence. A concept the graph all but has
+ * already (`AUTO_REUSE_SCORE`) is reused; a new one is created without a
+ * description or tags and spends the same per-session budget.
  */
 function conceptFor(
   db: DB,
@@ -245,6 +247,13 @@ function conceptFor(
 
   const domain = normalizeSlug(candidate.domain) || 'general';
   if (!isDomainEnabled(config, domain)) return undefined;
+  // Nobody is here to answer `needs_decision`, so a concept the graph all but
+  // has already is reused rather than minted beside it.
+  const near = findCandidates(db, { slug, name: candidate.name ?? undefined, domain }, 1)[0];
+  if (near && near.score >= AUTO_REUSE_SCORE) {
+    const row = conceptBySlug(db, near.slug);
+    if (row && isDomainEnabled(config, row.domain)) return { concept: row, created: false };
+  }
   // Left as a candidate rather than rejected: the budget is this session's, and
   // the proposal may still be worth something to a later fill.
   if (!mayCreate) return 'no_budget';

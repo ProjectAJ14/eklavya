@@ -4,7 +4,7 @@ import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import { addCandidate, appendEvent, entryById, insertEntry, pendingCandidates } from '../src/memory/store.js';
 import { fillOmissions, proposeFor } from '../src/memory/learning.js';
-import { conceptBySlug, logSessionConcept } from '../src/store.js';
+import { conceptBySlug, insertConcept, logSessionConcept } from '../src/store.js';
 
 const PROJECT = '/tmp/learning-cov';
 const SESSION = 'sess-learning-cov';
@@ -54,6 +54,38 @@ describe('proposeFor edges', () => {
   it('ignores a matched concept whose domain is disabled', () => {
     config.domains_enabled = ['nothing-here'];
     expect(proposeFor(db, entry('csrf'), config)).toBe(0);
+  });
+});
+
+describe('fillOmissions and lookalike concepts', () => {
+  const seedIdempotency = () =>
+    insertConcept(db, {
+      slug: 'idempotency',
+      name: 'Idempotency',
+      domain: 'api',
+      tier: 2,
+      description: 'Repeating an operation without changing the result.',
+      tags: ['api'],
+      source: 'llm',
+    });
+
+  it('reuses a concept the graph all but has, instead of minting one beside it', () => {
+    seedIdempotency();
+    const e = entry('Made payments safe to retry');
+    propose(e.id, 'idempotency-key', 'Idempotency key', 'api');
+
+    expect(fillOmissions(db, config, SESSION, PROJECT)).toEqual({ accepted: 1, skipped: 0 });
+    expect(conceptBySlug(db, 'idempotency-key')).toBeUndefined();
+    expect(logged().map((c) => c.slug)).toEqual(['idempotency']);
+  });
+
+  it('still creates a concept nothing resembles', () => {
+    seedIdempotency();
+    const e = entry('Added a bloom filter');
+    propose(e.id, 'bloom-filter', 'Bloom filter', 'data-structures');
+
+    expect(fillOmissions(db, config, SESSION, PROJECT)).toEqual({ accepted: 1, skipped: 0 });
+    expect(conceptBySlug(db, 'bloom-filter')).toBeDefined();
   });
 });
 

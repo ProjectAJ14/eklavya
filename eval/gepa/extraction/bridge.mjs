@@ -126,7 +126,7 @@ async function followup() {
   const { normalizeSlug } = await dist('slug.js');
   const { db, store } = await openSeeded(input.fixture.mastered);
   try {
-    // `log` ran in an earlier process: replay it, so the created slugs exist as bare concepts again.
+    // `log` ran in an earlier process: replay it, so the created slugs exist again.
     const { logSessionConcepts } = await toolDefs();
     await playRounds(logSessionConcepts, roundsOf(), db);
     const out = await runTool(upsertConcepts, input.args, db);

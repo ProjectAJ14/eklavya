@@ -18,6 +18,9 @@ export const MIN_REPS_FOR_KNOWN = 4;
 export const MIN_PASSED_DAYS = 2;
 export const MIN_TOP_TIER_FOR_KNOWN = 2;
 
+/** `isKnown` as a SQL condition on a `mastery` row, for the queries that count rather than load. */
+export const KNOWN_SQL = `score >= ${MASTERY_THRESHOLD} AND reps >= ${MIN_REPS_FOR_KNOWN} AND passed_days >= ${MIN_PASSED_DAYS} AND top_passed_tier >= ${MIN_TOP_TIER_FOR_KNOWN}`;
+
 /** Read-time decay: how fast an ignored concept loses credibility, and its floor. */
 export const DECAY_PER_WEEK = 0.05;
 export const DECAY_FLOOR = 0.3;

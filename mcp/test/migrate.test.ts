@@ -276,6 +276,36 @@ describe('migrations', () => {
     }
   });
 
+  it('upgrades a populated v31 database: no tags, and the streak evidence read back from its attempts', () => {
+    const oldDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-mig-'));
+    try {
+      for (const f of fs.readdirSync(migrationsDir()).filter((f) => f < '032')) {
+        fs.copyFileSync(path.join(migrationsDir(), f), path.join(oldDir, f));
+      }
+      const db = new Database(':memory:');
+      runMigrations(db, oldDir);
+      expect(schemaVersion(db)).toBe(31);
+      db.prepare("INSERT INTO concepts (slug, name, domain, tier, source) VALUES ('streaky', 'Streaky', 'x', 2, 'llm'), ('unseen', 'Unseen', 'x', 2, 'llm')").run();
+      db.prepare('INSERT INTO mastery (concept_id, score, ease, interval_d, reps) VALUES (1, 0.8, 2.5, 6, 4), (2, 0, 2.5, 0, 0)').run();
+      const attempt = db.prepare('INSERT INTO attempts (concept_id, question, grade, difficulty, ts, retry_of) VALUES (1, ?, ?, ?, ?, ?)');
+      attempt.run('q1', 4, 1, '2026-01-01 10:00:00', null); // day 1, tier 1
+      attempt.run('q2', 4, 3, '2026-01-01 11:00:00', null); // same day, tier 3
+      attempt.run('q3', 4, 2, '2026-01-03 09:00:00', null); // day 2
+      attempt.run('q4', 2, 5, '2026-01-04 09:00:00', null); // a fail: neither a day nor a tier
+      attempt.run('q5', 3, 5, '2026-01-05 09:00:00', 1); // a correction: a day, never a tier
+
+      expect(runMigrations(db)).toEqual(['032_concept_tags_mastery_streak.sql']);
+      expect(schemaVersion(db)).toBe(LATEST_SCHEMA_VERSION);
+      expect(db.prepare('SELECT passed_days, top_passed_tier FROM mastery ORDER BY concept_id').all()).toEqual([
+        { passed_days: 3, top_passed_tier: 3 },
+        { passed_days: 0, top_passed_tier: 0 },
+      ]);
+      expect(db.prepare('SELECT tags FROM concepts ORDER BY id').all()).toEqual([{ tags: '[]' }, { tags: '[]' }]);
+    } finally {
+      fs.rmSync(oldDir, { recursive: true, force: true });
+    }
+  });
+
   it('upgrades a populated v29 database with the index the dashboard summarises evidence through', () => {
     // The dashboard groups every captured event by project, session and checkout
     // to count them. Without 030 that is a pass over the whole table (every row

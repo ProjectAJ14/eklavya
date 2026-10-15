@@ -26,7 +26,7 @@ import { applySetting, isKnownKey, knownKeys, parseValue, valueAt } from './conf
 import { levelStanding } from './store.js';
 import { statusLine } from './statusline.js';
 import { isSessionOff } from './session.js';
-import { START_LEVEL, type Level } from './srs.js';
+import { KNOWN_SQL, START_LEVEL, type Level } from './srs.js';
 import Database from 'better-sqlite3';
 import { bold, check, dim, failText, heading, paint, styleUsage, verdict, type Mark } from './theme.js';
 
@@ -636,7 +636,7 @@ async function doctor(): Promise<void> {
     const concepts = (db.prepare('SELECT count(*) n FROM concepts').get() as { n: number }).n;
     const attempts = (db.prepare('SELECT count(*) n FROM attempts').get() as { n: number }).n;
     const known = (
-      db.prepare('SELECT count(*) n FROM mastery WHERE score >= 0.7 AND reps >= 2').get() as { n: number }
+      db.prepare(`SELECT count(*) n FROM mastery WHERE ${KNOWN_SQL}`).get() as { n: number }
     ).n;
     add('ok', 'concepts', String(concepts));
     add('ok', 'attempts', String(attempts));

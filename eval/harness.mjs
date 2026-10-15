@@ -162,6 +162,7 @@ async function plan() {
           name: c.slug.replace(/-/g, ' '),
           domain: c.domain,
           tier: c.tier,
+          new: true, // fixtures are the graph under test: never held as lookalikes of each other or the seed
           description: c.description,
           prerequisite_of: c.prerequisite_of ?? [],
         })),
