@@ -41,6 +41,14 @@ An update that installs a new runtime stops the
 again on the new version. Windows cannot replace the database driver while a
 running dashboard has it loaded.
 
+Every update run also checks the dashboard at the end. If one is still running
+on an older version, because the runtime was already current when the run
+started or the dashboard was too busy to stop in time, the run replaces it. It
+never starts a dashboard that was not running. The version a dashboard reports
+is the one it loaded when it started, not the one now on disk, so an old
+process that survived an install is recognised as old. The dashboard's sidebar
+shows that version at the bottom.
+
 ## Diagnose an update
 
 ```bash

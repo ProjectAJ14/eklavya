@@ -23,6 +23,7 @@ import { tempDbPath, cleanup } from './helpers.js';
 import { gradeConcept, recordRetry, syncGate } from '../src/store.js';
 import { seedFixture, type Fixture } from './dashboard-fixture.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
+import { ownVersion } from '../src/dashboard-daemon.js';
 // `tokens.css` is copied in by the build, so the served-asset case runs the built server.
 import { startDashboard as startBuilt } from '../dist/dashboard.js';
 
@@ -58,6 +59,10 @@ function work() {
 const bySlug = (s: any, slug: string) => s.concepts.find((c: any) => c.slug === slug);
 
 describe('dashboardState', () => {
+  it('names the version of the code that built it, for the sidebar', () => {
+    expect((dashboardState(db) as any).version).toBe(ownVersion());
+  });
+
   it('splits a day three ways and never double-counts an answer', () => {
     work();
     call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q1', answer: 'a', grade: 5, difficulty: 2 });
@@ -661,7 +666,10 @@ describe('the dashboard page', () => {
   });
 
   it('asks for nothing from another host', () => {
-    expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
+    // The one exception is the sidebar's links to the manual: anchors the reader follows, which load nothing.
+    const docs = /<a href="https:\/\/eklavya-run\.web\.app\/docs\/[a-z-]*\/?" target="_blank" rel="noopener">/g;
+    expect(html.match(docs)?.length).toBe(3);
+    expect(html.replace(docs, '')).not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
   });
 });
 
@@ -1031,7 +1039,7 @@ describe('/api/state is unchanged for the page that still reads it', () => {
       config: 'object', config_scope: 'string', totals: 'object',
       daily: 'array', projects: 'array', domains: 'array', concepts: 'array', attempts: 'array',
       logged: 'array', memory: 'object', reuse: 'object', health: 'object', memory_sessions: 'array',
-      artifacts: 'array', feedback: 'object',
+      artifacts: 'array', feedback: 'object', version: 'string',
     });
     expect(Object.keys(s.projects[0]).sort()).toEqual([
       'answers', 'concepts', 'first_active', 'key', 'last_active', 'level', 'level_accuracy', 'level_counts',

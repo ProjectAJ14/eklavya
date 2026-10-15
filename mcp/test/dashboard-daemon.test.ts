@@ -215,6 +215,70 @@ describe('the always-on dashboard', () => {
     }
   }, 10_000);
 
+  it('reports the version it loaded, not the one npm has since written over package.json', async () => {
+    // A copy of the build the test can rewrite: `node_modules` is linked, so it resolves its driver.
+    const pkg = fs.mkdtempSync(path.join(os.tmpdir(), 'eklavya-stale-'));
+    fs.cpSync(path.join(mcpRoot, 'dist'), path.join(pkg, 'dist'), { recursive: true });
+    fs.copyFileSync(path.join(mcpRoot, 'package.json'), path.join(pkg, 'package.json'));
+    fs.symlinkSync(path.join(mcpRoot, 'node_modules'), path.join(pkg, 'node_modules'), 'junction');
+    try {
+      expect(daemon.spawnDashboard(path.join(pkg, 'dist', 'cli.js'))).toBe(true);
+      expect(await daemon.waitForDashboard(8000, port)).toBe(true);
+      // What an update does to a dashboard it did not stop first.
+      const manifest = JSON.parse(fs.readFileSync(path.join(pkg, 'package.json'), 'utf8'));
+      fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ ...manifest, version: '999.0.0' }));
+      const probe = await daemon.probeDashboard(port, 3000);
+      expect(probe).toMatchObject({ kind: 'eklavya', health: { version: daemon.ownVersion() } });
+      // So the next session still sees it as older than the runtime, and replaces it.
+      expect(await daemon.refreshDashboard('999.0.0', path.join(pkg, 'dist', 'cli.js'))).toBe('replaced');
+      expect(await daemon.waitForDashboard(8000, port)).toBe(true);
+      expect(await daemon.probeDashboard(port, 3000)).toMatchObject({ kind: 'eklavya', health: { version: '999.0.0' } });
+    } finally {
+      await daemon.stopDashboard(port);
+      fs.rmSync(pkg, { recursive: true, force: true });
+    }
+  }, 40_000);
+
+  describe('refreshing after an update', () => {
+    const cli = path.join(mcpRoot, 'dist', 'cli.js');
+
+    it('replaces an older dashboard from the given build, and leaves a current or newer one', async () => {
+      const older = await fakeDashboard(port, '0.0.1', process.env.EKLAVYA_DB!);
+      children.push(older);
+      const exited = new Promise((r) => older.once('exit', r));
+      expect(await daemon.refreshDashboard(daemon.ownVersion(), cli)).toBe('replaced');
+      await exited;
+      expect(await daemon.waitForDashboard(5000, port)).toBe(true);
+      expect(await daemon.refreshDashboard(daemon.ownVersion(), cli)).toBe('running');
+      await daemon.stopDashboard(port);
+
+      children.push(await fakeDashboard(port, '999.0.0', process.env.EKLAVYA_DB!));
+      expect(await daemon.refreshDashboard('1.0.0', cli)).toBe('running');
+    }, 20_000);
+
+    it('never starts one that is not running, and leaves another database or a foreign server alone', async () => {
+      expect(await daemon.refreshDashboard('1.0.0', cli)).toBe('other');
+      expect((await daemon.probeDashboard(port)).kind).toBe('down');
+
+      const other = await fakeDashboard(port, '0.0.1', path.join(home, 'someone-else.db'));
+      children.push(other);
+      expect(await daemon.refreshDashboard('1.0.0', cli)).toBe('other');
+      expect(other.exitCode).toBeNull();
+    });
+
+    it('says failed when the older dashboard cannot be stopped', async () => {
+      const bogus = http.createServer((_q, r) =>
+        r.end(JSON.stringify({ app: 'eklavya', version: '0.0.1', pid: 2 ** 30, db: process.env.EKLAVYA_DB })),
+      );
+      await new Promise<void>((r) => bogus.listen(port, '127.0.0.1', () => r()));
+      try {
+        expect(await daemon.refreshDashboard('1.0.0', cli)).toBe('failed');
+      } finally {
+        bogus.close();
+      }
+    });
+  });
+
   it('SessionStart starts it outside a test run, and never inside one', async () => {
     const hook = path.join(mcpRoot, 'dist', 'hooks', 'session-start.js');
     const input = JSON.stringify({ session_id: 'daemon-test', cwd: home, hook_event_name: 'SessionStart', source: 'startup' });

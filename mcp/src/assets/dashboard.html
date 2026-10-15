@@ -86,6 +86,15 @@
 
   .side__controls { display:flex; flex-direction:column; gap:var(--space-6); margin-top:auto; }
   .side__group { padding:0 var(--space-5); }
+  /* The foot of the rail: what is running and where its manual is. */
+  .side__about { margin:0; padding:var(--space-4) var(--space-5) 0; border-top:1px solid var(--line-2);
+                 display:flex; flex-direction:column; gap:var(--space-2);
+                 font-family:var(--font-mono); font-size:11.5px; color:var(--dim); }
+  .side__version { color:var(--ink); }
+  .side__version[hidden] { display:none; }
+  .side__about ul { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:var(--space-1) var(--space-4); }
+  .side__about a { color:var(--dim); text-underline-offset:3px; }
+  .side__about a:hover { color:var(--spot); }
   .side__label { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps);
                  text-transform:uppercase; color:var(--faint); margin:0 0 var(--space-2); }
 
@@ -230,7 +239,7 @@
   /* Before the first payload there is nothing true to put in the chrome, so the
      rail's controls and the footer wait with the loader rather than showing
      empty boxes. */
-  .booting #wf, .booting #nav, .booting .side__controls, .booting .foot, .booting #crumb { visibility:hidden; }
+  .booting #wf, .booting #nav, .booting .side__controls, .booting .side__about, .booting .foot, .booting #crumb { visibility:hidden; }
   select:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible,
   [tabindex]:focus-visible { outline:none; box-shadow:var(--ring); }
 
@@ -979,6 +988,15 @@
           <button type="button" data-tips="off" aria-pressed="false">off</button>
         </div>
       </div>
+    </div>
+
+    <div class="side__about" id="about" aria-label="About this dashboard">
+      <span class="side__version" id="version" hidden title="The version of Eklavya this dashboard is running. After an update, a dashboard on an older version is restarted by your next session."></span>
+      <ul>
+        <li><a href="https://eklavya-run.web.app/docs/dashboard/" target="_blank" rel="noopener">Dashboard guide</a></li>
+        <li><a href="https://eklavya-run.web.app/docs/" target="_blank" rel="noopener">Docs</a></li>
+        <li><a href="https://eklavya-run.web.app/docs/updates/" target="_blank" rel="noopener">Updates</a></li>
+      </ul>
     </div>
 
   </aside>
@@ -5845,6 +5863,9 @@ const json = (url) => fetch(url).then((r) => {
  */
 function paintChrome(s, inv) {
   $('dbline').textContent = s.db_path;
+  // Older servers did not send it, so the line stays hidden rather than say "vundefined".
+  $('version').textContent = s.version ? `Eklavya v${s.version}` : '';
+  $('version').hidden = !s.version;
   // Totals, the per-day rows, the concept catalogue and the project inventory are aggregated in SQL over the whole
   // tables, so a cap can only shorten a list of rows — but say which, rather than let it look complete.
   $('foot-note').textContent = [
