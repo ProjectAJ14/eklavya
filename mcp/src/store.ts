@@ -29,6 +29,8 @@ export interface ConceptRow {
   description: string | null;
   tier: number;
   source: string;
+  /** A JSON array of short lowercase strings; `parseTags` reads it. */
+  tags: string;
 }
 
 export interface SessionConceptRow extends ConceptRow {
@@ -52,12 +54,12 @@ export function allConceptSlugs(db: DB): { id: number; slug: string; domain: str
 
 export function insertConcept(
   db: DB,
-  c: { slug: string; name: string; domain: string; description?: string | null; tier: number; source?: string },
+  c: { slug: string; name: string; domain: string; description?: string | null; tier: number; source?: string; tags?: string[] },
 ): ConceptRow {
   db.prepare(
-    `INSERT INTO concepts (slug, name, domain, description, tier, source)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(c.slug, c.name, c.domain, c.description ?? null, c.tier, c.source ?? 'llm');
+    `INSERT INTO concepts (slug, name, domain, description, tier, source, tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(c.slug, c.name, c.domain, c.description ?? null, c.tier, c.source ?? 'llm', JSON.stringify(c.tags ?? []));
   return conceptBySlug(db, c.slug)!;
 }
 

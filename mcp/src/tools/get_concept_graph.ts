@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseTags } from '../concepts.js';
 import { decayedScore, isKnown, streakOf } from '../srs.js';
 import { type ToolDef } from './types.js';
 
@@ -8,6 +9,7 @@ interface Node {
   slug: string;
   name: string;
   tier: number;
+  tags: string[];
   score?: number;
   known?: boolean;
   attempts?: number;
@@ -75,7 +77,7 @@ export const getConceptGraph: ToolDef = {
     const now = new Date();
     const rows = db
       .prepare(
-        `SELECT c.id, c.slug, c.name, c.tier,
+        `SELECT c.id, c.slug, c.name, c.tier, c.tags,
                 m.score, m.reps, m.passed_days, m.top_passed_tier, m.next_review,
                 (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id) AS attempts
          FROM concepts c
@@ -87,6 +89,7 @@ export const getConceptGraph: ToolDef = {
       slug: string;
       name: string;
       tier: number;
+      tags: string;
       score: number | null;
       reps: number | null;
       passed_days: number | null;
@@ -120,7 +123,7 @@ export const getConceptGraph: ToolDef = {
 
     let nodes: Node[] = order.map((id) => {
       const r = byId.get(id)!;
-      const node: Node = { slug: r.slug, name: r.name, tier: r.tier };
+      const node: Node = { slug: r.slug, name: r.name, tier: r.tier, tags: parseTags(r.tags) };
       if (args.include_mastery) {
         const score = decayedScore(r.score ?? 0, r.next_review, now);
         node.score = Number(score.toFixed(2));

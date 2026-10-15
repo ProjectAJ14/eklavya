@@ -38,6 +38,10 @@ export const LIMITS = {
   name: 200,
   domain: 100,
   description: 2000,
+  /** A concept's description: a paragraph at most, so it stays cheap to show beside its neighbours. */
+  conceptDescription: 400,
+  tags: 5,
+  tag: 24,
   context: 1000,
   question: 4000,
   answer: 8000,

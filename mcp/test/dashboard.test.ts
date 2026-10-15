@@ -254,7 +254,7 @@ describe('dashboardState — each project row resolves its own settings', () => 
     return fs.realpathSync(dir);
   };
   const answer = (cwd: string, slug: string) => {
-    call2(db, logSessionConcepts, { session_id: SESSION, cwd, concepts: [{ slug, context: 'in this repo' }] });
+    call2(db, logSessionConcepts, { session_id: SESSION, cwd, concepts: [{ slug, new: true, context: 'in this repo' }] });
     call2(db, recordAttempt, { session_id: SESSION, cwd, slug, question: 'q', answer: 'a', grade: 4, difficulty: 1 });
   };
   const row = (s: any, repo: string) => s.projects.find((p: any) => p.repo === repo);
