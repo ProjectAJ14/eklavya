@@ -9,7 +9,7 @@ import { dbPath, projectsDir } from './paths.js';
 import { loadGlobalConfig } from './config.js';
 import { runtimeVersion, readState as readUpdateState } from './update.js';
 import { listArtifacts } from './artifacts.js';
-import { MASTERY_THRESHOLD, MIN_REPS_FOR_KNOWN } from './srs.js';
+import { MASTERY_THRESHOLD, MIN_PASSED_DAYS, MIN_REPS_FOR_KNOWN, MIN_TOP_TIER_FOR_KNOWN } from './srs.js';
 import { PASSING_GRADE } from './store.js';
 import {
   API_SECRET, MEASUREMENT_ID, canSend, disabledReason, installId, readState, today, writeState,
@@ -94,7 +94,7 @@ export function buildEvents(db: DB, now = Date.now(), state: TelemetryState = re
   const sent = state.sent_at ? Date.parse(state.sent_at) : NaN;
   const since = Number.isFinite(sent) ? sent : now - DAY_MS;
   const t = sqlTime(since);
-  const known = `score >= ${MASTERY_THRESHOLD} AND reps >= ${MIN_REPS_FOR_KNOWN}`;
+  const known = `score >= ${MASTERY_THRESHOLD} AND reps >= ${MIN_REPS_FOR_KNOWN} AND passed_days >= ${MIN_PASSED_DAYS} AND top_passed_tier >= ${MIN_TOP_TIER_FOR_KNOWN}`;
   const c = loadGlobalConfig();
   const days = new Set(state.active_days ?? []);
   const lastWeek = Array.from({ length: 7 }, (_, i) => today(now - i * DAY_MS)).filter((d) => days.has(d)).length;

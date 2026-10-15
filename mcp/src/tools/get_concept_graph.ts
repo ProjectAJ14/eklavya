@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { decayedScore, isKnown } from '../srs.js';
+import { decayedScore, isKnown, streakOf } from '../srs.js';
 import { type ToolDef } from './types.js';
 
 const NODE_CAP = 200;
@@ -76,7 +76,7 @@ export const getConceptGraph: ToolDef = {
     const rows = db
       .prepare(
         `SELECT c.id, c.slug, c.name, c.tier,
-                m.score, m.reps, m.next_review,
+                m.score, m.reps, m.passed_days, m.top_passed_tier, m.next_review,
                 (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id) AS attempts
          FROM concepts c
          LEFT JOIN mastery m ON m.concept_id = c.id
@@ -89,6 +89,8 @@ export const getConceptGraph: ToolDef = {
       tier: number;
       score: number | null;
       reps: number | null;
+      passed_days: number | null;
+      top_passed_tier: number | null;
       next_review: string | null;
       attempts: number;
     }[];
@@ -122,7 +124,7 @@ export const getConceptGraph: ToolDef = {
       if (args.include_mastery) {
         const score = decayedScore(r.score ?? 0, r.next_review, now);
         node.score = Number(score.toFixed(2));
-        node.known = r.attempts > 0 && isKnown({ score, reps: r.reps ?? 0 });
+        node.known = r.attempts > 0 && isKnown({ score, ...streakOf(r) });
         node.attempts = r.attempts;
       }
       return node;
@@ -135,7 +137,7 @@ export const getConceptGraph: ToolDef = {
           .filter(
             (r) =>
               r.attempts > 0 &&
-              isKnown({ score: decayedScore(r.score ?? 0, r.next_review, now2), reps: r.reps ?? 0 }),
+              isKnown({ score: decayedScore(r.score ?? 0, r.next_review, now2), ...streakOf(r) }),
           )
           .map((r) => r.slug),
       );

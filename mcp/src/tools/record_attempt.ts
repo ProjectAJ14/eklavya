@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { loadConfig } from '../config.js';
 import type { DB } from '../db.js';
 import { normalizeSlug } from '../slug.js';
-import { decayedScore, isKnown } from '../srs.js';
+import { decayedScore, isKnown, streakOf } from '../srs.js';
 import { resolveSessionId } from '../session.js';
 import {
   conceptBySlug,
@@ -311,7 +311,7 @@ export function recordAttemptCore(db: DB, args: RecordAttemptArgs) {
     interval_days: state.interval_d,
     reps: state.reps,
     ease: Number(state.ease.toFixed(2)),
-    known: isKnown({ score, reps: state.reps }),
+    known: isKnown({ score, ...streakOf(state) }),
     // Never the same question twice. Recorded either way — refusing the
     // write would lose a real answer — but the tutor is told, so the next
     // question can be a new one.

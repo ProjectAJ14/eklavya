@@ -26,7 +26,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
-import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
+import { decayedScore, isKnown, isOwed, MS_PER_DAY, streakOf } from './srs.js';
 import {
   correctionStates, correctionTarget, CorrectionError, GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey, promoteIfEarned, recordRetry,
   type CorrectionErrorCode,
@@ -157,6 +157,8 @@ interface ConceptRow {
   ease: number | null;
   interval_d: number | null;
   reps: number | null;
+  passed_days: number | null;
+  top_passed_tier: number | null;
   next_review: string | null;
   last_seen: string | null;
   attempts: number;
@@ -1538,7 +1540,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
     db
       .prepare(
         `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
-                m.score, m.ease, m.interval_d, m.reps, m.next_review, m.last_seen,
+                m.score, m.ease, m.interval_d, m.reps, m.passed_days, m.top_passed_tier, m.next_review, m.last_seen,
                 -- The latest context a session logged for the concept; equal times go to the row written first.
                 (SELECT sc.context FROM session_concepts sc
                   WHERE sc.concept_id = c.id AND sc.context IS NOT NULL
@@ -1608,7 +1610,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
     // disagreeing about the same score is worse than either being wrong.
     const score = decayedScore(row.score ?? 0, row.next_review, now);
     const seen = row.attempts > 0;
-    const mastered = seen && isKnown({ score, reps: row.reps ?? 0 });
+    const mastered = seen && isKnown({ score, ...streakOf(row) });
     if (!seen) bucket.unseen += 1;
     else {
       bucket.touched += 1;

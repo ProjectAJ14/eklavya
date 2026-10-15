@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { loadConfig } from '../config.js';
 import { normalizeSlug, isValidSlug, findFuzzyMatch } from '../slug.js';
-import { decayedScore, isKnown } from '../srs.js';
+import { decayedScore, isKnown, streakOf } from '../srs.js';
 import { resolveSessionId } from '../session.js';
 import {
   allConceptSlugs,
@@ -108,7 +108,7 @@ export const logSessionConcepts: ToolDef = {
       // raising the bar would raise it past anything the learner could clear.
       const unmastered = sessionConcepts(db, sessionId, 'work').filter((c) => {
         const m = masteryFor(db, c.id);
-        return !isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps });
+        return !isKnown({ score: decayedScore(m.score, m.next_review, now), ...streakOf(m) });
       }).length;
 
       // Inside the transaction, not after it: `registerTools` retries the whole

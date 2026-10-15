@@ -1,6 +1,6 @@
 import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
-import { decayedScore, isKnown, isOwed } from '../srs.js';
+import { decayedScore, isKnown, isOwed, streakOf } from '../srs.js';
 import { GLOBAL_PROJECT, projectKey } from '../store.js';
 import { ESTIMATOR, RECEIPT_HINT, estimateTokens } from './tokens.js';
 import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
@@ -474,7 +474,7 @@ export interface LearningCounts {
 export function learningCounts(db: DB, project: string, now = new Date()): LearningCounts {
   const rows = db
     .prepare(
-      `SELECT c.id, m.score, m.reps, m.next_review,
+      `SELECT c.id, m.score, m.reps, m.passed_days, m.top_passed_tier, m.next_review,
               (SELECT a.grade FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NULL ORDER BY a.id DESC LIMIT 1) AS last_grade
        FROM concepts c
        LEFT JOIN mastery m ON m.concept_id = c.id
@@ -492,6 +492,8 @@ export function learningCounts(db: DB, project: string, now = new Date()): Learn
     id: number;
     score: number | null;
     reps: number | null;
+    passed_days: number | null;
+    top_passed_tier: number | null;
     next_review: string | null;
     last_grade: number | null;
   }[];
@@ -501,7 +503,7 @@ export function learningCounts(db: DB, project: string, now = new Date()): Learn
   let due = 0;
   for (const row of rows) {
     const score = decayedScore(row.score ?? 0, row.next_review, now);
-    if (isKnown({ score, reps: row.reps ?? 0 })) mastered++;
+    if (isKnown({ score, ...streakOf(row) })) mastered++;
     else learning++;
     // The backlog, not the review calendar: only a question declined, blanked
     // or missed is owed (`isOwed`). Not exclusive with the other two -- a
