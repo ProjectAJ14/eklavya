@@ -1,3 +1,11 @@
+# [1.73.0](https://github.com/ProjectAJ14/eklavya/compare/v1.72.0...v1.73.0) (2026-10-16)
+
+
+### Features
+
+* **dashboard:** avatar on the correction bar and a cancelable auto-close after a right answer ([#204](https://github.com/ProjectAJ14/eklavya/issues/204)) ([22c6150](https://github.com/ProjectAJ14/eklavya/commit/22c6150369e8a5ef899bbec57becd5a93dca9776))
+* **dashboard:** show concept tags and filter the concept list by tag ([#203](https://github.com/ProjectAJ14/eklavya/issues/203)) ([768d50a](https://github.com/ProjectAJ14/eklavya/commit/768d50a2d867ddb737655e0a073353d271f736b3)), closes [#201](https://github.com/ProjectAJ14/eklavya/issues/201)
+
 # [1.72.0](https://github.com/ProjectAJ14/eklavya/compare/v1.71.2...v1.72.0) (2026-10-16)
 
 
