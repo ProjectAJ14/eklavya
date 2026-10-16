@@ -4459,7 +4459,7 @@ const dailyRing = (done, goal) => { const c = 2 * Math.PI * 30; return `<div cla
 const dailyBars = (vals, labels, cls) => { const max = Math.max(...vals, 1); return `<div class="daily__bars" aria-hidden="true">${vals.map((v, i) => `<div><i class="${cls?.(v) ?? ''}" data-h="${Math.round((v / max) * 100)}"></i>${esc(labels[i])}</div>`).join('')}</div>`; };
 const dailyQueue = () => LH('review');
 
-/** One drawing per card id: `{ body, label, go }`. `go` is a hash to navigate to, `sheet:<slug>` to open a concept's review sheet, or '' to just close. */
+/** One drawing per card id: `{ markup, label, go }`. `go` is a hash to navigate to, `sheet:<slug>` to open a concept's review sheet, or '' to just close. */
 const DAILY_CARDS = {
   checkin: (sig) => ({
     markup: `<div class="daily__row">${DAILY_ICON.flame}<div class="daily__big" data-count="${sig.streak.current}">0</div><div><div class="daily__lbl">day streak</div><p class="daily__note">Longest: ${plural(sig.streak.best, 'day')}</p></div></div>

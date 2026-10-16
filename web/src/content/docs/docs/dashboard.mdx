@@ -208,7 +208,7 @@ Settings is a switchboard of two panes. On the right, a full-height panel lists 
 
 | Page | What you can do |
 | --- | --- |
-| User (`#/settings/dashboard/<tab>`, also `#/settings/user/<tab>`) | Change a setting everywhere. **Reset to default** removes it from your file. Leave out `<tab>` for Questions; the others are `pacing`, `levels`, `memory`, `feedback`, `privacy`, `this-machine`, `terminal` and `changed`. |
+| User (`#/settings/dashboard/<tab>`, also `#/settings/user/<tab>`) | Change a setting everywhere. **Reset to default** removes it from your file. Leave out `<tab>` for Questions; the others are `pacing`, `levels`, `memory`, `feedback`, `privacy`, `this-machine`, `terminal`, `companion` and `changed`. |
 | Project (`#/settings/project/<tab>?project=<checkout>`) | Change a setting for one project. Each row says whether its value is set for this project, inherited from your user settings, or the default. **Inherit** removes the project's value so your user setting applies again. Without a project selected, it asks you to pick one on the right. |
 
 The **Changed** tab lists the keys the scope's own file sets and, for a project, what your user settings say for each; each line opens its tab. The **Terminal** tab shows providers, notifications and sync with their current value instead of a control.
@@ -285,27 +285,27 @@ The **Tips** switch on the Settings page's **Companion** tab sets it: **off** hi
 
 ## The daily card
 
-The first time you arrive at the Learning Dashboard each day, a card opens over it, about half a second after the page draws. It has the archer, a line in a speech bubble, one number or goal, and one button. Close it with **Not now**, the close button, **Esc** or a click outside, and it does not come back until tomorrow. A day is your computer's local calendar day, as it is for the [streak](#the-streak).
+The first time you arrive at the Learning Dashboard each day, a card opens over it, about half a second after the page draws. It has the archer, a line in a speech bubble, one number or goal, an action button and **Not now**, and a last line that says why this card was chosen. Close it with **Not now**, the close button, **Esc** or a click outside, and it does not come back until tomorrow. A day is your computer's local calendar day, as it is for the [streak](#the-streak).
 
-The card does not run quizzes. They run in your Claude session, so its button takes you to the page that shows the command, or opens the concept's review sheet.
+The card does not run quizzes. They run in your Claude session, so its button takes you to the page that shows the command, or opens the concept's review sheet. Each card's button is in the table below.
 
 ### Which card you get
 
 One engine decides, from numbers the page already holds: it checks whether anything should show, scores every card whose condition holds, and shows the highest.
 
-| Card | It qualifies when | Base score |
-|---|---|---|
-| Milestone | Your streak has reached 7, 14, 30, 60, 100, 200 or 365 days within the last 2 days, and you have not seen that milestone in this run. Only the highest one passed shows | 100 |
-| Welcome back | Your last answer was 3 or more days ago | 90 |
-| Last week | It is Monday, Tuesday or Wednesday, you answered at least 5 questions last week, and you have not seen this card this week | 70 |
-| Due now | A concept is due. The card names the most overdue one and links to its review sheet | 60, plus 1 per day overdue, up to 85 |
-| Daily check-in | Always, once you have any answers. Streak, this week's active days and today's goal | 40, plus 10 with a streak of 3 or more |
-| Daily goals | You have answered fewer than 3 questions today | 45 |
-| Week ahead | Something is due or scheduled in the next 6 days. Mondays add 15 | 35 |
+| Card | It qualifies when | Base score | Button |
+|---|---|---|---|
+| Milestone | Your streak has reached 7, 14, 30, 60, 100, 200 or 365 days within the last 2 days, and you have not seen that milestone in this run. Only the highest one passed shows | 100 | Keep going (closes the card) |
+| Welcome back | Your last answer was 3 or more days ago | 90 | Review the most overdue concept (opens its review sheet), or See your concepts |
+| Last week | It is Monday, Tuesday or Wednesday, you answered at least 5 questions last week, and you have not seen this card this week | 70 | See your weakest domain (the Concepts page filtered to it), or See your concepts |
+| Due now | A concept is due. The card names the most overdue one and links to its review sheet | 60, plus 1 per day overdue, up to 85 | Review this concept (opens its review sheet) |
+| Daily goals | You have answered fewer than 3 questions today | 45 | Open the review queue |
+| Week ahead | Something is due or scheduled in the next 6 days. Mondays add 15 | 35 | Open the review queue |
+| Daily check-in | Always, once you have any answers. Streak, this week's active days and today's goal | 40, plus 10 with a streak of 3 or more | Open the review queue when something is due, otherwise See your concepts |
 
-A milestone is remembered for the run it was reached in: if the streak breaks, the same milestone is celebrated again when you reach it again. A card shown yesterday loses 25 points, 2 days ago 15, 3 days ago 8, so the same card does not greet you every morning. A tie goes to the card higher in the table. Last week shows its accuracy against the week before it and names your strongest and weakest domain when at least two domains each have two asked concepts.
+A milestone is remembered for the run it was reached in: if the streak breaks, the same milestone is celebrated again when you reach it again. A card shown yesterday loses 25 points, 2 days ago 15, 3 days ago 8, so the same card does not greet you every morning. A tie goes to the card higher in the table. Last week shows its accuracy against the week before it and names your strongest and weakest domain when at least two domains each have two concepts you have answered.
 
-The card never shows when any of these holds, and it does not queue: the next arrival tries again.
+The card never shows when any of these holds, It does not wait for a busy page: the next arrival tries again.
 
 - It already showed today, or you switched it off. A stored day later than today (a clock set back, or travel west) also counts as shown.
 - You have no answers yet, so there is nothing to report.
