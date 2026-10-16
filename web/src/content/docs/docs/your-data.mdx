@@ -22,7 +22,7 @@ Set `providers.observer` to `null` for local summaries and no prompt review. Not
 | `~/.eklavya/dashboard.log` | Errors from the background dashboard's latest start. |
 | `~/.eklavya/runtime/` | Installed runtime and dependencies. |
 
-The dashboard keeps a few display choices in your browser's own storage, never in `~/.eklavya/` and never sent anywhere: the ink/paper ground, opened or closed sections, collapsed sidebar groups, the last project you picked, open artifact tabs, which tips you have seen or switched off (`eklavya-dash-tips`), and whether you dismissed the Feedback page's "Found a problem with Eklavya?" card (`eklavya-dash-feedback-tip`).
+The dashboard keeps a few display choices in your browser's own storage, never in `~/.eklavya/` and never sent anywhere: the ink/paper ground, opened or closed sections, collapsed sidebar groups, the last project you picked, open artifact tabs, which tips you have seen or switched off (`eklavya-dash-tips`), and whether you dismissed the Feedback page's "Found a problem with Eklavya?" line (`eklavya-dash-feedback-tip`).
 
 Concepts a session logged but never asked about are deleted at a later session start, at least 12 hours after they were logged. Asked questions, their answers and review dates are kept.
 
@@ -30,7 +30,7 @@ Concepts a session logged but never asked about are deleted at a later session s
 
 Prompt feedback is on for new installs and uses the observer model, `claude-sonnet-5` by default. Existing installs keep saved settings. Older configs keep the previous defaults for these settings: no observer model and feedback off, unless explicitly set. Set `feedback.enabled` to `false` to stop prompt reviews.
 
-A review keeps the text of one of your own prompts, already redacted when memory captured it, so it stays after `memory.retention_days` prunes the evidence it came from. Delete an item from the dashboard's [Feedback page](/docs/dashboard/#feedback) (**Delete** works on waiting and acknowledged items alike), or remove everything with `eklavya uninstall --purge`. Feedback is read from memory, so with `memory.enabled` off nothing new is made, and the prompt text goes to your observer model and nowhere else; see [prompt feedback](/docs/how-it-works/#prompt-feedback). A moved checkout takes its items with it, as it does the rest of its history.
+A review keeps the text of one of your own prompts, already redacted when memory captured it, so it stays after `memory.retention_days` prunes the evidence it came from. Delete an item from the dashboard's [Feedback page](/docs/dashboard/#feedback) (**Delete this feedback** removes a waiting item), or remove everything with `eklavya uninstall --purge`. Feedback is read from memory, so with `memory.enabled` off nothing new is made, and the prompt text goes to your observer model and nowhere else; see [prompt feedback](/docs/how-it-works/#prompt-feedback). A moved checkout takes its items with it, as it does the rest of its history.
 
 ### Who can read it
 

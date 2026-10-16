@@ -19,6 +19,7 @@ are invented sessions (`sessions.json`) built that way, each labelled with:
 |---|---|
 | `expect.chosen` | The prompt whose follow-ups show the most rework |
 | `expect.areas` | The gaps planted in it (`outcome`, `context`, `scope`, `check`); empty for a prompt that left nothing to guess |
+| `expect.clear` | The areas the chosen prompt plainly states. An area in neither list is one the task did not need |
 | `expect.facts` | Details the developer gave only later, which a good rewrite carries back |
 
 No learner database is read. 16 sessions, split by hand: 8 train, 3 val, 5 test.
@@ -36,7 +37,10 @@ Gates first, as in the question pilot: a review that fails one scores at most 0.
 Quality, for reviews that pass: would the rewrite have made the follow-ups unnecessary (judge,
 weight 0.35), share of `expect.facts` in the rewrite (0.2), the right prompt chosen (0.15), the
 planted gap areas named (0.15), tips specific rather than generic (judge, 0.15). Also reported:
-how many evidence quotes the model wrote and how many survived `parseReview`'s check.
+how many evidence quotes the model wrote and how many survived `parseReview`'s check, and
+**areas agreement** (`areas_agreement`, weight 0 so scores stay comparable with rubric 2): the share
+of the four areas whose status in the reconciled `review.areas` matches the labels, where `left_out`
+matches `expect.areas`, `clear` matches `expect.clear` and any other area expects `not_needed`.
 
 ## Run it
 
@@ -55,8 +59,10 @@ eval/gepa/.venv/bin/python eval/gepa/feedback/run.py optimize --out runs/fb-sear
   --metric-calls 60 --max-model-calls 200 --max-minutes 75
 ```
 
-`--prompt` takes the instructions as text (`.md`), or `{system, schema, legacy}` as JSON to score
-an older wording with its own schema. A legacy review has no gaps, so it is scored on the parts it
+`--prompt` takes the instructions as text (`.md`), or `{system, schema, legacy, rubric}` as JSON to
+score an older wording with its own schema. `rubric-2.json` is the wording shipped before `areas`
+(rubric 2): with `"rubric": 2` its gaps are scored as before, through today's parser, and it reports
+no areas agreement. Under the shipped schema a review without `areas` fails `valid`. A legacy review has no gaps, so it is scored on the parts it
 shares: the gates other than quote checks, the rewrite, the choice and the tips.
 
 The reviewer defaults to `claude-haiku-4-5`, the observer model the first-install walk recommends;
@@ -65,4 +71,4 @@ of them together, and every run writes a progress file that `eval/dashboard.mjs`
 edits the repository: it writes `best_candidate.md` for a person to review and paste into
 `REVIEW_SYSTEM`, then re-run `evaluate` on the test split.
 
-Results: `eval/results/2026-10-10-feedback.md`.
+Results: `eval/results/2026-10-10-feedback.md`, `eval/results/2026-10-16-feedback-areas.md`.

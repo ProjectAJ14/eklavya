@@ -42,7 +42,7 @@ function seed(): string {
 function standIn(): void {
   const out = {
     chosen: 1,
-    review: { worked: 'ok', gaps: [{ area: 'outcome', missing: 'No goal.' }] },
+    review: { worked: 'ok', gaps: [{ area: 'outcome', missing: 'No goal.' }], areas: { outcome: 'left_out', context: 'clear', scope: 'not_needed', check: 'not_needed' } },
     better: 'Fix the login bug in [the file].',
     tips: ['Say what fixed looks like'],
   };

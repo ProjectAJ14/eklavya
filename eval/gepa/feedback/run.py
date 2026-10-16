@@ -67,12 +67,12 @@ def bridge(cmd: str, payload: dict, kind: str | None = None) -> dict:
 def load_prompt(path: str | None) -> dict:
     """The candidate: plain text is instructions for the shipped schema; JSON may carry its own (a legacy baseline)."""
     if path is None:
-        return {"system": bridge("system", {})["system"], "schema": None, "legacy": False}
+        return {"system": bridge("system", {})["system"], "schema": None, "legacy": False, "rubric": None}
     text = Path(path).read_text()
     if path.endswith(".json"):
         d = json.loads(text)
-        return {"system": d["system"], "schema": d.get("schema"), "legacy": bool(d.get("legacy"))}
-    return {"system": text.strip(), "schema": None, "legacy": False}
+        return {"system": d["system"], "schema": d.get("schema"), "legacy": bool(d.get("legacy")), "rubric": d.get("rubric")}
+    return {"system": text.strip(), "schema": None, "legacy": False, "rubric": None}
 
 
 def pick(split: str, limit: int | None) -> list[dict]:
@@ -104,6 +104,9 @@ def score(det: dict, verdict: dict, legacy: bool) -> tuple[float, dict]:
     if not legacy and det.get("area_recall") is not None:
         quality["areas"] = det["area_recall"]
         weights["areas"] = 0.15
+    # Reported beside the score, weight 0, so scores before and after `areas` stay comparable.
+    if det.get("areas_agreement") is not None:
+        quality["areas_agreement"] = det["areas_agreement"]
     q = sum(quality[k] * w for k, w in weights.items()) / sum(weights.values())
     failed = [g for g, ok in gate.items() if not ok]
     fraction = (len(gate) - len(failed)) / len(gate)
@@ -116,7 +119,7 @@ def run_example(candidate: dict, ex: dict, model: str, judge_model: str) -> tupl
     if got.get("error"):
         return 0.0, {"score": 0.0, "gates_failed": ["generation"], "error": got["error"]}
     structured = got["structured"]
-    det = bridge("score", {"structured": structured, "prompts": ex["prompts"], "expect": ex["expect"], "legacy": candidate["legacy"]})
+    det = bridge("score", {"structured": structured, "prompts": ex["prompts"], "expect": ex["expect"], "legacy": candidate["legacy"], "rubric": candidate.get("rubric")})
     if not det["valid"]:
         verdict = {"_error": "skipped: invalid review"}  # judging it would pay to confirm a known failure
     else:
@@ -136,7 +139,7 @@ def summarise(trials: list[dict]) -> dict:
         "timeouts": sum(1 for t in trials if "did not finish" in (t.get("error") or "")),
         "gate_failures": dict(Counter(g for t in trials for g in t.get("gates_failed", []))),
         "mean_score": round(statistics.fmean(t["score"] for t in trials), 4) if trials else None,
-        "quality_means": {k: q(k) for k in ("prevents", "facts", "chosen", "tips", "areas")},
+        "quality_means": {k: q(k) for k in ("prevents", "facts", "chosen", "tips", "areas", "areas_agreement")},
         "quotes": {"raw": sum(t.get("det", {}).get("quotes", {}).get("raw", 0) for t in trials), "kept": sum(t.get("det", {}).get("quotes", {}).get("kept", 0) for t in trials)},
         "invented_names": sorted({n for t in trials for n in t.get("det", {}).get("invented", [])}),
     }
@@ -210,7 +213,7 @@ def cmd_optimize(args) -> None:
     pilot.BUDGET.track(out / "progress.json", f"feedback optimize ({args.metric_calls} metric calls)", args.metric_calls)
 
     def evaluator(candidate: str, example: dict):
-        total, info = run_example({"system": candidate, "schema": None, "legacy": False}, example, args.model, args.judge_model)
+        total, info = run_example({"system": candidate, "schema": None, "legacy": False, "rubric": None}, example, args.model, args.judge_model)
         with pilot.BUDGET._lock:
             pilot.BUDGET.done += 1
             pilot.BUDGET.trials.append({"id": example["id"], "candidate": hashlib.sha1(candidate.encode()).hexdigest()[:8], **info})

@@ -41,7 +41,7 @@ function session(db: Database, id: string, startedMinutesAgo: number, prompts = 
 
 const goodOutput = (over: Record<string, unknown> = {}) => ({
   chosen: 1,
-  review: { worked: 'Named the bug.', gaps: [{ area: 'context', missing: 'No goal or file.' }, { area: 'check', missing: 'No test named.', evidence: 'run the tests again' }] },
+  review: { worked: 'Named the bug.', gaps: [{ area: 'context', missing: 'No goal or file.' }, { area: 'check', missing: 'No test named.', evidence: 'run the tests again' }], areas: { outcome: 'clear', context: 'left_out', scope: 'not_needed', check: 'left_out' } },
   better: 'Fix the login bug in [the file]; it should [expected behaviour].',
   tips: ['Say what fixed looks like'],
   ...over,

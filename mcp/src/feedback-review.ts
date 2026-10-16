@@ -25,6 +25,10 @@ export const AREAS = {
 export type GapArea = keyof typeof AREAS;
 const AREA_KEYS = Object.keys(AREAS) as [GapArea, ...GapArea[]];
 
+/** What the review says of each area: the prompt made it clear, left it to guess, or the task did not need it. */
+export const AREA_STATUS = ['clear', 'left_out', 'not_needed'] as const;
+export type AreaStatus = (typeof AREA_STATUS)[number];
+
 /** One source for the limits: the validator, the clip and the prompt all read these. */
 export const REVIEW_LIMIT = {
   note: 240,
@@ -48,9 +52,15 @@ export const REVIEW_SCHEMA = {
     review: {
       type: 'object',
       additionalProperties: false,
-      required: ['worked', 'gaps'],
+      required: ['worked', 'gaps', 'areas'],
       properties: {
         worked: { type: 'string' },
+        areas: {
+          type: 'object',
+          additionalProperties: false,
+          required: AREA_KEYS,
+          properties: Object.fromEntries(AREA_KEYS.map((k) => [k, { type: 'string', enum: AREA_STATUS }])),
+        },
         gaps: {
           type: 'array',
           items: {
@@ -86,6 +96,7 @@ export const REVIEW_SYSTEM = [
   `Name its gaps, at most ${REVIEW_LIMIT.gaps}, the most costly first, each in one area:`,
   ...AREA_KEYS.map((k) => `- ${k}: ${AREAS[k]}`),
   'Name only gaps that mattered for this task: a one-line fix needs no test plan. No gaps is a valid answer for a prompt that left nothing to guess.',
+  '"areas" says, for each of the four areas, whether the chosen prompt made it clear ("clear"), left it for the agent to guess ("left_out") or did not need it for this task ("not_needed"). Every area you name in gaps is "left_out". Words only.',
   `"missing" says in one or two plain sentences, under ${REVIEW_LIMIT.note} characters, what the prompt left out and what that cost.`,
   `When a later prompt supplied it, "evidence" is a quote of fewer than ${REVIEW_LIMIT.evidenceWords} words copied exactly, character for character, from one prompt after the chosen one. Otherwise leave evidence out: never paraphrase or invent a quote.`,
   `"worked" is one plain sentence, under ${REVIEW_LIMIT.note} characters, on what the prompt did well.`,
@@ -112,11 +123,17 @@ const Gap = z
   .object({ area: z.enum(AREA_KEYS), missing: z.string().min(1).max(REVIEW_LIMIT.note), evidence: z.string().optional() })
   .strict();
 
+const Status = z.enum(AREA_STATUS);
+
 const ReviewResult = z
   .object({
     chosen: z.number().int().min(1),
     review: z
-      .object({ worked: z.string().min(1).max(REVIEW_LIMIT.note), gaps: z.array(Gap).max(REVIEW_LIMIT.gaps) })
+      .object({
+        worked: z.string().min(1).max(REVIEW_LIMIT.note),
+        gaps: z.array(Gap).max(REVIEW_LIMIT.gaps),
+        areas: z.object({ outcome: Status, context: Status, scope: Status, check: Status }).strict(),
+      })
       .strict(),
     better: z.string().min(1).max(REVIEW_LIMIT.better),
     tips: z.array(z.string().min(1).max(REVIEW_LIMIT.tip)).min(1).max(REVIEW_LIMIT.tips),
@@ -169,6 +186,11 @@ const normal = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
  * still the model's reading, only the proof is gone, and failing the whole
  * review for it throws away a paid call. A score, or any key the schema does
  * not name, is a rejection: the review has no numbers.
+ *
+ * `areas` is reconciled with the gaps, and the gaps win: an area named in a gap
+ * is `left_out` whatever `areas` said, because the gap carries the reason. An
+ * area marked `left_out` with no gap stays so (the gaps are capped). A
+ * disagreement is corrected, never a rejection, for the same paid-call reason.
  */
 export function parseReview(raw: unknown, prompts: string[]): ParsedReview {
   const result = ReviewResult.safeParse(clip(raw));
@@ -186,7 +208,9 @@ export function parseReview(raw: unknown, prompts: string[]): ParsedReview {
   const gaps = review.gaps.map(({ area, missing, evidence }) =>
     quoted(evidence) ? { area, missing, evidence: evidence!.trim() } : { area, missing },
   );
-  return { chosen, review: { worked: review.worked, gaps }, better, tips };
+  const areas = { ...review.areas };
+  for (const g of gaps) areas[g.area] = 'left_out';
+  return { chosen, review: { worked: review.worked, gaps, areas }, better, tips };
 }
 
 /** One review of one session's prompts, on the developer's subscription. Throws `ProviderError`. */

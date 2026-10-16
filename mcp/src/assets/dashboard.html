@@ -718,37 +718,146 @@
   .fb__rule { border:1px solid var(--line-2); border-left:2px solid var(--spot); background:var(--panel);
               padding:var(--space-4) var(--space-5); }
   .fb__rule p { margin:0; color:var(--ink); font-size:14px; max-width:72ch; }
-  .fb__rule--near { margin:0 0 var(--space-4); }
-  .fb { display:grid; gap:var(--space-6); }
-  .fb__grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-5); }
+  /* The item: a story column and a decision rail that stays in view; a fixed bar replaces the rail's button at 900px and below. */
+  .fb { display:grid; grid-template-columns:minmax(0, 1fr) 300px; gap:var(--space-6); align-items:start; }
+  .fb__story { display:grid; gap:var(--space-6); min-width:0; }
+  .fb__rail { position:sticky; top:var(--space-6); display:grid; gap:var(--space-4); min-width:0; }
+  .fb__rail.is-tall { position:static; }
+  .fb__card { padding:var(--space-5); }
   .fb__h { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps); text-transform:uppercase;
            color:var(--faint); font-weight:var(--weight-semibold); margin:0 0 var(--space-2); }
-  .fb__quote { margin:0; padding-left:var(--space-4); border-left:2px solid var(--spot); color:var(--ink);
-               white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; }
+  .fb__cap { margin:var(--space-1) 0 0; color:var(--faint); font-size:12.5px; }
+  .fb__note { margin:0; color:var(--dim); font-size:13.5px; overflow-wrap:anywhere; }
+  /* ① The verdict */
+  .fb__verdict { display:flex; gap:var(--space-5); align-items:flex-start; }
+  .fb__verdict > eklavya-mascot { flex:none; }
+  .fb__vb { flex:1; min-width:0; }
+  .fb__vh { font-family:var(--font-disp); font-weight:800; font-size:var(--text-xl); line-height:1.15; letter-spacing:-0.02em;
+            margin:0; color:var(--ink); overflow-wrap:anywhere; }
+  .fb__vh--old { font-size:var(--text-md); }
+  .fb__vs { margin:var(--space-2) 0 0; color:var(--dim); font-size:13.5px; }
+  .fb__cover { list-style:none; margin:var(--space-5) 0 0; padding:0; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr));
+               border:1px solid var(--line-2); background:var(--bg); }
+  .fb__cell { display:grid; grid-template-columns:auto minmax(0, 1fr); column-gap:var(--space-2); align-items:center;
+              padding:var(--space-3) var(--space-4); color:var(--faint); }
+  .fb__cell + .fb__cell { border-left:1px solid var(--line-2); }
+  .fb__cell svg { width:16px; height:16px; grid-row:span 2; }
+  .fb__cn { color:var(--ink); font-size:13px; font-weight:var(--weight-semibold); }
+  .fb__cs { font-family:var(--font-mono); font-size:11px; letter-spacing:0.04em; }
+  .fb__cell.is-miss { color:var(--warning); box-shadow:inset 0 -2px 0 var(--warning); }
+  .fb__cell.is-ok { color:var(--spot); box-shadow:inset 0 -2px 0 var(--spot); }
+  /* ② The two prompts, one block */
+  .fb__grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); border:1px solid var(--line-2); }
+  .fb__grid > section { padding:var(--space-5); min-width:0; }
+  .fb__mine { background:var(--panel); border-right:1px solid var(--line-2); }
+  .fb__better { background:var(--bg); }
+  .fb__ch { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); min-height:32px; margin-bottom:var(--space-2); }
+  .fb__ch .fb__h { margin:0; }
+  .fb__better .fb__h { color:var(--spot); }
+  .fb__quote { margin:0; color:var(--ink); white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; }
+  .fb__mine .fb__quote { color:var(--dim); }
   .cmd--block { margin-top:0; align-items:flex-start; }
   .cmd--block code { white-space:pre-wrap; overflow-wrap:anywhere; overflow-x:visible; }
-  .fb__ds, .fb__tips { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-3); }
-  .fb__ds li { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:var(--space-3); align-items:baseline; }
-  .fb__dn { font-family:var(--font-mono); font-size:12px; color:var(--dim); }
-  .fb__ctx { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:var(--space-1) var(--space-4); margin:0; font-size:13px; }
-  .fb__ctx dt { font-family:var(--font-mono); font-size:12px; color:var(--dim); }
-  .fb__ctx dd { margin:0; color:var(--ink); overflow-wrap:anywhere; }
-  .fb__note { margin:0; color:var(--dim); font-size:13.5px; overflow-wrap:anywhere; }
-  .fb__ev { display:block; color:var(--faint); font-size:12.5px; }
-  .fb__tips li { color:var(--dim); font-size:13.5px; padding-left:var(--space-4); position:relative; }
-  .fb__tips li::before { content:'–'; position:absolute; left:0; color:var(--faint); }
-  .fb__actions { display:flex; gap:var(--space-3); flex-wrap:wrap; align-items:center; }
+  .fb__better .cmd--block code { background:none; border:0; padding:0; color:var(--ink); font-size:13px; }
+  .fb__ph { background:var(--spot-soft); color:inherit; padding:0 2px; }
+  .fb__clamp { position:relative; overflow:hidden; transition:max-height var(--duration-base) var(--ease); }
+  .fb__clamp.is-clamped { max-height:15.5em; }
+  .fb__clamp.is-clamped::after { content:''; position:absolute; inset:auto 0 0; height:4em; pointer-events:none;
+                                 background:linear-gradient(transparent, var(--bg)); }
+  .fb__mine .fb__clamp.is-clamped::after { background:linear-gradient(transparent, var(--panel)); }
+  .fb__copy, .fb__more, .fb__del { font:inherit; font-size:13px; cursor:pointer; background:none; color:var(--dim);
+                                   border:1px solid transparent; display:inline-flex; align-items:center; gap:var(--space-2);
+                                   padding:var(--space-1) var(--space-2); }
+  .fb__copy svg { width:14px; height:14px; }
+  .fb__copy:hover, .fb__more:hover { color:var(--spot); border-color:var(--spot); }
+  .fb__more { margin-top:var(--space-2); padding-inline:0; color:var(--spot); }
+  .fb__more:hover { border-color:transparent; text-decoration:underline; }
+  .fb__copy:focus-visible, .fb__more:focus-visible, .fb__del:focus-visible { outline:none; box-shadow:var(--ring); }
+  /* ③ What worked */
+  .fb__worked { display:flex; gap:var(--space-4); align-items:flex-start; padding:var(--space-4) var(--space-5);
+                background:var(--panel); border:1px solid var(--line-2); border-left:2px solid var(--spot); }
+  .fb__worked > eklavya-mascot, .fb__sh > eklavya-mascot, .fb__tip > eklavya-mascot, .fb__dh > eklavya-mascot { flex:none; }
+  .fb__worked .fb__h { color:var(--spot); margin-bottom:var(--space-1); }
+  .fb__worked p { margin:0; color:var(--ink); font-size:14px; overflow-wrap:anywhere; }
+  /* ④ What it left out and ⑤ next time */
+  .fb__sec { display:grid; gap:var(--space-4); }
+  .fb__sh { display:flex; gap:var(--space-3); align-items:center; }
+  .fb__sh h3, .fb__dh h3 { font-family:var(--font-disp); font-weight:800; font-size:var(--text-md); margin:0; color:var(--ink); }
+  .fb__ds, .fb__tips { list-style:none; margin:0; padding:0; }
+  .fb__ds { border:1px solid var(--line-2); background:var(--panel); }
+  .fb__ds li { display:grid; grid-template-columns:44px minmax(0, 1fr); gap:var(--space-4); padding:var(--space-5) var(--space-6); }
+  .fb__ds li + li { border-top:1px solid var(--line); }
+  .fb__tile { width:44px; height:44px; display:grid; place-items:center; background:var(--warning-soft); color:var(--warning); }
+  .fb__tile svg { width:20px; height:20px; }
+  .fb__gb { display:grid; gap:var(--space-1); min-width:0; }
+  .fb__gt { margin:0; color:var(--ink); font-weight:var(--weight-semibold); font-size:14px; }
+  .fb__gt small { font-family:var(--font-mono); font-weight:400; font-size:11px; color:var(--faint); margin-left:var(--space-2); }
+  .fb__ev { display:flex; gap:var(--space-3); align-items:baseline; flex-wrap:wrap; margin:var(--space-2) 0 0; font-size:13px; }
+  .fb__evl { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--faint); }
+  .fb__ev q { background:var(--mass); color:var(--ink); padding:var(--space-1) var(--space-2); overflow-wrap:anywhere; quotes:'“' '”'; }
+  .fb__tips { display:grid; gap:var(--space-3); counter-reset:t; }
+  .fb__tips li { counter-increment:t; display:grid; grid-template-columns:auto minmax(0, 1fr); gap:var(--space-4); align-items:baseline;
+                 background:var(--panel); border:1px solid var(--line-2); padding:var(--space-4) var(--space-5);
+                 color:var(--ink); font-size:14px; overflow-wrap:anywhere; }
+  .fb__tips li::before { content:'0' counter(t); font-family:var(--font-disp); font-weight:900; font-size:var(--text-2xl);
+                         line-height:1; color:var(--spot); }
+  @media (min-width:1100px) {
+    .fb__tips[data-n="2"] { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .fb__tips[data-n="3"] { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+    .fb__tips[data-n="2"] li, .fb__tips[data-n="3"] li { grid-template-columns:minmax(0, 1fr); align-content:start; }
+  }
+  /* ⑥ Found a problem */
+  .fb__tip { display:flex; gap:var(--space-3); align-items:center; flex-wrap:wrap; padding-top:var(--space-4); border-top:1px solid var(--line-2); }
+  .fb__tip p { flex:1 1 260px; margin:0; color:var(--dim); font-size:13px; }
+  .fb__tip code { background:var(--mass); padding:1px 6px; font-size:12px; color:var(--ink); }
+  /* The rail */
+  .fb__ctx { display:grid; gap:var(--space-3); margin:0; font-size:13px; }
+  .fb__ctx dt { font-family:var(--font-mono); font-size:10.5px; letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--faint); }
+  .fb__ctx dd { margin:var(--space-1) 0 0; color:var(--ink); overflow-wrap:anywhere; }
+  .fb__ctx .slug { display:block; font-family:var(--font-mono); font-size:11px; color:var(--faint); overflow-wrap:anywhere; }
+  .fb__decide { border-color:var(--spot); display:grid; gap:var(--space-3); }
+  .fb__dh { display:flex; gap:var(--space-3); align-items:center; }
+  .fb__dp { margin:0; color:var(--dim); font-size:13.5px; }
+  .fb__actions { display:grid; gap:var(--space-2); }
+  .fb__ack { width:100%; min-height:44px; justify-content:center; display:inline-flex; align-items:center; gap:var(--space-2); }
+  .fb__ack svg { width:16px; height:16px; }
+  .fb__del { color:var(--faint); justify-content:center; min-height:32px; }
+  .fb__del:hover { color:var(--error); }
   .fb__ask { display:inline-flex; gap:var(--space-3); flex-wrap:wrap; align-items:center; color:var(--dim); font-size:13.5px; }
   .fb__msg { margin:0; color:var(--warning); font-size:13px; }
+  .fb__msg:empty { display:none; }
+  .fb__foot { display:flex; justify-content:space-between; margin:0; padding-top:var(--space-3); border-top:1px solid var(--line);
+              font-family:var(--font-mono); font-size:11px; color:var(--faint); }
+  .fb__acked { margin:0; font-family:var(--font-mono); font-size:12px; color:var(--faint); }
+  .fb__bar { display:none; }
   .fb__sts { display:flex; gap:var(--space-2); flex-wrap:wrap; }
-  .fb__tip h2 { font-family:var(--font-disp); font-size:var(--text-md); font-weight:var(--weight-semibold); margin:0 0 var(--space-2); }
-  .fb__tip p { margin:0 0 var(--space-4); color:var(--dim); max-width:70ch; }
-  .fb__tip .fb__quote { margin-bottom:var(--space-4); }
   .fb__why p { margin:0 0 var(--space-3); color:var(--dim); max-width:70ch; }
+  @media (max-width:900px) {
+    .fb { grid-template-columns:minmax(0, 1fr); }
+    .fb__rail { position:static; }
+    .fb__ctx { grid-template-columns:repeat(2, minmax(0, 1fr)); column-gap:var(--space-5); }
+    /* The bar holds Acknowledge here; the rail card keeps Delete and the message. */
+    .fb__decide .fb__ack { display:none; }
+    .fb__bar { display:flex; align-items:center; gap:var(--space-4); position:fixed; inset:auto 0 0; z-index:20;
+               background:var(--panel); border-top:1px solid var(--spot); padding:var(--space-3) var(--space-5); }
+    .fb__bar p { flex:1; margin:0; color:var(--dim); font-size:13.5px; }
+    .fb__bar .fb__ack { width:auto; flex:none; }
+    main:has(.fb__bar) { padding-bottom:120px; }
+  }
   @media (max-width:560px) {
+    .fb__verdict > eklavya-mascot { display:none; }
     .fb__grid { grid-template-columns:minmax(0, 1fr); }
-    .fb__ds li { grid-template-columns:minmax(0, 1fr); gap:var(--space-1); }
-    .fb__actions > button, .fb__actions a { flex:1 1 100%; min-height:44px; }
+    .fb__mine { border-right:0; border-bottom:1px solid var(--line-2); }
+    .fb__cover { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .fb__cell + .fb__cell { border-left:0; }
+    .fb__cell:nth-child(even) { border-left:1px solid var(--line-2); }
+    .fb__cell:nth-child(n+3) { border-top:1px solid var(--line-2); }
+    .fb__ds li { padding:var(--space-4); gap:var(--space-3); }
+    .fb__ctx { grid-template-columns:minmax(0, 1fr); }
+    .fb__bar p { display:none; }
+    .fb__bar .fb__ack { flex:1; width:100%; }
+    .fb__copy, .fb__del, .fb__tip .set__btn { min-height:44px; }
+    .fb__del { width:100%; }
     .fb__ask > button { flex:1 1 40%; min-height:44px; }
   }
   .starts__more > summary { cursor:pointer; color:var(--dim); font-size:13px; padding:var(--space-2) 0; }
@@ -1557,12 +1666,14 @@ function startBlocks(title, cmds) {
 
 /** Copies a block's command; if the clipboard refuses, selects it for the keyboard shortcut instead. */
 function copyCommand(btn) {
-  const code = btn.parentElement.querySelector('code');
+  // `data-copy` may name the text it copies, for a button that is not beside it; its text is plain, without the marks.
+  const code = btn.dataset.copy ? $(btn.dataset.copy) : btn.parentElement.querySelector('code');
+  const label = btn.querySelector('span') ?? btn;
   const live = $('copy-live');
   Promise.resolve().then(() => navigator.clipboard.writeText(code.textContent)).then(() => {
-    btn.textContent = 'Copied';
+    label.textContent = 'Copied';
     live.textContent = 'Command copied';
-    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    setTimeout(() => { label.textContent = 'Copy'; }, 1500);
   }, () => {
     getSelection().selectAllChildren(code);
     live.textContent = `Press ${/Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘C' : 'Ctrl+C'} to copy`;
@@ -4282,9 +4393,13 @@ function drawSettings(d, scope) {
    ============================================================ */
 const FB = {
   ruleEmpty: 'Eklavya reviews one prompt at a time. When one is ready it appears here, and the next waits until you press Acknowledge.',
-  rulePending: 'Feedback pauses until you acknowledge this one. Read it, then press Acknowledge to get the next.',
+  rulePending: 'The next review waits until you acknowledge this one. It moves to History.',
+  barRule: 'The next review waits until you acknowledge this one.',
   announce: 'Acknowledged. Feedback resumes at your next session.',
   areas: { outcome: 'Outcome', context: 'Context', scope: 'Scope', check: 'Check' },
+  hints: { outcome: 'what done looks like', context: 'files, systems, prior facts', scope: 'the limits', check: 'how the agent proves it worked' },
+  // `unknown` is an item from rubric 2 or older, which named only its gaps.
+  status: { left_out: 'Left out', clear: 'Clear', not_needed: 'Not needed', unknown: 'Not flagged' },
   counted: false,
   observerCmd: 'eklavya config set providers.observer <model>',
   about: `Your prompts are already recorded by memory. After a session ends, in the background and never in the middle of your work,
@@ -4319,16 +4434,17 @@ function fbEmpty(F) {
   return `<div class="card fb__why" id="fb-empty"><div class="ek-mascot-message"><eklavya-mascot state="${state}" size="72"></eklavya-mascot><div>${body}</div></div></div>`;
 }
 
+/** With no item, the rule is said above the reason; with one, it sits beside Acknowledge in the rail. */
+const fbNone = (F) => `<div class="fb__rule" id="fb-rule"><p>${esc(FB.ruleEmpty)}</p></div>${fbEmpty(F)}${fbTip()}`;
+
 function viewFeedbackDashboard() {
   const F = S.feedback;
-  const item = F.pending ? slot('fb-item', '/api/feedback', (d) => d.item ? drawFbItem(d.item) : fbEmpty(S.feedback), { label: 'Loading your feedback…' }) : '';
+  const item = F.pending ? slot('fb-item', '/api/feedback', (d) => d.item ? drawFbItem(d.item) : fbNone(S.feedback), { label: 'Loading your feedback…' }) : '';
   if (F.pending && !FB.counted) { FB.counted = true; AFTER.push(fbOpened); }
   const counts = [F.pending ? '1 waiting' : 'nothing waiting', plural(F.acknowledged, 'acknowledged item')];
   return [
     pageHead('Feedback', counts, FB.about),
-    `<div class="fb__rule" id="fb-rule"><p>${esc(F.pending ? FB.rulePending : FB.ruleEmpty)}</p></div>`,
-    F.pending ? item : fbEmpty(F),
-    fbTip(),
+    F.pending ? item : fbNone(F),
     `<span class="sr" id="copy-live" aria-live="polite"></span>`,
   ].join('');
 }
@@ -4342,10 +4458,10 @@ function viewFeedbackDashboard() {
 const FB_TIP_KEY = 'eklavya-dash-feedback-tip';
 function fbTip() {
   try { if (localStorage.getItem(FB_TIP_KEY) === '1') return ''; } catch (e) { /* shown */ }
-  return `<aside class="card fb__tip" id="fb-tip" aria-labelledby="fb-tip-h">
-    <h2 id="fb-tip-h">Found a problem with Eklavya?</h2>
-    <p>Tell Claude, in plain words. It drafts a GitHub issue, shows you exactly what it will post with paths, project names and code removed, and files it only after you say yes.</p>
-    <blockquote class="fb__quote">That question about retries was wrong. File feedback for Eklavya.</blockquote>
+  return `<aside class="fb__tip" id="fb-tip" aria-labelledby="fb-tip-h">
+    <eklavya-mascot state="info" variant="face" size="28"></eklavya-mascot>
+    <h2 class="sr" id="fb-tip-h">Found a problem with Eklavya?</h2>
+    <p>Found a problem with Eklavya itself? Tell Claude <code>File feedback for Eklavya</code>; it shows you the issue before posting.</p>
     <button type="button" class="set__btn" data-fb-tip-dismiss>Dismiss</button>
   </aside>`;
 }
@@ -4366,56 +4482,161 @@ function viewFeedbackItem(id) {
   ].join('');
 }
 
+const fbAck = (id) => `<button type="button" class="btn fb__ack" data-fb-ack="${id}">${svg(ICONS.ack)}Acknowledge</button>`;
 const fbActions = (id) => `<div class="fb__actions" id="fb-actions">
-    <button type="button" class="btn" data-fb-ack="${id}">Acknowledge</button>
-    <button type="button" class="set__btn" data-fb-del="${id}">Delete</button>
+    ${fbAck(id)}
+    <button type="button" class="fb__del" data-fb-del="${id}">Delete this feedback</button>
     <p class="fb__msg" id="fb-msg" role="alert"></p></div>`;
 
 const fmtWhen = (ts) => { const d = parse(ts); return d ? d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : null; };
 
-/** Where the prompt was written: project, checkout, host, session and when, so the note is not blind. */
+/** Where the prompt was written: project, checkout, session, when and from which host, so the note is not blind. */
 function fbContext(it) {
   const c = it.context ?? {};
-  const sessionTail = [c.began && c.ended ? `${fmtWhen(c.began)} to ${fmtWhen(c.ended)}` : '', c.prompts ? plural(c.prompts, 'prompt') : '']
-    .filter(Boolean).map((x) => ' · ' + x).join('');
+  const line = (html) => `<span class="slug">${html}</span>`;
+  const sent = [fmtWhen(c.prompted_at), c.host].filter(Boolean).join(' · ');
   const rows = [
-    ['Project', `${esc(pname(it.project))} <span class="slug">${esc(it.project)}</span>`],
+    ['Project', `${esc(pname(it.project))}${line(esc(it.project))}`],
     c.checkout && c.checkout !== it.project ? ['Checkout', esc(c.checkout)] : null,
+    c.session_id ? ['Session', `<a data-go="${esc(MH('session', c.session_id))}">${esc(c.session_id.slice(0, 8))}</a>`
+      + (c.prompts ? esc(' · ' + plural(c.prompts, 'prompt')) : '')
+      + (c.began && c.ended ? line(esc(`${fmtWhen(c.began)} – ${fmtWhen(c.ended)}`)) : '')] : null,
+    sent ? ['Sent', esc(sent)] : null,
     c.topic ? ['About', esc(c.topic)] : null,
-    c.host ? ['Host', esc(c.host)] : null,
-    fmtWhen(c.prompted_at) ? ['Sent', esc(fmtWhen(c.prompted_at))] : null,
-    c.session_id ? ['Session', `<a data-go="${esc(MH('session', c.session_id))}">${esc(c.session_id.slice(0, 8))}</a>${esc(sessionTail)}`] : null,
   ].filter(Boolean);
-  return `<section><h2 class="fb__h">Where you said it</h2><dl class="fb__ctx">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></section>`;
+  return `<section class="card fb__card" aria-labelledby="fb-ctx-h"><h2 class="fb__h" id="fb-ctx-h">Where you said it</h2>
+    <dl class="fb__ctx">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></section>`;
 }
 
-/** One item: your prompt, a better one, what worked, what it left out, tips. Actions only while it is pending. */
+/** The order of the coverage strip. The headline lists gaps in the review's own order, costliest first. */
+const AREA_ORDER = ['outcome', 'context', 'scope', 'check'];
+const fbList = (xs) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+
+/** An area's status: the review's word since rubric 3; before it, a gap is "left out" and anything else was never said. */
+const fbStatus = (review, a) => review.areas?.[a] ?? (review.gaps.some((g) => g.area === a) ? 'left_out' : 'unknown');
+const FB_CLS = { left_out: 'is-miss', clear: 'is-ok', not_needed: 'is-na', unknown: 'is-na' };
+
+/** The conclusion first. Every word of it comes from the gap areas, never from model text, and none is a number. */
+function fbVerdict(it) {
+  const { worked, gaps } = it.review;
+  const date = it.context?.prompted_at ? fmtDate(it.context.prompted_at) : '';
+  const label = `<p class="fb__h">Review of one prompt${date ? ' · ' + esc(date) : ''}</p>`;
+  // Only an item cleared by migration 029 has no `worked` (parseReview requires one).
+  if (!worked) {
+    return `<section class="card fb__verdict" aria-labelledby="fb-verdict-h"><eklavya-mascot state="info" size="88"></eklavya-mascot>
+      <div>${label}<h2 class="fb__vh fb__vh--old" id="fb-verdict-h">An older review: the prompt, the rewrite and the tips are below.</h2></div></section>`;
+  }
+  const areas = [...new Set(gaps.map((g) => g.area))].map((a) => 'the ' + (FB.areas[a] ?? a).toLowerCase());
+  const head = areas.length ? `The agent had to guess ${fbList(areas)}.` : 'Nothing here left the agent guessing.';
+  const cells = AREA_ORDER.map((a) => {
+    const st = fbStatus(it.review, a);
+    return `<li role="listitem" class="fb__cell ${FB_CLS[st]}">${svg(ICONS[a])}<span class="fb__cn">${esc(FB.areas[a])}</span> <span class="fb__cs">${esc(FB.status[st])}</span></li>`;
+  }).join('');
+  return `<section class="card fb__verdict" aria-labelledby="fb-verdict-h">
+    <eklavya-mascot state="${gaps.length ? 'review' : 'complete'}" size="88"></eklavya-mascot>
+    <div class="fb__vb">${label}<h2 class="fb__vh" id="fb-verdict-h">${esc(head)}</h2>
+      ${gaps.length ? '<p class="fb__vs">Of the prompts in that session, this one cost the most rework.</p>' : ''}
+      <ul class="fb__cover" role="list" aria-label="What the prompt covered">${cells}</ul></div></section>`;
+}
+
+/** A long text is clamped with its own toggle; `id` names the text the toggle controls. */
+const FB_CLAMP = { better: 600, mine: 1500 };
+const fbMore = (key, id, text) => text.length > FB_CLAMP[key]
+  ? `<button type="button" class="fb__more" data-fb-more="${id}" data-focus="more:${key}" aria-expanded="false" aria-controls="${id}">Show the whole prompt</button>` : '';
+
+function fbToggle(btn) {
+  const el = $(btn.dataset.fbMore);
+  const open = btn.getAttribute('aria-expanded') !== 'true';
+  if (open) {
+    el.classList.remove('is-clamped');
+    // A height to move to, so the expansion is a transition; then no cap, so a resize cannot cut it.
+    el.style.maxHeight = el.scrollHeight + 'px';
+    setTimeout(() => { if (!el.classList.contains('is-clamped')) el.style.maxHeight = 'none'; }, 400);
+  } else {
+    el.style.maxHeight = el.scrollHeight + 'px';
+    el.getBoundingClientRect();
+    el.style.maxHeight = '';
+    el.classList.add('is-clamped');
+  }
+  btn.setAttribute('aria-expanded', String(open));
+  btn.textContent = open ? 'Show less' : 'Show the whole prompt';
+}
+
+/** The rewrite, escaped first; each [placeholder] it left for a detail only the developer knows is then marked. */
+const FB_PH = /\[[^\]\n]{2,200}\]/g;
+
+function fbCompare(it) {
+  const better = esc(it.better);
+  const marked = better.replace(FB_PH, (m) => `<mark class="fb__ph">${m}</mark>`);
+  const clamp = (key, text) => text.length > FB_CLAMP[key] ? ' is-clamped' : '';
+  return `<div class="fb__grid">
+    <section class="fb__mine" aria-labelledby="fb-mine-h"><div class="fb__ch"><h2 class="fb__h" id="fb-mine-h">Your prompt</h2></div>
+      <div class="fb__clamp${clamp('mine', it.prompt)}" id="fb-mine-t"><blockquote class="fb__quote">${esc(it.prompt)}</blockquote></div>${fbMore('mine', 'fb-mine-t', it.prompt)}</section>
+    <section class="fb__better" aria-labelledby="fb-better-h"><div class="fb__ch"><h2 class="fb__h" id="fb-better-h">A better prompt</h2>
+      <button type="button" class="fb__copy" data-copy="fb-better-c" data-focus="copy:better">${svg(ICONS.copy)}<span>Copy</span></button></div>
+      <div class="cmd cmd--block fb__clamp${clamp('better', it.better)}" id="fb-better-t"><code id="fb-better-c">${marked}</code></div>${fbMore('better', 'fb-better-t', it.better)}
+      ${marked !== better ? '<p class="fb__cap">Highlighted: details only you know. Fill them in before you reuse it.</p>' : ''}</section>
+  </div>`;
+}
+
+/** A section's head: its mascot, its heading and one quiet line. */
+const fbHead = (state, id, title, cap) => `<div class="fb__sh"><eklavya-mascot state="${state}" variant="face" size="40"></eklavya-mascot>
+  <div><h3 id="${id}">${title}</h3>${cap ? `<p class="fb__cap">${cap}</p>` : ''}</div></div>`;
+
+function fbGaps(gaps) {
+  if (!gaps.length) {
+    return `<section class="fb__sec" aria-labelledby="fb-gaps-h">${fbHead('success', 'fb-gaps-h', 'What it left out', '')}
+      <p class="fb__note">Nothing the agent had to guess.</p></section>`;
+  }
+  const rows = gaps.map((g) => `<li><span class="fb__tile">${svg(ICONS[g.area] ?? '')}</span><div class="fb__gb">
+    <p class="fb__gt">${esc(FB.areas[g.area] ?? g.area)} <small>${esc(FB.hints[g.area] ?? '')}</small></p>
+    <p class="fb__note">${esc(g.missing)}</p>
+    ${g.evidence ? `<p class="fb__ev"><span class="fb__evl" aria-hidden="true">You, later</span><span class="sr">You said later: </span><q>${esc(g.evidence)}</q></p>` : ''}</div></li>`).join('');
+  return `<section class="fb__sec" aria-labelledby="fb-gaps-h">${fbHead('warning', 'fb-gaps-h', 'What it left out', 'What the agent had to guess, costliest first')}
+    <ol class="fb__ds">${rows}</ol></section>`;
+}
+
+/** The decision, beside the item: the rule, Acknowledge and Delete. Only while it is pending. */
+const fbDecide = (it) => `<section class="card fb__card fb__decide" aria-labelledby="fb-decide-h">
+    <div class="fb__dh"><eklavya-mascot state="info" variant="face" size="32"></eklavya-mascot><h3 id="fb-decide-h">Done reading?</h3></div>
+    <p class="fb__dp">${esc(FB.rulePending)}</p>
+    ${fbActions(it.id)}
+    <p class="fb__foot"><span>1 waiting</span><span>${esc(S.feedback.acknowledged + ' in history')}</span></p></section>`;
+
+/**
+ * One item: the verdict, the two prompts, what worked, what it left out and the
+ * habits for next time, with the decision held in view beside them (a fixed bar
+ * at 900px and below). Acknowledge only while it is pending.
+ */
 function drawFbItem(it) {
   const pending = !it.acknowledged_at;
   const { worked, gaps } = it.review;
-  const rows = gaps.map((g) => `<li><span class="fb__dn">${esc(FB.areas[g.area] ?? g.area)}</span> `
-    + `<span class="fb__note">${esc(g.missing)}`
-    + `${g.evidence ? `<span class="fb__ev">You said later: “${esc(g.evidence)}”</span>` : ''}</span></li>`).join('');
-  // Only an item cleared by migration 029 has no `worked` (parseReview requires one); its prompt, rewrite and tips still show.
-  const review = worked
-    ? `<section><h2 class="fb__h">What worked</h2><p class="fb__note">${esc(worked)}</p></section>
-    <section><h2 class="fb__h">What it left out</h2>${rows ? `<ul class="fb__ds">${rows}</ul>` : '<p class="fb__note">Nothing the agent had to guess.</p>'}</section>`
-    : '';
-  // Said again right above the button on the very first item a reader sees.
-  const first = pending && S.feedback.acknowledged === 0
-    ? `<div class="fb__rule fb__rule--near"><p>${esc(FB.rulePending)}</p></div>` : '';
-  return `<article class="card fb" aria-label="Feedback on one of your prompts">
-    ${fbContext(it)}
-    <div class="fb__grid">
-      <section><h2 class="fb__h">Your prompt</h2><blockquote class="fb__quote">${esc(it.prompt)}</blockquote></section>
-      <section><h2 class="fb__h">A better prompt</h2>
-        <div class="cmd cmd--block"><code>${esc(it.better)}</code><button type="button" class="cmd__copy" data-copy data-focus="copy:better">Copy</button></div></section>
+  chart('fb-rail', fbRailFit);
+  return `<article class="fb" aria-label="Feedback on one of your prompts">
+    <div class="fb__story">
+      ${fbVerdict(it)}
+      ${fbCompare(it)}
+      ${worked ? `<section class="fb__worked" aria-labelledby="fb-worked-h"><eklavya-mascot state="success" variant="face" size="40"></eklavya-mascot>
+        <div><h3 class="fb__h" id="fb-worked-h">What worked</h3><p>${esc(worked)}</p></div></section>` : ''}
+      ${worked ? fbGaps(gaps) : ''}
+      <section class="fb__sec" aria-labelledby="fb-tips-h">${fbHead('tip', 'fb-tips-h', 'Next time', worked ? 'Habits that would have saved those follow-ups' : 'Habits for next time')}
+        <ol class="fb__tips" data-n="${Math.min(it.tips.length, 3)}">${it.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ol></section>
+      ${pending ? fbTip() : ''}
     </div>
-    ${review}
-    <section><h2 class="fb__h">Tips</h2><ul class="fb__tips">${it.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>
-    ${pending ? `<section>${first}${fbActions(it.id)}</section>` : ''}
+    <aside class="fb__rail" id="fb-rail" aria-label="About this prompt">
+      ${fbContext(it)}
+      ${pending ? fbDecide(it) : `<p class="fb__acked">Acknowledged ${esc(fmtDate(it.acknowledged_at))}</p>`}
+    </aside>
+    ${pending ? `<div class="fb__bar" role="region" aria-label="Acknowledge this feedback"><p>${esc(FB.barRule)}</p>${fbAck(it.id)}</div>` : ''}
   </article>`;
 }
+
+/** The rail stays in view while it fits the window; one taller than that would hide its own end, so it scrolls with the page. */
+function fbRailFit() {
+  const rail = $('fb-rail');
+  if (rail) rail.classList.toggle('is-tall', rail.offsetHeight > innerHeight - 48);
+}
+addEventListener('resize', fbRailFit);
 
 function viewFeedbackHistory() {
   const p = new URLSearchParams();
@@ -4472,11 +4693,18 @@ function fbFail(e) {
 
 function fbAcknowledge(btn) {
   if (btn.disabled) return;
-  btn.disabled = true;
+  // The rail's button and the bar's are one action: pressing either holds both.
+  const both = [...document.querySelectorAll('[data-fb-ack]')];
+  both.forEach((b) => { b.disabled = true; });
   postJson('/api/feedback/acknowledge', { id: +btn.dataset.fbAck })
     // The item, its history row and the next one waiting all changed: what was read of them is gone.
     .then((d) => { S.feedback = d.state; respForget('/api/feedback'); fbDone(FB.announce); })
-    .catch((e) => { btn.disabled = false; fbFail(e); });
+    .catch((e) => {
+      both.forEach((b) => { b.disabled = false; });
+      fbFail(e);
+      // Under the bar the message is in the rail card, after the story.
+      if (innerWidth <= 900) $('fb-msg')?.scrollIntoView({ block: 'nearest' });
+    });
 }
 
 function fbAskDelete(btn) {
@@ -4610,6 +4838,13 @@ const ICONS = {
   history:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   user:      '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   project:   '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/>',
+  // The four areas a prompt can leave the agent to guess, and the Feedback item's two actions.
+  outcome:   '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  context:   '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  scope:     '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>',
+  check:     '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  copy:      '<rect width="14" height="14" x="8" y="8"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  ack:       '<path d="M20 6 9 17l-5-5"/>',
 };
 const svg = (paths, cls = '') =>
   `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -5703,7 +5938,7 @@ function catchUp() {
  * opens (`detailSelector`). A control with none is not carried over a redraw, so every control the reader can Tab to has one.
  */
 const FOCUS_KEYS = ['data-focus', 'data-tab', 'data-tab-id', 'data-state', 'data-unset', 'data-go',
-  'data-fb-ack', 'data-fb-del', 'data-fb-yes', 'data-fb-no', 'data-fb-tip-dismiss'];
+  'data-fb-ack', 'data-fb-del', 'data-fb-more', 'data-fb-yes', 'data-fb-no', 'data-fb-tip-dismiss'];
 function focusKey(el) {
   if (el.id) return `#${CSS.escape(el.id)}`;
   for (const a of FOCUS_KEYS) {
@@ -5811,6 +6046,8 @@ function onActivate(e) {
   if (e.target.closest('[data-slot][aria-busy="true"][data-kept]')) return;
   const copy = e.target.closest('[data-copy]');
   if (copy) return copyCommand(copy);
+  const more = e.target.closest('[data-fb-more]');
+  if (more) return fbToggle(more);
   if (e.target.closest('[data-fb-tip-dismiss]')) return fbTipDismiss();
   const ack = e.target.closest('[data-fb-ack]');
   if (ack) return fbAcknowledge(ack);

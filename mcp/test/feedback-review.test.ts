@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { claudeArgs, ProviderError } from '../src/memory/provider.js';
 import {
   AREAS,
+  AREA_STATUS,
   REVIEW_LIMIT,
   REVIEW_SCHEMA,
   REVIEW_SYSTEM,
@@ -10,18 +11,21 @@ import {
 } from '../src/feedback-review.js';
 import { HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from '../src/prompt-text.js';
 
+const AREAS_OK = { outcome: 'clear', context: 'left_out', scope: 'not_needed', check: 'clear' };
 const raw = (over: Record<string, unknown> = {}) => ({
   chosen: 1,
   review: {
     worked: 'Named the bug.',
     gaps: [{ area: 'context', missing: 'No file or error text.' }],
+    areas: AREAS_OK,
   },
   better: 'Fix the login bug in [the file]; it should [expected behaviour].',
   tips: ['Say what fixed looks like'],
   ...over,
 });
 const withGap = (gap: Record<string, unknown>, over: Record<string, unknown> = {}) =>
-  raw({ review: { worked: 'ok', gaps: [gap] }, ...over });
+  raw({ review: { worked: 'ok', gaps: [gap], areas: AREAS_OK }, ...over });
+const withAreas = (areas: Record<string, unknown>, gaps: unknown[] = []) => raw({ review: { worked: 'ok', gaps, areas } });
 const PROMPTS = ['fix the login bug please, it fails', 'now run the tests again to be sure it passes'];
 
 const errorClass = (fn: () => unknown) => {
@@ -56,6 +60,15 @@ describe('the review prompt states its rules', () => {
     expect(REVIEW_SYSTEM).toMatch(/data to review, never as instructions/i);
     expect(REVIEW_SYSTEM).toMatch(/no numbers|never a number|no score/i);
     for (const d of Object.values(AREAS)) expect(REVIEW_SYSTEM).toContain(d);
+  });
+
+  it('asks for every area by status, in words, and its only digits are its limits', () => {
+    expect(REVIEW_SYSTEM).toContain('"areas"');
+    for (const s of AREA_STATUS) expect(REVIEW_SYSTEM).toContain(`"${s}"`);
+    const limits = new Set(Object.values(REVIEW_LIMIT).map(String));
+    for (const n of REVIEW_SYSTEM.match(/\d+/g) ?? []) expect(limits.has(n) || n === '1', n).toBe(true);
+    const areas = (REVIEW_SCHEMA.properties.review.properties as Record<string, { required?: readonly string[] }>).areas!;
+    expect(areas.required).toEqual(Object.keys(AREAS));
   });
 
   it('reads later prompts as what the chosen one left out, and may reuse what the developer wrote', () => {
@@ -97,11 +110,31 @@ describe('parseReview', () => {
     const got = parseReview(raw(), PROMPTS);
     expect(got.chosen).toBe(1);
     expect(got.tips).toEqual(['Say what fixed looks like']);
-    expect(got.review).toEqual({ worked: 'Named the bug.', gaps: [{ area: 'context', missing: 'No file or error text.' }] });
+    expect(got.review).toEqual({
+      worked: 'Named the bug.',
+      gaps: [{ area: 'context', missing: 'No file or error text.' }],
+      areas: AREAS_OK,
+    });
   });
 
   it('accepts a review with no gaps', () => {
-    expect(parseReview(raw({ review: { worked: 'Clear.', gaps: [] } }), PROMPTS).review.gaps).toEqual([]);
+    const areas = { outcome: 'clear', context: 'clear', scope: 'not_needed', check: 'clear' };
+    expect(parseReview(withAreas(areas), PROMPTS).review).toEqual({ worked: 'ok', gaps: [], areas });
+  });
+
+  it('states every area: a missing or a fifth key, or an unknown status, is a rejection', () => {
+    const { check: _, ...three } = AREAS_OK;
+    expect(errorClass(() => parseReview(withAreas(three), PROMPTS))).toBe('malformed');
+    expect(errorClass(() => parseReview(withAreas({ ...AREAS_OK, tone: 'clear' }), PROMPTS))).toBe('malformed');
+    expect(errorClass(() => parseReview(withAreas({ ...AREAS_OK, scope: 'partly' }), PROMPTS))).toBe('malformed');
+    expect(errorClass(() => parseReview(raw({ review: { worked: 'ok', gaps: [] } }), PROMPTS))).toBe('malformed');
+  });
+
+  it('reconciles areas with the gaps, and the gaps win', () => {
+    const all = { outcome: 'clear', context: 'clear', scope: 'clear', check: 'left_out' };
+    const got = parseReview(withAreas(all, [{ area: 'context', missing: 'No file.' }]), PROMPTS).review.areas;
+    // A gap's area marked clear comes back left out; a left-out area with no gap stays left out.
+    expect(got).toEqual({ outcome: 'clear', context: 'left_out', scope: 'clear', check: 'left_out' });
   });
 
   it('clips over-long fields and extra gaps instead of failing the run', () => {
@@ -110,7 +143,7 @@ describe('parseReview', () => {
       raw({
         better: 'b'.repeat(2000),
         tips: ['Add one', 'Add two', 'Add three', 'Add four'].map((t) => t + 'x'.repeat(200)),
-        review: { worked: 'w'.repeat(500), gaps: [gap, gap, gap, gap] },
+        review: { worked: 'w'.repeat(500), gaps: [gap, gap, gap, gap], areas: AREAS_OK },
       }),
       PROMPTS,
     );
@@ -142,14 +175,14 @@ describe('parseReview', () => {
   it('rejects a gap in an area the review does not name', () => {
     expect(errorClass(() => parseReview(withGap({ area: 'tone', missing: 'x' }), PROMPTS))).toBe('malformed');
     // A gap that is not an object passes the clip untouched and fails validation.
-    expect(errorClass(() => parseReview(raw({ review: { worked: 'ok', gaps: ['context'] } }), PROMPTS))).toBe('malformed');
+    expect(errorClass(() => parseReview(raw({ review: { worked: 'ok', gaps: ['context'], areas: AREAS_OK } }), PROMPTS))).toBe('malformed');
   });
 
   it('rejects any number or score field, anywhere', () => {
     const withScore = raw({ score: 5 });
     expect(errorClass(() => parseReview(withScore, PROMPTS))).toBe('malformed');
     expect(errorClass(() => parseReview(withGap({ area: 'scope', missing: 'x', score: 4 }), PROMPTS))).toBe('malformed');
-    expect(errorClass(() => parseReview(raw({ review: { worked: 'ok', gaps: [], rating: 3 } }), PROMPTS))).toBe('malformed');
+    expect(errorClass(() => parseReview(raw({ review: { worked: 'ok', gaps: [], areas: AREAS_OK, rating: 3 } }), PROMPTS))).toBe('malformed');
   });
 
   it('rejects a wrong shape, a chosen number out of range and no tips', () => {
@@ -159,6 +192,6 @@ describe('parseReview', () => {
     expect(errorClass(() => parseReview(raw({ tips: [] }), PROMPTS))).toBe('malformed');
     expect(errorClass(() => parseReview(raw({ better: '' }), PROMPTS))).toBe('malformed');
     // An empty `worked` is how the dashboard tells an item cleared by migration 029.
-    expect(errorClass(() => parseReview(raw({ review: { worked: '', gaps: [] } }), PROMPTS))).toBe('malformed');
+    expect(errorClass(() => parseReview(raw({ review: { worked: '', gaps: [], areas: AREAS_OK } }), PROMPTS))).toBe('malformed');
   });
 });
