@@ -1,3 +1,10 @@
+# [1.75.0](https://github.com/ProjectAJ14/eklavya/compare/v1.74.0...v1.75.0) (2026-10-16)
+
+
+### Features
+
+* **dashboard:** review one concept at a time, with shared toast and dialog ([#206](https://github.com/ProjectAJ14/eklavya/issues/206)) ([d4e6e3f](https://github.com/ProjectAJ14/eklavya/commit/d4e6e3f907ed4c39148c836445afac895ffcc023))
+
 # [1.74.0](https://github.com/ProjectAJ14/eklavya/compare/v1.73.0...v1.74.0) (2026-10-16)
 
 

@@ -154,7 +154,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     }[] = [
       {
         name: 'a Review tab', from: '#/learning/review', to: '#/learning/review/skipped', current: 'review', head: true,
-        act: (p) => p.click('[data-tab="skipped"]'),
+        // The tabs sit below the picker and the tips, so a real click would scroll them into view first and move the reader itself.
+        act: (p) => p.dispatchEvent('[data-tab="skipped"]', 'click'),
         then: async (p) => { expect(await p.getAttribute('[data-tab="skipped"]', 'aria-pressed')).toBe('true'); },
       },
       {

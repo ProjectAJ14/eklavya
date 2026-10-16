@@ -136,8 +136,9 @@ it cannot parse gets a 400 without stopping the server
 Its Learning page shows your streak and its calendar under the summary tiles; a
 **To be corrected** tile there and on the Artifacts page counts missed answers still
 waiting for a correction; correcting one closes its dialog after three seconds unless you choose **Stay open**. The
-review queue gives each project a command to copy that starts Claude Code on its due
-concepts, in the project's folder when that folder is available.
+review page lists due concepts as cards; opening one shows the steps to quiz that single concept in
+Claude Code or Claude desktop, in the project's folder when that folder is available. Every Copy button
+answers with a toast.
 Its feature tips show the archer companion and use Driver.js, bundled in `dist/` at build and served by the
 dashboard itself at `/vendor/driver-hints.js` and `/vendor/driver-hints.css`, so
 the page still requests nothing from another host. [Configuration](https://eklavya-run.web.app/docs/configuration/) lists

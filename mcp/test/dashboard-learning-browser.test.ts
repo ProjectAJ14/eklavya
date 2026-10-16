@@ -12,6 +12,8 @@ declare function adoptState(s: unknown, inv: unknown): void;
 declare let S: { daily: unknown[]; concepts: unknown[]; logged: { slug: string }[] };
 declare function inScope(repo: unknown, sid: unknown): boolean;
 declare let INV: { projects: unknown[] };
+declare const toast: any;
+declare function ekDialog(o: unknown): Promise<{ ok: boolean; value: string }>;
 declare function startCommand(concepts: unknown[]): { name: string; count: number; command: string; note: string }[];
 declare function streaks(map: Map<string, { day: string; total: number }>): { current: number; best: number; days: number };
 
@@ -191,67 +193,107 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
-    it('gives the review queue one block per project, most due first', async () => {
+    it('lists due concepts as cards, most overdue first, with one Start here', async () => {
       const w = await open('#/learning/review');
-      const [a, b, c] = ['csrf', 'jwt-structure', 'git-rebase'];
-      await due(w.page, [[a!, fx.repo.answered], [b!, fx.repo.mixed], [c!, fx.repo.mixed]]);
-      const blocks = await w.page.evaluate(() => ({
+      await due(w.page, [['csrf', fx.repo.answered], ['jwt-structure', fx.repo.mixed], ['git-rebase', fx.repo.mixed]]);
+      const read = () => w.page.evaluate(() => ({
         head: document.querySelector('#view .starts h2')?.textContent,
-        rows: [...document.querySelectorAll('#view .starts .start')].map((x) => ({
-          who: x.querySelector('p')!.textContent!.replace(/\s+/g, ' ').trim(), cmd: x.querySelector('code')!.textContent,
-        })),
-        quiz: document.querySelector('#view .next:not(.start)')?.textContent ?? '',
+        cards: [...document.querySelectorAll('#view .rv-card')].map((x) => ({ slug: (x as HTMLElement).dataset.start, go: x.querySelector('.rv-card__go')!.textContent })),
+        guides: document.querySelectorAll('#view .rv-guide').length,
+        face: document.querySelector('#view .rv-guide eklavya-mascot')?.getAttribute('state'),
+        note: document.querySelector('#view .starts > .cmd__note')?.textContent,
+        fold: document.querySelector('#view .rv-more > summary')?.textContent ?? null,
       }));
-      expect(blocks.head).toBe('Start your reviews');
-      // A run asks the weakest concepts, so the caption must not promise overdue order.
-      expect(await w.page.$eval('#view .starts > .cmd__note', (n) => n.textContent))
-        .toBe('Each run asks up to your questions-per-task limit, weakest first. Run it again for the rest.');
-      expect(blocks.rows.map((r) => r.who)).toEqual(['mixed · 2 due', 'answered · 1 due']);
-      expect(blocks.rows[0]!.cmd).toBe(`cd '${fx.repo.mixed}' && claude "/eklavya:quiz ${b} ${c}"`);
-      // A selected project shows its own block alone.
-      await w.page.evaluate((id) => { location.hash = `#/learning/review?project=${encodeURIComponent(id)}`; }, fx.repo.mixed);
-      await ready(w.page);
-      const inMixed = await w.page.evaluate(() => S.logged.find((l: any) => inScope(l.repo, l.session_id))!.slug);
-      await due(w.page, [[inMixed, fx.repo.answered]]);
-      expect(await w.page.$$eval('#view .starts .start p', (x) => x.map((p) => p.textContent!.replace(/\s+/g, ' ').trim())))
-        .toEqual(['mixed · 1 due']);
+      const out = await read();
+      expect(out.head).toBe('Pick a concept to review');
+      expect(out.cards.map((c) => c.slug)).toEqual(['csrf', 'jwt-structure', 'git-rebase']);
+      expect(out.cards.map((c) => c.go)).toEqual(['Start →', 'Open →', 'Open →']);
+      expect([out.guides, out.face, out.fold]).toEqual([1, 'review', null]);
+      expect(out.note).toBe('Each session quizzes that one concept. Come back for the next.');
+      // Past five, the rest fold under one summary, and nothing due shows the all-clear message instead of cards.
+      const slugs = await w.page.evaluate(() => S.concepts.slice(0, 9).map((c: any) => c.slug));
+      await due(w.page, slugs.map((s) => [s, fx.repo.mixed] as [string, string]));
+      const many = await w.page.evaluate(() => ({
+        shown: document.querySelectorAll('#view .starts > .rv-list > .rv-card, #view .starts > .rv-list > .rv-first > .rv-card').length,
+        fold: document.querySelector('#view .rv-more > summary')?.textContent,
+      }));
+      expect(many.shown).toBe(5);
+      expect(many.fold).toBe('Show 4 more concepts');
+      await due(w.page, []);
+      expect(await w.page.$('#view .rv-card')).toBeNull();
+      expect(await w.page.textContent('#view .ek-mascot-message')).toContain('Nothing is due.');
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
 
-    it('shows the top three review blocks and folds the rest under Show more', async () => {
+    it('opens the steps for one concept, remembers Claude desktop, and toasts each copy', async () => {
       const w = await open('#/learning/review');
       await w.ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
-      // Five projects, counts 2, 2, 1, 1, 1: the top two plus one single show; two singles fold.
-      await due(w.page, [
-        ['csrf', fx.repo.answered], ['jwt-structure', fx.repo.answered],
-        ['git-rebase', fx.repo.mixed], ['refresh-token-rotation', fx.repo.mixed],
-        ['cors-basics', fx.repo.clientApi], ['express-middleware', fx.repo.serverApi], ['git-stash', fx.repo.retired],
-      ]);
-      const read = () => w.page.evaluate(() => ({
-        shown: [...document.querySelectorAll('#view .starts > .start > p:first-child')].map((p) => p.textContent!.replace(/\s+/g, ' ').trim()),
-        folded: [...document.querySelectorAll('#view .starts__more .start > p:first-child')].map((p) => p.textContent!.replace(/\s+/g, ' ').trim()),
-        label: document.querySelector('#view .starts__more > summary')?.textContent,
-        open: (document.querySelector('#view .starts__more') as HTMLDetailsElement | null)?.open,
-      }));
-      const before = await read();
-      expect(before.shown).toHaveLength(3);
-      expect(before.folded).toHaveLength(2);
-      expect(before.label).toBe('Show 2 more · 2 due');
-      expect(before.open).toBe(false);
-      // Folded blocks are not rendered until opened, and the keyboard opens them.
-      expect(await w.page.$eval('#view .starts__more .start', (n) => n.checkVisibility())).toBe(false);
-      await w.page.focus('#view .starts__more > summary');
-      await w.page.keyboard.press('Enter');
-      expect((await read()).open).toBe(true);
-      // A folded block copies exactly its own command.
-      await w.page.click('#view .starts__more .start:last-of-type [data-copy]');
-      const cmd = await w.page.$eval('#view .starts__more .start:last-of-type code', (n) => n.textContent);
-      expect(await w.page.evaluate(() => navigator.clipboard.readText())).toBe(cmd);
-      // Three or fewer projects show no fold at all.
-      await due(w.page, [['csrf', fx.repo.answered], ['git-rebase', fx.repo.mixed], ['cors-basics', fx.repo.clientApi]]);
-      expect(await w.page.$('#view .starts__more')).toBeNull();
-      expect((await read()).shown).toHaveLength(3);
+      await due(w.page, [['csrf', fx.repo.mixed]]);
+      await w.page.click('#view .rv-card');
+      await w.page.waitForSelector('#sheet[open]');
+      const codes = () => w.page.$$eval('#sheet code', (n) => n.map((x) => x.textContent));
+      expect(await codes()).toEqual([`cd '${fx.repo.mixed}'`, 'claude "/eklavya:quiz csrf"']);
+      await w.page.click('#sheet [data-copy] >> nth=1');
+      expect(await w.page.evaluate(() => navigator.clipboard.readText())).toBe('claude "/eklavya:quiz csrf"');
+      expect(await w.page.textContent('#toasts .toast b')).toBe('Copied');
+      expect(await w.page.textContent('#toasts .toast p')).toBe('Paste it in your terminal and press Enter.');
+      expect(await w.page.getAttribute('#toasts .toast eklavya-mascot', 'state')).toBe('success');
+      await w.page.click('#sheet [data-sheet-tool="desktop"]');
+      expect(await codes()).toEqual([fx.repo.mixed, '/eklavya:quiz csrf']);
+      expect(await w.page.evaluate(() => document.activeElement?.getAttribute('data-sheet-tool'))).toBe('desktop');
+      await w.page.keyboard.press('Escape');
+      expect(await w.page.$('#sheet[open]')).toBeNull();
+      expect(await w.page.evaluate(() => document.activeElement?.getAttribute('data-start'))).toBe('csrf');
+      await w.page.click('#view .rv-card');
+      expect(await codes()).toEqual([fx.repo.mixed, '/eklavya:quiz csrf']);
+      // A refused clipboard selects the text and says so in a caution toast.
+      await w.page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); });
+      await w.page.click('#sheet [data-copy] >> nth=1');
+      await w.page.waitForSelector('#toasts .toast[data-k="caution"]');
+      expect(await w.page.getAttribute('#toasts .toast[data-k="caution"] eklavya-mascot', 'state')).toBe('warning');
+      // The sheet is emptied on close, so its live region never doubles one in the page.
+      await w.page.keyboard.press('Escape');
+      await w.page.waitForFunction(() => !document.getElementById('copy-live'));
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
+    it('hides the intro for good, and a project with no folder here shows no path', async () => {
+      const w = await open('#/learning/review');
+      expect(await w.page.$('#view .rv-intro')).not.toBeNull();
+      await w.page.click('[data-rv-hide]');
+      expect(await w.page.$('#view .rv-intro')).toBeNull();
+      await w.page.reload(); await ready(w.page);
+      expect(await w.page.$('#view .rv-intro')).toBeNull();
+      await due(w.page, [['csrf', null]]);
+      await w.page.click('#view .rv-card');
+      expect(await w.page.$$eval('#sheet code', (n) => n.map((x) => x.textContent))).toEqual(['claude "/eklavya:quiz csrf"']);
+      expect(await w.page.textContent('#sheet .next')).toContain('not on this machine');
+      await w.ctx.close();
+    });
+
+    it('the shared toast replaces a repeat, keeps at most three, and the dialog resolves what was pressed', async () => {
+      const w = await open('#/learning/review');
+      const out = await w.page.evaluate(async () => {
+        toast.success('one', { id: 'a' }); toast.success('two', { id: 'a' });
+        toast.caution('c'); toast.alert('d'); toast.success('e', { id: 'e' });
+        const n = document.querySelectorAll('#toasts .toast').length;
+        const roles = [...document.querySelectorAll('#toasts .toast')].map((x) => x.getAttribute('role'));
+        toast.dismiss('e');
+        const after = document.querySelectorAll('#toasts .toast').length;
+        const asked = ekDialog({ state: 'warning', title: 'Sure?', text: 'x', ok: 'Delete', danger: true, input: 'Reason' });
+        const focus = document.activeElement?.id;
+        (document.getElementById('dlg-in') as HTMLTextAreaElement).value = 'why';
+        (document.getElementById('dlg-ok') as HTMLButtonElement).click();
+        const r = await asked;
+        return { n, roles, after, focus, r };
+      });
+      expect(out.n).toBe(3);
+      expect(out.roles).toEqual(['status', 'alert', 'status']);
+      expect(out.after).toBe(2);
+      expect(out.focus).toBe('dlg-c');
+      expect(out.r).toEqual({ ok: true, value: 'why' });
       expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
