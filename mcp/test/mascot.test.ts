@@ -61,6 +61,7 @@ describe('shared Archer Cloak mascot', () => {
         ['/brand/mascot/mascot.js', 'mascot.js', 'text/javascript'],
         ['/brand/mascot/mascot.css', 'mascot.css', 'text/css'],
         ['/mascot.html', '../../mascot.html', 'text/html'],
+        ['/daily-card.js', '../../../../mcp/src/assets/daily-card.cjs', 'text/javascript'],
       ]) {
         const response = await fetch(new URL(route, server.url));
         expect(response.status).toBe(200);

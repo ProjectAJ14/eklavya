@@ -183,21 +183,28 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
-    it('the sidebar switch hides every tip, and on starts them over', async () => {
+    /** The tips switch lives on Settings, in the Companion tab. */
+    const companion = async (page: Page) => { await page.goto(base + '/#/settings/dashboard/companion'); await ready(page); };
+
+    it('the Settings switch hides every tip, and on starts them over', async () => {
       const w = await open('#/learning/dashboard', { tips: true, init: tips([ONE, TWO]) });
       await w.page.waitForSelector(bubble, WAIT);
       await w.page.click(`${bubble} .driver-popover-next-btn`);
+      await companion(w.page);
+      expect(await w.page.getAttribute('[data-tips="on"]', 'aria-pressed')).toBe('true');
       await w.page.click('[data-tips="off"]');
       expect(await w.page.getAttribute('[data-tips="off"]', 'aria-pressed')).toBe('true');
-      expect(await beacons(w.page)).toEqual([]);
+      expect(await w.page.locator('aside [data-tips]').count()).toBe(0);
       for (const h of ['#/learning/concepts', '#/learning/dashboard']) {
         await w.page.goto(base + '/' + h); await ready(w.page);
         await w.page.waitForTimeout(700);
         expect(await beacons(w.page), h).toEqual([]);
         expect(await bubbles(w.page), h).toBe(0);
       }
+      await companion(w.page);
       expect(await w.page.getAttribute('[data-tips="off"]', 'aria-pressed')).toBe('true');
       await w.page.click('[data-tips="on"]');
+      await w.page.goto(base + '/#/learning/dashboard'); await ready(w.page);
       await w.page.waitForSelector(bubble, WAIT);
       expect(await w.page.textContent(bubble)).toContain('The first tip.');
       expect(await beacons(w.page)).toEqual(['One', 'Two']);
@@ -211,6 +218,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.waitForTimeout(900);
       expect(await beacons(w.page)).toEqual([]);
       expect(await bubbles(w.page)).toBe(0);
+      await companion(w.page);
       await w.page.click('[data-tips="on"]');
       expect(await beacons(w.page)).toEqual([]);
       expect(w.errors).toEqual([]);

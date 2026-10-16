@@ -2360,6 +2360,7 @@ const MASCOT_ASSETS = new Map<string, [string, string]>([
   ['/brand/mascot/mascot.js', ['mascot/mascot.js', 'text/javascript; charset=utf-8']],
   ['/brand/mascot/mascot.css', ['mascot/mascot.css', 'text/css; charset=utf-8']],
   ['/mascot.html', ['mascot.html', 'text/html; charset=utf-8']],
+  ['/daily-card.js', ['daily-card.cjs', 'text/javascript; charset=utf-8']],
 ]);
 /** The tips library, copied from node_modules at build by `copy-assets.mjs`. */
 const VENDOR: Record<string, string> = { '/vendor/driver-hints.js': 'text/javascript', '/vendor/driver-hints.css': 'text/css' };

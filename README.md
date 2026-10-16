@@ -107,12 +107,12 @@ and never moves what you are reading. You can also
 [install it as an app](https://eklavya-run.web.app/docs/dashboard/#open-it-as-an-app)
 and open it from Spotlight, the Dock or the Start menu. On your first visits,
 [tips](https://eklavya-run.web.app/docs/dashboard/#tips) point out features;
-dismiss them one by one or switch them off in the sidebar. The archer companion smiles while loading and appears beside empty states and feedback. Open Settings, then Companion, to preview its expressions and motion. On a wide window
+dismiss them one by one or switch them off under Settings, then Companion. The archer companion smiles while loading and appears beside empty states and feedback; the same tab previews its expressions and motion and has the daily card switch. On a wide window
 each page sits centred beside the sidebar. It has five parts:
 
 | Part | What you can see | Read more |
 |---|---|---|
-| Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, reviews due with a command per project to start them, the top three shown (each run asks the weakest first), weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
+| Learning | Accuracy, mastery, missed answers still to be corrected, your streak and its calendar, with the archer beside it and one card the first time you open the page each day, reviews due with a command per project to start them, the top three shown (each run asks the weakest first), weak topics, sessions and projects, each project at its own level. | [Learning pages](https://eklavya-run.web.app/docs/dashboard/#learning) |
 | Memory | A timeline of past work, sessions, projects, savings and health. | [Memory pages](https://eklavya-run.web.app/docs/dashboard/#memory-pages) |
 | Artifacts | Every saved page as a gallery grouped by project, each card showing the page's first diagram. | [Artifacts pages](https://eklavya-run.web.app/docs/dashboard/#artifacts) |
 | Feedback | Reviews one of your prompts using what later prompts had to add, and offers a better version. On for new installs; existing installs keep their choices. Needs memory and an observer model. The next review waits until you acknowledge or delete the waiting one; the session greeting flags it in amber. It never changes your scores. | [Feedback pages](https://eklavya-run.web.app/docs/dashboard/#feedback) |

@@ -102,6 +102,7 @@ const acks = () => (db.prepare('SELECT COUNT(*) AS n FROM feedback_items WHERE a
 interface Watched { page: Page; ctx: BrowserContext; errors: string[]; outbound: string[] }
 async function open(hash: string, opts: { width?: number; ground?: 'ink' | 'paper' } = {}): Promise<Watched> {
   const ctx = await browser.newContext({ viewport: { width: opts.width ?? 1280, height: 900 } });
+  await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-daily') ?? localStorage.setItem('eklavya-dash-daily', '{"off":true}'); } catch { /* */ } });
   await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-tips') ?? localStorage.setItem('eklavya-dash-tips', '{"off":true}'); } catch { /* */ } });
   if (opts.ground) await ctx.addInitScript((g) => { try { localStorage.setItem('eklavya-ground', g); } catch { /* */ } }, opts.ground);
   const page = await ctx.newPage();

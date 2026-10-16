@@ -122,7 +122,7 @@ npx eklavya --version
 
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
 flags. `feedback generate` reviews one of your earlier prompts, using what your later prompts in that session had to add, when `feedback.enabled`,
-memory and `providers.observer` are set. The dashboard reads the database (its Concepts page shows each concept's tags and filters by one with `?tag=`) and has five guarded writes: a setting
+memory and `providers.observer` are set. Once a day, after your first answer, the Learning dashboard opens one card on arrival (a milestone, a welcome back, the most overdue concept and so on), chosen by the engine in `assets/daily-card.cjs`; the Daily card switch on Settings, Companion, turns it off. The dashboard reads the database (its Concepts page shows each concept's tags and filters by one with `?tag=`) and has five guarded writes: a setting
 change, a correction of a missed answer (which can also complete a level), and acknowledging, deleting or counting the opening of a
 feedback item (`POST /api/feedback/acknowledge`, `/delete`, `/opened`; the reads are `GET /api/feedback` and `/api/feedback/list`). An open page listens to
 `GET /api/events`, a stream of the change cursor (a counter that moves on every
@@ -133,7 +133,7 @@ times the dashboard's builders, payload and routes on a seeded database, and
 ([how to run it](https://github.com/ProjectAJ14/eklavya/blob/main/CONTRIBUTING.md#dashboard-performance)). A request
 it cannot parse gets a 400 without stopping the server
 ([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)).
-Its Learning page shows your streak and its calendar under the summary tiles; a
+Its Learning page shows your streak and its calendar under the summary tiles, with the archer and a short line beside the streak; a
 **To be corrected** tile there and on the Artifacts page counts missed answers still
 waiting for a correction; correcting one closes its dialog after three seconds unless you choose **Stay open**. The
 review page lists due concepts as cards; opening one shows the steps to quiz that single concept in

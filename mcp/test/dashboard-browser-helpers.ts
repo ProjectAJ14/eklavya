@@ -85,7 +85,7 @@ export type { Watched };
 
 async function open(
   hash: string,
-  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; tz?: string; locale?: string; now?: string; base?: string } = {},
+  opts: { width?: number; height?: number; init?: string; ground?: 'ink' | 'paper'; tips?: boolean; daily?: boolean; tz?: string; locale?: string; now?: string; base?: string } = {},
 ): Promise<Watched> {
   // The server the page is loaded from: the suite's own, or one a test started (a cap to fill, a restart to survive).
   const from = opts.base ?? base;
@@ -96,6 +96,7 @@ async function open(
     locale: opts.locale ?? 'en-US',
   });
   // Tips are switched off unless a test is about them, so a bubble never sits on what a test clicks.
+  if (!opts.daily) await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-daily') ?? localStorage.setItem('eklavya-dash-daily', '{"off":true}'); } catch { /* the framed page */ } });
   if (!opts.tips) await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-tips') ?? localStorage.setItem('eklavya-dash-tips', '{"off":true}'); } catch { /* the framed page */ } });
   // Init scripts run in every frame, and the viewer's sandboxed frame has no storage.
   if (opts.ground) await ctx.addInitScript((g) => { try { localStorage.setItem('eklavya-ground', g); } catch { /* the framed page */ } }, opts.ground);
