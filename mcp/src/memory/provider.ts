@@ -163,6 +163,15 @@ const OUTPUT_SCHEMA = {
 } as const;
 
 /**
+ * The schema for a batch that ends a turn: the same, with `checkpoint` required.
+ * Left optional, the model omitted it on about one such batch in five even with
+ * durable work in it (eval/results/2026-10-16-memory-observer.md), and no
+ * wording closed the gap. The worker still writes one only when the session did
+ * durable work, so a model with nothing to say leaves `request` empty.
+ */
+const TURN_SCHEMA = { ...OUTPUT_SCHEMA, required: ['observations', 'checkpoint'] } as const;
+
+/**
  * The observer's instructions. What to record and what to skip follow Claude
  * Mem's observer prompt (`plugin/modes/code.json`), whose observations read as
  * findings rather than activity: "record what was LEARNED/BUILT/FIXED, not what
@@ -177,7 +186,7 @@ const SYSTEM = [
   `Write one observation per distinct finding, decision or change, at most ${LIMIT.observations}; do not merge unrelated work into one. Each fact is one self-contained statement without pronouns, at most ${LIMIT.facts} facts of under ${LIMIT.fact} characters; the narrative is under ${LIMIT.narrative} characters.`,
   'Tool events end with "→" and what the tool returned: record what it showed, not only that it ran. An assistant event is the agent\'s own conclusion for that turn: keep what it found and decided.',
   'Every fact must be supported by the evidence. Omit rather than guess. If the evidence shows no durable work, return an empty observations array.',
-  `If the evidence contains an assistant event, the turn has ended: also return a checkpoint for the whole session so far, using <session_so_far> when given. request: what the developer asked for, in one sentence. investigated, learned, completed: short lists of specifics. next_steps: where the work is heading now, or what the developer still has to do. Each under ${LIMIT.checkpointField} characters. Without an assistant event, or when neither this evidence nor the session so far holds durable work, omit checkpoint.`,
+  `If the evidence contains an assistant event, the turn has ended: also return a checkpoint for the whole session so far, using <session_so_far> when given. request: what the developer asked for, in one sentence. investigated, learned, completed: short lists of specifics. next_steps: where the work is heading now, or what the developer still has to do. Each under ${LIMIT.checkpointField} characters. When neither this evidence nor the session so far holds durable work, leave request empty. Without an assistant event, omit checkpoint.`,
 ].join('\n');
 
 /** The tags the prompt fences evidence with, and so the ones evidence may not spell. */
@@ -535,17 +544,22 @@ export function probeLogin(timeoutMs = 10_000): Promise<'ok' | 'auth' | 'missing
 export class ProviderSummarizer implements Summarizer {
   readonly id: string;
 
-  constructor(private readonly config: ProviderConfig) {
+  /** `system` is for the eval, which scores candidate instructions through this same class. */
+  constructor(
+    private readonly config: ProviderConfig,
+    private readonly system: string = SYSTEM,
+  ) {
     this.id = `${config.kind}:${config.model}`;
   }
 
   async summarize(input: SummarizeInput, opts: SummarizeOptions = {}): Promise<Summary> {
     if (!input.events.length) return [];
     const prior = input.prior ? `<session_so_far>\n${defangFence(input.prior, FENCE_TAGS)}\n</session_so_far>\n` : '';
+    const endsTurn = input.events.some((e) => e.kind === 'assistant');
     const stdout = await runClaude(
       this.config.model,
       `${prior}<evidence project="${input.project}" session="${input.sessionId}">\n${renderEvidence(input)}\n</evidence>`,
-      opts,
+      { ...opts, spec: { schema: endsTurn ? TURN_SCHEMA : OUTPUT_SCHEMA, system: this.system } },
     );
     const raw = trimToLimits(readResult(stdout));
     const result = ResultSchema.safeParse(raw);
@@ -572,7 +586,7 @@ export class ProviderSummarizer implements Summarizer {
     // the batch's observations are kept rather than failed with it.
     const parsed = CheckpointSchema.safeParse((raw as { checkpoint?: unknown } | null)?.checkpoint);
     const cp: Checkpoint | undefined = parsed.success ? parsed.data : undefined;
-    if (cp && cp.request.trim() && input.events.some((e) => e.kind === 'assistant')) drafts.checkpoint = cp;
+    if (cp && cp.request.trim() && endsTurn) drafts.checkpoint = cp;
     return drafts;
   }
 }

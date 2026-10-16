@@ -66,6 +66,19 @@ describe('recall', () => {
     expect(estimateTokens(block)).toBeLessThanOrEqual(cfg.retrieval.max_tokens);
   });
 
+  it('lists entries that share a timestamp in the order they were recorded', () => {
+    // Two writes in one millisecond are routine; the index must not depend on which the sort saw first.
+    const when = new Date(Date.UTC(2026, 8, 25, 12, 0)).toISOString();
+    for (let i = 0; i < 12; i++) {
+      insertEntry(db, { project: PROJECT, title: `Same moment ${String(i).padStart(2, '0')}`, narrative: 'n', type: 'change', occurredAt: when });
+    }
+    const block = recall(db, config(), { project: PROJECT, index: true }).block!;
+    const lines = block.split('\n').filter((l) => /Same moment \d\d/.test(l) && /^\[#\d+\]/.test(l));
+    expect(lines.length).toBeGreaterThanOrEqual(2);
+    const ids = lines.map((l) => Number(/^\[#(\d+)\]/.exec(l)![1]));
+    expect(ids).toEqual([...ids].sort((x, y) => x - y));
+  });
+
   it('skips an entry too long for what is left of the budget, and keeps filling with the rest', () => {
     // Newest first: a short entry, then a long session summary, then short ones.
     // Stopping at the summary held every seam recall to one entry.
