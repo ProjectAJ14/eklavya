@@ -52,7 +52,7 @@ Code's learning loop.
 |---|---|
 | Learner state and concepts | `get_learner_profile`, `log_session_concepts`, `upsert_concepts`, `get_concept_graph` |
 | Questions and assessment | `get_session_quiz_plan`, `record_attempt`, `get_gate_status` |
-| Quiz side panel (experimental) | `present_question` for the model; `panel_sync` and `panel_answer`, called only by the panel mod, never by the model |
+| Quiz side panel (experimental) | `present_question` for the model; `panel_sync` and `panel_answer`, called only by the panel mod, never by the model; its header stacks the mark above the topic in a pane under 60 cells wide |
 | Settings | `get_config`, `set_config` |
 | Find and read memory | `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` |
 | Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |
