@@ -115,7 +115,7 @@
     },
     "test/dashboard-daily-browser.test.ts": {
       "shard": 3,
-      "seconds": 25
+      "seconds": 18
     },
     "test/dashboard-events.test.ts": {
       "shard": 3,

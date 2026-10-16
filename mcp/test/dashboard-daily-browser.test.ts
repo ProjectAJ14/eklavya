@@ -191,4 +191,55 @@ describe.skipIf(!OPTS)('the daily card', () => {
     expect(ms).toBeLessThan(50);
     await w.ctx.close();
   }, 60000);
+
+  it('is shown by one tab only: a second tab of the same browser sees today as done', async () => {
+    const w = await open('#/learning/dashboard', { daily: true, init: 'window.__eklavyaDailyDelay = 1e9;' });
+    const second = await w.ctx.newPage();
+    await second.goto(w.page.url());
+    await second.waitForFunction(() => document.documentElement.dataset.rendered === location.hash);
+    const opened = (p: typeof second) => p.evaluate(() => { DAILY.decide(); return (document.getElementById('daily') as HTMLDialogElement).open; });
+    expect(await opened(w.page)).toBe(true);
+    expect(await opened(second)).toBe(false);
+    // And switching it off in one tab is not undone by the other tab's stale copy.
+    await second.evaluate(() => DAILY.set(false));
+    expect((await memory(w.page)).off).toBe(true);
+    expect((await memory(w.page)).day).toMatch(/^\d{4}-/);
+    await w.ctx.close();
+  }, 60000);
+
+  it('takes the action on Enter, because the primary button has focus', async () => {
+    const w = await open('#/learning/dashboard', NOW);
+    const { page } = w;
+    await page.waitForSelector('#daily[open]');
+    const go = await page.getAttribute('#daily [data-daily-go]', 'data-daily-go');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !(document.getElementById('daily') as HTMLDialogElement).open);
+    if (go?.startsWith('sheet:')) await page.waitForSelector('#sheet[open]');
+    else if (go) expect(await page.evaluate(() => location.hash)).toBe(go);
+    await w.ctx.close();
+  }, 60000);
+
+  it('fits a narrow, short window: no sideways scroll, and the card scrolls to reach its button', async () => {
+    for (const [width, height] of [[560, 800], [390, 700], [390, 420]] as const) {
+      const w = await open('#/learning/dashboard', { ...NOW, width, height });
+      const { page } = w;
+      await page.waitForSelector('#daily[open]');
+      const fit = await page.evaluate(() => {
+        const r = document.getElementById('daily')!.getBoundingClientRect();
+        return { sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth, inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight };
+      });
+      expect(fit, width + 'x' + height).toEqual({ sideways: false, inside: true });
+      await page.click('#daily [data-daily-go]');
+      await page.waitForFunction(() => !(document.getElementById('daily') as HTMLDialogElement).open);
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    }
+  }, 120000);
+
+  it('keeps the streak line out of the live regions, so it is not read out on every visit', async () => {
+    const w = await open('#/learning/dashboard');
+    expect(await w.page.getAttribute('.streak__talk .say', 'role')).toBeNull();
+    expect(await w.page.evaluate(() => !!document.querySelector('.streak__talk [aria-live], .streak__talk[aria-live]'))).toBe(false);
+    await w.ctx.close();
+  }, 60000);
 });
