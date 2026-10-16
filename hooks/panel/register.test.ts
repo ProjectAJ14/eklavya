@@ -990,6 +990,25 @@ describe('the desktop layout', () => {
     expect(terminal).toContain(`"color":"${TEACH.text}","backgroundColor":"${TEACH.bg}"`)
   })
 
+  test('the header sits beside the topic in a wide pane and stacks above it in a narrow one, on every surface', async ($, on) => {
+    world(on)
+    await boot($)
+    // The header is the first Box that holds the wordmark's column; its direction is the layout.
+    const direction = async (surface: (typeof SURFACES)[number], bodyColumns?: number) => {
+      const pane = await mount($, surface, { bodyColumns })
+      const d = JSON.stringify(await pane.drawn())
+      await pane.unmount()
+      return d.match(/"flexDirection":"(row|column)","alignItems":"(?:center|flex-start)","gap":2/)?.[1]
+    }
+    for (const surface of SURFACES) {
+      expect(await direction(surface, 120)).toBe('row')
+      expect(await direction(surface, 59)).toBe('column')
+      expect(await direction(surface, 60)).toBe('row')
+      // A host that reports no width keeps the row.
+      expect(await direction(surface)).toBe('row')
+    }
+  })
+
   test('only the desktop app pads the inside of an answer card', async ($, on) => {
     world(on)
     await boot($)
