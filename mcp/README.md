@@ -149,7 +149,8 @@ State is local under `~/.eklavya/`, including `knowledge.db` (SQLite, WAL).
 independent switches. Set `providers.observer` to `null` for local memory
 summaries and no prompt feedback. Each feedback item leads with a verdict that
 says, in words and never a score, whether the prompt left each area clear, left
-it out or did not need it, and shows the project, host, session and time it came
+it out or did not need it (an older item says "Not flagged" for an area it
+did not name), and shows the project, host, session and time it came
 from, read from memory when you open it;
 see [your data](https://eklavya-run.web.app/docs/your-data/). Anonymous daily
 usage counts are on by default and never include paths, names or text;
