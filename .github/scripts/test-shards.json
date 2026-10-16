@@ -1,0 +1,573 @@
+{
+  "count": 5,
+  "files": {
+    "test/artifacts-coverage.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/artifacts.test.ts": {
+      "shard": 4,
+      "seconds": 2
+    },
+    "test/ask-label.test.ts": {
+      "shard": 5,
+      "seconds": 2
+    },
+    "test/capture-unattended.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/changes-lib.test.ts": {
+      "shard": 1,
+      "seconds": 2
+    },
+    "test/claude-mem.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/cli-coverage.test.ts": {
+      "shard": 2,
+      "seconds": 23
+    },
+    "test/cli-memory.test.ts": {
+      "shard": 4,
+      "seconds": 22
+    },
+    "test/cli.test.ts": {
+      "shard": 1,
+      "seconds": 34
+    },
+    "test/commit-lib.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/concept-streak.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/concepts.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/concurrency.test.ts": {
+      "shard": 2,
+      "seconds": 2
+    },
+    "test/config-path.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/config-safety.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/config-trust.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/config.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/conversation-score.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/core-coverage.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/corrections.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/dashboard-artifacts-browser.test.ts": {
+      "shard": 4,
+      "seconds": 49
+    },
+    "test/dashboard-browser.test.ts": {
+      "shard": 2,
+      "seconds": 96
+    },
+    "test/dashboard-caps-browser.test.ts": {
+      "shard": 1,
+      "seconds": 18
+    },
+    "test/dashboard-controls-browser.test.ts": {
+      "shard": 5,
+      "seconds": 34
+    },
+    "test/dashboard-countdown-browser.test.ts": {
+      "shard": 3,
+      "seconds": 7
+    },
+    "test/dashboard-coverage.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/dashboard-daemon.test.ts": {
+      "shard": 4,
+      "seconds": 12
+    },
+    "test/dashboard-events.test.ts": {
+      "shard": 3,
+      "seconds": 9
+    },
+    "test/dashboard-feedback-browser.test.ts": {
+      "shard": 3,
+      "seconds": 17
+    },
+    "test/dashboard-feedback.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/dashboard-fills-browser.test.ts": {
+      "shard": 3,
+      "seconds": 44
+    },
+    "test/dashboard-inpage-browser.test.ts": {
+      "shard": 4,
+      "seconds": 76
+    },
+    "test/dashboard-learning-browser.test.ts": {
+      "shard": 4,
+      "seconds": 24
+    },
+    "test/dashboard-live-browser.test.ts": {
+      "shard": 1,
+      "seconds": 119
+    },
+    "test/dashboard-memo.test.ts": {
+      "shard": 3,
+      "seconds": 2
+    },
+    "test/dashboard-perf.test.ts": {
+      "shard": 2,
+      "seconds": 17
+    },
+    "test/dashboard-queries.test.ts": {
+      "shard": 4,
+      "seconds": 3
+    },
+    "test/dashboard-render-browser.test.ts": {
+      "shard": 5,
+      "seconds": 57
+    },
+    "test/dashboard-screens-browser.test.ts": {
+      "shard": 3,
+      "seconds": 89
+    },
+    "test/dashboard.test.ts": {
+      "shard": 4,
+      "seconds": 4
+    },
+    "test/doctor-and-export.test.ts": {
+      "shard": 1,
+      "seconds": 5
+    },
+    "test/eval-coverage.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/eval.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/explainer-score.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/extraction-fixtures.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/extraction-score.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/feedback-background.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/feedback-cli.test.ts": {
+      "shard": 5,
+      "seconds": 3
+    },
+    "test/feedback-generate.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/feedback-greeting.test.ts": {
+      "shard": 2,
+      "seconds": 3
+    },
+    "test/feedback-hooks.test.ts": {
+      "shard": 4,
+      "seconds": 2
+    },
+    "test/feedback-issue.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/feedback-review.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/feedback-store.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/feedback-telemetry.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/gate-passable.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/gate.test.ts": {
+      "shard": 1,
+      "seconds": 5
+    },
+    "test/git-hook.test.ts": {
+      "shard": 3,
+      "seconds": 3
+    },
+    "test/history-stats.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/hook-isolation.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/hooks-capture-coverage.test.ts": {
+      "shard": 4,
+      "seconds": 3
+    },
+    "test/hooks-flow-coverage.test.ts": {
+      "shard": 2,
+      "seconds": 8
+    },
+    "test/hooks-lib-coverage.test.ts": {
+      "shard": 5,
+      "seconds": 3
+    },
+    "test/hooks.test.ts": {
+      "shard": 5,
+      "seconds": 67
+    },
+    "test/install-coverage.test.ts": {
+      "shard": 3,
+      "seconds": 5
+    },
+    "test/install-lock.test.ts": {
+      "shard": 5,
+      "seconds": 4
+    },
+    "test/install.test.ts": {
+      "shard": 3,
+      "seconds": 24
+    },
+    "test/launcher.test.ts": {
+      "shard": 2,
+      "seconds": 8
+    },
+    "test/level.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/mascot-browser.test.ts": {
+      "shard": 1,
+      "seconds": 13
+    },
+    "test/mascot.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/mcq.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/memory-capture-coverage.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/memory-capture.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/memory-code-coverage.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/memory-code.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/memory-collections-coverage.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/memory-continuity.test.ts": {
+      "shard": 5,
+      "seconds": 2
+    },
+    "test/memory-hardening.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/memory-hosts-coverage.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/memory-identity-coverage.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/memory-import-coverage.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/memory-import-worker-coverage.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/memory-import.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/memory-integration.test.ts": {
+      "shard": 5,
+      "seconds": 9
+    },
+    "test/memory-learning-coverage.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/memory-learning.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/memory-notify-coverage.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/memory-notify.test.ts": {
+      "shard": 2,
+      "seconds": 4
+    },
+    "test/memory-observer-guard.test.ts": {
+      "shard": 2,
+      "seconds": 39
+    },
+    "test/memory-pause-recovery.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/memory-privacy-coverage.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/memory-privacy.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/memory-provider-coverage.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/memory-provider.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/memory-recall-coverage.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/memory-recall.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/memory-replay-coverage.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/memory-replay.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/memory-reservation-coverage.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/memory-retention.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/memory-retrieval-coverage.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/memory-seam.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/memory-search-coverage.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/memory-spool-coverage.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/memory-store-coverage.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/memory-store.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/memory-summarize-coverage.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/memory-sync-coverage.test.ts": {
+      "shard": 1,
+      "seconds": 2
+    },
+    "test/memory-sync.test.ts": {
+      "shard": 1,
+      "seconds": 3
+    },
+    "test/memory-tokens-coverage.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/memory-tools.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/memory-worker-coverage.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/memory-worker-lifecycle.test.ts": {
+      "shard": 5,
+      "seconds": 16
+    },
+    "test/migrate-race.test.ts": {
+      "shard": 4,
+      "seconds": 7
+    },
+    "test/migrate.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/onboard.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/option-checks.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/packaging.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/packs.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/panel-mod.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/panel-routing.test.ts": {
+      "shard": 2,
+      "seconds": 3
+    },
+    "test/panel.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/quiz-text-lib.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/relocate.test.ts": {
+      "shard": 2,
+      "seconds": 2
+    },
+    "test/retrieval-score.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/safe-write.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/seed.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/server.integration.test.ts": {
+      "shard": 3,
+      "seconds": 2
+    },
+    "test/slug.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/srs.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/stdin.test.ts": {
+      "shard": 5,
+      "seconds": 7
+    },
+    "test/surface.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/telemetry-coverage.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/telemetry.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    },
+    "test/theme.test.ts": {
+      "shard": 2,
+      "seconds": 1
+    },
+    "test/tool-hardening.test.ts": {
+      "shard": 3,
+      "seconds": 1
+    },
+    "test/tools-coverage.test.ts": {
+      "shard": 4,
+      "seconds": 1
+    },
+    "test/tools.test.ts": {
+      "shard": 1,
+      "seconds": 4
+    },
+    "test/update.test.ts": {
+      "shard": 3,
+      "seconds": 3
+    },
+    "test/vitest-config.test.ts": {
+      "shard": 5,
+      "seconds": 1
+    },
+    "test/worktree.test.ts": {
+      "shard": 1,
+      "seconds": 1
+    }
+  }
+}
