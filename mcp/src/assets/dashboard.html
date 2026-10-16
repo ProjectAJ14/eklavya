@@ -2335,8 +2335,10 @@ function viewConcepts(param) {
   const t = T.concepts;
   t.state = CONCEPT_STATES.includes(param) ? param : 'all';
   t.domain = CUR.query.get('domain') || 'all';
+  t.tag = CUR.query.get('tag') || 'all';
   const all = conceptsInScope();
   const domains = [...new Set(all.map((c) => c.domain))].sort();
+  const tags = [...new Set(all.flatMap((c) => c.tags))].sort();
   const q = t.q.trim().toLowerCase();
 
   let list = all.filter((c) => {
@@ -2345,7 +2347,8 @@ function viewConcepts(param) {
     if (t.state === 'due' && !c.due) return false;
     if (t.state === 'unseen' && c.seen) return false;
     if (t.domain !== 'all' && c.domain !== t.domain) return false;
-    if (q && !(`${c.name} ${c.slug} ${c.domain} ${c.context ?? ''}`.toLowerCase().includes(q))) return false;
+    if (t.tag !== 'all' && !c.tags.includes(t.tag)) return false;
+    if (q && !(`${c.name} ${c.slug} ${c.domain} ${c.tags.join(' ')} ${c.context ?? ''}`.toLowerCase().includes(q))) return false;
     return true;
   });
 
@@ -2365,7 +2368,8 @@ function viewConcepts(param) {
   const rows = slice(list, p).map((c) => `
     <tr class="row" data-go="${esc(LH('concept', c.slug))}">
       <td style="min-width:220px"><span class="title">${esc(c.name)}</span>
-        <div class="slug">${esc(c.domain)} · ${esc(tierLabel(c.tier))}</div></td>
+        <div class="slug">${esc(c.domain)} · ${esc(tierLabel(c.tier))}</div>
+        ${c.tags.length ? `<div class="tags" style="margin-top:var(--space-2)">${tagPills(c.tags)}</div>` : ''}</td>
       <td style="min-width:104px">${c.seen ? meter(c.score * 100, c.score < 0.5 ? 'warn' : '') +
         `<div class="slug">${Math.round(c.score * 100)}%</div>` : '<span class="slug">—</span>'}</td>
       <td class="num">${c.attempts || '—'}</td>
@@ -2393,6 +2397,10 @@ function viewConcepts(param) {
            <option value="all">All domains</option>
            ${domains.map((d) => `<option value="${esc(d)}"${t.domain === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}
          </select>
+         ${tags.length ? `<select id="ctag" aria-label="Tag">
+           <option value="all">All tags</option>
+           ${tags.map((x) => `<option value="${esc(x)}"${t.tag === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}
+         </select>` : ''}
          <select id="sort" aria-label="Sort">
            ${[['weakest','Weakest first'],['strongest','Strongest first'],['recent','Recently seen'],['asked','Most asked'],['tier','By tier'],['name','A–Z']]
              .map(([v, l]) => `<option value="${v}"${t.sort === v ? ' selected' : ''}>${l}</option>`).join('')}
@@ -2433,6 +2441,7 @@ function viewConcept(slug) {
       `<code class="slug">${esc(c.slug)}</code>`, esc(c.domain), esc(tierLabel(c.tier)),
       esc(c.source === 'seed' ? 'from the seed graph' : 'minted from your work'),
     ], c.description ? esc(c.description) : '', back),
+    c.tags.length ? `<div class="tags">${c.tags.map((x) => `<a class="pill link" data-go="${esc(LH('concepts', null, { tag: x }))}">${esc(x)}</a>`).join(' ')}</div>` : '',
 
     tiles([
       ['Score', c.seen ? Math.round(c.score * 100) + '%' : '—', decayed ? `decayed from ${Math.round(c.stored_score * 100)}%` : 'last five grades, recent first', c.mastered ? 'good' : c.score < 0.5 && c.seen ? 'warn' : ''],
@@ -4557,7 +4566,7 @@ const WORKFLOWS = {
     ],
     pages: {
       dashboard: { label: 'Dashboard', view: () => viewLearningDashboard() },
-      concepts:  { label: 'Concepts', view: (p) => viewConcepts(p), query: ['domain'], inPage: true },
+      concepts:  { label: 'Concepts', view: (p) => viewConcepts(p), query: ['domain', 'tag'], inPage: true },
       concept:   { parent: 'concepts', view: (p) => viewConcept(p) },
       review:    { label: 'Review', view: (p) => viewReview(p), inPage: true },
       sessions:  { label: 'Sessions', view: () => viewSessions() },
@@ -5759,7 +5768,7 @@ function onActivate(e) {
   if (chipState) {
     T.concepts.page = 1;
     const s = chipState.dataset.state;
-    return goTo(LH('concepts', s === 'all' ? null : s, { domain: CUR.query.get('domain') }));
+    return goTo(LH('concepts', s === 'all' ? null : s, { domain: CUR.query.get('domain'), tag: CUR.query.get('tag') }));
   }
   const tab = e.target.closest('[data-tab]');
   if (tab) { T.review.page = 1; return goTo(LH('review', tab.dataset.tab === 'due' ? null : tab.dataset.tab)); }
@@ -5833,6 +5842,7 @@ $('view').addEventListener('change', (e) => {
     return;
   }
   if (e.target.id === 'dom') { T.concepts.page = 1; setQuery({ domain: e.target.value }); }
+  if (e.target.id === 'ctag') { T.concepts.page = 1; setQuery({ tag: e.target.value }); }
   if (e.target.id === 'sort') { T.concepts.sort = e.target.value; T.concepts.page = 1; render(); }
   if (e.target.id === 'mtag') { T.memory.page = 1; setQuery({ tag: e.target.value }); }
   if (e.target.id === 'mtype') {

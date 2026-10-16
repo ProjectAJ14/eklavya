@@ -72,6 +72,14 @@ describe('dashboardState', () => {
     expect(s.domains.find((d: any) => d.domain === 'web-auth').mastered).toBe(1);
   });
 
+  it('ships a concept\'s tags as a list, empty when it has none', () => {
+    work();
+    db.prepare("UPDATE concepts SET tags = '[\"cookies\",\"sessions\"]' WHERE slug = 'csrf'").run();
+    const s = dashboardState(db) as any;
+    expect(bySlug(s, 'csrf').tags).toEqual(['cookies', 'sessions']);
+    expect(s.concepts.find((c: any) => c.slug !== 'csrf').tags).toEqual([]);
+  });
+
   it('names the version of the code that built it, for the sidebar', () => {
     expect((dashboardState(db) as any).version).toBe(ownVersion());
   });

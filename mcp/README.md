@@ -122,7 +122,7 @@ npx eklavya --version
 
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
 flags. `feedback generate` reviews one of your earlier prompts, using what your later prompts in that session had to add, when `feedback.enabled`,
-memory and `providers.observer` are set. The dashboard reads the database and has five guarded writes: a setting
+memory and `providers.observer` are set. The dashboard reads the database (its Concepts page shows each concept's tags and filters by one with `?tag=`) and has five guarded writes: a setting
 change, a correction of a missed answer (which can also complete a level), and acknowledging, deleting or counting the opening of a
 feedback item (`POST /api/feedback/acknowledge`, `/delete`, `/opened`; the reads are `GET /api/feedback` and `/api/feedback/list`). An open page listens to
 `GET /api/events`, a stream of the change cursor (a counter that moves on every
