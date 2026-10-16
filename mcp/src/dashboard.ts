@@ -46,6 +46,7 @@ import { countUse } from './telemetry.js';
 import { acknowledgeFeedback, deleteFeedback, feedbackSummary, getFeedback, feedbackContext, feedbackPending, listAcknowledged } from './feedback.js';
 import { artifactsStamp, artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
 import { LIMITS } from './tools/types.js';
+import { parseTags } from './concepts.js';
 import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDelivery } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
@@ -151,6 +152,7 @@ interface ConceptRow {
   name: string;
   domain: string;
   description: string | null;
+  tags: string;
   tier: number;
   source: string;
   score: number | null;
@@ -1539,7 +1541,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
   const conceptRows = (
     db
       .prepare(
-        `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
+        `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tags, c.tier, c.source,
                 m.score, m.ease, m.interval_d, m.reps, m.passed_days, m.top_passed_tier, m.next_review, m.last_seen,
                 -- The latest context a session logged for the concept; equal times go to the row written first.
                 (SELECT sc.context FROM session_concepts sc
@@ -1628,6 +1630,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
       name: row.name,
       domain: row.domain,
       description: row.description,
+      tags: parseTags(row.tags),
       tier: row.tier,
       source: row.source,
       seen,

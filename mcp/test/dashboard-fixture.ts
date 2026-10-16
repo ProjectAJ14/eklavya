@@ -131,6 +131,8 @@ export function seedFixture(db: DB, rootDir: string): Fixture {
   // --- legacy: recorded before attempts or gates carried a repository.
   ask('s-legacy', repo.answered, 'git-rebase', 3);
   log('s-legacy', repo.answered, [{ slug: 'git-rebase', context: 'an old session' }]);
+  // One concept carries tags, so the concept pages have a tag to show and filter by.
+  db.prepare("UPDATE concepts SET tags = '[\"cookies\",\"sessions\"]' WHERE slug = 'csrf'").run();
   db.prepare("UPDATE attempts SET repo = NULL WHERE session_id = 's-legacy'").run();
   db.prepare("UPDATE gates SET repo = NULL WHERE session_id = 's-legacy'").run();
 
