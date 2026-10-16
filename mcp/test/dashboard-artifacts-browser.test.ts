@@ -144,6 +144,11 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.page.keyboard.press('Enter');
       await w.page.waitForSelector('#fix-msg:has-text("Corrected. Your accuracy now counts this as right.")');
       expect(await w.page.textContent('#fix-opts [data-pick="A lock"]')).toContain('Right answer');
+      // The countdown to closing has started and Stay open has the focus; keep the dialog for the checks below.
+      expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('fix-stay');
+      expect(await w.page.textContent('#fix-close')).toBe('Closing in 3…');
+      await w.page.click('#fix-stay');
+      expect(await w.page.textContent('#fix-close')).toBe('Close');
       expect(await w.page.evaluate(() => document.activeElement?.id)).toBe('fix-close');
       // The rest of the page follows by itself: the server saw the write and told the page, which read the payload
       // again and drew it in place. There is no notice to press and no reload, and what is open in front of the
@@ -231,7 +236,9 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     const geo = (page: Page) => page.evaluate(() => {
       const r = (id: string) => document.getElementById(id)!.getBoundingClientRect();
       const note = document.querySelector('#fixbar .fixbar__note') as HTMLElement;
-      return { inner: innerHeight, bar: r('fixbar').toJSON(), frame: r('art-frame').toJSON(), btn: r('fix-open').toJSON(), note: note.offsetParent !== null };
+      const face = document.querySelector('#fixbar eklavya-mascot')!.getBoundingClientRect();
+      return { inner: innerHeight, bar: r('fixbar').toJSON(), frame: r('art-frame').toJSON(), btn: r('fix-open').toJSON(), note: note.offsetParent !== null,
+        face: { left: face.left, width: face.width, state: document.querySelector('#fixbar eklavya-mascot')!.getAttribute('state') } };
     });
 
     for (const width of [1280, 560]) {
@@ -248,6 +255,10 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         // One row: the button sits beside the text, never under it.
         expect(g.btn.top).toBeGreaterThanOrEqual(g.bar.top);
         expect(g.note).toBe(width > 560);
+        // The row is 88px with a 56px face at the left, 72px and 40px on a phone; an open miss wears the worried one.
+        expect(g.bar.height).toBe(width > 560 ? 88 : 72);
+        expect(g.face).toMatchObject({ width: width > 560 ? 56 : 40, state: 'warning' });
+        expect(g.face.left).toBeLessThan(g.bar.left + 40);
         await w.page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
         g = await geo(w.page);
         expect(g.bar.top).toBeGreaterThanOrEqual(g.frame.bottom);

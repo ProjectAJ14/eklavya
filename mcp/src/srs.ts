@@ -8,7 +8,32 @@
 export const MIN_EASE = 1.3;
 export const DEFAULT_EASE = 2.5;
 export const MASTERY_THRESHOLD = 0.7;
-export const MIN_REPS_FOR_KNOWN = 2;
+/**
+ * Mastery is a streak of evidence, not a score alone: this many passes in a row,
+ * on at least `MIN_PASSED_DAYS` different days (two answers in one sitting are
+ * one moment, not retention), with one above tier 1, so a concept that has only
+ * ever been asked as recall is not mastered.
+ */
+export const MIN_REPS_FOR_KNOWN = 4;
+export const MIN_PASSED_DAYS = 2;
+export const MIN_TOP_TIER_FOR_KNOWN = 2;
+
+/**
+ * `isKnown` as a SQL condition on a `mastery` row, for the queries that count or
+ * filter rather than load. `alias` names the table when it is joined; a LEFT JOIN
+ * that finds no row reads as zeroes, which is never known.
+ */
+export function knownSql(alias = ''): string {
+  const col = (name: string) => `COALESCE(${alias ? `${alias}.` : ''}${name}, 0)`;
+  return [
+    `${col('score')} >= ${MASTERY_THRESHOLD}`,
+    `${col('reps')} >= ${MIN_REPS_FOR_KNOWN}`,
+    `${col('passed_days')} >= ${MIN_PASSED_DAYS}`,
+    `${col('top_passed_tier')} >= ${MIN_TOP_TIER_FOR_KNOWN}`,
+  ].join(' AND ');
+}
+
+export const KNOWN_SQL = knownSql();
 
 /** Read-time decay: how fast an ignored concept loses credibility, and its floor. */
 export const DECAY_PER_WEEK = 0.05;
@@ -33,12 +58,16 @@ export interface MasteryState {
   ease: number;
   interval_d: number;
   reps: number;
+  /** Distinct UTC days the current streak's passes fell on. Reset by a failed answer, like `reps`. */
+  passed_days: number;
+  /** Highest question tier among the current streak's passes; 0 with none. */
+  top_passed_tier: number;
   last_seen: string | null;
   next_review: string | null;
 }
 
 export function initialMastery(): MasteryState {
-  return { score: 0, ease: DEFAULT_EASE, interval_d: 0, reps: 0, last_seen: null, next_review: null };
+  return { score: 0, ease: DEFAULT_EASE, interval_d: 0, reps: 0, passed_days: 0, top_passed_tier: 0, last_seen: null, next_review: null };
 }
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
@@ -102,19 +131,28 @@ export interface ApplyGradeInput {
   grade: number;
   /** Every grade for this concept in chronological order, including the new one. */
   grades: number[];
+  /** The tier the question was asked at. Omit for a pass that should not count toward `top_passed_tier` (a correction). */
+  tier?: number;
   now: Date;
 }
 
 /** Applies one graded attempt, returning the new mastery state. */
-export function applyGrade({ state, grade, grades, now }: ApplyGradeInput): MasteryState {
+export function applyGrade({ state, grade, grades, tier = 0, now }: ApplyGradeInput): MasteryState {
   const q = clamp(Math.round(grade), 0, 5);
   const ease = nextEase(state.ease, q);
 
   let reps: number;
   let interval: number;
+  let passedDays = 0;
+  let topTier = 0;
 
   if (q >= 3) {
     reps = state.reps + 1;
+    // A pass on a new UTC day. With a streak running, the last attempt was a
+    // pass (a fail would have reset it), so `last_seen` is the previous pass.
+    const sameDay = state.passed_days > 0 && state.last_seen?.slice(0, 10) === now.toISOString().slice(0, 10);
+    passedDays = sameDay ? state.passed_days : state.passed_days + 1;
+    topTier = Math.max(state.top_passed_tier, clamp(Math.round(tier), 0, 5));
     if (reps === 1) interval = 1;
     else if (reps === 2) interval = 6;
     else interval = Math.min(MAX_INTERVAL_DAYS, Math.round(saneInterval(state.interval_d) * ease));
@@ -129,6 +167,8 @@ export function applyGrade({ state, grade, grades, now }: ApplyGradeInput): Mast
     ease,
     interval_d: interval,
     reps,
+    passed_days: passedDays,
+    top_passed_tier: topTier,
     last_seen: now.toISOString(),
     next_review: new Date(now.getTime() + interval * MS_PER_DAY).toISOString(),
   };
@@ -153,8 +193,18 @@ export function decayedScore(score: number, nextReview: string | null, now: Date
   return Number((decayed < DECAY_FLOOR ? Math.min(score, DECAY_FLOOR) : decayed).toFixed(6));
 }
 
-export function isKnown(state: Pick<MasteryState, 'score' | 'reps'>): boolean {
-  return state.score >= MASTERY_THRESHOLD && state.reps >= MIN_REPS_FOR_KNOWN;
+export function isKnown(state: Pick<MasteryState, 'score' | 'reps' | 'passed_days' | 'top_passed_tier'>): boolean {
+  return (
+    state.score >= MASTERY_THRESHOLD &&
+    state.reps >= MIN_REPS_FOR_KNOWN &&
+    state.passed_days >= MIN_PASSED_DAYS &&
+    state.top_passed_tier >= MIN_TOP_TIER_FOR_KNOWN
+  );
+}
+
+/** The streak fields `isKnown` reads, from a mastery row or a query row where a never-answered concept left them null. */
+export function streakOf(m: { reps?: number | null; passed_days?: number | null; top_passed_tier?: number | null }) {
+  return { reps: m.reps ?? 0, passed_days: m.passed_days ?? 0, top_passed_tier: m.top_passed_tier ?? 0 };
 }
 
 export function isDue(nextReview: string | null, now: Date): boolean {

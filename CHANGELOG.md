@@ -1,3 +1,10 @@
+# [1.72.0](https://github.com/ProjectAJ14/eklavya/compare/v1.71.2...v1.72.0) (2026-10-16)
+
+
+### Features
+
+* concepts with short names, descriptions and tags, and mastery over days ([#202](https://github.com/ProjectAJ14/eklavya/issues/202)) ([c64d3d3](https://github.com/ProjectAJ14/eklavya/commit/c64d3d3e6d8489e05378fafbb3d004effce90416))
+
 ## [1.71.2](https://github.com/ProjectAJ14/eklavya/compare/v1.71.1...v1.71.2) (2026-10-16)
 
 

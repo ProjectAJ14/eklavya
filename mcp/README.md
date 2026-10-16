@@ -58,7 +58,7 @@ Code's learning loop.
 | Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |
 | Inspect code | `code_outline`, `code_find_symbol` |
 
-`log_session_concepts` creates an unknown concept bare (domain `general`, tier 2). `upsert_concepts` then fills in that concept's domain, tier and description and adds its edges; it never rewrites a concept from the seed or a pack, or one that already has a domain. Its response lists the concepts it filled in under `updated`.
+`log_session_concepts` and `upsert_concepts` take a concept name of 1 to 3 words, a `description` of up to 400 characters and up to 5 `tags`. A new concept that resembles existing ones is not created: the response lists it under `needs_decision` with candidates, and you reuse a candidate's slug or repeat the slug with `new: true`. `log_session_concepts` creates a new concept with the domain and tier you pass, or domain `general` and tier 2 when you pass none. Pass `prerequisites` (up to 5 slugs, existing or in the same call) and each becomes a `prerequisite_of` edge; a slug it cannot find is reported under `prerequisites_not_found`, and the response lists the created concepts that still have no edge under `unlinked`. `upsert_concepts` sets the domain and tier of a model-created concept that still has domain `general`, adds tags to any concept, fills in or refines the description of a model-created concept, and adds edges. It never rewrites the description or domain of a concept from the seed or a pack, or of one that already has a domain (the one it was logged with, or its first tag). Its response lists the concepts it changed under `updated`. `get_concept_graph` returns each concept's `tags`.
 
 `memory_collections` applies a saved filter the same way with or without a
 query, and its members are live entries only: a member deleted or corrected
@@ -122,7 +122,7 @@ npx eklavya --version
 
 The [CLI reference](https://eklavya-run.web.app/docs/cli/) lists all commands and
 flags. `feedback generate` reviews one of your earlier prompts, using what your later prompts in that session had to add, when `feedback.enabled`,
-memory and `providers.observer` are set. The dashboard reads the database and has five guarded writes: a setting
+memory and `providers.observer` are set. The dashboard reads the database (its Concepts page shows each concept's tags and filters by one with `?tag=`) and has five guarded writes: a setting
 change, a correction of a missed answer (which can also complete a level), and acknowledging, deleting or counting the opening of a
 feedback item (`POST /api/feedback/acknowledge`, `/delete`, `/opened`; the reads are `GET /api/feedback` and `/api/feedback/list`). An open page listens to
 `GET /api/events`, a stream of the change cursor (a counter that moves on every
@@ -135,7 +135,7 @@ it cannot parse gets a 400 without stopping the server
 ([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)).
 Its Learning page shows your streak and its calendar under the summary tiles; a
 **To be corrected** tile there and on the Artifacts page counts missed answers still
-waiting for a correction. The
+waiting for a correction; correcting one closes its dialog after three seconds unless you choose **Stay open**. The
 review queue gives each project a command to copy that starts Claude Code on its due
 concepts, in the project's folder when that folder is available.
 Its feature tips show the archer companion and use Driver.js, bundled in `dist/` at build and served by the

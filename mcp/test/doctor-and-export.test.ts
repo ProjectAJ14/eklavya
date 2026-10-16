@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openDb } from '../src/db.js';
 
 /**
  * The `doctor` lines for failures that are silent everywhere else — a runtime
@@ -97,6 +98,23 @@ beforeEach(() => {
 });
 
 afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+describe('doctor: the mastered count', () => {
+  it('uses the streak rule, so two quick answers are not counted', () => {
+    const db = openDb(path.join(home, 'knowledge.db'));
+    const ids = (db.prepare('SELECT id FROM concepts ORDER BY id LIMIT 3').all() as { id: number }[]).map((r) => r.id);
+    const put = db.prepare(
+      'INSERT INTO mastery (concept_id, score, ease, interval_d, reps, passed_days, top_passed_tier) VALUES (?, 0.9, 2.5, 6, ?, ?, ?)',
+    );
+    put.run(ids[0], 4, 2, 2); // mastered
+    put.run(ids[1], 2, 1, 2); // the old rule's "known": two answers, one sitting
+    put.run(ids[2], 4, 1, 2); // four answers, one sitting
+    db.close();
+
+    const res = eklavya(['doctor']);
+    expect(res.stdout).toMatch(/mastered\s+1\b/);
+  });
+});
 
 describe('doctor: runtime and plugin versions', () => {
   it('says they match when they do', () => {

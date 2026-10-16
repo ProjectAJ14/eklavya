@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { loadConfig } from '../config.js';
 import { normalizeSlug, isValidSlug, findFuzzyMatch } from '../slug.js';
 import { resolveSessionId } from '../session.js';
+import { cleanTags, findCandidates, growConcept, MAX_NAME_WORDS, wordCount, type Candidate } from '../concepts.js';
 import { allConceptSlugs, conceptBySlug, insertConcept, newConceptsThisSession } from '../store.js';
 import { CWD_HINT, LIMITS, SESSION_HINT, type ToolDef } from './types.js';
 
@@ -11,7 +12,7 @@ export const upsertConcepts: ToolDef = {
   name: 'upsert_concepts',
   title: 'Upsert concepts',
   description:
-    'Grow the knowledge graph when work touches a concept that has no slug yet, or give a concept log_session_concepts just created bare its real domain, tier and description. Slugs are normalized and near-duplicates are folded into the existing concept, so check the returned canonical slug before using it. A concept that is already curated (from the seed or a pack, or given a domain) is never rewritten; `updated` lists the bare ones that were filled in.',
+    'Grow the knowledge graph when work touches a concept that has no slug yet, or give a concept log_session_concepts just created its real domain, tier, description and tags. A concept is a short name (1-3 words), a description and tags. Slugs are normalized and near-duplicates are folded into the existing concept, so check the returned canonical slug before using it; a new concept that resembles existing ones is listed in needs_decision instead of created, so reuse a candidate or repeat it with new: true. A concept from the seed or a pack, or one that already has a domain (given when it was logged, or its first tag), keeps its domain, tier and description; its tags can still grow. `updated` lists what changed.',
   inputSchema: {
     session_id: z.string().max(LIMITS.sessionId).optional().describe(SESSION_HINT),
     cwd: z.string().max(LIMITS.cwd).optional().describe(CWD_HINT),
@@ -19,10 +20,16 @@ export const upsertConcepts: ToolDef = {
       .array(
         z.object({
           slug: z.string().max(LIMITS.slug),
-          name: z.string().max(LIMITS.name).optional(),
+          name: z
+            .string()
+            .max(LIMITS.name)
+            .refine((n) => wordCount(n) <= MAX_NAME_WORDS, `a concept name is 1-${MAX_NAME_WORDS} words; put the detail in description`)
+            .optional(),
           domain: z.string().max(LIMITS.domain).optional(),
           tier: z.number().int().min(1).max(5).optional(),
-          description: z.string().max(LIMITS.description).optional(),
+          description: z.string().max(LIMITS.conceptDescription).optional(),
+          tags: z.array(z.string().max(LIMITS.tag)).max(LIMITS.tags).optional(),
+          new: z.boolean().optional().describe('Set when needs_decision listed candidates and none is the same idea.'),
         }),
       )
       .min(1)
@@ -43,7 +50,7 @@ export const upsertConcepts: ToolDef = {
     args: {
       session_id?: string;
       cwd?: string;
-      concepts: { slug: string; name?: string; domain?: string; tier?: number; description?: string }[];
+      concepts: { slug: string; name?: string; domain?: string; tier?: number; description?: string; tags?: string[]; new?: boolean }[];
       edges?: { from: string; to: string; relation: 'prerequisite_of' | 'related_to' | 'part_of' }[];
     },
     { db },
@@ -55,6 +62,7 @@ export const upsertConcepts: ToolDef = {
     const matched: { requested: string; resolved: string }[] = [];
     const updated: string[] = [];
     const rejected: { slug: string; reason: string }[] = [];
+    const needsDecision: { requested: string; candidates: Candidate[] }[] = [];
     const resolvedSlug = new Map<string, string>();
     let edgesAdded = 0;
 
@@ -70,23 +78,25 @@ export const upsertConcepts: ToolDef = {
 
         const existing = conceptBySlug(db, slug);
         if (existing) {
-          // `log_session_concepts` mints concepts bare and tells the tutor to come
-          // back here for their real domain and tier. Until this filled them in,
-          // the follow-up added edges and nothing else, and the concept stayed
-          // `general`, tier 2. Only a bare concept qualifies: a seeded, pack or
-          // already-placed concept is the catalogue's, and one model call must
-          // not rewrite it for every learner.
+          // `log_session_concepts` mints a concept in the domain it was given (or
+          // its first tag), else `general`, at tier 2. Only a concept still in
+          // `general` is unplaced: a seeded, pack or already-placed concept is the
+          // catalogue's, and one model call must not rewrite it for every learner.
           const bare = existing.source === 'llm' && existing.domain === DEFAULT_DOMAIN;
           const domain = input.domain && input.domain !== DEFAULT_DOMAIN ? input.domain : null;
-          if (bare && (domain || input.tier !== undefined || (input.description && !existing.description))) {
-            db.prepare('UPDATE concepts SET domain = ?, tier = ?, description = ? WHERE id = ?').run(
+          let changed = false;
+          if (bare && (domain || input.tier !== undefined)) {
+            db.prepare('UPDATE concepts SET domain = ?, tier = ? WHERE id = ?').run(
               domain ?? existing.domain,
               input.tier ?? existing.tier,
-              existing.description ?? input.description ?? null,
               existing.id,
             );
-            updated.push(existing.slug);
+            changed = true;
           }
+          // Description and tags deepen any concept the session met again; the
+          // catalogue's own descriptions are left alone (see growConcept).
+          if (growConcept(db, existing, { description: input.description, tags: input.tags })) changed = true;
+          if (changed) updated.push(existing.slug);
           resolvedSlug.set(input.slug, existing.slug);
           matched.push({ requested: slug, resolved: existing.slug });
           continue;
@@ -99,15 +109,25 @@ export const upsertConcepts: ToolDef = {
           continue;
         }
 
+        if (!input.new) {
+          const candidates = findCandidates(db, { slug, name: input.name, tags: input.tags, domain: input.domain });
+          if (candidates.length > 0) {
+            needsDecision.push({ requested: slug, candidates });
+            continue;
+          }
+        }
+
         if (budget <= 0) {
           rejected.push({ slug, reason: 'session_cap_reached' });
           continue;
         }
 
+        const tags = cleanTags([input.domain ?? '', ...(input.tags ?? [])]);
         const concept = insertConcept(db, {
           slug,
           name: input.name ?? slug.replace(/-/g, ' '),
-          domain: input.domain ?? DEFAULT_DOMAIN,
+          domain: input.domain ?? tags[0] ?? DEFAULT_DOMAIN,
+          tags,
           description: input.description ?? null,
           tier: input.tier ?? 2,
           source: 'llm',
@@ -129,6 +149,6 @@ export const upsertConcepts: ToolDef = {
       }
     })();
 
-    return { created, updated, matched, rejected, edges_added: edgesAdded };
+    return { created, updated, matched, rejected, needs_decision: needsDecision, edges_added: edgesAdded };
   },
 };

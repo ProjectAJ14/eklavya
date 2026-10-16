@@ -239,7 +239,7 @@ page compares each event with.
 | `daily` | `{day, repo, passed, missed, skipped}`, one row per day **per project**, 365 days |
 | `projects` | answers, accuracy, concepts, first/last active, plus `levelStanding` — level, next, counts, needed, unmet |
 | `domains` | catalogue / touched / mastered / learning / unseen |
-| `concepts` | the whole catalogue: `seen`, decayed `score` and `stored_score`, ease, interval, reps, `due`, `overdue_days`, last context, `prereqs` / `unlocks` / `related` as slugs |
+| `concepts` | the whole catalogue: `tags` (a list, from `concepts.tags`), `description`, `seen`, decayed `score` and `stored_score`, ease, interval, reps, `due`, `overdue_days`, last context, `prereqs` / `unlocks` / `related` as slugs |
 | `attempts` | newest `ATTEMPT_LIMIT` (800): question, options JSON, answer, feedback, grade, tier, outcome, format, repo, level, session id |
 | `attempts_shown`, `attempts_total` | the rows that travelled and every answer there is; the footer prints a line when shown is less than total |
 | `logged` | newest `LOGGED_LIMIT` (800) `session_concepts` rows: slug, context, origin, ts, session id, repo |

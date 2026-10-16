@@ -338,7 +338,7 @@
   /* The correction bar: pinned to the window's bottom edge while you read, and
      resting under the page at its end, so it never covers the last lines. The
      left rule is the state: warning while open, verdigris once corrected. */
-  .fixbar { position:sticky; bottom:0; z-index:5; min-height:64px; display:flex; align-items:center;
+  .fixbar { position:sticky; bottom:0; z-index:5; min-height:88px; display:flex; align-items:center;
             justify-content:space-between; gap:var(--space-4); padding:12px var(--space-5);
             background:var(--panel); border-top:1px solid var(--line-2); border-left:3px solid transparent; }
   .fixbar.is-open { border-left-color:var(--warning); }
@@ -346,18 +346,21 @@
   .fixbar.is-fresh > * { animation:loader-in 180ms var(--ease); }
   .fixbar p { margin:0; }
   .fixbar .loader { padding:0; }
-  /* Two lines at 1.4 fit the 64px row, so open and corrected are one height and nothing moves. */
-  .fixbar__text { min-width:0; line-height:1.4; }
-  .fixbar__lead { color:var(--ink); font-size:14px; }
+  /* The Eklavya face sits at the left, its expression the bar's state. The 88px row holds every state, so nothing moves. */
+  .fixbar eklavya-mascot { flex:none; display:block; }
+  .fixbar__text { min-width:0; flex:1; line-height:1.4; }
+  .fixbar__lead { color:var(--ink); font-size:15px; font-weight:600; }
   .fixbar__note { color:var(--dim); font-size:13px; }
   .fixbar__lead, .fixbar__note, .fixbar__done { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .fixbar__done { display:flex; align-items:center; gap:var(--space-2); color:var(--ink); min-width:0; }
+  .fixbar__done { display:flex; align-items:center; gap:var(--space-2); color:var(--ink); min-width:0; flex:1; }
   .fixbar__done svg { width:16px; height:16px; color:var(--spot); flex:none; }
   .fixbar__done span { color:var(--dim); }
-  .fixbar__err { color:var(--warning); overflow-wrap:anywhere; }
+  .fixbar__err { color:var(--warning); overflow-wrap:anywhere; flex:1; }
   .fixbar .btn, .fixbar .set__btn { flex:none; }
   .fixbar .set__btn { padding:8px 14px; }
   @media (max-width:560px) {
+    .fixbar { min-height:72px; }
+    .fixbar eklavya-mascot svg { width:40px; height:40px; }
     .fixbar__note { display:none; }
     .fixbar .btn { padding:10px 12px; }
   }
@@ -394,6 +397,21 @@
   .fix__msg.wrong { color:var(--error); }
   .fix__msg.warn { color:var(--warning); }
   .fix__msg.ok { color:var(--spot); }
+  /* After a right answer the dialog closes itself in 3s. Close carries the count and a fill that sweeps across it;
+     Stay open (first in tab order) cancels. Both are hidden unless a countdown runs. */
+  #fix-stay { display:none; }
+  .fix__foot.is-closing #fix-stay { display:inline-block; }
+  #fix-close { position:relative; overflow:hidden; isolation:isolate; min-width:116px; }
+  .fix__foot.is-closing #fix-close { border-color:var(--spot); }
+  .fix__foot.is-closing #fix-close::before { content:''; position:absolute; inset:0; z-index:-1; background:var(--spot-soft);
+    transform-origin:left; animation:fix-fill 3s linear both; }
+  @keyframes fix-fill { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+  .fix__foot.is-paused #fix-close::before { animation-play-state:paused; }
+  @media (prefers-reduced-motion:reduce) { .fix__foot.is-closing #fix-close::before { display:none; } }
+  @media (max-width:560px) {
+    .fix__foot { flex-wrap:wrap; }
+    .fix__msg { flex-basis:100%; }
+  }
   .g2 > *, .g3 > * { margin-top:0 !important; }
 
   /* ---------- stat tiles ---------- */
@@ -1133,6 +1151,7 @@
   <div class="fix__opts" id="fix-opts" role="group" aria-labelledby="fix-q"></div>
   <div class="fix__foot">
     <p class="fix__msg" id="fix-msg" role="status"></p>
+    <button type="button" class="set__btn" id="fix-stay">Stay open</button>
     <button type="button" class="set__btn" id="fix-close">Close</button>
   </div>
 </dialog>
@@ -2446,8 +2465,10 @@ function viewConcepts(param) {
   const t = T.concepts;
   t.state = CONCEPT_STATES.includes(param) ? param : 'all';
   t.domain = CUR.query.get('domain') || 'all';
+  t.tag = CUR.query.get('tag') || 'all';
   const all = conceptsInScope();
   const domains = [...new Set(all.map((c) => c.domain))].sort();
+  const tags = [...new Set(all.flatMap((c) => c.tags))].sort();
   const q = t.q.trim().toLowerCase();
 
   let list = all.filter((c) => {
@@ -2456,7 +2477,8 @@ function viewConcepts(param) {
     if (t.state === 'due' && !c.due) return false;
     if (t.state === 'unseen' && c.seen) return false;
     if (t.domain !== 'all' && c.domain !== t.domain) return false;
-    if (q && !(`${c.name} ${c.slug} ${c.domain} ${c.context ?? ''}`.toLowerCase().includes(q))) return false;
+    if (t.tag !== 'all' && !c.tags.includes(t.tag)) return false;
+    if (q && !(`${c.name} ${c.slug} ${c.domain} ${c.tags.join(' ')} ${c.context ?? ''}`.toLowerCase().includes(q))) return false;
     return true;
   });
 
@@ -2476,7 +2498,8 @@ function viewConcepts(param) {
   const rows = slice(list, p).map((c) => `
     <tr class="row" data-go="${esc(LH('concept', c.slug))}">
       <td style="min-width:220px"><span class="title">${esc(c.name)}</span>
-        <div class="slug">${esc(c.domain)} · ${esc(tierLabel(c.tier))}</div></td>
+        <div class="slug">${esc(c.domain)} · ${esc(tierLabel(c.tier))}</div>
+        ${c.tags.length ? `<div class="tags" style="margin-top:var(--space-2)">${tagPills(c.tags)}</div>` : ''}</td>
       <td style="min-width:104px">${c.seen ? meter(c.score * 100, c.score < 0.5 ? 'warn' : '') +
         `<div class="slug">${Math.round(c.score * 100)}%</div>` : '<span class="slug">—</span>'}</td>
       <td class="num">${c.attempts || '—'}</td>
@@ -2504,6 +2527,10 @@ function viewConcepts(param) {
            <option value="all">All domains</option>
            ${domains.map((d) => `<option value="${esc(d)}"${t.domain === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}
          </select>
+         ${tags.length ? `<select id="ctag" aria-label="Tag">
+           <option value="all">All tags</option>
+           ${tags.map((x) => `<option value="${esc(x)}"${t.tag === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}
+         </select>` : ''}
          <select id="sort" aria-label="Sort">
            ${[['weakest','Weakest first'],['strongest','Strongest first'],['recent','Recently seen'],['asked','Most asked'],['tier','By tier'],['name','A–Z']]
              .map(([v, l]) => `<option value="${v}"${t.sort === v ? ' selected' : ''}>${l}</option>`).join('')}
@@ -2544,6 +2571,7 @@ function viewConcept(slug) {
       `<code class="slug">${esc(c.slug)}</code>`, esc(c.domain), esc(tierLabel(c.tier)),
       esc(c.source === 'seed' ? 'from the seed graph' : 'minted from your work'),
     ], c.description ? esc(c.description) : '', back),
+    c.tags.length ? `<div class="tags">${c.tags.map((x) => `<a class="pill link" data-go="${esc(LH('concepts', null, { tag: x }))}">${esc(x)}</a>`).join(' ')}</div>` : '',
 
     tiles([
       ['Score', c.seen ? Math.round(c.score * 100) + '%' : '—', decayed ? `decayed from ${Math.round(c.stored_score * 100)}%` : 'last five grades, recent first', c.mastered ? 'good' : c.score < 0.5 && c.seen ? 'warn' : ''],
@@ -3606,9 +3634,12 @@ function loadFix(a) {
     .catch((e) => {
       const el = bar();
       if (!el || drawn) return;
-      el.innerHTML = `<p class="fixbar__err">${esc(e.message)}</p><button type="button" class="set__btn" id="fix-retry">Retry</button>`;
+      el.innerHTML = `${faceFor('error')}<p class="fixbar__err">${esc(e.message)}</p><button type="button" class="set__btn" id="fix-retry">Retry</button>`;
     });
 }
+
+/** The bar's Eklavya face: its expression is the mascot's own map from the bar's state. */
+const faceFor = (state) => `<eklavya-mascot state="${state}" variant="face" size="56"></eklavya-mascot>`;
 
 /** Draws the bar for `d`, /api/attempts/correction's answer; `fresh` crossfades into it. */
 function paintFix(el, a, d, fresh) {
@@ -3621,11 +3652,11 @@ function paintFix(el, a, d, fresh) {
   if (dot) dot.className = `tab__dot is-${done ? 'done' : 'open'}`;
   // The button the reader is on (a bar drawn again over its own) is found again in the new one.
   const ui = captureUi(el);
-  el.innerHTML = done
+  el.innerHTML = faceFor(done ? 'success' : 'warning') + (done
     ? `<p class="fixbar__done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Corrected on try ${d.tries} <span>· ${esc(stamp(d.corrected_at))}</span></p>`
     : `<div class="fixbar__text"><p class="fixbar__lead">You missed this one.</p>
          <p class="fixbar__note">Read it, then correct your answer. Not now? It stays under To correct.</p></div>
-       <button type="button" class="btn" id="fix-open">Correct your answer</button>`;
+       <button type="button" class="btn" id="fix-open">Correct your answer</button>`);
   restoreUi(el, ui);
 }
 
@@ -3651,6 +3682,7 @@ function openFix() {
   $('fix-opts').innerHTML = shuffled(d.options.length).map((i) =>
     `<button type="button" class="fix__opt" data-pick="${esc(d.options[i])}"><span>${esc(d.options[i])}</span>`
     + `${d.option_notes?.[i] ? `<span class="fix__n">${esc(d.option_notes[i])}</span>` : ''}<span class="fix__tag"></span></button>`).join('');
+  stopCount();
   fixSay('', '');
   $('fix').showModal();
   TIP.sync();
@@ -3668,14 +3700,16 @@ function pickFix(btn) {
       if (r.corrected) {
         btn.classList.add('is-right');
         btn.querySelector('.fix__tag').textContent = 'Right answer';
-        fixSay('Corrected. Your accuracy now counts this as right.', 'ok');
+        fixSay(FIXDONE, 'ok');
+        // Read out once, politely, with the message; the ticks below only change Close's label.
+        $('fix-msg').insertAdjacentHTML('beforeend', `<span class="sr"> Closing in ${COUNT} seconds. Press Stay open to cancel.</span>`);
         FIX.q = { ...FIX.q, tries: r.tries, corrected_at: new Date().toISOString() };
         const row = S.artifacts.find((x) => x.id === FIX.artifact);
         if (row) row.correction = 'done';
         // Every other count on the page (the tiles, the gallery's tag, the accuracy) follows by itself: the server
         // noticed this write and told the page, which reads the payload again and redraws in place.
         armLeave(false);
-        $('fix-close').focus();
+        startCount();
         return;
       }
       btn.classList.add('is-wrong');
@@ -3701,9 +3735,54 @@ $('fix-opts').addEventListener('keydown', (e) => {
   const i = live.indexOf(document.activeElement);
   live[(i + step + live.length) % live.length]?.focus();
 });
+/**
+ * After a right answer the dialog closes itself, so the reader can read the answer first and still cancel.
+ * One handle, cleared by every way out: Stay open, any close (button, Escape, the countdown) and a re-open.
+ * A hidden tab holds the count and the fill, so the dialog never closes unseen. The message is read out once,
+ * when the count starts; the ticks only change Close's label.
+ */
+const FIXDONE = 'Corrected. Your accuracy now counts this as right.';
+const COUNT = 3;
+let FIXCD = null;
+const fixFoot = () => $('fix-close').parentElement;
+function stopCount() {
+  if (!FIXCD) return;
+  clearTimeout(FIXCD.timer);
+  FIXCD = null;
+  fixFoot().classList.remove('is-closing', 'is-paused');
+  $('fix-close').textContent = 'Close';
+}
+function runCount() {
+  fixFoot().classList.toggle('is-paused', document.hidden);
+  if (document.hidden) return;
+  FIXCD.timer = setTimeout(() => {
+    if (--FIXCD.n > 0) { $('fix-close').textContent = `Closing in ${FIXCD.n}…`; return runCount(); }
+    stopCount();
+    $('fix').close();
+  }, 1000);
+}
+function startCount() {
+  stopCount();
+  FIXCD = { n: COUNT, timer: 0 };
+  fixFoot().classList.add('is-closing');
+  $('fix-close').textContent = `Closing in ${COUNT}…`;
+  runCount();
+  $('fix-stay').focus();
+}
+document.addEventListener('visibilitychange', () => {
+  if (!FIXCD) return;
+  clearTimeout(FIXCD.timer);
+  runCount();
+});
+$('fix-stay').addEventListener('click', () => {
+  stopCount();
+  fixSay(FIXDONE, 'ok');
+  $('fix-close').focus();
+});
 $('fix-close').addEventListener('click', () => $('fix').close());
 // However it closes -- the button, Escape -- the bar shows where things stand.
 $('fix').addEventListener('close', () => {
+  stopCount();
   TIP.sync();
   const bar = $('fixbar');
   const a = FIX && S.artifacts.find((x) => x.id === FIX.artifact);
@@ -4792,7 +4871,7 @@ const WORKFLOWS = {
     ],
     pages: {
       dashboard: { label: 'Dashboard', view: () => viewLearningDashboard() },
-      concepts:  { label: 'Concepts', view: (p) => viewConcepts(p), query: ['domain'], inPage: true },
+      concepts:  { label: 'Concepts', view: (p) => viewConcepts(p), query: ['domain', 'tag'], inPage: true },
       concept:   { parent: 'concepts', view: (p) => viewConcept(p) },
       review:    { label: 'Review', view: (p) => viewReview(p), inPage: true },
       sessions:  { label: 'Sessions', view: () => viewSessions() },
@@ -5996,7 +6075,7 @@ function onActivate(e) {
   if (chipState) {
     T.concepts.page = 1;
     const s = chipState.dataset.state;
-    return goTo(LH('concepts', s === 'all' ? null : s, { domain: CUR.query.get('domain') }));
+    return goTo(LH('concepts', s === 'all' ? null : s, { domain: CUR.query.get('domain'), tag: CUR.query.get('tag') }));
   }
   const tab = e.target.closest('[data-tab]');
   if (tab) { T.review.page = 1; return goTo(LH('review', tab.dataset.tab === 'due' ? null : tab.dataset.tab)); }
@@ -6070,6 +6149,7 @@ $('view').addEventListener('change', (e) => {
     return;
   }
   if (e.target.id === 'dom') { T.concepts.page = 1; setQuery({ domain: e.target.value }); }
+  if (e.target.id === 'ctag') { T.concepts.page = 1; setQuery({ tag: e.target.value }); }
   if (e.target.id === 'sort') { T.concepts.sort = e.target.value; T.concepts.page = 1; render(); }
   if (e.target.id === 'mtag') { T.memory.page = 1; setQuery({ tag: e.target.value }); }
   if (e.target.id === 'mtype') {

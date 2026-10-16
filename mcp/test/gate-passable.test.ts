@@ -61,11 +61,19 @@ function logWork(session: string, slugs = WORK) {
   });
 }
 
-/** Two good answers in another session: `known`, and not due for days. */
+/**
+ * Good answers in another session: `known`, and not due for days. Known needs
+ * a streak across days, which one test run cannot take, so it is written onto
+ * the mastery row after the answers.
+ */
 function masterElsewhere(slug: string, session = 'sess-B') {
   for (const n of [1, 2]) {
     call(recordAttempt, { session_id: session, slug, question: `B ${slug} ${n}`, answer: 'a', grade: 4, difficulty: 1 });
   }
+  db.prepare(
+    `UPDATE mastery SET reps = 4, passed_days = 2, top_passed_tier = 2
+      WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?)`,
+  ).run(slug);
 }
 
 /**

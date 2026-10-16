@@ -59,6 +59,27 @@ function work() {
 const bySlug = (s: any, slug: string) => s.concepts.find((c: any) => c.slug === slug);
 
 describe('dashboardState', () => {
+  it('counts a concept with its streak across days as mastered, in its domain and on its row', () => {
+    work();
+    for (let i = 0; i < 4; i += 1) {
+      call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: `q${i}`, answer: 'a', grade: 5, difficulty: 2 });
+    }
+    expect(bySlug(dashboardState(db) as any, 'csrf').mastered).toBe(false); // four answers in one sitting
+
+    db.prepare("UPDATE mastery SET passed_days = 2 WHERE concept_id = (SELECT id FROM concepts WHERE slug = 'csrf')").run();
+    const s = dashboardState(db) as any;
+    expect(bySlug(s, 'csrf').mastered).toBe(true);
+    expect(s.domains.find((d: any) => d.domain === 'web-auth').mastered).toBe(1);
+  });
+
+  it('ships a concept\'s tags as a list, empty when it has none', () => {
+    work();
+    db.prepare("UPDATE concepts SET tags = '[\"cookies\",\"sessions\"]' WHERE slug = 'csrf'").run();
+    const s = dashboardState(db) as any;
+    expect(bySlug(s, 'csrf').tags).toEqual(['cookies', 'sessions']);
+    expect(s.concepts.find((c: any) => c.slug !== 'csrf').tags).toEqual([]);
+  });
+
   it('names the version of the code that built it, for the sidebar', () => {
     expect((dashboardState(db) as any).version).toBe(ownVersion());
   });
@@ -254,7 +275,7 @@ describe('dashboardState — each project row resolves its own settings', () => 
     return fs.realpathSync(dir);
   };
   const answer = (cwd: string, slug: string) => {
-    call2(db, logSessionConcepts, { session_id: SESSION, cwd, concepts: [{ slug, context: 'in this repo' }] });
+    call2(db, logSessionConcepts, { session_id: SESSION, cwd, concepts: [{ slug, new: true, context: 'in this repo' }] });
     call2(db, recordAttempt, { session_id: SESSION, cwd, slug, question: 'q', answer: 'a', grade: 4, difficulty: 1 });
   };
   const row = (s: any, repo: string) => s.projects.find((p: any) => p.repo === repo);

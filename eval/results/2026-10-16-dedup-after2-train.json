@@ -1,0 +1,637 @@
+{
+ "prompt": "shipped guidance",
+ "model": "default",
+ "split": "train",
+ "repeats": 2,
+ "trials": [
+  {
+   "id": "worktree-bootstrap",
+   "repeat": 0,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "git-worktrees"
+   ],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [],
+   "matched": [
+    {
+     "requested": "git-worktree",
+     "resolved": "git-worktrees"
+    }
+   ],
+   "logged": [
+    "git-worktrees",
+    "shell-script-working-directory",
+    "per-worktree-dependencies",
+    "git-remote",
+    "git-hooks"
+   ],
+   "concepts": [
+    {
+     "slug": "git-worktree",
+     "name": "Git Worktree",
+     "description": "A git worktree checks out another branch of the same repository into a separate directory, sharing one object store, so parallel tasks stay isolated without a second clone.",
+     "tags": [
+      "git",
+      "worktree",
+      "isolation",
+      "workflow"
+     ],
+     "context": "git worktree add -b \"$BRANCH\" \"../$REPO-worktrees/$SLUG\" origin/main in scripts/new-task.sh gives each task its own directory and branch"
+    },
+    {
+     "slug": "shell-script-working-directory",
+     "name": "Shell Working Directory",
+     "description": "A script's cd changes the directory for every later command in that script, so steps like npm install and git config act on the new location. It does not change the caller's shell.",
+     "tags": [
+      "shell",
+      "bash",
+      "cd",
+      "scripting"
+     ],
+     "context": "cd \"../$REPO-worktrees/$SLUG\" in scripts/new-task.sh makes the following npm install and git config run inside the new worktree"
+    },
+    {
+     "slug": "per-worktree-dependencies",
+     "name": "Per-Worktree Dependencies",
+     "description": "Untracked files such as node_modules are not shared between worktrees, so each new worktree needs its own dependency install before builds or tests will run.",
+     "tags": [
+      "npm",
+      "node-modules",
+      "worktree",
+      "setup"
+     ],
+     "context": "npm install in scripts/new-task.sh runs in the fresh worktree, which starts with no node_modules"
+    },
+    {
+     "slug": "git-remote",
+     "context": "git fetch origin main, then origin/main as the start point in scripts/new-task.sh, so new task branches start from the latest upstream commit rather than a stale local main",
+     "description": "Fetching updates the remote-tracking ref origin/main, and branching from that ref instead of local main starts a new branch from the latest upstream commit."
+    },
+    {
+     "slug": "git-hooks",
+     "context": "git config core.hooksPath .githooks in scripts/new-task.sh wires the repo's committed hooks into the new worktree",
+     "description": "core.hooksPath points git at a hooks directory kept in the repository, so hooks are versioned and shared, but each clone or worktree must set the path itself because git config is not committed."
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "worktree-bootstrap",
+   "repeat": 1,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "git-worktrees"
+   ],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [],
+   "matched": [
+    {
+     "requested": "git-worktree",
+     "resolved": "git-worktrees"
+    }
+   ],
+   "logged": [
+    "git-worktrees",
+    "worktree-dependency-setup",
+    "git-remote",
+    "git-hooks"
+   ],
+   "concepts": [
+    {
+     "slug": "git-worktree",
+     "name": "Git Worktree",
+     "description": "A linked working directory attached to the same repository, letting a new branch be checked out in its own folder without disturbing the main checkout.",
+     "tags": [
+      "git",
+      "worktree",
+      "branching",
+      "isolation"
+     ],
+     "context": "git worktree add -b \"$BRANCH\" \"../$REPO-worktrees/$SLUG\" origin/main in scripts/new-task.sh creates an isolated branch folder beside the repo"
+    },
+    {
+     "slug": "worktree-dependency-setup",
+     "name": "Worktree Dependency Setup",
+     "description": "Each worktree has its own working files and node_modules, so dependencies must be installed per worktree before tests or builds run.",
+     "tags": [
+      "npm",
+      "worktree",
+      "dependencies",
+      "setup"
+     ],
+     "context": "cd into the new worktree then npm install in scripts/new-task.sh, because the fresh folder has no node_modules"
+    },
+    {
+     "slug": "git-remote",
+     "context": "git fetch origin main runs before the worktree add, which then bases the branch on origin/main rather than local main in scripts/new-task.sh"
+    },
+    {
+     "slug": "git-hooks",
+     "description": "The core.hooksPath setting points git at a versioned hooks directory instead of the untracked .git/hooks, so a team shares the same hooks.",
+     "context": "git config core.hooksPath .githooks in scripts/new-task.sh enables the repo's committed hooks inside the new worktree, since hooks aren't copied with a checkout"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "mutation-config",
+   "repeat": 0,
+   "score": 0.7,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 0.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "mutation-testing"
+   ],
+   "duplicates_created": [
+    "mutation-report-reporters"
+   ],
+   "long_names": [],
+   "created_with_description": 2,
+   "created_with_tags": 2,
+   "created": [
+    "vitest-runner",
+    "mutation-report-reporters"
+   ],
+   "matched": [],
+   "logged": [
+    "mutation-testing",
+    "vitest-runner",
+    "mutation-report-reporters"
+   ],
+   "concepts": [
+    {
+     "slug": "mutation-testing",
+     "name": "Mutation Testing",
+     "description": "Judging test quality by injecting small code changes (mutants) and checking whether the tests fail. Surviving mutants reveal assertions that don't actually protect behavior, which line coverage alone misses.",
+     "tags": [
+      "testing",
+      "quality",
+      "stryker"
+     ],
+     "context": "stryker.conf.json mutates src/**/*.ts but excludes *.test.ts, so mutants are injected only into production code, not the tests that must catch them"
+    },
+    {
+     "slug": "mutation-testing",
+     "name": "Mutation Score Thresholds",
+     "description": "Stryker's high, low and break thresholds grade the mutation score. High and low colour the report, and break fails the run when the score drops below it, which turns the score into a CI gate.",
+     "tags": [
+      "testing",
+      "ci",
+      "stryker"
+     ],
+     "context": "thresholds in stryker.conf.json set high 90, low 70 and break 60, so a mutation score under 60 exits non-zero and fails the run"
+    },
+    {
+     "slug": "vitest-runner",
+     "name": "Vitest Test Runner",
+     "description": "Stryker runs the existing test suite against each mutant through a runner plugin. The testRunner setting picks which framework executes those tests.",
+     "tags": [
+      "testing",
+      "vitest",
+      "stryker"
+     ],
+     "new": true,
+     "context": "testRunner is set to vitest in stryker.conf.json so each mutant of src/**/*.ts is checked by the project's Vitest tests"
+    },
+    {
+     "slug": "mutation-report-reporters",
+     "name": "Test Report Reporters",
+     "description": "Reporters decide how mutation results are output. A terminal table gives quick feedback, and an HTML report lets you inspect each surviving mutant in the source.",
+     "tags": [
+      "testing",
+      "reporting",
+      "stryker"
+     ],
+     "new": true,
+     "context": "reporters in stryker.conf.json combines clear-text for terminal output with html for a browsable per-file report of surviving mutants"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "mutation-config",
+   "repeat": 1,
+   "score": 0.7,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 0.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "mutation-testing"
+   ],
+   "duplicates_created": [
+    "mutation-score-thresholds",
+    "mutation-scope-globs"
+   ],
+   "long_names": [],
+   "created_with_description": 2,
+   "created_with_tags": 2,
+   "created": [
+    "mutation-score-thresholds",
+    "mutation-scope-globs"
+   ],
+   "matched": [],
+   "logged": [
+    "mutation-testing",
+    "stryker-config",
+    "vitest-runner",
+    "mutation-score-thresholds",
+    "mutation-scope-globs"
+   ],
+   "concepts": [
+    {
+     "slug": "mutation-testing",
+     "name": "Mutation Testing",
+     "description": "Judging test quality by injecting small code changes (mutants) and checking that the tests fail. Surviving mutants reveal assertions that do not really verify behavior.",
+     "tags": [
+      "testing",
+      "quality",
+      "stryker"
+     ],
+     "context": "configured Stryker in stryker.conf.json to mutate src/**/*.ts so weak tests show up as surviving mutants"
+    },
+    {
+     "slug": "stryker-config",
+     "name": "Stryker Config",
+     "description": "Stryker's JSON config picks which files get mutated, which test runner kills the mutants, and which reporters write the results.",
+     "tags": [
+      "testing",
+      "stryker",
+      "configuration"
+     ],
+     "context": "stryker.conf.json sets testRunner to vitest and reporters to clear-text and html"
+    },
+    {
+     "slug": "vitest-runner",
+     "name": "Vitest Runner",
+     "description": "Stryker runs the project's existing test suite through a plugin for the test runner, here Vitest, to decide whether each mutant is killed or survives.",
+     "tags": [
+      "testing",
+      "vitest",
+      "tooling"
+     ],
+     "context": "testRunner set to vitest in stryker.conf.json"
+    },
+    {
+     "slug": "mutation-score-thresholds",
+     "name": "Score Thresholds",
+     "new": true,
+     "description": "The high, low and break values map a mutation score to a status. A score below break fails the run, so the threshold acts as a quality gate in CI.",
+     "tags": [
+      "testing",
+      "ci",
+      "quality-gate"
+     ],
+     "context": "thresholds in stryker.conf.json are high 90, low 70, break 60, so a score under 60 fails the run"
+    },
+    {
+     "slug": "mutation-scope-globs",
+     "name": "Mutation Scope Globs",
+     "new": true,
+     "description": "Glob patterns with ! negation choose which source files are mutated. Leaving out test files stops Stryker from mutating the tests that are meant to catch mutants.",
+     "tags": [
+      "testing",
+      "globs",
+      "stryker"
+     ],
+     "context": "mutate array in stryker.conf.json includes src/**/*.ts and excludes !src/**/*.test.ts"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "react-effect-cleanup",
+   "repeat": 0,
+   "score": 0.5,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [],
+   "matched": [],
+   "logged": [
+    "react-custom-hook",
+    "react-useeffect-cleanup",
+    "dom-event-listeners",
+    "browser-online-status",
+    "react-useeffect-deps",
+    "react-state"
+   ],
+   "concepts": [
+    {
+     "slug": "react-custom-hook",
+     "name": "Custom Hook",
+     "description": "A function starting with 'use' that wraps stateful and effect logic so components can reuse it. Here useOnline returns a boolean connectivity flag.",
+     "tags": [
+      "react",
+      "hooks",
+      "reuse"
+     ],
+     "context": "useOnline() in src/useOnline.ts packages online/offline state into a reusable hook returning a boolean"
+    },
+    {
+     "slug": "react-useeffect-cleanup",
+     "name": "Effect Cleanup",
+     "description": "The function returned from useEffect runs on unmount or before re-run, undoing the subscription set up by the effect so listeners do not leak.",
+     "tags": [
+      "react",
+      "useeffect",
+      "lifecycle"
+     ],
+     "context": "useEffect in src/useOnline.ts returns a function calling removeEventListener for 'online' and 'offline' on window"
+    },
+    {
+     "slug": "dom-event-listeners",
+     "name": "DOM Event Listeners",
+     "description": "Registering and removing handlers on browser targets with addEventListener and removeEventListener, which needs the same function reference to detach.",
+     "tags": [
+      "dom",
+      "events",
+      "browser"
+     ],
+     "context": "on and off are named consts in src/useOnline.ts so the exact references passed to addEventListener can be removed in cleanup"
+    },
+    {
+     "slug": "browser-online-status",
+     "name": "Online Status API",
+     "description": "navigator.onLine reports whether the browser thinks it has a network connection, and window fires 'online' and 'offline' events when it changes. It signals link state, not real reachability.",
+     "tags": [
+      "browser",
+      "network",
+      "navigator"
+     ],
+     "context": "useState(navigator.onLine) seeds the initial value in src/useOnline.ts, then the online/offline events keep it updated"
+    },
+    {
+     "slug": "react-useeffect-deps",
+     "name": "Dependency Array",
+     "description": "The second argument to useEffect controls when it re-runs; an empty array means set up once on mount and clean up on unmount.",
+     "tags": [
+      "react",
+      "useeffect",
+      "dependencies"
+     ],
+     "context": "useEffect(..., []) in src/useOnline.ts subscribes once because the handlers only call stable state setters"
+    },
+    {
+     "slug": "react-state",
+     "name": "React state",
+     "description": "useState keeps a value between renders; its initial argument is used only on the first render and should mirror the true starting condition of any external state, like navigator.onLine.",
+     "tags": [
+      "react",
+      "hooks",
+      "usestate"
+     ],
+     "context": "useState(navigator.onLine) in src/useOnline.ts starts from the browser's current connectivity rather than assuming true"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "react-effect-cleanup",
+   "repeat": 1,
+   "score": 0.5,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [],
+   "matched": [],
+   "logged": [
+    "react-custom-hook",
+    "browser-event-listeners",
+    "navigator-online-api",
+    "react-useeffect-cleanup",
+    "react-useeffect-deps"
+   ],
+   "concepts": [
+    {
+     "slug": "react-custom-hook",
+     "name": "Custom Hook",
+     "description": "A function starting with 'use' that wraps stateful logic and effects so components can reuse it. Here useOnline exposes the browser's connectivity as a boolean.",
+     "tags": [
+      "react",
+      "hooks",
+      "reuse"
+     ],
+     "context": "extracted online/offline tracking into useOnline() in src/useOnline.ts returning a single boolean"
+    },
+    {
+     "slug": "browser-event-listeners",
+     "name": "DOM Event Listeners",
+     "description": "Subscribing to window events with addEventListener and unsubscribing with removeEventListener using the same function reference.",
+     "tags": [
+      "browser",
+      "dom",
+      "events"
+     ],
+     "context": "named on/off handlers in src/useOnline.ts so removeEventListener receives the identical references passed to addEventListener"
+    },
+    {
+     "slug": "navigator-online-api",
+     "name": "Navigator Online",
+     "description": "navigator.onLine gives the browser's current connectivity guess, and the online/offline events signal changes. It reports network presence, not whether a server is reachable.",
+     "tags": [
+      "browser",
+      "network",
+      "web-api"
+     ],
+     "context": "seeded useState with navigator.onLine in src/useOnline.ts, then kept it current from the online/offline events"
+    },
+    {
+     "slug": "react-useeffect-cleanup",
+     "context": "returned a cleanup in src/useOnline.ts that removes both the 'online' and 'offline' window listeners",
+     "description": "The function returned from useEffect runs on unmount or before the next run, so window listeners added in the effect are removed and do not leak."
+    },
+    {
+     "slug": "react-useeffect-deps",
+     "context": "passed [] in src/useOnline.ts because the handlers only call the stable setOnline setter, so the effect subscribes once on mount",
+     "description": "The dependency array is a correctness contract: an empty array is right here because the effect reads no props or state, only the stable setter."
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "cors-options",
+   "repeat": 0,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "cors"
+   ],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [],
+   "matched": [],
+   "logged": [
+    "express-middleware",
+    "cors"
+   ],
+   "concepts": [
+    {
+     "slug": "express-middleware",
+     "name": "Express Middleware",
+     "description": "A function (req, res, next) registered with app.use that runs on every request in order, and either ends the response or calls next() to pass control on.",
+     "tags": [
+      "express",
+      "middleware",
+      "node",
+      "http"
+     ],
+     "context": "app.use middleware in server/cors.ts calls next() for non-OPTIONS requests so later routes still run"
+    },
+    {
+     "slug": "cors",
+     "name": "CORS",
+     "description": "Browsers block cross-origin reads unless the server opts in with Access-Control headers; non-simple requests are preceded by an OPTIONS preflight. Covers the allow-origin and allow-headers response headers, answering the preflight with a 204, and pinning a single trusted origin instead of a wildcard when an authorization header is allowed.",
+     "tags": [
+      "web",
+      "http",
+      "security"
+     ],
+     "context": "set Access-Control-Allow-Origin to ALLOWED_ORIGIN, allow content-type and authorization headers, and short-circuit OPTIONS preflight with sendStatus(204) in server/cors.ts"
+    }
+   ],
+   "undecided": []
+  },
+  {
+   "id": "cors-options",
+   "repeat": 1,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "cors"
+   ],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 1,
+   "created_with_tags": 1,
+   "created": [
+    "origin-allowlist"
+   ],
+   "matched": [],
+   "logged": [
+    "express-middleware",
+    "cors",
+    "origin-allowlist"
+   ],
+   "concepts": [
+    {
+     "slug": "express-middleware",
+     "name": "Express Middleware",
+     "description": "Functions run in order for each request that either end the response or call next() to pass control down the chain.",
+     "tags": [
+      "express",
+      "node",
+      "middleware"
+     ],
+     "context": "app.use((req, res, next) => ...) in server/cors.ts ends OPTIONS with 204 and calls next() for every other request"
+    },
+    {
+     "slug": "cors",
+     "name": "CORS",
+     "description": "Browsers block cross-origin reads unless the server opts in with Access-Control headers; non-simple requests are preceded by an OPTIONS preflight. Here the server allows one origin and the content-type and authorization request headers, and answers preflights itself.",
+     "tags": [
+      "web",
+      "http",
+      "security"
+     ],
+     "context": "set Access-Control-Allow-Origin and Allow-Headers and answer OPTIONS preflights with 204 in the middleware in server/cors.ts"
+    },
+    {
+     "slug": "origin-allowlist",
+     "name": "Origin Allowlist",
+     "description": "Restricting cross-origin access to one trusted origin instead of a wildcard, which matters when requests carry an Authorization header.",
+     "tags": [
+      "security",
+      "cors",
+      "authorization"
+     ],
+     "context": "ALLOWED_ORIGIN constant used instead of '*' in server/cors.ts because the API accepts an authorization header",
+     "new": true
+    }
+   ],
+   "undecided": []
+  }
+ ],
+ "stopped_early": null,
+ "budget": {
+  "tokens": {
+   "input_total": 837871,
+   "cache_read": 230736,
+   "output": 8203,
+   "by_kind": {
+    "generate:cache_read": 230736,
+    "generate:cache_write": 607103,
+    "generate:input": 32,
+    "generate:output": 8203
+   }
+  },
+  "cost_usd_list_price": 2.53,
+  "calls": {
+   "generate": 16
+  },
+  "total_calls": 16,
+  "seconds_by_kind": {
+   "generate": 211.6
+  },
+  "errors": {},
+  "cap": 24
+ },
+ "summary": {
+  "trials": 8,
+  "scored": 8,
+  "mean_score": 0.8,
+  "resolved_to_existing_or_new": 0.75,
+  "no_duplicate_minted": 0.75,
+  "short_names": 1.0,
+  "duplicates_created": 3,
+  "concepts_created": 5,
+  "created_with_description": 5,
+  "created_with_tags": 5,
+  "failed": []
+ }
+}

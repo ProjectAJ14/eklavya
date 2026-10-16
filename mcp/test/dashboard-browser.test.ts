@@ -135,6 +135,22 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await w.ctx.close();
     });
 
+    it('shows a concept\'s tags and filters the list by one, in the link', async () => {
+      const w = await open('#/learning/concepts');
+      expect(await w.page.$$eval('#view tr.row', (r) => r.length)).toBeGreaterThan(1);
+      await pickOption(w.page, '#ctag', 'cookies');
+      await w.page.waitForFunction(() => location.hash === '#/learning/concepts?tag=cookies');
+      await w.page.waitForFunction(() => document.querySelectorAll('#view tr.row').length === 1);
+      expect(await w.page.textContent('#view tr.row')).toMatch(/CSRF|Cross/i);
+      expect(await w.page.textContent('#view tr.row .pill')).toBe('cookies');
+
+      await w.page.goto(base + '/#/learning/concept/csrf'); await ready(w.page);
+      await w.page.click('#view .tags a.pill:has-text("sessions")');
+      await w.page.waitForFunction(() => location.hash === '#/learning/concepts?tag=sessions');
+      expect(w.errors).toEqual([]);
+      await w.ctx.close();
+    });
+
     it('turns the remembered project into the canonical URL once', async () => {
       const w = await open('#/learning/dashboard', { init: `localStorage.setItem('eklavya-dash-project', ${JSON.stringify(fx.repo.mixed)})` });
       await w.page.goto(base + '/#/overview'); await ready(w.page);

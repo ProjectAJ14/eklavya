@@ -26,7 +26,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DB } from './db.js';
-import { decayedScore, isKnown, isOwed, MS_PER_DAY } from './srs.js';
+import { decayedScore, isKnown, isOwed, MS_PER_DAY, streakOf } from './srs.js';
 import {
   correctionStates, correctionTarget, CorrectionError, GLOBAL_PROJECT, levelStanding, PASSING_GRADE, projectKey, promoteIfEarned, recordRetry,
   type CorrectionErrorCode,
@@ -46,6 +46,7 @@ import { countUse } from './telemetry.js';
 import { acknowledgeFeedback, deleteFeedback, feedbackSummary, getFeedback, feedbackContext, feedbackPending, listAcknowledged } from './feedback.js';
 import { artifactsStamp, artifactThumb, listArtifacts, resolveArtifact, type ArtifactRow } from './artifacts.js';
 import { LIMITS } from './tools/types.js';
+import { parseTags } from './concepts.js';
 import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDelivery } from './memory/store.js';
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
@@ -151,12 +152,15 @@ interface ConceptRow {
   name: string;
   domain: string;
   description: string | null;
+  tags: string;
   tier: number;
   source: string;
   score: number | null;
   ease: number | null;
   interval_d: number | null;
   reps: number | null;
+  passed_days: number | null;
+  top_passed_tier: number | null;
   next_review: string | null;
   last_seen: string | null;
   attempts: number;
@@ -1537,8 +1541,8 @@ export function dashboardState(db: DB): Record<string, unknown> {
   const conceptRows = (
     db
       .prepare(
-        `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tier, c.source,
-                m.score, m.ease, m.interval_d, m.reps, m.next_review, m.last_seen,
+        `SELECT c.id, c.slug, c.name, c.domain, c.description, c.tags, c.tier, c.source,
+                m.score, m.ease, m.interval_d, m.reps, m.passed_days, m.top_passed_tier, m.next_review, m.last_seen,
                 -- The latest context a session logged for the concept; equal times go to the row written first.
                 (SELECT sc.context FROM session_concepts sc
                   WHERE sc.concept_id = c.id AND sc.context IS NOT NULL
@@ -1608,7 +1612,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
     // disagreeing about the same score is worse than either being wrong.
     const score = decayedScore(row.score ?? 0, row.next_review, now);
     const seen = row.attempts > 0;
-    const mastered = seen && isKnown({ score, reps: row.reps ?? 0 });
+    const mastered = seen && isKnown({ score, ...streakOf(row) });
     if (!seen) bucket.unseen += 1;
     else {
       bucket.touched += 1;
@@ -1626,6 +1630,7 @@ export function dashboardState(db: DB): Record<string, unknown> {
       name: row.name,
       domain: row.domain,
       description: row.description,
+      tags: parseTags(row.tags),
       tier: row.tier,
       source: row.source,
       seen,

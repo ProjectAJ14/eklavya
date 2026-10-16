@@ -19,12 +19,12 @@ import {
 const NOW = new Date('2026-08-26T10:00:00.000Z');
 const daysFrom = (base: Date, d: number) => new Date(base.getTime() + d * MS_PER_DAY);
 
-function grade(state = initialMastery(), grades: number[], now = NOW) {
+function grade(state = initialMastery(), grades: number[], now = NOW, tier?: number) {
   let s = state;
   const seen: number[] = [];
   for (const g of grades) {
     seen.push(g);
-    s = applyGrade({ state: s, grade: g, grades: seen, now });
+    s = applyGrade({ state: s, grade: g, grades: seen, tier, now });
   }
   return s;
 }
@@ -203,15 +203,43 @@ describe('scoreFromGrades', () => {
 });
 
 describe('isKnown', () => {
-  it('needs both a high score and repeated success', () => {
-    expect(isKnown({ score: 0.95, reps: 1 })).toBe(false);
-    expect(isKnown({ score: 0.5, reps: 9 })).toBe(false);
-    expect(isKnown({ score: 0.7, reps: 2 })).toBe(true);
+  const streak = { reps: 4, passed_days: 2, top_passed_tier: 2 };
+
+  it('needs a high score, a streak, days apart and a tier above recall', () => {
+    expect(isKnown({ score: 0.7, ...streak })).toBe(true);
+    expect(isKnown({ score: 0.95, ...streak, reps: 3 })).toBe(false);
+    expect(isKnown({ score: 0.5, ...streak, reps: 9 })).toBe(false);
+    expect(isKnown({ score: 0.9, ...streak, passed_days: 1 })).toBe(false);
+    expect(isKnown({ score: 0.9, ...streak, top_passed_tier: 1 })).toBe(false);
   });
 
-  it('is not reached by a single perfect answer', () => {
-    expect(isKnown(grade(initialMastery(), [5]))).toBe(false);
-    expect(isKnown(grade(initialMastery(), [5, 5]))).toBe(true);
+  it('is not reached by perfect answers in one sitting', () => {
+    expect(isKnown(grade(initialMastery(), [5, 5, 5, 5, 5, 5], NOW, 3))).toBe(false);
+  });
+
+  it('is reached by four passes over two days, one above recall', () => {
+    let s = grade(initialMastery(), [4, 4], NOW, 1);
+    expect(s.passed_days).toBe(1);
+    const grades = [4, 4];
+    for (const [i, g] of [4, 4].entries()) {
+      grades.push(g);
+      s = applyGrade({ state: s, grade: g, grades, tier: i === 1 ? 2 : 1, now: daysFrom(NOW, 2) });
+    }
+    expect(s.reps).toBe(4);
+    expect(s.passed_days).toBe(2);
+    expect(s.top_passed_tier).toBe(2);
+    expect(isKnown(s)).toBe(true);
+  });
+
+  it('resets the days and tier with the streak when an answer fails', () => {
+    const s = grade(initialMastery(), [4, 4, 1], NOW, 3);
+    expect(s.reps).toBe(0);
+    expect(s.passed_days).toBe(0);
+    expect(s.top_passed_tier).toBe(0);
+  });
+
+  it('does not count a pass without a tier (a correction) toward the top tier', () => {
+    expect(grade(initialMastery(), [3]).top_passed_tier).toBe(0);
   });
 });
 

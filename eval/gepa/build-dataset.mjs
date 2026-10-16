@@ -64,8 +64,8 @@ async function planFor(fixtures, focus, difficulty) {
   process.env.EKLAVYA_HOME = home;
   delete process.env.EKLAVYA_SESSION_ID;
   // `max_new_concepts_per_session` is raised: past its default every further
-  // concept is rejected by `upsert_concepts` and then created bare by the log
-  // call, so half the plan items would arrive without a description.
+  // concept is rejected by `upsert_concepts` and then created without a
+  // description by the log call, so half the plan items would arrive bare.
   // User-level config: a repository's own `.eklavya.json` is untrusted and
   // ignored for these keys, which would leave every setting at its default.
   fs.writeFileSync(
@@ -80,7 +80,7 @@ async function planFor(fixtures, focus, difficulty) {
   const ctx = { db };
   const all = fixtures.flatMap((f) => f.concepts.map((c) => ({ f, c })));
   upsertConcepts.handler(
-    { cwd, concepts: all.map(({ c }) => ({ slug: c.slug, name: c.slug.replace(/-/g, ' '), domain: c.domain, tier: c.tier, description: c.description, prerequisite_of: c.prerequisite_of ?? [] })) },
+    { cwd, concepts: all.map(({ c }) => ({ slug: c.slug, name: c.slug.replace(/-/g, ' '), domain: c.domain, tier: c.tier, new: true, description: c.description, prerequisite_of: c.prerequisite_of ?? [] })) },
     ctx,
   );
   logSessionConcepts.handler({ cwd, concepts: all.map(({ c }) => ({ slug: c.slug, context: c.context })) }, ctx);
