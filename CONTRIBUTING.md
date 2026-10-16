@@ -25,6 +25,8 @@ shard to pass, verifies that every test file ran exactly once, and merges their
 coverage before enforcing 100% lines, statements, functions and branches.
 Dependency installation, Chromium installation, compilation and tests have
 separate timing steps; the run summary lists the ten slowest test files.
+A Chromium install that hangs (usually 17 to 30s) is cut at 45s and retried up
+to three times, so one bad apt mirror cannot hold a run for ten minutes.
 Each shard uses two Vitest workers to leave CPU capacity for browser and CLI
 subprocesses. The dashboard browser checks are split by feature into separate
 files, each with its own fixture, so file sharding can divide the slowest suite.
