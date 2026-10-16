@@ -687,6 +687,10 @@ An image runs no script and loads nothing, which is why this is safe where an
 iframe is not. `eklavyaGround.apply` swaps every `img[data-thumb]` to the new
 ground; `v` busts the hour-long cache when a page is rewritten.
 
+## The daily card engine
+
+One card, once a local day, on arrival at `#/learning/dashboard`. `assets/daily-card.cjs` (`EklavyaDaily`, served at `/daily-card.js`) is pure: `decide(sig, mem, ctx)` gates (off, shown today, no answers, wrong route, busy), `rank` scores every card whose condition holds (a base, an urgency term, minus `REPEAT_COST` for a card shown in the last three days) and the top score wins, a tie going to `ORDER`. `remember` returns the memory to store. The page owns the rest: `DAILY.signals()` reads numbers the page already derives (never a query for the card), `DAILY.arrive()` runs only after a navigation (never an adjustment or `LIVE_PASS`), `DAILY_CARDS` draws one card per id, and memory lives in localStorage like the tips (storage that throws means no card). Both switches are on Settings, Companion (`companionSwitch`), with delegated click handlers because that tab is redrawn. The engine is held to 100% of its statements and branches (`.c8rc.json`) and to a mutation check: break a constant or a condition and a test must fail. Browser tests turn it off in `open()` unless they pass `daily: true`, as they do tips. A new card is a row in the engine's `ORDER`, `MOOD`, `rank` and `GREETING`, a drawing in `DAILY_CARDS`, a case in `daily-card.test.ts` and a row in the manual's table.
+
 ## Core components: toast, dialog and sheet
 
 Three shared pieces live in `dashboard.html`; a page never writes its own popup.

@@ -17,7 +17,7 @@ The dashboard lives at `http://127.0.0.1:41729` and keeps running in the backgro
 
 The mascot smiles while pages load and appears beside empty lists, missing records, errors and settings feedback. Text still explains each state. Motion stops when your system requests reduced motion.
 
-Open **Settings**, then the **Companion** tab, and choose **Open the companion gallery** to open the local mascot studio. Preview its 13 expressions, switch between face and full-body views, and pause the loading animation. The studio and mascot assets load from the dashboard itself.
+Open **Settings**, then the **Companion** tab, and choose **Open the companion gallery** to open the local mascot studio. Preview its 13 expressions, switch between face and full-body views, and pause the loading animation. The studio and mascot assets load from the dashboard itself. The same tab holds the **Tips** and **Daily card** switches ([tips](#tips), [daily card](#the-daily-card)); they change this browser only, so they are the same on the User page and on every project page.
 
 ## Keeping it running
 
@@ -67,7 +67,7 @@ Project and theme choices survive a workflow switch. Page-specific filters do no
 | Concepts, Review | Timeline, Sessions, Projects | Projects | History | User, Project |
 | Sessions, Projects, Domains | Reuse, Health | | | |
 
-At the bottom of every sidebar, under the project, ground and tips controls, the dashboard shows the version of Eklavya it is running and links to the dashboard guide, the manual and the updates page. The version is the one this dashboard process loaded when it started. If it is older than the version you installed, your next Claude Code session (with `dashboard_autostart` on) or `eklavya update` restarts it on the new one; `eklavya dashboard stop` followed by `eklavya dashboard` does it now. The links open in a new tab and are the only addresses the page points at: it still loads nothing from another host.
+At the bottom of every sidebar, under the project and ground controls, the dashboard shows the version of Eklavya it is running and links to the dashboard guide, the manual and the updates page. The version is the one this dashboard process loaded when it started. If it is older than the version you installed, your next Claude Code session (with `dashboard_autostart` on) or `eklavya update` restarts it on the new one; `eklavya dashboard stop` followed by `eklavya dashboard` does it now. The links open in a new tab and are the only addresses the page points at: it still loads nothing from another host.
 
 Groups can be collapsed and are remembered per workflow. At 900 px or narrower, navigation moves into a menu drawer. Keyboard navigation supports Tab and Enter; the workflow picker also supports arrows and Escape. Escape or clicking outside closes the drawer.
 
@@ -91,7 +91,7 @@ A page you have already seen comes back at once. Going Back, going Forward or op
 
 | Page | What you can inspect |
 | --- | --- |
-| Dashboard (`#/learning/dashboard`) | Four tiles (accuracy, mastery, due reviews, and **To be corrected**: missed answers whose explainer still waits for a correction, linking to the **To correct** list), the next step when there is one, then the open [streak card](#the-streak); recorded versus assessed concepts in the counts line; 30 days of answers, split into right, corrected, missed and skipped (a miss corrected from its explainer also shows as “corrected” with its try in question lists); the weakest five concepts and recent sessions. Where you stand is folded. |
+| Dashboard (`#/learning/dashboard`) | Four tiles (accuracy, mastery, due reviews, and **To be corrected**: missed answers whose explainer still waits for a correction, linking to the **To correct** list), the next step when there is one, then the open [streak card](#the-streak) and, once a day, the [daily card](#the-daily-card); recorded versus assessed concepts in the counts line; 30 days of answers, split into right, corrected, missed and skipped (a miss corrected from its explainer also shows as “corrected” with its try in question lists); the weakest five concepts and recent sessions. Where you stand is folded. |
 | Concepts (`#/learning/concepts`) | Search, sort and filter the graph by domain, tag or state: due, learning, mastered or unseen. A row shows the concept's tags; search matches them. A tag filter is part of the link (`?tag=cookies`). A concept's own page shows its description and its tags, each a link to that filter. |
 | Review (`#/learning/review`) | A short introduction (it can be hidden for good), then **Pick a concept to review**: one card per due concept, most overdue first, with **Start here** and the archer beside the first. Five cards show and up to 20 more fold under **Show N more**. Open a card for the steps to start one quiz on that concept (see [Starting your reviews](#starting-your-reviews)). Then tips, due reviews, upcoming reviews with a 14-day forecast, and skipped questions. Due and upcoming list only concepts whose latest answer was declined, blank or wrong; a correct answer is never owed. Tabs use `/upcoming` and `/skipped`. |
 | Sessions (`#/learning/sessions`) | Sessions that logged concepts or asked questions. Memory-only sessions are listed in Memory. |
@@ -100,7 +100,7 @@ A page you have already seen comes back at once. Going Back, going Forward or op
 
 ### The streak
 
-A day counts toward your streak when you answered at least one question that day, whether right, missed or skipped. A miss you correct later stays on the day you first answered it. Days are your computer's local calendar days, so an answer at 01:00 counts for the day it is where you are, not the UTC date. The card shows the current run (it still counts while today has no answer yet, and asks for one to extend it), your longest run, and a calendar with one cell per day: four shades, relative to the busiest day on screen, and an outline around the days of the current run. Hover a cell for its date and its answers; corrected misses count as right there, as they do in Accuracy. On a narrow screen the calendar shows fewer weeks and the ‹ › arrows page back up to a year. With a project selected, the streak counts only that project's answers.
+A day counts toward your streak when you answered at least one question that day, whether right, missed or skipped. A miss you correct later stays on the day you first answered it. Days are your computer's local calendar days, so an answer at 01:00 counts for the day it is where you are, not the UTC date. The card shows the current run (it still counts while today has no answer yet, and asks for one to extend it), your longest run, and a calendar with one cell per day: four shades, relative to the busiest day on screen, and an outline around the days of the current run. Beside the count the archer says one line, picked at random each time you arrive and chosen to match the run (a short one for a new streak, a bigger cheer from 7 days, a calm start when there is none); it never states a streak you do not have, and a tab or new activity keeps the line it has. Hover a cell for its date and its answers; corrected misses count as right there, as they do in Accuracy. On a narrow screen the calendar shows fewer weeks and the ‹ › arrows page back up to a year. With a project selected, the streak counts only that project's answers.
 
 ### Starting your reviews
 
@@ -281,13 +281,47 @@ On your first visits, a dot marks each feature the current page has a tip for (i
 
 Only one bubble is open at a time, and moving to another page closes it. No dot or bubble shows while the menu drawer, a dropdown or the correction dialog is open, and at 900 px or narrower, where the sidebar becomes the drawer, its features get no tips. A dot hides while its feature is scrolled out of view, and a tip does not open by itself until its feature is on screen. A tip that has opened once does not open by itself again; its dot stays until you dismiss it.
 
-The sidebar's **Tips** switch, below **Ground**, sets it: **off** hides every dot and bubble, and **on** shows every tip again from the start. Which tips you have seen is remembered in this browser only, so another browser, or a dashboard on a different `--port`, shows them again. If the browser blocks site storage, the dashboard shows no tips.
+The **Tips** switch on the Settings page's **Companion** tab sets it: **off** hides every dot and bubble, and **on** shows every tip again from the start. Which tips you have seen is remembered in this browser only, so another browser, or a dashboard on a different `--port`, shows them again. If the browser blocks site storage, the dashboard shows no tips.
+
+## The daily card
+
+The first time you arrive at the Learning Dashboard each day, a card opens over it, about half a second after the page draws. It has the archer, a line in a speech bubble, one number or goal, and one button. Close it with **Not now**, the close button, **Esc** or a click outside, and it does not come back until tomorrow. A day is your computer's local calendar day, as it is for the [streak](#the-streak).
+
+The card does not run quizzes. They run in your Claude session, so its button takes you to the page that shows the command, or opens the concept's review sheet.
+
+### Which card you get
+
+One engine decides, from numbers the page already holds: it checks whether anything should show, scores every card whose condition holds, and shows the highest.
+
+| Card | It qualifies when | Base score |
+|---|---|---|
+| Milestone | Your streak has reached 7, 14, 30, 60, 100, 200 or 365 days within the last 2 days, and you have not seen that milestone in this run. Only the highest one passed shows | 100 |
+| Welcome back | Your last answer was 3 or more days ago | 90 |
+| Last week | It is Monday, Tuesday or Wednesday, you answered at least 5 questions last week, and you have not seen this card this week | 70 |
+| Due now | A concept is due. The card names the most overdue one and links to its review sheet | 60, plus 1 per day overdue, up to 85 |
+| Daily check-in | Always, once you have any answers. Streak, this week's active days and today's goal | 40, plus 10 with a streak of 3 or more |
+| Daily goals | You have answered fewer than 3 questions today | 45 |
+| Week ahead | Something is due or scheduled in the next 6 days. Mondays add 15 | 35 |
+
+A milestone is remembered for the run it was reached in: if the streak breaks, the same milestone is celebrated again when you reach it again. A card shown yesterday loses 25 points, 2 days ago 15, 3 days ago 8, so the same card does not greet you every morning. A tie goes to the card higher in the table. Last week shows its accuracy against the week before it and names your strongest and weakest domain when at least two domains each have two asked concepts.
+
+The card never shows when any of these holds, and it does not queue: the next arrival tries again.
+
+- It already showed today, or you switched it off. A stored day later than today (a clock set back, or travel west) also counts as shown.
+- You have no answers yet, so there is nothing to report.
+- You did not land on the Learning Dashboard. An explainer page an agent opens, or any other page, gets no card, and nothing is remembered. A day's card is still available when you next arrive at the Learning Dashboard.
+- A dialog, the menu drawer, a dropdown or the review sheet is open, or the page is still loading. A tab hidden in the background decides when you switch to it.
+- The page is only redrawing: a tab, a filter, a resize, or new activity arriving by itself.
+
+With a project selected, the card reads that project's answers and streak, as the page does.
+
+The **Daily card** switch on the Settings page's **Companion** tab, below **Tips**, sets it. What it showed and when is remembered in this browser only (`eklavya-dash-daily`), so another browser, or a dashboard on a different `--port`, shows a card again. If the browser blocks site storage, no card shows, because a card that cannot remember would open on every visit.
 
 ## Projects, scope, ground, tips and paging
 
 The project selector includes projects with attempts, logged concepts, evidence, observations, reuse receipts or earned levels. Folder names identify projects; duplicate names include a parent folder. Worktrees resolve to their main checkout when that relationship is known. Missing checkouts remain listed as “checkout gone”. **No repository** means work outside git; **Unattributed** means older rows without a project.
 
-Selecting a project scopes lists and activity, but concept mastery and review dates remain shared. The selected project is saved in the URL. The ink/paper theme and the tips switch are remembered in your browser.
+Selecting a project scopes lists and activity, but concept mastery and review dates remain shared. The selected project is saved in the URL. The ink/paper theme, the tips switch and the daily card switch are remembered in your browser.
 
 Most lists show 20 rows per page; the memory timeline shows 25, and a concept's question history shows ten, one line each.
 

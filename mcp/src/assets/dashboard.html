@@ -46,6 +46,7 @@
 <link rel="stylesheet" href="/tokens.css">
 <link rel="stylesheet" href="/brand/mascot/mascot.css">
 <script src="/brand/mascot/mascot.js" defer></script>
+<script src="/daily-card.js" defer></script>
 <!-- Feature tips: Driver.js's hints module, pinned and served by this server (see TIP). -->
 <link rel="stylesheet" href="/vendor/driver-hints.css">
 <script src="/vendor/driver-hints.js" defer></script>
@@ -243,6 +244,10 @@
   select:focus-visible, input:focus-visible, button:focus-visible, a:focus-visible,
   [tabindex]:focus-visible { outline:none; box-shadow:var(--ring); }
 
+  .cmp { margin-top:var(--space-4); border-top:1px solid var(--line); }
+  .cmp__row { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); padding:var(--space-4) 0; border-bottom:1px solid var(--line); }
+  .cmp__row > div:first-child { min-width:0; } .cmp__row p, .cmp__note { margin:var(--space-1) 0 0; color:var(--dim); font-size:13.5px; }
+  .cmp__note { color:var(--faint); font-size:12px; margin-top:var(--space-3); }
   .ground { display:flex; border:1px solid var(--line-2); width:max-content; }
   .ground button { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em;
     text-transform:uppercase; background:none; border:0; color:var(--faint);
@@ -732,6 +737,68 @@
   .toast__x:focus-visible, .toast__act:focus-visible { outline:none; box-shadow:var(--ring); }
   .toast.is-out { opacity:0; transform:translateY(8px); transition:opacity var(--duration-base) var(--ease), transform var(--duration-base) var(--ease); }
   @keyframes toast-in { from { opacity:0; transform:translateY(10px); } }
+  /* The daily card (see DAILY): one native dialog, square, hairline, the archer on top. */
+  dialog.daily { width:min(440px, calc(100vw - 32px)); margin:auto; padding:0; border:1px solid var(--line-2); border-radius:0;
+                 background:var(--panel); color:var(--ink); box-shadow:var(--shadow-lg); overflow:visible; }
+  dialog.daily::backdrop { background:color-mix(in srgb, var(--bg) 70%, transparent); }
+  dialog.daily[open] { animation:daily-in var(--duration-slow) var(--ease); }
+  @keyframes daily-in { from { opacity:0; transform:translateY(16px); } }
+  .daily__x { position:absolute; top:var(--space-2); right:var(--space-2); width:32px; height:32px; display:grid; place-items:center;
+              border:1px solid transparent; background:transparent; color:var(--faint); cursor:pointer; padding:0; }
+  .daily__x:hover { border-color:var(--line-2); color:var(--ink); }
+  .daily__x:focus-visible, .daily__btn:focus-visible { outline:none; box-shadow:var(--ring); }
+  .daily__x svg { width:16px; height:16px; }
+  .daily__top { display:flex; align-items:flex-end; gap:var(--space-1); padding:var(--space-5) var(--space-5) 0; }
+  .daily__body { padding:var(--space-2) var(--space-5) var(--space-5); display:flex; flex-direction:column; gap:var(--space-4); }
+  .daily__foot { border-top:1px solid var(--line-2); padding:var(--space-4) var(--space-5); display:flex; gap:var(--space-2); flex-wrap:wrap; align-items:center; }
+  .daily__why { margin:0; padding:0 var(--space-5) var(--space-4); font:400 11px/1.4 var(--font-mono); color:var(--faint); }
+  .daily__btn { border:1px solid var(--line-2); background:var(--panel); color:var(--ink); padding:10px var(--space-4); cursor:pointer;
+                font:500 12px/1 var(--font-mono); letter-spacing:.06em; }
+  .daily__btn:hover { border-color:var(--spot); color:var(--spot); }
+  .daily__btn--go { flex:1 1 auto; background:var(--spot); border-color:var(--spot); color:var(--spot-ink); font-weight:600; padding:12px var(--space-4); }
+  .daily__btn--go:hover { background:var(--ink); border-color:var(--ink); color:var(--bg); }
+  .daily__btn--quiet { border-color:transparent; background:transparent; color:var(--dim); }
+  .say { position:relative; background:var(--bg); border:1.5px solid var(--ink); padding:10px 14px; max-width:260px; font:600 13.5px/1.4 var(--font-body);
+         margin-bottom:26px; }
+  .say::after { content:""; position:absolute; right:-9px; bottom:14px; width:14px; height:14px; background:var(--bg);
+                border-right:1.5px solid var(--ink); border-top:1.5px solid var(--ink); transform:rotate(45deg); }
+  .daily__row { display:flex; gap:var(--space-4); align-items:center; }
+  .daily__big { font:900 56px/.9 var(--font-disp); letter-spacing:-.05em; font-variant-numeric:tabular-nums; }
+  .daily__lbl { font:500 10.5px/1 var(--font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--faint); }
+  .daily__note { margin:0; font:400 12px/1.5 var(--font-mono); color:var(--faint); }
+  .daily__flame { width:40px; height:40px; color:var(--warning); flex:none; transform-origin:50% 90%; }
+  .daily__flame.is-live { animation:flame 1.6s ease-in-out infinite; }
+  @keyframes flame { 0%,100% { transform:scale(1) rotate(0); } 30% { transform:scale(1.07,1.12) rotate(-2deg); } 60% { transform:scale(.97,1.03) rotate(1.5deg); } }
+  .daily__week { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .daily__week div { display:flex; flex-direction:column; align-items:center; gap:6px; font:500 10.5px/1 var(--font-mono); color:var(--faint); }
+  .daily__week i { width:100%; max-width:34px; aspect-ratio:1; display:grid; place-items:center; background:var(--mass); color:var(--spot-ink); }
+  .daily__week i.on { background:var(--spot); }
+  .daily__week i.now { background:transparent; outline:1.5px dashed var(--spot); outline-offset:2px; }
+  .daily__week svg { width:14px; height:14px; }
+  .daily__ring { position:relative; width:76px; height:76px; flex:none; }
+  .daily__ring svg { width:76px; height:76px; transform:rotate(-90deg); }
+  .daily__ring circle { fill:none; stroke-width:8; }
+  .daily__ring .t { stroke:var(--mass); } .daily__ring .f { stroke:var(--spot); transition:stroke-dashoffset 1s var(--ease); }
+  .daily__ring b { position:absolute; inset:0; display:grid; place-items:center; font:600 14px var(--font-mono); font-variant-numeric:tabular-nums; }
+  .daily__bar { height:8px; background:var(--mass); overflow:hidden; }
+  .daily__bar > b { display:block; height:100%; background:var(--spot); width:0; transition:width 1s var(--ease); }
+  .daily__bar.is-warn > b { background:var(--warning); }
+  .daily__bars { display:flex; align-items:flex-end; gap:6px; height:84px; }
+  .daily__bars div { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; justify-content:flex-end; height:100%; font:500 10px var(--font-mono); color:var(--faint); }
+  .daily__bars i { display:block; width:100%; background:var(--spot); height:0; transition:height .8s var(--ease); min-height:2px; }
+  .daily__bars i.is-low { background:var(--warning); }
+  .daily__chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .daily__chip { border:1px solid var(--line-2); padding:4px 8px; font:500 11px/1 var(--font-mono); color:var(--dim); }
+  .daily__chip.is-warn { color:var(--warning); border-color:var(--warning); }
+  .daily__chip.is-good { color:var(--spot); border-color:var(--spot); }
+  .daily__h { margin:0; font:900 24px/1.1 var(--font-disp); letter-spacing:-.03em; }
+  .daily__confetti { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .daily__confetti i { position:absolute; top:-10px; width:8px; height:8px; opacity:0; animation:confetti 2.2s var(--ease) forwards; }
+  @keyframes confetti { 0% { opacity:1; transform:translateY(0) rotate(0); } 100% { opacity:0; transform:translateY(480px) rotate(540deg); } }
+  .streak__talk { display:flex; align-items:flex-end; gap:var(--space-1); max-width:100%; }
+  .streak__talk .say { margin-bottom:30px; }
+  @media (prefers-reduced-motion:reduce) { dialog.daily[open], .daily__flame.is-live { animation:none; }
+    .daily__ring .f, .daily__bar > b, .daily__bars i { transition:none; } .daily__confetti { display:none; } }
   dialog.dlg { width:min(460px, calc(100vw - 32px)); margin:auto; padding:0; border:1px solid var(--line-2); border-radius:0;
                background:var(--panel); color:var(--ink); }
   dialog.dlg::backdrop { background:color-mix(in srgb, var(--ink) 40%, transparent); backdrop-filter:blur(6px); }
@@ -1208,14 +1275,6 @@
           <button type="button" data-ground="paper" aria-pressed="false">paper</button>
         </div>
       </div>
-
-      <div class="side__group">
-        <p class="side__label">Tips</p>
-        <div class="ground" role="group" aria-label="Feature tips">
-          <button type="button" data-tips="on" aria-pressed="true">on</button>
-          <button type="button" data-tips="off" aria-pressed="false">off</button>
-        </div>
-      </div>
     </div>
 
     <div class="side__about" id="about" aria-label="About this dashboard">
@@ -1244,6 +1303,7 @@
 </div>
 
 <div class="toasts" id="toasts"></div>
+<dialog class="daily" id="daily" aria-labelledby="daily-h"></dialog>
 <dialog class="dlg" id="dlg" aria-labelledby="dlg-h"><form method="dialog">
   <div class="dlg__b"><span id="dlg-av"></span><div><h2 id="dlg-h"></h2><p id="dlg-p"></p></div><textarea id="dlg-in" hidden></textarea></div>
   <div class="dlg__f"><button class="btn" value="cancel" id="dlg-c"></button><button class="btn" value="ok" id="dlg-ok"></button></div>
@@ -2098,6 +2158,24 @@ function chartHeatmap(el) {
   }
 }
 
+/**
+ * The archer beside the streak, with a line that changes on every arrival and not on a redraw: a tab, a resize or new
+ * data keeps the line it has, unless the streak itself moved (a line must never state a streak that is not there).
+ */
+const SAY = { streak: null, text: '' };
+function streakSays(st) {
+  const E = window.EklavyaDaily;
+  if (!E) return '';
+  if (SAY.streak !== st.current || (!LIVE_PASS && !ADJUSTING)) {
+    // The last line said is kept with the card's memory, so a reload does not repeat it either.
+    const r = E.streakLine(st.current, DAILY.load() ?? E.normalize(null), Math.random);
+    SAY.streak = st.current; SAY.text = r.text;
+    if (DAILY.mem) { DAILY.mem = r.mem; DAILY.save(); }
+  }
+  const face = st.current < 1 ? 'idle' : st.current >= 30 ? 'complete' : 'success';
+  return `<div class="streak__talk"><div class="say" role="status">${esc(SAY.text)}</div><eklavya-mascot state="${face}" variant="body" size="88"></eklavya-mascot></div>`;
+}
+
 /** The streak, up front: the run, the longest, and the calendar it is counted from. */
 function streakCard(st) {
   chart('c-heat', chartHeatmap);
@@ -2110,6 +2188,7 @@ function streakCard(st) {
       <div><h2>${st.current ? `${st.current} day streak` : 'No streak yet'}</h2>
         ${sub ? `<p class="streak__sub">${esc(sub)}</p>` : ''}</div>
       ${st.best ? `<p class="streak__best">Longest streak <span aria-hidden="true">|</span> ${esc(plural(st.best, 'day'))}</p>` : ''}
+      ${streakSays(st)}
     </div>
     <div class="streak__cal">
       <button type="button" class="streak__arr" id="heat-prev" aria-label="Earlier weeks" hidden>‹</button>
@@ -4154,7 +4233,7 @@ const TIP = {
     const h = this.lib();
     const st = S && h ? this.load() : null;
     clearTimeout(this.timer);
-    if (!st || st.off || drawerOpen || $('fix').open || !menu.hidden || !pmenu.hidden || !smenu.hidden) {
+    if (!st || st.off || drawerOpen || $('fix').open || $('daily').open || !menu.hidden || !pmenu.hidden || !smenu.hidden) {
       h?.hide();
       this.shown = [];
       return;
@@ -4235,7 +4314,213 @@ const TIP = {
 document.addEventListener('click', (e) => {
   for (const [id, n] of TIP.shown) if (n.contains(e.target)) TIP.hints.dismiss(id);
 }, true);
-document.querySelectorAll('[data-tips]').forEach((b) => b.addEventListener('click', () => TIP.set(b.dataset.tips === 'on')));
+// The switches live on the Settings page (Companion tab), which is redrawn: one listener on the document.
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-tips]'); if (b) TIP.set(b.dataset.tips === 'on'); });
+
+/* ---------- the daily card ----------
+   One card, once a local day, on arrival at the Learning dashboard. *Which* card, and whether to show one at all,
+   is the engine's (`/daily-card.js`, `EklavyaDaily`: gate, rank, decide); this block gathers the signals it reads,
+   remembers what it showed, and draws the answer. The memory is a per-browser convenience in localStorage, like the
+   tips: storage that throws means no card, because a card that cannot remember would greet every navigation. */
+const DAILY_KEY = 'eklavya-dash-daily';
+const DAILY_DELAY_MS = 450;
+const DAILY = {
+  mem: undefined,   // the engine's normalized memory; null when storage throws
+  timer: 0,
+  pending: false,   // arrived while the tab was hidden: decided when it becomes visible
+  opener: null,
+  load() {
+    if (this.mem !== undefined) return this.mem;
+    if (!window.EklavyaDaily) return null; // the script has not run yet: nothing is remembered about that
+    let raw = null, v = null;
+    try { raw = localStorage.getItem(DAILY_KEY); } catch (e) { return (this.mem = null); }
+    try { v = JSON.parse(raw); } catch (e) { /* malformed: the empty memory */ }
+    return (this.mem = window.EklavyaDaily.normalize(v));
+  },
+  save() { try { localStorage.setItem(DAILY_KEY, JSON.stringify(this.mem)); } catch (e) { this.mem = null; } },
+  set(on) {
+    if (!this.load()) return;
+    this.mem = { ...this.mem, off: !on };
+    this.save();
+    this.paint();
+    if (!on && $('daily').open) $('daily').close();
+  },
+  paint() {
+    const on = !this.load()?.off;
+    document.querySelectorAll('[data-daily]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.daily === 'on') === on)));
+  },
+  /** Something else owns the screen: a dialog, the drawer, an open list. The card never sits on top of one. */
+  busy() {
+    return drawerOpen || $('dlg').open || $('sheet').open || $('fix').open || $('daily').open
+      || !menu.hidden || !pmenu.hidden || !smenu.hidden || $('view').getAttribute('aria-busy') === 'true';
+  },
+  /** The numbers the engine reads, from the readings the page already holds (nothing is queried for the card). */
+  signals() {
+    const E = window.EklavyaDaily;
+    const day = todayKey(), map = dailyInScope(), st = streaks(), seen = seenConcepts();
+    const total = (k) => map.get(k)?.total ?? 0;
+    const back = (n) => dayKey(new Date(fromKey(day).getTime() - n * DAY_MS));
+    const wd = E.weekday(day);
+    const sum = (from, to) => { let answers = 0, right = 0; for (let i = from; i <= to; i++) { const d = map.get(back(i)); if (d) { answers += d.total; right += d.passed + d.corrected; } } return { answers, right }; };
+    const weekDays = Array.from({ length: 7 }, (_, i) => i <= wd && total(back(wd - i)) > 0);
+    let lastDay = null;
+    for (const d of map.values()) if (d.total > 0 && (!lastDay || d.day > lastDay)) lastDay = d.day;
+    const dueList = seen.filter((c) => c.due).sort((a, b) => (b.overdue_days ?? 0) - (a.overdue_days ?? 0));
+    const ahead = Array.from({ length: 7 }, (_, i) => { const k = dayKey(new Date(fromKey(day).getTime() + i * DAY_MS)); return seen.filter((c) => c.owed && !c.due && c.next_review && localKey(parse(c.next_review)) === k).length; });
+    const by = new Map();
+    for (const c of seen) { const g = by.get(c.domain) ?? { name: c.domain, n: 0, sum: 0 }; g.n += 1; g.sum += c.score; by.set(c.domain, g); }
+    const ranked = [...by.values()].filter((g) => g.n >= 2).map((g) => ({ name: g.name, avg: g.sum / g.n })).sort((a, b) => a.avg - b.avg);
+    const top = dueList[0] ? { slug: dueList[0].slug, name: dueList[0].name, project: conceptStart(dueList[0]).project, domain: dueList[0].domain, tier: dueList[0].tier, score: dueList[0].score, days: dueList[0].overdue_days ?? 0 } : null;
+    return {
+      day, answers: scopeTotals().answers, answersToday: total(day),
+      daysAway: lastDay ? E.daysBetween(lastDay, day) : null,
+      streak: { current: st.current, best: st.best, today: st.today },
+      due: dueList.length, upcoming: ahead.reduce((a, b) => a + b, 0), top,
+      lastWeek: { ...sum(wd + 1, wd + 7), prev: sum(wd + 8, wd + 14) },
+      // Read by the card's drawing, not by the engine.
+      weekDays, wd, ahead, weakest: ranked.length > 1 ? ranked[0].name : null, strongest: ranked.length > 1 ? ranked.at(-1).name : null,
+    };
+  },
+  /** Called after a navigation draws (never an adjustment or new data): schedules a decision once the page has painted. */
+  arrive() {
+    clearTimeout(this.timer);
+    if (!window.EklavyaDaily || !S || CUR.wf !== 'learning' || CUR.page !== 'dashboard') return;
+    const mem = this.load();
+    if (!mem || mem.off || mem.day === todayKey()) return;
+    this.timer = setTimeout(() => this.decide(), window.__eklavyaDailyDelay ?? DAILY_DELAY_MS);
+  },
+  decide() {
+    const E = window.EklavyaDaily, mem = this.load();
+    if (!mem || !S) return;
+    const ctx = { route: CUR.wf + '/' + CUR.page, busy: this.busy(), hidden: document.visibilityState !== 'visible' };
+    this.pending = ctx.hidden;
+    const sig = this.signals();
+    const d = E.decide(sig, mem, ctx);
+    if (!d.show) return;
+    // Drawn first: a card that cannot be drawn is not remembered as shown, and the page goes on without it.
+    let view;
+    try { view = DAILY_CARDS[d.id](sig, d); } catch (e) { console.error('daily card', d.id, e); return; }
+    this.mem = E.remember(mem, d, sig);
+    this.save();
+    this.open(d, sig, view);
+  },
+  open(d, sig, view) {
+    const E = window.EklavyaDaily;
+    this.opener = document.activeElement;
+    $('daily').innerHTML = `<button type="button" class="daily__x" data-daily-close aria-label="Close">${ICON_X}</button>
+      <div class="daily__top"><eklavya-mascot state="${E.MOOD[d.id]}" variant="body" size="104"></eklavya-mascot>
+        <div class="say" id="daily-h">${esc(E.greeting(d.id, sig))}</div></div>
+      <div class="daily__body">${view.markup}</div>
+      <div class="daily__foot"><button type="button" class="daily__btn daily__btn--go" autofocus data-daily-go="${esc(view.go ?? '')}">${esc(view.label)}</button>
+        <button type="button" class="daily__btn daily__btn--quiet" data-daily-close>Not now</button></div>
+      <p class="daily__why">${esc(d.why)} Shown once a day.</p>`;
+    $('daily').dataset.card = d.id;
+    $('daily').showModal();
+    TIP.sync();
+    this.animate(d.id);
+  },
+  animate(id) {
+    const root = $('daily'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    root.querySelectorAll('[data-count]').forEach((el) => {
+      const to = +el.dataset.count;
+      if (still) { el.textContent = to; return; }
+      const t0 = performance.now();
+      const step = (t) => { const p = Math.min(1, (t - t0) / 900); el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      root.querySelectorAll('.daily__ring .f').forEach((c) => { c.style.strokeDashoffset = c.dataset.to; });
+      root.querySelectorAll('[data-w]').forEach((b) => { b.style.width = b.dataset.w + '%'; });
+      root.querySelectorAll('[data-h]').forEach((b) => { b.style.height = b.dataset.h + '%'; });
+    }));
+    if (id === 'milestone' && !still) {
+      const c = document.createElement('div');
+      c.className = 'daily__confetti';
+      c.setAttribute('aria-hidden', 'true');
+      const roles = ['var(--spot)', 'var(--warning)', 'var(--ink)', 'var(--mascot-coral)'];
+      c.innerHTML = Array.from({ length: 26 }, (_, i) => `<i style="left:${(i * 37) % 100}%;background:${roles[i % 4]};animation-delay:${(i % 7) * 0.07}s;animation-duration:${1.6 + (i % 5) * 0.2}s"></i>`).join('');
+      root.append(c);
+      setTimeout(() => c.remove(), 3200);
+    }
+  },
+};
+
+const DAILY_ICON = {
+  flame: '<svg class="daily__flame is-live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+};
+const DAILY_DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const dailyWeek = (sig) => `<div class="daily__week" role="img" aria-label="${plural(sig.weekDays.filter(Boolean).length, 'day')} active this week">${DAILY_DAYS.map((d, i) =>
+  `<div><i class="${sig.weekDays[i] ? 'on' : i === sig.wd ? 'now' : ''}">${sig.weekDays[i] ? DAILY_ICON.check : ''}</i>${d}</div>`).join('')}</div>`;
+const dailyRing = (done, goal) => { const c = 2 * Math.PI * 30; return `<div class="daily__ring"><svg viewBox="0 0 76 76" aria-hidden="true"><circle class="t" cx="38" cy="38" r="30"/><circle class="f" cx="38" cy="38" r="30" stroke-dasharray="${c}" stroke-dashoffset="${c}" data-to="${c * (1 - Math.min(1, done / goal))}"/></svg><b>${Math.min(done, goal)}/${goal}</b></div>`; };
+const dailyBars = (vals, labels, cls) => { const max = Math.max(...vals, 1); return `<div class="daily__bars" aria-hidden="true">${vals.map((v, i) => `<div><i class="${cls?.(v) ?? ''}" data-h="${Math.round((v / max) * 100)}"></i>${esc(labels[i])}</div>`).join('')}</div>`; };
+const dailyQueue = () => LH('review');
+
+/** One drawing per card id: `{ body, label, go }`. `go` is a hash to navigate to, `sheet:<slug>` to open a concept's review sheet, or '' to just close. */
+const DAILY_CARDS = {
+  checkin: (sig) => ({
+    markup: `<div class="daily__row">${DAILY_ICON.flame}<div class="daily__big" data-count="${sig.streak.current}">0</div><div><div class="daily__lbl">day streak</div><p class="daily__note">Longest: ${plural(sig.streak.best, 'day')}</p></div></div>
+      ${dailyWeek(sig)}
+      <div class="daily__row">${dailyRing(sig.answersToday, window.EklavyaDaily.GOAL)}<div><b>Today's goal</b><p class="daily__note">Answer ${window.EklavyaDaily.GOAL} questions. ${sig.answersToday ? `${sig.answersToday} done.` : 'None yet.'}</p></div></div>`,
+    label: sig.due ? 'Open the review queue' : 'See your concepts', go: sig.due ? dailyQueue() : LH('concepts'),
+  }),
+  due: (sig) => ({
+    markup: `<div><div class="daily__lbl">Start here</div><h2 class="daily__h" style="margin-top:8px">${esc(sig.top.name)}</h2><p class="daily__note" style="margin-top:6px">${esc(sig.top.project ?? 'no project recorded')} · ${esc(sig.top.domain)}</p></div>
+      <div class="daily__chips"><span class="daily__chip ${sig.top.days > 0 ? 'is-warn' : ''}">${sig.top.days > 0 ? plural(sig.top.days, 'day') + ' overdue' : 'due today'}</span><span class="daily__chip">${esc(tierLabel(sig.top.tier))}</span><span class="daily__chip">Score ${Math.round(sig.top.score * 100)}%</span></div>
+      <div class="daily__bar is-warn" role="img" aria-label="Score ${Math.round(sig.top.score * 100)} percent"><b data-w="${Math.round(sig.top.score * 100)}"></b></div>
+      <p class="daily__note">${sig.due > 1 ? `${plural(sig.due - 1, 'more concept')} due. One at a time.` : 'The only one due.'}</p>`,
+    label: 'Review this concept', go: 'sheet:' + sig.top.slug,
+  }),
+  weekly: (sig) => {
+    const w = sig.lastWeek, acc = Math.round((w.right / w.answers) * 100), prev = w.prev.answers ? Math.round((w.prev.right / w.prev.answers) * 100) : null;
+    const delta = prev === null ? null : acc - prev;
+    return {
+      markup: `<div class="daily__row"><div class="daily__big"><span data-count="${acc}">0</span>%</div><div>${delta === null ? '' : `<span class="daily__chip ${delta >= 0 ? 'is-good' : 'is-warn'}">${delta >= 0 ? '+' : '−'}${Math.abs(delta)} pts vs the week before</span>`}<p class="daily__note" style="margin-top:6px">${w.right} of ${plural(w.answers, 'answer')} right last week</p></div></div>
+        ${sig.strongest && sig.weakest ? `<div class="daily__row" style="justify-content:space-between;align-items:flex-start"><div><div class="daily__lbl">Strongest</div><b>${esc(sig.strongest)}</b></div><div><div class="daily__lbl">Needs work</div><b style="color:var(--warning)">${esc(sig.weakest)}</b></div></div>` : ''}`,
+      label: sig.weakest ? `See ${sig.weakest}` : 'See your concepts', go: sig.weakest ? LH('concepts', 'all', { domain: sig.weakest }) : LH('concepts'),
+    };
+  },
+  goals: (sig) => {
+    const G = window.EklavyaDaily.GOAL, left = G - sig.answersToday;
+    return {
+      markup: `<div class="daily__row">${dailyRing(sig.answersToday, G)}<div><b>Answer ${G} questions today</b><p class="daily__note">${left === G ? 'None yet.' : `${plural(left, 'to go')}.`} Quizzes run in your Claude session.</p></div></div>
+        ${sig.due ? `<p class="daily__note">${plural(sig.due, 'concept')} due. The review queue has the command.</p>` : ''}`,
+      label: 'Open the review queue', go: dailyQueue(),
+    };
+  },
+  ahead: (sig) => {
+    const labels = sig.ahead.map((_, i) => i === 0 ? 'today' : fmtDay(dayKey(new Date(fromKey(sig.day).getTime() + i * DAY_MS))).replace(/^\D+ /, ''));
+    return {
+      markup: `${dailyBars(sig.ahead, labels)}<p><b>${plural(sig.due, 'concept')} due now</b> <span style="color:var(--dim)">and ${sig.upcoming} scheduled over the next six days.</span></p>`,
+      label: 'Open the review queue', go: dailyQueue(),
+    };
+  },
+  milestone: (sig) => ({
+    markup: `<div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center">${DAILY_ICON.flame.replace('class="daily__flame is-live"', 'class="daily__flame is-live" style="width:56px;height:56px"')}
+      <div class="daily__big" style="font-size:64px"><span data-count="${sig.streak.current}">0</span></div><div class="daily__lbl">day streak${sig.streak.current >= sig.streak.best ? ' · your longest' : ''}</div></div>`,
+    label: 'Keep going', go: '',
+  }),
+  comeback: (sig) => ({
+    markup: `<div><div class="daily__lbl">Your longest streak</div><div class="daily__big" style="margin-top:8px">${sig.streak.best} <span style="font-size:20px;letter-spacing:-.02em">${sig.streak.best === 1 ? 'day' : 'days'}</span></div><p class="daily__note" style="margin-top:8px">Last answer: ${plural(sig.daysAway, 'day')} ago</p></div>
+      <p style="color:var(--dim);margin:0">${sig.due ? `${plural(sig.due, 'concept')} ${sig.due === 1 ? 'is' : 'are'} ready to review. Starting with the most overdue is the quickest way back.` : 'Nothing is overdue. Any question brings the streak back.'}</p>`,
+    label: sig.top ? 'Review ' + sig.top.name : 'See your concepts', go: sig.top ? 'sheet:' + sig.top.slug : LH('concepts'),
+  }),
+};
+
+/** Closing and acting. A native dialog already gives Escape, the focus trap and the backdrop. */
+$('daily').addEventListener('click', (e) => {
+  if (e.target === $('daily') || e.target.closest('[data-daily-close]')) return $('daily').close();
+  const go = e.target.closest('[data-daily-go]');
+  if (!go) return;
+  const to = go.dataset.dailyGo;
+  DAILY.opener = null; // the action moves the reader on; focus does not go back to what was behind the card
+  $('daily').close();
+  if (to.startsWith('sheet:')) openSheet(to.slice(6));
+  else if (to) goTo(to);
+});
+$('daily').addEventListener('close', () => { $('daily').innerHTML = ''; DAILY.opener?.focus?.(); DAILY.opener = null; TIP.sync(); });
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-daily]'); if (b) DAILY.set(b.dataset.daily === 'on'); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && DAILY.pending) { DAILY.pending = false; DAILY.arrive(); } });
 
 /* ---------- artifact tabs ----------
    Open pages stay open as tabs. The URL names the active one; the list itself
@@ -4562,6 +4847,10 @@ const SW_ICON = {
   project: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
 };
 
+/** One on/off switch of the Companion tab: `attr` is the data attribute (`tips`, `daily`) the page's click handler reads. */
+const companionSwitch = (attr, label, help, on) => `<div class="cmp__row"><div><b>${esc(label)}</b><p>${esc(help)}</p></div>
+  <div class="ground" role="group" aria-label="${esc(label)}">${['on', 'off'].map((v) => `<button type="button" data-${attr}="${v}" data-focus="${attr}:${v}" aria-pressed="${on === (v === 'on')}">${v}</button>`).join('')}</div></div>`;
+
 /**
  * The switchboard. On the left, the scope: you (user settings, the default) or
  * one project. On the right, that scope's settings one category at a time, each
@@ -4621,7 +4910,12 @@ function drawSettings(d, scope) {
         v: `<span class="mono">${esc(showValue(file.effective[c.key]))}</span>` }))));
   } else if (here.id === 'companion') {
     body = card('Your companion', 'The mascot that appears in tips, loaders and empty pages. The gallery shows every expression, both grounds and the loading animation.',
-      `<div class="ek-companion"><eklavya-mascot state="info" size="72"></eklavya-mascot><a class="link" href="/mascot.html">Open the companion gallery ↗</a></div>`);
+      `<div class="ek-companion"><eklavya-mascot state="info" size="72"></eklavya-mascot><a class="link" href="/mascot.html">Open the companion gallery ↗</a></div>
+       <div class="cmp">
+         ${companionSwitch('tips', 'Tips', 'A dot and a short bubble beside each feature, on your first visits. On starts every tip again.', !TIP.load()?.off)}
+         ${companionSwitch('daily', 'Daily card', 'One card the first time you open the Learning dashboard each day.', !DAILY.load()?.off)}
+         <p class="cmp__note">Both are remembered in this browser only, not in your config.</p>
+       </div>`);
   } else if (here.id === 'changed') {
     const tabOf = (k) => { const f = d.fields.find((x) => x.key === k); return f ? swTab(f.group) : 'terminal'; };
     body = card(`Set ${scope === 'project' ? 'for this project' : 'by you'}`,
@@ -5940,6 +6234,8 @@ function render(opts) {
   }
   for (const fn of AFTER) fn();
   TIP.sync();
+  // The daily card is for arriving, not for redraws: not an adjustment, not new data.
+  if (!adjusting && !LIVE_PASS) DAILY.arrive();
 
   // A new screen opens at its top, at once. `html` asks for smooth scrolling (for in-page jumps), and a scroll that
   // does not name its behavior follows it, so a reader coming from the bottom of a long page would see the new
@@ -6499,6 +6795,7 @@ function paintChrome(s, inv) {
   // captured memory, is a project and is listed.
   buildProjects(inv);
   TIP.paint();
+  DAILY.paint();
 }
 
 /* ---------- live: the open page is told, and never asks ----------

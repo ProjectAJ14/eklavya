@@ -781,7 +781,7 @@ describe('what a browser may keep', () => {
 
   it('keeps the tokens and the mascot for an hour, under the security headers', async () => {
     const url = await serve(db, startBuilt as never);
-    for (const route of ['/tokens.css', '/brand/mascot/mascot.js', '/brand/mascot/mascot.css', '/mascot.html']) {
+    for (const route of ['/tokens.css', '/brand/mascot/mascot.js', '/brand/mascot/mascot.css', '/mascot.html', '/daily-card.js']) {
       const r = await raw(url, route);
       expect(r.status, route).toBe(200);
       expect(r.headers['cache-control'], route).toBe('private, max-age=3600');
