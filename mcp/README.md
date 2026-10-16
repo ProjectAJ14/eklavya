@@ -147,7 +147,9 @@ covers retrieval, processing, providers, privacy and sync.
 State is local under `~/.eklavya/`, including `knowledge.db` (SQLite, WAL).
 `EKLAVYA_HOME` and `EKLAVYA_DB` override those paths. Questions and memory have
 independent switches. Set `providers.observer` to `null` for local memory
-summaries and no prompt feedback. Each feedback item leads with a verdict that
+summaries and no prompt feedback. The observer's instructions are scored by
+`eval/gepa/memory/`, and an end-of-turn batch's output schema requires its
+checkpoint. Each feedback item leads with a verdict that
 says, in words and never a score, whether the prompt left each area clear, left
 it out or did not need it (an older item says "Not flagged" for an area it
 did not name), and shows the project, host, session and time it came

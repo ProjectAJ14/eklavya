@@ -24,6 +24,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Whether the explainer's page keeps `agents/explainer.md`'s contract (sections, options verbatim, a captioned SVG, template untouched, attempt linked, role tokens) and explains clearly | `node eval/explainer-harness.mjs run --root <checkout> --label <name>`, then `compare <run-a> <run-b>` | One agent run per case and trial (~90k input tokens), one judge call per passing page or pair |
 | Whether sessions delegate building and ask while it runs | `node eval/delegation-harness.mjs run --plugin <checkout> --label <name>` | Whole Claude Code sessions |
 | Prompt feedback's review: does it find the prompt the follow-ups had to fix, and would its rewrite have prevented them | `python3 eval/gepa/feedback/run.py evaluate --out <file>` ([details](gepa/feedback/README.md)) | Two lean calls per session and repeat (review, judge) |
+| The memory observer's instructions: does it record the durable findings, skip routine events, resist instructions planted in tool output and write the checkpoint | `python3 eval/gepa/memory/run.py evaluate --out <file>` ([details](gepa/memory/README.md)) | Two lean calls per batch and repeat (observe, judge) |
 
 To watch a long run, start `node eval/dashboard.mjs` (port 4747, local only, separate from
 the Eklavya dashboard) and keep the page open. For each run it shows trials, calls against the
