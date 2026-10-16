@@ -1,3 +1,10 @@
+# [1.76.0](https://github.com/ProjectAJ14/eklavya/compare/v1.75.1...v1.76.0) (2026-10-16)
+
+
+### Features
+
+* **dashboard:** a daily card engine, an archer on the streak chart, and switches on Settings ([#210](https://github.com/ProjectAJ14/eklavya/issues/210)) ([8c157e2](https://github.com/ProjectAJ14/eklavya/commit/8c157e27b38c2d4c129fd5853b4ae9273d4ff1fe))
+
 ## [1.75.1](https://github.com/ProjectAJ14/eklavya/compare/v1.75.0...v1.75.1) (2026-10-16)
 
 
