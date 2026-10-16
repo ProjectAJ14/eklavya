@@ -92,7 +92,8 @@ async function open(
   const ctx = await browser.newContext({
     viewport: { width: opts.width ?? 1280, height: opts.height ?? 900 },
     ...(opts.tz ? { timezoneId: opts.tz } : {}),
-    ...(opts.locale ? { locale: opts.locale } : {}),
+    // en-US unless a test says otherwise: the screens assert US-style dates ("Mar 2"), and Chromium takes the machine's locale by default.
+    locale: opts.locale ?? 'en-US',
   });
   // Tips are switched off unless a test is about them, so a bubble never sits on what a test clicks.
   if (!opts.tips) await ctx.addInitScript(() => { try { localStorage.getItem('eklavya-dash-tips') ?? localStorage.setItem('eklavya-dash-tips', '{"off":true}'); } catch { /* the framed page */ } });
