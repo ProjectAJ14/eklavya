@@ -224,6 +224,27 @@ describe.skipIf(!posix)('runClaude and probeLogin against a stand-in claude', ()
     expect(midTurn.checkpoint).toBeUndefined();
   });
 
+  it('requires a checkpoint of a batch that ends a turn, and of no other, and takes the instructions it is given', async () => {
+    const out = { observations: [], checkpoint: { request: '', investigated: '', learned: '', completed: '', next_steps: '' } };
+    const log = path.join(bin, 'args.log');
+    // One argument per line, so the schema and the instructions can be read back.
+    stand(`cat >/dev/null\nprintf '%s\\n' "$@" > "${log}"\necho '${envelope(out)}'`);
+    const schemaOf = () => {
+      const lines = fs.readFileSync(log, 'utf8').split('\n');
+      return JSON.parse(lines[lines.indexOf('--json-schema') + 1]!) as { required: string[] };
+    };
+    const s = new ProviderSummarizer({ kind: 'claude-code', model: 'haiku' } as never, 'custom instructions');
+
+    await s.summarize({ project: '/p', sessionId: 's', events: [ev()] });
+    expect(schemaOf().required).toEqual(['observations']);
+
+    // Nothing durable: the model leaves `request` empty and no checkpoint is kept.
+    const ended = await s.summarize({ project: '/p', sessionId: 's', events: [ev(), ev({ id: 8, kind: 'assistant', body: 'Done.' })] });
+    expect(schemaOf().required).toEqual(['observations', 'checkpoint']);
+    expect(ended.checkpoint).toBeUndefined();
+    expect(fs.readFileSync(log, 'utf8')).toContain('custom instructions');
+  });
+
   it('rejects output of the wrong shape as malformed', async () => {
     stand(`cat >/dev/null\necho '${envelope({ observations: [{ title: '' }] })}'`);
     const s = new ProviderSummarizer({ kind: 'claude-code', model: 'haiku' } as never);
