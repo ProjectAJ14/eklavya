@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -45,14 +45,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: mcp
+      # Takes 17-30s (average 21s over 35 runs). A hung apt mirror once held a
+      # shard for 6+ minutes and blocked the next push through the concurrency
+      # group, so each attempt is cut at about twice the average and retried.
       - name: Install Chromium
-        run: npx playwright-core install --with-deps chromium
+        timeout-minutes: 3
+        run: |
+          for attempt in 1 2 3; do
+            timeout -k 5 45 npx playwright-core install --with-deps chromium && exit 0
+            echo "Chromium install attempt $attempt failed or timed out"
+          done
+          exit 1
         working-directory: mcp
       - name: Build server
         run: npm run build
         working-directory: mcp
       - name: Run test shard
-        run: node ../.github/scripts/test-shard.mjs ${{ matrix.shard }}/2
+        run: node ../.github/scripts/test-shard.mjs ${{ matrix.shard }}/5
         working-directory: mcp
       - name: Upload shard results
         if: always()
@@ -100,7 +109,7 @@ jobs:
           path: mcp/coverage/shards
           merge-multiple: true
       - name: Merge results and enforce coverage
-        run: node ../.github/scripts/merge-coverage.mjs 2
+        run: node ../.github/scripts/merge-coverage.mjs 5
         working-directory: mcp
       - uses: actions/upload-artifact@v4
         if: always()

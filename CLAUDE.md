@@ -82,6 +82,13 @@ Code's hook-driven learning loop.
 5. Report any check not run or claim not verified. Never describe a planned
    check as completed.
 
+## Tests and CI shards
+
+CI runs `mcp/test/` in five shards, and `.github/scripts/test-shards.json` says
+which shard runs each file. Adding, renaming or deleting a `*.test.ts` file
+also means updating that manifest in the same PR; an unlisted file fails CI.
+`mcp/test/CLAUDE.md` and `.claude/rules/test-shards.md` give the steps.
+
 ## Runtime and design invariants
 
 - Hooks fail open and exit 0 on every failure path. They must also have bounded
