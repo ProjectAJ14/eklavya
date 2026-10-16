@@ -19,9 +19,9 @@ claude plugin validate ..
 hooks or the CLI execute `mcp/dist/`, so rebuild before using watch mode after
 source changes.
 
-CI runs the suite in two Vitest shards with whole-process V8 coverage, including
-spawned hooks and CLI processes. The final `Test / test` check requires both
-shards to pass, verifies that every test file ran exactly once, and merges their
+CI runs the suite in five Vitest shards with whole-process V8 coverage, including
+spawned hooks and CLI processes. The final `Test / test` check requires every
+shard to pass, verifies that every test file ran exactly once, and merges their
 coverage before enforcing 100% lines, statements, functions and branches.
 Dependency installation, Chromium installation, compilation and tests have
 separate timing steps; the run summary lists the ten slowest test files.
@@ -29,8 +29,18 @@ Each shard uses two Vitest workers to leave CPU capacity for browser and CLI
 subprocesses. The dashboard browser checks are split by feature into separate
 files, each with its own fixture, so file sharding can divide the slowest suite.
 CI starts browser suites first, with the expensive screen checks first, rather
-than leaving a small but slow file at the end of the queue. Vitest's native
-shard assignment remains unchanged.
+than leaving a small but slow file at the end of the queue.
+
+Which shard runs a file is written down in `.github/scripts/test-shards.json`
+(shard and estimated seconds per file), not left to Vitest's path hash, which
+split the suite four minutes against six. A test file that is not listed fails
+the run, so no test is silently skipped. After adding a test file, run
+`node .github/scripts/shard-plan.mjs add test/<name>.test.ts [seconds]` from
+the repository root; it picks the lightest shard. After deleting a file, remove
+its entry. `node .github/scripts/shard-plan.mjs rebalance <test-timings.json>`
+re-plans from the `coverage` artifact's `test-timings.json` when the shards
+drift apart. `.github/scripts/test-ci.test.mjs` fails on a missing or stale
+entry, an uneven split, or a workflow whose shard count disagrees.
 
 To reproduce the CI test and merge scripts locally, from the repository root:
 
@@ -39,11 +49,10 @@ cd mcp
 npm ci
 npx playwright-core install --with-deps chromium
 npm run build
-node ../.github/scripts/test-shard.mjs 1/2
-node ../.github/scripts/test-shard.mjs 2/2
+for i in 1 2 3 4 5; do node ../.github/scripts/test-shard.mjs $i/5; done
 mkdir -p coverage/shards
 cp coverage/shard-*.tgz coverage/shards/
-node ../.github/scripts/merge-coverage.mjs 2
+node ../.github/scripts/merge-coverage.mjs 5
 ```
 
 Run the shards sequentially locally: they use real processes and shared test

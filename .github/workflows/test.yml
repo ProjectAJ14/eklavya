@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -52,7 +52,7 @@ jobs:
         run: npm run build
         working-directory: mcp
       - name: Run test shard
-        run: node ../.github/scripts/test-shard.mjs ${{ matrix.shard }}/2
+        run: node ../.github/scripts/test-shard.mjs ${{ matrix.shard }}/5
         working-directory: mcp
       - name: Upload shard results
         if: always()
@@ -100,7 +100,7 @@ jobs:
           path: mcp/coverage/shards
           merge-multiple: true
       - name: Merge results and enforce coverage
-        run: node ../.github/scripts/merge-coverage.mjs 2
+        run: node ../.github/scripts/merge-coverage.mjs 5
         working-directory: mcp
       - uses: actions/upload-artifact@v4
         if: always()

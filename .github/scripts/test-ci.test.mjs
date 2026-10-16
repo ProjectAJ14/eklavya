@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import CISequencer from './ci-sequencer.mjs';
 import ciConfig from './ci-vitest.config.mjs';
 import localConfig from '../../mcp/vitest.config.ts';
+import { loads, plan, testFiles } from './shard-plan.mjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const scriptEnv = { ...process.env };
@@ -38,14 +39,52 @@ test('run the expensive browser checks first without dropping test files', async
   ]);
 });
 
-test('the sequencer preserves native, disjoint shard assignment', async () => {
-  const sequencer = new CISequencer(context);
-  const nativeShard = Object.getPrototypeOf(CISequencer.prototype).shard;
-  const first = await sequencer.shard(specifications);
-  assert.deepEqual(first, await nativeShard.call(sequencer, specifications));
-  const second = await new CISequencer({ ...context, config: { ...context.config, shard: { index: 2, count: 2 } } }).shard(specifications);
+const manifest = {
+  count: 2,
+  files: Object.fromEntries(specifications.map((spec, i) => [`test/${path.basename(spec.moduleId)}`, { shard: (i % 2) + 1, seconds: 1 }])),
+};
+const withManifest = async (value, body) => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ci-manifest-')), 'test-shards.json');
+  fs.writeFileSync(file, JSON.stringify(value));
+  process.env.EKLAVYA_SHARD_MANIFEST = file;
+  try { return await body(); } finally { delete process.env.EKLAVYA_SHARD_MANIFEST; fs.rmSync(path.dirname(file), { recursive: true, force: true }); }
+};
+const shardOf = index => new CISequencer({ ...context, config: { ...context.config, shard: { index, count: 2 } } }).shard(specifications);
+
+test('the sequencer gives every file to exactly one shard, as the manifest says', () => withManifest(manifest, async () => {
+  const first = await shardOf(1);
+  const second = await shardOf(2);
+  assert.deepEqual(first.map(spec => path.basename(spec.moduleId)), ['unit.test.ts', 'dashboard-artifacts-browser.test.ts', 'mascot-browser.test.ts']);
   assert.equal(new Set([...first, ...second]).size, specifications.length);
   assert.equal(first.length + second.length, specifications.length);
+}));
+
+test('the sequencer refuses a file missing from the manifest and a shard count that disagrees', () => withManifest(manifest, async () => {
+  const { 'test/last.test.ts': _, ...files } = manifest.files;
+  await withManifest({ ...manifest, files }, () => assert.rejects(shardOf(1), /Not in .*test-shards\.json: test\/last\.test\.ts/));
+  await withManifest({ ...manifest, count: 3 }, () => assert.rejects(shardOf(1), /test-shards\.json has 3 shards/));
+}));
+
+const real = JSON.parse(fs.readFileSync(path.join(scripts, 'test-shards.json'), 'utf8'));
+test('test-shards.json lists exactly the test files that exist', () => {
+  assert.deepEqual(Object.keys(real.files).sort(), testFiles(), 'a new or deleted test needs: node .github/scripts/shard-plan.mjs add|rebalance (see .claude/rules/test-shards.md)');
+  for (const { shard, seconds } of Object.values(real.files)) {
+    assert.ok(Number.isInteger(shard) && shard >= 1 && shard <= real.count && seconds > 0);
+  }
+});
+
+test('no shard carries much more than its share', () => {
+  const sums = loads(real);
+  const mean = sums.reduce((a, b) => a + b, 0) / sums.length;
+  assert.ok(Math.max(...sums) <= mean * 1.25, `shards ${sums.join('/')}s: run shard-plan.mjs rebalance with a recent coverage/test-timings.json`);
+});
+
+test('the workflow runs exactly the shards the manifest defines', () => {
+  const workflow = fs.readFileSync(path.join(scripts, '../workflows/test.yml'), 'utf8');
+  const matrix = /shard: \[([\d, ]+)\]/.exec(workflow)[1].split(',').map(Number);
+  assert.deepEqual(matrix, Array.from({ length: real.count }, (_, i) => i + 1));
+  assert.ok(workflow.includes(`test-shard.mjs \${{ matrix.shard }}/${real.count}`));
+  assert.ok(workflow.includes(`merge-coverage.mjs ${real.count}`));
 });
 
 test('reject invalid shard and merge arguments', () => {
@@ -159,3 +198,67 @@ for (const complete of [true, false]) {
     }
   });
 }
+
+test('plan balances by cost and is stable', () => {
+  const items = [90, 80, 40, 30, 30, 20, 10, 10].map((seconds, i) => ({ file: `test/f${i}.test.ts`, seconds }));
+  const planned = plan(items, 3);
+  const sums = loads(planned);
+  assert.ok(Math.max(...sums) - Math.min(...sums) <= 90, sums.join('/'));
+  assert.equal(Object.keys(planned.files).length, items.length);
+  assert.deepEqual(plan([...items].reverse(), 3), planned);
+});
+
+// The CLI runs against a copy of the repository layout, never the real manifest.
+const planner = (setup, args) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-plan-'));
+  fs.mkdirSync(`${root}/mcp/test`, { recursive: true });
+  fs.mkdirSync(`${root}/.github/scripts`, { recursive: true });
+  fs.copyFileSync(path.join(scripts, 'shard-plan.mjs'), `${root}/.github/scripts/shard-plan.mjs`);
+  setup.disk.forEach(name => fs.writeFileSync(`${root}/mcp/${name}`, ''));
+  fs.writeFileSync(`${root}/.github/scripts/test-shards.json`, JSON.stringify(setup.manifest));
+  const result = spawnSync(process.execPath, [`${root}/.github/scripts/shard-plan.mjs`, ...args], { encoding: 'utf8', env: scriptEnv });
+  const after = JSON.parse(fs.readFileSync(`${root}/.github/scripts/test-shards.json`, 'utf8'));
+  fs.rmSync(root, { recursive: true, force: true });
+  return { result, after };
+};
+const base = { disk: ['test/a.test.ts', 'test/b.test.ts', 'test/new.test.ts'], manifest: { count: 2, files: {
+  'test/a.test.ts': { shard: 1, seconds: 50 }, 'test/b.test.ts': { shard: 2, seconds: 10 },
+} } };
+
+test('add puts a new file on the lightest shard', () => {
+  const { result, after } = planner(base, ['add', 'mcp/test/new.test.ts', '20']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(after.files['test/new.test.ts'], { shard: 2, seconds: 20 });
+});
+
+for (const [name, args, message] of [
+  ['a file that does not exist', ['add', 'test/ghost.test.ts'], 'does not exist'],
+  ['a file already listed', ['add', 'test/a.test.ts'], 'already on shard 1'],
+  ['a non-numeric cost', ['add', 'test/new.test.ts', 'slow'], 'positive number'],
+  ['a zero cost', ['add', 'test/new.test.ts', '0'], 'positive number'],
+  ['a file that is not a test', ['add', 'test/helpers.ts'], 'Usage'],
+]) {
+  test(`add refuses ${name} and leaves the manifest alone`, () => {
+    const { result, after } = planner(base, args);
+    assert.notEqual(result.status, 0);
+    assert.ok(result.stderr.includes(message), result.stderr);
+    assert.deepEqual(after, base.manifest);
+  });
+}
+
+test('rebalance follows the files on disk, not the timings file', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-timings-'));
+  const timings = `${root}/timings.json`;
+  // b was deleted since the run; new was added after it.
+  fs.writeFileSync(timings, JSON.stringify([{ file: 'test/a.test.ts', durationMs: 5000 }, { file: 'test/gone.test.ts', durationMs: 9000 }]));
+  try {
+    const { result, after } = planner({ ...base, disk: ['test/a.test.ts', 'test/new.test.ts'] }, ['rebalance', timings]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(Object.keys(after.files), ['test/a.test.ts', 'test/new.test.ts']);
+    assert.equal(after.files['test/a.test.ts'].seconds, 5);
+    assert.equal(after.files['test/new.test.ts'].seconds, 30);
+    assert.equal(after.count, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
