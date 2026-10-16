@@ -12,7 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 body{margin:0;background:#17171a}
-.m{--bg:#17171a;--panel:#1e1e22;--mass:#26262a;--ink:#eae7e1;--dim:#a29c93;--faint:#8b857b;--line:#26262a;--line2:#33333a;--spot:#79d5c4;--spotink:#17171a;--soft:rgba(121,213,196,.14);--warn:#e8920c;
+.m{--mascot-coral:#ef9875;--mascot-coral-dark:#c96d51;--mascot-highlight:#ffc8a6;--mascot-cloak:#0E6E66;--mascot-cloak-dark:#07403C;--mascot-thread:#C4EDE4;--mascot-ink:#302c2a;--mascot-metal:#5b7c73;
+--bg:#17171a;--panel:#1e1e22;--mass:#26262a;--ink:#eae7e1;--dim:#a29c93;--faint:#8b857b;--line:#26262a;--line2:#33333a;--spot:#79d5c4;--spotink:#17171a;--soft:rgba(121,213,196,.14);--warn:#e8920c;
 background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;font-size:14.5px;line-height:1.65;min-height:100vh}
 .m *{box-sizing:border-box}
 .m a{color:var(--spot);text-decoration:none}
@@ -63,6 +64,7 @@ background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;fon
 
   <main class="wrap" style="padding-top:48px;padding-bottom:72px;display:flex;flex-direction:column;gap:28px">
     <header style="display:flex;flex-direction:column;gap:14px;max-width:760px">
+      <svg viewBox="30 12 126 128" width="72" height="72" aria-hidden="true" style="display:block"><path d="M48 109q44-19 88 0l-8 30-33-15-31 15Z" fill="var(--mascot-cloak)"/><path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/><path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/><g fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M64 74q5-7 10 0m36 0q5-7 10 0"/><path d="M83 88q9 10 18 0"/></g><circle cx="95" cy="126" r="6" fill="var(--mascot-metal)"/></svg>
       <span class="micro s">Library</span>
       <h1 style="margin:0;font:900 clamp(32px,4vw,52px)/.92 Archivo,sans-serif;letter-spacing:-.055em">Everything memory <em style="font-style:normal;color:var(--spot)">kept</em>, one place</h1>
       <p style="margin:0;color:var(--dim);font-size:17px;line-height:1.6">Entries, sessions and projects are three ways to group the same observations. Pick a grouping, open an item, fix it where you read it.</p>
@@ -116,7 +118,7 @@ background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;fon
       <aside aria-label="Entry detail" class="card" style="flex:1 1 380px;min-width:0;padding:24px;display:flex;flex-direction:column;gap:16px">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <span class="chip">{{cur.type}}</span>
-          <sc-if value="{{cur.draft}}" hint-placeholder-val="{{false}}"><span class="chip w">Proposed, not yet kept</span></sc-if>
+          <sc-if value="{{cur.draft}}" hint-placeholder-val="{{false}}"><svg viewBox="30 12 126 128" width="40" height="40" aria-hidden="true" style="flex:none"><path d="M48 109q44-19 88 0l-8 30-33-15-31 15Z" fill="var(--mascot-cloak)"/><path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/><path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/><g fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="64" y="64" width="10" height="19" rx="5"/><rect x="110" y="64" width="10" height="19" rx="5"/><path d="M85 91h14"/><path d="M62 57l14 4m32 0 14-4" fill="none"/></g><circle cx="95" cy="126" r="6" fill="var(--mascot-metal)"/></svg><span class="chip w">Proposed, not yet kept</span></sc-if>
         </div>
         <h2 style="margin:0;font:800 22px/1.2 Archivo,sans-serif;letter-spacing:-.03em">{{cur.title}}</h2>
         <p style="margin:0;color:var(--dim)">{{cur.body}}</p>
