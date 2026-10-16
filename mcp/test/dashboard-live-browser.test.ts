@@ -669,10 +669,10 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         await w.ctx.close();
       }, 60000);
 
-      it('keeps the focus on a control with no id: a summary, a Copy button, a timeline entry, when the heading\'s counts move', async () => {
+      it('keeps the focus on a control with no id: a summary, a review card, a timeline entry, when the heading\'s counts move', async () => {
         const cases: [string, string, () => unknown][] = [
           ['#/learning/review', `document.activeElement?.tagName==='SUMMARY' && document.activeElement.parentElement.classList.contains('about')`, () => writeDue()],
-          ['#/learning/review', `document.activeElement?.hasAttribute('data-copy')`, () => writeDue()],
+          ['#/learning/review', `document.activeElement?.hasAttribute('data-start')`, () => writeDue()],
           ['#/learning/dashboard', `document.activeElement?.tagName==='SUMMARY' && document.activeElement.parentElement.classList.contains('fold')`, () => writeDue()],
           ['#/memory/timeline', `document.activeElement?.tagName==='SUMMARY' && !!document.activeElement.closest('.tl-item')`, () => insertEntry(db, {
             project: fx.repo.mixed, sessionId: 's-live-focus', type: 'bugfix', title: `A live entry ${Math.random()}`, tags: ['auth'],
