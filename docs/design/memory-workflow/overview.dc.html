@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memory overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#17171a}
+.m{--mascot-coral:#ef9875;--mascot-coral-dark:#c96d51;--mascot-highlight:#ffc8a6;--mascot-cloak:#0E6E66;--mascot-cloak-dark:#07403C;--mascot-thread:#C4EDE4;--mascot-ink:#302c2a;--mascot-metal:#5b7c73;--mascot-wood:#bc9569;--mascot-wood-dark:#74583f;--mascot-string:#EAE7E1;--mascot-shadow:#26262a;
+--bg:#17171a;--panel:#1e1e22;--mass:#26262a;--ink:#eae7e1;--dim:#a29c93;--faint:#8b857b;--line:#26262a;--line2:#33333a;--spot:#79d5c4;--spotink:#17171a;--soft:rgba(121,213,196,.14);--warn:#e8920c;
+background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;font-size:14.5px;line-height:1.65;min-height:100vh}
+.m *{box-sizing:border-box}
+.m a{color:var(--spot);text-decoration:none}
+.m a:hover{text-decoration:underline}
+.m a:focus-visible,.m button:focus-visible,.m input:focus-visible,.m summary:focus-visible{outline:none;box-shadow:0 0 0 2px #17171a,0 0 0 4px #79d5c4}
+.wrap{max-width:1140px;margin:0 auto;padding:0 32px}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.micro{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint)}
+.micro.s{color:var(--spot)}
+.card{background:var(--panel);border:1px solid var(--line2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;font:700 14px/1 Inter,sans-serif;border:1px solid var(--line2);background:var(--panel);color:var(--ink);cursor:pointer;border-radius:0}
+.btn:hover{border-color:var(--spot);color:var(--spot)}
+.btn.p{background:var(--spot);color:var(--spotink);border-color:var(--spot)}
+.btn.p:hover{color:var(--spotink);filter:brightness(.92)}
+.tab{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;font:400 11.5px 'JetBrains Mono',monospace;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.tab[aria-current=page]{color:var(--spot);box-shadow:inset 0 -2px 0 var(--spot)}
+.row{display:flex;gap:16px;align-items:center;padding:14px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.row:first-child{border-top:0}
+.chip{font:400 10.5px 'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--spot);background:var(--soft);padding:3px 8px;white-space:nowrap}
+.field{min-height:56px;background:var(--bg);border:1px solid var(--line2);color:var(--ink);padding:0 18px;font:inherit;font-size:16px;border-radius:0;min-width:0;flex:1 1 280px}
+.suggest{min-height:44px;padding:0 14px;background:transparent;border:1px solid var(--line2);color:var(--dim);font:inherit;font-size:13.5px;cursor:pointer;border-radius:0}
+.suggest:hover{border-color:var(--spot);color:var(--spot)}
+.x{min-height:44px;min-width:44px;background:transparent;border:0;color:var(--faint);cursor:pointer;font:inherit;font-size:13.5px;border-radius:0}
+.x:hover{color:var(--warn)}
+summary{cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+</style>
+</helmet>
+<div class="m">
+  <div style="border-bottom:1px solid var(--line2)">
+    <div class="wrap" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 24px;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px;min-height:60px">
+        <span aria-hidden="true" style="width:30px;height:30px;background:var(--spot);display:inline-flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#17171a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3c6 3 6 15 0 18"/><path d="M5 12h16"/><path d="M17 8l4 4-4 4"/></svg></span>
+        <span style="font:900 19px/1 Archivo,sans-serif;letter-spacing:-.045em">Eklavya</span>
+      </div>
+      <nav aria-label="Workflows" style="display:flex;flex-wrap:wrap">
+        <a class="tab" href="#">Learning</a><a class="tab" href="#" aria-current="page">Memory</a><a class="tab" href="#">Artifacts</a><a class="tab" href="#">Feedback</a><a class="tab" href="#">Settings</a>
+      </nav>
+      <span class="chip" style="color:var(--dim);background:var(--mass)">Project: eklavya</span>
+    </div>
+  </div>
+  <div style="border-bottom:1px solid var(--line2)">
+    <div class="wrap" style="display:flex;flex-wrap:wrap">
+      <a class="tab" href="#" aria-current="page">Overview</a>
+      <a class="tab" href="Library.dc.html">Library</a>
+      <a class="tab" href="#">Impact</a>
+    </div>
+  </div>
+
+  <main class="wrap" style="padding-top:48px;padding-bottom:72px;display:flex;flex-direction:column;gap:48px">
+
+    <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:center;justify-content:space-between">
+    <section aria-labelledby="ask" style="display:flex;flex-direction:column;gap:18px;flex:1 1 560px;min-width:0;max-width:860px">
+      <span class="micro s">Memory · eklavya</span>
+      <h1 id="ask" style="margin:0;font:900 clamp(34px,4.6vw,60px)/.92 Archivo,sans-serif;letter-spacing:-.055em">Ask what you <em style="font-style:normal;color:var(--spot)">already worked out</em></h1>
+      <form style="display:flex;flex-wrap:wrap;gap:12px" onsubmit="return false">
+        <label style="display:flex;flex:1 1 280px"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Ask your project memory</span><input class="field" type="search" placeholder="Why did we make migrations forward-only?"></label>
+        <button class="btn p" type="submit" style="min-height:56px">Ask memory</button>
+      </form>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="color:var(--faint);font-size:13.5px">Try</span>
+        <button class="suggest" type="button">What did I decide about auth?</button>
+        <button class="suggest" type="button">What broke CI last week?</button>
+        <button class="suggest" type="button">Where did I stop on memory import?</button>
+      </div>
+    </section>
+    <figure style="margin:0;display:flex;flex-direction:column;align-items:center;gap:8px;flex:0 1 220px">
+      <svg viewBox="0 0 210 200" width="200" height="190" role="img" aria-label="Eklavya, curious, drawing a bow" style="display:block;max-width:100%;height:auto"><g>
+      <ellipse cx="94" cy="185" rx="49" ry="5" fill="var(--mascot-shadow)"/>
+      <path d="M51 124Q29 137 34 168l23-8 17-27m59-9q26 8 21 39l-24-7-17-22" fill="var(--mascot-cloak-dark)"/>
+      <path d="M65 157v23q0 8 16 6l4-28m21 0 1 23q2 8 17 4v-29" fill="var(--mascot-coral)"/>
+      <path d="M58 122q35-16 72 0l8 46q-19 9-42 1-23 7-43-1Z" fill="var(--mascot-cloak)"/>
+      <path d="M96 127v40m-31-22q29 9 64 0" fill="none" stroke="var(--mascot-cloak-dark)" stroke-width="3"/>
+      <path d="M52 109q42-22 86 0l-9 29-32-14-32 14Z" fill="var(--mascot-cloak)" stroke="var(--mascot-cloak-dark)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M57 114l37 10m42-10-39 10" fill="none" stroke="var(--mascot-thread)" stroke-width="2"/>
+      <path d="M54 148h80v11H54Z" fill="var(--mascot-ink)"/>
+      <rect x="87" y="146" width="17" height="15" rx="3" fill="var(--mascot-metal)"/><rect x="92" y="150" width="7" height="7" rx="1" fill="var(--mascot-ink)"/>
+      <g>
+        <path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/>
+        <g fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="64" y="64" width="10" height="19" rx="5"/><rect x="110" y="64" width="10" height="19" rx="5"/><path d="M86 91q6-4 12 0"/><path d="M62 59h14m32-6 14 5" fill="none"/></g>
+      </g>
+      <circle cx="96" cy="125" r="7" fill="var(--mascot-metal)"/><circle cx="94" cy="123" r="2" fill="var(--mascot-thread)"/>
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M157 78q36 47 0 94" stroke="var(--mascot-wood-dark)" stroke-width="8"/>
+        <path d="M158 78q32 47 0 94" stroke="var(--mascot-wood)" stroke-width="4"/>
+        <path d="M157 78l-88 50 88 44" stroke="var(--mascot-string)" stroke-width="1.8"/>
+      </g>
+      <path d="M130 127l16-8q10-1 13 5 2 8-6 11l-15 4" fill="var(--mascot-cloak)"/>
+      <rect x="147" y="117" width="15" height="18" rx="7" fill="var(--mascot-coral)"/>
+      <g stroke-linecap="round" stroke-linejoin="round">
+        <path d="M69 128h114" stroke="var(--mascot-wood-dark)" stroke-width="3"/>
+        <path d="M179 120l13 8-13 8Z" fill="var(--mascot-thread)" stroke="var(--mascot-wood)" stroke-width="1.5"/>
+        <path d="M71 128l-9-9 10 1 8 8-8 8-10 1Z" fill="var(--mascot-thread)"/>
+      </g>
+      <path d="M58 128q-11-6-14 5-2 9 8 13l17-8" fill="var(--mascot-cloak)"/>
+      <rect x="62" y="121" width="18" height="16" rx="7" fill="var(--mascot-coral)"/>
+      </g></svg>
+      <figcaption style="color:var(--dim);font-size:13.5px;text-align:center">Ask me. I was there.</figcaption>
+    </figure>
+    </div>
+
+    <section aria-labelledby="resume" style="display:flex;flex-direction:column;gap:16px">
+      <h2 id="resume" class="micro" style="margin:0">Where you left off</h2>
+      <div class="card" style="padding:24px;display:flex;flex-wrap:wrap;gap:24px;align-items:center;justify-content:space-between">
+        <div style="flex:1 1 440px;min-width:0">
+          <b style="font:800 22px/1.25 Archivo,sans-serif;letter-spacing:-.03em;display:block">Adding memory import: parser done, dedupe not started</b>
+          <p style="margin:8px 0 0;color:var(--dim)">Yesterday 17:40 · 38 events · last file touched <span class="mono" style="font-size:13px;color:var(--ink)">import-worker.ts</span>. Open question you left: should a re-import replace or merge?</p>
+        </div>
+        <a class="btn p" href="#">Copy as prompt</a>
+      </div>
+      <p style="margin:0;color:var(--faint);font-size:13.5px">Copy as prompt pastes this summary into a fresh session so you can continue without re-explaining.</p>
+    </section>
+
+    <section aria-labelledby="next" style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <h2 id="next" class="micro" style="margin:0;display:flex;align-items:center;gap:12px"><svg viewBox="30 12 126 128" width="44" height="44" aria-hidden="true" style="flex:none"><path d="M48 109q44-19 88 0l-8 30-33-15-31 15Z" fill="var(--mascot-cloak)"/><path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/><path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/><g fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="64" y="64" width="10" height="19" rx="5"/><path d="M110 74q5-7 10 0"/><path d="M83 88q9 10 18 0"/></g><circle cx="95" cy="126" r="6" fill="var(--mascot-metal)"/></svg>Your next session will start knowing · 3 of 12 fit</h2>
+        <span style="color:var(--faint);font-size:13.5px">This is exactly what Claude is handed. Remove anything wrong.</span>
+      </div>
+      <div class="card" style="padding:0 24px">
+        <div class="row"><div style="flex:1 1 380px;min-width:0"><b style="font-weight:600">Migration 031 is forward-only; fix by adding 032</b><div style="color:var(--faint);font-size:13.5px">constraint · brought back 5 times</div></div><button class="x" type="button" aria-label="Remove from next session: Migration 031 is forward-only">Remove</button></div>
+        <div class="row"><div style="flex:1 1 380px;min-width:0"><b style="font-weight:600">Shard manifest lists every test file</b><div style="color:var(--faint);font-size:13.5px">gotcha · brought back 5 times</div></div><button class="x" type="button" aria-label="Remove from next session: Shard manifest lists every test file">Remove</button></div>
+        <div class="row"><div style="flex:1 1 380px;min-width:0"><b style="font-weight:600">Config tests pin EKLAVYA_HOME to a temp directory</b><div style="color:var(--faint);font-size:13.5px">preference · brought back 9 times</div></div><button class="x" type="button" aria-label="Remove from next session: Config tests pin EKLAVYA_HOME">Remove</button></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;color:var(--faint);font-size:13.5px"><span>About 410 tokens of a 1,200 budget. Picked by relevance to eklavya and recency.</span><a href="Library.dc.html">See the other 9 →</a></div>
+    </section>
+
+    <section aria-labelledby="needs" style="display:flex;flex-direction:column;gap:16px">
+      <h2 id="needs" class="micro" style="margin:0;display:flex;align-items:center;gap:12px"><svg viewBox="30 12 126 128" width="44" height="44" aria-hidden="true" style="flex:none"><path d="M48 109q44-19 88 0l-8 30-33-15-31 15Z" fill="var(--mascot-cloak)"/><path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/><path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/><g fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="64" y="64" width="10" height="19" rx="5"/><rect x="110" y="64" width="10" height="19" rx="5"/><path d="M85 91h14"/><path d="M62 57l14 4m32 0 14-4" fill="none"/></g><circle cx="95" cy="126" r="6" fill="var(--mascot-metal)"/></svg>Needs a decision · 2</h2>
+      <div class="card" style="padding:0 24px">
+        <div class="row"><span class="chip">Proposed</span><div style="flex:1 1 320px"><b style="font-weight:600">2 observations from yesterday are drafts</b><div style="color:var(--faint);font-size:13.5px">They only reach Claude once you keep them.</div></div><a class="btn p" href="Library.dc.html">Review 2</a></div>
+        <div class="row"><span class="chip" style="color:var(--warn);background:rgba(232,146,12,.14)">Stalled</span><div style="flex:1 1 320px"><b style="font-weight:600">Capture is behind by 4 events</b><div style="color:var(--faint);font-size:13.5px">Provider unreachable. New work is still recorded locally.</div></div><a class="btn" href="#">Retry</a></div>
+      </div>
+      <p style="margin:0;color:var(--faint);font-size:13.5px">This section disappears when there is nothing to decide.</p>
+    </section>
+
+    <details class="card" style="padding:0">
+      <summary style="display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;align-items:center;padding:16px 24px;min-height:56px">
+        <span style="font-weight:600;display:flex;align-items:center;gap:12px"><svg viewBox="30 12 126 128" width="40" height="40" aria-hidden="true" style="flex:none"><path d="M48 109q44-19 88 0l-8 30-33-15-31 15Z" fill="var(--mascot-cloak)"/><path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/><path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/><g fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M64 74q5-7 10 0m36 0q5-7 10 0"/><path d="M83 88q9 10 18 0"/></g><circle cx="95" cy="126" r="6" fill="var(--mascot-metal)"/></svg>Memory is working</span>
+        <span style="color:var(--dim);font-size:13.5px">Last capture 6 min ago · 212 observations · saved about 23% context across 41 sessions · <span style="color:var(--spot)">Details</span></span>
+      </summary>
+      <div style="padding:0 24px 20px;color:var(--dim);font-size:13.5px;border-top:1px solid var(--line2);padding-top:16px">1,284 events captured, 212 distilled, 87 recalled, 41 delivered in the last 30 days. Capture, recall and delivery are separate steps; none of them changes mastery. Full figures and the savings arithmetic live under Impact.</div>
+    </details>
+
+    <p class="mono" style="margin:0;color:var(--faint);font-size:11.5px">Sample data for the mockup.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

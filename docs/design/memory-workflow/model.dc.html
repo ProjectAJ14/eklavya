@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memory model</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#17171a}
+</style>
+</helmet>
+<div style="width:1280px;height:900px;box-sizing:border-box;padding:64px;background:#17171a;color:#eae7e1;font-family:Inter,sans-serif;font-size:14.5px;line-height:1.65;display:flex;flex-direction:column;gap:36px">
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:820px">
+    <span style="font:400 11px 'JetBrains Mono',monospace;letter-spacing:.24em;text-transform:uppercase;color:#79d5c4">The rethink</span>
+    <h2 style="margin:0;font:900 48px/.92 Archivo,sans-serif;letter-spacing:-.055em">Lead with what memory does for you, not how it works</h2>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <span style="font:400 11px 'JetBrains Mono',monospace;letter-spacing:.24em;text-transform:uppercase;color:#8b857b">Today · 2 groups, 5 pages</span>
+    <div style="display:flex;gap:16px;align-items:stretch">
+      <div style="flex:1;border:1px solid #33333a;background:#1e1e22;padding:16px 18px"><b>Timeline</b><div style="color:#8b857b;font-size:13.5px">Entries, newest first</div></div>
+      <div style="flex:1;border:1px solid #33333a;background:#1e1e22;padding:16px 18px"><b>Sessions</b><div style="color:#8b857b;font-size:13.5px">Same entries, by session</div></div>
+      <div style="flex:1;border:1px solid #33333a;background:#1e1e22;padding:16px 18px"><b>Projects</b><div style="color:#8b857b;font-size:13.5px">Same entries, by project</div></div>
+      <div style="flex:1;border:1px solid #33333a;background:#1e1e22;padding:16px 18px"><b>Reuse</b><div style="color:#8b857b;font-size:13.5px">Receipts and savings</div></div>
+      <div style="flex:1;border:1px solid #33333a;background:#1e1e22;padding:16px 18px"><b>Health</b><div style="color:#8b857b;font-size:13.5px">Queue, stalled jobs</div></div>
+    </div>
+    <span style="color:#a29c93;font-size:13.5px">Three pages list the same observations. The only sign of a stalled job sits two clicks away, in Health.</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <span style="font:400 11px 'JetBrains Mono',monospace;letter-spacing:.24em;text-transform:uppercase;color:#79d5c4">Proposed · 1 group, 3 pages</span>
+    <div style="display:flex;gap:16px;align-items:stretch">
+      <div style="flex:1;border:1px solid #79d5c4;background:rgba(121,213,196,.14);padding:16px 18px"><b>Overview</b><div style="color:#a29c93;font-size:13.5px">Ask your memory, where you left off, what the next session will know, decisions waiting. Counts collapsed</div></div>
+      <div style="flex:1;border:1px solid #79d5c4;background:rgba(121,213,196,.14);padding:16px 18px"><b>Library</b><div style="color:#a29c93;font-size:13.5px">One list. Group by entries, sessions or projects. Keep, correct or delete in place</div></div>
+      <div style="flex:1;border:1px solid #79d5c4;background:rgba(121,213,196,.14);padding:16px 18px"><b>Impact</b><div style="color:#a29c93;font-size:13.5px">Reuse savings and capture health, read together: is it alive, and does it pay</div></div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:0;border:1px solid #33333a;background:#1e1e22">
+    <div style="display:flex;padding:10px 18px;border-bottom:1px solid #33333a;font:400 11px 'JetBrains Mono',monospace;letter-spacing:.18em;text-transform:uppercase;color:#8b857b"><span style="width:180px">Stage</span><span style="flex:1">What you get</span><span style="width:200px">Where</span></div>
+    <div style="display:flex;padding:10px 18px;border-bottom:1px solid #26262a"><span style="width:180px"><b>Captured</b></span><span style="flex:1;color:#a29c93">Pick up where you stopped, no re-explaining</span><span style="width:200px;color:#79d5c4">Overview</span></div>
+    <div style="display:flex;padding:10px 18px;border-bottom:1px solid #26262a"><span style="width:180px"><b>Distilled</b></span><span style="flex:1;color:#a29c93">Answers to "what did I decide?", fixable in place</span><span style="width:200px;color:#79d5c4">Overview ask box, Library</span></div>
+    <div style="display:flex;padding:10px 18px;border-bottom:1px solid #26262a"><span style="width:180px"><b>Recalled</b></span><span style="flex:1;color:#a29c93">Control over what Claude is handed next session</span><span style="width:200px;color:#79d5c4">Overview, Library</span></div>
+    <div style="display:flex;padding:10px 18px"><span style="width:180px"><b>Delivered</b></span><span style="flex:1;color:#a29c93">Proof it saves context, and that capture is alive</span><span style="width:200px;color:#79d5c4">Impact</span></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
