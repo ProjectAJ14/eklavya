@@ -1,3 +1,10 @@
+## [1.71.2](https://github.com/ProjectAJ14/eklavya/compare/v1.71.1...v1.71.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* **panel:** stack the header above the topic in a narrow pane ([#200](https://github.com/ProjectAJ14/eklavya/issues/200)) ([3c03b29](https://github.com/ProjectAJ14/eklavya/commit/3c03b29d8a248efd47356e0e1492543c3c751b27))
+
 ## [1.71.1](https://github.com/ProjectAJ14/eklavya/compare/v1.71.0...v1.71.1) (2026-10-15)
 
 
