@@ -43,6 +43,9 @@ import type { PanelPending, PanelQuestion, PanelState } from './types'
  * for the next sync.
  */
 
+// Below this many cells across, the header stacks the mark over the topic (the pane reports bodyColumns).
+const NARROW = 60
+
 const REF = { plugin: 'eklavya', key: 'quiz' } as const
 const quiz = atom(REF, EMPTY)
 
@@ -397,15 +400,17 @@ export const register: Register = on => {
           ))}
         </Box>
       )
-    // A list tile: the mark on the left; the name over the topic beside it.
+    // A list tile: the mark on the left, the name over the topic beside it. A pane narrower than
+    // NARROW cells stacks them, so the topic gets the full width instead of a sliver.
+    const stacked = ((e.props as { bodyColumns?: number }).bodyColumns ?? Infinity) < NARROW
     const head = (subtitle?: string) => (
-      <Box flexDirection="row" alignItems="center" gap={2}>
+      <Box flexDirection={stacked ? 'column' : 'row'} alignItems={stacked ? 'flex-start' : 'center'} gap={2}>
         {logo}
         <Box flexDirection="column" flexShrink={1}>
           <Text bold color={BRAND}>
             {WORDMARK}
           </Text>
-          {subtitle ? <Text>{subtitle}</Text> : null}
+          {subtitle ? <Text wrap="wrap">{subtitle}</Text> : null}
         </Box>
       </Box>
     )
