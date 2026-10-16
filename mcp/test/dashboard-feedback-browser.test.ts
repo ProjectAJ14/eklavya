@@ -243,7 +243,7 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       configure(ON);
       pending();
       const w = await open('#/feedback/dashboard');
-      expect(await rule(w.page)).toBe('Feedback pauses until you acknowledge this one. Read it, then press Acknowledge to get the next.');
+      expect(await w.page.textContent('.fb__decide .fb__dp')).toBe('The next review waits until you acknowledge this one. It moves to History.');
       await w.ctx.close();
     });
 
@@ -261,18 +261,18 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       await w.ctx.close();
     });
 
-    it('is repeated above Acknowledge on the very first item only', async () => {
+    it('sits once beside Acknowledge for every pending item, and the banner only says it when nothing waits', async () => {
+      const RULE = 'The next review waits until you acknowledge this one.';
       configure(ON);
-      pending();
-      let w = await open('#/feedback/dashboard');
-      expect(await w.page.locator('.fb__rule').count()).toBe(2);
-      await w.ctx.close();
-      db.exec('DELETE FROM feedback_items');
-      acknowledged({ session_id: 'earlier' });
-      pending();
-      w = await open('#/feedback/dashboard');
-      expect(await w.page.locator('.fb__rule').count()).toBe(1);
-      await w.ctx.close();
+      for (const setup of [() => pending(), () => { acknowledged({ session_id: 'earlier' }); pending(); }]) {
+        db.exec('DELETE FROM feedback_items');
+        setup();
+        const w = await open('#/feedback/dashboard');
+        expect(await w.page.locator('.fb__rule').count()).toBe(0);
+        expect(await w.page.locator('.fb__decide', { hasText: RULE }).count()).toBe(1);
+        expect((await w.page.textContent('.fb__story'))!).not.toContain(RULE);
+        await w.ctx.close();
+      }
     });
   });
 
@@ -285,12 +285,78 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       expect(await w.page.locator('.fb__quote b').count()).toBe(0);
       expect(await w.page.textContent('.cmd--block code')).toContain('[the file]');
       expect(await w.page.textContent('.fb')).toContain('You named the bug.');
-      const rows = await w.page.$$eval('.fb__ds li', (els) => els.map((e) => e.textContent!.replace(/\s+/g, ' ').trim()));
+      // As a screen reader hears it: the visible "You, later" label is hidden from it, and says the same thing.
+      const rows = await w.page.$$eval('.fb__ds li', (els) => els.map((e) => {
+        const c = e.cloneNode(true) as HTMLElement;
+        c.querySelectorAll('[aria-hidden="true"]').forEach((x) => x.remove());
+        return c.textContent!.replace(/\s+/g, ' ').trim();
+      }));
       expect(rows).toEqual([
-        'Context No file or expected behaviour.',
-        'Check No test named.You said later: “run the tests again”',
+        'Context files, systems, prior facts No file or expected behaviour.',
+        'Check how the agent proves it worked No test named. You said later: run the tests again',
       ]);
+      expect(await w.page.textContent('.fb__ds q')).toBe('run the tests again');
+      expect(await w.page.$eval('.fb__ds q', (q) => getComputedStyle(q).quotes)).toBe('"“" "”"');
       expect(await w.page.locator('.fb__tips li').count()).toBe(2);
+      // Each [placeholder] is marked, escaped first; the caption says why.
+      expect(await w.page.$$eval('mark.fb__ph', (m) => m.map((x) => x.textContent))).toEqual(['[the file]', '[expected behaviour]']);
+      expect(await w.page.textContent('.fb__better')).toContain('Highlighted: details only you know.');
+      await w.ctx.close();
+    });
+
+    it('states the verdict from the gap areas, never a number, for no gaps, one and three', async () => {
+      configure(ON);
+      const cases: [unknown[], string][] = [
+        [[], 'Nothing here left the agent guessing.'],
+        [[{ area: 'scope', missing: 'x' }], 'The agent had to guess the scope.'],
+        [[{ area: 'check', missing: 'x' }, { area: 'outcome', missing: 'y' }, { area: 'context', missing: 'z' }], 'The agent had to guess the check, the outcome and the context.'],
+      ];
+      for (const [gaps, head] of cases) {
+        db.exec('DELETE FROM feedback_items');
+        insertFeedback(db, item({ review: { worked: 'ok', gaps } as never }));
+        const w = await open('#/feedback/dashboard');
+        expect(await w.page.textContent('.fb__verdict h2')).toBe(head);
+        expect(await w.page.locator('.fb__vs').count()).toBe(gaps.length ? 1 : 0);
+        expect(await w.page.getAttribute('.fb__verdict eklavya-mascot', 'state')).toBe(gaps.length ? 'review' : 'complete');
+        // With no prompted_at there is no date, so no digit at all.
+        expect(await w.page.textContent('.fb__verdict')).not.toMatch(/\d/);
+        await w.ctx.close();
+      }
+    });
+
+    it('reads the coverage strip from the review areas, and says "Not flagged" where an older review said nothing', async () => {
+      configure(ON);
+      const strip = (page: Page) => page.$$eval('.fb__cover [role="listitem"]', (els) => els.map((e) => e.textContent!.replace(/\s+/g, ' ').trim()));
+      insertFeedback(db, item({ review: { worked: 'ok', gaps: [{ area: 'context', missing: 'x' }], areas: { outcome: 'clear', context: 'left_out', scope: 'not_needed', check: 'left_out' } } }));
+      let w = await open('#/feedback/dashboard');
+      expect(await strip(w.page)).toEqual(['Outcome Clear', 'Context Left out', 'Scope Not needed', 'Check Left out']);
+      expect(await w.page.getAttribute('.fb__cover', 'aria-label')).toBe('What the prompt covered');
+      await w.ctx.close();
+      db.exec('DELETE FROM feedback_items');
+      pending();
+      db.prepare('UPDATE feedback_items SET rubric = 2').run();
+      w = await open('#/feedback/dashboard');
+      expect(await strip(w.page)).toEqual(['Outcome Not flagged', 'Context Left out', 'Scope Not flagged', 'Check Left out']);
+      await w.ctx.close();
+    });
+
+    it('clamps a long rewrite behind a toggle that keeps focus', async () => {
+      configure(ON);
+      insertFeedback(db, item({ better: 'Retry the call in [the file] on a timeout. '.repeat(20) }));
+      const w = await open('#/feedback/dashboard');
+      const t = w.page.locator('#fb-better-t');
+      const short = (await t.boundingBox())!.height;
+      await w.page.click('[data-fb-more="fb-better-t"]');
+      expect(await w.page.getAttribute('[data-fb-more="fb-better-t"]', 'aria-expanded')).toBe('true');
+      expect(await w.page.textContent('[data-fb-more="fb-better-t"]')).toBe('Show less');
+      expect(await w.page.evaluate(() => document.activeElement?.getAttribute('data-fb-more'))).toBe('fb-better-t');
+      await w.page.waitForFunction(() => document.getElementById('fb-better-t')!.style.maxHeight === 'none');
+      expect((await t.boundingBox())!.height).toBeGreaterThan(short);
+      await w.page.click('[data-fb-more="fb-better-t"]');
+      expect(await w.page.getAttribute('[data-fb-more="fb-better-t"]', 'aria-expanded')).toBe('false');
+      // Your own prompt is short here: no toggle.
+      expect(await w.page.locator('[data-fb-more="fb-mine-t"]').count()).toBe(0);
+      expect(w.errors).toEqual([]);
       await w.ctx.close();
     });
 
@@ -301,7 +367,10 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       const w = await open('#/feedback/dashboard');
       expect(await w.page.textContent('.fb__quote')).toBe(PROMPT);
       expect(await w.page.locator('.fb__ds').count()).toBe(0);
+      expect(await w.page.locator('.fb__cover').count()).toBe(0);
+      expect(await w.page.locator('.fb__worked').count()).toBe(0);
       expect(await w.page.textContent('.fb')).not.toContain('What worked');
+      expect(await w.page.textContent('.fb__verdict')).toContain('An older review');
       expect(await w.page.locator('.fb__tips li').count()).toBe(2);
       await w.ctx.close();
     });
@@ -311,8 +380,9 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       pending();
       const w = await open('#/feedback/dashboard');
       await w.ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
-      await w.page.click('.cmd--block [data-copy]');
-      expect(await w.page.evaluate(() => navigator.clipboard.readText())).toContain('Fix the login bug in [the file]');
+      await w.page.click('.fb__better [data-copy]');
+      // The plain rewrite: the marks around its placeholders are not copied.
+      expect(await w.page.evaluate(() => navigator.clipboard.readText())).toBe(item().better);
       expect(await w.page.textContent('#copy-live')).toBe('Command copied');
       await w.ctx.close();
     });
@@ -446,12 +516,58 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       const w = await open('#/feedback/dashboard', { width: 560 });
       const cols = await w.page.$eval('.fb__grid', (e) => getComputedStyle(e).gridTemplateColumns.split(' ').length);
       expect(cols).toBe(1);
-      for (const sel of ['[data-fb-ack]', '[data-fb-del]']) {
+      // The verdict first, and the rail after the story.
+      expect(await w.page.evaluate(() => document.querySelector('.fb__verdict')!.getBoundingClientRect().top
+        < document.querySelector('.fb__rail')!.getBoundingClientRect().top
+        && document.querySelector('.fb__tips')!.getBoundingClientRect().bottom < document.querySelector('.fb__ctx')!.getBoundingClientRect().top)).toBe(true);
+      // The visible Acknowledge is the bar's; Delete stays in the rail card.
+      for (const sel of ['[data-fb-ack]:visible', '.fb__decide [data-fb-del]']) {
         const box = (await w.page.locator(sel).boundingBox())!;
         expect(box.height, sel).toBeGreaterThanOrEqual(44);
         expect(box.width, sel).toBeGreaterThan(400);
       }
       await w.ctx.close();
+    });
+
+    it('keeps Acknowledge in view at 1280px: the rail is sticky and still on screen at the tips', async () => {
+      configure(ON);
+      pending();
+      const w = await open('#/feedback/dashboard');
+      expect(await w.page.$eval('.fb__rail', (e) => getComputedStyle(e).position)).toBe('sticky');
+      expect(await w.page.isVisible('.fb__bar')).toBe(false);
+      await w.page.$eval('.fb__tips', (e) => e.scrollIntoView({ block: 'end', behavior: 'instant' }));
+      const box = (await w.page.locator('.fb__decide [data-fb-ack]').boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(900);
+      await w.ctx.close();
+    });
+
+    it('shows one Acknowledge at 800px, and pressing it holds both', async () => {
+      configure(ON);
+      pending();
+      const w = await open('#/feedback/dashboard', { width: 800 });
+      expect(await w.page.locator('[data-fb-ack]').count()).toBe(2);
+      expect(await w.page.locator('[data-fb-ack]:visible').count()).toBe(1);
+      expect(await w.page.getAttribute('.fb__bar', 'aria-label')).toBe('Acknowledge this feedback');
+      let release = () => {};
+      await w.page.route('**/api/feedback/acknowledge', (r) => new Promise<void>((done) => { release = () => { void r.continue(); done(); }; }));
+      await w.page.click('[data-fb-ack]:visible');
+      await w.page.waitForFunction(() => [...document.querySelectorAll('[data-fb-ack]')].every((b) => (b as HTMLButtonElement).disabled));
+      release();
+      await w.page.waitForFunction(() => document.getElementById('wf-badge')!.hidden);
+      expect(acks()).toBe(1);
+      await w.ctx.close();
+    });
+
+    it('shows no decision and no bar on an acknowledged item, and says when it was acknowledged', async () => {
+      configure(ON);
+      const id = acknowledged();
+      for (const width of [1280, 800]) {
+        const w = await open(`#/feedback/item/${id}`, { width });
+        expect(await w.page.locator('.fb__decide, .fb__bar').count()).toBe(0);
+        expect(await w.page.textContent('.fb__acked')).toMatch(/^Acknowledged /);
+        await w.ctx.close();
+      }
     });
 
     it('highlights History for an item page, and is a sidebar with Dashboard and History', async () => {
@@ -528,7 +644,7 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
 
   describe('the "Found a problem" card', () => {
     const KEY = 'eklavya-dash-feedback-tip';
-    const TEXT = 'Tell Claude, in plain words. It drafts a GitHub issue, shows you exactly what it will post with paths, project names and code removed, and files it only after you say yes.';
+    const TEXT = 'Found a problem with Eklavya itself? Tell Claude File feedback for Eklavya; it shows you the issue before posting.';
     const states: [string, () => void][] = [
       ['off', () => configure({})],
       ['memory off', () => configure({ ...ON, memory: { enabled: false } })],
@@ -544,18 +660,18 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
         const w = await open('#/feedback/dashboard');
         expect(await w.page.textContent('#fb-tip h2'), name).toBe('Found a problem with Eklavya?');
         expect(await w.page.textContent('#fb-tip p'), name).toBe(TEXT);
-        expect(await w.page.textContent('#fb-tip .fb__quote'), name).toBe('That question about retries was wrong. File feedback for Eklavya.');
+        expect(await w.page.textContent('#fb-tip code'), name).toBe('File feedback for Eklavya');
         expect(await w.page.textContent('#fb-tip button'), name).toBe('Dismiss');
-        // Last on the page, under everything else.
-        expect(await w.page.evaluate(() => document.querySelector('#view')!.lastElementChild!.previousElementSibling!.id), name).toBe('fb-tip');
+        // Last, under everything else: of the page, or with an item, of its story column.
+        expect(await w.page.evaluate(() => (document.querySelector('.fb__story')?.lastElementChild
+          ?? document.querySelector('#view')!.lastElementChild!.previousElementSibling)!.id), name).toBe('fb-tip');
         await w.ctx.close();
       }
     });
 
-    it('is a card, not a tip bubble: its words are longer than a bubble holds and it is not in the registry', async () => {
+    it('is information in place, not a tip bubble: it is not in the registry', async () => {
       configure(ON);
       const w = await open('#/feedback/dashboard');
-      expect(TEXT.length).toBeGreaterThan(140);
       expect(await w.page.evaluate(() => (TIPS as { id: string; text: string }[]).some((x) => /feedback-tip|problem/.test(x.id)))).toBe(false);
       expect(await w.page.evaluate((k) => localStorage.getItem(k), KEY)).toBeNull();
       await w.ctx.close();

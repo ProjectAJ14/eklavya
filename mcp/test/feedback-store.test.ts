@@ -70,6 +70,14 @@ describe('the one-pending gate', () => {
     expect(row.acknowledged_at).toBeNull();
   });
 
+  it('writes rubric 3 and round-trips the four area statuses', () => {
+    expect(FEEDBACK_RUBRIC).toBe(3);
+    const db = open();
+    const areas = { outcome: 'left_out', context: 'clear', scope: 'not_needed', check: 'clear' } as const;
+    insertFeedback(db, item({ review: { worked: 'ok', gaps: [{ area: 'outcome', missing: 'No goal.' }], areas } }));
+    expect(feedbackPending(db)!.review.areas).toEqual(areas);
+  });
+
   it('refuses a second item while one is pending', () => {
     const db = open();
     expect(insertFeedback(db, item())).not.toBeNull();

@@ -563,7 +563,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         const state = () => page.evaluate(() => ({
           selected: getSelection()!.toString(),
           sameQuote: (window as any).__quote === document.querySelector('.fb__quote'),
-          confirming: !!document.querySelector('[data-fb-yes]') && !document.querySelector('[data-fb-ack]'),
+          confirming: !!document.querySelector('[data-fb-yes]') && !document.querySelector('#fb-actions [data-fb-ack]'),
           onCancel: (document.activeElement as HTMLElement).hasAttribute('data-fb-no'),
         }));
         const kept = { selected: 'make the refresh ', sameQuote: true, confirming: true, onCancel: true };
@@ -575,7 +575,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
         expect(await state(), 'the item is the very element, as it was').toEqual(kept);
         // Cancelling still works, and puts the buttons back where they were.
         await page.keyboard.press('Enter');
-        await page.waitForSelector('[data-fb-ack]');
+        await page.waitForSelector('#fb-actions [data-fb-ack]');
         expect(w.errors).toEqual([]);
         await w.ctx.close();
       }, 60000);

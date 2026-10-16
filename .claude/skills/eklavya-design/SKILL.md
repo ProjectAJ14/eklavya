@@ -50,6 +50,7 @@ same role tokens. Custom properties inherit, so one attribute re-resolves the tr
 | `--spot-ink` | #17171a | #ffffff | Text on a `--spot` fill |
 | `--spot-soft` | spot 14% | spot 10% | Icon tiles, chips, the default dial option |
 | `--warning` | #E8920C | #7A4B00 | Real warnings and the "missed" series |
+| `--warning-soft` | warning 14% | warning 10% | A warning's icon tile (a gap on the Feedback page), as `--spot-soft` is the accent's |
 | `--error` | #FF6166 | #A8201A | Real errors and wrong answers only; always pair with a word or mark |
 | `--code-bg`, `--grid`, `--glow`, `--glow-low`, `--shadow-lg`, `--ring` | | | Code wells, the 72px rule grid, terminal halos, floating shadow, focus ring |
 

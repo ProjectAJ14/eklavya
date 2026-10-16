@@ -3,7 +3,7 @@ import type { Database } from 'better-sqlite3';
 import type { EklavyaConfig } from './config.js';
 import { ProviderError } from './memory/provider.js';
 import { ownWords } from './memory/recall.js';
-import { reviewPrompts, REVIEW_LIMIT, type GapArea } from './feedback-review.js';
+import { reviewPrompts, REVIEW_LIMIT, type AreaStatus, type GapArea } from './feedback-review.js';
 import { runtimeCli } from './update.js';
 import { HELPERS, HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from './prompt-text.js';
 
@@ -17,8 +17,10 @@ import { HELPERS, HOST_PROMPT, SLASH, TASK_PROMPT_CHARS } from './prompt-text.js
 /**
  * Which wording of the review an item was written against. Items from rubric 1
  * had their notes cleared by migration 029; their prompt, rewrite and tips stay.
+ * Rubric 3 adds `review.areas`; older items have none and the page says
+ * "Not flagged" for an area their gaps do not name.
  */
-export const FEEDBACK_RUBRIC = 2;
+export const FEEDBACK_RUBRIC = 3;
 
 export interface Gap {
   area: GapArea;
@@ -32,6 +34,8 @@ export interface FeedbackReview {
   /** One sentence on what the prompt did well; empty on an item from rubric 1. */
   worked: string;
   gaps: Gap[];
+  /** Each area's status; absent on items from rubric 2 and older. */
+  areas?: Record<GapArea, AreaStatus>;
 }
 
 export interface NewFeedback {

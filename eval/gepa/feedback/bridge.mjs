@@ -9,7 +9,7 @@
  *
  *   system                                    -> {system}: the shipped REVIEW_SYSTEM
  *   review  {model, system, schema?, prompts} -> {structured | error, usage, cost}
- *   score   {structured, prompts, expect, legacy?} -> deterministic checks
+ *   score   {structured, prompts, expect, legacy?, rubric?} -> deterministic checks
  *   judge   {model, prompts, structured}      -> {verdict | error, usage, cost}
  *   reflect {model, prompt}                   -> {text | error, usage, cost}
  *
@@ -59,7 +59,13 @@ function invented(better, prompts) {
     .filter((n) => n && !said.includes(lower(n)));
 }
 
-function score({ structured, prompts, expect, legacy }) {
+const AREAS = ['outcome', 'context', 'scope', 'check'];
+
+/** The status the labels expect of an area: a planted gap, a plainly stated one, or neither. */
+const wanted = (area, expect) =>
+  (expect.areas ?? []).includes(area) ? 'left_out' : (expect.clear ?? []).includes(area) ? 'clear' : 'not_needed';
+
+function score({ structured, prompts, expect, legacy, rubric }) {
   const s = structured ?? {};
   const better = typeof s.better === 'string' ? s.better : '';
   const out = { chosen: s.chosen ?? null, invented: invented(better, prompts) };
@@ -72,7 +78,13 @@ function score({ structured, prompts, expect, legacy }) {
     return out;
   }
   try {
-    const parsed = parseReview(s, prompts);
+    // Rubric 2 had no `areas`: give it the gaps' reading so today's parser can
+    // score what it shares, and report no agreement for it.
+    const old = rubric === 2 && s.review && typeof s.review === 'object';
+    const input = old
+      ? { ...s, review: { ...s.review, areas: Object.fromEntries(AREAS.map((a) => [a, (s.review.gaps ?? []).some((g) => g?.area === a) ? 'left_out' : 'not_needed'])) } }
+      : s;
+    const parsed = parseReview(input, prompts);
     out.valid = true;
     const raw = (s.review?.gaps ?? []).filter((g) => g?.evidence).length;
     const kept = parsed.review.gaps.filter((g) => g.evidence).length;
@@ -84,6 +96,10 @@ function score({ structured, prompts, expect, legacy }) {
       ? want.filter((a) => areas.includes(a)).length / want.length
       // A prompt that left nothing to guess: every gap named is one too many.
       : Math.max(0, 1 - areas.length / 2);
+    if (!old) {
+      out.statuses = parsed.review.areas;
+      out.areas_agreement = AREAS.filter((a) => parsed.review.areas[a] === wanted(a, expect)).length / AREAS.length;
+    }
   } catch (err) {
     out.valid = false;
     out.error = String(err.message).slice(0, 300);

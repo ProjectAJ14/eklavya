@@ -591,10 +591,19 @@ Do not add a route, a query string or a render path that writes `acknowledged_at
   end in `fbDone()`: redraw from the response's `state`, focus the heading, and
   announce through `#fb-live`, which is outside `#view` so it exists before its
   text does. Delete confirms inline; there is no `confirm()` dialog.
-- **The "Found a problem with Eklavya?" card is not a tip.** Its words run past a
-  bubble's 140 characters, so it is not in `TIPS`. Dismissal is
+- **The item is a story column and a rail.** The verdict (`fbVerdict`: a headline
+  and the coverage strip, built from the gap areas and `review.areas`, never from
+  model text or a number; an item from rubric 2 or older says "Not flagged" for an
+  area its gaps do not name), the two prompts, what worked, the gaps and the tips,
+  then the rail: "Where you said it" and `.fb__decide`, which holds the rule
+  sentence (said once, beside the button; the `.fb__rule` banner is only for the
+  empty state), Acknowledge and Delete. The rail is sticky above 900px. At 900px
+  and below a fixed `.fb__bar` holds a second `data-fb-ack` button and the rail's
+  is hidden, so exactly one is visible; pressing either disables both.
+- **The "Found a problem with Eklavya?" line is not a tip.** It is information
+  shown in place, not a nudge, so it is not in `TIPS`. Dismissal is
   `eklavya-dash-feedback-tip` in `localStorage`; storage that throws shows the
-  card, the opposite of the tips engine, because it is information and not a nudge.
+  line, the opposite of the tips engine, because it is information and not a nudge.
 
 ## Loopback is not the boundary it looks like
 

@@ -161,6 +161,7 @@
   --spot:     var(--vd-300);
   --spot-ink: #17171a; /* text ON a --spot fill */
   --spot-soft: color-mix(in srgb, var(--spot) 14%, transparent);
+  --warning-soft: color-mix(in srgb, var(--warning) 14%, transparent);
 
   --grid:     #1f1f23; /* background rule grid */
   --glow:     rgba(25,150,136,.22);  /* the terminal's halo */
@@ -197,6 +198,7 @@
   --spot:     var(--vd-700);
   --spot-ink: #ffffff;
   --spot-soft: color-mix(in srgb, var(--spot) 10%, transparent);
+  --warning-soft: color-mix(in srgb, var(--warning) 10%, transparent);
 
   --grid:     #e5e1d7;
   /* a light ground carries far less glow before it reads as a stain, and
