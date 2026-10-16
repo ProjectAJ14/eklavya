@@ -50,6 +50,30 @@ async function tabTo(page: Page, selector: string, limit = 120): Promise<void> {
   throw new Error(`Tab never reached ${selector}`);
 }
 
+/**
+ * Wait for the scroll a Tab caused. The page scrolls smoothly (`scroll-behavior`),
+ * so focus lands before the page has moved: reading `scrollY` right after `tabTo`
+ * races the animation, and on a busy CI worker the read wins. This waits for it to
+ * leave `from`, then to hold still for a few frames, and returns where it stopped.
+ */
+async function scrolledFrom(page: Page, from: number): Promise<number> {
+  await page.waitForFunction((y) => window.scrollY > y, from, { timeout: 5_000 }).catch(() => {});
+  return page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        let last = -1;
+        let still = 0;
+        const tick = () => {
+          still = window.scrollY === last ? still + 1 : 0;
+          last = window.scrollY;
+          if (still >= 6) resolve(last);
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+}
+
 /** Does the focused element match? */
 const focused = (page: Page, selector: string) => page.evaluate((s) => !!document.activeElement?.matches(s), selector);
 
@@ -279,7 +303,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       await page.goto(base + '/#/learning/concepts'); await ready(page);
       expect(await scrollDown(page)).toBe(AT);
       await tabTo(page, '[data-pager="concepts"][aria-label="Next page"]');
-      expect(await page.evaluate(() => window.scrollY), 'Tab brought the pager into view').toBeGreaterThan(AT);
+      expect(await scrolledFrom(page, AT), 'Tab brought the pager into view').toBeGreaterThan(AT);
       const first = await probeTransition(page, () => page.keyboard.press('Enter'));
       expect(await page.textContent('[data-pager="concepts"][aria-current="true"]')).toBe('2');
       expect(await focused(page, '[data-pager="concepts"][aria-label="Next page"]')).toBe(true);
