@@ -687,6 +687,16 @@ An image runs no script and loads nothing, which is why this is safe where an
 iframe is not. `eklavyaGround.apply` swaps every `img[data-thumb]` to the new
 ground; `v` busts the hour-long cache when a page is rewritten.
 
+## Core components: toast, dialog and sheet
+
+Three shared pieces live in `dashboard.html`; a page never writes its own popup.
+`toast.success|caution|alert(text, { title, id, action })` and `toast.dismiss(id)` show a
+corner message with the archer's face (`success` happy, `caution` worried, `alert` sad); `copyCommand` uses
+it for every Copy button. `ekDialog({ state, title, text, ok, cancel, input, danger, single })` is the
+shared decision dialog (native `<dialog id="dlg">`, resolves `{ ok, value }`, focus on Cancel when `danger`).
+The review page's `#sheet` is a native side dialog filled by `openSheet(slug)`; it is emptied on close and
+holds the only `#copy-live` that exists while it is open. Tests: `dashboard-learning-browser.test.ts`.
+
 ## Escaping is not optional
 
 Learning rows are written by the tutor. **Memory rows are arbitrary tool output

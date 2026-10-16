@@ -714,6 +714,104 @@
   .cmd__copy:focus-visible { outline:none; box-shadow:var(--ring); }
   .cmd__note { margin:var(--space-2) 0 0; color:var(--dim); font-size:13px; }
   .starts > .cmd__note { margin-top:var(--space-3); }
+
+  /* ---------- Core: toast and dialog (use these, never a page-local popup) ---------- */
+  .toasts { position:fixed; right:var(--space-4); bottom:var(--space-4); z-index:90; display:flex; flex-direction:column;
+            gap:var(--space-3); width:min(400px, calc(100vw - 32px)); pointer-events:none; }
+  .toast { pointer-events:auto; display:grid; grid-template-columns:auto 1fr auto; gap:var(--space-3); align-items:start;
+           padding:var(--space-3) var(--space-2) var(--space-3) var(--space-3); background:var(--panel);
+           border:1px solid var(--line-2); border-left:4px solid var(--spot); animation:toast-in var(--duration-slow) var(--ease); }
+  .toast[data-k="caution"] { border-left-color:var(--warning); }
+  .toast[data-k="alert"] { border-left-color:var(--error); }
+  .toast b { display:block; font-size:14px; }
+  .toast p { margin:2px 0 0; color:var(--dim); font-size:13px; }
+  .toast__act { margin-top:var(--space-2); border:0; background:none; padding:0; color:var(--spot); font:600 12.5px var(--font-mono);
+                text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+  .toast__x { width:28px; height:28px; border:0; background:none; color:var(--dim); font-size:18px; line-height:1; cursor:pointer; }
+  .toast__x:hover { color:var(--ink); }
+  .toast__x:focus-visible, .toast__act:focus-visible { outline:none; box-shadow:var(--ring); }
+  .toast.is-out { opacity:0; transform:translateY(8px); transition:opacity var(--duration-base) var(--ease), transform var(--duration-base) var(--ease); }
+  @keyframes toast-in { from { opacity:0; transform:translateY(10px); } }
+  dialog.dlg { width:min(460px, calc(100vw - 32px)); margin:auto; padding:0; border:1px solid var(--line-2); border-radius:0;
+               background:var(--panel); color:var(--ink); }
+  dialog.dlg::backdrop { background:color-mix(in srgb, var(--ink) 40%, transparent); backdrop-filter:blur(6px); }
+  .dlg__b { display:grid; grid-template-columns:auto 1fr; gap:var(--space-4); padding:var(--space-5) var(--space-5) var(--space-2); }
+  .dlg h2 { margin:0 0 4px; font:900 18px var(--font-disp); }
+  .dlg p { margin:0; color:var(--dim); font-size:13.5px; }
+  .dlg textarea { grid-column:1 / -1; width:100%; min-height:80px; background:var(--mass); border:1px solid var(--line-2); color:var(--ink); padding:var(--space-3); font:inherit; }
+  .dlg textarea:focus-visible { outline:none; box-shadow:var(--ring); }
+  .dlg__f { display:flex; justify-content:flex-end; gap:var(--space-3); padding:var(--space-3) var(--space-5) var(--space-5); }
+  .btn--spot { background:var(--spot); border-color:var(--spot); color:var(--spot-ink); }
+  .btn--danger { background:var(--error); border-color:var(--error); color:var(--bg); }
+  @media (max-width:760px) { .toasts { right:0; left:0; bottom:0; width:100%; padding:0 var(--space-4) var(--space-4); } }
+  @media (prefers-reduced-motion:reduce) { .toast { animation:none; } .toast.is-out { transition:none; } }
+
+  /* ---------- Review: one concept at a time ---------- */
+  .rv-intro { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr); gap:var(--space-6); }
+  .rv-intro h2 { margin:0 0 var(--space-2); font:800 15px var(--font-disp); }
+  .rv-intro p { margin:0; color:var(--dim); font-size:13.5px; }
+  .rv-steps { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--space-4); margin:0; padding:0; list-style:none; counter-reset:rv; }
+  .rv-steps li { counter-increment:rv; position:relative; padding-top:28px; color:var(--dim); font-size:13px; }
+  .rv-steps li::before { content:counter(rv); position:absolute; top:0; left:0; width:20px; height:20px; border:1px solid var(--spot);
+                         color:var(--spot); font:600 11px/18px var(--font-mono); text-align:center; }
+  .rv-steps b { display:block; color:var(--ink); font-weight:600; }
+  .rv-hide { margin-top:var(--space-3); border:0; background:none; padding:0; color:var(--faint); font:11px var(--font-mono); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+  .rv-hide:focus-visible { outline:none; box-shadow:var(--ring); }
+  .rv-list { display:grid; gap:var(--space-3); }
+  .rv-first { position:relative; margin-left:132px; min-height:150px; display:flex; align-items:center; }
+  .rv-first > .rv-card { flex:1; }
+  .rv-guide { position:absolute; right:calc(100% + 6px); top:50%; transform:translateY(-50%); width:128px; display:flex; flex-direction:column; align-items:center; pointer-events:none; }
+  .rv-tag { font:600 10.5px var(--font-mono); letter-spacing:var(--tracking-caps); text-transform:uppercase; background:var(--spot); color:var(--spot-ink); padding:2px 8px; white-space:nowrap; }
+  .rv-card { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px var(--space-4); align-items:center; width:100%; text-align:left;
+             padding:var(--space-4) var(--space-5); background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--line-2);
+             color:inherit; font:inherit; cursor:pointer; transition:border-color var(--duration-base) var(--ease), background var(--duration-base) var(--ease); }
+  .rv-card:hover { border-left-color:var(--spot); background:var(--mass); }
+  .rv-card:focus-visible { outline:none; box-shadow:var(--ring); }
+  .rv-first .rv-card { border-color:var(--spot); background:var(--spot-soft); }
+  .rv-card__n { font:700 16px var(--font-disp); }
+  .rv-card__m { font:12px var(--font-mono); color:var(--dim); }
+  .rv-card__m .warn { color:var(--warning); }
+  .rv-card__go { grid-row:1 / 3; grid-column:2; color:var(--spot); font:600 12px var(--font-mono); white-space:nowrap; }
+  .rv-more > summary { cursor:pointer; color:var(--dim); font-size:13px; padding:var(--space-2) 0; }
+  .rv-more > summary:hover { color:var(--spot); }
+  .rv-more > summary:focus-visible { outline:none; box-shadow:var(--ring); }
+  .rv-more[open] > summary { margin-bottom:var(--space-2); }
+  .rv-tips { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--space-3); }
+  .rv-tips div { border:1px solid var(--line); padding:var(--space-3) var(--space-4); color:var(--dim); font-size:13px; }
+  .rv-tips b { display:block; color:var(--ink); font-size:13.5px; margin-bottom:2px; }
+  dialog.sheet { position:fixed; inset:0 0 0 auto; margin:0; width:min(520px, 100vw); height:100vh; max-height:none; padding:0;
+                 border:0; border-left:1px solid var(--line-2); border-radius:0; background:var(--bg); color:var(--ink); }
+  dialog.sheet::backdrop { background:color-mix(in srgb, var(--ink) 40%, transparent); }
+  dialog.sheet[open] { animation:sheet-in var(--duration-slow) var(--ease); }
+  @keyframes sheet-in { from { transform:translateX(24px); opacity:0; } }
+  .sheet__h { display:flex; justify-content:space-between; gap:var(--space-3); padding:var(--space-5) var(--space-5) var(--space-3); border-bottom:1px solid var(--line); }
+  .sheet__h h2 { margin:0; font:900 22px/1.15 var(--font-disp); }
+  .sheet__h p { margin:3px 0 0; color:var(--dim); font:12px var(--font-mono); }
+  .sheet__x { width:32px; height:32px; border:1px solid var(--line-2); background:none; color:var(--ink); font-size:18px; line-height:1; cursor:pointer; flex:none; }
+  .sheet__x:focus-visible { outline:none; box-shadow:var(--ring); }
+  .sheet__b { padding:var(--space-4) var(--space-5) var(--space-6); }
+  .sheet__seg { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line-2); margin-bottom:var(--space-4); }
+  .sheet__seg button { border:0; background:none; color:inherit; font:inherit; text-align:left; padding:10px 12px; cursor:pointer; }
+  .sheet__seg button + button { border-left:1px solid var(--line-2); }
+  .sheet__seg button[aria-pressed="true"] { background:var(--spot-soft); box-shadow:inset 0 -2px 0 var(--spot); }
+  .sheet__seg button:focus-visible { outline:none; box-shadow:var(--ring); }
+  .sheet__seg b { display:block; font-size:13.5px; }
+  .sheet__seg small { font:11px var(--font-mono); color:var(--faint); }
+  .sheet__how { list-style:none; margin:0; padding:0; counter-reset:sh; }
+  .sheet__how > li { counter-increment:sh; position:relative; padding:0 0 var(--space-4) 38px; }
+  .sheet__how > li::before { content:counter(sh); position:absolute; left:0; top:0; width:24px; height:24px; border:1px solid var(--spot); color:var(--spot); font:600 12px/22px var(--font-mono); text-align:center; }
+  .sheet__how h3 { margin:0 0 2px; font-size:14px; }
+  .sheet__how p { margin:0 0 var(--space-2); color:var(--dim); font-size:13px; }
+  .sheet__how .cmd { margin-top:0; }
+  .sheet__why { margin-top:var(--space-4); }
+  .sheet__why h3 { margin:0 0 var(--space-2); font:500 10.5px var(--font-mono); letter-spacing:var(--tracking-caps); text-transform:uppercase; color:var(--faint); }
+  @media (max-width:760px) {
+    .rv-intro, .rv-steps, .rv-tips { grid-template-columns:1fr; }
+    .rv-first { margin-left:0; margin-top:60px; }
+    .rv-guide { right:auto; left:0; top:-56px; transform:none; flex-direction:row; width:auto; gap:6px; }
+    .rv-card { grid-template-columns:1fr; } .rv-card__go { grid-row:auto; grid-column:1; }
+    dialog.sheet { inset:auto 0 0 0; width:100vw; height:88vh; border-left:0; border-top:1px solid var(--line-2); }
+  }
   /* ---------- Feedback: one reviewed prompt at a time ---------- */
   .fb__rule { border:1px solid var(--line-2); border-left:2px solid var(--spot); background:var(--panel);
               padding:var(--space-4) var(--space-5); }
@@ -1144,6 +1242,16 @@
     </footer>
   </main>
 </div>
+
+<div class="toasts" id="toasts"></div>
+<dialog class="dlg" id="dlg" aria-labelledby="dlg-h"><form method="dialog">
+  <div class="dlg__b"><span id="dlg-av"></span><div><h2 id="dlg-h"></h2><p id="dlg-p"></p></div><textarea id="dlg-in" hidden></textarea></div>
+  <div class="dlg__f"><button class="btn" value="cancel" id="dlg-c"></button><button class="btn" value="ok" id="dlg-ok"></button></div>
+</form></dialog>
+<dialog class="sheet" id="sheet" aria-labelledby="sheet-h">
+  <div class="sheet__h"><div><h2 id="sheet-h"></h2><p id="sheet-s"></p></div><button type="button" class="sheet__x" data-sheet-close aria-label="Close">×</button></div>
+  <div class="sheet__b" id="sheet-b"></div>
+</dialog>
 
 <dialog class="fix" id="fix" aria-labelledby="fix-q">
   <p class="fix__eyebrow">Correct your answer</p>
@@ -1627,6 +1735,10 @@ const isWindows = () => navigator.userAgent.includes('Windows');
  * to the concept's last project, or to `into` (the selected project). Slugs
  * are kebab-case already; anything else is dropped rather than quoted.
  */
+/** The shell line that enters a project folder, quoted for this machine's shell. */
+const cdTo = (path) => isWindows() ? `Set-Location -LiteralPath '${path.replace(/'/g, "''")}'`
+  : `cd '${path.replace(/'/g, "'\\''")}'`;
+
 function startCommand(concepts, into = null) {
   const groups = new Map();
   for (const c of concepts) {
@@ -1640,9 +1752,7 @@ function startCommand(concepts, into = null) {
     const quiz = `claude "/eklavya:quiz ${slugs.join(' ')}"`;
     const p = projectById(id);
     const here = p?.path && p.available;
-    const command = !here ? quiz
-      : isWindows() ? `Set-Location -LiteralPath '${p.path.replace(/'/g, "''")}'; ${quiz}`
-      : `cd '${p.path.replace(/'/g, "'\\''")}' && ${quiz}`;
+    const command = !here ? quiz : `${cdTo(p.path)}${isWindows() ? '; ' : ' && '}${quiz}`;
     return { name: p?.name ?? base(id), count: cs.length, command,
       note: here ? '' : 'Run it inside the project you want these answers counted in.' };
   }).sort((a, b) => b.count - a.count);
@@ -1664,19 +1774,73 @@ function startBlocks(title, cmds) {
       <span class="sr" id="copy-live" aria-live="polite"></span></section>`;
 }
 
+
+/* ---------- core components: toast and dialog ----------
+   Every page uses these for "something happened" and "are you sure"; none writes its own popup.
+   toast.success|caution|alert(text, { title, id, action: { label, run } }), toast.dismiss(id);
+   ekDialog({ state, title, text, ok, cancel, input, danger, single }) resolves { ok, value }. */
+const TOAST_FACE = { success: 'success', caution: 'warning', alert: 'error' };
+const toast = (() => {
+  const show = (kind, text, o = {}) => {
+    const host = $('toasts');
+    const id = o.id ?? `${kind}:${text}`;
+    host.querySelectorAll('.toast').forEach((x) => { if (x.dataset.id === id) x.remove(); });
+    const el = document.createElement('div');
+    el.className = 'toast'; el.dataset.k = kind; el.dataset.id = id;
+    el.setAttribute('role', kind === 'alert' ? 'alert' : 'status');
+    const title = o.title ?? { success: 'Done', caution: 'Careful', alert: 'Something went wrong' }[kind];
+    el.innerHTML = `<eklavya-mascot state="${TOAST_FACE[kind]}" variant="face" size="44"></eklavya-mascot>
+      <div><b>${esc(title)}</b><p>${esc(text)}</p>${o.action ? `<button type="button" class="toast__act">${esc(o.action.label)}</button>` : ''}</div>
+      <button type="button" class="toast__x" aria-label="Dismiss">×</button>`;
+    let timer;
+    const leave = () => { clearTimeout(timer); el.classList.add('is-out'); setTimeout(() => el.remove(), 200); };
+    const arm = () => { clearTimeout(timer); timer = setTimeout(leave, kind === 'alert' ? 8000 : 4000); };
+    el.querySelector('.toast__x').onclick = leave;
+    if (o.action) el.querySelector('.toast__act').onclick = () => { o.action.run(); leave(); };
+    el.addEventListener('mouseenter', () => clearTimeout(timer));
+    el.addEventListener('focusin', () => clearTimeout(timer));
+    el.addEventListener('mouseleave', arm);
+    el.addEventListener('focusout', arm);
+    host.append(el);
+    while (host.children.length > 3) host.firstChild.remove();
+    arm();
+  };
+  return {
+    success: (t, o) => show('success', t, o), caution: (t, o) => show('caution', t, o), alert: (t, o) => show('alert', t, o),
+    dismiss: (id) => $('toasts').querySelectorAll('.toast').forEach((x) => { if (x.dataset.id === id) x.remove(); }),
+  };
+})();
+
+function ekDialog({ state = 'info', title, text = '', ok = 'OK', cancel = 'Cancel', input = null, danger = false, single = false }) {
+  const d = $('dlg'), field = $('dlg-in'), yes = $('dlg-ok'), no = $('dlg-c');
+  $('dlg-av').innerHTML = `<eklavya-mascot state="${state}" variant="face" size="56"></eklavya-mascot>`;
+  $('dlg-h').textContent = title; $('dlg-p').textContent = text;
+  field.hidden = !input; field.value = ''; if (input) field.setAttribute('aria-label', input);
+  yes.textContent = ok; yes.className = `btn ${danger ? 'btn--danger' : 'btn--spot'}`;
+  no.textContent = cancel; no.hidden = single;
+  d.returnValue = ''; d.showModal();
+  (danger ? no : input ? field : yes).focus();
+  return new Promise((done) => d.addEventListener('close', () => done({ ok: d.returnValue === 'ok', value: field.value }), { once: true }));
+}
+
 /** Copies a block's command; if the clipboard refuses, selects it for the keyboard shortcut instead. */
 function copyCommand(btn) {
   // `data-copy` may name the text it copies, for a button that is not beside it; its text is plain, without the marks.
+  // `data-hint` says what to do next, in the toast.
   const code = btn.dataset.copy ? $(btn.dataset.copy) : btn.parentElement.querySelector('code');
   const label = btn.querySelector('span') ?? btn;
   const live = $('copy-live');
+  const say = (t) => { if (live) live.textContent = t; };
   Promise.resolve().then(() => navigator.clipboard.writeText(code.textContent)).then(() => {
     label.textContent = 'Copied';
-    live.textContent = 'Command copied';
+    say('Command copied');
+    toast.success(btn.dataset.hint ?? 'It is on your clipboard.', { id: 'copy', title: 'Copied' });
     setTimeout(() => { label.textContent = 'Copy'; }, 1500);
   }, () => {
     getSelection().selectAllChildren(code);
-    live.textContent = `Press ${/Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘C' : 'Ctrl+C'} to copy`;
+    const key = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘C' : 'Ctrl+C';
+    say(`Press ${key} to copy`);
+    toast.caution(`The browser refused the copy. The text is selected: press ${key}.`, { id: 'copy', title: 'Not copied yet' });
   });
 }
 
@@ -2607,6 +2771,98 @@ function viewConcept(slug) {
   ].join('');
 }
 
+
+/* ---------- the review page: one concept at a time ---------- */
+const REVIEW_TOOL_KEY = 'eklavya-dash-review-tool';
+const REVIEW_INTRO_KEY = 'eklavya-dash-review-intro';
+const REVIEW_SHOWN = 5, REVIEW_FOLDED = 20;
+const reviewTool = () => { try { return localStorage.getItem(REVIEW_TOOL_KEY) === 'desktop' ? 'desktop' : 'code'; } catch (e) { return 'code'; } };
+
+/** Where and how to start a quiz on one concept: the project, its folder if it is on this machine, and the slash command. */
+function conceptStart(c) {
+  const p = projectById(PROJECT ?? pid(c.repo));
+  const path = p?.path && p.available ? p.path : null;
+  return { project: p?.name ?? null, path, slash: `/eklavya:quiz ${c.slug}`, cd: path ? cdTo(path) : null };
+}
+
+function reviewCard(c, first) {
+  const s = conceptStart(c);
+  const btn = `<button type="button" class="rv-card" data-start="${esc(c.slug)}" data-focus="start:${esc(c.slug)}" aria-haspopup="dialog">
+    <span class="rv-card__n">${esc(c.name)}</span>
+    <span class="rv-card__m">${esc(s.project ?? 'no project recorded')} · ${esc(c.domain)} · ${esc(tierLabel(c.tier))} · <span class="warn">${plural(c.overdue_days ?? 0, 'day')} overdue</span> · ${Math.round(c.score * 100)}%</span>
+    <span class="rv-card__go">${first ? 'Start' : 'Open'} →</span></button>`;
+  return first
+    ? `<div class="rv-first"><div class="rv-guide"><eklavya-mascot state="review" size="110"></eklavya-mascot><span class="rv-tag">Start here</span></div>${btn}</div>`
+    : btn;
+}
+
+function reviewPicker(due) {
+  if (!due.length) return mascotMessage('<p><strong>Nothing is due.</strong> Eklavya will list a concept here the day it comes back.</p>', 'complete');
+  const rest = due.slice(1 + REVIEW_SHOWN - 1);
+  const folded = rest.slice(0, REVIEW_FOLDED);
+  return `<section class="starts"><div class="head"><h2>Pick a concept to review</h2><p>${plural(due.length, 'concept')} due, most overdue first.</p></div>
+    <div class="rv-list">${due.slice(0, REVIEW_SHOWN).map((c, i) => reviewCard(c, i === 0)).join('')}
+    ${rest.length ? `<details class="rv-more" data-key="starts-more"><summary>Show ${plural(Math.min(rest.length, REVIEW_FOLDED), 'more concept')}${rest.length > REVIEW_FOLDED ? `. The queue below lists all ${due.length}` : ''}</summary>
+      <div class="rv-list">${folded.map((c) => reviewCard(c, false)).join('')}</div></details>` : ''}</div>
+    <p class="cmd__note">Each session quizzes that one concept. Come back for the next.</p></section>`;
+}
+
+function reviewIntro() {
+  try { if (localStorage.getItem(REVIEW_INTRO_KEY) === '1') return ''; } catch (e) { /* shown */ }
+  return `<section class="card rv-intro" aria-labelledby="rv-h"><div><h2 id="rv-h">Bring older concepts back before they fade</h2>
+    <p>Concepts you were quizzed on return on a schedule. When one is due, a short quiz firms it up and moves its next date.</p>
+    <button type="button" class="rv-hide" data-rv-hide data-focus="rv-hide">Hide this, I know how it works</button></div>
+    <ol class="rv-steps"><li><b>Pick one concept</b>Open a card. The one marked Start here is the longest overdue.</li>
+    <li><b>Start a session for it</b>Copy one line into Claude Code or Claude desktop. The steps are on the card.</li>
+    <li><b>Answer, then pick the next</b>One concept per session keeps it short.</li></ol></section>`;
+}
+
+const reviewTips = () => `<div class="rv-tips"><div><b>Run it inside the project</b>Answers are counted for the folder you start the session in, so use the project named on the card.</div>
+  <div><b>Short and often beats long and rare</b>A few minutes a few times a week keeps scores up better than one big catch-up.</div>
+  <div><b>Skipped is not forgotten</b>A skipped question comes back a tier lower. You can quiz any concept by name from its page.</div></div>`;
+
+function reviewSheetBody(c) {
+  const s = conceptStart(c), tool = reviewTool();
+  const cmd = (text, hint, label = 'Copy') => `<div class="cmd"><code>${esc(text)}</code><button type="button" class="cmd__copy" data-copy data-hint="${esc(hint)}" data-focus="copy:${esc(text.slice(0, 40))}">${label}</button></div>`;
+  const noPath = `<div class="next"><p>This project's folder is not on this machine, so no path is shown. Open the folder where you work on it.</p></div>`;
+  const who = esc(s.project ?? 'the project you ran it in');
+  const steps = tool === 'code'
+    ? [['Open a terminal in the project', s.cd ? 'Skip this if you are already in it.' : '', s.cd ? cmd(s.cd, 'Paste it in your terminal, then copy the next step.') : noPath],
+       ['Start Claude Code with this one concept', 'It opens a session and asks the first question.', cmd(`claude "${s.slash}"`, 'Paste it in your terminal and press Enter.')],
+       ['Answer in the session', `The answer is counted for ${who}. When you finish, this page updates by itself.`, '']]
+    : [['Open the project in the Code tab', 'Choose this folder, then start a new session.', s.path ? cmd(s.path, 'Choose this folder in the Code tab.', 'Copy path') : noPath],
+       ['Paste this in the message box and send', 'It asks the first question on this concept.', cmd(s.slash, 'Paste it in the Code tab and send.')],
+       ['Answer in the chat', `The answer is counted for ${who}. When you finish, this page updates by itself.`, '']];
+  return `<div class="sheet__seg" role="group" aria-label="Where do you run Claude?">
+    <button type="button" data-sheet-tool="code" data-focus="tool:code" aria-pressed="${tool === 'code'}"><b>Claude Code</b><small>terminal</small></button>
+    <button type="button" data-sheet-tool="desktop" data-focus="tool:desktop" aria-pressed="${tool === 'desktop'}"><b>Claude desktop</b><small>Code tab</small></button></div>
+    <ol class="sheet__how">${steps.map(([h, p, x]) => `<li><h3>${h}</h3>${p ? `<p>${p}</p>` : ''}${x}</li>`).join('')}</ol>
+    ${tool === 'desktop' ? `<div class="next"><p><strong>Use a new session.</strong> A long-running session keeps its old context, so the quiz is cleaner in a fresh one.</p></div>` : ''}
+    <div class="sheet__why"><h3>Why it is due</h3><p class="cmd__note">${Math.round(c.score * 100)}% score, ${plural(c.overdue_days ?? 0, 'day')} overdue, ${esc(c.domain)}, ${esc(tierLabel(c.tier))}.</p></div>
+    <span class="sr" id="copy-live" aria-live="polite"></span>`;
+}
+
+const SHEET = { slug: null, opener: null };
+function openSheet(slug, opener) {
+  const c = seenConcepts().find((x) => x.slug === slug);
+  if (!c) return;
+  SHEET.slug = slug; SHEET.opener = opener ?? SHEET.opener;
+  $('sheet-h').textContent = c.name;
+  $('sheet-s').textContent = (conceptStart(c).project ?? 'no project recorded') + ' · ' + plural(c.overdue_days ?? 0, 'day') + ' overdue';
+  $('sheet-b').innerHTML = reviewSheetBody(c);
+  if (!$('sheet').open) $('sheet').showModal();
+  TIP.sync();
+}
+function closeSheet() { if ($('sheet').open) $('sheet').close(); }
+$('sheet').addEventListener('close', () => { $('sheet-b').innerHTML = ''; SHEET.slug = null; SHEET.opener?.focus?.(); });
+$('sheet').addEventListener('click', (e) => {
+  if (e.target === $('sheet') || e.target.closest('[data-sheet-close]')) return closeSheet();
+  const tool = e.target.closest('[data-sheet-tool]');
+  if (tool) { try { localStorage.setItem(REVIEW_TOOL_KEY, tool.dataset.sheetTool); } catch (x) { /* this load only */ } openSheet(SHEET.slug); $('sheet').querySelector(`[data-sheet-tool="${tool.dataset.sheetTool}"]`)?.focus(); return; }
+  const copy = e.target.closest('[data-copy]');
+  if (copy) copyCommand(copy);
+});
+
 const REVIEW_TABS = ['due', 'upcoming', 'skipped'];
 
 function viewReview(param) {
@@ -2665,7 +2921,10 @@ function viewReview(param) {
        ease. A score decays about 5% a week while a review is overdue, so this list is also the list of
        things quietly getting weaker. A skipped question comes back a tier lower.`),
 
-    startBlocks('Start your reviews', startCommand(due, PROJECT)),
+    reviewIntro(),
+    reviewPicker(due),
+
+    fold('review:tips', 'Tips for reviewing', '3 tips', reviewTips(), { open: true }),
 
     card('The next fortnight', null,
       `<div class="chart"><svg id="c-forecast" role="img" aria-label="Scheduled reviews for the next fourteen days"></svg></div>`),
@@ -6046,6 +6305,12 @@ function onActivate(e) {
   if (e.target.closest('[data-slot][aria-busy="true"][data-kept]')) return;
   const copy = e.target.closest('[data-copy]');
   if (copy) return copyCommand(copy);
+  const start = e.target.closest('[data-start]');
+  if (start) return openSheet(start.dataset.start, start);
+  if (e.target.closest('[data-rv-hide]')) {
+    try { localStorage.setItem(REVIEW_INTRO_KEY, '1'); } catch (x) { /* hidden until reload */ }
+    return render();
+  }
   const more = e.target.closest('[data-fb-more]');
   if (more) return fbToggle(more);
   if (e.target.closest('[data-fb-tip-dismiss]')) return fbTipDismiss();
