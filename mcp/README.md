@@ -135,7 +135,7 @@ it cannot parse gets a 400 without stopping the server
 ([what it is, underneath](https://eklavya-run.web.app/docs/dashboard/#what-it-is-underneath)).
 Its Learning page shows your streak and its calendar under the summary tiles; a
 **To be corrected** tile there and on the Artifacts page counts missed answers still
-waiting for a correction. The
+waiting for a correction; correcting one closes its dialog after three seconds unless you choose **Stay open**. The
 review queue gives each project a command to copy that starts Claude Code on its due
 concepts, in the project's folder when that folder is available.
 Its feature tips show the archer companion and use Driver.js, bundled in `dist/` at build and served by the
