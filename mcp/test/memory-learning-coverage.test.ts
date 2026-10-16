@@ -4,7 +4,7 @@ import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
 import { addCandidate, appendEvent, entryById, insertEntry, pendingCandidates } from '../src/memory/store.js';
 import { fillOmissions, proposeFor } from '../src/memory/learning.js';
-import { conceptBySlug, logSessionConcept } from '../src/store.js';
+import { conceptBySlug, insertConcept, logSessionConcept } from '../src/store.js';
 
 const PROJECT = '/tmp/learning-cov';
 const SESSION = 'sess-learning-cov';
@@ -54,6 +54,58 @@ describe('proposeFor edges', () => {
   it('ignores a matched concept whose domain is disabled', () => {
     config.domains_enabled = ['nothing-here'];
     expect(proposeFor(db, entry('csrf'), config)).toBe(0);
+  });
+});
+
+describe('fillOmissions and lookalike concepts', () => {
+  const seedIdempotency = () =>
+    insertConcept(db, {
+      slug: 'idempotency',
+      name: 'Idempotency',
+      domain: 'api',
+      tier: 2,
+      description: 'Repeating an operation without changing the result.',
+      tags: ['api'],
+      source: 'llm',
+    });
+
+  it('reuses a concept the graph all but has, instead of minting one beside it', () => {
+    seedIdempotency();
+    const e = entry('Made payments safe to retry');
+    propose(e.id, 'api-idempotency', 'Idempotency', 'api');
+
+    expect(fillOmissions(db, config, SESSION, PROJECT)).toEqual({ accepted: 1, skipped: 0 });
+    expect(conceptBySlug(db, 'api-idempotency')).toBeUndefined();
+    expect(logged().map((c) => c.slug)).toEqual(['idempotency']);
+  });
+
+  it('does not attach specific work to a generic concept whose name merely sits inside the proposal', () => {
+    insertConcept(db, { slug: 'cache', name: 'Cache', domain: 'performance', tier: 1, description: 'Keeping a copy to avoid recomputing.', source: 'llm' });
+    const e = entry('Added eviction to the redis layer');
+    propose(e.id, 'redis-cache-eviction', 'Redis cache eviction', 'redis');
+
+    fillOmissions(db, config, SESSION, PROJECT);
+    expect(conceptBySlug(db, 'redis-cache-eviction')).toBeDefined();
+    expect(logged().map((c) => c.slug)).toEqual(['redis-cache-eviction']);
+  });
+
+  it('creates the concept when the near match lives in a domain that is switched off', () => {
+    seedIdempotency();
+    config.domains_enabled = ['general'];
+    const e = entry('Made payments safe to retry');
+    propose(e.id, 'api-idempotency', 'Idempotency', 'general');
+
+    expect(fillOmissions(db, config, SESSION, PROJECT)).toEqual({ accepted: 1, skipped: 0 });
+    expect(conceptBySlug(db, 'api-idempotency')).toBeDefined();
+  });
+
+  it('still creates a concept nothing resembles', () => {
+    seedIdempotency();
+    const e = entry('Added a bloom filter');
+    propose(e.id, 'bloom-filter', 'Bloom filter', 'data-structures');
+
+    expect(fillOmissions(db, config, SESSION, PROJECT)).toEqual({ accepted: 1, skipped: 0 });
+    expect(conceptBySlug(db, 'bloom-filter')).toBeDefined();
   });
 });
 

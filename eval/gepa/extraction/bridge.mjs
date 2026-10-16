@@ -11,9 +11,10 @@
  * context). One JSON object on stdin, one on stdout:
  *
  *   tools                                        -> the two tool descriptions the tutor sees
- *   log      {home, fixture, concepts}           -> {call, result | error, mastered_hit}
+ *   log      {home, fixture, concepts | rounds}  -> {call, result | error, mastered_hit}   (rounds: one call per round, replayed in order)
  *   followup {home, fixture, created, args}      -> {call, result | error, owed: [...]}
  *   score    {fixture, concepts, log, followup}  -> deterministic checks
+ *   dedup-log {home, existing, concepts}         -> {call, result | error, stored: [created rows]}
  *   judge-exercised {model, fixture, concepts}   -> per concept: touched, exercised, context_level
  *   judge-coverage  {model, fixture, concepts}   -> labelled concepts a logged one covers
  *   reflect  {model, prompt}                     -> {text | error}
@@ -59,6 +60,33 @@ async function runTool(def, args, db) {
   }
 }
 
+/**
+ * A session can log in more than one round: `needs_decision` holds a lookalike
+ * until the model picks a candidate or says `new: true`. Each round runs on the
+ * same database, and the result is the whole session's: every slug logged or
+ * created, with the last round's `needs_decision` (what is still undecided).
+ */
+async function playRounds(def, rounds, db) {
+  const agg = { session_id: SESSION, logged: [], created: [], unlinked: [], matched: [], needs_decision: [], capped: 0 };
+  let last;
+  for (const concepts of rounds) {
+    const out = await runTool(def, { concepts }, db);
+    if (out.error) return { call: { concepts }, error: out.error };
+    last = out.result;
+    for (const k of ['logged', 'created']) agg[k] = [...new Set([...agg[k], ...last[k]])];
+    agg.matched.push(...last.matched);
+    agg.needs_decision = last.needs_decision ?? [];
+    // Created, and still without an edge once every round has run: the only slugs that owe the upsert_concepts follow-up.
+    agg.unlinked = last.unlinked ?? [];
+    agg.capped += last.capped;
+    agg.next_action = last.next_action;
+    agg.gate = last.gate;
+  }
+  return { call: { concepts: rounds[rounds.length - 1] }, result: agg };
+}
+
+const roundsOf = () => input.rounds ?? [input.concepts];
+
 async function openSeeded(mastered) {
   const { openDb } = await dist('db.js');
   const store = await dist('store.js');
@@ -71,6 +99,8 @@ async function openSeeded(mastered) {
       ease: 2.5,
       interval_d: 30,
       reps: 6,
+      passed_days: 3,
+      top_passed_tier: 3,
       last_seen: now.toISOString(),
       next_review: new Date(now.getTime() + 30 * 864e5).toISOString(),
     });
@@ -82,11 +112,10 @@ async function log() {
   const { logSessionConcepts } = await toolDefs();
   const { db, store } = await openSeeded(input.fixture.mastered);
   try {
-    const call = { concepts: input.concepts };
-    const out = await runTool(logSessionConcepts, call, db);
+    const out = await playRounds(logSessionConcepts, roundsOf(), db);
     const mastered = new Set((input.fixture.mastered ?? []).map((m) => m.slug));
     const hit = out.result ? out.result.logged.filter((s) => mastered.has(s)) : [];
-    return { call, ...out, mastered_hit: hit };
+    return { ...out, mastered_hit: hit };
   } finally {
     db.close();
   }
@@ -97,9 +126,9 @@ async function followup() {
   const { normalizeSlug } = await dist('slug.js');
   const { db, store } = await openSeeded(input.fixture.mastered);
   try {
-    // `log` ran in an earlier process: replay it, so the created slugs exist as bare concepts again.
+    // `log` ran in an earlier process: replay it, so the created slugs exist again.
     const { logSessionConcepts } = await toolDefs();
-    await runTool(logSessionConcepts, { concepts: input.concepts }, db);
+    await playRounds(logSessionConcepts, roundsOf(), db);
     const out = await runTool(upsertConcepts, input.args, db);
     const args = input.args ?? {};
     const owed = (input.created ?? []).map((slug) => {
@@ -122,6 +151,32 @@ async function followup() {
       };
     });
     return { call: args, ...out, owed };
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * The dedup eval's seam: seed the learner's graph with `existing` (name, description and
+ * tags where the schema has a tags column), run the real `log_session_concepts`, and read
+ * back what the database holds for each concept the call minted.
+ */
+async function dedupLog() {
+  const { logSessionConcepts } = await toolDefs();
+  const { openDb } = await dist('db.js');
+  const store = await dist('store.js');
+  const db = openDb(path.join(input.home, 'knowledge.db'));
+  try {
+    const hasTags = db.prepare('PRAGMA table_info(concepts)').all().some((c) => c.name === 'tags');
+    for (const c of input.existing ?? []) {
+      // The shipped catalogue is already loaded, so a scenario may name a slug the seed has: the scenario's row wins.
+      if (store.conceptBySlug(db, c.slug)) db.prepare('UPDATE concepts SET name = ?, domain = ?, tier = ?, description = ? WHERE slug = ?').run(c.name, c.domain, c.tier, c.description, c.slug);
+      else store.insertConcept(db, { slug: c.slug, name: c.name, domain: c.domain, tier: c.tier, description: c.description, source: 'seed' });
+      if (hasTags && c.tags) db.prepare('UPDATE concepts SET tags = ? WHERE slug = ?').run(JSON.stringify(c.tags), c.slug);
+    }
+    const out = await playRounds(logSessionConcepts, roundsOf(), db);
+    const stored = (out.result?.created ?? []).map((slug) => store.conceptBySlug(db, slug)).filter(Boolean);
+    return { ...out, stored };
   } finally {
     db.close();
   }
@@ -242,6 +297,7 @@ if (cmd === 'tools') {
 } else if (cmd === 'log') result = await log();
 else if (cmd === 'followup') result = await followup();
 else if (cmd === 'score') result = await score();
+else if (cmd === 'dedup-log') result = await dedupLog();
 else if (cmd === 'judge-exercised') {
   const got = await call(input.model, `${diffBlock(input.fixture)}\n\n<logged>\n${list(input.concepts)}\n</logged>`, EXERCISED);
   result = got.error ? got : { verdicts: got.structured.verdicts, usage: got.usage, cost: got.cost };

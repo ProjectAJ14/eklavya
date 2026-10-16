@@ -305,8 +305,8 @@ describe('learning counts', () => {
     const [touched] = conceptIds(1);
     attempt(touched!, PROJECT);
     db.prepare(
-      `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, last_seen, next_review)
-       VALUES (?, 0.9, 2.5, 6, 3, ?, ?)`,
+      `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, passed_days, top_passed_tier, last_seen, next_review)
+       VALUES (?, 0.9, 2.5, 6, 4, 2, 3, ?, ?)`,
     ).run(touched!, new Date().toISOString(), new Date(Date.now() + 6 * 86_400_000).toISOString());
 
     expect(learningCounts(db, PROJECT)).toEqual({ learning: 0, mastered: 1, due: 0 });
@@ -317,8 +317,8 @@ describe('learning counts', () => {
     attempt(touched!, PROJECT, 1);
     // A day overdue, not a week: enough to be due, not enough to decay the score.
     db.prepare(
-      `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, last_seen, next_review)
-       VALUES (?, 0.9, 2.5, 6, 3, ?, ?)`,
+      `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, passed_days, top_passed_tier, last_seen, next_review)
+       VALUES (?, 0.9, 2.5, 6, 4, 2, 3, ?, ?)`,
     ).run(touched!, new Date().toISOString(), new Date(Date.now() - 86_400_000).toISOString());
 
     // Exclusive counts would make the review queue look empty.
@@ -329,8 +329,8 @@ describe('learning counts', () => {
     const [touched] = conceptIds(1);
     attempt(touched!, PROJECT, 4);
     db.prepare(
-      `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, last_seen, next_review)
-       VALUES (?, 0.9, 2.5, 6, 3, ?, ?)`,
+      `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, passed_days, top_passed_tier, last_seen, next_review)
+       VALUES (?, 0.9, 2.5, 6, 4, 2, 3, ?, ?)`,
     ).run(touched!, new Date().toISOString(), new Date(Date.now() - 86_400_000).toISOString());
 
     // The backlog is what was declined, blanked or missed; a pass owes nothing.

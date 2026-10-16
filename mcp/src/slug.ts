@@ -41,7 +41,7 @@ export function tokenJaccard(a: string, b: string): number {
  * `refresh-token-rotation` into `refresh-token` — both pairs look identical to a
  * similarity score, but only one of them is the same idea twice.
  */
-const QUALIFIER_TOKENS = new Set([
+export const QUALIFIER_TOKENS = new Set([
   'basic', 'basics', 'fundamental', 'fundamentals', 'intro', 'introduction',
   'overview', 'explained', 'explainer', 'concept', 'concepts', 'general',
   'generic', 'guide', 'tutorial', 'usage', 'primer', '101',
@@ -86,7 +86,7 @@ const NOT_PLURAL = new Set([
  * `ss`, `status` in `us`, `axis` in `is`, and anything shorter than four
  * characters is more likely an acronym than a plural.
  */
-function singular(token: string): string {
+export function singular(token: string): string {
   if (token.length < 4 || NOT_PLURAL.has(token)) return token;
   if (/(?:ss|us|is)$/.test(token)) return token;
   if (token.endsWith('ies')) return `${token.slice(0, -3)}y`;

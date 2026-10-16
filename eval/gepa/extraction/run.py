@@ -144,7 +144,7 @@ def log_prompt(guidance: str, ex: dict) -> str:
         "",
         "=== TOOLS ===",
         f"log_session_concepts: {tool_text()['log']}",
-        "  concepts: [{slug, name?, domain?, tier? (1-5), context?}], 1 to 50 entries",
+        "  concepts: [{slug, name? (1-3 words), domain?, tier? (1-5), description? (400 chars), tags? (5), new? (boolean), prerequisites? (slugs, 5), context?}], 1 to 50 entries",
         "",
         "=== THE LEARNER ===",
         profile_text(ex),
@@ -156,7 +156,7 @@ def log_prompt(guidance: str, ex: dict) -> str:
         "```",
         "",
         "Produce the log_session_concepts call you would make for this work.",
-        'Reply with a single JSON object and nothing else: {"concepts": [{"slug": "kebab-case", "context": "..."}]}',
+        'Reply with a single JSON object and nothing else: {"concepts": [{"slug": "kebab-case", "name": "Short Name", "description": "...", "tags": ["..."], "prerequisites": ["..."], "context": "..."}]}',
     ])
 
 
@@ -176,6 +176,49 @@ def followup_prompt(guidance: str, ex: dict, first: dict, result: dict) -> str:
         "Do whatever the skill and the response ask of you next. Reply with a single JSON object and nothing else:",
         '{"concepts": [...], "edges": [...]} for the upsert_concepts call you would make, or {"skip": true} if nothing is owed.',
     ])
+
+
+def decide_prompt(guidance: str, ex: dict, first: dict, result: dict) -> str:
+    """The second round of a session: the tool held lookalikes in `needs_decision` and the model must pick."""
+    return "\n".join([
+        log_prompt(guidance, ex),
+        "",
+        "=== YOUR CALL ===",
+        json.dumps(first),
+        "",
+        "=== THE TOOL'S RESPONSE ===",
+        json.dumps({k: result[k] for k in ("logged", "created", "matched", "needs_decision", "next_action") if k in result}),
+        "",
+        "The response asks you to decide. Reply with a single JSON object and nothing else:",
+        '{"concepts": [...]} for only the held concepts: a candidate\'s slug when it is the same idea, or the same slug with "new": true when none is.',
+    ])
+
+
+def slug_key(slug: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", slug.lower()).strip("-")
+
+
+def play(guidance: str, ex: dict, model: str | None, home: str, cmd: str, base: dict, first: dict) -> tuple[dict, list[dict], list[list[dict]]]:
+    """Round one, and a second when the tool held concepts for a decision.
+
+    Returns (the bridge's answer to the whole session, the concepts that ended up logged, the rounds played).
+    """
+    rounds = [first["concepts"]]
+    logged = bridge(cmd, {**base, "home": home, "rounds": rounds})
+    final = list(first["concepts"])
+    held = [] if logged.get("error") else logged["result"].get("needs_decision") or []
+    if held:
+        raw = pilot.claude(decide_prompt(guidance, ex, first, logged["result"]), "generate", model)
+        second = last_json(raw, "concepts")
+        if second and isinstance(second.get("concepts"), list) and second["concepts"]:
+            names = {slug_key(h["requested"]) for h in held}
+            final = [c for c in first["concepts"] if slug_key(c["slug"]) not in names] + second["concepts"]
+            rounds = [first["concepts"], second["concepts"]]
+            logged = bridge(cmd, {**base, "home": home, "rounds": rounds})
+        else:
+            names = {slug_key(h["requested"]) for h in held}
+            final = [c for c in first["concepts"] if slug_key(c["slug"]) not in names]
+    return logged, final, rounds
 
 
 def last_json(text: str, key: str) -> dict | None:
@@ -230,20 +273,20 @@ def run_example(guidance: str, ex: dict, model: str, judges: list[str]) -> tuple
         first = last_json(raw, "concepts")
         if not first or not isinstance(first.get("concepts"), list) or not first["concepts"]:
             return 0.0, {"score": 0.0, "gates_failed": ["generation"], "error": "no parsable concepts in the reply", "reply": raw[:300]}
-        concepts = first["concepts"]
-        logged = bridge("log", {"home": home, "fixture": fx, "concepts": concepts})
+        logged, concepts, rounds = play(guidance, ex, model, home, "log", {"fixture": fx}, first)
         if logged.get("error"):
             return 0.0, {"score": 0.0, "gates_failed": ["valid_slugs"], "error": f"tool rejected the call: {logged['error']}", "concepts": concepts}
         result = logged["result"]
 
         followup: dict = {"owed": []}
-        if result["created"]:
+        # Only the created concepts the log call left without an edge owe a follow-up.
+        if result.get("unlinked"):
             raw2 = pilot.claude(followup_prompt(guidance, ex, first, result), "generate", model)
             second = last_json(raw2, "concepts") or {"skip": True}
             if second.get("skip"):
                 second = {}
             args = {k: second[k] for k in ("concepts", "edges") if k in second}
-            followup = bridge("followup", {"home": home, "fixture": fx, "concepts": concepts, "created": result["created"], "args": args})
+            followup = bridge("followup", {"home": home, "fixture": fx, "rounds": rounds, "created": result["unlinked"], "args": args})
             followup["skipped"] = not args.get("concepts")
 
         det = bridge("score", {"fixture": fx, "concepts": concepts})
@@ -428,7 +471,7 @@ def cmd_optimize(args) -> None:
             background=(
                 "Hard rules a rewrite must keep: it replaces one block of a skill file that must stay under a fixed word ceiling, so it may not be longer than the shipped block by more than a few words "
                 "(a candidate over the ceiling scores 0); 3-8 concepts per batch; `context` names the actual decision in the actual file (good: \"set httpOnly on the refresh cookie in auth.ts:42\", useless: \"used cookies\"); "
-                "unknown slugs are fuzzy-matched or created; `matched` gives the canonical slug to use from then on; `created` slugs arrive bare and are a debt: follow up with `upsert_concepts` giving each a real domain, an honest tier and at least one prerequisite_of edge; "
+                "a concept is a topic named in 1-3 words with a `description` and `tags`; an unknown slug that resembles existing concepts comes back in `needs_decision` and is answered with a candidate's slug or `new: true`; give each concept an honest `tier` and `prerequisites`, and a `created` slug still `unlinked` owes an `upsert_concepts` edge; "
                 "never log a concept the learner's profile says is mastered; logging is silent: never narrate it or pause the work. "
                 "Do not add per-example special cases or concept lists."
             ),

@@ -40,6 +40,7 @@
  * hook that errors on every tool call is a plugin nobody keeps.
  */
 import { checkpointText } from './quiz-text-lib.js';
+import { knownSql } from '../srs.js';
 import { run, openExisting, config, cwdOf, sessionId, minutesSince, type DB } from './lib.js';
 import { isSessionOff, noteActivity, workSince } from '../session.js';
 import { countUse } from '../telemetry.js';
@@ -120,7 +121,7 @@ await run(async (input) => {
            WHERE sc.session_id = @sid
              AND COALESCE(sc.origin,'work') = 'work'
              ${recent}
-             AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
+             AND NOT (${knownSql('m')})
              AND sc.concept_id NOT IN
                  (SELECT concept_id FROM attempts WHERE session_id = @sid)) AS candidates,
          -- Spent budget. Every attempt counts, wherever it was asked: a question
@@ -160,7 +161,7 @@ await run(async (input) => {
         WHERE sc.session_id = @sid
           AND COALESCE(sc.origin,'work') = 'work'
           ${recent}
-          AND NOT (COALESCE(m.score,0) >= 0.7 AND COALESCE(m.reps,0) >= 2)
+          AND NOT (${knownSql('m')})
           AND sc.concept_id NOT IN
               (SELECT concept_id FROM attempts WHERE session_id = @sid)
         ORDER BY sc.ts DESC, sc.rowid DESC

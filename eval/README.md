@@ -13,6 +13,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Question planning and quality | `npm run eval -- run --limit 8 --focus project --difficulty hard` | Generation and judging |
 | Re-score existing questions | `npm run eval -- score eval/results/<run>` | None |
 | Concept extraction | `npm run eval -- extract` | Extraction and judging |
+| Whether a session reuses a concept the graph already has instead of minting a lookalike, and whether the new ones are short, described and tagged | `python3 eval/gepa/dedup/run.py evaluate --split test --repeats 3 --out <file>` | One generation call per trial, two when the tool holds a lookalike (~44k input tokens each); no judges |
 | Repeats, retention, answer-giveaway rate and option-length check send-backs in real history | `npm run eval -- history` | None; reads learner database |
 | Retrieval quality | `node eval/retrieval-harness.mjs` | None |
 | Memory performance | `node eval/memory-perf.mjs` | None |
@@ -278,6 +279,13 @@ gates then weighted quality, a second coverage judge, token tracking, and a GEPA
 `log_session_concepts` guidance in `skills/tutor/SKILL.md`. It runs the real `log_session_concepts` and
 `upsert_concepts` handlers, so `matched` and `created` are the shipped matcher's. See its
 [README](gepa/extraction/README.md) for the score, the cost and the commands.
+
+A session can take two rounds: when `log_session_concepts` holds a lookalike in `needs_decision`, the runner
+asks the model again, as a real session does, and `upsert_concepts` is only asked for the created concepts
+the log call left `unlinked`. `eval/gepa/dedup/run.py` is the same seam pointed at one question: `eval/fixtures/dedup/scenarios.json`
+seeds a graph, shows a diff, and checks deterministically whether the session resolved to the existing
+concept, minted a duplicate, and named new ones in 1 to 3 words. Its header lists the commands; the dated
+result and what it does not measure are in `eval/results/2026-10-16-dedup.md`.
 
 ## The retrieval eval
 

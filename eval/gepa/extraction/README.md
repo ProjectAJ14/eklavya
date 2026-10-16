@@ -19,8 +19,10 @@ theirs: gates, then weighted quality, a second judge, token tracking and a GEPA 
 2. The product's own handler answers, against a real database in a temp `EKLAVYA_HOME` seeded with
    the shipped catalogue plus the fixture's `mastered` concepts. `matched`, `created` and `next_action`
    are the shipped matcher's. The args are checked by the tool's own zod schema first.
-3. If concepts were `created`, the model sees that response and writes the `upsert_concepts` follow-up
-   the skill says it owes, which the real handler runs too.
+3. If the tool held a lookalike in `needs_decision`, the model sees that response and answers it (a candidate's
+   slug, or `new: true`); the whole session is replayed on one database so the result is the session's.
+   If created concepts are still `unlinked` (no `prerequisites` given), the model writes the
+   `upsert_concepts` follow-up the skill says it owes, which the real handler runs too.
 4. Judges see the diff, the labels and the final list.
 
 What GEPA edits: only the `log_session_concepts` block of `SKILL.md` (from "Call `log_session_concepts`

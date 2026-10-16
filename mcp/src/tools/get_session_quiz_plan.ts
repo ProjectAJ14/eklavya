@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { loadConfig, type Focus } from '../config.js';
-import { clampToLevel, decayedScore, isDue, isKnown, nextTierToAsk, type Level } from '../srs.js';
+import { clampToLevel, decayedScore, isDue, isKnown, nextTierToAsk, streakOf, type Level } from '../srs.js';
 import { answerPosition } from '../mcq.js';
 import { normalizeSlug } from '../slug.js';
 import { minutesSince, parseStamp } from '../time.js';
@@ -543,7 +543,7 @@ export const getSessionQuizPlan: ToolDef = {
         .map((c) => {
           const m = masteryFor(db, c.id);
           const score = decayedScore(m.score, m.next_review, now);
-          return { c, score, known: isKnown({ score, reps: m.reps }), due: isDue(m.next_review, now) };
+          return { c, score, known: isKnown({ score, ...streakOf(m) }), due: isDue(m.next_review, now) };
         })
         .filter((r) => !r.known || r.due)
         .sort((a, b) => {
@@ -580,7 +580,7 @@ export const getSessionQuizPlan: ToolDef = {
       for (const c of current) {
         const m = masteryFor(db, c.id);
         const score = decayedScore(m.score, m.next_review, now);
-        if (!isKnown({ score, reps: m.reps })) add(c, c.context, 'unmastered');
+        if (!isKnown({ score, ...streakOf(m) })) add(c, c.context, 'unmastered');
       }
 
       // (a') enforced and unpassed: this session's work concepts that are
@@ -621,7 +621,7 @@ export const getSessionQuizPlan: ToolDef = {
 
         for (const c of prereqsOf(db, current.map((c) => c.id))) {
           const m = masteryFor(db, c.id);
-          if (!isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps })) {
+          if (!isKnown({ score: decayedScore(m.score, m.next_review, now), ...streakOf(m) })) {
             // Null context on purpose. In concept focus the diff is the
             // motivation, not the subject, and handing over a line of code
             // invites exactly the grounded-in-the-file question this focus
@@ -633,7 +633,7 @@ export const getSessionQuizPlan: ToolDef = {
         for (const c of domainSiblings(db, [...new Set(current.map((c) => c.domain))], exclude)) {
           if (picked.length >= max) break;
           const m = masteryFor(db, c.id);
-          if (!isKnown({ score: decayedScore(m.score, m.next_review, now), reps: m.reps })) {
+          if (!isKnown({ score: decayedScore(m.score, m.next_review, now), ...streakOf(m) })) {
             add(c, null, 'concept_widening');
           }
         }

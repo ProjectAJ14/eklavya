@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { loadConfig, isDomainEnabled } from '../config.js';
-import { clampToLevel, decayedScore, isKnown, isOwed, nextTierToAsk, suggestedTier } from '../srs.js';
+import { clampToLevel, decayedScore, isKnown, isOwed, nextTierToAsk, streakOf, suggestedTier } from '../srs.js';
 import { levelStanding } from '../store.js';
 import { CWD_HINT, type ToolDef } from './types.js';
 
@@ -16,6 +16,8 @@ interface Row {
   tier: number;
   score: number | null;
   reps: number | null;
+  passed_days: number | null;
+  top_passed_tier: number | null;
   next_review: string | null;
   attempts: number;
   last_grade: number | null;
@@ -65,7 +67,7 @@ export const getLearnerProfile: ToolDef = {
     const rows = db
       .prepare(
         `SELECT c.id, c.slug, c.domain, c.tier,
-                m.score, m.reps, m.next_review,
+                m.score, m.reps, m.passed_days, m.top_passed_tier, m.next_review,
                 -- Corrections (retry_of) are not questions asked: a concept
                 -- corrected after its explainer is still owed (OWED_SQL in store.ts).
                 (SELECT count(*) FROM attempts a WHERE a.concept_id = c.id AND a.retry_of IS NULL) AS attempts,
@@ -97,9 +99,8 @@ export const getLearnerProfile: ToolDef = {
 
       // Decay is a read-time view only — never written back.
       const score = decayedScore(row.score ?? 0, row.next_review, now);
-      const reps = row.reps ?? 0;
 
-      if (isKnown({ score, reps })) {
+      if (isKnown({ score, ...streakOf(row) })) {
         bucket.known += 1;
         knownTiers.push(row.tier);
         // Named, not just counted: the tutor is told never to re-ask a mastered

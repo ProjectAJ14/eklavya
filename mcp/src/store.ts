@@ -16,6 +16,7 @@ import {
   requiredConcepts,
   SCORE_WINDOW,
   START_LEVEL,
+  streakOf,
 } from './srs.js';
 import { mainRepoRoot, type EklavyaConfig } from './config.js';
 import { stripAskHeader } from './ask.js';
@@ -28,6 +29,8 @@ export interface ConceptRow {
   description: string | null;
   tier: number;
   source: string;
+  /** A JSON array of short lowercase strings; `parseTags` reads it. */
+  tags: string;
 }
 
 export interface SessionConceptRow extends ConceptRow {
@@ -51,12 +54,12 @@ export function allConceptSlugs(db: DB): { id: number; slug: string; domain: str
 
 export function insertConcept(
   db: DB,
-  c: { slug: string; name: string; domain: string; description?: string | null; tier: number; source?: string },
+  c: { slug: string; name: string; domain: string; description?: string | null; tier: number; source?: string; tags?: string[] },
 ): ConceptRow {
   db.prepare(
-    `INSERT INTO concepts (slug, name, domain, description, tier, source)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(c.slug, c.name, c.domain, c.description ?? null, c.tier, c.source ?? 'llm');
+    `INSERT INTO concepts (slug, name, domain, description, tier, source, tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(c.slug, c.name, c.domain, c.description ?? null, c.tier, c.source ?? 'llm', JSON.stringify(c.tags ?? []));
   return conceptBySlug(db, c.slug)!;
 }
 
@@ -73,6 +76,8 @@ export function masteryFor(db: DB, conceptId: number): MasteryState {
     ease: row.ease,
     interval_d: row.interval_d,
     reps: row.reps,
+    passed_days: row.passed_days,
+    top_passed_tier: row.top_passed_tier,
     last_seen: row.last_seen,
     next_review: row.next_review,
   });
@@ -80,11 +85,12 @@ export function masteryFor(db: DB, conceptId: number): MasteryState {
 
 export function writeMastery(db: DB, conceptId: number, state: MasteryState): void {
   db.prepare(
-    `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, last_seen, next_review)
-     VALUES (@id, @score, @ease, @interval_d, @reps, @last_seen, @next_review)
+    `INSERT INTO mastery (concept_id, score, ease, interval_d, reps, passed_days, top_passed_tier, last_seen, next_review)
+     VALUES (@id, @score, @ease, @interval_d, @reps, @passed_days, @top_passed_tier, @last_seen, @next_review)
      ON CONFLICT(concept_id) DO UPDATE SET
        score = excluded.score, ease = excluded.ease, interval_d = excluded.interval_d,
-       reps = excluded.reps, last_seen = excluded.last_seen, next_review = excluded.next_review`,
+       reps = excluded.reps, passed_days = excluded.passed_days, top_passed_tier = excluded.top_passed_tier,
+       last_seen = excluded.last_seen, next_review = excluded.next_review`,
   ).run({ id: conceptId, ...state });
 }
 
@@ -181,7 +187,8 @@ export function gradeConcept(
   const before = masteryFor(db, input.conceptId);
   const attemptId = recordAttemptRow(db, input);
   const grades = gradesFor(db, input.conceptId);
-  const after = applyGrade({ state: before, grade: input.grade, grades, now: input.now });
+  // A correction is recognition after being taught, so it moves reps but not the tier a streak reached.
+  const after = applyGrade({ state: before, grade: input.grade, grades, tier: input.retryOf ? 0 : input.difficulty, now: input.now });
   writeMastery(db, input.conceptId, after);
   return { ...after, attemptId };
 }
@@ -595,8 +602,8 @@ export type QuestionFormat = 'mcq';
  * remember keeps recognition from inflating mastery, which is the one thing that
  * would make the whole record untrustworthy.
  *
- * 4 still reaches `known` (0.8 >= MASTERY_THRESHOLD), so this limits how fast
- * mastery is claimed, not whether it can be.
+ * 4 still reaches the score `known` needs (0.8 >= MASTERY_THRESHOLD), so this
+ * limits how fast mastery is claimed, not whether it can be.
  */
 export const MAX_MCQ_GRADE = 4;
 
@@ -865,17 +872,17 @@ export function attemptedConceptIds(db: DB, sessionId: string): Set<number> {
 export function unmetPrereqs(db: DB, conceptId: number, now: Date): string[] {
   const rows = db
     .prepare(
-      `SELECT c.slug, m.score, m.reps, m.next_review
+      `SELECT c.slug, m.score, m.reps, m.passed_days, m.top_passed_tier, m.next_review
          FROM edges e
          JOIN concepts c ON c.id = e.from_concept
          LEFT JOIN mastery m ON m.concept_id = c.id
         WHERE e.to_concept = ? AND e.relation = 'prerequisite_of'
         ORDER BY c.tier ASC, c.slug ASC`,
     )
-    .all(conceptId) as { slug: string; score: number | null; reps: number | null; next_review: string | null }[];
+    .all(conceptId) as { slug: string; score: number | null; reps: number | null; passed_days: number | null; top_passed_tier: number | null; next_review: string | null }[];
 
   return rows
-    .filter((r) => !isKnown({ score: decayedScore(r.score ?? 0, r.next_review, now), reps: r.reps ?? 0 }))
+    .filter((r) => !isKnown({ score: decayedScore(r.score ?? 0, r.next_review, now), ...streakOf(r) }))
     .map((r) => r.slug);
 }
 

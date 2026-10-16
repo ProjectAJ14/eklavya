@@ -40,7 +40,9 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
     genuinely exercises. Omit session_id. Log while implementing, not at the end.
   - Log what the code is *about* (jwt-verification, react-effect-cleanup, sql-index-selectivity),
     not what you did. Give each one a context line naming the real code you wrote.
-  - Guessed slugs are fine: unknown ones are fuzzy-matched or created.
+  - Name each concept in 1-3 words and pass a description, tags and prerequisites (slugs to know
+    first). A new concept that resembles one the learner has comes back as needs_decision: call
+    again at once with that candidate's slug, or the same slug with new: true.
   - Skip this and there is nothing to quiz on, so nothing is ever learned. Load the tutor skill
     for how to ask and grade.
   - Logging may come straight back with an [Eklavya checkpoint]: ONE multiple-choice question to

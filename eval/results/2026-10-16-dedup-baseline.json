@@ -1,0 +1,1063 @@
+{
+ "prompt": "shipped guidance",
+ "model": "default",
+ "split": "test",
+ "repeats": 3,
+ "trials": [
+  {
+   "id": "flutter-controller",
+   "repeat": 0,
+   "score": 0.2,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "flutter-animation-controller",
+    "single-ticker-provider-state-mixin",
+    "repeat-reverse-animation",
+    "dispose-animation-controller"
+   ],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "flutter-animation-controller",
+    "single-ticker-provider-state-mixin",
+    "flutter-vsync",
+    "repeat-reverse-animation",
+    "dispose-animation-controller",
+    "late-final-lazy-initializer",
+    "dart-cascade-operator"
+   ],
+   "matched": [],
+   "logged": [
+    "flutter-animation-controller",
+    "single-ticker-provider-state-mixin",
+    "flutter-vsync",
+    "repeat-reverse-animation",
+    "dispose-animation-controller",
+    "late-final-lazy-initializer",
+    "dart-cascade-operator"
+   ],
+   "concepts": [
+    {
+     "slug": "flutter-animation-controller",
+     "name": "AnimationController",
+     "context": "AnimationController with 600ms duration driving the pulse in _PulseState in lib/widgets/pulse.dart"
+    },
+    {
+     "slug": "single-ticker-provider-state-mixin",
+     "name": "SingleTickerProviderStateMixin",
+     "context": "mixed into _PulseState in pulse.dart so `vsync: this` supplies the Ticker for the one AnimationController"
+    },
+    {
+     "slug": "flutter-vsync",
+     "name": "Vsync",
+     "context": "passing vsync: this to AnimationController in pulse.dart so ticks are tied to frame callbacks and pause when the widget is offscreen"
+    },
+    {
+     "slug": "repeat-reverse-animation",
+     "name": "Repeat With Reverse",
+     "context": "..repeat(reverse: true) on the controller in pulse.dart makes the value ping-pong 0\u21921\u21920 instead of jumping back to 0"
+    },
+    {
+     "slug": "dispose-animation-controller",
+     "name": "Dispose Controller",
+     "context": "_c.dispose() in _PulseState.dispose() before super.dispose() in pulse.dart, to stop the ticker and avoid a leak or a ticker-not-disposed error"
+    },
+    {
+     "slug": "late-final-lazy-initializer",
+     "name": "Late Final Initializer",
+     "context": "`late final AnimationController _c = ...` in pulse.dart is lazily created on first access, which lets the initializer use `this` as vsync"
+    },
+    {
+     "slug": "dart-cascade-operator",
+     "name": "Cascade Operator",
+     "context": "`..repeat(reverse: true)` cascade in the _c initializer in pulse.dart starts the animation right after construction and still returns the controller"
+    }
+   ]
+  },
+  {
+   "id": "flutter-controller",
+   "repeat": 1,
+   "score": 0.2,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "single-ticker-provider-state-mixin",
+    "animation-controller-vsync",
+    "animation-controller-dispose",
+    "repeating-animation-reverse"
+   ],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "single-ticker-provider-state-mixin",
+    "animation-controller-vsync",
+    "animation-controller-dispose",
+    "repeating-animation-reverse",
+    "late-final-lazy-initializer",
+    "stateful-widget-lifecycle"
+   ],
+   "matched": [],
+   "logged": [
+    "single-ticker-provider-state-mixin",
+    "animation-controller-vsync",
+    "animation-controller-dispose",
+    "repeating-animation-reverse",
+    "late-final-lazy-initializer",
+    "stateful-widget-lifecycle"
+   ],
+   "concepts": [
+    {
+     "slug": "single-ticker-provider-state-mixin",
+     "name": "Ticker Provider Mixin",
+     "context": "mixed SingleTickerProviderStateMixin into _PulseState in lib/widgets/pulse.dart so `this` can serve as the vsync for exactly one AnimationController"
+    },
+    {
+     "slug": "animation-controller-vsync",
+     "name": "AnimationController Vsync",
+     "context": "passed vsync: this to the AnimationController in pulse.dart so ticks are tied to screen refresh and muted when the widget is off-screen"
+    },
+    {
+     "slug": "animation-controller-dispose",
+     "name": "Controller Disposal",
+     "context": "dispose() in pulse.dart calls _c.dispose() before super.dispose() so the ticker is released and does not leak or throw on a dead State"
+    },
+    {
+     "slug": "repeating-animation-reverse",
+     "name": "Repeat Reverse",
+     "context": "..repeat(reverse: true) on the 600ms controller in pulse.dart makes the pulse ping-pong between 0 and 1 instead of jumping back to 0"
+    },
+    {
+     "slug": "late-final-lazy-initializer",
+     "name": "Late Final Initializer",
+     "context": "`late final AnimationController _c = ...` in pulse.dart defers construction until first use, which lets the initializer reference `this` as vsync"
+    },
+    {
+     "slug": "stateful-widget-lifecycle",
+     "name": "Widget State Lifecycle",
+     "context": "_PulseState owns the controller created at first access and torn down in dispose(), so the animation lives exactly as long as the State object"
+    }
+   ]
+  },
+  {
+   "id": "flutter-controller",
+   "repeat": 2,
+   "score": 0.1666,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 0.833
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "flutter-animation-controller",
+    "flutter-ticker-provider-mixin",
+    "flutter-dispose-controller",
+    "repeat-reverse-animation"
+   ],
+   "long_names": [
+    "Late Final Lazy Init"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "flutter-animation-controller",
+    "flutter-ticker-provider-mixin",
+    "flutter-dispose-controller",
+    "repeat-reverse-animation",
+    "dart-late-final-initializer",
+    "flutter-state-lifecycle"
+   ],
+   "matched": [],
+   "logged": [
+    "flutter-animation-controller",
+    "flutter-ticker-provider-mixin",
+    "flutter-dispose-controller",
+    "repeat-reverse-animation",
+    "dart-late-final-initializer",
+    "flutter-state-lifecycle"
+   ],
+   "concepts": [
+    {
+     "slug": "flutter-animation-controller",
+     "name": "AnimationController",
+     "context": "AnimationController with 600ms duration driving a looping pulse in lib/widgets/pulse.dart _PulseState"
+    },
+    {
+     "slug": "flutter-ticker-provider-mixin",
+     "name": "SingleTickerProviderStateMixin",
+     "context": "mixed into _PulseState in pulse.dart so `vsync: this` supplies the Ticker that syncs the controller to screen frames"
+    },
+    {
+     "slug": "flutter-dispose-controller",
+     "name": "Dispose Controllers",
+     "context": "_c.dispose() in _PulseState.dispose() in pulse.dart releases the ticker and prevents a leak after the widget is removed"
+    },
+    {
+     "slug": "repeat-reverse-animation",
+     "name": "Repeat With Reverse",
+     "context": "..repeat(reverse: true) on _c in pulse.dart makes the animation ping-pong 0\u21921\u21920 instead of jumping back to 0"
+    },
+    {
+     "slug": "dart-late-final-initializer",
+     "name": "Late Final Lazy Init",
+     "context": "`late final AnimationController _c = ...` in pulse.dart defers creation until first access, allowing `this` to be used in the initializer"
+    },
+    {
+     "slug": "flutter-state-lifecycle",
+     "name": "State Lifecycle",
+     "context": "State subclass _PulseState pairs resource creation in a field initializer with teardown in dispose(), calling super.dispose() last"
+    }
+   ]
+  },
+  {
+   "id": "optimistic-lock",
+   "repeat": 0,
+   "score": 1.0,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 1.0
+   },
+   "resolved_to_existing": [
+    "optimistic-locking"
+   ],
+   "duplicates_created": [],
+   "long_names": [],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "compare-and-swap",
+    "lost-update-prevention",
+    "affected-rows-check",
+    "conflict-error-handling",
+    "parameterized-queries"
+   ],
+   "matched": [],
+   "logged": [
+    "optimistic-locking",
+    "compare-and-swap",
+    "lost-update-prevention",
+    "affected-rows-check",
+    "conflict-error-handling",
+    "parameterized-queries"
+   ],
+   "concepts": [
+    {
+     "slug": "optimistic-locking",
+     "name": "Optimistic Locking",
+     "context": "version column checked in the WHERE clause of the UPDATE in src/orders/repo.ts, so a stale write matches no row"
+    },
+    {
+     "slug": "compare-and-swap",
+     "name": "Compare And Swap",
+     "context": "UPDATE orders ... WHERE id = ? AND version = ? in repo.ts only applies if version still equals expectedVersion, making the check and write one atomic statement"
+    },
+    {
+     "slug": "lost-update-prevention",
+     "name": "Lost Update Prevention",
+     "context": "version = version + 1 in src/orders/repo.ts stops a concurrent writer from silently overwriting an order changed since it was read"
+    },
+    {
+     "slug": "affected-rows-check",
+     "name": "Affected Rows Check",
+     "context": "res.changes === 0 in repo.ts is how the code detects that the version guard rejected the update"
+    },
+    {
+     "slug": "conflict-error-handling",
+     "name": "Conflict Error Handling",
+     "context": "throw new ConflictError('order changed since it was read') in repo.ts when zero rows changed, surfacing the conflict to the caller instead of ignoring it"
+    },
+    {
+     "slug": "parameterized-queries",
+     "name": "Parameterized Queries",
+     "context": "status, id and expectedVersion are bound through ? placeholders in the db.run call in repo.ts rather than concatenated into the SQL"
+    }
+   ]
+  },
+  {
+   "id": "optimistic-lock",
+   "repeat": 1,
+   "score": 0.6666,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 0.0,
+    "short_name": 0.833
+   },
+   "resolved_to_existing": [
+    "optimistic-locking"
+   ],
+   "duplicates_created": [
+    "version-increment"
+   ],
+   "long_names": [
+    "Compare-And-Swap Update"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "compare-and-swap-update",
+    "version-increment",
+    "affected-rows-check",
+    "conflict-error-handling",
+    "lost-update-problem",
+    "parameterized-queries"
+   ],
+   "matched": [],
+   "logged": [
+    "optimistic-locking",
+    "compare-and-swap-update",
+    "version-increment",
+    "affected-rows-check",
+    "conflict-error-handling",
+    "lost-update-problem",
+    "parameterized-queries"
+   ],
+   "concepts": [
+    {
+     "slug": "optimistic-locking",
+     "name": "Optimistic Locking",
+     "context": "version column checked in the WHERE clause of the UPDATE in src/orders/repo.ts, so a stale write matches no row instead of overwriting"
+    },
+    {
+     "slug": "compare-and-swap-update",
+     "name": "Compare-And-Swap Update",
+     "context": "single atomic UPDATE ... WHERE id = ? AND version = ? in src/orders/repo.ts does the read-check-write in one statement, with no separate SELECT"
+    },
+    {
+     "slug": "version-increment",
+     "name": "Version Counter Increment",
+     "context": "SET version = version + 1 in the same UPDATE in src/orders/repo.ts so the next writer holding the old expectedVersion is rejected"
+    },
+    {
+     "slug": "affected-rows-check",
+     "name": "Affected Rows Check",
+     "context": "res.changes === 0 in src/orders/repo.ts is how the code detects that the version or id did not match, since the UPDATE itself does not error"
+    },
+    {
+     "slug": "conflict-error-handling",
+     "name": "Conflict Error Signalling",
+     "context": "throwing ConflictError('order changed since it was read') in src/orders/repo.ts so callers can retry or surface a conflict instead of silently losing an update"
+    },
+    {
+     "slug": "lost-update-problem",
+     "name": "Lost Update Problem",
+     "context": "the concurrent read-modify-write race on an order row that the version guard in src/orders/repo.ts exists to prevent"
+    },
+    {
+     "slug": "parameterized-queries",
+     "name": "Parameterized Queries",
+     "context": "status, id and expectedVersion passed as ? placeholders in db.run in src/orders/repo.ts instead of string interpolation"
+    }
+   ]
+  },
+  {
+   "id": "optimistic-lock",
+   "repeat": 2,
+   "score": 0.96,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 0.8
+   },
+   "resolved_to_existing": [
+    "optimistic-locking"
+   ],
+   "duplicates_created": [],
+   "long_names": [
+    "Affected Row Count Check"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "compare-and-swap",
+    "lost-update-prevention",
+    "affected-row-count-check",
+    "conflict-error-handling",
+    "parameterized-queries"
+   ],
+   "matched": [],
+   "logged": [
+    "optimistic-locking",
+    "compare-and-swap",
+    "lost-update-prevention",
+    "affected-row-count-check",
+    "conflict-error-handling",
+    "parameterized-queries"
+   ],
+   "concepts": [
+    {
+     "slug": "optimistic-locking",
+     "name": "Optimistic Locking",
+     "context": "version column checked in the WHERE clause of the UPDATE in src/orders/repo.ts, so a concurrent writer's change is never silently overwritten"
+    },
+    {
+     "slug": "compare-and-swap",
+     "name": "Compare And Swap",
+     "context": "UPDATE orders ... WHERE id = ? AND version = ? in src/orders/repo.ts applies the write only if the row still holds the expectedVersion read earlier"
+    },
+    {
+     "slug": "lost-update-prevention",
+     "name": "Lost Update Prevention",
+     "context": "version = version + 1 bumped in the same statement in src/orders/repo.ts so two read-modify-write cycles on one order cannot both succeed"
+    },
+    {
+     "slug": "affected-row-count-check",
+     "name": "Affected Row Count Check",
+     "context": "res.changes === 0 after db.run in src/orders/repo.ts is how the code detects that the version guard rejected the write"
+    },
+    {
+     "slug": "conflict-error-handling",
+     "name": "Conflict Error Handling",
+     "context": "throw ConflictError('order changed since it was read') in src/orders/repo.ts surfaces a stale write to the caller instead of failing silently"
+    },
+    {
+     "slug": "parameterized-queries",
+     "name": "Parameterized Queries",
+     "context": "status, id and expectedVersion passed as ? placeholders in the db.run call in src/orders/repo.ts rather than string-concatenated into SQL"
+    }
+   ]
+  },
+  {
+   "id": "idempotency-key",
+   "repeat": 0,
+   "score": 0.1666,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 0.833
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "idempotency-key",
+    "idempotent-request-replay",
+    "idempotency-key-ttl"
+   ],
+   "long_names": [
+    "Check-Then-Act Race"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "idempotency-key",
+    "idempotent-request-replay",
+    "idempotency-key-ttl",
+    "check-then-act-race",
+    "http-status-codes",
+    "payment-side-effects"
+   ],
+   "matched": [],
+   "logged": [
+    "idempotency-key",
+    "idempotent-request-replay",
+    "idempotency-key-ttl",
+    "check-then-act-race",
+    "http-status-codes",
+    "payment-side-effects"
+   ],
+   "concepts": [
+    {
+     "slug": "idempotency-key",
+     "name": "Idempotency Key",
+     "context": "require the Idempotency-Key header in src/pay.ts and return 400 when missing, so each client retry is tied to one logical charge"
+    },
+    {
+     "slug": "idempotent-request-replay",
+     "name": "Response Replay",
+     "context": "src/pay.ts returns the stored status and body from store.get(key) instead of calling charge() again, so a retried request gets the same result"
+    },
+    {
+     "slug": "idempotency-key-ttl",
+     "name": "Key Expiry TTL",
+     "context": "store.set(key, {...}, TTL) in src/pay.ts bounds how long a key is remembered, trading storage growth against how late a retry can still be deduplicated"
+    },
+    {
+     "slug": "check-then-act-race",
+     "name": "Check-Then-Act Race",
+     "context": "store.get followed by charge and store.set in src/pay.ts is not atomic, so two concurrent requests with the same key can both miss and both charge"
+    },
+    {
+     "slug": "http-status-codes",
+     "name": "HTTP Status Codes",
+     "context": "400 for a missing Idempotency-Key and replaying the saved status in src/pay.ts decide what the client sees on bad input versus a retry"
+    },
+    {
+     "slug": "payment-side-effects",
+     "name": "Payment Side Effects",
+     "context": "charge(req.body) in src/pay.ts is the non-repeatable external side effect that the key-based dedup exists to protect"
+    }
+   ]
+  },
+  {
+   "id": "idempotency-key",
+   "repeat": 1,
+   "score": 0.1666,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 0.833
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "idempotency-key",
+    "idempotent-replay"
+   ],
+   "long_names": [
+    "Check-Then-Act Race"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "idempotency-key",
+    "idempotent-replay",
+    "response-caching-ttl",
+    "check-then-act-race",
+    "http-400-validation",
+    "payment-side-effects"
+   ],
+   "matched": [],
+   "logged": [
+    "idempotency-key",
+    "idempotent-replay",
+    "response-caching-ttl",
+    "check-then-act-race",
+    "http-400-validation",
+    "payment-side-effects"
+   ],
+   "concepts": [
+    {
+     "slug": "idempotency-key",
+     "name": "Idempotency Key",
+     "context": "require Idempotency-Key header in src/pay.ts, 400 if missing, so client retries map to one charge"
+    },
+    {
+     "slug": "idempotent-replay",
+     "name": "Idempotent Replay",
+     "context": "return stored status and body when store.get(key) hits, instead of calling charge() again in src/pay.ts"
+    },
+    {
+     "slug": "response-caching-ttl",
+     "name": "Response Cache TTL",
+     "context": "store.set(key, {status, body}, TTL) in src/pay.ts expires saved responses so keys are not retained forever"
+    },
+    {
+     "slug": "check-then-act-race",
+     "name": "Check-Then-Act Race",
+     "context": "store.get then charge then store.set in src/pay.ts is not atomic, so two concurrent requests with the same key can both charge"
+    },
+    {
+     "slug": "http-400-validation",
+     "name": "Request Validation Status",
+     "context": "missing Idempotency-Key returns res.status(400).end() in src/pay.ts as a client error before any side effect"
+    },
+    {
+     "slug": "payment-side-effects",
+     "name": "Payment Side Effects",
+     "context": "charge(req.body) in src/pay.ts is the non-repeatable external call the idempotency guard protects"
+    }
+   ]
+  },
+  {
+   "id": "idempotency-key",
+   "repeat": 2,
+   "score": 0.1666,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 0.833
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "idempotency-keys",
+    "idempotency-key-ttl"
+   ],
+   "long_names": [
+    "Check-Then-Act Race"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "idempotency-keys",
+    "replay-cached-response",
+    "idempotency-key-ttl",
+    "check-then-act-race",
+    "http-400-validation",
+    "caching-error-responses"
+   ],
+   "matched": [],
+   "logged": [
+    "idempotency-keys",
+    "replay-cached-response",
+    "idempotency-key-ttl",
+    "check-then-act-race",
+    "http-400-validation",
+    "caching-error-responses"
+   ],
+   "concepts": [
+    {
+     "slug": "idempotency-keys",
+     "name": "Idempotency Keys",
+     "context": "require Idempotency-Key header in src/pay.ts and 400 when missing so a retried charge request is recognised"
+    },
+    {
+     "slug": "replay-cached-response",
+     "name": "Replay Cached Response",
+     "context": "store.get(key) hit in src/pay.ts returns the saved status and body instead of calling charge() again"
+    },
+    {
+     "slug": "idempotency-key-ttl",
+     "name": "Idempotency Key TTL",
+     "context": "store.set(key, {status, body}, TTL) in src/pay.ts bounds how long a key is remembered, trading storage against the retry window"
+    },
+    {
+     "slug": "check-then-act-race",
+     "name": "Check-Then-Act Race",
+     "context": "store.get then charge then store.set in src/pay.ts is not atomic, so two concurrent requests with the same key can both miss and double-charge"
+    },
+    {
+     "slug": "http-400-validation",
+     "name": "HTTP 400 Validation",
+     "context": "missing Idempotency-Key header returns res.status(400).end() in src/pay.ts before any side effect runs"
+    },
+    {
+     "slug": "caching-error-responses",
+     "name": "Caching Error Responses",
+     "context": "store.set in src/pay.ts hard-codes status 200 and only runs after charge() succeeds, so failed charges are never stored and a retry re-executes them"
+    }
+   ]
+  },
+  {
+   "id": "rmdir-empty",
+   "repeat": 0,
+   "score": 0.04,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 0.2
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "rmdir-empty-only"
+   ],
+   "long_names": [
+    "rmdir Removes Only Empty Dirs",
+    "Glob Trailing Slash Matches Dirs",
+    "Redirecting stderr to /dev/null",
+    "Shell || Fallback on Failure"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "rmdir-empty-only",
+    "shell-glob-trailing-slash",
+    "shell-stderr-redirect",
+    "shell-or-fallback",
+    "shell-quoting-variables"
+   ],
+   "matched": [],
+   "logged": [
+    "rmdir-empty-only",
+    "shell-glob-trailing-slash",
+    "shell-stderr-redirect",
+    "shell-or-fallback",
+    "shell-quoting-variables"
+   ],
+   "concepts": [
+    {
+     "slug": "rmdir-empty-only",
+     "name": "rmdir Removes Only Empty Dirs",
+     "context": "rmdir \"$d\" in scripts/clean.sh fails on a non-empty directory, so the loop never deletes build output that still has files"
+    },
+    {
+     "slug": "shell-glob-trailing-slash",
+     "name": "Glob Trailing Slash Matches Dirs",
+     "context": "build/*/ in the for loop in scripts/clean.sh expands only to directories, skipping plain files under build/"
+    },
+    {
+     "slug": "shell-stderr-redirect",
+     "name": "Redirecting stderr to /dev/null",
+     "context": "2>/dev/null on rmdir in scripts/clean.sh hides the 'Directory not empty' error so only the custom 'kept' message prints"
+    },
+    {
+     "slug": "shell-or-fallback",
+     "name": "Shell || Fallback on Failure",
+     "context": "rmdir ... || echo \"kept $d (not empty)\" in scripts/clean.sh runs the echo only when rmdir exits non-zero"
+    },
+    {
+     "slug": "shell-quoting-variables",
+     "name": "Quoting Shell Variables",
+     "context": "\"$d\" is quoted in rmdir and echo in scripts/clean.sh so directory names with spaces stay a single argument"
+    }
+   ]
+  },
+  {
+   "id": "rmdir-empty",
+   "repeat": 1,
+   "score": 0.04,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 0.2
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "rmdir-removes-only-empty-dirs"
+   ],
+   "long_names": [
+    "rmdir Only Removes Empty Directories",
+    "Glob Trailing Slash Matches Directories",
+    "Redirecting stderr to /dev/null",
+    "Shell || Fallback on Failure"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "rmdir-removes-only-empty-dirs",
+    "shell-glob-trailing-slash",
+    "stderr-redirection",
+    "shell-or-fallback",
+    "shell-variable-quoting"
+   ],
+   "matched": [],
+   "logged": [
+    "rmdir-removes-only-empty-dirs",
+    "shell-glob-trailing-slash",
+    "stderr-redirection",
+    "shell-or-fallback",
+    "shell-variable-quoting"
+   ],
+   "concepts": [
+    {
+     "slug": "rmdir-removes-only-empty-dirs",
+     "name": "rmdir Only Removes Empty Directories",
+     "context": "rmdir \"$d\" in scripts/clean.sh fails on a non-empty build/* directory instead of deleting its contents, so it is a safe cleanup, unlike rm -r"
+    },
+    {
+     "slug": "shell-glob-trailing-slash",
+     "name": "Glob Trailing Slash Matches Directories",
+     "context": "build/*/ in the for loop of scripts/clean.sh expands only to directories, so plain files in build/ are never passed to rmdir"
+    },
+    {
+     "slug": "stderr-redirection",
+     "name": "Redirecting stderr to /dev/null",
+     "context": "2>/dev/null on rmdir in scripts/clean.sh hides the 'Directory not empty' error so the script prints its own 'kept' message"
+    },
+    {
+     "slug": "shell-or-fallback",
+     "name": "Shell || Fallback on Failure",
+     "context": "rmdir ... || echo \"kept $d (not empty)\" in scripts/clean.sh runs the echo only when rmdir exits non-zero, turning a failure into a report"
+    },
+    {
+     "slug": "shell-variable-quoting",
+     "name": "Quoting Shell Variables",
+     "context": "\"$d\" is quoted in rmdir and echo in scripts/clean.sh so directory names containing spaces are not split into separate arguments"
+    }
+   ]
+  },
+  {
+   "id": "rmdir-empty",
+   "repeat": 2,
+   "score": 0.1666,
+   "quality": {
+    "resolved": 0.0,
+    "no_duplicate": 0.0,
+    "short_name": 0.833
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [
+    "rmdir-non-recursive-safety"
+   ],
+   "long_names": [
+    "rmdir Only Removes Empty"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "bash-for-glob-loop",
+    "rmdir-non-recursive-safety",
+    "stderr-redirect-devnull",
+    "shell-or-fallback",
+    "shell-quoting-variables",
+    "unmatched-glob-literal"
+   ],
+   "matched": [],
+   "logged": [
+    "bash-for-glob-loop",
+    "rmdir-non-recursive-safety",
+    "stderr-redirect-devnull",
+    "shell-or-fallback",
+    "shell-quoting-variables",
+    "unmatched-glob-literal"
+   ],
+   "concepts": [
+    {
+     "slug": "bash-for-glob-loop",
+     "name": "Bash Glob Loop",
+     "context": "iterate build/*/ with a for loop in scripts/clean.sh so each subdirectory is visited and the trailing slash limits matches to directories"
+    },
+    {
+     "slug": "rmdir-non-recursive-safety",
+     "name": "rmdir Only Removes Empty",
+     "context": "use rmdir instead of rm -rf in scripts/clean.sh so non-empty build subdirectories are refused rather than deleted"
+    },
+    {
+     "slug": "stderr-redirect-devnull",
+     "name": "Silencing stderr",
+     "context": "2>/dev/null on rmdir in scripts/clean.sh hides the 'Directory not empty' error so the script prints its own message"
+    },
+    {
+     "slug": "shell-or-fallback",
+     "name": "Shell || Fallback",
+     "context": "rmdir ... || echo 'kept $d' in scripts/clean.sh runs the echo only when rmdir exits non-zero"
+    },
+    {
+     "slug": "shell-quoting-variables",
+     "name": "Quoting Shell Variables",
+     "context": "\"$d\" quoted in the rmdir call in scripts/clean.sh so directory names with spaces are not word-split"
+    },
+    {
+     "slug": "unmatched-glob-literal",
+     "name": "Unmatched Glob Behavior",
+     "context": "if build/*/ matches nothing, bash passes the literal string 'build/*/' to rmdir in scripts/clean.sh, producing a spurious 'kept' message unless nullglob is set"
+    }
+   ]
+  },
+  {
+   "id": "new-with-near-miss",
+   "repeat": 0,
+   "score": 0.92,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 0.6
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [],
+   "long_names": [
+    "Sliding Window Rate Limiting",
+    "Per-Key State in a Map"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "sliding-window-rate-limiting",
+    "timestamp-pruning",
+    "injectable-clock",
+    "per-key-state-map",
+    "check-then-record-ordering"
+   ],
+   "matched": [],
+   "logged": [
+    "sliding-window-rate-limiting",
+    "timestamp-pruning",
+    "injectable-clock",
+    "per-key-state-map",
+    "check-then-record-ordering"
+   ],
+   "concepts": [
+    {
+     "slug": "sliding-window-rate-limiting",
+     "name": "Sliding Window Rate Limiting",
+     "context": "allow() in src/limit.ts keeps a per-key array of timestamps and counts only those within WINDOW_MS, rejecting once LIMIT is reached"
+    },
+    {
+     "slug": "timestamp-pruning",
+     "name": "Expired Timestamp Pruning",
+     "context": "w.filter((t) => now - t < WINDOW_MS) in src/limit.ts drops expired entries on every call, so each key's array stays bounded by LIMIT"
+    },
+    {
+     "slug": "injectable-clock",
+     "name": "Injectable Clock Parameter",
+     "context": "allow(key, now = Date.now()) in src/limit.ts takes the time as a defaulted argument so tests can pass a fixed now"
+    },
+    {
+     "slug": "per-key-state-map",
+     "name": "Per-Key State in a Map",
+     "context": "windows.get(key) ?? [] and windows.set(key, fresh) in src/limit.ts keep each caller's request history in an in-memory Map, so state is per-process and keys are never evicted"
+    },
+    {
+     "slug": "check-then-record-ordering",
+     "name": "Check Before Record",
+     "context": "The LIMIT check returns false before fresh.push(now) in src/limit.ts, so rejected requests are not recorded and do not extend the caller's lockout"
+    }
+   ]
+  },
+  {
+   "id": "new-with-near-miss",
+   "repeat": 1,
+   "score": 0.8666,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 0.333
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [],
+   "long_names": [
+    "Sliding Window Rate Limiting",
+    "Per-Key Limiter State",
+    "In-Memory State Limits",
+    "Rejected Requests Not Counted"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "sliding-window-rate-limiting",
+    "timestamp-pruning",
+    "per-key-rate-limit-state",
+    "in-memory-state-limits",
+    "injectable-clock",
+    "rejected-requests-not-counted"
+   ],
+   "matched": [],
+   "logged": [
+    "sliding-window-rate-limiting",
+    "timestamp-pruning",
+    "per-key-rate-limit-state",
+    "in-memory-state-limits",
+    "injectable-clock",
+    "rejected-requests-not-counted"
+   ],
+   "concepts": [
+    {
+     "slug": "sliding-window-rate-limiting",
+     "name": "Sliding Window Rate Limiting",
+     "context": "allow() in src/limit.ts keeps a per-key array of timestamps and counts only those within WINDOW_MS of now, rejecting once LIMIT is reached"
+    },
+    {
+     "slug": "timestamp-pruning",
+     "name": "Timestamp Pruning",
+     "context": "filter in allow() in src/limit.ts drops timestamps older than WINDOW_MS on every call, so each key's array stays bounded by LIMIT"
+    },
+    {
+     "slug": "per-key-rate-limit-state",
+     "name": "Per-Key Limiter State",
+     "context": "the windows Map in src/limit.ts is keyed by caller key, giving each client an independent quota"
+    },
+    {
+     "slug": "in-memory-state-limits",
+     "name": "In-Memory State Limits",
+     "context": "windows lives in process memory in src/limit.ts, so counts reset on restart and are not shared across instances; keys never evicted when idle"
+    },
+    {
+     "slug": "injectable-clock",
+     "name": "Injectable Clock",
+     "context": "allow(key, now = Date.now()) in src/limit.ts takes now as a defaulted parameter so tests can control time"
+    },
+    {
+     "slug": "rejected-requests-not-counted",
+     "name": "Rejected Requests Not Counted",
+     "context": "allow() in src/limit.ts returns false before pushing now, so denied calls do not extend the window"
+    }
+   ]
+  },
+  {
+   "id": "new-with-near-miss",
+   "repeat": 2,
+   "score": 0.88,
+   "quality": {
+    "resolved": 1.0,
+    "no_duplicate": 1.0,
+    "short_name": 0.4
+   },
+   "resolved_to_existing": [],
+   "duplicates_created": [],
+   "long_names": [
+    "Sliding Window Rate Limiting",
+    "In-Memory Per-Key State",
+    "Rejected Requests Not Recorded"
+   ],
+   "created_with_description": 0,
+   "created_with_tags": 0,
+   "created": [
+    "sliding-window-rate-limiting",
+    "in-memory-per-key-state",
+    "injectable-clock-for-testing",
+    "rejected-requests-not-recorded",
+    "stale-timestamp-pruning"
+   ],
+   "matched": [],
+   "logged": [
+    "sliding-window-rate-limiting",
+    "in-memory-per-key-state",
+    "injectable-clock-for-testing",
+    "rejected-requests-not-recorded",
+    "stale-timestamp-pruning"
+   ],
+   "concepts": [
+    {
+     "slug": "sliding-window-rate-limiting",
+     "name": "Sliding Window Rate Limiting",
+     "context": "allow() in src/limit.ts keeps per-key timestamps and filters out those older than WINDOW_MS, so the limit applies to any rolling window rather than fixed buckets"
+    },
+    {
+     "slug": "in-memory-per-key-state",
+     "name": "In-Memory Per-Key State",
+     "context": "windows Map in src/limit.ts holds each key's timestamps in process memory, so counts reset on restart and are not shared across instances"
+    },
+    {
+     "slug": "injectable-clock-for-testing",
+     "name": "Injectable Clock",
+     "context": "allow(key, now = Date.now()) in src/limit.ts takes the time as a defaulted parameter so tests can pass fixed timestamps"
+    },
+    {
+     "slug": "rejected-requests-not-recorded",
+     "name": "Rejected Requests Not Recorded",
+     "context": "allow() returns false before fresh.push(now), so denied calls are not counted and do not extend the block"
+    },
+    {
+     "slug": "stale-timestamp-pruning",
+     "name": "Stale Timestamp Pruning",
+     "context": "fresh = w.filter(...) in src/limit.ts rewrites the stored array on each allowed call, bounding it to LIMIT entries per key; keys that stop calling are never evicted from the Map"
+    }
+   ]
+  }
+ ],
+ "stopped_early": null,
+ "budget": {
+  "tokens": {
+   "input_total": 731142,
+   "cache_read": 245477,
+   "output": 7428,
+   "by_kind": {
+    "generate:cache_read": 245477,
+    "generate:cache_write": 485635,
+    "generate:input": 30,
+    "generate:output": 7428
+   }
+  },
+  "cost_usd_list_price": 2.04,
+  "calls": {
+   "generate": 15
+  },
+  "total_calls": 15,
+  "seconds_by_kind": {
+   "generate": 212.8
+  },
+  "errors": {},
+  "cap": 16
+ },
+ "summary": {
+  "trials": 15,
+  "scored": 15,
+  "mean_score": 0.4404,
+  "resolved_to_existing_or_new": 0.4,
+  "no_duplicate_minted": 0.333,
+  "short_names": 0.702,
+  "duplicates_created": 23,
+  "concepts_created": 85,
+  "created_with_description": 0,
+  "created_with_tags": 0,
+  "failed": []
+ }
+}

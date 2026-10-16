@@ -85,7 +85,20 @@ function logAuthWork(session = SESSION) {
   });
 }
 
-/** Answer a concept well enough, twice, to reach "known". */
+/**
+ * What a learner builds over a week of answering well: a streak of four passes
+ * on two different days, one of them above recall. Tests answer in one moment,
+ * so the evidence that needs days is written onto the mastery row directly; the
+ * rule that reads it is tested on its own in srs.test.ts.
+ */
+function giveStreak(slug: string) {
+  db.prepare(
+    `UPDATE mastery SET reps = 4, passed_days = 2, top_passed_tier = 3
+      WHERE concept_id = (SELECT id FROM concepts WHERE slug = ?)`,
+  ).run(slug);
+}
+
+/** Answer a concept well enough, twice, then give it the streak across days that "known" needs. */
 function master(slug: string, session = SESSION) {
   for (const _ of [1, 2]) {
     call(recordAttempt, {
@@ -97,6 +110,7 @@ function master(slug: string, session = SESSION) {
       difficulty: 2,
     });
   }
+  giveStreak(slug);
 }
 
 describe('session resolution (G1)', () => {
@@ -1115,6 +1129,7 @@ describe('record_attempt', () => {
         outcome: 'answered',
       });
     }
+    giveStreak('csrf');
     const profile = call<any>(getLearnerProfile, {});
     expect(profile.known).toContain('csrf');
   });
@@ -1702,6 +1717,11 @@ describe('get_learner_profile', () => {
     expect(p.domains[0].known).toBe(0);
 
     call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: 'q2', answer: 'a', grade: 5, difficulty: 3 });
+    p = call<any>(getLearnerProfile, { domain: 'web-auth' });
+    // Two perfect answers in one sitting are not yet mastery.
+    expect(p.domains[0].known).toBe(0);
+
+    giveStreak('csrf');
     p = call<any>(getLearnerProfile, { domain: 'web-auth' });
     expect(p.domains[0].known).toBe(1);
   });
