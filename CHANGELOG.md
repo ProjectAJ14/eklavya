@@ -1,3 +1,10 @@
+## [1.75.1](https://github.com/ProjectAJ14/eklavya/compare/v1.75.0...v1.75.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **memory:** require the checkpoint of an end-of-turn batch, and add an observer eval ([#207](https://github.com/ProjectAJ14/eklavya/issues/207)) ([a449092](https://github.com/ProjectAJ14/eklavya/commit/a4490921e2d8d701bdd1b6a1985343a80333e33c))
+
 # [1.75.0](https://github.com/ProjectAJ14/eklavya/compare/v1.74.0...v1.75.0) (2026-10-16)
 
 
