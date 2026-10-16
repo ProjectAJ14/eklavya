@@ -35,9 +35,9 @@ export function tokens(text: string): string[] {
   return [...new Set(out)];
 }
 
-export function parseTags(raw: string | null | undefined): string[] {
+export function parseTags(raw: string): string[] {
   try {
-    const v = JSON.parse(raw ?? '[]');
+    const v = JSON.parse(raw);
     return Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string') : [];
   } catch {
     return [];
@@ -45,9 +45,9 @@ export function parseTags(raw: string | null | undefined): string[] {
 }
 
 /** Short lowercase tags, deduplicated, at most `max` of them. */
-export function cleanTags(tags: string[] | undefined, max = 5): string[] {
+export function cleanTags(tags: string[], max = 5): string[] {
   const seen = new Set<string>();
-  for (const t of tags ?? []) {
+  for (const t of tags) {
     const tag = t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     if (tag) seen.add(tag);
   }
@@ -92,7 +92,7 @@ export const AUTO_REUSE_SCORE = 0.8;
  */
 export function findCandidates(
   db: DB,
-  q: { slug: string; name?: string; tags?: string[]; domain?: string },
+  q: { slug: string; name?: string | null; tags?: string[]; domain?: string },
   limit = CANDIDATE_LIMIT,
 ): Candidate[] {
   const rows = db.prepare('SELECT * FROM concepts').all() as ConceptRow[];

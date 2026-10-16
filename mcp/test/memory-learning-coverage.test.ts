@@ -89,6 +89,16 @@ describe('fillOmissions and lookalike concepts', () => {
     expect(logged().map((c) => c.slug)).toEqual(['redis-cache-eviction']);
   });
 
+  it('creates the concept when the near match lives in a domain that is switched off', () => {
+    seedIdempotency();
+    config.domains_enabled = ['general'];
+    const e = entry('Made payments safe to retry');
+    propose(e.id, 'api-idempotency', 'Idempotency', 'general');
+
+    expect(fillOmissions(db, config, SESSION, PROJECT)).toEqual({ accepted: 1, skipped: 0 });
+    expect(conceptBySlug(db, 'api-idempotency')).toBeDefined();
+  });
+
   it('still creates a concept nothing resembles', () => {
     seedIdempotency();
     const e = entry('Added a bloom filter');

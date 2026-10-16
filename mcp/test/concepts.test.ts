@@ -74,6 +74,10 @@ describe('findCandidates', () => {
     expect(findCandidates(db, { slug: 'idempotency-keys', name: 'Idempotency key' })[0]?.slug).toBe('idempotency');
   });
 
+  it('finds nothing for a query made only of filler words', () => {
+    expect(findCandidates(db, { slug: 'the-of-a', name: 'The of' })).toEqual([]);
+  });
+
   it('finds nothing for an unrelated concept', () => {
     expect(findCandidates(db, { slug: 'bloom-filter', name: 'Bloom filter' })).toEqual([]);
   });

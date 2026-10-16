@@ -249,10 +249,10 @@ function conceptFor(
   if (!isDomainEnabled(config, domain)) return undefined;
   // Nobody is here to answer `needs_decision`, so a concept the graph all but
   // has already is reused rather than minted beside it.
-  const near = findCandidates(db, { slug, name: candidate.name ?? undefined, domain }, 1)[0];
+  const near = findCandidates(db, { slug, name: candidate.name, domain }, 1)[0];
   if (near && near.score >= AUTO_REUSE_SCORE) {
-    const row = conceptBySlug(db, near.slug);
-    if (row && isDomainEnabled(config, row.domain)) return { concept: row, created: false };
+    const row = conceptBySlug(db, near.slug)!;
+    if (isDomainEnabled(config, row.domain)) return { concept: row, created: false };
   }
   // Left as a candidate rather than rejected: the budget is this session's, and
   // the proposal may still be worth something to a later fill.

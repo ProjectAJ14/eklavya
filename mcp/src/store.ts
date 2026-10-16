@@ -76,8 +76,8 @@ export function masteryFor(db: DB, conceptId: number): MasteryState {
     ease: row.ease,
     interval_d: row.interval_d,
     reps: row.reps,
-    passed_days: row.passed_days ?? 0,
-    top_passed_tier: row.top_passed_tier ?? 0,
+    passed_days: row.passed_days,
+    top_passed_tier: row.top_passed_tier,
     last_seen: row.last_seen,
     next_review: row.next_review,
   });

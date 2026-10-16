@@ -59,6 +59,19 @@ function work() {
 const bySlug = (s: any, slug: string) => s.concepts.find((c: any) => c.slug === slug);
 
 describe('dashboardState', () => {
+  it('counts a concept with its streak across days as mastered, in its domain and on its row', () => {
+    work();
+    for (let i = 0; i < 4; i += 1) {
+      call(recordAttempt, { session_id: SESSION, slug: 'csrf', question: `q${i}`, answer: 'a', grade: 5, difficulty: 2 });
+    }
+    expect(bySlug(dashboardState(db) as any, 'csrf').mastered).toBe(false); // four answers in one sitting
+
+    db.prepare("UPDATE mastery SET passed_days = 2 WHERE concept_id = (SELECT id FROM concepts WHERE slug = 'csrf')").run();
+    const s = dashboardState(db) as any;
+    expect(bySlug(s, 'csrf').mastered).toBe(true);
+    expect(s.domains.find((d: any) => d.domain === 'web-auth').mastered).toBe(1);
+  });
+
   it('names the version of the code that built it, for the sidebar', () => {
     expect((dashboardState(db) as any).version).toBe(ownVersion());
   });
