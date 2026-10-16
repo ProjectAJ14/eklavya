@@ -1,3 +1,10 @@
+# [1.74.0](https://github.com/ProjectAJ14/eklavya/compare/v1.73.0...v1.74.0) (2026-10-16)
+
+
+### Features
+
+* **feedback:** a verdict-first Feedback item, and a review that states all four areas ([#205](https://github.com/ProjectAJ14/eklavya/issues/205)) ([96f4c9e](https://github.com/ProjectAJ14/eklavya/commit/96f4c9e107ca5e5604fc7325770d614bfe3928aa))
+
 # [1.73.0](https://github.com/ProjectAJ14/eklavya/compare/v1.72.0...v1.73.0) (2026-10-16)
 
 
