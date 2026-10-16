@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memory library</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#17171a}
+.m{--mascot-coral:#ef9875;--mascot-coral-dark:#c96d51;--mascot-highlight:#ffc8a6;--mascot-cloak:#0E6E66;--mascot-cloak-dark:#07403C;--mascot-thread:#C4EDE4;--mascot-ink:#302c2a;--mascot-metal:#5b7c73;
+--bg:#17171a;--panel:#1e1e22;--mass:#26262a;--ink:#eae7e1;--dim:#a29c93;--faint:#8b857b;--line:#26262a;--line2:#33333a;--spot:#79d5c4;--spotink:#17171a;--soft:rgba(121,213,196,.14);--warn:#e8920c;
+background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;font-size:14.5px;line-height:1.65;min-height:100vh}
+.m *{box-sizing:border-box}
+.m a{color:var(--spot);text-decoration:none}
+.m a:hover{text-decoration:underline}
+.m a:focus-visible,.m button:focus-visible,.m input:focus-visible{outline:none;box-shadow:0 0 0 2px #17171a,0 0 0 4px #79d5c4}
+.wrap{max-width:1140px;margin:0 auto;padding:0 32px}
+.micro{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint)}
+.micro.s{color:var(--spot)}
+.card{background:var(--panel);border:1px solid var(--line2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;font:700 14px/1 Inter,sans-serif;border:1px solid var(--line2);background:var(--panel);color:var(--ink);cursor:pointer;border-radius:0}
+.btn:hover{border-color:var(--spot);color:var(--spot)}
+.btn.p{background:var(--spot);color:var(--spotink);border-color:var(--spot)}
+.btn.p:hover{color:var(--spotink);filter:brightness(.92)}
+.tab{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;font:400 11.5px 'JetBrains Mono',monospace;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.tab[aria-current=page]{color:var(--spot);box-shadow:inset 0 -2px 0 var(--spot)}
+.seg{display:inline-flex;border:1px solid var(--line2)}
+.seg button{min-height:44px;padding:0 16px;font:500 12px 'JetBrains Mono',monospace;letter-spacing:.07em;text-transform:uppercase;background:transparent;color:var(--dim);border:0;border-radius:0;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.item{display:flex;gap:16px;align-items:flex-start;width:100%;text-align:left;padding:14px 16px;background:transparent;border:0;border-top:1px solid var(--line);color:var(--ink);font:inherit;cursor:pointer;border-radius:0}
+.item:first-child{border-top:0}
+.item:hover{background:var(--mass)}
+.item[aria-pressed=true]{background:var(--soft);box-shadow:inset 2px 0 0 var(--spot)}
+.chip{font:400 10.5px 'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--spot);background:var(--soft);padding:3px 8px;white-space:nowrap}
+.chip.w{color:var(--warn);background:rgba(232,146,12,.14)}
+.field{min-height:44px;background:var(--panel);border:1px solid var(--line2);color:var(--ink);padding:0 14px;font:inherit;border-radius:0;min-width:0}
+</style>
+</helmet>
+<div class="m">
+  <div style="border-bottom:1px solid var(--line2)">
+    <div class="wrap" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 24px;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px;min-height:60px">
+        <span aria-hidden="true" style="width:30px;height:30px;background:var(--spot);display:inline-flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#17171a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3c6 3 6 15 0 18"/><path d="M5 12h16"/><path d="M17 8l4 4-4 4"/></svg></span>
+        <span style="font:900 19px/1 Archivo,sans-serif;letter-spacing:-.045em">Eklavya</span>
+      </div>
+      <nav aria-label="Workflows" style="display:flex;flex-wrap:wrap">
+        <a class="tab" href="#">Learning</a><a class="tab" href="#" aria-current="page">Memory</a><a class="tab" href="#">Artifacts</a><a class="tab" href="#">Feedback</a><a class="tab" href="#">Settings</a>
+      </nav>
+      <span class="chip" style="color:var(--dim);background:var(--mass)">Scope: all projects</span>
+    </div>
+  </div>
+  <div style="border-bottom:1px solid var(--line2)">
+    <div class="wrap" style="display:flex;flex-wrap:wrap">
+      <a class="tab" href="Main.dc.html">Overview</a>
+      <a class="tab" href="#" aria-current="page">Library</a>
+      <a class="tab" href="#">Impact</a>
+    </div>
+  </div>
+
+  <main class="wrap" style="padding-top:48px;padding-bottom:72px;display:flex;flex-direction:column;gap:28px">
+    <header style="display:flex;flex-direction:column;gap:14px;max-width:760px">
+      <svg viewBox="30 12 126 128" width="72" height="72" aria-hidden="true" style="display:block"><path d="M48 109q44-19 88 0l-8 30-33-15-31 15Z" fill="var(--mascot-cloak)"/><path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/><path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/><g fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M64 74q5-7 10 0m36 0q5-7 10 0"/><path d="M83 88q9 10 18 0"/></g><circle cx="95" cy="126" r="6" fill="var(--mascot-metal)"/></svg>
+      <span class="micro s">Library</span>
+      <h1 style="margin:0;font:900 clamp(32px,4vw,52px)/.92 Archivo,sans-serif;letter-spacing:-.055em">Everything memory <em style="font-style:normal;color:var(--spot)">kept</em>, one place</h1>
+      <p style="margin:0;color:var(--dim);font-size:17px;line-height:1.6">Entries, sessions and projects are three ways to group the same observations. Pick a grouping, open an item, fix it where you read it.</p>
+    </header>
+
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <div class="seg" role="group" aria-label="Group by">
+        <button type="button" aria-pressed="{{isEntries}}" onClick="{{showEntries}}">Entries</button>
+        <button type="button" aria-pressed="{{isSessions}}" onClick="{{showSessions}}">Sessions</button>
+        <button type="button" aria-pressed="{{isProjects}}" onClick="{{showProjects}}">Projects</button>
+      </div>
+      <label style="display:flex;flex:1 1 240px"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search memory</span><input class="field" style="flex:1" type="search" placeholder="Search observations"></label>
+      <button class="btn" type="button">Type: all</button>
+      <button class="btn" type="button">Last 30 days</button>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+      <section aria-label="List" class="card" style="flex:1 1 440px;min-width:0">
+        <sc-if value="{{isEntries}}" hint-placeholder-val="{{true}}">
+          <div>
+            <sc-for list="{{entries}}" as="e" hint-placeholder-count="4">
+              <button class="item" type="button" aria-pressed="{{e.selected}}" onClick="{{e.pick}}">
+                <span style="flex:1;min-width:0"><b style="font-weight:600;display:block">{{e.title}}</b><span style="color:var(--faint);font-size:13.5px">{{e.meta}}</span></span>
+                <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><sc-if value="{{e.inNext}}" hint-placeholder-val="{{false}}"><span class="chip">In next session</span></sc-if><span class="chip" style="color:var(--dim);background:var(--mass)">{{e.type}}</span></span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{isSessions}}" hint-placeholder-val="{{false}}">
+          <div>
+            <sc-for list="{{sessions}}" as="s" hint-placeholder-count="3">
+              <div class="item" style="cursor:default">
+                <span style="flex:1;min-width:0"><b style="font-weight:600;display:block">{{s.title}}</b><span style="color:var(--faint);font-size:13.5px">{{s.meta}}</span></span>
+                <span style="color:var(--faint);font-size:13.5px">{{s.when}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{isProjects}}" hint-placeholder-val="{{false}}">
+          <div>
+            <sc-for list="{{projects}}" as="p" hint-placeholder-count="3">
+              <div class="item" style="cursor:default">
+                <span style="flex:1;min-width:0"><b style="font-weight:600;display:block">{{p.title}}</b><span style="color:var(--faint);font-size:13.5px">{{p.meta}}</span></span>
+                <span style="color:var(--faint);font-size:13.5px">{{p.when}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </section>
+
+      <aside aria-label="Entry detail" class="card" style="flex:1 1 380px;min-width:0;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="chip">{{cur.type}}</span>
+          <sc-if value="{{cur.draft}}" hint-placeholder-val="{{false}}"><svg viewBox="30 12 126 128" width="40" height="40" aria-hidden="true" style="flex:none"><path d="M48 109q44-19 88 0l-8 30-33-15-31 15Z" fill="var(--mascot-cloak)"/><path d="M46 43h18V29h19V18h23v12h20v14h17v19h8v29h-8v16q0 12-16 15H62q-18-3-18-17V91h-9V63h11Z" fill="var(--mascot-coral)" stroke="var(--mascot-coral-dark)" stroke-width="2" stroke-linejoin="round"/><path d="M48 45h18V32h18V21h19" fill="none" stroke="var(--mascot-highlight)" stroke-width="3" stroke-linejoin="round"/><g fill="var(--mascot-ink)" stroke="var(--mascot-ink)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><rect x="64" y="64" width="10" height="19" rx="5"/><rect x="110" y="64" width="10" height="19" rx="5"/><path d="M85 91h14"/><path d="M62 57l14 4m32 0 14-4" fill="none"/></g><circle cx="95" cy="126" r="6" fill="var(--mascot-metal)"/></svg><span class="chip w">Proposed, not yet kept</span></sc-if>
+        </div>
+        <h2 style="margin:0;font:800 22px/1.2 Archivo,sans-serif;letter-spacing:-.03em">{{cur.title}}</h2>
+        <p style="margin:0;color:var(--dim)">{{cur.body}}</p>
+        <div style="border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--faint)">
+          <span><span class="micro">Project</span>&nbsp; {{cur.project}}</span>
+          <span><span class="micro">Evidence</span>&nbsp; {{cur.evidence}}</span>
+          <span><span class="micro">Recalled</span>&nbsp; {{cur.recalled}}</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn p" type="button">{{cur.primary}}</button>
+          <sc-if value="{{cur.canToggle}}" hint-placeholder-val="{{true}}"><button class="btn" type="button" onClick="{{cur.toggleNext}}">{{cur.nextLabel}}</button></sc-if>
+          <button class="btn" type="button">Correct</button>
+          <button class="btn" type="button">Delete</button>
+        </div>
+        <p style="margin:0;color:var(--faint);font-size:13.5px">{{cur.nextNote}} Correcting rewrites the entry and keeps the old text as history. Deleting removes it from recall and search. Neither touches mastery.</p>
+      </aside>
+    </div>
+    <p style="margin:0;color:var(--faint);font-size:11.5px;font-family:'JetBrains Mono',monospace">Sample data for the mockup.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { group: 'entries', picked: 1, off: [] };
+  }
+  renderVals() {
+    const all = [
+      { id: 1, type: 'decision', title: 'Token refresh runs in the api client, not the view', meta: 'web-app · today 14:20', draft: true,
+        body: 'Components never call refresh. The api client retries once on 401, then signals sign-out. This was proposed from the session where the login view was refactored.',
+        project: 'web-app', evidence: '6 events from session 4f2a', recalled: 'not yet' },
+      { id: 2, type: 'constraint', title: 'Migration 031 is forward-only; fix by adding 032', meta: 'eklavya · today 11:05', draft: true,
+        body: 'Never edit a shipped migration. Add a new one and update the schema expectations in the migrate test.',
+        project: 'eklavya', evidence: '3 events from session 91bc', recalled: 'not yet' },
+      { id: 3, type: 'gotcha', title: 'Shard manifest lists every test file', meta: 'eklavya · Mon', draft: false,
+        body: 'An unlisted test file fails CI. Adding, renaming or deleting a test file also means editing the manifest in the same PR.',
+        project: 'eklavya', evidence: '4 events from session 77d0', recalled: '5 times, last Thursday' },
+      { id: 4, type: 'preference', title: 'Config tests pin EKLAVYA_HOME to a temp directory', meta: 'eklavya · last week', draft: false,
+        body: 'In-process tests that call loadConfig read the real home config. Point EKLAVYA_HOME at a temp directory first.',
+        project: 'eklavya', evidence: '2 events from session 3e19', recalled: '9 times, last yesterday' },
+    ];
+    const g = this.state.group;
+    const cur = all.find((e) => e.id === this.state.picked) || all[0];
+    return {
+      isEntries: g === 'entries', isSessions: g === 'sessions', isProjects: g === 'projects',
+      showEntries: () => this.setState({ group: 'entries' }),
+      showSessions: () => this.setState({ group: 'sessions' }),
+      showProjects: () => this.setState({ group: 'projects' }),
+      entries: all.map((e) => ({ ...e, inNext: !e.draft && !this.state.off.includes(e.id), selected: e.id === cur.id, pick: () => this.setState({ picked: e.id }) })),
+      sessions: [
+        { title: 'Refactor login view', meta: '24 captured · 6 remembered · 2 proposed', when: 'today' },
+        { title: 'Fix shard manifest', meta: '11 captured · 3 remembered', when: 'Mon' },
+        { title: 'Add memory import', meta: '38 captured · 9 remembered', when: 'last week' },
+      ],
+      projects: [
+        { title: 'eklavya', meta: '131 observations · 22 sessions', when: 'today' },
+        { title: 'web-app', meta: '64 observations · 9 sessions', when: 'today' },
+        { title: 'infra-scripts', meta: '17 observations · 3 sessions', when: '2 weeks ago' },
+      ],
+      cur: (() => {
+        const isOff = this.state.off.includes(cur.id);
+        return { ...cur, primary: cur.draft ? 'Keep entry' : 'Copy entry id',
+          canToggle: !cur.draft,
+          nextLabel: isOff ? 'Add to next session' : 'Remove from next session',
+          nextNote: cur.draft ? 'Drafts reach Claude only after you keep them.' : (isOff ? 'Not handed to Claude at the next session start.' : 'Handed to Claude at the next session start.'),
+          toggleNext: () => this.setState({ off: isOff ? this.state.off.filter((x) => x !== cur.id) : [...this.state.off, cur.id] }) };
+      })(),
+    };
+  }
+}
+</script>
+</body>
+</html>
