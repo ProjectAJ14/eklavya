@@ -19,6 +19,18 @@ claude plugin validate ..
 hooks or the CLI execute `mcp/dist/`, so rebuild before using watch mode after
 source changes.
 
+Run `npm test`, not `npx vitest run`. Calling Vitest directly skips the build,
+and every test file that imports `mcp/dist/` then fails to load (about 18 dashboard
+files in a fresh checkout or worktree). If you do call Vitest directly, run
+`npm run build` first.
+
+On macOS the tests under `the early trigger, on the real filesystem` in
+`dashboard-events.test.ts` can still fail locally while CI passes (one when run
+alone, up to three in a full parallel run). They wait on a real `fs.watch` event
+within a few seconds, and macOS delivers those differently from the Linux runners
+CI uses. This is not a timezone or locale problem, and a failure there alone is
+not a regression. Do not spend time fixing it locally; CI is the reference.
+
 CI runs the suite in five Vitest shards with whole-process V8 coverage, including
 spawned hooks and CLI processes. The final `Test / test` check requires every
 shard to pass, verifies that every test file ran exactly once, and merges their
