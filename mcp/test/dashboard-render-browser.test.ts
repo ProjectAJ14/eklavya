@@ -48,6 +48,7 @@ declare function fromKey(k: string): Date;
 declare function dayKey(d: Date): string;
 declare function heatFill(step: number): string;
 declare function plural(n: number, w: string): string;
+declare function fmtN(n: unknown): unknown;
 declare function esc(s: unknown): string;
 declare function pid(raw: unknown, sid?: unknown): string;
 
@@ -198,6 +199,14 @@ async function pageThrough(page: Page, where: string) {
 }
 
 describe.skipIf(!OPTS)('dashboard in a browser', () => {
+  it('writes counts of 1,000 and up short, and leaves smaller numbers and text alone', async () => {
+    const w = await open('#/learning/dashboard', { height: HEIGHT });
+    const out = await w.page.evaluate(() => [0, 7, 999, 1000, 1049, 1200, 1250, 15300, 23426, 999999, 1000000, 2500000, -1500, '12 / 40', null].map((n) => fmtN(n)));
+    expect(out).toEqual([0, 7, 999, '1K', '1K', '1.2K', '1.3K', '15.3K', '23.4K', '1M', '1M', '2.5M', '-1.5K', '12 / 40', null]);
+    expect(await w.page.evaluate(() => [plural(1, 'item'), plural(1500, 'item'), plural(71, 'concept')])).toEqual(['1 item', '1.5K items', '71 concepts']);
+    await w.ctx.close();
+  });
+
   describe('the heatmap and the activity chart are drawn as before, from days the page keeps', () => {
     it('draws every window the arrows reach, in every width and scope, exactly as the first version did', async () => {
       let windows = 0;
