@@ -95,7 +95,13 @@ describe('tool errors', () => {
     const handlers = new Map<string, (a: unknown) => Promise<{ isError: boolean }>>();
     registerTools({ registerTool: (n: string, _c: unknown, h: never) => void handlers.set(n, h) } as never, db);
     expect((await handlers.get('memory_get')!({})).isError).toBe(true);
+    // One answers with an error envelope, one throws, one succeeds: each path counts once.
+    expect((await handlers.get('set_config')!({})).isError).toBe(true);
     expect((await handlers.get('get_config')!({})).isError).toBe(false);
-    expect(counts()).toEqual({ 'tool:memory_get': 1, 'tool_error:memory_get': 1, 'tool:get_config': 1 });
+    expect(counts()).toEqual({
+      'tool:memory_get': 1, 'tool_error:memory_get': 1,
+      'tool:set_config': 1, 'tool_error:set_config': 1,
+      'tool:get_config': 1,
+    });
   });
 });
