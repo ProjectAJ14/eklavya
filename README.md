@@ -88,7 +88,8 @@ does that.
 ## Artifacts
 
 Ask Claude to explain something "as an Eklavya artifact". You get an HTML page
-with diagrams that you can print or save as PDF.
+with colour-coded diagrams, chosen to fit the idea (sequence, swimlane, state
+machine, bars and more), that you can print or save as PDF.
 
 | What it does | How it works | Read more |
 |---|---|---|
