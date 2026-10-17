@@ -1,3 +1,10 @@
+# [1.78.0](https://github.com/ProjectAJ14/eklavya/compare/v1.77.0...v1.78.0) (2026-10-17)
+
+
+### Features
+
+* **artifacts:** colour-coded diagrams and a chooser of diagram types ([#213](https://github.com/ProjectAJ14/eklavya/issues/213)) ([69a40db](https://github.com/ProjectAJ14/eklavya/commit/69a40dbb664b3a108ab1d31fe4bcc4e90a6326c9))
+
 # [1.77.0](https://github.com/ProjectAJ14/eklavya/compare/v1.76.0...v1.77.0) (2026-10-17)
 
 
