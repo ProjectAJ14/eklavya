@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { openDb, type DB } from '../src/db.js';
@@ -29,7 +28,7 @@ async function serveWebsite(page: Page, stars: number | null | 'offline' = 12345
     if (name.includes('..')) return route.abort();
     const file = new URL(name, publicDir);
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return route.abort();
-    const type = name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : name.endsWith('.html') ? 'text/html' : 'image/svg+xml';
+    const type = name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : name.endsWith('.html') ? 'text/html' : name.endsWith('.mp4') ? 'video/mp4' : name.endsWith('.jpg') ? 'image/jpeg' : 'image/svg+xml';
     await route.fulfill({contentType:type,body:fs.readFileSync(file)});
   });
 }
@@ -61,58 +60,14 @@ async function expectReadable(page: Page, selector: string) {
   for (const {text, ratio} of ratios) expect(ratio, `${selector}: ${text}`).toBeGreaterThanOrEqual(4.5);
 }
 
-async function showWholeTerminal(page: Page) {
-  await page.locator('[data-terminal]').evaluate(element => element.scrollIntoView({block:'center',behavior:'instant'}));
-  await expectWholeTerminal(page);
-}
-
-async function expectWholeTerminal(page: Page) {
-  await expect.poll(() => page.locator('[data-terminal]').evaluate(element => {
-    const box = element.getBoundingClientRect();
-    return box.top >= 0 && box.left >= 0 && box.bottom <= innerHeight && box.right <= innerWidth;
-  })).toBe(true);
-}
-
 async function installPausedClock(page: Page) {
   const now = new Date('2026-10-11T12:00:00Z');
   await page.clock.install({time:now});
   await page.clock.pauseAt(new Date(now.getTime() + 1000));
 }
 
-async function advanceToState(page: Page, state: string) {
-  for (let elapsed = 0; elapsed <= 20000; elapsed += 200) {
-    if (await page.locator('[data-terminal]').getAttribute('data-demo-state') === state) return;
-    await page.clock.runFor(200);
-  }
-  expect(await page.locator('[data-terminal]').getAttribute('data-demo-state')).toBe(state);
-}
-
-async function showPartOfTerminal(page: Page) {
-  await page.locator('[data-terminal]').evaluate(element => {
-    const box = element.getBoundingClientRect();
-    window.scrollTo({top:scrollY + box.top - innerHeight + box.height / 2,behavior:'instant'});
-  });
-  await expect.poll(() => page.locator('[data-terminal]').evaluate(element => {
-    const box = element.getBoundingClientRect();
-    return box.top > 0 && box.top < innerHeight && box.bottom > innerHeight;
-  })).toBe(true);
-}
-
-async function expectInsidePanel(page: Page, selector: string) {
-  const visible = await page.locator(selector).evaluate(element => {
-    const panel = document.querySelector('.quiz-panel__content')! as HTMLElement;
-    const parent = panel.getBoundingClientRect(), box = element.getBoundingClientRect();
-    const top = parent.top + panel.clientTop, left = parent.left + panel.clientLeft;
-    return box.width > 0 && box.height > 0 && box.top >= top && box.left >= left &&
-      box.bottom <= top + panel.clientHeight && box.right <= left + panel.clientWidth;
-  });
-  expect(visible, `${selector} should be inside the panel's visible scrollport`).toBe(true);
-}
-
 describe.skipIf(!options)('offline mascot studio in a real browser', () => {
   beforeAll(async () => {
-    // Runtime CI does not build web/. Generate its source-backed panel asset without web dependencies.
-    execFileSync(process.execPath, [new URL('../../web/scripts/demo-panel.mjs', import.meta.url).pathname]);
     file = tempDbPath('mascot-browser');
     previousHome = process.env.EKLAVYA_HOME; process.env.EKLAVYA_HOME = path.dirname(file);
     db = openDb(file);
@@ -175,344 +130,11 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
     } finally { await page.close(); }
   });
 
-  it('waits for the whole homepage terminal, then plays one session without taking focus', async () => {
-    const page = await browser.newPage({viewport:{width:1280,height:640}});
-    const errors: string[] = [];
-    page.on('pageerror', error => errors.push(error.message));
-    try {
-      await serveWebsite(page);
-      await installPausedClock(page);
-      await page.goto(server.url);
-      const terminal = page.locator('[data-terminal]');
-      const panel = page.locator('[data-panel]');
-      await expect.poll(() => terminal.getAttribute('data-demo-state')).toBe('idle');
-      expect(await panel.isVisible()).toBe(false);
-      expect(await terminal.locator('input, textarea, form').count()).toBe(0);
-      expect(await page.locator('[data-question], [data-result]').locator('button, input, textarea, [role="button"]').count()).toBe(0);
-      expect(await terminal.evaluate(element => element.getBoundingClientRect().top >= innerHeight)).toBe(true);
-      await page.clock.runFor(60000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
-
-      await showPartOfTerminal(page);
-      await page.clock.runFor(30000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
-      expect(await page.locator('[data-prompt]').textContent()).toBe('');
-
-      const outside = page.locator('[data-ground="ink"]');
-      await outside.evaluate(element => (element as HTMLElement).focus({preventScroll:true}));
-      await showWholeTerminal(page);
-      await advanceToState(page, 'typing');
-      await page.clock.runFor(700);
-      const partialPrompt = await page.locator('[data-prompt]').textContent();
-      expect(partialPrompt!.length).toBeGreaterThan(0);
-      expect(partialPrompt!.length).toBeLessThan('Add JWT auth to the Express API'.length);
-      expect(await panel.isVisible()).toBe(false);
-
-      await advanceToState(page, 'submitted');
-      expect(await page.locator('[data-prompt]').textContent()).toBe('Add JWT auth to the Express API');
-      expect(await page.locator('[data-enter]').evaluate(element => element.classList.contains('is-pressed'))).toBe(true);
-      expect(await panel.isVisible()).toBe(false);
-      await advanceToState(page, 'awaiting');
-      expect(await panel.isVisible()).toBe(true);
-      expect(await page.locator('[data-question]').isVisible()).toBe(true);
-      expect(await page.locator('[data-step="3"]').isVisible()).toBe(true);
-      expect(await page.locator('[data-step="4"]').isVisible()).toBe(false);
-      await page.clock.runFor(1400);
-      expect(await page.locator('[data-step="4"]').isVisible()).toBe(true);
-      expect(await panel.isVisible()).toBe(true);
-
-      await advanceToState(page, 'selected');
-      expect(await page.locator('[data-option="1"]').getAttribute('data-selected')).toBe('true');
-      expect(await page.locator('[data-option][data-selected="true"]').count()).toBe(1);
-      await expectInsidePanel(page, '[data-option="1"]');
-      await advanceToState(page, 'submitting');
-      expect(await page.locator('[data-submit]').evaluate(element => element.classList.contains('is-pressed'))).toBe(true);
-      await expectInsidePanel(page, '[data-submit]');
-      await advanceToState(page, 'grading');
-      expect(await page.locator('[data-grading]').isVisible()).toBe(true);
-      expect(await page.locator('.quiz-actions').isVisible()).toBe(false);
-      await advanceToState(page, 'feedback');
-      expect(await page.locator('[data-result]').isVisible()).toBe(true);
-      expect(await page.locator('[data-verdict]').textContent()).toBe('Correct');
-      expect(await page.locator('[data-explanation]').textContent()).toContain('httpOnly');
-      expect(await page.locator('[data-step="5"]').isVisible()).toBe(false);
-      expect(await outside.evaluate(element => element === document.activeElement)).toBe(true);
-
-      await advanceToState(page, 'acknowledging');
-      expect(await panel.isVisible()).toBe(true);
-      expect(await page.locator('[data-done]').evaluate(element => element.classList.contains('is-pressed'))).toBe(true);
-      await expectInsidePanel(page, '[data-done]');
-      await advanceToState(page, 'continuing');
-      expect(await panel.isVisible()).toBe(false);
-      await advanceToState(page, 'complete');
-      expect(await page.locator('[data-step="5"]').isVisible()).toBe(true);
-      expect(await page.locator('[data-task-done]').isVisible()).toBe(true);
-      expect(await outside.evaluate(element => element === document.activeElement)).toBe(true);
-      await page.clock.runFor(60000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('complete');
-      expect(await panel.isVisible()).toBe(false);
-      expect(errors).toEqual([]);
-    } finally { await page.close(); }
-  });
-
-  it('pauses when partly visible or hidden, and resumes from the same point', async () => {
-    const page = await browser.newPage({viewport:{width:1280,height:640}});
-    try {
-      // The browser controls these read-only properties. Override only its visibility
-      // signal; the viewport observer and layout remain real browser behavior.
-      await page.addInitScript(() => {
-        let hidden = false;
-        Object.defineProperty(document, 'hidden', {get:() => hidden});
-        Object.defineProperty(document, 'visibilityState', {get:() => hidden ? 'hidden' : 'visible'});
-        (window as unknown as {setTestVisibility:(value: boolean) => void}).setTestVisibility = value => {
-          hidden = value;
-          document.dispatchEvent(new Event('visibilitychange'));
-        };
-      });
-      await serveWebsite(page);
-      await installPausedClock(page);
-      await page.goto(server.url);
-      await showWholeTerminal(page);
-      await advanceToState(page, 'typing');
-      await page.clock.runFor(700);
-      const terminal = page.locator('[data-terminal]');
-      const prompt = await page.locator('[data-prompt]').textContent();
-      await showPartOfTerminal(page);
-      await expect.poll(() => terminal.getAttribute('data-demo-paused')).toBe('true');
-      await page.clock.runFor(30000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('typing');
-      expect(await page.locator('[data-prompt]').textContent()).toBe(prompt);
-      await page.evaluate(() => window.scrollTo({top:0,behavior:'instant'}));
-      expect(await terminal.evaluate(element => element.getBoundingClientRect().top >= innerHeight)).toBe(true);
-      await page.clock.runFor(30000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('typing');
-      expect(await page.locator('[data-prompt]').textContent()).toBe(prompt);
-
-      await showWholeTerminal(page);
-      await advanceToState(page, 'awaiting');
-      await page.evaluate(() => (window as unknown as {setTestVisibility:(value: boolean) => void}).setTestVisibility(true));
-      expect(await terminal.getAttribute('data-demo-paused')).toBe('true');
-      await page.clock.runFor(30000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('awaiting');
-      expect(await page.locator('[data-step="4"]').isVisible()).toBe(false);
-      await page.evaluate(() => (window as unknown as {setTestVisibility:(value: boolean) => void}).setTestVisibility(false));
-      await advanceToState(page, 'selected');
-      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-      expect(await terminal.getAttribute('data-demo-paused')).toBe('true');
-      await page.clock.runFor(30000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('selected');
-      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-      await advanceToState(page, 'grading');
-
-      const pause = page.locator('[data-demo-pause]');
-      await pause.evaluate(element => (element as HTMLElement).focus({preventScroll:true}));
-      await page.keyboard.press('Enter');
-      await showWholeTerminal(page);
-      expect(await terminal.getAttribute('data-demo-paused')).toBe('true');
-      expect(await pause.textContent()).toBe('Resume animation');
-      expect(await pause.getAttribute('aria-pressed')).toBe('true');
-      await page.clock.runFor(30000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('grading');
-      await page.keyboard.press('Enter');
-      await showWholeTerminal(page);
-      await advanceToState(page, 'complete');
-      expect(await page.locator('[data-panel]').isVisible()).toBe(false);
-      expect(await pause.textContent()).toBe('Replay demo');
-      expect(await pause.getAttribute('aria-disabled')).toBeNull();
-      expect(await pause.getAttribute('aria-pressed')).toBeNull();
-      expect(await pause.evaluate(element => element === document.activeElement)).toBe(true);
-      await page.keyboard.press('Enter');
-      await advanceToState(page, 'typing');
-      expect(await pause.evaluate(element => element === document.activeElement)).toBe(true);
-    } finally { await page.close(); }
-  });
-
-  it('shows a finished, still transcript when reduced motion is requested', async () => {
-    const page = await browser.newPage({viewport:{width:390,height:640},reducedMotion:'reduce'});
-    try {
-      await serveWebsite(page);
-      await installPausedClock(page);
-      await page.goto(server.url);
-      const terminal = page.locator('[data-terminal]');
-      await expect.poll(() => terminal.getAttribute('data-demo-state')).toBe('complete');
-      expect(await page.locator('[data-panel]').isVisible()).toBe(false);
-      expect(await page.locator('[data-step]:not([hidden])').count()).toBe(6);
-      expect(await page.locator('[data-task-done]').isVisible()).toBe(true);
-      expect(await page.locator('[data-demo-pause]').isVisible()).toBe(true);
-      const replay = page.locator('[data-demo-pause]');
-      expect(await replay.getAttribute('aria-disabled')).toBeNull();
-      expect(await replay.textContent()).toBe('Replay demo');
-      await showWholeTerminal(page);
-      await page.locator('[data-transcript]').evaluate(element => { element.scrollTop = element.scrollHeight; });
-      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
-      await replay.evaluate(element => (element as HTMLElement).focus({preventScroll:true}));
-      const position = await page.evaluate(() => scrollY);
-      await page.keyboard.press('Enter');
-      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBe(0);
-      expect(await page.evaluate(() => scrollY)).toBe(position);
-      expect(await replay.evaluate(element => element === document.activeElement)).toBe(true);
-      expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
-      await page.clock.runFor(60000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('complete');
-      expect(await page.locator('[data-panel]').isVisible()).toBe(false);
-      expect(await page.locator('[data-prompt]').textContent()).toBe('');
-      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBe(0);
-      expect(await page.locator('[data-step]:not([hidden])').count()).toBe(6);
-      expect(await replay.textContent()).toBe('Replay demo');
-      expect(await replay.evaluate(element => element === document.activeElement)).toBe(true);
-      expect(await terminal.locator('input, textarea').count()).toBe(0);
-    } finally { await page.close(); }
-  });
-
-  it('clears a completed replay and runs one fresh session when the terminal is visible again', async () => {
-    const page = await browser.newPage({viewport:{width:390,height:640}});
-    try {
-      await serveWebsite(page);
-      await installPausedClock(page);
-      await page.goto(server.url);
-      await showWholeTerminal(page);
-      await advanceToState(page, 'complete');
-      const terminal = page.locator('[data-terminal]');
-      const replay = page.locator('[data-demo-pause]');
-      expect(await replay.textContent()).toBe('Replay demo');
-      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
-      await replay.evaluate(element => (element as HTMLElement).focus({preventScroll:true}));
-      await terminal.evaluate(element => {
-        const phases: string[] = [];
-        (window as unknown as {replayPhases:string[]}).replayPhases = phases;
-        new MutationObserver(records => {
-          for (let index = 0; index < records.length; index++) {
-            phases.push(records[index + 1]?.oldValue ?? element.getAttribute('data-demo-state')!);
-          }
-        }).observe(element, {attributes:true,attributeFilter:['data-demo-state'],attributeOldValue:true});
-      });
-
-      await page.evaluate(() => {
-        window.scrollTo({top:0,behavior:'instant'});
-        window.dispatchEvent(new Event('blur'));
-      });
-      expect(await terminal.evaluate(element => element.getBoundingClientRect().top >= innerHeight)).toBe(true);
-      await page.keyboard.press('Enter');
-      expect(await replay.evaluate(element => element === document.activeElement)).toBe(true);
-      expect(await page.evaluate(() => scrollY)).toBe(0);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
-      expect(await terminal.getAttribute('data-demo-paused')).toBe('true');
-      expect(await page.locator('[data-prompt]').textContent()).toBe('');
-      expect(await page.locator('.transcript__ready[data-ready]').isVisible()).toBe(true);
-      expect(await page.locator('[data-task-log]').isVisible()).toBe(false);
-      expect(await page.locator('[data-task-done]').isVisible()).toBe(false);
-      expect(await page.locator('[data-panel]').isVisible()).toBe(false);
-      expect(await page.locator('[data-transcript]').evaluate(element => element.scrollTop)).toBe(0);
-      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-      await page.clock.runFor(60000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
-      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-      await showWholeTerminal(page);
-      await page.clock.runFor(30000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
-      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-      await advanceToState(page, 'typing');
-      await page.clock.runFor(700);
-      expect((await page.locator('[data-prompt]').textContent())!.length).toBeGreaterThan(0);
-      expect(await page.locator('[data-step]:not([hidden])').count()).toBe(0);
-      const position = await page.evaluate(() => scrollY);
-
-      for (const phase of ['awaiting','selected','submitting','grading','feedback','acknowledging','continuing','complete']) {
-        await advanceToState(page, phase);
-        expect(await replay.evaluate(element => element === document.activeElement)).toBe(true);
-        expect(await page.evaluate(() => scrollY)).toBe(position);
-        if (phase === 'awaiting') {
-          expect(await page.locator('[data-question]').isVisible()).toBe(true);
-          expect(await page.locator('[data-option][data-selected="true"]').count()).toBe(0);
-          // The panel shows the pick by fill and border, never a tick; the replay matches it.
-          expect(await page.locator('.quiz-option__tick').count()).toBe(0);
-          expect(await page.locator('[data-submit]').isVisible()).toBe(true);
-          expect(await page.locator('[data-grading]').isVisible()).toBe(false);
-          expect(await page.locator('[data-result]').isVisible()).toBe(false);
-          expect(await page.locator('[data-step="5"]').isVisible()).toBe(false);
-        }
-        if (phase === 'selected') {
-          expect(await page.locator('[data-option][data-selected="true"]').count()).toBe(1);
-          expect((await page.locator('[data-option]').allTextContents()).join('')).not.toContain('✓');
-        }
-        if (phase === 'feedback') expect(await page.locator('[data-verdict]').textContent()).toBe('Correct');
-      }
-      expect(await page.locator('[data-panel]').isVisible()).toBe(false);
-      expect(await page.locator('[data-step]:not([hidden])').count()).toBe(6);
-      expect(await page.locator('[data-result] .quiz-stem').count()).toBe(1);
-      expect(await replay.textContent()).toBe('Replay demo');
-      await page.clock.runFor(60000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('complete');
-      const phases = await page.evaluate(() => (window as unknown as {replayPhases:string[]}).replayPhases);
-      for (const phase of ['awaiting','selected','feedback','complete']) {
-        expect(phases.filter(value => value === phase), `${phase} should happen once in the second replay`).toHaveLength(1);
-      }
-    } finally { await page.close(); }
-  });
-
-  it('waits while the analytics banner covers the terminal, then resumes when it is dismissed', async () => {
-    const page = await browser.newPage({viewport:{width:390,height:640}});
-    try {
-      await serveWebsite(page, 12345, false);
-      await installPausedClock(page);
-      await page.goto(new URL('/#demo',server.url).href);
-      const terminal = page.locator('[data-terminal]');
-      const banner = page.locator('#ek-consent');
-      await banner.waitFor({state:'visible'});
-      await expectWholeTerminal(page);
-      const overlapsTerminal = () => terminal.evaluate(element => {
-        const box = element.getBoundingClientRect();
-        const cover = document.querySelector('#ek-consent')!.getBoundingClientRect();
-        const width = Math.min(box.right, cover.right, innerWidth) - Math.max(box.left, cover.left, 0);
-        const height = Math.min(box.bottom, cover.bottom, innerHeight) - Math.max(box.top, cover.top, 0);
-        return width > 0 && height > 0;
-      });
-      expect(await overlapsTerminal()).toBe(true);
-      expect(await page.evaluate(() => localStorage.getItem('eklavya-analytics'))).toBeNull();
-      // The hash navigation uses the site's smooth scroll. Wait for its native
-      // animation to finish before measuring whether dismissal moves the page.
-      let lastPosition: number | undefined, stableSamples = 0;
-      await expect.poll(async () => {
-        const current = await page.evaluate(() => scrollY);
-        stableSamples = current === lastPosition ? stableSamples + 1 : 0;
-        lastPosition = current;
-        return stableSamples;
-      }, {interval:100,timeout:3000}).toBeGreaterThanOrEqual(3);
-      const position = await page.evaluate(() => scrollY);
-      await page.clock.runFor(60000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('idle');
-      expect(await page.locator('[data-prompt]').textContent()).toBe('');
-
-      await banner.getByRole('button', {name:'Decline',exact:true}).click();
-      expect(await banner.count()).toBe(0);
-      expect(await page.evaluate(() => localStorage.getItem('eklavya-analytics'))).toBe('denied');
-      expect(await page.evaluate(() => scrollY)).toBe(position);
-      await advanceToState(page, 'typing');
-      await page.clock.runFor(700);
-      const prompt = await page.locator('[data-prompt]').textContent();
-      expect(prompt!.length).toBeGreaterThan(0);
-
-      // Reopen the existing settings control without scrolling to the footer.
-      await page.locator('[data-analytics-choice]').evaluate(element => (element as HTMLElement).click());
-      await banner.waitFor({state:'visible'});
-      expect(await overlapsTerminal()).toBe(true);
-      expect(await page.evaluate(() => scrollY)).toBe(position);
-      await expect.poll(() => terminal.getAttribute('data-demo-paused')).toBe('true');
-      await page.clock.runFor(30000);
-      expect(await terminal.getAttribute('data-demo-state')).toBe('typing');
-      expect(await page.locator('[data-prompt]').textContent()).toBe(prompt);
-      await banner.getByRole('button', {name:'Decline',exact:true}).click();
-      expect(await page.evaluate(() => scrollY)).toBe(position);
-      await advanceToState(page, 'complete');
-      expect(await page.locator('[data-panel]').isVisible()).toBe(false);
-    } finally { await page.close(); }
-  });
-
-  it('keeps the mascot hero and automated panel readable in both themes', async () => {
+  it('keeps the mascot hero readable in both themes', async () => {
     const page = await browser.newPage({viewport:{width:1280,height:1000}});
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    let heroBackground: string | undefined, terminalBackground: string | undefined;
+    let heroBackground: string | undefined;
     try {
       await serveWebsite(page);
       await installPausedClock(page);
@@ -525,45 +147,8 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
         heroBackground ??= heroFill;
         expect(heroFill).toBe(heroBackground);
         await expectReadable(page, '.hero h1, .hero h1 em, .hero__lede, .hero__note, .hero .btn');
-        const terminalFill = await page.locator('[data-terminal]').evaluate(element => getComputedStyle(element).backgroundColor);
-        terminalBackground ??= terminalFill;
-        expect(terminalFill).toBe(terminalBackground);
-        await showWholeTerminal(page);
-        await advanceToState(page, 'awaiting');
-        await expectReadable(page, '.quiz-brand b, [data-topic], .quiz-stem, .quiz-option, .quiz-option__note, .quiz-hints, .terminal-dim');
-        await advanceToState(page, 'selected');
-        await expectReadable(page, '[data-submit]');
-        await advanceToState(page, 'feedback');
-        await expectReadable(page, '[data-verdict], [data-explanation], [data-auto-close], [data-done]');
       }
       expect(errors).toEqual([]);
-    } finally { await page.close(); }
-  });
-
-  it('fits the full replay frame on narrow and short screens in both themes', async () => {
-    const page = await browser.newPage();
-    try {
-      await serveWebsite(page);
-      await installPausedClock(page);
-      for (const ground of ['ink','paper']) {
-        for (const width of [1280,900,560,390]) {
-          await page.setViewportSize({width,height:640});
-          await page.goto(server.url);
-          await page.locator(`[data-ground="${ground}"]`).click();
-          await showWholeTerminal(page);
-          await advanceToState(page, 'awaiting');
-          expect(await page.locator('[data-panel]').isVisible()).toBe(true);
-          await showWholeTerminal(page);
-          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-          await advanceToState(page, 'selected');
-          await expectInsidePanel(page, '[data-option="1"]');
-          await advanceToState(page, 'submitting');
-          await expectInsidePanel(page, '[data-submit]');
-          await advanceToState(page, 'acknowledging');
-          await expectInsidePanel(page, '[data-done]');
-          await advanceToState(page, 'complete');
-        }
-      }
     } finally { await page.close(); }
   });
 
@@ -591,19 +176,26 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
     }
   });
 
-  it('starts direct demo links without requiring the reader to center the terminal', async () => {
+  it('embeds the launch film at #demo, keeps /demo/ redirecting, and needs no replay script', async () => {
     const page = await browser.newPage({viewport:{width:1280,height:720}});
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
     try {
       await serveWebsite(page);
-      await installPausedClock(page);
       for (const target of ['/#demo','/demo/']) {
         await page.goto(new URL(target,server.url).href);
         await expect.poll(() => page.url()).toBe(new URL('/#demo',server.url).href);
-        expect(await page.locator('[data-terminal]').count()).toBe(1);
-        await expectWholeTerminal(page);
-        await advanceToState(page, 'complete');
-        expect(await page.locator('[data-task-done]').isVisible()).toBe(true);
+        const video = page.locator('video#demo');
+        expect(await video.count()).toBe(1);
+        expect(await video.getAttribute('controls')).not.toBeNull();
+        expect(await video.getAttribute('autoplay')).toBeNull();
+        expect(await video.getAttribute('poster')).toBe('/demo/eklavya-launch.jpg');
+        expect(await page.getByRole('button', {name:'Play the launch film'}).count()).toBe(1);
+        expect(await page.locator('[data-terminal]').count()).toBe(0);
       }
+      for (const asset of ['demo/eklavya-launch.mp4','demo/eklavya-launch.jpg'])
+        expect(fs.statSync(new URL(`../../web/public/${asset}`, import.meta.url)).size, asset).toBeGreaterThan(10000);
+      expect(errors).toEqual([]);
     } finally { await page.close(); }
   });
 

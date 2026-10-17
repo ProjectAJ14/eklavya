@@ -41,7 +41,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/tokens.css?v=4">
 <link rel="stylesheet" href="/styles.css?v=12">
-<link rel="stylesheet" href="/demo/demo.css?v=3">
+<link rel="stylesheet" href="/demo/demo.css?v=5">
 <link rel="stylesheet" href="/brand/mascot/mascot.css?v=1">
 <link rel="stylesheet" href="/hero-eyes.css?v=1">
 <script src="/brand/mascot/mascot.js?v=1" defer></script>
@@ -114,64 +114,12 @@
     <div class="wrap">
       <div class="demo-intro">
         <div><p class="eyebrow">The demo</p><h2 id="demo-title">See it in action.</h2></div>
-        <button class="demo-pause" type="button" data-demo-pause aria-pressed="false">Pause animation</button>
       </div>
-      <div class="terminal" id="demo" data-terminal role="group" aria-label="Automatic Claude Code and Eklavya replay" aria-describedby="demo-caption">
-        <div class="terminal__bar"><span class="terminal__lights" aria-hidden="true"><i></i><i></i><i></i></span><span>claude — ~/express-api</span><span class="terminal__replay-label">Browser replay</span></div>
-        <div class="terminal__body is-panel-closed" data-terminal-body>
-          <div class="terminal__main">
-            <div class="transcript" data-transcript>
-              <div class="claude-welcome">
-                <pre class="claude-logo" aria-hidden="true"> ▐▛███▜▌
-▝▜█████▛▘
-  ▘▘ ▝▝</pre>
-                <div><b>Claude Code</b><div class="terminal-dim">Sonnet 5.5 · Claude Max</div><div class="terminal-dim">~/express-api</div></div>
-              </div>
-              <p class="transcript__ready" data-ready>A small task, from prompt to working code.</p>
-              <div data-task-log hidden>
-                <p class="transcript__prompt">❯ Add JWT auth to the Express API</p>
-                <p>I'll add access and refresh tokens, then protect the API routes.</p>
-                <div class="tool-line" data-step="0" hidden><div>● Read(<span>src/app.ts</span>)</div><div class="terminal-dim">&nbsp; ⎿ Read 84 lines</div></div>
-                <div class="tool-line" data-step="1" hidden><div>● Write(<span>src/auth.ts</span>)</div><div class="terminal-dim">&nbsp; ⎿ Wrote access and refresh token handlers</div><pre class="code-sample"><span>+ </span>res.cookie('refresh', refreshToken, {
-<span>+ </span>  httpOnly: true,
-<span>+ </span>  secure: true,
-<span>+ </span>  sameSite: 'strict'
-<span>+ </span>});</pre></div>
-                <div class="tool-line" data-step="2" hidden><div>● Eklavya(<span>log_session_concepts</span>)</div><div class="terminal-dim">&nbsp; ⎿ jwt-structure, httponly-cookies, middleware-order-auth</div></div>
-                <div class="tool-line" data-step="3" hidden><div>● Eklavya(<span>present_question</span>)</div><div class="terminal-dim">&nbsp; ⎿ Question sent to the side panel</div></div>
-                <div class="tool-line" data-step="4" hidden><div>● Write(<span>src/middleware/verify.ts</span>)</div><div class="terminal-dim">&nbsp; ⎿ Added token validation to protected routes</div></div>
-                <div class="tool-line" data-step="5" hidden><div>● Bash(<span>npm test</span>)</div><div class="terminal-dim">&nbsp; ⎿ 12 tests passed</div></div>
-              </div>
-              <p class="terminal-dim" data-running hidden><span class="terminal__spinner" aria-hidden="true">✻</span> Working…</p>
-              <p data-task-done hidden><span class="terminal-complete">✓ Done</span><br>Auth is in place. Access tokens stay in memory; the refresh token uses an httpOnly cookie.</p>
-            </div>
-            <div class="terminal__composer" aria-hidden="true"><span>❯</span><span data-prompt></span><span class="terminal__enter" data-enter>↵</span></div>
-            <div class="terminal__foot"><span>⏵⏵ auto mode</span><span>[EKLAVYA concept · as-you-go · easy]</span></div>
-          </div>
-          <aside class="quiz-panel" data-panel aria-label="Example Eklavya quiz side panel" hidden>
-            <div class="quiz-panel__title"><span>Eklavya</span><span aria-hidden="true">×</span></div>
-            <div class="quiz-panel__content">
-              <div class="quiz-brand"><div class="quiz-brand__logo" data-panel-logo aria-hidden="true"></div><div><b data-panel-wordmark>E K L A V Y A</b><span data-topic hidden>HttpOnly cookies · T2 mechanism</span></div></div>
-              <p class="terminal-dim" data-empty hidden>No question right now</p>
-              <div data-question hidden>
-                <p class="quiz-stem">Why keep the refresh token in an <code>httpOnly</code> cookie, with the access token in memory?</p>
-                <div class="quiz-options">
-                  <div class="quiz-option" data-option="1"><span class="quiz-option__key">1</span><span>So injected scripts can't read the refresh token<span class="quiz-option__note">The browser can still send the cookie with a request.</span></span></div>
-                  <div class="quiz-option" data-option="2"><span class="quiz-option__key">2</span><span>So cross-site requests cannot reach the server<span class="quiz-option__note">The browser blocks a request before it is sent.</span></span></div>
-                  <div class="quiz-option" data-option="3"><span class="quiz-option__key">3</span><span>So the refresh token cannot appear in server logs<span class="quiz-option__note">The cookie is kept out of all request headers.</span></span></div>
-                  <div class="quiz-option" data-option="4"><span class="quiz-option__key">4</span><span>So the access token can be revoked immediately<span class="quiz-option__note">The browser checks each token before a request.</span></span></div>
-                  <div class="quiz-option" data-option="other"><span class="quiz-option__key">o</span><span data-panel-label="other">Other — explain in your own words</span></div>
-                </div>
-                <div class="quiz-actions" aria-hidden="true"><span data-submit data-panel-label="submit">Submit answer</span><span data-panel-label="skip">Skip question</span></div>
-              </div>
-              <p class="terminal-dim quiz-grading" data-grading hidden>Checking your answer…</p>
-              <div class="quiz-result" data-result hidden><p class="quiz-result__verdict" data-verdict></p><p data-correct-answer hidden></p><p data-explanation></p><p class="terminal-dim" data-auto-close></p><span class="quiz-done" data-done data-panel-label="done">Done</span></div>
-            </div>
-          </aside>
-        </div>
+      <div class="demo-player">
+        <video class="demo-video" id="demo" controls playsinline preload="metadata" poster="/demo/eklavya-launch.jpg" aria-describedby="demo-caption"><source src="/demo/eklavya-launch.mp4" type="video/mp4"></video>
+        <button class="demo-play" type="button" data-demo-play aria-label="Play the launch film"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>Watch · 0:30</span></button>
       </div>
-      <p class="demo-caption" id="demo-caption">An example replay. It doesn't run Claude or change any files.</p>
-      <noscript><p>Read <a class="text-link" href="/docs/first-session/">what happens in your first session</a>.</p></noscript>
+      <p class="demo-caption" id="demo-caption">A 30-second tour of Eklavya: quizzes while Claude Code works, memory, the dashboard and install.</p>
     </div>
   </section>
   <section class="legend" id="legend" data-shoot aria-labelledby="legend-title">
@@ -226,8 +174,7 @@
 </footer>
 </div>
 <script src="/app.js?v=13" defer></script>
-<script src="/demo/panel-model.js?v=1" defer></script>
-<script src="/demo/demo.js?v=3" defer></script>
+<script src="/demo/demo.js?v=1" defer></script>
 <script src="/analytics.js?v=2" defer></script>
 </body>
 </html>

@@ -6,15 +6,11 @@
 
 **Learn while your agent works — and carry project context forward.**
 
-**[Visit the website →](https://eklavya-run.web.app/)**
+[<img src="assets/btn-website.svg" alt="Visit the website" width="240" height="48">](https://eklavya-run.web.app/)
 
-[Watch a short example session](https://eklavya-run.web.app/#demo).
+[<img src="assets/launch-film.jpg" alt="Play the 30-second Eklavya launch film" width="760">](https://eklavya-run.web.app/#demo)
 
 *Named for Ekalavya, who mastered archery practicing before a silent statue of his guru. Here, the statue talks back.*
-
-<img src="assets/eklavya-readme-banner.png" alt="Watercolor illustration of Eklavya: a developer and Claude Code mascot Clawd build code, learn through short questions, and carry project context into the next session" width="960">
-
-<img src="assets/checkpoint.gif" alt="A checkpoint question arriving in the middle of a task, answered in two keystrokes, and the work carrying straight on" width="760">
 
 [![npm](https://img.shields.io/npm/v/eklavya?style=flat-square&color=0A5751&labelColor=16150f)](https://www.npmjs.com/package/eklavya)
 [![license](https://img.shields.io/npm/l/eklavya?style=flat-square&color=0A5751&labelColor=16150f)](LICENSE)
@@ -37,6 +33,18 @@ through your Claude Code login for memory summaries and prompt feedback, so
 captured session evidence goes to that model. [Memory and data](https://eklavya-run.web.app/docs/memory/)
 explains the controls.
 
+<table>
+<tr><td colspan="2" align="center"><img src="assets/screens/learning.png" alt="Learning dashboard with accuracy, mastery, due reviews, a 13-day streak and answers over the last 30 days"><br><sub><b>Learning</b> — accuracy, streak and reviews that are due</sub></td></tr>
+<tr>
+<td align="center"><img src="assets/screens/memory.png" alt="Memory dashboard with observations, sessions, context reuse and recent sessions"><br><sub><b>Memory</b> — what Eklavya remembers about your projects</sub></td>
+<td align="center"><img src="assets/screens/artifacts.png" alt="An explainer page for a missed git question, with the right answer and a prompt to correct yours"><br><sub><b>Artifacts</b> — an explainer page for a question you missed</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="assets/screens/feedback.png" alt="Feedback page reviewing one prompt, with a better version of it"><br><sub><b>Feedback</b> — a review of one prompt, with a better version</sub></td>
+<td align="center"><img src="assets/screens/settings.png" alt="User settings with the quiz, gate and focus controls"><br><sub><b>Settings</b> — every dial, per user or per project</sub></td>
+</tr>
+</table>
+
 ## What you get
 
 | Feature | In one line | Read more |
@@ -48,6 +56,12 @@ explains the controls.
 | Report a problem | Tell Claude a question or grade was wrong: it drafts a GitHub issue with paths and code removed, and files it only after you say yes. | [How to report one](https://eklavya-run.web.app/docs/faq/#how-do-i-report-a-problem-with-eklavya) |
 | Dials | Choose what it teaches, when it asks and how hard. | [The dials](https://eklavya-run.web.app/docs/dials/) |
 | Commit gate | Optional: pass a quiz before you can commit. The terminal hook also holds commits in linked worktrees. | [Commit gate](https://eklavya-run.web.app/docs/commit-gate/) |
+
+<div align="center">
+
+<img src="assets/eklavya-readme-banner.png" alt="Watercolor illustration of Eklavya: a developer and Claude Code mascot Clawd build code, learn through short questions, and carry project context into the next session" width="960">
+
+</div>
 
 ## Learning
 

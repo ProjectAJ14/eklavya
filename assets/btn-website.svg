@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="48" viewBox="0 0 240 48" role="img" aria-label="Visit the website">
+  <rect width="240" height="48" rx="10" fill="#79D5C4"/>
+  <text x="30" y="30" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#17171a">Visit the website</text>
+  <path d="M196 24h18m-7-7 7 7-7 7" fill="none" stroke="#17171a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
