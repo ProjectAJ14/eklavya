@@ -4,3 +4,10 @@
 .demo-intro h2 { margin: 12px 0 0; font: 900 clamp(34px, 3.3vw, 46px)/1 var(--font-disp); letter-spacing: var(--tracking-display); }
 .demo-caption { margin: 16px 0 0; color: var(--dim); font: 11px/1.7 var(--font-mono); }
 .demo-video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line-2); scroll-margin-top: 16px; }
+.demo-player { position: relative; }
+.demo-play { position: absolute; inset: 0 0 56px; margin: auto; width: max-content; height: max-content; display: flex; align-items: center; gap: 12px; padding: 14px 22px 14px 16px; border: 0; border-radius: 999px; background: var(--hero-spot, #79D5C4); color: #17171a; font: 700 14px/1 var(--font-mono); cursor: pointer; box-shadow: 0 8px 30px rgb(0 0 0 / .45); transition: transform .2s var(--ease, ease), opacity .2s; }
+.demo-play:hover { transform: scale(1.05); }
+.demo-play:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.demo-player.is-playing .demo-play { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .demo-play { transition: none; } .demo-play:hover { transform: none; } }
+@media (max-width: 560px) { .demo-play span { display: none; } .demo-play { padding: 14px; } }

@@ -127,7 +127,8 @@ the scene enters view, including after returning with Back; reduced motion shows
 
 The demo is the 30-second launch film, `public/demo/eklavya-launch.mp4` with
 `eklavya-launch.jpg` as poster, in a native `<video controls id="demo">`. It
-does not autoplay; keep the controls and the caption. Re-encode large source
+does not autoplay; keep the native controls, the caption and the play button
+(`demo.js` also pauses it when it scrolls out of view). Re-encode large source
 films (about 1280px wide, under 3 MB) before committing. `assets/launch-film.jpg`
 is the README's click-through poster.
 

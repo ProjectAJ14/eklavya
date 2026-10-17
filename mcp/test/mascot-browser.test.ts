@@ -190,6 +190,7 @@ describe.skipIf(!options)('offline mascot studio in a real browser', () => {
         expect(await video.getAttribute('controls')).not.toBeNull();
         expect(await video.getAttribute('autoplay')).toBeNull();
         expect(await video.getAttribute('poster')).toBe('/demo/eklavya-launch.jpg');
+        expect(await page.getByRole('button', {name:'Play the launch film'}).count()).toBe(1);
         expect(await page.locator('[data-terminal]').count()).toBe(0);
       }
       for (const asset of ['demo/eklavya-launch.mp4','demo/eklavya-launch.jpg'])

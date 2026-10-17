@@ -41,7 +41,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/tokens.css?v=4">
 <link rel="stylesheet" href="/styles.css?v=12">
-<link rel="stylesheet" href="/demo/demo.css?v=4">
+<link rel="stylesheet" href="/demo/demo.css?v=5">
 <link rel="stylesheet" href="/brand/mascot/mascot.css?v=1">
 <link rel="stylesheet" href="/hero-eyes.css?v=1">
 <script src="/brand/mascot/mascot.js?v=1" defer></script>
@@ -115,7 +115,10 @@
       <div class="demo-intro">
         <div><p class="eyebrow">The demo</p><h2 id="demo-title">See it in action.</h2></div>
       </div>
-      <video class="demo-video" id="demo" controls playsinline preload="metadata" poster="/demo/eklavya-launch.jpg" aria-describedby="demo-caption"><source src="/demo/eklavya-launch.mp4" type="video/mp4"></video>
+      <div class="demo-player">
+        <video class="demo-video" id="demo" controls playsinline preload="metadata" poster="/demo/eklavya-launch.jpg" aria-describedby="demo-caption"><source src="/demo/eklavya-launch.mp4" type="video/mp4"></video>
+        <button class="demo-play" type="button" data-demo-play aria-label="Play the launch film"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>Watch · 0:30</span></button>
+      </div>
       <p class="demo-caption" id="demo-caption">A 30-second tour of Eklavya: quizzes while Claude Code works, memory, the dashboard and install.</p>
     </div>
   </section>
@@ -171,6 +174,7 @@
 </footer>
 </div>
 <script src="/app.js?v=13" defer></script>
+<script src="/demo/demo.js?v=1" defer></script>
 <script src="/analytics.js?v=2" defer></script>
 </body>
 </html>
