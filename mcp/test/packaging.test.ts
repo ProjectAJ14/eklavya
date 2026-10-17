@@ -392,20 +392,64 @@ describe('the tool registry', () => {
   });
 });
 
-describe('the quiz panel allow rule', () => {
-  it('names the real panel tools under the plugin server prefix, in the manual and the skill', async () => {
-    const { presentQuestionTool, panelSyncTool, panelAnswerTool } = await import('../src/tools/panel_tools.js');
+describe('the auto-mode allow rule', () => {
+  // Tools the hooks and the panel call without being asked.
+  const unprompted = [
+    'panel_sync', 'panel_answer', 'present_question', 'log_session_concepts', 'get_session_quiz_plan',
+    'record_attempt', 'upsert_concepts', 'get_learner_profile', 'memory_search', 'memory_get',
+  ];
+  // Named by a hook or recall note but deliberately not allowed; each needs its reason here.
+  const kept_out: Record<string, string> = {
+    set_config: 'the commit gate names it, but it can change any setting; documented as one that may ask',
+    get_config: 'only mentioned in a hook comment, never asked of Claude',
+  };
+
+  it('names the same real tools under the plugin server prefix, in the manual and the skill', async () => {
+    const { TOOLS } = (await import('../src/tools/index.js')) as { TOOLS: { name: string }[] };
     const plugin = readJson(path.join(repoRoot, '.claude-plugin', 'plugin.json')).name;
     const [server] = Object.keys(readJson(path.join(repoRoot, '.mcp.json')).mcpServers);
     const prefix = `mcp__plugin_${plugin}_${server}__`;
-    const expected = [panelSyncTool, panelAnswerTool, presentQuestionTool].map((t) => prefix + t.name).sort();
+    const registered = new Set(TOOLS.map((t) => t.name));
+    for (const t of [...unprompted, ...Object.keys(kept_out)]) {
+      expect(registered.has(t), `${t} is not a registered tool`).toBe(true);
+    }
+    const expected = unprompted.map((t) => prefix + t).sort();
 
     // A renamed tool or server would leave users pasting a rule that allows
-    // nothing, and auto mode would keep denying the panel.
-    for (const doc of ['web/src/content/docs/docs/first-session.mdx', 'user-skill/eklavya/SKILL.md']) {
+    // nothing, and auto mode would keep denying Eklavya.
+    for (const doc of [
+      'web/src/content/docs/docs/installing.mdx',
+      'web/src/content/docs/docs/first-session.mdx',
+      'user-skill/eklavya/SKILL.md',
+    ]) {
       const text = fs.readFileSync(path.join(repoRoot, doc), 'utf8');
       const named = [...new Set(text.match(/mcp__plugin_\w+?__\w+/g) ?? [])].sort();
       expect(named, doc).toEqual(expected);
+    }
+  });
+
+  it('covers every tool the hooks and recall notes tell Claude to call', async () => {
+    const { TOOLS } = (await import('../src/tools/index.js')) as { TOOLS: { name: string }[] };
+    // A hook that starts naming another tool fails here until it is either
+    // allowed (add it to `unprompted`, the manual and the skill) or kept out with a reason.
+    // The memory files are the two that write recall notes; the rest of that
+    // directory names SQL tables, not tools.
+    const files = [
+      ...fs.readdirSync(path.join(repoRoot, 'mcp/src/hooks')).filter((f) => f.endsWith('.ts')).map((f) => `mcp/src/hooks/${f}`),
+      'mcp/src/memory/recall.ts',
+      'mcp/src/memory/tokens.ts',
+      'hooks/panel/model.ts',
+      'hooks/panel/register.tsx',
+    ];
+    const source = files.map((f) => fs.readFileSync(path.join(repoRoot, f), 'utf8')).join('\n');
+    const named = TOOLS.map((t) => t.name).filter((n) => new RegExp(`\\b${n}\\b`).test(source));
+
+    const missing = named.filter((n) => !unprompted.includes(n) && !(n in kept_out));
+    expect(missing, 'named by a hook but neither allowed nor kept out').toEqual([]);
+    // Every allowed tool is still one a hook, recall note or skill actually names.
+    const skills = fs.readFileSync(path.join(repoRoot, 'skills/tutor/SKILL.md'), 'utf8');
+    for (const t of unprompted) {
+      expect(source.includes(t) || skills.includes(t), `${t} is allowed but nothing asks for it`).toBe(true);
     }
   });
 });

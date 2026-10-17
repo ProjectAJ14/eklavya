@@ -137,13 +137,23 @@ narrower than 144 columns an unrequested panel waits instead of opening: you see
 until you open it. The hint under the pane, with `Ctrl+X` then `Tab`, the answer keys and `Esc`, shows
 only in a terminal; the Desktop tab shows no hint line. With `quiz.panel` off, the panel shows nothing, `/eklavya-panel` opens nothing, and questions use the card.
 
-### If auto mode blocks the panel
+### If auto mode blocks Eklavya
 
-The panel calls `panel_sync` and `panel_answer` itself, not at your request in
-the conversation, and Claude hands it each question with `present_question`.
-Claude Code's auto mode can refuse these calls with a message like
-`plugin:eklavya:eklavya - panel_sync (mcp) denied by auto mode`. A plugin cannot
-grant its own permissions. Add the three panel tools to the `permissions.allow`
+Claude Code's auto mode judges each tool call before it runs, and a plugin
+cannot grant its own permissions. Eklavya makes ten calls without you asking,
+because its hooks tell Claude to or its panel makes them itself:
+
+| Tools | Why they run on their own |
+|---|---|
+| `log_session_concepts`, `get_session_quiz_plan`, `record_attempt` | The start-of-session note and the Stop hook have Claude log concepts, plan a question and record the answer. A denial here ends the turn with no question. |
+| `upsert_concepts`, `get_learner_profile` | The tutor skill, which those hooks load, reads your profile first and links new concepts. |
+| `panel_sync`, `panel_answer`, `present_question` | The panel polls and submits answers itself, and Claude hands it each question. |
+| `memory_search`, `memory_get` | The recall notes point Claude at these to read earlier work. |
+
+A refusal reads like `plugin:eklavya:eklavya - panel_sync (mcp) denied by auto
+mode`, or names another of these tools. Auto mode can also deny a harmless call
+with an unrelated reason such as "Irreversible Local Destruction", so a message
+that sounds wrong still means this fix. Add all ten to the `permissions.allow`
 list in your user settings, `~/.claude/settings.json`, keeping the entries
 already there:
 
@@ -153,7 +163,14 @@ already there:
     "allow": [
       "mcp__plugin_eklavya_eklavya__panel_sync",
       "mcp__plugin_eklavya_eklavya__panel_answer",
-      "mcp__plugin_eklavya_eklavya__present_question"
+      "mcp__plugin_eklavya_eklavya__present_question",
+      "mcp__plugin_eklavya_eklavya__log_session_concepts",
+      "mcp__plugin_eklavya_eklavya__get_session_quiz_plan",
+      "mcp__plugin_eklavya_eklavya__record_attempt",
+      "mcp__plugin_eklavya_eklavya__upsert_concepts",
+      "mcp__plugin_eklavya_eklavya__get_learner_profile",
+      "mcp__plugin_eklavya_eklavya__memory_search",
+      "mcp__plugin_eklavya_eklavya__memory_get"
     ]
   }
 }
@@ -162,17 +179,23 @@ already there:
 Or paste this into Claude Code and let Claude make the change:
 
 ```text
-Eklavya's quiz panel is being denied by auto mode. Add mcp__plugin_eklavya_eklavya__panel_sync, mcp__plugin_eklavya_eklavya__panel_answer and mcp__plugin_eklavya_eklavya__present_question to permissions.allow in my ~/.claude/settings.json, keeping my existing entries.
+Eklavya's tools are being denied by auto mode. Add mcp__plugin_eklavya_eklavya__panel_sync, mcp__plugin_eklavya_eklavya__panel_answer, mcp__plugin_eklavya_eklavya__present_question, mcp__plugin_eklavya_eklavya__log_session_concepts, mcp__plugin_eklavya_eklavya__get_session_quiz_plan, mcp__plugin_eklavya_eklavya__record_attempt, mcp__plugin_eklavya_eklavya__upsert_concepts, mcp__plugin_eklavya_eklavya__get_learner_profile, mcp__plugin_eklavya_eklavya__memory_search and mcp__plugin_eklavya_eklavya__memory_get to permissions.allow in my ~/.claude/settings.json, keeping my existing entries.
 ```
 
 The Desktop Code tab runs the same engine and reads the same
 `~/.claude/settings.json`, so one rule is meant to cover the terminal and
 Desktop alike; a project's `.claude/settings.json` also applies in both. A
 Desktop session in a different permission mode can still ask or refuse. An allow
-rule is checked before auto mode decides, so these three calls run
-without being judged. Allow only these three rather than the whole Eklavya
-server, which would also let tools such as `memory_delete` and `set_config` run
-without asking.
+rule is checked before auto mode decides, so these ten calls run
+without being judged. Allow only these ten rather than the whole Eklavya
+server, which would also let tools such as `memory_delete`, `memory_write` and
+`set_config` run without asking.
+
+One call stays out on purpose: when the commit gate finds questions switched off
+for the session, it tells Claude to run `set_config` to turn them back on. That
+tool can change any Eklavya setting, so allowing it would let Claude change
+settings without asking. Expect auto mode to ask there, and approve it
+when you do want questions back.
 
 A miss in the panel starts the explainer agent, and auto mode judges that too.
 It drops `Agent` allow rules, so no setting skips the check. If its classifier

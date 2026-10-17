@@ -262,18 +262,27 @@ the learning history. Two cases it can't fix on its own, and `doctor` says which
   `~/.claude/skills/eklavya/`. Never overwrite it. Tell them to move theirs
   first, then run `eklavya install`.
 
-**Auto mode denied a panel tool.** A message such as `plugin:eklavya:eklavya -
-panel_sync (mcp) denied by auto mode` means Claude Code's auto mode refused a
-call the quiz panel made on its own; a plugin cannot grant its own permissions.
-When they ask you to fix it, read `~/.claude/settings.json` and add these to
-`permissions.allow`, keeping every existing entry and adding none twice:
+**Auto mode denied an Eklavya tool.** A message such as `plugin:eklavya:eklavya -
+panel_sync (mcp) denied by auto mode`, or a denial of `get_session_quiz_plan`
+with an odd reason like "Irreversible Local Destruction", means Claude Code's
+auto mode refused a call Eklavya's hooks or panel make on their own; a plugin
+cannot grant its own permissions. When they ask you to fix it, read
+`~/.claude/settings.json` and add these ten to `permissions.allow`, keeping every
+existing entry and adding none twice:
 `mcp__plugin_eklavya_eklavya__panel_sync`,
-`mcp__plugin_eklavya_eklavya__panel_answer` and
-`mcp__plugin_eklavya_eklavya__present_question`. Create `permissions.allow` if
-it is missing, and leave the file valid JSON. Do not allow the whole
-`mcp__plugin_eklavya_eklavya` server instead: that would also let
-`memory_delete` and `set_config` run unasked. Show them the entries you added.
-If the denial continues, a restart of Claude Code reloads the settings.
+`mcp__plugin_eklavya_eklavya__panel_answer`,
+`mcp__plugin_eklavya_eklavya__present_question`,
+`mcp__plugin_eklavya_eklavya__log_session_concepts`,
+`mcp__plugin_eklavya_eklavya__get_session_quiz_plan`,
+`mcp__plugin_eklavya_eklavya__record_attempt`,
+`mcp__plugin_eklavya_eklavya__upsert_concepts`,
+`mcp__plugin_eklavya_eklavya__get_learner_profile`,
+`mcp__plugin_eklavya_eklavya__memory_search` and
+`mcp__plugin_eklavya_eklavya__memory_get`.
+Create `permissions.allow` if it is missing, and leave the file valid JSON. Do not
+allow the whole `mcp__plugin_eklavya_eklavya` server instead: that would also let
+`memory_write`, `memory_delete` and `set_config` run unasked. Show them the entries
+you added. If the denial continues, a restart of Claude Code reloads the settings.
 `eklavya:eklavya-explainer denied by auto mode` needs no fix and has none: auto
 mode drops `Agent` allow rules, so do not add one. The panel asks once more,
 then queues a prompt for you to start the explainer; do that and tell them

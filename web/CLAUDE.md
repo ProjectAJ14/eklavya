@@ -40,7 +40,7 @@ links and preserving useful anchors or adding a redirect.
 | Page | Source of truth |
 |---|---|
 | `index.mdx` | the loop as it actually runs: the seven hooks in `mcp/src/hooks/` and `max_questions_per_task` in `mcp/src/config.ts`. It also carries the one prerequisite — `mcp/package.json` `engines` — read directly from `mcp/package.json`. Keep it short: it introduces the product and directs the reader to the next guide |
-| `installing.mdx` | `mcp/src/install.ts` (recommended install and verification path), `mcp/src/config.ts` (automatic defaults), `mcp/src/safe-write.ts` (the `.eklavya-bak` backups and the refusal to touch an unparseable file), `.mcp.json`, `hooks/run.mjs` (the background runtime heal). `README.md` points here rather than repeating it — keep it that way |
+| `installing.mdx` | `mcp/src/install.ts` (recommended install and verification path), `mcp/src/config.ts` (automatic defaults), `mcp/src/safe-write.ts` (the `.eklavya-bak` backups and the refusal to touch an unparseable file), `.mcp.json`, `hooks/run.mjs` (the background runtime heal); the auto mode allow list (the ten tools hooks and the panel call unprompted) is checked by `mcp/test/packaging.test.ts`. `README.md` points here rather than repeating it — keep it that way |
 | `installation-options.mdx` | `mcp/src/install.ts`, plugin manifests, `.mcp.json`, `hooks/run.mjs`, `mcp/src/surface.ts`; verify marketplace, Cowork and contributor paths and their limitations |
 | `updates.mdx` | `mcp/src/update.ts`, `install.ts`, `safe-write.ts`, `hooks/run.mjs`; update timing, repair, uninstall and retained data |
 | `first-run.mdx` | `skills/setup/SKILL.md` |

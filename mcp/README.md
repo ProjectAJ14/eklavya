@@ -22,7 +22,7 @@ what is captured and how to use local summaries instead.
 If Claude Mem is installed, it keeps recording and Eklavya memory stays off
 until you [switch recorders](https://eklavya-run.web.app/docs/migrating/).
 
-[Allow the three side-panel tools in auto mode](https://eklavya-run.web.app/docs/installing/),
+[Allow Eklavya's ten tools in auto mode](https://eklavya-run.web.app/docs/installing/),
 then restart Claude Code. `/eklavya:setup` is an optional installation check.
 
 Read the [installation guide](https://eklavya-run.web.app/docs/installing/) for
