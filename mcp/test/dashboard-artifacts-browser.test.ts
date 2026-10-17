@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from 'playwright-core';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createArtifact } from '../dist/artifacts.js';
 import { gradeConcept, recordRetry } from '../src/store.js';
 import type { Watched } from './dashboard-browser-helpers.js';
@@ -291,6 +291,8 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
     beforeAll(() => {
       if (!OPTS) return;
       fs.mkdirSync(dir(), { recursive: true });
+      fs.writeFileSync(path.join(dir(), 'read.html'), '<!doctype html><html><head><title>Read me</title><meta name="eklavya:kind" content="explainer"></head><body>'
+        + '<p style="height:400px;margin:0">A section of the explainer.</p>'.repeat(12) + '</body></html>');
       fs.writeFileSync(path.join(dir(), 'tall.html'), '<!doctype html><html><head><title>Tall plain page</title>'
         + '<style>main{min-height:100vh}</style></head><body><main>'
         + '<p>A line of text that wraps on a narrow screen and stays on one line on a wide one.</p>'.repeat(200)
@@ -301,6 +303,21 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       fs.writeFileSync(path.join(dir(), 'hero.html'), `<!doctype html><html><head><title>Hero</title><style>.hero{min-height:100vh}</style></head><body><section class="hero"><h1>Hero</h1></section>${lines}</body></html>`);
     });
     afterAll(() => { if (OPTS) fs.rmSync(dir(), { recursive: true, force: true }); });
+
+    // The usage ping's question: did the reader get to the bottom of an explainer?
+    it('counts an explainer opened in the viewer, and how far down the reader scrolled it', async () => {
+      // Earlier tests opened short explainers, which count as read at once.
+      db.exec("DELETE FROM usage_counts WHERE name LIKE 'explainer:%'");
+      const w = await open(`#/artifacts/view/${enc('plain/read.html')}`);
+      await w.page.waitForFunction(() => { const h = document.getElementById('art-frame')!.style.height; return h !== '' && h !== '80vh'; });
+      const counted = () => Object.fromEntries((db.prepare("SELECT name FROM usage_counts WHERE name LIKE 'explainer:%'").all() as { name: string }[]).map((r) => [r.name, 1]));
+      await vi.waitFor(() => expect(counted()['explainer:opened']).toBe(1), { timeout: 10_000 });
+      expect(counted()['explainer:depth_100']).toBeUndefined();
+      await w.page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+      await vi.waitFor(() => expect(Object.keys(counted()).sort()).toEqual(
+        ['explainer:depth_100', 'explainer:depth_25', 'explainer:depth_50', 'explainer:depth_75', 'explainer:opened']), { timeout: 10_000 });
+      await w.ctx.close();
+    });
 
     it('sizes a page whose html and body are 100% tall to its content, not to the frame', async () => {
       const w = await open(`#/artifacts/view/${enc('plain/full.html')}`);

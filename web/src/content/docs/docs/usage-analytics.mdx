@@ -94,10 +94,14 @@ One event per feature used on a finished day, with `kind`, `feature` and `count`
 |---|---|
 | `cli` | the `eklavya` command run, such as `doctor` or `dashboard`, never its arguments |
 | `tool` | the MCP tool Claude called, such as `record_attempt` or `memory_search`; the quiz panel's `present_question`, `panel_sync` and `panel_answer` count the same way (`panel_sync` also while `quiz.panel` is off, since the panel checks in at each session start) |
+| `tool_error` | the MCP tool whose call answered with an error, such as `memory_get`; counted beside its `tool` count |
 | `slash` | the Eklavya slash command typed, such as `quiz`, never the rest of the prompt |
 | `quiz` | `checkpoint` (a question during work) or `stop` (a question at the end of a turn) |
 | `gate` | `blocked`, a commit held by the gate |
 | `hook_error` | the hook that failed and let the session continue, such as `capture-tool` |
+| `settings` | where a setting was changed and which one: `dashboard:cadence` or `cli:cadence` (from the Settings page or `eklavya config set`/`unset`), never the value; the daily `settings` event has the values you ended up with |
+| `dash` | use of the dashboard page: `opened` (the page loaded), and `view_learning`, `view_memory`, `view_artifacts`, `view_feedback` or `view_settings` (you moved to that workflow) |
+| `explainer` | an explainer opened in the dashboard's viewer (`opened`), and how far down you scrolled it: `depth_25`, `depth_50`, `depth_75`, `depth_100`, each counted once per opening. A page opened straight from a file is not measured, and a page shorter than the window counts as fully scrolled |
 | `feedback` | how you reached the Feedback page while an item was waiting: `opened_greeting` (the link in the session greeting), `opened_badge` (the unread badge) or `opened_direct` (a typed or bookmarked link, or the sidebar) |
 
 An `uninstall` event, with `version`, `os` and `purge`, is sent when you run `eklavya uninstall`.

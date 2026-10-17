@@ -34,7 +34,7 @@ describe.skipIf(!OPTS)('dashboard in a browser', () => {
       // An out-of-range number is refused in the page, under the field, before any request.
       await w.page.goto(base + '/' + `#/settings/project/pacing?project=${enc(fx.repo.mixed)}`); await ready(w.page);
       const posts: string[] = [];
-      w.page.on('request', (r) => { if (r.method() === 'POST') posts.push(r.url()); });
+      w.page.on('request', (r) => { if (r.method() === 'POST' && !r.url().endsWith('/api/usage')) posts.push(r.url()); });
       await w.page.fill('#set-max_questions_per_task', '99');
       await w.page.press('#set-max_questions_per_task', 'Enter');
       await w.page.waitForSelector('#set-max_questions_per_task-e:visible');

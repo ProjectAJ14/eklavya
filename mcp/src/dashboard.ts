@@ -2077,6 +2077,7 @@ export function updateSetting(db: DB, body: unknown): { status: number; body: Re
   try {
     const { target } = applySetting(f.key, unset ? undefined : b.value, root);
     forgetSettings(db);
+    countUse(db, `settings:dashboard:${f.key}`);
     return { status: 200, body: { ok: true, key: f.key, target, unset } };
   } catch (err) {
     return bad(err instanceof Error ? err.message : String(err));
@@ -2187,6 +2188,26 @@ export function openedItem(db: DB, body: unknown): { status: number; body: Recor
   return { status: 200, body: { ok: true } };
 }
 
+/**
+ * What the page may report about its own use, by exact name. A name outside
+ * this list is refused, so the page can count nothing a reader typed or a
+ * project is called. `explainer:depth_N` is how far down a framed page the
+ * reader has scrolled, once per view and threshold.
+ */
+export const USAGE_EVENTS = new Set([
+  'dash:opened',
+  ...['learning', 'memory', 'artifacts', 'feedback', 'settings'].map((w) => `dash:view_${w}`),
+  'explainer:opened',
+  ...[25, 50, 75, 100].map((n) => `explainer:depth_${n}`),
+]);
+
+export function usageEvent(db: DB, body: unknown): { status: number; body: Record<string, unknown> } {
+  const name = body && typeof body === 'object' ? (body as Record<string, unknown>).name : undefined;
+  if (typeof name !== 'string' || !USAGE_EVENTS.has(name)) return { status: 400, body: { error: 'Unknown usage event.' } };
+  countUse(db, name);
+  return { status: 200, body: { ok: true } };
+}
+
 /** One write: validates its own body, never trusts it, and answers with JSON. */
 export type WriteHandler = (db: DB, body: unknown) => { status: number; body: Record<string, unknown> };
 
@@ -2205,6 +2226,8 @@ export const WRITES: Record<string, { handler: WriteHandler; maxBytes: number }>
   '/api/feedback/acknowledge': { handler: acknowledgeItem, maxBytes: 16 * 1024 },
   '/api/feedback/delete': { handler: deleteItem, maxBytes: 16 * 1024 },
   '/api/feedback/opened': { handler: openedItem, maxBytes: 16 * 1024 },
+  // `{ name }` from `USAGE_EVENTS`: the page's own use, counted for the usage ping.
+  '/api/usage': { handler: usageEvent, maxBytes: 1024 },
 };
 
 /**

@@ -273,7 +273,7 @@ ${tutorSections().join('\n\n')}
   process.stdout.write(rules);
 }
 
-function configCommand(args: string[]): void {
+async function configCommand(args: string[]): Promise<void> {
   // Before reading or writing anything: a leftover `.eklavya.json` in the
   // checkout is moved out first, so `config get` reports one source of truth
   // and `config set --project` cannot leave settings split across two files.
@@ -366,6 +366,7 @@ function configCommand(args: string[]): void {
     try {
       const { target } = applySetting(key, undefined, projectRoot);
       process.stdout.write(`${paint.ok(`${key} unset`)}  ->  ${paint.aged(target)}\n`);
+      (await import('./telemetry.js')).countCommand(`settings:cli:${key}`);
     } catch (err) {
       fail(errorText(err));
     }
@@ -404,6 +405,7 @@ function configCommand(args: string[]): void {
   for (const [k, v] of Object.entries(patch!)) {
     process.stdout.write(`${paint.ok(`${k} = ${JSON.stringify(v)}`)}  ->  ${paint.aged(target!)}\n`);
   }
+  (await import('./telemetry.js')).countCommand(`settings:cli:${key}`);
   if (modeNote) process.stdout.write(`${dim(modeNote)}\n`);
 }
 

@@ -66,8 +66,11 @@ export function registerTools(server: McpServer, db: DB): void {
         try {
           // Safe to retry: a busy transaction has already rolled back.
           countUse(db, `tool:${tool.name}`);
-          return toResult(retryOnBusy(() => tool.handler(args, { db })));
+          const result = toResult(retryOnBusy(() => tool.handler(args, { db })));
+          if (result.isError) countUse(db, `tool_error:${tool.name}`);
+          return result;
         } catch (err) {
+          countUse(db, `tool_error:${tool.name}`);
           // A tool throwing must not take the server down mid-session.
           return toResult({
             error: 'tool_failed',

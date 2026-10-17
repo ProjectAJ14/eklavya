@@ -569,6 +569,10 @@
       "shard": 3,
       "seconds": 3
     },
+    "test/usage-events.test.ts": {
+      "shard": 4,
+      "seconds": 8
+    },
     "test/vitest-config.test.ts": {
       "shard": 5,
       "seconds": 1

@@ -171,6 +171,9 @@ export function markTelemetryAnnounced(now = Date.now()): void {
  */
 export function countUse(db: DB, name: string): void {
   try {
+    // A name the ping would refuse (`assertSafe`) must never be stored: one bad
+    // row would cost every later ping, not just itself.
+    if (!/^[a-z_]{1,20}:[a-z0-9_.:-]{1,40}$/i.test(name)) return;
     if (disabledReason()) return;
     db.prepare(
       `INSERT INTO usage_counts (day, name, n) VALUES (?, ?, 1)
