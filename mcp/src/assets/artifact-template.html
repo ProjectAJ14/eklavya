@@ -115,6 +115,21 @@
   .svg-line-spot{stroke:var(--spot);stroke-width:1.5;fill:none}
   .svg-label{font:500 13px var(--font-body);fill:var(--ink)}
   .svg-small{font:11px var(--font-mono);fill:var(--dim)}
+  /* Diagram categories: a colour names a group (an actor, a layer, a phase) and always
+     sits next to a text label. Roles only; never a hex in a diagram. */
+  .svg-box-1{fill:var(--viz-1-soft);stroke:var(--viz-1);stroke-width:1.5} .svg-line-1{stroke:var(--viz-1);stroke-width:1.5;fill:none} .svg-bar-1{fill:var(--viz-1);stroke:none} .svg-text-1{font:600 13px var(--font-body);fill:var(--viz-1)} .svg-head-1{fill:var(--viz-1)}
+  .svg-box-2{fill:var(--viz-2-soft);stroke:var(--viz-2);stroke-width:1.5} .svg-line-2{stroke:var(--viz-2);stroke-width:1.5;fill:none} .svg-bar-2{fill:var(--viz-2);stroke:none} .svg-text-2{font:600 13px var(--font-body);fill:var(--viz-2)} .svg-head-2{fill:var(--viz-2)}
+  .svg-box-3{fill:var(--viz-3-soft);stroke:var(--viz-3);stroke-width:1.5} .svg-line-3{stroke:var(--viz-3);stroke-width:1.5;fill:none} .svg-bar-3{fill:var(--viz-3);stroke:none} .svg-text-3{font:600 13px var(--font-body);fill:var(--viz-3)} .svg-head-3{fill:var(--viz-3)}
+  .svg-box-4{fill:var(--viz-4-soft);stroke:var(--viz-4);stroke-width:1.5} .svg-line-4{stroke:var(--viz-4);stroke-width:1.5;fill:none} .svg-bar-4{fill:var(--viz-4);stroke:none} .svg-text-4{font:600 13px var(--font-body);fill:var(--viz-4)} .svg-head-4{fill:var(--viz-4)}
+  .svg-box-5{fill:var(--viz-5-soft);stroke:var(--viz-5);stroke-width:1.5} .svg-line-5{stroke:var(--viz-5);stroke-width:1.5;fill:none} .svg-bar-5{fill:var(--viz-5);stroke:none} .svg-text-5{font:600 13px var(--font-body);fill:var(--viz-5)} .svg-head-5{fill:var(--viz-5)}
+  .svg-head{fill:var(--faint)}
+  .svg-lane{fill:var(--panel);stroke:var(--line-2);stroke-width:1}
+  .svg-chip{fill:var(--mass);stroke:var(--line-2);stroke-width:1}
+  .svg-axis{stroke:var(--faint);stroke-width:1;fill:none}
+  .svg-dash{stroke-dasharray:5 4}
+  .svg-life{stroke:var(--line-2);stroke-width:1.5;stroke-dasharray:4 4;fill:none}
+  .svg-bad{fill:color-mix(in srgb,var(--error) 12%,transparent);stroke:var(--error);stroke-width:1.5}
+  .svg-ok{fill:var(--spot-soft);stroke:var(--spot);stroke-width:1.5}
 
   /* The lockup and footer mirror the site's .brand: mark on a --spot square, Archivo name. */
   .brand{display:inline-flex;align-items:center;gap:10px;margin:0 0 40px;border:0;color:var(--ink)}

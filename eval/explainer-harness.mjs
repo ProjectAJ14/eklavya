@@ -350,7 +350,7 @@ async function score(dir) {
   process.stdout.write(`\n${sum.clean}/${sum.trials} pages pass every gate (${sum.errored} errored)\n`);
   process.stdout.write(`failing gates: ${Object.entries(sum.failed).map(([k, n]) => `${k} x${n}`).join(', ') || 'none'}\n`);
   process.stdout.write(`judge on ${judged.length} pages: misconception named ${rate('misconception_named')}, short answer repeatable ${rate('newcomer_can_repeat')}, clarity ${mean(judged.map((r) => r.judge.clarity))}/5\n`);
-  process.stdout.write(`page words ${mean(scored.map((r) => r.metrics.words))}, figures ${mean(scored.map((r) => r.metrics.figures))}, own-code names ${mean(scored.map((r) => r.metrics.identifiers_used / Math.max(1, r.metrics.identifiers_offered)))} of offered, time to path line ${mean(scored.map((r) => (r.duration_ms ?? 0) / 1000))}s\n`);
+  process.stdout.write(`page words ${mean(scored.map((r) => r.metrics.words))}, figures ${mean(scored.map((r) => r.metrics.figures))}, diagram hues ${mean(scored.map((r) => r.metrics.diagram_hues))}, own-code names ${mean(scored.map((r) => r.metrics.identifiers_used / Math.max(1, r.metrics.identifiers_offered)))} of offered, time to path line ${mean(scored.map((r) => (r.duration_ms ?? 0) / 1000))}s\n`);
   for (const [id, row] of Object.entries(sum.byCase)) process.stdout.write(`  ${row.clean === row.trials ? 'PASS' : 'FAIL'} ${id}: ${row.clean}/${row.trials}\n`);
   if (judged.length) process.stdout.write(`judge ${usage.line()}\n`);
 }

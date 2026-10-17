@@ -258,3 +258,66 @@ describe('the explainer fixtures', () => {
     expect(cases.filter((x) => x.lang && !/ts/.test(x.lang)).length).toBeGreaterThan(0);
   });
 });
+
+describe('diagram colours and the skill that teaches them', () => {
+  const root = path.join(here, '..', '..');
+  const tokens = fs.readFileSync(path.join(root, 'web', 'public', 'tokens.css'), 'utf8');
+  const skill = fs.readFileSync(path.join(root, 'user-skill', 'eklavya-artifacts', 'SKILL.md'), 'utf8');
+  const agent = fs.readFileSync(path.join(root, 'agents', 'explainer.md'), 'utf8');
+  const block = (re: RegExp) => tokens.match(re)![0];
+  const grounds = { ink: block(/:root\[data-mode="ink"\]\s*\{[^}]*--viz-1:[^}]*\}/), paper: block(/:root\[data-mode="paper"\]\s*\{[^}]*--viz-1:[^}]*\}/) };
+  const lum = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  };
+  const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  const val = (css: string, name: string) => css.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`))![1]!;
+  const skeletons = [...skill.match(/```html\n([\s\S]*?)```/)![1]!.matchAll(/<svg[\s\S]*?<\/svg>/g)].map((m) => m[0]);
+
+  it('defines five category roles and a tint for each, on both grounds', () => {
+    for (const css of Object.values(grounds)) for (let i = 1; i <= 5; i++) {
+      expect(css).toMatch(new RegExp(`--viz-${i}:\\s*#[0-9a-fA-F]{6}`));
+      expect(css).toContain(`--viz-${i}-soft:`);
+    }
+  });
+
+  it('reads at 4.5:1 on the panel and the well, ink and paper', () => {
+    for (const [name, css] of Object.entries(grounds)) for (const ground of ['panel', 'mass']) {
+      for (let i = 1; i <= 5; i++) expect(ratio(val(css, `viz-${i}`), val(css, ground)), `${name} viz-${i} on ${ground}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('gives the template a class for every category the skill names', () => {
+    const classes = new Set([...raw.matchAll(/\.(svg-[\w-]+)/g)].map((m) => m[1]));
+    for (const m of skill.matchAll(/`\.(svg-[\w-]+?)(?:N)?`/g)) {
+      const name = m[1]!;
+      expect(name.endsWith('-') ? classes.has(`${name}1`) && classes.has(`${name}5`) : classes.has(name), name).toBe(true);
+    }
+    for (const svg of skeletons) for (const m of svg.matchAll(/class="([^"]*)"/g)) for (const k of m[1]!.split(/\s+/)) expect(classes.has(k), k).toBe(true);
+  });
+
+  it('ships skeletons that pass the figure and token gates, with unique marker ids', () => {
+    expect(skeletons.length).toBeGreaterThanOrEqual(5);
+    const ids = skeletons.flatMap((x) => [...x.matchAll(/<marker id="([^"]+)"/g)].map((m) => m[1]));
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const svg of skeletons) {
+      expect(svg).toMatch(/viewBox="[^"]+" role="img" aria-label="[^"]+"/);
+      for (const id of [...svg.matchAll(/url\(#([^)]+)\)/g)].map((m) => m[1])) expect(svg, id).toContain(`id="${id}"`);
+      const s = score(page(body({ how: `<h2>How it works</h2><figure>${svg}<figcaption>Takeaway.</figcaption></figure>` })));
+      expect(failed(s)).not.toContain('figure_svg');
+      expect(failed(s)).not.toContain('tokens_only');
+    }
+  });
+
+  it('counts the distinct category colours a page uses, not repeats', () => {
+    const fig = (cls: string) => `<h2>How it works</h2><figure><svg viewBox="0 0 1 1"><rect class="${cls}"/></svg><figcaption>x</figcaption></figure>`;
+    expect(score(page(body())).metrics.diagram_hues).toBe(0);
+    expect(score(page(body({ how: fig('svg-box-1') + fig('svg-box-1 svg-line-1') }))).metrics.diagram_hues).toBe(1);
+    expect(score(page(body({ how: fig('svg-box-1') + fig('svg-bar-3') + fig('svg-text-5') }))).metrics.diagram_hues).toBe(3);
+  });
+
+  it('tells the agent the same category classes the skill does', () => {
+    expect(agent).toContain('.svg-box-1');
+    expect(agent).toContain('.svg-bad');
+  });
+});
