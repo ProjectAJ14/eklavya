@@ -1,3 +1,10 @@
+# [1.77.0](https://github.com/ProjectAJ14/eklavya/compare/v1.76.0...v1.77.0) (2026-10-17)
+
+
+### Features
+
+* **dashboard:** focus daily card, fix bubble tail, friendlier empty feedback, compact counts ([#212](https://github.com/ProjectAJ14/eklavya/issues/212)) ([65702c9](https://github.com/ProjectAJ14/eklavya/commit/65702c9efdd08b36dca5d47866caa8f312f41848))
+
 # [1.76.0](https://github.com/ProjectAJ14/eklavya/compare/v1.75.1...v1.76.0) (2026-10-16)
 
 
