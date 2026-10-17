@@ -11,6 +11,8 @@ Open your learning history, project memory, saved pages, prompt feedback and set
 eklavya dashboard
 ```
 
+Counts of 1,000 or more read short across the dashboard: 1K, 1.2K, 1M.
+
 The dashboard lives at `http://127.0.0.1:41729` and keeps running in the background, so the command opens your browser and returns. Use `--no-open` to print the URL without opening a browser.
 
 ## Your archer companion
@@ -178,7 +180,7 @@ While nothing is waiting, the rule is written at the top of the page: *Eklavya r
 
 | Page | What it shows |
 | --- | --- |
-| Dashboard (`#/feedback/dashboard`) | The waiting item, or why there is none: feedback is off (with a button to Settings), memory is off, no observer model is set (with the command to set one and a **Copy** button), the last session could not be reviewed (the page says it will try again at a later start; that session is not retried, and the next start reviews the next one), or nothing to review yet. |
+| Dashboard (`#/feedback/dashboard`) | The waiting item, or why there is none: feedback is off (with a button to Settings), memory is off, no observer model is set (with the command to set one and a **Copy** button), the last session could not be reviewed (the page says it will try again at a later start; that session is not retried, and the next start reviews the next one), or nothing to review yet. Once you have acknowledged any item, that last case instead says the next feedback will be shared once it is available. |
 | History (`#/feedback/history`) | The items you acknowledged: date, project, the first 80 characters of your prompt and the areas it left out. It follows the project selector. Open a row for the item without the buttons. |
 | Item (`#/feedback/item/<id>`) | One item. |
 
@@ -286,6 +288,8 @@ The **Tips** switch on the Settings page's **Companion** tab sets it: **off** hi
 ## The daily card
 
 The first time you arrive at the Learning Dashboard each day, a card opens over it, about half a second after the page draws. It has the archer, a line in a speech bubble, one number or goal, an action button and **Not now**, and a last line that says why this card was chosen. Close it with **Not now**, the close button, **Esc** or a click outside, and it does not come back until tomorrow. A day is your computer's local calendar day, as it is for the [streak](#the-streak).
+
+The page behind the card is blurred and dimmed so the card has your whole attention, and the speech bubble's tail points at the archer.
 
 The card does not run quizzes. They run in your Claude session, so its button takes you to the page that shows the command, or opens the concept's review sheet. Each card's button is in the table below.
 
