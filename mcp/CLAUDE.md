@@ -161,6 +161,11 @@ Tool descriptions are behavior: update them with the handlers and verify every
 field used by skills against the schema and returned shape. Check the complete
 `TOOLS` array when documenting the inventory, not imports alone.
 
+A hook, recall note or skill that tells Claude to call a tool nobody asked for
+must also put it on the auto-mode allow list (installing and first-session pages,
+the `eklavya` skill) or in `kept_out` in `test/packaging.test.ts` with a reason;
+auto mode can deny any such call and the turn then ends with no question.
+
 Use the root change-to-document map and `web/CLAUDE.md` page map in the same PR.
 Configuration changes affect `configuration`/`dials`; CLI changes affect `cli`;
 memory changes affect `memory`/`your-data`; installer changes affect

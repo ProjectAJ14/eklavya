@@ -59,7 +59,7 @@ different model or local summaries. If they ask about capture or privacy, link
 
 The quiz side panel is on by default on supported Claude Code builds. If auto
 mode blocks it, link
-[the three panel permissions](https://eklavya-run.web.app/docs/installing/).
+[the ten auto-mode permissions](https://eklavya-run.web.app/docs/installing/).
 Do not grant permissions or change settings as part of this check.
 
 If the developer asks to enable commit enforcement, follow
