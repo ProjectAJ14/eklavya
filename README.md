@@ -187,7 +187,7 @@ npm install -g eklavya && eklavya install
 ```
 
 The installer uses the defaults without asking settings questions and keeps
-any choices you already saved. [Allow the side-panel tools in auto mode](https://eklavya-run.web.app/docs/installing/),
+any choices you already saved. [Allow Eklavya's tools in auto mode](https://eklavya-run.web.app/docs/installing/),
 then restart Claude Code and start a task. Eklavya updates itself in the
 background. See [Installation options](https://eklavya-run.web.app/docs/installation-options/)
 for other setups.
