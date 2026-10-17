@@ -26,11 +26,30 @@ if you need it.
    New installs use `claude-sonnet-5` for memory summaries and prompt feedback
    through your Claude Code login. [What gets sent to Claude](/docs/memory/#how-observations-are-made).
 
-2. **Allow the side panel if you use auto mode.**
+2. **Allow Eklavya's tools if you use auto mode.**
 
-   :::caution[Important: side-panel permissions]
-   Auto mode can block the quiz panel. Add these three entries to
-   `permissions.allow` in `~/.claude/settings.json`. **Keep all existing entries.**
+   <div class="mascot-says">
+     <img src="/brand/mascot/expressions/happy-face.svg" alt="" width="64" height="64" />
+     <p>
+       <strong>Auto mode judges every tool call Eklavya makes on its own,</strong> and a
+       plugin cannot allow itself. Without these entries it can refuse the call that plans
+       your next question, so no question or side panel appears. Add them once.
+     </p>
+   </div>
+
+   **Option 1: let Claude do it.** Start a new Claude Code session, paste this
+   prompt and press Enter. Claude edits `~/.claude/settings.json` and keeps your
+   existing entries. Then restart Claude Code once more so it reloads the file.
+
+   ```text wrap title="Prompt for Claude Code"
+   Eklavya's tools are being denied by auto mode. Add mcp__plugin_eklavya_eklavya__panel_sync, mcp__plugin_eklavya_eklavya__panel_answer, mcp__plugin_eklavya_eklavya__present_question, mcp__plugin_eklavya_eklavya__log_session_concepts, mcp__plugin_eklavya_eklavya__get_session_quiz_plan, mcp__plugin_eklavya_eklavya__record_attempt, mcp__plugin_eklavya_eklavya__upsert_concepts, mcp__plugin_eklavya_eklavya__get_learner_profile, mcp__plugin_eklavya_eklavya__memory_search and mcp__plugin_eklavya_eklavya__memory_get to permissions.allow in my ~/.claude/settings.json, keeping my existing entries.
+   ```
+
+   <details>
+   <summary><strong>Option 2: edit the file yourself</strong></summary>
+
+   Add these ten entries to `permissions.allow` in `~/.claude/settings.json`,
+   keeping all existing entries.
 
    ```json title="~/.claude/settings.json"
    {
@@ -38,14 +57,24 @@ if you need it.
        "allow": [
          "mcp__plugin_eklavya_eklavya__panel_sync",
          "mcp__plugin_eklavya_eklavya__panel_answer",
-         "mcp__plugin_eklavya_eklavya__present_question"
+         "mcp__plugin_eklavya_eklavya__present_question",
+         "mcp__plugin_eklavya_eklavya__log_session_concepts",
+         "mcp__plugin_eklavya_eklavya__get_session_quiz_plan",
+         "mcp__plugin_eklavya_eklavya__record_attempt",
+         "mcp__plugin_eklavya_eklavya__upsert_concepts",
+         "mcp__plugin_eklavya_eklavya__get_learner_profile",
+         "mcp__plugin_eklavya_eklavya__memory_search",
+         "mcp__plugin_eklavya_eklavya__memory_get"
        ]
      }
    }
    ```
 
-   You can also [ask Claude to add them](/docs/first-session/#if-auto-mode-blocks-the-panel).
-   :::
+   </details>
+
+   They cover the quiz loop, the side panel and memory recall, and touch only
+   Eklavya's own local data. Tools that change settings or delete memory are
+   left out on purpose.
 
 3. **Restart Claude Code and start a task.**
 
