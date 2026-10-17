@@ -1,3 +1,10 @@
+# [1.79.0](https://github.com/ProjectAJ14/eklavya/compare/v1.78.0...v1.79.0) (2026-10-17)
+
+
+### Features
+
+* **analytics:** count dashboard use, explainer scroll depth, settings source and tool errors ([#218](https://github.com/ProjectAJ14/eklavya/issues/218)) ([635871f](https://github.com/ProjectAJ14/eklavya/commit/635871fcc38d6a3ddd74b0dd64bc3140443a759d))
+
 # [1.78.0](https://github.com/ProjectAJ14/eklavya/compare/v1.77.0...v1.78.0) (2026-10-17)
 
 
