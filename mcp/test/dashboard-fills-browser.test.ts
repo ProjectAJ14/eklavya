@@ -29,7 +29,8 @@ const go = (page: Page, hash: string) => () => page.evaluate((h) => { location.h
 /** The path and query of every request the page makes to `/api/`. */
 function watch(page: Page): string[] {
   const seen: string[] = [];
-  page.on('request', (r) => { const u = new URL(r.url()); if (u.pathname.startsWith('/api/')) seen.push(u.pathname + u.search); });
+  page.on('request', (r) => { const u = new URL(r.url()); // `/api/usage` is the page counting its own use, not a read of data.
+    if (u.pathname.startsWith('/api/') && u.pathname !== '/api/usage') seen.push(u.pathname + u.search); });
   return seen;
 }
 

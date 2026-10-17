@@ -306,7 +306,11 @@ full field list is https://eklavya-run.web.app/docs/usage-analytics/. Besides th
 learning, memory and settings counts it has a `feedback` event: whether
 `feedback.enabled` is on, how many prompt reviews were made and how many were
 acknowledged, and three `feature_use` counts of how the Feedback page was
-reached. Never the prompt or anything a review says.
+reached. Never the prompt or anything a review says. It also counts, as
+`feature_use`, which dashboard workflows are opened, whether an explainer opened
+in the dashboard was scrolled to 25, 50, 75 and 100 percent, which setting was
+changed from the dashboard or the CLI (the key, never the value), and MCP tool
+calls that returned an error.
 
 Restarting Claude Code is what picks up a repaired install — the plugin and MCP
 server are read at session start. The only background process is the dashboard,

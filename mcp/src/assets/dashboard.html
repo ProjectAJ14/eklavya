@@ -4669,8 +4669,43 @@ addEventListener('message', (e) => {
   if (e.data?.type === 'eklavya:scroll') return sized(f, '80vh');
   if (e.data?.type !== 'eklavya:height') return;
   const h = Number(e.data.h);
-  if (Number.isFinite(h)) sized(f, Math.min(20000, Math.max(200, h)) + 'px');
+  if (Number.isFinite(h)) { sized(f, Math.min(20000, Math.max(200, h)) + 'px'); USAGE.framed(); }
 });
+
+/**
+ * What this page reports about its own use, for the anonymous usage ping: a
+ * name from the server's `USAGE_EVENTS` and nothing else, never an id, a title or
+ * a path. Fire and forget; a refusal or a closed server costs nothing.
+ * `seen` runs on every screen drawn for a navigation: the first is `dash:opened`,
+ * a change of workflow is a view of that workflow, and a framed explainer is an
+ * opening once per page. `depth` is how far down that page the reader has
+ * scrolled, counted once per threshold and only after the page reported its
+ * height (before that the frame is a placeholder and its size means nothing).
+ */
+const USAGE = (() => {
+  let opened = false, wf = null, art = null, sized = false, hit = new Set(), tick = 0;
+  const send = (name) => postJson('/api/usage', { name }).catch(() => {});
+  function depth() {
+    tick = 0;
+    const f = $('art-frame');
+    if (!f || !sized) return;
+    const r = f.getBoundingClientRect();
+    if (!r.height) return;
+    const pct = ((innerHeight - r.top) / r.height) * 100;
+    for (const n of [25, 50, 75, 100]) if (pct >= n && !hit.has(n)) { hit.add(n); send('explainer:depth_' + n); }
+  }
+  addEventListener('scroll', () => { if (!tick && art) tick = requestAnimationFrame(depth); }, { passive: true });
+  return {
+    seen() {
+      if (!opened) { opened = true; send('dash:opened'); }
+      if (CUR.wf !== wf) { wf = CUR.wf; send('dash:view_' + wf); }
+      const a = CUR.wf === 'artifacts' && CUR.page === 'view' && !CUR.bad && !CUR.missing ? (S.artifacts ?? []).find((x) => x.id === CUR.param) : null;
+      const id = a?.kind === 'explainer' ? a.id : null;
+      if (id !== art) { art = id; sized = false; hit = new Set(); if (id) send('explainer:opened'); }
+    },
+    framed() { sized = true; if (!tick) tick = requestAnimationFrame(depth); },
+  };
+})();
 
 function viewArtifactProjects() {
   const by = new Map();
@@ -6246,7 +6281,7 @@ function render(opts) {
   for (const fn of AFTER) fn();
   TIP.sync();
   // The daily card is for arriving, not for redraws: not an adjustment, not new data.
-  if (!adjusting && !LIVE_PASS) DAILY.arrive();
+  if (!adjusting && !LIVE_PASS) { DAILY.arrive(); USAGE.seen(); }
 
   // A new screen opens at its top, at once. `html` asks for smooth scrolling (for in-page jumps), and a scroll that
   // does not name its behavior follows it, so a reader coming from the bottom of a long page would see the new

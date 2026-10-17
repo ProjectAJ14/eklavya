@@ -303,7 +303,8 @@ export async function probeTransition(page: Page, action: () => Promise<unknown>
   const requests: string[] = [];
   const onRequest = (r: Request) => {
     const u = new URL(r.url());
-    if (u.pathname.startsWith('/api/') && !isStream(r.url())) requests.push(u.pathname + u.search);
+    // `/api/usage` is the page counting its own use, not a read of data.
+    if (u.pathname.startsWith('/api/') && u.pathname !== '/api/usage' && !isStream(r.url())) requests.push(u.pathname + u.search);
   };
 
   await settle();
