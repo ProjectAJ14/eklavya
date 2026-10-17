@@ -57,11 +57,17 @@ In this order, each under its own `<h2>`:
 - **Where the answer went wrong.** Name the misconception in the answer given
   — kindly, specifically — and why it is tempting. If there was no answer
   ("I don't know"), skip this and start from the mechanism.
-- **How it works.** At least one inline-SVG diagram in a `<figure>`: a
-  sequence, a before/after, a decision. Use the template's `.svg-box`,
-  `.svg-box-spot`, `.svg-line`, `.svg-line-spot`, `.svg-label`, `.svg-small`
-  classes, and a `<figcaption>` that states the takeaway. The first
-  `<figure>` is the page's thumbnail in the dashboard's Artifacts gallery.
+- **How it works.** At least one inline-SVG diagram in a `<figure>`, of the
+  type that fits the idea: a sequence for who-calls-whom, a decision for a
+  branch, a split panel for broken versus fixed, a state machine, a swimlane,
+  layers or bars. Use a different type for each diagram on the page. Colour by
+  category with `.svg-box-1` … `.svg-box-5` (with `.svg-line-N`, `.svg-text-N`),
+  name every colour in text, and use `.svg-bad` / `.svg-ok` only for a real
+  fault and its fix. The skill has a chooser of diagram types and skeletons for the common ones; with
+  no skill, also use `.svg-box`, `.svg-box-spot`, `.svg-line`, `.svg-line-spot`,
+  `.svg-label`, `.svg-small`. End with a `<figcaption>` that states the
+  takeaway. The first `<figure>` is the page's thumbnail in the dashboard's
+  Artifacts gallery.
 - **A concrete example.** A tiny snippet or a timeline, broken versus fixed,
   ideally in the language the developer was working in, as
   `<pre data-lang="…"><code>` so the template labels and colours it.

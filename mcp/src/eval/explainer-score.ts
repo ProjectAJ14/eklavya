@@ -111,7 +111,7 @@ export interface PageInput {
 
 export interface PageScore {
   gates: Verdict[];
-  metrics: { words: number; figures: number; sections: string[]; identifiers_used: number; identifiers_offered: number };
+  metrics: { words: number; figures: number; sections: string[]; identifiers_used: number; identifiers_offered: number; diagram_hues: number };
 }
 
 const CONTENT = /<!--\s*CONTENT[\s\S]*?-->/;
@@ -314,7 +314,7 @@ export function scorePage(input: PageInput): PageScore {
   const used = (c.identifiers ?? []).filter((id) => body.includes(id));
   return {
     gates,
-    metrics: { words: words(plain), figures: figures.length, sections: headings, identifiers_used: used.length, identifiers_offered: c.identifiers?.length ?? 0 },
+    metrics: { words: words(plain), figures: figures.length, sections: headings, identifiers_used: used.length, identifiers_offered: c.identifiers?.length ?? 0, diagram_hues: new Set([...body.matchAll(/\bsvg-(?:box|bar|line|text)-([1-5])\b/g)].map((m) => m[1])).size },
   };
 }
 

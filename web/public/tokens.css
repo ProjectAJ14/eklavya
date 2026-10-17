@@ -172,6 +172,17 @@
   --code-bg:  var(--mass);           /* the well behind a code block */
   --code-str: #E6C060;               /* strings in an artifact's code — 9.55:1 on --panel */
   --code-num: #D4A5F5;               /* numbers and literals — 8.31:1 on --panel */
+  /* Diagram categories (explainer artifacts only). Ink: 4.5:1 or more on --panel and --mass. Colour names a group, always with a text label. */
+  --viz-1: #79D5C4; /* teal */
+  --viz-1-soft: color-mix(in srgb, var(--viz-1) 16%, transparent);
+  --viz-2: #F0B14A; /* amber */
+  --viz-2-soft: color-mix(in srgb, var(--viz-2) 16%, transparent);
+  --viz-3: #7FB2F5; /* blue */
+  --viz-3-soft: color-mix(in srgb, var(--viz-3) 16%, transparent);
+  --viz-4: #B79CF2; /* violet */
+  --viz-4-soft: color-mix(in srgb, var(--viz-4) 16%, transparent);
+  --viz-5: #F28FA8; /* rose */
+  --viz-5-soft: color-mix(in srgb, var(--viz-5) 16%, transparent);
   --shadow-lg: 0 12px 28px rgba(0,0,0,.45);
   --ring:     0 0 0 2px var(--bg), 0 0 0 4px var(--spot);
 }
@@ -214,6 +225,17 @@
   --code-bg:  #EDEAE2;
   --code-str: #6F5300;               /* 5.63:1 on --panel */
   --code-num: #6B3FA0;               /* 5.77:1 on --panel */
+  /* Diagram categories (explainer artifacts only). Paper: 4.5:1 or more on --panel and --mass. Colour names a group, always with a text label. */
+  --viz-1: #0A5751; /* teal */
+  --viz-1-soft: color-mix(in srgb, var(--viz-1) 12%, transparent);
+  --viz-2: #7F4A00; /* amber */
+  --viz-2-soft: color-mix(in srgb, var(--viz-2) 12%, transparent);
+  --viz-3: #1D4F9C; /* blue */
+  --viz-3-soft: color-mix(in srgb, var(--viz-3) 12%, transparent);
+  --viz-4: #5B3DB0; /* violet */
+  --viz-4-soft: color-mix(in srgb, var(--viz-4) 12%, transparent);
+  --viz-5: #A32D55; /* rose */
+  --viz-5-soft: color-mix(in srgb, var(--viz-5) 12%, transparent);
   --shadow-lg: 0 12px 28px rgba(22,21,15,.10);
   --ring:     0 0 0 2px var(--bg), 0 0 0 4px var(--spot);
 }

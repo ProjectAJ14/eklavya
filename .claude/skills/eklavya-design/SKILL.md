@@ -22,7 +22,7 @@ fix it here. Component recipes are in `references/components.md`.
 | 2 | The chrome is **square** | `border-radius: 8px` on a button, card, chip, tile, input or table |
 | 3 | **Hairlines, not shadows** | `box-shadow` on a card that does not float |
 | 4 | Three families, through their variables | `font-family: system-ui` or a fourth face |
-| 5 | **One accent hue**; state colours only for real state | a blue link, a red "new" badge |
+| 5 | **One accent hue**; state colours only for real state (explainer diagrams add five category roles, see Colour) | a blue link, a red "new" badge |
 | 6 | No emoji; sentence case; Lucide line icons | `🎯 Your Progress` |
 | 7 | No grayscale font smoothing | `-webkit-font-smoothing: antialiased` |
 | 8 | Motion on `--ease`, 120–320ms, and reduced motion honoured | a bounce, a loop that ignores `prefers-reduced-motion` |
@@ -62,6 +62,11 @@ same role tokens. Custom properties inherit, so one attribute re-resolves the tr
   active nav item, the primary button. A `--vd-*` step in a component is a bug.
 - A new colour need is a new role in **both** ground blocks of `tokens.css`, never
   a literal in the component.
+- **Exception — explainer diagrams.** Inside an artifact's inline SVG, `--viz-1` … `--viz-5`
+  (teal, amber, blue, violet, rose, each with a `-soft` tint, in both ground blocks of
+  `tokens.css`) colour categories through the `.svg-*-N` classes. A colour names a group and
+  always sits beside a text label. They appear nowhere else: not in the site, the dashboard
+  chrome or artifact prose.
 - **Exception — the terminal.** It is a picture of a terminal, and terminals are
   dark, so it keeps one fixed palette on both grounds (`--term-*` in tokens.css,
   plus the terminal-only neutrals declared at the top of `styles.css`). The macOS
