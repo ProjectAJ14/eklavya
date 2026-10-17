@@ -242,4 +242,20 @@ describe.skipIf(!OPTS)('the daily card', () => {
     expect(await w.page.evaluate(() => !!document.querySelector('.streak__talk [aria-live], .streak__talk[aria-live]'))).toBe(false);
     await w.ctx.close();
   }, 60000);
+
+  it('focuses the card: blurred, dimmed backdrop and a bubble tail that points at the archer', async () => {
+    const w = await open('#/learning/dashboard', NOW);
+    await w.page.waitForSelector('#daily[open]');
+    const css = await w.page.evaluate(() => {
+      const bd = getComputedStyle(document.getElementById('daily')!, '::backdrop');
+      const tail = getComputedStyle(document.querySelector('#daily .say')!, '::after');
+      const arch = document.querySelector('#daily eklavya-mascot')!.getBoundingClientRect();
+      const say = document.querySelector('#daily .say')!.getBoundingClientRect();
+      return { blur: bd.backdropFilter, left: tail.left, right: tail.right, archerLeftOfBubble: arch.right <= say.left + 1 };
+    });
+    expect(css.blur).toMatch(/blur\(10px\)/);
+    expect(css.archerLeftOfBubble).toBe(true);
+    expect(css.left).toBe('-9px'); // tail sits on the archer's side
+    await w.ctx.close();
+  }, 60000);
 });

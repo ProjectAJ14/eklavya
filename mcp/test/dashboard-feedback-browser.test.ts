@@ -248,6 +248,25 @@ describe.skipIf(!OPTS)('the Feedback workflow', () => {
       await w.ctx.close();
     });
 
+    it('says the next feedback is coming, with a happy archer, once any item has been acknowledged', async () => {
+      configure(ON);
+      let w = await open('#/feedback/dashboard');
+      expect(await w.page.textContent('#fb-empty')).toMatch(/Nothing to review yet/);
+      expect(await w.page.getAttribute('#fb-empty eklavya-mascot', 'state')).toBe('empty');
+      await w.ctx.close();
+      acknowledged();
+      w = await open('#/feedback/dashboard');
+      expect(await w.page.textContent('#fb-empty')).toMatch(/The next feedback is on its way/);
+      expect(await w.page.textContent('#fb-empty')).not.toMatch(/Nothing to review yet/);
+      expect(await w.page.getAttribute('#fb-empty eklavya-mascot', 'state')).toBe('happy');
+      await w.ctx.close();
+      // A failed review still outranks the friendly line.
+      db.prepare("INSERT INTO feedback_reviewed (session_id, outcome) VALUES ('s', 'failed')").run();
+      w = await open('#/feedback/dashboard');
+      expect(await w.page.textContent('#fb-empty')).toMatch(/Couldn't review the last session/);
+      await w.ctx.close();
+    });
+
     it('links the off state to Settings, and shows the observer command with Copy', async () => {
       configure({});
       let w = await open('#/feedback/dashboard');

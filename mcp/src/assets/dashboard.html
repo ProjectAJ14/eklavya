@@ -739,9 +739,9 @@
   @keyframes toast-in { from { opacity:0; transform:translateY(10px); } }
   /* The daily card (see DAILY): one native dialog, square, hairline, the archer on top. */
   dialog.daily { width:min(440px, calc(100vw - 32px)); max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px); margin:auto; padding:0;
-                 border:1px solid var(--line-2); border-radius:0; background:var(--panel); color:var(--ink); box-shadow:var(--shadow-lg);
+                 border:1px solid var(--line-2); border-radius:0; background:var(--panel); color:var(--ink); box-shadow:0 0 0 1px var(--line-2), 0 24px 80px rgba(0,0,0,.6);
                  overflow-x:hidden; overflow-y:auto; }
-  dialog.daily::backdrop { background:color-mix(in srgb, var(--bg) 70%, transparent); }
+  dialog.daily::backdrop { background:color-mix(in srgb, var(--ink) 55%, transparent); backdrop-filter:blur(10px) saturate(.8); }
   dialog.daily[open] { animation:daily-in var(--duration-slow) var(--ease); }
   @keyframes daily-in { from { opacity:0; transform:translateY(16px); } }
   .daily__x { position:absolute; top:var(--space-2); right:var(--space-2); width:32px; height:32px; display:grid; place-items:center;
@@ -761,8 +761,8 @@
   .daily__btn--quiet { border-color:transparent; background:transparent; color:var(--dim); }
   .say { position:relative; background:var(--bg); border:1.5px solid var(--ink); padding:10px 14px; max-width:260px; font:600 13.5px/1.4 var(--font-body);
          margin-bottom:26px; }
-  .say::after { content:""; position:absolute; right:-9px; bottom:14px; width:14px; height:14px; background:var(--bg);
-                border-right:1.5px solid var(--ink); border-top:1.5px solid var(--ink); transform:rotate(45deg); }
+  .say::after { content:""; position:absolute; left:-9px; bottom:14px; width:14px; height:14px; background:var(--bg);
+                border-left:1.5px solid var(--ink); border-bottom:1.5px solid var(--ink); transform:rotate(45deg); }
   .daily__row { display:flex; gap:var(--space-4); align-items:center; }
   .daily__big { font:900 56px/.9 var(--font-disp); letter-spacing:-.05em; font-variant-numeric:tabular-nums; }
   .daily__lbl { font:500 10.5px/1 var(--font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--faint); }
@@ -798,6 +798,8 @@
   @keyframes confetti { 0% { opacity:1; transform:translateY(0) rotate(0); } 100% { opacity:0; transform:translateY(480px) rotate(540deg); } }
   .streak__talk { display:flex; align-items:flex-end; gap:var(--space-1); max-width:100%; }
   .streak__talk .say { margin-bottom:30px; }
+  /* Here the archer stands to the right of the bubble, so its tail points right. */
+  .streak__talk .say::after { left:auto; right:-9px; border-left:0; border-bottom:0; border-right:1.5px solid var(--ink); border-top:1.5px solid var(--ink); }
   @media (prefers-reduced-motion:reduce) { dialog.daily[open], .daily__flame.is-live { animation:none; }
     .daily__ring .f, .daily__bar > b, .daily__bars i { transition:none; } .daily__confetti { display:none; } }
   dialog.dlg { width:min(460px, calc(100vw - 32px)); margin:auto; padding:0; border:1px solid var(--line-2); border-radius:0;
@@ -1386,7 +1388,10 @@ const stamp = (ts) => {
   return d.toLocaleDateString(undefined, { month:'short', day:'numeric' })
     + ', ' + d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
 };
-const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+/** Counts of 1,000 and up read short: 1K, 1.2K, 1M. Below that, the number as it is. Strings pass through. */
+const COMPACT = new Intl.NumberFormat('en', { notation:'compact', maximumFractionDigits:1 });
+const fmtN = (n) => (typeof n === 'number' && Math.abs(n) >= 1000 ? COMPACT.format(n) : n);
+const plural = (n, w) => `${fmtN(n)} ${w}${n === 1 ? '' : 's'}`;
 
 const TIER = { 1:'recall', 2:'mechanism', 3:'judgement', 4:'failure modes', 5:'design' };
 const tierLabel = (t) => `T${t}${TIER[t] ? ' ' + TIER[t] : ''}`;
@@ -1717,7 +1722,7 @@ const statePill = (c) =>
 function tiles(items) {
   return `<div class="stats">` + items.map(([k, v, n, kind, go]) =>
     `<div class="tile${kind ? ' is-' + kind : ''}"${go ? ` data-go="${esc(go)}" tabindex="0" role="link"` : ''}>`
-    + `<b>${esc(k)}</b><strong>${esc(v)}</strong><span>${esc(n)}</span></div>`
+    + `<b>${esc(k)}</b><strong>${esc(fmtN(v))}</strong><span>${esc(n)}</span></div>`
   ).join('') + `</div>`;
 }
 
@@ -2654,8 +2659,8 @@ function viewLearningDashboard() {
        answered moves a score.`),
 
     tiles([
-      ['Accuracy', answered ? pct(passed, answered) + '%' : '—', answered ? `${passed} right of ${answered}` : 'No assessments yet', answered && pct(passed, answered) >= 70 ? 'good' : '', LH('sessions')],
-      ['Mastered', mastered.length, `of ${seen.length} asked`, mastered.length ? 'good' : '', LH('concepts', 'mastered')],
+      ['Accuracy', answered ? pct(passed, answered) + '%' : '—', answered ? `${fmtN(passed)} right of ${fmtN(answered)}` : 'No assessments yet', answered && pct(passed, answered) >= 70 ? 'good' : '', LH('sessions')],
+      ['Mastered', mastered.length, `of ${fmtN(seen.length)} asked`, mastered.length ? 'good' : '', LH('concepts', 'mastered')],
       ['Due now', due.length, due.length ? 'ready for review' : 'nothing waiting', due.length ? 'warn' : '', LH('review')],
       toCorrectTile(),
     ]),
@@ -3418,10 +3423,10 @@ function memTiles() {
   const { scoped, events, pending, entries, sessions } = memCounts();
   const everywhere = scoped ? 'all projects · ' : '';
   return tiles([
-    ['Observations', entries, scoped ? 'live in this project' : `${M.indexed} indexed`, '', MH('timeline')],
+    ['Observations', entries, scoped ? 'live in this project' : `${fmtN(M.indexed)} indexed`, '', MH('timeline')],
     ['Sessions', sessions, 'captured or remembered', '', MH('sessions')],
-    ['Pending', pending, pending ? `of ${events} evidence events` : `all ${events} distilled`, pending ? 'warn' : '', MH('health')],
-    ['Reused', M.reused, `${everywhere}${M.exposed} delivered`, '', MH('reuse')],
+    ['Pending', pending, pending ? `of ${fmtN(events)} evidence events` : `all ${fmtN(events)} distilled`, pending ? 'warn' : '', MH('health')],
+    ['Reused', M.reused, `${everywhere}${fmtN(M.exposed)} delivered`, '', MH('reuse')],
   ]);
 }
 
@@ -3514,7 +3519,7 @@ function viewMemoryDashboard() {
 
   return [
     pageHead('What does memory hold?', [
-      `${M.processed} distilled`, `${M.indexed} indexed`, `${M.reused} reused`, `${M.exposed} delivered`, `${M.assessed} assessed`,
+      `${fmtN(M.processed)} distilled`, `${fmtN(M.indexed)} indexed`, `${fmtN(M.reused)} reused`, `${fmtN(M.exposed)} delivered`, `${fmtN(M.assessed)} assessed`,
     ], `Captured, processed, stored, retrieved, delivered, assessed — six different things that can happen to one
        piece of evidence, counted separately. None of them is an answer: only a question you answered moves
        mastery. Reuse, delivery and assessment are counted across all projects.`),
@@ -3738,13 +3743,13 @@ function viewHealth() {
     !H.capture.enabled ? 'memory is disabled' : !H.capture.newest_event ? 'nothing has been captured yet' : '',
     Q.failed ? `${plural(Q.failed, 'job')} failed after retries` : '',
     Q.paused ? `${plural(Q.paused, 'job')} paused, waiting on a decision` : '',
-    H.spool_dropped ? `${H.spool_dropped} events dropped by the spool` : '',
+    H.spool_dropped ? `${fmtN(H.spool_dropped)} events dropped by the spool` : '',
   ].filter(Boolean);
   return [
     pageHead('Health', [
       `last capture ${esc(H.capture.newest_event ? ago(H.capture.newest_event) : 'never')}`,
       H.capture.enabled ? `capture is ${esc(H.capture.mode)}` : 'memory off',
-      `${Q.pending} queued${Q.pending ? `, oldest ${esc(oldest)}` : ''}`,
+      `${fmtN(Q.pending)} queued${Q.pending ? `, oldest ${esc(oldest)}` : ''}`,
     ], `Where memory stops, when it stops. Capture, processing, indexing, retrieval and delivery fail in
        different ways and this page keeps them apart. Error classes only — no log dumps, no keys, no raw
        request bodies. Transient failures retry on their own; auth, quota and missing need you.`),
@@ -4984,6 +4989,9 @@ function fbEmpty(F) {
   } else if (F.failed) {
     state = 'error';
     body = `<p>Couldn't review the last session. It will try again at a later start.</p>`;
+  } else if (F.acknowledged > 0) {
+    state = 'happy';
+    body = `<p>The next feedback is on its way. Eklavya will share it once it's available.</p>`;
   } else {
     body = `<p>Nothing to review yet. When a session ends, the next one you start reviews one of its prompts.</p>`;
   }
@@ -5157,7 +5165,7 @@ const fbDecide = (it) => `<section class="card fb__card fb__decide" aria-labelle
     <div class="fb__dh"><eklavya-mascot state="info" variant="face" size="32"></eklavya-mascot><h3 id="fb-decide-h">Done reading?</h3></div>
     <p class="fb__dp">${esc(FB.rulePending)}</p>
     ${fbActions(it.id)}
-    <p class="fb__foot"><span>1 waiting</span><span>${esc(S.feedback.acknowledged + ' in history')}</span></p></section>`;
+    <p class="fb__foot"><span>1 waiting</span><span>${esc(fmtN(S.feedback.acknowledged) + ' in history')}</span></p></section>`;
 
 /**
  * One item: the verdict, the two prompts, what worked, what it left out and the
