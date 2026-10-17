@@ -1,5 +1,4 @@
 node_modules/
-web/public/demo/panel-model.js
 dist/
 *.tsbuildinfo
 

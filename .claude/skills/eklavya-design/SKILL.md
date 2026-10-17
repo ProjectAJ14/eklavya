@@ -113,10 +113,6 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
   `-base`, `-slow`); micro-interactions 140–200ms. No bounce, no spring.
 - Scroll reveals: opacity 0 + translateY(18px) → visible over 0.7s, staggered
   100–400ms, fired once by an IntersectionObserver at threshold 0.15.
-- The terminal replay uses the timing in its script. Start only when its whole
-  box is visible; pause offscreen, in a hidden tab and when the window is
-  inactive. The replay must not steal focus. Under reduced motion, remove
-  animated typing, cursor blinking and panel transitions.
 - The home legend's decorative bow, arrow and target scene animates once each time
   it enters view, including after returning with Back. The arrow launches quickly and slows near its target; the bow
   recoils and the target responds. Under reduced motion, show the static art.
@@ -129,9 +125,9 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
   `--spot-ink` on a 30px square `--spot` tile, then "Eklavya" in Archivo 900 19px.
 - **Arrow flight:** line bow → dashed trajectory → concentric target. Full strength
   in story sections; as ambient art at `--shot-op` with a slight blur.
-- **Terminal window:** use the terminal palette and mono type for a browser
-  replay of Claude Code's transcript and Eklavya panel. Product strings come
-  from the shipped code; example task output must be clearly an example.
+- **Terminal window:** use the terminal palette and mono type for any terminal
+  depiction. Product strings come from the shipped code; example output must be
+  clearly an example.
 - **Home hero and embedded demo:** keep the Archer Cloak mascot on a dark ground
   with a short introduction and a faint bow-to-target animation in its
   background. Repeat the hero animation only while visible and the browser is
@@ -139,17 +135,12 @@ The approved Archer Cloak character has a coral face and verdigris clothes. Its 
   Only this mascot has green eyes using the hero's `--spot` role. Pupils follow
   the mouse within the eye shapes; touch and reduced motion keep them centered.
   Apply this decoration locally, without changing shared mascot artwork.
-  The automatic replay belongs on the home page at
+  The launch film belongs on the home page at
   `/#demo`. `/demo/` redirects there. Detailed feature explanations stay in docs.
   Keep the GitHub star box visible and use a real count from GitHub.
 - **The name:** preserve the compact `#legend` section, its "The name" eyebrow,
   "The archer who taught himself" heading, three short story columns and the
   bow, arrow and target art. The SVG is decorative and stays on the home page.
-- **Replay sequence:** type the prompt, show Enter and the work, open the panel
-  only when the question arrives, then select and submit the example answer,
-  show its result, show Done and finish the task. Match the panel's labels and
-  states to the shipped mod. Visitors do not type, choose or submit anything;
-  the pictured controls must not take keyboard focus.
 
 ## States, focus and icons
 

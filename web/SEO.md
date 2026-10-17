@@ -35,7 +35,7 @@ The homepage remains handwritten HTML. After changing the shared identity, run
 drift instead of silently modifying tracked source files. The architecture
 viewer remains generated upstream: only its copied version gains site metadata.
 
-The automatic terminal replay belongs to the homepage at `/#demo`. Keep `/demo/`
+The launch film belongs to the homepage at `/#demo`. Keep `/demo/`
 as a redirect to that anchor, rather than a separate indexed demo page. Preserve
 the home canonical URL and verify the anchor and redirect in the built site.
 The compact name story remains on the home page at `/#legend`; preserve its
