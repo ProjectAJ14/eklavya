@@ -325,6 +325,10 @@
       "shard": 1,
       "seconds": 1
     },
+    "test/memory-health.test.ts": {
+      "shard": 5,
+      "seconds": 10
+    },
     "test/memory-hosts-coverage.test.ts": {
       "shard": 2,
       "seconds": 1

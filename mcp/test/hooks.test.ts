@@ -513,6 +513,21 @@ describe('SessionStart output', () => {
     expect(db.prepare("SELECT value FROM meta WHERE key='current_session'").get()).toBeTruthy();
   });
 
+  it('says a memory stall at session start whatever quiet says, and says nothing when memory is healthy', () => {
+    configure({ quiet: true });
+    expect(sessionStart().shown).not.toMatch(/Memory/);
+    db.prepare("INSERT INTO memory_batches (project, session_id, reason) VALUES ('p', 's1', 'manual')").run();
+    db.prepare(
+      `INSERT INTO memory_jobs (batch_id, status, error_class, last_error, updated_at)
+       VALUES (1, 'paused', 'auth', 'Not logged in', datetime('now', '-30 hours'))`,
+    ).run();
+    const res = sessionStart();
+    expect(res.shown.split('\n').filter((l) => /^.{0,12}Memory/.test(l))).toHaveLength(1);
+    expect(res.shown).toMatch(/Memory stalled · claude not logged in since/);
+    // The context the model receives never carries the status line.
+    expect(res.context).not.toMatch(/Memory stalled/);
+  });
+
   it('drops the banner and the directive when questions are off', () => {
     configure({ quiz: { enabled: false, enforced: false }, quiet: false });
     const out = sessionStart().stdout;

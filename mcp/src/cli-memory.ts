@@ -45,6 +45,7 @@ import { pull, push, syncStatus } from './memory/sync.js';
 import { pruneEvidence, queueDepth, resumeIfRepaired, summarizerFor, superviseWorker } from './memory/worker.js';
 import { replayProject, transcriptDirFor, transcriptsFor } from './memory/replay.js';
 import { droppedCount } from './memory/spool.js';
+import { memoryHealth, type MemoryHealth } from './memory/health.js';
 import { savingsFrom, savingsLine } from './memory/tokens.js';
 import {
   inventory,
@@ -176,6 +177,15 @@ function pauseLine(db: DB): string | null {
     .join('; ');
 }
 
+/** The verdict as `kv` rows: one headline, then one row per reason. Shared with `doctor`. */
+export function healthLines(h: MemoryHealth): string[] {
+  const paintOf = h.verdict === 'ok' ? paint.ok : h.verdict === 'warn' ? paint.warn : failText;
+  return [
+    `health:     ${paintOf(h.verdict)}${h.reasons.length ? '' : dim(' — memory is turning work into entries')}`,
+    ...h.reasons.map((r) => `            ${r.text}`),
+  ];
+}
+
 function memoryStatus(): void {
   initializeGlobalConfig();
   const db = openDb();
@@ -191,6 +201,7 @@ function memoryStatus(): void {
     });
 
     const lines = [
+      ...(config.memory.enabled ? healthLines(memoryHealth(db, { project })) : []),
       `project:    ${project}`,
       `capture:    ${config.memory.enabled ? config.memory.capture : 'off (memory.enabled is false)'}`,
       `entries:    ${countEntries(db, project)} here, ${countEntries(db)} in total`,
