@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { memoryHealth } from '../memory/health.js';
 import { loadConfig, type EklavyaConfig } from '../config.js';
 import { projectKey } from '../store.js';
 import { resolveSessionId } from '../session.js';
@@ -377,7 +378,7 @@ export const memoryStatus: ToolDef = {
   name: 'memory_status',
   title: 'Memory status',
   description:
-    `Capture and processing health: how much is remembered, how much evidence is still waiting, the job queue, the reuse saving, and which summarizer is running. Answer "is memory working" with this rather than a search that returns nothing. ${SCOPE_RULE}`,
+    `Capture and processing health: a health verdict (ok, warn or stalled, with the reasons), how much is remembered, how much evidence is still waiting, the job queue, the reuse saving, and which summarizer is running. Answer "is memory working" with this rather than a search that returns nothing. ${SCOPE_RULE}`,
   inputSchema: {
     cwd: z.string().optional().describe(CWD_HINT),
   },
@@ -412,6 +413,8 @@ export const memoryStatus: ToolDef = {
       summarizer: safely(() => summarizerFor(config).id, 'unknown'),
       provider_configured: Boolean(config.providers.observer),
       dropped_events: safely(() => droppedCount(), 0),
+      // The same verdict `eklavya memory status`, `doctor` and the dashboard show.
+      health: memoryHealth(db, { project }),
       session_id: safely(() => resolveSessionId(db, undefined, args.cwd), 'default'),
     };
   },

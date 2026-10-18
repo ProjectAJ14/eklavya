@@ -70,6 +70,13 @@ const DIRECTIVE = `[Eklavya] Standing instruction for this session, on every tas
 let updateLine: ReturnType<typeof updateNotice> = null;
 /** The usage ping's one-time notice. Same rules as `updateLine`; the first ping waits for it. */
 let telemetryLine: string | null = null;
+/**
+ * The memory health line, set only when the verdict is not ok. Stale memory is
+ * recalled as confidently as fresh memory, so a stalled pipeline is said at
+ * session start whatever `quiet` says, like `updateLine`: it is a status, not a
+ * greeting. Never set for a healthy memory.
+ */
+let memoryLine: string | null = null;
 /** What the greeting may say about the dashboard; settled before any early return. */
 let dashboardState: DashboardState = 'down';
 
@@ -176,6 +183,7 @@ await run(async (input) => {
     // there they may be the detail the summary dropped.
     recalled = recallBlock(db, resolved, identity, 'session_start', input.source === 'resume');
     if (recalled?.block) memoryContext.push(recalled.block);
+    memoryLine = memoryHealthLine(db, Date.now(), identity.project);
   }
   // Every emit below that carries `memoryContext` passes this, so the receipt
   // says `emitted` and the entries count as handed over only once the block
@@ -320,6 +328,7 @@ await run(async (input) => {
  * silenced session: no update or telemetry line, which would be a greeting.
  */
 function emit(shown: string[], context: string[], sent?: () => void, announce = true): number {
+  if (memoryLine && announce) shown = [...shown, paint(memoryLine, AMBER, !process.env.NO_COLOR)];
   if (updateLine && announce) {
     shown = [...shown, updateLine.text];
     if (updateLine.announces) markAnnounced(updateLine.announces);
@@ -386,10 +395,6 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
     out.push(paint(recalledLine(r.entries.length, r.deliveredTokens, r.indexed, percent), 114, color));
   }
   if (parts.moved) out.push(paint(parts.moved, parts.moved.includes(' re-filed') ? 114 : AMBER, color));
-  // Stale memory is recalled as confidently as fresh memory, so the one state
-  // worth a warning is a queue that has stopped turning evidence into entries.
-  const health = parts.memory ? memoryHealthLine(db) : null;
-  if (health) out.push(paint(health, AMBER, color));
   if (parts.quiz) out.push(`Learning ${counts.learning} · Mastered ${counts.mastered} · Due ${counts.due}`);
 
   if (parts.overrides.length > 0) {

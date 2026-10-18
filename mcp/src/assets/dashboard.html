@@ -3514,7 +3514,8 @@ function viewMemoryDashboard() {
     { t: 'Context reuse', s: `${plural(R.receipts, 'receipt')}, ${R.emitted + R.confirmed} emitted · ${plural(R.reads.reads, 'read')} · estimated, all projects`,
       v: esc(verdict), go: MH('reuse') },
     { t: 'Health', s: `last capture ${esc(H.capture.newest_event ? ago(H.capture.newest_event) : 'never')} · capture ${H.capture.enabled ? esc(H.capture.mode) : 'off'} · ${Q.pending} queued`,
-      v: stuck ? `<span style="color:var(--warning)">${stuck} stalled</span>` : 'running', go: MH('health') },
+      v: H.verdict.verdict !== 'ok' ? `<span style="color:var(--warning)">${esc(H.verdict.verdict)}</span>`
+        : stuck ? `<span style="color:var(--warning)">${stuck} stalled</span>` : 'running', go: MH('health') },
   ]);
 
   return [
@@ -3744,6 +3745,7 @@ function viewHealth() {
     Q.failed ? `${plural(Q.failed, 'job')} failed after retries` : '',
     Q.paused ? `${plural(Q.paused, 'job')} paused, waiting on a decision` : '',
     H.spool_dropped ? `${fmtN(H.spool_dropped)} events dropped by the spool` : '',
+    ...H.verdict.reasons.map((r) => r.text),
   ].filter(Boolean);
   return [
     pageHead('Health', [
@@ -3754,7 +3756,7 @@ function viewHealth() {
        different ways and this page keeps them apart. Error classes only — no log dumps, no keys, no raw
        request bodies. Transient failures retry on their own; auth, quota and missing need you.`),
     problems.length
-      ? nextStep(`<strong>Needs a look:</strong> ${problems.map(esc).join(' · ')}.`)
+      ? nextStep(`<strong>${H.verdict.verdict === 'stalled' ? 'Memory is stalled:' : 'Needs a look:'}</strong> ${problems.map(esc).join(' · ')}.`)
       : nextStep('<strong>Capture is running.</strong> No job has failed or paused.', true),
     tiles([
       ['Queued', Q.pending, Q.pending ? `oldest ${oldest}` : 'nothing waiting', Q.pending ? 'warn' : 'good'],

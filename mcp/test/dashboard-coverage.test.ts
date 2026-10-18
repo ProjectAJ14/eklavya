@@ -60,6 +60,11 @@ describe('dashboardState on rows the tools never write', () => {
     expect(s.config.focus).toBe(DEFAULT_CONFIG.focus);
   });
 
+  it('carries the memory health verdict on the health block', () => {
+    const s = dashboardState(db) as any;
+    expect(s.health.verdict).toMatchObject({ verdict: 'ok', reasons: [] });
+  });
+
   it('names configured providers by kind and model only', () => {
     fs.mkdirSync(process.env.EKLAVYA_HOME!, { recursive: true });
     fs.writeFileSync(

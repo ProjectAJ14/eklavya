@@ -527,6 +527,7 @@ async function doctor(): Promise<void> {
     { syncStatus },
     { droppedCount },
     { workerLine },
+    { memoryHealth },
   ] = await Promise.all([
     import('./db.js'),
     import('./packs.js'),
@@ -536,6 +537,7 @@ async function doctor(): Promise<void> {
     import('./memory/sync.js'),
     import('./memory/spool.js'),
     import('./cli-memory.js'),
+    import('./memory/health.js'),
   ]);
   const file = dbPath();
   // `doctor` is where somebody goes when something is not taking effect, so it
@@ -743,6 +745,16 @@ async function doctor(): Promise<void> {
       null as string | null,
     );
     add('ok', 'memory', `last evidence ${newest ?? '— none captured yet'}`);
+
+    // The verdict every memory surface shares. It reports the quiet stall the
+    // rows above cannot: a queue that is neither paused nor failed, with
+    // nothing new remembered. Stalled fails the check; warn is for a person to read.
+    if (memory.enabled) {
+      const h = memoryHealth(db);
+      add(h.verdict === 'ok' ? 'ok' : h.verdict === 'warn' ? 'warn' : 'fail', 'memory', `health ${h.verdict}`);
+      for (const r of h.reasons) add(r.level === 'warn' ? 'warn' : 'fail', 'memory', r.text);
+      if (h.verdict === 'stalled') memoryOk = false;
+    }
 
     const sync = safely(() => syncStatus(db!, resolved.config), null);
     add('ok', 'memory', `sync ${sync?.enabled ? `on -> ${sync.target ?? '(no target set — set sync.target)'}` : 'off'}`);
