@@ -17,6 +17,7 @@ Build first with `cd mcp && npm run build`, then run from the repository root.
 | Repeats, retention, answer-giveaway rate and option-length check send-backs in real history | `npm run eval -- history` | None; reads learner database |
 | Retrieval quality | `node eval/retrieval-harness.mjs` | None |
 | Memory performance | `node eval/memory-perf.mjs` | None |
+| Tokens memory injected and read per session and in total, recall blocks never followed by a read, and the base-versus-delivered line, from a copy of your database | `node eval/memory-tokens.mjs --db <copy> [--since <iso>] [--top N] [--json]` | None; reads a copy of `knowledge.db` |
 | Whether recalled memory is on-topic and used, from your transcripts | `node eval/memory-usage.mjs [--days 3] [--pairs <file>]` | None; reads `~/.claude/projects` |
 | Whether a saved fact changes what a session builds, against memory off and irrelevant memory | `node eval/memory-use-harness.mjs run --plugin <checkout> --label <name>` then `score <run-dir>` | Whole Claude Code sessions |
 | Whether the tutor follows its grading, pacing and handoff rules at one frozen moment of a session | `node eval/conversation-harness.mjs run --root <checkout> --label <name>` | One model call per scenario and trial |
@@ -530,6 +531,19 @@ that — which is exactly why the leak count is printed next to it.
 
 
 </details>
+
+## The memory token report
+
+`eval/memory-tokens.mjs` counts what memory added to context, from the
+receipts and `memory_reads` the product already writes: tokens injected by
+scope (`session_start`, `prompt`, `file_context`), tokens in `memory_*` read
+results, recall blocks that were and were not followed by a read, and the
+base-versus-delivered line the dashboard shows. No model calls. Run it on a
+copy, never the live file (`sqlite3 ~/.eklavya/knowledge.db ".backup <tmp>"`),
+because opening applies pending migrations. Use `--since` to start at the first
+logged read; earlier recall blocks cannot be classified. That line compares
+recall with re-sending raw history, not with no memory, and the report says so.
+First dated result: `results/2026-10-18-memory-tokens.md`.
 
 ## The performance baseline
 
