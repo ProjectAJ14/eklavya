@@ -67,13 +67,34 @@ export function savingsLine(s: Savings): string {
   }
 }
 
+const sizeOf = (tokens: number) => (tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}k` : String(tokens));
+
+/**
+ * The plugin server's tool prefix. Claude Code defers MCP tools until
+ * `ToolSearch` loads them, so a note that names `memory_get` without saying how
+ * to load it leaves the model unable to call it (packaging.test.ts checks this
+ * against `.claude-plugin/plugin.json` and `.mcp.json`).
+ */
+export const TOOL_PREFIX = 'mcp__plugin_eklavya_eklavya__';
+
+/** The exact `ToolSearch` query that loads these Eklavya tools. */
+export const toolSearch = (...names: string[]) => `ToolSearch select:${names.map((n) => TOOL_PREFIX + n).join(',')}`;
+
+/**
+ * One line under a title index: what the entries behind the titles would cost
+ * in full, and how to load the tool that opens one. The same estimator as every
+ * receipt, so the number is comparable with the rest.
+ */
+export const pullLine = (tokens: number) =>
+  `Full entries behind these titles: ~${sizeOf(tokens)} tokens. To open one, load the tool first (${toolSearch('memory_get', 'memory_search')}), then memory_get({ids: [<id>]}).`;
+
 /**
  * The banner line for one session start's recall: what was delivered, which a
  * receipt proves, then the estimated saving against reading the evidence behind
  * the full entries (`percent` from `savingsFrom`; 0 leaves it off).
  */
 export function recalledLine(entries: number, tokens: number, indexed = 0, percent = 0): string {
-  const size = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}k` : String(tokens);
+  const size = sizeOf(tokens);
   const titles = indexed ? ` + ${indexed} ${indexed === 1 ? 'title' : 'titles'}` : '';
   return `Memory · ${entries} past ${entries === 1 ? 'entry' : 'entries'}${titles} recalled (~${size} tokens)${percent > 0 ? ` · ~${percent}% less context` : ''}`;
 }

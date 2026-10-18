@@ -12,6 +12,8 @@ import { processPending, sessionSoFar, writeSessionSummary } from '../src/memory
 import { ProviderSummarizer } from '../src/memory/provider.js';
 import { projectKey } from '../src/store.js';
 import { relativeToProject } from '../src/memory/identity.js';
+import { expand, outline } from '../src/memory/code.js';
+import { estimateTokens } from '../src/memory/tokens.js';
 
 /**
  * Session continuity, as Claude Mem does it: a checkpoint of where each session
@@ -319,7 +321,7 @@ describe('file history on Read, through the built hook', () => {
     expect(read(big)).toBe('');
   });
 
-  it('holds a whole-file Read of a 32 KB file once, pointing at memory_get, and lets the retry through', () => {
+  it('holds a whole-file Read of a 32 KB code file, pointing at memory_get and the outline, and holds the retry too', () => {
     const huge = path.join(repo, 'src', 'huge.ts');
     fs.writeFileSync(huge, 'x'.repeat(40 * 1024));
     const id = insertEntry(db, { project, title: 'Huge file gotcha', type: 'discovery', files: ['src/huge.ts'] });
@@ -327,12 +329,92 @@ describe('file history on Read, through the built hook', () => {
     expect(out.hookSpecificOutput.permissionDecision).toBe('deny');
     const reason = out.hookSpecificOutput.permissionDecisionReason!;
     expect(reason).toMatch(/receipt="\d+"/);
-    expect(reason).toContain('Full-file Read held once by Eklavya: src/huge.ts (40 KB)');
+    expect(reason).toContain('Whole-file Read held by Eklavya: src/huge.ts (40 KB)');
+    // The way out is named with the exact tool-loading query, not left to the model to guess.
+    expect(reason).toContain('code_outline({file: "src/huge.ts"})');
+    expect(reason).toContain('code_find_symbol');
+    expect(reason).toContain('ToolSearch select:mcp__plugin_eklavya_eklavya__memory_get,mcp__plugin_eklavya_eklavya__code_outline,mcp__plugin_eklavya_eklavya__code_find_symbol');
+    expect(reason).toContain('offset and limit');
     expect(reason).toMatch(new RegExp(`memory_get\\(\\{ids: \\[${id}\\], receipt_id: \\d+\\}\\)`));
     expect(reason).toContain('Huge file gotcha');
     expect(db.prepare("SELECT delivery FROM context_receipts WHERE scope = 'file_context'").all()).toEqual([{ delivery: 'emitted' }]);
-    // The hold is once: the retry is not held and adds nothing.
-    expect(read(huge)).toBe('');
+    // A retry of the same whole-file Read is held again, briefly: no titles, no new receipt.
+    const again = JSON.parse(read(huge)).hookSpecificOutput as Record<string, string>;
+    expect(again.permissionDecision).toBe('deny');
+    expect(again.permissionDecisionReason).toContain('held again by Eklavya');
+    expect(again.permissionDecisionReason).toContain('code_outline({file: "src/huge.ts"})');
+    expect(again.permissionDecisionReason).not.toContain('Huge file gotcha');
+    expect(db.prepare("SELECT COUNT(*) AS n FROM context_receipts WHERE scope = 'file_context'").get()).toEqual({ n: 1 });
+    // A range always passes, so the hold cannot strand a session.
+    expect(read(huge, { tool_input: { file_path: huge, offset: 10, limit: 50 } })).toBe('');
+  });
+
+  describe('what counts as a whole-file Read', () => {
+    const lines = 800;
+    let code = '';
+    beforeEach(() => {
+      code = path.join(repo, 'src', 'lines.ts');
+      fs.writeFileSync(code, `${'x'.repeat(49)}\n`.repeat(lines));
+      insertEntry(db, { project, title: 'Lines history', type: 'change', files: ['src/lines.ts'] });
+    });
+    const denied = (toolInput: Record<string, unknown>, file = code) => {
+      const out = read(file, { tool_input: { file_path: file, ...toolInput } });
+      return out ? (JSON.parse(out).hookSpecificOutput.permissionDecision as string | undefined) : undefined;
+    };
+
+    it('holds offset 0 or 1 with a limit that reaches the last line, not one that stops short', () => {
+      expect(denied({ offset: 1, limit: 2000 })).toBe('deny');
+      expect(denied({ offset: 0, limit: lines + 1 })).toBe('deny');
+      expect(denied({ limit: lines + 1 })).toBe('deny');
+      expect(denied({ limit: 100 })).toBeUndefined();
+      expect(denied({ offset: 1, limit: lines - 1 })).toBeUndefined();
+    });
+
+    it('lets any later offset, an unreadable limit or an enormous file through', () => {
+      expect(denied({ offset: 2, limit: 5000 })).toBeUndefined();
+      expect(denied({ offset: 'later', limit: 5000 })).toBeUndefined();
+      expect(denied({ limit: '5000' })).toBeUndefined();
+      expect(denied({ limit: 0 })).toBeUndefined();
+      const sparse = path.join(repo, 'src', 'sparse.ts');
+      fs.writeFileSync(sparse, '');
+      fs.truncateSync(sparse, 9 * 1024 * 1024);
+      insertEntry(db, { project, title: 'Sparse history', type: 'change', files: ['src/sparse.ts'] });
+      expect(denied({ limit: 100000 }, sparse)).toBeUndefined();
+    });
+
+    it('holds a whole Read that follows a ranged one, which already got the titles', () => {
+      expect(denied({ offset: 5, limit: 20 })).toBeUndefined();
+      expect(denied({})).toBe('deny');
+    });
+
+    it('turns a whole-file Read into a fraction of the tokens: refusal + outline + one function', () => {
+      const big = path.join(repo, 'src', 'engine.ts');
+      const body = (i: number) =>
+        `export function step${i}(input: number): number {\n${'  // reason about the rollout carefully here\n'.repeat(8)}  return input + ${i};\n}\n\n`;
+      fs.writeFileSync(big, Array.from({ length: 120 }, (_, i) => body(i)).join(''));
+      insertEntry(db, { project, title: 'Engine history', type: 'change', files: ['src/engine.ts'] });
+      const whole = estimateTokens(fs.readFileSync(big, 'utf8'));
+      const refusal = estimateTokens(JSON.parse(read(big)).hookSpecificOutput.permissionDecisionReason);
+      const symbols = outline(big)!.symbols;
+      const outlined = estimateTokens(JSON.stringify(outline(big)));
+      const one = estimateTokens(expand(big, symbols[60]!.line)!);
+      // Measured: the model pays for what it does next, not for the file.
+      expect(whole).toBeGreaterThan(5_000);
+      expect(refusal + outlined + one).toBeLessThan(whole * 0.5);
+      console.info(`file hold: whole ${whole} tokens vs refusal ${refusal} + outline ${outlined} + one function ${one} = ${refusal + outlined + one}`);
+    });
+
+    it('never holds a file code_outline cannot outline', () => {
+      for (const name of ['NOTES.md', 'lock.json', 'ci.yaml', 'Cargo.toml', 'data.csv', 'Makefile']) {
+        const file = path.join(repo, 'src', name);
+        fs.writeFileSync(file, `${'x'.repeat(49)}\n`.repeat(lines));
+        insertEntry(db, { project, title: `History of ${name}`, type: 'change', files: [`src/${name}`] });
+        const hs = JSON.parse(read(file)).hookSpecificOutput as Record<string, string>;
+        expect(hs, name).not.toHaveProperty('permissionDecision');
+        expect(hs.additionalContext, name).toContain(`History of ${name}`);
+        expect(read(file), name).toBe('');
+      }
+    });
   });
 
   it('holds at exactly 32 KB and not a byte under, and not when only a limit is given', () => {
@@ -346,7 +428,7 @@ describe('file history on Read, through the built hook', () => {
     const hs = JSON.parse(read(under)).hookSpecificOutput as Record<string, string>;
     expect(hs).not.toHaveProperty('permissionDecision');
     const lim = path.join(repo, 'src', 'lim.ts');
-    fs.writeFileSync(lim, 'x'.repeat(40 * 1024));
+    fs.writeFileSync(lim, `${'x'.repeat(39)}\n`.repeat(1000));
     insertEntry(db, { project, title: 'Limited read', type: 'change', files: ['src/lim.ts'] });
     const ranged = JSON.parse(read(lim, { tool_input: { file_path: lim, limit: 50 } })).hookSpecificOutput as Record<string, string>;
     expect(ranged).not.toHaveProperty('permissionDecision');

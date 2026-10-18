@@ -2,7 +2,7 @@ import type { DB } from '../db.js';
 import type { EklavyaConfig } from '../config.js';
 import { decayedScore, isKnown, isOwed, streakOf } from '../srs.js';
 import { GLOBAL_PROJECT, projectKey } from '../store.js';
-import { ESTIMATOR, RECEIPT_HINT, estimateTokens } from './tokens.js';
+import { ESTIMATOR, RECEIPT_HINT, estimateTokens, pullLine } from './tokens.js';
 import { keywordSearch, search, semanticSearch, type SearchHit } from './search.js';
 import { entryEvents, markReceiptEmitted, recordReceipt, timeline, type Delivery, type EntryRow } from './store.js';
 import { defangFence } from './privacy.js';
@@ -85,6 +85,8 @@ export interface RecallOptions {
   candidates?: EntryRow[];
   /** Override `retrieval.max_items`, for the tighter per-prompt budget. */
   maxItems?: number;
+  /** Characters the seam block may run to; default `HOOK_CONTEXT_CHARS`. The caller subtracts what else it sends. */
+  maxChars?: number;
   /** Override `retrieval.max_tokens`, for the tighter per-prompt budget. */
   maxTokens?: number;
   /**
@@ -111,6 +113,10 @@ export interface RecallOptions {
  */
 export const INDEX_MAX_ITEMS = 50;
 export const INDEX_MAX_TOKENS = 1_100;
+/** Claude Code replaces any hook output longer than this with a stub. */
+export const HOOK_CONTEXT_CHARS = 10_000;
+/** Stands in for the receipt id while the block is measured: longer than any real id. */
+const RECEIPT_MEASURE = '9999999';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** Local calendar day and clock time: the developer's own day, not UTC's. */
@@ -355,49 +361,89 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
 
   // The timeline: the newest entries not sent in full, within its own
   // allowance, then put in order and grouped by day. Charged like the wrapper
-  // — delivered, never claimed as a saving.
-  const indexLines: string[] = [];
-  let timelineCount = 0;
-  if (opts.index) {
-    const sent = new Set(kept.map((e) => e.id));
+  // — delivered, never claimed as a saving. `cap` is how many lines it may
+  // have; shedding below lowers it.
+  const DETAIL_HEADING = 'Latest, in full:';
+  type Item = { e: EntryRow; text: string };
+  const pickTimeline = (sent: Set<number>, cap: number): EntryRow[] => {
     const chosen: EntryRow[] = [];
     let spent = 0;
     for (const entry of pool) {
-      if (chosen.length >= INDEX_MAX_ITEMS) break;
+      if (chosen.length >= cap) break;
       if (sent.has(entry.id)) continue;
       const cost = estimateTokens(timelineLine(entry)) + 1;
       if (spent + cost > INDEX_MAX_TOKENS) break;
       chosen.push(entry);
       spent += cost;
     }
-    chosen.sort((a, b) => a.occurred_at.localeCompare(b.occurred_at) || a.id - b.id);
+    return chosen.sort((a, b) => a.occurred_at.localeCompare(b.occurred_at) || a.id - b.id);
+  };
+  const timelineLines = (chosen: EntryRow[]): string[] => {
+    if (!chosen.length) return [];
+    const lines = [
+      'Recent work, oldest first: [#id] time type · title. A "session" line stands for a whole session, usually what was asked in it. Look further back with memory_search.',
+    ];
     let day = '';
     for (const entry of chosen) {
       const d = localDay(entry.occurred_at);
       if (d !== day) {
-        indexLines.push(`### ${d}`);
+        lines.push(`### ${d}`);
         day = d;
       }
-      indexLines.push(timelineLine(entry));
+      lines.push(timelineLine(entry));
     }
-    timelineCount = chosen.length;
-    if (chosen.length) {
-      indexLines.unshift(
-        'Recent work, oldest first: [#id] time type · title. A "session" line stands for a whole session, usually what was asked in it. Look further back with memory_search.',
-      );
-      delivered += estimateTokens(indexLines.join('\n'));
-    }
-  }
+    // What the full entries cost and how to load the tool that opens one: the
+    // titles alone were opened in about 1% of sessions.
+    lines.push(pullLine(chosen.reduce((sum, e) => sum + estimateTokens(renderEntry(e, 1)), 0)));
+    return lines;
+  };
 
   const base = baseTokensFor(db, kept);
 
   // Timeline first, then the newest work in full, then the checkpoint: read
-  // top to bottom it ends where the last session stopped.
-  const full = kept.map((e, i) => ({ e, text: rendered[i]! }));
-  const detail = full.filter((x) => x.e !== checkpoint).map((x) => x.text);
-  const DETAIL_HEADING = 'Latest, in full:';
-  if (opts.index && detail.length) delivered += estimateTokens(DETAIL_HEADING);
-  const closing = full.filter((x) => x.e === checkpoint).map((x) => x.text);
+  // top to bottom it ends where the last session stopped. The receipt id is not
+  // known yet, so a longer one stands in while the length is measured.
+  const layout = (items: Item[], cap: number, receipt: string) => {
+    const timelineRows = opts.index ? pickTimeline(new Set(items.map((x) => x.e.id)), cap) : [];
+    const indexLines = timelineLines(timelineRows);
+    const detail = items.filter((x) => x.e !== checkpoint).map((x) => x.text);
+    const closing = items.filter((x) => x.e === checkpoint).map((x) => x.text);
+    const header = `<eklavya-memory project="${projectAttr}" items="${items.length + timelineRows.length}" receipt="${receipt}">`;
+    const hint = RECEIPT_HINT(Number(receipt));
+    const block = opts.index
+      ? [header, note, hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
+      : [header, note, hint, ...items.map((x) => x.text), footer].join('\n');
+    return { timelineRows, indexLines, detail, block };
+  };
+
+  // Claude Code replaces hook output over 10,000 characters with a stub, so a
+  // block that runs over reaches the model as nothing. Shed whole items in the
+  // order they matter least: the checkpoint's detail, then the "in full"
+  // entries from the oldest end, then the timeline by halves.
+  let items: Item[] = kept.map((e, i) => ({ e, text: rendered[i]! }));
+  let cap = INDEX_MAX_ITEMS;
+  let view = layout(items, cap, RECEIPT_MEASURE);
+  if (opts.index) {
+    const over = () => view.block.length > (opts.maxChars ?? HOOK_CONTEXT_CHARS);
+    if (over() && checkpoint) {
+      items = items.filter((x) => x.e !== checkpoint);
+      view = layout(items, cap, RECEIPT_MEASURE);
+    }
+    while (over() && items.length > 1) {
+      items = items.slice(0, -1);
+      view = layout(items, cap, RECEIPT_MEASURE);
+    }
+    while (over() && view.timelineRows.length > 0) {
+      cap = Math.floor(view.timelineRows.length / 2);
+      view = layout(items, cap, RECEIPT_MEASURE);
+    }
+  }
+  const keptNow = items.map((x) => x.e);
+  delivered =
+    wrapperTokens +
+    items.reduce((sum, x) => sum + estimateTokens(x.text), 0) +
+    (view.indexLines.length ? estimateTokens(view.indexLines.join('\n')) : 0) +
+    (opts.index && view.detail.length ? estimateTokens(DETAIL_HEADING) : 0);
 
   // Written before the block is put together, because the block carries its
   // id: a `memory_get` the model makes from it can only be charged to this
@@ -410,28 +456,24 @@ export function recall(db: DB, config: EklavyaConfig, opts: RecallOptions): Reca
     delivery: opts.delivery ?? 'prepared',
     wrapperTokens:
       wrapperTokens +
-      (indexLines.length ? estimateTokens(indexLines.join('\n')) : 0) +
-      (opts.index && detail.length ? estimateTokens(DETAIL_HEADING) : 0),
-    items: kept.map((entry, i) => ({
-      entryId: entry.id,
-      sourceTokens: base.get(entry.id)!,
-      sentTokens: estimateTokens(rendered[i]!),
+      (view.indexLines.length ? estimateTokens(view.indexLines.join('\n')) : 0) +
+      (opts.index && view.detail.length ? estimateTokens(DETAIL_HEADING) : 0),
+    items: items.map((x) => ({
+      entryId: x.e.id,
+      sourceTokens: base.get(x.e.id)!,
+      sentTokens: estimateTokens(x.text),
     })),
   });
-
-  const header = `<eklavya-memory project="${projectAttr}" items="${kept.length + timelineCount}" receipt="${receiptId}">`;
-  const hint = RECEIPT_HINT(receiptId);
-  const block = opts.index
-    ? [header, note, hint, ...indexLines, ...(detail.length ? [DETAIL_HEADING, ...detail] : []), ...closing, footer].join('\n')
-    : [header, note, hint, ...rendered, footer].join('\n');
+  const block = layout(items, cap, String(receiptId)).block;
+  const timelineCount = view.timelineRows.length;
 
   return {
     block,
     receiptId,
-    entries: kept,
+    entries: keptNow,
     indexed: timelineCount,
     // `baseTokensFor` sets every kept entry.
-    baseTokens: kept.reduce((sum, e) => sum + base.get(e.id)!, 0),
+    baseTokens: keptNow.reduce((sum, e) => sum + base.get(e.id)!, 0),
     deliveredTokens: delivered,
   };
 }

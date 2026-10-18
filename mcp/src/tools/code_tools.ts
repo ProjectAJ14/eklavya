@@ -26,6 +26,7 @@ function resolveIn(project: string, file: string): string {
 
 export const codeOutline: ToolDef = {
   name: 'code_outline',
+  readOnly: true,
   title: 'Outline a source file',
   description: `The declarations in one file, with line numbers — classes, functions, types, tables — so you can choose what to read instead of reading all of it. Pass 'line' to get the surrounding lines of one declaration instead of the whole outline. ${CEILING}`,
   inputSchema: {
@@ -63,6 +64,7 @@ export const codeOutline: ToolDef = {
 
 export const codeFindSymbol: ToolDef = {
   name: 'code_find_symbol',
+  readOnly: true,
   title: 'Find where a symbol is declared',
   description: `Where a name is DECLARED across this repository, with the file, the line and the declaration itself. Declarations only, not every mention — a list of call sites answers a different question. Scoped to this project. ${CEILING}`,
   inputSchema: {

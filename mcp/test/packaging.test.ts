@@ -1,3 +1,4 @@
+import { TOOL_PREFIX } from '../src/memory/tokens.js';
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -402,6 +403,8 @@ describe('the auto-mode allow rule', () => {
   const kept_out: Record<string, string> = {
     set_config: 'the commit gate names it, but it can change any setting; documented as one that may ask',
     get_config: 'only mentioned in a hook comment, never asked of Claude',
+    code_outline: 'the file hold names it; annotated readOnlyHint, which auto and plan mode run without a rule (tools-coverage.test.ts)',
+    code_find_symbol: 'the file hold names it; annotated readOnlyHint, as code_outline',
   };
 
   it('names the same real tools under the plugin server prefix, in the manual and the skill', async () => {
@@ -414,6 +417,8 @@ describe('the auto-mode allow rule', () => {
       expect(registered.has(t), `${t} is not a registered tool`).toBe(true);
     }
     const expected = unprompted.map((t) => prefix + t).sort();
+    // The prefix the recall notes and the file hold put in their ToolSearch query.
+    expect(TOOL_PREFIX).toBe(prefix);
 
     // A renamed tool or server would leave users pasting a rule that allows
     // nothing, and auto mode would keep denying Eklavya.
