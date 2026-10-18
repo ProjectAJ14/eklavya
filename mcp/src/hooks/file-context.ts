@@ -18,8 +18,10 @@
  *   claim no saving, so each line is charged as sent with no source cost.
  * - No `allow`. Claude Mem's hook answers `allow`, which also approves the
  *   Read; this one adds context and leaves permission to the host. The one
- *   decision it makes is a `deny` of a whole-file Read of a file of 32 KB or
- *   more, once per file per session (`HOLD_MIN_BYTES`).
+ *   decision it makes is a `deny` of a whole-file Read of a code file of 32 KB
+ *   or more that has history (`HOLD_MIN_BYTES`), every time this session: the
+ *   saving is the outline or the partial Read the model must take instead, and
+ *   a retry that always went through saved nothing.
  * - Capture-path imports only (`hook-isolation.test.ts`): it runs before every
  *   Read, and fails open like every hook.
  */
@@ -28,7 +30,8 @@ import { run, openExisting, config, cwdOf, sessionId, type DB } from './lib.js';
 import { identityOf } from './capture-lib.js';
 import { relativeToProject } from '../memory/identity.js';
 import { markReceiptEmitted, recordReceipt, type EntryRow } from '../memory/store.js';
-import { ESTIMATOR, RECEIPT_HINT, estimateTokens } from '../memory/tokens.js';
+import { languageOf } from '../memory/code.js';
+import { ESTIMATOR, RECEIPT_HINT, estimateTokens, toolSearch } from '../memory/tokens.js';
 import { defangFence } from '../memory/privacy.js';
 import { GLOBAL_PROJECT } from '../store.js';
 
@@ -37,12 +40,13 @@ const FILE_CONTEXT_MAX = 8;
 /** A file this small is read in full anyway, and is rarely where history hides. */
 const MIN_BYTES = 1_500;
 /**
- * From this size a whole-file Read of a file with history is held once. Titles
+ * From this size a whole-file Read of a code file with history is held. Titles
  * alone were not enough to make the agent open an entry (it never did in the
- * ten sessions audited on 2026-10-17); a held Read makes the lookup the next
- * step, and the retry always goes through because the file is marked seen.
- * The same 32 KB line claude-mem draws for its read gate, where a smaller file
- * costs about what the timeline saves.
+ * ten sessions audited on 2026-10-17); a held Read makes the lookup, or the
+ * outline, the next step. A Read with an offset and a limit that stops short of
+ * the end always passes, so the hold cannot strand a session. The same 32 KB
+ * line claude-mem draws for its read gate, where a smaller file costs about
+ * what the timeline saves.
  */
 const HOLD_MIN_BYTES = 32 * 1024;
 const SEEN_PREFIX = 'filectx:';
@@ -70,9 +74,13 @@ await run(async (input) => {
     return 0;
   }
   if (size < MIN_BYTES) return 0;
-  // A Read with an offset or a limit already knows which part it wants.
-  const whole = input.tool_input?.offset === undefined && input.tool_input?.limit === undefined;
-  const hold = whole && size >= HOLD_MIN_BYTES && resolved.config.memory.file_hold;
+  // Held only where `code_outline` has something to offer instead: markdown,
+  // YAML, JSON and lockfiles have no outline, so a hold there is a dead end.
+  const hold =
+    size >= HOLD_MIN_BYTES &&
+    resolved.config.memory.file_hold &&
+    languageOf(file) !== null &&
+    coversFile(file, size, input.tool_input?.offset, input.tool_input?.limit);
 
   // Capture stores paths relative to the checkout with forward slashes; an
   // import or a model may have kept the absolute path, and Windows history
@@ -120,7 +128,14 @@ await run(async (input) => {
   // not both inject. Marked after the lookup, so a lookup that failed is tried
   // again next read; remembered even when nothing was found, so it is paid once.
   const key = `${SEEN_PREFIX}${sid}`;
-  if (!claim(db, key, rel)) return 0;
+  if (!claim(db, key, rel)) {
+    // The titles went out on the first Read; a later whole-file Read is held
+    // again, briefly, until the model takes the outline or a range.
+    if (hold && rows.length) {
+      deny(`Whole-file Read of ${defangFence(rel)} (${kb(size)} KB) held again by Eklavya. ${STEER(rel)}`);
+    }
+    return 0;
+  }
   if (!rows.length) return 0;
 
   let receiptId: number;
@@ -141,17 +156,16 @@ await run(async (input) => {
 
     if (hold) {
       const ids = chosen.map((e) => e.id).join(', ');
-      const reason = [
-        `${head} receipt="${receiptId}">`,
-        `Full-file Read held once by Eklavya: ${defangFence(rel)} (${Math.round(size / 1024)} KB) has past work in this project's memory, listed below.`,
-        `- Past work: call memory_get({ids: [${ids}], receipt_id: ${receiptId}}) for the entries that matter, about 300 tokens each.`,
-        `- Then Read the file again. This hold happens once per file per session, so the retry goes through; pass offset and limit to read only the part you need.`,
-        'The titles are history from earlier sessions, not the file\'s current contents.',
-        ...lines,
-        '</eklavya-memory>',
-      ].join('\n');
-      process.stdout.write(
-        JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }),
+      deny(
+        [
+          `${head} receipt="${receiptId}">`,
+          `Whole-file Read held by Eklavya: ${defangFence(rel)} (${kb(size)} KB) has past work in this project's memory, listed below. Do not read the whole file; in order:`,
+          `1. Past work: memory_get({ids: [${ids}], receipt_id: ${receiptId}}) for the entries that matter, about 300 tokens each.`,
+          `2. Structure: ${STEER(rel)}`,
+          'The titles are history from earlier sessions, not the file\'s current contents.',
+          ...lines,
+          '</eklavya-memory>',
+        ].join('\n'),
       );
     } else {
       process.stdout.write(
@@ -166,6 +180,36 @@ await run(async (input) => {
   markReceiptEmitted(db, receiptId);
   return 0;
 });
+
+function kb(bytes: number): number {
+  return Math.round(bytes / 1024);
+}
+
+/** What to do instead of reading the whole file, with the one query that loads the tools. */
+function STEER(rel: string): string {
+  return `code_outline({file: "${defangFence(rel).replace(/"/g, '\\"')}"}) lists its declarations with line numbers, code_find_symbol({name}) finds where one is declared, then Read with offset and limit for only that part (load the tools first: ${toolSearch('memory_get', 'code_outline', 'code_find_symbol')}). A Read with offset and limit is never held.`;
+}
+
+function deny(reason: string): void {
+  process.stdout.write(
+    JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }),
+  );
+}
+
+/**
+ * Whether this Read asks for the whole file: no offset (or line 1) and either
+ * no limit or one that reaches the last line. A limit is compared with the
+ * file's real line count, so `limit: 99999` is not a way around the hold.
+ * ponytail: a file over 8 MB with a limit is treated as partial rather than
+ * counted; Read refuses such files in full anyway.
+ */
+function coversFile(file: string, size: number, offset: unknown, limit: unknown): boolean {
+  if (offset !== undefined && !(Number(offset) <= 1)) return false;
+  if (limit === undefined) return true;
+  if (typeof limit !== 'number' || !(limit > 0) || size > 8 * 1024 * 1024) return false;
+  // A file that cannot be read throws, and `run` fails open.
+  return limit >= fs.readFileSync(file, 'latin1').split('\n').length;
+}
 
 /** Marks `rel` seen for this session; false when another Read already had. */
 function claim(db: DB, key: string, rel: string): boolean {

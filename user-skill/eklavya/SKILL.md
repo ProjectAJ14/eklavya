@@ -279,6 +279,9 @@ existing entry and adding none twice:
 `mcp__plugin_eklavya_eklavya__get_learner_profile`,
 `mcp__plugin_eklavya_eklavya__memory_search` and
 `mcp__plugin_eklavya_eklavya__memory_get`.
+Eklavya's other read tools (`memory_timeline`, `memory_file_history`, `memory_status`,
+`memory_collections`, `code_outline`, `code_find_symbol`) are marked read-only, so auto
+and plan mode should run them without an entry; add one only if a denial names it.
 Create `permissions.allow` if it is missing, and leave the file valid JSON. Do not
 allow the whole `mcp__plugin_eklavya_eklavya` server instead: that would also let
 `memory_write`, `memory_delete` and `set_config` run unasked. Show them the entries

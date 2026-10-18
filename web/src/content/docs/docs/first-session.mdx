@@ -197,6 +197,8 @@ tool can change any Eklavya setting, so allowing it would let Claude change
 settings without asking. Expect auto mode to ask there, and approve it
 when you do want questions back.
 
+Eklavya's other read tools (`memory_timeline`, `memory_file_history`, `memory_status`, `memory_collections`, `code_outline` and `code_find_symbol`) are marked read-only in the MCP protocol, which lets Claude Code run them in auto and plan mode without an entry. Unverified on a live host: if auto mode still refuses one, add it beside the ten.
+
 A miss in the panel starts the explainer agent, and auto mode judges that too.
 It drops `Agent` allow rules, so no setting skips the check. If its classifier
 is briefly unavailable you may see `eklavya:eklavya-explainer denied by auto

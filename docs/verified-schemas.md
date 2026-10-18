@@ -79,7 +79,7 @@ All launch `node` with `args`. Timeouts are in seconds: 10 for each registration
 | SessionStart | Session identity, checkout, `source` | Visible profile plus model recall/directive |
 | UserPromptSubmit | Identity, `agent_id` and `prompt` | Capture, recall, logging nudge and, next to a task-sized prompt, the delegation line |
 | SubagentStart | `agent_type`, session identity | Implementer logging directive; tutor exempt |
-| PreToolUse | `tool_name`, `tool_input.command`, `tool_input.file_path` or `tool_input.questions[].header`/`question`, `agent_id` | Optional commit denial; before a Read, the file's past work as `additionalContext`, or, for the first whole-file Read of a file of 32 KB or more (`memory.file_hold`), a `permissionDecision: "deny"` carrying the same titles (not yet observed on a live host; covered by the hook's tests); on a card host, a refusal of an `Eklavya`-headed question that lacks `[Eklavya]` (the refusal is a `permissionDecision: "deny"`; not yet observed on a live Desktop session) |
+| PreToolUse | `tool_name`, `tool_input.command`, `tool_input.file_path` or `tool_input.questions[].header`/`question`, `agent_id` | Optional commit denial; before a Read, the file's past work as `additionalContext`, or, for a whole-file Read (no offset or offset 1, no limit or one reaching the last line) of a code file of 32 KB or more that has history (`memory.file_hold`), a `permissionDecision: "deny"` carrying the titles and the way to read less, repeated on every such Read of that file in the session (not yet observed on a live host; covered by the hook's tests); on a card host, a refusal of an `Eklavya`-headed question that lacks `[Eklavya]` (the refusal is a `permissionDecision: "deny"`; not yet observed on a live Desktop session) |
 | PostToolUse | `tool_name`, `tool_input`, `tool_response`, `agent_id`, `duration_ms` (Bash; 2.1.286) | Capture, eligible checkpoint and the delegation nudge |
 | Stop | Identity, `agent_id`, optional `stop_hook_active`, `last_assistant_message` (2.1.283; absent on older hosts) | Records the turn's final message as memory evidence, then the memory seam and eligible quiz continuation |
 
@@ -121,11 +121,20 @@ All Eklavya hooks exit 0, including expected quiz continuation and operational
 failures. PreToolUse denies with `permissionDecision: "deny"` and
 `permissionDecisionReason` inside `hookSpecificOutput`. The Read hook returns
 `hookSpecificOutput.additionalContext` with no `permissionDecision`, except the
-once-per-file hold of a large whole-file Read, which is a deny: Claude
+hold of a large whole-file code Read, which is a deny: Claude
 Code 2.1.283 reads `additionalContext` on PreToolUse independently of any
 decision, so context never doubles as an approval. Stop returns
 `additionalContext`; exit 2 and `decision: "block"` have historically produced
 an error presentation for a working quiz.
+
+Two host limits the recall code relies on, taken from Claude Code's behaviour as
+read from the claude-mem reference (`fa8ab09f0`) and not yet re-observed on a live
+host here: a hook's output over 10,000 characters is replaced by a stub (so
+`recall` sheds whole items to stay under it, see `HOOK_CONTEXT_CHARS`), and an MCP
+tool annotated `readOnlyHint: true` runs in auto and plan mode without a
+permission rule (so the eight read tools carry it; `tools-coverage.test.ts`
+checks which). Claude Code defers MCP tools until `ToolSearch` loads them, which
+is why the index footer and the file hold carry the exact `select:` query.
 
 ## Loop protection and delegation
 
