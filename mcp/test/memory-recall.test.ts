@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type DB } from '../src/db.js';
 import { cleanup, tempDbPath } from './helpers.js';
 import { DEFAULT_CONFIG, type EklavyaConfig } from '../src/config.js';
-import { INDEX_MAX_ITEMS, alreadyRecalled, learningCounts, markEmitted, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
+import { HOOK_CONTEXT_CHARS, INDEX_MAX_ITEMS, alreadyRecalled, learningCounts, markEmitted, ownWords, recall, recallForPrompt, startupDisplay } from '../src/memory/recall.js';
 import { appendEvent, insertEntry, receiptTotals, supersedeEntry, timeline } from '../src/memory/store.js';
-import { estimateTokens, savingsFrom } from '../src/memory/tokens.js';
+import { TOOL_PREFIX, estimateTokens, pullLine, savingsFrom } from '../src/memory/tokens.js';
 import { GLOBAL_PROJECT } from '../src/store.js';
 
 const PROJECT = '/tmp/demo-repo';
@@ -148,6 +148,130 @@ describe('recall', () => {
     expect(result.indexed).toBeLessThanOrEqual(INDEX_MAX_ITEMS);
     // The timeline is delivered and charged, never counted as a saving.
     expect(result.deliveredTokens).toBeGreaterThan(recall(db, cfg, { project: PROJECT, sessionId: 'x' }).deliveredTokens);
+  });
+
+  describe("Claude Code's 10,000-character hook limit", () => {
+    const at = (day: number, minute: number) => new Date(Date.UTC(2026, 8, day, 12, minute)).toISOString();
+    /** A busy project: a long checkpoint, long observations and a full timeline. */
+    function busy(): void {
+      for (let i = 0; i < 60; i++) {
+        insertEntry(db, {
+          project: PROJECT, title: `Observation number ${i} about the sync engine`, type: 'change',
+          narrative: `${'detail '.repeat(150)}${i}`, occurredAt: at(1 + (i % 5), i),
+        });
+      }
+      const section = (label: string) => `${label}: ${'word '.repeat(120)}`;
+      insertEntry(db, {
+        project: PROJECT, sessionId: 'last', kind: 'session_summary', title: 'Ship it', generator: 'anthropic:m',
+        narrative: ['Request', 'Investigated', 'Learned', 'Completed', 'Next steps'].map(section).join('\n\n'),
+        occurredAt: at(7, 0),
+      });
+    }
+    const cfgWide = () => {
+      const cfg = config();
+      cfg.retrieval.max_tokens = 6000;
+      cfg.retrieval.max_items = 12;
+      return cfg;
+    };
+
+    it('is the number the host enforces', () => {
+      expect(HOOK_CONTEXT_CHARS).toBe(10_000);
+    });
+
+    it('sheds in order: the checkpoint first, then the full entries, then half the timeline', () => {
+      busy();
+      const whole = recall(db, cfgWide(), { project: PROJECT, index: true, maxChars: 1_000_000 });
+      expect(whole.block!.length).toBeGreaterThan(HOOK_CONTEXT_CHARS);
+      expect(whole.block).toContain('Where the last session left off');
+      const timelineOf = (b: string) => (b.match(/^\[#\d+\] \d\d:\d\d /gm) ?? []).length;
+
+      // Just under the whole block: only the checkpoint goes, and everything else stays.
+      const noCheckpoint = recall(db, cfgWide(), { project: PROJECT, index: true, maxChars: whole.block!.length - 1 });
+      expect(noCheckpoint.block).not.toContain('Where the last session left off');
+      expect(noCheckpoint.block).toContain('Latest, in full:');
+      // Its title moves to the timeline, so the session is still on the page.
+      expect(noCheckpoint.indexed).toBe(whole.indexed + 1);
+      expect(noCheckpoint.block).toMatch(/session · Ship it/);
+
+      // Tighter: the full entries go one at a time from the oldest end, whole, newest kept.
+      const fewer = recall(db, cfgWide(), { project: PROJECT, index: true, maxChars: 7_000 });
+      expect(fewer.block!.length).toBeLessThanOrEqual(7_000);
+      expect(fewer.entries.length).toBeGreaterThanOrEqual(1);
+      expect(fewer.entries.length).toBeLessThan(whole.entries.length);
+      expect(fewer.indexed).toBeGreaterThanOrEqual(whole.indexed);
+      expect(fewer.block).not.toContain('Where the last session left off');
+      expect(fewer.block).not.toMatch(/…\s*\[excerpt/);
+
+      // Tighter still: the timeline is halved until it fits, keeping the newest lines.
+      const small = recall(db, cfgWide(), { project: PROJECT, index: true, maxChars: 2_500 });
+      expect(small.block!.length).toBeLessThanOrEqual(2_500);
+      expect(timelineOf(small.block!)).toBeLessThan(timelineOf(whole.block!));
+      expect(timelineOf(small.block!)).toBeGreaterThan(0);
+      expect(small.block).toContain(`[#${small.entries[0]!.id}]`);
+    });
+
+    it('keeps a wide default recall under the limit, measured on the text that is sent', () => {
+      busy();
+      const cfg = cfgWide();
+      const before = recall(db, cfg, { project: PROJECT, index: true, maxChars: 1_000_000 });
+      const after = recall(db, cfg, { project: PROJECT, index: true });
+      // Numbers: the unshed block is what the host would have replaced with a stub.
+      expect(before.block!.length).toBeGreaterThan(HOOK_CONTEXT_CHARS);
+      expect(after.block!.length).toBeLessThanOrEqual(HOOK_CONTEXT_CHARS);
+      expect(after.deliveredTokens).toBeLessThan(before.deliveredTokens);
+      // The receipt describes what was sent, not what was dropped.
+      const receipt = receiptTotals(db);
+      expect(receipt).toBeDefined();
+      const sent = db.prepare("SELECT COUNT(*) AS n FROM context_receipt_items WHERE receipt_id = ?").get(after.receiptId) as { n: number };
+      expect(sent.n).toBe(after.entries.length);
+      expect(after.block).toContain(`receipt="${after.receiptId}"`);
+    });
+
+    it('sends everything, unchanged, when it already fits', () => {
+      for (let i = 0; i < 5; i++) insertEntry(db, { project: PROJECT, title: `Small ${i}`, narrative: 'n', type: 'change' });
+      const result = recall(db, config(), { project: PROJECT, index: true });
+      expect(result.block!.length).toBeLessThan(HOOK_CONTEXT_CHARS);
+      expect(recall(db, config(), { project: PROJECT, index: true, maxChars: 1_000_000 }).entries.length).toBe(result.entries.length);
+    });
+
+    it('still sends the wrapper alone when nothing fits, never a half item', () => {
+      busy();
+      const none = recall(db, cfgWide(), { project: PROJECT, index: true, maxChars: 300 });
+      expect(none.indexed).toBe(0);
+      expect(none.block!.trimEnd().endsWith('</eklavya-memory>')).toBe(true);
+    });
+  });
+
+  describe('how to pull, and what it costs', () => {
+    it('says what the full entries behind the titles cost, and the exact query that loads the tools', () => {
+      for (let i = 0; i < 10; i++) insertEntry(db, { project: PROJECT, title: `Work ${i}`, narrative: 'word '.repeat(200), type: 'change' });
+      const cfg = config();
+      cfg.retrieval.max_items = 2;
+      const result = recall(db, cfg, { project: PROJECT, index: true });
+      const line = result.block!.split('\n').find((l) => l.startsWith('Full entries behind these titles'))!;
+      expect(line).toBeDefined();
+      // The number is the estimator over those entries as `memory_get` would render them.
+      const listed = (result.block!.match(/^\[#\d+\] \d\d:\d\d change/gm) ?? []).length;
+      expect(listed).toBe(result.indexed);
+      expect(line).toContain('ToolSearch select:');
+      expect(line).toContain(`${TOOL_PREFIX}memory_get,${TOOL_PREFIX}memory_search`);
+      const tokens = Number(/~(\d+(?:\.\d)?)(k?) tokens/.exec(line)![1]) * (line.includes('k tokens') ? 1000 : 1);
+      expect(tokens).toBeGreaterThan(1000);
+      // One line, tens of tokens: it does not undo the saving it advertises.
+      expect(estimateTokens(line)).toBeLessThan(80);
+    });
+
+    it('formats small and large totals', () => {
+      expect(pullLine(420)).toContain('~420 tokens');
+      expect(pullLine(12_400)).toContain('~12.4k tokens');
+    });
+
+    it('is absent from a prompt recall and from a project with no timeline', () => {
+      insertEntry(db, { project: PROJECT, title: 'only', narrative: 'n', type: 'change' });
+      expect(recall(db, config(), { project: PROJECT }).block).not.toContain('Full entries behind');
+      // One entry is sent in full; nothing is left for a timeline, so no line.
+      expect(recall(db, config(), { project: PROJECT, index: true }).block).not.toContain('Full entries behind');
+    });
   });
 
   it('keeps the newest work in full even when the checkpoint is long', () => {

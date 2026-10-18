@@ -267,6 +267,8 @@ describe('SETTING_RULES: what every interface accepts', () => {
     expect(settingProblem('max_questions_per_task', 0)).toMatch(/from 1 to 10/);
     expect(settingProblem('pass_threshold', 1.2)).toBe('pass_threshold is a number from 0 to 1.');
     expect(settingProblem('pass_threshold', 0.75)).toBeNull();
+    expect(settingProblem('memory.file_hold', 'no')).toBe('memory.file_hold is true or false.');
+    expect(settingProblem('memory.file_hold', false)).toBeNull();
     expect(settingProblem('memory.retention_days', null)).toBeNull();
     expect(settingProblem('memory.retention_days', 0)).toMatch(/or empty/);
     expect(settingProblem('level_up_after', null)).toBe('level_up_after cannot be empty.');
