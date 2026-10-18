@@ -132,7 +132,10 @@ export function prepare(
     tool: event.tool ?? null,
     title: event.title ? redact(event.title, policy).text : null,
     body: cleaned.text,
-    files: files.map((f) => relativeToProject(f, identity.project)),
+    // Against the checkout the file was touched in, not the project: a worktree
+    // folds into its main checkout, and a path relative to that spelled the same
+    // file differently in every worktree (or kept it absolute).
+    files: files.map((f) => relativeToProject(f, identity.checkout ?? identity.project)),
     occurredAt,
     redacted: cleaned.redacted,
   };

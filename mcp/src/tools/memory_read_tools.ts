@@ -135,6 +135,7 @@ function noteRead(
 
 export const memorySearch: ToolDef = logged({
   name: 'memory_search',
+  readOnly: true,
   title: 'Search memory',
   description:
     `Find past work by meaning or keyword. Returns identifiers and titles only — call memory_get with the ids that look relevant to read the narrative. ${SCOPE_RULE} ${EVIDENCE_RULE}`,
@@ -195,6 +196,7 @@ export const memorySearch: ToolDef = logged({
 
 export const memoryGet: ToolDef = logged({
   name: 'memory_get',
+  readOnly: true,
   title: 'Get memory entries',
   description:
     `Read the full entries behind ids from memory_search or memory_timeline: narrative, facts, files, tags and the evidence events each claim came from. Pass the receipt_id a recall block carried (its receipt="…" attribute) so the read is linked to that recall; without it the read is still logged, just not linked. Set include_evidence only to check one specific claim against the raw events it was built from — it is expensive, and browsing with it spends the context this two-stage read exists to save. ${SCOPE_RULE} An id that belongs to another project is listed under other_project instead of read, unless all_projects is true. ${EVIDENCE_RULE}`,
@@ -307,6 +309,7 @@ export const memoryGet: ToolDef = logged({
 
 export const memoryTimeline: ToolDef = logged({
   name: 'memory_timeline',
+  readOnly: true,
   title: 'Memory timeline',
   description:
     `What happened in this project, newest first — compact rows, stable under paging with offset. Includes superseded entries, so it is the audit trail rather than the retrieval view. ${SCOPE_RULE} ${EVIDENCE_RULE}`,
@@ -350,6 +353,7 @@ export const memoryTimeline: ToolDef = logged({
 
 export const memoryFileHistory: ToolDef = logged({
   name: 'memory_file_history',
+  readOnly: true,
   title: 'Memory file history',
   description:
     `Every remembered entry that touched a file, newest first — what this file has already been through before you change it. Matches on a path fragment, so "auth.ts" finds "src/auth.ts". ${SCOPE_RULE} ${EVIDENCE_RULE}`,
@@ -376,6 +380,7 @@ function safely<T>(fn: () => T, fallback: T): T {
 
 export const memoryStatus: ToolDef = {
   name: 'memory_status',
+  readOnly: true,
   title: 'Memory status',
   description:
     `Capture and processing health: a health verdict (ok, warn or stalled, with the reasons), how much is remembered, how much evidence is still waiting, the job queue, the reuse saving, and which summarizer is running. Answer "is memory working" with this rather than a search that returns nothing. ${SCOPE_RULE}`,

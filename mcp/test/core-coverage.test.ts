@@ -37,6 +37,14 @@ afterEach(() => {
   process.env = { ...envBackup };
 });
 
+describe('coerce, memory.file_hold', () => {
+  it('defaults on, takes a boolean and ignores anything else', () => {
+    expect(DEFAULT_CONFIG.memory.file_hold).toBe(true);
+    expect(coerce({ memory: { file_hold: false } }, DEFAULT_CONFIG).memory.file_hold).toBe(false);
+    expect(coerce({ memory: { file_hold: 'no' } }, DEFAULT_CONFIG).memory.file_hold).toBe(true);
+  });
+});
+
 describe('coerce, namespaced fields', () => {
   it('keeps what is valid and drops what is not', () => {
     const out = coerce(

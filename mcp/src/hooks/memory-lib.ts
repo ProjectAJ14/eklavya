@@ -191,6 +191,7 @@ export function recallBlock(
   identity: EvidenceIdentity,
   scope: string,
   excludeOwnSession = false,
+  maxChars?: number,
 ): RecallResult | null {
   try {
     if (!resolved.config.memory.enabled) return null;
@@ -200,6 +201,7 @@ export function recallBlock(
       scope,
       index: scope === 'session_start',
       excludeOwnSession,
+      maxChars,
     });
     return result.block ? result : null;
   } catch {

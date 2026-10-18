@@ -155,6 +155,14 @@ describe('privacy on the way in', () => {
     ]);
   });
 
+  it("files a worktree's edits relative to that worktree, not to the project it folds into", () => {
+    const wt = `${PROJECT}/.claude/worktrees/w1`;
+    const wtIdentity = { ...IDENTITY, checkout: wt };
+    expect(
+      prepare(config(), wtIdentity, event({ kind: 'file_edit', body: 'x', files: [`${wt}/src/auth.ts`] }))?.files,
+    ).toEqual(['src/auth.ts']);
+  });
+
   it('adds configured patterns and paths to the built-ins rather than replacing them', () => {
     const cfg = config();
     cfg.privacy.redact_patterns = ['ACME-\\d{4}'];

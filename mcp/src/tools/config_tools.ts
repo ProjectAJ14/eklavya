@@ -169,6 +169,7 @@ export const setConfig: ToolDef = {
         capture: z.enum(['full', 'minimal', 'off']).optional(),
         batch_max_events: num('memory.batch_max_events'),
         retention_days: num('memory.retention_days'),
+        file_hold: z.boolean().optional(),
       })
       .optional()
       .describe(

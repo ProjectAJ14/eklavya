@@ -10,6 +10,12 @@ export interface ToolDef {
   title: string;
   description: string;
   inputSchema: z.ZodRawShape;
+  /**
+   * Changes nothing the user keeps (a read-only hint to the host). Claude Code
+   * runs such a tool in auto and plan mode without a permission rule, so the
+   * pull step of memory does not depend on the user's settings file.
+   */
+  readOnly?: true;
   handler: (args: any, ctx: ToolContext) => unknown;
 }
 

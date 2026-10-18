@@ -1,3 +1,10 @@
+# [1.80.0](https://github.com/ProjectAJ14/eklavya/compare/v1.79.0...v1.80.0) (2026-10-18)
+
+
+### Features
+
+* **memory:** add a memory health verdict that makes a silent stall visible ([#222](https://github.com/ProjectAJ14/eklavya/issues/222)) ([a234631](https://github.com/ProjectAJ14/eklavya/commit/a234631636be0ac01ac59c54d9015d58e5c1d4e7))
+
 # [1.79.0](https://github.com/ProjectAJ14/eklavya/compare/v1.78.0...v1.79.0) (2026-10-17)
 
 

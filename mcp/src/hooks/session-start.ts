@@ -15,7 +15,7 @@ import { recordBaseline } from './changes-lib.js';
 import { sessionBlock } from './delegation-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
 import { flushAtSeam, identityOf, memoryHealthLine, recallBlock, record, replaySpool } from './memory-lib.js';
-import { markEmitted, startupDisplay, type RecallResult } from '../memory/recall.js';
+import { HOOK_CONTEXT_CHARS, markEmitted, startupDisplay, type RecallResult } from '../memory/recall.js';
 import { recalledLine, savingsFrom } from '../memory/tokens.js';
 import { AMBER, dialParts, paint } from '../statusline.js';
 import { dashboardPort } from '../paths.js';
@@ -181,7 +181,14 @@ await run(async (input) => {
     // A resume restores the whole transcript, so this session's own entries
     // are already in front of the model (issue #117). A compaction does not:
     // there they may be the detail the summary dropped.
-    recalled = recallBlock(db, resolved, identity, 'session_start', input.source === 'resume');
+    // Claude Code drops a hook's whole output past 10,000 characters, and the
+    // directive (and the delegation block) ride in the same output, so the
+    // memory block gets what they leave.
+    const rest =
+      withSurfaceNote(DIRECTIVE).length +
+      (resolved.config.delegate_work ? sessionBlock(resolved.config.cadence, resolved.config.quiz.panel).length : 0) +
+      200;
+    recalled = recallBlock(db, resolved, identity, 'session_start', input.source === 'resume', HOOK_CONTEXT_CHARS - rest);
     if (recalled?.block) memoryContext.push(recalled.block);
     memoryLine = memoryHealthLine(db, Date.now(), identity.project);
   }

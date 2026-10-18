@@ -237,6 +237,7 @@ export const SETTING_RULES: Record<string, SettingRule> = {
   'memory.capture': { type: 'enum', options: ['full', 'minimal', 'off'] },
   'memory.batch_max_events': whole(1, 500),
   'memory.retention_days': whole(1, 36500, true),
+  'memory.file_hold': bool,
   'feedback.enabled': bool,
   'privacy.exclude_paths': lines(),
   'privacy.exclude_tools': lines({ maxLength: 200 }),

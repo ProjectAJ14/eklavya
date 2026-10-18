@@ -61,7 +61,12 @@ export function registerTools(server: McpServer, db: DB): void {
   for (const tool of TOOLS) {
     server.registerTool(
       tool.name,
-      { title: tool.title, description: tool.description, inputSchema: tool.inputSchema },
+      {
+        title: tool.title,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        ...(tool.readOnly && { annotations: { readOnlyHint: true } }),
+      },
       async (args: unknown) => {
         try {
           // Safe to retry: a busy transaction has already rolled back.

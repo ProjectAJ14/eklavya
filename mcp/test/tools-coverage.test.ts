@@ -343,3 +343,22 @@ describe('set_config', () => {
     expect(res.config.quiz).toMatchObject({ enabled: true, enforced: false });
   });
 });
+
+describe('the read-only hint', () => {
+  // Claude Code runs a tool annotated `readOnlyHint` in auto and plan mode
+  // without a permission rule; a reader left off this list would be denied
+  // there, and the pull step of memory would fail without a word.
+  const READERS = [
+    'memory_search', 'memory_get', 'memory_timeline', 'memory_file_history', 'memory_status', 'memory_collections',
+    'code_outline', 'code_find_symbol',
+  ];
+  const WRITERS = ['memory_write', 'memory_correct', 'memory_delete', 'set_config'];
+
+  it('is sent for the pure readers and never for a tool that writes', () => {
+    const configs = new Map<string, { annotations?: { readOnlyHint?: boolean } }>();
+    registerTools({ registerTool: (n: string, c: never) => void configs.set(n, c) } as never, db);
+    for (const name of READERS) expect(configs.get(name)?.annotations, name).toEqual({ readOnlyHint: true });
+    for (const name of WRITERS) expect(configs.get(name)?.annotations, name).toBeUndefined();
+    expect(configs.size).toBe(TOOLS.length);
+  });
+});
