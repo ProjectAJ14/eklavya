@@ -54,7 +54,7 @@ Code's learning loop.
 | Questions and assessment | `get_session_quiz_plan`, `record_attempt`, `get_gate_status` |
 | Quiz side panel (experimental) | `present_question` for the model; `panel_sync` and `panel_answer`, called only by the panel mod, never by the model; its header stacks the mark above the topic in a pane under 60 cells wide |
 | Settings | `get_config`, `set_config` |
-| Find and read memory | `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` |
+| Find and read memory (`memory_status` includes a `health` verdict with reasons) | `memory_search`, `memory_get`, `memory_timeline`, `memory_file_history`, `memory_status` |
 | Maintain memory | `memory_write`, `memory_correct`, `memory_delete`, `memory_collections` |
 | Inspect code | `code_outline`, `code_find_symbol` |
 
@@ -112,7 +112,7 @@ index holds only entries that are not deleted.
 
 ```bash
 npx eklavya doctor
-npx eklavya memory status
+npx eklavya memory status        # starts with a health verdict: ok, warn or stalled
 npx eklavya config get            # or: config get quiz.enabled
 npx eklavya dashboard
 npx eklavya feedback generate

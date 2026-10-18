@@ -93,6 +93,22 @@ If Claude Code is not logged in, a usage limit is reached or `claude` cannot be 
 
 Separately, if the oldest waiting job is more than six hours old, the banner shows `Memory behind · 12 jobs waiting, oldest 9h · run: eklavya doctor`.
 
+#### The memory health verdict
+
+A stalled memory looks exactly like a working one from the outside: recall keeps returning older entries and nothing complains. So Eklavya computes one verdict, `ok`, `warn` or `stalled`, from facts already in your local database, and shows the same verdict in four places: `eklavya memory status` (the `health:` line), the `memory_status` tool (`health`), `eklavya doctor` (`health` rows) and the dashboard's [Health page](/docs/dashboard/#health). When the verdict is not `ok`, and only then, session start adds one amber line, even with `quiet` set. A healthy memory adds no line. There is no setting for it.
+
+| Check | `warn` | `stalled` |
+| --- | --- | --- |
+| Work captured since the newest generated entry (imported entries do not count) and still not summarised | after 6 hours | after 24 hours |
+| Jobs waiting in the queue | oldest job older than 6 hours | oldest job older than 24 hours |
+| Paused queue | any paused job, with the cause: `claude not logged in`, `usage limit reached` or `claude not found on PATH` | paused for 24 hours |
+| Jobs that failed permanently | any in the last 7 days | never |
+| Spool | a file waiting in the spool for over an hour, or an event dropped in the last 7 days | never |
+| Recall without reads | at least 3 recalls delivered across your last 10 sessions and `memory_search` never called | never |
+| File context without firing | at least 10 reads, in those sessions, of files an earlier entry already named (once per file per session), and no file context delivered | never |
+
+Zero reads is a warning, not an error: Claude may be answering from the recalled index, and nothing proves it ignored memory. Quarantined jobs are listed in `eklavya memory status` but never raise the verdict by themselves, because you quarantined them on purpose. The cause is a fixed label: the provider's own error message is matched, never shown. Session start, `eklavya memory status` and `memory_status` read the current project's evidence, entries, receipts and reads; `doctor` and the dashboard read every project. The job queue is machine-wide in all of them. Memory evidence still cannot change mastery.
+
 | Need | Command or setting |
 | --- | --- |
 | See queue, worker and provider health | `eklavya memory status` |

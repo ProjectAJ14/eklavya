@@ -372,6 +372,7 @@ describe('memory_status', () => {
     expect(result.savings).toEqual({ kind: 'none' });
     expect(result.summarizer).toBe('local-v1');
     expect(result.provider_configured).toBe(false);
+    expect(result.health).toMatchObject({ verdict: 'ok', reasons: [], line: null });
   });
 
   it('counts what this project has remembered', () => {
