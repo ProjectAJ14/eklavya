@@ -319,6 +319,101 @@ describe('file history on Read, through the built hook', () => {
     expect(read(big)).toBe('');
   });
 
+  it('holds a whole-file Read of a 32 KB file once, pointing at memory_get, and lets the retry through', () => {
+    const huge = path.join(repo, 'src', 'huge.ts');
+    fs.writeFileSync(huge, 'x'.repeat(40 * 1024));
+    const id = insertEntry(db, { project, title: 'Huge file gotcha', type: 'discovery', files: ['src/huge.ts'] });
+    const out = JSON.parse(read(huge)) as { hookSpecificOutput: Record<string, string> };
+    expect(out.hookSpecificOutput.permissionDecision).toBe('deny');
+    const reason = out.hookSpecificOutput.permissionDecisionReason!;
+    expect(reason).toMatch(/receipt="\d+"/);
+    expect(reason).toContain('Full-file Read held once by Eklavya: src/huge.ts (40 KB)');
+    expect(reason).toMatch(new RegExp(`memory_get\\(\\{ids: \\[${id}\\], receipt_id: \\d+\\}\\)`));
+    expect(reason).toContain('Huge file gotcha');
+    expect(db.prepare("SELECT delivery FROM context_receipts WHERE scope = 'file_context'").all()).toEqual([{ delivery: 'emitted' }]);
+    // The hold is once: the retry is not held and adds nothing.
+    expect(read(huge)).toBe('');
+  });
+
+  it('holds at exactly 32 KB and not a byte under, and not when only a limit is given', () => {
+    const at = path.join(repo, 'src', 'at.ts');
+    const under = path.join(repo, 'src', 'under.ts');
+    fs.writeFileSync(at, 'x'.repeat(32 * 1024));
+    fs.writeFileSync(under, 'x'.repeat(32 * 1024 - 1));
+    insertEntry(db, { project, title: 'At the line', type: 'change', files: ['src/at.ts'] });
+    insertEntry(db, { project, title: 'Under the line', type: 'change', files: ['src/under.ts'] });
+    expect(JSON.parse(read(at)).hookSpecificOutput.permissionDecision).toBe('deny');
+    const hs = JSON.parse(read(under)).hookSpecificOutput as Record<string, string>;
+    expect(hs).not.toHaveProperty('permissionDecision');
+    const lim = path.join(repo, 'src', 'lim.ts');
+    fs.writeFileSync(lim, 'x'.repeat(40 * 1024));
+    insertEntry(db, { project, title: 'Limited read', type: 'change', files: ['src/lim.ts'] });
+    const ranged = JSON.parse(read(lim, { tool_input: { file_path: lim, limit: 50 } })).hookSpecificOutput as Record<string, string>;
+    expect(ranged).not.toHaveProperty('permissionDecision');
+  });
+
+  it('a deny carries the receipt and titles but no additionalContext, and the receipt is emitted', () => {
+    const huge = path.join(repo, 'src', 'huge.ts');
+    fs.writeFileSync(huge, 'x'.repeat(40 * 1024));
+    insertEntry(db, { project, title: 'Huge file gotcha', type: 'discovery', files: ['src/huge.ts'] });
+    const hs = JSON.parse(read(huge)).hookSpecificOutput as Record<string, string>;
+    expect(hs).not.toHaveProperty('additionalContext');
+    expect(hs.permissionDecisionReason).toContain('[#');
+  });
+
+  it('does not hold with memory.file_hold off, but still adds the titles', () => {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ memory: { file_hold: false } }));
+    const huge = path.join(repo, 'src', 'huge.ts');
+    fs.writeFileSync(huge, 'x'.repeat(40 * 1024));
+    insertEntry(db, { project, title: 'Huge file gotcha', type: 'discovery', files: ['src/huge.ts'] });
+    const hs = JSON.parse(read(huge)).hookSpecificOutput as Record<string, string>;
+    expect(hs).not.toHaveProperty('permissionDecision');
+    expect(hs.additionalContext).toContain('Huge file gotcha');
+  });
+
+  it('holds on the next Read when the first hold could not be prepared', () => {
+    const huge = path.join(repo, 'src', 'huge.ts');
+    fs.writeFileSync(huge, 'x'.repeat(40 * 1024));
+    insertEntry(db, { project, title: 'Huge file gotcha', type: 'discovery', files: ['src/huge.ts'] });
+    db.exec("CREATE TRIGGER no_receipts BEFORE INSERT ON context_receipts BEGIN SELECT RAISE(ABORT, 'locked'); END");
+    expect(read(huge)).toBe('');
+    db.exec('DROP TRIGGER no_receipts');
+    expect(JSON.parse(read(huge)).hookSpecificOutput.permissionDecision).toBe('deny');
+  });
+
+  it('finds a file read in a worktree under the same repo-relative path', () => {
+    const wt = path.join(repo, '.claude', 'worktrees', 'w1');
+    fs.mkdirSync(path.join(wt, 'src'), { recursive: true });
+    fs.mkdirSync(path.join(repo, '.git', 'worktrees', 'w1'), { recursive: true });
+    fs.writeFileSync(path.join(wt, '.git'), `gitdir: ${path.join(fs.realpathSync(repo), '.git', 'worktrees', 'w1')}\n`);
+    const file = path.join(wt, 'src', 'huge.ts');
+    fs.writeFileSync(file, 'x'.repeat(40 * 1024));
+    insertEntry(db, { project, title: 'Huge file gotcha', type: 'discovery', files: ['src/huge.ts'] });
+    const hs = JSON.parse(read(file, { cwd: wt })).hookSpecificOutput as Record<string, string>;
+    expect(hs.permissionDecision).toBe('deny');
+    expect(hs.permissionDecisionReason).toContain('src/huge.ts');
+  });
+
+  it('does not hold a Read that names a range, or a file with no history', () => {
+    const huge = path.join(repo, 'src', 'huge.ts');
+    const other = path.join(repo, 'src', 'other.ts');
+    fs.writeFileSync(huge, 'x'.repeat(40 * 1024));
+    fs.writeFileSync(other, 'x'.repeat(40 * 1024));
+    insertEntry(db, { project, title: 'Huge file gotcha', type: 'discovery', files: ['src/huge.ts'] });
+    const ranged = JSON.parse(
+      spawnSync(process.execPath, [HOOK], {
+        input: JSON.stringify({
+          session_id: 's1', cwd: repo, hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: huge, offset: 10, limit: 50 },
+        }),
+        encoding: 'utf8',
+        env: { ...process.env, EKLAVYA_DB: dbFile, EKLAVYA_HOME: home },
+      }).stdout,
+    ) as { hookSpecificOutput: Record<string, string> };
+    expect(ranged.hookSpecificOutput).not.toHaveProperty('permissionDecision');
+    expect(ranged.hookSpecificOutput.additionalContext).toContain('Huge file gotcha');
+    expect(read(other)).toBe('');
+  });
+
   // Issue #83: file context is recall too, and is accounted like it -- a receipt
   // whose id the block carries, emitted only once written, and claiming no
   // saving for titles.

@@ -147,6 +147,11 @@ export interface MemoryConfig {
   batch_max_events: number;
   /** Days of raw evidence to keep. `null` keeps it until deleted by hand. */
   retention_days: number | null;
+  /**
+   * Hold the first whole-file Read of a file of 32 KB or more that has memory
+   * history, so Claude opens the entries before the file (the retry passes).
+   */
+  file_hold: boolean;
 }
 
 /**
@@ -387,6 +392,7 @@ export const DEFAULT_CONFIG: EklavyaConfig = {
     capture: 'full',
     batch_max_events: 40,
     retention_days: null,
+    file_hold: true,
   },
   feedback: { enabled: true },
   privacy: {
@@ -698,6 +704,7 @@ function coerceNamespaces(raw: Record<string, unknown>, out: EklavyaConfig): voi
     } else if (memory.retention_days === null) {
       out.memory.retention_days = null;
     }
+    if (typeof memory.file_hold === 'boolean') out.memory.file_hold = memory.file_hold;
   }
 
   const feedback = raw.feedback as Record<string, unknown> | undefined;

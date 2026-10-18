@@ -1898,6 +1898,8 @@ const FIELDS: Omit<SettingField, 'type'>[] = [
     help: 'Events per observation batch; the session seam flushes the rest.' },
   { key: 'memory.retention_days', group: 'Memory', label: 'Keep raw evidence (days)',
     help: 'Empty keeps raw evidence until you delete it.' },
+  { key: 'memory.file_hold', group: 'Memory', label: 'Hold big file reads',
+    help: 'Hold the first whole read of a 32 KB+ file that has history, so Claude sees it first.' },
   { key: 'retrieval.mode', group: 'Memory', label: 'Search',
     help: 'Hybrid fuses keyword and vector search.' },
   { key: 'retrieval.max_items', group: 'Memory', label: 'Recalled items',

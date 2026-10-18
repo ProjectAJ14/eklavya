@@ -79,7 +79,7 @@ All launch `node` with `args`. Timeouts are in seconds: 10 for each registration
 | SessionStart | Session identity, checkout, `source` | Visible profile plus model recall/directive |
 | UserPromptSubmit | Identity, `agent_id` and `prompt` | Capture, recall, logging nudge and, next to a task-sized prompt, the delegation line |
 | SubagentStart | `agent_type`, session identity | Implementer logging directive; tutor exempt |
-| PreToolUse | `tool_name`, `tool_input.command`, `tool_input.file_path` or `tool_input.questions[].header`/`question`, `agent_id` | Optional commit denial; before a Read, the file's past work as `additionalContext`; on a card host, a refusal of an `Eklavya`-headed question that lacks `[Eklavya]` (the refusal is a `permissionDecision: "deny"`; not yet observed on a live Desktop session) |
+| PreToolUse | `tool_name`, `tool_input.command`, `tool_input.file_path` or `tool_input.questions[].header`/`question`, `agent_id` | Optional commit denial; before a Read, the file's past work as `additionalContext`, or, for the first whole-file Read of a file of 32 KB or more (`memory.file_hold`), a `permissionDecision: "deny"` carrying the same titles (not yet observed on a live host; covered by the hook's tests); on a card host, a refusal of an `Eklavya`-headed question that lacks `[Eklavya]` (the refusal is a `permissionDecision: "deny"`; not yet observed on a live Desktop session) |
 | PostToolUse | `tool_name`, `tool_input`, `tool_response`, `agent_id`, `duration_ms` (Bash; 2.1.286) | Capture, eligible checkpoint and the delegation nudge |
 | Stop | Identity, `agent_id`, optional `stop_hook_active`, `last_assistant_message` (2.1.283; absent on older hosts) | Records the turn's final message as memory evidence, then the memory seam and eligible quiz continuation |
 
@@ -120,7 +120,8 @@ for a visible banner. `mcp/test/hooks.test.ts` checks the audiences separately.
 All Eklavya hooks exit 0, including expected quiz continuation and operational
 failures. PreToolUse denies with `permissionDecision: "deny"` and
 `permissionDecisionReason` inside `hookSpecificOutput`. The Read hook returns
-only `hookSpecificOutput.additionalContext`, with no `permissionDecision`: Claude
+`hookSpecificOutput.additionalContext` with no `permissionDecision`, except the
+once-per-file hold of a large whole-file Read, which is a deny: Claude
 Code 2.1.283 reads `additionalContext` on PreToolUse independently of any
 decision, so context never doubles as an approval. Stop returns
 `additionalContext`; exit 2 and `decision: "block"` have historically produced

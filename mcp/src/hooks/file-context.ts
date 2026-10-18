@@ -16,8 +16,10 @@
  * - Accounted like any recall: a receipt (`file_context`) whose id the block
  *   carries, `prepared` until the block is written, `emitted` after. Titles
  *   claim no saving, so each line is charged as sent with no source cost.
- * - No permission decision. Claude Mem's hook answers `allow`, which also
- *   approves the Read; this one adds context and leaves permission to the host.
+ * - No `allow`. Claude Mem's hook answers `allow`, which also approves the
+ *   Read; this one adds context and leaves permission to the host. The one
+ *   decision it makes is a `deny` of a whole-file Read of a file of 32 KB or
+ *   more, once per file per session (`HOLD_MIN_BYTES`).
  * - Capture-path imports only (`hook-isolation.test.ts`): it runs before every
  *   Read, and fails open like every hook.
  */
@@ -34,6 +36,15 @@ import { GLOBAL_PROJECT } from '../store.js';
 const FILE_CONTEXT_MAX = 8;
 /** A file this small is read in full anyway, and is rarely where history hides. */
 const MIN_BYTES = 1_500;
+/**
+ * From this size a whole-file Read of a file with history is held once. Titles
+ * alone were not enough to make the agent open an entry (it never did in the
+ * ten sessions audited on 2026-10-17); a held Read makes the lookup the next
+ * step, and the retry always goes through because the file is marked seen.
+ * The same 32 KB line claude-mem draws for its read gate, where a smaller file
+ * costs about what the timeline saves.
+ */
+const HOLD_MIN_BYTES = 32 * 1024;
 const SEEN_PREFIX = 'filectx:';
 
 await run(async (input) => {
@@ -52,18 +63,25 @@ await run(async (input) => {
   const identity = identityOf(input, cwd, sid);
   if (identity.project === GLOBAL_PROJECT) return 0;
 
+  let size = 0;
   try {
-    if (fs.statSync(file).size < MIN_BYTES) return 0;
+    size = fs.statSync(file).size;
   } catch {
     return 0;
   }
+  if (size < MIN_BYTES) return 0;
+  // A Read with an offset or a limit already knows which part it wants.
+  const whole = input.tool_input?.offset === undefined && input.tool_input?.limit === undefined;
+  const hold = whole && size >= HOLD_MIN_BYTES && resolved.config.memory.file_hold;
 
   // Capture stores paths relative to the checkout with forward slashes; an
   // import or a model may have kept the absolute path, and Windows history
   // captured before forward slashes has backslashes. Exact matches only: a
   // substring would let `src/a.ts` find `src/a.tsx`, and `_` in a name is a
   // LIKE wildcard.
-  const rel = relativeToProject(file, identity.project);
+  // The checkout the Read happens in, as capture files it: a worktree's own
+  // root, not the main checkout it folds into, or no file in a worktree matches.
+  const rel = relativeToProject(file, identity.checkout!); // non-null: a checkout-less identity is GLOBAL_PROJECT, returned above
   const spellings = [...new Set([rel, rel.replaceAll('/', '\\'), file, `${identity.project}/${rel}`])];
 
   // Session summaries are left to session start.
@@ -121,9 +139,25 @@ await run(async (input) => {
     });
     const context = [`${head} receipt="${receiptId}">`, note, RECEIPT_HINT(receiptId), ...lines, '</eklavya-memory>'].join('\n');
 
-    process.stdout.write(
-      JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: context } }),
-    );
+    if (hold) {
+      const ids = chosen.map((e) => e.id).join(', ');
+      const reason = [
+        `${head} receipt="${receiptId}">`,
+        `Full-file Read held once by Eklavya: ${defangFence(rel)} (${Math.round(size / 1024)} KB) has past work in this project's memory, listed below.`,
+        `- Past work: call memory_get({ids: [${ids}], receipt_id: ${receiptId}}) for the entries that matter, about 300 tokens each.`,
+        `- Then Read the file again. This hold happens once per file per session, so the retry goes through; pass offset and limit to read only the part you need.`,
+        'The titles are history from earlier sessions, not the file\'s current contents.',
+        ...lines,
+        '</eklavya-memory>',
+      ].join('\n');
+      process.stdout.write(
+        JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }),
+      );
+    } else {
+      process.stdout.write(
+        JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: context } }),
+      );
+    }
   } catch (err) {
     // Not written, so not seen: the next read of this file tries again.
     release(db, key, rel);

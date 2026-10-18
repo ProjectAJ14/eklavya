@@ -115,6 +115,13 @@ If configuring a memory model created many `claude` or `node` processes:
 
 </details>
 
+<details>
+<summary>Claude's first Read of a large file was refused once</summary>
+
+When a file of 32 KB or more has history in this project's memory, Eklavya holds the first whole-file `Read` and shows the entry titles with the `memory_get` call. Claude reads the file again and the retry goes through. To stop the hold, run `eklavya config set memory.file_hold false` (user or project scope).
+
+</details>
+
 ## Commit gate
 
 | Symptom | Check or repair |

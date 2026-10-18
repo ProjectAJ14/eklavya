@@ -118,6 +118,7 @@ A change that would not take effect is refused too: `focus learn` when no `focus
 | `memory.enabled` | `true` | Enables capture and recall independently of quizzes. |
 | `memory.capture` | `"full"` | `full`: prompts, tool activity, edits, reads and session events. `minimal`: prompts, assistant messages, session events and notes. `off`: stop capture while keeping stored history searchable. |
 | `memory.batch_max_events` | `40` | Maximum events per observation batch. A turn end also closes batches at eight events or 20 minutes old; a session start closes leftovers. |
+| `memory.file_hold` | `true` | Holds the first whole-file Read of a file of 32 KB or more that has memory history, once per file per session, and shows its entry titles with the `memory_get` call. A Read with an offset or limit is never held. Settable at user and project scope. |
 | `memory.retention_days` | `null` | Days to keep summarised raw evidence, finished jobs, reuse receipts and the memory read log. Observations survive. Applies per project, automatically at most every six hours or through `eklavya memory prune`. `null` keeps everything. |
 
 #### `feedback`

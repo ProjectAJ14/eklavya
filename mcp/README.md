@@ -91,7 +91,7 @@ panel that calls the other two.
 
 Search first, choose relevant entries, then use `memory_get` for their full
 content. Pass `memory_get` the `receipt_id` a recall block names to link the
-read to that recall. Calls to `memory_search`, `memory_get`, `memory_timeline`
+read to that recall. In Claude Code, the first whole-file `Read` of a file of 32 KB or more that has history is held once with the entry titles and that call; the retry passes (`memory.file_hold false` turns it off). Calls to `memory_search`, `memory_get`, `memory_timeline`
 and `memory_file_history` are logged locally either way, with entry IDs,
 outcome, latency and size but never the query or content. Session-aware learning and configuration tools resolve the current session
 when `session_id` is omitted. In `memory_timeline`, it instead filters results
