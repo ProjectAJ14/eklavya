@@ -51,6 +51,7 @@ import { DELIVERED, NOT_HELPER_RECEIPT, readTotals, receiptTotals, totalsDeliver
 import { ESTIMATOR, savingsFrom, savingsLine } from './memory/tokens.js';
 import { queueDepth } from './memory/worker.js';
 import { droppedCount } from './memory/spool.js';
+import { memoryHealth } from './memory/health.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 /** Moved to `paths.ts` so the SessionStart hook can probe it without importing this module. */
@@ -389,6 +390,8 @@ function healthSummary(db: DB, config: EklavyaConfig, events: EvidenceTotals): R
         ).value ?? null,
     },
     queue: queueDepth(db),
+    // The verdict (ok, warn, stalled) and its reasons: the one function `eklavya memory status` and `doctor` use.
+    verdict: memoryHealth(db),
     stalled: many(
       db,
       `SELECT status, COALESCE(error_class, 'unclassified') AS error_class, count(*) AS n, max(updated_at) AS last,

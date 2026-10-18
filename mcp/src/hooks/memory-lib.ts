@@ -15,6 +15,7 @@ import { parseStamp } from '../time.js';
 import { recall, type RecallResult } from '../memory/recall.js';
 import { notify, queuePausedAlert, sessionWrapUp } from '../memory/notify.js';
 import { countEntries } from '../memory/store.js';
+import { BEHIND_AFTER_MS, memoryHealth } from '../memory/health.js';
 import { queueDepth } from '../memory/worker.js';
 import type { DB } from './lib.js';
 import { GLOBAL_PROJECT } from '../store.js';
@@ -143,49 +144,26 @@ function drainInBackground(db: DB, opts: { probe?: boolean } = {}): void {
   if (token) launchWorker(db, token, opts);
 }
 
-/** A queue older than this is a stalled worker, not a busy one: a seam drains every turn. */
-export const BEHIND_AFTER_MS = 6 * 60 * 60_000;
-
-const PAUSE_CAUSE: Record<string, string> = {
-  auth: 'claude not logged in',
-  quota: 'usage limit reached',
-  missing: 'claude not found on PATH',
-};
+export { BEHIND_AFTER_MS };
 
 /**
  * One line for the session-start banner when memory has stopped keeping up, or
- * null when it is healthy.
+ * null when `memoryHealth` says ok (the line is never shown for a healthy
+ * memory). The verdict and its wording live in `memory/health.ts`, the same
+ * function `eklavya memory status`, `doctor` and the dashboard read.
  *
  * A paused queue used to be silent everywhere but `eklavya doctor`: the banner
  * went on saying "memory on" and recalling ever-older entries while nothing new
  * was summarised. A paused queue now rechecks itself (`resumeIfRepaired`), so
- * this is the case where that has not worked yet — the developer can act now or
- * let the next check find the fix.
+ * this is the case where that has not worked yet.
  */
-export function memoryHealthLine(db: DB, now = Date.now()): string | null {
+export function memoryHealthLine(db: DB, now = Date.now(), project?: string | null): string | null {
   try {
-    const queue = queueDepth(db);
-    if (queue.paused > 0) {
-      const row = db
-        .prepare("SELECT error_class, MIN(updated_at) AS since FROM memory_jobs WHERE status = 'paused' GROUP BY error_class ORDER BY since LIMIT 1")
-        .get() as { error_class: string | null; since: string } | undefined;
-      const cause = PAUSE_CAUSE[row?.error_class ?? ''] ?? 'provider failing';
-      const since = row?.since ? ` since ${shortDate(row.since)}` : '';
-      return `Memory paused · ${cause}${since} · local summaries meanwhile · fix it, then: eklavya memory process`;
-    }
-    const oldest = parseStamp(queue.oldest);
-    if (oldest !== null && now - oldest >= BEHIND_AFTER_MS) {
-      return `Memory behind · ${queue.pending} job${queue.pending === 1 ? '' : 's'} waiting, oldest ${Math.floor((now - oldest) / 3_600_000)}h · run: eklavya doctor`;
-    }
-    return null;
+    return memoryHealth(db, { now, project }).line;
+    /* c8 ignore next 3 -- memoryHealth degrades per probe and never throws; defensive */
   } catch {
     return null;
   }
-}
-
-function shortDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : `${d.getDate()} ${d.toLocaleString('en', { month: 'short' })}`;
 }
 
 /** Replays anything the spool holds. Idempotent; safe to call every session. */

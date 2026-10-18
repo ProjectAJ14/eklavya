@@ -89,6 +89,48 @@ function noteDropped(): void {
   }
 }
 
+/**
+ * What is waiting in the spool right now: bytes and files (the live file plus any
+ * claimed-but-unreplayed one) and the age of the oldest. A healthy spool is empty
+ * within one session start, so a file that stays is a database that refuses writes.
+ */
+export function spoolBacklog(): { bytes: number; files: number; oldestMs: number | null } {
+  const file = spoolPath();
+  const dir = path.dirname(file);
+  const base = path.basename(file);
+  let bytes = 0;
+  let files = 0;
+  let oldestMs: number | null = null;
+  try {
+    for (const name of fs.readdirSync(dir)) {
+      if (name !== base && !name.startsWith(`${base}${TAKING}`) && !name.startsWith(`${base}${LEGACY_TAKING}`)) continue;
+      try {
+        const st = fs.statSync(path.join(dir, name));
+        if (!st.size) continue;
+        bytes += st.size;
+        files += 1;
+        oldestMs = oldestMs === null ? st.mtimeMs : Math.min(oldestMs, st.mtimeMs);
+        /* c8 ignore next 3 -- a replay removing the file between listing and stat; a race, not testable */
+      } catch {
+        /* Replayed and removed between the listing and the stat. */
+      }
+    }
+  } catch {
+    /* No spool directory: nothing is waiting. */
+  }
+  return { bytes, files, oldestMs };
+}
+
+/** When the spool last dropped an event, or null if it never has. */
+export function lastDropped(): string | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(droppedPath(), 'utf8')) as { last?: string };
+    return parsed.last ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function droppedCount(): number {
   try {
     const parsed = JSON.parse(fs.readFileSync(droppedPath(), 'utf8')) as { count?: number };

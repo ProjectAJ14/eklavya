@@ -341,6 +341,34 @@ describe('eklavya doctor reports the memory half', () => {
     expect(res.stdout).not.toMatch(/Something is broken/);
   });
 
+  it('fails on a stall no job reports: work captured, nothing remembered for a day', () => {
+    const db = openDb(dbFile);
+    const at = new Date(Date.now() - 30 * 3_600_000).toISOString();
+    db.prepare(
+      `INSERT INTO evidence_events (event_uid, project, session_id, kind, body, occurred_at, received_at)
+       VALUES ('stall-1', ?, 's1', 'prompt', 'work', ?, ?)`,
+    ).run(repo, at, at);
+    db.close();
+
+    const res = eklavya(['doctor']);
+    expect(res.status).toBe(1);
+    expect(res.stdout).toMatch(/health stalled/);
+    expect(res.stdout).toMatch(/Memory stalled · nothing new remembered for 30h/);
+    expect(res.stdout).toMatch(/Memory needs attention/);
+    expect(eklavya(['memory', 'status']).stdout).toMatch(/^health:\s+stalled\n\s+Memory stalled · nothing new remembered/m);
+  });
+
+  it('shows a warning as a warning, and an ok verdict on a healthy queue', () => {
+    expect(eklavya(['doctor']).stdout).toMatch(/health ok/);
+    const db = openDb(dbFile);
+    db.prepare("INSERT INTO memory_batches (project, session_id, reason) VALUES (?, 's1', 'manual')").run(repo);
+    db.prepare("INSERT INTO memory_jobs (batch_id, status, error_class) VALUES (1, 'failed', 'permanent')").run();
+    db.close();
+    const res = eklavya(['doctor']);
+    expect(res.stdout).toMatch(/health warn/);
+    expect(eklavya(['memory', 'status']).stdout).toMatch(/^health:\s+warn/m);
+  });
+
   it('fails on dropped events and points at the only remaining copy', () => {
     fs.mkdirSync(path.join(home, 'spool'), { recursive: true });
     fs.writeFileSync(path.join(home, 'spool', 'dropped.json'), JSON.stringify({ count: 3 }));
@@ -452,6 +480,7 @@ describe('eklavya memory', () => {
   it('reports health on an empty database without inventing numbers', () => {
     const res = eklavya(['memory', 'status']);
     expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/health:\s+ok — memory is turning work into entries/);
     expect(res.stdout).toMatch(/entries:\s+0 here, 0 in total/);
     expect(res.stdout).toMatch(/queue:\s+0 pending · 0 paused · 0 failed/);
     expect(res.stdout).toMatch(/oldest job:\s+—/);

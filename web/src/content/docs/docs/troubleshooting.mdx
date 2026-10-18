@@ -82,6 +82,7 @@ eklavya memory status
 | What you see | Next step |
 |---|---|
 | `capture: off` | Review your [memory settings](/docs/configuration/). If you kept Claude Mem during installation, Eklavya intentionally does not record. |
+| `health:` says `warn` or `stalled` | Read the reasons printed under it. Each names its own repair: `Memory stalled · nothing new remembered for 30h` means evidence is arriving and nothing is being summarised, so run `eklavya doctor` for the cause. See [the memory health verdict](/docs/memory/#the-memory-health-verdict) for every check and threshold. |
 | Pending evidence but no entries | Run `eklavya memory process` to summarize pending work. |
 | `queue:` shows paused jobs, or the banner says `Memory paused` | The `paused:` line names the cause: resolve provider login, quota or missing executable. The queue checks at most every 30 minutes and resumes by itself once the login is back or an hour after a usage limit; run `eklavya memory process` to resume now. Until then, recall uses local stand-in observations. |
 | Banner says `Memory behind` | Jobs have waited more than six hours. Run `eklavya doctor`; it names a stopped worker or failing provider. |
