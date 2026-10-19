@@ -120,11 +120,13 @@ export function memoryHealth(db: DB, opts: { project?: string | null; now?: numb
   const newestEvidence =
     one<{ at: string | null }>(`SELECT MAX(received_at) AS at FROM evidence_events WHERE 1=1${scope}`, ...args)?.at ?? null;
   // Evidence the pipeline has not turned into an entry since the last entry was
-  // written. `julianday` reads both stored timestamp shapes as UTC.
+  // written. `julianday` reads both stored timestamp shapes as UTC. A batch whose
+  // job was quarantined is set aside on purpose, so it is not "behind".
   const behindSince =
     one<{ at: string | null }>(
       `SELECT MIN(received_at) AS at FROM evidence_events
        WHERE status != 'summarized' AND source != 'import'${scope}
+         AND NOT EXISTS (SELECT 1 FROM memory_jobs j WHERE j.batch_id = evidence_events.batch_id AND j.status = 'quarantined')
          AND (? IS NULL OR julianday(received_at) > julianday(?))`,
       ...args,
       newestEntry,
