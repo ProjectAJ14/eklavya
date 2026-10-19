@@ -529,6 +529,10 @@
       "shard": 3,
       "seconds": 2
     },
+    "test/session-start-budget.test.ts": {
+      "shard": 1,
+      "seconds": 40
+    },
     "test/slug.test.ts": {
       "shard": 2,
       "seconds": 1

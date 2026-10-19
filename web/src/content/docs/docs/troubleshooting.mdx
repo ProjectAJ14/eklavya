@@ -23,6 +23,7 @@ without resetting your learning history or settings.
 
 | Symptom | Check or repair |
 |---|---|
+| Banner lacks the `Learning` line, the memory health line or recalled memory | Session start gives these details about seven seconds in total and drops any that are not ready, so a very large database shows a thinner banner instead of none. Run `eklavya memory status` and `eklavya doctor` to see what is slow; `EKLAVYA_SESSION_START_BUDGET_MS` changes the budget (the host ends the hook at 10 seconds). |
 | No session banner | Check `quiet` with `eklavya config get`, then inspect `/plugin` and `eklavya doctor`. A marketplace install may still need `npx eklavya install` to finish the runtime. Claude Code stops a hook that runs past its 10-second limit and shows nothing, so a banner missing in only one large project can mean session start was too slow there. Update Eklavya (`eklavya update`); an older memory-health check took about 10 seconds on a project with many memory entries. |
 | Plugin registered but not enabled | Enable Eklavya through `/plugin`, or rerun `eklavya install`. |
 | Database missing or session says it cannot open the database | Read doctor's `database` and `driver` rows. Confirm Node.js 22+, then run `eklavya install` if the driver is missing or incompatible. |
