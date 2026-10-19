@@ -1,3 +1,10 @@
+## [1.81.2](https://github.com/ProjectAJ14/eklavya/compare/v1.81.1...v1.81.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **memory:** stop false memory-health alarms (recall usage, leftovers, idle and masked projects) ([#224](https://github.com/ProjectAJ14/eklavya/issues/224)) ([359aeab](https://github.com/ProjectAJ14/eklavya/commit/359aeab9da7fb1bb0ec01562e401678ee09e4546))
+
 ## [1.81.1](https://github.com/ProjectAJ14/eklavya/compare/v1.81.0...v1.81.1) (2026-10-19)
 
 
