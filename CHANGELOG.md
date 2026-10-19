@@ -1,3 +1,10 @@
+## [1.81.1](https://github.com/ProjectAJ14/eklavya/compare/v1.81.0...v1.81.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **memory:** stop counting quarantined evidence as a stalled memory ([#223](https://github.com/ProjectAJ14/eklavya/issues/223)) ([78870d8](https://github.com/ProjectAJ14/eklavya/commit/78870d81385fea55fd683aa4aab963ecc3bf4caa))
+
 # [1.81.0](https://github.com/ProjectAJ14/eklavya/compare/v1.80.0...v1.81.0) (2026-10-18)
 
 
