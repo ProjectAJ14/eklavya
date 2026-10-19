@@ -95,11 +95,11 @@ Separately, if the oldest waiting job is more than six hours old, the banner sho
 
 #### The memory health verdict
 
-A stalled memory looks exactly like a working one from the outside: recall keeps returning older entries and nothing complains. So Eklavya computes one verdict, `ok`, `warn` or `stalled`, from facts already in your local database, and shows the same verdict in four places: `eklavya memory status` (the `health:` line), the `memory_status` tool (`health`), `eklavya doctor` (`health` rows) and the dashboard's [Health page](/docs/dashboard/#health). When the verdict is not `ok`, and only then, session start adds one amber line, even with `quiet` set. A healthy memory adds no line. There is no setting for it.
+A stalled memory looks exactly like a working one from the outside: recall keeps returning older entries and nothing complains. So Eklavya computes one verdict, `ok`, `warn` or `stalled`, from facts already in your local database, and shows the same verdict in four places: `eklavya memory status` (the `health:` line), the `memory_status` tool (`health`), `eklavya doctor` (`health` rows) and the dashboard's [Health page](/docs/dashboard/#health). When a check that points at a fault fails, and only then, session start adds one amber line, even with `quiet` set. The last two checks below describe how Claude used memory, not a fault you can repair, so they appear in the other four places but never in that line. A healthy memory adds no line. There is no setting for it.
 
 | Check | `warn` | `stalled` |
 | --- | --- | --- |
-| Work captured since the newest generated entry (imported entries do not count) and still not summarised | after 6 hours | after 24 hours |
+| Work captured since the newest generated entry of the same project (imported entries do not count) and still not summarised. Needs at least 5 such events and activity in the last 24 hours, so a short session's leftovers and an idle project raise nothing; batches you quarantined are not counted | after 6 hours | after 24 hours |
 | Jobs waiting in the queue | oldest job older than 6 hours | oldest job older than 24 hours |
 | Paused queue | any paused job, with the cause: `claude not logged in`, `usage limit reached` or `claude not found on PATH` | paused for 24 hours |
 | Jobs that failed permanently | any in the last 7 days | never |

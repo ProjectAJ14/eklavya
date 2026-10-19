@@ -112,7 +112,7 @@ index holds only entries that are not deleted.
 
 ```bash
 npx eklavya doctor
-npx eklavya memory status        # starts with a health verdict: ok, warn or stalled (work you quarantined is not counted)
+npx eklavya memory status        # starts with a health verdict: ok, warn or stalled (work you quarantined is not counted; how Claude used recall is shown here, not at session start)
 npx eklavya config get            # or: config get quiz.enabled
 npx eklavya dashboard
 npx eklavya feedback generate

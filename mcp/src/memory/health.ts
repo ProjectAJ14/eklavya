@@ -64,7 +64,12 @@ const SPOOL_STUCK_MS = 60 * 60_000;
 const FAILED_RECENT_MS = 7 * 24 * 60 * 60_000;
 /** Recent sessions over which recall delivered is compared with reads. */
 export const RECENT_SESSIONS = 10;
+// Usage observations: the model chose not to look, nothing the person can repair.
+// They count toward the verdict but never raise the session-start line.
+const ADVISORY = new Set(['no_reads', 'no_file_context']);
 /** Fewer recalls than this is too little to say anything about reads. */
+/** Fewer unsummarized events than this is a short session's leftovers, not a stall. */
+const MIN_BEHIND_EVENTS = 5;
 const MIN_RECALLS = 3;
 /** Fewer answerable Reads than this is too little to say file context should have fired. */
 const MIN_FILE_READS = 10;
@@ -119,19 +124,26 @@ export function memoryHealth(db: DB, opts: { project?: string | null; now?: numb
     )?.at ?? null;
   const newestEvidence =
     one<{ at: string | null }>(`SELECT MAX(received_at) AS at FROM evidence_events WHERE 1=1${scope}`, ...args)?.at ?? null;
-  // Evidence the pipeline has not turned into an entry since the last entry was
-  // written. `julianday` reads both stored timestamp shapes as UTC. A batch whose
-  // job was quarantined is set aside on purpose, so it is not "behind".
-  const behindSince =
-    one<{ at: string | null }>(
-      `SELECT MIN(received_at) AS at FROM evidence_events
-       WHERE status != 'summarized' AND source != 'import'${scope}
-         AND NOT EXISTS (SELECT 1 FROM memory_jobs j WHERE j.batch_id = evidence_events.batch_id AND j.status = 'quarantined')
-         AND (? IS NULL OR julianday(received_at) > julianday(?))`,
-      ...args,
-      newestEntry,
-      newestEntry,
-    )?.at ?? null;
+  // Evidence the pipeline has not turned into an entry since ITS OWN project's
+  // last entry, so one busy project cannot hide another that stalled. `julianday`
+  // reads both stored timestamp shapes as UTC. Per project: a short session's leftovers (fewer than MIN_BEHIND_EVENTS) are not
+  // a stall, and a project nobody has touched for a day is idle, not stalled.
+  const behind = one<{ since: string | null }>(
+    `SELECT MIN(since) AS since FROM (
+       SELECT MIN(e.received_at) AS since FROM evidence_events e
+       WHERE e.status != 'summarized' AND e.source != 'import'${scope.replace('project', 'e.project')}
+         AND NOT EXISTS (SELECT 1 FROM memory_jobs j WHERE j.batch_id = e.batch_id AND j.status = 'quarantined')
+         AND julianday(e.received_at) > COALESCE(
+           (SELECT julianday(MAX(m.created_at)) FROM memory_entries m
+            WHERE m.project = e.project AND m.deleted_at IS NULL AND m.import_source IS NULL), 0)
+       GROUP BY e.project
+       HAVING COUNT(*) >= ? AND julianday(MAX(e.received_at)) > julianday(?)
+     )`,
+    ...args,
+    MIN_BEHIND_EVENTS,
+    new Date(now - STALLED_AFTER_MS).toISOString(),
+  );
+  const behindSince = behind?.since ?? null;
 
   const evidenceMs = parseStamp(newestEvidence);
   const active = evidenceMs !== null && now - evidenceMs < STALLED_AFTER_MS;
@@ -272,6 +284,6 @@ export function memoryHealth(db: DB, opts: { project?: string | null; now?: numb
       file_context_fires: fileFires,
       file_reads: fileReads,
     },
-    line: reasons[0]?.text ?? null,
+    line: reasons.find((r) => !ADVISORY.has(r.code))?.text ?? null,
   };
 }

@@ -42,6 +42,11 @@ function evidence(hoursAgo: number, o: { project?: string; status?: string; tool
   ).run(`u${++n}`, o.project ?? PROJECT, o.session ?? 's1', o.tool ?? null, ago(hoursAgo), ago(hoursAgo), o.status ?? 'accepted', o.source ?? 'hook', o.files ?? null);
 }
 
+// A stall needs a session's worth of evidence, not a straggler or two.
+function burst(hoursAgo: number, o: Parameters<typeof evidence>[1] = {}): void {
+  for (let i = 0; i < 5; i += 1) evidence(hoursAgo, o);
+}
+
 function entry(hoursAgo: number, o: { project?: string; files?: string; importSource?: string } = {}): void {
   db.prepare(
     `INSERT INTO memory_entries (entry_uid, project, title, occurred_at, created_at, files, import_source)
@@ -93,9 +98,9 @@ describe('memory health verdict', () => {
 
   it('warns, then stalls, when work arrives after the last entry and nothing is made of it', () => {
     entry(40);
-    evidence(8);
+    burst(8);
     expect(memoryHealth(db, { now: NOW })).toMatchObject({ verdict: 'warn', line: expect.stringMatching(/^Memory behind · nothing new remembered for 8h/) });
-    evidence(30);
+    burst(30);
     const h = memoryHealth(db, { now: NOW });
     expect(h.verdict).toBe('stalled');
     expect(h.line).toMatch(/^Memory stalled · nothing new remembered for 30h/);
@@ -103,7 +108,7 @@ describe('memory health verdict', () => {
 
   it('names the cause of a stall when a job explains it', () => {
     job('failed', { cls: 'auth', hoursAgo: 2 });
-    evidence(10);
+    burst(10);
     expect(memoryHealth(db, { now: NOW }).reasons.find((r) => r.code === 'no_entries')?.text).toMatch(
       /^Memory behind · nothing new remembered for 10h while work was captured \(claude not logged in\) · run: eklavya memory status$/,
     );
@@ -112,7 +117,8 @@ describe('memory health verdict', () => {
   it('counts evidence with no entry at all, and ignores imports and rows the entry already covers', () => {
     evidence(30, { source: 'import' });
     expect(memoryHealth(db, { now: NOW }).verdict).toBe('ok');
-    evidence(30);
+    burst(30);
+    burst(2);
     expect(codes()).toEqual(['no_entries']);
     // An imported entry is not the pipeline working.
     entry(1, { importSource: 'claude-mem' });
@@ -126,11 +132,31 @@ describe('memory health verdict', () => {
       db.prepare("INSERT INTO memory_batches (project, session_id, reason) VALUES (?, 's1', 'manual')").run(PROJECT).lastInsertRowid,
     );
     db.prepare("INSERT INTO memory_jobs (batch_id, status) VALUES (?, 'quarantined')").run(batch);
-    evidence(627, { status: 'batched' });
+    burst(627, { status: 'batched' });
     db.prepare('UPDATE evidence_events SET batch_id = ?').run(batch);
     expect(codes()).toEqual([]);
-    evidence(30);
+    burst(30);
+    burst(2);
     expect(codes()).toEqual(['no_entries']);
+  });
+
+  it('stays quiet for a short session\'s leftovers and for a project nobody has touched in a day', () => {
+    for (let i = 0; i < 4; i += 1) evidence(10);
+    expect(codes()).toEqual([]);
+    evidence(10);
+    expect(codes()).toEqual(['no_entries']);
+    // Idle: the newest unprocessed event is more than a day old.
+    db.prepare('UPDATE evidence_events SET received_at = ?').run(ago(40));
+    expect(codes()).toEqual([]);
+  });
+
+  it('checks each project against its own newest entry, so a busy one cannot hide a stalled one', () => {
+    burst(30, { project: '/tmp/stalled' });
+    burst(2, { project: '/tmp/stalled' });
+    entry(1);
+    expect(codes()).toEqual(['no_entries']);
+    expect(codes('/tmp/stalled')).toEqual(['no_entries']);
+    expect(codes(PROJECT)).toEqual([]);
   });
 
   it('names a login failure from the job error without ever repeating the error text', () => {
@@ -215,7 +241,9 @@ describe('memory health verdict', () => {
     receipt('c', 'prompt');
     const h = memoryHealth(db, { now: NOW });
     expect(h.verdict).toBe('warn');
-    expect(h.line).toBe('Memory · recall reached Claude 3 times in the last 3 sessions and memory_search was never called');
+    expect(h.reasons[0]?.text).toBe('Memory · recall reached Claude 3 times in the last 3 sessions and memory_search was never called');
+    // A usage observation is not a fault the person can fix: no session-start line.
+    expect(h.line).toBeNull();
     expect(h.facts).toMatchObject({ recall_delivered: 3, memory_reads: 0, sessions_checked: 3 });
     read('b');
     expect(codes()).toEqual([]);
@@ -241,7 +269,7 @@ describe('memory health verdict', () => {
     entry(3, { files: JSON.stringify(names) });
     // The same file read twice in a session is one chance, as the hook injects once.
     evidence(1, { tool: 'Read', files: JSON.stringify([names[0]]) });
-    expect(memoryHealth(db, { now: NOW }).line).toBe(
+    expect(memoryHealth(db, { now: NOW }).reasons[0]?.text).toBe(
       'Memory · file context never fired across 10 reads of files with history in the last 1 session',
     );
     // A subagent's Reads never trigger the hook, so they do not count.
@@ -259,7 +287,8 @@ describe('memory health verdict', () => {
   });
 
   it('puts a stalled reason first and scopes evidence and entries to a project', () => {
-    evidence(30);
+    burst(30);
+    burst(2);
     for (const s of ['a', 'b', 'c']) receipt(s, 'session_start');
     const h = memoryHealth(db, { now: NOW });
     expect(h.reasons.map((r) => r.level)).toEqual(['stalled', 'warn']);
