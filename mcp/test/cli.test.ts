@@ -344,10 +344,15 @@ describe('eklavya doctor reports the memory half', () => {
   it('fails on a stall no job reports: work captured, nothing remembered for a day', () => {
     const db = openDb(dbFile);
     const at = new Date(Date.now() - 30 * 3_600_000).toISOString();
-    db.prepare(
-      `INSERT INTO evidence_events (event_uid, project, session_id, kind, body, occurred_at, received_at)
-       VALUES ('stall-1', ?, 's1', 'prompt', 'work', ?, ?)`,
-    ).run(repo, at, at);
+    const recent = new Date(Date.now() - 3_600_000).toISOString();
+    // A session's worth of work, the newest of it an hour old: a stall, not leftovers.
+    for (let i = 0; i < 5; i += 1) {
+      const t = i === 0 ? at : recent;
+      db.prepare(
+        `INSERT INTO evidence_events (event_uid, project, session_id, kind, body, occurred_at, received_at)
+         VALUES (?, ?, 's1', 'prompt', 'work', ?, ?)`,
+      ).run(`stall-${i}`, repo, t, t);
+    }
     db.close();
 
     const res = eklavya(['doctor']);

@@ -99,7 +99,7 @@ A stalled memory looks exactly like a working one from the outside: recall keeps
 
 | Check | `warn` | `stalled` |
 | --- | --- | --- |
-| Work captured since the newest generated entry (imported entries do not count) and still not summarised | after 6 hours | after 24 hours |
+| Work captured since the newest generated entry of the same project (imported entries do not count) and still not summarised. Needs at least 5 such events and activity in the last 24 hours, so a short session's leftovers and an idle project raise nothing; batches you quarantined are not counted | after 6 hours | after 24 hours |
 | Jobs waiting in the queue | oldest job older than 6 hours | oldest job older than 24 hours |
 | Paused queue | any paused job, with the cause: `claude not logged in`, `usage limit reached` or `claude not found on PATH` | paused for 24 hours |
 | Jobs that failed permanently | any in the last 7 days | never |
