@@ -1,3 +1,10 @@
+## [1.81.4](https://github.com/ProjectAJ14/eklavya/compare/v1.81.3...v1.81.4) (2026-10-19)
+
+
+### Bug Fixes
+
+* **hooks:** drop slow SessionStart details instead of hitting the host's 10s kill ([#226](https://github.com/ProjectAJ14/eklavya/issues/226)) ([3a71d54](https://github.com/ProjectAJ14/eklavya/commit/3a71d54eaa82385d28fce5b58b8988d5be43d503))
+
 ## [1.81.3](https://github.com/ProjectAJ14/eklavya/compare/v1.81.2...v1.81.3) (2026-10-19)
 
 
