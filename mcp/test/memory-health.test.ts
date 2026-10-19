@@ -159,6 +159,24 @@ describe('memory health verdict', () => {
     expect(codes(PROJECT)).toEqual([]);
   });
 
+  it('stays fast on a project with thousands of entries and unsummarized events', () => {
+    const insertEntry = db.prepare(
+      `INSERT INTO memory_entries (entry_uid, project, title, occurred_at, created_at) VALUES (?, ?, 't', ?, ?)`,
+    );
+    const insertEvent = db.prepare(
+      `INSERT INTO evidence_events (event_uid, project, session_id, kind, body, occurred_at, received_at, status, source)
+       VALUES (?, ?, 's1', 'tool_use', 'x', ?, ?, 'accepted', 'hook')`,
+    );
+    db.transaction(() => {
+      for (let i = 0; i < 12000; i += 1) insertEntry.run(`be${i}`, PROJECT, ago(200), ago(200));
+      for (let i = 0; i < 800; i += 1) insertEvent.run(`bu${i}`, PROJECT, ago(2), ago(2));
+    })();
+    const started = Date.now();
+    expect(memoryHealth(db, { now: NOW, project: PROJECT }).facts.behind_since).toBe(ago(2));
+    // The old per-row scan of the entries took ~0.5s here (10s on a real project); one pass takes ~2ms.
+    expect(Date.now() - started).toBeLessThan(150);
+  });
+
   it('names a login failure from the job error without ever repeating the error text', () => {
     job('paused', { cls: 'transient', error: 'Not logged in · Please run /login https://x.test/?token=SECRET', hoursAgo: 2 });
     const h = memoryHealth(db, { now: NOW });
