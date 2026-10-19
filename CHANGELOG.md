@@ -1,3 +1,10 @@
+## [1.81.3](https://github.com/ProjectAJ14/eklavya/compare/v1.81.2...v1.81.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* **memory:** stop the memory-health check from outrunning the SessionStart timeout ([#225](https://github.com/ProjectAJ14/eklavya/issues/225)) ([726d346](https://github.com/ProjectAJ14/eklavya/commit/726d34667bc51431cbbaa986cdb173613b9f5f3b))
+
 ## [1.81.2](https://github.com/ProjectAJ14/eklavya/compare/v1.81.1...v1.81.2) (2026-10-19)
 
 
