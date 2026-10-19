@@ -28,6 +28,14 @@ The MCP matcher accepts both standalone and plugin-scoped names. Do not narrow
 it to one prefix. Keep the work-tool regex anchored. Hook timeouts are 10 seconds,
 except Stop at 15 seconds; consult the manifest before changing them.
 
+SessionStart keeps inside its 10 seconds with `details-lib.ts`: recall, the
+health line and the banner's counts and level each run in their own child
+(`details-child-lib.ts`), killed at 7 seconds from process start
+(`EKLAVYA_SESSION_START_BUDGET_MS`), and a detail not back by then is left out.
+It is a process because better-sqlite3 is synchronous: a timer cannot interrupt
+a query, and `process.exit` waits for a worker thread stuck in one. A new
+optional SessionStart detail is a child step there, never an inline query.
+
 ## The quiz panel is a mod, not a command hook
 
 `hooks/panel/` is a Claude Code mod: function hooks declared under `modules` in

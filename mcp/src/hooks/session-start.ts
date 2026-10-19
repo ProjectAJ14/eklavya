@@ -9,13 +9,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { findRepoConfig, loadGlobalConfig, mainRepoRoot, migrateLegacyRepoConfig } from '../config.js';
 import { isSessionOff, setCurrentSession } from '../session.js';
-import { levelStanding, pruneUnasked } from '../store.js';
+import { pruneUnasked } from '../store.js';
 import { isCowork, withSurfaceNote } from '../surface.js';
 import { recordBaseline } from './changes-lib.js';
 import { sessionBlock } from './delegation-lib.js';
 import { run, openOrDiagnose, config, cwdOf, sessionId, clearNudgeState, type DB, type DbProblem } from './lib.js';
-import { flushAtSeam, identityOf, memoryHealthLine, recallBlock, record, replaySpool } from './memory-lib.js';
-import { HOOK_CONTEXT_CHARS, markEmitted, startupDisplay, type RecallResult } from '../memory/recall.js';
+import { flushAtSeam, identityOf, record, replaySpool } from './memory-lib.js';
+import { collectDetails, type DetailName, type Details } from './details-lib.js';
+import { HOOK_CONTEXT_CHARS, markEmitted, type LearningCounts, type RecallResult } from '../memory/recall.js';
 import { recalledLine, savingsFrom } from '../memory/tokens.js';
 import { AMBER, dialParts, paint } from '../statusline.js';
 import { dashboardPort } from '../paths.js';
@@ -157,8 +158,8 @@ await run(async (input) => {
   }
 
   const memoryContext: string[] = [];
-  let recalled: RecallResult | null = null;
   const memoryEnabled = resolved.config.memory.enabled;
+  let recallChars: number | null = null;
   if (memoryEnabled) {
     replaySpool(db);
     // Drain first, then mark the seam. The other order batches the lifecycle
@@ -184,14 +185,33 @@ await run(async (input) => {
     // Claude Code drops a hook's whole output past 10,000 characters, and the
     // directive (and the delegation block) ride in the same output, so the
     // memory block gets what they leave.
-    const rest =
-      withSurfaceNote(DIRECTIVE).length +
-      (resolved.config.delegate_work ? sessionBlock(resolved.config.cadence, resolved.config.quiz.panel).length : 0) +
-      200;
-    recalled = recallBlock(db, resolved, identity, 'session_start', input.source === 'resume', HOOK_CONTEXT_CHARS - rest);
-    if (recalled?.block) memoryContext.push(recalled.block);
-    memoryLine = memoryHealthLine(db, Date.now(), identity.project);
+    recallChars =
+      HOOK_CONTEXT_CHARS -
+      (withSurfaceNote(DIRECTIVE).length +
+        (resolved.config.delegate_work ? sessionBlock(resolved.config.cadence, resolved.config.quiz.panel).length : 0) +
+        200);
   }
+
+  // The optional details -- recalled memory, the health line, the banner's
+  // learning counts and level -- come from a child process under a time budget
+  // (`details-lib.ts`): a slow one is left out instead of the host killing
+  // this hook at its 10 seconds and showing nothing. Needed only where a banner
+  // can show them.
+  const showsBanner = !quiet && (memoryEnabled || quiz.enabled);
+  const want: DetailName[] = [];
+  if (recallChars !== null) want.push('recall', 'health');
+  if (showsBanner && quiz.enabled) want.push('counts');
+  if (showsBanner && quiz.enabled && difficulty === 'auto') want.push('level');
+  const details: Details = await collectDetails({
+    resolved,
+    identity,
+    resume: input.source === 'resume',
+    recallChars: recallChars ?? 0,
+    want,
+  });
+  const recalled: RecallResult | null = details.recalled ?? null;
+  if (recalled?.block) memoryContext.push(recalled.block);
+  memoryLine = details.memoryLine ?? null;
   // Every emit below that carries `memoryContext` passes this, so the receipt
   // says `emitted` and the entries count as handed over only once the block
   // has actually been written — never for a path that dropped it.
@@ -212,7 +232,7 @@ await run(async (input) => {
     // costs nothing and answers the question before it is asked.
     const shown: string[] = [];
     if (!quiet && memoryEnabled) {
-      banner(db, shown, {
+      banner(shown, {
         project: identity.project,
         memory: true,
         recalled,
@@ -221,7 +241,7 @@ await run(async (input) => {
         overrides: resolved.overrides,
         dashboard: dashboardState,
         feedback: feedbackWaits,
-        quiz: false,
+        counts: null,
       });
     } else if (!quiet) {
       shown.push('Eklavya off · no questions, nothing recorded');
@@ -253,12 +273,8 @@ await run(async (input) => {
     // tier-2 question as Eklavya being shallow rather than as a band they are
     // working through. `levelStanding` is the planner's own function, so the
     // greeting cannot drift from what the quiz actually does.
-    let levelLabel = `${difficulty} (pinned)`;
-    if (difficulty === 'auto') {
-      const standing = levelStanding(db, resolved.config, resolved.repoRoot);
-      levelLabel = `${standing.level} (${standing.counts.passed}/${standing.needed.answers})`;
-    }
-    banner(db, shown, {
+    const levelLabel = difficulty === 'auto' ? (details.levelLabel ?? 'auto') : `${difficulty} (pinned)`;
+    banner(shown, {
       project: identity.project,
       memory: resolved.config.memory.enabled,
       recalled,
@@ -267,7 +283,7 @@ await run(async (input) => {
       overrides: resolved.overrides,
       dashboard: dashboardState,
       feedback: feedbackWaits,
-      quiz: true,
+      counts: details.counts ?? null,
     });
   }
 
@@ -369,8 +385,8 @@ interface BannerParts {
   dashboard: DashboardState;
   /** An item is waiting: the greeting says so, in red, in place of the memory link. */
   feedback: boolean;
-  /** False with `quiz.enabled: false`: no learning counts to report. */
-  quiz: boolean;
+  /** Null with `quiz.enabled: false`, or when the counts were not ready in time: no line. */
+  counts: LearningCounts | null;
 }
 
 /**
@@ -384,13 +400,12 @@ interface BannerParts {
  * Every number here is already committed to the database. Nothing waits on a
  * provider call or an index rebuild to greet somebody.
  */
-function banner(db: DB, out: string[], parts: BannerParts): void {
+function banner(out: string[], parts: BannerParts): void {
   // Inside the function, not at module scope: the hook body above runs at the
   // top-level `await`, before any later `const` is initialised.
   // NO_COLOR is the cross-tool convention; the host renders ANSI in systemMessage.
   const color = !process.env.NO_COLOR;
   const dim = (text: string) => (color ? `\u001b[2m${text}\u001b[0m` : text);
-  const { counts } = startupDisplay(db, parts.project);
   out.push(`Eklavya active · v${ownVersion()} · ${parts.dials.join(' · ')}`);
   // What was delivered, then the estimated saving against the evidence behind
   // the full entries (titles add to delivered, not to the base, so it is
@@ -402,7 +417,7 @@ function banner(db: DB, out: string[], parts: BannerParts): void {
     out.push(paint(recalledLine(r.entries.length, r.deliveredTokens, r.indexed, percent), 114, color));
   }
   if (parts.moved) out.push(paint(parts.moved, parts.moved.includes(' re-filed') ? 114 : AMBER, color));
-  if (parts.quiz) out.push(`Learning ${counts.learning} · Mastered ${counts.mastered} · Due ${counts.due}`);
+  if (parts.counts) out.push(`Learning ${parts.counts.learning} · Mastered ${parts.counts.mastered} · Due ${parts.counts.due}`);
 
   if (parts.overrides.length > 0) {
     // A warning, not a scoreboard: a repo silently overriding a personal

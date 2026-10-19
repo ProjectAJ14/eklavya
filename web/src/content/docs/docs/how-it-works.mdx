@@ -22,6 +22,8 @@ Claude calls the server through the Model Context Protocol (MCP). Hooks open the
 
 ## From code to a question
 
+The session-start hook is bounded: Claude Code ends a hook after 10 seconds and shows nothing of it. Recalled memory, the memory health line and the banner's learning counts and level are therefore computed in parallel child processes that the hook stops at about seven seconds after it started (a SQLite query cannot be interrupted from inside the process, and a thread stuck in one holds the exit, so a separate process is the only thing that can be stopped). Whatever finished is shown and sent; the rest is left out for that session. The standing instruction to log concepts never depends on them.
+
 <DocFlow
   title="The learning flow"
   caption="Claude supplies the teaching; the server tracks what is due and what you have demonstrated."
