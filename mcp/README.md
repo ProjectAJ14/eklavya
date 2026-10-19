@@ -111,7 +111,7 @@ index holds only entries that are not deleted.
 ## CLI and data
 
 ```bash
-npx eklavya doctor
+npx eklavya doctor                # no session banner in one large project? Claude Code drops a hook slower than 10 seconds without a message; update to get the fast memory-health check
 npx eklavya memory status        # starts with a health verdict: ok, warn or stalled (work you quarantined is not counted; how Claude used recall is shown here, not at session start)
 npx eklavya config get            # or: config get quiz.enabled
 npx eklavya dashboard
